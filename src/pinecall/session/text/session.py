@@ -19,10 +19,10 @@ from pinecall.session import clock
 from pinecall.session.declaring import declared
 from pinecall.session.filling import (
     Filler,
-    Filling,
     NoFiller,
     NoRememberer,
     Rememberer,
+    TurnFills,
     remembered_within,
 )
 from pinecall.session.scoring import Scorer, unjudged
@@ -93,7 +93,7 @@ class TextSession:
         self._ended = False
         self.turns = Turns(self)
         self.running = Running(self, config)
-        self.filling = Filling(
+        self.filling = TurnFills(
             filler, context.call, self._blocks, config.knowledge, budgets.fill_ms
         )
         # Every declared tool, once, for the life of the call: livekit only runs a tool it holds,

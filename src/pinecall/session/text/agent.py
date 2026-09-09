@@ -12,7 +12,7 @@ from livekit.agents.voice.agent import Agent as LiveAgent
 
 from pinecall.providers.blocks import request_context
 from pinecall.providers.models import Chat
-from pinecall.session.filling import Filling
+from pinecall.session.filling import TurnFills
 from pinecall.types import Blocks
 from pinecall_protocol.events import ErrorEvent
 
@@ -74,7 +74,7 @@ class TextAgent(LiveAgent):
         tools: Sequence[agents.Tool],
         llm: Chat,
         writer: Writer,
-        filling: Filling,
+        filling: TurnFills,
     ) -> None:
         # livekit's Agent.__init__ is generic over the plugin's own event type, which a strict
         # checker can only read as Unknown; the one ignore is here, at the one call.

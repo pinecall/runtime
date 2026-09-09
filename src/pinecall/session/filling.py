@@ -54,7 +54,7 @@ class NoRememberer:
 # One per call. The knowledge fill is the file's text, fixed when the session starts, wherever
 # its marker is written — so the static prefix is the same bytes on every request. The turn's
 # fills are replaced whole when the caller's turn ends, and hold nothing between two turns.
-class Filling:
+class TurnFills:
     """One call's fills: the knowledge, fixed; the turn's memory and retrieval, under a budget."""
 
     def __init__(

@@ -14,7 +14,7 @@ from livekit.agents.voice import AgentSession
 from pinecall._settings import Settings, load_settings
 from pinecall.evals.answers import Answers
 from pinecall.session.declaring import declared
-from pinecall.session.filling import Filling, NoFiller
+from pinecall.session.filling import NoFiller, TurnFills
 from pinecall.session.voice import session
 from pinecall.session.voice.agent import VoiceAgent
 from pinecall.session.voice.kit import kit_for
@@ -79,7 +79,7 @@ async def a_headless_call(
         blocks=prompt,
         tools=declared(config.tools, answers),
         speaking=_NoBridge(),
-        filling=Filling(NoFiller(), HEADLESS, prompt, config.knowledge, read.budgets.fill_ms),
+        filling=TurnFills(NoFiller(), HEADLESS, prompt, config.knowledge, read.budgets.fill_ms),
     )
     await live.start(agent)  # pyright: ignore[reportUnknownMemberType] — livekit's start is untyped
     try:

@@ -18,10 +18,10 @@ from pinecall.log import NOTHING_SAID, hashed_prompt
 from pinecall.providers import prices
 from pinecall.session.filling import (
     Filler,
-    Filling,
     NoFiller,
     NoRememberer,
     Rememberer,
+    TurnFills,
     remembered_within,
 )
 from pinecall.session.scoring import Scorer, unjudged
@@ -99,7 +99,9 @@ class VoiceBridge:
         self.events = Events(self.writing, self.meters, self)
         self.tools = Tools(config, platform, context.call, self.writing.emit)
         self.blocks = Blocks(config.prompt)
-        self.filling = Filling(filler, context.call, self.blocks, config.knowledge, budgets.fill_ms)
+        self.filling = TurnFills(
+            filler, context.call, self.blocks, config.knowledge, budgets.fill_ms
+        )
         self._agent = VoiceAgent(
             blocks=self.blocks,
             tools=self.tools.declared_tools,

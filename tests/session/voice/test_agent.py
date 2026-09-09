@@ -10,7 +10,7 @@ from livekit.agents.types import TimedString
 from livekit.agents.voice import ModelSettings
 
 from pinecall._settings import Budgets
-from pinecall.session.filling import Filling, NoFiller
+from pinecall.session.filling import NoFiller, TurnFills
 from pinecall.session.voice.agent import VoiceAgent
 from pinecall.session.voice.events import Events
 from pinecall.session.voice.metrics import Meters
@@ -64,7 +64,7 @@ async def an_agent(recording: Recording) -> tuple[VoiceAgent, Writing]:
     events = Events(writing, Meters(writing), Ended())
     events.watch(ScriptedSession(current_speech=Speaking("sp_9")))  # pyright: ignore[reportArgumentType]
     blocks = Blocks()
-    filling = Filling(NoFiller(), CALL, blocks, None, Budgets().fill_ms)
+    filling = TurnFills(NoFiller(), CALL, blocks, None, Budgets().fill_ms)
     agent = VoiceAgent(blocks=blocks, tools=(), speaking=Playing(events), filling=filling)
     return agent, writing
 
