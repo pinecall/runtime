@@ -112,7 +112,7 @@ already took the caller away.
 `+1 417 674 3169` reached this box on 2026-09-08. It was already on the account, on the elastic
 trunk `convo-platform` that convo used, pointing at a machine that had been deleted. Four decisions
 came out of wiring it, and each of them is now the answer for the next number too. The **order** —
-the commands, in the sequence they were actually run — is `infra/README.md`; this is why each one
+the commands, in the sequence they were actually run — is `infra/box/README.md`; this is why each one
 is what it is.
 
 **A standing trunk is adopted, never replaced.** `twilio_trunk.py` creates a trunk once and refuses
