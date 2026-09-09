@@ -7,3 +7,8 @@ docstring opening every file, no file over 400 lines, names that read as sentenc
 
 Before a commit, `scripts/format`, then `scripts/lint` and `scripts/test` must both exit 0.
 Commits carry a subject line and a short body; versions and tags are the maintainer's call.
+
+Documentation is part of a change, not a follow-up: a commit that moves a module edits
+`ARCHITECTURE.md` with it, one that changes a command edits `README.md`, one that changes a
+public contract edits the page under `docs/protocol/`, and anything a user would notice gains a
+line in `CHANGELOG.md` under `Unreleased`. When a page and the code disagree, the page is the bug.

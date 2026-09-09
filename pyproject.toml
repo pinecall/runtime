@@ -5,6 +5,8 @@ name = "pinecall"
 description = "The Pinecall voice-AI runtime: gateway and worker, on LiveKit"
 readme = "README.md"
 license = "Apache-2.0"
+# PEP 639: the text itself travels in the wheel and the sdist, so an install carries its licence.
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dynamic = ["version"]
 authors = [{ name = "Bernardo Castro", email = "me@bernardocastro.dev" }]

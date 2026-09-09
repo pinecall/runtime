@@ -35,6 +35,25 @@ make deploy                                     # this checkout onto your box (d
 - `docs/protocol/` public contracts · `docs/decisions/` the maintainer's notebook, **git-ignored**:
   a clone has no such directory, and a comment naming a page there points at a note
 
+## Docs are part of the change
+
+**A change lands with the page that describes it, in the same commit.** Not "later", not a TODO:
+a page that describes what the tree no longer does is worse than no page, because somebody trusts
+it. What to edit, by what you touched:
+
+| you changed | edit |
+|---|---|
+| a package, a module, an entity or its fields, a line of the import table, the path a call takes | `ARCHITECTURE.md` — the section, and any table that lists the module |
+| a CLI verb, a flag, a deploy step, a variable | `README.md` (the CLI and the deploy), `.env.example` via `scripts/generate-env-example` |
+| a public contract — the operator API, the token door, a projection | `docs/protocol/`, which is the contract itself and not a description of one |
+| a procedure with a trap in it — a NEVER, an order of steps, a refusal | the skill under `.claude/skills/` |
+| anything a user of the package or the box would notice | `CHANGELOG.md`, one line under `Unreleased` |
+
+Before committing a rename or a removal:
+`grep -rn '<the old name>' ARCHITECTURE.md README.md CLAUDE.md docs .claude/skills` — a symbol
+that moved is a stale sentence somewhere. When a doc and the code disagree, the code is what
+happened and the doc is the bug.
+
 ## Rules the tests enforce
 
 - No `.py` at the root. No tracked file over 400 lines. Every module opens with a one-line

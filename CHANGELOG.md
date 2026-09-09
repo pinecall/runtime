@@ -23,6 +23,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - The doctor knocks at every vendor with the key the box holds and fails a deploy on a dead one,
   naming the variable and never the value; it knows the box's role (`PINECALL_ROLE`).
 - `ARCHITECTURE.md`, `docs/protocol/` (operator API, the token door, the projections).
+- The licence is spelled out where an operator meets it: the Apache-2.0 copyright line is
+  filled (`Pinecall`), `README.md` has a License section, and `license-files` puts the text
+  itself in the wheel and the sdist, so an install carries its licence.
 
 ### Removed
 - `LeakageJudge`: it had no user in the tree, and a judge given a declaration nobody wrote would be
