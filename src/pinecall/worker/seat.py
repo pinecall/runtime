@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from livekit import rtc
 
-from pinecall.auth.scopes import SCOPE_ATTRIBUTE
 from pinecall.session.voice import sip
 from pinecall.types import Channel, Scope
+from pinecall.types.token import SCOPE_ATTRIBUTE
 
 # The scope a browser joins a voice call with: `talk` is the only one that publishes a microphone
 # and the only one minted for the person the agent serves (types/token.py). The other two

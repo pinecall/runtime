@@ -99,7 +99,7 @@ def run_remove(arguments: argparse.Namespace) -> int:
 
 def run_quota(arguments: argparse.Namespace) -> int:
     """The org's limits, replaced whole: a flag left out is no limit."""
-    limits = {name: getattr(arguments, name) for name in QUOTAS}
+    limits: dict[str, int | None] = {name: getattr(arguments, name) for name in QUOTAS}
     return against_the_gateway(partial(set_quota, arguments.org, limits))
 
 

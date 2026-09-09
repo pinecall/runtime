@@ -6,9 +6,7 @@ import json
 from typing import Any
 
 from livekit.agents.evals import JudgmentResult, Verdict
-from livekit.agents.llm import LLM, ChatContext, function_tool
-
-from pinecall.evals.transcript import MESSAGE
+from livekit.agents.llm import LLM, ChatContext, ChatMessage, function_tool
 
 # livekit's own judge asks through a forced function call rather than by parsing prose, pins the
 # temperature to zero and lets the tool schema do the validating (evals/judge.py:116-163). This is
@@ -66,7 +64,7 @@ def _spoken(chat_ctx: ChatContext) -> str:
     return "\n".join(
         SPOKE.format(role=item.role, text=item.text_content or "")
         for item in chat_ctx.items
-        if item.type == MESSAGE
+        if isinstance(item, ChatMessage)
     )
 
 
