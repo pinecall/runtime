@@ -9,6 +9,7 @@ from typing import Any
 from livekit.agents import llm as agents
 from livekit.agents.voice import AgentSession
 
+from pinecall._settings import Budgets
 from pinecall.log import NOTHING_SAID, hashed_prompt
 from pinecall.log.entry import Entry
 from pinecall.log.logs import CallLog
@@ -16,6 +17,14 @@ from pinecall.providers import prices
 from pinecall.providers.models import Chat
 from pinecall.session import clock
 from pinecall.session.declaring import declared
+from pinecall.session.filling import (
+    Filler,
+    Filling,
+    NoFiller,
+    NoRememberer,
+    Rememberer,
+    remembered_within,
+)
 from pinecall.session.scoring import Scorer, unjudged
 from pinecall.session.text.agent import TextAgent, remembered
 from pinecall.session.text.measure import Reply, usage_rows
@@ -59,11 +68,16 @@ class TextSession:
         log: CallLog,
         llm: Chat,
         score: Scorer = unjudged,
+        filler: Filler = NoFiller(),  # noqa: B008 — stateless, shared on purpose
+        rememberer: Rememberer = NoRememberer(),  # noqa: B008 — stateless, shared on purpose
+        budgets: Budgets = Budgets(),  # noqa: B008 — frozen
     ) -> None:
         self.context = context
         self.config = config
         self.llm = llm
         self._score = score
+        self._rememberer = rememberer
+        self._budgets = budgets
         # Where the session was when the app's next state.set arrives: running.py stamps a tool
         # here, receives() stamps an event, and set_state takes it and clears it.
         self.cause: StateCause | None = None
@@ -79,6 +93,9 @@ class TextSession:
         self._ended = False
         self.turns = Turns(self)
         self.running = Running(self, config)
+        self.filling = Filling(
+            filler, context.call, self._blocks, config.knowledge, budgets.fill_ms
+        )
         # Every declared tool, once, for the life of the call: livekit only runs a tool it holds,
         # so the declaration IS the registration, and a tools.set narrows `visibility` instead.
         self.text_agent = TextAgent(
@@ -86,6 +103,7 @@ class TextSession:
             tools=declared(config.tools, self.running.ran),
             llm=llm,
             writer=self.turns,
+            filling=self.filling,
         )
         # vad=None keeps livekit from building a silero client a text call would never listen to,
         # and "manual" turn detection is the truth of a text call: every turn is a frame the caller
@@ -153,6 +171,7 @@ class TextSession:
                 duration_s=duration,
             ),
         )
+        await self._remember()
         usage = usage_rows(self.live.usage)
         await self.emit(
             "call.summary",
@@ -166,6 +185,17 @@ class TextSession:
             ),
         )
         await self.emit("call.score", await self._the_verdict_on_it())
+
+    # After call.ended and before call.summary: every turn is in the log, which is what memory
+    # reads back, and the seal still comes whatever memory did. An agent that declared no memory
+    # has nothing to remember and asks nobody. See docs/decisions/memory.md.
+    async def _remember(self) -> None:
+        """What this call taught about the contact, written by the platform; a miss is an entry."""
+        if self.config.memory is None:
+            return
+        failed = await remembered_within(self._rememberer, self.call, self._budgets.remember_s)
+        if failed is not None:
+            await self.emit("error", failed)
 
     # The judge reads the call's own log rather than the session's history, because a verdict is
     # read by the seqs it names and a ChatContext carries none. This session holds the log itself,
@@ -190,7 +220,7 @@ class TextSession:
         # See docs/decisions/supervise.md.
         if self.taken_by is not None:
             return
-        await self.turns.answer(speech, arrived, said=text)
+        await self.turns.answer(speech, arrived, heard=text)
 
     # The instruction enters the model's history as a user message and never as a turn.user: the
     # log would otherwise claim the caller spoke words nobody spoke.

@@ -6,13 +6,19 @@ import time
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+from livekit.agents import llm as agents
 from livekit.agents.metrics import LLMMetrics as Measured
 
 from pinecall.log.entry import Entry
 from pinecall.providers.models import vendor_of
 from pinecall.session.text.measure import Reply, llm_metrics, turn_metrics
 from pinecall_protocol import defs
-from pinecall_protocol.events import AgentStateChanged, AgentTranscript, AgentTurnEnded
+from pinecall_protocol.events import (
+    AgentStateChanged,
+    AgentTranscript,
+    AgentTurnEnded,
+    ErrorEvent,
+)
 
 if TYPE_CHECKING:
     from pinecall.session.text.session import TextSession
@@ -58,33 +64,56 @@ class Turns:
             reply.measured(one)
             await self._session.emit("metrics.llm", llm_metrics(one, reply.speech_id))
 
+    @property
+    def speech(self) -> str | None:
+        """The speech the reply in flight is filed under, or None between two turns."""
+        return None if self.reply is None else self.reply.speech_id
+
+    async def skipped(self, error: ErrorEvent) -> None:
+        """A fill went unanswered: the entry, recoverable, and the reply goes on without it."""
+        await self._session.emit("error", error)
+
     # ── one reply ───────────────────────────────────────────────────────────────
 
-    # The two are not the same request and never both: `said` enters the history as the caller's
-    # own words, `instructions` as one system message of that turn alone (agent_activity.py:3247),
-    # which is what a supervisor's whisper is — an order the caller never said and never sees.
+    # Three ways to ask for one reply, never two at once. `heard` is the caller's own words: the
+    # markers are filled on them first, then they enter the history as the caller's turn. `said`
+    # is the app's text entering the history as the caller's words — agent.reply — and no query.
+    # `instructions` is one system message of that turn alone (agent_activity.py:3247), which is
+    # what a supervisor's whisper is: an order the caller never said and never sees.
     async def answer(
         self,
         speech: str,
         arrived: float,
+        *,
+        heard: str | None = None,
         said: str | None = None,
         instructions: str | None = None,
     ) -> None:
         """One reply, run by livekit: its rounds of model and tools, and the entries they make."""
-        assert (said is None) != (instructions is None), "a turn is asked for one way or the other"
+        asked = [one for one in (heard, said, instructions) if one is not None]
+        assert len(asked) == 1, "a turn is asked for one way at a time"
         reply = Reply(speech_id=speech, arrived=arrived)
         self.reply = reply
         try:
-            live = self._session.live
-            handle = (
-                live.generate_reply(user_input=said)
-                if said is not None
-                else live.generate_reply(instructions=instructions or "")
-            )
-            await handle
+            await self._one_reply(heard, said, instructions)
         finally:
             self.reply = None
         await self.ended(reply)
+
+    async def _one_reply(
+        self, heard: str | None, said: str | None, instructions: str | None
+    ) -> None:
+        """livekit's generate_reply, the caller's words through the agent's hook on the way."""
+        live = self._session.live
+        if heard is not None:
+            message = agents.ChatMessage(role="user", content=[heard])
+            agent = self._session.text_agent
+            await agent.on_user_turn_completed(agent.chat_ctx, message)
+            await live.generate_reply(user_input=message)
+        elif said is not None:
+            await live.generate_reply(user_input=said)
+        else:
+            await live.generate_reply(instructions=instructions or "")
 
     async def ended(self, reply: Reply) -> None:
         """The reply is over: turn.agent with what was measured, and the agent goes idle."""

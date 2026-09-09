@@ -10,6 +10,9 @@ from pinecall.providers.tts import voices
 from pinecall.types import (
     DEFAULT_LAYOUT,
     AgentConfig,
+    Docs,
+    KnowledgeFile,
+    MemoryPolicy,
     Model,
     PromptBlock,
     Route,
@@ -90,6 +93,12 @@ def _sent(wire: defs.AgentConfig) -> dict[str, Any]:
         converted["says"] = _pronunciations(wire.says or ())
     if "hears" in sent:
         converted["hears"] = tuple(wire.hears or ())
+    if "knowledge" in sent:
+        converted["knowledge"] = _a_knowledge_file(wire.knowledge)
+    if "docs" in sent:
+        converted["docs"] = _the_docs(wire.docs)
+    if "memory" in sent:
+        converted["memory"] = _a_memory_policy(wire.memory)
     if "tools" in sent:
         converted["tools"] = tuple(a_tool(tool) for tool in wire.tools or ())
     if "state_fields" in sent:
@@ -122,6 +131,22 @@ def _a_model(wire: defs.ModelConfig | None) -> Model | None:
 
 def _a_turn(wire: defs.TurnConfig | None) -> Turn | None:
     return None if wire is None else Turn(wire.min_interruption_words, wire.endpointing_ms)
+
+
+def _a_knowledge_file(wire: defs.KnowledgeFile | None) -> KnowledgeFile | None:
+    return None if wire is None else KnowledgeFile(wire.path, wire.text)
+
+
+def _the_docs(wire: defs.DocsConfig | None) -> Docs | None:
+    if wire is None:
+        return None
+    return Docs(base=wire.base, mode=wire.mode, k=wire.k, min_score=wire.min_score)
+
+
+def _a_memory_policy(wire: defs.MemoryConfig | None) -> MemoryPolicy | None:
+    if wire is None:
+        return None
+    return MemoryPolicy(remember=tuple(wire.remember), forget=tuple(wire.forget))
 
 
 def _pronunciations(said: Sequence[defs.Pronunciation]) -> dict[str, str]:

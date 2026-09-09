@@ -23,6 +23,16 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - The doctor knocks at every vendor with the key the box holds and fails a deploy on a dead one,
   naming the variable and never the value; it knows the box's role (`PINECALL_ROLE`).
 - `ARCHITECTURE.md`, `docs/protocol/` (operator API, the token door, the projections).
+- The seam memory and retrieval land on: a view's markers (`<!-- knowledge: … -->`,
+  `<!-- memory: … -->`, `<!-- retrieved: … -->`) are read by the runtime and replaced on the way
+  into the request — the knowledge file's text once per call, the turn's fills when the caller's
+  turn ends, under `PINECALL_FILL_BUDGET_MS` (250); at hang-up the call is remembered under
+  `PINECALL_REMEMBER_BUDGET_S` (8.0). `AgentConfig` declares `knowledge` (`{path, text}`),
+  `docs` and `memory`; the worker asks `POST /v1/calls/{call}/fill` and `/remember`; TEI is the
+  embedder (`providers/embed/tei.py`, refused by name when it is not 1024 wide);
+  `PINECALL_TEXT_SEARCH_CONFIG` names the language BM25 ranks in. A missed fill is an `error`
+  entry (`memory_skipped`, `retrieval_skipped`, `remember_failed`), recoverable, and the call
+  goes on.
 - The licence is spelled out where an operator meets it: the Apache-2.0 copyright line is
   filled (`Pinecall`), `README.md` has a License section, and `license-files` puts the text
   itself in the wheel and the sdist, so an install carries its licence.

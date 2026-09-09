@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Literal, get_args
 
 from pinecall.types.channel import CHANNELS, Channel
-from pinecall.types.knowledge import Docs, MemoryPolicy
+from pinecall.types.knowledge import Docs, KnowledgeFile, MemoryPolicy
 from pinecall.types.prompt import DEFAULT_LAYOUT, PromptBlock
 from pinecall.types.refused import DeclarationRefused
 from pinecall.types.tool import ToolSpec
@@ -69,7 +69,7 @@ class AgentConfig:
     turn: Turn | None = None
     says: Mapping[str, str] = field(default_factory=dict[str, str])
     hears: tuple[str, ...] = ()
-    knowledge: str | None = None
+    knowledge: KnowledgeFile | None = None
     docs: Docs | None = None
     memory: MemoryPolicy | None = None
     tools: tuple[ToolSpec, ...] = ()

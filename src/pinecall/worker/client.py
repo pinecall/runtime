@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Any
 
 import httpx
 from pydantic import TypeAdapter
 
 from pinecall.session.voice.platform import PlatformRefused
-from pinecall.types import AgentConfig, CallContext, ProviderKeys, Route
+from pinecall.types import AgentConfig, CallContext, Marker, ProviderKeys, Route
 from pinecall.types.json import JsonObject
 from pinecall_protocol import Command
 from pinecall_protocol.defs import ToolResult
@@ -25,6 +25,7 @@ EVENT_STREAM = "text/event-stream"
 
 # A stream on a quiet call carries a comment every 25 s and an entry whenever there is one; the
 # read side waits for either as long as the call lasts, and only the connect is on the clock.
+# remember() is on the same clock: the session bounds it by its own budget and cancels the wait.
 TAIL_TIMEOUT = httpx.Timeout(TIMEOUT_S, read=None)
 
 # The hop carries the domain object itself, adapted by pydantic. The one wire-to-domain conversion
@@ -94,6 +95,28 @@ class Gateway:
         """The call is over and nothing more will be written to it."""
         await self._read("POST", f"/v1/calls/{call}/sealed")
 
+    # The two doors memory and retrieval sit behind, on the gateway that has the database: the
+    # worker holds no vectors and no facts, and asks with the caller's words. The gateway writes
+    # memory.ops and docs.sources on the call's log itself. This is the voice session's Filler and
+    # Rememberer, as it is its Platform: the same object, three protocols. docs/decisions/memory.md.
+    async def fill(
+        self, call: str, query: str, markers: Sequence[Marker], speech_id: str | None
+    ) -> Mapping[str, str]:
+        """This turn's fills from the gateway: every marker's line to the text it becomes."""
+        said: JsonObject = {
+            "query": query,
+            "markers": [{"name": marker.name, "payload": marker.payload} for marker in markers],
+        }
+        if speech_id is not None:
+            said["speech_id"] = speech_id
+        answer = await self._read("POST", f"/v1/calls/{call}/fill", said)
+        answered = {(one["name"], one["payload"]): str(one["text"]) for one in answer["fills"]}
+        return {marker.line: answered.get((marker.name, marker.payload), "") for marker in markers}
+
+    async def remember(self, call: str) -> None:
+        """The gateway reads the call's turns off its log and writes what memory keeps."""
+        await self._read("POST", f"/v1/calls/{call}/remember", {}, timeout=TAIL_TIMEOUT)
+
     # The worker writes the log and never learns a seq: the gateway numbers it. What a browser in
     # the room is sent must carry the seq, so the worker reads its own call back through the same
     # three doors the console reads — whole, because its key is the runtime's, and projected by the
@@ -145,7 +168,7 @@ class Gateway:
         await self._http.aclose()
 
     async def _read(
-        self, method: str, path: str, said: Any = None, timeout: float | None = None
+        self, method: str, path: str, said: Any = None, timeout: float | httpx.Timeout | None = None
     ) -> Any:
         """One request, and the body of the answer. Anything but a 2xx is a refusal by name."""
         waiting = TIMEOUT_S if timeout is None else timeout

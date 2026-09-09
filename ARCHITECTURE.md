@@ -31,7 +31,7 @@ This runtime does not implement a conversation. LiveKit does, and the line is dr
 | **`JobContext`**, **`JobProcess`**: one job, one process, prewarm | `worker/main.py`, `worker/entry.py` | `ctx.connect()`, `ctx.room` |
 | **`AgentSession`** + **`Agent`**: the conversation — VAD, turn detection, STT → LLM → TTS, interruption, the chat context | `session/voice/session.py`, `session/text/session.py`, `session/*/agent.py` | one session per call, ours subclassing `Agent` for the prompt's blocks |
 | **`livekit.agents.llm`**: `ChatContext`, `ChatMessage`, `FunctionCall`, `function_tool`, `ToolError` | `session/`, `evals/` | the model's history; our `ToolSpec` declared as a livekit tool (`session/declaring.py`) |
-| **plugins**: `anthropic`, `openai`, `soniox`, `deepgram`, `elevenlabs` | `providers/llm/*`, `stt/*`, `tts/*` — **the only files that may import a vendor** | the plugin IS the adapter; one file per vendor, registered in one line |
+| **plugins**: `anthropic`, `openai`, `soniox`, `deepgram`, `elevenlabs` | `providers/llm/*`, `stt/*`, `tts/*` — **the only files that may import a vendor** | the plugin IS the adapter; one file per vendor, registered in one line. `providers/embed/tei.py` is the one vendor that is not a plugin: TEI over HTTP, behind the `Embedder` protocol |
 | **`livekit.agents.metrics`**: `LLMMetrics`, `STTMetrics`, `TTSMetrics`, `VADMetrics`, EOU, `AgentSessionUsage` | `session/voice/metrics.py`, `log/latencies.py`, `providers/usage.py` | every block, every field, under livekit's own names, on the wire |
 | **`livekit.agents.evals`**: `Judge`, `JudgeGroup`, `Verdict`, `Evaluator`, `JudgmentResult` | `evals/judges/*`, `evals/score.py` | our judges are theirs; `PolicyJudge` answers by code |
 | **`livekit.agents.cli`** | `cli/worker.py` | `worker dev \| start \| download-files` pass livekit's own flags through |
@@ -61,7 +61,7 @@ table; the declared ones have a socket.
 | **Org** | `id`, `slug`, `name` | `orgs` | has many keys, routes, calls, provider keys; **Quotas** (`minutes`, `messages`, `agents`, `concurrent_calls`) in `quotas`, one row per name |
 | **API key** | `sha256`, `org`, `label`, scopes, revoked | `api_keys` | issued once, printed once, revoked by UPDATE. What a worker, an app and a CLI knock with |
 | **Route** | `org`, `agent`, `channel` (`phone`·`web`·`whatsapp`), `number`, `label` | `routes` | one door into one agent, in one org. A number is a route, never an agent. The operator's row outranks the app's declaration |
-| **AgentConfig** | `slug`, `channels`, `name`, `prompt` (→ PromptBlock: `name`, `region`), `greeting`, `language`, **Voice** (`provider`, `model`, `voice_id`), **Model** ×2 (`llm`, `stt`), **Turn** (`min_interruption_words`, `endpointing_ms`), `says`, `hears`, `knowledge`, **Docs**, **MemoryPolicy**, `tools`, `state_fields` (→ Visibility), `events` | **no table** — declared by the app over `WS /v1/apps` at `agent.register`; the agent's own log `@<slug>` is the durable record | one agent, many app sockets (a fleet of `pinecall run`, or one console); many calls |
+| **AgentConfig** | `slug`, `channels`, `name`, `prompt` (→ PromptBlock: `name`, `region`), `greeting`, `language`, **Voice** (`provider`, `model`, `voice_id`), **Model** ×2 (`llm`, `stt`), **Turn** (`min_interruption_words`, `endpointing_ms`), `says`, `hears`, **KnowledgeFile** (`path`, `text`), **Docs** (`base`, `mode`, `k`, `min_score`), **MemoryPolicy** (`remember`, `forget`), `tools`, `state_fields` (→ Visibility), `events` | **no table** — declared by the app over `WS /v1/apps` at `agent.register`; the agent's own log `@<slug>` is the durable record | one agent, many app sockets (a fleet of `pinecall run`, or one console); many calls |
 | **ToolSpec** | `name`, `description`, `parameters`, `side_effect` (`read`·`write`·`irreversible`), `pii`, `confirm`, `preview`, `result_summary`, `timeout_s` | inside AgentConfig | runs in the app's process; an irreversible one is the consent gate's subject |
 | **CallContext** | `call`, `channel`, `direction`, `caller`, `route`, `today`, **Contact** (`id`, `phone`, `name`, `email`, `external_id`), `metadata` | `call_log_head` (`log`, `agent`, `call`, `seq`, `sealed`, `started_at`) | one call, one agent, one org, one route; bound to the one app socket that took it |
 | **Entry** | `call`, `seq`, `ts`, `agent`, `type`, `ephemeral`, `data`; `log = call ?? '@'+agent` | `call_log`, primary key `(log, seq)`, UPDATE/DELETE refused | the only truth; everything below is a fold of it |
@@ -71,7 +71,8 @@ table; the declared ones have a socket.
 | **eval run** | `id`, `agent`, `started_at`, `finished_at`, `status`, `document` | `eval_runs` | ring-1 suites driven over live text sessions |
 
 Nine tables, seven migrations (`migrations/000N_*.sql`, applied in order by `migrate up`, never
-edited). `docs/decisions/types.md`, `orgs.md`, `keys.md`, `routes.md`, `tokens.md`,
+edited; `0008_memory` and `0009_knowledge` are reserved for the contact's facts and the knowledge
+base's chunks — **Fact** and **Chunk** in `types/knowledge.py` are their shapes). `docs/decisions/types.md`, `orgs.md`, `keys.md`, `routes.md`, `tokens.md`,
 `provider-keys.md`, `log.md`.
 
 ## 3. The wire
@@ -107,7 +108,7 @@ the routes, the vault and the meter, then twenty-seven routers, one door each. B
 |---|---|
 | `WS /v1/apps` | **the app socket**. A tenant's process registers its class (`agent.register` → AgentConfig), holds the agent, receives the entries of the calls it answers, runs the tools, sends commands. `api/agents/socket.py`, `registry.py` (which sockets hold which agent, live), `on_a_call.py` |
 | `GET /v1/agents/{slug}/config` · `/provider-keys` · `/pipeline` · `PUT …/pipeline/overrides` | what the **worker** asks about an agent: the declaration resolved, the org's own keys (the one door that ever answers with a key), what it hears/thinks/speaks with, and an operator's knob over it |
-| `POST /v1/calls` · `POST /v1/calls/{call}/events` · `/sealed` · `GET /v1/calls/{call}/commands` · `POST …/tools` | the **worker's** side of a call: open the log, append entries, seal, read the app's commands, relay a tool to the app that declared it and wait for the answer |
+| `POST /v1/calls` · `POST /v1/calls/{call}/events` · `/sealed` · `GET /v1/calls/{call}/commands` · `POST …/tools` · `POST …/fill` · `POST …/remember` | the **worker's** side of a call: open the log, append entries, seal, read the app's commands, relay a tool to the app that declared it and wait for the answer, fill a turn's markers from memory and the knowledge base, remember the call at hang-up |
 | `GET /v1/calls/{call}/events` (SSE) · `/state` · `/recording` · `GET /v1/agents/{slug}/sessions` · `/calls` | the **readers**: a log as it happens (backlog, marker, live — `log/replay.py`), the folded state memoised per seq (`log/snapshots.py`), the audio, the listing |
 | `WS /v1/chat` · `WS /v1/attach` | a **text call** from a terminal or a browser, served in this process; attaching to one |
 | `POST /v1/calls/{call}/listen` · `/supervise` · `/verbs` | **the desk**: a supervisor's hidden ear, a seat in the call, the six supervise verbs |
@@ -145,8 +146,10 @@ livekit-server that stops routing to a worker at 0.7 of what it reports (`worker
    sits between it and the platform.
 5. `worker/commanding.py` streams the app's commands off `GET /v1/calls/{call}/commands` and
    applies each to the bridge, until `None` — the call ending.
-6. Hang-up: the bridge writes `call.summary`, hands its own log to the `Scorer`
-   (`session/scoring.py` → `evals/score.py`), writes `call.score`, and the worker seals the call.
+6. Hang-up: the bridge writes `call.ended`, asks the gateway to remember the call
+   (`POST /v1/calls/{call}/remember`, under `PINECALL_REMEMBER_BUDGET_S`), writes `call.summary`,
+   hands its own log to the `Scorer` (`session/scoring.py` → `evals/score.py`), writes
+   `call.score`, and the worker seals the call.
 
 **The bridge** hooks livekit's session and turns its life into entries: `events.py` (every
 transcript, state, turn, error → an entry), `metrics.py` (every measured block), `writing.py`
@@ -176,11 +179,23 @@ declares). The app writes a block by name with `prompt.set`; the static ones are
 `instructions`, rewritten only when their joined text moved, and `providers/blocks.py` builds
 each request: the dynamic blocks after the history, one message each, and for Anthropic one
 `system` string per static block, so a rewritten `tools` block leaves the others cached. The
-tenant never writes a prompt: the class is the prompt, `render(state)`. **A tool runs in the
+tenant never writes a prompt: the class is the prompt, `render(state)`. A view writes **markers**
+and never resolves them (`types/markers.py`): `<!-- knowledge: … -->` in a static block becomes the
+text of the file the app declared, fixed at session start, so the cached prefix never moves;
+`<!-- memory: … -->` and `<!-- retrieved: … -->` in a dynamic block are asked of the session's
+`Filler` (`session/filling.py`) when the caller's turn ends — livekit's `on_user_turn_completed`
+on both agents, the whole turn as the query, under `PINECALL_FILL_BUDGET_MS` — and past the budget
+the turn goes on unfilled with an `error` entry (`memory_skipped`, `retrieval_skipped`) that says so.
+`request_context` applies the fills on the way into the request only: the app's text, and the hash
+`prompt.changed` carries, are never touched. At hang-up, between `call.ended` and `call.summary`,
+the session's `Rememberer` writes what the call taught about the contact; a miss is
+`remember_failed`, recoverable, and the call seals. The voice session's filler is the worker's
+gateway client; the text session's is the gateway's own `filling/`, in-process. **A tool runs in the
 tenant's process**: the session
 sends `tool.call` to the gateway, the gateway relays it down the app socket the call is bound
 to, the tenant's `@tool` runs where it was written, `tool.result` rides back to the model.
-`docs/decisions/text-session.md`, `prompt-blocks.md`, `livekit-context.md`, `livekit-words.md`.
+`docs/decisions/text-session.md`, `prompt-blocks.md`, `memory.md`, `livekit-context.md`,
+`livekit-words.md`.
 
 ## 7. The path of a call, door by door
 
@@ -251,8 +266,11 @@ tokens     ← types, log, auth
 session    ← types, log, providers
 whatsapp   ← types, log, session, routes, providers
 evals      ← types, auth, log, session, providers
+memory     ← types, log, providers            the contact's facts, in Postgres
+knowledge  ← types, log, providers            the knowledge base, in Postgres
+filling    ← types, log, providers, memory, knowledge   the gateway's answer to a turn's markers
 api        ← all of the above                 never worker/
-worker     ← all but whatsapp                 never api/  — they meet over HTTP
+worker     ← all but whatsapp, memory, knowledge, filling   never api/ — they meet over HTTP
 cli        ← the verbs over any of them
 ```
 

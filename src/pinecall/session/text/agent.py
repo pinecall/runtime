@@ -12,7 +12,9 @@ from livekit.agents.voice.agent import Agent as LiveAgent
 
 from pinecall.providers.blocks import request_context
 from pinecall.providers.models import Chat
+from pinecall.session.filling import Filling
 from pinecall.types import Blocks
+from pinecall_protocol.events import ErrorEvent
 
 
 class Writer(Protocol):
@@ -28,6 +30,15 @@ class Writer(Protocol):
 
     async def measured(self, metrics: Sequence[Measured]) -> None:
         """What livekit measured of the request that just finished."""
+        ...
+
+    @property
+    def speech(self) -> str | None:
+        """The speech the turn being answered is filed under, or None between two turns."""
+        ...
+
+    async def skipped(self, error: ErrorEvent) -> None:
+        """A fill went unanswered: the entry that says so, and the turn goes on."""
         ...
 
 
@@ -63,6 +74,7 @@ class TextAgent(LiveAgent):
         tools: Sequence[agents.Tool],
         llm: Chat,
         writer: Writer,
+        filling: Filling,
     ) -> None:
         # livekit's Agent.__init__ is generic over the plugin's own event type, which a strict
         # checker can only read as Unknown; the one ignore is here, at the one call.
@@ -71,6 +83,22 @@ class TextAgent(LiveAgent):
         )
         self._blocks = blocks
         self._writer = writer
+        self._filling = filling
+
+    # livekit's own hook, the one a spoken call runs between the caller's last word and the
+    # request (agent_activity.py:2605). A text turn is handed to generate_reply by hand, which
+    # never calls it (:3825), so the session calls it here itself, with the very message it hands
+    # livekit next — the same seam, the same method, on both channels.
+    @override
+    async def on_user_turn_completed(
+        self,
+        turn_ctx: agents.ChatContext,  # noqa: ARG002 — livekit's signature
+        new_message: agents.ChatMessage,
+    ) -> None:
+        """The caller's words are the query: this turn's fills, or the entries that say why not."""
+        query = new_message.text_content or ""
+        for skipped in await self._filling.turn_ended(query, self._writer.speech):
+            await self._writer.skipped(skipped)
 
     # The prompt in livekit's terms: `instructions` is the static blocks joined, which livekit
     # caches and never rebuilds, `chat_ctx` is the history, and the dynamic blocks are added HERE —
@@ -85,7 +113,7 @@ class TextAgent(LiveAgent):
     ) -> Node:
         """One request: the dynamic blocks last, the deltas as transcripts, the numbers an entry."""
         writer = self._writer
-        request = request_context(chat_ctx, self._blocks)
+        request = request_context(chat_ctx, self._blocks, self._filling.fills)
         await writer.thinking()
         llm = cast(agents.LLM[Any], self.llm)  # pyright: ignore[reportUnknownMemberType]
         with Metered(llm) as metered:
