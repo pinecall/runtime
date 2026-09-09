@@ -47,8 +47,7 @@ async def judge() -> AsyncIterator[Chat]:
 async def test_the_first_turn_greets_asks_who_is_calling_and_calls_nothing(judge: Chat) -> None:
     async with a_headless_call(
         declared(),
-        static=prompt_at(IDENTIFY).static,
-        view=prompt_at(IDENTIFY).view,
+        prompt=prompt_at(IDENTIFY),
         answers=Answers({}),
     ) as call:
         result = await call.session.run(user_input="Hola, buenas. Quería pedir una cita.")
@@ -73,8 +72,7 @@ async def test_one_utterance_with_both_reaches_find_patient_with_both(judge: Cha
     answers = Answers({"findPatient": ANA})
     async with a_headless_call(
         declared(),
-        static=prompt_at(IDENTIFY).static,
-        view=prompt_at(IDENTIFY).view,
+        prompt=prompt_at(IDENTIFY),
         answers=answers,
     ) as call:
         result = await call.session.run(
@@ -103,8 +101,7 @@ async def test_it_books_nothing_before_the_caller_is_identified(judge: Chat) -> 
     answers = Answers({"findPatient": None})
     async with a_headless_call(
         declared(),
-        static=prompt_at(IDENTIFY).static,
-        view=prompt_at(IDENTIFY).view,
+        prompt=prompt_at(IDENTIFY),
         answers=answers,
     ) as call:
         result = await call.session.run(

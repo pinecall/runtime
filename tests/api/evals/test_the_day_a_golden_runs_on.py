@@ -33,7 +33,7 @@ def a_golden(**written: Any) -> Golden:
 
 def a_call_of(golden: Golden) -> TextSession:
     """The call that golden opens, on a model nobody in this file ever reaches."""
-    config = AgentConfig(slug=AGENT, channels=frozenset({"web"}), instructions="Sos Clara.")
+    config = AgentConfig(slug=AGENT, channels=frozenset({"web"}))
     return an_eval_call(golden, A_CALL, config, ORG, Logs(MemoryStore()), FakeLLM())
 
 

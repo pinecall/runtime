@@ -145,8 +145,8 @@ def rendered(call: Called) -> str:
     return f"{call.name}({_as_json(call.arguments)}) → {call.answer}"
 
 
-# The log carries no rendered prompt — `prompt.changed` is a region, a hash and a char count — so
-# the state IS the dynamic region as far as any reader afterwards is concerned: the view is
+# The log carries no rendered prompt — `prompt.changed` is a block's name, a hash and a char
+# count — so the state IS the view as far as any reader afterwards is concerned: the view is
 # `render(state)` and nothing else went into it. Each entry carries the whole state, so the same
 # fields come round again and again; identical readings are dropped and the order is kept, which
 # leaves one block per state the call was actually in.

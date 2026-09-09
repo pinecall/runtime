@@ -29,7 +29,7 @@ This runtime does not implement a conversation. LiveKit does, and the line is dr
 | **livekit-sip**: a carrier's trunk as a room participant | the box; `session/voice/sip.py`, `room/invite.py`, `transfer.py` | `CreateSIPParticipantRequest`, a REFER for a cold transfer |
 | **`livekit.agents.AgentServer`**: the worker process, its job processes, the load it reports | `worker/main.py` | one server, one `rtc_session`, `load_fnc` |
 | **`JobContext`**, **`JobProcess`**: one job, one process, prewarm | `worker/main.py`, `worker/entry.py` | `ctx.connect()`, `ctx.room` |
-| **`AgentSession`** + **`Agent`**: the conversation — VAD, turn detection, STT → LLM → TTS, interruption, the chat context | `session/voice/session.py`, `session/text/session.py`, `session/*/agent.py` | one session per call, ours subclassing `Agent` for the prompt regions |
+| **`AgentSession`** + **`Agent`**: the conversation — VAD, turn detection, STT → LLM → TTS, interruption, the chat context | `session/voice/session.py`, `session/text/session.py`, `session/*/agent.py` | one session per call, ours subclassing `Agent` for the prompt's blocks |
 | **`livekit.agents.llm`**: `ChatContext`, `ChatMessage`, `FunctionCall`, `function_tool`, `ToolError` | `session/`, `evals/` | the model's history; our `ToolSpec` declared as a livekit tool (`session/declaring.py`) |
 | **plugins**: `anthropic`, `openai`, `soniox`, `deepgram`, `elevenlabs` | `providers/llm/*`, `stt/*`, `tts/*` — **the only files that may import a vendor** | the plugin IS the adapter; one file per vendor, registered in one line |
 | **`livekit.agents.metrics`**: `LLMMetrics`, `STTMetrics`, `TTSMetrics`, `VADMetrics`, EOU, `AgentSessionUsage` | `session/voice/metrics.py`, `log/latencies.py`, `providers/usage.py` | every block, every field, under livekit's own names, on the wire |
@@ -61,7 +61,7 @@ table; the declared ones have a socket.
 | **Org** | `id`, `slug`, `name` | `orgs` | has many keys, routes, calls, provider keys; **Quotas** (`minutes`, `messages`, `agents`, `concurrent_calls`) in `quotas`, one row per name |
 | **API key** | `sha256`, `org`, `label`, scopes, revoked | `api_keys` | issued once, printed once, revoked by UPDATE. What a worker, an app and a CLI knock with |
 | **Route** | `org`, `agent`, `channel` (`phone`·`web`·`whatsapp`), `number`, `label` | `routes` | one door into one agent, in one org. A number is a route, never an agent. The operator's row outranks the app's declaration |
-| **AgentConfig** | `slug`, `channels`, `name`, `instructions`, `greeting`, `language`, **Voice** (`provider`, `model`, `voice_id`), **Model** ×2 (`llm`, `stt`), **Turn** (`min_interruption_words`, `endpointing_ms`), `says`, `hears`, `knowledge`, **Docs**, **MemoryPolicy**, `tools`, `state_fields` (→ Visibility), `events` | **no table** — declared by the app over `WS /v1/apps` at `agent.register`; the agent's own log `@<slug>` is the durable record | one agent, many app sockets (a fleet of `pinecall run`, or one console); many calls |
+| **AgentConfig** | `slug`, `channels`, `name`, `prompt` (→ PromptBlock: `name`, `region`), `greeting`, `language`, **Voice** (`provider`, `model`, `voice_id`), **Model** ×2 (`llm`, `stt`), **Turn** (`min_interruption_words`, `endpointing_ms`), `says`, `hears`, `knowledge`, **Docs**, **MemoryPolicy**, `tools`, `state_fields` (→ Visibility), `events` | **no table** — declared by the app over `WS /v1/apps` at `agent.register`; the agent's own log `@<slug>` is the durable record | one agent, many app sockets (a fleet of `pinecall run`, or one console); many calls |
 | **ToolSpec** | `name`, `description`, `parameters`, `side_effect` (`read`·`write`·`irreversible`), `pii`, `confirm`, `preview`, `result_summary`, `timeout_s` | inside AgentConfig | runs in the app's process; an irreversible one is the consent gate's subject |
 | **CallContext** | `call`, `channel`, `direction`, `caller`, `route`, `today`, **Contact** (`id`, `phone`, `name`, `email`, `external_id`), `metadata` | `call_log_head` (`log`, `agent`, `call`, `seq`, `sealed`, `started_at`) | one call, one agent, one org, one route; bound to the one app socket that took it |
 | **Entry** | `call`, `seq`, `ts`, `agent`, `type`, `ephemeral`, `data`; `log = call ?? '@'+agent` | `call_log`, primary key `(log, seq)`, UPDATE/DELETE refused | the only truth; everything below is a fold of it |
@@ -150,8 +150,7 @@ livekit-server that stops routing to a worker at 0.7 of what it reports (`worker
 
 **The bridge** hooks livekit's session and turns its life into entries: `events.py` (every
 transcript, state, turn, error → an entry), `metrics.py` (every measured block), `writing.py`
-(the entries, in order, to the gateway), `regions.py` (the three prompt regions on the live
-`Agent`), `tools.py` (every declared tool as livekit runs one: out to the app's process, the
+(the entries, in order, to the gateway), `tools.py` (every declared tool as livekit runs one: out to the app's process, the
 answer back), `hearing.py` (the keyterms the ears are told to expect: the words the agent
 declared and the names its state holds), `barge_in.py` (two words cut the agent off, never two
 words of agreement), `supervising.py` (the six desk verbs), `commands.py` (say, reply, rewrite the
@@ -170,13 +169,18 @@ have made, never a system message), `declaring.py` (our ToolSpec as livekit's to
 **gateway** — WhatsApp, `/v1/chat`, `pinecall chat`, the ring-1 runner — as one livekit
 `AgentSession` driven by hand, one turn per message, no room, no ears, the same entries under the
 same names; it measures nothing itself, livekit's `LLMMetrics` is the measurement. The **prompt**
-on both is three regions in one order — static prefix (cached by the vendor) · append-only
-history · dynamic blocks at the end: memory, retrieved docs, the tenant's **view** of its state
-— and `regions.py` rewrites the prefix only when it changed. The tenant never writes a prompt:
-the class is the prompt, `render(state)`. **A tool runs in the tenant's process**: the session
+on both is a list of named blocks (`types/prompt.py`, `Blocks`) in two regions, in one order —
+static blocks (cached by the vendor; `identity · knowledge · tools` by default) · append-only
+history · dynamic blocks at the end (the tenant's **view** of its state by default, plus any it
+declares). The app writes a block by name with `prompt.set`; the static ones are livekit's
+`instructions`, rewritten only when their joined text moved, and `providers/blocks.py` builds
+each request: the dynamic blocks after the history, one message each, and for Anthropic one
+`system` string per static block, so a rewritten `tools` block leaves the others cached. The
+tenant never writes a prompt: the class is the prompt, `render(state)`. **A tool runs in the
+tenant's process**: the session
 sends `tool.call` to the gateway, the gateway relays it down the app socket the call is bound
 to, the tenant's `@tool` runs where it was written, `tool.result` rides back to the model.
-`docs/decisions/text-session.md`, `livekit-context.md`, `livekit-words.md`.
+`docs/decisions/text-session.md`, `prompt-blocks.md`, `livekit-context.md`, `livekit-words.md`.
 
 ## 7. The path of a call, door by door
 

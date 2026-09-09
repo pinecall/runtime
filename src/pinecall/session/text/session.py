@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import dataclass
 from typing import Any
 
 from livekit.agents import llm as agents
@@ -22,7 +21,7 @@ from pinecall.session.text.agent import TextAgent, remembered
 from pinecall.session.text.measure import Reply, usage_rows
 from pinecall.session.text.running import Running
 from pinecall.session.text.turns import Turns
-from pinecall.types import AgentConfig, CallContext, ToolSpec
+from pinecall.types import AgentConfig, Blocks, CallContext, ToolSpec
 from pinecall_protocol import WireModel, defs, encode
 from pinecall_protocol.commands import StateSet
 from pinecall_protocol.defs import EndedBy, Supervisor
@@ -50,18 +49,6 @@ MAX_TOOL_STEPS = 8
 type Watcher = Callable[[Entry], Awaitable[None]]
 
 
-# Two regions, because they age differently and livekit keeps them apart: the static one is the
-# app's instructions and IS the Agent's `instructions` — the cached prefix Anthropic's breakpoint
-# lands on — while the view is rendered from state and is appended to the request's context per
-# turn, after the history, so a changed view never invalidates the prefix.
-@dataclass(frozen=True)
-class Prompt:
-    """The system prompt as prompt.set builds it: the cached region, and the one that moves."""
-
-    static: str = ""
-    view: str = ""
-
-
 class TextSession:
     """One conversation in text: no audio, no room, and the same log a phone call writes."""
 
@@ -85,7 +72,7 @@ class TextSession:
         self.taken_by: Supervisor | None = None
         self._log = log
         self._watchers: list[Watcher] = []
-        self._prompt = Prompt(static=config.instructions or "")
+        self._blocks = Blocks(config.prompt)
         # Everything the app declared is visible until a tools.set narrows it: livekit only runs
         # a tool it holds, so the declaration IS the registration.
         self._visible: tuple[ToolSpec, ...] = tuple(config.tools_by_name.values())
@@ -96,7 +83,7 @@ class TextSession:
         self.turns = Turns(self)
         self.running = Running(self, config)
         self.text_agent = TextAgent(
-            instructions=self._prompt.static,
+            blocks=self._blocks,
             tools=declared(self._visible, self.running.ran),
             llm=llm,
             writer=self.turns,
@@ -120,11 +107,6 @@ class TextSession:
     def agent(self) -> str:
         """The agent answering, as the registry knows it."""
         return self.config.slug
-
-    @property
-    def view(self) -> str:
-        """The dynamic region, read per request so it never enters the cached instructions."""
-        return self._prompt.view
 
     def watch(self, watcher: Watcher) -> None:
         """Send every entry of this call there too, unprojected: the sink applies projections."""
@@ -241,19 +223,16 @@ class TextSession:
         self.cause = StateCauseEvent(kind="event", name=name, seq=entry.seq)
         return entry
 
-    async def set_prompt(self, region: defs.PromptRegion, text: str) -> Entry:
-        """prompt.set: one region rewritten. The text stays out of the log; its hash goes in."""
-        self._prompt = (
-            Prompt(static=text, view=self._prompt.view)
-            if region == "static"
-            else Prompt(static=self._prompt.static, view=text)
-        )
-        # The static region IS livekit's instructions; the view is read per request, in llm_node.
-        if region == "static":
-            await self.text_agent.update_instructions(text)
+    # The static blocks are livekit's instructions, rewritten only when their joined text moved:
+    # the same bytes again would still cost the provider a cache write. A dynamic block is read
+    # per request, in llm_node, and touches nothing here.
+    async def set_prompt(self, name: str, text: str) -> Entry:
+        """prompt.set: one block rewritten. The text stays out of the log; its hash goes in."""
+        if self._blocks.set(name, text):
+            await self.text_agent.update_instructions(self._blocks.instructions)
         return await self.emit(
             "prompt.changed",
-            PromptChanged(region=region, hash=hashed_prompt(text), chars=len(text)),
+            PromptChanged(name=name, hash=hashed_prompt(text), chars=len(text)),
         )
 
     async def set_tools(self, tools: Sequence[defs.ToolSpec]) -> Entry:

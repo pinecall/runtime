@@ -1,4 +1,4 @@
-"""livekit's Agent for a spoken call: the view enters per request, the words leave as they play."""
+"""livekit's Agent for a spoken call: the blocks enter per request, the words leave as they play."""
 
 from __future__ import annotations
 
@@ -12,14 +12,12 @@ from livekit.agents.types import FlushSentinel, TimedString
 from livekit.agents.voice import ModelSettings
 from livekit.agents.voice.agent import Agent as LiveAgent
 
+from pinecall.providers.blocks import request_context
+from pinecall.types import Blocks
+
 
 class Speaking(Protocol):
-    """What the agent needs of the bridge: the view of the moment, and where words go."""
-
-    @property
-    def view(self) -> str:
-        """The dynamic region as the app last rendered it; empty when there is none."""
-        ...
+    """What the agent needs of the bridge: where the words go, and whose words they are."""
 
     def said(self, delta: str | TimedString) -> None:
         """One piece of the reply, as the caller is hearing it, timed when the voice aligned it."""
@@ -36,26 +34,27 @@ type Thought = AsyncGenerator[agents.ChatChunk | str | FlushSentinel, None]
 
 
 class VoiceAgent(LiveAgent):
-    """The agent livekit runs on a line: our instructions, our tools, and the view at the end."""
+    """The agent livekit runs on a line: our prompt's blocks, our tools, and our ears."""
 
     def __init__(
         self,
         *,
-        instructions: str,
+        blocks: Blocks,
         tools: Sequence[agents.Tool],
         speaking: Speaking,
     ) -> None:
         # livekit's Agent.__init__ is generic over the plugin's own event type, which a strict
         # checker can only read as Unknown; the one ignore is here, at the one call.
         super().__init__(  # pyright: ignore[reportUnknownMemberType]
-            instructions=instructions, tools=list(tools)
+            instructions=blocks.instructions, tools=list(tools)
         )
+        self._blocks = blocks
         self._speaking = speaking
 
-    # The three regions in livekit's terms: `instructions` is the static prefix livekit caches and
-    # never rebuilds, `chat_ctx` is the history, and the view is appended HERE — after the history,
-    # inside the request only — so a view that changes every turn leaves the cached prefix byte for
-    # byte the same. The same seam the text session cuts at, for the same reason.
+    # The prompt in livekit's terms: `instructions` is the static blocks joined, which livekit
+    # caches and never rebuilds, `chat_ctx` is the history, and the dynamic blocks are added HERE —
+    # after the history, inside the request only — so a view that changes every turn leaves the
+    # cached prefix byte for byte the same. The same seam the text session cuts at.
     @override
     async def llm_node(  # pyright: ignore[reportIncompatibleMethodOverride]
         self,
@@ -63,11 +62,9 @@ class VoiceAgent(LiveAgent):
         tools: list[agents.Tool],
         model_settings: ModelSettings,
     ) -> Thought:
-        """One request, with the dynamic region last and the history untouched."""
-        view = self._speaking.view
-        if view:
-            chat_ctx.items.append(agents.ChatMessage(role="system", content=[view]))
-        async for chunk in LiveAgent.default.llm_node(self, chat_ctx, tools, model_settings):
+        """One request, with the dynamic blocks last and the history untouched."""
+        request = request_context(chat_ctx, self._blocks)
+        async for chunk in LiveAgent.default.llm_node(self, request, tools, model_settings):
             yield chunk
 
     # The words the caller is actually hearing, at the moment the audio carries them: this node

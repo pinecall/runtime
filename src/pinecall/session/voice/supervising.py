@@ -119,9 +119,9 @@ class Supervising:
 
     # ── the two livekit calls both a whisper and a release make ─────────────────
 
-    # The note goes at the END of the history (agent.py:236, update_chat_ctx), never into the
-    # static prefix: the prefix is the cached region, and a sentence appended to it would rebuild
-    # the cache for every call this agent ever answers.
+    # The note goes at the END of the history (agent.py:236, update_chat_ctx), never into a
+    # static block: those are what the provider caches, and a sentence appended there would
+    # rebuild the cache for every call this agent ever answers.
     async def _remember(self, note: str) -> None:
         """One system message onto the end of the history, where the model reads it next turn."""
         context = self._agent.chat_ctx.copy()

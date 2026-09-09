@@ -18,6 +18,9 @@ pytestmark = pytest.mark.unit
 # Short enough that a test can wait for it, long enough that a busy machine does not trip it.
 A_QUICK_TOOL = {**A_TOOL, "timeout_s": 0.2}
 
+# What the app writes into the identity block, the one static block a call opens with here.
+CLARA = "Sos Clara, de la clínica."
+
 
 # ── the outside world ───────────────────────────────────────────────────────────
 
@@ -178,38 +181,53 @@ def test_prompt_set_logs_the_hash_and_the_length_and_never_the_text(
 ) -> None:
     llm.script.append(Scripted(chunks=("Hola.",)))
     with _a_call(gateway) as talking:
-        talking.app_says("prompt.set", {"region": "view", "text": "El turno es a las 10:15"})
+        talking.app_says("prompt.set", {"name": "identity", "text": CLARA})
+        talking.until("prompt.changed")
+        talking.app_says("prompt.set", {"name": "view", "text": "El turno es a las 10:15"})
         changed = talking.until("prompt.changed")
         talking.caller.send_json({"text": "hola"})
         talking.until("turn.agent")
-    assert changed["data"]["region"] == "view"
+    assert changed["data"]["name"] == "view"
     assert changed["data"]["chars"] == len("El turno es a las 10:15")
     assert "10:15" not in str(changed["data"])
     system = llm.asked[0].system
-    assert "Sos Clara, de la clínica." in system
+    assert CLARA in system
     assert "El turno es a las 10:15" in system
-    # The regions go in order: the static prefix the app declared, then the view it rendered.
+    # The blocks go in order: the static ones the app wrote, then the view it rendered.
     assert system.index("Sos Clara") < system.index("El turno")
 
 
-# The three regions in livekit's terms: `instructions` is the Agent's own, built once and never
-# rebuilt, and the view is appended to the request after the history. A view that moves every turn
-# must therefore leave the instructions byte for byte identical, which is what a cache is for.
+def test_a_block_the_agent_never_declared_is_refused_by_name(gateway: TestClient) -> None:
+    with _a_call(gateway) as talking:
+        talking.app_says("prompt.set", {"name": "faq", "text": "Abrimos a las nueve."})
+        refusal = talking.until("error")
+    assert refusal["data"]["code"] == "refused"
+    assert "'faq'" in refusal["data"]["message"]
+    assert "identity, knowledge, tools, view" in refusal["data"]["message"]
+    assert "prompt.changed" not in [entry["type"] for entry in talking.heard]
+
+
+# The prompt in livekit's terms: `instructions` is the Agent's own, the static blocks joined once
+# and rebuilt only when one of them moves, and the dynamic blocks are appended to the request
+# after the history. A view that moves every turn must therefore leave the instructions byte for
+# byte identical, which is what a cache is for.
 def test_the_view_moves_without_touching_the_cached_instructions(
     gateway: TestClient, llm: FakeLLM
 ) -> None:
     llm.script.extend([Scripted(chunks=("Uno.",)), Scripted(chunks=("Dos.",))])
     with _a_call(gateway) as talking:
-        talking.app_says("prompt.set", {"region": "view", "text": "El turno es a las 10:15"})
+        talking.app_says("prompt.set", {"name": "identity", "text": CLARA})
+        talking.until("prompt.changed")
+        talking.app_says("prompt.set", {"name": "view", "text": "El turno es a las 10:15"})
         talking.until("prompt.changed")
         talking.caller.send_json({"text": "hola"})
         talking.until("turn.agent")
-        talking.app_says("prompt.set", {"region": "view", "text": "El turno es a las 11:45"})
+        talking.app_says("prompt.set", {"name": "view", "text": "El turno es a las 11:45"})
         talking.until("prompt.changed")
         talking.caller.send_json({"text": "¿y ahora?"})
         talking.until("turn.agent")
     first, second = llm.asked[0], llm.asked[1]
-    assert first.instructions == "Sos Clara, de la clínica."
+    assert first.instructions == CLARA
     assert second.instructions == first.instructions, "the cached prefix must not move"
     assert "10:15" in first.system and "10:15" not in first.instructions
     assert "11:45" in second.system and "11:45" not in second.instructions

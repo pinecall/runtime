@@ -111,7 +111,7 @@ def _a_message(item: agents.ChatItem) -> agents.ChatMessage:
 
 
 async def test_the_whisper_never_touches_the_static_prefix(desk: Desk) -> None:
-    """The prefix is the cached region: a note in it would rebuild the cache for every call."""
+    """The static blocks are what the provider caches: a note there would rebuild every call."""
     await desk.verb(ANA, verbs.WhisperVerb(verb="whisper", text="Ofrecele el turno de las once."))
     assert desk.agent.updates == 1
     assert [_a_message(item).role for item in desk.agent.chat_ctx.items] == ["system"]

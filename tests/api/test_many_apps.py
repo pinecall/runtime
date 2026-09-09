@@ -202,7 +202,7 @@ def holding(app_socket: WebSocketTestSession, takes_unclaimed: bool | None = Non
     """One more socket holding the clinic, and the id agent.registered hands back to it."""
     app_socket.send_json(a_register(AGENT, a_door("web"), takes_unclaimed=takes_unclaimed))
     registered: dict[str, Any] = app_socket.receive_json()
-    config: dict[str, object] = {"instructions": "Sos Clara, de la clínica."}
+    config: dict[str, object] = {"language": "es"}
     app_socket.send_json(a_frame("agent.configure", AGENT, {"config": config}))
     app_socket.receive_json()
     return str(registered["data"]["app"])

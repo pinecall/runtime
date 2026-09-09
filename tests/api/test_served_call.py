@@ -109,7 +109,7 @@ def test_a_command_for_a_worker_run_call_is_held_for_the_worker_and_never_refuse
         waiting = live.commands(CALL)
         assert waiting is not None
         held = waiting.get_nowait()
-        assert held is not None and (held.type, held.data["region"]) == ("prompt.set", "view")
+        assert held is not None and (held.type, held.data["name"]) == ("prompt.set", "view")
 
 
 # Criterion 2, the worker's half. The gateway's own door writes the stream and the worker's own
@@ -121,13 +121,13 @@ async def test_what_the_app_said_reaches_the_bridge_of_the_worker_running_the_ca
     await registered(registry)
     await worker_gateway.opened(a_context(), AGENT)
     streaming = await door.commands(CALL, A_RECORD, live)
-    assert live.commanded(CALL, AGENT, _a_command("prompt.set", {"region": "view", "text": "Ana"}))
+    assert live.commanded(CALL, AGENT, _a_command("prompt.set", {"name": "view", "text": "Ana"}))
     assert live.commanded(CALL, AGENT, _a_command("call.hangup", {}))
     live.close(CALL)
     bridge = Applied()
     await commanding.served(_reading(await _drained(streaming.body_iterator)), bridge, CALL)
     assert [command.type for command in bridge.applied] == ["prompt.set", "call.hangup"]
-    assert bridge.applied[0].data == {"region": "view", "text": "Ana"}
+    assert bridge.applied[0].data == {"name": "view", "text": "Ana"}
 
 
 async def test_a_command_of_another_agent_is_not_held_for_this_calls_worker(
@@ -162,7 +162,7 @@ def _an_entry(type: str) -> dict[str, Any]:
 
 def _a_prompt() -> dict[str, object]:
     """The frame an app sends to rewrite the view of a call it is serving."""
-    return a_frame("prompt.set", AGENT, {"region": "view", "text": "Ana is calling"}, call=CALL)
+    return a_frame("prompt.set", AGENT, {"name": "view", "text": "Ana is calling"}, call=CALL)
 
 
 def _a_command(type: str, data: dict[str, Any]) -> Command:

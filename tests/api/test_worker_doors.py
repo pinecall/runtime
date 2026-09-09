@@ -25,13 +25,17 @@ A_TOOL = defs.ToolSpec(
     name="find_slots", description="Free slots", parameters={"type": "object"}, timeout_s=0.2
 )
 
+# The clinic's own layout: the one static block it writes, and a dynamic one its agenda feeds.
+A_LAYOUT = [
+    defs.PromptBlockSpec(name="identity", region="static"),
+    defs.PromptBlockSpec(name="availability", region="dynamic"),
+]
+
 
 async def declared(registry: Registry) -> None:
     """The clinic, registered and configured the way its app socket would have done it."""
     await registry.register(AN_OWNER, A_RECORD.org, AGENT, [defs.Route(channel="web", number=None)])
-    await registry.configure(
-        AN_OWNER, AGENT, defs.AgentConfig(instructions="Sos Clara.", tools=[A_TOOL])
-    )
+    await registry.configure(AN_OWNER, AGENT, defs.AgentConfig(prompt=A_LAYOUT, tools=[A_TOOL]))
 
 
 def a_context(org: str = A_RECORD.org) -> CallContext:
@@ -57,7 +61,8 @@ async def test_an_agents_config_comes_back_whole_and_an_unknown_one_is_a_refusal
 ) -> None:
     await declared(registry)
     config = await worker_gateway.agent(AGENT)
-    assert (config.slug, config.instructions) == (AGENT, "Sos Clara.")
+    assert config.slug == AGENT
+    assert [block.name for block in config.prompt] == ["identity", "availability"]
     assert [tool.name for tool in config.tools] == ["find_slots"]
     with pytest.raises(GatewayRefused, match="404"):
         await worker_gateway.agent("nobody")

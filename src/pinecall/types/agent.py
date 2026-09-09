@@ -7,6 +7,7 @@ from typing import Literal, get_args
 
 from pinecall.types.channel import CHANNELS, Channel
 from pinecall.types.knowledge import Docs, MemoryPolicy
+from pinecall.types.prompt import DEFAULT_LAYOUT, PromptBlock
 from pinecall.types.refused import DeclarationRefused
 from pinecall.types.tool import ToolSpec
 
@@ -59,7 +60,7 @@ class AgentConfig:
     slug: str
     channels: frozenset[Channel] = frozenset()
     name: str | None = None
-    instructions: str | None = None
+    prompt: tuple[PromptBlock, ...] = DEFAULT_LAYOUT
     greeting: str | None = None
     language: str | None = None
     voice: Voice | None = None
@@ -87,6 +88,11 @@ class AgentConfig:
         names = [tool.name for tool in self.tools]
         if repeated := {name for name in names if names.count(name) > 1}:
             raise DeclarationRefused(f"agent {self.slug}: tool names repeat: {sorted(repeated)}")
+        blocks = [block.name for block in self.prompt]
+        if repeated := {name for name in blocks if blocks.count(name) > 1}:
+            raise DeclarationRefused(
+                f"agent {self.slug}: prompt block names repeat: {sorted(repeated)}"
+            )
         if bad := {
             name for name, seen_by in self.state_fields.items() if seen_by not in VISIBILITIES
         }:

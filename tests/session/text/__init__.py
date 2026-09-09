@@ -1,1 +1,1 @@
-"""The text session: turns, measures, the regions, the verbs, on a scripted model."""
+"""The text session: turns, measures, the prompt's blocks, the verbs, on a scripted model."""

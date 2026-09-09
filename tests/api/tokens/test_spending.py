@@ -27,7 +27,7 @@ async def held(registry: Registry) -> None:
     """The clinic on its web door, as its app socket would have registered it."""
     a_web_door = defs.Route(channel="web", number=None)
     await registry.register(AN_OWNER, A_RECORD.org, AGENT, [a_web_door])
-    await registry.configure(AN_OWNER, AGENT, defs.AgentConfig(instructions="Sos Clara."))
+    await registry.configure(AN_OWNER, AGENT, defs.AgentConfig(language="es"))
 
 
 def a_token_born_call(call: str = A_TOKENS_CALL) -> CallContext:

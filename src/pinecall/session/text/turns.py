@@ -19,8 +19,7 @@ if TYPE_CHECKING:
 
 
 # This is the agent's Writer: livekit's own path through llm_node calls thinking/said/measured on
-# the way, and those three moments belong to the reply in flight, not to the call. The view is the
-# session's — the prompt is call-long — and is read here because a request is a turn.
+# the way, and those three moments belong to the reply in flight, not to the call.
 class Turns:
     """Every reply of one call, one at a time: the turn in flight, and what it has said so far."""
 
@@ -32,11 +31,6 @@ class Turns:
         self._state_now: defs.AgentState | None = None
 
     # ── what the agent hands livekit, and what livekit hands back ───────────────
-
-    @property
-    def view(self) -> str:
-        """The dynamic region, read per request so it never enters the cached instructions."""
-        return self._session.view
 
     async def thinking(self) -> None:
         """livekit is about to send a request: a new round of the reply in flight."""

@@ -67,9 +67,7 @@ async def serving(
     await registry.configure(
         owner,
         slug,
-        defs.AgentConfig(
-            instructions="Sos Clara, de la clínica.", events=events or [], tools=tools or []
-        ),
+        defs.AgentConfig(events=events or [], tools=tools or []),
     )
 
 

@@ -17,7 +17,7 @@ from pinecall_protocol.state import (
     Handoff,
     LiveTranscript,
     LoggedError,
-    PromptRegionState,
+    PromptBlockState,
     State,
     ToolRun,
     TransferState,
@@ -64,7 +64,7 @@ def initial_state() -> State:
         "tools": [],
         "app_state": {},
         "events": [],
-        "prompt": {"static": None, "view": None},
+        "prompt": {},
         "tools_visible": [],
         "confirms": [],
         "memory": [],
@@ -247,11 +247,7 @@ def _on_state_changed(state: State, data: events.StateChanged) -> None:
 
 
 def _on_prompt_changed(state: State, entry: Entry, data: events.PromptChanged) -> None:
-    region = PromptRegionState(hash=data.hash, chars=data.chars, seq=entry.seq)
-    if data.region == "static":
-        state.prompt.static = region
-    else:
-        state.prompt.view = region
+    state.prompt[data.name] = PromptBlockState(hash=data.hash, chars=data.chars, seq=entry.seq)
 
 
 def _on_tools_changed(state: State, data: events.ToolsChanged) -> None:

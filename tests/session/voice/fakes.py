@@ -31,7 +31,6 @@ FIND = ToolSpec(name="find_slot", description="Free slots", parameters={"type": 
 CLARA = AgentConfig(
     slug="clinica-norte",
     channels=frozenset({"web"}),
-    instructions="You are Clara.",
     tools=(FIND, BOOK),
 )
 

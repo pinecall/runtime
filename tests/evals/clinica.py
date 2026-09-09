@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from pathlib import Path
 
 from pinecall.providers.declaration import an_agent, configured
-from pinecall.types import AgentConfig
+from pinecall.types import AgentConfig, Blocks
 from pinecall_protocol import defs
 
 SLUG = "clinica-norte"
@@ -20,19 +19,12 @@ CAPTURES = Path(__file__).parent / "fixtures" / SLUG
 DECLARATION = CAPTURES / "declaration.json"
 PROMPTS = CAPTURES
 
-# How `showPrompt` writes the three regions (the agents framework's `views/render.ts`). Read here so
-# that a capture and the ring that drives it can never disagree about where one region ends.
+# How `showPrompt` wrote the three regions when these captures were taken (the agents framework's
+# `views/render.ts`). Read here so that a capture and the ring that drives it can never disagree
+# about where one region ends.
 STATIC_MARKER = "── static ──"
 HISTORY_MARKER = "── history ──"
 DYNAMIC_MARKER = "── dynamic ──"
-
-
-@dataclass(frozen=True)
-class Prompt:
-    """One captured state as the model would read it: the cached prefix and the view."""
-
-    static: str
-    view: str
 
 
 def declared() -> AgentConfig:
@@ -41,10 +33,15 @@ def declared() -> AgentConfig:
     return configured(an_agent(SLUG, ()), wire)
 
 
-def prompt_at(state: int) -> Prompt:
-    """The static region and the view of the captured state N, as the tenant's suite pins them."""
+# The capture's static text is what the app used to send whole; written into `identity` alone it
+# is byte for byte the instructions the model read then, which is what pins the ring.
+def prompt_at(state: int) -> Blocks:
+    """The captured state N as the app writes it: its static text in identity, its view in view."""
     captured = (PROMPTS / f"state-{state}.txt").read_text(encoding="utf-8")
-    return Prompt(static=_region(captured, STATIC_MARKER, HISTORY_MARKER), view=_dynamic(captured))
+    blocks = Blocks()
+    blocks.set("identity", _region(captured, STATIC_MARKER, HISTORY_MARKER))
+    blocks.set("view", _dynamic(captured))
+    return blocks
 
 
 def _region(captured: str, opens: str, closes: str) -> str:

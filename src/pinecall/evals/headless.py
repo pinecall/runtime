@@ -17,7 +17,7 @@ from pinecall.session.declaring import declared
 from pinecall.session.voice import session
 from pinecall.session.voice.agent import VoiceAgent
 from pinecall.session.voice.kit import kit_for
-from pinecall.types import NO_ORG_KEYS, AgentConfig
+from pinecall.types import NO_ORG_KEYS, AgentConfig, Blocks
 from pinecall.types.channel import Channel
 
 # The written door. `session/voice/session.py` builds no STT, no TTS and no VAD for it, which is
@@ -26,19 +26,11 @@ from pinecall.types.channel import Channel
 WRITTEN: Channel = "whatsapp"
 
 
-# The app's side of one turn, frozen. `Speaking` is the port the agent reads the dynamic region
-# through (session/voice/agent.py:16): a ring renders one view and holds it, because nothing
-# here moves the state. What was said is already on the run's own events, so it is not kept twice.
-class _Rendered:
-    """A view already rendered, standing in for the app for the length of one turn."""
-
-    def __init__(self, view: str) -> None:
-        self._view = view
-
-    @property
-    def view(self) -> str:
-        """The dynamic region, appended after the history on every request, as on a real call."""
-        return self._view
+# The bridge's side of one turn, with nothing behind it. `Speaking` is the port the agent writes
+# through (session/voice/agent.py:16); what was said is already on the run's own events, so it is
+# not kept twice, and a written session has no ears to drop a word out of.
+class _NoBridge:
+    """A Speaking that keeps nothing, standing in for the bridge for the length of one turn."""
 
     def said(self, delta: str | TimedString) -> None:
         """The reply as the caller hears it. A ring reads it off `RunResult.events` instead."""
@@ -60,8 +52,7 @@ class Headless:
 async def a_headless_call(
     config: AgentConfig,
     *,
-    static: str,
-    view: str,
+    prompt: Blocks,
     answers: Answers,
     settings: Settings | None = None,
 ) -> AsyncGenerator[Headless]:
@@ -69,14 +60,14 @@ async def a_headless_call(
     kit = kit_for(settings or load_settings())
     # The box's own vendor keys: a headless call belongs to no org, so it brought none.
     live = session.a_session(config, kit, WRITTEN, NO_ORG_KEYS)
-    # The two regions arrive the way the app sends them at call start: the static one becomes
-    # livekit's `instructions` — the pinned item at index 0 the provider's cache lands on — and
-    # the view is read per request, after the history. Never reordered; see the agents repo's
-    # docs/decisions/prompt-regions.md.
+    # The prompt arrives the way the app sends it at call start, already written into its blocks:
+    # the static ones become livekit's `instructions` — the pinned item at index 0 the provider's
+    # cache lands on — and the dynamic ones are read per request, after the history. Never
+    # reordered; a ring renders once and holds it, because nothing here moves the state.
     agent = VoiceAgent(
-        instructions=static,
+        blocks=prompt,
         tools=declared(config.tools, answers),
-        speaking=_Rendered(view),
+        speaking=_NoBridge(),
     )
     await live.start(agent)  # pyright: ignore[reportUnknownMemberType] — livekit's start is untyped
     try:

@@ -95,9 +95,9 @@ async def configure_the_session(command: Command, session: TextSession) -> None:
 
 @in_a_call("prompt.set")
 async def set_the_prompt(command: Command, session: TextSession) -> None:
-    """Rewrite one region of the prompt: the static prefix, or the view rendered from state."""
+    """Rewrite one block of the prompt, whole, by name; an undeclared name is refused."""
     wanted = asked(command, PromptSet)
-    await session.set_prompt(wanted.region, wanted.text)
+    await session.set_prompt(wanted.name, wanted.text)
 
 
 @in_a_call("tools.set")

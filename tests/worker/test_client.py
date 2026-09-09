@@ -26,7 +26,6 @@ CLINICA = Route(org="pinecall", agent="clinica-norte", channel="phone", number="
 CLARA = AgentConfig(
     slug="clinica-norte",
     channels=frozenset({"phone"}),
-    instructions="You are Clara.",
     tools=(ToolSpec(name="find_slot", description="Free slots", parameters={"type": "object"}),),
 )
 

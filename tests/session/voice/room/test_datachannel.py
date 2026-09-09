@@ -114,7 +114,7 @@ async def test_nothing_of_the_tenants_leaves_for_the_browser(held: Held) -> None
     held.room.connect()
     held.room.join(a_widget(WIDGET))
     await held.settled()
-    log.push(an_entry(4, "prompt.changed", {"region": "view", "hash": "abc", "chars": 12}))
+    log.push(an_entry(4, "prompt.changed", {"name": "view", "hash": "abc", "chars": 12}))
     log.push(
         an_entry(
             5,

@@ -52,7 +52,7 @@ class Asked:
 
     @property
     def system(self) -> str:
-        """The one system message of the request: the prompt regions, in the order they went."""
+        """Every system message of the request, joined: the prompt's blocks, in the order sent."""
         said = [
             message.text_content or ""
             for message in self.chat_ctx.messages()

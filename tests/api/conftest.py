@@ -349,7 +349,7 @@ def declared(
     """One agent, one web door, and whatever this test wants it to have declared."""
     app_socket.send_json(a_register(AGENT, a_door("web")))
     app_socket.receive_json()
-    config: dict[str, object] = {"instructions": "Sos Clara, de la clínica."}
+    config: dict[str, object] = {"language": "es"}
     if tools:
         config["tools"] = [dict(tool) for tool in tools]
     if events:
