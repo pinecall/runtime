@@ -6,14 +6,13 @@ import pkgutil
 from collections.abc import Callable
 from dataclasses import dataclass
 from importlib import import_module
-from types import MappingProxyType
 from typing import Any, cast
 
 from livekit.agents import llm, stt, tts
 
 from pinecall._exceptions import PinecallError
 from pinecall._settings import Settings
-from pinecall.types import ProviderKeys
+from pinecall.types import NO_ORG_KEYS, ProviderKeys
 
 # livekit's LLM, STT and TTS are each generic over the extra events a plugin may emit; nothing here
 # listens to one, so the runtime names them once with these and never spells the parameter again.
@@ -42,9 +41,6 @@ KEY_OF: dict[str, str] = {
 # caller's turn. The gateway's pipeline screen says the same sentence before the call, so a person
 # sees the missing key as a state (gateway/pipeline/report.py).
 NO_KEY = "{vendor} has no API key in this process"
-
-# The org that brought none of its own, which is every org on a box running managed keys.
-NO_ORG_KEYS: ProviderKeys = MappingProxyType({})
 
 
 # Every modality asks the same question in different words, so one shape carries all of them and

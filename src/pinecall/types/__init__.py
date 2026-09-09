@@ -15,7 +15,7 @@ from pinecall.types.consent import (
 from pinecall.types.json import JsonObject
 from pinecall.types.knowledge import Docs, MemoryPolicy
 from pinecall.types.org import DEFAULT_ORG, QUOTAS, Org, QuotaName, Quotas, a_slug
-from pinecall.types.provider_keys import VENDORS, ProviderKeys
+from pinecall.types.provider_keys import NO_ORG_KEYS, VENDORS, ProviderKeys
 from pinecall.types.refused import DeclarationRefused
 from pinecall.types.route import Route
 from pinecall.types.token import GRANTS, Grant, Scope, grant_for
@@ -26,6 +26,7 @@ __all__ = [
     "DEFAULT_ORG",
     "GATE_DEFERRED_ON",
     "GRANTS",
+    "NO_ORG_KEYS",
     "QUOTAS",
     "THE_WIDGET",
     "VENDORS",

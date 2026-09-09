@@ -17,3 +17,6 @@ VENDORS: tuple[str, ...] = (
 
 # One org's own keys, vendor by vendor. Empty is the common case: the box's env keys are used.
 type ProviderKeys = Mapping[str, str]
+
+# The org that brought none, spelled once: every door that reads keys falls back to this.
+NO_ORG_KEYS: ProviderKeys = {}
