@@ -29,6 +29,9 @@ install:
 	install -m 644 nftables.conf /etc/nftables.conf
 	systemctl reload-or-restart nftables
 	systemctl daemon-reload
-	systemctl enable -q nftables caddy pinecall-secrets pinecall-postgres-image \
-	    pinecall-redis pinecall-livekit pinecall-sip pinecall-postgres \
+	# Only what is a FILE in /etc/systemd/system. A container's unit is generated into /run by
+	# podman's Quadlet generator at every daemon-reload, and `systemctl enable` refuses a
+	# generated unit outright — the `[Install]` section inside each .container is what wants it
+	# at boot, and pinecall-postgres-image is pulled in by the Requires= of the one that needs it.
+	systemctl enable -q nftables caddy pinecall-secrets \
 	    pinecall-gateway pinecall-worker-key pinecall-operator-key pinecall-worker
