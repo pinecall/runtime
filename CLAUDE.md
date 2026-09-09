@@ -65,6 +65,9 @@ happened and the doc is the bug.
 - The public surface of the root and of every package with an `__all__` is pinned by a test.
 - The prompt is a list of named blocks in two regions, in this order: static blocks (cached) ·
   append-only history · dynamic blocks (replaced every turn). Never reorder.
+- A marker is filled by the gateway, never by the app: the worker asks over HTTP
+  (`POST /v1/calls/{call}/fill`, `/remember`), the text session asks `filling/` in-process, and
+  `worker/` imports none of `memory/`, `knowledge/`, `filling/`.
 - Unit tests run on dead-sentinel keys (`tests/conftest.py`): everything constructs, a real call
   dies in seconds. The same golden log reduces to the same state here and in TypeScript.
 

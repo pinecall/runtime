@@ -13,14 +13,11 @@ from pinecall.log.store import MemoryStore
 from pinecall.types import ProviderKeys
 from pinecall_protocol import decode_entries
 from pinecall_protocol.fixtures import GOLDEN_LOG
-from tests.api.conftest import (  # noqa: F401 — imported so pytest collects them here
+from tests.api.conftest import (
     A_KEY,
     AGENT,
     AN_ORG,
-    a_call_the_app_ends,
     admission,
-    an_app,
-    declared,
     gateway,
     graph,
     keys,
@@ -43,6 +40,7 @@ from tests.api.conftest import (  # noqa: F401 — imported so pytest collects t
     vault,
     wired,
 )
+from tests.api.talking import a_call_the_app_ends, an_app, declared
 
 pytestmark = pytest.mark.unit
 

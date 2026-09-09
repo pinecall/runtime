@@ -63,14 +63,14 @@ table; the declared ones have a socket.
 | **Route** | `org`, `agent`, `channel` (`phone`·`web`·`whatsapp`), `number`, `label` | `routes` | one door into one agent, in one org. A number is a route, never an agent. The operator's row outranks the app's declaration |
 | **AgentConfig** | `slug`, `channels`, `name`, `prompt` (→ PromptBlock: `name`, `region`), `greeting`, `language`, **Voice** (`provider`, `model`, `voice_id`), **Model** ×2 (`llm`, `stt`), **Turn** (`min_interruption_words`, `endpointing_ms`), `says`, `hears`, **KnowledgeFile** (`path`, `text`), **Docs** (`base`, `mode`, `k`, `min_score`), **MemoryPolicy** (`remember`, `forget`), `tools`, `state_fields` (→ Visibility), `events` | **no table** — declared by the app over `WS /v1/apps` at `agent.register`; the agent's own log `@<slug>` is the durable record | one agent, many app sockets (a fleet of `pinecall run`, or one console); many calls |
 | **ToolSpec** | `name`, `description`, `parameters`, `side_effect` (`read`·`write`·`irreversible`), `pii`, `confirm`, `preview`, `result_summary`, `timeout_s` | inside AgentConfig | runs in the app's process; an irreversible one is the consent gate's subject |
-| **CallContext** | `call`, `channel`, `direction`, `caller`, `route`, `today`, **Contact** (`id`, `phone`, `name`, `email`, `external_id`), `metadata` | `call_log_head` (`log`, `agent`, `call`, `seq`, `sealed`, `started_at`) | one call, one agent, one org, one route; bound to the one app socket that took it |
+| **CallContext** | `call`, `channel`, `direction`, `caller`, `route`, `today`, **Contact** (`id`, `phone`, `name`, `email`, `external_id`), `metadata`; `remembered_as`, who memory files the call under | `call_log_head` (`log`, `agent`, `call`, `seq`, `sealed`, `started_at`) | one call, one agent, one org, one route; bound to the one app socket that took it |
 | **Entry** | `call`, `seq`, `ts`, `agent`, `type`, `ephemeral`, `data`; `log = call ?? '@'+agent` | `call_log`, primary key `(log, seq)`, UPDATE/DELETE refused | the only truth; everything below is a fold of it |
 | **Grant** / **Scope** | `talk`·`chat`·`observe`·`supervise`·`participate` → `connects`, `audio`, `reads_log`, `sends_verbs`, `own_call_only`, `single_use`, `ttl_s`, `hears`, `hidden` | `tokens` (one row per call, spent once) | a token carries one call and one scope; spent by the dispatch that opens the call |
 | **Consent** | `GateLine` (`seq`, `kind`, `call_id`, `tool`, `audience`, `side_effect`) → `ConsentRead` (`kept`·`broken`·`ungated`·`undeclared`) | read off the log | ring-3 check and ring-4 judge, same rule |
 | **ProviderKeys** | `vendor → key` | `provider_keys` (`org`, `vendor`, `ciphertext`, `set_at`), Fernet under `PINECALL_VAULT_KEY` | absent row = the box's key (managed); one row = BYOK |
 | **Fact** | `id`, `contact`, `text`, `category`, `source`, `valid_from`, `invalidated_at`, `score` | `contact_memories` (plus `embedding halfvec(1024)`, `supersedes`, `confidence`) | one contact's facts in one org, bi-temporal: an update is a new row that supersedes the old one, an invalidation an end date, `forget` the one DELETE. `memory/` recalls them per turn (cosine and BM25, fused by rank, weighed by recency and confidence) and writes them at hang-up with one model call |
 | **eval run** | `id`, `agent`, `started_at`, `finished_at`, `status`, `document` | `eval_runs` | ring-1 suites driven over live text sessions |
-| **Base** / **Chunk** | `base`, `chunks`, `pushed_at` · `id`, `base`, `path`, `heading`, `text`, `score` | `knowledge_bases` (`org`, `base`, `model`, `dimensions`, `chunks`, `pushed_at`) · `knowledge_chunks` (`id`, `org`, `base`, `path`, `heading`, `ordinal`, `text`, `embedding halfvec(1024)`), HNSW by cosine and BM25 in spanish | a push replaces the base whole (`knowledge/store.py`); a search is both indexes fused by reciprocal rank |
+| **Base** / **Chunk** | `base`, `chunks`, `pushed_at` · `id`, `base`, `path`, `heading`, `text`, `score` | `knowledge_bases` (`org`, `base`, `model`, `dimensions`, `chunks`, `pushed_at`) · `knowledge_chunks` (`id`, `org`, `base`, `path`, `heading`, `ordinal`, `text`, `embedding halfvec(1024)`), HNSW by cosine and BM25 in spanish | a push replaces the base whole (`knowledge/store.py`); a search is both indexes fused by reciprocal rank (`types/fusion.py`, the one fusion memory ranks with too). `docs/decisions/retrieval.md` |
 
 Thirteen tables, nine migrations (`migrations/000N_*.sql`, applied in order by `migrate up`, never
 edited; `0008_memory` holds the contact's facts — **Fact** in `types/knowledge.py` is its shape —
@@ -104,7 +104,8 @@ names the agent declared. A **scope** picks the projection a bearer reads throug
 ## 4. The gateway, process 1
 
 `api/app.py` is one FastAPI process: a lifespan that opens the Postgres pool, the key table,
-the routes, the vault and the meter, then twenty-seven routers, one door each. By resource:
+the routes, the vault and the meter, the embedder, memory, the knowledge base and the one `Filling`
+over them, then thirty routers, one door each. By resource:
 
 | door | what |
 |---|---|
@@ -118,14 +119,22 @@ the routes, the vault and the meter, then twenty-seven routers, one door each. B
 | `POST /v1/tokens` | LiveKit's token endpoint with our three things in front: minted only for an agent the key's org answers, single-use, the dispatch riding it |
 | `GET /v1/routes` · `/v1/ops/routes` · `/v1/ops/orgs` · `/v1/ops/orgs/{org}/keys` · `/quotas` · `/provider-keys` · `/v1/ops/usage` | the tenant's read, and **the operator API** (`docs/protocol/operator-api.md`), keyed by `PINECALL_OPS_KEY` — what `pinecall/cloud` talks to |
 | `GET/POST /v1/whatsapp/webhook` | Meta's handshake and every delivered message; one thread per contact per number, each a text call (`api/whatsapp/`, `whatsapp/`) |
+| `PUT /v1/knowledge/{base}` · `GET /v1/knowledge` · `DELETE /v1/knowledge/{base}` | **the knowledge base**, on the tenant's key: a base pushed whole (`{files: [{path, text}]}` → `{base, chunks, took_ms}`), listed, dropped (404 for a name never pushed). `api/knowledge.py` |
+| `GET /v1/contacts/{contact}/memory` · `DELETE` | **a contact's memory**: every fact ever held, current first; and forget, the right to be forgotten (`{forgotten: n}`). `api/contacts.py` |
 | `GET /v1/whoami` | the name on the key that knocked |
 
 **What the process keeps in memory** (`api/_live.py`, `Live`): the open app sockets, the text
 sessions running here, the tool calls in flight waiting on an app, and the calls being **served**
-— each bound to the app socket that took it, with its subscription and the queue its commands
-wait in for the worker. None of it is durable and none of it should be: "it is a fact about
-which sockets are open right now, not a fact about the world. The world is the log."
-`docs/decisions/api.md`, `dispatch.md`, `supervise.md`, `whatsapp.md`, `eval-runner.md`.
+— each bound to the app socket that took it, with its subscription, the queue its commands
+wait in for the worker, and the `CallContext` and `AgentConfig` the door that opened it knew,
+which is all a fill ever asks of a call (`Live.the_call` → `filling.OpenCall`). None of it is
+durable and none of it should be: "it is a fact about which sockets are open right now, not a
+fact about the world. The world is the log." `docs/decisions/api.md`, `dispatch.md`,
+`supervise.md`, `whatsapp.md`, `eval-runner.md`.
+
+A gateway on a dev key opens no Postgres pool, so it holds no memory and no knowledge: a fill
+answers every marker with nothing and refuses nobody, and the knowledge and contact doors say so
+in one sentence each (`this gateway keeps no knowledge: it runs on a dev key`, 503).
 
 ## 5. The worker, process 2
 
@@ -191,13 +200,19 @@ the turn goes on unfilled with an `error` entry (`memory_skipped`, `retrieval_sk
 `request_context` applies the fills on the way into the request only: the app's text, and the hash
 `prompt.changed` carries, are never touched. At hang-up, between `call.ended` and `call.summary`,
 the session's `Rememberer` writes what the call taught about the contact; a miss is
-`remember_failed`, recoverable, and the call seals. The voice session's filler is the worker's
-gateway client; the text session's is the gateway's own `filling/`, in-process. **A tool runs in the
+`remember_failed`, recoverable, and the call seals. **A marker is filled by the gateway, never by
+the app**: the voice session's filler is the worker's gateway client (`POST /v1/calls/{call}/fill`,
+`/remember`), the text session's is the gateway's own `filling/`, in-process — one
+`Filling(memory, knowledge, logs, calls, keys_of)` per process, implementing both protocols, that
+recalls the contact's facts (the contact is `CallContext.remembered_as`: the resolved id, else
+the number on phone and WhatsApp, else nobody), searches the agent's `docs.base` under the
+marker's own `k`/`min_score`, writes `memory.ops` and `docs.sources` on the call's log with the
+turn's `speech_id`, and names TEI in the error entry when the embedder is down. **A tool runs in the
 tenant's process**: the session
 sends `tool.call` to the gateway, the gateway relays it down the app socket the call is bound
 to, the tenant's `@tool` runs where it was written, `tool.result` rides back to the model.
-`docs/decisions/text-session.md`, `prompt-blocks.md`, `memory.md`, `livekit-context.md`,
-`livekit-words.md`.
+`docs/decisions/text-session.md`, `prompt-blocks.md`, `memory.md`, `retrieval.md`,
+`livekit-context.md`, `livekit-words.md`.
 
 ## 7. The path of a call, door by door
 

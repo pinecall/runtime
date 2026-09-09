@@ -1,0 +1,246 @@
+"""A Memory and a Knowledge that answer from a script, and the one call this suite serves."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from functools import partial
+from typing import Any
+
+from pinecall.filling import Filling, OpenCall
+from pinecall.knowledge import Base
+from pinecall.log.logs import CallLog
+from pinecall.log.store import MemoryStore
+from pinecall.log.writers import Logs
+from pinecall.memory import Spoken
+from pinecall.orgs.vault import MemoryVault, keys_brought_by
+from pinecall.types import (
+    AgentConfig,
+    CallContext,
+    Channel,
+    Chunk,
+    Contact,
+    Docs,
+    Fact,
+    KnowledgeFile,
+    MemoryPolicy,
+    Model,
+    ProviderKeys,
+    Route,
+)
+from pinecall_protocol import encode
+from pinecall_protocol.defs import MemoryOp
+from pinecall_protocol.events import AgentTurnEnded, UserTurnEnded
+from pinecall_protocol.metrics import AgentTurnMetrics, UserTurnMetrics
+
+ORG = "clinica"
+CALL = "call_filled"
+AGENT = "clinica-norte"
+THE_NUMBER = "+34600000001"
+LEARNED = datetime(2026, 9, 1, 10, 0, tzinfo=UTC)
+
+
+def a_fact(id: str, text: str, score: float = 1.0) -> Fact:
+    """One fact of the caller, as recall would score it."""
+    return Fact(
+        id=id,
+        contact=THE_NUMBER,
+        text=text,
+        category="preference",
+        source=None,
+        valid_from=LEARNED,
+        invalidated_at=None,
+        score=score,
+    )
+
+
+def a_chunk(id: str, heading: str, text: str, score: float = 1.0) -> Chunk:
+    """One chunk of the clinic's base, as search would score it."""
+    return Chunk(id=id, base="clinica", path="tarifas.md", heading=heading, text=text, score=score)
+
+
+@dataclass
+class ScriptedMemory:
+    """A Memory answering the facts it was given, and remembering every question it was asked."""
+
+    answers: list[Fact] = field(default_factory=list[Fact])
+    failing: Exception | None = None
+    recalled: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
+    remembered: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
+
+    async def recall(
+        self,
+        org: str,
+        contact: str,
+        query: str,
+        *,
+        kinds: Sequence[str] = (),
+        k: int = 6,
+        as_of: datetime | None = None,  # noqa: ARG002 — the Protocol's shape
+    ) -> list[Fact]:
+        if self.failing is not None:
+            raise self.failing
+        self.recalled.append(
+            {"org": org, "contact": contact, "query": query, "kinds": tuple(kinds), "k": k}
+        )
+        return list(self.answers)[:k]
+
+    async def remember(
+        self,
+        org: str,
+        contact: str,
+        turns: Sequence[Spoken],
+        *,
+        channel: Channel,
+        at: datetime,  # noqa: ARG002 — the Protocol's shape
+        policy: MemoryPolicy,
+        llm: Model | None,
+        keys: ProviderKeys,
+        call: str | None = None,
+    ) -> list[MemoryOp]:
+        self.remembered.append(
+            {
+                "org": org,
+                "contact": contact,
+                "turns": list(turns),
+                "channel": channel,
+                "policy": policy,
+                "llm": llm,
+                "keys": dict(keys),
+                "call": call,
+            }
+        )
+        return [MemoryOp(op="remember", contact=contact, facts=[], took_ms=1.0)]
+
+    async def forget(self, org: str, contact: str) -> int:  # noqa: ARG002
+        gone, self.answers = len(self.answers), []
+        return gone
+
+    async def history(self, org: str, contact: str) -> list[Fact]:  # noqa: ARG002
+        return list(self.answers)
+
+
+@dataclass
+class ScriptedKnowledge:
+    """A Knowledge answering the chunks it was given, and remembering what it was searched for."""
+
+    answers: list[Chunk] = field(default_factory=list[Chunk])
+    failing: Exception | None = None
+    searched: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
+    pushed: dict[str, list[KnowledgeFile]] = field(default_factory=dict[str, list[KnowledgeFile]])
+
+    async def put(self, org: str, base: str, files: Sequence[KnowledgeFile]) -> int:  # noqa: ARG002
+        self.pushed[base] = list(files)
+        return len(files) * 2
+
+    async def bases(self, org: str) -> list[Base]:  # noqa: ARG002
+        return [
+            Base(base=base, chunks=len(files) * 2, pushed_at=LEARNED)
+            for base, files in sorted(self.pushed.items())
+        ]
+
+    async def drop(self, org: str, base: str) -> bool:  # noqa: ARG002
+        return self.pushed.pop(base, None) is not None
+
+    async def search(
+        self,
+        org: str,
+        base: str,
+        query: str,
+        *,
+        k: int = 8,
+        min_score: float | None = None,
+    ) -> list[Chunk]:
+        if self.failing is not None:
+            raise self.failing
+        self.searched.append(
+            {"org": org, "base": base, "query": query, "k": k, "min_score": min_score}
+        )
+        return list(self.answers)[:k]
+
+
+class OneCall:
+    """The Calls table of a process serving exactly one call, or none."""
+
+    def __init__(self, opened: OpenCall | None) -> None:
+        self._opened = opened
+
+    def the_call(self, call: str) -> OpenCall | None:
+        return self._opened if self._opened and self._opened.context.call == call else None
+
+
+def a_context(channel: Channel = "phone", contact: Contact | None = None) -> CallContext:
+    """A call on the clinic's door: a number on the phone, a visitor id on the web."""
+    number = None if channel == "web" else THE_NUMBER
+    return CallContext(
+        call=CALL,
+        channel=channel,
+        direction="inbound",
+        caller=THE_NUMBER if channel != "web" else "visitor_9",
+        route=Route(org=ORG, agent=AGENT, channel=channel, number=number),
+        today=LEARNED.date(),
+        contact=contact,
+    )
+
+
+def a_config(
+    docs: Docs | None = Docs(base="clinica", k=8),  # noqa: B008 — frozen
+    memory: MemoryPolicy | None = MemoryPolicy(remember=("preference",)),  # noqa: B008 — frozen
+    knowledge: KnowledgeFile | None = None,
+) -> AgentConfig:
+    """The clinic as it declares itself for these tests: a base to search, a policy to keep."""
+    return AgentConfig(
+        slug=AGENT,
+        channels=frozenset({"phone", "web"}),
+        llm=Model(provider="anthropic", model="claude-haiku"),
+        docs=docs,
+        memory=memory,
+        knowledge=knowledge,
+    )
+
+
+@dataclass
+class Served:
+    """One Filling over one served call, with the log it writes into readable by the test."""
+
+    filling: Filling
+    store: MemoryStore
+    log: CallLog
+    memory: ScriptedMemory
+    knowledge: ScriptedKnowledge
+
+    async def written(self, type: str) -> list[dict[str, Any]]:
+        """Every entry of that type on the call's log, as data."""
+        return [dict(entry.data) for entry in await self.store.since(CALL) if entry.type == type]
+
+    async def heard(self, text: str, speech_id: str = "sp_1") -> None:
+        """The caller's turn on the log, as the session writes it."""
+        turn = UserTurnEnded(speech_id=speech_id, text=text, metrics=UserTurnMetrics())
+        await self.log.append("turn.user", encode(turn))
+
+    async def said(self, text: str, speech_id: str = "sp_1") -> None:
+        """The agent's turn on the log, as the session writes it."""
+        turn = AgentTurnEnded(
+            speech_id=speech_id, text=text, interrupted=False, metrics=AgentTurnMetrics()
+        )
+        await self.log.append("turn.agent", encode(turn))
+
+
+def a_served_call(
+    context: CallContext | None = None,
+    config: AgentConfig | None = None,
+    *,
+    memory: ScriptedMemory | None = None,
+    knowledge: ScriptedKnowledge | None = None,
+    vault: MemoryVault | None = None,
+) -> Served:
+    """The service over one call this process is serving, its log open on an in-memory store."""
+    store = MemoryStore()
+    logs = Logs(store)
+    log = logs.writing(CALL, AGENT)
+    opened = OpenCall(org=ORG, context=context or a_context(), config=config or a_config())
+    memory = memory or ScriptedMemory()
+    knowledge = knowledge or ScriptedKnowledge()
+    filling = Filling(memory, knowledge, logs, OneCall(opened), partial(keys_brought_by, vault))
+    return Served(filling, store, log, memory, knowledge)

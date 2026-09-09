@@ -12,9 +12,12 @@ from pinecall._settings import Settings
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.keys import KeyRecord, Keys
 from pinecall.evals.runs import Runs
+from pinecall.filling import Filling
+from pinecall.knowledge import Knowledge
 from pinecall.log.snapshots import Snapshots
 from pinecall.log.store import Store
 from pinecall.log.writers import Logs
+from pinecall.memory import Memory
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.table import Orgs
 from pinecall.orgs.vault import NO_VAULT_KEY, Vault
@@ -161,6 +164,25 @@ def the_vault(connection: HTTPConnection) -> Vault | None:
     return vault
 
 
+def the_filling(connection: HTTPConnection) -> Filling:
+    """The gateway's answer to a turn's markers and to a hang-up: memory and the knowledge base."""
+    return held(connection, "filling", Filling)
+
+
+# Both are None on a gateway with no Postgres — a dev key — and the doors that need one say so
+# in a sentence (below), while a fill on such a gateway answers with nothing and refuses nobody.
+def the_memory(connection: HTTPConnection) -> Memory | None:
+    """The contact's facts, or None when this gateway keeps none. A Protocol: no isinstance."""
+    memory: Memory | None = getattr(connection.app.state, "memory", None)
+    return memory
+
+
+def the_knowledge(connection: HTTPConnection) -> Knowledge | None:
+    """The knowledge base, or None when this gateway keeps none. A Protocol: no isinstance."""
+    knowledge: Knowledge | None = getattr(connection.app.state, "knowledge", None)
+    return knowledge
+
+
 OrgsDep = Annotated[Orgs, Depends(the_orgs)]
 RoutesDep = Annotated[Routes, Depends(the_routes)]
 TokensDep = Annotated[Tokens, Depends(the_tokens)]
@@ -171,6 +193,9 @@ OverridesDep = Annotated[Overrides, Depends(the_overrides)]
 RunsDep = Annotated[Runs, Depends(the_runs)]
 GraphDep = Annotated[Graph, Depends(the_graph)]
 VaultDep = Annotated["Vault | None", Depends(the_vault)]
+FillingDep = Annotated[Filling, Depends(the_filling)]
+MemoryDep = Annotated["Memory | None", Depends(the_memory)]
+KnowledgeDep = Annotated["Knowledge | None", Depends(the_knowledge)]
 
 
 # The gate the operator's vault doors take, the way `an_operator` gates every /v1/ops door: asked
@@ -185,6 +210,30 @@ async def an_unlocked_vault(vault: VaultDep) -> Vault:
 
 
 UnlockedVaultDep = Annotated[Vault, Depends(an_unlocked_vault)]
+
+# A dev key opens no Postgres pool at all (api/app.py), and memory and the knowledge base are
+# tables: the request was right and this gateway cannot honour it. 503, in a sentence that names
+# the cause, because a bare 503 from a push is the afternoon this repo already lost twice.
+NO_KNOWLEDGE = "this gateway keeps no knowledge: it runs on a dev key"
+NO_MEMORY = "this gateway keeps no memory: it runs on a dev key"
+
+
+async def a_kept_knowledge(knowledge: KnowledgeDep) -> Knowledge:
+    """The knowledge base, or 503: this gateway has no table to push into."""
+    if knowledge is None:
+        raise HTTPException(503, NO_KNOWLEDGE)
+    return knowledge
+
+
+async def a_kept_memory(memory: MemoryDep) -> Memory:
+    """The contact's memory, or 503: this gateway has no table to read or forget."""
+    if memory is None:
+        raise HTTPException(503, NO_MEMORY)
+    return memory
+
+
+KeptKnowledgeDep = Annotated[Knowledge, Depends(a_kept_knowledge)]
+KeptMemoryDep = Annotated[Memory, Depends(a_kept_memory)]
 
 # Every operator door names its org, by id or by slug, and this is the one place the word becomes
 # a row: a door that typed the resolution itself would be a door that could skip it. 404 for one

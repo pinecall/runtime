@@ -9,6 +9,7 @@ from fastapi import Depends
 from pinecall.api._deps import what_is_live
 from pinecall.api.agents.registry import SocketId
 from pinecall.log.logs import CallLog
+from pinecall.types import AgentConfig, CallContext
 
 
 # Asked for by the type a door needs (see deps.py), so the doors that open a call — the worker's
@@ -17,7 +18,17 @@ from pinecall.log.logs import CallLog
 class Serving(Protocol):
     """The live memory, as far as a call's door touches it: served, counted, then forgotten."""
 
-    def serve(self, call: str, agent: str, org: str, log: CallLog, app: SocketId | None) -> None:
+    def serve(
+        self,
+        call: str,
+        agent: str,
+        org: str,
+        log: CallLog,
+        app: SocketId | None,
+        *,
+        context: CallContext,
+        config: AgentConfig,
+    ) -> None:
         """Every entry of this call to ONE app socket, chosen now and kept for the whole call."""
         ...
 

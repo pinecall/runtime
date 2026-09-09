@@ -4,9 +4,11 @@ from datetime import date
 
 import pytest
 
+from pinecall._settings import Budgets
 from pinecall.api.agents.registry import Registration
 from pinecall.api.calls.opening import a_text_call
 from pinecall.evals import a_score
+from pinecall.filling import Filling
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import Admission
 from pinecall.providers.models import Models
@@ -49,10 +51,10 @@ def _context() -> CallContext:
 # with `not_judged` and nobody was told. The assertion is on identity, because the default is a
 # perfectly working function that answers no verdict at all.
 async def test_a_text_call_is_opened_with_the_judge_and_not_with_the_default(
-    overrides: Overrides, llms: Models, admission: Admission, logs: Logs
+    overrides: Overrides, llms: Models, admission: Admission, logs: Logs, filling: Filling
 ) -> None:
     opened = await a_text_call(
-        _held(), _context(), overrides, None, llms, admission, logs, running=0
+        _held(), _context(), overrides, None, llms, admission, logs, 0, filling, Budgets()
     )
 
     assert opened.session._score is a_score  # pyright: ignore[reportPrivateUsage]

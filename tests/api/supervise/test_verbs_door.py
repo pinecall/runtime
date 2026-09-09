@@ -20,6 +20,7 @@ from pinecall_protocol.commands import SupervisorVerb
 from pinecall_protocol.fixtures import GOLDEN_LOG
 from pinecall_protocol.verbs import SayVerb
 from tests.api.conftest import A_KEY, A_RECORD, AGENT
+from tests.api.talking import a_context
 
 pytestmark = pytest.mark.unit
 
@@ -55,7 +56,17 @@ async def a_live_call(
         await store.append(call=call, agent=AGENT, type=entry.type, data=entry.data)
         if entry.type == "turn.user":
             break
-    live.serve(call, AGENT, A_RECORD.org, logs.writing(call, AGENT), None)
+    held = registry.of(AGENT)
+    assert held is not None
+    live.serve(
+        call,
+        AGENT,
+        A_RECORD.org,
+        logs.writing(call, AGENT),
+        None,
+        context=a_context(call),
+        config=held.config,
+    )
 
 
 async def a_call_that_ended(store: MemoryStore, registry: Registry, live: Live, logs: Logs) -> None:

@@ -3,7 +3,8 @@
 import pytest
 from starlette.testclient import TestClient
 
-from tests.api.conftest import A_KEY, got
+from tests.api.conftest import A_KEY
+from tests.api.talking import got
 
 pytestmark = pytest.mark.unit
 

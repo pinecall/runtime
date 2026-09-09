@@ -114,7 +114,8 @@ async def test_an_unanswered_marker_is_filled_with_nothing_and_no_speech_sends_n
 
 async def test_remember_knocks_at_the_calls_own_door_with_an_empty_body() -> None:
     seen: list[Seen] = []
-    await a_gateway(seen=seen).remember("call_1")
+    answered = {"/v1/calls/call_1/remember": {"ops": 2, "took_ms": 900.0}}
+    assert await a_gateway(answered, seen).remember("call_1") == 2
     assert (seen[0].method, seen[0].path, seen[0].body) == ("POST", "/v1/calls/call_1/remember", {})
 
 

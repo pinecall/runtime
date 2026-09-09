@@ -13,18 +13,7 @@ from pinecall.auth.keys import MemoryKeys
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.orgs.vault import NO_VAULT_KEY, Vault
 from pinecall.types import VENDORS
-from tests.api.conftest import (
-    A_DEV_KEY,
-    A_KEY,
-    A_LIVEKIT,
-    A_RECORD,
-    AGENT,
-    AN_OPS_KEY,
-    AN_ORG,
-    a_door,
-    an_app,
-    got,
-)
+from tests.api.conftest import A_DEV_KEY, A_KEY, A_LIVEKIT, A_RECORD, AGENT, AN_OPS_KEY, AN_ORG
 from tests.api.orgs.test_two_orgs_never_cross import (
     A_NUMBER,
     ANOTHER_AGENT,
@@ -34,6 +23,7 @@ from tests.api.orgs.test_two_orgs_never_cross import (
     another_app,
     holding,
 )
+from tests.api.talking import a_door, an_app, got
 
 pytestmark = pytest.mark.unit
 

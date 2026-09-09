@@ -17,10 +17,9 @@ from pinecall.log.store.protocol import DEFAULT_LIMIT, LogSealed, Metered
 from pinecall.types.json import JsonObject
 
 # The .sql files, numbered, applied in name order. A migration is added, never edited. They are the
-# RUNTIME's — the log's tables and auth's api_keys sit in one schema, applied by one runner — and
-# only the runner that applies them lives here, behind the store's one door to the driver. A
-# number is a place in the queue: 0008_memory.sql and 0009_knowledge.sql are reserved for ms-9's
-# memory and knowledge cards.
+# RUNTIME's — the log's tables, auth's api_keys, memory's contact_memories (0008) and the
+# knowledge base's two tables (0009) sit in one schema, applied by one runner — and only the
+# runner that applies them lives here, behind the store's one door to the driver.
 MIGRATIONS = Path(__file__).parents[2] / "migrations"
 
 # A schema name reaches SQL as an identifier, where no parameter can go. So it is checked here

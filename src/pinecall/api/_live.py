@@ -10,11 +10,12 @@ from fastapi import Depends
 
 from pinecall.api._deps import what_is_live
 from pinecall.api.agents.registry import Send, SocketId
+from pinecall.filling import OpenCall
 from pinecall.log.fanout import Subscription
 from pinecall.log.logs import CallLog
 from pinecall.session.pending import ToolCalls
 from pinecall.session.text.session import TextSession
-from pinecall.types import AgentConfig
+from pinecall.types import AgentConfig, CallContext
 from pinecall_protocol import Command
 from pinecall_protocol.defs import ToolResult
 
@@ -22,7 +23,8 @@ from pinecall_protocol.defs import ToolResult
 # One call the app is being shown, whichever process runs it: the app socket it was bound to when
 # it opened, the subscription that carries its entries down that socket, and the queue a command
 # waits in for the worker that will apply it. `None` in that queue is the call ending, which is the
-# only way the worker's stream stops.
+# only way the worker's stream stops. The context and the config are what the door that opened
+# the call knew of it, kept so a fill and a hang-up can ask whose contact and which base it is.
 @dataclass(frozen=True)
 class Served:
     """A live call from the app socket's side: whose it is, what it is fed, what it asked for."""
@@ -32,6 +34,8 @@ class Served:
     app: SocketId | None
     entries: Subscription
     commands: asyncio.Queue[Command | None]
+    context: CallContext
+    config: AgentConfig
 
 
 # None of this is durable and none of it should be: it is a fact about which sockets are open right
@@ -64,7 +68,17 @@ class Live:
     # (POST /v1/calls) are put on this same delivery, so an app hears both alike. What carries the
     # entries is the log's own fanout, which is what keeps the log the single truth: an entry
     # reaches the app because it was written, never because somebody remembered to send it too.
-    def serve(self, call: str, agent: str, org: str, log: CallLog, app: SocketId | None) -> None:
+    def serve(
+        self,
+        call: str,
+        agent: str,
+        org: str,
+        log: CallLog,
+        app: SocketId | None,
+        *,
+        context: CallContext,
+        config: AgentConfig,
+    ) -> None:
         """Every entry of this call to the ONE app socket its door chose, for the whole call."""
         if call in self._served:
             return
@@ -73,7 +87,13 @@ class Live:
         # lands mid-call cannot move a live conversation. See docs/decisions/dispatch.md.
         entries = log.subscribe()
         self._served[call] = Served(
-            agent=agent, org=org, app=app, entries=entries, commands=asyncio.Queue()
+            agent=agent,
+            org=org,
+            app=app,
+            entries=entries,
+            commands=asyncio.Queue(),
+            context=context,
+            config=config,
         )
         send = None if app is None else self._apps.get(app)
         if send is None:
@@ -96,6 +116,16 @@ class Live:
         """Whose call this is, as the door that opened it said; None when none is served."""
         served = self._served.get(call)
         return None if served is None else served.org
+
+    # What the fill and the hang-up ask of a call, and the only thing they ask: the org, how the
+    # call arrived and what its agent declared, as the door that opened it said. filling/ holds
+    # the Protocol; this is its one implementation.
+    def the_call(self, call: str) -> OpenCall | None:
+        """The call as a fill sees it, or None when this gateway is not serving it."""
+        served = self._served.get(call)
+        if served is None:
+            return None
+        return OpenCall(org=served.org, context=served.context, config=served.config)
 
     def close(self, call: str) -> None:
         """The call is over and nothing more will be said on it."""

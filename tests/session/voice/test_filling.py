@@ -44,10 +44,11 @@ class Answering:
         self.queries.append((query, speech_id))
         return {marker.line: f"- The caller said {query!r}." for marker in markers}
 
-    async def remember(self, call: str) -> None:
+    async def remember(self, call: str) -> int:
         if self._failing is not None:
             raise self._failing
         self.remembered.append(call)
+        return 1
 
 
 @pytest.fixture

@@ -7,15 +7,19 @@ from typing import Any
 
 import httpx
 
-from pinecall.providers.embedder import DIMENSIONS, WrongWidth
+from pinecall.providers.embedder import DIMENSIONS, EmbedderUnreachable, WrongWidth
 
 # TEI's own name for a model it was not told, so a refusal always has a word to say.
 UNNAMED = "the embedder at TEI_URL"
+
+# What a fill's error entry says when the embedder is down: the vendor, the URL, and the reason.
+DID_NOT_ANSWER = "TEI at {url} did not answer: {why}"
 
 
 # One per process, over the one http client the process opened. /info names the model and is
 # read once; the width is measured on the vectors themselves, because /info does not carry it —
 # a model of another width is refused at the first embed, by name, before a row is written.
+# Nothing here talks to TEI until a vector is needed: a gateway with no TEI still starts.
 class TeiEmbedder:
     """POST /embed in batches, truncating a long text instead of refusing the batch."""
 
@@ -34,10 +38,7 @@ class TeiEmbedder:
         if not texts:
             return []
         model = await self.model()
-        answer = await self._http.post(
-            f"{self._url}/embed", json={"inputs": list(texts), "truncate": True}
-        )
-        answer.raise_for_status()
+        answer = await self._asked("POST", "/embed", {"inputs": list(texts), "truncate": True})
         vectors: list[list[float]] = answer.json()
         if vectors and len(vectors[0]) != DIMENSIONS:
             raise WrongWidth(
@@ -49,8 +50,19 @@ class TeiEmbedder:
     async def model(self) -> str:
         """The model's id as TEI reports it, asked once and kept for the refusal's sentence."""
         if self._model is None:
-            answer = await self._http.get(f"{self._url}/info")
-            answer.raise_for_status()
-            info: Any = answer.json()
+            info: Any = (await self._asked("GET", "/info")).json()
             self._model = str(info.get("model_id") or UNNAMED)
         return self._model
+
+    # A connection refused, a timeout and a 5xx are one fact to a fill — the embedder is down —
+    # and the sentence names TEI and its URL, so the error entry on the call's log does too.
+    async def _asked(self, method: str, path: str, body: Any = None) -> httpx.Response:
+        """One request to TEI, answered 2xx; anything else is EmbedderUnreachable, by name."""
+        url = f"{self._url}{path}"
+        try:
+            answer = await self._http.request(method, url, json=body)
+            answer.raise_for_status()
+        except httpx.HTTPError as failed:
+            why = str(failed) or type(failed).__name__
+            raise EmbedderUnreachable(DID_NOT_ANSWER.format(url=self._url, why=why)) from failed
+        return answer

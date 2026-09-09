@@ -5,7 +5,8 @@ from starlette.testclient import TestClient
 
 from pinecall.orgs.vault import Vault
 from pinecall.types import ProviderKeys
-from tests.api.conftest import AN_ORG, a_call_the_app_ends, an_app, declared
+from tests.api.conftest import AN_ORG
+from tests.api.talking import a_call_the_app_ends, an_app, declared
 
 pytestmark = pytest.mark.unit
 

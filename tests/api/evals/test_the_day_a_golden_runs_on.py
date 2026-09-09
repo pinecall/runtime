@@ -2,15 +2,20 @@
 
 import json
 from datetime import date
+from functools import partial
 from typing import Any
 
 import pytest
 from livekit.agents import llm as agents
 
+from pinecall._settings import Budgets
+from pinecall.api._live import Live
 from pinecall.api.evals.conversation import an_eval_call
 from pinecall.evals.goldens import Golden
+from pinecall.filling import Filling
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
+from pinecall.orgs.vault import keys_brought_by
 from pinecall.session import clock
 from pinecall.session.text.session import TextSession
 from pinecall.types import AgentConfig
@@ -34,7 +39,9 @@ def a_golden(**written: Any) -> Golden:
 def a_call_of(golden: Golden) -> TextSession:
     """The call that golden opens, on a model nobody in this file ever reaches."""
     config = AgentConfig(slug=AGENT, channels=frozenset({"web"}))
-    return an_eval_call(golden, A_CALL, config, ORG, Logs(MemoryStore()), FakeLLM())
+    logs = Logs(MemoryStore())
+    filling = Filling(None, None, logs, Live(), partial(keys_brought_by, None))
+    return an_eval_call(golden, A_CALL, config, ORG, logs, FakeLLM(), filling, Budgets())
 
 
 async def test_a_golden_that_names_no_day_runs_on_the_real_one() -> None:

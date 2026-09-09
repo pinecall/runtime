@@ -5,7 +5,8 @@ from starlette.testclient import TestClient
 
 from pinecall.auth.scopes import a_room_token
 from pinecall.log.store import MemoryStore
-from tests.api.conftest import A_LIVEKIT, got
+from tests.api.conftest import A_LIVEKIT
+from tests.api.talking import got
 
 pytestmark = pytest.mark.unit
 

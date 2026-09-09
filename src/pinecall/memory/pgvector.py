@@ -8,15 +8,20 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
-from pgvector import HalfVector
-
 from pinecall.log.store import Pool
 from pinecall.memory.extraction import OPS_THAT_WRITE, Op, extracted
 from pinecall.memory.protocol import DEFAULT_FACTS_PER_TURN, Spoken
-from pinecall.memory.ranking import CANDIDATES_PER_BRANCH, Candidate, ranked
-from pinecall.providers.embedder import Embedder
+from pinecall.memory.ranking import Candidate, ranked
+from pinecall.providers.embedder import Embedder, as_halfvec
 from pinecall.providers.models import Models
-from pinecall.types import Channel, Fact, MemoryPolicy, Model, ProviderKeys
+from pinecall.types import (
+    CANDIDATES_PER_BRANCH,
+    Channel,
+    Fact,
+    MemoryPolicy,
+    Model,
+    ProviderKeys,
+)
 from pinecall_protocol.defs import MemoryFact, MemoryOp
 
 # ── the statements ──────────────────────────────────────────────────────────────
@@ -216,7 +221,7 @@ class PgvectorMemory:
         listed = list(texts)
         if not listed:
             return []
-        return [HalfVector(vector).to_text() for vector in await self._embedder.embed(listed)]
+        return [as_halfvec(vector) for vector in await self._embedder.embed(listed)]
 
 
 def _a_fact(row: Mapping[str, Any]) -> Fact:

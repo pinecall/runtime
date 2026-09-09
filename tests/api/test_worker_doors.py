@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import date
 
 import pytest
 
@@ -16,6 +15,7 @@ from pinecall.worker.client import Gateway, GatewayRefused
 from pinecall_protocol import defs
 from pinecall_protocol.events import ToolCall
 from tests.api.conftest import A_RECORD, AGENT
+from tests.api.talking import a_context as a_call_on
 
 pytestmark = pytest.mark.unit
 
@@ -39,14 +39,7 @@ async def declared(registry: Registry) -> None:
 
 
 def a_context(org: str = A_RECORD.org) -> CallContext:
-    return CallContext(
-        call=CALL,
-        channel="web",
-        direction="inbound",
-        caller="visitor_1",
-        route=Route(org=org, agent=AGENT, channel="web"),
-        today=date(2026, 9, 7),
-    )
+    return a_call_on(CALL, org)
 
 
 async def test_the_routes_are_the_fleets_own_doors_as_the_domain_holds_them(

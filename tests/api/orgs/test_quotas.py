@@ -14,16 +14,8 @@ from pinecall.log.store import MemoryStore
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.types import CallContext, Quotas, Route
 from pinecall.worker.client import Gateway, GatewayRefused
-from tests.api.conftest import (
-    A_KEY,
-    A_RECORD,
-    AGENT,
-    a_caller,
-    a_door,
-    a_register,
-    an_app,
-    entry_until,
-)
+from tests.api.conftest import A_KEY, A_RECORD, AGENT
+from tests.api.talking import a_caller, a_door, a_register, an_app, entry_until
 from tests.api.test_worker_doors import declared
 from tests.api.tokens.test_the_door import minted
 from tests.log.test_usage import A_SUMMARY

@@ -246,13 +246,9 @@ class Settings(BaseSettings):
         description="What judging one call may spend on a model, in euros. Zero: no judge asks.",
     )
 
-    # ── Memory and retrieval: the language BM25 ranks in, and what a call waits for ──
-    # pg_textsearch ranks facts and chunks with a text search configuration, which is the
-    # language the callers speak: stemming "turnos" to "turno" is what makes a search find them.
-    text_search_config: str = Field(
-        default="spanish",
-        description="The pg_textsearch configuration BM25 ranks facts and chunks with: a language.",
-    )
+    # ── Memory and retrieval: what a turn and a hang-up wait for ──────────────
+    # The language BM25 ranks in is the index's own, fixed in 0008 and 0009 (`spanish`): a
+    # migration reads no setting, so there is none to read here either.
     fill_budget_ms: int = Field(
         default=Budgets.fill_ms,
         description="What a turn waits for memory and retrieval, in ms. Past it the reply goes on.",

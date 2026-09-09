@@ -132,7 +132,12 @@ def test_the_worker_is_built_from_the_environment_the_job_process_inherited(
     # The bridge is built with the judge in hand: the session judges nothing by itself.
     bridging = cast("partial[VoiceBridge]", built.bridging)
     assert bridging.func is a_bridge
-    assert bridging.keywords == {"score": a_score}
+    assert bridging.keywords == {
+        "score": a_score,
+        "filler": built.gateway,
+        "rememberer": built.gateway,
+        "budgets": load_settings().budgets,
+    }
     assert built.default_agent == "clinica-norte"
     assert str(built.gateway._http.base_url) == "http://gateway.internal:9000"  # pyright: ignore[reportPrivateUsage]
     assert built.keeping("CA_7") is not None

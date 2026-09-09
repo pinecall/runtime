@@ -249,15 +249,6 @@ def test_the_report_says_environment_only_when_there_is_no_env_file(
     assert capsys.readouterr().out.splitlines()[0] == "env: no .env — environment only"
 
 
-def test_bench_says_no_embedder_is_wired_yet(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    monkeypatch.setattr(doctor, "live_probes", probes_that_answer)
-    assert main(["doctor", "--bench"]) == 0
-    assert "no embedder wired yet" in capsys.readouterr().out
-
-
 def test_the_livekit_cli_is_reported_with_the_path_it_was_found_at() -> None:
     lk = doctor.run_checks(load_settings(), probes_that_answer())[-1]
     assert lk.name == "lk"

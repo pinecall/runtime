@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 from typing import Protocol
 
 from pinecall.types import Blocks, KnowledgeFile, Marker, markers_in
+from pinecall.types.markers import NOT_FILLED, NOT_REMEMBERED, REMEMBER_FAILED, SKIPPED
 from pinecall_protocol.events import ErrorEvent
 
 
@@ -23,8 +24,8 @@ class Filler(Protocol):
 class Rememberer(Protocol):
     """Who writes what a call taught about the contact, once, at hang-up."""
 
-    async def remember(self, call: str) -> None:
-        """Read the call's turns off its log and write the memory ops."""
+    async def remember(self, call: str) -> int:
+        """Read the call's turns off its log and write the memory ops; how many were written."""
         ...
 
 
@@ -45,14 +46,9 @@ class NoFiller:
 class NoRememberer:
     """A process that keeps no memory: a hang-up writes nothing."""
 
-    async def remember(self, call: str) -> None:  # noqa: ARG002 — the protocol's shape
-        """Nothing."""
-        return None
-
-
-# The codes the log carries when the platform did not answer in time, by what was asked.
-SKIPPED: dict[str, str] = {"memory": "memory_skipped", "retrieved": "retrieval_skipped"}
-REMEMBER_FAILED = "remember_failed"
+    async def remember(self, call: str) -> int:  # noqa: ARG002 — the protocol's shape
+        """Nothing, and no op written."""
+        return 0
 
 
 # One per call. The knowledge fill is the file's text, fixed when the session starts, wherever
@@ -144,7 +140,7 @@ def _skipped(markers: Sequence[Marker], why: str) -> tuple[ErrorEvent, ...]:
     return tuple(
         ErrorEvent(
             code=code,
-            message=f"{code.removesuffix('_skipped')} was not filled: {why}",
+            message=NOT_FILLED.format(what=code.removesuffix("_skipped"), why=why),
             recoverable=True,
         )
         for code in codes
@@ -153,5 +149,5 @@ def _skipped(markers: Sequence[Marker], why: str) -> tuple[ErrorEvent, ...]:
 
 def _failed_to_remember(why: str) -> ErrorEvent:
     return ErrorEvent(
-        code=REMEMBER_FAILED, message=f"memory was not written: {why}", recoverable=True
+        code=REMEMBER_FAILED, message=NOT_REMEMBERED.format(why=why), recoverable=True
     )

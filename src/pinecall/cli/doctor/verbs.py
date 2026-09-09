@@ -29,9 +29,10 @@ KEY_REFUSED = (
     "a box takes a live one with `make secret NAME={variable}`, a laptop in its .env"
 )
 
-BENCH_NOT_WIRED = "bench: no embedder wired yet — it lands in ms-9"
-# Nothing in this tree embeds yet, so an embedder that is down stops no call: advice, not outage.
-TEI_IS_ADVICE = "no embedder is wired yet, so this stops no call"
+# An embedder that is down stops no call: a fill that needs a vector is skipped and the call's
+# log says so (`retrieval_skipped`, `memory_skipped`, naming TEI), and the turn goes on. A push
+# to the knowledge base does need it, and answers with the same sentence. Advice, not outage.
+TEI_IS_ADVICE = "a fill without it is skipped and said in the call's log, so this stops no call"
 
 # The LiveKit CLI is how a person reads current documentation and manages trunks and dispatch
 # (`lk docs`, `lk sip`, `lk dispatch`) — livekit's own starter tells its agent to ask for it. It is
@@ -58,23 +59,16 @@ type Check = Callable[[Settings, Probes], Result]
 
 
 def configure(parser: argparse.ArgumentParser) -> None:
-    """One flag and no verbs: the doctor either reports, or reports and measures."""
-    parser.add_argument(
-        "--bench",
-        action="store_true",
-        help="also measure the embedder — from ms-9",
-    )
+    """No flags and no verbs: the doctor reports."""
     parser.set_defaults(run=run)
 
 
-def run(arguments: argparse.Namespace) -> int:
+def run(arguments: argparse.Namespace) -> int:  # noqa: ARG001 — every verb takes the namespace
     """Name the env file first, then walk the checks, print the report, answer with the verdict."""
     print(render_env_source())
     print()
     results = run_checks(load_settings(), live_probes())
     print(render_report(results))
-    if arguments.bench:
-        print(BENCH_NOT_WIRED)
     return 1 if first_failure(results) else 0
 
 

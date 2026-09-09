@@ -12,18 +12,8 @@ from pinecall.api._live import Live
 from pinecall.auth.bearer import POLICY_VIOLATION
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.worker.client import CONTEXT
-from tests.api.conftest import (
-    A_KEY,
-    A_RECORD,
-    AGENT,
-    APPS,
-    CHAT,
-    a_caller,
-    a_door,
-    a_frame,
-    a_register,
-    an_app,
-)
+from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS, CHAT
+from tests.api.talking import a_caller, a_door, a_frame, a_register, an_app
 from tests.api.test_worker_doors import CALL, a_context
 
 pytestmark = pytest.mark.unit

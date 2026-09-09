@@ -163,6 +163,8 @@ class Threads:
                 doors.admission,
                 doors.logs,
                 doors.live.running(held.org),
+                doors.filling,
+                doors.settings.budgets,
             )
             # The org's own Meta token or the box's, out of the very keys the model was built
             # from: the vault is read once per call and not once per thing the call needs.
@@ -178,6 +180,8 @@ class Threads:
             held.org,
             doors.logs.writing(session.call, session.agent),
             held.owner,
+            context=session.context,
+            config=session.config,
         )
         doors.live.open(session)
         thread = Thread(

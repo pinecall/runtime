@@ -132,11 +132,12 @@ class Forgetting:
         self._failing = failing
         self.remembered: list[str] = []
 
-    async def remember(self, call: str) -> None:
+    async def remember(self, call: str) -> int:
         await asyncio.sleep(self._after_s)
         if self._failing is not None:
             raise self._failing
         self.remembered.append(call)
+        return 1
 
 
 async def test_remembering_within_the_budget_writes_nothing_to_the_log() -> None:

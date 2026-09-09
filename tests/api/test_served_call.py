@@ -19,7 +19,8 @@ from pinecall.worker import commanding
 from pinecall.worker.client import CONTEXT, Gateway
 from pinecall_protocol import Command, defs
 from pinecall_protocol.events import ToolCall
-from tests.api.conftest import A_KEY, A_RECORD, AGENT, a_frame, an_app, declared
+from tests.api.conftest import A_KEY, A_RECORD, AGENT
+from tests.api.talking import a_frame, an_app, declared
 from tests.api.test_worker_doors import AN_OWNER, CALL, a_context
 from tests.api.test_worker_doors import declared as registered
 

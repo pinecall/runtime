@@ -1,0 +1,24 @@
+"""The two files every knowledge test pushes, and an org of a test's own to push them under."""
+
+from typing import Any
+from uuid import uuid4
+
+from pinecall.types import KnowledgeFile
+
+CLINICA = KnowledgeFile(
+    "clinica.md",
+    "# Clínica Norte\n\n## Horarios\n\nAbrimos de lunes a viernes de nueve a dieciocho.\n\n"
+    "## Turnos\n\nLos turnos se piden por teléfono o por la web, con el documento a mano.\n",
+)
+TARIFAS = KnowledgeFile(
+    "tarifas.md",
+    "# Tarifas\n\n## Revisión\n\nLa revisión cuesta cuarenta euros y dura media hora.\n\n"
+    "## Limpieza\n\nLa limpieza dental cuesta sesenta euros.\n",
+)
+
+
+async def an_org(connection: Any) -> str:
+    """One more org, created now, named so no other test's rows can be mistaken for its own."""
+    org = f"org-{uuid4().hex[:12]}"
+    await connection.execute("insert into orgs (id, slug, name) values ($1, $1, $1)", org)
+    return org

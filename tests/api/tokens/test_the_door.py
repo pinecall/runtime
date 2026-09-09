@@ -16,16 +16,8 @@ from pinecall.api.app import app
 from pinecall.auth.scopes import SCOPE_ATTRIBUTE, THE_MICROPHONE
 from pinecall.tokens.ledger import MemoryTokens
 from pinecall.types.dispatch import AGENT_KEY, CALLER_KEY, METADATA_KEY, SCOPE_KEY, WORKER_NAME
-from tests.api.conftest import (
-    A_DEV_KEY,
-    A_KEY,
-    A_LIVEKIT,
-    AGENT,
-    AN_OPS_KEY,
-    a_door,
-    a_register,
-    an_app,
-)
+from tests.api.conftest import A_DEV_KEY, A_KEY, A_LIVEKIT, AGENT, AN_OPS_KEY
+from tests.api.talking import a_door, a_register, an_app
 
 pytestmark = pytest.mark.unit
 
