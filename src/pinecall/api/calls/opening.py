@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from pinecall.api.agents.registry import Registration
+from pinecall.evals import a_score
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.vault import Vault, keys_brought_by
@@ -52,5 +53,9 @@ async def a_text_call(
     # The org's quotas, also before: credits.exhausted lands in the agent's log either way.
     await admission.a_call(held.org, held.slug, running)
     # logs.writing() keeps the log, so every SSE reader of this call is already subscribed to it.
-    session = TextSession(context, config, logs.writing(context.call, held.slug), llm)
+    # And the judge: a session judges nothing itself, so whoever opens a call hands it one.
+    # This is that place for a written call, as `worker/main.py` is for a spoken one.
+    session = TextSession(
+        context, config, logs.writing(context.call, held.slug), llm, score=a_score
+    )
     return TextCall(session=session, keys=brought)
