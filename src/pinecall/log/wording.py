@@ -7,6 +7,9 @@ from pinecall_protocol.defs import ToolResult
 # The outcome line for a person reading the log of a call where the agent never said anything.
 NOTHING_SAID = "no reply"
 
+# The code of an `error` entry that says the platform said no: to a command, or to a tool call.
+REFUSED = "refused"
+
 
 def as_text(result: ToolResult) -> str:
     """What the model reads back from a tool: its error, its summary, or its output as text."""

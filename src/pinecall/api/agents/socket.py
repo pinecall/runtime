@@ -13,6 +13,7 @@ from pinecall.api.agents.handlers import HANDLERS, Live, LiveDep, Socket, asked,
 from pinecall.api.agents.registry import Registry, RegistryDep, SocketId, a_socket_id
 from pinecall.auth.bearer import POLICY_VIOLATION
 from pinecall.auth.keys import KeyRecord
+from pinecall.log import REFUSED
 from pinecall.log.entry import Entry, unstored
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import Admission, QuotaExhausted
@@ -112,10 +113,10 @@ class AppSocket:
         except ProtocolError as refusal:
             await self.refuse(command.agent, "bad_shape", str(refusal), raw)
         except DeclarationRefused as refusal:
-            await self.refuse(command.agent, "refused", str(refusal), raw)
+            await self.refuse(command.agent, REFUSED, str(refusal), raw)
         # credits.exhausted is already in the agent's log; the app hears the sentence too.
         except QuotaExhausted as refusal:
-            await self.refuse(command.agent, "refused", str(refusal), raw)
+            await self.refuse(command.agent, REFUSED, str(refusal), raw)
 
     # Through the live log, so a reader holding this agent's SSE stream open hears the entry now.
     async def emit(self, agent: str, type: str, event: WireModel) -> Entry:

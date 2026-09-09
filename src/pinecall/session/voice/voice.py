@@ -82,9 +82,9 @@ class VoiceBridge:
         self.writing = Writing(platform, context.call)
         self.meters = Meters(self.writing)
         self.events = Events(self.writing, self.meters, self)
-        self.tools = Tools(config, platform, context.call)
+        self.tools = Tools(config, platform, context.call, self.writing.emit)
         self.blocks = Blocks(config.prompt)
-        self._agent = VoiceAgent(blocks=self.blocks, tools=self.tools.visible, speaking=self)
+        self._agent = VoiceAgent(blocks=self.blocks, tools=self.tools.declared_tools, speaking=self)
         self._live: AgentSession[None] | None = None
         # Built in opened(), because it needs the session and because who holds the line has
         # to survive between a takeover and the release that answers it.
@@ -207,14 +207,12 @@ class VoiceBridge:
             PromptChanged(name=name, hash=hashed_prompt(text), chars=len(text)),
         )
 
+    # Never livekit's update_tools: the agent keeps every declared tool for the life of the call,
+    # and the gate in our callable holds the closed ones shut. See session/visibility.py.
     async def set_tools(self, tools: Sequence[defs.ToolSpec]) -> None:
-        """tools.set: the subset of the declared tools the model may see in this state."""
-        by_name = self.config.tools_by_name
-        visible = tuple(by_name[tool.name] for tool in tools if tool.name in by_name)
-        await self._agent.update_tools(list(self.tools.declared(visible)))
-        await self.writing.emit(
-            "tools.changed", ToolsChanged(visible=[tool.name for tool in visible])
-        )
+        """tools.set: the subset of the declared tools the model may call in this state."""
+        visible = self.tools.visibility.narrow(tools)
+        await self.writing.emit("tools.changed", ToolsChanged(visible=list(visible)))
 
     # ── what the app writes into the log through this call ──────────────────────
 

@@ -7,12 +7,13 @@ from pinecall.log.logs import AgentLog, CallLog
 from pinecall.log.pii import MASK, Masker
 from pinecall.log.reduce import reduce
 from pinecall.log.store import LogSealed, MemoryStore, PostgresStore, Store
-from pinecall.log.wording import NOTHING_SAID, as_text, hashed_prompt
+from pinecall.log.wording import NOTHING_SAID, REFUSED, as_text, hashed_prompt
 
 __all__ = [
     "EVERYTHING",
     "MASK",
     "NOTHING_SAID",
+    "REFUSED",
     "AgentLog",
     "CallLog",
     "Entry",

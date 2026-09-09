@@ -245,7 +245,7 @@ def test_the_view_moves_without_touching_the_cached_instructions(
     assert len(views) == 1, "the view accumulated in the history"
 
 
-def test_tools_set_is_what_the_model_sees_and_only_from_what_was_declared(
+def test_tools_set_narrows_what_the_model_may_call_to_what_was_declared(
     gateway: TestClient, llm: FakeLLM
 ) -> None:
     llm.script.append(Scripted(chunks=("Hola.",)))

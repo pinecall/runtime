@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from typing import Any, cast
 
 from livekit.agents import llm as agents
@@ -11,6 +11,8 @@ from livekit.agents.llm import ToolError
 from livekit.agents.voice import RunContext
 
 from pinecall.log import as_text
+from pinecall.session.pending import Emit
+from pinecall.session.visibility import Visibility
 from pinecall.session.voice.platform import Platform, PlatformRefused
 from pinecall.types import AgentConfig, ToolSpec
 from pinecall_protocol import defs
@@ -24,22 +26,22 @@ _A_PLACEHOLDER = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
 class Tools:
     """The tools of one call: what the model may call, and what happens when it does."""
 
-    def __init__(self, config: AgentConfig, platform: Platform, call: str) -> None:
+    def __init__(self, config: AgentConfig, platform: Platform, call: str, emit: Emit) -> None:
         self._config = config
         self._platform = platform
         self._call = call
+        self._emit = emit
         # Per call and never module-level: one worker process answers one job, but a read-back
         # belongs to the tool call that earned it and to nothing else.
         self.read_backs: dict[str, str] = {}
+        self.visibility = Visibility(config)
 
+    # Every declared tool, once, for the life of the call: a tools.set moves `visibility` and
+    # never livekit's tool list, because a re-declared tool throws the provider's whole cache away.
     @property
-    def visible(self) -> list[agents.Tool]:
+    def declared_tools(self) -> list[agents.Tool]:
         """Everything the app declared, as livekit declares a tool: the schema, and our callable."""
-        return self.declared(tuple(self._config.tools_by_name.values()))
-
-    def declared(self, specs: Sequence[ToolSpec]) -> list[agents.Tool]:
-        """The given specs as livekit's raw-schema tools, each wired back to this call."""
-        return [self._a_tool(spec) for spec in specs]
+        return [self._a_tool(spec) for spec in self._config.tools]
 
     # The confirmation gate is deferred (docs/decisions/confirm.md): a tool with a confirm
     # template runs like every other tool, and the sentence it declared is read back afterwards,
@@ -47,6 +49,7 @@ class Tools:
     # the bridge, on the session event that says the outputs are in — voice.py, _tools_executed.
     async def ran(self, spec: ToolSpec, use: ToolCall) -> str:
         """One tool through the app and back: the text the model reads, or an error it can say."""
+        await self.visibility.admitted(use.name, self._emit)
         result = await self._through_app(spec, use)
         text = as_text(result)
         if result.error is not None:
