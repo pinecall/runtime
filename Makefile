@@ -37,7 +37,7 @@ RSYNC = rsync -az --delete -e "ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=y
 UV_SYNC = sudo -u pinecall env UV_PROJECT_ENVIRONMENT=/opt/pinecall/venv UV_CACHE_DIR=/opt/pinecall/.cache/uv \
           /opt/pinecall/bin/uv sync -q --frozen --project $(REMOTE)/runtime --extra runtime
 
-.PHONY: deploy sync install restart health status logs ssh require-box
+.PHONY: deploy sync install restart restart-hub restart-worker health status logs ssh require-box
 
 deploy: sync install restart
 
@@ -58,10 +58,22 @@ install: require-box
 # keeps the phone from ringing into that gap. The containers are NOT restarted here — the media
 # plane stays up through a deploy, and a changed .container is restarted between two calls, by you.
 restart: require-box
+	@case "$$($(SSH) sed -n 's/^PINECALL_ROLE=//p' /etc/pinecall/box.env)" in \
+	  worker) $(MAKE) --no-print-directory restart-worker ;; \
+	  *)      $(MAKE) --no-print-directory restart-hub ;; \
+	esac
+
+# A hub: the gateway, then the health check through Caddy, then the worker it may also run.
+restart-hub: require-box
 	$(SSH) sudo systemctl restart pinecall-gateway
 	$(MAKE) --no-print-directory health
-	$(SSH) sudo systemctl restart pinecall-worker
+	-$(SSH) sudo systemctl restart pinecall-worker 2>/dev/null
 	$(SSH) 'systemctl is-active pinecall-gateway pinecall-worker | paste -sd " "'
+
+# A worker alone: one unit, and the proof is the hub's SFU saying it registered, not a URL here.
+restart-worker: require-box
+	$(SSH) sudo systemctl restart pinecall-worker
+	$(SSH) 'systemctl is-active pinecall-worker'
 
 # Through Caddy, under the real certificate, so one request proves TLS, Caddy's upstream and the
 # gateway at once. /openapi.json because it is the one door that answers WITHOUT a key: a check
