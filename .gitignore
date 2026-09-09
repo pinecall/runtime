@@ -10,3 +10,6 @@ dist/
 
 # what the worker records (RECORD=1, PINECALL_RECORDINGS): audio of real calls, never tracked
 recordings/
+
+# The box a deploy goes to is yours, not the repository's: `make deploy` reads it from here.
+deploy.local.mk

@@ -2,7 +2,7 @@
 # A fresh box, on any provider that takes cloud-init — every cloud does, and a bare machine does
 # through a NoCloud seed. Paste this as the instance's user-data (GCP: the `user-data` metadata
 # key; AWS: User data; Hetzner: cloud config; DigitalOcean: user data). It makes exactly what has
-# to exist BEFORE the first `shipway deploy` can arrive: the packages, the account rsync logs in
+# to exist BEFORE the first `make deploy` can arrive: the packages, the account rsync logs in
 # as, the directory it lands in, uv, and the two values that are this box's alone. Everything
 # else — the service user, the units, the containers, the firewall, the secrets — arrives with
 # the deploy and is made by systemd from the files in infra/box/.
@@ -19,7 +19,7 @@ packages:
   - curl
 
 users:
-  # The account `shipway deploy` arrives as (shipway.yml: host.user). It owns the code and can
+  # The account `make deploy` arrives as (BOX in deploy.local.mk). It owns the code and can
   # sudo, and it is the only account with a login on this machine.
   - name: deploy                                                           # YOURS, or keep it
     groups: [sudo]
@@ -46,4 +46,4 @@ runcmd:
   # The fence is up before any door is: the deploy's own nftables.conf replaces the stock one.
   - [systemctl, enable, --now, nftables]
 
-final_message: "the box is ready for its first `shipway deploy`, after $UPTIME seconds"
+final_message: "the box is ready for its first `make deploy`, after $UPTIME seconds"

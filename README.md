@@ -33,6 +33,7 @@ Development happens from the checkout, with `uv`:
 scripts/format        ruff format, then the fixable lint rules
 scripts/lint          ruff, pyright strict, mypy strict
 scripts/test          pytest -m "unit or postgres": no keys, no network
+make deploy           this checkout onto your box: rsync, ssh, make, curl (infra/box/README.md)
 ```
 
 The wire is `pinecall-protocol`, generated in the protocol repository and resolved here as the
