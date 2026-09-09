@@ -72,7 +72,7 @@ run pass something nobody wrote down, so each stays exactly as opt-in as its dec
 
 One judge is not, and since 2026-09-08 it leads every panel: `consent` answers from the call's own
 gate, needs no declaration and puts no question to a model, so a golden with `expect: {}` is
-scored by it rather than by nobody — [pinecall-test.md](pinecall-test.md).
+scored by it rather than by nobody — the agents repo's `docs/decisions/pinecall-test.md`.
 
 `bridge.py` gained what `replies` needs: every `event.received` on the case, with its seq — so
 "the reply that followed" is the first assistant turn whose seq is higher, and the join is the
@@ -164,7 +164,7 @@ tables share, and only the log's own store teaches its connections the jsonb cod
 
 ## What is not here
 
-- **The CLI.** `pinecall test` is tk-3b3aa9's: this card is the door, and the verb builds the
+- **The CLI.** `pinecall test` lives in the agents repo: this page is the door, and the verb builds the
   request and prints the matrix.
 - **A diff door.** `GET /v1/evals/runs?since=` is the whole of "diff by start time": two runs
   come back newest first and the caller diffs them. A door that computed the delta would be the

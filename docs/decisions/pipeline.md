@@ -1,7 +1,7 @@
 # The pipeline door, and the knobs on it
 
 > The SCREEN this page was written for was the console's, and the console was deleted on
-> 2026-09-08 ([console.md](console.md)). The DOOR is the runtime's and is untouched, and every
+> 2026-09-08 (the agents repo's `docs/decisions/console.md`). The DOOR is the runtime's and is untouched, and every
 > rule below about what it answers, what it refuses and how its numbers are computed still holds
 > for whatever reads it next. Read "the screen" here as "a client of the door".
 
@@ -37,7 +37,7 @@ routes table makes in `docs/decisions/routes.md`.
 `config_for()` is that one applying function, and it is called wherever a config is read to build
 a session — whichever door the session came through. A text call arrives on `WS /v1/chat` and never
 asks the worker's door at all, so for one milestone it read `held.config` raw and an operator's
-knob was on every voice call and on no text one (found by tk-758d90, driving the console against a
+knob was on every voice call and on no text one (found driving the console against a
 real gateway). The rule that replaces it has no exceptions to remember: the held config is what the
 app declared, and nothing builds a session from it without asking `Overrides` first.
 

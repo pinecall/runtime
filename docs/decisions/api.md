@@ -228,7 +228,7 @@ the summariser lands it replaces that line and nothing else moves.
 ### One seam for the log, one table for the providers
 
 Everything a call writes goes through `text/calllog.py`: a two-verb Protocol, `append` and `seal`,
-with the call's id already bound. Today it wraps the `Store`; tk-313f68's `CallLog` is the same
+with the call's id already bound. Today it wraps the `Store`; the `CallLog` above is the same
 shape, and when it lands it is one line in `chat.py`. Nothing above the seam knows which one it has.
 
 `providers/llm.py` is the contract — `Prompt`, `Message`, `ToolUse`, `Usage`, and a `stream` that

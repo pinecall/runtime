@@ -127,7 +127,7 @@ usage row is that number carried through, and the runtime never turns it into an
 brought none. See [provider-keys.md](provider-keys.md).
 
 **A rename of the slug.** The id exists so that it can happen; the door that does it lands with
-the operator API card (tk-a6a749), which owns `/v1/ops/*` as a public contract.
+the operator API card, which owns `/v1/ops/*` as a public contract.
 
 **An org-level log.** `credits.exhausted` goes to the agent's log because that is where the tenant
 is already reading. A log per org would be a third kind of log, and nothing else needs one yet.

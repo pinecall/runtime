@@ -567,7 +567,7 @@ pinecall test (Node)                       gateway (Python)                     
     <tr><td>ledger auditable con <code>seq</code>, replay, cursor</td><td>spans</td><td>no</td><td>sí, y exporta a OTel GenAI</td></tr>
     <tr><td>código abierto</td><td>no</td><td>sí</td><td>Apache 2.0</td></tr>
   </table>
-  <p>Promoción y deriva son ms-6 (tk-7754e3): <code>pinecall runs promote &lt;call&gt;</code> convierte una llamada que falló ring 4 en golden candidato con <code>promoted_from</code>; <code>pinecall runs drift</code> es el delta de held-rate por juez entre dos ventanas, y el nightly cae con él. Latencias e interrupciones las lleva <code>simulate</code> al reporte, leídas de las métricas del log. Aviso honesto: Pipecat cerró parte de la ventana en cinco meses. Lo defendible es la política determinista, el ledger y el estado — no el juez.</p>
+  <p>Promoción y deriva: <code>pinecall runs promote &lt;call&gt;</code> convierte una llamada que falló ring 4 en golden candidato con <code>promoted_from</code>; <code>pinecall runs drift</code> es el delta de held-rate por juez entre dos ventanas, y el nightly cae con él. Latencias e interrupciones las lleva <code>simulate</code> al reporte, leídas de las métricas del log. Aviso honesto: Pipecat cerró parte de la ventana en cinco meses. Lo defendible es la política determinista, el ledger y el estado — no el juez.</p>
 </section>
 
 <!-- ───────────────────────────────────────────── 10 -->
@@ -626,7 +626,7 @@ pinecall test (Node)                       gateway (Python)                     
     <tr><td>embeddings</td><td>bge-m3 · multilingual-e5-small · TEI · fastembed</td><td>MIT · MIT · Apache · Apache</td><td>multilingüe permisivo, CPU o GPU con la misma imagen</td></tr>
     <tr><td>reranker (gpu)</td><td>bge-reranker-v2-m3 · FlashRank</td><td>Apache · Apache</td><td>entra al turno solo con GPU</td></tr>
     <tr><td>chunking</td><td>chonkie (recipe markdown) o propio</td><td>MIT</td><td>heading-aware; liviano</td></tr>
-    <tr><td>evals</td><td>livekit.agents.evals (agents 1.8) · ragas</td><td>Apache · Apache</td><td>Judge · JudgeGroup · session.run/expect/judge; nuestro PolicyJudge encima. DeepEval descartado el 2026-09-08 (tk-dd1ecf): dos abstracciones de juez en un repo es una de más. retrieval en CI</td></tr>
+    <tr><td>evals</td><td>livekit.agents.evals (agents 1.8) · ragas</td><td>Apache · Apache</td><td>Judge · JudgeGroup · session.run/expect/judge; nuestro PolicyJudge encima. DeepEval descartado el 2026-09-08: dos abstracciones de juez en un repo es una de más. retrieval en CI</td></tr>
     <tr><td>observabilidad</td><td>OTel GenAI semconv · Langfuse</td><td>Apache · MIT</td><td>el log exporta; Langfuse ya integra LiveKit</td></tr>
     <tr><td>memoria (opcional)</td><td>Graphiti</td><td>Apache 2.0</td><td>bi-temporal, invalida contradicciones; requiere Neo4j</td></tr>
     <tr><td>Python</td><td>uv · hatchling · ruff · pyright · mypy · pytest · pydantic 2 · FastAPI</td><td>—</td><td>higiene 2026</td></tr>

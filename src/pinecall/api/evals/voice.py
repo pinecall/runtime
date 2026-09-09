@@ -36,7 +36,7 @@ class Calling(WireModel):
     persona: Persona
     turns: int = 6
     # None is a clean line. A number is how many dB under the caller's own voice the interferer
-    # sits — the television of tk-4009d9, at the level that measurement is written down at.
+    # sits — a television behind the caller, at the level the measurement is written down at.
     interferer_db: float | None = None
     packet_loss: float = Field(default=0.0, ge=0, le=1)
 

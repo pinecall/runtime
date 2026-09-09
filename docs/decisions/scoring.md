@@ -1,4 +1,4 @@
-# Ring 4 — `call.score`: every finished call judged, in the tenant's own log (tk-18675a)
+# Ring 4 — `call.score`: every finished call judged, in the tenant's own log
 
 One chapter of [evals.md](evals.md), which indexes the rest. Rings 1–3 are asked of something a
 person chose to ask about: a turn, a tool call, one replayed golden. Ring 4 is asked of every call
@@ -46,7 +46,7 @@ box, or the judging itself failed and this is the sentence it failed with.
 This is the one field on `call.score` whose absence carries meaning, and it is why the whole entry
 exists on a box with no judges at all: the log is the truth, and "nobody judged this call, because
 X" is a fact about the call. Writing it only to the process's logger would put it in the one file
-nobody ships. tk-44eec3 draws this screen, drift reads it over time and ms-11 bills against this
+nobody ships. The console draws this screen, drift reads it over time, and billing runs against this
 log; all three read the same two fields.
 
 A judge that raises answers nothing and is **dropped**, the same drop livekit's own group does
@@ -54,7 +54,7 @@ A judge that raises answers nothing and is **dropped**, the same drop livekit's 
 a judge that looked and was unsure. When every judge is dropped the entry has no `passed` and
 `not_judged` says so.
 
-## `panel` is who was RUN; `judges` is who answered (tk-95ff3b)
+## `panel` is who was RUN; `judges` is who answered
 
 A dropped judge leaves no row, so `judges` alone cannot tell a call that was judged by one judge
 from a call that was judged by two and lost one — and `passed`, read off the survivors, would call

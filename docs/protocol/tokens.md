@@ -50,7 +50,7 @@ client code is involved.
    dispatch configuration is ignored"), so no dispatch happens, nothing of ours runs, and the
    joiner takes the token's seat in the live call — an identity is unique per room, so the first
    browser is evicted. Until the worker refuses a second seat for an identity the call already
-   holds (tk-64b2c2), the token's TTL is the only bound on that case: keep it short.
+   holds, the token's TTL is the only bound on that case: keep it short.
 
 ## Authentication
 

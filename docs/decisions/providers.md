@@ -105,7 +105,7 @@ Nothing prices off it. `PRICES` and `MEDIA_PRICES` are keyed by **model prefix**
 (`prices.py`), so `claude-haiku-4-5-20251001` is priced by `claude-haiku-4-5` whatever the row
 is labelled; the label is carried into `CostRow.provider` and `UnpricedRow.provider` for the
 reader and for nothing else. `tests/providers/test_prices.py` pins it from livekit's own usage
-object with the hostname on it, with no key and no call (tk-08e3f5). The vendor name the
+object with the hostname on it, with no key and no call. The vendor name the
 registry uses is `vendor_of(llm)`, read off `LLM.label` — a different question, answered above.
 
 ## The fake

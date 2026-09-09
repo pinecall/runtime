@@ -22,7 +22,7 @@ DECLARED = {"provider": "anthropic", "model": "claude-haiku-4-5"}
 TURNED = "anthropic/claude-sonnet-4-5"
 
 
-# The bug tk-758d90 found against a real gateway: the chat door read the held config raw, so an
+# The bug found against a real gateway: the chat door read the held config raw, so an
 # operator's knob was on every voice call and on no text one.
 def test_a_text_call_is_built_with_the_model_the_operator_turned(
     gateway: TestClient, models_asked: list[Model | None]

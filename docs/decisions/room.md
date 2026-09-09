@@ -3,7 +3,7 @@
 `src/pinecall/session/voice/room/` is the one place in the tree that touches a LiveKit
 room. The worker is the only process that holds one (`docs/decisions/worker.md`), so it is the
 process that turns the room into facts and the protocol's room verbs into server API calls. Built
-on tk-b92f09's bridge: `VoiceBridge._hold_the_room` asks livekit for the job — `get_job_context`,
+on the voice bridge: `VoiceBridge._hold_the_room` asks livekit for the job — `get_job_context`,
 the library's own accessor — and hands `job.room` and `job.api` (`job.py:438`) to the three things
 below, before the job connects, so the first fact the room yields is `room.opened`. A call with no
 job — a text session, a test — has no room, and the room verbs say so by name.

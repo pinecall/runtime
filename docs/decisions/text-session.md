@@ -56,7 +56,7 @@ the llm_node seam's and lives there.
 | history | the session's own `chat_ctx` | livekit owns it: user messages, assistant messages, `FunctionCall`/`FunctionCallOutput` pairs |
 | view | appended inside `TextAgent.llm_node`, as the LAST item of the request's `ChatContext` | it is rendered from state and moves every turn, so it must sit outside the cached prefix |
 
-tk-bdf12f joined static and view into one system message as a stopgap. That
+An early stopgap joined static and view into one system message. That
 ends here: `test_the_view_moves_without_touching_the_cached_instructions`
 asserts the first system message is byte-identical across two turns while the
 view changed, and that the view is the last item the model reads.

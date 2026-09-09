@@ -75,7 +75,7 @@ async def test_the_ops_doors_take_the_ops_key_and_nothing_else(
         assert (await knocking.get(ORGS_KEYS)).status_code == 401
 
 
-# The exact check tk-8712ac ran against a gateway in the box's posture, and the reason this card
+# The exact check that was run against a gateway in the box's posture, and the reason this page
 # exists: before it, nothing could issue the key that opens this door, so the box admitted nobody.
 async def test_a_key_issued_here_opens_the_fleets_own_door_and_no_key_opens_nothing(
     ops_http: httpx.AsyncClient,
