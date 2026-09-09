@@ -5,6 +5,7 @@
 #   make logs UNIT=worker    follow one unit's journal: gateway (default) · worker · caddy
 #   make status          every unit and container, one line each
 #   make ssh             a shell on the box
+#   make worker-secrets WORKER=user@address    a worker box's credentials, copied from the hub
 #
 # WHICH box is yours and not this repository's: put it in deploy.local.mk beside this file,
 # which git ignores —
@@ -80,6 +81,27 @@ logs: require-box
 
 ssh: require-box
 	$(SSH)
+
+# A worker box's credentials, copied from the hub — the LiveKit keypair, the org's key the
+# worker knocks with, the vendors' keys — and none it must not have: no DATABASE_URL, no ops
+# key, no vault key. Each value goes hub → this laptop's pipe → worker, decrypted on one end
+# and encrypted on the other by systemd, written to no file and printed on no screen.
+#
+#   make worker-secrets WORKER=deploy@203.0.113.9
+#
+WORKER_CREDENTIALS = LIVEKIT_API_KEY LIVEKIT_API_SECRET PINECALL_API_KEY \
+                     ANTHROPIC_API_KEY OPENAI_API_KEY SONIOX_API_KEY DEEPGRAM_API_KEY ELEVEN_API_KEY
+WSSH = ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=yes -o ConnectTimeout=20 $(WORKER)
+
+.PHONY: worker-secrets
+worker-secrets: require-box
+	@test -n "$(WORKER)" || { echo "which worker? make worker-secrets WORKER=user@address"; exit 2; }
+	$(WSSH) sudo install -d -m 700 /etc/credstore.encrypted
+	@for name in $(WORKER_CREDENTIALS); do \
+	  $(SSH) sudo systemd-creds decrypt --name=$$name /etc/credstore.encrypted/$$name - \
+	    | $(WSSH) sudo systemd-creds encrypt --with-key=auto --name=$$name - /etc/credstore.encrypted/$$name \
+	    && echo "  kept $$name on $(WORKER)"; \
+	done
 
 require-box:
 	@test -n "$(BOX)" -a -n "$(DOMAIN)" || { \
