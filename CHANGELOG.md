@@ -33,6 +33,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `PINECALL_TEXT_SEARCH_CONFIG` names the language BM25 ranks in. A missed fill is an `error`
   entry (`memory_skipped`, `retrieval_skipped`, `remember_failed`), recoverable, and the call
   goes on.
+- Memory itself: `memory/` and `0008_memory.sql`. `PgvectorMemory` keeps a contact's facts in
+  `contact_memories`, bi-temporally — an update is a new row that supersedes the old one, an
+  invalidation an end date, nothing is deleted but by `forget`, the right to be forgotten.
+  `recall` runs cosine over `halfvec(1024)` and BM25 through pg_textsearch (`spanish`), fuses the
+  two by rank (RRF, k=60), weighs recency (half-life 90 days) and confidence, and answers the best
+  k at 0..1 with no model; `remember` is one call to the org's own model at hang-up, answering
+  add / update / invalidate ops, parsed strictly and policed by the tenant's `MemoryPolicy`
+  (a `forget` category never reaches the table). `facts_as_text` is what the memory marker becomes.
 - The licence is spelled out where an operator meets it: the Apache-2.0 copyright line is
   filled (`Pinecall`), `README.md` has a License section, and `license-files` puts the text
   itself in the wheel and the sdist, so an install carries its licence.

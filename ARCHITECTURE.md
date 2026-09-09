@@ -68,12 +68,13 @@ table; the declared ones have a socket.
 | **Grant** / **Scope** | `talk`·`chat`·`observe`·`supervise`·`participate` → `connects`, `audio`, `reads_log`, `sends_verbs`, `own_call_only`, `single_use`, `ttl_s`, `hears`, `hidden` | `tokens` (one row per call, spent once) | a token carries one call and one scope; spent by the dispatch that opens the call |
 | **Consent** | `GateLine` (`seq`, `kind`, `call_id`, `tool`, `audience`, `side_effect`) → `ConsentRead` (`kept`·`broken`·`ungated`·`undeclared`) | read off the log | ring-3 check and ring-4 judge, same rule |
 | **ProviderKeys** | `vendor → key` | `provider_keys` (`org`, `vendor`, `ciphertext`, `set_at`), Fernet under `PINECALL_VAULT_KEY` | absent row = the box's key (managed); one row = BYOK |
+| **Fact** | `id`, `contact`, `text`, `category`, `source`, `valid_from`, `invalidated_at`, `score` | `contact_memories` (plus `embedding halfvec(1024)`, `supersedes`, `confidence`) | one contact's facts in one org, bi-temporal: an update is a new row that supersedes the old one, an invalidation an end date, `forget` the one DELETE. `memory/` recalls them per turn (cosine and BM25, fused by rank, weighed by recency and confidence) and writes them at hang-up with one model call |
 | **eval run** | `id`, `agent`, `started_at`, `finished_at`, `status`, `document` | `eval_runs` | ring-1 suites driven over live text sessions |
 
-Nine tables, seven migrations (`migrations/000N_*.sql`, applied in order by `migrate up`, never
-edited; `0008_memory` and `0009_knowledge` are reserved for the contact's facts and the knowledge
-base's chunks — **Fact** and **Chunk** in `types/knowledge.py` are their shapes). `docs/decisions/types.md`, `orgs.md`, `keys.md`, `routes.md`, `tokens.md`,
-`provider-keys.md`, `log.md`.
+Ten tables, eight migrations (`migrations/000N_*.sql`, applied in order by `migrate up`, never
+edited; `0009_knowledge` is reserved for the knowledge base's chunks — **Chunk** in
+`types/knowledge.py` is its shape). `docs/decisions/types.md`, `orgs.md`, `keys.md`, `routes.md`, `tokens.md`,
+`provider-keys.md`, `log.md`, `memory.md`.
 
 ## 3. The wire
 
