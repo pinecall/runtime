@@ -31,14 +31,11 @@ async def test_haiku_answers_and_the_metrics_carry_what_the_provider_reported() 
         route=Route(org="clinica", agent=AGENT, channel="web", number=None),
         today=date.today(),
     )
-    config = AgentConfig(
-        slug=AGENT,
-        channels=frozenset({"web"}),
-        instructions="Sos Clara. Respondé en una sola palabra.",
-    )
+    config = AgentConfig(slug=AGENT, channels=frozenset({"web"}))
     model = models_for(load_settings())(HAIKU, NO_ORG_KEYS)
     session = TextSession(context, config, CallLog(store, AGENT, A_CALL), model)
     await session.start()
+    await session.set_prompt("identity", "Sos Clara. Respondé en una sola palabra.")
     await session.hears("¿Cuál es la capital de Uruguay?")
     await session.hangup("caller_hung_up", "caller")
 

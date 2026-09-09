@@ -27,6 +27,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   filled (`Pinecall`), `README.md` has a License section, and `license-files` puts the text
   itself in the wheel and the sdist, so an install carries its licence.
 
+### Changed
+- The prompt is named blocks in two regions: `AgentConfig.prompt` declares the layout (default
+  `identity · knowledge · tools`, the history, `view`), `prompt.set {name, text}` writes one block,
+  `prompt.changed` and `State.prompt` are keyed by name, and `AgentConfig.instructions` is gone —
+  the identity block is written like every other. For Anthropic each static block is its own
+  `system` string, so a rewritten `tools` block leaves `identity` and `knowledge` cached.
+
 ### Removed
 - `LeakageJudge`: it had no user in the tree, and a judge given a declaration nobody wrote would be
   judging a rule nobody wrote. The idea returns with the milestone that declares what another

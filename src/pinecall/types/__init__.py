@@ -15,6 +15,7 @@ from pinecall.types.consent import (
 from pinecall.types.json import JsonObject
 from pinecall.types.knowledge import Docs, MemoryPolicy
 from pinecall.types.org import DEFAULT_ORG, QUOTAS, Org, QuotaName, Quotas, a_slug
+from pinecall.types.prompt import DEFAULT_LAYOUT, Blocks, PromptBlock, PromptRegion
 from pinecall.types.provider_keys import NO_ORG_KEYS, VENDORS, ProviderKeys
 from pinecall.types.refused import DeclarationRefused
 from pinecall.types.route import Route
@@ -23,6 +24,7 @@ from pinecall.types.tool import SideEffect, ToolSpec
 
 __all__ = [
     "CONFIRMATIONS",
+    "DEFAULT_LAYOUT",
     "DEFAULT_ORG",
     "GATE_DEFERRED_ON",
     "GRANTS",
@@ -31,6 +33,7 @@ __all__ = [
     "THE_WIDGET",
     "VENDORS",
     "AgentConfig",
+    "Blocks",
     "CallContext",
     "Channel",
     "ConsentOutcome",
@@ -47,6 +50,8 @@ __all__ = [
     "MemoryPolicy",
     "Model",
     "Org",
+    "PromptBlock",
+    "PromptRegion",
     "ProviderKeys",
     "QuotaName",
     "Quotas",

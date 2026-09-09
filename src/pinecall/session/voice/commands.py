@@ -27,7 +27,7 @@ from pinecall_protocol.commands import (
     SupervisorVerb,
     ToolsSet,
 )
-from pinecall_protocol.defs import EndedBy, EndReason, PromptRegion, ToolSpec
+from pinecall_protocol.defs import EndedBy, EndReason, ToolSpec
 
 # The type only, and never at import time: supervising.py reaches the call's ending through
 # the Ending declared below, so naming its module here for real would close the circle.
@@ -49,10 +49,10 @@ BY_THE_AGENT: EndReason = "agent_hung_up"
 
 
 class Prompting(Protocol):
-    """The prompt as the applier reaches it: the two regions, and which tools the model sees."""
+    """The prompt as the applier reaches it: its blocks by name, and which tools the model sees."""
 
-    async def set_prompt(self, region: PromptRegion, text: str) -> None:
-        """One region rewritten: the cached prefix, or the view read per request."""
+    async def set_prompt(self, name: str, text: str) -> None:
+        """One block rewritten whole, by name; an undeclared name is refused with the name."""
         ...
 
     async def set_tools(self, tools: Sequence[ToolSpec]) -> None:
@@ -156,9 +156,9 @@ async def _reply_now(applying: Applying, said: WireModel) -> None:
 
 
 async def _set_the_prompt(applying: Applying, said: WireModel) -> None:
-    """prompt.set: the static region is livekit's instructions, the view is read per request."""
+    """prompt.set: one block of the prompt rewritten whole, by name."""
     wanted = _as(said, PromptSet)
-    await applying.prompting.set_prompt(wanted.region, wanted.text)
+    await applying.prompting.set_prompt(wanted.name, wanted.text)
 
 
 async def _set_the_tools(applying: Applying, said: WireModel) -> None:

@@ -22,12 +22,11 @@ from pinecall.session.voice.barge_in import is_a_backchannel
 from pinecall.session.voice.events import Events
 from pinecall.session.voice.metrics import Meters
 from pinecall.session.voice.platform import Platform
-from pinecall.session.voice.regions import Regions
 from pinecall.session.voice.room import DataChannel, Facts, Holding
 from pinecall.session.voice.supervising import Supervising
 from pinecall.session.voice.tools import Tools
 from pinecall.session.voice.writing import Writing
-from pinecall.types import AgentConfig, CallContext
+from pinecall.types import AgentConfig, Blocks, CallContext
 from pinecall_protocol import Command, ProtocolError, defs
 from pinecall_protocol.codec import decode_entry
 from pinecall_protocol.events import (
@@ -84,9 +83,8 @@ class VoiceBridge:
         self.meters = Meters(self.writing)
         self.events = Events(self.writing, self.meters, self)
         self.tools = Tools(config, platform, context.call)
-        static = config.instructions or ""
-        self._agent = VoiceAgent(instructions=static, tools=self.tools.visible, speaking=self)
-        self.regions = Regions(self._agent, static=static)
+        self.blocks = Blocks(config.prompt)
+        self._agent = VoiceAgent(blocks=self.blocks, tools=self.tools.visible, speaking=self)
         self._live: AgentSession[None] | None = None
         # Built in opened(), because it needs the session and because who holds the line has
         # to survive between a takeover and the release that answers it.
@@ -102,7 +100,7 @@ class VoiceBridge:
 
     @property
     def agent(self) -> VoiceAgent:
-        """The livekit Agent of this call: our instructions, our tools, our view."""
+        """The livekit Agent of this call: our prompt's blocks, our tools, our ears."""
         return self._agent
 
     async def opened(self, live: AgentSession[None]) -> None:
@@ -175,11 +173,6 @@ class VoiceBridge:
 
     # ── the Speaking the agent reads ────────────────────────────────────────────
 
-    @property
-    def view(self) -> str:
-        """The dynamic region as the app last rendered it; empty when there is none."""
-        return self.regions.view
-
     def said(self, delta: str | TimedString) -> None:
         """One piece of the reply, as the caller is hearing it, timed when the voice aligned it."""
         self.events.said(delta)
@@ -202,19 +195,23 @@ class VoiceBridge:
         applying = commands.Applying(self._live, self, self, self, self._holding, self._supervising)
         await commands.apply(applying, command)
 
-    async def set_prompt(self, region: defs.PromptRegion, text: str) -> None:
-        """prompt.set: one region rewritten. The text stays out of the log; its hash goes in."""
-        await self.regions.set_prompt(region, text)
+    # The static blocks are livekit's instructions, rewritten only when their joined text moved:
+    # the same bytes again would still cost the provider a cache write. A dynamic block is read
+    # per request, in llm_node, and touches nothing here.
+    async def set_prompt(self, name: str, text: str) -> None:
+        """prompt.set: one block rewritten. The text stays out of the log; its hash goes in."""
+        if self.blocks.set(name, text):
+            await self._agent.update_instructions(self.blocks.instructions)
         await self.writing.emit(
             "prompt.changed",
-            PromptChanged(region=region, hash=hashed_prompt(text), chars=len(text)),
+            PromptChanged(name=name, hash=hashed_prompt(text), chars=len(text)),
         )
 
     async def set_tools(self, tools: Sequence[defs.ToolSpec]) -> None:
         """tools.set: the subset of the declared tools the model may see in this state."""
         by_name = self.config.tools_by_name
         visible = tuple(by_name[tool.name] for tool in tools if tool.name in by_name)
-        await self.regions.set_tools(self.tools.declared(visible))
+        await self._agent.update_tools(list(self.tools.declared(visible)))
         await self.writing.emit(
             "tools.changed", ToolsChanged(visible=[tool.name for tool in visible])
         )

@@ -7,7 +7,16 @@ from collections.abc import Sequence
 from typing import Any
 
 from pinecall.providers.tts import voices
-from pinecall.types import AgentConfig, Model, Route, ToolSpec, Turn, Voice
+from pinecall.types import (
+    DEFAULT_LAYOUT,
+    AgentConfig,
+    Model,
+    PromptBlock,
+    Route,
+    ToolSpec,
+    Turn,
+    Voice,
+)
 from pinecall.types.agent import EventSource, Visibility
 from pinecall.types.channel import Channel
 from pinecall_protocol import defs
@@ -63,8 +72,8 @@ def _sent(wire: defs.AgentConfig) -> dict[str, Any]:
     """Every field the app put on the wire, converted, under the domain's own field name."""
     sent = wire.model_fields_set
     converted: dict[str, Any] = {}
-    if "instructions" in sent:
-        converted["instructions"] = wire.instructions
+    if "prompt" in sent:
+        converted["prompt"] = _a_layout(wire.prompt)
     if "language" in sent:
         converted["language"] = wire.language
     if "greeting" in sent:
@@ -88,6 +97,13 @@ def _sent(wire: defs.AgentConfig) -> dict[str, Any]:
     if "events" in sent:
         converted["events"] = _senders(wire.events or ())
     return converted
+
+
+def _a_layout(specs: Sequence[defs.PromptBlockSpec] | None) -> tuple[PromptBlock, ...]:
+    """The wire's list of {name, region} as the prompt's layout; nothing declared is the default."""
+    if not specs:
+        return DEFAULT_LAYOUT
+    return tuple(PromptBlock(spec.name, spec.region) for spec in specs)
 
 
 # The vendor is only ever sent an id. `voice = "carolina"` once reached ElevenLabs as a voice_id

@@ -46,9 +46,7 @@ def test_a_text_call_with_no_knob_turned_is_built_with_the_model_the_app_declare
 def _declaring(app_socket: WebSocketTestSession, llm: dict[str, str]) -> None:
     """The clinic on air, having declared the model the app itself asked to answer with."""
     declared(app_socket)
-    app_socket.send_json(
-        a_frame("agent.configure", AGENT, {"config": {"instructions": "Sos Clara.", "llm": llm}})
-    )
+    app_socket.send_json(a_frame("agent.configure", AGENT, {"config": {"llm": llm}}))
     app_socket.receive_json()
 
 

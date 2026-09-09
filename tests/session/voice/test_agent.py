@@ -13,6 +13,7 @@ from pinecall.session.voice.agent import VoiceAgent
 from pinecall.session.voice.events import Events
 from pinecall.session.voice.metrics import Meters
 from pinecall.session.voice.writing import Writing
+from pinecall.types import Blocks
 from tests.session.voice.fakes import CALL, Recording, ScriptedSession
 from tests.session.voice.test_events import Ended, Speaking
 
@@ -56,7 +57,7 @@ async def an_agent(recording: Recording) -> tuple[VoiceAgent, Writing]:
     writing.open()
     events = Events(writing, Meters(writing), Ended())
     events.watch(ScriptedSession(current_speech=Speaking("sp_9")))  # pyright: ignore[reportArgumentType]
-    agent = VoiceAgent(instructions="You are Clara.", tools=(), speaking=Playing(events))
+    agent = VoiceAgent(blocks=Blocks(), tools=(), speaking=Playing(events))
     return agent, writing
 
 

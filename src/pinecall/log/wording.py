@@ -18,5 +18,5 @@ def as_text(result: ToolResult) -> str:
 
 
 def hashed_prompt(text: str) -> str:
-    """sha256 of a prompt region, so two states can be compared without the text ever leaking."""
+    """sha256 of a prompt block, so two states can be compared without the text ever leaking."""
     return sha256(text.encode()).hexdigest()

@@ -33,7 +33,7 @@ class Bridge(Protocol):
 
     @property
     def agent(self) -> Agent:
-        """The livekit Agent of this call: our instructions, our tools, our view."""
+        """The livekit Agent of this call: our prompt's blocks, our tools, our ears."""
         ...
 
     async def opened(self, live: AgentSession[None]) -> None:

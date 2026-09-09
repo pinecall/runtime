@@ -81,7 +81,7 @@ class Case:
     knowledge: tuple[str, ...] = ()
     # Every state the call was ever in, in the order the log wrote them, each one whole — the seed
     # a golden opened with is the first. This is what the view rendered from, and the log carries no
-    # rendered text: `prompt.changed` is a region, a hash and a char count. See grounded.py.
+    # rendered text: `prompt.changed` is a block's name, a hash and a char count. See grounded.py.
     states: tuple[Mapping[str, Any], ...] = ()
     # `call.summary` verbatim: the outcome, the usage rows and what the call cost. Never recomputed.
     summary: Mapping[str, Any] | None = None

@@ -4,7 +4,15 @@ from typing import Any
 
 import pytest
 
-from pinecall.types import AgentConfig, DeclarationRefused, Docs, MemoryPolicy, ToolSpec
+from pinecall.types import (
+    DEFAULT_LAYOUT,
+    AgentConfig,
+    DeclarationRefused,
+    Docs,
+    MemoryPolicy,
+    PromptBlock,
+    ToolSpec,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -30,6 +38,14 @@ def test_channels_are_the_three_doors() -> None:
     assert an_agent().channels == frozenset()
     with pytest.raises(DeclarationRefused, match=r"unknown channels \['sms'\]"):
         an_agent(channels=frozenset({"sms"}))
+
+
+def test_the_prompt_is_the_default_layout_until_the_app_declares_one() -> None:
+    assert an_agent().prompt == DEFAULT_LAYOUT
+    faq = (PromptBlock("identity", "static"), PromptBlock("faq", "static"))
+    assert an_agent(prompt=faq).prompt == faq
+    with pytest.raises(DeclarationRefused, match=r"prompt block names repeat: \['faq'\]"):
+        an_agent(prompt=(PromptBlock("faq", "static"), PromptBlock("faq", "dynamic")))
 
 
 def test_tool_names_are_unique_within_an_agent() -> None:

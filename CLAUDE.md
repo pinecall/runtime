@@ -61,6 +61,8 @@ happened and the doc is the bug.
 - `types/` imports nothing of ours; `types/` and `log/` import no framework; a vendor SDK
   outside `providers/` fails the suite; `api/` never imports `worker/`, `worker/` never `api/`.
 - The public surface of the root and of every package with an `__all__` is pinned by a test.
+- The prompt is a list of named blocks in two regions, in this order: static blocks (cached) ·
+  append-only history · dynamic blocks (replaced every turn). Never reorder.
 - Unit tests run on dead-sentinel keys (`tests/conftest.py`): everything constructs, a real call
   dies in seconds. The same golden log reduces to the same state here and in TypeScript.
 

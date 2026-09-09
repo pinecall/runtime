@@ -32,11 +32,11 @@ class Prompt:
     """The Prompting the appliers reach: what was set, in order."""
 
     def __init__(self) -> None:
-        self.regions: list[tuple[str, str]] = []
+        self.blocks: list[tuple[str, str]] = []
         self.tools: list[list[str]] = []
 
-    async def set_prompt(self, region: defs.PromptRegion, text: str) -> None:
-        self.regions.append((region, text))
+    async def set_prompt(self, name: str, text: str) -> None:
+        self.blocks.append((name, text))
 
     async def set_tools(self, tools: Sequence[defs.ToolSpec]) -> None:
         self.tools.append([tool.name for tool in tools])
@@ -110,12 +110,10 @@ async def test_prompt_set_and_tools_set_reach_the_prompt_and_never_the_session(
     applying: tuple[commands.Applying, Session, Prompt, End],
 ) -> None:
     apply, live, prompt, _end = applying
-    await commands.apply(
-        apply, a_command("prompt.set", {"region": "view", "text": "Ana is calling"})
-    )
+    await commands.apply(apply, a_command("prompt.set", {"name": "view", "text": "Ana is calling"}))
     book = {"name": "book", "description": "Book", "parameters": {"type": "object"}}
     await commands.apply(apply, a_command("tools.set", {"tools": [book]}))
-    assert prompt.regions == [("view", "Ana is calling")]
+    assert prompt.blocks == [("view", "Ana is calling")]
     assert prompt.tools == [["book"]]
     assert live.said == [] and live.replied == []
 

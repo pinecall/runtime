@@ -88,10 +88,11 @@ async def _a_conversation_under_way() -> TextSession:
         route=Route(org="clinica", agent=AGENT, channel="web", number=None),
         today=date.today(),
     )
-    config = AgentConfig(slug=AGENT, channels=frozenset({"web"}), instructions=CLARA)
+    config = AgentConfig(slug=AGENT, channels=frozenset({"web"}))
     haiku = models_for(load_settings())(HAIKU, NO_ORG_KEYS)
     session = TextSession(context, config, CallLog(store, AGENT, CALL), haiku)
     await session.start()
+    await session.set_prompt("identity", CLARA)
     await session.hears("Hola, ¿atienden los sábados?")
     await session.hears("Perfecto. ¿Y necesito pedir turno antes de ir?")
     return session

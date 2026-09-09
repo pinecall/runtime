@@ -5,7 +5,17 @@ from typing import Any, get_args
 
 import pytest
 
-from pinecall.types import AgentConfig, Contact, Model, Route, ToolSpec, Turn, Voice
+from pinecall.types import (
+    AgentConfig,
+    Contact,
+    Model,
+    PromptBlock,
+    PromptRegion,
+    Route,
+    ToolSpec,
+    Turn,
+    Voice,
+)
 from pinecall.types.channel import CHANNELS, DIRECTIONS
 from pinecall_protocol import WireModel, defs
 
@@ -20,6 +30,7 @@ TWINS: list[tuple[type[Any], type[WireModel]]] = [
     (Voice, defs.VoiceConfig),
     (Model, defs.ModelConfig),
     (Turn, defs.TurnConfig),
+    (PromptBlock, defs.PromptBlockSpec),
 ]
 
 
@@ -35,6 +46,10 @@ RESOLVED_AT_THE_EDGE: dict[type[WireModel], frozenset[str]] = {
 def test_the_channels_and_directions_here_are_the_wires() -> None:
     assert CHANNELS == set(get_args(defs.Channel.__value__))
     assert DIRECTIONS == set(get_args(defs.Direction.__value__))
+
+
+def test_the_two_prompt_regions_here_are_the_wires() -> None:
+    assert get_args(PromptRegion.__value__) == get_args(defs.PromptRegion.__value__)
 
 
 @pytest.mark.parametrize(("ours", "theirs"), TWINS, ids=[ours.__name__ for ours, _ in TWINS])
