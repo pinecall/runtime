@@ -69,10 +69,11 @@ table; the declared ones have a socket.
 | **Consent** | `GateLine` (`seq`, `kind`, `call_id`, `tool`, `audience`, `side_effect`) → `ConsentRead` (`kept`·`broken`·`ungated`·`undeclared`) | read off the log | ring-3 check and ring-4 judge, same rule |
 | **ProviderKeys** | `vendor → key` | `provider_keys` (`org`, `vendor`, `ciphertext`, `set_at`), Fernet under `PINECALL_VAULT_KEY` | absent row = the box's key (managed); one row = BYOK |
 | **eval run** | `id`, `agent`, `started_at`, `finished_at`, `status`, `document` | `eval_runs` | ring-1 suites driven over live text sessions |
+| **Base** / **Chunk** | `base`, `chunks`, `pushed_at` · `id`, `base`, `path`, `heading`, `text`, `score` | `knowledge_bases` (`org`, `base`, `model`, `dimensions`, `chunks`, `pushed_at`) · `knowledge_chunks` (`id`, `org`, `base`, `path`, `heading`, `ordinal`, `text`, `embedding halfvec(1024)`), HNSW by cosine and BM25 in spanish | a push replaces the base whole (`knowledge/store.py`); a search is both indexes fused by reciprocal rank |
 
-Nine tables, seven migrations (`migrations/000N_*.sql`, applied in order by `migrate up`, never
-edited; `0008_memory` and `0009_knowledge` are reserved for the contact's facts and the knowledge
-base's chunks — **Fact** and **Chunk** in `types/knowledge.py` are their shapes). `docs/decisions/types.md`, `orgs.md`, `keys.md`, `routes.md`, `tokens.md`,
+Eleven tables, eight migrations (`migrations/000N_*.sql`, applied in order by `migrate up`, never
+edited; `0008_memory` is reserved for the contact's facts — **Fact** in `types/knowledge.py` is
+its shape). `docs/decisions/types.md`, `orgs.md`, `keys.md`, `routes.md`, `tokens.md`,
 `provider-keys.md`, `log.md`.
 
 ## 3. The wire
