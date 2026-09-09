@@ -43,7 +43,7 @@ them one.
 ## Fernet with a key from the environment, and not a KMS
 
 The row holds a Fernet token under `PINECALL_VAULT_KEY`, generated once on the box and kept in
-`/etc/pinecall/pinecall.env` beside the ops key. Three reasons it is not a cloud KMS:
+the box's credstore beside the ops key, a systemd credential like every secret there. Three reasons it is not a cloud KMS:
 
 - **A self-hosted box has no KMS.** The same image runs on our machine and on a customer's, and
   the repo has no fork. A design that needed AWS KMS would be a design that only we could run,

@@ -1,0 +1,32 @@
+# The SFU. Signalling stays on 127.0.0.1 for Caddy to carry under TLS; media goes straight at the
+# host on one TCP and one UDP port, because a proxy in front of media is a proxy inside every call.
+[Unit]
+Description=Pinecall media plane: livekit-server
+Requires=pinecall-redis.service
+After=pinecall-redis.service
+
+[Container]
+ContainerName=pinecall-livekit
+Image=docker.io/livekit/livekit-server:v1.13.6
+Exec=--config /etc/livekit/server.yaml
+Volume=/etc/pinecall/livekit.yaml:/etc/livekit/server.yaml:ro
+Network=pinecall.network
+PublishPort=127.0.0.1:7880:7880
+PublishPort=7881:7881
+PublishPort=7882:7882/udp
+# The keypair, as LIVEKIT_KEYS, out of the credential systemd decrypts into %d for this unit
+# alone: the secret is on no disk in the clear and in no `podman inspect`.
+EnvironmentFile=%d/media.env
+HealthCmd=wget -q --spider -T 3 http://127.0.0.1:7880/
+HealthInterval=5s
+HealthTimeout=5s
+HealthRetries=12
+HealthStartPeriod=5s
+
+[Service]
+ImportCredential=media.env
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

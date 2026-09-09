@@ -1,24 +1,33 @@
-# The fleet on the box: it answers the phone from the same machine as the SFU, which is the
-# whole point — a media hop across a datacentre is heard in every turn.
-# Installed by infra/box/setup.sh into /etc/systemd/system/.
+# The fleet on the box: it answers the phone from the same machine as the SFU, which is the whole
+# point — a media hop across a datacentre is heard in every turn.
+# Installed to /etc/systemd/system/ by infra/box/Makefile, on every deploy.
 [Unit]
 Description=Pinecall worker (the fleet that answers a call)
-After=network-online.target docker.service pinecall-gateway.service
+Requires=pinecall-gateway.service pinecall-worker-key.service
+After=network-online.target pinecall-livekit.service pinecall-gateway.service pinecall-worker-key.service
 Wants=network-online.target
 
 [Service]
 User=pinecall
 Group=pinecall
 WorkingDirectory=/opt/pinecall/app
+Environment=LIVEKIT_URL=ws://127.0.0.1:7880
+Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
+Environment=PINECALL_RECORDINGS=/var/lib/pinecall/recordings
+EnvironmentFile=/etc/pinecall/box.env
+# The worker knocks at the gateway with the org's own key (PINECALL_API_KEY, minted once by
+# pinecall-worker-key.service), and answers calls on the box's vendor keys.
+ImportCredential=LIVEKIT_API_KEY
+ImportCredential=LIVEKIT_API_SECRET
+ImportCredential=PINECALL_*
+ImportCredential=ANTHROPIC_API_KEY
+ImportCredential=OPENAI_API_KEY
+ImportCredential=SONIOX_API_KEY
+ImportCredential=DEEPGRAM_API_KEY
+ImportCredential=ELEVEN_API_KEY
 # `start`, not `dev`: production mode keeps a prewarmed process per CPU, and dev mode keeps none,
 # so every caller would pay the cold start of a Python process before hearing a word.
-# On --extra runtime, read the same comment in pinecall-gateway.service: the two must agree.
-# --frozen: install what uv.lock says and re-resolve nothing. A box holds this repository and
-# the wire beside it and no other directory, and a re-resolution walks every path source in the
-# lock and stops on the one that is not there.
-ExecStart=/opt/pinecall/bin/uv run --frozen --project runtime --extra runtime \
-    pinecall-runtime worker start
-EnvironmentFile=/etc/pinecall/pinecall.env
+ExecStart=/opt/pinecall/venv/bin/pinecall-runtime worker start
 Restart=always
 RestartSec=3
 

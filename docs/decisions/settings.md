@@ -13,8 +13,9 @@ by nothing at all: a trap that cost an evening twice, and fixed here.
 
 **A real environment variable wins over the file.** That is pydantic-settings' own source
 order (the process environment before the dotenv source), and it is the behaviour both
-deployments need: a box loads `/etc/pinecall/pinecall.env` through systemd's
-`EnvironmentFile`, and a laptop that exports `PINECALL_API_KEY` from Pinecall v1 sees the
+deployments need: a box hands its secrets over as systemd credentials, which pydantic reads as a
+secrets directory under the environment's own names, and a laptop that exports `PINECALL_API_KEY`
+from Pinecall v1 sees the
 export shadow the file — which is why `env | grep PINECALL` is still the first thing to run
 when a key surprises you.
 

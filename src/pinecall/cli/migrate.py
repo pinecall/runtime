@@ -2,25 +2,17 @@
 
 import argparse
 import asyncio
-import sys
-from typing import TextIO
 
 from pinecall._settings import load_settings
-from pinecall.auth.keys import PostgresKeys
-from pinecall.cli.keys.verbs import print_the_key
-from pinecall.log.store import open_pool
 from pinecall.log.store.postgres import DEFAULT_SCHEMA, MIGRATIONS, apply_migrations
-from pinecall.types import DEFAULT_ORG
 
 PURPOSE: str = "the database schema: up | status"
 VERBS: tuple[str, ...] = ("up", "status")
 
-# What the first key is for, so a `keys list` a year from now says where it came from.
-THE_FIRST_KEY = "issued by migrate up"
-
-# A box that already has one is a box that has been up before. Saying so is the whole of the
-# idempotence: the key was printed once, on the run that issued it, and there is no second time.
-ALREADY_ISSUED = "org {org} already has a key — `pinecall-runtime keys list` names its hash"
+# The schema is applied here and nothing is minted here: `keys issue` is the one place a key
+# exists in the clear, and a verb that a unit runs before every start must print no secret into
+# a journal. 0006 seeds the `default` org; its first key is `pinecall-runtime keys issue`.
+NO_KEY_YET = "org default has no key yet — `pinecall-runtime keys issue --org default` mints one"
 
 
 def configure(parser: argparse.ArgumentParser) -> None:
@@ -49,26 +41,11 @@ async def _migrate(schema: str) -> int:
         print(f"nothing to apply — {schema} is up to date")
     for name in applied:
         print(f"applied {name}")
-    return await issue_the_default_orgs_key(dsn, schema)
-
-
-# The promise CLAUDE.md and docs/decisions/routes.md both make: a fresh database comes out of
-# `migrate up` with a `default` org whose key is on the operator's screen. Without it nothing can
-# open /v1/routes and the box admits no worker and no app. The org itself is 0006's first row.
-async def issue_the_default_orgs_key(dsn: str, schema: str, out: TextIO | None = None) -> int:
-    """One key for the default org, on the run that finds none. Never a second one."""
-    terminal = out or sys.stdout
-    pool = await open_pool(dsn, schema=schema)
-    try:
-        keys = PostgresKeys(pool)
-        if await keys.listed(DEFAULT_ORG):
-            print(ALREADY_ISSUED.format(org=DEFAULT_ORG), file=terminal)
-            return 0
-        issued = await keys.issue(org=DEFAULT_ORG, label=THE_FIRST_KEY)
-        print_the_key(issued, terminal)
-        return 0
-    finally:
-        await pool.close()
+    # 0006 is the migration that seeds the org, so the run that applies it is the one run on
+    # which the sentence is true.
+    if any(name.endswith("_orgs.sql") for name in applied):
+        print(NO_KEY_YET)
+    return 0
 
 
 def _report_the_files() -> int:

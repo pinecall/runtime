@@ -100,14 +100,16 @@ async def revoke_key(hashed: str, operator: Operator, out: TextIO = sys.stdout) 
     return 0
 
 
-# The one printer of a key, shared with `migrate up`: the key alone on the first line, so a script
-# reads it with `head -1` and a person reads the two lines under it.
-def print_the_key(issued: Issued, out: TextIO) -> None:
-    """A key, once. Everything after the first line is context, and the first line is the key."""
+# The one printer of a key: the key alone on stdout, and the two lines about it on stderr. So
+# stdout IS the key — a unit that pipes `keys issue` into `systemd-creds encrypt` gets nothing
+# else — and a person at a terminal still reads all three lines.
+def print_the_key(issued: Issued, out: TextIO, err: TextIO | None = None) -> None:
+    """A key, once, on its own. The words about it go beside it, never into it."""
     record = issued.record
+    beside = err or sys.stderr
     print(issued.key, file=out)
-    print(f"  org {record.org} · {record.label or NO_LABEL}", file=out)
-    print(f"  {PRINTED_ONCE}", file=out)
+    print(f"  org {record.org} · {record.label or NO_LABEL}", file=beside)
+    print(f"  {PRINTED_ONCE}", file=beside)
 
 
 def _row_of(key: dict[str, Any]) -> tuple[str, ...]:

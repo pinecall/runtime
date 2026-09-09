@@ -1,0 +1,32 @@
+# The carrier's INVITE becomes a participant, and nothing else gets in: the firewall admits
+# signalling from the carrier alone, and sip.yaml drops an INVITE for a number no trunk declares.
+[Unit]
+Description=Pinecall media plane: livekit-sip
+Requires=pinecall-redis.service pinecall-livekit.service
+After=pinecall-redis.service pinecall-livekit.service
+
+[Container]
+ContainerName=pinecall-sip
+Image=docker.io/livekit/sip:v1.13.0
+# The path is fixed by the image's entrypoint: mounted anywhere else the service comes up on its
+# defaults without a word. See the header of sip.yaml.
+Volume=/etc/pinecall/sip.yaml:/sip/config.yaml:ro
+Network=pinecall.network
+PublishPort=5060:5060/udp
+PublishPort=5060:5060/tcp
+PublishPort=10000-10199:10000-10199/udp
+EnvironmentFile=%d/media.env
+# The image carries no wget and no curl, so the probe is bash's own socket.
+HealthCmd=bash -c 'exec 3<>/dev/tcp/127.0.0.1/8081 && printf "GET / HTTP/1.0\r\n\r\n" >&3 && head -1 <&3 | grep -q 200'
+HealthInterval=5s
+HealthTimeout=5s
+HealthRetries=12
+HealthStartPeriod=10s
+
+[Service]
+ImportCredential=media.env
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

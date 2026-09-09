@@ -128,10 +128,28 @@ Every other image in the stack is multi-arch.
 
 # The box — the same stack, on a machine a stranger can telephone
 
-`infra/box/` stands up one VM that answers the PSTN: the media plane in compose, the two runtime
-processes under systemd, Caddy in front of them, and a firewall whose whole job is one port.
-Everything in it is idempotent, and every script takes `--dry-run`, which prints what it would do
-and does none of it.
+`infra/box/` is a box **declared**: every file in it is one thing systemd, podman, Caddy or
+nftables reads, and there is no script. A fresh machine on any provider — a cloud that takes
+cloud-init, which is all of them, or a bare one through a NoCloud seed — boots from
+`cloud-init.yaml`, and everything after that arrives with `shipway deploy` and is made by systemd
+from the files in this directory. Nothing here knows which cloud it is on.
+
+```
+infra/box/
+├── cloud-init.yaml            first boot, on any provider: the packages, the deploy account, uv,
+│                              and the two values that are this box's (three lines marked YOURS)
+├── Makefile                   the manifest: every file below, and where it is installed
+├── sysusers.d/pinecall.conf   the service user
+├── tmpfiles.d/pinecall.conf   every directory, with its owner and mode
+├── nftables.conf              the fence, on the host: 5060 to the carrier and to nobody else
+├── containers/                the media plane as Quadlet units: redis · livekit · sip · postgres
+├── livekit.yaml · sip.yaml    what the two LiveKit containers mount
+├── pinecall-secrets.service   the box's own secrets, drawn once, encrypted by systemd
+├── pinecall-postgres-image.service   our Postgres image, built once per tag
+├── pinecall-gateway.service · pinecall-worker.service        the two processes we write
+├── pinecall-worker-key.service · pinecall-operator-key.service   two keys, minted once each
+└── caddy/                     the Caddyfile, and the drop-in that hands Caddy its domain
+```
 
 ## The path a call takes
 
@@ -139,12 +157,12 @@ and does none of it.
   ☎  a mobile
   │  PSTN
   ▼
-  a Twilio Elastic SIP Trunk (today: "convo-platform", TK150b9c…, adopted rather than rebuilt)
+  the carrier's SIP trunk (Twilio today: adopted rather than rebuilt, infra/tools/twilio_trunk.py)
   │   the number is ATTACHED to the trunk, so the number's own voice_url is ignored
   │   Origination URI  sip:<the box>:5060;transport=udp   — the port is named, see below
   ▼  INVITE, UDP 5060, from the carrier's signalling networks and from nowhere else
   the box
-  ├─ firewall            5060 allowed from carrier-signalling-cidrs.txt, DENIED from 0.0.0.0/0
+  ├─ nftables            5060 accepted from the `carrier_signalling` set, DROPPED from anyone else
   ├─ livekit-sip         hide_inbound_port: an INVITE for a number no inbound trunk declares
   │                      is dropped without a reply
   ├─ SIPInboundTrunk     numbers=[the number], allowed_addresses=the same networks again
@@ -162,62 +180,94 @@ business is `pinecall-runtime routes add`, and LiveKit never hears about it.
 
 ## Stand one up
 
-These are the steps that were actually run against `box.pinecall.io` on 2026-09-08, in this order.
-Every script here takes `--dry-run`, which prints what it would do and does none of it; read that
-first, every time.
+Three steps, and the machine does the rest.
 
 ```bash
-# 0. ssh. BOX is an ssh destination, and the default is the alias `pinecall-v2-box`. Give it a
-#    block in ~/.ssh/config — HostName, User, IdentityFile, IdentitiesOnly — so scp, rsync and
-#    shipway all reach the same machine the same way.
+# 1. A machine. Any Linux with systemd ≥ 254 and podman ≥ 4.9; Ubuntu 24.04 is what we run.
+#    Hand your provider infra/box/cloud-init.yaml as the instance's user-data, with the three
+#    YOURS lines filled: your ssh public key, the domain, the SFU's public URL. It installs
+#    podman, caddy, nftables and make, creates the account the deploy logs in as, makes
+#    /opt/pinecall/app for it, installs uv, and raises the fence.
+#    A machine without cloud-init: do those four things by hand, they are the whole file.
 
-DOMAIN=box.pinecall.io PROJECT=<gcp project> ./infra/box/setup.sh --dry-run
-DOMAIN=box.pinecall.io PROJECT=<gcp project> ./infra/box/setup.sh
-#    docker, uv, the service user, the two directories, the secrets, the media plane, Caddy,
-#    the firewall, and both units installed and ENABLED — started by nothing, because there is
-#    no code under them yet.
+# 2. The deploy. From this checkout, as the account cloud-init made (shipway.yml: host.user).
+shipway deploy
+#    rsync puts this repository and the wire beside it under /opt/pinecall/app; `make install`
+#    puts every file of infra/box/ where systemd reads it; `uv sync` builds the virtualenv as the
+#    service user. Then systemd, on its own, in this order: the secrets are drawn
+#    (pinecall-secrets), the Postgres image is built (pinecall-postgres-image), the media plane
+#    comes up (redis, livekit, sip, postgres), the gateway migrates the schema and opens, the two
+#    keys are minted (pinecall-worker-key, pinecall-operator-key), the worker registers.
 
-#    the provider keys go into /etc/pinecall/pinecall.env ON THE BOX, by hand, and nowhere else.
-
-shipway deploy                          # from the root of the checkout: rsync, sync, restart
-./infra/box/first_run.sh                # once per box: the schema, the org's key, the fleet's key
-
-cd runtime && uv run python ../infra/scripts/twilio_trunk.py \
-    --number +598… --sip-host box.pinecall.io --dry-run   # the carrier side, planned
+# 3. Your key. Minted on the box on that first start, encrypted, printed nowhere. Read it once:
+ssh <the box> sudo systemd-creds decrypt --name=PINECALL_OPERATOR_KEY /etc/credstore.encrypted/PINECALL_OPERATOR_KEY -
+pinecall login https://<the domain>     # on the laptop, and the key is kept in ~/.pinecall/credentials
 ```
 
-`BOX` (the ssh destination), `NETWORK`, `TAG` and `PROJECT` are environment overrides with
-sensible defaults; `DOMAIN` has none, because Caddy cannot guess the name it gets a certificate
-for. `PROJECT` is worth passing every time: these rules face the internet, and gcloud's active
-project is whatever the operator last worked on.
+And the vendors' keys, which the box cannot draw for itself — each one from stdin, on the box,
+kept encrypted under its name:
 
-The secrets — the LiveKit pair, the database password, the ops key — are generated **on the box**
-on the first run and never leave it, and no script ever rewrites that file.
+```bash
+printf '%s' 'sk-ant-…' | sudo /opt/pinecall/venv/bin/pinecall-runtime box secret ANTHROPIC_API_KEY
+printf '%s' '…'        | sudo /opt/pinecall/venv/bin/pinecall-runtime box secret ELEVEN_API_KEY
+sudo systemctl restart pinecall-gateway pinecall-worker    # they read their credentials at start
+```
+
+The names are the environment's own — `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SONIOX_API_KEY`,
+`DEEPGRAM_API_KEY`, `ELEVEN_API_KEY`, `WHATSAPP_ACCESS_TOKEN` — and each unit lists, by name,
+which of them it may see.
 
 **The box holds no credential for the repository.** It cannot clone and it cannot fetch; the code
-is pushed to it by a person at a checkout, with `shipway deploy` (`shipway.yml` at the root). That
-deploy carries no build step at all: the gateway is an API and serves no page, so the two
-directories it rsyncs — this repository and the wire beside it — are Python and nothing else.
-`docs/decisions/box.md` argues both.
+is pushed to it by a person at a checkout, with `shipway deploy`. That deploy carries no build
+step: the gateway is an API and serves no page, so the two directories it rsyncs — this repository
+and the wire beside it — are Python and nothing else. `docs/decisions/box.md` argues both.
+
+## Where the secrets live
+
+Nowhere in the clear. Every secret on the box is a **systemd credential**: one file per name under
+`/etc/credstore.encrypted/`, encrypted under the machine's own key — sealed to its TPM where it
+has one — and decrypted by systemd into a private directory for the one unit that named it
+(`ImportCredential=` in each `.service`), readable by that process and by nothing down the tree.
+The runtime reads that directory as it reads the environment (`_settings.py`, `secrets_dir`),
+under the same names; the three LiveKit containers read one credential, `media.env`, as their
+environment file. There is no `.env` on the box, and a stolen disk is not a stolen tenant.
+
+| credential | who reads it | made by |
+|---|---|---|
+| `LIVEKIT_API_KEY` `LIVEKIT_API_SECRET` `POSTGRES_PASSWORD` `DATABASE_URL` `PINECALL_OPS_KEY` `PINECALL_VAULT_KEY` `media.env` | the units and the containers, each what it names | `pinecall-secrets.service`, once: `pinecall-runtime box secrets` |
+| `PINECALL_API_KEY` — the org's key the worker knocks with | the worker | `pinecall-worker-key.service`, once |
+| `PINECALL_OPERATOR_KEY` — yours | you, once, with `systemd-creds decrypt` | `pinecall-operator-key.service`, once |
+| the vendors' keys | the gateway and the worker | you: `pinecall-runtime box secret <NAME>` |
+
+`box secrets` run twice rotates nothing: a credential that is there is kept, and the two key units
+carry a `ConditionPathExists=!` on the file they would make. Rotating one is deleting its file and
+restarting — `keys revoke` the old one, which is an UPDATE and never a DELETE, so the log entries
+that name it stay readable. **Never put `PINECALL_DEV_KEY` on a box**: it is not a weaker key, it
+is a mode in which the gateway opens no Postgres pool at all.
+
+## What the deploy does, and does not
+
+`make install` overwrites what changed and leaves what did not; `systemd-sysusers` and
+`systemd-tmpfiles` make only what is missing; the fence and systemd are reloaded. The runtime's
+two units are restarted by shipway. The **containers are not**: the media plane stays up through a
+deploy, and a changed `.container` takes effect on its next restart, which is yours to time —
+`sudo systemctl restart pinecall-livekit` between two calls, not during one.
 
 ## Three traps on a real box, one line each
 
-Every one of these cost time on the first box, and none of them says what it means.
-
-- **`[ -f /etc/pinecall/pinecall.env ]` lies to the account running the script.** The directory is
-  `0750` and owned by the service user, so the login account is *refused* the file rather than told
-  it is there, and the test reports "no such file" on a box that has one — which made `setup.sh`
-  rewrite the whole environment on every re-run, rotating the database password out from under a
-  Postgres volume that remembers the one it was initialised with. What the operator sees is
-  `InvalidPasswordError: password authentication failed for user "pinecall"` from the gateway. Every
-  read of that file from a script goes through `sudo`.
-- **`uv` needs `--frozen` on a box.** Without it it re-resolves `runtime/uv.lock`, which walks every
-  path source in it — `evals` among them, an editable dependency of an extra a box never asks for —
-  and stops at `Distribution not found at: /opt/pinecall/app/evals`.
-- **Caddy's packaged unit reads no environment file at all.** `{$PINECALL_DOMAIN}` in the Caddyfile
-  is then empty, the site block collapses to a bare `{ … }`, and Caddy reads it as the *global
-  options* block: `unrecognized global option: @livekit`, which names everything except the domain
-  that is missing. `infra/box/caddy-domain.conf` is the drop-in that fixes it.
+- **A credential's file is named exactly as the credential, with no extension.** systemd refuses
+  `PINECALL_OPS_KEY.cred` for a credential named `PINECALL_OPS_KEY` — "embedded credential name
+  does not match filename, refusing" — and `ImportCredential=` then finds nothing and says
+  nothing: a missing credential is silently absent, by design, and it is the runtime that refuses
+  to start without its `DATABASE_URL`. Measured 2026-09-09; the manual does not say it.
+- **`uv` needs `--frozen` on a box.** Without it it re-resolves `uv.lock`, walks every path
+  source in it, and stops at the one that is not there. The units never call uv at all — they run
+  `/opt/pinecall/venv/bin/pinecall-runtime`, and the deploy's `uv sync` is the one place the
+  environment is built.
+- **Caddy's packaged unit reads no environment file.** `{$PINECALL_DOMAIN}` is then empty, the
+  site block collapses to a bare `{ … }`, and Caddy reads it as the *global options* block:
+  `unrecognized global option: @livekit`. `caddy/pinecall.conf` is the drop-in that points it at
+  `/etc/pinecall/box.env`.
 
 ## Where the keys come from
 
@@ -226,69 +276,54 @@ Three, and none of them opens another's door. `docs/decisions/keys.md` argues th
 
 | key | who holds it | made by |
 |---|---|---|
-| `PINECALL_OPS_KEY` | the box — `/v1/ops/*` and nothing else | `setup.sh`, once, on the box |
-| `PINECALL_API_KEY` | the worker unit — `/v1/routes`, the app socket, the log | `first_run.sh`, once: `pinecall-runtime keys issue --org default`, appended to `/etc/pinecall/pinecall.env` |
+| `PINECALL_OPS_KEY` | the box — `/v1/ops/*` and nothing else | `pinecall-secrets.service`, once |
+| `PINECALL_API_KEY` | the worker unit — `/v1/routes`, the app socket, the log | `pinecall-worker-key.service`, once: `keys issue --org default`, stdout straight into `systemd-creds encrypt` |
 | `PINECALL_DEV_KEY` | a laptop, never a box | set by hand, in development |
 
-`first_run.sh` runs `pinecall-runtime migrate up`, and on a **fresh** database that also creates the
-`default` org and issues its key — the only moment any key exists in the clear. You do not have to
-catch it, and you are not shown it: the script writes it on the box, to `~/.pinecall/box-org-key`
-under the login account's home at `0600`, and never onto the terminal it was run from. A terminal is
-a laptop, a CI log and a transcript at once. The same run issues the worker its own key into the
-environment file, and refuses to rewrite one that is already there, so a second run mints nothing.
-
-**Never put `PINECALL_DEV_KEY` in a box's environment.** It is not a weaker API key, it is a
-different mode: with it set the gateway honours that key alone and opens **no Postgres pool at
-all**, so the routes table and the api_keys table both stop existing as far as it is concerned.
-
-A key is printed once and stored as its sha256; there is no verb that reads one back. Lost one?
-`pinecall-runtime keys issue`, then `pinecall-runtime keys revoke <fingerprint>` on the old — which
-is an UPDATE, never a DELETE, so the log entries that name it stay readable.
+`migrate up` mints nothing: it runs before every start of the gateway, and a verb that runs there
+must print no secret into a journal. `keys issue` is the one place a key exists in the clear — on
+stdout alone, with the two lines about it on stderr — which is exactly what lets a unit capture it
+into a credential without a shell in between.
 
 ## Wire a number — the order, and it is ten minutes
 
 This is what was actually run on 2026-09-08 to put **+1 417 674 3169** on `box.pinecall.io`, in
 the sequence it was run. `docs/decisions/sip.md` argues why each step is what it is; this is the
-order. Every script here takes `--dry-run` first, and the first four steps are one command.
+order. Every tool here takes `--dry-run` first.
 
 ```bash
-cd runtime
 export TWILIO_ACCOUNT_SID=… TWILIO_API_KEY=… TWILIO_API_SECRET=…   # from your own .env, never ours
 export LIVEKIT_URL=https://box.pinecall.io                          # caddy proxies /twirp* to the SFU
-export LIVEKIT_API_KEY=$(ssh pinecall-v2-box "sudo grep '^LIVEKIT_API_KEY=' /etc/pinecall/pinecall.env | cut -d= -f2-")
-export LIVEKIT_API_SECRET=$(ssh pinecall-v2-box "sudo grep '^LIVEKIT_API_SECRET=' /etc/pinecall/pinecall.env | cut -d= -f2-")
+export LIVEKIT_API_KEY=$(ssh <the box> sudo systemd-creds decrypt --name=LIVEKIT_API_KEY /etc/credstore.encrypted/LIVEKIT_API_KEY -)
+export LIVEKIT_API_SECRET=$(ssh <the box> sudo systemd-creds decrypt --name=LIVEKIT_API_SECRET /etc/credstore.encrypted/LIVEKIT_API_SECRET -)
 
 # 1. read the plan. It opens no socket and needs no credential; nothing below is sent until you
 #    have read this and agree with every line of it.
-uv run python ../infra/scripts/twilio_trunk.py \
+uv run python infra/tools/twilio_trunk.py \
     --number +1… --sip-host box.pinecall.io --trunk-name <the trunk> --adopt --dry-run
 
 # 2. send it. --adopt repoints ONE origination URI and writes nothing else; drop --adopt on an
 #    account that has no trunk yet and it builds one, once, and attaches the number.
-uv run python ../infra/scripts/twilio_trunk.py \
+uv run python infra/tools/twilio_trunk.py \
     --number +1… --sip-host box.pinecall.io --trunk-name <the trunk> --adopt
 #    → the carrier's trunk, then the SFU's inbound trunk and the one-room-per-caller rule.
 #      Both LiveKit halves are looked for by name first, so a second run doubles neither.
 
 # 3. who answers. A ROW, never a field on the tenant's class — docs/decisions/routes.md.
 export PINECALL_GATEWAY_URL=https://box.pinecall.io
-export PINECALL_OPS_KEY=$(ssh pinecall-v2-box "sudo grep '^PINECALL_OPS_KEY=' /etc/pinecall/pinecall.env | cut -d= -f2-")
+export PINECALL_OPS_KEY=$(ssh <the box> sudo systemd-creds decrypt --name=PINECALL_OPS_KEY /etc/credstore.encrypted/PINECALL_OPS_KEY -)
 unset PINECALL_API_KEY                       # v1 exports one, and this gateway has never heard of it
 uv run pinecall-runtime routes add +1… clinica-norte
 uv run pinecall-runtime routes list
 ```
 
-A **second** number on the same trunk is steps 3 alone plus two additions: attach it to the trunk
-in Twilio's console, and add it to the inbound trunk's `numbers` (`lk sip inbound update`, or the
-console). `twilio_trunk.py` deliberately does neither — it says the standing trunk is already
+A **second** number on the same trunk is step 3 alone plus two additions: attach it to the trunk
+in the carrier's console, and add it to the inbound trunk's `numbers` (`lk sip inbound update`, or
+the console). `twilio_trunk.py` deliberately does neither — it says the standing trunk is already
 there and stops, because attaching a number to a trunk is a decision and not a re-run.
 
-**If the CIDR file moved, the firewall has to be told**, and only then:
-
-```bash
-PROJECT=<gcp project> ./infra/box/firewall.sh --dry-run
-PROJECT=<gcp project> ./infra/box/firewall.sh
-```
+**Another carrier is another set**: edit `carrier_signalling` in `infra/box/nftables.conf`, deploy,
+and the trunk tool reads the same set — there is no second list to keep in step.
 
 ## The four fences on 5060, and why there are four
 
@@ -297,24 +332,28 @@ costs money: an admitted INVITE is a room, a job, a model and three provider bil
 
 | layer | what it does | where |
 |---|---|---|
-| the cloud firewall | 5060 ALLOWED from the carrier's signalling networks at priority 1000, DENIED from `0.0.0.0/0` at 1100 | `infra/box/firewall.sh` |
+| the fence | 5060 ACCEPTED from the `carrier_signalling` set, DROPPED with a counter from anyone else | `infra/box/nftables.conf` |
 | `hide_inbound_port` | an INVITE for a number no inbound trunk declares is dropped with no reply at all | `infra/box/sip.yaml` |
-| the inbound trunk | `numbers` is an allow-list, and `allowed_addresses` carries the same networks again | `infra/scripts/twilio_trunk.py` |
+| the inbound trunk | `numbers` is an allow-list, and `allowed_addresses` carries the same networks again | `infra/tools/twilio_trunk.py` |
 | the routes table | an unknown number resolves to nobody; it is never a default | `pinecall-runtime routes` |
 
-The networks are written down **once**, in `infra/box/carrier-signalling-cidrs.txt`.
-`infra/scripts/carrier_cidrs.py` is its only reader: the firewall calls that script and the trunk
-imports it, so the fence and the carrier can never disagree about who is allowed to ring.
+The networks are written down **once**, as the `carrier_signalling` set in the fence itself.
+`infra/tools/carrier_cidrs.py` reads that set for the trunk, so the fence and the carrier can
+never disagree about who is allowed to ring. `nft list table inet pinecall` shows the drop rule's
+counter: that is the fence, working.
 
 Media stays open, on purpose: RTP legitimately arrives from any of the carrier's media addresses,
 and from any browser anywhere. Without an admitted INVITE nothing is listening there for it.
+
+A cloud's own firewall in front of all this is fine and is not relied on: the box is its own fence,
+so the same tree stands on any provider and on a machine in a cupboard.
 
 ## Working with the carrier, not against its fraud detection
 
 A carrier's anti-fraud system reads the *pattern*, not the intent, and it cannot tell our
 automation from an account takeover. So:
 
-- **A trunk is created once.** `infra/scripts/twilio_trunk.py` refuses to touch a trunk that
+- **A trunk is created once.** `infra/tools/twilio_trunk.py` refuses to touch a trunk that
   already carries its friendly name — it says so and exits 0. There is no delete in it and no loop
   around a create, and there is no timer on this box that provisions anything, ever.
 - **`--dry-run` first, and it opens no socket at all**: it prints every request the real run would
@@ -337,7 +376,7 @@ automation from an account takeover. So:
 ## Verifying without a phone
 
 ```bash
-cd runtime && uv run python ../infra/scripts/sip_probe.py \
+uv run python infra/tools/sip_probe.py \
     --host <the box's address> --domain box.example --dialled +598…
 ```
 
@@ -349,11 +388,10 @@ only a real call can prove, and a carrier refuses a call from another number on 
 
 It only gets through if this machine's own **public** address is admitted in **two** places for
 the length of the run, and both were missing from this paragraph until a real number was wired:
-the inbound trunk's `allowed_addresses`, and `pinecall-sip-signalling`'s `--source-ranges` on
-GCP. The probe speaks UDP, so an ssh tunnel is not a way around either. Put the address in both,
-run the probe, take it out again — `./infra/box/firewall.sh` restores the cloud rule to exactly
-the eight networks in the file, which is why taking it out is one command and not a memory. That
-inconvenience is the fence working.
+the inbound trunk's `allowed_addresses`, and the `carrier_signalling` set of the fence. The probe
+speaks UDP, so an ssh tunnel is not a way around either. Put the address in both, run the probe,
+take it out again — a deploy restores the fence to exactly the eight networks in the file, which
+is why taking it out is one command and not a memory. That inconvenience is the fence working.
 
 `_the_address_that_reaches` reports the address on this machine's own interface, which behind
 NAT is not the address the box sees: read the public one (`curl -s ifconfig.me`) and admit that.

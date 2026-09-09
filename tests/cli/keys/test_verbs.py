@@ -32,17 +32,19 @@ async def issued(operator: Operator, label: str | None = None) -> str:
     return out.getvalue().splitlines()[0]
 
 
-async def test_issue_prints_the_key_alone_on_the_first_line_and_says_it_is_the_only_time(
-    operator: Operator,
+async def test_issue_prints_the_key_alone_on_stdout_and_the_words_about_it_on_stderr(
+    operator: Operator, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A script reads it with `head -1`, and a person reads the two lines under it."""
+    """stdout IS the key — a unit pipes it straight into systemd-creds — and a person reads both."""
     out = printed()
     assert await issue_key(ORG, "the worker on this box", operator, out) == 0
-    first, *rest = out.getvalue().splitlines()
-    assert first.startswith("pk_") and " " not in first
-    assert f"org {ORG}" in rest[0]
-    assert "the worker on this box" in rest[0]
-    assert "never shown again" in rest[1]
+    assert out.getvalue().splitlines() == [out.getvalue().strip()]
+    key = out.getvalue().strip()
+    assert key.startswith("pk_") and " " not in key
+    said = capsys.readouterr().err.splitlines()
+    assert f"org {ORG}" in said[0]
+    assert "the worker on this box" in said[0]
+    assert "never shown again" in said[1]
 
 
 async def test_list_says_so_when_the_org_has_no_key_at_all(operator: Operator) -> None:

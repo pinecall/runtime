@@ -1,0 +1,4 @@
+# The bus the four containers find each other on, by name: pinecall-redis, pinecall-livekit,
+# pinecall-sip, pinecall-postgres. Unpublished; it authenticates nobody and reaches nothing outside.
+[Network]
+NetworkName=pinecall

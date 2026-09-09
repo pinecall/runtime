@@ -1,0 +1,10 @@
+# The scripts are terminal programs, not runtime code: the repo's rules, minus the two that
+# only speak about the library. Everything else — line length, the import order, the ceiling
+# on cleverness — is the runtime's, extended rather than restated.
+extend = "../../pyproject.toml"
+
+[lint.extend-per-file-ignores]
+# T201: printing IS what a script does; the runtime allows it only in pinecall/cli.
+# TID251: the runtime reads the environment through pinecall.Settings, which knows nothing
+# about a carrier's credentials — a standalone script has no Settings to read them from.
+"*.py" = ["T201", "TID251"]

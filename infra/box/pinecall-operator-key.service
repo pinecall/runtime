@@ -1,0 +1,29 @@
+# Your key, minted once on a fresh box and kept as a credential so it reaches no terminal, no
+# journal and no transcript. Read it exactly once, on the box:
+#   sudo systemd-creds decrypt --name=PINECALL_OPERATOR_KEY /etc/credstore.encrypted/PINECALL_OPERATOR_KEY -
+# and give it to `pinecall login <gateway>` on your laptop. Same shape as the worker's.
+[Unit]
+Description=Pinecall: the operator's key, minted once
+ConditionPathExists=!/etc/credstore.encrypted/PINECALL_OPERATOR_KEY
+Requires=pinecall-gateway.service
+After=pinecall-gateway.service
+
+[Service]
+Type=oneshot
+User=pinecall
+Group=pinecall
+WorkingDirectory=/opt/pinecall/app
+Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
+ImportCredential=PINECALL_OPS_KEY
+RuntimeDirectory=pinecall-keys
+RuntimeDirectoryMode=0700
+StandardOutput=file:/run/pinecall-keys/operator
+StandardError=journal
+ExecStart=/opt/pinecall/venv/bin/pinecall-runtime keys issue --org default --label the-operator
+ExecStartPost=+/usr/bin/systemd-creds encrypt --with-key=auto --name=PINECALL_OPERATOR_KEY /run/pinecall-keys/operator /etc/credstore.encrypted/PINECALL_OPERATOR_KEY
+ExecStartPost=+/usr/bin/shred -u /run/pinecall-keys/operator
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

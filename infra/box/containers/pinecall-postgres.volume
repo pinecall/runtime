@@ -1,0 +1,3 @@
+# The only state on the box: the log, which holds what a stranger said on the telephone.
+[Volume]
+VolumeName=pinecall-postgres

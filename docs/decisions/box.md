@@ -1,117 +1,150 @@
 # The box
 
-Why the machine that answers the telephone is shaped the way it is. The how — the commands, the
+Why the machine that answers the telephone is shaped the way it is. The how — the files, the
 path a call takes, the fences — is `infra/README.md`; this is the argument behind it.
 
-## One machine, two processes, four containers, and the ring
+## The box is declared, and on no cloud in particular
 
-A box carries the **evaluation ring**, and that is not a development convenience: ring 4 is the
-product. The gateway scores every finished call at hang-up — `call.score`, `evals/score.py` — so
-a gateway without the judges installed writes `not_judged` on every call the box ever answers, and
-`/v1/evals/*` answers 503 to anyone who asks. It is also nearly free: `pinecall-evals` depends on
-`pinecall[runtime]` and nothing else, and the judging itself is `livekit.agents.evals`, which
-livekit-agents already brought. So `evals/` is one of the two directories a deploy rsyncs, beside
-`runtime/` — and since ms-14 there is no third: the gateway is an API and serves no page.
+`infra/box/` held four shell scripts on 2026-09-08 — `setup.sh`, `first_run.sh`, `remote.sh`,
+`firewall.sh`, 350 lines between them — and every one of them did something systemd already
+knows how to do from a file. On 2026-09-09 they left, and what is there now is one file per thing
+the machine reads:
 
-## One machine, two processes, four containers
+| the script did | the file that says it |
+|---|---|
+| `useradd` the service user | `sysusers.d/pinecall.conf` |
+| `install -d` eleven directories with owners and modes | `tmpfiles.d/pinecall.conf` |
+| generate secrets once into an env file | `pinecall-secrets.service` → `pinecall-runtime box secrets`, into systemd's credstore |
+| `gcloud compute firewall-rules` | `nftables.conf`, on the host |
+| `docker compose up` | `containers/*.container`, Quadlet |
+| install and enable the units | `Makefile` |
+| `migrate up` after the first deploy | `ExecStartPre=` of the gateway's unit |
+| issue the worker's key into the env file | `pinecall-worker-key.service` |
+| apt, uv, the deploy account | `cloud-init.yaml` |
 
-The worker and the SFU sit on the same box because they exchange the caller's media for the whole
-call: a hop across a datacentre is not a number in a dashboard, it is heard in every turn.
+The rule under the table is the one this whole repository is built on: **a file says what is; a
+script says what to do**, and a machine that is a set of files can be read, diffed against the
+repository and rebuilt, while a machine that is the result of scripts can only be remembered.
 
-The media plane (livekit, sip, redis, postgres) is compose, because those four are somebody else's
-software pinned to a version. The two processes we write are systemd units, because they are the
-things a person restarts, reads a journal of, and deploys twenty times a day. Putting our own code
-in a container on the same box would buy nothing and cost a build on every deploy.
+And it is on no cloud. `firewall.sh` was `gcloud`; a customer on Hetzner, on a bare machine in a
+cupboard, could not have used it. The fence is on the host now, in nftables, and the first boot
+is cloud-init — which every provider takes and which a bare machine takes through a seed — so the
+same directory stands a box up anywhere. A cloud's own firewall in front is welcome and is not
+relied on.
+
+## The secrets are credentials, and nothing on the disk is in the clear
+
+`/etc/pinecall/pinecall.env` used to hold every secret the box had, `0600`, read by two units
+and by compose. It was also the file a deploy could silently overwrite, the file a `pg_dump` and a
+copied env made a stolen tenant of, and the reason `setup.sh` needed a paragraph on why `[ -f ]`
+lies to the account that runs it.
+
+Every secret is a **systemd credential** now: a file named exactly as the credential under
+`/etc/credstore.encrypted/`, encrypted under the machine's own key and sealed to its TPM where
+it has one (`systemd-creds encrypt --with-key=auto`), decrypted by systemd into a private
+directory for the one unit that named it (`ImportCredential=`), readable by that process and by
+nothing down the tree. `_settings.py` reads that directory as it reads the environment, under the
+same names, because pydantic's `secrets_dir` matches files the way the environment source does —
+so a unit's `ImportCredential=DATABASE_URL` reads exactly like its `EnvironmentFile=` line did.
+
+Two facts were measured on the box on 2026-09-09 before this was written, because neither is in
+the manual:
+
+- **The filename is the credential's name, with no extension.** `PINECALL_OPS_KEY.cred` is refused
+  — "embedded credential name does not match filename" — and a refused credential under
+  `ImportCredential=` is silently absent. The verb writes `PINECALL_OPS_KEY`.
+- **`ImportCredential=` takes a trailing glob**, so a unit says `PINECALL_*` once, and the vendors'
+  keys are listed by name because their names share nothing.
+
+The three LiveKit containers cannot read a credentials directory the way the runtime does, so they
+are handed **one** credential, `media.env`, as their environment file — `EnvironmentFile=%d/media.env`,
+where `%d` is systemd's own specifier for the credentials directory, and Quadlet passes it
+through to `podman run --env-file` untouched. It is written by the same verb, from the same draw,
+as the runtime's individual credentials: two spellings, one generation.
+
+The two keys are the case that decides the shape. `keys issue` is the one place a key exists in
+the clear, and it prints the key on **stdout alone** and its two lines of context on stderr — so
+a unit with `StandardOutput=file:` captures the key and nothing else, and `ExecStartPost=+` (root)
+encrypts that file into the credstore and shreds it. No shell, no pipe, no journal. `migrate up`
+consequently mints nothing any more: it runs before every start of the gateway, and a verb that
+runs there must never print a secret into a journal.
+
+## The units run the virtualenv, never uv
+
+Both units used to `uv run --frozen --extra runtime …`, and the comment beside that line — in
+four places — warned that `uv run` makes the environment match its arguments EXACTLY, so a unit
+that asked for less than the other would uninstall the other's half on its next restart and the
+phone would go quiet with a clean log. Four copies of a warning is a design telling you it is
+wrong.
+
+The units run `/opt/pinecall/venv/bin/pinecall-runtime`. The environment is built in one place,
+the deploy's post-sync, as the service user, with the extras written once. A unit cannot uninstall
+anything, because a unit never calls uv.
+
+## The media plane is Quadlet, and the gateway waits for Postgres
+
+Compose was declarative already; what it could not do was tell systemd anything. The gateway's
+unit said `After=docker.service` and nothing about Postgres, so the order was luck. Each
+container is a systemd unit now (`containers/*.container`, generated by podman's Quadlet at
+`daemon-reload`), the gateway `Requires=pinecall-postgres.service`, and — since Podman 4.9 cannot
+yet gate a dependency on a container's health — its `ExecStartPre=+podman healthcheck run
+pinecall-postgres` refuses to start the gateway until the database takes a connection, and
+`Restart=always` asks again three seconds later. The Postgres image is ours (pgvector and
+pg_textsearch) and is built on the box by a oneshot with a stamp per tag, because 4.9 has no
+`.build` unit; when it does, that unit becomes one file.
+
+A deploy restarts the runtime's two units and **not** the containers: the media plane stays up
+through a deploy, and a changed `.container` takes effect on its next restart, which is a person's
+to time between two calls.
 
 ## The box holds no credential for the repository
 
-The code arrives by **rsync, from a checkout, pushed by a person** — `shipway.yml` at the root of
-this tree — and the box cannot clone, cannot fetch, and has no identity on GitHub at all. It was
-briefly built the other way, with a read-only deploy key generated on the box, and that is the
-wrong shape for one reason: this machine answers the telephone from the open internet, on a SIP
-port whose whole design is four fences. A machine in that position should not be able to read our
-source, and a credential that lives there is a credential that survives every rotation of ours.
+The code arrives by **rsync, from a checkout, pushed by a person** — `shipway.yml` — and the box
+cannot clone, cannot fetch, and has no identity on GitHub at all. It was briefly built the other
+way, with a read-only deploy key generated on the box, and that is the wrong shape for one reason:
+this machine answers the telephone from the open internet, on a SIP port whose whole design is
+four fences. A machine in that position should not be able to read our source, and a credential
+that lives there is a credential that survives every rotation of ours.
 
-So the deploy is `shipway deploy`, and the only account it involves is the one that already has
-ssh to the box. It carries no build step: the gateway is an API, it serves no page, and the box
-runs Python and nothing else. The console is a laptop's — `console/`, built where pnpm is and
-served on 127.0.0.1 by `pinecall ui` for the life of that command — so the box never runs a
-bundler and never holds a bundle.
+Two accounts, two owners. `/opt/pinecall/app` belongs to the account rsync arrives as — made by
+cloud-init, because that account is yours and `tmpfiles.d` cannot name it. The virtualenv, the
+cache and the recordings belong to the service user, which `tmpfiles.d` does name. Ownership
+follows who writes, not who reads.
 
-Two accounts, two directories, drawn along that line. `/opt/pinecall/app` belongs to the LOGIN
-account, because rsync arrives as that account. `/opt/pinecall/venv` belongs to the SERVICE user,
-because `uv sync` writes it as that user — which is why `UV_PROJECT_ENVIRONMENT` points out of the
-tree rather than leaving a `.venv` inside it. Ownership follows who writes, not who reads.
+## The firewall says DROP out loud
 
-## The environment file belongs to the box
+The host drops what no rule accepts, so the explicit drop on 5060 changes nothing about what gets
+through. It is there to be *read*, and it carries a counter: `nft list table inet pinecall` shows
+how many INVITEs the fence has turned away, which is the fence demonstrably working rather than a
+rule somebody hopes is there.
 
-`/etc/pinecall/pinecall.env` is created once by `setup.sh` — the LiveKit keypair, the database
-password and the ops key generated *there*, with `openssl`, and never printed — and no deploy
-script ever writes it. The provider keys are added on the box by a human.
+The carrier's networks live **in the fence itself**, as the `carrier_signalling` set.
+`infra/tools/carrier_cidrs.py` reads that set for the inbound trunk rather than a second list, so
+the firewall and the trunk are physically incapable of disagreeing about who may ring this box —
+and the table stands beside podman's own and never flushes them, because a published port is
+DNAT'd to a container before it reaches `input`.
 
-This is a lesson with a shape: a deploy that ships the laptop's `.env` over the box's silently
-deletes every line the laptop does not have. It is not the copying that hurts, it is that the
-missing line is only noticed by the next caller. So the rule is absolute rather than careful.
+## The manifest is a Makefile
 
-Two parsers read that file — systemd's `EnvironmentFile` and docker compose's `.env`, which
-`setup.sh` symlinks to it — so it holds bare `KEY=value` lines: no quotes, no `export`, and no `$`
-in a value, which compose would expand.
+Everything under `infra/box/` has to be put where systemd, podman, Caddy and nftables read it,
+and that is the one imperative act a deploy performs. It is written as a Makefile with one rule
+per file, because that is what a Makefile is for and what every Unix daemon's install has looked
+like for forty years: a table of files and destinations that `install` overwrites when they
+changed and leaves alone when they did not. The deploy runs `make install` and `uv sync`, and
+nothing else.
 
-And the test that decides whether it is already there is `sudo test -f`, never `[ -f ]`. The
-directory is `0750` and owned by the service user, so the login account running the script is
-*refused* the file rather than told it is there — and a plain test then reports "no such file" on
-a box that has one. The first real box found this the expensive way: every re-run of `setup.sh`
-rewrote the environment from scratch, rotating the LiveKit keypair, the database password and the
-ops key, and dropping every provider line a human had added. Postgres remembers the password its
-volume was initialised with, so what the operator saw was `InvalidPasswordError: password
-authentication failed for user "pinecall"` — a sentence about a password that names nothing that
-rotated it. Every read of that file from a script now goes through `sudo`, for the same reason:
-being refused a file and finding no line in it are the same exit code and very different facts.
+`systemd-confext` — an overlay of a whole `/etc` from a directory — would make even that line
+disappear, and is the direction; on systemd 255 it makes `/etc` read-only while merged, which
+breaks `apt`, so it waits for the `--mutable=` of 256 to reach an LTS.
 
-## The units are furniture; the code is the deploy
-
-`setup.sh` installs and **enables** both units and starts neither: on a fresh box there is nothing
-under them yet, and a unit enabled over an empty `/opt/pinecall/app` restart-loops and reads as a
-broken machine. The first `shipway deploy` is what starts them, and every deploy after that is
-what restarts them.
-
-What a box needs exactly once — the schema, the default org's key, and the fleet key the worker
-knocks with — is `infra/box/first_run.sh`, run after that first deploy. It replaced two deploy
-scripts that also carried the code, which is now shipway's job and only shipway's.
-
-## Both units ask for the same environment
-
-One virtualenv serves the gateway and the worker, and `uv sync` makes an environment match its
-arguments *exactly*. A unit or a deploy that asks for less than the other uninstalls the other's
-half — the vendors a call needs — and the phone goes quiet with nothing in either log to say why.
-So `--extra runtime` appears in both units and in the shared deploy step, and the comment saying
-why is in all three places, because that is where somebody will be when they are tempted to drop
-it.
-
-`--group evals` travels with it, in the same four places and for the same reason, and `--frozen`
-with both: a box installs what `runtime/uv.lock` says and re-resolves nothing. Every path source in
-that lock has to exist for a resolution to finish, which is what `Distribution not found at:
-/opt/pinecall/app/evals` was saying on the first box before `evals/` was shipped there.
-
-## The firewall says DENY out loud
-
-GCP denies ingress by default, so the explicit deny rule on 5060 changes nothing about what gets
-through. It is there to be *read*: the allow rule alone looks like a preference, and the pair
-looks like a fence. It also means an edit to the allow rule cannot leave the port quietly open —
-the deny is still standing behind it.
-
-The carrier's networks live in one file with one reader. `infra/box/firewall.sh` calls
-`infra/scripts/carrier_cidrs.py` rather than parsing the list itself, so there is no second parser
-to drift: the firewall and the inbound trunk are physically incapable of disagreeing about who may
-ring this box.
-
-## The trunk script stops instead of being clever
+## The trunk tool stops instead of being clever
 
 A carrier's fraud detection reads patterns. Create-delete-recreate loops, nightly provisioning and
 bursts of API writes are what an account takeover looks like from the outside, and a precautionary
-suspension takes the phone line with it. So `twilio_trunk.py` creates a trunk **once**: finding one
-with the same friendly name, it prints what it found and exits 0 without writing anything. It
-contains no delete and no loop around a create. Nothing on the box provisions anything on a timer.
+suspension takes the phone line with it. So `infra/tools/twilio_trunk.py` creates a trunk
+**once**: finding one with the same friendly name, it prints what it found and exits 0 without
+writing anything. It contains no delete and no loop around a create. Nothing on the box provisions
+anything on a timer.
 
 Adopting one is the same rule from the other side. A trunk somebody else built can already own the
 number and be wrong in one field — the address it sends the INVITE to — and standing a second trunk
@@ -126,48 +159,42 @@ request cannot make the wrong one.
 
 The two transfer toggles are read, reported and never written. They cost money on every transfer —
 the transferred leg is billed as Origination *and* Termination for as long as it lasts — so
-turning them on is a decision, and a decision is a human typing the command the script prints.
+turning them on is a decision, and a decision is a human typing the command the tool prints.
 
 ## The probe asks the SFU, not the socket
 
-`sip_probe.py` sends one INVITE, and one only. A `200 OK` proves the box answered; it does not
-prove the call became anything. So the probe asks LiveKit whether a room appeared after the ACK,
-which is the first moment the whole chain — firewall, `hide_inbound_port`, inbound trunk, dispatch
-rule, fleet — has demonstrably run. It sends no RTP: the audio is the one thing that still needs a
-telephone, and a carrier will not let a number on the same account call itself (`21216`), so there
-is no self-test over the PSTN to have instead.
+`infra/tools/sip_probe.py` sends one INVITE, and one only. A `200 OK` proves the box answered; it
+does not prove the call became anything. So the probe asks LiveKit whether a room appeared after
+the ACK, which is the first moment the whole chain — fence, `hide_inbound_port`, inbound trunk,
+dispatch rule, fleet — has demonstrably run. It sends no RTP: the audio is the one thing that still
+needs a telephone, and a carrier will not let a number on the same account call itself (`21216`),
+so there is no self-test over the PSTN to have instead.
 
-## Caddy carries signalling and not media
+## The tools have their own two config files
 
-TLS terminates in one place for two upstreams: LiveKit's signalling paths and the gateway. Media
-never passes through it — a proxy in front of WebRTC is a proxy inside every call — so 7881/tcp,
-7882/udp and the RTP range go straight at the host. Postgres is published on `127.0.0.1` only: the
-log holds what a stranger said on the telephone, and nothing outside the machine has any business
-reading it. The recordings directory is `0750` and owned by the service account for the same
-reason.
-
-## The scripts have their own two config files
-
-`infra/scripts/` is Python that is not the runtime, so it carries a `.ruff.toml` that *extends*
-`runtime/pyproject.toml` and lifts exactly two rules — printing, which is what a terminal program
-does, and the ban on reading the environment directly, which speaks about a runtime that has a
+`infra/tools/` is Python that is not the runtime, so it carries a `.ruff.toml` that *extends*
+`pyproject.toml` and lifts exactly two rules — printing, which is what a terminal program does,
+and the ban on reading the environment directly, which speaks about a runtime that has a
 `Settings` class to read it through. A carrier's credentials are not in that class and should not
-be. `pyrightconfig.json` exists because the scripts import each other by module name, which needs
-the directory on the search path; the mode is the same `strict`. Both are three lines and both are
-run in the card's gates:
-
-```
-cd runtime && uv run ruff check ../infra/scripts && uv run ruff format --check ../infra/scripts
-cd runtime && uv run pyright --project ../infra/scripts
-cd runtime && uv run pytest ../infra/scripts/tests -q
-```
+be. `pyrightconfig.json` exists because the tools import each other by module name, which needs
+the directory on the search path; the mode is the same `strict`. `scripts/lint` and
+`scripts/test` run them with everything else.
 
 ## What was deliberately not taken
 
+- **No cloud provider's API anywhere.** Not for the firewall, not for the machine. A provider's
+  console or its own tooling creates the VM and pastes `cloud-init.yaml`; from there the box does
+  not know where it is.
+- **No NixOS.** The purest spelling of "a machine is a file", and the right one for a fleet of
+  identical boxes; for one box and the people who touch it, it changes the OS, the vocabulary and
+  every tool at once.
+- **No Kamal, no compose on the box.** Kamal needs a registry and puts a proxy where the media
+  is; compose cannot tell systemd what depends on what.
 - **No nightly timer.** Not for evals, not for provisioning: anything on this box that spends
   money does it because a person asked in that moment.
 - **No template rendering.** The configs are shipped as they are; the two values that change per
-  box arrive as environment variables (`LIVEKIT_KEYS` for compose, `PINECALL_DOMAIN` for Caddy).
-  A `sed` over a `.tpl` is a config file nobody can read on the box and diff against the repo.
+  box arrive in `/etc/pinecall/box.env`, written by cloud-init from the three lines a person
+  fills. A `sed` over a `.tpl` is a config file nobody can read on the box and diff against the
+  repo.
 - **No embedder.** Memory arrives with its own milestone; a box that retrieves nothing should not
   be holding 2.3 GB of weights.

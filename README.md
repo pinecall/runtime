@@ -20,8 +20,8 @@ pip install pinecall[runtime]   the gateway and the worker (livekit-agents and i
 ```
 docker compose -f infra/compose/dev.yml up -d      livekit · sip · redis · postgres · tei
 scripts/bootstrap                                  uv sync, every extra and tool group
-uv run pinecall-runtime migrate up                 the schema; a fresh database prints the
-                                                   default org's first API key
+uv run pinecall-runtime migrate up                 the schema; a fresh database seeds the
+                                                   default org, and `keys issue` mints its key
 uv run pinecall-runtime gateway                    the control plane, on 8080
 uv run pinecall-runtime worker dev                 the fleet that answers a call
 uv run pinecall-runtime doctor                     every service and key, one line each

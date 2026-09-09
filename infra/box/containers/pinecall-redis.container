@@ -1,0 +1,21 @@
+# The bus the two LiveKit services meet over. No persistence: it holds nothing worth keeping.
+[Unit]
+Description=Pinecall media plane: redis
+
+[Container]
+ContainerName=pinecall-redis
+Image=docker.io/library/redis:8.10.1-alpine
+Exec=redis-server --save "" --appendonly no
+Network=pinecall.network
+HealthCmd=redis-cli ping
+HealthInterval=5s
+HealthTimeout=3s
+HealthRetries=12
+HealthStartPeriod=5s
+
+[Service]
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

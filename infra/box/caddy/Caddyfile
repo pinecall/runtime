@@ -1,6 +1,6 @@
 # One name, two upstreams, and TLS for both: Caddy is the only thing on the box that answers 443.
-# The domain arrives as PINECALL_DOMAIN in /etc/default/caddy, so this file is the same on every
-# box and nothing here is rendered from a template.
+# The domain arrives as PINECALL_DOMAIN out of /etc/pinecall/box.env (caddy/pinecall.conf points
+# Caddy's unit at it), so this file is the same on every box and nothing is rendered.
 #
 # Media does NOT pass through here: WebRTC (7881/tcp, 7882/udp) and SIP (5060, 10000-10199/udp)
 # reach the host's own ports directly. A proxy in front of media is a proxy inside every call.
