@@ -54,4 +54,4 @@ uv run pytest -m unit                              ring 0, no keys
 
 A native Postgres shadows the container on 127.0.0.1: the Postgres ring runs with
 `DATABASE_URL=postgresql://pinecall:pinecall@[::1]:5432/pinecall` on such a machine
-(`infra/README.md`). `unset PINECALL_API_KEY` before anything opens a socket on a dev key.
+(`infra/README.md`). The box is `infra/box/README.md`. `unset PINECALL_API_KEY` before anything opens a socket on a dev key.

@@ -1,7 +1,7 @@
 # The box
 
 Why the machine that answers the telephone is shaped the way it is. The how — the files, the
-path a call takes, the fences — is `infra/README.md`; this is the argument behind it.
+path a call takes, the fences — is `infra/box/README.md`; this is the argument behind it.
 
 ## The box is declared, and on no cloud in particular
 

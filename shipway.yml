@@ -12,7 +12,7 @@
 #
 # What is NOT here: the machine's first boot — the packages, the deploy account, uv — which is
 # `infra/box/cloud-init.yaml`, on any provider. Everything after that arrives with this deploy:
-# the units, the containers, the fence, the secrets. Read `infra/README.md` for the order.
+# the units, the containers, the fence, the secrets. Read `infra/box/README.md` for the order.
 
 name: pinecall
 
