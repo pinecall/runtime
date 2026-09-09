@@ -7,8 +7,9 @@
 
 {$PINECALL_DOMAIN} {
 	# LiveKit's own paths, signalling included: a browser's WebSocket is upgraded by Caddy and
-	# handed to the SFU, which is how the room token ever reaches it over TLS.
-	@livekit path /rtc* /twirp* /validate*
+	# handed to the SFU, which is how the room token ever reaches it over TLS. /agent is the
+	# socket a WORKER registers on — a worker on a box of its own dials wss://<this domain>/agent.
+	@livekit path /rtc* /twirp* /validate* /agent*
 	handle @livekit {
 		reverse_proxy 127.0.0.1:7880
 	}
