@@ -9,10 +9,10 @@ import pytest
 
 from pinecall.session.filling import (
     REMEMBER_FAILED,
-    Filling,
     NoFiller,
     NoRememberer,
     Rememberer,
+    TurnFills,
     remembered_within,
 )
 from pinecall.types import Blocks, KnowledgeFile, Marker, PromptBlock
@@ -44,13 +44,13 @@ class Answering:
         return {marker.line: f"filled {marker.name} for {query!r}" for marker in markers}
 
 
-def a_filling(filler: Answering | NoFiller, knowledge: KnowledgeFile | None = A_FILE) -> Filling:
+def a_filling(filler: Answering | NoFiller, knowledge: KnowledgeFile | None = A_FILE) -> TurnFills:
     """The default layout, the knowledge marker in its block, memory and retrieval in the view."""
     blocks = Blocks()
     blocks.set("identity", "You are Clara.")
     blocks.set("knowledge", f"## What you know\n\n{KNOWLEDGE}")
     blocks.set("view", f"## You remember\n\n{MEMORY}\n\n## Relevant\n\n{RETRIEVED}")
-    return Filling(filler, CALL, blocks, knowledge, budget_ms=50)
+    return TurnFills(filler, CALL, blocks, knowledge, budget_ms=50)
 
 
 async def test_the_knowledge_is_filled_before_any_turn_and_stays_the_same_bytes_after() -> None:
@@ -105,7 +105,7 @@ async def test_a_filler_that_raises_is_a_skipped_fill_and_never_a_broken_turn() 
 async def test_only_the_markers_that_were_asked_are_reported_when_they_go_unfilled() -> None:
     blocks = Blocks((PromptBlock("identity", "static"), PromptBlock("view", "dynamic")))
     blocks.set("view", RETRIEVED)
-    filling = Filling(Answering(after_s=0.5), CALL, blocks, None, budget_ms=50)
+    filling = TurnFills(Answering(after_s=0.5), CALL, blocks, None, budget_ms=50)
     assert [error.code for error in await filling.turn_ended("hola", None)] == ["retrieval_skipped"]
 
 
@@ -113,7 +113,7 @@ async def test_a_view_with_no_marker_asks_nobody() -> None:
     filler = Answering()
     blocks = Blocks()
     blocks.set("view", "The caller is Ana.")
-    filling = Filling(filler, CALL, blocks, None, budget_ms=50)
+    filling = TurnFills(filler, CALL, blocks, None, budget_ms=50)
     assert await filling.turn_ended("hola", None) == ()
     assert filler.asked == []
 

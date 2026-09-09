@@ -13,7 +13,7 @@ from livekit.agents.voice import ModelSettings
 from livekit.agents.voice.agent import Agent as LiveAgent
 
 from pinecall.providers.blocks import request_context
-from pinecall.session.filling import Filling
+from pinecall.session.filling import TurnFills
 from pinecall.types import Blocks
 from pinecall_protocol.events import ErrorEvent
 
@@ -48,7 +48,7 @@ class VoiceAgent(LiveAgent):
         blocks: Blocks,
         tools: Sequence[agents.Tool],
         speaking: Speaking,
-        filling: Filling,
+        filling: TurnFills,
     ) -> None:
         # livekit's Agent.__init__ is generic over the plugin's own event type, which a strict
         # checker can only read as Unknown; the one ignore is here, at the one call.
@@ -62,7 +62,7 @@ class VoiceAgent(LiveAgent):
     # livekit's hook between the caller's last word and the request (agent_activity.py:2605): the
     # one moment the markers can be asked with the whole turn as the query. The hook is timed by
     # livekit itself, as on_user_turn_completed_delay on the EOU block, and the budget inside
-    # Filling (PINECALL_FILL_BUDGET_MS) is what keeps that number small. No speech exists yet at
+    # TurnFills (PINECALL_FILL_BUDGET_MS) is what keeps that number small. No speech exists yet at
     # this moment — the reply's handle is created after the hook returns (:2672) — so the fill
     # is filed under none.
     @override
