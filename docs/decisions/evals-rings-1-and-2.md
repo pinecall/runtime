@@ -1,4 +1,4 @@
-# Rings 1 and 2 — livekit already carries them (tk-481ef4, 2026-09-07)
+# Rings 1 and 2 — livekit already carries them (2026-09-07)
 
 One chapter of [evals.md](evals.md), which indexes the rest. Nothing here was reworded:
 it was moved.

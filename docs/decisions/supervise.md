@@ -1,6 +1,6 @@
 # supervise — six verbs, one command, two doors, and every one of them in the caller's log
 
-Written 2026-09-09 for tk-646671. The public contract is `docs/protocol/commands.md` (the command)
+Written 2026-09-09. The public contract is `docs/protocol/commands.md` (the command)
 and `docs/protocol/events-control.md` (the six entries); this page is why it is shaped this way.
 
 ## The picture
@@ -88,8 +88,7 @@ is **not** hidden.
 Hidden is not a privacy setting on the media plane — livekit does not deliver a hidden
 participant's tracks to the room at all. A hidden supervisor would take the line and speak into a
 silence. And there is nobody for it to hide from: a phone shows no participant list, and the
-agent's ears are pinned to the caller's seat by `room_io.set_participant` (tk-4a3189,
-`docs/decisions/room.md`), so a supervisor joining changes nothing about what the agent hears.
+agent's ears are pinned to the caller's seat by `room_io.set_participant` (`docs/decisions/room.md`), so a supervisor joining changes nothing about what the agent hears.
 
 ## Why a whisper is a later system message AND a generate_reply
 
@@ -98,7 +97,7 @@ The whisper does two things, and neither is enough alone.
 The message — `agent.chat_ctx.copy()`, `add_message(role="system", …)`, `await
 agent.update_chat_ctx(ctx)` (livekit `voice/agent.py:155` and `voice/agent.py:236`) — goes at the
 END of the history. That is what makes it stick for the rest of the call. It is emphatically NOT
-the static prefix: the prefix is the cached region (`docs/decisions/prompt-regions.md`), and a
+the static prefix: the prefix is the cached region (the agents repo's `docs/decisions/prompt-regions.md`), and a
 sentence appended to it would rebuild the cache on every call that agent ever answers, to steer
 one.
 
@@ -259,7 +258,7 @@ applier that finishes it. Cold only, and warm still answers with `ONLY_COLD`.
 - `defs.json` names `EndedBy`, and `call.ended` `$ref`s it. `hangup(reason, by)` needed the type
   and there was no importable home: it was spelled out as a local alias twice, in
   `session/voice/voice.py` and `session/text/session.py`. Both import it from `protocol.defs` now —
-  text/session.py's copy went when the WhatsApp card opened that file (tk-989727).
+  text/session.py's copy went when the WhatsApp card opened that file.
 - The generator sorted import names with plain `sorted()`, which puts `EndReason` before `EndedBy`
   while isort and eslint both want the reverse. `protocol/generate/schema.py` now emits the order
   the linters ask for, so a name is never renamed to please a sort.

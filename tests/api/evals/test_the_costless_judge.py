@@ -112,7 +112,7 @@ async def test_a_booking_with_no_gate_at_all_holds_and_says_the_gate_is_deferred
     assert GATE_DEFERRED_ON in score["reason"]
 
 
-# What consent alone could not catch, and the reason `expect.not_tools` exists (tk-cc6c9f). This is
+# What consent alone could not catch, and the reason `expect.not_tools` exists. This is
 # the very log the cell above holds on: the gate is deferred, so the ORDER rule has nothing to
 # read, and a golden that says "this call must never book" is ring 1's only witness until it lands.
 async def test_a_golden_that_forbids_the_tool_goes_red_where_consent_can_only_hold() -> None:

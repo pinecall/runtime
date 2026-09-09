@@ -52,7 +52,7 @@ TTS stays behind the turn unless `preemptive_tts` is set. A discarded attempt is
 `resume_false_interruption` is the library's answer to a room that cuts the agent off and then says
 nothing. It is NOT an answer to a room that says something: a television that transcribes into real
 sentences becomes a turn, and neither the VAD nor the turn detector filters it. We wrote an energy
-gate for that in ms-3 and deleted it in tk-4009d9 — five measured calls, the numbers and why an
+gate for that once and deleted it — five measured calls, the numbers and why an
 energy gate of that shape cannot work are in `voice-bridge.md`.
 
 ## 10 — handoff

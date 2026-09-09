@@ -74,7 +74,7 @@ async def run_the_goldens(
 # A run is its agent's, and an agent is one org's: the list is cut to the key's org by asking the
 # log whose each agent is, so two organisations never share one page. `agent` narrows it further,
 # and a screen reading a page of the org's newest runs would lose this agent's older ones behind
-# everybody else's. docs/decisions/evals-screen.md.
+# everybody else's. The agents repo's docs/decisions/evals-screen.md.
 @router.get("/v1/evals/runs")
 async def listed(
     key: KeyDep,

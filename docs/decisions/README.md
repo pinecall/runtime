@@ -12,12 +12,8 @@ repository; the framework's pages are in the agents repository.
 | the log: the entry, the store contract, seq and seal | [log.md](log.md) |
 | the api: the app socket, the registry, the keys, the process memory | [api.md](api.md) |
 | the CLI: reading the log back — sessions list, show, tail | [cli.md](cli.md) |
-| the agent class, as the runtime receives it: the author rule, docstrings | [agent.md](agent.md) |
 | the confirmation gate, and why it was removed for now: the wire kept it, the runtime did not | [confirm.md](confirm.md) |
-| the runtime bridge: one instance per call, send only when the text changed | [bridge.md](bridge.md) |
-| the world: visibility, onEvent, say and reply, the room and the history | [agent-events.md](agent-events.md) |
 | the providers: why the livekit plugins are the adapters and LLMMetrics is the measurement | [providers.md](providers.md) |
-| the prompt's three regions: why the view is last, where the code cuts | [prompt-regions.md](prompt-regions.md) |
 | the text session: livekit's AgentSession runs the loop, the log is written from its path | [text-session.md](text-session.md) |
 | auth: one token for text and voice, on livekit's AccessToken | [auth.md](auth.md) |
 | livekit-agents 1.8.0: the verdicts at a glance, and the chapter each one lives in | [livekit-1.8.md](livekit-1.8.md) |
@@ -33,7 +29,6 @@ repository; the framework's pages are in the agents repository.
 | the pipeline door: the one hop an override takes, the blank that is refused, the medians | [pipeline.md](pipeline.md) |
 | the settings: the two .env paths, why a real variable wins, the generated example | [settings.md](settings.md) |
 | livekit's official examples: every knob they set, and ours-too / not-yet / not-for-us | [livekit-examples.md](livekit-examples.md) |
-| tools and the state: why `when` is the primitive, why `stage` is sugar and what it types | [agent-model.md](agent-model.md) |
 | livekit 1.8, invariants 1-6: the chat context on its way to the model | [livekit-context.md](livekit-context.md) |
 | livekit 1.8, invariants 7-12, 15-17, 20: the session, the server, the plugin defaults | [livekit-session.md](livekit-session.md) |
 | livekit 1.8, invariant 19: where a word timing comes from | [livekit-words.md](livekit-words.md) |
@@ -44,7 +39,6 @@ repository; the framework's pages are in the agents repository.
 | one consent rule: the order in `types/`, and what the two copies of it disagreed about | [evals-consent.md](evals-consent.md) |
 | the eval runner: goldens through the connected app, the settle rule, the graphs a golden asks for | [eval-runner.md](eval-runner.md) |
 | ring 4: `call.score` as the terminal entry, the four verdicts, the ceiling, the seqs a judgment cites | [scoring.md](scoring.md) |
-| the Evals screen's doors: the delta that names rows, `panel`, the agent-narrowed runs door | [evals-screen.md](evals-screen.md) |
 | the token door: LiveKit's endpoint, `agentName` and the dispatch in the token, where "once" is kept | [tokens.md](tokens.md) |
 | the orgs: the tenant as a row, the key as the tenant, whose log is whose | [orgs.md](orgs.md) |
 | the provider keys: managed is the absence of a row, BYOK is one row, and the one door that answers with a key | [provider-keys.md](provider-keys.md) |

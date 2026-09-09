@@ -52,7 +52,7 @@ def test_the_last_frame_is_padded_with_silence_rather_than_sent_short() -> None:
 
 
 def test_the_interferer_ends_up_the_asked_for_number_of_decibels_under_the_caller() -> None:
-    """15 dB under is what tk-4009d9 measured a television taking a conversation over at."""
+    """15 dB under is what the hearing calls measured a television taking a conversation over at."""
     caller = a_tone(RATE, 8000, period=97)
     television = a_tone(RATE, 8000, period=31)
 

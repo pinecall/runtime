@@ -8,9 +8,8 @@ beside it is generated rather than written.
 
 `Settings.model_config` declares `env_file`, `env_file_encoding` and `extra="ignore"`. No
 module calls `load_dotenv`, and nothing reads a file by hand. Until 2026-09-06 the class
-declared none of it, so `runtime/.env` — the file `.env.example` tells the reader to write —
-was read by nothing at all: a trap that cost an evening twice, documented in
-[ms-4.md](ms-4.md) and fixed here.
+declared none of it, so `.env` — the file `.env.example` tells the reader to write — was read
+by nothing at all: a trap that cost an evening twice, and fixed here.
 
 **A real environment variable wins over the file.** That is pydantic-settings' own source
 order (the process environment before the dotenv source), and it is the behaviour both
@@ -89,7 +88,7 @@ construction (`main.py:332`), which is why one line in one hook covers the whole
 xdist worker, with no monkeypatch of private state.
 
 The reason is CLAUDE.md's invariant: *unit tests run with dead-sentinel provider keys*. Until
-tk-08e3f5 that was true only for a developer with no `runtime/.env`. With one — the file
+an earlier reading that was true only for a developer with no `.env`. With one — the file
 `.env.example` tells them to write — `monkeypatch.delenv("ELEVEN_API_KEY")` deleted the variable
 and pydantic quietly found the key in the file again, so
 `test_a_role_with_no_key_at_all_names_the_role_and_what_to_set` failed on their laptop and passed

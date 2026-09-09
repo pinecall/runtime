@@ -31,7 +31,7 @@ framework already refuses to send an orphan half of a pair, which is exactly the
 `extra["system"]`, a list of text blocks in order (`plugins/anthropic/llm.py:226`). With
 `caching="ephemeral"` the breakpoint lands on the **last** block of that list
 (`llm.py:234`), on the last tool (`:238`), on the last assistant message and on the last
-user message before it (`:247,:251`). Hence `docs/decisions/prompt-regions.md`: anything
+user message before it (`:247,:251`). Hence the agents repo's `docs/decisions/prompt-regions.md`: anything
 that moves every turn must sit **after** the cached prefix, never inside it.
 
 ## 4 · 5 · 6 — instructions, tools, and the two new history items

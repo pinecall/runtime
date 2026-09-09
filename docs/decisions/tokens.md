@@ -1,6 +1,6 @@
 # tokens — LiveKit's endpoint, our three things in front of it, and where "once" is kept
 
-Written 2026-09-08 for tk-83adc3, after the LiveKit doc audit that rewrote the card. The public
+Written 2026-09-08, after the LiveKit doc audit that rewrote it. The public
 contract is `docs/protocol/tokens.md`; this page is why it is shaped the way it is.
 
 ## We did not design a token format
@@ -98,7 +98,7 @@ because the join is LiveKit's. What can see it is the worker, which is in the ro
 writes `participant.joined` for every seat (`docs/decisions/room.md`): a `participant_connected`
 for an identity the call has already seated is the fact, and refusing it — `RemoveParticipant`,
 `participant.left` with the reason — is a line in the room's facts. It is the hot path and it is
-tk-64b2c2's, the integration card; until it lands, the TTL is the only bound on that case, and the
+the integration's; until it lands, the TTL is the only bound on that case, and the
 public contract says so in as many words.
 
 The record lives in **Postgres**, `migrations/0005_tokens.sql`, one row per token keyed by the
@@ -149,7 +149,7 @@ worker's refusals.
 - `a_call_id()` and `THE_WIDGET` moved to `types/`: the chat door and the token door mint the
   same call id, the router and the token door name the same channel.
 
-## The two seat doors, and why one of them publishes (2026-09-09, tk-646671)
+## The two seat doors, and why one of them publishes (2026-09-09)
 
 `POST /v1/calls/{call}/listen` and `POST /v1/calls/{call}/supervise` are one function,
 `tokens/seating.py`: one identity shape, one 404, one 409, two scope rows. The `supervise` row

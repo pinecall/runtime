@@ -102,8 +102,9 @@ async def test_a_call_that_kept_off_the_forbidden_tool_holds_and_asks_nobody() -
     assert judge.prompts == []
 
 
-# The whole point of the field, and it is tk-799ef1's own finding written down: the turn below is
-# what haiku actually said while booking unasked, and `no-reserva-antes-del-si` bans none of it.
+# The whole point of the field, and it is the policy experiment's finding written down: the
+# turn below is what haiku actually said while booking unasked, and `no-reserva-antes-del-si`
+# bans none of it.
 async def test_the_phrases_hold_on_the_very_call_the_forbidden_tool_judge_breaks() -> None:
     case = a_case_of(
         asked("Me viene bien la de las cuatro."),

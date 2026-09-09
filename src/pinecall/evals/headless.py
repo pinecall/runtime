@@ -71,7 +71,8 @@ async def a_headless_call(
     live = session.a_session(config, kit, WRITTEN, NO_ORG_KEYS)
     # The two regions arrive the way the app sends them at call start: the static one becomes
     # livekit's `instructions` — the pinned item at index 0 the provider's cache lands on — and
-    # the view is read per request, after the history. Never reordered; see prompt-regions.md.
+    # the view is read per request, after the history. Never reordered; see the agents repo's
+    # docs/decisions/prompt-regions.md.
     agent = VoiceAgent(
         instructions=static,
         tools=declared(config.tools, answers),

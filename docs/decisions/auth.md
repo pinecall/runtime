@@ -80,7 +80,7 @@ LiveKit only in prose. `tests/test_isolation.py` says so where the list is decla
 
 Everything above holds; the names moved to say what they now are. A participate token was the
 only room token the runtime minted, so the functions were named after it. `POST /v1/tokens`
-(tk-83adc3, [tokens.md](tokens.md)) mints `talk` and `chat` tokens through the same minter, and a
+([tokens.md](tokens.md)) mints `talk` and `chat` tokens through the same minter, and a
 talk token reads its own call too, so:
 
 | was | is |

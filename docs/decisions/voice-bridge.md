@@ -1,6 +1,6 @@
 # The voice bridge: livekit's session on one side, the log and the app on the other
 
-`src/pinecall/session/voice/` is what tk-940488 left as two Protocols in
+`src/pinecall/session/voice/` is what the first bridge left as two Protocols in
 `worker/entry.py` — `Bridge` (the livekit `Agent` this call runs, `opened(live)`,
 `closed(reason)`) and `Bridging` (how one call gets one) — implemented. The worker was
 written against those shapes and did not move. `a_bridge` is the `Bridging`; `VoiceBridge`
@@ -144,7 +144,7 @@ livekit's `instructions`, the view is read per request in `llm_node`) and write
 session and then the **job** — `get_job_context()` is livekit's own accessor for it — because
 ending the session alone would leave the room open. `call.transfer`, `call.dtmf`, `call.hold`
 and the room verbs need the room, which the bridge does not hold: they are refused by name, in
-the protocol's own words, and land with SIP in ms-4 / tk-08e08b. The transport that carries an
+the protocol's own words, and landed with SIP. The transport that carries an
 app's commands to a worker-run call is not in this card either — `VoiceBridge.apply` is the
 door it will knock on.
 
@@ -177,7 +177,7 @@ doors need them too, and `api/calls/endpoints.py` asks for the live memory by th
 it needs (`Serving`) rather than importing `connected.py`, which imports the text session,
 which imports the log package — the cycle a test found.
 
-## The words, timed (tk-da9003)
+## The words, timed
 
 There is no `tts.word` event, and there will not be one. `bot.word` was folded into
 `agent.transcript` when the wire was designed (`docs/decisions/protocol.md`, the v1 table): one
@@ -212,7 +212,7 @@ region. Both processes may import `pinecall.log`, which holds the ideas and no f
 they live once in `log/wording.py` and `tests/log/test_wording.py` asserts that the text
 session and the bridge hold the very same objects.
 
-## A worker-run call is served by the app (tk-30d34e)
+## A worker-run call is served by the app
 
 The first real voice call through this runtime got everything right and answered every tool with
 `this call is no longer being served`. The app builds an instance for a call when **its socket**
@@ -281,7 +281,7 @@ client, reaches a fake bridge's `apply` in order. The bytes between the two halv
 hand in that last one because httpx's ASGI transport buffers a response whole
 (`httpx 0.28, _transports/asgi.py`), so an endless SSE cannot be driven through it in-process.
 
-## The energy gate is gone, and the five calls that ended it (tk-4009d9)
+## The energy gate is gone, and the five calls that ended it
 
 ms-3 put an energy gate on the STT path — `session/voice/stt_gate.py`, convo's lesson — to refuse a
 final transcript whose loudest frame did not stand 6 dB over a noise floor the gate learned from
@@ -336,7 +336,7 @@ And it was not free: `level_of` summed and squared every sample of every frame i
 
 ### What actually covers it, and what does not
 
-`resume_false_interruption` (on since tk-c020cd, `turn.py:175-196`) is a different problem: it
+`resume_false_interruption` (`turn.py:175-196`) is a different problem: it
 resumes the agent when an interruption produced no transcript. A television that transcribes into
 real Spanish sentences is not a false interruption; the words are there. The VAD and the turn
 detector are likewise not filters — they say *when* a turn ends, never *whose* it was.
@@ -353,7 +353,7 @@ not write a second gate.
 `VoiceBridge.heard` keeps its other half: the backchannel stoplist (`barge_in.py`), which judges the
 TEXT and only while the agent is speaking. That one is measured elsewhere in this file and stays.
 
-## The seat the session listens to (tk-4a3189)
+## The seat the session listens to
 
 Until this card the room held two people — the caller and the agent — so `RoomIO` picked the
 caller by luck: left without an identity it links the first remote participant of an accepted kind

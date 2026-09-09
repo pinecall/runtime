@@ -88,7 +88,7 @@ is remembered on the instance, one per `AgentServer`, never a module-level flag.
 end-of-turn weights are resident in the forkserver before any job exists and every forked job
 inherits the pages by COW. Those are exactly the two models a call cannot wait for, and they are
 the two the session builds by itself (`agent_session.py:541-542,606-607`). **We register no
-prewarm of our own for either** — ms-3 wrote one and tk-ffc7ea deleted it, correctly.
+prewarm of our own for either** — one was written and then deleted, correctly.
 
 What `setup_fnc` carries now is a different thing in kind: not a model, but OUR OWN MODULES. The
 vendor tables are filled by importing the package (`providers/registry.py::_read_the_package`),
@@ -178,7 +178,7 @@ listening. The earlier six, taken while three other agents were hammering the ma
 6.24 s before; the same load is what turns a 0.45 s import into a 4.2 s one.
 
 `entry.py` logs the number on every call — `the pipeline is live 0.32s after the job arrived` — so
-this never has to be re-measured by hand. **Re-measured after the console fix** (tk-048b43, six
+this never has to be re-measured by hand. **Re-measured after the console fix** (six
 dispatches to a fleet of its own on the same laptop, a gateway and a browser alongside):
 **0.34 · 0.38 · 0.40 · 0.32 · 0.32 · 0.41 s**, process initialisation 1.09 – 1.34 s. The same
 band as the 0.30 – 0.39 above, on a busier machine: warming the console's tables changed nothing

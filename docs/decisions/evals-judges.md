@@ -1,4 +1,4 @@
-# The judges — livekit's `Judge`, and the four policies that answer for free (tk-dd1ecf)
+# The judges — livekit's `Judge`, and the four policies that answer for free
 
 One chapter of [evals.md](evals.md), which indexes the rest. It replaces `evals-graphs.md`,
 which said the same things about DeepEval's `DeepAcyclicGraph`. **DeepEval left this tree on
@@ -93,13 +93,13 @@ construction and do not read the transcript at all. Everything else — `registe
 `grounded`, `tools`, `says`, `silence` — reads the ChatContext, which is what lets the same judge
 grade a live session at hang-up and a replayed golden with one class.
 
-**A policy that costs nothing judges every run** (tk-799ef1, 2026-09-08). Ring 1 used to pick its
+**A policy that costs nothing judges every run** (2026-09-08). Ring 1 used to pick its
 judges from the golden's `expect` alone, so a golden that asked nothing was scored by nothing while
 rings 3 and 4 ran consent over every call. `api/evals/scoring.py::_judges_for` now puts
 `ConsentJudge` at the head of every panel: `consent` is a column of every matrix, and a golden with
 `expect: {}` is judged. Only a policy that asks nobody *and* needs no declaration from the golden
 may join it that way — which today is consent alone. What the experiment behind it found, and why
-`no-reserva-antes-del-si.json` kept its phrases, is [pinecall-test.md](pinecall-test.md).
+`no-reserva-antes-del-si.json` kept its phrases, is the agents repo's `docs/decisions/pinecall-test.md`.
 
 The rule itself is still `pinecall/types/consent.py`, which ring 3's door and ring 4 read too: one
 order, one set of sentences, one place a policy change lands. Why it moved out of this package is
@@ -120,7 +120,7 @@ prompt, which is the criterion `tests/test_grounded.py` counts.
 
 ### The evidence has three halves, and the third one is the state
 
-Added 2026-09-08 (tk-42ccb5). `Evidence` was `text` (the knowledge and the retrieved chunks) and
+Added 2026-09-08. `Evidence` was `text` (the knowledge and the retrieved chunks) and
 `calls` (what the tools answered), and a golden that opens in a state scored zero on every fact it
 was seeded with: *no call evidence carries the date 'jueves'* about a call where the agent read the
 date straight off its own view. The state is evidence — the app put those facts in front of the
@@ -147,7 +147,7 @@ finding and that the seeded facts reach the one question a judge is ever asked h
 
 ### A tool answer is quoted with its name and its arguments
 
-Added 2026-09-09 (tk-06babf). `Evidence.calls` held the answer alone, so an agenda that answered
+Added 2026-09-09. `Evidence.calls` held the answer alone, so an agenda that answered
 `[]` reached the judge as `[]` — no tool, no day, and a model reads that as "no information about
 anything". In ring 4 under gpt-5.4-mini it failed `no-inventa-horas-de-un-dia-sin-agenda`, where the
 agent called `freeSlots("domingo por la mañana")`, read `[]` and correctly said there were no slots

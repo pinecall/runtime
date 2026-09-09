@@ -1,7 +1,7 @@
 # One consent rule — the order, in the domain, and what the two copies disagreed about
 
 One chapter of [evals.md](evals.md), which indexes the rest. Written when the rule moved to
-`src/pinecall/types/consent.py` (tk-87a167), because moving it settled two questions
+`src/pinecall/types/consent.py`, because moving it settled two questions
 the two copies had been answering differently.
 
 **The rule, in one sentence:** an irreversible tool call must be preceded by a granted
