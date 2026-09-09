@@ -1,0 +1,100 @@
+"""livekit's Agent for a spoken call: the view enters per request, the words leave as they play."""
+
+from __future__ import annotations
+
+from collections.abc import AsyncGenerator, AsyncIterable, Sequence
+from typing import Any, Protocol, override
+
+from livekit import rtc
+from livekit.agents import llm as agents
+from livekit.agents import stt as recognition
+from livekit.agents.types import FlushSentinel, TimedString
+from livekit.agents.voice import ModelSettings
+from livekit.agents.voice.agent import Agent as LiveAgent
+
+
+class Speaking(Protocol):
+    """What the agent needs of the bridge: the view of the moment, and where words go."""
+
+    @property
+    def view(self) -> str:
+        """The dynamic region as the app last rendered it; empty when there is none."""
+        ...
+
+    def said(self, delta: str | TimedString) -> None:
+        """One piece of the reply, as the caller is hearing it, timed when the voice aligned it."""
+        ...
+
+    def heard(self, event: recognition.SpeechEvent) -> bool:
+        """Whether this is the caller speaking; False drops it before the LLM ever sees it."""
+        ...
+
+
+type Words = AsyncGenerator[str | TimedString, None]
+type Heard = AsyncGenerator[recognition.SpeechEvent, None]
+type Thought = AsyncGenerator[agents.ChatChunk | str | FlushSentinel, None]
+
+
+class VoiceAgent(LiveAgent):
+    """The agent livekit runs on a line: our instructions, our tools, and the view at the end."""
+
+    def __init__(
+        self,
+        *,
+        instructions: str,
+        tools: Sequence[agents.Tool],
+        speaking: Speaking,
+    ) -> None:
+        # livekit's Agent.__init__ is generic over the plugin's own event type, which a strict
+        # checker can only read as Unknown; the one ignore is here, at the one call.
+        super().__init__(  # pyright: ignore[reportUnknownMemberType]
+            instructions=instructions, tools=list(tools)
+        )
+        self._speaking = speaking
+
+    # The three regions in livekit's terms: `instructions` is the static prefix livekit caches and
+    # never rebuilds, `chat_ctx` is the history, and the view is appended HERE — after the history,
+    # inside the request only — so a view that changes every turn leaves the cached prefix byte for
+    # byte the same. The same seam the text session cuts at, for the same reason.
+    @override
+    async def llm_node(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self,
+        chat_ctx: agents.ChatContext,
+        tools: list[agents.Tool],
+        model_settings: ModelSettings,
+    ) -> Thought:
+        """One request, with the dynamic region last and the history untouched."""
+        view = self._speaking.view
+        if view:
+            chat_ctx.items.append(agents.ChatMessage(role="system", content=[view]))
+        async for chunk in LiveAgent.default.llm_node(self, chat_ctx, tools, model_settings):
+            yield chunk
+
+    # The words the caller is actually hearing, at the moment the audio carries them: this node
+    # runs on the played text, not on the model's stream, which is why an interrupted reply
+    # leaves a transcript that stops where the audio stopped. With an aligned transcript the
+    # session hands this node one TimedString per word (agent_activity.py:3014-3019), so the
+    # delta is passed on whole: str() would throw the timings away right where they arrive.
+    @override
+    async def transcription_node(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self, text: AsyncIterable[str | TimedString], model_settings: ModelSettings
+    ) -> Words:
+        """Every delta of the reply as it plays, into the log and on to livekit unchanged."""
+        async for delta in LiveAgent.default.transcription_node(self, text, model_settings):
+            if str(delta):
+                self._speaking.said(delta)
+            yield delta
+
+    # This node stands before the turn detector, which is the last place a word the caller never
+    # said can be dropped without the LLM paying for it. What is judged here is the TEXT — a
+    # backchannel over the agent's own voice. The ENERGY of the frame was judged here too, until
+    # five measured calls showed it decides nothing: docs/decisions/voice-bridge.md.
+    @override
+    async def stt_node(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self, audio: AsyncIterable[rtc.AudioFrame], model_settings: ModelSettings
+    ) -> Heard:
+        """Every recognised event the bridge accepts as the caller, in the order they arrived."""
+        heard: Any = LiveAgent.default.stt_node(self, audio, model_settings)
+        async for event in heard:
+            if self._speaking.heard(event):
+                yield event

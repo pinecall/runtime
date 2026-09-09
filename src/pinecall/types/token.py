@@ -9,6 +9,10 @@ type Scope = Literal["talk", "chat", "observe", "supervise", "participate"]
 
 SCOPES: frozenset[str] = frozenset(get_args(Scope.__value__))
 
+# The LiveKit participant attribute a room token carries its scope under. The room publishes it,
+# so a worker reads a participant's scope off the media plane without a second lookup.
+SCOPE_ATTRIBUTE = "pinecall.scope"
+
 # A talk or chat token is minted by the tenant's server for one visit: it opens one session, once,
 # and is dead in a minute whether used or not. The browser never mints one. Ten minutes is the most
 # a tenant may ask for: a token that lives longer is a door left open on a page nobody is on.

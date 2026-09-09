@@ -16,7 +16,7 @@ from livekit.protocol.room import RoomConfiguration
 
 from pinecall._settings import Settings
 from pinecall.auth.keys import KeyRecord, Keys
-from pinecall.types.token import BOUND_TO_ONE_CALL, GRANTS, grant_for
+from pinecall.types.token import BOUND_TO_ONE_CALL, GRANTS, SCOPE_ATTRIBUTE, grant_for
 from pinecall_protocol.defs import Projection
 
 # The only other place besides log/projection.py that spells the two projections: what a caller may
@@ -37,10 +37,9 @@ KEY_PROJECTION: Projection = "tenant"
 # A call token IS a LiveKit room token whose room is the call. One format for text and for voice:
 # the string that joins the room is the string that reads the call's log over SSE, so there is one
 # minter, one verifier, and nothing for the two halves to disagree about. Which scope minted it
-# rides a LiveKit attribute rather than a claim of our own: attributes survive the round trip
-# through TokenVerifier, and LiveKit publishes them to the room, so a participant's scope is
-# readable on the media plane too without a second lookup.
-SCOPE_ATTRIBUTE = "pinecall.scope"
+# rides a LiveKit attribute — SCOPE_ATTRIBUTE, in types/token.py — rather than a claim of our own:
+# attributes survive the round trip through TokenVerifier, and LiveKit publishes them to the room,
+# so a participant's scope is readable on the media plane too without a second lookup.
 
 # A JWT is three dot-separated parts; a Pinecall API key is 256 opaque bits with no dot in it. That
 # is enough for the door to pick the verifier before it verifies either — the verify is the truth.
