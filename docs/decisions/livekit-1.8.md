@@ -51,7 +51,7 @@ What livekit's own EXAMPLES set — a different question — is `docs/decisions/
 |---|---|---|
 | #1 · #2 · #3 · #4 · #5 · #6 | the chat context on its way to the model: the formatter, the pinned instructions item, the two new history items | [livekit-context.md](livekit-context.md) |
 | #7 · #8 · #9 · #10 · #11 · #12 · #15 · #16 · #17 · #20 | the session and the server: recording, interruption, preemptive generation, handoff, `AgentServer` and the forkserver preload, the plugin defaults, the conversation knobs | [livekit-session.md](livekit-session.md) |
-| #13 · #14 · #18 | every metric the library measures, where each is produced, and the class-by-class table | [livekit-metrics.md](livekit-metrics.md) |
+| #13 · #14 · #18 | every metric the library measures, where each is produced, and the class-by-class table | the protocol repo's `docs/livekit-metrics.md` |
 | #19 | where a word timing comes from, and why the session must ask for it | [livekit-words.md](livekit-words.md) |
 | #22 | which seat in the room the session hears, and why it is pinned before start | [voice-bridge.md](voice-bridge.md) |
 | #21 | livekit's own evaluation surfaces, what each ring takes from them, and what we add on top | [evals-rings-1-and-2.md](evals-rings-1-and-2.md) · [evals-judges.md](evals-judges.md) |
