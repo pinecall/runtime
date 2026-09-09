@@ -17,6 +17,7 @@ packages:
   - nftables
   - make
   - curl
+  - espeak-ng   # the voice a simulated caller speaks with (`pinecall simulate --voice`); the gateway refuses the call without one
 
 users:
   # The account `make deploy` arrives as (BOX in deploy.local.mk). It owns the code and can

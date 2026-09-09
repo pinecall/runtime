@@ -3,7 +3,7 @@
 import os
 from collections.abc import Iterator
 from pathlib import Path
-from typing import override
+from typing import Literal, override
 
 from pydantic import Field
 from pydantic_settings import (
@@ -23,6 +23,9 @@ ENV_PREFIX = "PINECALL_"
 # example directory deeper in it, finds the same file under the second. Where the walk stops with
 # both names present, the later wins — pydantic-settings' own order for a list of files.
 ENV_FILES: tuple[str, ...] = (".env", "runtime/.env")
+
+
+type Role = Literal["all", "hub", "worker"]
 
 
 class Settings(BaseSettings):
@@ -184,6 +187,13 @@ class Settings(BaseSettings):
     )
 
     # ── Ours: the keys and the knobs, each under PINECALL_ ──────────────────────
+    # What this box runs, as /etc/pinecall/box.env declares it and infra/box/Makefile enables
+    # it: `all` on one machine, `hub` with no worker, `worker` alone dialling a hub. The doctor
+    # asks a worker after no Postgres and no embedder, because a worker has neither.
+    role: Role = Field(
+        default="all",
+        description="What this box runs: all · hub · worker. The doctor asks after what it has.",
+    )
     ops_key: str | None = Field(
         default=None,
         description="The key /v1/ops/* is authenticated by. Unset, the operator API is closed.",

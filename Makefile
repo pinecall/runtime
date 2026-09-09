@@ -1,7 +1,9 @@
 # The deploy, from a checkout to a box, with nothing but rsync, ssh, make and curl.
 #
-#   make deploy          sync the code, install the manifest, sync the environment, restart, check
+#   make deploy          sync the code, install the manifest, sync the environment, restart, doctor
 #   make restart         the two processes, in order, with the health check between them
+#   make doctor          the runtime's doctor on the box, with the box's own credentials
+#   make secret NAME=ELEVEN_API_KEY < the-key     one secret you bring, replaced in place
 #   make logs UNIT=worker    follow one unit's journal: gateway (default) · worker · caddy
 #   make status          every unit and container, one line each
 #   make ssh             a shell on the box
@@ -26,6 +28,7 @@ BOX     ?=
 DOMAIN  ?=
 SSH_KEY ?=
 REMOTE   = /opt/pinecall/app
+RUNTIME  = /opt/pinecall/venv/bin/pinecall-runtime
 
 SSH   = ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=yes -o ConnectTimeout=20 $(BOX)
 RSYNC = rsync -az --delete -e "ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=yes" \
@@ -37,9 +40,9 @@ RSYNC = rsync -az --delete -e "ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=y
 UV_SYNC = sudo -u pinecall env UV_PROJECT_ENVIRONMENT=/opt/pinecall/venv UV_CACHE_DIR=/opt/pinecall/.cache/uv \
           /opt/pinecall/bin/uv sync -q --frozen --project $(REMOTE)/runtime --extra runtime
 
-.PHONY: deploy sync install restart restart-hub restart-worker health status logs ssh require-box
+.PHONY: deploy sync install restart restart-all restart-hub restart-worker health doctor secret status logs ssh require-box
 
-deploy: sync install restart
+deploy: sync install restart doctor
 
 # Two directories and no more: this repository, and the wire it is generated against. The wire is
 # an editable path dependency (`../protocol/python`), so the checkout beside this one is what the
@@ -61,15 +64,21 @@ install: require-box
 restart: require-box
 	@case "$$($(SSH) sed -n 's/^PINECALL_ROLE=//p' /etc/pinecall/box.env)" in \
 	  worker) $(MAKE) --no-print-directory restart-worker ;; \
-	  *)      $(MAKE) --no-print-directory restart-hub ;; \
+	  hub)    $(MAKE) --no-print-directory restart-hub ;; \
+	  *)      $(MAKE) --no-print-directory restart-all ;; \
 	esac
 
-# A hub: the gateway, then the health check through Caddy, then the worker it may also run.
+# One machine with everything: the hub's two steps, then the worker it also runs.
+restart-all: require-box restart-hub
+	$(SSH) sudo systemctl restart pinecall-worker
+	$(SSH) 'systemctl is-active pinecall-gateway pinecall-worker | paste -sd " "'
+
+# A hub: the gateway, then the health check through Caddy — and NOT the worker: `systemctl
+# restart` starts a unit the role disabled, and a hub that restarted its worker on every deploy
+# would be one machine with everything again, quietly.
 restart-hub: require-box
 	$(SSH) sudo systemctl restart pinecall-gateway
 	$(MAKE) --no-print-directory health
-	-$(SSH) sudo systemctl restart pinecall-worker 2>/dev/null
-	$(SSH) 'systemctl is-active pinecall-gateway pinecall-worker | paste -sd " "'
 
 # A worker alone: one unit, and the proof is the hub's SFU saying it registered, not a URL here.
 restart-worker: require-box
@@ -84,6 +93,24 @@ health: require-box
 	  if curl -fsS -m 10 -o /dev/null https://$(DOMAIN)/openapi.json; then echo "healthy: https://$(DOMAIN)"; exit 0; fi; \
 	  echo "  not yet ($$attempt/10)"; sleep 3; \
 	done; echo "the gateway never answered https://$(DOMAIN)/openapi.json"; exit 1
+
+# The last word of a deploy. The doctor runs on the box as the units run, with their credentials,
+# and knocks at every vendor with the key the box holds: a key that expired, or was pasted wrong,
+# fails the deploy here with its NAME on the screen — never its value — instead of failing the
+# first caller. A worker box is asked after what a worker has; the hub after everything.
+doctor: require-box
+	$(SSH) sudo make -s -C $(REMOTE)/runtime/infra/box doctor
+
+# One secret you bring, replaced in place, the value on stdin and on no command line, no screen
+# and no file in the clear; the same verb on a worker box with BOX= its address. A credential is
+# read when a unit starts, so it is `make restart` that takes it.
+#
+#   printf '%s' "$$ELEVENLABS_API_KEY" | make secret NAME=ELEVEN_API_KEY
+#
+secret: require-box
+	@test -n "$(NAME)" || { echo "which one? printf '%s' <the key> | make secret NAME=ELEVEN_API_KEY"; exit 2; }
+	@$(SSH) sudo $(RUNTIME) box secret $(NAME)
+	@echo "  read on the next start: make restart"
 
 status: require-box
 	$(SSH) 'systemctl list-units "pinecall-*" nftables caddy --no-legend --plain | awk "{print \"  \" \$$1, \$$4}"; sudo podman ps --format "  {{.Names}}  {{.Status}}"'

@@ -5,23 +5,33 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from urllib.parse import urlsplit, urlunsplit
 
-from pinecall._settings import Settings, env_files_read, load_settings, variable_of
+from pinecall._settings import Role, Settings, env_files_read, load_settings, variable_of
 from pinecall.cli.doctor.probes import Probes, live_probes
+from pinecall.providers.knocks import KNOCKS
 
-PURPOSE: str = "keys present · livekit · postgres · tei · lk"
+PURPOSE: str = "keys present · keys answer · livekit · postgres · tei · lk"
 
 # pgvector installs under the name `vector`; the BM25 half of the search stack installs under
 # `pg_textsearch`. Both come from the Postgres image infra/compose/dev.yml runs.
 REQUIRED_EXTENSIONS: tuple[str, ...] = ("vector", "pg_textsearch")
 
-# A call needs one key of each role. The doctor reads presence and never, ever a value.
+# A call needs one key of each role. The doctor prints a variable's name and never, ever a value.
 PROVIDER_KEYS: dict[str, tuple[str, ...]] = {
     "llm": ("anthropic_api_key", "openai_api_key"),
     "stt": ("soniox_api_key", "deepgram_api_key"),
     "tts": ("eleven_api_key",),
 }
 
+# What a refused key reads in the report, and where the live one goes: the credstore on a box
+# (`make secret NAME=… < the key`, from the checkout), the .env on a laptop.
+KEY_REFUSED = (
+    "refused {variable} (HTTP {status}) — the key is dead: "
+    "a box takes a live one with `make secret NAME={variable}`, a laptop in its .env"
+)
+
 BENCH_NOT_WIRED = "bench: no embedder wired yet — it lands in ms-9"
+# Nothing in this tree embeds yet, so an embedder that is down stops no call: advice, not outage.
+TEI_IS_ADVICE = "no embedder is wired yet, so this stops no call"
 
 # The LiveKit CLI is how a person reads current documentation and manages trunks and dispatch
 # (`lk docs`, `lk sip`, `lk dispatch`) — livekit's own starter tells its agent to ask for it. It is
@@ -79,7 +89,16 @@ def render_env_source() -> str:
 
 def run_checks(settings: Settings, probes: Probes) -> list[Result]:
     """Every check runs, even after one fails: stopping at the first ✗ hides the rest of the box."""
-    return [check(settings, probes) for check in CHECKS]
+    return [check(settings, probes) for check in checks_for(settings.role)]
+
+
+# A worker box has no Postgres and no embedder: asking it after them reports two ✗ that are
+# the hub's, and a deploy that stopped on them would never finish. The hub is asked everything.
+def checks_for(role: Role) -> tuple[Check, ...]:
+    """The checks a box of this role is asked, in the order the report reads."""
+    if role == "worker":
+        return tuple(check for check in CHECKS if check not in ONLY_ON_A_HUB)
+    return CHECKS
 
 
 def render_report(results: Sequence[Result]) -> str:
@@ -120,6 +139,32 @@ def check_provider_keys(settings: Settings, _probes: Probes) -> Result:
     return Result("provider keys", True, " · ".join(present))
 
 
+# Present is not alive: a key that expired, or was pasted wrong, sits in the credstore looking
+# exactly like one that works, and the first to know is a caller hearing silence. So every key
+# that is set knocks at its vendor's cheapest door, once, with the key where the vendor reads it.
+def check_provider_keys_answer(settings: Settings, probes: Probes) -> Result:
+    """Each key that is set, knocked at its own vendor: 200 answered, anything else is named."""
+    answered: list[str] = []
+    down: list[str] = []
+    for field, knock in KNOCKS.items():
+        key = getattr(settings, field)
+        if not key:
+            continue
+        variable = variable_of(field)
+        try:
+            status = probes.knock(knock.url, knock.headers(key))
+        except Exception as failure:
+            down.append(f"{variable} unreachable — {_reason(failure)}")
+            continue
+        if status == 200:
+            answered.append(variable)
+        else:
+            down.append(KEY_REFUSED.format(variable=variable, status=status))
+    if down:
+        return Result("provider keys answer", False, " · ".join(down))
+    return Result("provider keys answer", True, " · ".join(answered) or "no key is set")
+
+
 def check_livekit_is_reachable(settings: Settings, probes: Probes) -> Result:
     """LiveKit serves its HTTP endpoint and the WebSocket on one port, so one setting names both."""
     url = _http_url_of(settings.livekit_url)
@@ -149,9 +194,9 @@ def check_tei_is_reachable(settings: Settings, probes: Probes) -> Result:
     try:
         status = probes.http_status(url)
     except Exception as failure:
-        return Result("tei", False, f"{url} — {_reason(failure)}")
+        return Result("tei", False, f"{url} — {_reason(failure)}; {TEI_IS_ADVICE}", advisory=True)
     if status != 200:
-        return Result("tei", False, f"{url} — HTTP {status}")
+        return Result("tei", False, f"{url} — HTTP {status}; {TEI_IS_ADVICE}", advisory=True)
     return Result("tei", True, f"{url} — HTTP {status}")
 
 
@@ -172,11 +217,13 @@ def check_the_livekit_cli_is_installed(_settings: Settings, probes: Probes) -> R
 # because it is the only line that cannot make the verdict.
 CHECKS: tuple[Check, ...] = (
     check_provider_keys,
+    check_provider_keys_answer,
     check_livekit_is_reachable,
     check_postgres_is_ready,
     check_tei_is_reachable,
     check_the_livekit_cli_is_installed,
 )
+ONLY_ON_A_HUB: frozenset[Check] = frozenset({check_postgres_is_ready, check_tei_is_reachable})
 
 
 def _http_url_of(livekit_url: str) -> str:

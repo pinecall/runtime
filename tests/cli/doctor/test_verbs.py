@@ -1,6 +1,6 @@
 """The doctor against fakes: every check gives a reason, and the first ✗ decides the exit code."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 import pytest
@@ -16,15 +16,22 @@ pytestmark = pytest.mark.unit
 def probes_that_answer(
     *,
     http_status: Callable[[str], int] = lambda _url: 200,
+    knock: Callable[[str, Mapping[str, str]], int] = lambda _url, _headers: 200,
     postgres_extensions: Callable[[str], set[str]] = lambda _dsn: set(doctor.REQUIRED_EXTENSIONS),
     executable_path: Callable[[str], str | None] = lambda program: f"/opt/homebrew/bin/{program}",
 ) -> Probes:
     """A stack where everything is up, with one answer swapped for the check under test."""
     return Probes(
         http_status=http_status,
+        knock=knock,
         postgres_extensions=postgres_extensions,
         executable_path=executable_path,
     )
+
+
+def elevenlabs_refuses(url: str, _headers: Mapping[str, str]) -> int:
+    """One vendor of the five says the key is dead; the other four answer."""
+    return 401 if "elevenlabs" in url else 200
 
 
 def refuse_http(_url: str) -> int:
@@ -90,15 +97,18 @@ def test_an_ipv6_database_host_keeps_the_brackets_that_make_it_an_address(
     assert "postgresql://pinecall@[::1]:5432/pinecall" in report
 
 
-def test_a_tei_that_answers_anything_but_200_is_down() -> None:
+def test_a_tei_that_answers_anything_but_200_is_reported_and_stops_no_call() -> None:
+    """Nothing in the tree embeds yet: the ✗ is printed, with why, and never makes the verdict."""
     results = doctor.run_checks(
         load_settings(),
         probes_that_answer(http_status=tei_that_serves_nothing),
     )
-    down = doctor.first_failure(results)
-    assert down is not None
-    assert down.name == "tei"
-    assert "404" in down.detail
+    tei = next(result for result in results if result.name == "tei")
+    assert not tei.ok
+    assert tei.advisory
+    assert "404" in tei.detail
+    assert "stops no call" in tei.detail
+    assert doctor.first_failure(results) is None
 
 
 def test_a_provider_key_is_reported_by_its_variable_and_never_by_its_value() -> None:
@@ -138,12 +148,80 @@ def test_the_doctor_exits_one_naming_the_first_thing_down(
     monkeypatch.setattr(
         doctor,
         "live_probes",
-        lambda: probes_that_answer(http_status=tei_that_serves_nothing),
+        lambda: probes_that_answer(postgres_extensions=lambda _dsn: set()),
     )
     assert main(["doctor"]) == 1
     printed = capsys.readouterr().out
-    assert "✗ tei" in printed
-    assert "first down: tei" in printed
+    assert "✗ postgres" in printed
+    assert "first down: postgres" in printed
+
+
+def test_a_key_every_vendor_answers_is_reported_by_its_variable_alone() -> None:
+    answer = doctor.run_checks(load_settings(), probes_that_answer())[1]
+    assert answer.name == "provider keys answer"
+    assert answer.ok
+    assert "ELEVEN_API_KEY" in answer.detail
+    assert "dead-sentinel" not in answer.detail
+
+
+def test_a_refused_key_is_the_first_thing_down_and_says_where_a_live_one_goes() -> None:
+    """2026-09-09: a dead ElevenLabs key sat in the credstore until a caller heard the silence."""
+    results = doctor.run_checks(load_settings(), probes_that_answer(knock=elevenlabs_refuses))
+    down = doctor.first_failure(results)
+    assert down is not None
+    assert down.name == "provider keys answer"
+    assert "refused ELEVEN_API_KEY (HTTP 401)" in down.detail
+    assert "make secret NAME=ELEVEN_API_KEY" in down.detail
+    assert "ANTHROPIC_API_KEY" not in down.detail
+
+
+def test_the_knock_carries_the_key_where_the_vendor_reads_it() -> None:
+    knocked: dict[str, Mapping[str, str]] = {}
+
+    def record(url: str, headers: Mapping[str, str]) -> int:
+        knocked[url] = headers
+        return 200
+
+    doctor.run_checks(load_settings(), probes_that_answer(knock=record))
+    assert knocked["https://api.elevenlabs.io/v1/user"]["xi-api-key"].endswith("dead-sentinel")
+    assert knocked["https://api.anthropic.com/v1/models"]["anthropic-version"] == "2023-06-01"
+    assert knocked["https://api.openai.com/v1/models"]["authorization"].startswith("Bearer ")
+
+
+def test_a_vendor_that_cannot_be_reached_is_named_with_the_reason() -> None:
+    def unreachable(_url: str, _headers: Mapping[str, str]) -> int:
+        raise TimeoutError("timed out")
+
+    down = doctor.first_failure(
+        doctor.run_checks(load_settings(), probes_that_answer(knock=unreachable))
+    )
+    assert down is not None
+    assert down.name == "provider keys answer"
+    assert "SONIOX_API_KEY unreachable — TimeoutError: timed out" in down.detail
+
+
+def test_a_worker_is_asked_after_no_postgres_and_no_embedder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A worker box has neither, and a deploy that stopped on the hub's ✗ would never finish."""
+    monkeypatch.setenv("PINECALL_ROLE", "worker")
+    results = doctor.run_checks(
+        load_settings(),
+        probes_that_answer(postgres_extensions=lambda _dsn: set()),
+    )
+    assert [result.name for result in results] == [
+        "provider keys",
+        "provider keys answer",
+        "livekit",
+        "lk",
+    ]
+    assert doctor.first_failure(results) is None
+
+
+def test_a_hub_is_asked_everything(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PINECALL_ROLE", "hub")
+    results = doctor.run_checks(load_settings(), probes_that_answer())
+    assert len(results) == len(doctor.CHECKS)
 
 
 def test_the_report_opens_with_the_env_file_it_read(
