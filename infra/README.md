@@ -253,7 +253,13 @@ two units are restarted by shipway. The **containers are not**: the media plane 
 deploy, and a changed `.container` takes effect on its next restart, which is yours to time —
 `sudo systemctl restart pinecall-livekit` between two calls, not during one.
 
-## Three traps on a real box, one line each
+## Four traps on a real box, one line each
+
+- **The fence must let the containers ask the host for a name.** podman's own DNS, aardvark-dns,
+  answers on the bridge's address (`10.89.0.1`), so a container resolving `pinecall-redis` sends a
+  packet TO THE HOST and it arrives in `input`. Without the one line that accepts 53 from a
+  `podman*` bridge, every container says "bad address", livekit sits up and silent with no redis,
+  and the only symptom is a healthcheck that never turns green.
 
 - **A credential's file is named exactly as the credential, with no extension.** systemd refuses
   `PINECALL_OPS_KEY.cred` for a credential named `PINECALL_OPS_KEY` — "embedded credential name
@@ -268,6 +274,10 @@ deploy, and a changed `.container` takes effect on its next restart, which is yo
   site block collapses to a bare `{ … }`, and Caddy reads it as the *global options* block:
   `unrecognized global option: @livekit`. `caddy/pinecall.conf` is the drop-in that points it at
   `/etc/pinecall/box.env`.
+- **`StandardOutput=file:` is opened before `RuntimeDirectory=` is created**, so a unit that
+  catches a key into a directory it also declares dies with `209/STDOUT` and "No such file or
+  directory". The two key units write into `/run` itself and set `UMask=0077`, which is what makes
+  that file `0600`.
 
 ## Where the keys come from
 

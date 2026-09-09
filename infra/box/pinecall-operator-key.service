@@ -15,13 +15,16 @@ Group=pinecall
 WorkingDirectory=/opt/pinecall/app
 Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
 ImportCredential=PINECALL_OPS_KEY
-RuntimeDirectory=pinecall-keys
-RuntimeDirectoryMode=0700
-StandardOutput=file:/run/pinecall-keys/operator
+# The key is caught in a file systemd opens for us, and `UMask=` is what makes that file 0600 —
+# StandardOutput= is set up BEFORE a RuntimeDirectory= would be created, so there is nowhere to
+# put it but /run itself, and nothing but the umask to keep it private. Measured 2026-09-09:
+# with a RuntimeDirectory the unit dies with 209/STDOUT and "No such file or directory".
+UMask=0077
+StandardOutput=file:/run/pinecall-operator.key
 StandardError=journal
 ExecStart=/opt/pinecall/venv/bin/pinecall-runtime keys issue --org default --label the-operator
-ExecStartPost=+/usr/bin/systemd-creds encrypt --with-key=auto --name=PINECALL_OPERATOR_KEY /run/pinecall-keys/operator /etc/credstore.encrypted/PINECALL_OPERATOR_KEY
-ExecStartPost=+/usr/bin/shred -u /run/pinecall-keys/operator
+ExecStartPost=+/usr/bin/systemd-creds encrypt --with-key=auto --name=PINECALL_OPERATOR_KEY /run/pinecall-operator.key /etc/credstore.encrypted/PINECALL_OPERATOR_KEY
+ExecStartPost=+/usr/bin/shred -u /run/pinecall-operator.key
 Restart=on-failure
 RestartSec=3
 
