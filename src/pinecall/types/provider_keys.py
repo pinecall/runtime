@@ -1,6 +1,7 @@
 """Whose key a call runs on: the vendors an org may bring its own key for, and what a set is."""
 
 from collections.abc import Mapping
+from types import MappingProxyType
 
 # The vendors an org may bring a key for: the model vendors, one file each under providers/, and
 # the WhatsApp Cloud API token a message goes back out with. A door refuses any other word with
@@ -19,4 +20,4 @@ VENDORS: tuple[str, ...] = (
 type ProviderKeys = Mapping[str, str]
 
 # The org that brought none, spelled once: every door that reads keys falls back to this.
-NO_ORG_KEYS: ProviderKeys = {}
+NO_ORG_KEYS: ProviderKeys = MappingProxyType({})

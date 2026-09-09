@@ -1,0 +1,81 @@
+{
+  "language": "es",
+  "llm": {
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5-20251001"
+  },
+  "tools": [
+    {
+      "name": "findPatient",
+      "description": "Busca al paciente por nombre y teléfono. Pide los dos antes de llamarla.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "phone"
+        ],
+        "additionalProperties": false
+      },
+      "side_effect": "read",
+      "pii": [
+        "name",
+        "phone"
+      ]
+    },
+    {
+      "name": "freeSlots",
+      "description": "Horas libres de un día. Un día que nombre el paciente se consulta SIEMPRE, aunque su ficha ya tenga cita ese día.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "day"
+        ],
+        "additionalProperties": false
+      },
+      "side_effect": "read"
+    },
+    {
+      "name": "book",
+      "description": "Reserva la hora que el paciente eligió.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "slot": {
+            "type": "object",
+            "description": "Slot"
+          }
+        },
+        "required": [
+          "slot"
+        ],
+        "additionalProperties": false
+      },
+      "side_effect": "irreversible",
+      "confirm": "Le reservo el {{slot.when}} con {{slot.doctor}}. ¿Lo confirmo?"
+    },
+    {
+      "name": "transfer",
+      "description": "Pasa la llamada a una persona. Solo si el paciente lo pide o no puedes ayudarle.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "side_effect": "read"
+    }
+  ]
+}

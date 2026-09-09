@@ -21,7 +21,7 @@ MAY_IMPORT: dict[str, frozenset[str]] = {
     "tokens": frozenset({"types", "log", "auth"}),
     "session": frozenset({"types", "log", "providers"}),
     "whatsapp": frozenset({"types", "log", "session", "routes", "providers"}),
-    "evals": frozenset({"types", "log", "session", "providers"}),
+    "evals": frozenset({"types", "auth", "log", "session", "providers"}),
     "api": frozenset(
         {
             "types",

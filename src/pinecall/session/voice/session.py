@@ -101,8 +101,8 @@ def what_it_listens_for(config: AgentConfig, ears: Ears) -> NotGivenOr[STTContex
 # Left to "auto", livekit picks the ADAPTIVE interruption detector whenever the process runs in
 # dev mode or hosted (agent_activity.py:4842-4849) — and that detector is a WebSocket to
 # agent-gateway.livekit.cloud carrying the caller's audio, which a self-hosted box must never open
-# and which, with no cloud key, fails 401 every two seconds for the length of the call (found by
-# ms-3's integration card on the first dispatched job). "vad" is livekit's own local strategy, the
+# and which, with no cloud key, fails 401 every two seconds for the length of the call (found on
+# the first job this runtime ever dispatched). "vad" is livekit's own local strategy, the
 # same on `dev`, `start` and the console, and the one this box can honour.
 INTERRUPTION_MODE: Literal["vad"] = "vad"
 
