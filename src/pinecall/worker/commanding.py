@@ -6,6 +6,7 @@ import logging
 from typing import Protocol
 
 from pinecall._exceptions import PinecallError
+from pinecall.log import REFUSED
 from pinecall.worker.client import Gateway, GatewayRefused
 from pinecall_protocol import Command, encode
 from pinecall_protocol.events import ErrorEvent
@@ -15,7 +16,6 @@ logger = logging.getLogger(__name__)
 # A command this call cannot run is the app's mistake, not the end of the call: it goes into the
 # log as an error, which is where the app that sent it is already reading, and the caller hears
 # nothing. The text channel answers the very same refusal down the app's socket.
-REFUSED = "refused"
 
 
 class Applying(Protocol):

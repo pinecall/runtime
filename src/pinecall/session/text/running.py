@@ -9,6 +9,7 @@ from livekit.agents.llm import ToolError
 from pinecall.log import as_text
 from pinecall.session.declaring import ToolUse
 from pinecall.session.pending import ToolCalls
+from pinecall.session.visibility import Visibility
 from pinecall.types import AgentConfig
 from pinecall_protocol.events import StateCauseTool
 
@@ -22,11 +23,14 @@ class Running:
     def __init__(self, session: TextSession, config: AgentConfig) -> None:
         self._session = session
         self.calls = ToolCalls(config)
+        self.visibility = Visibility(config)
 
     # livekit executes the tool itself, so this callable is where the platform stands between the
-    # model and the app: every call goes straight through, irreversible or not.
+    # model and the app: a tool the app closed is refused here, every other call goes straight
+    # through, irreversible or not.
     async def ran(self, call: ToolUse) -> str:
         """One tool call as livekit runs it, through the app's own process and back."""
+        await self.visibility.admitted(call.name, self._session.emit)
         text, failed = await self.through_app(call)
         if failed:  # is_error is what the model reads a failure as, and livekit sets it from this
             raise ToolError(text)

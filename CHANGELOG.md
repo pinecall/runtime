@@ -33,6 +33,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `prompt.changed` and `State.prompt` are keyed by name, and `AgentConfig.instructions` is gone —
   the identity block is written like every other. For Anthropic each static block is its own
   `system` string, so a rewritten `tools` block leaves `identity` and `knowledge` cached.
+- `tools.set` no longer re-declares the model's tools (a changed tool definition empties the
+  provider's whole cache): the agent keeps every declared tool for the call, the visible subset is
+  enforced in the runtime's own callable, and a call to a closed tool comes back to the model as
+  `<name> is not available now` with an `error refused` entry in the log, never reaching the app.
 
 ### Removed
 - `LeakageJudge`: it had no user in the tree, and a judge given a declaration nobody wrote would be

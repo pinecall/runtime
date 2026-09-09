@@ -21,7 +21,7 @@ from pinecall.session.text.agent import TextAgent, remembered
 from pinecall.session.text.measure import Reply, usage_rows
 from pinecall.session.text.running import Running
 from pinecall.session.text.turns import Turns
-from pinecall.types import AgentConfig, Blocks, CallContext, ToolSpec
+from pinecall.types import AgentConfig, Blocks, CallContext
 from pinecall_protocol import WireModel, defs, encode
 from pinecall_protocol.commands import StateSet
 from pinecall_protocol.defs import EndedBy, Supervisor
@@ -73,18 +73,17 @@ class TextSession:
         self._log = log
         self._watchers: list[Watcher] = []
         self._blocks = Blocks(config.prompt)
-        # Everything the app declared is visible until a tools.set narrows it: livekit only runs
-        # a tool it holds, so the declaration IS the registration.
-        self._visible: tuple[ToolSpec, ...] = tuple(config.tools_by_name.values())
         self._state: dict[str, Any] = {}
         self._speeches = 0
         self._started_at = time.time()
         self._ended = False
         self.turns = Turns(self)
         self.running = Running(self, config)
+        # Every declared tool, once, for the life of the call: livekit only runs a tool it holds,
+        # so the declaration IS the registration, and a tools.set narrows `visibility` instead.
         self.text_agent = TextAgent(
             blocks=self._blocks,
-            tools=declared(self._visible, self.running.ran),
+            tools=declared(config.tools, self.running.ran),
             llm=llm,
             writer=self.turns,
         )
@@ -235,17 +234,12 @@ class TextSession:
             PromptChanged(name=name, hash=hashed_prompt(text), chars=len(text)),
         )
 
+    # Never livekit's update_tools: a re-declared tool throws the provider's whole cache away,
+    # and the gate in our callable holds the closed ones shut. See session/visibility.py.
     async def set_tools(self, tools: Sequence[defs.ToolSpec]) -> Entry:
-        """tools.set: the subset of the declared tools the model may see in this state."""
-        by_name = self.config.tools_by_name
-        self._visible = tuple(by_name[tool.name] for tool in tools if tool.name in by_name)
-        visible: list[agents.Tool | agents.Toolset] = list(
-            declared(self._visible, self.running.ran)
-        )
-        await self.text_agent.update_tools(visible)
-        return await self.emit(
-            "tools.changed", ToolsChanged(visible=[tool.name for tool in self._visible])
-        )
+        """tools.set: the subset of the declared tools the model may call in this state."""
+        visible = self.running.visibility.narrow(tools)
+        return await self.emit("tools.changed", ToolsChanged(visible=list(visible)))
 
     # The cause is where the session was when the state.set arrived: inside a tool call it is that
     # tool, right after an outside fact it is that fact, on its own it has none and says so.

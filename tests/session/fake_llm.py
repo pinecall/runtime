@@ -41,6 +41,8 @@ class Asked:
 
     chat_ctx: llm.ChatContext
     tools: tuple[str, ...]
+    # The tool objects themselves, so a test can format them the way the plugin does.
+    declared: tuple[llm.Tool, ...] = ()
 
     @property
     def instructions(self) -> str:
@@ -145,7 +147,13 @@ class FakeLLM(llm.LLM[Any]):
         """The next scripted answer, with the request kept exactly as the session built it."""
         # A COPY: livekit keeps mutating the one context it owns as the turn goes on, so a
         # reference here would let a later item rewrite what this request was actually given.
-        self.asked.append(Asked(chat_ctx=chat_ctx.copy(), tools=tuple(_named(tools or []))))
+        self.asked.append(
+            Asked(
+                chat_ctx=chat_ctx.copy(),
+                tools=tuple(_named(tools or [])),
+                declared=tuple(tools or []),
+            )
+        )
         said = self.script.pop(0) if self.script else Scripted(chunks=("...",))
         return ScriptedStream(
             self, said, chat_ctx=chat_ctx, tools=tools or [], conn_options=conn_options
