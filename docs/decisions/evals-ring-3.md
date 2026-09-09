@@ -82,7 +82,7 @@ as a call that consented to everything.
   from fails the call; a recoverable one is named in the detail and still passes, because a retried
   request is not a failed call and hiding it would make the retry invisible.
 - **latency** (`latency.py`) — the medians `log/latencies.py` reads off the call's turns, under
-  livekit's own field names (`docs/decisions/livekit-metrics.md`), against a budget: `e2e_latency`,
+  livekit's own field names (the protocol repo's `docs/livekit-metrics.md`), against a budget: `e2e_latency`,
   `llm_node_ttft` and `tts_node_ttfb`, because those are the three `DEFAULT_BUDGET` names. Medians
   and never a single turn: one interrupted turn moves an average, and the question is what a
   normal turn felt like.
