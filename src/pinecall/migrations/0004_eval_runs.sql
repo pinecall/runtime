@@ -2,9 +2,9 @@
 --
 -- A run is not a log: its calls each write one of those, and this row only says which calls it
 -- opened and what the graphs answered about them. The document is the whole run as the door
--- answers it, kept as one jsonb rather than spread across columns, because the matrix's shape is
--- DeepEval's and a table that mirrored it would have to be migrated every time a graph is added.
--- The four columns beside it are the ones a query actually filters on. See docs/decisions/eval-runner.md.
+-- answers it, kept as one jsonb rather than spread across columns: a table that mirrored the
+-- matrix would have to be migrated every time a judge is added. The four columns beside it are
+-- the ones a query actually filters on. See docs/decisions/eval-runner.md.
 
 create table if not exists eval_runs (
     id          text primary key,
