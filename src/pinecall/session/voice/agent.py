@@ -13,7 +13,9 @@ from livekit.agents.voice import ModelSettings
 from livekit.agents.voice.agent import Agent as LiveAgent
 
 from pinecall.providers.blocks import request_context
+from pinecall.session.filling import Filling
 from pinecall.types import Blocks
+from pinecall_protocol.events import ErrorEvent
 
 
 class Speaking(Protocol):
@@ -25,6 +27,10 @@ class Speaking(Protocol):
 
     def heard(self, event: recognition.SpeechEvent) -> bool:
         """Whether this is the caller speaking; False drops it before the LLM ever sees it."""
+        ...
+
+    async def skipped(self, error: ErrorEvent) -> None:
+        """A fill went unanswered: the entry that says so, and the turn goes on."""
         ...
 
 
@@ -42,6 +48,7 @@ class VoiceAgent(LiveAgent):
         blocks: Blocks,
         tools: Sequence[agents.Tool],
         speaking: Speaking,
+        filling: Filling,
     ) -> None:
         # livekit's Agent.__init__ is generic over the plugin's own event type, which a strict
         # checker can only read as Unknown; the one ignore is here, at the one call.
@@ -50,6 +57,23 @@ class VoiceAgent(LiveAgent):
         )
         self._blocks = blocks
         self._speaking = speaking
+        self._filling = filling
+
+    # livekit's hook between the caller's last word and the request (agent_activity.py:2605): the
+    # one moment the markers can be asked with the whole turn as the query. The hook is timed by
+    # livekit itself, as on_user_turn_completed_delay on the EOU block, and the budget inside
+    # Filling (PINECALL_FILL_BUDGET_MS) is what keeps that number small. No speech exists yet at
+    # this moment — the reply's handle is created after the hook returns (:2672) — so the fill
+    # is filed under none.
+    @override
+    async def on_user_turn_completed(
+        self,
+        turn_ctx: agents.ChatContext,  # noqa: ARG002 — livekit's signature
+        new_message: agents.ChatMessage,
+    ) -> None:
+        """The caller's words are the query: this turn's fills, or the entries that say why not."""
+        for skipped in await self._filling.turn_ended(new_message.text_content or "", None):
+            await self._speaking.skipped(skipped)
 
     # The prompt in livekit's terms: `instructions` is the static blocks joined, which livekit
     # caches and never rebuilds, `chat_ctx` is the history, and the dynamic blocks are added HERE —
@@ -63,7 +87,7 @@ class VoiceAgent(LiveAgent):
         model_settings: ModelSettings,
     ) -> Thought:
         """One request, with the dynamic blocks last and the history untouched."""
-        request = request_context(chat_ctx, self._blocks)
+        request = request_context(chat_ctx, self._blocks, self._filling.fills)
         async for chunk in LiveAgent.default.llm_node(self, request, tools, model_settings):
             yield chunk
 

@@ -8,6 +8,10 @@ import pytest
 from pinecall.types import (
     AgentConfig,
     Contact,
+    Docs,
+    KnowledgeFile,
+    MarkerName,
+    MemoryPolicy,
     Model,
     PromptBlock,
     PromptRegion,
@@ -17,6 +21,7 @@ from pinecall.types import (
     Voice,
 )
 from pinecall.types.channel import CHANNELS, DIRECTIONS
+from pinecall.types.knowledge import DocsMode
 from pinecall_protocol import WireModel, defs
 
 pytestmark = pytest.mark.unit
@@ -31,6 +36,9 @@ TWINS: list[tuple[type[Any], type[WireModel]]] = [
     (Model, defs.ModelConfig),
     (Turn, defs.TurnConfig),
     (PromptBlock, defs.PromptBlockSpec),
+    (KnowledgeFile, defs.KnowledgeFile),
+    (Docs, defs.DocsConfig),
+    (MemoryPolicy, defs.MemoryConfig),
 ]
 
 
@@ -50,6 +58,11 @@ def test_the_channels_and_directions_here_are_the_wires() -> None:
 
 def test_the_two_prompt_regions_here_are_the_wires() -> None:
     assert get_args(PromptRegion.__value__) == get_args(defs.PromptRegion.__value__)
+
+
+def test_the_three_marker_names_and_the_two_docs_modes_here_are_the_wires() -> None:
+    assert get_args(MarkerName.__value__) == get_args(defs.MarkerName.__value__)
+    assert get_args(DocsMode.__value__) == get_args(defs.DocsMode.__value__)
 
 
 @pytest.mark.parametrize(("ours", "theirs"), TWINS, ids=[ours.__name__ for ours, _ in TWINS])

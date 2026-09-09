@@ -9,11 +9,14 @@ from livekit.agents import stt as recognition
 from livekit.agents.types import TimedString
 from livekit.agents.voice import ModelSettings
 
+from pinecall._settings import Budgets
+from pinecall.session.filling import Filling, NoFiller
 from pinecall.session.voice.agent import VoiceAgent
 from pinecall.session.voice.events import Events
 from pinecall.session.voice.metrics import Meters
 from pinecall.session.voice.writing import Writing
 from pinecall.types import Blocks
+from pinecall_protocol.events import ErrorEvent
 from tests.session.voice.fakes import CALL, Recording, ScriptedSession
 from tests.session.voice.test_events import Ended, Speaking
 
@@ -44,6 +47,9 @@ class Playing:
     def heard(self, event: recognition.SpeechEvent) -> bool:  # noqa: ARG002 — the protocol's
         return True
 
+    async def skipped(self, error: ErrorEvent) -> None:  # noqa: ARG002 — the protocol's
+        return None
+
 
 async def a_stream(*deltas: str | TimedString) -> AsyncIterator[str | TimedString]:
     """The transcript livekit hands the node, one delta at a time."""
@@ -57,7 +63,9 @@ async def an_agent(recording: Recording) -> tuple[VoiceAgent, Writing]:
     writing.open()
     events = Events(writing, Meters(writing), Ended())
     events.watch(ScriptedSession(current_speech=Speaking("sp_9")))  # pyright: ignore[reportArgumentType]
-    agent = VoiceAgent(blocks=Blocks(), tools=(), speaking=Playing(events))
+    blocks = Blocks()
+    filling = Filling(NoFiller(), CALL, blocks, None, Budgets().fill_ms)
+    agent = VoiceAgent(blocks=blocks, tools=(), speaking=Playing(events), filling=filling)
     return agent, writing
 
 

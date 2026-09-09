@@ -49,7 +49,7 @@ async def _judged(entries: Sequence[Entry], config: AgentConfig, settings: Setti
     case = a_case(
         entries,
         tools=config.tools_by_name,
-        knowledge=[config.knowledge] if config.knowledge else None,
+        knowledge=[config.knowledge.text] if config.knowledge else None,
     )
     # A judge that answers by code costs nothing; one that may reach a model runs only while this
     # call's judging budget is above what judging it has already cost — which, before the first

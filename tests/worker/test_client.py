@@ -8,7 +8,9 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.types import AgentConfig, CallContext, Route, ToolSpec
+from pinecall.session.filling import Filler, Rememberer
+from pinecall.session.voice.platform import Platform
+from pinecall.types import AgentConfig, CallContext, Route, ToolSpec, markers_in
 from pinecall.worker.client import (
     CONFIG,
     CONTEXT,
@@ -70,6 +72,59 @@ async def test_an_entry_goes_to_the_call_it_belongs_to() -> None:
     await a_gateway(seen=seen).append("call_1", "agent.state", {"state": "thinking"}, True)
     assert seen[0].path == "/v1/calls/call_1/events"
     assert seen[0].body == {"type": "agent.state", "data": {"state": "thinking"}, "ephemeral": True}
+
+
+async def test_a_turns_fill_goes_out_with_the_query_and_comes_back_keyed_by_the_marker_line() -> (
+    None
+):
+    memory, retrieved = markers_in(
+        '<!-- memory: {"limit":6} -->\n\n<!-- retrieved: {"k":4,"min_score":0.02} -->'
+    )
+    seen: list[Seen] = []
+    answered = {
+        "fills": [
+            {"name": "memory", "payload": '{"limit":6}', "text": "- Prefers mornings."},
+            {"name": "retrieved", "payload": '{"k":4,"min_score":0.02}', "text": "### Tarifas"},
+        ],
+        "took_ms": 41.0,
+    }
+    gateway = a_gateway({"/v1/calls/call_1/fill": answered}, seen)
+    fills = await gateway.fill("call_1", "¿cuánto cuesta?", [memory, retrieved], "sp_3")
+    assert fills == {memory.line: "- Prefers mornings.", retrieved.line: "### Tarifas"}
+    assert (seen[0].method, seen[0].path) == ("POST", "/v1/calls/call_1/fill")
+    assert seen[0].body == {
+        "query": "¿cuánto cuesta?",
+        "markers": [
+            {"name": "memory", "payload": '{"limit":6}'},
+            {"name": "retrieved", "payload": '{"k":4,"min_score":0.02}'},
+        ],
+        "speech_id": "sp_3",
+    }
+
+
+async def test_an_unanswered_marker_is_filled_with_nothing_and_no_speech_sends_no_speech_id() -> (
+    None
+):
+    (memory,) = markers_in("<!-- memory: -->")
+    seen: list[Seen] = []
+    gateway = a_gateway({"/v1/calls/call_1/fill": {"fills": [], "took_ms": 3.0}}, seen)
+    assert await gateway.fill("call_1", "hola", [memory], None) == {memory.line: ""}
+    assert "speech_id" not in seen[0].body
+
+
+async def test_remember_knocks_at_the_calls_own_door_with_an_empty_body() -> None:
+    seen: list[Seen] = []
+    await a_gateway(seen=seen).remember("call_1")
+    assert (seen[0].method, seen[0].path, seen[0].body) == ("POST", "/v1/calls/call_1/remember", {})
+
+
+def test_the_gateway_is_the_voice_sessions_platform_filler_and_rememberer_in_one_object() -> None:
+    """Three protocols, one door: what the session asks of the platform, the gateway answers."""
+    gateway = a_gateway()
+    platform: Platform = gateway
+    filler: Filler = gateway
+    rememberer: Rememberer = gateway
+    assert platform is filler is rememberer
 
 
 async def test_the_end_of_a_call_seals_its_log() -> None:

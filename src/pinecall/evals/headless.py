@@ -14,16 +14,21 @@ from livekit.agents.voice import AgentSession
 from pinecall._settings import Settings, load_settings
 from pinecall.evals.answers import Answers
 from pinecall.session.declaring import declared
+from pinecall.session.filling import Filling, NoFiller
 from pinecall.session.voice import session
 from pinecall.session.voice.agent import VoiceAgent
 from pinecall.session.voice.kit import kit_for
 from pinecall.types import NO_ORG_KEYS, AgentConfig, Blocks
 from pinecall.types.channel import Channel
+from pinecall_protocol.events import ErrorEvent
 
 # The written door. `session/voice/session.py` builds no STT, no TTS and no VAD for it, which is
 # exactly what a ring wants: the turn a text channel takes is the turn a phone call takes once
 # the words have been recognised, and nothing here has to fake a microphone to get it.
 WRITTEN: Channel = "whatsapp"
+
+# The call a ring's turn is filed under, for a filler that never asks.
+HEADLESS = "headless"
 
 
 # The bridge's side of one turn, with nothing behind it. `Speaking` is the port the agent writes
@@ -38,6 +43,9 @@ class _NoBridge:
     def heard(self, event: recognition.SpeechEvent) -> bool:  # noqa: ARG002 — no ears here
         """Never called: a written session has no stt_node to drop a backchannel out of."""
         return True
+
+    async def skipped(self, error: ErrorEvent) -> None:  # noqa: ARG002 — nothing to fill from
+        """Never called: a ring fills no marker, so none goes unfilled."""
 
 
 @dataclass(frozen=True)
@@ -57,17 +65,21 @@ async def a_headless_call(
     settings: Settings | None = None,
 ) -> AsyncGenerator[Headless]:
     """The worker's own config → kit → session, started with no room and closed after."""
-    kit = kit_for(settings or load_settings())
+    read = settings or load_settings()
+    kit = kit_for(read)
     # The box's own vendor keys: a headless call belongs to no org, so it brought none.
     live = session.a_session(config, kit, WRITTEN, NO_ORG_KEYS)
     # The prompt arrives the way the app sends it at call start, already written into its blocks:
     # the static ones become livekit's `instructions` — the pinned item at index 0 the provider's
     # cache lands on — and the dynamic ones are read per request, after the history. Never
     # reordered; a ring renders once and holds it, because nothing here moves the state.
+    # No memory and no knowledge base behind a ring, so nothing fills the turn's markers; the
+    # knowledge file the agent declared is filled, as it is on a call, since it is the config's.
     agent = VoiceAgent(
         blocks=prompt,
         tools=declared(config.tools, answers),
         speaking=_NoBridge(),
+        filling=Filling(NoFiller(), HEADLESS, prompt, config.knowledge, read.budgets.fill_ms),
     )
     await live.start(agent)  # pyright: ignore[reportUnknownMemberType] — livekit's start is untyped
     try:

@@ -1,6 +1,7 @@
 """What the agent knows beyond its instructions: the docs it retrieves and what it remembers."""
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Literal, get_args
 
 from pinecall.types.refused import DeclarationRefused
@@ -35,6 +36,18 @@ class Docs:
             raise DeclarationRefused("a fused rank score is never negative; min_score cannot be")
 
 
+@dataclass(frozen=True)
+class KnowledgeFile:
+    """The one file the agent knows by heart, sent whole: its path beside the class, its text."""
+
+    path: str
+    text: str
+
+    def __post_init__(self) -> None:
+        if not self.path:
+            raise DeclarationRefused("a knowledge file is named by its path")
+
+
 # The tenant says what is worth keeping in its own words: "how they like to be addressed",
 # "allergies". What it lists under forget is never written, whatever the model extracts.
 @dataclass(frozen=True)
@@ -47,3 +60,31 @@ class MemoryPolicy:
     def __post_init__(self) -> None:
         if both := set(self.remember) & set(self.forget):
             raise DeclarationRefused(f"memory cannot both remember and forget {sorted(both)}")
+
+
+# Bi-temporal: a fact is never deleted, it is superseded — `invalidated_at` says when, and the
+# history of a contact is every row, current first.
+@dataclass(frozen=True)
+class Fact:
+    """One thing memory holds about a contact: what, which kind, since when, how well it matched."""
+
+    id: str
+    contact: str
+    text: str
+    category: str | None
+    source: str | None
+    valid_from: datetime
+    invalidated_at: datetime | None
+    score: float
+
+
+@dataclass(frozen=True)
+class Chunk:
+    """One piece of a knowledge base as retrieval hands it back: where, and how well it matched."""
+
+    id: str
+    base: str
+    path: str
+    heading: str | None
+    text: str
+    score: float

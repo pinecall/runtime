@@ -13,8 +13,17 @@ from livekit.agents.types import TimedString
 from livekit.agents.voice import AgentSession
 from livekit.agents.voice.events import CloseReason, EventTypes, FunctionToolsExecutedEvent
 
+from pinecall._settings import Budgets
 from pinecall.log import NOTHING_SAID, hashed_prompt
 from pinecall.providers import prices
+from pinecall.session.filling import (
+    Filler,
+    Filling,
+    NoFiller,
+    NoRememberer,
+    Rememberer,
+    remembered_within,
+)
 from pinecall.session.scoring import Scorer, unjudged
 from pinecall.session.voice import commands, hearing
 from pinecall.session.voice.agent import VoiceAgent
@@ -35,6 +44,7 @@ from pinecall_protocol.events import (
     CallStarted,
     CallSummary,
     Custom,
+    ErrorEvent,
     PromptChanged,
     StateChanged,
     ToolsChanged,
@@ -73,18 +83,29 @@ class VoiceBridge:
         platform: Platform,
         recording: Path | None = None,
         score: Scorer = unjudged,
+        filler: Filler = NoFiller(),  # noqa: B008 — stateless, shared on purpose
+        rememberer: Rememberer = NoRememberer(),  # noqa: B008 — stateless, shared on purpose
+        budgets: Budgets = Budgets(),  # noqa: B008 — frozen
     ) -> None:
         self.context = context
         self.config = config
         self.platform = platform
         self.recording = recording
         self._score = score
+        self._rememberer = rememberer
+        self._budgets = budgets
         self.writing = Writing(platform, context.call)
         self.meters = Meters(self.writing)
         self.events = Events(self.writing, self.meters, self)
         self.tools = Tools(config, platform, context.call, self.writing.emit)
         self.blocks = Blocks(config.prompt)
-        self._agent = VoiceAgent(blocks=self.blocks, tools=self.tools.declared_tools, speaking=self)
+        self.filling = Filling(filler, context.call, self.blocks, config.knowledge, budgets.fill_ms)
+        self._agent = VoiceAgent(
+            blocks=self.blocks,
+            tools=self.tools.declared_tools,
+            speaking=self,
+            filling=self.filling,
+        )
         self._live: AgentSession[None] | None = None
         # Built in opened(), because it needs the session and because who holds the line has
         # to survive between a takeover and the release that answers it.
@@ -146,6 +167,7 @@ class VoiceBridge:
             "call.ended",
             CallEnded(reason=ended, ended_by=by, ended_at=ended_at, duration_s=duration),
         )
+        await self._remember()
         rows = self.meters.rows
         await self.writing.emit(
             "call.summary",
@@ -161,6 +183,20 @@ class VoiceBridge:
         )
         await self.writing.emit("call.score", await self._the_verdict_on_it())
         await self.writing.close()
+
+    # After call.ended and before call.summary, flushed first: the platform reads the turns back
+    # off the log this process writes to, and the last one has to be there. An agent that declared
+    # no memory has nothing to remember and asks nobody. See docs/decisions/memory.md.
+    async def _remember(self) -> None:
+        """What this call taught about the contact, written by the platform; a miss is an entry."""
+        if self.config.memory is None:
+            return
+        await self.writing.flushed()
+        failed = await remembered_within(
+            self._rememberer, self.context.call, self._budgets.remember_s
+        )
+        if failed is not None:
+            await self.writing.emit("error", failed)
 
     # A verdict is read by the seqs it names, and this process never learns one: the platform
     # numbers the log. So the call is read back through the same door it was written to, which is
@@ -185,6 +221,10 @@ class VoiceBridge:
         """Whether this is the caller speaking; False drops it before the LLM ever sees it."""
         text = event.alternatives[0].text if event.alternatives else ""
         return not (text and self._agent_is_speaking() and is_a_backchannel(text))
+
+    async def skipped(self, error: ErrorEvent) -> None:
+        """A fill went unanswered: the entry, recoverable, and the reply goes on without it."""
+        await self.writing.emit("error", error)
 
     # ── the app's commands ──────────────────────────────────────────────────────
 
@@ -340,6 +380,9 @@ def a_bridge(
     platform: Platform,
     recording: Path | None = None,
     score: Scorer = unjudged,
+    filler: Filler = NoFiller(),  # noqa: B008 — stateless, shared on purpose
+    rememberer: Rememberer = NoRememberer(),  # noqa: B008 — stateless, shared on purpose
+    budgets: Budgets = Budgets(),  # noqa: B008 — frozen
 ) -> VoiceBridge:
     """The Bridging the worker is built with: one call in, its bridge out."""
-    return VoiceBridge(context, config, platform, recording, score)
+    return VoiceBridge(context, config, platform, recording, score, filler, rememberer, budgets)

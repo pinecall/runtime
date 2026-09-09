@@ -2,6 +2,7 @@
 
 import os
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, override
 
@@ -26,6 +27,17 @@ ENV_FILES: tuple[str, ...] = (".env", "runtime/.env")
 
 
 type Role = Literal["all", "hub", "worker"]
+
+
+# A marker never delays a reply past its budget, and a slow model at hang-up never holds the
+# seal: the two numbers a session waits on memory and retrieval for, then goes on without them.
+# Declared here, once, because the two fields below take their defaults from it.
+@dataclass(frozen=True)
+class Budgets:
+    """What a turn may wait for its fills, and a hang-up for its memory, before going on."""
+
+    fill_ms: int = 250
+    remember_s: float = 8.0
 
 
 class Settings(BaseSettings):
@@ -233,6 +245,27 @@ class Settings(BaseSettings):
         default=0.002,
         description="What judging one call may spend on a model, in euros. Zero: no judge asks.",
     )
+
+    # ── Memory and retrieval: the language BM25 ranks in, and what a call waits for ──
+    # pg_textsearch ranks facts and chunks with a text search configuration, which is the
+    # language the callers speak: stemming "turnos" to "turno" is what makes a search find them.
+    text_search_config: str = Field(
+        default="spanish",
+        description="The pg_textsearch configuration BM25 ranks facts and chunks with: a language.",
+    )
+    fill_budget_ms: int = Field(
+        default=Budgets.fill_ms,
+        description="What a turn waits for memory and retrieval, in ms. Past it the reply goes on.",
+    )
+    remember_budget_s: float = Field(
+        default=Budgets.remember_s,
+        description="What a hang-up waits for memory to be written, in s. Past it the call seals.",
+    )
+
+    @property
+    def budgets(self) -> Budgets:
+        """The two budgets as one thing a session is handed."""
+        return Budgets(fill_ms=self.fill_budget_ms, remember_s=self.remember_budget_s)
 
     # pydantic resolves an env_file NAME against the working directory alone, so it is the one
     # part of the config that cannot express the walk. The dotenv source is rebuilt here over the

@@ -88,7 +88,7 @@ def _a_case(one: Conversation, config: AgentConfig) -> Any:
         one.entries,
         tools=config.tools_by_name,
         name=one.golden.name,
-        knowledge=[config.knowledge] if config.knowledge else None,
+        knowledge=[config.knowledge.text] if config.knowledge else None,
     )
 
 

@@ -22,10 +22,12 @@ make deploy                                     # this checkout onto your box (d
 
 ## Structure
 
-- `src/pinecall/` — fourteen packages, none of them a process; ARCHITECTURE.md §11 is the import
+- `src/pinecall/` — seventeen packages, none of them a process; ARCHITECTURE.md §11 is the import
   table and `tests/test_isolation.py` enforces it
   - `types/` the shapes, no IO · `log/` the truth, no framework · `providers/` the only vendor names
   - `session/` one call, `text/` in the gateway and `voice/` in the worker · `evals/` the rings
+  - `memory/` the contact's facts · `knowledge/` the knowledge base · `filling/` the gateway's
+    answer to a turn's markers — the three the gateway owns and the worker reaches over HTTP
   - `api/` the gateway's doors · `worker/` the job · `cli/` the verbs · `migrations/` numbered SQL
   - `_settings.py` every variable, once · `_version.py` `0.0.0` until a person says otherwise
 - `tests/` mirrors `src/pinecall/` one to one; `test_isolation.py`, `test_layout.py`,

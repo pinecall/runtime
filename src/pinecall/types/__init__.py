@@ -13,7 +13,8 @@ from pinecall.types.consent import (
     consent_of,
 )
 from pinecall.types.json import JsonObject
-from pinecall.types.knowledge import Docs, MemoryPolicy
+from pinecall.types.knowledge import Chunk, Docs, Fact, KnowledgeFile, MemoryPolicy
+from pinecall.types.markers import MARKER_NAMES, Ask, Marker, MarkerName, filled, markers_in
 from pinecall.types.org import DEFAULT_ORG, QUOTAS, Org, QuotaName, Quotas, a_slug
 from pinecall.types.prompt import DEFAULT_LAYOUT, Blocks, PromptBlock, PromptRegion
 from pinecall.types.provider_keys import NO_ORG_KEYS, VENDORS, ProviderKeys
@@ -28,14 +29,17 @@ __all__ = [
     "DEFAULT_ORG",
     "GATE_DEFERRED_ON",
     "GRANTS",
+    "MARKER_NAMES",
     "NO_ORG_KEYS",
     "QUOTAS",
     "THE_WIDGET",
     "VENDORS",
     "AgentConfig",
+    "Ask",
     "Blocks",
     "CallContext",
     "Channel",
+    "Chunk",
     "ConsentOutcome",
     "ConsentRead",
     "Contact",
@@ -43,10 +47,14 @@ __all__ = [
     "Direction",
     "Docs",
     "EventSource",
+    "Fact",
     "GateKind",
     "GateLine",
     "Grant",
     "JsonObject",
+    "KnowledgeFile",
+    "Marker",
+    "MarkerName",
     "MemoryPolicy",
     "Model",
     "Org",
@@ -65,5 +73,7 @@ __all__ = [
     "a_call_id",
     "a_slug",
     "consent_of",
+    "filled",
     "grant_for",
+    "markers_in",
 ]
