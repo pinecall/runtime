@@ -77,5 +77,27 @@
       },
       "side_effect": "read"
     }
+  ],
+  "prompt": [
+    {
+      "name": "identity",
+      "region": "static"
+    },
+    {
+      "name": "knowledge",
+      "region": "static"
+    },
+    {
+      "name": "tools",
+      "region": "static"
+    },
+    {
+      "name": "availability",
+      "region": "dynamic"
+    },
+    {
+      "name": "view",
+      "region": "dynamic"
+    }
   ]
 }
