@@ -67,8 +67,18 @@ sync:
 #
 # --frozen: a box installs exactly what uv.lock says and re-resolves nothing. Every path source in
 # that lock has to exist for a resolution, which is why `protocol/python` is rsynced above.
+#
+# The two unit files travel with the tree and are installed on every deploy, so a unit on the box
+# can never say something the tree stopped saying. The day the `evals` group left pyproject.toml,
+# a unit still asking `uv run --group evals` would have refused to start on the next restart with
+# a clean log — and that is a drift a deploy has to close, not a person.
 postSync: >-
-  sudo -u pinecall bash -c 'set -a; . /etc/pinecall/pinecall.env; set +a;
+  sudo install -m 644 -o root -g root
+  /opt/pinecall/app/runtime/infra/box/pinecall-gateway.service
+  /opt/pinecall/app/runtime/infra/box/pinecall-worker.service
+  /etc/systemd/system/
+  && sudo systemctl daemon-reload
+  && sudo -u pinecall bash -c 'set -a; . /etc/pinecall/pinecall.env; set +a;
   cd /opt/pinecall/app && exec /opt/pinecall/bin/uv sync -q --frozen --project runtime --extra runtime'
 
 
