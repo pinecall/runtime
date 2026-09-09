@@ -14,7 +14,7 @@ import pytest
 
 from pinecall._settings import load_settings
 from pinecall.log.store import MemoryStore, PostgresStore, Store
-from pinecall.log.store.postgres import apply_migrations
+from pinecall.log.store.postgres import apply_migrations, search_path_of
 
 # Long enough for a container on the same laptop, short enough that a whole suite does not hang
 # waiting for a database nobody started.
@@ -70,7 +70,7 @@ async def postgres_store(postgres: Dev) -> AsyncIterator[PostgresStore]:
 async def raw_connection(postgres: Dev) -> AsyncIterator[Any]:
     """A plain connection on this run's schema, for the questions no Store verb asks."""
     connection = await _connect(postgres.dsn, timeout=PROBE_TIMEOUT_SECONDS)
-    await connection.execute(f"set search_path to {postgres.schema}")
+    await connection.execute(f"set search_path to {search_path_of(postgres.schema)}")
     try:
         yield connection
     finally:

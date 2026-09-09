@@ -197,7 +197,7 @@ class PostgresStore:
                 min_size=min_size,
                 max_size=max_size,
                 init=_teach_the_connection_json,
-                server_settings={"search_path": _a_schema_name(schema)},
+                server_settings={"search_path": search_path_of(schema)},
             )
         except (OSError, ValueError, asyncpg.PostgresError) as refused:
             raise StoreUnreachable(f"{dsn}: {refused}") from refused
@@ -321,7 +321,7 @@ async def installed_extensions(dsn: str, *, timeout: float | None = None) -> set
 # driver — a second import of asyncpg is a second door to close.
 async def create_pool(dsn: str, *, schema: str = DEFAULT_SCHEMA) -> Any:
     """A plain connection pool, opened by the one module allowed to say the driver's name."""
-    return await _create_pool(dsn, server_settings={"search_path": _a_schema_name(schema)})
+    return await _create_pool(dsn, server_settings={"search_path": search_path_of(schema)})
 
 
 async def apply_migrations(dsn: str, *, schema: str = DEFAULT_SCHEMA) -> list[str]:
@@ -331,7 +331,7 @@ async def apply_migrations(dsn: str, *, schema: str = DEFAULT_SCHEMA) -> list[st
     try:
         if name != DEFAULT_SCHEMA:
             await connection.execute(f"create schema if not exists {name}")
-        await connection.execute(f"set search_path to {name}")
+        await connection.execute(f"set search_path to {search_path_of(name)}")
         await connection.execute(MIGRATIONS_TABLE)
         done = {str(row["name"]) for row in await connection.fetch(APPLIED_MIGRATIONS)}
         return [
@@ -356,6 +356,17 @@ async def _teach_the_connection_json(connection: Any) -> None:
     await connection.set_type_codec(
         "jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog"
     )
+
+
+# A schema of its own is what a test process gets, and its tables land there. The extensions'
+# types and operators — halfvec, <=>, bm25's <@> — live where CREATE EXTENSION put them, in
+# public, and a path that hides public cannot name a column of that type. So the schema comes
+# first, where DDL creates, and public after it, where the types are found. The default schema is
+# public itself and needs no second entry.
+def search_path_of(schema: str) -> str:
+    """The search path a schema is worked in: itself, then public, where the extensions are."""
+    name = _a_schema_name(schema)
+    return name if name == DEFAULT_SCHEMA else f"{name}, {DEFAULT_SCHEMA}"
 
 
 def _a_schema_name(schema: str) -> str:
