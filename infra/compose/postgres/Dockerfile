@@ -1,9 +1,12 @@
 # Postgres 17 with the two extensions the retriever needs, for the dev stack and for a box.
 # One image, both halves of hybrid search: pgvector for the embedding, pg_textsearch for BM25.
 
+# Fully qualified, and it is not decoration: docker resolves a bare `postgres:…` against Docker
+# Hub by itself and podman refuses to guess — "short-name did not resolve to an alias and no
+# unqualified-search registries are defined". The same file has to build under both.
 ARG POSTGRES_TAG=17.11-trixie
 
-FROM postgres:${POSTGRES_TAG} AS build
+FROM docker.io/library/postgres:${POSTGRES_TAG} AS build
 
 ARG PGVECTOR_TAG=v0.8.6
 ARG PG_TEXTSEARCH_TAG=v1.4.0
@@ -24,7 +27,7 @@ RUN git clone --depth 1 --branch ${PG_TEXTSEARCH_TAG} https://github.com/timesca
  && make -C /build/pg_textsearch install
 
 
-FROM postgres:${POSTGRES_TAG}
+FROM docker.io/library/postgres:${POSTGRES_TAG}
 
 COPY --from=build /usr/lib/postgresql/17/lib/ /usr/lib/postgresql/17/lib/
 COPY --from=build /usr/share/postgresql/17/extension/ /usr/share/postgresql/17/extension/
