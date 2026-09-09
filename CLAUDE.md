@@ -40,11 +40,6 @@ short comment above any method whose name does not say everything — why, never
 sentences. Small methods, small files: 400 lines is the ceiling, 150 the norm. Tests read as
 sentences. If it would not have shipped in Rails 2.3, do not write it.
 
-## Commits, versions
-
-`Bernardo Castro <me@bernardocastro.dev>`, no `Co-Authored-By`, no generated-with trailers.
-Versions and tags are the human's call — never pick a number, never tag.
-
 ## Commands
 
 ```
