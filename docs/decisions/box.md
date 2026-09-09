@@ -99,7 +99,8 @@ to time between two calls.
 
 ## The box holds no credential for the repository
 
-The code arrives by **rsync, from a checkout, pushed by a person** — `shipway.yml` — and the box
+The code arrives by **rsync, from a checkout, pushed by a person** — `make deploy`, the root
+Makefile: rsync, ssh, make and curl, the four things every deploy tool does and nothing else — and the box
 cannot clone, cannot fetch, and has no identity on GitHub at all. It was briefly built the other
 way, with a read-only deploy key generated on the box, and that is the wrong shape for one reason:
 this machine answers the telephone from the open internet, on a SIP port whose whole design is

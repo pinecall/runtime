@@ -6,7 +6,7 @@ telephone — and declared rather than scripted.
 This directory is a box **declared**: every file in it is one thing systemd, podman, Caddy or
 nftables reads, and there is no script. A fresh machine on any provider — a cloud that takes
 cloud-init, which is all of them, or a bare one through a NoCloud seed — boots from
-`cloud-init.yaml`, and everything after that arrives with `shipway deploy` and is made by systemd
+`cloud-init.yaml`, and everything after that arrives with `make deploy` and is made by systemd
 from the files in this directory. Nothing here knows which cloud it is on.
 
 ```
@@ -65,8 +65,9 @@ Three steps, and the machine does the rest.
 #    /opt/pinecall/app for it, installs uv, and raises the fence.
 #    A machine without cloud-init: do those four things by hand, they are the whole file.
 
-# 2. The deploy. From this checkout, as the account cloud-init made (shipway.yml: host.user).
-shipway deploy
+# 2. The deploy. From this checkout, as the account cloud-init made. Which box is yours and
+#    not the repository's: BOX and DOMAIN in deploy.local.mk beside the root Makefile, git-ignored.
+make deploy
 #    rsync puts this repository and the wire beside it under /opt/pinecall/app; `make install`
 #    puts every file of infra/box/ where systemd reads it; `uv sync` builds the virtualenv as the
 #    service user. Then systemd, on its own, in this order: the secrets are drawn
@@ -93,7 +94,8 @@ The names are the environment's own — `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `
 which of them it may see.
 
 **The box holds no credential for the repository.** It cannot clone and it cannot fetch; the code
-is pushed to it by a person at a checkout, with `shipway deploy`. That deploy carries no build
+is pushed to it by a person at a checkout, with `make deploy` — rsync, ssh, make and curl, and
+no tool that does not come with a Unix. That deploy carries no build
 step: the gateway is an API and serves no page, so the two directories it rsyncs — this repository
 and the wire beside it — are Python and nothing else. `../../docs/decisions/box.md` argues both.
 
@@ -124,7 +126,8 @@ is a mode in which the gateway opens no Postgres pool at all.
 
 `make install` overwrites what changed and leaves what did not; `systemd-sysusers` and
 `systemd-tmpfiles` make only what is missing; the fence and systemd are reloaded. The runtime's
-two units are restarted by shipway. The **containers are not**: the media plane stays up through a
+two units are restarted by `make restart`, the gateway first and the worker once the gateway
+answers. The **containers are not**: the media plane stays up through a
 deploy, and a changed `.container` takes effect on its next restart, which is yours to time —
 `sudo systemctl restart pinecall-livekit` between two calls, not during one.
 
