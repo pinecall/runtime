@@ -22,6 +22,12 @@ class Embedder(Protocol):
         """How wide every vector is; the columns are declared at exactly this."""
         ...
 
+    # A vector is only comparable to vectors of the same model, so a table that keeps them writes
+    # the model's name beside them; the name is the vendor's own, asked of it, never assumed.
+    async def model(self) -> str:
+        """The model behind the vectors, by the name the vendor reports."""
+        ...
+
     async def embed(self, texts: Sequence[str]) -> list[list[float]]:
         """One vector per text, in the order given."""
         ...
