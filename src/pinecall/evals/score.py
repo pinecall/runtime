@@ -73,10 +73,10 @@ async def _judged(entries: Sequence[Entry], config: AgentConfig, settings: Setti
     return _an_entry(judged, declared, counted.calls, cost)
 
 
-# The four policies are the tenant's rules; two of them are still waiting on a declaration the
-# agent does not carry. `register` needs the register the business asked for and `leakage` the
-# strings the other tenants on the box own, and neither is on AgentConfig: whoever declares
-# them adds the line here. Inventing either would judge a rule nobody wrote down.
+# The policies are the tenant's rules, and a live call carries its own evidence for these two.
+# `register` (evals/judges/register.py) waits on a declaration the agent does not carry — the
+# register the business asked for is not on AgentConfig; whoever declares it adds the line here.
+# Inventing it would judge a rule nobody wrote down.
 def _the_judges_of(case: Case) -> list[Evaluator]:
     """Every judge a live call carries its own evidence for, in the order they are declared."""
     return [ConsentJudge(case.gate), GroundedJudge(EXTRACTORS, evidence_of(case))]

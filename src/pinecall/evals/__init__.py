@@ -22,7 +22,6 @@ from pinecall.evals.judges.grounded import (
     Scope,
     evidence_of,
 )
-from pinecall.evals.judges.leakage import Foreign, LeakageJudge
 from pinecall.evals.judges.model import Counted, a_judge
 from pinecall.evals.judges.policy import PolicyJudge, broken, held
 from pinecall.evals.judges.register import Register, RegisterJudge
@@ -44,10 +43,8 @@ __all__ = [
     "EveryToolRanJudge",
     "Evidence",
     "Extractor",
-    "Foreign",
     "GroundedJudge",
     "Headless",
-    "LeakageJudge",
     "Line",
     "Matrix",
     "NoForbiddenToolRanJudge",

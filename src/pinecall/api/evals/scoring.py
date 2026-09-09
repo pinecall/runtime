@@ -95,9 +95,8 @@ def _a_case(one: Conversation, config: AgentConfig) -> Any:
 # A policy that asks nobody and costs nothing has no reason to be opt-in, so consent leads every
 # list: rings 3 and 4 already run it over every call, and a golden that names no `expect` used to
 # be the one conversation in this runtime nothing judged at all. Every other judge still needs a
-# declaration — `register` the register the business asked for, `leakage` the strings its
-# neighbours own, `grounded` the one question it may put to a model — and inventing any of those
-# would grade a rule nobody wrote down.
+# declaration — `register` the register the business asked for, `grounded` the one question it
+# may put to a model — and inventing either would grade a rule nobody wrote down.
 def _judges_for(golden: Golden, case: Any) -> list[Any]:
     """Consent, which every call carries its own evidence for, then whatever `expect` names."""
     expect = golden.expect

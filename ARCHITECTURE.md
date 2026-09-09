@@ -5,7 +5,8 @@ top of LiveKit: the **gateway**, the control plane, and the **worker**, the flee
 call. Everything else on a box — the SFU, the SIP bridge, Redis, Postgres — is somebody else's
 software, run as it ships. This page is the shape of the thing, read off the code: every module
 opens with one line that says what it is, `tests/test_isolation.py` says what may import what,
-and the *why* of each decision is a page under `docs/decisions/`, named where it applies.
+and the *why* of each decision is a page under `docs/decisions/`, named where it applies — the
+maintainer's notebook, kept out of git, so a clone has the names and not the pages.
 
 ```
    telephone ─► carrier trunk ─► SIP bridge ─┐
@@ -223,9 +224,10 @@ row wins and the loser is named.
 | 3 | a finished call read back whole and checked **by code, with no model**: consent, provider errors, latency budget, the register scan, a replay | `POST /v1/evals/replay/{call}`, `pinecall eval` | `evals/checks/*` |
 | 4 | **every finished call judged at hang-up**, the verdict an entry in the tenant's own log | the session's `Scorer`, on either channel | `evals/score.py`, `evals/judges/*` |
 
-The judges are livekit's shape. The ring-4 panel today is `ConsentJudge` (by code, off the gate
-lines) and `GroundedJudge` (every price, hour, date and name the agent stated, against the
-evidence); `register` and `leakage` exist and wait on a declaration. A judge that wants a model
+The judges are livekit's shape. The ring-4 panel is `ConsentJudge` (by code, off the gate lines)
+and `GroundedJudge` (every price, hour, date and name the agent stated, against the evidence).
+`RegisterJudge` (tú or usted, by code) runs in ring 1 when a golden declares `register`; it is not
+on the ring-4 panel because `AgentConfig` declares no register yet. A judge that wants a model
 gets one Haiku behind a ceiling (`PINECALL_JUDGE_CEILING_EUR`; zero means no judge asks), and
 `call.score` records who was RUN and who ANSWERED. `docs/decisions/evals.md` and its chapters,
 `scoring.md`.

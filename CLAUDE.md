@@ -1,54 +1,76 @@
-# pinecall/runtime — working agreement
+# pinecall/runtime
 
-The voice-AI runtime for contact centers, on LiveKit. Reply to the human in Spanish; code,
-comments, commit messages and this file in English.
+The voice-AI runtime for contact centers, on LiveKit: one distribution, two processes (the
+gateway, the worker). Reply to the human in Spanish; code, comments, commit messages and this
+file in English. What it is: [ARCHITECTURE.md](ARCHITECTURE.md). How it is deployed and the CLI:
+[README.md](README.md). Procedures with traps in them are skills under `.claude/skills/`.
 
-**Thesis.** An agent is an object, written with the framework in the agents repository. This
-runtime owns the log, the wire, the tenants, the sessions and the judges — never the
-conversation. The log is the truth.
+## Workflow
 
-## The tree
+```bash
+docker compose -f infra/compose/dev.yml up -d   # livekit · sip · redis · postgres · tei
+scripts/bootstrap                               # uv sync, every extra and tool group
+scripts/format                                  # ruff format, then the fixable lint rules
+scripts/lint                                    # ruff · pyright strict (src, infra/tools) · mypy strict — the gate
+scripts/test                                    # pytest -m "unit or postgres", plus infra/tools/tests
+uv run pytest -m unit                           # ring 0: no keys, no network, SHUFFLED — three green runs, or nothing
+uv run pytest tests/cli/doctor/test_verbs.py    # one file
+uv run pinecall-runtime gateway | worker dev | migrate up | doctor
+scripts/generate-env-example                    # after touching _settings.py; a test fails while it drifts
+make deploy                                     # this checkout onto your box (deploy.local.mk); ends with the doctor
+```
 
-`README.md` is the map: fourteen directories under `src/pinecall/`, none of them a process.
-`tests/` mirrors `src/pinecall/` one to one. The why behind each module is in `docs/decisions/`,
-which is this laptop's engineering notebook and not the repository's: git ignores it, a clone has
-no such directory, and a comment that names a page there is pointing at a note.
+## Structure
 
-## Invariants the tests enforce
+- `src/pinecall/` — fourteen packages, none of them a process; ARCHITECTURE.md §11 is the import
+  table and `tests/test_isolation.py` enforces it
+  - `types/` the shapes, no IO · `log/` the truth, no framework · `providers/` the only vendor names
+  - `session/` one call, `text/` in the gateway and `voice/` in the worker · `evals/` the rings
+  - `api/` the gateway's doors · `worker/` the job · `cli/` the verbs · `migrations/` numbered SQL
+  - `_settings.py` every variable, once · `_version.py` `0.0.0` until a person says otherwise
+- `tests/` mirrors `src/pinecall/` one to one; `test_isolation.py`, `test_layout.py`,
+  `test_the_public_surface.py`, `test_env_example.py`, `test_box_packages.py` are the tree's own rules
+- `infra/box/` the declared box (cloud-init, units, Quadlets, the fence, the manifest Makefile);
+  `infra/compose/` the dev stack; the root `Makefile` is the deploy
+- `docs/protocol/` public contracts · `docs/decisions/` the maintainer's notebook, **git-ignored**:
+  a clone has no such directory, and a comment naming a page there points at a note
 
-- `tests/test_isolation.py` is the import table. `types/` imports nothing of ours; `types/` and
-  `log/` import no framework; only `providers/` names a vendor; `api/` never imports `worker/`
-  and `worker/` never imports `api/` — they meet over HTTP.
-- No `.py` at the repo root. No tracked file over 400 lines. Every module opens with a one-line
+## Rules the tests enforce
+
+- No `.py` at the root. No tracked file over 400 lines. Every module opens with a one-line
   docstring. No two modules in one directory one letter apart.
+- `types/` imports nothing of ours; `types/` and `log/` import no framework; a vendor SDK
+  outside `providers/` fails the suite; `api/` never imports `worker/`, `worker/` never `api/`.
 - The public surface of the root and of every package with an `__all__` is pinned by a test.
-- `.env.example` is generated from `_settings.py`; a test fails when the two drift.
-- Unit tests run on dead-sentinel keys: everything constructs, a real call dies in seconds.
-  `pytest -m unit` is shuffled; three of three green is a gate and not luck.
-- The golden log in `pinecall_protocol.fixtures` reduces to the golden state here and in TS.
+- Unit tests run on dead-sentinel keys (`tests/conftest.py`): everything constructs, a real call
+  dies in seconds. The same golden log reduces to the same state here and in TypeScript.
 
-## Hygiene — what every review greps for
+## What a review comes back to
 
-One definition per thing. No dead code, no code "for later". No module-level mutable state. The
-library first: before writing what livekit-agents, livekit-api, pydantic or FastAPI already do,
-name the module that does it. One idea per file, named by the idea. A stale comment is a bug.
+One definition per thing — `grep` before writing a constant, a parser, a helper. No dead code and
+no code "for later": a symbol with no user outside its file and its test goes in the commit that
+notices it. No module-level mutable state — per call, per request, or a contextvar. The library
+first: name the livekit-agents / livekit-api / pydantic / FastAPI module that already does it, and
+the livekit example `file:line` a session knob comes from. One idea per file, named by the idea.
+A stale comment is a bug. Names are sentences; small methods; 150 lines is the norm. Tests read
+as sentences. 
 
-## Code style
+## Traps — each one cost an afternoon
 
-Files open with a one-line docstring, then imports, then public methods, then private ones. A
-short comment above any method whose name does not say everything — why, never what. Names are
-sentences. Small methods, small files: 400 lines is the ceiling, 150 the norm. Tests read as
-sentences. If it would not have shipped in Rails 2.3, do not write it.
+- A gateway on a dev key honours that key and no other, and `PINECALL_API_KEY` in the shell is
+  then ignored, out loud. A bare `403` from any door: `env | grep PINECALL`, then `unset`.
+- A native Postgres shadows the container on `127.0.0.1`: run the Postgres ring with
+  `DATABASE_URL=postgresql://pinecall:pinecall@[::1]:5432/pinecall` on such a machine.
+- **Nothing fixed by hand on a server counts.** A package goes in `PACKAGES`, a secret through
+  `make secret`, a class of failure into the doctor; then the box re-converges via `make deploy`.
+- A key is never printed — not in a commit, a test, a log line, a reply. Compare by sha256.
+- Versions and tags are the human's: never pick a number, never tag. `_version.py` stays `0.0.0`.
+- The shell may name a vendor's key differently (`ELEVENLABS_API_KEY`) than the runtime does
+  (`ELEVEN_API_KEY`); `.env.example` is the list.
 
-## Commands
+## Commits
 
-```
-docker compose -f infra/compose/dev.yml up -d      the dev stack
-scripts/bootstrap · scripts/format · scripts/lint · scripts/test
-uv run pinecall-runtime gateway · worker dev · migrate up · doctor [--bench]
-uv run pytest -m unit                              ring 0, no keys
-```
-
-A native Postgres shadows the container on 127.0.0.1: the Postgres ring runs with
-`DATABASE_URL=postgresql://pinecall:pinecall@[::1]:5432/pinecall` on such a machine
-(`infra/README.md`). The box is `infra/box/README.md`. `unset PINECALL_API_KEY` before anything opens a socket on a dev key.
+`Bernardo Castro <me@bernardocastro.dev>`, a subject line and a body that says why, no
+`Co-Authored-By`, no generated-with trailers. `scripts/format`, then `scripts/lint` and
+`scripts/test` exit 0 before a commit. `CHANGELOG.md` gains a line under `Unreleased` for
+anything a user of the package or the box would notice.
