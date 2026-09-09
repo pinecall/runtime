@@ -45,6 +45,7 @@ deploy: sync install restart
 # an editable path dependency (`../protocol/python`), so the checkout beside this one is what the
 # lockfile resolves, on a laptop and on the box alike.
 sync: require-box
+	$(SSH) mkdir -p $(REMOTE)/runtime $(REMOTE)/protocol/python
 	$(RSYNC) ./ $(BOX):$(REMOTE)/runtime/
 	$(RSYNC) ../protocol/python/ $(BOX):$(REMOTE)/protocol/python/
 
@@ -111,7 +112,7 @@ worker-secrets: require-box
 	$(WSSH) sudo install -d -m 700 /etc/credstore.encrypted
 	@for name in $(WORKER_CREDENTIALS); do \
 	  $(SSH) sudo systemd-creds decrypt --name=$$name /etc/credstore.encrypted/$$name - \
-	    | $(WSSH) sudo systemd-creds encrypt --with-key=auto --name=$$name - /etc/credstore.encrypted/$$name \
+	    | $(WSSH) sudo systemd-creds encrypt --with-key=auto --name=$$name - /etc/credstore.encrypted/$$name 2>/dev/null \
 	    && echo "  kept $$name on $(WORKER)"; \
 	done
 
