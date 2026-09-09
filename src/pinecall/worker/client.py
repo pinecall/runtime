@@ -28,7 +28,7 @@ EVENT_STREAM = "text/event-stream"
 TAIL_TIMEOUT = httpx.Timeout(TIMEOUT_S, read=None)
 
 # The hop carries the domain object itself, adapted by pydantic. The one wire-to-domain conversion
-# in the tree is gateway/apps/declaration.py, at the app's edge, and this is deliberately not a
+# in the tree is providers/declaration.py, at the app's edge, and this is deliberately not a
 # second one: two processes of the same distribution exchange the class they both already hold.
 ROUTES: TypeAdapter[tuple[Route, ...]] = TypeAdapter(tuple[Route, ...])
 CONFIG: TypeAdapter[AgentConfig] = TypeAdapter(AgentConfig)

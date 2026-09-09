@@ -39,7 +39,7 @@ KEY_OF: dict[str, str] = {
 
 # A vendor with no key is a refusal at the start of the call, and never a 401 in the middle of a
 # caller's turn. The gateway's pipeline screen says the same sentence before the call, so a person
-# sees the missing key as a state (gateway/pipeline/report.py).
+# sees the missing key as a state (api/pipeline_report.py).
 NO_KEY = "{vendor} has no API key in this process"
 
 

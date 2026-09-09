@@ -29,7 +29,7 @@ from pinecall_protocol.events import (
 
 # The worker's applier and this one are the same six verbs on two different sessions: there is no
 # shared base class, because the halves that differ — a room's audio switches against a queue of
-# text — are the whole body of every method. What IS shared lives in domain/supervising.py.
+# text — are the whole body of every method. What IS shared lives in session/supervising.py.
 # See docs/decisions/supervise.md.
 async def applied(session: TextSession, command: SupervisorVerb) -> None:
     """One verb: its entry, then the session. A ProtocolError is a refusal the door answers with."""

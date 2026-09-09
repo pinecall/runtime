@@ -1,0 +1,24 @@
+# livekit-server on the box: one node, media on one UDP port, the keypair from the environment.
+# The pair is NOT here — it arrives as LIVEKIT_KEYS out of /etc/pinecall/pinecall.env, so the
+# secret that mints room tokens lives on the box and never in this repo.
+
+port: 7880
+
+rtc:
+  # A cloud VM has a private address on its interface and a public one in front of it. The SFU
+  # discovers the public one instead of advertising 10.x, which nothing on the internet routes to.
+  use_external_ip: true
+  # One muxed UDP port instead of a range: one firewall rule to open, one port to watch.
+  udp_port: 7882
+  tcp_port: 7881
+
+redis:
+  address: redis:6379
+
+room:
+  auto_create: true
+  # A room whose caller hung up is not a room. Short, because a phone call that ends is over.
+  empty_timeout: 60
+
+logging:
+  level: info

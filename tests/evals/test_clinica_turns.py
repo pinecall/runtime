@@ -23,8 +23,8 @@ pytestmark = [pytest.mark.evals, pytest.mark.needs_llm]
 IDENTIFY = 0
 
 # What the agenda answers when the name and the phone do line up. The shape is the tenant's
-# `Patient` (examples/clinica-norte/lib/agenda.ts); the eval stands in for the app, not for the
-# class, so it answers what the class would have returned and nothing more.
+# `Patient` (the clinic example's agenda, in the agents repository); the eval stands in for the
+# app, not for the class, so it answers what the class would have returned and nothing more.
 ANA = {
     "id": "p1",
     "name": "Ana García",

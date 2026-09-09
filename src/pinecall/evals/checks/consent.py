@@ -36,7 +36,7 @@ def consent(call: Replayed, irreversible: Collection[str] | None) -> Verdict:
 
 
 # The log says which tools ran, never what they do, so the registry's answer is written onto the
-# trace here — which is the whole of this door's share of the rule. `pinecall/domain/consent.py`
+# trace here — which is the whole of this door's share of the rule. `types/consent.py`
 # holds the rest, and the eval graph and ring 4 read the very same function.
 def _as_declared(gate: Iterable[GateLine], irreversible: Collection[str]) -> list[GateLine]:
     """The gate's trace with every tool call marked irreversible or not, as the registry has it."""

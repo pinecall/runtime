@@ -62,7 +62,7 @@ class VerbRefused(Exception):
 
 
 # What this module needs of the process's live memory, asked for by the one method it calls, so
-# gateway/log/ and gateway/supervise/ both reach it without importing connected.py.
+# api/calls/ and api/supervise/ both reach it without importing _live.py.
 class Queueing(Protocol):
     """The live memory, as far as a supervise verb touches it: one command onto a worker's queue."""
 

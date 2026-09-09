@@ -13,7 +13,7 @@ from pinecall.types import DeclarationRefused, Org, Quotas, a_slug
 from pinecall_protocol import WireModel
 
 # Every /v1/ops door takes the operator key and nothing else, checked before the endpoint runs.
-# The same gate the routes doors take, from gateway/deps.py: there is one, and this is it.
+# The same gate the routes doors take, from api/_deps.py: there is one, and this is it.
 operator = APIRouter(prefix="/v1/ops", dependencies=[Depends(an_operator)])
 
 ORGS: TypeAdapter[tuple[Org, ...]] = TypeAdapter(tuple[Org, ...])

@@ -1,0 +1,203 @@
+# The development stack: everything a laptop needs to carry a call end to end.
+# Run it from anywhere: docker compose -f infra/compose/dev.yml up -d
+# What each service is, which ports it owns and why the odd settings are there: infra/README.md
+#
+# The host's port map, whole — the two runtime processes are not in this file but share the host:
+#   7880 7881 50000-50019/udp   livekit         (this file)
+#   5060 10000-10019/udp        sip             (this file)
+#   5432                        postgres        (this file)
+#   8080                        pinecall-runtime gateway  — the one URL a human types; NOT here
+#   8081                        tei, the embedder         (this file)
+#   8082                        reranker, --profile gpu   (this file)
+#   8000                        vllm, --profile gpu|llm   (this file)
+# 8080 belongs to the gateway because every CLI, test and README already says so; the embedder
+# moved off it in ms-3 after a worker with defaults asked TEI for /v1/routes and got a 404.
+
+name: pinecall
+
+services:
+
+  # The message bus livekit-server and livekit-sip find each other over. Deliberately
+  # unpublished: it authenticates nobody, and a Redis on a laptop's 6379 is one of the
+  # most scanned ports on the internet. Only this network reaches it.
+  redis:
+    image: redis:8.10.1-alpine
+    # Nothing here outlives a restart — it is a bus, not a store. Postgres is the state.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    networks: [pinecall]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  # The SFU. Room signalling over WebSocket, media over the UDP range below.
+  livekit:
+    image: livekit/livekit-server:v1.13.6
+    command: ["--config", "/etc/livekit/server.yaml"]
+    environment:
+      # The flag wants exactly "key: secret", the space included.
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-devsecret-change-me-32-chars-min}"
+    volumes:
+      - ./livekit.yaml:/etc/livekit/server.yaml:ro
+    ports:
+      - "7880:7880"                     # HTTP API and the signalling WebSocket
+      - "7881:7881"                     # ICE over TCP, for when UDP is blocked
+      - "50000-50019:50000-50019/udp"   # RTC media, matching rtc.port_range_* in livekit.yaml
+    networks: [pinecall]
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "-T", "3", "http://127.0.0.1:7880/"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  # The SIP bridge: a phone call becomes a participant in a room.
+  sip:
+    image: livekit/sip:v1.13.0
+    environment:
+      LIVEKIT_API_KEY: "${LIVEKIT_API_KEY:-devkey}"
+      LIVEKIT_API_SECRET: "${LIVEKIT_API_SECRET:-devsecret-change-me-32-chars-min}"
+    volumes:
+      # The path is fixed by the image's entrypoint. See the header of sip.yaml.
+      - ./sip.yaml:/sip/config.yaml:ro
+    ports:
+      - "5060:5060/udp"                 # SIP signalling
+      - "5060:5060/tcp"
+      - "10000-10019:10000-10019/udp"   # RTP, matching rtp_port in sip.yaml
+    networks: [pinecall]
+    depends_on:
+      redis:
+        condition: service_healthy
+      livekit:
+        condition: service_healthy
+    healthcheck:
+      # The image carries no wget and no curl, so the probe is bash's own socket.
+      test:
+        - CMD
+        - bash
+        - -c
+        - exec 3<>/dev/tcp/127.0.0.1/8081 && printf 'GET / HTTP/1.0\r\n\r\n' >&3 && head -1 <&3 | grep -q 200
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # The only stateful service: the log, the memory and both halves of hybrid search.
+  postgres:
+    build:
+      context: ./postgres
+    image: pinecall/postgres:17-pgvector0.8.6-pgtextsearch1.4.0
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-pinecall}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-pinecall}"
+      POSTGRES_DB: "${POSTGRES_DB:-pinecall}"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks: [pinecall]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # Embeddings. bge-m3 on CPU: 1024 dimensions, multilingual, good in Spanish.
+  tei:
+    image: "${TEI_IMAGE:-ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3}"
+    # max-batch-tokens is not tuning: the default 16384 makes the warm-up allocate a
+    # full 16k-token batch through an 8k-context model and the OOM killer takes the
+    # container before it ever serves. 4096 is four of the longest chunks we embed.
+    command: ["--model-id", "BAAI/bge-m3", "--port", "80", "--auto-truncate", "--max-batch-tokens", "4096"]
+    environment:
+      HF_HOME: /data
+      HF_TOKEN: "${HF_TOKEN:-}"
+    volumes:
+      - tei-models:/data
+    ports:
+      - "8081:80"                       # TEI_URL; 8080 is the gateway's, see the port map above
+    networks: [pinecall]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # The first start downloads ~2.3 GB of weights before the port answers, and a
+      # failure inside start_period does not count against retries.
+      start_period: 900s
+
+  # --profile gpu. Reranks what pgvector and BM25 each returned, on the same family of
+  # model as the embedder so the two agree about what a document means.
+  reranker:
+    profiles: ["gpu"]
+    image: ghcr.io/huggingface/text-embeddings-inference:1.9.3
+    command: ["--model-id", "BAAI/bge-reranker-v2-m3", "--port", "80", "--auto-truncate"]
+    environment:
+      HF_HOME: /data
+      HF_TOKEN: "${HF_TOKEN:-}"
+    volumes:
+      - tei-models:/data
+    ports:
+      - "8082:80"
+    networks: [pinecall]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # As above: the weights come down before the port answers.
+      start_period: 900s
+
+  # --profile gpu, or --profile llm to bring it up alone. An OpenAI-shaped local model,
+  # for when a turn must not leave the building.
+  vllm:
+    profiles: ["gpu", "llm"]
+    image: vllm/vllm-openai:v0.28.0
+    command: ["--model", "${VLLM_MODEL:-Qwen/Qwen3-8B}", "--port", "8000"]
+    environment:
+      HF_HOME: /data
+      HF_TOKEN: "${HF_TOKEN:-}"
+    volumes:
+      - vllm-models:/data
+    ports:
+      - "8000:8000"
+    # vLLM's workers talk over shared memory; the 64 MB default deadlocks them.
+    ipc: host
+    networks: [pinecall]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      # Python is the one thing a vLLM image is guaranteed to carry.
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # Weights, then a CUDA graph capture that takes minutes on its own.
+      start_period: 1800s
+
+networks:
+  pinecall:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  tei-models:
+  vllm-models:

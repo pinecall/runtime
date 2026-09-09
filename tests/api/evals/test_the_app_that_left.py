@@ -1,8 +1,5 @@
 """The app holding the agent closes mid-run: the run stops there, and says how far it got."""
 
-# The judges ship no py.typed and are the `evals` group, exactly as gateway/evals/scoring.py says.
-# pyright: reportMissingTypeStubs=false, reportUnknownMemberType=false, reportUnknownArgumentType=false
-
 import time
 from typing import Any, override
 
@@ -19,9 +16,6 @@ from tests.session.fake_llm import FakeLLM, Scripted, ScriptedStream
 
 # The judges are the `evals` group, not a dependency of the gateway: on a box without it the door
 # answers 503 and this file has nothing to assert. The whole module skips, naming the command.
-pytest.importorskip(
-    "pinecall_evals", reason="the judges are the `evals` group: uv sync --group evals"
-)
 
 pytestmark = pytest.mark.unit
 

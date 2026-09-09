@@ -31,7 +31,7 @@ BUILD_THE_CASE = (
 )
 
 
-# The rule itself is `pinecall/domain/consent.py`, which ring 3's door and ring 4 read too: one
+# The rule itself is `types/consent.py`, which ring 3's door and ring 4 read too: one
 # order, one set of sentences, one place a policy change lands. What is this judge's is the shape
 # of the answer, and the four lines below are all of it.
 class ConsentJudge(PolicyJudge):

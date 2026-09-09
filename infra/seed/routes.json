@@ -1,0 +1,14 @@
+[
+  {
+    "org": "default",
+    "number": "+59829000000",
+    "agent": "clinica-norte",
+    "channel": "phone"
+  },
+  {
+    "org": "default",
+    "number": "+59829000001",
+    "agent": "clinica-norte",
+    "channel": "whatsapp"
+  }
+]

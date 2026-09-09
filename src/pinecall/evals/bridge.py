@@ -150,7 +150,7 @@ class _Read:
             name=data.name,
             arguments=dict(data.arguments),
             # `pinecall.log.as_text` is the one function that says what a model reads back from a
-            # tool, and it is the same one `worker/bridge/tools.py` puts on the wire.
+            # tool, and it is the same one `session/voice/tools.py` puts on the wire.
             answer=None if answered is None else as_text(answered),
             failed=answered is not None and answered.error is not None,
             description=spec.description if spec else None,

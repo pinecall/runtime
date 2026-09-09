@@ -16,9 +16,9 @@ from pinecall_protocol.defs import ToolResult
 
 
 # The two protocols below are why this module exists. The call-scoped handlers live in
-# gateway/text/, so if they had to import the socket class to be typed, text/ would import apps/
-# while apps/ imported text/ back — a cycle that only held together because one of the two imports
-# happened late. Both sides now depend on this table, and nothing here knows text/ exists.
+# on_a_call.py, so if they had to import the socket class to be typed, that module would import
+# the socket while the socket imported it back — a cycle that only held together because one of
+# the two imports happened late. Both sides depend on this table, and neither knows the other.
 class Live(Protocol):
     """The process's live memory, as the app socket uses it: who is connected, what is running."""
 
@@ -76,7 +76,7 @@ class Socket(Protocol):
 type Handler = Callable[[Socket, Command], Awaitable[None]]
 
 # Every command the app socket answers, by its wire type. A new one is a function and a decorator.
-# It is filled at import time, from this package and from gateway/text/commands.py, which the
+# It is filled at import time, from this package and from api/agents/on_a_call.py, which the
 # gateway pulls in when it includes the text router.
 HANDLERS: dict[str, Handler] = {}
 

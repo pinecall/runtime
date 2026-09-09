@@ -19,8 +19,8 @@ from pinecall.types.channel import CHANNELS_WITH_A_NUMBER
 from pinecall_protocol import WireModel, defs, encode
 from pinecall_protocol.events import AgentConfigured, AgentRegistered
 
-# The type only, and never at import time: gateway/log/ reads this module through the sink, so
-# naming its package here for real would close the circle. See docs/decisions/gateway.md.
+# The type only, and never at import time: api/calls/ reads this module through the sink, so
+# naming its package here for real would close the circle. See docs/decisions/api.md.
 if TYPE_CHECKING:
     from pinecall.log.writers import Logs
 
@@ -45,7 +45,7 @@ NO_UNCLAIMED = (
 # A socket's id is minted, not id(websocket): it travels to the app in agent.registered and comes
 # back on `?app=`, and CPython reuses an address the moment the object at it is collected — a stale
 # one would name a socket somebody else now holds. Named HERE, and imported by handlers.py and by
-# gateway/connected.py, because handlers.py imports this module — the alias in handlers would have
+# api/_live.py, because handlers.py imports this module — the alias in handlers would have
 # made this module import handlers back, which is the cycle handlers.py exists to prevent.
 type SocketId = str
 

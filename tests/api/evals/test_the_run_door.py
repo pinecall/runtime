@@ -1,9 +1,5 @@
 """POST /v1/evals/run: goldens driven through the connected app, scored, stored and read back."""
 
-# The judges ship no py.typed and are the `evals` group, exactly as gateway/evals/scoring.py says.
-# That one fact is what every read below is about.
-# pyright: reportMissingTypeStubs=false, reportUnknownMemberType=false, reportUnknownArgumentType=false
-
 import asyncio
 from typing import Any, override
 
@@ -14,6 +10,10 @@ from pinecall.api._deps import the_runs
 from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
 from pinecall.api.evals.runner import AlreadyRunning, Runner
+
+# The judges are the `evals` group, not a dependency of the gateway: on a box without it the door
+# answers 503 and this file has nothing to assert. The whole module skips, naming the command.
+from pinecall.evals import a_case  # noqa: E402 — after the skip, on purpose
 from pinecall.evals.runs import EvalRun, MemoryRuns
 from pinecall.log.replay import whole
 from pinecall.log.store import MemoryStore
@@ -30,14 +30,6 @@ from tests.api.evals.conftest import (
     serving,
 )
 from tests.session.fake_llm import FakeLLM, Scripted
-
-# The judges are the `evals` group, not a dependency of the gateway: on a box without it the door
-# answers 503 and this file has nothing to assert. The whole module skips, naming the command.
-pytest.importorskip(
-    "pinecall_evals", reason="the judges are the `evals` group: uv sync --group evals"
-)
-
-from pinecall.evals import a_case  # noqa: E402 — after the skip, on purpose
 
 pytestmark = pytest.mark.unit
 
@@ -78,7 +70,7 @@ async def test_a_run_over_the_goldens_stores_its_scores_and_answers_the_matrix(
     assert [call["golden"] for call in run["calls"]] == ["greets", "prices"]
     matrix = run["matrix"]
     assert matrix["goldens"] == ["greets", "prices"]
-    # `consent` leads every row whatever the golden asked for: gateway/evals/scoring.py.
+    # `consent` leads every row whatever the golden asked for: api/evals/scoring.py.
     assert matrix["metrics"] == ["consent", "says", "silence"]
     assert not matrix["failures"]
     assert [score["score"] for row in matrix["runs"] for score in row["scores"]] == [1.0] * 5

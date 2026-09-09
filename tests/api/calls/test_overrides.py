@@ -53,7 +53,7 @@ def _declaring(app_socket: WebSocketTestSession, llm: dict[str, str]) -> None:
 
 
 # starlette's TestClient is an httpx client with no stubs for the members a test uses; the same
-# deliberately untyped handle tests/gateway/conftest.py's got() goes through.
+# deliberately untyped handle tests/api/conftest.py's got() goes through.
 def _turning(gateway: TestClient, knobs: dict[str, str]) -> int:
     """The operator's PUT at the agent's pipeline door, as a status."""
     handle: Any = gateway
