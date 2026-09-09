@@ -115,7 +115,8 @@ async def set_quotas(named: str, said: WantedQuotas, orgs: OrgsDep) -> dict[str,
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused
     await orgs.set_quotas(org.id, quotas)
-    return QUOTAS.dump_python(quotas)
+    dumped: dict[str, Any] = QUOTAS.dump_python(quotas)
+    return dumped
 
 
 # ── its keys ────────────────────────────────────────────────────────────────────

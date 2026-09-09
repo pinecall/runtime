@@ -16,12 +16,13 @@ from pinecall.log.snapshots import Snapshots
 from pinecall.log.store import Store
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import Admission
-from pinecall.orgs.table import Org, Orgs
+from pinecall.orgs.table import Orgs
 from pinecall.orgs.vault import NO_VAULT_KEY, Vault
 from pinecall.providers.models import Models
 from pinecall.providers.overrides import Overrides
 from pinecall.routes.table import Routes
 from pinecall.tokens.ledger import Tokens
+from pinecall.types import Org
 from pinecall.whatsapp.graph import Graph
 
 
