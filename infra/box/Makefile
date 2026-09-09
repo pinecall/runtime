@@ -11,12 +11,18 @@
 SYSTEMD   = /etc/systemd/system
 QUADLET   = /etc/containers/systemd
 CREDSTORE = /etc/credstore.encrypted
+RUNTIME   = /opt/pinecall/venv/bin/pinecall-runtime
 
 UNITS      = $(wildcard *.service)
 CONTAINERS = $(wildcard containers/*)
 
-.PHONY: install
-install:
+# The packages a box runs on, the same list cloud-init.yaml installs at first boot — a test pins
+# the two equal — so a box born before a package was added converges on the next deploy.
+# espeak-ng is the voice a simulated caller speaks with (`pinecall simulate --voice`).
+PACKAGES = podman caddy nftables make curl espeak-ng
+
+.PHONY: install packages doctor
+install: packages
 	install -D -m 644 -t /etc/sysusers.d sysusers.d/pinecall.conf
 	install -D -m 644 -t /etc/tmpfiles.d tmpfiles.d/pinecall.conf
 	systemd-sysusers
@@ -33,6 +39,26 @@ install:
 	systemctl reload-or-restart nftables
 	systemctl daemon-reload
 	$(MAKE) --no-print-directory enable-$(ROLE)
+
+# Only what is missing is installed, so a deploy on a box that has everything asks apt nothing.
+packages:
+	@missing=""; for package in $(PACKAGES); do \
+	  dpkg -s $$package >/dev/null 2>&1 || missing="$$missing $$package"; done; \
+	if [ -n "$$missing" ]; then echo "installing$$missing"; \
+	  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends $$missing >/dev/null; fi
+
+# The doctor, as the units see the box: their user, their environment file, and every credential
+# the credstore holds, in a transient unit systemd tears down on exit. The two localhost URLs are
+# the ones each .service sets, and box.env overrides them on a worker as it does for the worker.
+# Every key that is set is knocked at its own vendor: a dead one fails the deploy here, and not
+# a caller's first call.
+doctor:
+	systemd-run --quiet --pipe --wait --collect \
+	  -p User=pinecall -p WorkingDirectory=/opt/pinecall/app \
+	  -E LIVEKIT_URL=ws://127.0.0.1:7880 -E PINECALL_GATEWAY_URL=http://127.0.0.1:8080 \
+	  -p EnvironmentFile=/etc/pinecall/box.env \
+	  $(foreach credential,$(notdir $(wildcard $(CREDSTORE)/*)),-p ImportCredential=$(credential)) \
+	  $(RUNTIME) doctor
 
 # What a box runs is its ROLE, read from /etc/pinecall/box.env: `all` is one machine with
 # everything (the default), `hub` is the control plane and the media plane with no worker, and

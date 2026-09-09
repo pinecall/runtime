@@ -160,19 +160,37 @@ environment file. There is no `.env` on the box, and a stolen disk is not a stol
 | the vendors' keys | the gateway and the worker | you: `pinecall-runtime box secret <NAME>` |
 
 `box secrets` run twice rotates nothing: a credential that is there is kept, and the two key units
-carry a `ConditionPathExists=!` on the file they would make. Rotating one is deleting its file and
-restarting — `keys revoke` the old one, which is an UPDATE and never a DELETE, so the log entries
-that name it stay readable. **Never put `PINECALL_DEV_KEY` on a box**: it is not a weaker key, it
+carry a `ConditionPathExists=!` on the file they would make. Rotating one of THOSE is deleting its
+file and restarting — `keys revoke` the old one, which is an UPDATE and never a DELETE, so the log
+entries that name it stay readable. A vendor's key you brought is replaced in place, from the
+checkout, the value on stdin and on no screen:
+
+```bash
+printf '%s' "$ELEVENLABS_API_KEY" | make secret NAME=ELEVEN_API_KEY   # then: make restart
+make worker-secrets WORKER=deploy@<the worker>                         # a worker takes the hub's copy
+``` **Never put `PINECALL_DEV_KEY` on a box**: it is not a weaker key, it
 is a mode in which the gateway opens no Postgres pool at all.
 
 ## What the deploy does, and does not
 
-`make install` overwrites what changed and leaves what did not; `systemd-sysusers` and
-`systemd-tmpfiles` make only what is missing; the fence and systemd are reloaded. The runtime's
-two units are restarted by `make restart`, the gateway first and the worker once the gateway
-answers. The **containers are not**: the media plane stays up through a
+`make install` installs a package the box is missing (the `PACKAGES` line of the manifest, the
+same list cloud-init installed at birth — a test pins the two equal, so a box born before a
+package was added converges on its next deploy), overwrites what changed and leaves what did
+not; `systemd-sysusers` and `systemd-tmpfiles` make only what is missing; the fence and systemd
+are reloaded. The runtime's two units are restarted by `make restart`, the gateway first and the
+worker once the gateway answers. The **containers are not**: the media plane stays up through a
 deploy, and a changed `.container` takes effect on its next restart, which is yours to time —
 `sudo systemctl restart pinecall-livekit` between two calls, not during one.
+
+The last word is the doctor's. `make doctor` runs `pinecall-runtime doctor` on the box exactly as
+the units run — their user, their `box.env`, every credential in the credstore, in a transient
+unit systemd tears down on exit — and every provider key that is set is knocked at its own
+vendor's cheapest door, once. A key that expired or was pasted wrong fails the deploy right
+there, with its **name** on the screen and never its value, instead of failing a caller: the
+first voice call through the second box, 2026-09-09, found an ElevenLabs key the hub had carried
+dead since its `.env` days. A worker box is asked after what a worker has — the keys, the SFU —
+and never after the hub's Postgres; an embedder that is down is printed as advice, since nothing
+in the tree embeds yet.
 
 ## Four traps on a real box, one line each
 
