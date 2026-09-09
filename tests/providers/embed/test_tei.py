@@ -43,6 +43,12 @@ async def test_a_batch_is_one_post_with_the_inputs_and_truncation_on() -> None:
     assert json.loads(posted[0].content) == {"inputs": ["hola", "turno"], "truncate": True}
 
 
+async def test_the_model_is_the_one_tei_names_and_a_row_may_keep_that_name() -> None:
+    embedder, seen = a_tei(model="BAAI/bge-m3")
+    assert await embedder.model() == "BAAI/bge-m3"
+    assert [request.url.path for request in seen] == ["/info"]
+
+
 async def test_the_model_is_asked_once_however_many_batches_follow() -> None:
     embedder, seen = a_tei()
     await embedder.embed(["uno"])

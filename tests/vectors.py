@@ -13,11 +13,18 @@ A_WORD = re.compile(r"\w+")
 # enough that a thousand words do not fill the vector.
 SLOTS_PER_WORD = 4
 
+# What this embedder answers for its model: a word no vendor would report.
+HASH_MODEL = "hash-of-the-words"
+
 
 class HashEmbedder:
     """1024-d unit vectors from a sha256 over each word: texts sharing words land close."""
 
     dimensions = DIMENSIONS
+
+    async def model(self) -> str:
+        """The name a row keeps beside these vectors, so a test can read it back."""
+        return HASH_MODEL
 
     async def embed(self, texts: Sequence[str]) -> list[list[float]]:
         """One vector per text, the same vector for the same words, whatever the order."""
