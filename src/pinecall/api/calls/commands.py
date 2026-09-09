@@ -1,0 +1,52 @@
+"""The worker's door onto what the app said about its call: one command per frame, as they come."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from collections.abc import AsyncIterator
+
+from fastapi import APIRouter, HTTPException
+from starlette.responses import StreamingResponse
+
+from pinecall.api._deps import KeyDep
+from pinecall.api._live import LiveDep
+from pinecall.api.calls.sink import PING_SECONDS, SSE, SSE_HEADERS, paced
+from pinecall_protocol import Command, encode
+
+router = APIRouter()
+
+# Nothing was ever opened under this id here, so nothing can be said about it either. 404 and not
+# an empty stream: a worker that opened its call somewhere else must learn that now, not in the
+# silence of a call whose prompt never arrives.
+NOT_SERVED = "this gateway serves no call {call!r}: open it with POST /v1/calls first"
+
+
+# The other half of gateway/tools.py: there a worker asks the app to run something, here the app
+# tells the worker's call what to do. Both travel through the app socket this process holds, and
+# neither is a new vocabulary — the frames are the protocol's own command envelope.
+@router.get("/v1/calls/{call}/commands")
+async def commands(call: str, key: KeyDep, live: LiveDep) -> StreamingResponse:  # noqa: ARG001
+    """Every command the app sends for this call, in order, until the call is sealed."""
+    waiting = live.commands(call)
+    if waiting is None:
+        raise HTTPException(status_code=404, detail=NOT_SERVED.format(call=call))
+    return StreamingResponse(_body(waiting), media_type=SSE, headers=SSE_HEADERS)
+
+
+# No `retry:` and no `id:`: the reader is the worker, not a browser, and a command has no seq to
+# resume from. A worker that loses the stream has lost the call it was reading it for.
+async def _body(waiting: asyncio.Queue[Command | None]) -> AsyncIterator[str]:
+    """A frame per command, a comment when the call is quiet, and the end when it is sealed."""
+    async for command in paced(_taken(waiting), PING_SECONDS):
+        if command is None:
+            yield ": ping\n\n"
+            continue
+        said = json.dumps(encode(command), separators=(",", ":"))
+        yield f"event: {command.type}\ndata: {said}\n\n"
+
+
+async def _taken(waiting: asyncio.Queue[Command | None]) -> AsyncIterator[Command]:
+    """The queue as a stream: None is the call ending, and it is the only way this stops."""
+    while (command := await waiting.get()) is not None:
+        yield command

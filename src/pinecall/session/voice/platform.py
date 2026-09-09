@@ -27,7 +27,7 @@ class Platform(Protocol):
         """One entry of this call, numbered by the platform: the worker never learns a seq."""
         ...
 
-    async def tool(self, call: str, agent: str, use: ToolCall, timeout_s: float) -> ToolResult:
+    async def tool(self, call: str, agent: str, wanted: ToolCall, timeout_s: float) -> ToolResult:
         """One tool through the app's own process and back, or PlatformRefused."""
         ...
 

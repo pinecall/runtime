@@ -1,0 +1,148 @@
+"""What one agent hears, decides and speaks with right now, and what those three cost it."""
+
+from __future__ import annotations
+
+from pinecall._settings import Settings
+from pinecall.log.entry import Entry
+from pinecall.log.latencies import medians
+from pinecall.log.store import Store
+from pinecall.providers.models import DEFAULT_VENDOR
+from pinecall.providers.overrides import Overridden
+from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS, vendor_running
+from pinecall.providers.registry import KEY_OF, NO_KEY
+from pinecall.providers.tts.voices import voice_names
+from pinecall.types import AgentConfig, Model, Voice
+from pinecall_protocol import WireModel
+
+# How many of the agent's calls the medians are taken over. Enough that one bad morning does not
+# read as the pipeline's normal, few enough that the door answers while a person is looking at it.
+LAST_CALLS = 20
+
+
+class Stage(WireModel):
+    """One of the three: which vendor runs it, which model, and the one knob worth showing."""
+
+    vendor: str
+    model: str | None = None
+    voice_id: str | None = None
+    language: str | None = None
+
+
+class Measured(WireModel):
+    """One latency over the agent's recent calls: livekit's name, the median, how many turns."""
+
+    name: str
+    seconds: float
+    turns: int
+
+
+class Report(WireModel):
+    """The whole screen in one answer: the stages, their cost, what is turned, what may be asked."""
+
+    agent: str
+    hears: Stage
+    decides: Stage
+    speaks: Stage
+    greeting: str | None
+    overrides: Overridden
+    # The names the voice knob may be turned to, read off the one table: a screen that offered a
+    # free text box let an operator paste an id no vendor knows, which ends a line and not a form.
+    voices: list[str]
+    calls: int
+    medians: list[Measured]
+    unavailable_reasons: dict[str, str]
+
+
+# The stages are read off the config the NEXT session would be built on — what the app declared
+# with the operator's knobs already turned — so the screen never shows a vendor that is no
+# longer the one in use.
+async def report(
+    agent: str,
+    declared: AgentConfig,
+    turned: Overridden,
+    store: Store,
+    settings: Settings,
+) -> Report:
+    """Read the agent's last calls once and answer everything the pipeline screen draws."""
+    config = turned.applied_to(declared)
+    hears = _hears(config.stt, config.language)
+    decides = _decides(config.llm)
+    speaks = _speaks(config.voice, config.language)
+    calls = await _the_last_calls(agent, store)
+    return Report(
+        agent=agent,
+        hears=hears,
+        decides=decides,
+        speaks=speaks,
+        greeting=config.greeting,
+        overrides=turned,
+        voices=list(voice_names()),
+        calls=len(calls),
+        medians=[
+            Measured(name=row.name, seconds=row.seconds, turns=row.turns)
+            for row in medians(_entries_of(calls))
+        ],
+        unavailable_reasons=_unavailable(
+            {"hears": hears, "decides": decides, "speaks": speaks}, settings
+        ),
+    )
+
+
+# ── the three stages, as the pipeline would build them ──────────────────────────
+
+
+def _hears(declared: Model | None, language: str | None) -> Stage:
+    """What turns the caller's voice into words: providers/pipeline.py `_hearing`, on screen."""
+    return Stage(
+        vendor=vendor_running(declared, DEFAULT_STT),
+        model=declared.model if declared else None,
+        language=language,
+    )
+
+
+def _decides(declared: Model | None) -> Stage:
+    """What answers: providers/pipeline.py `_thinking`, on screen."""
+    return Stage(
+        vendor=vendor_running(declared, DEFAULT_VENDOR),
+        model=declared.model if declared else None,
+    )
+
+
+def _speaks(declared: Voice | None, language: str | None) -> Stage:
+    """What says it out loud: providers/pipeline.py `_speaking`, on screen."""
+    return Stage(
+        vendor=vendor_running(declared, DEFAULT_TTS),
+        model=declared.model if declared else None,
+        voice_id=declared.voice_id if declared else None,
+        language=language,
+    )
+
+
+# ── what the calls measured ─────────────────────────────────────────────────────
+
+
+async def _the_last_calls(agent: str, store: Store) -> list[list[Entry]]:
+    """The entries of the agent's most recent calls, newest last, one list per call."""
+    ids = await store.list_calls(agent)
+    return [await store.since(call) for call in ids[-LAST_CALLS:]]
+
+
+# The medians are taken over every turn of every call together, not over one median per call: a
+# call of two turns must not weigh as much as a call of forty. log/latencies.py holds the rule.
+def _entries_of(calls: list[list[Entry]]) -> list[Entry]:
+    """Every entry of the read calls, in one list for the one median rule to reduce."""
+    return [entry for call in calls for entry in call]
+
+
+# KEY_OF and the sentence are providers/registry.py's, because that is where a call reads a key
+# and refuses without one. Said here BEFORE the call, so a screen shows a missing key as a state
+# and not as a dead line — and an org's own key, which this screen never sees, is not read here:
+# what it answers is what the BOX has, which is the question an operator is asking.
+def _unavailable(stages: dict[str, Stage], settings: Settings) -> dict[str, str]:
+    """The stages that cannot run today, each with the reason: a vendor key nobody set."""
+    missing: dict[str, str] = {}
+    for where, stage in stages.items():
+        setting = KEY_OF.get(stage.vendor)
+        if setting is not None and not getattr(settings, setting, None):
+            missing[where] = NO_KEY.format(vendor=stage.vendor)
+    return missing

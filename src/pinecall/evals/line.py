@@ -20,7 +20,8 @@ QUIETEST = -32768
 # frame becomes here — the line goes quiet for 10 ms, which is exactly the artefact being tested.
 LOST = b"\x00\x00"
 
-# What those calls measured a television at when it started taking the conversation over: 15 dB under
+# What those calls measured a television at when it started taking the conversation over: 15 dB
+# under
 # the caller was already enough for two of its sentences to become `turn.user` (voice-bridge.md).
 # It is the default for that reason and not because it is a round number.
 UNDER_THE_CALLER_DB = 15.0

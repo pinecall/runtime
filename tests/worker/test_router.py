@@ -1,0 +1,117 @@
+"""A job arrives and somebody answers it: the dispatch, then the SIP seat, then the default."""
+
+from __future__ import annotations
+
+import asyncio
+
+import pytest
+from livekit.protocol import agent as jobs
+
+from pinecall.types import Route
+from pinecall.worker import router
+from tests.session.voice.room.fakes import FakeRoom, a_caller, a_connected_room, a_widget, as_a_room
+from tests.worker.fakes import a_job
+
+pytestmark = pytest.mark.unit
+
+# One org, three doors: two agents on the phone and one widget, which is enough for every branch.
+CLINICA_PHONE = Route(org="pinecall", agent="clinica-norte", channel="phone", number="+59891111")
+CLINICA_WEB = Route(org="pinecall", agent="clinica-norte", channel="web", number=None)
+TIENDA_PHONE = Route(org="pinecall", agent="tienda-sur", channel="phone", number="+59892222")
+ROUTES = (CLINICA_PHONE, CLINICA_WEB, TIENDA_PHONE)
+
+# Every arrival below is read under this bound, and the wait for a SIP leg is five seconds: a job
+# that waited for a seat it had no business waiting for fails here instead of slowing the suite.
+NOTHING_MAY_WAIT_S = 0.05
+
+
+async def test_a_dispatched_job_resolves_to_the_agent_its_metadata_names() -> None:
+    arrival = await _arrival(a_job(metadata={"agent": "tienda-sur"}), _a_seat())
+    assert router.resolve(arrival, ROUTES) == TIENDA_PHONE
+
+
+# THE bug: livekit fills `job.participant` for a publisher job and leaves it empty for a room job,
+# which is what a SIP dispatch rule creates — so a real INVITE only routes if the number is read
+# off the seat in the room. Every job in this file has an empty participant, this one included.
+async def test_an_empty_job_resolves_by_the_number_dialled_on_the_seat_in_the_room() -> None:
+    job = a_job()
+    assert not job.participant.attributes
+    arrival = await _arrival(job, _a_seat(dialled="+59891111"))
+    assert router.resolve(arrival, ROUTES) == CLINICA_PHONE
+
+
+async def test_the_number_that_was_dialled_is_the_door_and_the_caller_is_the_other_number() -> None:
+    arrival = await _arrival(a_job(), _a_seat(dialled="+59891111", caller="+59899999"))
+    assert (arrival.number, arrival.caller, arrival.channel) == ("+59891111", "+59899999", "phone")
+
+
+async def test_a_job_that_dialled_nothing_arrived_through_the_widget() -> None:
+    arrival = await _arrival(a_job(room="call_web_1"), a_connected_room(a_widget()))
+    assert (arrival.channel, arrival.number, arrival.caller) == ("web", None, "call_web_1")
+
+
+async def test_the_dispatch_is_read_before_the_number_when_a_job_carries_both() -> None:
+    arrival = await _arrival(a_job(metadata={"agent": "tienda-sur"}), _a_seat(dialled="+59891111"))
+    assert router.resolve(arrival, ROUTES).agent == "tienda-sur"
+
+
+async def test_a_job_that_names_nobody_falls_to_the_agent_the_process_was_started_with() -> None:
+    arrival = await _arrival(a_job(), a_connected_room(a_widget()))
+    assert router.resolve(arrival, ROUTES, default="clinica-norte") == CLINICA_WEB
+
+
+# The attribute names are spelled out here on purpose: livekit stamps them on the SIP leg and the
+# whole phone routing hangs off those exact strings, so a rename in sip.py has to fail here.
+async def test_a_phone_job_resolves_the_tenant_from_the_trunk_number_livekit_stamped() -> None:
+    seat = a_caller("+59899999")
+    seat.attributes = {"sip.trunkPhoneNumber": "+59892222", "sip.phoneNumber": "+59899999"}
+    arrival = await _arrival(a_job(), a_connected_room(seat))
+    route = router.resolve(arrival, ROUTES)
+    assert (route.org, route.agent, route.channel) == ("pinecall", "tienda-sur", "phone")
+    assert arrival.caller == "+59899999"
+
+
+async def test_a_job_that_names_nobody_and_has_no_default_is_refused_by_name() -> None:
+    arrival = await _arrival(a_job(), a_connected_room(a_widget()))
+    with pytest.raises(router.NoRoute):
+        router.resolve(arrival, ROUTES)
+
+
+async def test_an_agent_answers_only_on_the_channel_the_call_arrived_through() -> None:
+    named = a_job(metadata={"agent": "tienda-sur"})
+    dialled = await _arrival(named, _a_seat())
+    written = await _arrival(named, a_connected_room(a_widget()))
+    assert router.resolve(dialled, ROUTES) == TIENDA_PHONE
+    with pytest.raises(router.NoRoute):
+        router.resolve(written, ROUTES)
+
+
+async def test_a_number_nobody_answers_is_refused_and_the_message_names_it() -> None:
+    arrival = await _arrival(a_job(), _a_seat(dialled="+59893333"))
+    with pytest.raises(router.NoRoute, match=r"\+59893333"):
+        router.resolve(arrival, ROUTES)
+
+
+async def test_a_dial_says_outbound_in_its_metadata_and_everything_else_is_inbound() -> None:
+    out = a_job(metadata={"agent": "tienda-sur", "direction": "outbound"})
+    assert (await _arrival(out, _a_seat())).direction == "outbound"
+    dialled = a_job(metadata={"agent": "tienda-sur"})
+    assert (await _arrival(dialled, _a_seat())).direction == "inbound"
+
+
+async def test_metadata_that_is_not_a_dispatch_is_not_an_error() -> None:
+    """A room somebody created by hand carries whatever they typed; the call still resolves."""
+    for said in ("not json at all", "[1, 2, 3]", ""):
+        arrival = await _arrival(a_job(metadata=said), _a_seat())
+        assert arrival.agent is None and arrival.metadata == {}
+
+
+def _a_seat(dialled: str = "+59892222", caller: str = "+59897777") -> FakeRoom:
+    """A room with the caller's leg already on it, the way an inbound call opens one."""
+    return a_connected_room(a_caller(caller, dialled=dialled))
+
+
+async def _arrival(job: jobs.Job, room: FakeRoom) -> router.Arrival:
+    """This job's arrival in this room, read the way `entry.answer` reads it, and never waiting."""
+    async with asyncio.timeout(NOTHING_MAY_WAIT_S):
+        return await router.arrival_of(job, as_a_room(room))

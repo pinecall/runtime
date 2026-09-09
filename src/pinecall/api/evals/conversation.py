@@ -1,0 +1,131 @@
+"""One golden, driven to hang-up against the app that is holding the agent: the same text call."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import date
+from uuid import uuid4
+
+from pinecall.api._live import Live
+from pinecall.api.agents import on_a_call as commands
+from pinecall.api.evals.attachment import APP_DETACHED, ENDED_BY, AppDetached, Attachment
+from pinecall.api.evals.settling import Settling
+from pinecall.evals.goldens import Golden
+from pinecall.log.entry import Entry
+from pinecall.log.replay import whole
+from pinecall.log.store import Store
+from pinecall.log.writers import Logs
+from pinecall.providers.models import Chat
+from pinecall.session.text.session import TextSession
+from pinecall.types import AgentConfig, CallContext, Route
+from pinecall_protocol.commands import CallEvent, SessionConfigure
+
+# A golden's caller is nobody: no browser minted a visitor id and no number dialled. The prefix
+# says in the log which calls a run opened, so `sessions` never mixes them up with real traffic.
+# The call itself is named as every call this runtime mints is: `pinecall.types.a_call_id`.
+A_CALLER = "eval_"
+
+
+@dataclass(frozen=True)
+class Conversation:
+    """One golden run to hang-up: the model that answered it, the call it opened, and its log."""
+
+    golden: Golden
+    model: str
+    call: str
+    entries: Sequence[Entry]
+
+
+async def a_conversation(
+    golden: Golden,
+    *,
+    call: str,
+    model: str,
+    config: AgentConfig,
+    org: str,
+    app: Attachment,
+    logs: Logs,
+    live: Live,
+    llm: Chat,
+    store: Store,
+) -> Conversation:
+    """Open the call, seed its state, say every turn, hang up, and read the log back whole."""
+    session = an_eval_call(golden, call, config, org, logs, llm)
+    settling = Settling(session)
+    await logs.owned(session.call, session.agent, org)
+    live.serve(
+        session.call, session.agent, org, logs.writing(session.call, session.agent), app.socket
+    )
+    live.open(session)
+    try:
+        await session.start()
+        await app.driving(_the_whole_golden(session, golden, settling))
+        await session.hangup("caller_hung_up", "caller")
+    # The app that renders the view and runs the tools is gone: whatever is left of this golden
+    # would be put to a bare model, so the call ends here and says why, in one entry.
+    except AppDetached:
+        await session.hangup(APP_DETACHED, ENDED_BY)
+        raise
+    finally:
+        live.close(session.call)
+        # The log is sealed and its readers have finished; nothing more will ever be appended.
+        logs.forget(session.call)
+    return Conversation(
+        golden=golden,
+        model=model,
+        call=session.call,
+        entries=await whole(store, session.call),
+    )
+
+
+def an_eval_call(
+    golden: Golden, call: str, config: AgentConfig, org: str, logs: Logs, llm: Chat
+) -> TextSession:
+    """One call under the id the run named: the caller nobody is, on the config this model runs."""
+    context = CallContext(
+        call=call,
+        channel="web",
+        direction="inbound",
+        caller=f"{A_CALLER}{uuid4().hex[:12]}",
+        route=Route(org=org, agent=config.slug, channel="web", number=None),
+        # A golden that names a weekday pins the day it means; the rest run on the real one.
+        today=golden.today or date.today(),
+    )
+    # logs.writing() keeps the log, so every SSE reader of this call is already subscribed to it:
+    # a run is tailed while it happens through the very doors a live call is tailed through.
+    return TextSession(context, config, logs.writing(call, config.slug), llm)
+
+
+async def _the_whole_golden(session: TextSession, golden: Golden, settling: Settling) -> None:
+    """The seeded state and every turn of it: everything the app is needed for, in one coroutine."""
+    # The app renders its opening prompt from call.started; the first turn waits for it, or the
+    # model would be asked to answer with no view at all.
+    await settling.settled()
+    await commands.configure(session, SessionConfigure(state=dict(golden.state)))
+    await settling.settled()
+    await _every_turn(session, golden, settling)
+
+
+async def _every_turn(session: TextSession, golden: Golden, settling: Settling) -> None:
+    """The caller's turns in order, with the golden's facts injected where it declared them."""
+    await _the_facts_of(session, golden, settling, after_turn=0)
+    for number, said in enumerate(golden.input, 1):
+        await session.hears(said)
+        # A tool may have moved the app's state; the re-render lands a moment after the answer.
+        await settling.settled()
+        await _the_facts_of(session, golden, settling, after_turn=number)
+
+
+# The runner stands in for the tenant's backend here: a fact enters through the very door the app
+# socket's `call.event` enters through, so an event the agent never declared is refused for a
+# golden exactly as it is refused for a live call.
+async def _the_facts_of(
+    session: TextSession, golden: Golden, settling: Settling, *, after_turn: int
+) -> None:
+    """Every fact this golden injects at this point of the conversation, in the order written."""
+    for fact in golden.events_after(after_turn):
+        await commands.an_event(session, CallEvent(name=fact.name, data=dict(fact.data)))
+        # The app's own handler runs on event.received: it may move state, and it may make the
+        # agent speak. Whatever it does is the reply the golden is about, so it is waited for.
+        await settling.settled()

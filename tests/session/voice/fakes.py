@@ -97,13 +97,13 @@ class Recording:
         self.entries.append(Written(type, dict(data), ephemeral))
         self._live.put_nowait(self._as_an_entry(len(self.entries), self.entries[-1]))
 
-    async def tool(self, call: str, agent: str, use: ToolCall, timeout_s: float) -> ToolResult:
+    async def tool(self, call: str, agent: str, wanted: ToolCall, timeout_s: float) -> ToolResult:
         """The table's answer under the model's own call_id; a tool nobody holds is refused."""
-        self.asked.append(Asked(call, agent, use, timeout_s))
-        answered = self._tools.get(use.name)
+        self.asked.append(Asked(call, agent, wanted, timeout_s))
+        answered = self._tools.get(wanted.name)
         if answered is None:
             raise PlatformRefused(NOBODY_HOLDS_THE_AGENT)
-        return answered.model_copy(update={"call_id": use.call_id})
+        return answered.model_copy(update={"call_id": wanted.call_id})
 
     async def state(self, call: str) -> tuple[JsonObject, int]:  # noqa: ARG002 — the shape
         """The log so far, folded, and the seq it was folded to."""
