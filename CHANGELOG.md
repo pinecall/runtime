@@ -33,6 +33,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `PINECALL_TEXT_SEARCH_CONFIG` names the language BM25 ranks in. A missed fill is an `error`
   entry (`memory_skipped`, `retrieval_skipped`, `remember_failed`), recoverable, and the call
   goes on.
+- The knowledge base (`knowledge/`, migration `0009_knowledge`): a tenant's Markdown files
+  chunked by heading under ~350 tokens, each chunk under its heading path, embedded in batches
+  and kept in `knowledge_chunks` with an HNSW index by cosine and a BM25 index in spanish; a push
+  replaces the base whole in one statement; a search fuses both indexes by reciprocal rank
+  (k=60, thirty candidates a branch) and hands the model `### path › heading` over each chunk.
+  The row in `knowledge_bases` says which model wrote the vectors, so an `Embedder` now names
+  its model (`model()`, what TEI's `/info` reports).
 - The licence is spelled out where an operator meets it: the Apache-2.0 copyright line is
   filled (`Pinecall`), `README.md` has a License section, and `license-files` puts the text
   itself in the wheel and the sdist, so an install carries its licence.
