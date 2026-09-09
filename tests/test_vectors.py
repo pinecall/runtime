@@ -5,7 +5,7 @@ import math
 import pytest
 
 from pinecall.providers.embedder import DIMENSIONS, Embedder
-from tests.vectors import HashEmbedder, a_vector, cosine
+from tests.vectors import HASH_MODEL, HashEmbedder, a_vector, cosine
 
 pytestmark = pytest.mark.unit
 
@@ -13,6 +13,10 @@ pytestmark = pytest.mark.unit
 def test_the_hash_embedder_is_an_embedder_of_the_declared_width() -> None:
     embedder: Embedder = HashEmbedder()
     assert embedder.dimensions == DIMENSIONS
+
+
+async def test_the_hash_embedder_names_a_model_no_vendor_would() -> None:
+    assert await HashEmbedder().model() == HASH_MODEL
 
 
 async def test_the_same_words_give_the_same_unit_vector_whatever_their_order() -> None:

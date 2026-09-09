@@ -70,11 +70,12 @@ table; the declared ones have a socket.
 | **ProviderKeys** | `vendor → key` | `provider_keys` (`org`, `vendor`, `ciphertext`, `set_at`), Fernet under `PINECALL_VAULT_KEY` | absent row = the box's key (managed); one row = BYOK |
 | **Fact** | `id`, `contact`, `text`, `category`, `source`, `valid_from`, `invalidated_at`, `score` | `contact_memories` (plus `embedding halfvec(1024)`, `supersedes`, `confidence`) | one contact's facts in one org, bi-temporal: an update is a new row that supersedes the old one, an invalidation an end date, `forget` the one DELETE. `memory/` recalls them per turn (cosine and BM25, fused by rank, weighed by recency and confidence) and writes them at hang-up with one model call |
 | **eval run** | `id`, `agent`, `started_at`, `finished_at`, `status`, `document` | `eval_runs` | ring-1 suites driven over live text sessions |
+| **Base** / **Chunk** | `base`, `chunks`, `pushed_at` · `id`, `base`, `path`, `heading`, `text`, `score` | `knowledge_bases` (`org`, `base`, `model`, `dimensions`, `chunks`, `pushed_at`) · `knowledge_chunks` (`id`, `org`, `base`, `path`, `heading`, `ordinal`, `text`, `embedding halfvec(1024)`), HNSW by cosine and BM25 in spanish | a push replaces the base whole (`knowledge/store.py`); a search is both indexes fused by reciprocal rank |
 
-Ten tables, eight migrations (`migrations/000N_*.sql`, applied in order by `migrate up`, never
-edited; `0009_knowledge` is reserved for the knowledge base's chunks — **Chunk** in
-`types/knowledge.py` is its shape). `docs/decisions/types.md`, `orgs.md`, `keys.md`, `routes.md`, `tokens.md`,
-`provider-keys.md`, `log.md`, `memory.md`.
+Thirteen tables, nine migrations (`migrations/000N_*.sql`, applied in order by `migrate up`, never
+edited; `0008_memory` holds the contact's facts — **Fact** in `types/knowledge.py` is its shape —
+and `0009_knowledge` the knowledge base's chunks, **Chunk** beside it). `docs/decisions/types.md`,
+`orgs.md`, `keys.md`, `routes.md`, `tokens.md`, `provider-keys.md`, `log.md`, `memory.md`.
 
 ## 3. The wire
 

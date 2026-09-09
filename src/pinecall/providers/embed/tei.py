@@ -33,7 +33,7 @@ class TeiEmbedder:
         """One vector per text, from TEI, held to the width the tables are declared at."""
         if not texts:
             return []
-        model = await self._the_model()
+        model = await self.model()
         answer = await self._http.post(
             f"{self._url}/embed", json={"inputs": list(texts), "truncate": True}
         )
@@ -46,7 +46,7 @@ class TeiEmbedder:
             )
         return vectors
 
-    async def _the_model(self) -> str:
+    async def model(self) -> str:
         """The model's id as TEI reports it, asked once and kept for the refusal's sentence."""
         if self._model is None:
             answer = await self._http.get(f"{self._url}/info")
