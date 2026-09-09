@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Ring 0: the unit tests, and the log suite against the dev stack's Postgres when it is up.
+# No keys, no model, under two minutes. A Postgres nobody started is a skip naming the URL.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+uv run pytest -m "unit or postgres"

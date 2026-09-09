@@ -1,0 +1,129 @@
+"""Token scopes: the closed set of what a bearer may do, as data the gateway and console read."""
+
+from dataclasses import dataclass
+from typing import Literal, get_args
+
+from pinecall.types.refused import DeclarationRefused
+
+type Scope = Literal["talk", "chat", "observe", "supervise", "participate"]
+
+SCOPES: frozenset[str] = frozenset(get_args(Scope.__value__))
+
+# A talk or chat token is minted by the tenant's server for one visit: it opens one session, once,
+# and is dead in a minute whether used or not. The browser never mints one. Ten minutes is the most
+# a tenant may ask for: a token that lives longer is a door left open on a page nobody is on.
+ONE_VISIT_TTL_S = 60
+LONGEST_VISIT_TTL_S = 600
+
+
+@dataclass(frozen=True)
+class Grant:
+    """What one scope allows, yes or no per field. The gateway checks these, reasons no further."""
+
+    scope: Scope
+    connects: bool
+    audio: bool
+    reads_log: bool
+    sends_verbs: bool
+    own_call_only: bool
+    single_use: bool
+    ttl_s: int | None
+    # A listener hears the room and is heard by nobody: subscribe without publish, and hidden, so
+    # the caller is never told anybody joined. `audio` is both ways; `hears` is the one way.
+    hears: bool = False
+    hidden: bool = False
+
+
+GRANTS: dict[str, Grant] = {
+    # A talk token carries the participate grant for the call it opens, so a browser needs ONE
+    # token to speak and to watch its own call: reads_log, and only its own.
+    "talk": Grant(
+        "talk",
+        connects=True,
+        audio=True,
+        reads_log=True,
+        sends_verbs=False,
+        own_call_only=True,
+        single_use=True,
+        ttl_s=ONE_VISIT_TTL_S,
+    ),
+    "chat": Grant(
+        "chat",
+        connects=True,
+        audio=False,
+        reads_log=True,
+        sends_verbs=False,
+        own_call_only=True,
+        single_use=True,
+        ttl_s=ONE_VISIT_TTL_S,
+    ),
+    # An observe token is minted for a LIVE call by the tenant's own door, with the API key
+    # (POST /v1/calls/{call}/listen): a supervisor's ear in the room, hidden and silent.
+    "observe": Grant(
+        "observe",
+        connects=False,
+        audio=False,
+        reads_log=True,
+        sends_verbs=False,
+        own_call_only=False,
+        single_use=False,
+        ttl_s=None,
+        hears=True,
+        hidden=True,
+    ),
+    # A supervise token is minted for a LIVE call by the tenant's own door too
+    # (POST /v1/calls/{call}/supervise), and it is the only scope that sends the verbs. It
+    # publishes audio because a supervisor who takes the line has to be heard, and it is NOT
+    # hidden: livekit delivers no track from a hidden participant, so a hidden supervisor would
+    # take over into a silence. See docs/decisions/tokens.md.
+    "supervise": Grant(
+        "supervise",
+        connects=False,
+        audio=True,
+        reads_log=True,
+        sends_verbs=True,
+        own_call_only=False,
+        single_use=False,
+        ttl_s=None,
+    ),
+    "participate": Grant(
+        "participate",
+        connects=False,
+        audio=False,
+        reads_log=True,
+        sends_verbs=False,
+        own_call_only=True,
+        single_use=False,
+        ttl_s=None,
+    ),
+}
+
+
+# The scopes a browser holds: each reads the one call it was minted for and nothing past it. This
+# is the set the log's guest door and the room's DataChannel both admit, derived and never listed.
+READS_ITS_OWN_CALL: frozenset[str] = frozenset(
+    scope for scope, grant in GRANTS.items() if grant.reads_log and grant.own_call_only
+)
+
+# The scopes a room token may carry through a door of ours: the browser's own, which read the one
+# call they were minted for, and the desk's supervise token, minted for one live call and refused
+# at every other. Derived, so a scope added tomorrow needs no second list to be remembered in.
+BOUND_TO_ONE_CALL: frozenset[str] = READS_ITS_OWN_CALL | frozenset(
+    scope for scope, grant in GRANTS.items() if grant.sends_verbs
+)
+
+# The scopes POST /v1/tokens mints: the ones that connect to a room. observe and supervise are the
+# tenant's own doors and take the API key; participate alone is a call that already exists.
+MINTED_FOR_A_VISIT: frozenset[str] = frozenset(
+    scope for scope, grant in GRANTS.items() if grant.connects
+)
+
+
+def grant_for(scope: str) -> Grant:
+    """The grant behind a scope, or a refusal: a scope nobody declared grants nothing."""
+    try:
+        return GRANTS[scope]
+    except KeyError:
+        raise DeclarationRefused(
+            f"{scope!r} is not a token scope; the scopes are {sorted(SCOPES)}"
+        ) from None

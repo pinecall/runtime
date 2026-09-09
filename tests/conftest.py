@@ -1,0 +1,61 @@
+"""Ring 0 runs with dead provider keys: everything constructs, and a real call dies in seconds."""
+
+import pytest
+
+from pinecall._settings import Settings, load_settings
+
+# Vendors reject these instantly with a 401, and the LiveKit URL points at a port nothing listens
+# on. Structural, not disciplinary: a unit test cannot reach a real service by accident. The
+# judging budget is one of them: at zero, ring 4 judges every call by code and asks nobody, so a
+# hang-up in ring 0 opens no socket at all. docs/decisions/scoring.md.
+DEAD_SENTINEL_KEYS: dict[str, str] = {
+    "PINECALL_JUDGE_CEILING_EUR": "0",
+    "LIVEKIT_URL": "ws://127.0.0.1:1",
+    "LIVEKIT_API_KEY": "dead-sentinel",
+    "LIVEKIT_API_SECRET": "dead-sentinel-dead-sentinel-dead-sentinel",
+    "ANTHROPIC_API_KEY": "sk-ant-dead-sentinel",
+    "OPENAI_API_KEY": "sk-dead-sentinel",
+    "SONIOX_API_KEY": "dead-sentinel",
+    "DEEPGRAM_API_KEY": "dead-sentinel",
+    "ELEVEN_API_KEY": "dead-sentinel",
+}
+
+# The two marks that ask for the real world. Everything else, marked or not, gets the sentinels:
+# the safe case is the default, so forgetting a mark costs a failure and never a bill.
+MARKS_THAT_KEEP_THE_REAL_ENVIRONMENT = ("needs_llm", "voice")
+
+
+def pytest_configure() -> None:
+    """The suite reads no .env: an operator's real keys must not give them a different suite."""
+    # pydantic-settings reads `env_file` off model_config at every construction, so clearing it
+    # here — before collection, which already builds a Settings — turns the dotenv source off for
+    # load_settings() and for a direct Settings() alike. The tests that are ABOUT the file ask for
+    # it back, one at a time (tests/test_settings.py).
+    Settings.model_config["env_file"] = None
+
+
+@pytest.fixture(autouse=True)
+def dead_sentinel_keys(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every test sees the sentinels unless it is marked needs_llm or voice."""
+    if any(mark in request.keywords for mark in MARKS_THAT_KEEP_THE_REAL_ENVIRONMENT):
+        return
+    for name, value in DEAD_SENTINEL_KEYS.items():
+        monkeypatch.setenv(name, value)
+
+
+# Exporting a real key is the consent: the hook above closed the dotenv source, so a file on the
+# developer's disk can no longer give it. Its absence is a skip, never a failure.
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """A needs_llm test has nothing to talk to without a real key, so it is skipped, not failed."""
+    if _a_real_anthropic_key_is_present():
+        return
+    skip_it = pytest.mark.skip(reason="needs a real ANTHROPIC_API_KEY exported, not in a .env")
+    for item in items:
+        if "needs_llm" in item.keywords:
+            item.add_marker(skip_it)
+
+
+def _a_real_anthropic_key_is_present() -> bool:
+    """A sentinel is not a key: it is this file saying nobody may spend money in ring 0."""
+    key = load_settings().anthropic_api_key
+    return bool(key) and key != DEAD_SENTINEL_KEYS["ANTHROPIC_API_KEY"]

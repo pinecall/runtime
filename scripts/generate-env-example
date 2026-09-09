@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# src/pinecall/_settings.py -> .env.example. Idempotent: a second run changes nothing, and
+# tests/test_env_example.py fails the day somebody edits the file by hand instead.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+uv run python -c "
+from pathlib import Path
+from pinecall._env_example import write_env_example
+
+write_env_example(Path('.env.example'))
+"

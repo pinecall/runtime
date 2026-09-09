@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Install everything: the package, both extras and every tool group. Run once after a clone.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+uv sync --all-extras --all-groups

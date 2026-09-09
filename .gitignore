@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+
+# what the worker records (RECORD=1, PINECALL_RECORDINGS): audio of real calls, never tracked
+recordings/

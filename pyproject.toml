@@ -1,0 +1,140 @@
+# The Python runtime: one distribution, two processes. Every tool reads its config from here.
+
+[project]
+name = "pinecall"
+description = "The Pinecall voice-AI runtime: gateway and worker, on LiveKit"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+dynamic = ["version"]
+authors = [{ name = "Bernardo Castro", email = "me@bernardocastro.dev" }]
+classifiers = [
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+]
+dependencies = [
+  "pinecall-protocol",
+  "pydantic>=2.7,<3",
+  "pydantic-settings>=2.3,<3",
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.30,<1",
+  "httpx>=0.27,<1",
+  "asyncpg>=0.29,<1",
+  "pgvector>=0.3,<1",
+  "typing-extensions>=4.12,<5",
+  # The text session IS a livekit llm caller: ChatContext, LLMStream and LLMMetrics are the
+  # session's own vocabulary, so the library and the two text plugins are core, not an extra.
+  "livekit-agents[anthropic,openai]>=1.8,<2",
+  "livekit-api>=1.2.1",
+  "pyjwt>=2.13.0",
+  # Fernet, and nothing else: a tenant's own provider key is encrypted at rest under the box's
+  # PINECALL_VAULT_KEY. See docs/decisions/provider-keys.md.
+  "cryptography>=44,<51",
+]
+
+[project.optional-dependencies]
+# The worker's half: the three vendors LiveKit's own inference gateway does not front, so a
+# gateway-only install skips them. The VAD and the end-of-turn model are livekit's own native
+# ones, inside livekit-agents itself; nothing here imports the silero or turn-detector plugins.
+runtime = [
+  "livekit-agents[soniox,deepgram,elevenlabs]>=1.8,<2",
+  # livekit-plugins-anthropic 1.x still builds the 0.x anthropic client.
+  "anthropic<1",
+]
+# Graphiti is the optional memory graph; pgvector is the default and needs no extra.
+memory-graph = ["graphiti-core>=0.30,<1"]
+
+[project.scripts]
+pinecall-runtime = "pinecall.cli:main"
+
+[dependency-groups]
+dev = [
+  "pyright==1.1.411",
+  "mypy==2.3.1",
+  "ruff>=0.16,<1",
+  "pytest>=9,<10",
+  "pytest-asyncio>=1.4,<2",
+  "pytest-xdist>=3.8,<4",
+  "respx>=0.23,<1",
+  "time-machine>=3,<4",
+  "pytest-timeout>=2.4.0",
+  # Order dependence is a bug the suite must find by itself: every run shuffles.
+  "pytest-randomly>=3.16,<4",
+]
+
+[tool.uv.sources]
+pinecall-protocol = { path = "../protocol/python", editable = true }
+
+[build-system]
+# 1.27 is the first hatchling that writes `license` as a PEP 639 expression.
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/pinecall/_version.py"
+
+# ── pytest ──────────────────────────────────────────────────────────────────────
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# `-p randomly` is named rather than left to the entry point: a virtualenv without the plugin
+# fails at startup instead of quietly running the suite in file order.
+addopts = "--tb=short -n auto -p randomly --strict-markers --strict-config"
+xfail_strict = true
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+# A test that hangs fails in ten seconds, by itself. Nothing that honestly needs longer is a
+# unit test, and a hang costs minutes only when it is allowed to last.
+timeout = 10
+timeout_method = "thread"
+filterwarnings = [
+  "error",
+  # starlette.testclient asks for httpx2 at import time. The WebSocket tests need the TestClient
+  # (httpx speaks no WebSocket at all) and the runtime pins httpx 0.x for everything else.
+  "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+  "ignore:The anyio.abc.BlockingPortal alias is deprecated",
+]
+markers = [
+  "unit: ring 0. No keys, no network, under two minutes",
+  "postgres: needs DATABASE_URL reachable — the compose dev stack",
+  "needs_llm: calls a model. Skipped without ANTHROPIC_API_KEY",
+  "voice: drives audio through a real session. Skipped without the runtime extra and keys",
+  "evals: the judged suites, ring 1 and up",
+]
+
+# ── type checkers ───────────────────────────────────────────────────────────────
+
+[tool.pyright]
+include = ["src", "tests"]
+typeCheckingMode = "strict"
+pythonVersion = "3.12"
+reportImplicitOverride = true
+
+[tool.mypy]
+files = ["src"]
+strict = true
+python_version = "3.12"
+
+# ── ruff ────────────────────────────────────────────────────────────────────────
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ARG", "T201", "FA102", "TC004", "TID251"]
+unfixable = ["T201"]
+
+[tool.ruff.lint.per-file-ignores]
+# The CLI is the one place that speaks to a terminal.
+"src/pinecall/cli/**" = ["T201"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["pinecall", "pinecall_protocol", "tests"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+# The environment is read once, in _settings.py. Everywhere else takes a Settings.
+"os.environ".msg = "Read the environment through pinecall._settings, nowhere else."
+"os.getenv".msg = "Read the environment through pinecall._settings, nowhere else."

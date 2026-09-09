@@ -1,0 +1,164 @@
+"""The .env the runtime reads: which file, who wins, and what a name it does not know costs."""
+
+from pathlib import Path
+
+import pytest
+
+from pinecall._settings import ENV_FILES, Settings, env_files_read, load_settings, variable_of
+from tests.tree import PACKAGE_ROOT
+
+pytestmark = pytest.mark.unit
+
+# Never a real key, and never a real value: every test here writes its own file with this.
+A_FAKE_KEY = "fake-key-written-by-this-test"
+
+# Every way a module could set a variable behind Settings' back.
+THE_WAYS_TO_WRITE_ONE = ("os.environ[", "os.environ.setdefault", "os.putenv", "environ.update")
+
+
+def write_env_file(path: Path, body: str) -> None:
+    """A .env as an operator types one, in a directory the test owns."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body, encoding="utf-8")
+
+
+# tests/conftest.py turns the dotenv source off for the whole session, so a developer with real
+# keys in runtime/.env runs the suite CI runs. These tests are ABOUT that source, so they are the
+# ones that turn it back on — for themselves, over a file they wrote in a directory they own.
+@pytest.fixture
+def the_env_file_is_read(monkeypatch: pytest.MonkeyPatch) -> None:
+    """This test asks for the mechanism the suite switches off, and only for its own duration."""
+    monkeypatch.setitem(Settings.model_config, "env_file", ENV_FILES)
+
+
+@pytest.mark.usefixtures("the_env_file_is_read")
+def test_a_key_in_the_env_file_of_the_working_directory_is_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_env_file(tmp_path / ".env", f"ELEVEN_API_KEY={A_FAKE_KEY}\n")
+    monkeypatch.delenv("ELEVEN_API_KEY")
+    monkeypatch.chdir(tmp_path)
+    assert load_settings().eleven_api_key == A_FAKE_KEY
+
+
+@pytest.mark.usefixtures("the_env_file_is_read")
+def test_the_runtime_env_file_is_read_when_the_process_starts_at_the_repo_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_env_file(tmp_path / "runtime" / ".env", f"ELEVEN_API_KEY={A_FAKE_KEY}\n")
+    monkeypatch.delenv("ELEVEN_API_KEY")
+    monkeypatch.chdir(tmp_path)
+    assert load_settings().eleven_api_key == A_FAKE_KEY
+
+
+@pytest.mark.usefixtures("the_env_file_is_read")
+def test_a_real_environment_variable_beats_the_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_env_file(tmp_path / ".env", f"ELEVEN_API_KEY={A_FAKE_KEY}\n")
+    monkeypatch.setenv("ELEVEN_API_KEY", "exported-and-therefore-the-winner")
+    monkeypatch.chdir(tmp_path)
+    assert load_settings().eleven_api_key == "exported-and-therefore-the-winner"
+
+
+@pytest.mark.usefixtures("the_env_file_is_read")
+def test_a_name_the_runtime_does_not_read_is_ignored_and_never_an_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The file a laptop already has carries v1's names; the runtime skips them and starts."""
+    write_env_file(
+        tmp_path / ".env",
+        f"PINECALL_PROJECT_ID=v1-only\nSOME_OTHER_PROJECT=nothing\nELEVEN_API_KEY={A_FAKE_KEY}\n",
+    )
+    monkeypatch.delenv("ELEVEN_API_KEY")
+    monkeypatch.chdir(tmp_path)
+    settings = load_settings()
+    assert settings.eleven_api_key == A_FAKE_KEY
+    assert not hasattr(settings, "project_id")
+
+
+@pytest.mark.usefixtures("the_env_file_is_read")
+def test_the_file_is_found_from_a_directory_deeper_in_the_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An app started from an example directory deeper in the checkout finds the runtime's file."""
+    write_env_file(tmp_path / ".git", "gitdir: elsewhere\n")
+    write_env_file(tmp_path / "runtime" / ".env", f"ELEVEN_API_KEY={A_FAKE_KEY}\n")
+    tenant = tmp_path / "examples" / "clinica-norte"
+    tenant.mkdir(parents=True)
+    monkeypatch.delenv("ELEVEN_API_KEY")
+    monkeypatch.chdir(tenant)
+    assert env_files_read() == [tmp_path / "runtime" / ".env"]
+    assert load_settings().eleven_api_key == A_FAKE_KEY
+
+
+@pytest.mark.usefixtures("the_env_file_is_read")
+def test_the_walk_stops_at_the_repository_root_and_never_reads_a_parents_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stray .env above the project is the wrong keys, silently — worse than finding none."""
+    write_env_file(tmp_path / ".env", f"ELEVEN_API_KEY={A_FAKE_KEY}\n")
+    repository = tmp_path / "a-project-of-somebody-elses"
+    write_env_file(repository / ".git", "gitdir: elsewhere\n")
+    monkeypatch.delenv("ELEVEN_API_KEY")
+    monkeypatch.chdir(repository)
+    assert env_files_read() == []
+    assert load_settings().eleven_api_key is None
+
+
+def test_the_suite_itself_never_reads_an_env_file_lying_in_the_working_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The invariant: a developer with real keys on disk gets the suite CI gets, key for key."""
+    write_env_file(tmp_path / ".env", f"ELEVEN_API_KEY={A_FAKE_KEY}\n")
+    write_env_file(tmp_path / "runtime" / ".env", f"ELEVEN_API_KEY={A_FAKE_KEY}\n")
+    monkeypatch.delenv("ELEVEN_API_KEY")
+    monkeypatch.chdir(tmp_path)
+    assert load_settings().eleven_api_key is None
+
+
+def test_the_suite_reads_no_env_file_the_walk_would_now_find_up_the_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The walk widened what a process can find; conftest still closes the source for the suite."""
+    write_env_file(tmp_path / "runtime" / ".env", f"ELEVEN_API_KEY={A_FAKE_KEY}\n")
+    deeper = tmp_path / "examples" / "clinica-norte"
+    deeper.mkdir(parents=True)
+    monkeypatch.delenv("ELEVEN_API_KEY")
+    monkeypatch.chdir(deeper)
+    assert env_files_read() == [tmp_path / "runtime" / ".env"]
+    assert load_settings().eleven_api_key is None
+
+
+def test_the_files_read_are_named_in_the_order_pydantic_reads_them(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_env_file(tmp_path / ".env", "")
+    write_env_file(tmp_path / "runtime" / ".env", "")
+    monkeypatch.chdir(tmp_path)
+    assert env_files_read() == [tmp_path / ".env", tmp_path / "runtime" / ".env"]
+
+
+def test_no_env_file_at_all_leaves_the_settings_to_the_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    assert env_files_read() == []
+    assert load_settings().tei_url == "http://127.0.0.1:8081"
+
+
+def test_a_field_with_no_alias_reads_its_name_under_the_prefix() -> None:
+    assert variable_of("eleven_api_key") == "ELEVEN_API_KEY"
+    assert variable_of("dev_key") == "PINECALL_DEV_KEY"
+
+
+# The other half of the rule the file above states: Settings READS the environment, and nothing
+# writes it. Handing a library its values through os.environ works once and hides the source for
+# good — livekit's url and key pair reach it by parameter (worker/main.py) for exactly this reason.
+def test_nothing_in_the_runtime_writes_into_the_environment() -> None:
+    offenders = [
+        str(path.relative_to(PACKAGE_ROOT))
+        for path in sorted(PACKAGE_ROOT.rglob("*.py"))
+        if any(written in path.read_text(encoding="utf-8") for written in THE_WAYS_TO_WRITE_ONE)
+    ]
+    assert not offenders, f"these modules write an environment variable: {offenders}"

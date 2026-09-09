@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# The checkers, cheapest first: ruff, then pyright, then mypy. Any red stops the run.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+uv run ruff format --check .
+uv run ruff check .
+uv run pyright
+uv run mypy
