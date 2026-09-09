@@ -1,0 +1,49 @@
+#cloud-config
+# A fresh box, on any provider that takes cloud-init — every cloud does, and a bare machine does
+# through a NoCloud seed. Paste this as the instance's user-data (GCP: the `user-data` metadata
+# key; AWS: User data; Hetzner: cloud config; DigitalOcean: user data). It makes exactly what has
+# to exist BEFORE the first `shipway deploy` can arrive: the packages, the account rsync logs in
+# as, the directory it lands in, uv, and the two values that are this box's alone. Everything
+# else — the service user, the units, the containers, the firewall, the secrets — arrives with
+# the deploy and is made by systemd from the files in infra/box/.
+#
+# Three lines are yours to fill, marked YOURS. Nothing here is a secret: the secrets are drawn on
+# the box itself, by pinecall-secrets.service, the first time it boots with code under it.
+
+package_update: true
+packages:
+  - podman
+  - caddy
+  - nftables
+  - make
+  - curl
+
+users:
+  # The account `shipway deploy` arrives as (shipway.yml: host.user). It owns the code and can
+  # sudo, and it is the only account with a login on this machine.
+  - name: deploy                                                           # YOURS, or keep it
+    groups: [sudo]
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAA...your-public-key... you@laptop                  # YOURS
+
+write_files:
+  # The two values that are this box's and nobody else's; every unit and Caddy read them here.
+  - path: /etc/pinecall/box.env
+    permissions: "0644"
+    content: |
+      PINECALL_DOMAIN=box.example.com                                      # YOURS
+      LIVEKIT_PUBLIC_URL=wss://box.example.com                             # YOURS: wss://<the same>
+
+runcmd:
+  # Where the code lands: the deploy account's, because rsync arrives as it and owns what it
+  # writes; the service user only reads it. Everything under /opt/pinecall that the service
+  # user writes is declared in tmpfiles.d/pinecall.conf and made on the first deploy.
+  - [install, -d, -o, deploy, -g, deploy, /opt/pinecall/app]
+  # uv, for the deploy's post-sync alone: the units run the virtualenv's own entrypoint.
+  - [sh, -c, "curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/opt/pinecall/bin UV_NO_MODIFY_PATH=1 sh -s -- -q"]
+  # The fence is up before any door is: the deploy's own nftables.conf replaces the stock one.
+  - [systemctl, enable, --now, nftables]
+
+final_message: "the box is ready for its first `shipway deploy`, after $UPTIME seconds"

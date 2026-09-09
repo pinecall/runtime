@@ -5,7 +5,7 @@ import sys
 from collections.abc import Callable, Sequence
 from typing import NoReturn, Protocol, override
 
-from pinecall.cli import chat, doctor, gateway, keys, migrate, orgs, routes, sessions, worker
+from pinecall.cli import box, chat, doctor, gateway, keys, migrate, orgs, routes, sessions, worker
 
 
 class Group(Protocol):
@@ -29,6 +29,7 @@ GROUP_MODULES: dict[str, Group] = {
     "keys": keys,
     "migrate": migrate,
     "doctor": doctor,
+    "box": box,
 }
 
 GROUPS: dict[str, str] = {name: module.PURPOSE for name, module in GROUP_MODULES.items()}

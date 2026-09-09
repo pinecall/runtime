@@ -128,13 +128,13 @@ than one origination URI standing, because which of two is this box is a person'
 
 **The origination URI names the port.** `sip:box.pinecall.io:5060;transport=udp`, not the bare
 host. livekit-sip listens on 5060 and nowhere else (`infra/box/sip.yaml`), the box publishes it for
-UDP and TCP alike (`infra/box/box.yml`), there is no TLS listener on 5061, and the firewall opens
+UDP and TCP alike (`infra/box/containers/pinecall-sip.container`), there is no TLS listener on 5061, and the fence opens
 exactly that pair. A bare hostname sends Twilio looking for NAPTR and SRV records the box does not
 publish, and what answers that search is a carrier's default rather than ours — a fact that costs
 nothing to write down and an evening to discover.
 
 **The allow-list is as narrow as the carrier publishes.** Twilio gives a **/30** per edge — four
-addresses, eight edges. `carrier-signalling-cidrs.txt` had grown the older, far wider prefixes, and
+addresses, eight edges. The list had grown the older, far wider prefixes, and
 `54.172.60.0/23` is 512 machines admitted to a SIP port where the carrier uses four. The width was
 tightened to the published one, in the one file both the firewall and the inbound trunk read, so
 neither can be wider than the other. `test_carrier_cidrs.py` now pins the /30, because a fence is

@@ -1,0 +1,31 @@
+# The org's own key, minted once for the worker on this box, and kept as a credential: it is
+# printed by nobody and read by the worker alone. `keys issue` writes the key on stdout and its
+# words on stderr, so stdout — captured to a file only this unit can read — IS the key; root then
+# encrypts that file into the credstore and shreds it. The condition is the idempotence.
+[Unit]
+Description=Pinecall: the worker's key, minted once
+ConditionPathExists=!/etc/credstore.encrypted/PINECALL_API_KEY
+Requires=pinecall-gateway.service
+After=pinecall-gateway.service
+
+[Service]
+Type=oneshot
+User=pinecall
+Group=pinecall
+WorkingDirectory=/opt/pinecall/app
+Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
+ImportCredential=PINECALL_OPS_KEY
+RuntimeDirectory=pinecall-keys
+RuntimeDirectoryMode=0700
+StandardOutput=file:/run/pinecall-keys/worker
+StandardError=journal
+ExecStart=/opt/pinecall/venv/bin/pinecall-runtime keys issue --org default --label the-worker-on-this-box
+ExecStartPost=+/usr/bin/systemd-creds encrypt --with-key=auto --name=PINECALL_API_KEY /run/pinecall-keys/worker /etc/credstore.encrypted/PINECALL_API_KEY
+ExecStartPost=+/usr/bin/shred -u /run/pinecall-keys/worker
+# The gateway's socket is open a moment after its process is; a first knock that lands early is
+# knocked again.
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,6 +1,6 @@
 # livekit-server on the box: one node, media on one UDP port, the keypair from the environment.
-# The pair is NOT here — it arrives as LIVEKIT_KEYS out of /etc/pinecall/pinecall.env, so the
-# secret that mints room tokens lives on the box and never in this repo.
+# The pair is NOT here — it arrives as LIVEKIT_KEYS out of the `media.env` credential systemd
+# decrypts for the container alone, so the secret that mints room tokens is on no disk in the clear.
 
 port: 7880
 
@@ -13,7 +13,7 @@ rtc:
   tcp_port: 7881
 
 redis:
-  address: redis:6379
+  address: pinecall-redis:6379
 
 room:
   auto_create: true

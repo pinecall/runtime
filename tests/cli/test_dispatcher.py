@@ -94,5 +94,6 @@ def test_every_group_says_in_one_line_what_it_is() -> None:
         "keys",
         "migrate",
         "doctor",
+        "box",
     }
     assert all(purpose and "\n" not in purpose for purpose in GROUPS.values())

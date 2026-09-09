@@ -10,8 +10,9 @@
 # checkout, pushing: `shipway deploy`, and the only account involved is the one that already has
 # ssh to the box.
 #
-# What is NOT here: the media plane, the units, Caddy and the firewall. Those are the box itself,
-# and `infra/box/setup.sh` builds them once. Read `infra/README.md` for the order.
+# What is NOT here: the machine's first boot — the packages, the deploy account, uv — which is
+# `infra/box/cloud-init.yaml`, on any provider. Everything after that arrives with this deploy:
+# the units, the containers, the fence, the secrets. Read `infra/README.md` for the order.
 
 name: pinecall
 
@@ -22,7 +23,7 @@ host:
 
 # The login account owns this directory and the service user reads it; the virtualenv lives
 # outside it, at /opt/pinecall/venv, because `uv sync` writes that one as the service user.
-# infra/box/setup.sh makes both.
+# infra/box/cloud-init.yaml makes the first, infra/box/tmpfiles.d the second.
 remoteDir: /opt/pinecall/app
 
 # NO `build:` line, and that is the point: the gateway is an API and serves no page, so nothing
@@ -54,33 +55,19 @@ sync:
       - .ruff_cache
       - .mypy_cache
 
-# The box's own environment, sourced the same way both units read it: it is where
-# UV_PROJECT_ENVIRONMENT lives, and the virtualenv is deliberately NOT inside the tree — the tree
-# belongs to the account that rsyncs it and the environment to the account that runs it. Without
-# the file the sync tries `/opt/pinecall/app/runtime/.venv` and is refused it.
-#
-# `--extra runtime`, here and in BOTH unit files and in remote.sh's `as_the_service`. `uv` makes
-# the environment match its arguments EXACTLY, so whichever of the four asks for less uninstalls
-# the vendors the worker answers calls with, and the phone goes quiet on the next restart with
-# nothing in either log to say why. The comment saying so is in all four places, because that is
-# where somebody will be standing when they are tempted to drop it.
+# What the deploy does on the box once the files are there, and it is two things: the manifest,
+# and the environment. `make install` is infra/box/Makefile — every file in that directory and
+# where systemd, podman and Caddy read it, one rule each — so the box can never hold a unit, a
+# container or a fence the tree stopped describing. Then `uv sync` makes the virtualenv match
+# uv.lock exactly, as the service user, with the extras both units run on: the units themselves
+# never call uv, they run the virtualenv's own entrypoint.
 #
 # --frozen: a box installs exactly what uv.lock says and re-resolves nothing. Every path source in
 # that lock has to exist for a resolution, which is why `protocol/python` is rsynced above.
-#
-# The two unit files travel with the tree and are installed on every deploy, so a unit on the box
-# can never say something the tree stopped saying. The day the `evals` group left pyproject.toml,
-# a unit still asking `uv run --group evals` would have refused to start on the next restart with
-# a clean log — and that is a drift a deploy has to close, not a person.
 postSync: >-
-  sudo install -m 644 -o root -g root
-  /opt/pinecall/app/runtime/infra/box/pinecall-gateway.service
-  /opt/pinecall/app/runtime/infra/box/pinecall-worker.service
-  /etc/systemd/system/
-  && sudo systemctl daemon-reload
-  && sudo -u pinecall bash -c 'set -a; . /etc/pinecall/pinecall.env; set +a;
-  cd /opt/pinecall/app && exec /opt/pinecall/bin/uv sync -q --frozen --project runtime --extra runtime'
-
+  sudo make -s -C /opt/pinecall/app/runtime/infra/box install
+  && sudo -u pinecall env UV_PROJECT_ENVIRONMENT=/opt/pinecall/venv UV_CACHE_DIR=/opt/pinecall/.cache/uv
+  /opt/pinecall/bin/uv sync -q --frozen --project /opt/pinecall/app/runtime --extra runtime
 
 services:
 

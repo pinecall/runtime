@@ -1,12 +1,13 @@
 # livekit-sip on the box: the carrier's INVITE becomes a participant, and nothing else gets in.
 # Mounted at exactly /sip/config.yaml — the image's entrypoint hardcodes that path, and mounted
 # anywhere else the service comes up on its defaults without a word about it.
-# The keypair arrives as LIVEKIT_API_KEY / LIVEKIT_API_SECRET; no secret is committed.
+# The keypair arrives as LIVEKIT_API_KEY / LIVEKIT_API_SECRET out of the `media.env` credential;
+# no secret is committed and none is on the box's disk in the clear.
 
-ws_url: ws://livekit:7880
+ws_url: ws://pinecall-livekit:7880
 
 redis:
-  address: redis:6379
+  address: pinecall-redis:6379
 
 sip_port: 5060
 # 200 concurrent calls, and one firewall rule. A range this size costs nothing when it is closed

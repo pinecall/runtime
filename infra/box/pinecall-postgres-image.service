@@ -1,0 +1,14 @@
+# Our Postgres image, built on the box from the Dockerfile the dev stack builds it from: one
+# definition of what our Postgres is. Podman 4.9 has no `.build` unit yet, so this is a oneshot
+# with a stamp per tag — built once, and again only when the tag in the .container moves.
+[Unit]
+Description=Pinecall media plane: build the postgres image
+ConditionPathExists=!/var/lib/pinecall/images/17-pgvector0.8.6-pgtextsearch1.4.0
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/podman build --tag localhost/pinecall/postgres:17-pgvector0.8.6-pgtextsearch1.4.0 /opt/pinecall/app/runtime/infra/compose/postgres
+ExecStartPost=/usr/bin/touch /var/lib/pinecall/images/17-pgvector0.8.6-pgtextsearch1.4.0

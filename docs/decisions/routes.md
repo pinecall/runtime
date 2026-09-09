@@ -133,7 +133,7 @@ harmed by it; a route is a **write** that changes who answers a call, and the on
 make it is the one with the contract, the validation and the audit line. It also means a number
 moves from a laptop against a box that is not this one.
 
-`--org` defaults to `default`, the org 0006 seeds and `migrate up` issues the first key for. It
+`--org` defaults to `default`, the org 0006 seeds and `keys issue` mints the first key for. It
 takes the org's id or its slug. `seed` reads
 a JSON array of routes — each element the body `routes add` would have sent — from
 `infra/seed/routes.json`, so a fresh clone answers a call without anybody typing four verbs.

@@ -1,5 +1,6 @@
 """Every environment variable the runtime reads, declared once, for both processes."""
 
+import os
 from collections.abc import Iterator
 from pathlib import Path
 from typing import override
@@ -33,10 +34,17 @@ class Settings(BaseSettings):
     # shadows the file, and `env | grep PINECALL` is the first thing to run when it surprises.
     # extra="ignore" because the file may carry names this runtime does not read; an unknown key
     # is skipped, never an error at startup.
+    # A box hands its secrets over as systemd credentials: one file per name under the directory
+    # systemd names in CREDENTIALS_DIRECTORY, readable by this process alone and by nobody down
+    # the tree (`ImportCredential=` in infra/box/*.service). pydantic reads such a directory as
+    # a secrets source, matching files by the same names the environment uses, so
+    # `/run/credentials/pinecall-gateway.service/DATABASE_URL` is `DATABASE_URL`. A laptop sets
+    # no such variable and the source is simply absent.
     model_config = SettingsConfigDict(
         env_prefix=ENV_PREFIX,
         env_file=ENV_FILES,
         env_file_encoding="utf-8",
+        secrets_dir=os.environ.get("CREDENTIALS_DIRECTORY"),  # noqa: TID251 — the one reader
         extra="ignore",
         frozen=True,
     )
@@ -190,8 +198,8 @@ class Settings(BaseSettings):
     vault_key: str | None = Field(
         default=None,
         description=(
-            "A Fernet key, generated once on the box by setup.sh: a tenant's own provider keys "
-            "are encrypted under it. Unset, the provider-key doors answer 503."
+            "A Fernet key, generated once on the box by `pinecall-runtime box secrets`: a tenant's "
+            "own provider keys are encrypted under it. Unset, the provider-key doors answer 503."
         ),
     )
     log_level: str = Field(
