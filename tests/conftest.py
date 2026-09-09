@@ -3,6 +3,9 @@
 import pytest
 
 from pinecall._settings import Settings, load_settings
+from pinecall.providers.llm import VENDORS as LLM_VENDORS
+from pinecall.providers.stt import VENDORS as STT_VENDORS
+from pinecall.providers.tts import VENDORS as TTS_VENDORS
 
 # Vendors reject these instantly with a 401, and the LiveKit URL points at a port nothing listens
 # on. Structural, not disciplinary: a unit test cannot reach a real service by accident. The
@@ -32,6 +35,18 @@ def pytest_configure() -> None:
     # load_settings() and for a direct Settings() alike. The tests that are ABOUT the file ask for
     # it back, one at a time (tests/test_settings.py).
     Settings.model_config["env_file"] = None
+
+
+# livekit registers a plugin the first time a modality's vendor table is read, and refuses to do
+# it anywhere but the main thread (livekit/agents/plugin.py, Plugin.register_plugin). A TestClient
+# serves its requests in a portal thread, so the first test that opens a door would be the one
+# paying that import — and under a shuffled order that is whichever test ran first. Read all three
+# tables here, once, where pytest itself is.
+@pytest.fixture(scope="session", autouse=True)
+def vendor_tables_read_on_the_main_thread() -> None:
+    """Every vendor this build has, imported before any test can ask for one off the main thread."""
+    for vendors in (LLM_VENDORS, STT_VENDORS, TTS_VENDORS):
+        assert vendors.names
 
 
 @pytest.fixture(autouse=True)

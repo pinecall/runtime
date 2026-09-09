@@ -1,0 +1,108 @@
+"""One agent's declaration becomes the three vendor objects an AgentSession takes, and says so."""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+
+from pinecall._settings import Settings
+from pinecall.providers.llm import VENDORS as LLM_VENDORS
+from pinecall.providers.models import DEFAULT_VENDOR
+from pinecall.providers.registry import Asked, Chat, Ears, Speech
+from pinecall.providers.stt import VENDORS as STT_VENDORS
+from pinecall.providers.tts import VENDORS as TTS_VENDORS
+from pinecall.providers.tts import voices
+from pinecall.types import AgentConfig, Model, ProviderKeys, Voice
+
+logger = logging.getLogger(__name__)
+
+# The vendor each modality runs when the agent named none. One name per modality, in one place;
+# which model that vendor then runs is the vendor file's own business.
+DEFAULT_STT = "soniox"
+DEFAULT_TTS = "elevenlabs"
+
+
+# Three, not five: who notices speech and who calls the turn are livekit's own, built by the
+# session itself (voice/agent_session.py:541-542,606-607) — see docs/decisions/providers.md.
+@dataclass(frozen=True)
+class Pipeline:
+    """What a voice session is built out of: the model, the ears, the voice."""
+
+    llm: Chat
+    stt: Ears
+    tts: Speech
+
+
+# The first pipeline of a process pays for importing four vendor plugin packages — measured at
+# 1.3 s to 4.2 s inside the job, with the caller already in the room, and 5 ms every time after.
+# livekit hands an idle process a hook for exactly this, so the tables are read there instead.
+def warm_the_vendor_tables() -> None:
+    """Import every vendor file now, so no call pays for it: called before a job is assigned."""
+    LLM_VENDORS.read()
+    STT_VENDORS.read()
+    TTS_VENDORS.read()
+
+
+# `keys` are the ORG'S own, fetched for this call beside the config; empty means the box's own
+# environment keys, which is what a managed install is. providers/registry.py:a_key chooses.
+def pipeline_for(config: AgentConfig, settings: Settings, keys: ProviderKeys) -> Pipeline:
+    """Every vendor an agent runs on, built for this call out of what the agent declared."""
+    return Pipeline(
+        llm=LLM_VENDORS.build(
+            _vendor(config, "llm", config.llm, DEFAULT_VENDOR), _thinking(config, settings, keys)
+        ),
+        stt=STT_VENDORS.build(
+            _vendor(config, "stt", config.stt, DEFAULT_STT), _hearing(config, settings, keys)
+        ),
+        tts=TTS_VENDORS.build(
+            _vendor(config, "tts", config.voice, DEFAULT_TTS), _speaking(config, settings, keys)
+        ),
+    )
+
+
+def _thinking(config: AgentConfig, settings: Settings, keys: ProviderKeys) -> Asked:
+    """What the LLM is asked for: the model the agent named, or the vendor file's own."""
+    return Asked(settings=settings, keys=keys, model=config.llm.model if config.llm else None)
+
+
+def _hearing(config: AgentConfig, settings: Settings, keys: ProviderKeys) -> Asked:
+    """What the STT is asked for: the model, the language, the words, and what ends a turn."""
+    return Asked(
+        settings=settings,
+        keys=keys,
+        model=config.stt.model if config.stt else None,
+        language=config.language,
+        endpointing_ms=config.turn.endpointing_ms if config.turn else None,
+        hears=config.hears,
+    )
+
+
+# The voice arrives resolved — the gateway turned the tenant's word into a vendor id when the app
+# declared itself — so the only thing left to decide here is the language a curated voice was
+# chosen for, which an agent that declared none of its own inherits.
+def _speaking(config: AgentConfig, settings: Settings, keys: ProviderKeys) -> Asked:
+    """What the TTS is asked for: which model speaks, in which voice, in which language."""
+    voice = config.voice
+    return Asked(
+        settings=settings,
+        keys=keys,
+        model=voice.model if voice else None,
+        language=config.language or (voices.language_of(voice) if voice else None),
+        voice_id=voice.voice_id if voice else None,
+    )
+
+
+# Public and pure, because the console's pipeline door asks the same question about an agent that
+# is not on a call: what a session WOULD be built with is the only honest thing to put on a screen.
+def vendor_running(asked: Model | Voice | None, ours: str) -> str:
+    """The vendor the agent named for one modality, or ours when it named none."""
+    return asked.provider if asked is not None and asked.provider else ours
+
+
+# A blank declaration once silenced a whole line of calls, so an undeclared vendor is never quiet:
+# the log says what this build chose, by name, before the call starts.
+def _vendor(config: AgentConfig, modality: str, asked: Model | Voice | None, ours: str) -> str:
+    """The vendor the agent named for one modality, or ours with a warning that names it."""
+    if asked is None or not asked.provider:
+        logger.warning("agent %s declared no %s vendor; running %s", config.slug, modality, ours)
+    return vendor_running(asked, ours)

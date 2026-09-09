@@ -1,0 +1,72 @@
+"""One agent's declaration in, the three objects a session runs on out, with a line per default."""
+
+import dataclasses
+import logging
+
+import pytest
+from livekit.plugins import deepgram, elevenlabs, openai, soniox
+
+from pinecall._settings import Settings
+from pinecall.providers.pipeline import Pipeline, pipeline_for
+from pinecall.providers.registry import NO_ORG_KEYS
+from pinecall.types import AgentConfig, Model, Turn, Voice
+
+pytestmark = pytest.mark.unit
+
+A_KEY = "nobody-will-ever-deploy-this"
+
+
+def settings() -> Settings:
+    """A process that read a key for every vendor this suite builds."""
+    return Settings(
+        anthropic_api_key=A_KEY,
+        openai_api_key=A_KEY,
+        soniox_api_key=A_KEY,
+        deepgram_api_key=A_KEY,
+        eleven_api_key=A_KEY,
+    )
+
+
+def test_a_pipeline_is_the_three_vendors_livekit_does_not_bring_itself() -> None:
+    """The VAD and the turn detector are the session's own (agent_session.py:541-542,606-607)."""
+    assert [field.name for field in dataclasses.fields(Pipeline)] == ["llm", "stt", "tts"]
+
+
+def test_an_agent_that_declares_nothing_still_gets_a_whole_pipeline(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A blank declaration once silenced a whole line of calls: it warns now, per modality."""
+    with caplog.at_level(logging.WARNING, logger="pinecall.providers.pipeline"):
+        built = pipeline_for(AgentConfig(slug="clinica-norte"), settings(), NO_ORG_KEYS)
+    assert isinstance(built.stt, soniox.STT)
+    assert isinstance(built.tts, elevenlabs.TTS)
+    assert built.llm.label == "livekit.plugins.anthropic.llm.LLM"
+    assert [record.message.split(" declared no ")[1] for record in caplog.records] == [
+        "llm vendor; running anthropic",
+        "stt vendor; running soniox",
+        "tts vendor; running elevenlabs",
+    ]
+
+
+def test_every_vendor_an_agent_names_is_the_one_it_gets() -> None:
+    declared = AgentConfig(
+        slug="tienda-sur",
+        language="es",
+        llm=Model(provider="openai", model="gpt-5-mini"),
+        stt=Model(provider="deepgram", model="flux-general-multi"),
+        voice=Voice(provider="elevenlabs", model="eleven_v3_conversational", voice_id="a-voice"),
+    )
+    built = pipeline_for(declared, settings(), NO_ORG_KEYS)
+    assert isinstance(built.llm, openai.LLM)
+    assert isinstance(built.stt, deepgram.STTv2)
+    assert isinstance(built.tts, elevenlabs.TTS)
+    options = built.tts._opts  # pyright: ignore[reportPrivateUsage]
+    assert options.model == "eleven_v3_conversational"
+    assert options.voice_id == "a-voice"
+
+
+def test_the_agents_turn_declaration_reaches_the_ears_and_nothing_else() -> None:
+    declared = AgentConfig(slug="clinica-norte", turn=Turn(endpointing_ms=650))
+    built = pipeline_for(declared, settings(), NO_ORG_KEYS)
+    assert isinstance(built.stt, soniox.STT)
+    assert built.stt._params.max_endpoint_delay_ms == 650  # pyright: ignore[reportPrivateUsage]
