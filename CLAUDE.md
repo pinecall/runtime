@@ -10,7 +10,9 @@ conversation. The log is the truth.
 ## The tree
 
 `README.md` is the map: fourteen directories under `src/pinecall/`, none of them a process.
-`tests/` mirrors `src/pinecall/` one to one. `docs/decisions/<module>.md` holds the why.
+`tests/` mirrors `src/pinecall/` one to one. The why behind each module is in `docs/decisions/`,
+which is this laptop's engineering notebook and not the repository's: git ignores it, a clone has
+no such directory, and a comment that names a page there is pointing at a note.
 
 ## Invariants the tests enforce
 

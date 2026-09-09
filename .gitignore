@@ -13,3 +13,7 @@ recordings/
 
 # The box a deploy goes to is yours, not the repository's: `make deploy` reads it from here.
 deploy.local.mk
+
+# The decision pages are this laptop's engineering notes — dates, names, the arguments as they
+# happened — and not documentation: they stay on disk and out of every clone.
+docs/decisions/
