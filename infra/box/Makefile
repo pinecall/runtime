@@ -26,6 +26,9 @@ install:
 	install -D -m 644 -t /etc/pinecall livekit.yaml sip.yaml
 	install -D -m 644 caddy/Caddyfile /etc/caddy/Caddyfile
 	install -D -m 644 caddy/pinecall.conf $(SYSTEMD)/caddy.service.d/pinecall.conf
+	# Caddy re-reads its file on a reload and drops no connection doing it; without this line a
+	# changed Caddyfile waits for the next restart, which nobody schedules.
+	-systemctl reload-or-restart caddy 2>/dev/null
 	install -m 644 nftables.conf /etc/nftables.conf
 	systemctl reload-or-restart nftables
 	systemctl daemon-reload
