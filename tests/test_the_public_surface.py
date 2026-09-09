@@ -9,7 +9,7 @@ from pinecall._settings import load_settings
 
 pytestmark = pytest.mark.unit
 
-PACKAGES = ["types"]
+PACKAGES = ["auth", "log", "types"]
 
 
 def test_the_root_exports_the_version_and_the_root_error_and_nothing_else() -> None:

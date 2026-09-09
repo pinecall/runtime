@@ -13,7 +13,7 @@ pytestmark = pytest.mark.unit
 # wire (pinecall_protocol) are everybody's except types', which imports nothing but the root error.
 MAY_IMPORT: dict[str, frozenset[str]] = {
     "types": frozenset(),
-    "auth": frozenset({"types"}),
+    "auth": frozenset({"types", "log"}),
     "log": frozenset({"types"}),
     "providers": frozenset({"types"}),
     "orgs": frozenset({"types", "log"}),
