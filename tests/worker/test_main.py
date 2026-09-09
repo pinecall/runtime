@@ -16,7 +16,7 @@ from pinecall.providers import llm, stt, tts
 from pinecall.session.voice import VoiceBridge, a_bridge
 from pinecall.worker import main
 from pinecall.worker.entry import Worker
-from pinecall.worker.load import MachineLoad, reports_no_load
+from pinecall.worker.load import MachineLoad, SlotLoad, reports_no_load
 
 pytestmark = pytest.mark.unit
 
@@ -80,6 +80,15 @@ def test_a_dev_worker_reports_no_load_because_the_server_gates_on_what_it_report
 def test_a_box_keeps_the_machines_load_because_that_is_the_backpressure_it_wants() -> None:
     """And it is watched, so the box says the moment livekit stops routing calls to it."""
     assert isinstance(main.a_server(load_settings()).load_fnc, MachineLoad)
+
+
+def test_a_worker_with_a_measured_max_jobs_reports_slots_and_not_the_machine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PINECALL_MAX_JOBS", "6")
+    gate = main.a_server(load_settings()).load_fnc
+    assert isinstance(gate, SlotLoad)
+    assert gate.max_jobs == 6
 
 
 # `worker dev` died on livekit's own ValueError beside a runtime/.env that had all three: the

@@ -43,6 +43,42 @@ def livekits_own_measure() -> Callable[[AgentServer], float]:
     return cast("Callable[[AgentServer], float]", declared.default)
 
 
+class SlotLoad:
+    """Calls held over calls this worker may hold — what livekit routes on, on a box of its own."""
+
+    # A worker on a box of its own has no neighbours to measure, and a fleet is summed in slots
+    # and never in percent: `free = Σ(max − active)` is a number a person and a loop both read.
+    # livekit re-reads this every 0.5 s and two jobs inside that window both see the old count,
+    # so `max_jobs` is one under the measured ceiling and the tolerance is one call, never more.
+    def __init__(self, max_jobs: int) -> None:
+        if max_jobs < 1:
+            raise ValueError(f"a worker holds at least one call: max_jobs={max_jobs}")
+        self.max_jobs = max_jobs
+        self._refused = False
+
+    def __call__(self, server: AgentServer) -> float:
+        """The fraction of this worker's slots in use, with a line whenever it crosses the gate."""
+        load = len(server.active_jobs) / self.max_jobs
+        refused = load >= REFUSED_AT
+        if refused != self._refused:
+            self._refused = refused
+            self._say_what_changed(len(server.active_jobs), refused)
+        return load
+
+    def _say_what_changed(self, active: int, refused: bool) -> None:
+        """Which call count took this worker off the dispatcher, or put it back."""
+        if refused:
+            logger.warning(
+                "%d of %d slots held: livekit will route no job to this worker until one ends",
+                active,
+                self.max_jobs,
+            )
+        else:
+            logger.info(
+                "%d of %d slots held: livekit is routing jobs here again", active, self.max_jobs
+            )
+
+
 class MachineLoad:
     """livekit's own CPU average, said out loud each time it crosses livekit-server's line."""
 

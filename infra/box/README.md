@@ -99,6 +99,49 @@ no tool that does not come with a Unix. That deploy carries no build
 step: the gateway is an API and serves no page, so the two directories it rsyncs — this repository
 and the wire beside it — are Python and nothing else. `../../docs/decisions/box.md` argues both.
 
+## Roles, and a second box
+
+One machine runs everything (`PINECALL_ROLE=all`, the default). The day the worker needs a
+machine of its own, the same directory stands up two: the **hub** — control plane and media
+plane, no worker — and a **worker**, which dials the hub by name and holds nothing but calls.
+The role is one line of `/etc/pinecall/box.env`, and the Makefile enables each role's units and
+disables the others', so a box that changes role changes it on its next deploy.
+
+A worker box needs three things the hub does not put in its unit: where the SFU and the gateway
+are, and how many calls it holds.
+
+```
+PINECALL_ROLE=worker
+LIVEKIT_URL=wss://box.example.com          # the hub, under TLS: Caddy carries /agent to the SFU
+PINECALL_GATEWAY_URL=https://box.example.com
+PINECALL_MAX_JOBS=5                        # measured on THIS machine type — see below
+```
+
+And its own credentials, and no others: the LiveKit keypair and the vendors' keys copied from
+the hub (`box secret`, from stdin, over ssh), and a `PINECALL_API_KEY` issued there with
+`keys issue`. Never `DATABASE_URL`, never the ops key, never the vault key: a worker has no
+database and guards nothing.
+
+It needs no port open but ssh. It registers by an outbound WebSocket, LiveKit hands it jobs on
+that socket, and the media goes to the hub's public UDP port. `nftables.conf` is the same file
+on every role; the doors it opens that nothing listens on are doors to nothing.
+
+## Slots
+
+A worker with `PINECALL_MAX_JOBS` reports its load to LiveKit as **calls held over calls it
+may hold**, and LiveKit stops routing to it at 0.7 of them — the same line it holds a CPU
+average to. Without it, the worker reports the machine's CPU average, which is right for a box
+it shares with the SFU and wrong for one it has to itself.
+
+`MAX_JOBS` is measured, never guessed: on the machine type it will run on, calls with real audio
+in a loop, five more each step, until the p95 of first audio crosses 1.8 s. That concurrency
+is the ceiling, and `MAX_JOBS` is **one under it**: LiveKit re-reads the load every half second,
+and two jobs that arrive inside that window both see the old count (livekit/agents#4884). The
+tolerance is one call, never more.
+
+A fleet is summed in slots: `free = Σ(max − active)` over the workers that are up. That is the
+number a person watches and the number a loop scales on — never a CPU.
+
 ## Where the secrets live
 
 Nowhere in the clear. Every secret on the box is a **systemd credential**: one file per name under

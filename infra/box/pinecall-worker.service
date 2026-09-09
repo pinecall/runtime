@@ -3,9 +3,13 @@
 # Installed to /etc/systemd/system/ by infra/box/Makefile, on every deploy.
 [Unit]
 Description=Pinecall worker (the fleet that answers a call)
-Requires=pinecall-gateway.service pinecall-worker-key.service
+# Wants=, not Requires=: on the hub these three are here and the worker starts after them; on a
+# box that is only a worker they do not exist, and a Wants= on a unit that is not there is
+# ignored where a Requires= would refuse to start at all. The hub's address is then
+# LIVEKIT_URL and PINECALL_GATEWAY_URL in /etc/pinecall/box.env, which wins over the
+# Environment= lines below.
+Wants=network-online.target pinecall-gateway.service pinecall-worker-key.service
 After=network-online.target pinecall-livekit.service pinecall-gateway.service pinecall-worker-key.service
-Wants=network-online.target
 
 [Service]
 User=pinecall
@@ -28,6 +32,11 @@ ImportCredential=ELEVEN_API_KEY
 # `start`, not `dev`: production mode keeps a prewarmed process per CPU, and dev mode keeps none,
 # so every caller would pay the cold start of a Python process before hearing a word.
 ExecStart=/opt/pinecall/venv/bin/pinecall-runtime worker start
+# A stop is a drain: on SIGTERM the worker tells livekit it is full and finishes the calls it
+# holds, up to livekit-agents' own hour. systemd's default of 90 s would cut a call mid-sentence
+# on every deploy; livekit asks for ten minutes or more of grace, and fifteen is what a long
+# conversation gets here.
+TimeoutStopSec=900
 Restart=always
 RestartSec=3
 

@@ -35,6 +35,13 @@ write_files:
     content: |
       PINECALL_DOMAIN=box.example.com                                      # YOURS
       LIVEKIT_PUBLIC_URL=wss://box.example.com                             # YOURS: wss://<the same>
+      # What this box runs: `all` (one machine, everything), `hub` (control and media, no
+      # worker) or `worker` (a worker alone). A worker dials its hub by name, and holds the
+      # calls it was MEASURED to hold — infra/box/README.md, "Slots".
+      PINECALL_ROLE=all                                                    # YOURS
+      #LIVEKIT_URL=wss://box.example.com                                   # worker only
+      #PINECALL_GATEWAY_URL=https://box.example.com                        # worker only
+      #PINECALL_MAX_JOBS=5                                                 # worker only, measured
 
 runcmd:
   # Where the code lands: the deploy account's, because rsync arrives as it and owns what it

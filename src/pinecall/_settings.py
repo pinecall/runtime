@@ -165,6 +165,16 @@ class Settings(BaseSettings):
         default=None,
         description="The agent a job that names none is for.",
     )
+    # How many calls this worker holds at once, MEASURED on this machine and never guessed: the
+    # concurrency at which the p95 first-audio crossed 1.8 s on a ramp, one slot under it for the
+    # half-second window livekit re-reads the load in (livekit/agents#4884). Set, the worker
+    # reports slots to livekit — active over max — and stops taking jobs at 0.7 of them; unset,
+    # it reports the machine's CPU, which is right for a box the worker shares and wrong for one
+    # it has to itself. infra/box/README.md, "Slots".
+    max_jobs: int | None = Field(
+        default=None,
+        description="Calls this worker holds at once, measured on its machine. Unset: gate on CPU.",
+    )
     # An app socket id as the gateway minted it, which a job puts in the `app` of its call. A
     # developer's own worker sets it so the call is served by the process they typed the command
     # in; a fleet worker on a box sets none and takes the newest holder.

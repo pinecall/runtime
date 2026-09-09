@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import partial
 
 from livekit.agents import AgentServer, JobContext, JobProcess
@@ -15,7 +16,7 @@ from pinecall.types.dispatch import WORKER_NAME
 from pinecall.worker import recordings
 from pinecall.worker.client import reaching
 from pinecall.worker.entry import Worker, answer
-from pinecall.worker.load import MachineLoad, reports_no_load
+from pinecall.worker.load import MachineLoad, SlotLoad, reports_no_load
 
 # What livekit needs to register a worker at all: the media plane, and the pair that signs.
 LIVEKIT_FIELDS: tuple[str, ...] = ("livekit_url", "livekit_api_key", "livekit_api_secret")
@@ -56,10 +57,11 @@ def a_worker(settings: Settings) -> Worker:
 # the caller already in the room. `setup_fnc` runs in an idle process before a job is assigned to
 # it, which is where that second belongs — see docs/decisions/worker.md.
 #
-# The load is HANDED to livekit too, and which one is the difference between a box and a laptop:
-# livekit-server routes no job to a worker reporting 0.7 or more, and the machine's CPU average is
-# what a worker reports unless it is given a load_fnc (load.py). A box keeps it and says when it
-# crosses; `dev` reports none, which is what dev mode already means.
+# The load is HANDED to livekit too, and which one is the difference between three kinds of
+# process: livekit-server routes no job to a worker reporting 0.7 or more. A worker with a
+# measured `max_jobs` reports its slots, which is what a box of its own and a fleet are counted
+# in; one without reports the machine's CPU average, right for a box it shares with the SFU; and
+# `dev` reports none, which is what dev mode already means (load.py).
 #
 # The url and the key pair are HANDED to livekit, never left to it: AgentServer falls back to
 # os.environ for all three (worker.py:333-335) and dies at worker.py:680 when they are unset, which
@@ -79,12 +81,23 @@ def a_server(
         ws_url=settings.livekit_url,
         api_key=settings.livekit_api_key,
         api_secret=settings.livekit_api_secret,
-        load_fnc=MachineLoad() if gated_by_machine_load else reports_no_load,
+        load_fnc=_the_gate(settings, gated_by_machine_load),
         setup_fnc=warmed,
     )
     # livekit refuses a second one itself (worker.py:502); the fleet name is ours to insist on.
     server.rtc_session(job, agent_name=fleet)
     return server
+
+
+def _the_gate(
+    settings: Settings, gated: bool
+) -> Callable[[AgentServer], float] | Callable[[], float]:
+    """Slots when this worker was measured, the machine's CPU when it was not, nothing for dev."""
+    if not gated:
+        return reports_no_load
+    if settings.max_jobs is not None:
+        return SlotLoad(settings.max_jobs)
+    return MachineLoad()
 
 
 # livekit hands the hook the process it is warming; nothing of ours needs it, and the vendors it

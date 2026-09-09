@@ -14,6 +14,7 @@ from pinecall.worker.load import (
     NO_LOAD,
     REFUSED_AT,
     MachineLoad,
+    SlotLoad,
     livekits_own_measure,
     reports_no_load,
 )
@@ -85,3 +86,41 @@ def _readings(*loads: float) -> Iterator[float]:
 async def _never_called(ctx: JobContext) -> None:
     """An entrypoint WorkerOptions insists on, only ever built so its defaults can be read."""
     raise AssertionError(ctx)
+
+
+# ── slots: a worker on a box of its own ─────────────────────────────────────────────────────
+
+
+class _Holding:
+    """An AgentServer that holds this many calls, for a gate that only ever asks how many."""
+
+    def __init__(self, active: int) -> None:
+        self.active_jobs = [object()] * active
+
+
+def test_slots_are_reported_as_the_fraction_held() -> None:
+    gate = SlotLoad(max_jobs=10)
+    assert gate(_Holding(0)) == 0.0  # type: ignore[arg-type]
+    assert gate(_Holding(6)) == 0.6  # type: ignore[arg-type]
+    assert gate(_Holding(7)) == 0.7  # type: ignore[arg-type]
+
+
+# The seventh call of ten is where livekit stops routing: 0.7 of the slots, the same line the
+# machine's CPU is held to, so a fleet summed in slots and a dashboard in percent agree.
+def test_the_seventh_of_ten_slots_takes_the_worker_off_the_dispatcher_and_says_so(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO)
+    gate = SlotLoad(max_jobs=10)
+    for active in (5, 6, 7, 7, 8):
+        gate(_Holding(active))  # type: ignore[arg-type]
+    said = [record for record in caplog.records if record.levelno == logging.WARNING]
+    assert len(said) == 1
+    assert "7 of 10 slots" in said[0].getMessage()
+    gate(_Holding(3))  # type: ignore[arg-type]
+    assert "routing jobs here again" in caplog.records[-1].getMessage()
+
+
+def test_a_worker_holds_at_least_one_call() -> None:
+    with pytest.raises(ValueError, match="max_jobs=0"):
+        SlotLoad(max_jobs=0)
