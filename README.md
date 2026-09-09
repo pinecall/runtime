@@ -61,5 +61,5 @@ Fourteen directories under `src/pinecall/`, and none of them is a process:
 | `migrations/` | the schema, numbered, applied in order, never edited |
 
 `tests/test_isolation.py` carries the whole import table: a package earns its directory by
-having a line in it. `docs/decisions/` holds the why, one page per module; `docs/protocol/`
+having a line in it. `docs/protocol/`
 the operator API and the token door as public contracts; `infra/` the dev stack and the box.
