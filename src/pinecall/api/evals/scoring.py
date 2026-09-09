@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 # The ONE place the gateway meets the evaluation distribution, which is why this module is
-# imported at the door and never at startup: see runs_endpoint.py.
+# imported at the door and never at startup: see api/evals/runs.py.
 from pinecall import evals as rings
 from pinecall.api.evals.conversation import Conversation
 from pinecall.evals.goldens import Golden

@@ -1,0 +1,104 @@
+# How the code reaches the box: rsynced from a checkout, and nothing in between.
+#
+#   shipway deploy              ship the runtime and the wire, sync the environment, restart, check
+#   shipway deploy worker       bounce the worker alone, on the code already there
+#   shipway logs gateway --follow
+#
+# THE BOX HOLDS NO CREDENTIAL FOR THE REPOSITORY, deliberately — docs/decisions/box.md says why.
+# It cannot clone, it cannot fetch, and a machine that answers the telephone from the open
+# internet is a machine that should not be able to read our source. So a deploy is a person, at a
+# checkout, pushing: `shipway deploy`, and the only account involved is the one that already has
+# ssh to the box.
+#
+# What is NOT here: the media plane, the units, Caddy and the firewall. Those are the box itself,
+# and `infra/box/setup.sh` builds them once. Read `infra/README.md` for the order.
+
+name: pinecall
+
+host:
+  ip: 34.68.177.78
+  user: berna
+  key: ~/.ssh/google_compute_engine
+
+# The login account owns this directory and the service user reads it; the virtualenv lives
+# outside it, at /opt/pinecall/venv, because `uv sync` writes that one as the service user.
+# infra/box/setup.sh makes both.
+remoteDir: /opt/pinecall/app
+
+# NO `build:` line, and that is the point: the gateway is an API and serves no page, so nothing
+# this box runs is built by a bundler. The console lives in the agents repository and is served on
+# 127.0.0.1 by `pinecall ui`, from the developer's own laptop, for the life of that command.
+
+# Two directories and no more: this repository, and the wire it is generated against. The wire is
+# an editable path dependency of pyproject.toml (`../protocol/python`), so the checkout beside
+# this one is what the lockfile resolves, on a laptop and on the box alike.
+sync:
+  - local: .
+    remote: /opt/pinecall/app/runtime
+    exclude:
+      - .venv
+      - .env
+      - __pycache__
+      - "*.pyc"
+      - .pytest_cache
+      - .ruff_cache
+      - .mypy_cache
+  - local: ../protocol/python
+    remote: /opt/pinecall/app/protocol/python
+    exclude:
+      - .venv
+      - .env
+      - __pycache__
+      - "*.pyc"
+      - .pytest_cache
+      - .ruff_cache
+      - .mypy_cache
+
+# The box's own environment, sourced the same way both units read it: it is where
+# UV_PROJECT_ENVIRONMENT lives, and the virtualenv is deliberately NOT inside the tree — the tree
+# belongs to the account that rsyncs it and the environment to the account that runs it. Without
+# the file the sync tries `/opt/pinecall/app/runtime/.venv` and is refused it.
+#
+# `--extra runtime`, here and in BOTH unit files and in remote.sh's `as_the_service`. `uv` makes
+# the environment match its arguments EXACTLY, so whichever of the four asks for less uninstalls
+# the vendors the worker answers calls with, and the phone goes quiet on the next restart with
+# nothing in either log to say why. The comment saying so is in all four places, because that is
+# where somebody will be standing when they are tempted to drop it.
+#
+# --frozen: a box installs exactly what uv.lock says and re-resolves nothing. Every path source in
+# that lock has to exist for a resolution, which is why `protocol/python` is rsynced above.
+postSync: >-
+  sudo -u pinecall bash -c 'set -a; . /etc/pinecall/pinecall.env; set +a;
+  cd /opt/pinecall/app && exec /opt/pinecall/bin/uv sync -q --frozen --project runtime --extra runtime'
+
+
+services:
+
+  # The control plane: it syncs the code, builds the environment, and answers the health check.
+  gateway:
+    restart:
+      method: systemd
+      name: pinecall-gateway
+    # Through Caddy, under the real certificate, so one request proves TLS, Caddy's upstream and
+    # the gateway at once. /openapi.json because it is the only door that answers WITHOUT a key: a
+    # health check that carries one fails for reasons that have nothing to do with the deploy.
+    # (Not /.well-known/pinecall: no route serves it yet. When discovery lands, this line moves.)
+    health:
+      url: https://box.pinecall.io/openapi.json
+      expect: 200
+      retries: 10
+      delayMs: 3000
+
+  # The same code, the other unit — so it syncs nothing and only bounces. Both fields must be
+  # written out: omitting them would inherit the root's sync and rsync the tree a second time.
+  worker:
+    sync: []
+    postSync: ''
+    restart:
+      method: systemd
+      name: pinecall-worker
+
+logs:
+  gateway: { cmd: "journalctl -u pinecall-gateway -o cat", lines: 100 }
+  worker: { cmd: "journalctl -u pinecall-worker -o cat", lines: 100 }
+  caddy: { cmd: "journalctl -u caddy -o cat", lines: 100 }

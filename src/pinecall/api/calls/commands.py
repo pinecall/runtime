@@ -22,7 +22,7 @@ router = APIRouter()
 NOT_SERVED = "this gateway serves no call {call!r}: open it with POST /v1/calls first"
 
 
-# The other half of gateway/tools.py: there a worker asks the app to run something, here the app
+# The other half of api/calls/tools.py: there a worker asks the app to run something, here the app
 # tells the worker's call what to do. Both travel through the app socket this process holds, and
 # neither is a new vocabulary — the frames are the protocol's own command envelope.
 @router.get("/v1/calls/{call}/commands")

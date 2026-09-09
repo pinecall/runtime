@@ -1,0 +1,26 @@
+# The control plane on the box: HTTP and WebSocket on 127.0.0.1:8080, behind Caddy.
+# Installed by infra/box/setup.sh into /etc/systemd/system/.
+[Unit]
+Description=Pinecall gateway (control plane: apps, routes, the log)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+User=pinecall
+Group=pinecall
+WorkingDirectory=/opt/pinecall/app
+# --extra runtime even though the gateway needs none of it: both units share ONE virtualenv, and
+# `uv run` makes that environment match its arguments EXACTLY. A unit that asks for less than the
+# other uninstalls the worker's providers on its next restart, and the phone goes quiet with a
+# clean log. The two units must ask for the same environment, always.
+# --frozen: install what uv.lock says and re-resolve nothing. A box holds this repository and
+# the wire beside it and no other directory, and a re-resolution walks every path source in the
+# lock and stops on the one that is not there.
+ExecStart=/opt/pinecall/bin/uv run --frozen --project runtime --extra runtime \
+    pinecall-runtime gateway --host 127.0.0.1 --port 8080
+EnvironmentFile=/etc/pinecall/pinecall.env
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

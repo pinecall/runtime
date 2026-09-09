@@ -1,0 +1,20 @@
+# One name, two upstreams, and TLS for both: Caddy is the only thing on the box that answers 443.
+# The domain arrives as PINECALL_DOMAIN in /etc/default/caddy, so this file is the same on every
+# box and nothing here is rendered from a template.
+#
+# Media does NOT pass through here: WebRTC (7881/tcp, 7882/udp) and SIP (5060, 10000-10199/udp)
+# reach the host's own ports directly. A proxy in front of media is a proxy inside every call.
+
+{$PINECALL_DOMAIN} {
+	# LiveKit's own paths, signalling included: a browser's WebSocket is upgraded by Caddy and
+	# handed to the SFU, which is how the room token ever reaches it over TLS.
+	@livekit path /rtc* /twirp* /validate*
+	handle @livekit {
+		reverse_proxy 127.0.0.1:7880
+	}
+
+	# Everything else is the runtime's control plane: the app socket, the log, /v1/*.
+	handle {
+		reverse_proxy 127.0.0.1:8080
+	}
+}

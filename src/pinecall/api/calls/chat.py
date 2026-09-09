@@ -147,7 +147,7 @@ async def _talk(
 ) -> None:
     """The call, from call.started to the hangup: every frame the caller sends is one turn."""
     # Every entry, unprojected, to both sides: the caller's socket, watched from here, and the
-    # app's, which is the one delivery a worker-run call is put on too (gateway/connected.py). The
+    # app's, which is the one delivery a worker-run call is put on too (api/_live.py). The
     # public and tenant projections are the sink's, and the state card of this milestone owns them.
     session.watch(_sending(websocket))
     live.serve(session.call, session.agent, org, logs.writing(session.call, session.agent), app)

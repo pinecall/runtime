@@ -9,7 +9,7 @@ from tests.evals.logs import BOOKING, LOOKING_UP, a_log
 from tests.evals.measuring import measured
 
 # The judge answers from the gate's own trace, so it can never spend a prompt at all. The rule it
-# asks is `pinecall/domain/consent.py`, pinned by `runtime/tests/domain/test_consent.py`; what
+# asks is `types/consent.py`, pinned by `tests/types/test_consent.py`; what
 # these tests pin is this ring's half — a verdict for each of the rule's four words.
 # `docs/decisions/evals-consent.md` says why the split.
 NOT_ONE_PROMPT: list[str] = []

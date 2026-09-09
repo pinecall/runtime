@@ -6,7 +6,7 @@ import re
 
 # livekit's own InterruptionOptions.min_words defaults to 0 (voice/turn.py:194) — every syllable
 # stops the agent. Two is the number a spoken call wants: one word is a cough, a "mm" or the tail
-# of the agent's own audio coming back down a speakerphone. worker/session.py hands this to
+# of the agent's own audio coming back down a speakerphone. session/voice/session.py hands this to
 # livekit, which does the counting (agent_activity.py:2146,2483); the stoplist below is ours,
 # because livekit's own backchannel detector is the hosted "adaptive" mode a self-hosted box
 # cannot reach (inference/interruption.py) — see docs/decisions/voice-bridge.md.

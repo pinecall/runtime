@@ -1,0 +1,1006 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pinecall v2 — diseño</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#fbfbfa; --paper:#ffffff; --ink:#1a1a1a; --ink-2:#5c5c5c; --ink-3:#8a8a8a;
+    --rule:#e6e6e3; --code-bg:#f4f4f2; --accent:#2f6f4e; --accent-soft:#e8f2ec; --warn:#8a5a00; --warn-soft:#fbf3e3;
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{font-size:16px}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;font-weight:400;line-height:1.6;-webkit-font-smoothing:antialiased}
+  b,strong,th,h1,h2,h3,h4{font-weight:400}
+  .wrap{max-width:960px;margin:0 auto;padding:64px 28px 120px}
+  header{margin-bottom:56px}
+  .kicker{color:var(--ink-3);font-size:13px;letter-spacing:.08em;text-transform:uppercase}
+  h1{font-size:40px;line-height:1.15;margin:12px 0 16px;letter-spacing:-.02em}
+  .lede{font-size:20px;color:var(--ink-2);max-width:760px;margin:0}
+  nav.toc{margin:40px 0 0;padding:20px 24px;background:var(--paper);border:1px solid var(--rule);border-radius:10px;font-size:14px}
+  nav.toc ol{margin:0;padding-left:20px;columns:2;column-gap:32px}
+  nav.toc li{margin:4px 0;break-inside:avoid}
+  nav.toc a{color:var(--ink-2);text-decoration:none}
+  nav.toc a:hover{color:var(--ink)}
+  section{margin-top:80px}
+  h2{font-size:28px;letter-spacing:-.015em;margin:0 0 8px;padding-top:16px;border-top:1px solid var(--rule)}
+  h2 .n{color:var(--ink-3);font-family:var(--mono);font-size:14px;margin-right:12px}
+  h3{font-size:19px;margin:36px 0 8px;letter-spacing:-.01em}
+  h4{font-size:16px;color:var(--ink-2);margin:28px 0 6px}
+  p{margin:10px 0;max-width:760px}
+  .note{color:var(--ink-2)}
+  .callout{border-left:2px solid var(--accent);background:var(--accent-soft);padding:14px 18px;border-radius:0 8px 8px 0;margin:20px 0;max-width:760px}
+  .callout.warn{border-color:var(--warn);background:var(--warn-soft)}
+  pre{background:var(--code-bg);border:1px solid var(--rule);border-radius:8px;padding:16px 18px;overflow:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55;margin:16px 0}
+  code{font-family:var(--mono);font-size:.92em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+  pre code{background:none;padding:0;font-size:inherit}
+  .c{color:var(--ink-3)}           /* comment in pre */
+  .k{color:var(--accent)}          /* keyword-ish */
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px}
+  th{text-align:left;color:var(--ink-3);border-bottom:1px solid var(--rule);padding:8px 10px 8px 0;font-size:13px;letter-spacing:.03em}
+  td{border-bottom:1px solid var(--rule);padding:9px 10px 9px 0;vertical-align:top}
+  td:first-child{color:var(--ink);white-space:nowrap}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:18px 0}
+  .card{background:var(--paper);border:1px solid var(--rule);border-radius:10px;padding:16px 18px}
+  .card h4{margin:0 0 6px;color:var(--ink)}
+  .card p{margin:4px 0;font-size:14px;color:var(--ink-2)}
+  .rule-list li{margin:8px 0}
+  .tag{display:inline-block;font-size:12px;color:var(--accent);background:var(--accent-soft);padding:1px 8px;border-radius:999px;margin-right:6px}
+  .tag.no{color:var(--warn);background:var(--warn-soft)}
+  .muted{color:var(--ink-3)}
+  footer{margin-top:100px;padding-top:20px;border-top:1px solid var(--rule);color:var(--ink-3);font-size:13px}
+  @media (max-width:640px){nav.toc ol{columns:1} h1{font-size:32px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Documento de diseño · 2026-09-06</div>
+  <h1>Pinecall v2</h1>
+  <p class="lede">El harness de voice AI para contact centers, construido sobre LiveKit. Una llamada es un objeto: los campos son el estado, los métodos son lo que el modelo puede hacer, el prompt es una función del estado, y cada palabra queda en un ledger que se puede auditar, re-evaluar y aprender.</p>
+
+  <nav class="toc">
+    <ol>
+      <li><a href="#tesis">La tesis</a></li>
+      <li><a href="#art-voice">The art of voice AI</a></li>
+      <li><a href="#arquitectura">Arquitectura</a></li>
+      <li><a href="#runtime">El runtime (Python)</a></li>
+      <li><a href="#sdk">El framework (Node)</a></li>
+      <li><a href="#tenant">Un tenant, completo</a></li>
+      <li><a href="#prompt">El prompt como función del estado</a></li>
+      <li><a href="#memoria">Memoria y retrieval</a></li>
+      <li><a href="#evals">Evals: los cuatro anillos</a></li>
+      <li><a href="#consola">La consola</a></li>
+      <li><a href="#oss">Open source que tomamos</a></li>
+      <li><a href="#art-pinecall">The art of Pinecall</a></li>
+      <li><a href="#comercial">Lo comercial</a></li>
+      <li><a href="#milestones">Milestones</a></li>
+      <li><a href="#decisiones">Decisiones a confirmar</a></li>
+      <li><a href="#cli">El CLI, verbo por verbo</a></li>
+      <li><a href="#protocolo">El protocolo</a></li>
+      <li><a href="#trabajo">Cómo se trabaja el repo</a></li>
+      <li><a href="#hosting">Abierto y privado: hosting, auth, la API de operador</a></li>
+    </ol>
+  </nav>
+</header>
+
+<!-- ───────────────────────────────────────────── 1 -->
+<section id="tesis">
+  <h2><span class="n">01</span>La tesis</h2>
+  <p>Vapi vende un panel. Pipecat y LiveKit venden un runtime. Nadie vende la capa de aplicación: cómo se estructura un negocio hablado, cómo se prueba, cómo se audita, cómo se le pide permiso a alguien antes de hacer algo irreversible.</p>
+  <p>Pinecall v2 es esa capa. La analogía exacta es Rails sobre Rack: Rails no inventó el servidor HTTP, puso el valor en la forma de la app, las convenciones y la cultura de tests. Nuestro protocolo es el Rack de la voz; LiveKit es el Puma; el framework es el Rails.</p>
+
+  <div class="callout">
+    <p>Un agente es un objeto. Los campos son el estado. Los métodos son capacidades. Los docstrings son prompts. Los tipos son contratos. El prompt es <code>render(state)</code>. Las tools son lo único que cambia el estado. El log es la verdad.</p>
+  </div>
+
+  <p>La frase viene de NOOA (NVIDIA-Labs Object-Oriented Agents, arXiv 2607.20709, Apache 2.0) y la tomamos entera. Lo que agregamos es lo que un coding agent no necesita y una recepción sí: una view porque la conversación tiene fases, un gate de confirmación porque hay acciones irreversibles con un humano al teléfono, memoria por contacto porque la gente vuelve a llamar, y el ledger porque hay que poder auditar cada palabra.</p>
+
+  <h3>Para quién</h3>
+  <p>El público final habla con el agente por <span class="tag">web</span> <span class="tag">WhatsApp</span> <span class="tag">teléfono</span> — nunca ve código. El código es para quien construye el agente: un desarrollador que en una tarde tiene una recepción que atiende tres canales, recuerda al cliente, y tiene tests.</p>
+</section>
+
+<!-- ───────────────────────────────────────────── 2 -->
+<section id="art-voice">
+  <h2><span class="n">02</span>The art of voice AI</h2>
+  <p class="note">Lo que aprendimos construyendo Pinecall dos años y convo en cuatro días. Cada regla tiene una medición detrás.</p>
+
+  <ol class="rule-list">
+    <li><span class="k">El juez no tiene que ser más listo; tiene que ver más y decidir menos.</span> Una política dura — “nunca reservar antes de un sí explícito” — es un grafo donde el código decide todo lo decidible y el modelo contesta una sola pregunta binaria con la evidencia adjunta. Cero llamadas al juez en el camino feliz. GEval flipeó entre 0.0 y 0.9 sobre la misma respuesta correcta hasta que hicimos esto.</li>
+    <li><span class="k">El consentimiento es un token, no un estado de ánimo.</span> Un “sí” acuña un token de un solo uso ligado a <code>sha(tool + args)</code> con TTL. La plataforma rechaza lo irreversible sin él. El modelo puede prometer; solo la plataforma ejecuta.</li>
+    <li><span class="k">El log es la verdad.</span> Append-only, un <code>seq</code> por evento, escrito antes de devolver el control — un proceso muerto a mitad de llamada deja un log que termina donde terminó la llamada. Consola, evals y memoria son lectores del mismo log.</li>
+    <li><span class="k">El prompt tiene tres regiones y el orden importa.</span> Prefijo estático cacheado · historia append-only · bloques dinámicos al final. La ganancia de caché depende de ese orden. La view del estado va al final, nunca adelante.</li>
+    <li><span class="k">La fecha es un tool result, no un system message.</span> El framework reescribe los system messages intermedios como turno del usuario y Haiku los contesta. Un resultado de tool es evidencia; una instrucción es alguien hablándote.</li>
+    <li><span class="k">Cada tool en la superficie cuesta.</span> 154 corridas: agregar una tool que un stage nunca usa bajó el acierto de 95 % a 79 % (p = 0.025), y ningún párrafo del prompt lo arregló. La visibilidad de una tool es una condición sobre el estado.</li>
+    <li><span class="k">Leé el fallo del eval antes de arreglarlo.</span> De los primeros cinco fallos, cuatro eran del eval y uno del agente. Ablandar el golden hubiera escondido el defecto real.</li>
+    <li><span class="k">Un golden nunca se ablanda para que pase un modelo.</span> La suite es lo fijo; el modelo es la variable. Una divergencia entre modelos es un hallazgo, no un bug del test.</li>
+    <li><span class="k">Compactar la vista, nunca el log.</span> Una fase cerrada se pliega a una línea en lo que ve el modelo. El ledger queda entero y buscable.</li>
+    <li><span class="k">Cada milestone termina con un comando que corre el humano.</span> Si no hay comando, no terminó.</li>
+  </ol>
+</section>
+
+<!-- ───────────────────────────────────────────── 3 -->
+<section id="arquitectura">
+  <h2><span class="n">03</span>Arquitectura</h2>
+  <p>Dos procesos Python sobre LiveKit, un Postgres, una clase en Node, y un lector del log fuera del servidor. Hosted y self-hosted son la misma imagen.</p>
+
+<pre>
+ web (widget) · WhatsApp · ☎ teléfono              ← el público
+        │            │           │
+        │ texto      │ texto     │ SIP → livekit-sip → livekit-server (SFU) → worker
+        ▼            ▼           ▼
+ ┌────────────────────────────────────────────────────────────────────────────┐
+ │  GATEWAY  (Python · FastAPI)                                                │
+ │   apps        WS del protocolo ↔ la clase del tenant                        │
+ │   text        sesiones chat y WhatsApp: mismo agente, sin audio             │
+ │   log         el ledger: seq · gap · caught_up · SSE · export OTel GenAI    │
+ │   knowledge   push por path · chunk por heading · bge-m3 + BM25 · RRF       │
+ │   memory      recall() ≤ 150 ms en el turno · remember() al colgar          │
+ │   evals       rings 1–4 · PolicyJudge · consent · grounded · call.score     │
+ │   auth        keys · tokens sellados · grants por canal                     │
+ └──────────────────┬───────────────────────────▲──────────────────────────────┘
+                    │ HTTP                      │ HTTP
+                    ▼                           │
+ ┌───────────────────────────────┐   ┌──────────┴──────────────────────────┐
+ │  POSTGRES 17                  │   │  WORKER  (Python · livekit-agents)  │
+ │  pgvector · pg_textsearch     │   │  1 proceso por llamada              │
+ │  tenants · routes · call_log  │   │  session   STT · LLM · TTS · VAD    │
+ │  kb_chunks · contact_memories │   │  bridge    eventos ↔ protocolo      │
+ │  eval_runs                    │   │  confirm   el sí → token → run      │
+ └───────────────────────────────┘   └───────────▲─────────────────────────┘
+                                                 │ dispatch: room → job
+                                     ┌───────────┴─────────────────────────┐
+  navegador / móvil ─ WebRTC ───────▶│  livekit-server (SFU) · livekit-sip │◀── SIP ── Twilio ── ☎
+                                     │  redis                              │
+                                     └─────────────────────────────────────┘
+
+  TU APP (Node, donde quieras)            CONSOLA (React)
+  class ClinicaNorte extends Agent  ──WS──▶ gateway ◀──SSE── Calls · Sessions · Evals · Pipeline · Supervisor · Board
+</pre>
+
+  <h3>Una llamada, paso a paso</h3>
+<pre>
+ 1  new ClinicaNorte()     → WS al gateway: "soy clinica-norte, atiendo +34 910…"
+ 2  ☎ entra por Twilio     → SIP → livekit-sip crea el room → livekit-server despacha un worker
+ 3  worker.router          → "¿de quién es +34 910…?" → gateway: del socket de ClinicaNorte
+ 4  worker.session         → AgentSession con voice/llm/knowledge de la clase; el prefijo se cachea
+ 5  onCall()               → this.last(contact): ¿quedó a mitad de algo hace &lt; 30 min? restore(). Si no, byPhone()
+ 6  render(state)          → la view, con este estado, al final del prompt; tools visibles = las que su `when` permite
+ 7  el caller habla        → STT → LLM → llama findPatient → bridge → WS → TU método corre en TU proceso
+ 8  this.patient = …       → state.changed (seq) → re-render → la consola lo muestra → `when` recalcula las tools
+ 9  book (confirm:)        → el worker lee la frase, espera el sí, acuña el token, recién ahí corre tu método
+10  cuelga                 → session.end · grabación · remember() extrae hechos · ring 4 juzga al colgar: call.score sella el log
+</pre>
+
+  <div class="callout">
+    <p>El runtime es tu Postgres: no lo escribís, te conectás. Lo alquilás (<code>voice.pinecall.io</code>) o lo corrés (<code>docker compose up</code>). Tu app es un proceso Node que corre donde quieras.</p>
+  </div>
+</section>
+
+<!-- ───────────────────────────────────────────── 4 -->
+<section id="runtime">
+  <h2><span class="n">04</span>El runtime (Python)</h2>
+  <p>Una distribución, dos procesos, sobre <code>livekit-server</code> + <code>livekit-sip</code>. Convenciones 2026: <code>src/</code> layout, <code>pyproject.toml</code> único, uv + hatchling, ruff + pyright estricto + mypy estricto, <code>py.typed</code>, guion bajo = privado. Reglas que convo probó: ningún archivo sobre 400 líneas, docstring de una línea con el porqué en <code>docs/decisions/</code>, <code>providers/</code> son los únicos que nombran un vendor, el worker nunca importa el gateway.</p>
+
+  <table>
+    <tr><th>qué</th><th>nombre</th><th>por qué</th></tr>
+    <tr><td>PyPI</td><td><code>pinecall</code></td><td>una distribución; lo pesado va en extras: <code>pip install pinecall[runtime]</code></td></tr>
+    <tr><td>import</td><td><code>pinecall</code></td><td><code>pinecall.protocol</code> · <code>pinecall.gateway</code> · <code>pinecall.worker</code>; un futuro SDK Python para apps es <code>pinecall.sdk</code></td></tr>
+    <tr><td>CLI</td><td><code>pinecall-runtime</code></td><td>no choca con el <code>pinecall</code> de Node en la misma máquina</td></tr>
+  </table>
+
+<pre>
+runtime/
+├── pyproject.toml · uv.lock · README.md · CHANGELOG.md · CONTRIBUTING.md · SECURITY.md
+├── .env.example · Dockerfile                    <span class="c">una imagen, dos comandos: gateway | worker</span>
+├── scripts/                                     <span class="c">cuatro ejecutables sin argumentos</span>
+│   ├── bootstrap · format · lint · test
+│   └── generate                                 <span class="c">../protocol/schema → src/pinecall/protocol/*.py</span>
+│
+├── src/pinecall/
+│   ├── __init__.py · py.typed · _version.py
+│   ├── _settings.py                             <span class="c">pydantic-settings, env only. Las 50 lecturas de keys viven acá</span>
+│   ├── _exceptions.py · _types.py
+│   │
+│   ├── protocol/                                <span class="c">MECÁNICO. Generado del JSON Schema compartido con TS. Nunca a mano</span>
+│   │   ├── envelope.py                          <span class="c">Entry {seq, ts, call, agent, type, ephemeral, data}</span>
+│   │   ├── events.py · commands.py · verbs.py   <span class="c">eventos · comandos · verbos · métricas por turno — generados del schema</span>
+│   │   └── codec.py                             <span class="c">snake_case ↔ modelos. El único lugar que toca nombres de clave</span>
+│   │
+│   ├── log/                                     <span class="c">el ledger — el bus. Sin framework</span>
+│   │   ├── entry.py · log.py                    <span class="c">append(type, data) → Entry con el próximo seq · CallLog · AgentLog</span>
+│   │   ├── fanout.py · replay.py · filters.py   <span class="c">suscriptores acotados · gap + snapshot · types= durable=</span>
+│   │   ├── pii.py                               <span class="c">enmascarado por declaración Y por valor</span>
+│   │   └── store/                               <span class="c">Protocol · postgres.py · memory.py (tests)</span>
+│   │
+│   ├── domain/                                  <span class="c">contratos. Sin IO</span>
+│   │   └── agent.py · call.py · tool.py · route.py · token.py
+│   │
+│   ├── auth/                                    <span class="c">keys.py · tokens.py (LiveKit JWT + metadata sellada) · grants.py</span>
+│   │
+│   ├── gateway/                                 <span class="c">PROCESO 1 — el plano de control. FastAPI, un router por recurso</span>
+│   │   ├── app.py · deps.py
+│   │   ├── apps.py · registry.py                <span class="c">WS del protocolo · qué socket atiende qué número</span>
+│   │   ├── calls.py · agents.py                 <span class="c">GET events (JSON | SSE) · WS attach · el agent log</span>
+│   │   ├── tokens.py · routes.py · rooms.py
+│   │   ├── text/                                <span class="c">chat · whatsapp — el LLM corre acá, sin audio</span>
+│   │   ├── knowledge/                           <span class="c">ingest · chunk · embed · search (RRF) · sources</span>
+│   │   ├── memory/                              <span class="c">Memory Protocol · pgvector.py · graphiti.py (opcional) · extractor.py</span>
+│   │   ├── evals/                               <span class="c">runner · endpoints · goldens · replay · latency — POST /v1/evals/run, ring 3</span>
+│   │   ├── supervise.py
+│   │   └── otel.py                              <span class="c">el log → spans GenAI (invoke_agent, execute_tool)</span>
+│   │
+│   ├── judging/                                 <span class="c">ring 4: los jueces al colgar, techo de precio, call.score. Lo alcanzan gateway (texto) y worker (voz)</span>
+│   │
+│   ├── worker/                                  <span class="c">PROCESO 2 — la flota. Un proceso por llamada</span>
+│   │   ├── main.py · entry.py · router.py · sip.py
+│   │   ├── client.py                            <span class="c">HTTP al gateway. Sin DB, sin Redis</span>
+│   │   ├── session.py · state.py                <span class="c">AgentSession desde AgentConfig · render(state) → update_instructions/tools</span>
+│   │   ├── bridge/                              <span class="c">events.py · commands.py · tools.py</span>
+│   │   ├── confirm.py · guard.py                <span class="c">el sí → token de un uso → run</span>
+│   │   ├── clock.py · stt_gate.py · barge_in.py · recordings.py · transfer.py
+│   │
+│   ├── providers/                               <span class="c">los ÚNICOS que nombran un vendor</span>
+│   │   └── llm.py · stt.py · tts.py · turn.py · embed.py · prices.py
+│   ├── lang/es.py
+│   └── cli/                                     <span class="c">pinecall-runtime gateway | worker | sessions | routes | doctor</span>
+│
+├── tests/
+│   ├── conftest.py                              <span class="c">keys sentinela muertas en todo test unit: construir anda, llamar falla en segundos</span>
+│   ├── test_layout.py · test_isolation.py       <span class="c">400 líneas · sin framework en protocol/log/domain · worker ≠ gateway · vendors solo en providers</span>
+│   ├── protocol/                                <span class="c">goldens compartidos con TS — los mismos bytes</span>
+│   ├── log/ · gateway/ · worker/ · evals/
+│
+└── docs/decisions/                              <span class="c">el porqué. El código guarda el qué</span>
+</pre>
+
+  <h3>La cerca</h3>
+  <p><code>protocol/</code> lo escribe el generador desde <code>../protocol/schema</code>. Todo lo demás lo escribe una persona. <code>CONTRIBUTING.md</code> lo dice en un párrafo y CI regenera y hace diff. Un refactor sabe qué puede reescribir a ciegas.</p>
+
+  <h3>pyproject — las líneas que importan</h3>
+<pre>
+[project]
+name = "pinecall"            requires-python = ">=3.12"          license = "Apache-2.0"
+dependencies = ["pydantic>=2.7,&lt;3", "pydantic-settings", "fastapi", "uvicorn[standard]", "httpx", "asyncpg", "pgvector"]
+[project.optional-dependencies]
+runtime = ["livekit-agents[anthropic,openai,soniox,deepgram,elevenlabs,silero,turn-detector]>=1.8,&lt;2", "anthropic&lt;1"]
+memory-graph = ["graphiti-core"]
+[project.scripts]
+pinecall-runtime = "pinecall.cli:main"
+[tool.pytest.ini_options]
+addopts = "--tb=short -n auto"   xfail_strict = true   filterwarnings = ["error"]   markers = ["unit","needs_llm","voice","evals"]
+[tool.pyright]  typeCheckingMode = "strict"       [tool.mypy]  strict = true       [tool.ruff]  line-length = 100
+</pre>
+  <p class="muted">~10 000 líneas en total. Un tercio del sdk-server actual, ninguna sobre 400.</p>
+</section>
+
+<!-- ───────────────────────────────────────────── 5 -->
+<section id="sdk">
+  <h2><span class="n">05</span>El framework (Node)</h2>
+  <p>Cuatro paquetes con una dependencia en cascada. El tenant instala uno: <code>pinecall</code>.</p>
+
+<pre>
+packages/
+├── protocol/        @pinecall/protocol   tipos generados del schema · codec · el reducer del log (con su golden)
+├── sdk/             @pinecall/sdk        cliente lean: conexión, registro, Call, tool proxy, observe(). Sin framework
+├── pinecall/        pinecall             EL FRAMEWORK: Agent, @tool, estado reactivo, views, componentes, CLI
+└── web/             @pinecall/web        navegador: VoiceSession sobre livekit-client · ChatSession · widget · useCall
+</pre>
+
+  <h3>El paquete <code>pinecall</code>, por dentro</h3>
+<pre>
+packages/pinecall/src/
+├── agent/
+│   ├── agent.ts          <span class="c">la clase base: el Proxy que hace reactivos los campos, ciclo de vida, log()</span>
+│   ├── state.ts          <span class="c">diff de estado · state.changed → protocolo · restore/last · collapse</span>
+│   ├── tools.ts          <span class="c">registro: docstring → descripción · tipos → schema · when · confirm · preview · pii</span>
+│   └── decorators.ts     <span class="c">@tool</span>
+├── views/
+│   ├── jsx-runtime.ts    <span class="c">~60 líneas: JSX → texto plano. Sin React</span>
+│   ├── render.ts         <span class="c">layout(view(state)) · las tres regiones · colapso de fases</span>
+│   └── components/       <span class="c">Prompt · Knowledge · Rules · Protocols · Memory · Retrieved · Section · Rule · Example</span>
+├── channels/             <span class="c">phone.ts · whatsapp.ts · web.ts — campos declarativos → comandos del protocolo</span>
+├── runtime/              <span class="c">el puente Agent ↔ @pinecall/sdk: eventos → estado · tool calls → métodos · render → setPrompt/tools</span>
+├── testing/              <span class="c">loader de goldens · FakeCall · helpers para vitest</span>
+├── cli/                  <span class="c">new · g · run · chat · test · eval · sessions · knowledge</span>
+└── index.ts
+</pre>
+
+  <h3>El CLI del tenant</h3>
+<pre>
+pinecall new clinica-norte          la app corriendo: una clase, una view, un knowledge, un golden
+pinecall g tool free-slots          un método con su docstring y su test
+pinecall g component choose         un componente de view
+pinecall run                        la app + los tres canales: el proceso que se despliega
+pinecall chat                       la app en ESTA terminal, y una llamada escrita contra ella
+pinecall test                       ring 1 — goldens; --voice para ring 2
+pinecall eval &lt;call-id&gt;             ring 3 — una llamada real, re-evaluada
+pinecall sessions list | show | tail
+pinecall knowledge push | query
+</pre>
+</section>
+
+<!-- ───────────────────────────────────────────── 6 -->
+<section id="tenant">
+  <h2><span class="n">06</span>Un tenant, completo</h2>
+  <p>Una carpeta. Lo que un desarrollador escribe: una clase, una view, un markdown, sus funciones de negocio y un JSON. Lo que no escribe: la máquina de estados, el gate de confirmación, la memoria, el retrieval, el log, la consola, el runner de evals, los tres transportes.</p>
+
+<pre>
+clinica-norte/
+├── agent.ts                  la clase — el sistema entero, legible de arriba abajo
+├── views/
+│   ├── agent.tsx             UNA view: el prompt como función del estado
+│   └── components/           cuando crece: Identify.tsx · Choose.tsx
+├── knowledge/
+│   ├── clinica.md            pequeño y fijo → cacheado delante de todo
+│   └── docs/**/*.md          grande → indexado, recuperado por turno
+├── lib/
+│   └── agenda.ts             el sistema de la clínica — funciones sobre su API o su DB
+├── test/
+│   ├── choose.json           goldens desde un estado
+│   └── agent.test.ts         la clase es una clase
+├── .env                      PINECALL_API_KEY · PINECALL_URL
+└── package.json              una dependencia: pinecall
+</pre>
+
+<pre>
+<span class="c">// agent.ts</span>
+<span class="c">/**
+ * Eres la recepción de Clínica Norte. Hablas de usted, con frases cortas.
+ * Todo lo que dices se lee en voz alta: sin listas, sin markdown, los números como se dicen.
+ * Nunca inventes una hora: las horas salen de la agenda, siempre.
+ */</span>
+export default class ClinicaNorte extends Agent {
+  <span class="c">// canales: un agente, tres puertas</span>
+  phone = "+34 910 000 000";  whatsapp = "clinica-norte";  web = true;
+  voice = "carolina";  llm = "haiku";  language = "es";
+
+  knowledge = "./knowledge/clinica.md";
+  docs = "./knowledge/docs/**/*.md";
+  memory = { remember: ["cómo prefiere que le llamen", "alergias", "su médico habitual"], forget: ["pagos"] };
+
+  <span class="c">// el estado. Asignar re-renderiza, escribe state.changed en el log, actualiza la consola</span>
+  patient?: Patient;
+  slots: Slot[] = [];
+  slot?: Slot;
+  booking?: Booking;
+
+  <span class="c">// derivados: getters, como en React</span>
+  get identified() { return !!this.patient; }
+  get done()       { return !!this.booking; }
+
+  async onCall(call: Call) {
+    const last = await this.last(call.contact);
+    if (last?.unfinished &amp;&amp; last.ago &lt; "30m") return this.restore(last);   <span class="c">// quedó a mitad hace poco: retoma</span>
+    this.patient = await agenda.byPhone(call.from);
+  }
+
+  <span class="c">/** Busca al paciente por nombre y teléfono. Pide los dos antes de llamarla. */</span>
+  @tool({ when: s =&gt; !s.identified, pii: ["name", "phone"] })
+  async findPatient(name: string, phone: string): Promise&lt;Patient | NotFound&gt; {
+    return (this.patient = await agenda.find(name, phone)) ?? notFound("Pide el nombre completo otra vez.");
+  }
+
+  <span class="c">/** Horas libres de un día. Un día que nombre el paciente se consulta SIEMPRE, aunque su ficha ya tenga cita ese día. */</span>
+  @tool({ when: s =&gt; s.identified &amp;&amp; !s.done, preview: 2 })      <span class="c">// el modelo ve 2; this.slots guarda todos</span>
+  async freeSlots(day: string): Promise&lt;Slot[]&gt; {
+    return (this.slots = await agenda.free(day));
+  }
+
+  <span class="c">/** Reserva la hora que el paciente eligió. */</span>
+  @tool({ when: s =&gt; s.slots.length &gt; 0 &amp;&amp; !s.done,
+          confirm: "Le reservo el {{slot.when}} con {{slot.doctor}}. ¿Lo confirmo?" })
+  async book(slot: Slot): Promise&lt;Booking&gt; {
+    this.slot = slot;
+    this.booking = await agenda.book(this.patient!, slot);
+    this.collapse(`Reservado ${slot.when} con ${slot.doctor}, confirmado por el paciente.`);
+    this.log("appointment.booked", this.booking);
+    return this.booking;
+  }
+
+  <span class="c">/** Pasa la llamada a una persona. Solo si el paciente lo pide o no puedes ayudarle. */</span>
+  @tool()
+  transfer(call: Call) { return call.forward("+34 910 000 099", "Le paso con recepción."); }
+
+  onMemory(ops: MemoryOp[], call: Call) { crm.apply(call.contact, ops); }
+}
+</pre>
+
+<pre>
+<span class="c">// views/agent.tsx — el prompt es una función del estado</span>
+export default ({ patient, slots, booking, identified, done, memory, resumed, call }) =&gt; (
+  &lt;&gt;
+    &lt;Memory kinds={["preference", "health"]} /&gt;
+    &lt;Retrieved minScore={0.4} /&gt;
+
+    {resumed &amp;&amp; &lt;p&gt;Se cortó su llamada anterior. Retoma desde donde quedó sin volver a preguntar.&lt;/p&gt;}
+
+    {!identified &amp;&amp; &lt;p&gt;Saluda y pide nombre y teléfono. Nada más hasta identificar al paciente.&lt;/p&gt;}
+
+    {identified &amp;&amp; !done &amp;&amp; &lt;&gt;
+      &lt;p&gt;{patient.name} tiene cita el {patient.cita} con {patient.doctor}.&lt;/p&gt;
+      {memory.has("médico habitual") &amp;&amp; &lt;p&gt;Ofrece primero las horas de su médico habitual.&lt;/p&gt;}
+      {slots.length === 0 &amp;&amp; &lt;p&gt;Pregunta para qué día quiere cambiarla.&lt;/p&gt;}
+      {slots.length &gt; 0 &amp;&amp; (call.channel === "phone"
+        ? &lt;p&gt;Ofrece como máximo dos de estas horas y pregunta cuál prefiere.&lt;/p&gt;
+        : &lt;p&gt;Muestra hasta cinco horas, una por línea.&lt;/p&gt;)}
+    &lt;/&gt;}
+
+    {done &amp;&amp; &lt;p&gt;Confirma que le llega un SMS con la cita del {booking.when}. Despídete y cuelga.&lt;/p&gt;}
+  &lt;/&gt;
+);
+</pre>
+
+<pre>
+<span class="c">// test/choose.json — goldens desde un estado. La política de consentimiento sale de confirm:</span>
+[
+  { "state": { "patient": { "name": "Ana García", "cita": "jueves 10:00" } },
+    "memory": ["prefiere a la Dra. Vidal"],
+    "input": "¿tiene algo el martes?",
+    "expect": { "tools": ["freeSlots"], "says": ["Vidal"] } },
+
+  { "state": { "patient": { "name": "Ana García" }, "slots": [{ "when": "martes 16:00", "doctor": "Dra. Vidal" }] },
+    "input": "la de las cuatro me viene bien",
+    "expect": { "not": ["book"] } },                                <span class="c">// aceptar una hora no es un sí</span>
+
+  { "state": { "patient": { "name": "Ana García" } },
+    "input": "¿cuánto cuesta una primera consulta?",
+    "expect": { "tools": [], "grounded": "knowledge" } }
+]
+</pre>
+</section>
+
+<!-- ───────────────────────────────────────────── 7 -->
+<section id="prompt">
+  <h2><span class="n">07</span>El prompt como función del estado</h2>
+  <p>Tres reglas. Los campos son el estado: asignar dispara el re-render y deja <code>state.changed</code> en el log con <code>seq</code> y autor. Las tools son lo único que lo cambia. El prompt es <code>render(state)</code>, en el orden que NOOA demostró que cuida la caché:</p>
+
+<pre>
+[ estático · cacheado ]   docstring de la clase → knowledge/clinica.md → &lt;Rules&gt; → &lt;Protocols&gt; → doc de las tools visibles
+[ historia · append   ]   ▸ (colapsado) "Paciente identificado: Ana García, cita actual jueves 10:00."
+                          agent:  ¿Para qué día quiere cambiarla?
+                          caller: el martes por la tarde
+                          ⚙ freeSlots("martes") → Slot[] len=4, [:2] = [16:00 Dra. Vidal, 17:30 Dr. Ferrer]
+[ dinámico · al final ]   &lt;Memory&gt; prefiere a la Dra. Vidal · alergia al látex
+                          &lt;Retrieved&gt; —
+                          la view, renderizada con este estado
+</pre>
+
+  <div class="grid">
+    <div class="card"><h4>Sin stages</h4><p>Un stage era un <code>if</code> con nombre. La view lo expresa con condicionales; la visibilidad de una tool con <code>when</code>. Si un tenant quiere etiquetas para leer la consola, agrega <code>stage = "choose"</code> como un campo más: es estado.</p></div>
+    <div class="card"><h4>Volver atrás es gratis</h4><p>“En realidad quiero otro día” → una tool pone <code>this.slots = []</code> y la view vuelve a preguntar. Con stages eso era una flecha más en el diagrama.</p></div>
+    <div class="card"><h4>Retomar es trivial</h4><p><code>this.last(contact)</code> es un SELECT sobre el log; <code>restore()</code> vuelve a poner los campos y la view se renderiza sola en el punto correcto.</p></div>
+    <div class="card"><h4>Previews acotadas</h4><p><code>preview: 2</code>: el modelo ve dos slots y <code>len=4</code>; <code>this.slots</code> guarda los cuatro. Un volcado grande nunca entra al contexto — la idea de NOOA de pasar por referencia.</p></div>
+    <div class="card"><h4>Componentes, no partials</h4><p><code>&lt;Memory&gt;</code>, <code>&lt;Retrieved&gt;</code>, <code>&lt;Caller of={patient}/&gt;</code> son funciones con props y render props. Tres niveles: default · props · <code>{facts =&gt; …}</code>.</p></div>
+    <div class="card"><h4>Colapsar la vista</h4><p><code>this.collapse("…")</code> pliega la fase cerrada a una línea en lo que ve el modelo. El ledger queda entero. Es <code>events.collapse</code> de NOOA.</p></div>
+  </div>
+</section>
+
+<!-- ───────────────────────────────────────────── 8 -->
+<section id="memoria">
+  <h2><span class="n">08</span>Memoria y retrieval</h2>
+  <p>Investigado a septiembre de 2026 con cuatro agentes y fuentes verificadas. La conclusión es la misma en las dos capas: nada propietario, pero tampoco una librería a ciegas.</p>
+
+  <h3>Memoria — interfaz propia, default en pgvector, Graphiti opcional</h3>
+  <p>Ninguna librería publica retrieval por debajo de 150 ms de forma independiente. Mem0 OSS v2 quitó la consolidación (los hechos se acumulan y “retrieval decide”) y mete spaCy en inglés. Graphiti es el mejor cerebro — bi-temporal, invalida contradicciones — pero exige Neo4j o FalkorDB y es solo Python. Letta es un runtime, LangMem está muerto desde octubre de 2025.</p>
+
+<pre>
+class Memory(Protocol):
+    async def recall(self, contact, query, k=6, as_of=None) -&gt; list[Fact]    <span class="c"># ≤ 150 ms, sin LLM, en el turno</span>
+    async def remember(self, contact, turns, channel, at) -&gt; list[Op]        <span class="c"># fuera de banda, al colgar: ADD / UPDATE / INVALIDATE</span>
+    async def forget(self, contact) -&gt; None                                   <span class="c"># derecho al olvido</span>
+    async def history(self, contact) -&gt; list[Fact]
+</pre>
+
+  <table>
+    <tr><th>adapter</th><th>qué es</th><th>cuándo</th></tr>
+    <tr><td><code>PgvectorMemory</code></td><td>tabla <code>contact_memories</code>: hecho, categoría, embedding, <code>tsvector('spanish')</code>, <code>valid_from</code>, <code>invalidated_at</code>, <code>supersedes</code>. RRF en SQL filtrado por contacto; ranking relevancia · recencia · importancia (el ACT-R de NOOA). Una llamada LLM al colgar consolida — el algoritmo de dos pasos que Mem0 abandonó por costo <em>por turno</em>; por llamada el costo es nada y la calidad para un CRM es mejor. ~500 líneas.</td><td>default</td></tr>
+    <tr><td><code>GraphitiMemory</code></td><td>razonamiento temporal (“¿qué plan tenía en marzo?”). Requiere Neo4j/FalkorDB.</td><td>opcional, segunda release</td></tr>
+  </table>
+
+  <p>Dos memorias distintas y las dos hacen falta: <code>restore(last)</code> es episódica de corto plazo — el estado de la última llamada, se restaura entero y caduca; <code>&lt;Memory/&gt;</code> son hechos consolidados para siempre. La identidad del contacto: el número en teléfono y WhatsApp; el <code>contactId</code> sellado en el token en web. Sin identidad no se recuerda.</p>
+
+  <h3>Retrieval — híbrido o nada</h3>
+  <p>De las cinco arquitecturas de moda, una sola cabe en un turno de voz. CRAG y agentic cuestan una llamada LLM más (300–800 ms); GraphRAG son 15–25 segundos por query en LightRAG. Quedan para background o pre-call.</p>
+
+  <table>
+    <tr><th>capa</th><th>default (CPU)</th><th>perfil gpu</th></tr>
+    <tr><td>store + léxico</td><td>Postgres 17 + pgvector 0.8 (HNSW, <code>halfvec</code>) + pg_textsearch (BM25 real, <code>spanish</code>)</td><td>igual</td></tr>
+    <tr><td>embedding</td><td><code>bge-m3</code> (MIT) vía TEI <code>cpu</code> · lite: <code>multilingual-e5-small</code></td><td>TEI <code>cuda</code>, 5–15 ms</td></tr>
+    <tr><td>fusión</td><td>RRF k=60, 30 candidatos por rama, top-8 al modelo</td><td>+ rescoring ColBERT de bge-m3</td></tr>
+    <tr><td>reranker</td><td>ninguno en el turno</td><td><code>bge-reranker-v2-m3</code> (Apache) sobre top-20, entra al turno</td></tr>
+    <tr><td>grader (CRAG)</td><td>—</td><td>Qwen3 chico con vLLM: “no recuperé nada” &gt; “recuperé basura”</td></tr>
+    <tr><td>chunking</td><td>H2/H3, tope 300–400 tokens, ruta de headings prefijada al texto</td><td>igual</td></tr>
+    <tr><td>ingesta background (opt-in)</td><td>contextual chunks con LLM · late chunking con bge-m3</td><td>igual, local</td></tr>
+    <tr><td>presupuesto por turno</td><td>~70–120 ms (bge-m3) · 25–50 (lite)</td><td>~30–60 con reranker</td></tr>
+  </table>
+
+  <h4>No se embebe en cada turno</h4>
+  <p>Solo las views con <code>&lt;Retrieved/&gt;</code> disparan retrieval. BM25 va primero y es gratis: un turno corto o conversacional con score léxico bajo no se embebe. Cuando se embebe, se hace sobre el transcript parcial (<code>eager.turn</code>) mientras el caller todavía habla — listo antes de que termine la frase. Y solo se inyecta lo que supera <code>minScore</code>: lo caro no es el embedding, son los tokens que el modelo lee. Quien prefiera que el modelo decida: <code>docs = { mode: "tool" }</code> expone <code>search(query)</code>.</p>
+
+  <div class="callout">
+    <p><code>docker compose up</code> arranca en CPU y entra en el presupuesto. <code>docker compose --profile gpu up</code> suma TEI cuda, el reranker y vLLM. <code>pinecall-runtime doctor --bench</code> mide en tu hardware antes de prometer nada. Una T4 spot en GCP ronda los 90 USD/mes; una L4 on-demand, 500–580. Verificá en la calculadora.</p>
+  </div>
+</section>
+
+<!-- ───────────────────────────────────────────── 9 -->
+<section id="evals">
+  <h2><span class="n">09</span>Evals: los cuatro anillos</h2>
+  <p>El juicio corre en el runtime — tiene el juez, las keys, el log y el store. El CLI construye el caso porque es el que sabe qué estado tiene la clase. Un mismo vocabulario en los cuatro anillos; cambia de dónde viene la conversación, nunca cómo se juzga.</p>
+
+  <table>
+    <tr><th>anillo</th><th>de dónde viene la conversación</th><th>quién lo corre</th><th>costo</th></tr>
+    <tr><td>1 · goldens</td><td>un estado + una línea del caller, por chat</td><td><code>pinecall test</code>, CI</td><td>~0.01 USD la suite; 0 jueces en el camino feliz</td></tr>
+    <tr><td>2 · voz</td><td>una persona sintética llama de verdad — STT, TTS, interrupciones</td><td><code>pinecall test --voice</code>, el nightly en la box</td><td>el minuto de voz</td></tr>
+    <tr><td>3 · una llamada real</td><td>el log de una sesión, re-evaluado con las mismas métricas</td><td><code>pinecall eval &lt;id&gt;</code></td><td>0–1 juez</td></tr>
+    <tr><td>4 · cada llamada</td><td>al colgar, sin que nadie lo pida: <code>call.score</code> es la entrada terminal del log</td><td>el worker (voz) o el gateway (texto), en proceso; <code>runtime/judging/</code></td><td>≤ 0.2 cent; 0 en el camino feliz — un <code>PolicyJudge</code> no pregunta</td></tr>
+  </table>
+
+<pre>
+pinecall test (Node)                       gateway (Python)                          tu app
+  lee test/*.json
+  POST /v1/evals/run ──────────────▶  por cada golden:
+                                       abre sesión chat ──────────────────────▶ session.configure {state}
+                                                                                 → la clase pone los campos, renderiza la view
+                                       manda el input ───────────────────────▶ el modelo responde, llama tools
+                                       lee el log: tools · estado · texto
+                                       decide por CÓDIGO lo decidible: tools · estado · hechos con fuente · registro · consentimiento
+                                       1 pregunta binaria al juez, con la evidencia adjunta, solo si sobra algo
+  ◀────────────────────────────────  JSON + el run en el store → la consola lo muestra con deltas
+</pre>
+
+  <h3>Contra el mercado</h3>
+  <p>Coval cobra 100 / 500 / desde 4 500 USD al mes; Cekura 0.25 USD por minuto de test; Hamming no publica precio. Todos cerrados, todos miden después.</p>
+  <table>
+    <tr><th>capacidad</th><th>Coval · Hamming · Cekura</th><th>Pipecat evals · LiveKit testing</th><th>Pinecall v2</th></tr>
+    <tr><td>simulación de personas, texto y voz</td><td>sí, pago</td><td>YAML · pytest</td><td>sí</td></tr>
+    <tr><td>política determinista sobre acciones irreversibles</td><td>no</td><td>no — aserciones a mano</td><td>derivada de <code>confirm:</code>. Nadie más lo tiene</td></tr>
+    <tr><td>goldens por fase desde un estado</td><td>no</td><td>no</td><td><code>{ state, input, expect }</code></td></tr>
+    <tr><td>cada llamada real puntuada al colgar</td><td>monitoreo pago</td><td>no</td><td>ring 4</td></tr>
+    <tr><td>re-evaluar una llamada real</td><td>replay (Roark)</td><td>no</td><td>ring 3</td></tr>
+    <tr><td>matriz de modelos sobre los mismos goldens</td><td>no</td><td>no</td><td>sí</td></tr>
+    <tr><td>ledger auditable con <code>seq</code>, replay, cursor</td><td>spans</td><td>no</td><td>sí, y exporta a OTel GenAI</td></tr>
+    <tr><td>código abierto</td><td>no</td><td>sí</td><td>Apache 2.0</td></tr>
+  </table>
+  <p>Promoción y deriva son ms-6 (tk-7754e3): <code>pinecall runs promote &lt;call&gt;</code> convierte una llamada que falló ring 4 en golden candidato con <code>promoted_from</code>; <code>pinecall runs drift</code> es el delta de held-rate por juez entre dos ventanas, y el nightly cae con él. Latencias e interrupciones las lleva <code>simulate</code> al reporte, leídas de las métricas del log. Aviso honesto: Pipecat cerró parte de la ventana en cinco meses. Lo defendible es la política determinista, el ledger y el estado — no el juez.</p>
+</section>
+
+<!-- ───────────────────────────────────────────── 10 -->
+<section id="consola">
+  <h2><span class="n">10</span>La consola</h2>
+  <p><b>Borrada la mañana del 2026-09-08, de vuelta esa misma noche.</b> Lo que se borró fue el
+  <code>webui</code> del gateway, y eso no vuelve: <b>el gateway es una API y no sirve ninguna
+  página</b> — <code>runtime/tests/gateway/test_no_page.py</code> lo fija. La consola es
+  <code>console/</code>, y la sirve <b><code>pinecall ui [agente]</code> en 127.0.0.1</b>, desde el CLI
+  del tenant, mientras dura el comando: bajo un path aleatorio de dieciséis bytes, firmando cada
+  request al gateway con la key de la org, así que la key nunca llega al navegador. <code>talk</code>
+  dejó de ser un verbo: es la primera pantalla de <code>ui</code>. El porqué está en
+  <code>docs/decisions/console.md</code>. En todo este documento «la consola» significa eso — un
+  lector del log servido por el CLI, nunca un proceso del gateway.</p>
+  <p>Una pantalla por pregunta que te hacés durante una llamada. No tiene estado propio: todo sale del log por SSE. La central:</p>
+
+<pre>
+┌ clinica-norte ─────────────────────────────────────────────────────── ● live · +34 910 000 000 ┐
+│ CALLS                  │ CA_8f4a  ☎ +34 600 123 456   02:14                                      │
+│ ● CA_8f4a  ☎ 02:14     │                                                                         │
+│ ○ CA_c21e  ◉ 00:31     │  caller  Hola, quería cambiar mi cita.                            0:03  │
+│                        │  agent   Buenos días, ¿me dice su nombre y teléfono?               0:04  │
+│ RECENT                 │  caller  Ana García, 600 123 456                                   0:11  │
+│   CA_11ab  ☎ booked    │  ⚙ findPatient {name, phone} → Patient              210 ms  · seq 14   │
+│   CA_09f0  ✆ hangup    │  ◆ patient ← Ana García, cita jueves 10:00                    · seq 15   │
+│                        │  agent   Tiene cita el jueves a las diez. ¿Para qué día la quiere?       │
+│ STATE                  │  caller  ¿el martes por la tarde?                                        │
+│  patient  Ana García   │  ⚙ freeSlots {day: "martes"} → Slot[] len=4               180 ms · 22   │
+│  slots    16:00 · 17:30│  ◆ slots ← 4                                                      · 23   │
+│  slot     —            │  agent   Tengo martes a las cuatro o a las cinco y media…                │
+│  booking  —            │  caller  la de las cuatro                                                │
+│                        │  ⏳ confirm  "Le reservo el martes 16:00 con Dra. Vidal. ¿Lo confirmo?"  │
+│ TURN  e2e 1.9s ttft 1.2│                                                                          │
+│                        │  [ whisper ]  [ take over ]  [ transfer ]  [ end ]                        │
+└────────────────────────┴─────────────────────────────────────────────────────────────────────────┘
+</pre>
+
+  <div class="grid">
+    <div class="card"><h4>Calls · Live</h4><p>Transcript, tools, y el estado como línea de tiempo: <code>patient ← findPatient (seq 14)</code>. Muestra qué cambió y quién.</p></div>
+    <div class="card"><h4>Sessions</h4><p>Una llamada terminada, seq a seq, latencias por turno, el <code>confirm.granted</code> dibujado antes del <code>book</code>.</p></div>
+    <div class="card"><h4>Evals</h4><p>Los runs, cada métrica con su delta contra el anterior, los goldens legibles como cards, la matriz de modelos.</p></div>
+    <div class="card"><h4>Pipeline</h4><p>HEARS / DECIDES / SPEAKS: STT, LLM, TTS con sus medianas medidas, cambiables sin deploy.</p></div>
+    <div class="card"><h4>Supervisor</h4><p>Escuchar, susurrar, tomar la línea, transferir. Cada verbo queda en el log del caller.</p></div>
+    <div class="card"><h4>Board</h4><p>Las transacciones: qué se reservó, con qué sí. Lee solo el log; no hay tabla nueva.</p></div>
+  </div>
+</section>
+
+<!-- ───────────────────────────────────────────── 11 -->
+<section id="oss">
+  <h2><span class="n">11</span>Open source que tomamos</h2>
+  <table>
+    <tr><th>capa</th><th>tomamos</th><th>licencia</th><th>por qué</th></tr>
+    <tr><td>SFU, SIP, tokens, grabación, dispatch, SDKs móviles</td><td>livekit-server · livekit-sip</td><td>Apache 2.0</td><td>cubre WebRTC en todas las plataformas y cualquier trunk SIP. Cero líneas nuestras</td></tr>
+    <tr><td>sesión de voz</td><td>livekit-agents 1.8 + plugins anthropic · openai · soniox · deepgram · elevenlabs · silero · turn-detector</td><td>Apache 2.0</td><td>el pipeline, los turnos, ~90 plugins. Nuestras invariantes de 1.7.1 se re-verifican</td></tr>
+    <tr><td>estado</td><td>Postgres 17 · pgvector 0.8 · pg_textsearch</td><td>PostgreSQL</td><td>un contenedor: tenants, log, KB, memoria; BM25 real en español; RRF en una query</td></tr>
+    <tr><td>embeddings</td><td>bge-m3 · multilingual-e5-small · TEI · fastembed</td><td>MIT · MIT · Apache · Apache</td><td>multilingüe permisivo, CPU o GPU con la misma imagen</td></tr>
+    <tr><td>reranker (gpu)</td><td>bge-reranker-v2-m3 · FlashRank</td><td>Apache · Apache</td><td>entra al turno solo con GPU</td></tr>
+    <tr><td>chunking</td><td>chonkie (recipe markdown) o propio</td><td>MIT</td><td>heading-aware; liviano</td></tr>
+    <tr><td>evals</td><td>livekit.agents.evals (agents 1.8) · ragas</td><td>Apache · Apache</td><td>Judge · JudgeGroup · session.run/expect/judge; nuestro PolicyJudge encima. DeepEval descartado el 2026-09-08 (tk-dd1ecf): dos abstracciones de juez en un repo es una de más. retrieval en CI</td></tr>
+    <tr><td>observabilidad</td><td>OTel GenAI semconv · Langfuse</td><td>Apache · MIT</td><td>el log exporta; Langfuse ya integra LiveKit</td></tr>
+    <tr><td>memoria (opcional)</td><td>Graphiti</td><td>Apache 2.0</td><td>bi-temporal, invalida contradicciones; requiere Neo4j</td></tr>
+    <tr><td>Python</td><td>uv · hatchling · ruff · pyright · mypy · pytest · pydantic 2 · FastAPI</td><td>—</td><td>higiene 2026</td></tr>
+    <tr><td>Node</td><td>TypeScript · zod · vitest · tsup · livekit-client</td><td>—</td><td>lo que Pinecall ya usa</td></tr>
+  </table>
+
+  <h3>Lo que no tomamos, y por qué</h3>
+  <table>
+    <tr><th>descartado</th><th>razón</th></tr>
+    <tr><td>Pipecat</td><td>LiveKit cubre transporte y sesión; lo único distinto es su runner YAML de evals, y ahí convo ya va por encima</td></tr>
+    <tr><td>Mem0 OSS</td><td>v2 quitó la consolidación y el grafo (Platform-only); spaCy en inglés en el pipeline</td></tr>
+    <tr><td>Letta · LangMem · Memary · A-MEM</td><td>runtime propio / pre-1.0 sin releases desde 2025 / investigación</td></tr>
+    <tr><td>GraphRAG · LightRAG por turno</td><td>15–25 s por query. Solo pre-call</td></tr>
+    <tr><td>jina-embeddings-v3 · jina-reranker</td><td>CC-BY-NC — no comercial</td></tr>
+    <tr><td>ParadeDB · Elasticsearch</td><td>AGPL</td></tr>
+    <tr><td>los patrones de SDK cliente de anthropic-sdk-python</td><td>son para un cliente HTTP; el runtime es un servidor. Tomamos su higiene, no sus patrones</td></tr>
+  </table>
+</section>
+
+<!-- ───────────────────────────────────────────── 12 -->
+<section id="art-pinecall">
+  <h2><span class="n">12</span>The art of Pinecall</h2>
+  <p class="note">Las convenciones. Las hacen cumplir los tests, no la disciplina.</p>
+  <div class="grid">
+    <div class="card"><h4>400 líneas</h4><p>Ningún archivo trackeado sobre 400. <code>agent_activity.py</code> de LiveKit tiene 4 874; <code>session/manager.py</code> del Pinecall actual, 2 242. Ese número es el síntoma.</p></div>
+    <div class="card"><h4>Una línea de docstring</h4><p>El código guarda el qué. El porqué, la medición y la historia van a <code>docs/decisions/&lt;módulo&gt;.md</code>. Dos excepciones: el docstring de una tool (el modelo lo lee) y el de una ruta (el cliente lo lee).</p></div>
+    <div class="card"><h4>La cerca</h4><p><code>protocol/</code> es generado. Todo lo demás lo escribe una persona. Un refactor sabe qué puede reescribir a ciegas.</p></div>
+    <div class="card"><h4>Un vocabulario</h4><p>Agent · state · tool · view · call · log · ring. Se fija el día uno y no se mueve.</p></div>
+    <div class="card"><h4>Aislamiento</h4><p><code>protocol/log/domain/lang</code> no importan framework. El worker no importa el gateway. Solo <code>providers/</code> nombra un vendor. El núcleo nunca importa un tenant.</p></div>
+    <div class="card"><h4>Keys sentinela</h4><p>Todo test unit corre con keys de provider muertas: construir funciona, una llamada real muere en segundos. El anillo unit es un gate — verde tres de tres o no significa nada.</p></div>
+    <div class="card"><h4>Convención con salida</h4><p>El default hace lo correcto sin configurar. Cada default tiene una puerta: props en el componente, <code>mode: "tool"</code> en docs, <code>onTurn</code> para tu propio LLM, el protocolo pelado en cualquier lenguaje.</p></div>
+    <div class="card"><h4>Un comando por milestone</h4><p>Y un <code>ms-N.md</code> que dice qué se quiso hacer, qué se hizo, qué se aprendió y qué sigue. Los goldens crecen desde el primero.</p></div>
+  </div>
+</section>
+
+<!-- ───────────────────────────────────────────── 13 -->
+<section id="comercial">
+  <h2><span class="n">13</span>Lo comercial</h2>
+  <table>
+    <tr><th>capa</th><th>gratis</th><th>se cobra</th></tr>
+    <tr><td>framework, consola, evals, self-hosted</td><td>Apache 2.0 · <code>docker compose up</code></td><td>—</td></tr>
+    <tr><td>runtime hosted <code>voice.pinecall.io</code></td><td>—</td><td>por minuto de voz y por mensaje de texto; BYOK descuenta</td></tr>
+    <tr><td>consultoría</td><td>—</td><td>“tu agente y su suite de evals en dos semanas”, sobre el framework abierto. Cada cliente es un ejemplo público más</td></tr>
+    <tr><td>verticales</td><td>clínica y tienda como ejemplos</td><td>plantillas de contact center a medida</td></tr>
+    <tr><td>app hosting</td><td>—</td><td>producto posterior: Pinecall corre tu Node cuando no querés operar nada</td></tr>
+  </table>
+  <p>El pitch al público no es el código: <span class="k">un agente, tres puertas</span> — el widget, el número de WhatsApp, el teléfono — con memoria del cliente entre las tres. El pitch a quien construye es el repo y los reports: la venta es inbound.</p>
+</section>
+
+<!-- ───────────────────────────────────────────── 14 -->
+<section id="milestones">
+  <h2><span class="n">14</span>Milestones</h2>
+  <p>Cada uno termina en un comando que corrés vos y un <code>ms-N.md</code>. Si uno no te convence, se para ahí.</p>
+  <table>
+    <tr><th>ms</th><th>qué</th><th>corrés</th></tr>
+    <tr><td>0 · esqueleto</td><td>monorepo · <code>protocol/</code> schema + generadores TS y Python · runtime con pyproject · compose (livekit, sip, redis, <b>Postgres+pgvector+pg_textsearch</b>, TEI) · test_layout · test_isolation · CI</td><td><code>scripts/test</code> · <code>docker compose up</code> · <code>pinecall-runtime doctor</code></td></tr>
+    <tr><td>1 · el gateway habla</td><td><code>log/</code> sobre Postgres · <code>apps.py</code> + registry · sesión chat con LLM · <code>calls.py</code> SSE · <code>@pinecall/sdk</code> mínimo</td><td><code>pinecall chat</code> contra un agente con dos tools</td></tr>
+    <tr><td>2 · la clase</td><td><code>Agent</code> con estado reactivo · <code>@tool</code> con docstring, when, preview, pii · views JSX + componentes · <b>orden estático/historia/dinámico</b> · <code>confirm</code> del lado del servidor · <code>collapse</code> · <code>pinecall run</code> terminal</td><td>Clínica Norte en texto, reserva con confirmación · <code>--show-prompt</code></td></tr>
+    <tr><td>3 · voz local</td><td>worker: session, bridge, tools proxy, <code>render → update_instructions/tools</code> · stt_gate, barge_in, clock, recordings, providers escritos de cero con lo que convo enseñó · re-verificar invariantes 1.8</td><td><code>pinecall-runtime worker talk</code> con micrófono</td></tr>
+    <tr><td>4 · teléfono</td><td>infra/box escrito de cero con las lecciones de convo · trunk Twilio · routes · sip.py · transfer</td><td>llamás desde tu móvil · <code>pinecall eval &lt;id&gt;</code></td></tr>
+    <tr><td>5 · consola</td><td>shell + tokens · Calls/Live · Sessions · Pipeline. En ms-14 se le quitó al gateway (el <code>webui</code>) y se la devolvió al CLI: la sirve <code>pinecall ui</code> en 127.0.0.1 bajo un nonce, firmando con la key de la org (docs/decisions/console.md)</td><td><code>pinecall ui</code> · las puertas que lee: <code>/v1/agents</code>, <code>/v1/calls</code>, <code>/v1/agents/{slug}/pipeline</code></td></tr>
+    <tr><td>6 · evals</td><td>el paquete de evals escrito de cero sobre livekit.agents.evals (DeepEval descartado) · <code>POST /v1/evals/run</code> · <code>pinecall test</code> · <code>--voice</code> · <code>call.score</code> al colgar (ring 4) · <code>pinecall simulate</code> con línea degradada · 10 goldens + nightly · pantalla Evals · <b>promoción a golden · deriva</b></td><td><code>pinecall test</code> con 10 goldens, dos modelos</td></tr>
+    <tr><td>7 · web</td><td><code>@pinecall/web</code> sobre livekit-client · tokens · widget · useCall</td><td>llamás desde el navegador y desde el móvil por 3G</td></tr>
+    <tr><td>8 · supervisor + WhatsApp</td><td>verbos por WS attach · pantalla Supervisor · <code>text/whatsapp</code> · pausa humana</td><td>escuchás una llamada y susurrás</td></tr>
+    <tr><td>9 · memoria + retrieval</td><td><code>Memory</code> Protocol · <code>PgvectorMemory</code> · <code>restore/last</code> · <code>knowledge/</code> con bge-m3 · <code>&lt;Memory&gt;</code> <code>&lt;Retrieved&gt;</code> con props y render props · perfil gpu · <code>doctor --bench</code></td><td>la clínica responde desde docs/ y recuerda tu alergia en la segunda llamada</td></tr>
+    <tr><td>10 · ejemplos + README</td><td>Tienda Sur · goldens de las dos · docs revisados · README de 30 segundos · ARCHITECTURE · decisions/</td><td><code>git clone &amp;&amp; pnpm i &amp;&amp; pinecall run</code> en una máquina limpia</td></tr>
+    <tr><td>11 · hosted</td><td>orgs + keys · deploy a la box · TLS · un tenant externo</td><td>un tenant externo se conecta con su key</td></tr>
+    <tr><td>12 · OTel</td><td>el log → spans GenAI · Langfuse</td><td>una llamada aparece en Langfuse</td></tr>
+  </table>
+  <p class="muted">Ritmo estimado: una noche por milestone para 0–3 (el material existe: protocolo, convo, drift); uno o dos días los demás.</p>
+</section>
+
+<!-- ───────────────────────────────────────────── 15 -->
+<section id="decisiones">
+  <h2><span class="n">15</span>Decisiones a confirmar</h2>
+  <ol class="rule-list">
+    <li>Repo: <code>~/pinecall/v2/</code>, <code>github.com/pinecall/pinecall</code>, Apache 2.0.</li>
+    <li>Nombres: npm <code>pinecall</code> + <code>@pinecall/*</code>; PyPI <code>pinecall</code>, import <code>pinecall</code>, CLI <code>pinecall-runtime</code>.</li>
+    <li>LiveKit es el motor. Pipecat no entra.</li>
+    <li>Postgres es el único servicio con estado, desde ms-0.</li>
+    <li>Estado, no stages. El prompt es <code>render(state)</code>; la view al final.</li>
+    <li>Memoria: interfaz propia, <code>PgvectorMemory</code> default, Graphiti opcional después.</li>
+    <li>Retrieval: híbrido; CPU por default, GPU como perfil.</li>
+    <li>El juicio corre en el runtime; el CLI construye el caso.</li>
+    <li>Las versiones y los tags los elegís vos, cuando toque.</li>
+  </ol>
+</section>
+
+<!-- ───────────────────────────────────────────── 16 -->
+<section id="cli">
+  <h2><span class="n">16</span>El CLI, verbo por verbo</h2>
+  <p>Dos CLIs, dos usuarios. <code>pinecall</code> (Node) para quien construye el agente; <code>pinecall-runtime</code> (Python) para quien opera el runtime. Misma gramática: <code>grupo verbo [objeto] [flags]</code>; <code>list · show · add · rm</code> siempre igual; <code>--json</code> en todo; el agente sale de la carpeta donde estás salvo <code>--agent</code>. Ningún verbo del que construye requiere Python: el juicio, la memoria y el retrieval viven en el runtime y el CLI les habla por HTTP.</p>
+
+  <h3>Crear</h3>
+<pre>
+pinecall new &lt;nombre&gt; [--template clinic|shop|blank]     la app corriendo: agent.ts · views/ · knowledge/ · lib/ · test/ · .env
+pinecall g tool &lt;nombre&gt;              un método @tool con docstring, tipos, when, y su test
+pinecall g component &lt;nombre&gt;         views/components/&lt;Nombre&gt;.tsx
+pinecall g golden &lt;nombre&gt;            test/&lt;nombre&gt;.json con un caso desde estado
+pinecall g persona &lt;nombre&gt;           test/personas/&lt;nombre&gt;.ts — un caller sintético
+pinecall g channel whatsapp|web       el campo en la clase + lo que falta en .env
+</pre>
+
+  <h3>Correr y hablar</h3>
+<pre>
+pinecall run [agent.ts] [--ui] [--events] [--show-prompt]
+    la app + los tres canales. El mismo proceso en dev y en prod: no abre ningún puerto ni sirve
+    ninguna página. Al conectar imprime una línea:
+        clinica-norte · connected to https://box.pinecall.io · tools 4 · doors phone +34 910 000 000, web
+    no nombra ninguna página: el gateway es una API y no sirve ninguna (docs/decisions/console.md)
+    --events es un pipe (una línea JSON por entrada) y --show-prompt una pregunta offline; ninguna
+    de las dos es una manera de correr run. --ui dibuja la vista de la terminal y tampoco abre
+    puerto; teclas: p pausa · c limpiar · e eventos · s prompt · q salir
+pinecall chat [--state test/x.json] [--memory contact] [--show-prompt]
+    texto desde la terminal. --state arranca en un estado; --memory carga los hechos de un contacto
+pinecall ui [agente]                              la consola en 127.0.0.1, mientras dura el comando
+    Talk (el micrófono del navegador entra a la sala del agente) · Calls (cada llamada mientras pasa,
+    con listen-in y la grabación) · Sessions · Pipeline · Evals. Sin agente: la lista de los que tiene el gateway
+    el micrófono es el del navegador, nunca el de este proceso: la página entra a la sala con un token, como el widget.
+    La sirve el CLI bajo un path aleatorio y firma cada request con la key de la org, así que la key nunca llega
+    al navegador. `talk` no es un verbo: es la primera pantalla de `ui`
+pinecall call &lt;número&gt; [--persona x]              el agente te llama (outbound real); con --persona atiende una sintética
+pinecall prompt [--state test/x.json] [--diff otro.json]
+    el prompt exacto que vería el modelo en ese estado: las tres regiones, marcadas
+pinecall state &lt;call-id&gt; [--set patient.name="Ana"] [--watch]     ver o forzar el estado de una llamada viva
+</pre>
+
+  <h3>Probar — los cuatro anillos</h3>
+<pre>
+pinecall test [test/…] [--voice] [--model m…] [--grep x] [--watch] [--json] [--budget 2]
+    ring 1 (texto) o ring 2 (--voice). Dos --model → la matriz. Exit 1 si falla. --watch re-corre al guardar
+pinecall simulate --persona apurado [--goal "…"] [--listen] [--judge] [--record out.wav] [--turns 8]
+    una persona llama de verdad. En vivo: transcript de los dos lados · eot · ttft · ttfb · e2e · interrupciones
+    --judge: el call.score del corte — consent · grounded hoy; register · leakage cuando AgentConfig declare el registro y los strings ajenos
+    --background-noise: un interferente mezclado; la latencia e2e del lado del caller va al reporte. --listen: el audio a tus parlantes
+pinecall eval &lt;call-id&gt; [--voice] [--free]         ring 3: una llamada real, re-evaluada. --free: sin juez
+pinecall runs list | show &lt;id&gt; | diff &lt;a&gt; &lt;b&gt; | promote &lt;call-id&gt; | drift [--window 7d --baseline 30d]
+    historial con deltas; promote convierte una llamada real fallida en golden candidato (promoted_from)
+    drift: held-rate por juez en dos ventanas y el delta; exit ≠ 0 bajo --threshold, imprime los seqs de las 3 últimas rotas
+pinecall personas list | show &lt;n&gt; | try &lt;n&gt;          try: hablás con la persona por texto para calibrarla
+</pre>
+
+  <h3>Observar</h3>
+<pre>
+pinecall sessions list [--live] [--since 24h] [--channel phone] [--failed]
+pinecall sessions show &lt;id&gt; [--seq 20:40] [--types tool.*,state.*] [--raw]     seq a seq: turnos, tools, estado, confirm, latencias, costo
+pinecall sessions tail [&lt;id&gt;] [--durable]         seguir una llamada en vivo — o la próxima que entre
+pinecall sessions replay &lt;id&gt; [--speed 2]         la llamada al ritmo real: transcript + estado + tools
+pinecall sessions recording &lt;id&gt; [-o out.ogg] [--play]
+pinecall sessions show &lt;id&gt;                       …y al final el call.score: el veredicto de ring 4 como lo dejó el log; passed ausente = nadie juzgó, y not_judged dice por qué
+pinecall sessions export &lt;id&gt; [--format json|md|srt]
+pinecall observe [--agent a] [--types …] [--since &lt;seq&gt;]     el agent log, con cursor persistente
+pinecall board [--days 7]                          las transacciones: qué se reservó, con qué sí, en qué llamada
+pinecall costs [--since 7d] [--by agent|model|channel]
+</pre>
+
+  <h3>Supervisar</h3>
+<pre>
+pinecall supervise [&lt;call-id&gt;]
+    TUI: audio a tus parlantes · transcript en vivo · estado a la derecha
+    w whisper "…"   s say "…"   t takeover / release   x transfer +34…   e end     — cada verbo queda en el log del caller
+pinecall supervise whisper|say|takeover|release|transfer|end &lt;call-id&gt; [texto]     los mismos verbos, para scripts
+pinecall pause &lt;contact|call-id|--all&gt; · pinecall resume &lt;…&gt;     humano al mando en WhatsApp/chat
+pinecall send &lt;call-id&gt; "texto"                    contestar como humano mientras está pausado
+</pre>
+
+  <h3>Memoria</h3>
+<pre>
+pinecall memory get &lt;contact&gt; [--as-of 2026-08-01]     los hechos vigentes, como los ve la view. --as-of: qué sabía ese día
+pinecall memory history &lt;contact&gt;                      todos, incluidos los invalidados, con supersedes y desde/hasta
+pinecall memory search "alergia" [--contact c] [-k 20]
+pinecall memory recall &lt;contact&gt; "quería cambiar la hora" [--bench]     lo que recall() devolvería — y cuánto tardó
+pinecall memory extract &lt;call-id&gt; [--dry-run]          re-correr remember(): qué ops produce, sin aplicarlas
+pinecall memory forget &lt;contact&gt; [--yes]               el derecho al olvido
+pinecall memory stats
+</pre>
+
+  <h3>Knowledge</h3>
+<pre>
+pinecall knowledge push [knowledge/docs/**] [--kb id] [--reindex]     upsert por path; solo lo que cambió
+pinecall knowledge ls · docs &lt;kb&gt; · show &lt;kb&gt; &lt;doc&gt; · rm &lt;kb&gt; &lt;doc&gt; · reindex &lt;kb&gt;
+pinecall knowledge query "reset de contraseña" [--k 8] [--rerank] [--explain]     --explain: la rama léxica y la densa por separado
+pinecall knowledge chunks &lt;doc&gt;                     cómo quedó partido: headings, tokens por chunk
+pinecall knowledge bench [test/knowledge.json]      recall@5 y nDCG@10 sobre tu golden. Sin LLM. Corre en CI
+pinecall knowledge tap &lt;url&gt; [kb] [--dry-run] · sync &lt;kb&gt;     el crawler y su re-tap incremental
+</pre>
+
+  <h3>Canales, acceso, cuenta</h3>
+<pre>
+pinecall phones list · add &lt;número&gt; [--agent a] · rm · route &lt;número&gt; &lt;agente&gt;     un número es una ruta
+pinecall whatsapp status · verify
+pinecall tokens mint web|chat|observe|supervise [--metadata '{…}'] [--ttl 60]
+pinecall agents list · inspect &lt;a&gt; · prompt &lt;a&gt;
+pinecall login &lt;gateway&gt;                            la key se prueba en /v1/whoami y queda en ~/.pinecall/credentials (0600)
+pinecall whoami                                     qué gateway, qué org, y de dónde salió la key de esta terminal
+pinecall config [get|set] · doctor · logs [--follow] · version · upgrade · mcp install
+pinecall deploy                                     después. Hoy: `node agent.ts` donde quieras
+</pre>
+
+  <h3><code>pinecall-runtime</code> — el que opera</h3>
+<pre>
+pinecall-runtime gateway [--host --port --reload] · worker dev|start|talk|download-files · migrate up|status [--schema]
+pinecall-runtime doctor [--bench]        keys · livekit · sip · postgres · tei — y en ms: embedding, rerank, recall
+pinecall-runtime chat --agent &lt;slug&gt; [--url] [--caller]     una llamada de texto desde la terminal del que opera
+pinecall-runtime orgs list|add|rm|quota
+pinecall-runtime orgs provider-key set|rm|list &lt;org&gt; &lt;vendor&gt;     la key propia de esa org, por stdin; sin fila, el env de la caja
+pinecall-runtime keys issue|list|revoke                  issue la imprime una vez; list solo huellas, nunca la key
+pinecall-runtime routes list|add &lt;número&gt; &lt;agente&gt; [--channel phone|whatsapp] [--org]|rm|seed
+    una ruta es una puerta: el número de teléfono y el de WhatsApp entran por la misma tabla
+    (el webhook de Meta es GET|POST /v1/whatsapp/webhook, firmado con el app secret)
+pinecall-runtime sessions list|show|tail|eval|score|purge [--older-than 90d] · recordings ls|get|purge
+pinecall-runtime evals nightly [--dry-run] [--only a] [--budget 2] [--deadline 900] · evals report &lt;a&gt; [--model m…]
+pinecall-runtime scoring status|sweep [--window 24h]
+pinecall-runtime knowledge stats|reindex|embed-model bge-m3|e5-small · memory stats|purge|export
+pinecall-runtime otel test · version
+</pre>
+
+  <h3>Cuatro flujos</h3>
+<pre>
+<span class="c"># el loop de desarrollo</span>
+pinecall new clinica-norte &amp;&amp; cd clinica-norte
+pinecall run                        <span class="c"># el agente conectado, sin puerto y sin página</span>
+pinecall ui                         <span class="c"># la consola en 127.0.0.1, mientras dura el comando: Talk, Calls, Sessions</span>
+pinecall prompt --state test/choose.json
+pinecall test --watch
+
+<span class="c"># QA de una llamada simulada, con evaluación en vivo</span>
+pinecall simulate --persona apurado --goal "cambiar la cita al martes" --listen --judge
+  ▸ caller  hola quería cambiar la cita        eot 0.31 · ttft 1.1 · e2e 1.9
+  ▸ agent   buenos días, ¿me dice su nombre…
+  ✓ register  ✓ grounded  · consent: no write yet
+  ⚡ interrupción a los 0.8 s → bot.interrupted
+  ✓ consent: book tras "sí, confirmo" (seq 29 → 34)      $0.003 · 47 s · out.wav
+
+<span class="c"># algo salió mal esta mañana</span>
+pinecall sessions list --failed --since 24h
+pinecall sessions replay CA_8f4a --speed 3
+pinecall eval CA_8f4a
+pinecall runs promote CA_8f4a
+
+<span class="c"># "el agente no me recuerda"</span>
+pinecall memory get +34600123456
+pinecall memory recall +34600123456 "quiero la misma doctora de siempre" --bench
+pinecall memory extract CA_8f4a --dry-run
+</pre>
+</section>
+
+<!-- ───────────────────────────────────────────── 17 -->
+<section id="protocolo">
+  <h2><span class="n">17</span>El protocolo</h2>
+  <p>El Rack de la voz: la costura entre quien hace el tiempo real y la aplicación. Se escribe de cero, como JSON Schema en <code>protocol/schema/</code>, y genera los dos lados. Nada se copia de Pinecall v1: se recuerda su vocabulario y un nombre sobrevive solo si sigue siendo el mejor. Un solo vocabulario: el envelope del log <span class="k">es</span> el evento (en v1 los eventos in-process y los <code>type</code> del call log eran dos). <code>snake_case</code> en el cable, <code>camelCase</code> en el SDK, y el codec generado es el único lugar que toca nombres de clave.</p>
+  <p><b>Cada turno lleva todas las métricas.</b> Lo que livekit-agents 1.8 mide para un turno viaja entero y con sus propios nombres de campo: en <code>turn.user</code> (<code>transcription_delay</code>, <code>end_of_turn_delay</code>, <code>stopped_speaking_at</code>) y <code>turn.agent</code> (<code>llm_node_ttft</code>, <code>tts_node_ttfb</code>, <code>playback_latency</code>, <code>e2e_latency</code>); y un evento <code>metrics.&lt;bloque&gt;</code> por cada bloque tipado — <code>llm</code> (ttft, duration, prompt/completion/cached/cache-creation tokens, tokens_per_second, cancelled), <code>stt</code>, <code>tts</code> (ttfb, audio_duration, characters_count), <code>vad</code>, <code>eou</code>, <code>eot</code>, <code>interruption</code>, <code>realtime</code> — con todos sus campos, unidos al turno por <code>speech_id</code>. <code>call.summary</code> lleva las filas de usage por modelo y el costo. Una sesión de texto mide ella misma lo que puede de los mismos campos. Un test lee la lista de campos de la librería y la contrasta con el schema: nada se resume, nada se renombra.</p>
+
+<pre>
+<span class="c">// el envelope — un solo vocabulario, un solo seq</span>
+{ "seq": 29, "ts": 1786537584.38, "call": "CA_8f4a", "agent": "clinica-norte",
+  "type": "confirm.granted", "ephemeral": false,
+  "data": { "tool": "book", "audience": "sha256:…", "ttl_s": 120 } }
+</pre>
+
+  <table>
+    <tr><th>grupo</th><th>eventos (servidor → app)</th></tr>
+    <tr><td>ciclo de llamada</td><td><code>call.ringing · started · ended · summary · dialing · error · forwarded · routed</code></td></tr>
+    <tr><td>habla del caller</td><td><code>speech.started · speech.ended · user.speaking · user.message</code></td></tr>
+    <tr><td>turno</td><td><code>eager.turn · turn.pause · turn.end · turn.resumed · turn.continued</code></td></tr>
+    <tr><td>habla del agente</td><td><code>bot.speaking · bot.word · bot.finished · bot.interrupted · barge_in</code></td></tr>
+    <tr><td>tools y estado</td><td><code>tool.call · tool.result · state.changed · confirm.request · confirm.granted · confirm.declined</code></td></tr>
+    <tr><td>memoria y retrieval</td><td><code>memory.ops · docs.sources</code></td></tr>
+    <tr><td>supervisión</td><td><code>supervisor.said · supervisor.whispered · handoff.requested · handoff.active · handoff.released</code></td></tr>
+    <tr><td>control (log del agente)</td><td><code>line.created · line.error · phone.added · phone.removed · config.updated · registered · error · pong</code></td></tr>
+    <tr><td>marcadores</td><td><code>log.gap · log.caught_up · custom</code> (lo que <code>this.log()</code> escribe)</td></tr>
+  </table>
+  <table>
+    <tr><th>grupo</th><th>comandos (app → servidor)</th></tr>
+    <tr><td>registro</td><td><code>register · agent.configure · channel.add · channel.remove · session.configure {state}</code></td></tr>
+    <tr><td>hablar</td><td><code>bot.say · bot.reply · bot.reply_stream · bot.cancel · bot.clear</code></td></tr>
+    <tr><td>tools y estado</td><td><code>tool.result · prompt.set · tools.set · state.set · call.log</code></td></tr>
+    <tr><td>llamada</td><td><code>call.hangup · call.dial · call.forward · call.dtmf · call.hold · call.unhold · call.mute · call.unmute · call.route</code></td></tr>
+    <tr><td>humano</td><td><code>session.pause · session.resume · session.send</code></td></tr>
+    <tr><td>infra</td><td><code>ping · update_config · line.create · line.destroy</code></td></tr>
+  </table>
+  <table>
+    <tr><th>token</th><th>puede</th></tr>
+    <tr><td><code>talk</code> (web · chat)</td><td>conectarse a UN agente, una vez, 60 s; metadata sellada por el servidor del tenant, inforjable por el navegador</td></tr>
+    <tr><td><code>observe</code></td><td>leer el log de los agentes de su set. Nada más</td></tr>
+    <tr><td><code>supervise</code></td><td>leer y mandar los verbos por <code>WS /v1/attach</code></td></tr>
+    <tr><td><code>participate</code></td><td>observar su propia llamada</td></tr>
+  </table>
+  <p>Tres endpoints de lectura, y dos son la misma URL: <code>GET /v1/calls/{id}/events?after=</code> (JSON, o SSE con <code>Accept: text/event-stream</code>) · <code>GET /v1/agents/{slug}/calls?after=</code> · <code>WS /v1/attach</code> para los verbos. Reconectar es la misma URL con un <code>after</code> más fresco; <code>Last-Event-ID</code> es un alias. El cursor es el protocolo entero. El spec completo, con un JSON Schema por tipo, vive en <code>protocol/schema/</code> y genera los dos lados.</p>
+</section>
+
+<!-- ───────────────────────────────────────────── 18 -->
+<section id="trabajo">
+  <h2><span class="n">18</span>Cómo se trabaja el repo</h2>
+  <p>Dos roles. El orquestador (Fable, en sesión) planifica, asigna, despacha, revisa y mergea. Los workers son sub-agentes en worktrees propios. <span class="k">Nada se despacha hasta que Bernardo dice go para ese milestone.</span></p>
+  <div class="grid">
+    <div class="card"><h4>Model routing</h4><p>Cada card lleva <code>model:fable</code> (juicio: seams, el bridge, confirm, los DAGs, la vista en vivo) o <code>model:opus</code> (mecánico: portes de convo, tests, docs, verbos del CLI, generadores). Se despacha con el modelo que dice la etiqueta, todos en un mensaje.</p></div>
+    <div class="card"><h4>Seams primero, en serie</h4><p>La primera card de cada milestone aterriza sola la superficie compartida: tipos, protocolos, registros, módulos vacíos. Las demás son <code>after</code> de ella. Nadie ramifica desde un punto donde el seam no existe.</p></div>
+    <div class="card"><h4>Propiedad por path</h4><p>El <code>files</code> de una card es lo ÚNICO que puede editar. Una necesidad afuera es un comentario en la card dueña, nunca un edit. Registros e índices se declaran <code>union_files</code>; nada más se mergea por unión.</p></div>
+    <div class="card"><h4>Una card de integración cierra</h4><p>Regenera <code>protocol/</code>, corre toda la suite, escribe <code>ms-N.md</code> (qué quisimos · qué hicimos · qué aprendimos · decisiones · dónde estamos · qué sigue) y dice el comando que corre el humano.</p></div>
+    <div class="card"><h4>El gate humano</h4><p>Un milestone mergea solo después de que Bernardo corrió su comando y dijo que sí. Las cards del hot path (worker, confirm, protocolo, log) son <code>review=true</code> y las revisa el orquestador en sesión.</p></div>
+    <div class="card"><h4>Presupuesto</h4><p>Haiku en todo test que llame a un modelo; una suite corre a lo sumo dos veces por card. Cada card cierra con los tests que corrió y un <code>nvim -p</code> para leer el cambio.</p></div>
+  </div>
+</section>
+
+<!-- ───────────────────────────────────────────── 19 -->
+<section id="hosting">
+  <h2><span class="n">19</span>Abierto y privado: hosting, auth, la API de operador</h2>
+  <p>La decisión del open-core en una línea: <span class="k">todo lo que hace falta para self-hostear va en el runtime, abierto; todo lo que hace falta para cobrar va en una capa privada que habla con el runtime por una API de operador documentada.</span> Sin fork, sin rama privada. La misma imagen corre en nuestra box y en la del cliente. Es el modelo de Supabase, PostHog y Sentry — y es la línea que v1 ya tenía por accidente entre <code>sdk-server</code> y <code>playground</code>; v2 la hace explícita.</p>
+
+<pre>
+ ┌──────────────────────────── ABIERTO · pinecall/pinecall ───────────────────────────────┐
+ │  runtime                                                                               │
+ │   orgs · api_keys (hasheadas, con scopes) · quotas (el MECANISMO) · usage (los HECHOS)  │
+ │   provider keys por org (tabla; default = env) · routes · el log · todo lo demás         │
+ │   GET /.well-known/pinecall     descubrimiento: version · ws · sse · region · features   │
+ │   /v1/ops/*                     la API de operador — auth por una ops key del env        │
+ └───────────────────────────────────────────▲────────────────────────────────────────────┘
+                                             │ pública, documentada: cualquiera puede construir su control plane
+ ┌───────────────────────────────────────────┴────────────────────────────────────────────┐
+ │  PRIVADO · pinecall/cloud   (la evolución de playground + platform)                     │
+ │   signup · planes · rates · créditos · Stripe                                           │
+ │   vault de provider keys (managed vs BYOK) → las empuja al runtime por org              │
+ │   provisioning de números (Twilio, trunks) → escribe routes en el runtime               │
+ │   flota: qué runtime atiende a qué org, regiones, boxes · dashboard platform.pinecall.io │
+ └────────────────────────────────────────────────────────────────────────────────────────┘
+</pre>
+
+  <h3>La API de operador</h3>
+  <table>
+    <tr><th>endpoint</th><th>qué hace</th></tr>
+    <tr><td><code>POST · GET · DELETE /v1/ops/orgs</code></td><td>organizaciones</td></tr>
+    <tr><td><code>POST · DELETE /v1/ops/orgs/{id}/keys</code></td><td>una key se devuelve una sola vez; se guarda hash + prefijo + scopes <code>agent · observe · evals · admin</code></td></tr>
+    <tr><td><code>PUT /v1/ops/orgs/{id}/quotas</code></td><td>minutos, mensajes, agentes, llamadas concurrentes. El runtime rechaza al conectar y emite <code>credits.exhausted</code></td></tr>
+    <tr><td><code>PUT · DELETE /v1/ops/orgs/{id}/provider-keys/{vendor}</code></td><td>la key de ElevenLabs/Soniox/… de esa org; sin fila, el runtime usa el env</td></tr>
+    <tr><td><code>POST · DELETE /v1/ops/orgs/{id}/routes</code></td><td>número → agente</td></tr>
+    <tr><td><code>GET /v1/ops/usage?after=&lt;seq&gt;</code></td><td>minutos, mensajes, tokens, llamadas al juez — con <code>seq</code>, JSON o SSE. El mismo cursor del log</td></tr>
+  </table>
+  <p>Un self-hoster corre <code>pinecall-runtime migrate</code>, obtiene una org <code>default</code> con su key impresa, y maneja lo suyo con <code>pinecall-runtime orgs …</code>. Nosotros corremos exactamente lo mismo; quien llama a la API de operador es el cloud. <span class="k">El runtime nunca sabe cuánto cobramos</span>: emite hechos de uso y el cloud los tarifa. <code>prices.py</code> sigue poniendo el costo de proveedor en euros en el log, informativo.</p>
+
+  <h3>Cómo se conecta y autentica el CLI</h3>
+<pre>
+pinecall login                                        hosted: pegás la key (después, device flow en el navegador)
+pinecall login --url https://voice.acme.internal --key pk_live_…      self-hosted
+pinecall login --profile acme …                       varios perfiles; PINECALL_PROFILE o --profile elige
+pinecall whoami                                       org · pk_live_ab12… · scopes · runtime · versión · features
+</pre>
+  <ul class="rule-list">
+    <li><span class="k">Descubrimiento.</span> La URL contesta <code>/.well-known/pinecall</code>; el CLI aprende dónde está el WS y qué features hay. La clase degrada lo que el runtime no tiene con un aviso (<code>&lt;Retrieved rerank/&gt;</code> sin GPU).</li>
+    <li><span class="k">Precedencia.</span> flag → env (<code>PINECALL_URL</code>, <code>PINECALL_API_KEY</code>, <code>PINECALL_PROFILE</code>) → <code>.env</code> del proyecto → <code>~/.pinecall/credentials</code>. Un proyecto lleva su <code>.env</code>; una persona, sus perfiles.</li>
+    <li><span class="k">La key.</span> <code>pk_live_…</code> / <code>pk_test_…</code>: el prefijo dice el entorno. Hasheada en el servidor, con scopes. Va en <code>Authorization: Bearer</code> y como primer mensaje del WS de la app — nunca en la URL. Los únicos tokens en query string son los de observación del navegador: cortos y de solo lectura.</li>
+    <li><span class="k">Rotación.</span> <code>pinecall keys create · revoke</code>; una key revocada se rechaza en el próximo frame.</li>
+    <li><span class="k">Multi-tenant adentro de un runtime.</span> <code>org</code> en cada fila; los slugs de agente se namespacean por org; cada lectura del log filtra por org; los stream tokens sellan <code>org + agentes</code>.</li>
+  </ul>
+
+  <h3>Lo que toca dinero, en cada modo</h3>
+  <table>
+    <tr><th></th><th>self-hosted</th><th>hosted</th></tr>
+    <tr><td>provider keys</td><td>env del box</td><td>managed (créditos) o BYOK: <code>pinecall keys add elevenlabs sk_…</code> → vault del cloud → runtime por org</td></tr>
+    <tr><td>números</td><td>el operador configura su trunk; <code>phones add</code> escribe la ruta</td><td>el cloud provisiona en Twilio y escribe la ruta; <code>phones add</code> verifica que el número es de la org</td></tr>
+    <tr><td>límites</td><td>quotas que fija el operador</td><td>el cloud fija quotas desde el saldo</td></tr>
+    <tr><td>uso</td><td><code>usage</code> local, para tu contabilidad</td><td>el cloud lee <code>/v1/ops/usage</code> con cursor</td></tr>
+    <tr><td>la app del tenant</td><td>su infra</td><td>su infra hoy; el <em>app hosting</em> — el cloud corre su Node — es el producto de después</td></tr>
+  </table>
+
+  <div class="callout">
+    <p>Si orgs y keys fueran privados, "self-hosted" sería mentira y el claim de HN muere. Si el billing fuera abierto, regalamos el modelo y cargamos al self-hoster con Stripe. La línea correcta es la que ya existía entre <code>sdk-server</code> y <code>playground</code>: v2 la documenta y el <code>playground</code> se convierte en el <code>cloud</code>. Dos cards más en ms-11 (la API de operador y el login con perfiles); <code>pinecall/cloud</code> es otro board, privado, y arranca después.</p>
+  </div>
+</section>
+
+<footer>
+  Pinecall v2 · documento de diseño · las fuentes de la investigación (memoria, retrieval, NOOA, mercado) están en <code>~/src/PINECALL-V2-RESEARCH-SYNTHESIS.md</code>; el layout del runtime en <code>~/src/PINECALL-RUNTIME-LAYOUT.md</code>.
+</footer>
+
+</div>
+</body>
+</html>

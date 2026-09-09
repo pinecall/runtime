@@ -1,0 +1,28 @@
+# livekit-sip on the box: the carrier's INVITE becomes a participant, and nothing else gets in.
+# Mounted at exactly /sip/config.yaml — the image's entrypoint hardcodes that path, and mounted
+# anywhere else the service comes up on its defaults without a word about it.
+# The keypair arrives as LIVEKIT_API_KEY / LIVEKIT_API_SECRET; no secret is committed.
+
+ws_url: ws://livekit:7880
+
+redis:
+  address: redis:6379
+
+sip_port: 5060
+# 200 concurrent calls, and one firewall rule. A range this size costs nothing when it is closed
+# to everyone but the carrier's media networks.
+rtp_port:
+  start: 10000
+  end: 10199
+
+# The box has a public address and the carrier has to be able to route media to it.
+use_external_ip: true
+
+# The second fence, behind the firewall: an INVITE for a number no SIPInboundTrunk declares is
+# dropped with no SIP response at all. A scanner learns nothing, and a dropped INVITE opens no
+# room — so it starts no job, hires no model and costs nothing. It fails silently on purpose:
+# when a real call goes unanswered, the trunk's `numbers` list is the first thing to read.
+hide_inbound_port: true
+
+health_port: 8081
+log_level: info

@@ -14,7 +14,7 @@ from pinecall.auth.scopes import a_room_token, secret_for
 from pinecall.log.snapshots import Snapshots
 
 # The identity a human takes in the room, whether they came to listen or to speak, so the room's
-# own facts (worker/bridge/room/facts.py) and a later verb name the same seat. The prefix is
+# own facts (session/voice/room/facts.py) and a later verb name the same seat. The prefix is
 # `sup_` for both: to the room, a listener and a supervisor are the same kind of visitor.
 A_SEAT = "sup_"
 SEAT_BYTES = 6

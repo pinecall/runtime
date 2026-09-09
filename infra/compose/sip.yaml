@@ -1,0 +1,22 @@
+# livekit-sip for a laptop: the bridge that turns a phone call into a room participant.
+# The image's entrypoint is `livekit-sip --config=/sip/config.yaml`, so this file is read
+# only when it is mounted at exactly that path — mounted anywhere else the service starts
+# on its defaults and says nothing about it.
+# api_key and api_secret are NOT here: the service reads LIVEKIT_API_KEY / LIVEKIT_API_SECRET.
+
+ws_url: ws://livekit:7880
+
+redis:
+  address: redis:6379
+
+sip_port: 5060
+rtp_port:
+  start: 10000
+  end: 10019
+
+# There is no public address to discover on a laptop, and asking for one costs a STUN
+# round trip at startup and hands the carrier an address it cannot reach.
+use_external_ip: false
+
+health_port: 8081
+log_level: info

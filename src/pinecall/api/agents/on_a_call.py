@@ -46,7 +46,7 @@ def in_a_call(type: str) -> Callable[[CallHandler], Handler]:
                 return
             # A call this process does not run itself is a worker's, and the live memory holds
             # the command until that worker reads it off GET /v1/calls/{call}/commands. What runs
-            # it there is worker/bridge/commands.py — see docs/decisions/voice-bridge.md.
+            # it there is session/voice/commands.py — see docs/decisions/voice-bridge.md.
             if socket.live.commanded(command.call, command.agent, command):
                 return
             await socket.refuse(
@@ -63,7 +63,7 @@ def in_a_call(type: str) -> Callable[[CallHandler], Handler]:
 
 
 # The two rules below are written as plain functions and registered on top of them, because the
-# eval runner (gateway/evals/conversation.py) stands in for the app's backend and must set a
+# eval runner (api/evals/conversation.py) stands in for the app's backend and must set a
 # golden's opening state and inject its facts through the very same doors a live app does.
 async def configure(session: TextSession, wanted: SessionConfigure) -> None:
     """Set this call up before the first turn: the app's state, and any config of its own."""

@@ -12,7 +12,7 @@ from pinecall.tokens.seating import a_seat_in
 router = APIRouter()
 
 # The scope whose row says what a listener may do: subscribe, never publish, and hidden, so the
-# caller is never told anybody joined (domain/token.py). The token joins the room the call IS.
+# caller is never told anybody joined (types/token.py). The token joins the room the call IS.
 A_LISTENER = "observe"
 
 

@@ -51,7 +51,7 @@ def a_store(connection: HTTPConnection) -> Store:
 
 
 # Typed as Any because the two sides that ask for it want different types of the same object: the
-# app socket sees a Protocol of the calls it makes (gateway/apps/handlers.py), the text channel
+# app socket sees a Protocol of the calls it makes (api/agents/handlers.py), the text channel
 # sees the class itself. One callable, so overriding it in a test answers both.
 def what_is_live(connection: HTTPConnection) -> Any:
     """The process's live memory: the app sockets open here and the calls running on them."""

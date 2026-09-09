@@ -13,7 +13,7 @@ from pinecall_protocol import defs
 
 
 # One per run and never module-level: the calls belong to the turn that made them. This is the
-# `RunTool` seam the bridge already cuts at (gateway/declaring.py:28) — livekit's own
+# `RunTool` seam the bridge already cuts at (session/declaring.py) — livekit's own
 # `mock_tools` mocks a method on an Agent subclass, and none of our tools is one: they live in
 # the tenant's process behind a socket, so the callable is where an eval stands in for the app.
 class Answers:
@@ -28,7 +28,7 @@ class Answers:
         self.calls.append(use)
         if use.name not in self._by_name:
             # ToolError is how livekit sets is_error on the output the model reads back — the
-            # same door `worker/bridge/tools.py:54` puts a refusal from the app through.
+            # same door `session/voice/tools.py:54` puts a refusal from the app through.
             raise ToolError(f"{use.name}: this eval declares no answer for that tool")
         return as_text(
             defs.ToolResult(call_id=use.call_id, name=use.name, output=self._by_name[use.name])

@@ -60,7 +60,7 @@ class Live:
 
     # ── every call, whoever runs it ─────────────────────────────────────────────
 
-    # THE one registration: a text call (gateway/text/chat.py) and a call a worker opened
+    # THE one registration: a text call (api/calls/chat.py) and a call a worker opened
     # (POST /v1/calls) are put on this same delivery, so an app hears both alike. What carries the
     # entries is the log's own fanout, which is what keeps the log the single truth: an entry
     # reaches the app because it was written, never because somebody remembered to send it too.
@@ -165,6 +165,6 @@ async def _feeding(entries: Subscription, send: Send) -> None:
 # ── how a route asks for it ─────────────────────────────────────────────────────
 
 
-# The dep itself lives in gateway/deps.py, so the app socket can ask for the very same object
+# The dep itself lives in api/_deps.py, so the app socket can ask for the very same object
 # without importing this module: a test that overrides it answers both doors at once.
 LiveDep = Annotated[Live, Depends(what_is_live)]

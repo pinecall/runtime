@@ -1,8 +1,5 @@
 """Consent judges every golden run, whatever `expect` names — and it is the column that goes red."""
 
-# The judges ship no py.typed and are the `evals` group, exactly as gateway/evals/scoring.py says.
-# pyright: reportMissingTypeStubs=false, reportUnknownMemberType=false, reportUnknownArgumentType=false
-
 from typing import Any
 
 import httpx
@@ -25,10 +22,6 @@ from tests.api.evals.conftest import (
     serving,
 )
 from tests.session.fake_llm import FakeLLM, Scripted
-
-pytest.importorskip(
-    "pinecall_evals", reason="the judges are the `evals` group: uv sync --group evals"
-)
 
 pytestmark = pytest.mark.unit
 

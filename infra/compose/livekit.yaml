@@ -1,0 +1,29 @@
+# livekit-server for a laptop: one node, redis on the compose network, media over loopback.
+# The API key pair is NOT here — it arrives as LIVEKIT_KEYS so no secret is ever committed.
+
+port: 7880
+
+rtc:
+  # The worker and the browser both run on the host, outside this container. Left to
+  # itself the SFU advertises the address it sees on its own interface, which nothing on
+  # the host can route to: every ICE check then fails silently and the call is deaf.
+  # 127.0.0.1 is where the ports dev.yml publishes actually answer.
+  node_ip: 127.0.0.1
+  # When this is on, the node IP above is ignored and discovery wins instead.
+  use_external_ip: false
+  # And without this, a loopback candidate is filtered out before it is ever offered.
+  enable_loopback_candidate: true
+
+  port_range_start: 50000
+  port_range_end: 50019
+  tcp_port: 7881
+
+redis:
+  address: redis:6379
+
+room:
+  auto_create: true
+  empty_timeout: 300
+
+logging:
+  level: info

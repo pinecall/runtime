@@ -22,7 +22,7 @@ AS_OUR_VERDICT: dict[Verdict, ScoreVerdict] = {
 
 # A judgment carries a verdict, a reasoning and the instructions, and nothing else
 # (livekit/agents/evals/judge.py:34-57). So the entries a verdict is about are the ones its own
-# sentence names — `pinecall/domain/consent.py` writes the seqs into it for exactly this reader —
+# sentence names — `types/consent.py` writes the seqs into it for exactly this reader —
 # and they are lifted out here rather than decided a second time by a second pass over the log.
 A_SEQ = re.compile(r"\bseq (\d+)\b")
 

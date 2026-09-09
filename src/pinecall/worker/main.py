@@ -65,7 +65,7 @@ def a_worker(settings: Settings) -> Worker:
 # os.environ for all three (worker.py:333-335) and dies at worker.py:680 when they are unset, which
 # is what `worker dev` did beside a perfectly good runtime/.env — a file is not the environment.
 # Settings is the only reader of either, and livekit gets the values by its own parameters.
-# The name is the dispatch's (domain/dispatch.py): the token door writes the same word into every
+# The name is the dispatch's (types/dispatch.py): the token door writes the same word into every
 # room config it mints. An empty agent_name means implicit dispatch to every room in the deployment
 # (worker.py:219) — somebody else's call, answered by us — so the name is never empty and this
 # module refuses one.

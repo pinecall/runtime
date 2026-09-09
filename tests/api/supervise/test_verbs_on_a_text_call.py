@@ -292,7 +292,7 @@ def _typed(heard: list[dict[str, Any]], *types: str) -> list[dict[str, Any]]:
 
 
 # The states, the transcripts and the metrics of a turn are the text session's own suite
-# (tests/gateway/text/test_chat.py); a supervise test names the facts it is about and no others.
+# (tests/api/calls/test_chat.py); a supervise test names the facts it is about and no others.
 def _after(heard: list[dict[str, Any]], type: str, *keeping: str) -> list[dict[str, Any]]:
     """The entries of these types written after that one, in the order the log wrote them."""
     seen = [entry["type"] for entry in heard]

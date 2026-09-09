@@ -20,14 +20,14 @@ from pinecall.session.voice.kit import kit_for
 from pinecall.types import NO_ORG_KEYS, AgentConfig
 from pinecall.types.channel import Channel
 
-# The written door. `worker/session.py:27` builds no STT, no TTS and no VAD for it, which is
+# The written door. `session/voice/session.py` builds no STT, no TTS and no VAD for it, which is
 # exactly what a ring wants: the turn a text channel takes is the turn a phone call takes once
 # the words have been recognised, and nothing here has to fake a microphone to get it.
 WRITTEN: Channel = "whatsapp"
 
 
 # The app's side of one turn, frozen. `Speaking` is the port the agent reads the dynamic region
-# through (worker/bridge/agent.py:16): a ring renders one view and holds it, because nothing
+# through (session/voice/agent.py:16): a ring renders one view and holds it, because nothing
 # here moves the state. What was said is already on the run's own events, so it is not kept twice.
 class _Rendered:
     """A view already rendered, standing in for the app for the length of one turn."""

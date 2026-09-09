@@ -27,6 +27,10 @@ DEAD_SENTINEL_KEYS: dict[str, str] = {
 # the safe case is the default, so forgetting a mark costs a failure and never a bill.
 MARKS_THAT_KEEP_THE_REAL_ENVIRONMENT = ("needs_llm", "voice")
 
+# The Postgres fixtures are one module, shared by every package that has a table: log, auth, orgs,
+# routes, tokens, evals. A conftest under one of them would be invisible to the others.
+pytest_plugins = ["tests.postgres"]
+
 
 def pytest_configure() -> None:
     """The suite reads no .env: an operator's real keys must not give them a different suite."""
