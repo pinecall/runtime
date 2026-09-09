@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pinecall._settings import Settings
 from pinecall.api._live import Live
 from pinecall.api.agents.registry import Registry
+from pinecall.filling import Filling
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.vault import Vault
@@ -16,10 +17,10 @@ from pinecall.routes.table import Routes
 from pinecall.whatsapp.graph import Graph
 
 
-# Ten collaborators is what opening a call takes — the chat socket asks for the same ones as
+# Eleven collaborators is what opening a call takes — the chat socket asks for the same ones as
 # parameters of its endpoint, all but the Graph client. They are gathered into one frozen record
 # here because the webhook opens a call on somebody else's behalf and hands it on, and a method
-# with ten positional arguments is a method nobody can read.
+# with eleven positional arguments is a method nobody can read.
 @dataclass(frozen=True)
 class Doors:
     """The gateway, as far as one inbound message touches it. Built per request, held by nobody."""
@@ -34,3 +35,4 @@ class Doors:
     logs: Logs
     live: Live
     graph: Graph
+    filling: Filling

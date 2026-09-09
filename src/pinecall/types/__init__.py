@@ -12,6 +12,12 @@ from pinecall.types.consent import (
     GateLine,
     consent_of,
 )
+from pinecall.types.fusion import (
+    CANDIDATES_PER_BRANCH,
+    RRF_K,
+    reciprocal_rank_fusion,
+    relative_to_the_best,
+)
 from pinecall.types.json import JsonObject
 from pinecall.types.knowledge import Chunk, Docs, Fact, KnowledgeFile, MemoryPolicy
 from pinecall.types.markers import MARKER_NAMES, Ask, Marker, MarkerName, filled, markers_in
@@ -24,6 +30,7 @@ from pinecall.types.token import GRANTS, Grant, Scope, grant_for
 from pinecall.types.tool import SideEffect, ToolSpec
 
 __all__ = [
+    "CANDIDATES_PER_BRANCH",
     "CONFIRMATIONS",
     "DEFAULT_LAYOUT",
     "DEFAULT_ORG",
@@ -32,6 +39,7 @@ __all__ = [
     "MARKER_NAMES",
     "NO_ORG_KEYS",
     "QUOTAS",
+    "RRF_K",
     "THE_WIDGET",
     "VENDORS",
     "AgentConfig",
@@ -76,4 +84,6 @@ __all__ = [
     "filled",
     "grant_for",
     "markers_in",
+    "reciprocal_rank_fusion",
+    "relative_to_the_best",
 ]

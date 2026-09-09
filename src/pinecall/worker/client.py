@@ -113,9 +113,10 @@ class Gateway:
         answered = {(one["name"], one["payload"]): str(one["text"]) for one in answer["fills"]}
         return {marker.line: answered.get((marker.name, marker.payload), "") for marker in markers}
 
-    async def remember(self, call: str) -> None:
+    async def remember(self, call: str) -> int:
         """The gateway reads the call's turns off its log and writes what memory keeps."""
-        await self._read("POST", f"/v1/calls/{call}/remember", {}, timeout=TAIL_TIMEOUT)
+        said = await self._read("POST", f"/v1/calls/{call}/remember", {}, timeout=TAIL_TIMEOUT)
+        return int(said["ops"])
 
     # The worker writes the log and never learns a seq: the gateway numbers it. What a browser in
     # the room is sent must carry the seq, so the worker reads its own call back through the same

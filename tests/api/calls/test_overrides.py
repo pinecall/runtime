@@ -6,15 +6,8 @@ import pytest
 from starlette.testclient import TestClient, WebSocketTestSession
 
 from pinecall.types import Model
-from tests.api.conftest import (
-    A_KEY,
-    AGENT,
-    PIPELINE_KNOBS,
-    a_call_the_app_ends,
-    a_frame,
-    an_app,
-    declared,
-)
+from tests.api.conftest import A_KEY, AGENT, PIPELINE_KNOBS
+from tests.api.talking import a_call_the_app_ends, a_frame, an_app, declared
 
 pytestmark = pytest.mark.unit
 

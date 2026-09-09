@@ -7,11 +7,13 @@ from dataclasses import dataclass
 from datetime import date
 from uuid import uuid4
 
+from pinecall._settings import Budgets
 from pinecall.api._live import Live
 from pinecall.api.agents import on_a_call as commands
 from pinecall.api.evals.attachment import APP_DETACHED, ENDED_BY, AppDetached, Attachment
 from pinecall.api.evals.settling import Settling
 from pinecall.evals.goldens import Golden
+from pinecall.filling import Filling
 from pinecall.log.entry import Entry
 from pinecall.log.replay import whole
 from pinecall.log.store import Store
@@ -49,13 +51,21 @@ async def a_conversation(
     live: Live,
     llm: Chat,
     store: Store,
+    filling: Filling,
+    budgets: Budgets,
 ) -> Conversation:
     """Open the call, seed its state, say every turn, hang up, and read the log back whole."""
-    session = an_eval_call(golden, call, config, org, logs, llm)
+    session = an_eval_call(golden, call, config, org, logs, llm, filling, budgets)
     settling = Settling(session)
     await logs.owned(session.call, session.agent, org)
     live.serve(
-        session.call, session.agent, org, logs.writing(session.call, session.agent), app.socket
+        session.call,
+        session.agent,
+        org,
+        logs.writing(session.call, session.agent),
+        app.socket,
+        context=session.context,
+        config=session.config,
     )
     live.open(session)
     try:
@@ -80,7 +90,14 @@ async def a_conversation(
 
 
 def an_eval_call(
-    golden: Golden, call: str, config: AgentConfig, org: str, logs: Logs, llm: Chat
+    golden: Golden,
+    call: str,
+    config: AgentConfig,
+    org: str,
+    logs: Logs,
+    llm: Chat,
+    filling: Filling,
+    budgets: Budgets,
 ) -> TextSession:
     """One call under the id the run named: the caller nobody is, on the config this model runs."""
     context = CallContext(
@@ -94,7 +111,17 @@ def an_eval_call(
     )
     # logs.writing() keeps the log, so every SSE reader of this call is already subscribed to it:
     # a run is tailed while it happens through the very doors a live call is tailed through.
-    return TextSession(context, config, logs.writing(call, config.slug), llm)
+    # A golden's turns are filled the way a live text call's are: the same object, the same
+    # budgets, so `docs.sources` is on the run's log for the grounded judge to read.
+    return TextSession(
+        context,
+        config,
+        logs.writing(call, config.slug),
+        llm,
+        filler=filling,
+        rememberer=filling,
+        budgets=budgets,
+    )
 
 
 async def _the_whole_golden(session: TextSession, golden: Golden, settling: Settling) -> None:

@@ -2,29 +2,18 @@
 
 from collections.abc import AsyncIterator
 from typing import Any
-from uuid import uuid4
 
 import pytest
 
 from pinecall.knowledge import Base, PgKnowledge
 from pinecall.log.store import open_pool
 from pinecall.providers.embedder import DIMENSIONS
-from pinecall.types import KnowledgeFile
+from tests.knowledge.files import CLINICA, TARIFAS, an_org
 from tests.postgres import Dev
 from tests.vectors import HASH_MODEL, HashEmbedder
 
 pytestmark = pytest.mark.postgres
 
-CLINICA = KnowledgeFile(
-    "clinica.md",
-    "# Clínica Norte\n\n## Horarios\n\nAbrimos de lunes a viernes de nueve a dieciocho.\n\n"
-    "## Turnos\n\nLos turnos se piden por teléfono o por la web, con el documento a mano.\n",
-)
-TARIFAS = KnowledgeFile(
-    "tarifas.md",
-    "# Tarifas\n\n## Revisión\n\nLa revisión cuesta cuarenta euros y dura media hora.\n\n"
-    "## Limpieza\n\nLa limpieza dental cuesta sesenta euros.\n",
-)
 THE_BASE = "clinica"
 
 
@@ -42,13 +31,6 @@ async def knowledge(postgres: Dev) -> AsyncIterator[PgKnowledge]:
 async def org(raw_connection: Any) -> str:
     """An org of this test's own, in the table the base's row references."""
     return await an_org(raw_connection)
-
-
-async def an_org(connection: Any) -> str:
-    """One more org, created now, named so no other test's rows can be mistaken for its own."""
-    org = f"org-{uuid4().hex[:12]}"
-    await connection.execute("insert into orgs (id, slug, name) values ($1, $1, $1)", org)
-    return org
 
 
 async def test_a_push_counts_its_chunks_and_a_second_push_replaces_the_first(

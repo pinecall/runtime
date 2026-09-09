@@ -10,7 +10,7 @@ import httpx
 import pytest
 
 from pinecall.providers.embed.tei import UNNAMED, TeiEmbedder
-from pinecall.providers.embedder import DIMENSIONS, Embedder, WrongWidth
+from pinecall.providers.embedder import DIMENSIONS, Embedder, EmbedderUnreachable, WrongWidth
 
 pytestmark = pytest.mark.unit
 
@@ -82,3 +82,23 @@ def test_tei_is_an_embedder_of_the_declared_width() -> None:
 def _the_posts(seen: list[httpx.Request]) -> list[httpx.Request]:
     posted: Callable[[httpx.Request], Any] = lambda request: request.method == "POST"  # noqa: E731
     return [request for request in seen if posted(request)]
+
+
+async def test_a_tei_that_refuses_the_connection_is_unreachable_by_name_and_url() -> None:
+    """The sentence is what a fill's error entry carries, so it names the vendor and where."""
+
+    def refuse(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused", request=request)
+
+    embedder = TeiEmbedder(TEI, httpx.AsyncClient(transport=httpx.MockTransport(refuse)))
+    with pytest.raises(EmbedderUnreachable, match=f"TEI at {TEI} did not answer: connection"):
+        await embedder.embed(["hola"])
+
+
+async def test_a_tei_that_answers_5xx_is_unreachable_too() -> None:
+    def broken(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, request=request)
+
+    embedder = TeiEmbedder(TEI, httpx.AsyncClient(transport=httpx.MockTransport(broken)))
+    with pytest.raises(EmbedderUnreachable, match="TEI at"):
+        await embedder.model()

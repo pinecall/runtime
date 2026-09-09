@@ -2,13 +2,16 @@
 
 from tests.api.conftest import (  # noqa: F401 — imported so pytest collects them here
     admission,
+    filling,
     graph,
     keys,
     keys_asked,
+    knowledge,
     live,
     llm,
     llms,
     logs,
+    memory,
     models_asked,
     ops_http,
     orgs,
@@ -27,13 +30,16 @@ from tests.api.conftest import (  # noqa: F401 — imported so pytest collects t
 # pytest collects a fixture it finds in a conftest's namespace; this list is what says so out loud.
 __all__ = [
     "admission",
+    "filling",
     "graph",
     "keys",
     "keys_asked",
+    "knowledge",
     "live",
     "llm",
     "llms",
     "logs",
+    "memory",
     "models_asked",
     "ops_http",
     "orgs",

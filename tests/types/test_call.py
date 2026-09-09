@@ -68,3 +68,18 @@ def test_the_context_is_frozen_because_what_changes_is_in_the_log() -> None:
     any_field: str = "caller"
     with pytest.raises(FrozenInstanceError):
         setattr(a_call(), any_field, "+34600000002")
+
+
+def test_a_phone_call_is_remembered_under_the_number_that_called() -> None:
+    assert a_call().remembered_as == "+34600000001"
+
+
+def test_a_resolved_contact_id_outranks_the_number() -> None:
+    assert a_call(contact=Contact(id="P-2231", phone="+34600000001")).remembered_as == "P-2231"
+
+
+def test_a_web_visitor_with_no_id_is_nobody_to_memory() -> None:
+    visitor = a_call(channel="web", route=WIDGET, caller="visitor_1", contact=None)
+    assert visitor.remembered_as is None
+    named = a_call(channel="web", route=WIDGET, caller="visitor_1", contact=Contact(name="Ana"))
+    assert named.remembered_as is None

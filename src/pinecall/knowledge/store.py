@@ -8,18 +8,17 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from pgvector import HalfVector
-
 from pinecall.knowledge.chunking import chunks_of
 from pinecall.log.store import Pool
-from pinecall.providers.embedder import Embedder
-from pinecall.types import Chunk, KnowledgeFile
+from pinecall.providers.embedder import Embedder, as_halfvec
+from pinecall.types import (
+    CANDIDATES_PER_BRANCH,
+    Chunk,
+    KnowledgeFile,
+    reciprocal_rank_fusion,
+    relative_to_the_best,
+)
 from pinecall.types.knowledge import DEFAULT_CHUNKS_PER_TURN
-
-# The design's hybrid: thirty candidates from each branch, fused by reciprocal rank under the
-# constant the RRF paper settled on, the best k to the model.
-CANDIDATES_PER_BRANCH = 30
-RRF_K = 60
 
 # How many texts one call to the embedder carries.
 EMBED_BATCH = 32
@@ -109,7 +108,7 @@ class PgKnowledge:
             [piece.heading for piece in pieces],
             [piece.ordinal for piece in pieces],
             [piece.text for piece in pieces],
-            [_as_halfvec(vector) for vector in vectors],
+            [as_halfvec(vector) for vector in vectors],
         )
         return len(pieces)
 
@@ -137,7 +136,7 @@ class PgKnowledge:
         """The best k chunks for the query, by meaning and by words, fused; under min_score, cut."""
         [vector] = await self._embedder.embed([query])
         nearest, worded = await asyncio.gather(
-            self._pool.fetch(_NEAREST, org, base, _as_halfvec(vector), CANDIDATES_PER_BRANCH),
+            self._pool.fetch(_NEAREST, org, base, as_halfvec(vector), CANDIDATES_PER_BRANCH),
             self._pool.fetch(_BEST_WORDED, org, base, query, CANDIDATES_PER_BRANCH),
         )
         chunks = [
@@ -155,22 +154,16 @@ class PgKnowledge:
         return vectors
 
 
-# Reciprocal rank fusion: a candidate earns 1 / (k + rank) from each branch that lists it, and
-# the sums are read against the best, so 1.0 is the top chunk and a chunk one branch found near
-# its top lands near a half. Ties keep the order the dense branch found them in.
+# The fusion is types/fusion.py's, the same one memory ranks with: a candidate earns
+# 1 / (k + rank) from each branch that lists it, and the sums are read against the best, so 1.0
+# is the top chunk and a chunk one branch found near its top lands near a half.
 def _fused(
     branches: Sequence[Sequence[Mapping[str, Any]]],
 ) -> list[tuple[Mapping[str, Any], float]]:
     """Every candidate of every branch with its fused score in 0..1, best first."""
-    rows: dict[Any, Mapping[str, Any]] = {}
-    scores: dict[Any, float] = {}
-    for branch in branches:
-        for rank, row in enumerate(branch, start=1):
-            rows.setdefault(row["id"], row)
-            scores[row["id"]] = scores.get(row["id"], 0.0) + 1 / (RRF_K + rank)
-    best = max(scores.values(), default=0.0)
-    ranked = sorted(scores, key=scores.__getitem__, reverse=True)
-    return [(rows[id], scores[id] / best) for id in ranked]
+    rows = {str(row["id"]): row for branch in branches for row in branch}
+    fused = reciprocal_rank_fusion(*([str(row["id"]) for row in branch] for branch in branches))
+    return [(rows[id], score) for id, score in relative_to_the_best(fused).items()]
 
 
 def _a_chunk(row: Mapping[str, Any], base: str, score: float) -> Chunk:
@@ -183,8 +176,3 @@ def _a_chunk(row: Mapping[str, Any], base: str, score: float) -> Chunk:
         text=str(row["text"]),
         score=score,
     )
-
-
-def _as_halfvec(vector: Sequence[float]) -> str:
-    """The vector as halfvec reads it: `[1,0.5,…]`, the text form pgvector itself writes."""
-    return HalfVector(list(vector)).to_text()

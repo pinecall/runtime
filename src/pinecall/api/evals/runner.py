@@ -15,6 +15,7 @@ from pydantic import Field
 from starlette.requests import HTTPConnection
 
 from pinecall._exceptions import PinecallError
+from pinecall._settings import Budgets
 from pinecall.api._deps import held
 from pinecall.api._live import Live
 from pinecall.api.agents.registry import NO_AGENT, Registration, Registry
@@ -23,6 +24,7 @@ from pinecall.api.evals.conversation import a_conversation
 from pinecall.api.evals.scoring import Judging
 from pinecall.evals.goldens import Golden
 from pinecall.evals.runs import EvalRun, Opened, Runs
+from pinecall.filling import Filling
 from pinecall.log.store import Store
 from pinecall.log.writers import Logs
 from pinecall.orgs.vault import Vault, keys_brought_by
@@ -93,6 +95,9 @@ class Process:
     runs: Runs
     # Where the org's own provider keys are kept, or None on a runtime that keeps nobody's.
     vault: Vault | None
+    # What fills a golden's markers and remembers its hang-up, and how long a turn waits for it.
+    filling: Filling
+    budgets: Budgets
 
 
 class Runner:
@@ -197,6 +202,8 @@ async def _every_conversation(
                     live=process.live,
                     llm=llm,
                     store=process.store,
+                    filling=process.filling,
+                    budgets=process.budgets,
                 )
             # The call itself has already ended as app_detached; what this adds is the run's own
             # arithmetic, which only the loop knows.

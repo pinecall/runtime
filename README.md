@@ -24,7 +24,11 @@ uv run pinecall-runtime doctor                     every service and key, one li
 ```
 
 Then, from an example in the agents repository, `pinecall run` registers the agent and
-`pinecall chat` talks to it. Development happens from the checkout, with `uv`:
+`pinecall chat` talks to it. `pinecall knowledge push ./knowledge/docs --base clinica-norte`
+puts the agent's files where its `<!-- retrieved -->` marker reads from, and `pinecall memory
+<contact>` prints what a caller's calls taught the agent (`memory forget` erases it). Both are
+tables in Postgres and TEI vectors — on a dev key, with no database, a fill is empty and the
+push says so. Development happens from the checkout, with `uv`:
 
 ```
 scripts/format        ruff format, then the fixable lint rules
@@ -121,7 +125,7 @@ they arrive as systemd credentials — and need a LiveKit server, a Postgres 17 
 | verb | what |
 |---|---|
 | `migrate up` · `migrate status` | the schema, numbered SQL, applied in order |
-| `doctor [--bench]` | keys present · keys answer · livekit · postgres · tei · lk — one line each, and what is down first |
+| `doctor` | keys present · keys answer · livekit · postgres · tei · lk — one line each, and what is down first |
 | `box secrets` | every secret a box makes for itself, once; run twice rotates nothing |
 | `box secret <NAME>` | one secret you bring, from stdin, replaced in place |
 | `orgs list · add · rm · quota · provider-key` | the tenants, their quota, the vendor keys an org brings |

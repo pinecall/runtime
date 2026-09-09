@@ -11,10 +11,12 @@ from starlette.websockets import WebSocketState
 
 from pinecall.api._deps import (
     AdmissionDep,
+    FillingDep,
     KeysDep,
     LlmsDep,
     LogsDep,
     OverridesDep,
+    SettingsDep,
     VaultDep,
     a_key_on_a_socket,
 )
@@ -82,6 +84,8 @@ async def chat(
     overrides: OverridesDep,
     admission: AdmissionDep,
     vault: VaultDep,
+    filling: FillingDep,
+    settings: SettingsDep,
 ) -> None:
     """One caller, one text call: they send {text}, they receive every entry of their own call."""
     key = await a_key_on_a_socket(websocket, keys)
@@ -115,6 +119,8 @@ async def chat(
             admission,
             logs,
             live.running(held.org),
+            filling,
+            settings.budgets,
         )
     except NoProvider as missing:
         logger.warning("chat refused for %s: %s", slug, missing)
@@ -150,7 +156,15 @@ async def _talk(
     # app's, which is the one delivery a worker-run call is put on too (api/_live.py). The
     # public and tenant projections are the sink's, and the state card of this milestone owns them.
     session.watch(_sending(websocket))
-    live.serve(session.call, session.agent, org, logs.writing(session.call, session.agent), app)
+    live.serve(
+        session.call,
+        session.agent,
+        org,
+        logs.writing(session.call, session.agent),
+        app,
+        context=session.context,
+        config=session.config,
+    )
     live.open(session)
     try:
         await session.start()

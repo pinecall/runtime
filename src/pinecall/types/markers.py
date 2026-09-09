@@ -22,6 +22,14 @@ MARKER_NAMES: frozenset[str] = frozenset(get_args(MarkerName.__value__))
 # fills are keyed by it.
 A_MARKER = re.compile(rf"^\s*<!--\s*({'|'.join(sorted(MARKER_NAMES))}):\s*(.*?)\s*-->\s*$")
 
+# The codes the log carries when the platform did not fill a marker, by what was asked, and the
+# sentence each carries. Both sides of the seam write them — the session past its budget, the
+# gateway when the embedder is down — so they are spelled here, once, and never phrased twice.
+SKIPPED: dict[str, str] = {"memory": "memory_skipped", "retrieved": "retrieval_skipped"}
+REMEMBER_FAILED = "remember_failed"
+NOT_FILLED = "{what} was not filled: {why}"
+NOT_REMEMBERED = "memory was not written: {why}"
+
 
 @dataclass(frozen=True)
 class Ask:

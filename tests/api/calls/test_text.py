@@ -10,7 +10,8 @@ from livekit.agents.llm import ChatMessage
 from starlette.testclient import TestClient, WebSocketTestSession
 
 from tests.api.calls.test_chat import A_TOOL, AN_EVENT
-from tests.api.conftest import AGENT, a_caller, a_frame, an_app, declared
+from tests.api.conftest import AGENT
+from tests.api.talking import a_caller, a_frame, an_app, declared
 from tests.session.fake_llm import FakeLLM, Scripted, a_call
 
 pytestmark = pytest.mark.unit

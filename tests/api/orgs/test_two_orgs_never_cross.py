@@ -14,19 +14,8 @@ from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.log.store import MemoryStore
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.types import Org
-from tests.api.conftest import (
-    A_KEY,
-    A_RECORD,
-    AGENT,
-    AN_ORG,
-    APPS,
-    a_caller,
-    a_door,
-    a_register,
-    an_app,
-    got,
-    hung_up_by_the_app,
-)
+from tests.api.conftest import A_KEY, A_RECORD, AGENT, AN_ORG, APPS
+from tests.api.talking import a_caller, a_door, a_register, an_app, got, hung_up_by_the_app
 from tests.log.test_usage import A_SUMMARY
 
 pytestmark = pytest.mark.unit

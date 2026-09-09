@@ -14,7 +14,8 @@ from pinecall.api.app import app
 from pinecall.auth.keys import keys_for
 from pinecall.log.entry import Entry
 from pinecall.log.store import MemoryStore
-from tests.api.conftest import A_KEY, a_door, a_frame, a_register
+from tests.api.conftest import A_KEY
+from tests.api.talking import a_door, a_frame, a_register
 
 pytestmark = pytest.mark.unit
 

@@ -20,6 +20,7 @@ from pinecall.api._deps import (
     KeyDep,
     KeysDep,
     LogsDep,
+    OverridesDep,
     SettingsDep,
     SnapshotsDep,
     StoreDep,
@@ -53,7 +54,7 @@ from pinecall.log.store import DEFAULT_LIMIT, Store
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.tokens.spending import spent
-from pinecall.types import CallContext
+from pinecall.types import AgentConfig, CallContext
 from pinecall_protocol import ProtocolError, WireModel, defs, encode
 from pinecall_protocol.events import CallDialing, CallRinging, ErrorEvent
 from pinecall_protocol.registry import EVENTS, TERMINAL_EVENT
@@ -281,6 +282,7 @@ async def opened(
     live: ServingDep,
     tokens: TokensDep,
     admission: AdmissionDep,
+    overrides: OverridesDep,
 ) -> None:
     """A call started: open its log, put it on the app's socket, and write how it arrived."""
     context = said.context
@@ -312,7 +314,12 @@ async def opened(
     # Served before the first entry is written, so the app hears the call arrive: this is the very
     # same registration a text call gets, and it is what the call's tools travel down.
     app = serving.owner if serving is not None else None
-    live.serve(context.call, said.agent, key.org, log, app)
+    # What this call's agent declared, resolved the way the worker read it a moment ago through
+    # the config door — so a fill searches the base the worker's session was built to expect. An
+    # agent nobody holds any more declared nothing this gateway can name, and nothing is filled.
+    held = serving or registry.of(said.agent)
+    config = overrides.config_for(said.agent, held.config) if held else AgentConfig(slug=said.agent)
+    live.serve(context.call, said.agent, key.org, log, app, context=context, config=config)
     type, event = _arrived(context, said.agent)
     await log.append(type, encode(event))
 

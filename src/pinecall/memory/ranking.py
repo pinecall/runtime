@@ -3,19 +3,11 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
 
-from pinecall.types import Fact
-
-# Reciprocal rank fusion's constant, as Cormack et al. set it: a rank weighs 1 / (60 + rank), so
-# the first of one branch and the tenth of the other sit close, and nothing hinges on raw scores
-# two branches measure on scales of their own — a cosine distance and a negative BM25.
-RRF_K = 60
-
-# How many candidates each branch hands the fusion: the design's thirty.
-CANDIDATES_PER_BRANCH = 30
+from pinecall.types import Fact, reciprocal_rank_fusion, relative_to_the_best
 
 # A fact learned ninety days ago weighs half of one learned today — ACT-R's decay, as the design
 # took it from NOOA: what was said recently is what the next call is about.
@@ -32,8 +24,8 @@ class Candidate:
     confidence: float
 
 
-# The score a caller reads is relative: the best candidate is 1.0 and the rest are their share of
-# it, so a view's min_score means the same thing whatever the branches measured that turn.
+# The fusion and the relative score are types/fusion.py's, shared with the knowledge base; what
+# is memory's own is the weighing in between: how recent a fact is, and how sure memory was of it.
 def ranked(
     dense: Sequence[Candidate], sparse: Sequence[Candidate], *, now: datetime, k: int
 ) -> list[Fact]:
@@ -46,20 +38,8 @@ def ranked(
         id: score * recency(by_id[id].fact.valid_from, now) * by_id[id].confidence
         for id, score in fused.items()
     }
-    best = max(weighed.values(), default=0.0)
-    ordered = sorted(weighed, key=lambda id: (-weighed[id], id))
-    return [
-        replace(by_id[id].fact, score=weighed[id] / best if best else 0.0) for id in ordered[:k]
-    ]
-
-
-def reciprocal_rank_fusion(*orders: Sequence[str], k: int = RRF_K) -> Mapping[str, float]:
-    """Each id's summed 1 / (k + rank) over every order it appears in; ranks count from one."""
-    fused: dict[str, float] = {}
-    for order in orders:
-        for rank, id in enumerate(order, start=1):
-            fused[id] = fused.get(id, 0.0) + 1.0 / (k + rank)
-    return fused
+    scored = relative_to_the_best(weighed)
+    return [replace(by_id[id].fact, score=score) for id, score in list(scored.items())[:k]]
 
 
 def recency(learned: datetime, now: datetime) -> float:

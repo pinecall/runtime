@@ -4,23 +4,11 @@ from datetime import timedelta
 
 import pytest
 
-from pinecall.memory.ranking import (
-    HALF_LIFE_DAYS,
-    RRF_K,
-    Candidate,
-    ranked,
-    recency,
-    reciprocal_rank_fusion,
-)
+from pinecall.memory.ranking import HALF_LIFE_DAYS, Candidate, ranked, recency
+from pinecall.types import RRF_K
 from tests.memory.facts import NOW, a_fact
 
 pytestmark = pytest.mark.unit
-
-
-def test_a_rank_weighs_one_over_k_plus_rank_and_an_id_in_both_orders_adds_up() -> None:
-    fused = reciprocal_rank_fusion(["a", "b"], ["b"])
-    assert fused["a"] == pytest.approx(1 / (RRF_K + 1))
-    assert fused["b"] == pytest.approx(1 / (RRF_K + 2) + 1 / (RRF_K + 1))
 
 
 def test_the_fact_both_branches_find_comes_before_the_ones_only_one_finds() -> None:

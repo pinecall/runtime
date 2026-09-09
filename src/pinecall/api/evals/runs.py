@@ -6,7 +6,17 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
-from pinecall.api._deps import KeyDep, LlmsDep, LogsDep, OverridesDep, RunsDep, StoreDep, VaultDep
+from pinecall.api._deps import (
+    FillingDep,
+    KeyDep,
+    LlmsDep,
+    LogsDep,
+    OverridesDep,
+    RunsDep,
+    SettingsDep,
+    StoreDep,
+    VaultDep,
+)
 from pinecall.api._live import LiveDep
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.evals.runner import (
@@ -46,6 +56,8 @@ async def run_the_goldens(
     store: StoreDep,
     runs: RunsDep,
     vault: VaultDep,
+    filling: FillingDep,
+    settings: SettingsDep,
 ) -> dict[str, Any]:
     """Every golden against the app that is holding the agent, scored, stored, and answered."""
     process = Process(
@@ -57,6 +69,8 @@ async def run_the_goldens(
         store=store,
         runs=runs,
         vault=vault,
+        filling=filling,
+        budgets=settings.budgets,
     )
     try:
         return (await a_run(said, runner, process)).as_json

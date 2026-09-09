@@ -6,7 +6,7 @@ from datetime import date
 from typing import Any
 from uuid import uuid4
 
-from pinecall.types.channel import CHANNELS, DIRECTIONS, Channel, Direction
+from pinecall.types.channel import CHANNELS, CHANNELS_WITH_A_NUMBER, DIRECTIONS, Channel, Direction
 from pinecall.types.refused import DeclarationRefused
 from pinecall.types.route import Route
 
@@ -65,6 +65,17 @@ class CallContext:
             raise DeclarationRefused(
                 f"a {self.channel} call cannot come through a {self.route.channel} route"
             )
+
+    # The one rule of who a contact is across calls: the id the app resolved when it has one, else
+    # the number on the channels that have one — the same person on the phone today and on
+    # WhatsApp next week is one contact. A web visitor with no id is nobody yet, and nobody's
+    # facts are read or written. docs/decisions/memory.md.
+    @property
+    def remembered_as(self) -> str | None:
+        """The contact memory files this call under, or None when the caller has no identity."""
+        if self.contact is not None and self.contact.id:
+            return self.contact.id
+        return self.caller if self.channel in CHANNELS_WITH_A_NUMBER else None
 
 
 def a_call_id() -> str:
