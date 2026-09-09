@@ -152,3 +152,14 @@ agents repository's, and speak to this gateway with the org's key.
 | `infra/box/README.md` | the box: standing one up, roles, slots, secrets, the fence, wiring a number |
 | `infra/README.md` | the dev stack |
 | `.env.example` | every variable both processes read, rendered from the settings class |
+
+## License
+
+[Apache-2.0](LICENSE). Use it, change it, run it in production, sell what you build with it —
+commercially or not, on your own box or somebody else's. The licence carries an explicit patent
+grant, which is why it is the one this stack uses (LiveKit's is the same). There is no NOTICE
+file, so nothing has to be reproduced downstream beyond the licence itself, and there is no CLA:
+a patch is yours and stays under the same terms.
+
+`pinecall` on PyPI, and the box under `infra/box/` — the same tree either way. Nothing in it
+is a hosted-only path: everything needed to self-host is in this repository.
