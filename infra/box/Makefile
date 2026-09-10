@@ -14,7 +14,11 @@ CREDSTORE = /etc/credstore.encrypted
 RUNTIME   = /opt/pinecall/venv/bin/pinecall-runtime
 
 UNITS      = $(wildcard *.service)
-CONTAINERS = $(wildcard containers/*)
+# Every container unit but the embedder's. TEI is the one a box may not want — 2.3 GB of weights
+# for a service two of the three providers do over HTTP — so the manifest, and not the unit,
+# decides whether Quadlet ever sees its file: `embedder-tei` and `embedder-elsewhere` below.
+TEI        = containers/pinecall-tei.container containers/pinecall-tei.volume
+CONTAINERS = $(filter-out $(TEI),$(wildcard containers/*))
 
 # The packages a box runs on, the same list cloud-init.yaml installs at first boot — a test pins
 # the two equal — so a box born before a package was added converges on the next deploy.
@@ -29,6 +33,7 @@ install: packages
 	systemd-tmpfiles --create
 	install -D -m 644 -t $(SYSTEMD) $(UNITS)
 	install -D -m 644 -t $(QUADLET) $(CONTAINERS)
+	$(MAKE) --no-print-directory embedder-$(EMBEDDER)
 	install -D -m 644 -t /etc/pinecall livekit.yaml sip.yaml
 	install -D -m 644 caddy/Caddyfile /etc/caddy/Caddyfile
 	install -D -m 644 caddy/pinecall.conf $(SYSTEMD)/caddy.service.d/pinecall.conf
@@ -48,7 +53,7 @@ packages:
 	  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends $$missing >/dev/null; fi
 
 # The doctor, as the units see the box: their user, their environment file, and every credential
-# the credstore holds, in a transient unit systemd tears down on exit. The two localhost URLs are
+# the credstore holds, in a transient unit systemd tears down on exit. The three localhost URLs are
 # the ones each .service sets, and box.env overrides them on a worker as it does for the worker.
 # Every key that is set is knocked at its own vendor: a dead one fails the deploy here, and not
 # a caller's first call.
@@ -56,6 +61,7 @@ doctor:
 	systemd-run --quiet --pipe --wait --collect \
 	  -p User=pinecall -p WorkingDirectory=/opt/pinecall/app \
 	  -E LIVEKIT_URL=ws://127.0.0.1:7880 -E PINECALL_GATEWAY_URL=http://127.0.0.1:8080 \
+	  -E TEI_URL=http://127.0.0.1:8081 \
 	  -p EnvironmentFile=/etc/pinecall/box.env \
 	  $(foreach credential,$(notdir $(wildcard $(CREDSTORE)/*)),-p ImportCredential=$(credential)) \
 	  $(RUNTIME) doctor
@@ -72,6 +78,21 @@ doctor:
 ROLE = $(shell sed -n 's/^PINECALL_ROLE=//p' /etc/pinecall/box.env 2>/dev/null || true)
 ROLE := $(if $(ROLE),$(ROLE),all)
 
+# Who embeds, out of the same file and by the same rule: `tei` — the default, and what a box.env
+# with no such line means — is the container beside the other four; `perplexity` and `openrouter`
+# are a vendor's HTTP door and a key in the credstore, so that box runs no embedder of its own.
+# A WORKER embeds nothing whatever the line says: every marker is filled by the gateway, on the hub.
+EMBED_PROVIDER = $(shell sed -n 's/^EMBED_PROVIDER=//p' /etc/pinecall/box.env 2>/dev/null || true)
+EMBED_PROVIDER := $(if $(EMBED_PROVIDER),$(EMBED_PROVIDER),tei)
+
+EMBEDDER := tei
+ifneq ($(EMBED_PROVIDER),tei)
+EMBEDDER := elsewhere
+endif
+ifeq ($(ROLE),worker)
+EMBEDDER := elsewhere
+endif
+
 HUB_UNITS    = caddy pinecall-secrets pinecall-gateway pinecall-worker-key pinecall-operator-key
 WORKER_UNITS = pinecall-worker
 CONTAINERS_  = pinecall-redis pinecall-livekit pinecall-sip pinecall-postgres
@@ -85,3 +106,20 @@ enable-hub:
 enable-worker:
 	systemctl enable -q nftables $(WORKER_UNITS)
 	-systemctl disable -q --now $(HUB_UNITS) $(CONTAINERS_) 2>/dev/null
+
+# The embedder, the same shape as the role above: box.env declares it, `make install` converges on
+# it, and a box that changes the line changes what it runs on its next deploy. `systemctl enable`
+# refuses a Quadlet unit outright, so what decides whether the embedder comes up at boot is whether
+# its file is under $(QUADLET) at all, and the [Install] section inside it does the rest.
+#
+# `stop`, and not `disable --now`: disabling is what systemd refuses on a generated unit, and it
+# refuses before it would have stopped anything. So the container is stopped while its generated
+# unit still exists to be stopped, and the files go after. The weights stay — `podman volume rm
+# pinecall-tei` frees the 2.3 GB, and that is a person's to type, because a line changed in a
+# config file must not throw data away.
+.PHONY: embedder-tei embedder-elsewhere
+embedder-tei:
+	install -D -m 644 -t $(QUADLET) $(TEI)
+embedder-elsewhere:
+	-systemctl stop pinecall-tei 2>/dev/null
+	rm -f $(addprefix $(QUADLET)/,$(notdir $(TEI)))

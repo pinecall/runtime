@@ -31,10 +31,21 @@ KEY_REFUSED = (
 )
 
 # An embedder that is down stops no call: a fill that needs a vector is skipped and the call's
-# log says so (`retrieval_skipped`, `memory_skipped`, naming the vendor), and the turn goes on. A
-# push to the knowledge base does need it, and answers 503 with the same sentence — never a bare
-# 500. Advice, not outage.
+# log says so (`retrieval_skipped`, `memory_skipped`, naming the vendor), and the turn goes on. On
+# a laptop, and on the `all` an untouched clone defaults to, that is the whole story — TEI has no
+# arm64 image to run on a Mac at all. Advice, not outage.
 EMBEDDER_IS_ADVICE = "a fill without it is skipped and said in the call's log: this stops no call"
+
+# A HUB is the machine that promised one. It holds the knowledge base and answers the pushes, and
+# `PUT /v1/knowledge/{base}` with no embedder is a 503 the tenant reads: nothing about that is
+# skipped quietly. So the line is the verdict there, and it names what to type — a deploy that
+# ended green over a shut door is the dead ElevenLabs key of 2026-09-09 again.
+EMBEDDER_IS_DOWN = "a hub embeds: a knowledge push answers 503 and every fill is skipped — {fix}"
+
+# There are two shapes of embedder and so two fixes: a container on this box, or a vendor's door
+# and the key that opens it. `make secret` is run from the checkout, never on the box by hand.
+START_THE_UNIT = "start it with `systemctl start pinecall-tei`, or name a vendor in EMBED_PROVIDER"
+BRING_A_LIVE_KEY = "put a live key in with `make secret NAME={variable}`, from the checkout"
 
 # TEI names the model it loaded at /info and answers 200 there. The hosted embedders have no such
 # door: what can be asked of them without spending anything is whether the host answers at all,
@@ -197,20 +208,31 @@ def check_the_embedder_answers(settings: Settings, probes: Probes) -> Result:
     runs = f"{settings.embed_provider} · {model_of(settings)}"
     field = key_field_of(settings)
     if field is not None and not getattr(settings, field):
-        return _no_embedder(f"{runs} — no {variable_of(field)}")
+        return _no_embedder(settings, f"{runs} — no {variable_of(field)}")
     url = _where_the_embedder_answers(settings)
     try:
         status = probes.http_status(url)
     except Exception as failure:
-        return _no_embedder(f"{runs} — {url} — {_reason(failure)}")
+        return _no_embedder(settings, f"{runs} — {url} — {_reason(failure)}")
     if field is None and status != 200:
-        return _no_embedder(f"{runs} — {url} — HTTP {status}")
+        return _no_embedder(settings, f"{runs} — {url} — HTTP {status}")
     return Result("embedder", True, f"{runs} — {url} — HTTP {status}")
 
 
-def _no_embedder(detail: str) -> Result:
-    """A ✗ that is advice: this box embeds nothing, and every call it carries still runs."""
-    return Result("embedder", False, f"{detail}; {EMBEDDER_IS_ADVICE}", advisory=True)
+def _no_embedder(settings: Settings, detail: str) -> Result:
+    """On a hub the ✗ is the verdict and says what to type; anywhere else the line is advice."""
+    if settings.role != "hub":
+        return Result("embedder", False, f"{detail}; {EMBEDDER_IS_ADVICE}", advisory=True)
+    down = EMBEDDER_IS_DOWN.format(fix=_the_fix(settings))
+    return Result("embedder", False, f"{detail}; {down}")
+
+
+def _the_fix(settings: Settings) -> str:
+    """TEI is a unit on this box; every other provider is a door and a key in the credstore."""
+    field = key_field_of(settings)
+    if field is None:
+        return START_THE_UNIT
+    return BRING_A_LIVE_KEY.format(variable=variable_of(field))
 
 
 def _where_the_embedder_answers(settings: Settings) -> str:

@@ -43,6 +43,11 @@ write_files:
       #LIVEKIT_URL=wss://box.example.com                                   # worker only
       #PINECALL_GATEWAY_URL=https://box.example.com                        # worker only
       #PINECALL_MAX_JOBS=5                                                 # worker only, measured
+      # Who turns this box's text into vectors. Unset means `tei`: the embedder runs here as a
+      # container, and its first start fetches 2.3 GB of bge-m3. Name a vendor instead and the
+      # box runs no embedder at all — then put its key in with `make secret NAME=…`, from the
+      # checkout. A worker embeds nothing either way. infra/box/README.md, "The embedder".
+      #EMBED_PROVIDER=perplexity                                           # or openrouter
 
 runcmd:
   # Where the code lands: the deploy account's, because rsync arrives as it and owns what it

@@ -1,0 +1,41 @@
+# The embedder: bge-m3, served on this machine, and the one member of the media plane a box may
+# not have. Whether this file is under /etc/containers/systemd at all is EMBED_PROVIDER's answer
+# in /etc/pinecall/box.env, converged by infra/box/Makefile on every deploy — a hub that embeds
+# through Perplexity or OpenRouter holds none of the weights below, and a worker embeds nothing at
+# all, because every marker is filled by the gateway.
+[Unit]
+Description=Pinecall media plane: the embedder (text-embeddings-inference, bge-m3)
+
+[Container]
+ContainerName=pinecall-tei
+Image=ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3
+# --max-batch-tokens is not tuning, and infra/compose/dev.yml pins the same number for the same
+# reason: the default 16384 makes the warm-up allocate a full 16k-token batch through an 8k-context
+# model, and the OOM killer takes the container before it has served once. 4096 is four of the
+# longest chunks we embed.
+Exec=--model-id BAAI/bge-m3 --port 80 --auto-truncate --max-batch-tokens 4096
+Network=pinecall.network
+# 127.0.0.1 and nowhere else, exactly as Postgres is published: the gateway is a process on the
+# HOST — it resolves no container name — and reaches the embedder over loopback, which the fence
+# already accepts on `lo` and opens to nobody. nftables.conf gains no line for this.
+PublishPort=127.0.0.1:8081:80
+# The weights land in the volume, so the first start pays for them once and every start after it
+# is seconds. HF_HOME is what text-embeddings-inference reads to find them.
+Environment=HF_HOME=/data
+Volume=pinecall-tei.volume:/data
+HealthCmd=curl -fsS http://127.0.0.1:80/health
+HealthInterval=10s
+HealthTimeout=5s
+HealthRetries=12
+# A COLD box downloads ~2.3 GB of bge-m3 before this port answers anything, which is minutes on a
+# small machine — and a failure inside the start period counts against no retry. Nothing waits for
+# it: the gateway reaches the embedder lazily, so the box answers the telephone throughout, and
+# what a caller loses meanwhile is a filled marker, said in the call's log as `retrieval_skipped`.
+HealthStartPeriod=900s
+
+[Service]
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -110,6 +110,36 @@ def test_a_tei_that_answers_anything_but_200_is_reported_and_stops_no_call() -> 
     )
 
 
+def test_a_hub_whose_embedder_is_down_is_the_verdict_and_is_told_to_start_the_unit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hub answers the knowledge pushes: a shut door there is an outage the operator can fix."""
+    monkeypatch.setenv("PINECALL_ROLE", "hub")
+    results = _the_report(probes_that_answer(http_status=tei_that_serves_nothing))
+    down = doctor.first_failure(results)
+    assert down is not None
+    assert down.name == "embedder"
+    assert not down.advisory
+    assert "a knowledge push answers 503" in down.detail
+    assert "systemctl start pinecall-tei" in down.detail
+    assert "EMBED_PROVIDER" in down.detail
+
+
+def test_a_hub_that_embeds_through_a_vendor_is_told_which_key_to_bring(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The fix is a credential and not a container, so the sentence names the credential."""
+    monkeypatch.setenv("PINECALL_ROLE", "hub")
+    monkeypatch.setenv("EMBED_PROVIDER", "perplexity")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "")
+    embedder = _the_embedder(probes_that_answer())
+    assert not embedder.ok
+    assert not embedder.advisory
+    assert "no PERPLEXITY_API_KEY" in embedder.detail
+    assert "make secret NAME=PERPLEXITY_API_KEY" in embedder.detail
+    assert "systemctl" not in embedder.detail
+
+
 def test_the_embedder_line_says_which_provider_and_model_this_box_embeds_with() -> None:
     embedder = _the_embedder(probes_that_answer())
     assert embedder.ok
