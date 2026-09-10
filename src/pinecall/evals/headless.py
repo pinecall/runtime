@@ -14,7 +14,7 @@ from livekit.agents.voice import AgentSession
 from pinecall._settings import Settings, load_settings
 from pinecall.evals.answers import Answers
 from pinecall.session.declaring import declared
-from pinecall.session.filling import NoFiller, TurnFills
+from pinecall.session.lookups import NoLookup, TurnLookups
 from pinecall.session.voice import session
 from pinecall.session.voice.agent import VoiceAgent
 from pinecall.session.voice.kit import kit_for
@@ -27,7 +27,7 @@ from pinecall_protocol.events import ErrorEvent
 # the words have been recognised, and nothing here has to fake a microphone to get it.
 WRITTEN: Channel = "whatsapp"
 
-# The call a ring's turn is filed under, for a filler that never asks.
+# The call a ring's turn is filed under, for a lookup service with nothing behind it.
 HEADLESS = "headless"
 
 
@@ -44,8 +44,8 @@ class _NoBridge:
         """Never called: a written session has no stt_node to drop a backchannel out of."""
         return True
 
-    async def skipped(self, error: ErrorEvent) -> None:  # noqa: ARG002 — nothing to fill from
-        """Never called: a ring fills no marker, so none goes unfilled."""
+    async def skipped(self, error: ErrorEvent) -> None:  # noqa: ARG002 — nothing to look up in
+        """Never called: a ring's lookups answer at once, so none is ever skipped."""
 
 
 @dataclass(frozen=True)
@@ -73,13 +73,14 @@ async def a_headless_call(
     # the static ones become livekit's `instructions` — the pinned item at index 0 the provider's
     # cache lands on — and the dynamic ones are read per request, after the history. Never
     # reordered; a ring renders once and holds it, because nothing here moves the state.
-    # No memory and no knowledge base behind a ring, so nothing fills the turn's markers; the
-    # knowledge file the agent declared is filled, as it is on a call, since it is the config's.
+    # No memory and no knowledge base behind a ring, so recall and search are declared exactly as
+    # they are on a call and both answer with nothing found — which is the truth here.
+    lookups = TurnLookups(NoLookup(), HEADLESS, None, config, read.budgets.lookup_ms)
     agent = VoiceAgent(
         blocks=prompt,
-        tools=declared(config.tools, answers),
+        tools=[*declared(config.tools, answers), *lookups.declared_tools],
         speaking=_NoBridge(),
-        filling=TurnFills(NoFiller(), HEADLESS, prompt, config.knowledge, read.budgets.fill_ms),
+        lookups=lookups,
     )
     await live.start(agent)  # pyright: ignore[reportUnknownMemberType] — livekit's start is untyped
     try:

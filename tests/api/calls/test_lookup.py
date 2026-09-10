@@ -7,22 +7,18 @@ import pytest
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.log.store import MemoryStore
-from pinecall.types import markers_in
 from pinecall.worker.client import Gateway, GatewayRefused
 from pinecall_protocol import defs
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, over_the_asgi_app
 from tests.api.talking import a_context
-from tests.filling.fakes import ScriptedKnowledge, ScriptedMemory, a_chunk, a_fact
+from tests.lookups.fakes import ScriptedKnowledge, ScriptedMemory, a_chunk, a_fact
 
 pytestmark = pytest.mark.unit
 
-CALL = "call_the_worker_fills"
-AN_OWNER = "app_the_fill_doors"
+CALL = "call_the_worker_looks_up"
+AN_OWNER = "app_the_lookup_doors"
 ANOTHER_KEY = "pk_test_the_shop_next_door"
 ANOTHER_ORG = KeyRecord(key_id="k_2", org="tienda")
-
-(RETRIEVED,) = markers_in('<!-- retrieved: {"k":1} -->')
-(MEMORY,) = markers_in("<!-- memory: -->")
 
 A_DECLARATION = defs.AgentConfig(
     docs=defs.DocsConfig(base="clinica"), memory=defs.MemoryConfig(remember=["preference"])
@@ -63,15 +59,18 @@ async def a_phone_call(worker_gateway: Gateway, registry: Registry) -> None:
     await worker_gateway.opened(a_context(CALL, channel="phone", caller="+34600000001"), AGENT)
 
 
-async def test_a_fill_answers_every_marker_and_writes_the_sources_on_the_calls_log(
+async def test_a_lookup_answers_an_object_and_writes_the_sources_on_the_calls_log(
     worker_gateway: Gateway, registry: Registry, store: MemoryStore
 ) -> None:
     await a_phone_call(worker_gateway, registry)
-    fills = await worker_gateway.fill(CALL, "¿cuánto cuesta?", [RETRIEVED, MEMORY], "sp_2")
-    assert fills == {
-        RETRIEVED.line: "### tarifas.md › Tarifas › Revisión\nLa revisión son 45 €.",
-        MEMORY.line: "- prefiere turnos por la mañana",
+    found = await worker_gateway.lookup(CALL, "search", {"query": "¿cuánto cuesta?"}, "sp_2")
+    assert found == {
+        "chunks": [
+            {"path": "tarifas.md", "heading": "Tarifas › Revisión", "text": "La revisión son 45 €."}
+        ]
     }
+    recalled = await worker_gateway.lookup(CALL, "recall", {"query": "hola"}, "sp_2")
+    assert [fact["text"] for fact in recalled["facts"]] == ["prefiere turnos por la mañana"]
     written = {entry.type: entry.data for entry in await store.since(CALL)}
     assert written["docs.sources"]["speech_id"] == "sp_2"
     assert [one["id"] for one in written["docs.sources"]["sources"]] == ["c1"]
@@ -82,7 +81,7 @@ async def test_a_call_nobody_opened_here_is_refused_in_the_events_doors_words(
     worker_gateway: Gateway,
 ) -> None:
     with pytest.raises(GatewayRefused, match="404.*open it with POST /v1/calls first"):
-        await worker_gateway.fill("call_nobody_opened", "hola", [MEMORY], None)
+        await worker_gateway.lookup("call_nobody_opened", "recall", {"query": "hola"}, None)
 
 
 async def test_another_orgs_worker_is_refused_the_call_in_the_very_same_words(
@@ -93,7 +92,7 @@ async def test_another_orgs_worker_is_refused_the_call_in_the_very_same_words(
     http = over_the_asgi_app(f"Bearer {ANOTHER_KEY}")
     try:
         with pytest.raises(GatewayRefused, match="404.*open it with POST /v1/calls first"):
-            await Gateway(http).fill(CALL, "hola", [MEMORY], None)
+            await Gateway(http).lookup(CALL, "recall", {"query": "hola"}, None)
         with pytest.raises(GatewayRefused, match="404"):
             await Gateway(http).remember(CALL)
     finally:
@@ -116,7 +115,7 @@ async def test_remember_reads_the_turns_off_the_log_and_answers_how_many_ops(
 
 
 class TestOnADevKey:
-    """A gateway with no Postgres: the fill answers nothing, refuses nobody, writes no entry."""
+    """A gateway with no Postgres: a lookup finds nothing, refuses nobody, writes no entry."""
 
     @pytest.fixture
     def knowledge(self) -> None:
@@ -126,11 +125,15 @@ class TestOnADevKey:
     def memory(self) -> None:
         return None
 
-    async def test_every_marker_is_filled_with_nothing(
+    async def test_every_lookup_finds_nothing_in_the_tools_own_shape(
         self, worker_gateway: Gateway, registry: Registry, store: MemoryStore
     ) -> None:
         await a_phone_call(worker_gateway, registry)
-        fills = await worker_gateway.fill(CALL, "hola", [RETRIEVED, MEMORY], "sp_1")
-        assert fills == {RETRIEVED.line: "", MEMORY.line: ""}
+        assert await worker_gateway.lookup(CALL, "recall", {"query": "hola"}, "sp_1") == {
+            "facts": []
+        }
+        assert await worker_gateway.lookup(CALL, "search", {"query": "hola"}, "sp_1") == {
+            "chunks": []
+        }
         assert await worker_gateway.remember(CALL) == 0
         assert [entry.type for entry in await store.since(CALL)] == ["call.ringing"]

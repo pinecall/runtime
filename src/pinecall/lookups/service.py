@@ -1,22 +1,22 @@
-"""The gateway's Filler and Rememberer: memory and the knowledge base, on the call's own log."""
+"""The gateway's Lookup and Rememberer: memory and the knowledge base, on the call's own log."""
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
-from pinecall.filling.entries import a_recall, a_retrieval, a_skip
-from pinecall.knowledge import Knowledge, chunks_as_text
+from pinecall.knowledge import Knowledge
 from pinecall.log.entry import Entry
 from pinecall.log.logs import CallLog
 from pinecall.log.writers import Logs
-from pinecall.memory import DEFAULT_FACTS_PER_TURN, Memory, Spoken, facts_as_text
-from pinecall.types import AgentConfig, CallContext, Counting, Marker, ProviderKeys, Quotas
+from pinecall.lookups.answers import found, recalled
+from pinecall.lookups.entries import a_recall, a_retrieval, a_skip
+from pinecall.memory import DEFAULT_FACTS_PER_TURN, Memory, Spoken
+from pinecall.types import AgentConfig, CallContext, Counting, PlatformTool, ProviderKeys, Quotas
 from pinecall_protocol import WireModel, encode
 from pinecall_protocol.defs import MemoryOp
 from pinecall_protocol.events import MemoryOps
@@ -27,11 +27,11 @@ logger = logging.getLogger(__name__)
 SPOKEN: dict[str, Literal["user", "agent"]] = {"turn.user": "user", "turn.agent": "agent"}
 
 
-# What a fill needs to know of a call, and nothing more: the process's live table answers it
+# What a lookup needs to know of a call, and nothing more: the process's live table answers it
 # (api/_live.py) and the service never sees the table, the registry or the app state.
 @dataclass(frozen=True)
 class OpenCall:
-    """One call as a fill sees it: whose org, how it arrived, what its agent declared."""
+    """One call as a lookup sees it: whose org, how it arrived, what its agent declared."""
 
     org: str
     context: CallContext
@@ -47,12 +47,12 @@ class Calls(Protocol):
 
 
 # Whose provider keys a hang-up's model call runs on, read at that moment and never held: the
-# same read the worker's provider-keys door makes. The vault is orgs/, which filling may not
+# same read the worker's provider-keys door makes. The vault is orgs/, which lookups may not
 # import, so the read is handed in as a function.
 type KeysOf = Callable[[str], Awaitable[ProviderKeys]]
 
 # What the org's quotas say, and whether it may keep one more fact — both live in orgs/, which
-# filling may not import, so they arrive as functions exactly as the vault read above does. The
+# lookups may not import, so they arrive as functions exactly as the vault read above does. The
 # runtime prices nothing: these two answer what a plan INCLUDES, never what it costs.
 type QuotasOf = Callable[[str], Awaitable[Quotas]]
 type MayRemember = Callable[[str, str, Counting], Awaitable[bool]]
@@ -60,9 +60,9 @@ type MayRemember = Callable[[str, str, Counting], Awaitable[bool]]
 
 # One per process. Nothing here is per call: the call arrives by id on every verb, and what the
 # service knows of it is asked of `calls` each time. A gateway on a dev key has no Postgres and so
-# no memory and no knowledge; it still answers every fill, with nothing, and writes no entry.
-class Filling:
-    """The session's Filler and Rememberer as the gateway implements them, in one object."""
+# no memory and no knowledge; it still runs every lookup, finds nothing, and writes no entry.
+class Lookups:
+    """The session's Lookup and Rememberer as the gateway implements them, in one object."""
 
     def __init__(
         self,
@@ -82,114 +82,77 @@ class Filling:
         self._quotas_of = quotas_of
         self._may_remember = may_remember
 
-    # ── the Filler ──────────────────────────────────────────────────────────────
+    # ── the Lookup ──────────────────────────────────────────────────────────────
 
-    # Every marker at once: each is its own two index scans, and the turn's budget covers the
-    # slowest of them, not their sum. A marker that fails is filled with nothing and its error
-    # entry names why — TEI down, a table missing — while the others are still filled.
-    async def fill(
-        self, call: str, query: str, markers: Sequence[Marker], speech_id: str | None
-    ) -> Mapping[str, str]:
-        """The text each marker line becomes for this turn, keyed by the line as written."""
+    # The answer is a JSON object and never prose: it reaches the model inside a tool_result,
+    # which is where everything from outside the conversation goes and the only place it goes.
+    # A lookup that fails answers with nothing found and writes an error entry naming why — TEI
+    # down, a table missing — because a caller is on the line and a turn must not stop for it.
+    async def lookup(
+        self, call: str, tool: PlatformTool, input: Mapping[str, Any], speech_id: str | None
+    ) -> Mapping[str, Any]:
+        """What the tool found, in the shape its tool result carries; its entry on the log."""
         opened = self._calls.the_call(call)
         log = self._logs.opened(call)
         if opened is None or log is None:
-            return {}
-        # One read for the whole turn, whatever its markers: a plan that switched a feature off
-        # answers its marker with nothing, and pays no embedder to find that out.
-        quotas = await self._quotas_of(opened.org)
-        texts = await asyncio.gather(
-            *(self._one(opened, log, quotas, marker, query, speech_id) for marker in markers)
-        )
-        return dict(zip((marker.line for marker in markers), texts, strict=True))
-
-    async def _one(
-        self,
-        opened: OpenCall,
-        log: CallLog,
-        quotas: Quotas,
-        marker: Marker,
-        query: str,
-        speech_id: str | None,
-    ) -> str:
-        """One marker's text, its entry written; nothing and a skip entry when it could not be."""
+            return _nothing_found(tool)
+        query = str(input.get("query") or "")
         started = time.perf_counter()
         try:
-            if marker.name == "memory":
-                return await self._recalled(opened, log, quotas, marker, query, speech_id, started)
-            if marker.name == "retrieved":
-                return await self._retrieved(opened, log, quotas, marker, query, speech_id, started)
-        except Exception as failed:  # noqa: BLE001 — a fill must never break a reply
-            logger.warning(
-                "call %s: %s not filled", opened.context.call, marker.name, exc_info=True
-            )
-            await _written(log, "error", a_skip(marker.name, str(failed) or type(failed).__name__))
-            return ""
-        # A knowledge marker is the session's to fill, once, from the file it was handed; asked
-        # here anyway, the answer is the same text, so the door is whole.
-        return opened.config.knowledge.text if opened.config.knowledge else ""
+            # One read per lookup: a plan that switched a feature off answers with nothing, and
+            # pays no embedder to find that out.
+            quotas = await self._quotas_of(opened.org)
+            if tool == "recall":
+                return await self._recalled(opened, log, quotas, query, speech_id, started)
+            return await self._searched(opened, log, quotas, query, speech_id, started)
+        except Exception as failed:  # noqa: BLE001 — a lookup must never break a reply
+            logger.warning("call %s: %s did not run", opened.context.call, tool, exc_info=True)
+            await _written(log, "error", a_skip(tool, str(failed) or type(failed).__name__))
+            return _nothing_found(tool)
 
     async def _recalled(
         self,
         opened: OpenCall,
         log: CallLog,
         quotas: Quotas,
-        marker: Marker,
         query: str,
         speech_id: str | None,
         started: float,
-    ) -> str:
-        """The contact's facts under the marker's ask, and memory.ops on the log."""
+    ) -> Mapping[str, Any]:
+        """The contact's facts that answer the caller's words, and memory.ops on the log."""
         contact = opened.context.remembered_as
-        if self._memory is None or contact is None:
-            return ""
         # A plan without memory is not a failure, so nothing is written: an empty memory.ops
         # would say a search ran and found nothing, and no search ran. Nothing is embedded
-        # either — a fill that cannot use its answer must not pay for one.
-        if quotas.switched_off("memory_facts"):
-            return ""
-        ask = marker.ask
-        facts = await self._memory.recall(
-            opened.org, contact, query, kinds=ask.kinds, k=ask.limit or DEFAULT_FACTS_PER_TURN
-        )
-        if ask.min_score is not None:
-            facts = [fact for fact in facts if fact.score >= ask.min_score]
+        # either — a lookup that cannot use its answer must not pay for one.
+        if self._memory is None or contact is None or quotas.switched_off("memory_facts"):
+            return recalled(())
+        facts = await self._memory.recall(opened.org, contact, query, k=DEFAULT_FACTS_PER_TURN)
         took_ms = _since(started)
         await _written(log, "memory.ops", a_recall(contact, query, facts, took_ms, speech_id))
-        return facts_as_text(facts)
+        return recalled(facts)
 
-    # The marker's own ask outranks the declaration: `<Retrieved k={2}/>` in the view is the
-    # tenant narrowing what the class said for this one place, not contradicting it.
-    async def _retrieved(
+    async def _searched(
         self,
         opened: OpenCall,
         log: CallLog,
         quotas: Quotas,
-        marker: Marker,
         query: str,
         speech_id: str | None,
         started: float,
-    ) -> str:
-        """The best chunks of the agent's base under the marker's ask; docs.sources on the log."""
+    ) -> Mapping[str, Any]:
+        """The best chunks of the agent's base under its own k; docs.sources on the log."""
         docs = opened.config.docs
-        if self._knowledge is None or docs is None:
-            return ""
         # An org that may keep no chunks has none to find, and docs.sources with no sources would
         # tell the grounded judge the base was searched and answered nothing. Nothing is written,
         # and the query is not embedded to search a base that cannot exist.
-        if quotas.switched_off("knowledge_chunks"):
-            return ""
-        ask = marker.ask
+        if self._knowledge is None or docs is None or quotas.switched_off("knowledge_chunks"):
+            return found(())
         chunks = await self._knowledge.search(
-            opened.org,
-            docs.base,
-            query,
-            k=ask.limit or docs.k,
-            min_score=docs.min_score if ask.min_score is None else ask.min_score,
+            opened.org, docs.base, query, k=docs.k, min_score=docs.min_score
         )
         took_ms = _since(started)
         await _written(log, "docs.sources", a_retrieval(query, chunks, took_ms, speech_id))
-        return chunks_as_text(chunks)
+        return found(chunks)
 
     # ── the Rememberer ──────────────────────────────────────────────────────────
 
@@ -223,9 +186,15 @@ class Filling:
             llm=opened.config.llm,
             keys=await self._keys_of(opened.org),
             call=call,
+            tools=opened.config.tools,
         )
         await _written(log, "memory.ops", MemoryOps(ops=list(ops)))
         return len(ops)
+
+
+def _nothing_found(tool: PlatformTool) -> Mapping[str, Any]:
+    """The empty answer in the tool's own shape: the key is always there, the list is empty."""
+    return recalled(()) if tool == "recall" else found(())
 
 
 # The same shape a hang-up that DID remember writes, carrying what was written: nothing. The

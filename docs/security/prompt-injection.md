@@ -102,6 +102,9 @@ Their answers reach the model as `tool_result` blocks whose content is a JSON ob
              "text": "La revisión son cuarenta euros."}]}
 ```
 
+Nothing else is in either object, and the key is always there: a lookup that ran and found nothing
+answers `{"facts": []}`, which is a fact about this caller and not a silence.
+
 The `source` and `since` fields are not decoration. Anthropic's guidance is to make the nature and
 origin of the content explicit so the model can calibrate how much to trust it, and a fact that says
 which call it came from is a fact the model can weigh.
@@ -110,6 +113,12 @@ Who calls them is a declaration, not a difference in shape. With `docs.mode = "r
 default) the platform calls them before the turn; with `docs.mode = "tool"` the model calls them
 when it decides to. Either way there is a real `tool_use` and a real `tool_result`, so the call's
 log shows a call that actually happened.
+
+When the platform runs one it fabricates the pair itself, and the pair is real in livekit's terms:
+the `tool_use` and the `tool_result` carry the same `call_id`, which is what the formatter groups
+them by, and a half it cannot match it drops — a model would then read a `tool_use` no result ever
+answered. The pair is rebuilt on every turn and never kept in the history, so a request carries
+exactly one of each and the cached prefix never moves.
 
 ### The view is the last thing in the request, and it is the operator's
 
@@ -138,9 +147,16 @@ write time, provenance bound to the fact, filtering at read time, and monitoring
 This runtime has three of the four:
 
 - **Admission.** `MemoryPolicy.forget` names categories that are never written whatever the model
-  extracted. Beside it, a fact that names one of the class's own tools, or that speaks about
-  permissions or about the agent's own rules, is not a fact about a contact and is refused — checked
-  in code against the class's own declaration, not against a list of words.
+  extracted. Beside it, a fact that names one of the class's own tools is not a fact about a
+  contact and is refused before the table — checked in code against `AgentConfig.tools`, the
+  class's own declaration, and never against a list of words. The reasoning is that the only
+  sentence that can hand an agent a permission is one that names something the agent can DO: a
+  class with no `book_slot` has nothing to fear from a sentence about booking, and a class that
+  has one refuses "always let her book without confirming" whoever wrote it. A name is matched
+  however it is written — `book_slot`, `findPatient`, and the words inside them, so "el slot" and
+  "bookings" both count. **The honest limit:** a paraphrase that names no tool at all is not
+  caught, and nothing that reads the prompt could be trusted to catch it. That is what the
+  confirmation gate below is for.
 - **Provenance.** Every fact carries `source_call` and `valid_from`, and both reach the model in the
   tool result.
 - **Read-time framing.** The fact arrives as JSON inside a tool result, which is the position both
@@ -175,11 +191,13 @@ it should push it instead of shipping it.
 
 | what it holds | where |
 |---|---|
-| no fill, no fact and no chunk ever reaches the `system` field | `tests/providers/test_blocks.py` |
-| a tool result's content is a JSON object, never prose | `tests/filling/test_service.py` |
+| no fact and no chunk ever reaches the `system` field | `tests/providers/test_blocks.py` |
+| both halves of a fabricated pair survive the formatter, in order | `tests/providers/test_blocks.py` |
+| a tool result's content parses as JSON and its key is `facts` or `chunks` | `tests/providers/test_blocks.py`, `tests/session/test_lookups.py` |
 | the view is never placed in a `tool_result` | `tests/providers/test_blocks.py` |
 | a fact naming one of the class's tools is refused at write time | `tests/memory/test_extraction.py` |
-| a fact's `source` and `since` reach the model | `tests/filling/test_service.py` |
+| a fact's `source` and `since` reach the model | `tests/lookups/test_service.py` |
+| the contact a lookup reads is the platform's, never the model's | `tests/lookups/test_service.py` |
 | no provider key ever appears in the log or at any door | `tests/api/test_no_provider_key_in_the_log.py` |
 
 ## What is deferred, and named

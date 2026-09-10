@@ -1,15 +1,13 @@
-"""The prompt's blocks as one request: the static ones kept apart, the dynamic ones last."""
+"""The prompt's blocks as one request: the static ones kept apart, the view last of all."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from typing import Any, cast, override
 
 from livekit.agents import llm as agents
-from livekit.agents.voice.generation import INSTRUCTIONS_MESSAGE_ID
 
-from pinecall.types import Blocks, filled
-from pinecall.types.prompt import BETWEEN_BLOCKS
+from pinecall.types import Blocks
 
 
 # The Anthropic plugin formats whatever context it is handed (plugins/anthropic/llm.py:222) and
@@ -43,34 +41,18 @@ class SystemBlocks(agents.ChatContext):
 
 
 # livekit hands llm_node a copy of the history and reuses it across the tool steps of one turn, so
-# the dynamic blocks go onto a NEW context and never into that copy: each request ends with exactly
-# one of each, and none of them piles up behind a tool's output.
+# what this adds goes onto a NEW context and never into that copy: each request ends with exactly
+# one of each, and none of it piles up behind a tool's output.
 #
-# The fills are applied HERE and nowhere earlier: the app's block text, and the hash prompt.changed
-# carries, are what the app wrote, markers and all; what the model reads is that text with every
-# marker line replaced. The knowledge fill is the same bytes on every request, so the static
-# prefix stays cached; the turn's fills change after the history and cost the cache nothing.
+# The order is the one the security page fixes and nothing may reorder it: the static blocks, the
+# history, then what this turn's lookups found — each a real tool_use / tool_result pair, which is
+# where everything from outside the conversation goes — and last the tenant's own view, which is
+# the only thing in the request that carries operator authority after the system field.
+# docs/security/prompt-injection.md.
 def request_context(
-    chat_ctx: agents.ChatContext, blocks: Blocks, fills: Mapping[str, str]
+    chat_ctx: agents.ChatContext, blocks: Blocks, lookups: Sequence[agents.ChatItem] = ()
 ) -> SystemBlocks:
-    """One request: the history as livekit built it, then one system message per dynamic block."""
-    static = [filled(text, fills) for text in blocks.static_texts]
-    items = [_instructions_filled(item, BETWEEN_BLOCKS.join(static)) for item in chat_ctx.items]
-    items.extend(
-        agents.ChatMessage(role="system", content=[filled(text, fills)])
-        for text in blocks.dynamic_texts
-    )
-    return SystemBlocks(items, static)
-
-
-# Every provider but Anthropic reads the static blocks off livekit's pinned instructions item, so
-# that item carries the filled text: a new message under the same id, the history left as it was.
-def _instructions_filled(item: agents.ChatItem, instructions: str) -> agents.ChatItem:
-    """The pinned instructions item with the fills applied; any other item untouched."""
-    if not isinstance(item, agents.ChatMessage) or item.id != INSTRUCTIONS_MESSAGE_ID:
-        return item
-    if item.text_content == instructions:
-        return item
-    return agents.ChatMessage(
-        id=item.id, role="system", content=[instructions], created_at=item.created_at
-    )
+    """One request: the history livekit built, this turn's lookups, then the dynamic blocks."""
+    items = [*chat_ctx.items, *lookups]
+    items.extend(agents.ChatMessage(role="system", content=[text]) for text in blocks.dynamic_texts)
+    return SystemBlocks(items, blocks.static_texts)

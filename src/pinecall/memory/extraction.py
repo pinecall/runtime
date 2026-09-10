@@ -13,7 +13,7 @@ from livekit.agents.llm import ChatContext
 
 from pinecall.memory.protocol import Spoken
 from pinecall.providers.registry import Chat
-from pinecall.types import Fact, MemoryPolicy
+from pinecall.types import Fact, MemoryPolicy, ToolSpec
 
 logger = logging.getLogger(__name__)
 
@@ -74,12 +74,13 @@ async def extracted(
     turns: Sequence[Spoken],
     policy: MemoryPolicy,
     channel: str,
+    tools: Sequence[ToolSpec] = (),
 ) -> list[Op]:
     """One request over the call, its answer parsed strictly, and only what the policy allows."""
     response = await chat.chat(
         chat_ctx=_the_request(known, turns, policy, channel), extra_kwargs={"temperature": 0.0}
     ).collect()
-    return allowed(parsed(response.text), policy, known)
+    return allowed(parsed(response.text), policy, known, tools)
 
 
 # Strict means: a JSON array of objects, each with a verb this package knows, a sentence where a
@@ -104,8 +105,12 @@ def parsed(answer: str) -> list[Op]:
 
 # The policy is applied here and nowhere nearer the table: a forget category never becomes a
 # row, an update or an invalidate of a fact the contact does not have is the model's invention,
-# and a known fact is replaced at most once per call.
-def allowed(ops: Sequence[Op], policy: MemoryPolicy, known: Sequence[Fact]) -> list[Op]:
+# and a known fact is replaced at most once per call. Admission at write time is the layer the
+# literature says memory cannot do without (MINJA, Unit 42): filtering at read time alone does
+# not hold. docs/security/prompt-injection.md.
+def allowed(
+    ops: Sequence[Op], policy: MemoryPolicy, known: Sequence[Fact], tools: Sequence[ToolSpec] = ()
+) -> list[Op]:
     """The ops the tenant's policy lets through, against the facts the contact actually has."""
     forgotten = {word.casefold() for word in policy.forget}
     ids = {fact.id for fact in known}
@@ -114,12 +119,44 @@ def allowed(ops: Sequence[Op], policy: MemoryPolicy, known: Sequence[Fact]) -> l
     for op in ops:
         if op.category is not None and op.category.casefold() in forgotten:
             continue
+        if op.text and _about_the_agent(op.text, tools):
+            logger.warning("memory: a fact naming one of the agent's own tools was not written")
+            continue
         if op.op in OPS_THAT_NAME_A_FACT:
             if op.of not in ids or op.of in named:
                 continue
             named.add(str(op.of))
         kept.append(op)
     return kept
+
+
+# The only sentence that can hand an agent a permission is one that names something the agent can
+# DO, so the class's own tools are the whole vocabulary of this check and there is no list of
+# words to keep up to date: a class with no `book` tool has nothing to fear from a sentence about
+# bookings, and a class that has one refuses "always let her book without confirming" whoever
+# wrote it. What such a sentence is about is the agent's rules, never a contact.
+def _about_the_agent(text: str, tools: Sequence[ToolSpec]) -> bool:
+    """Whether a sentence names one of the class's own tools, however that name is written."""
+    said = _words(text)
+    return any(_names(said, tool.name) for tool in tools)
+
+
+# A word this short is a preposition somewhere, and matching it would refuse every sentence.
+_SHORTEST_NAME_WORTH_MATCHING = 4
+
+_A_WORD = re.compile(r"[^\W\d_]+")
+_CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+
+
+def _names(said: Sequence[str], tool: str) -> bool:
+    """Whether the sentence says a word of the tool's name; a plural and a stem both count."""
+    wanted = [word for word in _words(tool) if len(word) >= _SHORTEST_NAME_WORTH_MATCHING]
+    return any(word.startswith(one) or one.startswith(word) for word in said for one in wanted)
+
+
+def _words(text: str) -> list[str]:
+    """The words of a sentence or of a tool name, folded: findPatient is `find` and `patient`."""
+    return [word.casefold() for word in _A_WORD.findall(_CAMEL.sub(" ", text))]
 
 
 def _an_op(item: object) -> Op | None:

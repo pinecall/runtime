@@ -17,14 +17,8 @@ from pinecall.providers import prices
 from pinecall.providers.models import Chat
 from pinecall.session import clock
 from pinecall.session.declaring import declared
-from pinecall.session.filling import (
-    Filler,
-    NoFiller,
-    NoRememberer,
-    Rememberer,
-    TurnFills,
-    remembered_within,
-)
+from pinecall.session.lookups import Lookup, NoLookup, TurnLookups
+from pinecall.session.remembering import NoRememberer, Rememberer, remembered_within
 from pinecall.session.scoring import Scorer, unjudged
 from pinecall.session.text.agent import TextAgent, remembered
 from pinecall.session.text.measure import Reply, usage_rows
@@ -68,7 +62,7 @@ class TextSession:
         log: CallLog,
         llm: Chat,
         score: Scorer = unjudged,
-        filler: Filler = NoFiller(),  # noqa: B008 — stateless, shared on purpose
+        lookup: Lookup = NoLookup(),  # noqa: B008 — stateless, shared on purpose
         rememberer: Rememberer = NoRememberer(),  # noqa: B008 — stateless, shared on purpose
         budgets: Budgets = Budgets(),  # noqa: B008 — frozen
     ) -> None:
@@ -93,17 +87,19 @@ class TextSession:
         self._ended = False
         self.turns = Turns(self)
         self.running = Running(self, config)
-        self.filling = TurnFills(
-            filler, context.call, self._blocks, config.knowledge, budgets.fill_ms
+        # The platform's own two tools are declared beside the app's, so the model sees one list
+        # and the `tools` block describes one list: session/lookups.py.
+        self.lookups = TurnLookups(
+            lookup, context.call, context.remembered_as, config, budgets.lookup_ms
         )
         # Every declared tool, once, for the life of the call: livekit only runs a tool it holds,
         # so the declaration IS the registration, and a tools.set narrows `visibility` instead.
         self.text_agent = TextAgent(
             blocks=self._blocks,
-            tools=declared(config.tools, self.running.ran),
+            tools=[*declared(config.tools, self.running.ran), *self.lookups.declared_tools],
             llm=llm,
             writer=self.turns,
-            filling=self.filling,
+            lookups=self.lookups,
         )
         # vad=None keeps livekit from building a silero client a text call would never listen to,
         # and "manual" turn detection is the truth of a text call: every turn is a frame the caller

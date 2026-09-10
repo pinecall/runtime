@@ -7,11 +7,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Protocol
 
-from pinecall.types import Channel, Fact, MemoryPolicy, Model, ProviderKeys
+from pinecall.types import Channel, Fact, MemoryPolicy, Model, ProviderKeys, ToolSpec
 from pinecall_protocol.defs import MemoryOp
 
-# What a memory marker asks for when its payload names no limit: six lines under the heading,
-# which a model reads as what it knows about a person and not as a list.
+# How many facts one recall hands the model: six, which reads as what it knows about a person
+# and not as a list.
 DEFAULT_FACTS_PER_TURN = 6
 
 
@@ -34,7 +34,6 @@ class Memory(Protocol):
         contact: str,
         query: str,
         *,
-        kinds: Sequence[str] = (),
         k: int = DEFAULT_FACTS_PER_TURN,
         as_of: datetime | None = None,
     ) -> list[Fact]:
@@ -55,6 +54,7 @@ class Memory(Protocol):
         llm: Model | None,
         keys: ProviderKeys,
         call: str | None = None,
+        tools: Sequence[ToolSpec] = (),
     ) -> list[MemoryOp]:
         """One model call over the call's turns; what it taught, as rows added and superseded."""
         ...

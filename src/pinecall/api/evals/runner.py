@@ -24,9 +24,9 @@ from pinecall.api.evals.conversation import a_conversation
 from pinecall.api.evals.scoring import Judging
 from pinecall.evals.goldens import Golden
 from pinecall.evals.runs import EvalRun, Opened, Runs
-from pinecall.filling import Filling
 from pinecall.log.store import Store
 from pinecall.log.writers import Logs
+from pinecall.lookups import Lookups
 from pinecall.orgs.vault import Vault, keys_brought_by
 from pinecall.providers import declaration
 from pinecall.providers.models import Models
@@ -95,8 +95,8 @@ class Process:
     runs: Runs
     # Where the org's own provider keys are kept, or None on a runtime that keeps nobody's.
     vault: Vault | None
-    # What fills a golden's markers and remembers its hang-up, and how long a turn waits for it.
-    filling: Filling
+    # What runs a golden's lookups and remembers its hang-up, and how long a turn waits.
+    lookups: Lookups
     budgets: Budgets
 
 
@@ -202,7 +202,7 @@ async def _every_conversation(
                     live=process.live,
                     llm=llm,
                     store=process.store,
-                    filling=process.filling,
+                    lookups=process.lookups,
                     budgets=process.budgets,
                 )
             # The call itself has already ended as app_detached; what this adds is the run's own

@@ -10,9 +10,9 @@ from fastapi import Depends
 
 from pinecall.api._deps import what_is_live
 from pinecall.api.agents.registry import Send, SocketId
-from pinecall.filling import OpenCall
 from pinecall.log.fanout import Subscription
 from pinecall.log.logs import CallLog
+from pinecall.lookups import OpenCall
 from pinecall.session.pending import ToolCalls
 from pinecall.session.text.session import TextSession
 from pinecall.types import AgentConfig, CallContext
@@ -24,7 +24,7 @@ from pinecall_protocol.defs import ToolResult
 # it opened, the subscription that carries its entries down that socket, and the queue a command
 # waits in for the worker that will apply it. `None` in that queue is the call ending, which is the
 # only way the worker's stream stops. The context and the config are what the door that opened
-# the call knew of it, kept so a fill and a hang-up can ask whose contact and which base it is.
+# the call knew of it, kept so a lookup and a hang-up can ask whose contact and which base it is.
 @dataclass(frozen=True)
 class Served:
     """A live call from the app socket's side: whose it is, what it is fed, what it asked for."""
@@ -117,11 +117,11 @@ class Live:
         served = self._served.get(call)
         return None if served is None else served.org
 
-    # What the fill and the hang-up ask of a call, and the only thing they ask: the org, how the
-    # call arrived and what its agent declared, as the door that opened it said. filling/ holds
+    # What a lookup and the hang-up ask of a call, and the only thing they ask: the org, how the
+    # call arrived and what its agent declared, as the door that opened it said. lookups/ holds
     # the Protocol; this is its one implementation.
     def the_call(self, call: str) -> OpenCall | None:
-        """The call as a fill sees it, or None when this gateway is not serving it."""
+        """The call as a lookup sees it, or None when this gateway is not serving it."""
         served = self._served.get(call)
         if served is None:
             return None

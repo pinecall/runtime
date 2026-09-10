@@ -11,9 +11,9 @@ from pinecall.types import (
     Contact,
     Docs,
     KnowledgeFile,
-    MarkerName,
     MemoryPolicy,
     Model,
+    PlatformTool,
     PromptBlock,
     PromptRegion,
     Route,
@@ -67,8 +67,8 @@ def test_the_two_prompt_regions_here_are_the_wires() -> None:
     assert get_args(PromptRegion.__value__) == get_args(defs.PromptRegion.__value__)
 
 
-def test_the_three_marker_names_and_the_two_docs_modes_here_are_the_wires() -> None:
-    assert get_args(MarkerName.__value__) == get_args(defs.MarkerName.__value__)
+def test_the_two_platform_tools_and_the_two_docs_modes_here_are_the_wires() -> None:
+    assert get_args(PlatformTool.__value__) == get_args(defs.PlatformTool.__value__)
     assert get_args(DocsMode.__value__) == get_args(defs.DocsMode.__value__)
 
 

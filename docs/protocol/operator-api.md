@@ -153,8 +153,8 @@ Two are **stocks** — how much of a table the org may keep standing: `memory_fa
 memory holds about its contacts, all together (a superseded one is history and is not counted), and
 `knowledge_chunks`, the chunks its bases hold, all together. Same mechanism, and it is what a plan
 switches memory and retrieval off with: `null` is no limit, a number is a cap, and **`0` is how a
-plan that does not include the feature is expressed** — a `0` org keeps neither, and its `memory`
-and `retrieved` markers fill with nothing, embed nothing and write no entry at all: a plan without
+plan that does not include the feature is expressed** — a `0` org keeps neither, and its `recall`
+and `search` tools find nothing, embed nothing and write no entry at all: a plan without
 a feature is not a failure and must not read as one.
 
 - **`PUT /v1/knowledge/{base}`** counts what the push would become — the org's other bases plus the

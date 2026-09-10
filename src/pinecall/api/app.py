@@ -30,7 +30,7 @@ from pinecall.api.agents import endpoints as agents
 from pinecall.api.agents import provider_keys as agents_provider_keys
 from pinecall.api.agents import socket
 from pinecall.api.agents.registry import Registry
-from pinecall.api.calls import chat, commands, events, fill, listing, recording, state, tools
+from pinecall.api.calls import chat, commands, events, listing, lookup, recording, state, tools
 from pinecall.api.evals import caller, replay, runs, voice
 from pinecall.api.evals.runner import Runner
 from pinecall.api.supervise import verbs
@@ -38,11 +38,11 @@ from pinecall.api.whatsapp import webhook
 from pinecall.api.whatsapp.threads import Threads
 from pinecall.auth.keys import keys_for
 from pinecall.evals.runs import runs_for
-from pinecall.filling import Filling
 from pinecall.knowledge import PgKnowledge
 from pinecall.log.snapshots import Snapshots
 from pinecall.log.store import MemoryStore, Pool, PostgresStore, Store, StoreUnreachable, open_pool
 from pinecall.log.writers import Logs
+from pinecall.lookups import Lookups
 from pinecall.memory import PgvectorMemory
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.meter import Meter
@@ -111,16 +111,16 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     gateway.state.graph = HttpGraph(http)
     gateway.state.threads = Threads()
     # Memory and the knowledge base are tables, so a gateway with no pool keeps neither and says
-    # so at the doors (api/_deps.py). The embedder is lazy: nothing is asked of it until a fill or
-    # a push needs a vector, so a gateway whose embedder is down still starts and the doctor's
-    # line on it stays advice. One Filling serves every text call in-process and every worker over
-    # the fill door.
+    # so at the doors (api/_deps.py). The embedder is lazy: nothing is asked of it until a lookup
+    # or a push needs a vector, so a gateway whose embedder is down still starts and the doctor's
+    # line on it stays advice. One Lookups serves every text call in-process and every worker over
+    # the lookup door.
     embedder = embedder_for(settings, http)
     gateway.state.memory = (
         None if pool is None else PgvectorMemory(pool, embedder, gateway.state.llms)
     )
     gateway.state.knowledge = None if pool is None else PgKnowledge(pool, embedder)
-    gateway.state.filling = Filling(
+    gateway.state.lookups = Lookups(
         gateway.state.memory,
         gateway.state.knowledge,
         gateway.state.logs,
@@ -173,7 +173,7 @@ for door in (
     chat.router,
     tools.router,
     commands.router,
-    fill.router,
+    lookup.router,
     verbs.router,
     replay.router,
     runs.router,

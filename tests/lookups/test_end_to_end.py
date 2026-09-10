@@ -1,4 +1,4 @@
-"""Two files pushed, one turn filled, the sources read off the log: the whole chain in Postgres."""
+"""Two files pushed, one search run, the sources read off the log: the chain in Postgres."""
 
 from __future__ import annotations
 
@@ -8,24 +8,22 @@ from typing import Any, override
 
 import pytest
 
-from pinecall.filling import Filling, OpenCall
 from pinecall.knowledge import PgKnowledge
 from pinecall.log.store import MemoryStore, open_pool
 from pinecall.log.writers import Logs
+from pinecall.lookups import Lookups, OpenCall
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.orgs.vault import keys_brought_by
-from pinecall.types import Docs, Org, Quotas, markers_in
-from tests.filling.fakes import AGENT, CALL, OneCall, a_config, a_context, a_plan, the_tenants
+from pinecall.types import Docs, Org, Quotas
 from tests.knowledge.files import CLINICA, TARIFAS, an_org
+from tests.lookups.fakes import AGENT, CALL, OneCall, a_config, a_context, a_plan, the_tenants
 from tests.postgres import Dev
 from tests.vectors import HashEmbedder
 
 pytestmark = pytest.mark.postgres
 
-(RETRIEVED,) = markers_in('<!-- retrieved: {"k":2} -->')
 
-
-# The same embedder every knowledge test uses, with a tally: a fill that answers nothing must
+# The same embedder every knowledge test uses, with a tally: a lookup that answers nothing must
 # not have paid a vendor for a vector on the way there.
 class CountingEmbedder(HashEmbedder):
     """The hash embedder, counting the queries it was asked to embed."""
@@ -55,7 +53,7 @@ async def knowledge(postgres: Dev, embedder: CountingEmbedder) -> AsyncIterator[
         await pool.close()
 
 
-async def test_a_pushed_base_fills_a_retrieved_marker_and_the_log_names_the_sources(
+async def test_a_pushed_base_answers_a_search_and_the_log_names_the_sources(
     knowledge: PgKnowledge, raw_connection: Any
 ) -> None:
     org = await an_org(raw_connection)
@@ -63,8 +61,8 @@ async def test_a_pushed_base_fills_a_retrieved_marker_and_the_log_names_the_sour
     store = MemoryStore()
     logs = Logs(store)
     logs.writing(CALL, AGENT)
-    opened = OpenCall(org=org, context=a_context(), config=a_config(docs=Docs(base="clinica")))
-    filling = Filling(
+    opened = OpenCall(org=org, context=a_context(), config=a_config(docs=Docs(base="clinica", k=2)))
+    lookups = Lookups(
         None,
         knowledge,
         logs,
@@ -74,10 +72,10 @@ async def test_a_pushed_base_fills_a_retrieved_marker_and_the_log_names_the_sour
     )
 
     query = "cuánto cuesta la revisión"
-    fills = await filling.fill(CALL, query, [RETRIEVED], "sp_1")
-    text = fills[RETRIEVED.line]
-    assert text.startswith("### tarifas.md › Tarifas › Revisión\n")
-    assert "cuarenta euros" in text
+    found = await lookups.lookup(CALL, "search", {"query": query}, "sp_1")
+    first = found["chunks"][0]
+    assert (first["path"], first["heading"]) == ("tarifas.md", "Tarifas › Revisión")
+    assert "cuarenta euros" in first["text"]
 
     [entry] = await store.since(CALL)
     assert (entry.type, entry.data["query"], entry.data["speech_id"]) == (
@@ -94,7 +92,7 @@ async def test_a_pushed_base_fills_a_retrieved_marker_and_the_log_names_the_sour
     assert entry.data["took_ms"] >= 0
 
 
-async def test_a_plan_that_keeps_no_chunks_fills_the_marker_with_nothing_and_embeds_nothing(
+async def test_a_plan_that_keeps_no_chunks_finds_nothing_and_embeds_nothing(
     knowledge: PgKnowledge, embedder: CountingEmbedder, raw_connection: Any
 ) -> None:
     """The base is right there in Postgres; the plan says the org has none, so nobody looks."""
@@ -107,11 +105,11 @@ async def test_a_plan_that_keeps_no_chunks_fills_the_marker_with_nothing_and_emb
     opened = OpenCall(org=org, context=a_context(), config=a_config(docs=Docs(base="clinica")))
     orgs = MemoryOrgs([Org(id=org, slug=org, name=org)])
     await orgs.set_quotas(org, Quotas(knowledge_chunks=0))
-    filling = Filling(
+    lookups = Lookups(
         None, knowledge, logs, OneCall(opened), partial(keys_brought_by, None), *a_plan(logs, orgs)
     )
 
-    fills = await filling.fill(CALL, "cuánto cuesta la revisión", [RETRIEVED], "sp_1")
-    assert fills == {RETRIEVED.line: ""}
-    assert embedder.queries == 0, "a fill that cannot use its answer never pays for one"
+    found = await lookups.lookup(CALL, "search", {"query": "cuánto cuesta la revisión"}, "sp_1")
+    assert found == {"chunks": []}
+    assert embedder.queries == 0, "a lookup that cannot use its answer never pays for one"
     assert await store.since(CALL) == [], "not an error, not an empty source list: nothing at all"

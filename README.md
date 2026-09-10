@@ -25,10 +25,10 @@ uv run pinecall-runtime doctor                     every service and key, one li
 
 Then, from an example in the agents repository, `pinecall run` registers the agent and
 `pinecall chat` talks to it. `pinecall knowledge push ./knowledge/docs --base clinica-norte`
-puts the agent's files where its `<!-- retrieved -->` marker reads from, and `pinecall memory
+puts the agent's files where its `search` tool reads from, and `pinecall memory
 <contact>` prints what a caller's calls taught the agent (`memory forget` erases it). Both are
 tables in Postgres, and the vectors are whichever embedder `EMBED_PROVIDER` names — on a dev key,
-with no database, a fill is empty and the push says so.
+with no database, a lookup finds nothing and the push says so.
 
 ```
 EMBED_PROVIDER=tei                       who embeds: tei · perplexity · openrouter

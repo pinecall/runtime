@@ -1,54 +1,74 @@
-"""The markers on a spoken call: filled when the caller's turn ends, remembered at hang-up."""
+"""The lookups of a spoken call: run when the caller's turn ends, remembered at hang-up."""
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Mapping, Sequence
+import asyncio
+import json
+from collections.abc import AsyncIterator, Mapping
 from dataclasses import replace
+from typing import Any
 
 import pytest
 from livekit.agents import llm as agents
 from livekit.agents.voice import AgentSession
 
 from pinecall._settings import Budgets
-from pinecall.log import hashed_prompt
 from pinecall.session.voice import VoiceBridge, a_bridge
-from pinecall.types import KnowledgeFile, Marker, MemoryPolicy
+from pinecall.types import Docs, MemoryPolicy, PlatformTool
 from tests.session.fake_llm import FakeLLM, Scripted
 from tests.session.voice.fakes import CALL, CLARA, Recording
 from tests.session.voice.fakes import a_call as a_context
 
 pytestmark = pytest.mark.unit
 
-A_FILE = KnowledgeFile("./knowledge/clinica.md", "The clinic opens at nine and closes at six.")
-KNOWLEDGE = "<!-- knowledge: ./knowledge/clinica.md -->"
-MEMORY = '<!-- memory: {"kinds":["preference"],"limit":6} -->'
-A_VIEW = f"The caller is Ana.\n\n## You remember\n\n{MEMORY}"
+A_VIEW = "The caller is Ana. Two slots are free."
 
-REMEMBERS = replace(CLARA, knowledge=A_FILE, memory=MemoryPolicy(remember=("preference",)))
+REMEMBERS = replace(
+    CLARA, memory=MemoryPolicy(remember=("preference",)), docs=Docs(base="clinica", k=4)
+)
 
 type Talking = tuple[Recording, VoiceBridge, AgentSession[None], FakeLLM]
 
 
 class Answering:
-    """A filler that answers memory with what it was asked, and a rememberer that may fail."""
+    """A lookup service that answers both tools, and a rememberer that may fail."""
 
     def __init__(self, failing: Exception | None = None) -> None:
         self._failing = failing
-        self.queries: list[tuple[str, str | None]] = []
+        self.asked: list[tuple[str, Mapping[str, Any], str | None]] = []
         self.remembered: list[str] = []
 
-    async def fill(
-        self, call: str, query: str, markers: Sequence[Marker], speech_id: str | None
-    ) -> Mapping[str, str]:
+    async def lookup(
+        self, call: str, tool: PlatformTool, input: Mapping[str, Any], speech_id: str | None
+    ) -> Mapping[str, Any]:
         assert call == CALL
-        self.queries.append((query, speech_id))
-        return {marker.line: f"- The caller said {query!r}." for marker in markers}
+        self.asked.append((tool, dict(input), speech_id))
+        if tool == "recall":
+            return {
+                "facts": [{"text": "prefiere la mañana", "source": "call_8", "since": "2026-09-01"}]
+            }
+        return {"chunks": [{"path": "tarifas.md", "heading": "Tarifas", "text": "Son 45 €."}]}
 
     async def remember(self, call: str) -> int:
         if self._failing is not None:
             raise self._failing
         self.remembered.append(call)
         return 1
+
+
+class Slow:
+    """A lookup service no turn ever waits out."""
+
+    async def lookup(
+        self,
+        call: str,  # noqa: ARG002 — the protocol's shape
+        tool: PlatformTool,  # noqa: ARG002 — the protocol's shape
+        input: Mapping[str, Any],  # noqa: ARG002 — the protocol's shape
+        speech_id: str | None,  # noqa: ARG002 — the protocol's shape
+    ) -> Mapping[str, Any]:
+        """Nothing, half a second from now: past every budget a turn ever sets."""
+        await asyncio.sleep(0.5)
+        return {"facts": []}
 
 
 @pytest.fixture
@@ -58,10 +78,10 @@ async def answering() -> Answering:
 
 @pytest.fixture
 async def talking(answering: Answering) -> AsyncIterator[Talking]:
-    """A headless session on the scripted model, the bridge filled by `answering`."""
+    """A headless session on the scripted model, its lookups answered by `answering`."""
     recording = Recording()
     llm = FakeLLM(Scripted(chunks=("Uno.",)), Scripted(chunks=("Dos.",)))
-    bridge = a_bridge(a_context(), REMEMBERS, recording, filler=answering, rememberer=answering)
+    bridge = a_bridge(a_context(), REMEMBERS, recording, lookup=answering, rememberer=answering)
     live: AgentSession[None] = AgentSession(
         llm=llm, vad=None, turn_handling={"turn_detection": "manual"}
     )
@@ -71,7 +91,7 @@ async def talking(answering: Answering) -> AsyncIterator[Talking]:
     await live.aclose()
 
 
-async def test_the_callers_turn_is_the_query_and_its_fill_closes_the_next_request(
+async def test_the_callers_turn_is_the_query_and_the_pair_closes_the_next_request(
     talking: Talking, answering: Answering
 ) -> None:
     _recording, bridge, live, llm = talking
@@ -79,36 +99,50 @@ async def test_the_callers_turn_is_the_query_and_its_fill_closes_the_next_reques
     await bridge.set_prompt("view", A_VIEW)
     await _the_caller_said(bridge, "quiero un turno")
     await live.generate_reply(user_input="quiero un turno")
-    assert answering.queries == [("quiero un turno", None)]
+    assert [(tool, said["query"]) for tool, said, _speech in answering.asked] == [
+        ("recall", "quiero un turno"),
+        ("search", "quiero un turno"),
+    ]
     (asked,) = llm.asked
-    assert asked.system.endswith("## You remember\n\n- The caller said 'quiero un turno'.")
-    assert MEMORY not in asked.system
+    assert [call.name for call in asked.calls] == ["recall", "search"]
+    assert [list(json.loads(output.output)) for output in asked.outputs] == [["facts"], ["chunks"]]
+    # The view is the last thing in the request, and it is not in a tool result.
+    assert asked.system.endswith(A_VIEW)
 
 
-async def test_the_knowledge_file_is_in_the_static_prefix_and_the_hash_is_of_the_apps_text(
+async def test_recall_and_search_are_declared_to_the_model_beside_the_apps_own_tools(
     talking: Talking,
 ) -> None:
-    recording, bridge, live, llm = talking
-    written = f"## What you know\n\n{KNOWLEDGE}"
-    await bridge.set_prompt("knowledge", written)
+    _recording, _bridge, live, llm = talking
     await live.generate_reply(user_input="hola")
-    await _the_caller_said(bridge, "¿a qué hora abren?")
-    await live.generate_reply(user_input="¿a qué hora abren?")
-    first, second = llm.asked
-    assert first.instructions == second.instructions == f"## What you know\n\n{A_FILE.text}"
-    assert bridge.agent.instructions == written
-    (changed,) = recording.of("prompt.changed")
-    assert changed.data["hash"] == hashed_prompt(written)
+    (asked,) = llm.asked
+    assert asked.tools[-2:] == ("recall", "search")
+    assert "find_slot" in asked.tools
 
 
-async def test_a_fill_past_its_budget_is_a_recoverable_entry_and_the_turn_goes_on() -> None:
+async def test_a_class_that_declares_neither_declares_no_platform_tool() -> None:
+    recording = Recording()
+    llm = FakeLLM(Scripted(chunks=("Uno.",)))
+    bridge = a_bridge(a_context(), CLARA, recording)
+    live: AgentSession[None] = AgentSession(
+        llm=llm, vad=None, turn_handling={"turn_detection": "manual"}
+    )
+    await bridge.opened(live)
+    await live.start(bridge.agent, record=False)  # pyright: ignore[reportUnknownMemberType]
+    await live.generate_reply(user_input="hola")
+    await live.aclose()
+    (asked,) = llm.asked
+    assert "recall" not in asked.tools and "search" not in asked.tools
+
+
+async def test_a_lookup_past_its_budget_is_a_recoverable_entry_and_the_turn_goes_on() -> None:
     recording = Recording()
     bridge = a_bridge(
         a_context(),
-        REMEMBERS,
+        replace(REMEMBERS, docs=None),
         recording,
-        filler=Answering(),
-        budgets=Budgets(fill_ms=0, remember_s=1.0),
+        lookup=Slow(),
+        budgets=Budgets(lookup_ms=0, remember_s=1.0),
     )
     live: AgentSession[None] = AgentSession(
         llm=FakeLLM(Scripted(chunks=("Uno.",))),
@@ -122,7 +156,7 @@ async def test_a_fill_past_its_budget_is_a_recoverable_entry_and_the_turn_goes_o
     await live.generate_reply(user_input="hola")
     await bridge.closed("the test hung up")
     (skipped,) = recording.of("error")
-    assert skipped.data["code"] == "memory_skipped"
+    assert skipped.data["code"] == "recall_skipped"
     assert skipped.data["recoverable"] is True
     assert "turn.agent" in recording.types
 

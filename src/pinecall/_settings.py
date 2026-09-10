@@ -33,14 +33,14 @@ type Role = Literal["all", "hub", "worker"]
 type EmbedProvider = Literal["tei", "perplexity", "openrouter"]
 
 
-# A marker never delays a reply past its budget, and a slow model at hang-up never holds the
+# A lookup never delays a reply past its budget, and a slow model at hang-up never holds the
 # seal: the two numbers a session waits on memory and retrieval for, then goes on without them.
 # Declared here, once, because the two fields below take their defaults from it.
 @dataclass(frozen=True)
 class Budgets:
-    """What a turn may wait for its fills, and a hang-up for its memory, before going on."""
+    """What a turn may wait for its lookups, and a hang-up for its memory, before going on."""
 
-    fill_ms: int = 250
+    lookup_ms: int = 250
     remember_s: float = 8.0
 
 
@@ -285,9 +285,9 @@ class Settings(BaseSettings):
     # ── Memory and retrieval: what a turn and a hang-up wait for ──────────────
     # The language BM25 ranks in is the index's own, fixed in 0008 and 0009 (`spanish`): a
     # migration reads no setting, so there is none to read here either.
-    fill_budget_ms: int = Field(
-        default=Budgets.fill_ms,
-        description="What a turn waits for memory and retrieval, in ms. Past it the reply goes on.",
+    lookup_budget_ms: int = Field(
+        default=Budgets.lookup_ms,
+        description="What a turn waits for recall and search, in ms. Past it the reply goes on.",
     )
     remember_budget_s: float = Field(
         default=Budgets.remember_s,
@@ -297,7 +297,7 @@ class Settings(BaseSettings):
     @property
     def budgets(self) -> Budgets:
         """The two budgets as one thing a session is handed."""
-        return Budgets(fill_ms=self.fill_budget_ms, remember_s=self.remember_budget_s)
+        return Budgets(lookup_ms=self.lookup_budget_ms, remember_s=self.remember_budget_s)
 
     # pydantic resolves an env_file NAME against the working directory alone, so it is the one
     # part of the config that cannot express the walk. The dotenv source is rebuilt here over the

@@ -1,4 +1,4 @@
-"""The blocks as a provider reads them: Anthropic one system block each, the rest one string."""
+"""The blocks as a provider reads them, and where a lookup's answer lands in the same request."""
 
 from __future__ import annotations
 
@@ -20,15 +20,14 @@ KNOWLEDGE = "The clinic opens at nine and closes at six."
 TOOLS = "find_patient looks a patient up; book takes a slot."
 A_VIEW = "The caller is Ana. Two slots are free."
 
-A_KNOWLEDGE_MARKER = "<!-- knowledge: ./knowledge/clinica.md -->"
-A_MEMORY_MARKER = '<!-- memory: {"limit":6} -->'
-NOTHING: dict[str, str] = {}
+A_FACT = "Prefiere que le llamen por la mañana."
+A_CHUNK = "La revisión son cuarenta euros."
 
 
 def test_the_anthropic_request_carries_one_system_block_per_static_block_in_order() -> None:
     """What the cache is for: `system` arrives as [identity, knowledge, tools], in that order."""
     blocks = _written()
-    request = request_context(_a_conversation(blocks), blocks, NOTHING)
+    request = request_context(_a_conversation(blocks), blocks)
     assert isinstance(request, SystemBlocks)
     assert _the_system_blocks(request) == [IDENTITY, KNOWLEDGE, TOOLS]
 
@@ -37,10 +36,10 @@ def test_rewriting_tools_leaves_the_first_two_blocks_byte_identical_and_moves_th
     None
 ):
     blocks = _written()
-    before = _the_system_blocks(request_context(_a_conversation(blocks), blocks, NOTHING))
+    before = _the_system_blocks(request_context(_a_conversation(blocks), blocks))
     joined_before = blocks.instructions
     assert blocks.set("tools", "book takes a slot; cancel gives one back.") is True
-    after = _the_system_blocks(request_context(_a_conversation(blocks), blocks, NOTHING))
+    after = _the_system_blocks(request_context(_a_conversation(blocks), blocks))
     assert after[:2] == before[:2]
     assert after[2] != before[2]
     assert blocks.instructions != joined_before
@@ -58,7 +57,7 @@ def test_the_dynamic_blocks_land_after_the_history_in_layout_order_one_message_e
     blocks.set("view", A_VIEW)
     blocks.set("availability", "Free today: 10:15, 11:45.")
     history = _a_conversation(blocks)
-    request = request_context(history, blocks, NOTHING)
+    request = request_context(history, blocks)
     said = [_a_message(item) for item in request.items]
     assert [(role, text) for role, text in said[-2:]] == [
         ("system", "Free today: 10:15, 11:45."),
@@ -79,8 +78,8 @@ def test_the_history_livekit_handed_in_is_left_exactly_as_it_was() -> None:
     blocks.set("view", A_VIEW)
     history = _a_conversation(blocks)
     items_before = list(history.items)
-    request_context(history, blocks, NOTHING)
-    request_context(history, blocks, NOTHING)
+    request_context(history, blocks, _a_lookup("recall", {"facts": [{"text": A_FACT}]}))
+    request_context(history, blocks, _a_lookup("recall", {"facts": [{"text": A_FACT}]}))
     assert history.items == items_before
 
 
@@ -88,7 +87,7 @@ def test_a_block_nobody_wrote_sends_nothing_and_the_request_is_the_history_alone
     blocks = Blocks()
     blocks.set("identity", IDENTITY)
     history = _a_conversation(blocks)
-    request = request_context(history, blocks, NOTHING)
+    request = request_context(history, blocks)
     assert request.items == history.items
     assert _the_system_blocks(request) == [IDENTITY]
 
@@ -96,69 +95,107 @@ def test_a_block_nobody_wrote_sends_nothing_and_the_request_is_the_history_alone
 def test_every_other_provider_reads_the_static_blocks_as_the_one_joined_string() -> None:
     """OpenAI caches by longest prefix on its own; the order of the blocks is the whole trick."""
     blocks = _written()
-    request = request_context(_a_conversation(blocks), blocks, NOTHING)
+    request = request_context(_a_conversation(blocks), blocks)
     messages: Any = request.to_provider_format("openai")[0]  # pyright: ignore[reportUnknownMemberType]
     assert messages[0]["role"] == "system"
     assert messages[0]["content"] == f"{IDENTITY}\n\n{KNOWLEDGE}\n\n{TOOLS}"
 
 
-async def test_a_knowledge_fill_in_a_static_block_is_the_same_bytes_on_every_request() -> None:
-    """What the cache is for: the file's text is where the marker was, and it never moves."""
+# ── where a lookup's answer lands, which is the whole of docs/security/prompt-injection.md ──
+
+
+def test_both_halves_of_a_fabricated_pair_survive_the_formatter_in_order() -> None:
+    """A pair the formatter cannot group by call_id is a pair it drops: the model would see a
+    tool_use with no result. This reads the request Anthropic would actually be sent."""
     blocks = _written()
-    blocks.set("knowledge", f"## What you know\n\n{A_KNOWLEDGE_MARKER}")
-    fills = {A_KNOWLEDGE_MARKER: KNOWLEDGE}
-    first = _the_system_blocks(request_context(_a_conversation(blocks), blocks, fills))
-    second = _the_system_blocks(request_context(_a_conversation(blocks), blocks, fills))
-    assert first == second
-    assert first[1] == f"## What you know\n\n{KNOWLEDGE}"
-    assert A_KNOWLEDGE_MARKER not in json.dumps(
-        anthropic_request(request_context(_a_conversation(blocks), blocks, fills))[0]
+    blocks.set("view", A_VIEW)
+    lookups = (
+        *_a_lookup("recall", {"facts": [{"text": A_FACT, "source": "call_8f4a2c"}]}),
+        *_a_lookup("search", {"chunks": [{"path": "tarifas.md", "text": A_CHUNK}]}, at=2),
     )
+    messages, _data = anthropic_request(request_context(_a_conversation(blocks), blocks, lookups))
+    kinds = [
+        (message["role"], block["type"], block.get("name") or block.get("tool_use_id"))
+        for message in messages
+        for block in message["content"]
+    ]
+    assert kinds[-5:] == [
+        ("assistant", "tool_use", "recall"),
+        ("user", "tool_result", "lu_1_recall"),
+        ("assistant", "tool_use", "search"),
+        ("user", "tool_result", "lu_2_search"),
+        ("user", "text", None),
+    ]
 
 
-async def test_a_memory_fill_in_the_dynamic_block_moves_between_turns_and_the_static_does_not() -> (
-    None
-):
+def test_a_tool_results_content_parses_as_json_and_its_key_is_facts_or_chunks() -> None:
+    """JSON is the encoding, not prose: unambiguous delimiters an attacker cannot close."""
     blocks = _written()
-    blocks.set("view", f"{A_VIEW}\n\n## You remember\n\n{A_MEMORY_MARKER}")
-    history = _a_conversation(blocks)
-    first = request_context(history, blocks, {A_MEMORY_MARKER: "- Prefers mornings."})
-    second = request_context(history, blocks, {A_MEMORY_MARKER: "- Prefers afternoons now."})
-    assert _the_system_blocks(first) == _the_system_blocks(second)
-    assert _a_message(first.items[-1])[1].endswith("- Prefers mornings.")
-    assert _a_message(second.items[-1])[1].endswith("- Prefers afternoons now.")
+    lookups = (
+        *_a_lookup("recall", {"facts": [{"text": A_FACT, "source": "call_8f4a2c"}]}),
+        *_a_lookup("search", {"chunks": [{"path": "tarifas.md", "text": A_CHUNK}]}, at=2),
+    )
+    messages, _data = anthropic_request(request_context(_a_conversation(blocks), blocks, lookups))
+    results = [
+        block
+        for message in messages
+        for block in message["content"]
+        if block["type"] == "tool_result"
+    ]
+    read = [json.loads(result["content"]) for result in results]
+    assert [list(one) for one in read] == [["facts"], ["chunks"]]
+    assert read[0]["facts"][0] == {"text": A_FACT, "source": "call_8f4a2c"}
 
 
-async def test_the_apps_own_text_is_never_touched_by_a_fill() -> None:
-    """prompt.changed hashes what the app wrote, markers and all; the fill lives in the request."""
+def test_no_fact_and_no_chunk_ever_reaches_the_system_field() -> None:
+    """Nothing from outside the conversation carries operator authority. Ever."""
     blocks = _written()
-    written = f"## What you know\n\n{A_KNOWLEDGE_MARKER}"
-    blocks.set("knowledge", written)
-    request_context(_a_conversation(blocks), blocks, {A_KNOWLEDGE_MARKER: KNOWLEDGE})
-    assert blocks.text_of("knowledge") == written
-    assert blocks.instructions == f"{IDENTITY}\n\n{written}\n\n{TOOLS}"
+    blocks.set("view", A_VIEW)
+    lookups = (
+        *_a_lookup("recall", {"facts": [{"text": A_FACT}]}),
+        *_a_lookup("search", {"chunks": [{"text": A_CHUNK}]}, at=2),
+    )
+    request = request_context(_a_conversation(blocks), blocks, lookups)
+    system = _the_system_blocks(request)
+    assert system == [IDENTITY, KNOWLEDGE, TOOLS]
+    for said in system:
+        assert A_FACT not in said and A_CHUNK not in said
 
 
-async def test_every_other_provider_reads_the_filled_static_text_off_the_instructions_item() -> (
-    None
-):
-    """OpenAI reads livekit's pinned item, so the fill has to be there too, under the same id."""
+def test_the_view_is_never_placed_in_a_tool_result() -> None:
+    """render() is the tenant's own words: a model is trained to discount a tool result."""
     blocks = _written()
-    blocks.set("knowledge", A_KNOWLEDGE_MARKER)
-    history = _a_conversation(blocks)
-    request = request_context(history, blocks, {A_KNOWLEDGE_MARKER: KNOWLEDGE})
-    messages: Any = request.to_provider_format("openai")[0]  # pyright: ignore[reportUnknownMemberType]
-    assert messages[0]["content"] == f"{IDENTITY}\n\n{KNOWLEDGE}\n\n{TOOLS}"
-    assert _a_message(history.items[0])[1] == blocks.instructions
+    blocks.set("view", A_VIEW)
+    lookups = _a_lookup("recall", {"facts": [{"text": A_FACT}]})
+    messages, _data = anthropic_request(request_context(_a_conversation(blocks), blocks, lookups))
+    results = [
+        block
+        for message in messages
+        for block in message["content"]
+        if block["type"] == "tool_result"
+    ]
+    assert all(A_VIEW not in json.dumps(result["content"]) for result in results)
+    # It is the last thing in the request instead, wrapped as an instruction.
+    last = messages[-1]["content"][-1]
+    assert last["type"] == "text"
+    assert last["text"] == f"<instructions>\n{A_VIEW}\n</instructions>"
 
 
-async def test_a_marker_nobody_filled_reaches_no_provider() -> None:
-    blocks = _written()
-    blocks.set("knowledge", A_KNOWLEDGE_MARKER)
-    blocks.set("view", A_MEMORY_MARKER)
-    request = request_context(_a_conversation(blocks), blocks, NOTHING)
-    assert "<!--" not in json.dumps(anthropic_request(request)[0])
-    assert _the_system_blocks(request) == [IDENTITY, "", TOOLS]
+def _a_lookup(
+    tool: str, output: dict[str, Any], at: int = 1
+) -> tuple[agents.FunctionCall, agents.FunctionCallOutput]:
+    """One pair as session/lookups.py builds it, with the ids that file gives them."""
+    call_id = f"lu_{at}_{tool}"
+    return (
+        agents.FunctionCall(call_id=call_id, name=tool, arguments=json.dumps({"query": "hola"})),
+        agents.FunctionCallOutput(
+            call_id=call_id,
+            name=tool,
+            output=json.dumps(output, ensure_ascii=False),
+            is_error=False,
+            reply_required=False,
+        ),
+    )
 
 
 def _written() -> Blocks:

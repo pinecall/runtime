@@ -24,8 +24,8 @@ NO_BODY = 204
 # The org is the key's, on every verb here: a tenant pushes into its own tables and reads its own
 # list, and a key that could name another org's base would be a key that could read its files.
 # A push replaces the base whole — the tenant's folder as of now — in one transaction, and the
-# TEI behind the embedder is reached here for the first time on a gateway that never filled a
-# marker: a push on a box with no TEI is a 5xx that names TEI, never a half-written base.
+# TEI behind the embedder is reached here for the first time on a gateway that never ran a
+# lookup: a push on a box with no TEI is a 5xx that names TEI, never a half-written base.
 @router.put("/v1/knowledge/{base}")
 async def push(
     base: str,

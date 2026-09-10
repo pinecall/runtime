@@ -9,7 +9,7 @@ from pinecall.api._deps import NO_KNOWLEDGE
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.types import Quotas
 from tests.api.conftest import A_RECORD
-from tests.filling.fakes import ScriptedKnowledge
+from tests.lookups.fakes import ScriptedKnowledge
 
 pytestmark = pytest.mark.unit
 

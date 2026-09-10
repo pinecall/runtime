@@ -23,15 +23,18 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - The doctor knocks at every vendor with the key the box holds and fails a deploy on a dead one,
   naming the variable and never the value; it knows the box's role (`PINECALL_ROLE`).
 - `ARCHITECTURE.md`, `docs/protocol/` (operator API, the token door, the projections).
-- The seam memory and retrieval land on: a view's markers (`<!-- knowledge: … -->`,
-  `<!-- memory: … -->`, `<!-- retrieved: … -->`) are read by the runtime and replaced on the way
-  into the request — the knowledge file's text once per call, the turn's fills when the caller's
-  turn ends, under `PINECALL_FILL_BUDGET_MS` (250); at hang-up the call is remembered under
-  `PINECALL_REMEMBER_BUDGET_S` (8.0). `AgentConfig` declares `knowledge` (`{path, text}`),
-  `docs` and `memory`; the worker asks `POST /v1/calls/{call}/fill` and `/remember`; TEI is the
-  embedder (`providers/embed/tei.py`, refused by name when it is not 1024 wide). A missed fill is
-  an `error` entry (`memory_skipped`, `retrieval_skipped`, `remember_failed`), recoverable, and
-  the call goes on.
+- The seam memory and retrieval land on: **two declared tools the platform runs**, `recall` and
+  `search`. The class's declaration brings each one — `memory` brings `recall`, `docs` brings
+  `search` — they stand in the request's `tools` array beside the app's own, and their answers
+  reach the model as `tool_result` blocks, JSON-encoded. With `docs.mode = "retrieved"` (the
+  default) and whenever `memory` is declared, the session runs the lookup when the caller's turn
+  ends, under `PINECALL_LOOKUP_BUDGET_MS` (250), and puts a real `tool_use` / `tool_result` pair
+  into the request; with `docs.mode = "tool"` the model calls `search` itself. At hang-up the call
+  is remembered under `PINECALL_REMEMBER_BUDGET_S` (8.0). `AgentConfig` declares `knowledge`
+  (`{path, text}`, the file's own words in a static block), `docs` and `memory`; the worker asks
+  `POST /v1/calls/{call}/lookup` and `/remember`; TEI is the embedder (`providers/embed/tei.py`,
+  refused by name when it is not 1024 wide). A lookup that did not run is an `error` entry
+  (`recall_skipped`, `search_skipped`, `remember_failed`), recoverable, and the call goes on.
 - Memory itself: `memory/` and `0008_memory.sql`. `PgvectorMemory` keeps a contact's facts in
   `contact_memories`, bi-temporally — an update is a new row that supersedes the old one, an
   invalidation an end date, nothing is deleted but by `forget`, the right to be forgotten.
@@ -39,25 +42,26 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   two by rank (RRF, k=60), weighs recency (half-life 90 days) and confidence, and answers the best
   k at 0..1 with no model; `remember` is one call to the org's own model at hang-up, answering
   add / update / invalidate ops, parsed strictly and policed by the tenant's `MemoryPolicy`
-  (a `forget` category never reaches the table). `facts_as_text` is what the memory marker becomes.
+  (a `forget` category never reaches the table, and a fact that names one of the class's own tools
+  is refused before it — admission at write time, checked against `AgentConfig.tools`).
 - The knowledge base (`knowledge/`, migration `0009_knowledge`): a tenant's Markdown files
   chunked by heading under ~350 tokens, each chunk under its heading path, embedded in batches
   and kept in `knowledge_chunks` with an HNSW index by cosine and a BM25 index in spanish; a push
   replaces the base whole in one statement; a search fuses both indexes by reciprocal rank
-  (k=60, thirty candidates a branch) and hands the model `### path › heading` over each chunk.
+  (k=60, thirty candidates a branch) and hands the model `{path, heading, text}` per chunk.
   The row in `knowledge_bases` says which model wrote the vectors, so an `Embedder` now names
   its model (`model()`, what TEI's `/info` reports).
-- The fill itself (`filling/`): one `Filling` per gateway is the session's `Filler` and
-  `Rememberer` for every text call in-process and, over `POST /v1/calls/{call}/fill` and
+- The lookup itself (`lookups/`): one `Lookups` per gateway is the session's `Lookup` and
+  `Rememberer` for every text call in-process and, over `POST /v1/calls/{call}/lookup` and
   `/remember` (worker-only, 404 in the events door's words for another org's call), for every
-  spoken one. A memory marker recalls the contact — `CallContext.remembered_as`: the resolved id,
-  else the number on phone and WhatsApp, else nobody and nothing is written — a retrieved marker
-  searches the agent's `docs.base` under the marker's own `k`/`min_score`, and the gateway writes
-  `memory.ops` and `docs.sources` on the call's log with the turn's `speech_id`; at hang-up
-  `remember` reads the call's turns off its log and runs on the org's own model and keys. The
-  embedder is reached lazily and, down, is named in the error entry (`TEI at … did not answer`).
-  Ring 1's sessions are built with the same `Filling`, so a golden carries its sources, and the
-  grounded judge reads them.
+  spoken one. `recall` reads the contact — `CallContext.remembered_as`: the resolved id, else the
+  number on phone and WhatsApp, else nobody and nothing is written, and never what the model wrote
+  in the tool's input — `search` searches the agent's `docs.base` under its declared `k`/
+  `min_score`, and the gateway writes `memory.ops` and `docs.sources` on the call's log with the
+  turn's `speech_id`; at hang-up `remember` reads the call's turns off its log and runs on the
+  org's own model and keys. The embedder is reached lazily and, down, is named in the error entry
+  (`TEI at … did not answer`). Ring 1's sessions are built with the same `Lookups`, so a golden
+  carries its sources, and the grounded judge reads them.
 - The knowledge base's doors, on the tenant's key: `PUT /v1/knowledge/{base}` (the base replaced
   whole), `GET /v1/knowledge`, `DELETE /v1/knowledge/{base}` (404 for a name never pushed); and a
   contact's, `GET /v1/contacts/{contact}/memory` (the history, current first) and `DELETE`
@@ -68,6 +72,17 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   itself in the wheel and the sdist, so an install carries its licence.
 
 ### Changed
+- **What a lookup found is a tool result, not a piece of the prompt.** The view's markers
+  (`<!-- memory: … -->`, `<!-- retrieved: … -->`, `<!-- knowledge: … -->`) are gone, and with them
+  `types/markers.py`, `TurnFills`, the `Filler` protocol and `POST /v1/calls/{call}/fill`. They
+  spliced a model-written fact and a chunk of somebody's document INTO the tenant's own view, and
+  the view travels wrapped in `<instructions>`: one blob, three authorities, presented as an
+  instruction. Both vendors say not to. Now `recall` and `search` are declared tools whose
+  descriptions say what the content is and where it came from, their answers are JSON objects
+  inside `tool_result` blocks, and the dynamic region of the prompt is the view and nothing else.
+  `docs/security/prompt-injection.md` is the contract and is public. `filling/` is `lookups/`,
+  `PINECALL_FILL_BUDGET_MS` is `PINECALL_LOOKUP_BUDGET_MS`, and `memory_skipped` /
+  `retrieval_skipped` are `recall_skipped` / `search_skipped`.
 - **A tenant brings its own provider keys, with its own API key and no operator.**
   `PUT /v1/provider-keys/{vendor}` · `GET /v1/provider-keys` · `DELETE /v1/provider-keys/{vendor}`
   take no org — the key IS the org — and the listing is vendor names and never a value. The vault,
@@ -78,7 +93,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **A box can run its own embedder.** `pinecall-tei` (bge-m3) is a Quadlet unit installed only
   where `EMBED_PROVIDER=tei` in `box.env` asks for it; a hub that embeds at Perplexity or
   OpenRouter takes its key as an encrypted systemd credential instead, and a worker embeds nothing
-  because the gateway is what fills. On a hub an embedder that is down is the doctor's verdict now,
+  because the gateway is what looks up. On a hub an embedder that is down is the doctor's verdict now,
   not its advice, and the line names what to fix. A hub that becomes a worker STOPS the media
   plane it may not disable: `systemctl disable` refuses a generated unit before it would have
   stopped anything, so the containers were outliving the role that owned them.
@@ -87,9 +102,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   has), `0` refuses everything, N is a cap. `orgs quota` gains `--memory-facts` and
   `--knowledge-chunks`; `PUT /v1/ops/orgs/{org}/quotas` gains both fields and
   `GET /v1/ops/orgs/{org}` answers `holding` beside them. A knowledge push past the cap is refused
-  429 before a row is written; a hang-up past it writes no fact and asks no model; a `0` fill
-  answers with nothing, embeds nothing and writes no entry; reading and forgetting a contact's
-  memory are refused by no quota.
+  429 before a row is written; a hang-up past it writes no fact and asks no model; a lookup at `0`
+  answers the empty object of its own shape (`{"facts": []}`), embeds nothing and writes no entry;
+  reading and forgetting a contact's memory are refused by no quota.
 - **The embedder is configurable and multi-model, and the knowledge base is embedded
   CONTEXTUALLY.** `Embedder` gains `embed_documents(documents)` — one vector per chunk, one list
   per document, the order given being the contract — and `PgKnowledge.put` groups the pieces by
@@ -132,15 +147,15 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   down — the whole reason, vendor and URL included, went to the gateway's log and nothing at all
   to the tenant. `api/_refusals.py` maps `EmbedderUnreachable` to **503** and `WrongWidth` /
   `WrongModel` to **409** at every door, each carrying the exception's own sentence, in one table
-  rather than a catch per endpoint. The fill door is deliberately not among them: a marker that
-  cannot be filled is still `retrieval_skipped` on the call's log and the turn still goes on.
+  rather than a catch per endpoint. The lookup door is deliberately not among them: a lookup that
+  could not run is still `search_skipped` on the call's log and the turn still goes on.
 
 ### Removed
 - `PINECALL_TEXT_SEARCH_CONFIG`: nothing read it. The language BM25 stems in is the index's own,
   fixed in `0008_memory` and `0009_knowledge` (`spanish`).
 - `doctor --bench`: it printed that no embedder was wired. The embedder is wired; the `embedder`
   line of the report names the provider and the model and says what a down one costs (a skipped
-  fill, said in the call's log).
+  lookup, said in the call's log).
 - `LeakageJudge`: it had no user in the tree, and a judge given a declaration nobody wrote would be
   judging a rule nobody wrote. The idea returns with the milestone that declares what another
   tenant owns.

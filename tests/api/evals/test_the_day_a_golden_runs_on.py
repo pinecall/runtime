@@ -12,14 +12,14 @@ from pinecall._settings import Budgets
 from pinecall.api._live import Live
 from pinecall.api.evals.conversation import an_eval_call
 from pinecall.evals.goldens import Golden
-from pinecall.filling import Filling
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
+from pinecall.lookups import Lookups
 from pinecall.orgs.vault import keys_brought_by
 from pinecall.session import clock
 from pinecall.session.text.session import TextSession
 from pinecall.types import AgentConfig
-from tests.filling.fakes import a_plan, the_tenants
+from tests.lookups.fakes import a_plan, the_tenants
 from tests.session.fake_llm import FakeLLM
 
 pytestmark = pytest.mark.unit
@@ -41,10 +41,10 @@ def a_call_of(golden: Golden) -> TextSession:
     """The call that golden opens, on a model nobody in this file ever reaches."""
     config = AgentConfig(slug=AGENT, channels=frozenset({"web"}))
     logs = Logs(MemoryStore())
-    filling = Filling(
+    lookups = Lookups(
         None, None, logs, Live(), partial(keys_brought_by, None), *a_plan(logs, the_tenants())
     )
-    return an_eval_call(golden, A_CALL, config, ORG, logs, FakeLLM(), filling, Budgets())
+    return an_eval_call(golden, A_CALL, config, ORG, logs, FakeLLM(), lookups, Budgets())
 
 
 async def test_a_golden_that_names_no_day_runs_on_the_real_one() -> None:

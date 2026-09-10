@@ -21,6 +21,7 @@ from pinecall.types import (
     MemoryPolicy,
     Model,
     ProviderKeys,
+    ToolSpec,
 )
 from pinecall_protocol.defs import MemoryFact, MemoryOp
 
@@ -31,13 +32,11 @@ _COLUMNS = "id, contact, text, category, source_call, valid_from, invalidated_at
 
 # What "current" means for a recall: with no as_of, the rows nobody invalidated — the partial
 # index's own WHERE; with one, the rows that held at that moment, which is the bi-temporal read.
-# kinds is NULL when the marker named none, and the category filter is then no filter at all.
 _HELD = """
 WHERE org = $1 AND contact = $2
   AND (($3::timestamptz IS NULL AND invalidated_at IS NULL)
        OR ($3::timestamptz IS NOT NULL AND valid_from <= $3
            AND (invalidated_at IS NULL OR invalidated_at > $3)))
-  AND ($4::text[] IS NULL OR category = ANY($4::text[]))
 """
 
 # The dense branch: cosine over the halved vectors, the HNSW index's own operator class, and only
@@ -47,8 +46,8 @@ WHERE org = $1 AND contact = $2
 _BY_VECTOR = f"""
 SELECT {_COLUMNS} FROM contact_memories
 {_HELD}
-  AND model = $6
-ORDER BY embedding <=> $5::text::halfvec
+  AND model = $5
+ORDER BY embedding <=> $4::text::halfvec
 LIMIT {CANDIDATES_PER_BRANCH}
 """
 
@@ -58,7 +57,7 @@ LIMIT {CANDIDATES_PER_BRANCH}
 _BY_WORDS = f"""
 SELECT {_COLUMNS} FROM contact_memories
 {_HELD}
-ORDER BY text <@> to_bm25query($5, 'contact_memories_text_bm25')
+ORDER BY text <@> to_bm25query($4, 'contact_memories_text_bm25')
 LIMIT {CANDIDATES_PER_BRANCH}
 """
 
@@ -124,13 +123,12 @@ class PgvectorMemory:
         contact: str,
         query: str,
         *,
-        kinds: Sequence[str] = (),
         k: int = DEFAULT_FACTS_PER_TURN,
         as_of: datetime | None = None,
     ) -> list[Fact]:
         """Dense and BM25 over the contact's held facts, fused by rank, the best k at 0..1."""
         vector = await self._embedded(query)
-        held = (org, contact, as_of, list(kinds) or None)
+        held = (org, contact, as_of)
         dense, sparse = await asyncio.gather(
             self._pool.fetch(_BY_VECTOR, *held, vector, await self._embedder.model()),
             self._pool.fetch(_BY_WORDS, *held, query),
@@ -154,6 +152,7 @@ class PgvectorMemory:
         llm: Model | None,
         keys: ProviderKeys,
         call: str | None = None,
+        tools: Sequence[ToolSpec] = (),
     ) -> list[MemoryOp]:
         """What the call taught, written; one op on the wire carrying the facts now held."""
         started = time.perf_counter()
@@ -164,7 +163,7 @@ class PgvectorMemory:
             chat = self._models(llm, keys)
             try:
                 ops = await extracted(
-                    chat, known=known, turns=turns, policy=policy, channel=channel
+                    chat, known=known, turns=turns, policy=policy, channel=channel, tools=tools
                 )
             finally:
                 await chat.aclose()

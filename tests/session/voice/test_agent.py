@@ -10,14 +10,14 @@ from livekit.agents.types import TimedString
 from livekit.agents.voice import ModelSettings
 
 from pinecall._settings import Budgets
-from pinecall.session.filling import NoFiller, TurnFills
+from pinecall.session.lookups import NoLookup, TurnLookups
 from pinecall.session.voice.agent import VoiceAgent
 from pinecall.session.voice.events import Events
 from pinecall.session.voice.metrics import Meters
 from pinecall.session.voice.writing import Writing
 from pinecall.types import Blocks
 from pinecall_protocol.events import ErrorEvent
-from tests.session.voice.fakes import CALL, Recording, ScriptedSession
+from tests.session.voice.fakes import CALL, CLARA, Recording, ScriptedSession
 from tests.session.voice.test_events import Ended, Speaking
 
 pytestmark = pytest.mark.unit
@@ -64,8 +64,8 @@ async def an_agent(recording: Recording) -> tuple[VoiceAgent, Writing]:
     events = Events(writing, Meters(writing), Ended())
     events.watch(ScriptedSession(current_speech=Speaking("sp_9")))  # pyright: ignore[reportArgumentType]
     blocks = Blocks()
-    filling = TurnFills(NoFiller(), CALL, blocks, None, Budgets().fill_ms)
-    agent = VoiceAgent(blocks=blocks, tools=(), speaking=Playing(events), filling=filling)
+    lookups = TurnLookups(NoLookup(), CALL, None, CLARA, Budgets().lookup_ms)
+    agent = VoiceAgent(blocks=blocks, tools=(), speaking=Playing(events), lookups=lookups)
     return agent, writing
 
 

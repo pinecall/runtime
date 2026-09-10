@@ -54,15 +54,6 @@ async def test_the_fact_both_branches_find_comes_first(
     assert all(fact.score < 1.0 for fact in facts[1:])
 
 
-async def test_kinds_narrow_a_recall_to_those_categories(
-    memory: PgvectorMemory, pool: Pool, org: str, contact: str
-) -> None:
-    await a_row(pool, org, contact, "prefiere turnos por la mañana", category="preference")
-    await a_row(pool, org, contact, "toma su medicación por la mañana", category="health")
-    facts = await memory.recall(org, contact, "por la mañana", kinds=("health",))
-    assert [fact.category for fact in facts] == ["health"]
-
-
 async def test_an_invalidated_fact_is_not_recalled_but_is_in_the_history(
     memory: PgvectorMemory, pool: Pool, org: str, contact: str
 ) -> None:

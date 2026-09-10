@@ -11,10 +11,10 @@ from starlette.websockets import WebSocketState
 
 from pinecall.api._deps import (
     AdmissionDep,
-    FillingDep,
     KeysDep,
     LlmsDep,
     LogsDep,
+    LookupsDep,
     OverridesDep,
     SettingsDep,
     VaultDep,
@@ -84,7 +84,7 @@ async def chat(
     overrides: OverridesDep,
     admission: AdmissionDep,
     vault: VaultDep,
-    filling: FillingDep,
+    lookups: LookupsDep,
     settings: SettingsDep,
 ) -> None:
     """One caller, one text call: they send {text}, they receive every entry of their own call."""
@@ -119,7 +119,7 @@ async def chat(
             admission,
             logs,
             live.running(held.org),
-            filling,
+            lookups,
             settings.budgets,
         )
     except NoProvider as missing:

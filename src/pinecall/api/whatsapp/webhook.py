@@ -11,10 +11,10 @@ from starlette.responses import PlainTextResponse
 
 from pinecall.api._deps import (
     AdmissionDep,
-    FillingDep,
     GraphDep,
     LlmsDep,
     LogsDep,
+    LookupsDep,
     OverridesDep,
     RoutesDep,
     SettingsDep,
@@ -80,7 +80,7 @@ async def delivered(
     logs: LogsDep,
     live: LiveDep,
     graph: GraphDep,
-    filling: FillingDep,
+    lookups: LookupsDep,
 ) -> dict[str, Any]:
     """Every message in this body onto its own thread, and 200 as soon as they are queued."""
     if not settings.whatsapp_app_secret:
@@ -101,7 +101,7 @@ async def delivered(
         logs=logs,
         live=live,
         graph=graph,
-        filling=filling,
+        lookups=lookups,
     )
     inbound = _messages(body)
     for message in inbound:

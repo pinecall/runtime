@@ -160,15 +160,15 @@ in the same way — chooses between them.
 
 `make install` puts `pinecall-tei.container` under Quadlet only where the box asked for it, and
 stops the container and takes the file away where it did not, so a changed line takes effect on
-the next deploy. **A worker never runs it and needs none**: it holds calls, and every marker in
-them is filled by the gateway on the hub. The container publishes on `127.0.0.1:8081` and nowhere
+the next deploy. **A worker never runs it and needs none**: it holds calls, and every lookup in
+them is run by the gateway on the hub. The container publishes on `127.0.0.1:8081` and nowhere
 else, exactly as Postgres does — the gateway is a process on the host and reaches it over
 loopback — so the fence has no line about the embedder and nothing outside can ask it anything.
 
 **The first start is minutes**: a cold box fetches those 2.3 GB before the port answers at all,
 which is why the unit's health start period is fifteen. Nothing waits for it — the gateway reaches
 the embedder lazily — so the box answers the telephone throughout, and what a call loses meanwhile
-is a filled marker, written into the log as `retrieval_skipped`, while a knowledge push answers
+is a search, written into the log as `search_skipped`, while a knowledge push answers
 503 and says so. Afterwards the weights live in the `pinecall-tei` volume and a restart is
 seconds; they are **not** removed with the unit, so a box that will not come back frees them by
 hand: `podman volume rm pinecall-tei`.

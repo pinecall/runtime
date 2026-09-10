@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from pinecall.providers.embedder import EmbedderUnreachable, WrongModel, WrongWidth
-from tests.filling.fakes import ScriptedKnowledge, ScriptedMemory
+from tests.lookups.fakes import ScriptedKnowledge, ScriptedMemory
 
 pytestmark = pytest.mark.unit
 

@@ -134,7 +134,7 @@ def test_the_worker_is_built_from_the_environment_the_job_process_inherited(
     assert bridging.func is a_bridge
     assert bridging.keywords == {
         "score": a_score,
-        "filler": built.gateway,
+        "lookup": built.gateway,
         "rememberer": built.gateway,
         "budgets": load_settings().budgets,
     }

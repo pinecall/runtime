@@ -70,13 +70,13 @@ class Turns:
         return None if self.reply is None else self.reply.speech_id
 
     async def skipped(self, error: ErrorEvent) -> None:
-        """A fill went unanswered: the entry, recoverable, and the reply goes on without it."""
+        """A lookup did not run: the entry, recoverable, and the reply goes on without it."""
         await self._session.emit("error", error)
 
     # ── one reply ───────────────────────────────────────────────────────────────
 
     # Three ways to ask for one reply, never two at once. `heard` is the caller's own words: the
-    # markers are filled on them first, then they enter the history as the caller's turn. `said`
+    # lookups run on them first, then they enter the history as the caller's turn. `said`
     # is the app's text entering the history as the caller's words — agent.reply — and no query.
     # `instructions` is one system message of that turn alone (agent_activity.py:3247), which is
     # what a supervisor's whisper is: an order the caller never said and never sees.

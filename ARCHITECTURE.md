@@ -68,7 +68,7 @@ table; the declared ones have a socket.
 | **Grant** / **Scope** | `talk`·`chat`·`observe`·`supervise`·`participate` → `connects`, `audio`, `reads_log`, `sends_verbs`, `own_call_only`, `single_use`, `ttl_s`, `hears`, `hidden` | `tokens` (one row per call, spent once) | a token carries one call and one scope; spent by the dispatch that opens the call |
 | **Consent** | `GateLine` (`seq`, `kind`, `call_id`, `tool`, `audience`, `side_effect`) → `ConsentRead` (`kept`·`broken`·`ungated`·`undeclared`) | read off the log | ring-3 check and ring-4 judge, same rule |
 | **ProviderKeys** | `vendor → key` | `provider_keys` (`org`, `vendor`, `ciphertext`, `set_at`), Fernet under `PINECALL_VAULT_KEY` | absent row = the box's key (managed); one row = BYOK |
-| **Fact** | `id`, `contact`, `text`, `category`, `source`, `valid_from`, `invalidated_at`, `score` | `contact_memories` (plus `embedding halfvec(1024)`, `model`, `supersedes`, `confidence`) | one contact's facts in one org, bi-temporal: an update is a new row that supersedes the old one, an invalidation an end date, `forget` the one DELETE. `memory/` recalls them per turn (cosine over the rows THIS embedder wrote, BM25 over every one of them, fused by rank, weighed by recency and confidence) and writes them at hang-up with one model call |
+| **Fact** | `id`, `contact`, `text`, `category`, `source`, `valid_from`, `invalidated_at`, `score` | `contact_memories` (plus `embedding halfvec(1024)`, `model`, `supersedes`, `confidence`) | one contact's facts in one org, bi-temporal: an update is a new row that supersedes the old one, an invalidation an end date, `forget` the one DELETE. `memory/` recalls them per turn (cosine over the rows THIS embedder wrote, BM25 over every one of them, fused by rank, weighed by recency and confidence) and writes them at hang-up with one model call — a fact naming one of the class's own tools is refused before the table |
 | **eval run** | `id`, `agent`, `started_at`, `finished_at`, `status`, `document` | `eval_runs` | ring-1 suites driven over live text sessions |
 | **Base** / **Chunk** | `base`, `chunks`, `pushed_at` · `id`, `base`, `path`, `heading`, `text`, `score` | `knowledge_bases` (`org`, `base`, `model`, `dimensions`, `chunks`, `pushed_at`) · `knowledge_chunks` (`id`, `org`, `base`, `path`, `heading`, `ordinal`, `text`, `embedding halfvec(1024)`), HNSW by cosine and BM25 in spanish | a push replaces the base whole (`knowledge/store.py`); a chunk is embedded seeing its file's other chunks (`embed_documents`, one document per file); a search is both indexes fused by reciprocal rank (`types/fusion.py`, the one fusion memory ranks with too) and refuses a base another model pushed. `docs/decisions/retrieval.md` |
 
@@ -105,14 +105,14 @@ names the agent declared. A **scope** picks the projection a bearer reads throug
 ## 4. The gateway, process 1
 
 `api/app.py` is one FastAPI process: a lifespan that opens the Postgres pool, the key table,
-the routes, the vault and the meter, the embedder `EMBED_PROVIDER` names, memory, the knowledge base and the one `Filling`
+the routes, the vault and the meter, the embedder `EMBED_PROVIDER` names, memory, the knowledge base and the one `Lookups`
 over them, then thirty routers, one door each. By resource:
 
 | door | what |
 |---|---|
 | `WS /v1/apps` | **the app socket**. A tenant's process registers its class (`agent.register` → AgentConfig), holds the agent, receives the entries of the calls it answers, runs the tools, sends commands. `api/agents/socket.py`, `registry.py` (which sockets hold which agent, live), `on_a_call.py` |
 | `GET /v1/agents/{slug}/config` · `/provider-keys` · `/pipeline` · `PUT …/pipeline/overrides` | what the **worker** asks about an agent: the declaration resolved, the org's own keys (the one door that ever answers with a key), what it hears/thinks/speaks with, and an operator's knob over it |
-| `POST /v1/calls` · `POST /v1/calls/{call}/events` · `/sealed` · `GET /v1/calls/{call}/commands` · `POST …/tools` · `POST …/fill` · `POST …/remember` | the **worker's** side of a call: open the log, append entries, seal, read the app's commands, relay a tool to the app that declared it and wait for the answer, fill a turn's markers from memory and the knowledge base, remember the call at hang-up |
+| `POST /v1/calls` · `POST /v1/calls/{call}/events` · `/sealed` · `GET /v1/calls/{call}/commands` · `POST …/tools` · `POST …/lookup` · `POST …/remember` | the **worker's** side of a call: open the log, append entries, seal, read the app's commands, relay a tool to the app that declared it and wait for the answer, run `recall` or `search` against memory and the knowledge base, remember the call at hang-up |
 | `GET /v1/calls/{call}/events` (SSE) · `/state` · `/recording` · `GET /v1/agents/{slug}/sessions` · `/calls` | the **readers**: a log as it happens (backlog, marker, live — `log/replay.py`), the folded state memoised per seq (`log/snapshots.py`), the audio, the listing |
 | `WS /v1/chat` · `WS /v1/attach` | a **text call** from a terminal or a browser, served in this process; attaching to one |
 | `POST /v1/calls/{call}/listen` · `/supervise` · `/verbs` | **the desk**: a supervisor's hidden ear, a seat in the call, the six supervise verbs |
@@ -129,13 +129,13 @@ over them, then thirty routers, one door each. By resource:
 sessions running here, the tool calls in flight waiting on an app, and the calls being **served**
 — each bound to the app socket that took it, with its subscription, the queue its commands
 wait in for the worker, and the `CallContext` and `AgentConfig` the door that opened it knew,
-which is all a fill ever asks of a call (`Live.the_call` → `filling.OpenCall`). None of it is
+which is all a lookup ever asks of a call (`Live.the_call` → `lookups.OpenCall`). None of it is
 durable and none of it should be: "it is a fact about which sockets are open right now, not a
 fact about the world. The world is the log." `docs/decisions/api.md`, `dispatch.md`,
 `supervise.md`, `whatsapp.md`, `eval-runner.md`.
 
-A gateway on a dev key opens no Postgres pool, so it holds no memory and no knowledge: a fill
-answers every marker with nothing and refuses nobody, and the knowledge and contact doors say so
+A gateway on a dev key opens no Postgres pool, so it holds no memory and no knowledge: a lookup
+finds nothing and refuses nobody, and the knowledge and contact doors say so
 in one sentence each (`this gateway keeps no knowledge: it runs on a dev key`, 503).
 
 ## 5. The worker, process 2
@@ -187,36 +187,47 @@ have made, never a system message), `declaring.py` (our ToolSpec as livekit's to
 same names; it measures nothing itself, livekit's `LLMMetrics` is the measurement. The **prompt**
 on both is a list of named blocks (`types/prompt.py`, `Blocks`) in two regions, in one order —
 static blocks (cached by the vendor; `identity · knowledge · tools` by default) · append-only
-history · dynamic blocks at the end (the tenant's **view** of its state by default, plus any it
-declares). The app writes a block by name with `prompt.set`; the static ones are livekit's
+history · the dynamic region at the end, which is the tenant's **view** of its state and nothing
+else. The app writes a block by name with `prompt.set`; the static ones are livekit's
 `instructions`, rewritten only when their joined text moved, and `providers/blocks.py` builds
-each request: the dynamic blocks after the history, one message each, and for Anthropic one
-`system` string per static block, so a rewritten `tools` block leaves the others cached. The
-tenant never writes a prompt: the class is the prompt, `render(state)`. A view writes **markers**
-and never resolves them (`types/markers.py`): `<!-- knowledge: … -->` in a static block becomes the
-text of the file the app declared, fixed at session start, so the cached prefix never moves;
-`<!-- memory: … -->` and `<!-- retrieved: … -->` in a dynamic block are asked of the session's
-`Filler` (`session/filling.py`) when the caller's turn ends — livekit's `on_user_turn_completed`
-on both agents, the whole turn as the query, under `PINECALL_FILL_BUDGET_MS` — and past the budget
-the turn goes on unfilled with an `error` entry (`memory_skipped`, `retrieval_skipped`) that says so.
-`request_context` applies the fills on the way into the request only: the app's text, and the hash
-`prompt.changed` carries, are never touched. At hang-up, between `call.ended` and `call.summary`,
-the session's `Rememberer` writes what the call taught about the contact; a miss is
-`remember_failed`, recoverable, and the call seals. **A marker is filled by the gateway, never by
-the app**: the voice session's filler is the worker's gateway client (`POST /v1/calls/{call}/fill`,
-`/remember`), the text session's is the gateway's own `filling/`, in-process — one
-`Filling(memory, knowledge, logs, calls, keys_of, quotas_of, may_remember)` per process,
-implementing both protocols, that
-recalls the contact's facts (the contact is `CallContext.remembered_as`: the resolved id, else
-the number on phone and WhatsApp, else nobody), searches the agent's `docs.base` under the
-marker's own `k`/`min_score`, writes `memory.ops` and `docs.sources` on the call's log with the
+each request: the history, then this turn's lookups, then the dynamic blocks, one message each,
+and for Anthropic one `system` string per static block, so a rewritten `tools` block leaves the
+others cached. The tenant never writes a prompt: the class is the prompt, `render(state)`, and
+`knowledge` is the file's own text in a static block.
+
+**Memory and the knowledge base are two declared tools**, `recall` and `search`
+(`types/lookup.py`), and the class's declaration is what brings each one: `memory` declares
+`recall`, `docs` declares `search`. They stand in the request's `tools` array beside the app's
+own, and their answers reach the model **as `tool_result` blocks, JSON-encoded** — the one place
+both vendors name for anything that arrived from outside the conversation
+(`docs/security/prompt-injection.md`, a public contract). With `docs.mode = "retrieved"` (the
+default) and whenever `memory` is declared, the session runs the lookup itself when the caller's
+turn ends — livekit's `on_user_turn_completed` on both agents, the whole turn as the query, under
+`PINECALL_LOOKUP_BUDGET_MS` — and puts a real `FunctionCall` + `FunctionCallOutput` pair into the
+request, paired by `call_id` so livekit's formatter groups it (`session/lookups.py`, the same
+shape `clock.py` puts today's date in). Past the budget no pair is added and an `error` entry
+(`recall_skipped`, `search_skipped`) says why; with `docs.mode = "tool"` the platform runs nothing
+and the model calls `search` itself, through the same callable. The pair is rebuilt every turn and
+never kept in the history, so the cached prefix never moves. At hang-up, between `call.ended` and
+`call.summary`, the session's `Rememberer` writes what the call taught about the contact; a miss
+is `remember_failed`, recoverable, and the call seals.
+
+**A lookup is run by the gateway, never by the app**: the voice session's `Lookup` is the worker's
+gateway client (`POST /v1/calls/{call}/lookup`, `/remember`), the text session's is the gateway's
+own `lookups/`, in-process — one
+`Lookups(memory, knowledge, logs, calls, keys_of, quotas_of, may_remember)` per process,
+implementing both protocols, that recalls the contact's facts (the contact is
+`CallContext.remembered_as`: the resolved id, else the number on phone and WhatsApp, else
+nobody — never what the model wrote in the tool's input), searches the agent's `docs.base` under
+its declared `k`/`min_score`, writes `memory.ops` and `docs.sources` on the call's log with the
 turn's `speech_id`, and names the embedder's vendor and URL in the error entry when it is down.
-The last two are the org's PLAN, asked of `orgs/` (which `filling/` may not import): a marker
-whose quota is `0` is filled with nothing, embeds nothing and writes no entry at all — a plan
-without the feature is not a failure and never reads as one — and a hang-up whose org may keep
-no more facts writes `memory.ops` with an op that kept none, its `credits.exhausted` one entry
-away in the agent's log, and asks no model to extract what it could not store. **A tool runs in the
-tenant's process**: the session
+The answers are `{"facts": [{text, source, since}]}` and `{"chunks": [{path, heading, text}]}` and
+nothing else. The last two arguments are the org's PLAN, asked of `orgs/` (which `lookups/` may
+not import): a tool whose quota is `0` finds nothing, embeds nothing and writes no entry at all —
+a plan without the feature is not a failure and never reads as one — and a hang-up whose org may
+keep no more facts writes `memory.ops` with an op that kept none, its `credits.exhausted` one
+entry away in the agent's log, and asks no model to extract what it could not store. **A tool runs
+in the tenant's process**: the session
 sends `tool.call` to the gateway, the gateway relays it down the app socket the call is bound
 to, the tenant's `@tool` runs where it was written, `tool.result` rides back to the model.
 `docs/decisions/text-session.md`, `prompt-blocks.md`, `memory.md`, `retrieval.md`,
@@ -294,9 +305,9 @@ whatsapp   ← types, log, session, routes, providers
 evals      ← types, auth, log, session, providers
 memory     ← types, log, providers            the contact's facts, in Postgres
 knowledge  ← types, log, providers            the knowledge base, in Postgres
-filling    ← types, log, providers, memory, knowledge   the gateway's answer to a turn's markers
+lookups    ← types, log, providers, memory, knowledge   the gateway runs recall and search
 api        ← all of the above                 never worker/
-worker     ← all but whatsapp, memory, knowledge, filling   never api/ — they meet over HTTP
+worker     ← all but whatsapp, memory, knowledge, lookups   never api/ — they meet over HTTP
 cli        ← the verbs over any of them
 ```
 

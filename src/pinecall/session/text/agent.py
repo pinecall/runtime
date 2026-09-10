@@ -12,7 +12,7 @@ from livekit.agents.voice.agent import Agent as LiveAgent
 
 from pinecall.providers.blocks import request_context
 from pinecall.providers.models import Chat
-from pinecall.session.filling import TurnFills
+from pinecall.session.lookups import TurnLookups
 from pinecall.types import Blocks
 from pinecall_protocol.events import ErrorEvent
 
@@ -38,7 +38,7 @@ class Writer(Protocol):
         ...
 
     async def skipped(self, error: ErrorEvent) -> None:
-        """A fill went unanswered: the entry that says so, and the turn goes on."""
+        """A lookup did not run: the entry that says so, and the turn goes on."""
         ...
 
 
@@ -74,7 +74,7 @@ class TextAgent(LiveAgent):
         tools: Sequence[agents.Tool],
         llm: Chat,
         writer: Writer,
-        filling: TurnFills,
+        lookups: TurnLookups,
     ) -> None:
         # livekit's Agent.__init__ is generic over the plugin's own event type, which a strict
         # checker can only read as Unknown; the one ignore is here, at the one call.
@@ -83,7 +83,7 @@ class TextAgent(LiveAgent):
         )
         self._blocks = blocks
         self._writer = writer
-        self._filling = filling
+        self._lookups = lookups
 
     # livekit's own hook, the one a spoken call runs between the caller's last word and the
     # request (agent_activity.py:2605). A text turn is handed to generate_reply by hand, which
@@ -95,15 +95,15 @@ class TextAgent(LiveAgent):
         turn_ctx: agents.ChatContext,  # noqa: ARG002 — livekit's signature
         new_message: agents.ChatMessage,
     ) -> None:
-        """The caller's words are the query: this turn's fills, or the entries that say why not."""
+        """The caller's words are the query: this turn's lookups, or why they did not run."""
         query = new_message.text_content or ""
-        for skipped in await self._filling.turn_ended(query, self._writer.speech):
+        for skipped in await self._lookups.turn_ended(query, self._writer.speech):
             await self._writer.skipped(skipped)
 
     # The prompt in livekit's terms: `instructions` is the static blocks joined, which livekit
-    # caches and never rebuilds, `chat_ctx` is the history, and the dynamic blocks are added HERE —
-    # after the history, inside the request only — so a view that changes every turn leaves the
-    # cached prefix byte for byte the same. The same seam the voice agent cuts at.
+    # caches and never rebuilds, `chat_ctx` is the history, and this turn's lookups and the dynamic
+    # blocks are added HERE — after the history, inside the request only — so a view that changes
+    # every turn leaves the cached prefix byte for byte the same. The seam the voice agent cuts at.
     @override
     async def llm_node(  # pyright: ignore[reportIncompatibleMethodOverride]
         self,
@@ -111,9 +111,9 @@ class TextAgent(LiveAgent):
         tools: list[agents.Tool],
         model_settings: ModelSettings,
     ) -> Node:
-        """One request: the dynamic blocks last, the deltas as transcripts, the numbers an entry."""
+        """One request: the view last of all, the deltas as transcripts, the numbers an entry."""
         writer = self._writer
-        request = request_context(chat_ctx, self._blocks, self._filling.fills)
+        request = request_context(chat_ctx, self._blocks, self._lookups.items)
         await writer.thinking()
         llm = cast(agents.LLM[Any], self.llm)  # pyright: ignore[reportUnknownMemberType]
         with Metered(llm) as metered:

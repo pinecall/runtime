@@ -80,7 +80,7 @@ def test_a_box_that_embeds_through_a_vendor_installs_none_and_stops_the_one_it_h
 
 
 def test_a_worker_installs_no_embedder_whatever_its_line_says() -> None:
-    """A worker holds calls and nothing else: every marker is filled by the gateway, on the hub."""
+    """A worker holds calls and nothing else: every lookup is run by the gateway, on the hub."""
     plan = what_a_box_installs(role="worker", embed_provider="tei")
     assert "embedder-elsewhere" in plan
     assert f"{INTO_QUADLET} containers/pinecall-tei" not in plan
@@ -124,7 +124,7 @@ def test_the_gateway_may_read_the_key_of_either_hosted_embedder() -> None:
 
 
 def test_the_worker_reads_no_embedder_key_at_all() -> None:
-    """It embeds nothing, so it is handed nothing: the gateway answers every marker it asks for."""
+    """It embeds nothing, so it is handed nothing: the gateway runs every lookup it asks for."""
     imported = _credentials_imported_by(WORKER)
     assert "PERPLEXITY_API_KEY" not in imported
     assert "OPENROUTER_API_KEY" not in imported

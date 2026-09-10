@@ -12,11 +12,11 @@ from pinecall._settings import Settings
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.keys import KeyRecord, Keys
 from pinecall.evals.runs import Runs
-from pinecall.filling import Filling
 from pinecall.knowledge import Knowledge
 from pinecall.log.snapshots import Snapshots
 from pinecall.log.store import Store
 from pinecall.log.writers import Logs
+from pinecall.lookups import Lookups
 from pinecall.memory import Memory
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.table import Orgs
@@ -164,13 +164,13 @@ def the_vault(connection: HTTPConnection) -> Vault | None:
     return vault
 
 
-def the_filling(connection: HTTPConnection) -> Filling:
-    """The gateway's answer to a turn's markers and to a hang-up: memory and the knowledge base."""
-    return held(connection, "filling", Filling)
+def the_lookups(connection: HTTPConnection) -> Lookups:
+    """The gateway's answer to a turn's lookups and to a hang-up: memory and the knowledge base."""
+    return held(connection, "lookups", Lookups)
 
 
 # Both are None on a gateway with no Postgres — a dev key — and the doors that need one say so
-# in a sentence (below), while a fill on such a gateway answers with nothing and refuses nobody.
+# in a sentence (below), while a lookup there finds nothing and refuses nobody.
 def the_memory(connection: HTTPConnection) -> Memory | None:
     """The contact's facts, or None when this gateway keeps none. A Protocol: no isinstance."""
     memory: Memory | None = getattr(connection.app.state, "memory", None)
@@ -193,7 +193,7 @@ OverridesDep = Annotated[Overrides, Depends(the_overrides)]
 RunsDep = Annotated[Runs, Depends(the_runs)]
 GraphDep = Annotated[Graph, Depends(the_graph)]
 VaultDep = Annotated["Vault | None", Depends(the_vault)]
-FillingDep = Annotated[Filling, Depends(the_filling)]
+LookupsDep = Annotated[Lookups, Depends(the_lookups)]
 MemoryDep = Annotated["Memory | None", Depends(the_memory)]
 KnowledgeDep = Annotated["Knowledge | None", Depends(the_knowledge)]
 

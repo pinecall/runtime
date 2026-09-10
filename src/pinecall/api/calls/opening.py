@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from pinecall._settings import Budgets
 from pinecall.api.agents.registry import Registration
 from pinecall.evals import a_score
-from pinecall.filling import Filling
 from pinecall.log.writers import Logs
+from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.vault import Vault, keys_brought_by
 from pinecall.providers.models import Models
@@ -41,7 +41,7 @@ async def a_text_call(
     admission: Admission,
     logs: Logs,
     running: int,
-    filling: Filling,
+    lookups: Lookups,
     budgets: Budgets,
 ) -> TextCall:
     """The config, whose keys, the model and the quota — then the session, unstarted."""
@@ -59,16 +59,16 @@ async def a_text_call(
     # logs.writing() keeps the log, so every SSE reader of this call is already subscribed to it.
     # And the judge: a session judges nothing itself, so whoever opens a call hands it one.
     # This is that place for a written call, as `worker/main.py` is for a spoken one.
-    # The gateway is the session here, so its markers are filled in-process by the same object a
-    # worker reaches over HTTP, under the same budgets. See docs/decisions/memory.md.
+    # The gateway is the session here, so its lookups run in-process on the same object a worker
+    # reaches over HTTP, under the same budgets. See docs/decisions/memory.md.
     session = TextSession(
         context,
         config,
         logs.writing(context.call, held.slug),
         llm,
         score=a_score,
-        filler=filling,
-        rememberer=filling,
+        lookup=lookups,
+        rememberer=lookups,
         budgets=budgets,
     )
     return TextCall(session=session, keys=brought)

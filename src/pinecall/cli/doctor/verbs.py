@@ -30,17 +30,17 @@ KEY_REFUSED = (
     "a box takes a live one with `make secret NAME={variable}`, a laptop in its .env"
 )
 
-# An embedder that is down stops no call: a fill that needs a vector is skipped and the call's
-# log says so (`retrieval_skipped`, `memory_skipped`, naming the vendor), and the turn goes on. On
+# An embedder that is down stops no call: a lookup that needs a vector is skipped and the call's
+# log says so (`search_skipped`, `recall_skipped`, naming the vendor), and the turn goes on. On
 # a laptop, and on the `all` an untouched clone defaults to, that is the whole story — TEI has no
 # arm64 image to run on a Mac at all. Advice, not outage.
-EMBEDDER_IS_ADVICE = "a fill without it is skipped and said in the call's log: this stops no call"
+EMBEDDER_IS_ADVICE = "a lookup without it is skipped and said in the call's log: this stops no call"
 
 # A HUB is the machine that promised one. It holds the knowledge base and answers the pushes, and
 # `PUT /v1/knowledge/{base}` with no embedder is a 503 the tenant reads: nothing about that is
 # skipped quietly. So the line is the verdict there, and it names what to type — a deploy that
 # ended green over a shut door is the dead ElevenLabs key of 2026-09-09 again.
-EMBEDDER_IS_DOWN = "a hub embeds: a knowledge push answers 503 and every fill is skipped — {fix}"
+EMBEDDER_IS_DOWN = "a hub embeds: a knowledge push answers 503 and every lookup is skipped — {fix}"
 
 # There are two shapes of embedder and so two fixes: a container on this box, or a vendor's door
 # and the key that opens it. `make secret` is run from the checkout, never on the box by hand.

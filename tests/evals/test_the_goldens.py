@@ -38,6 +38,6 @@ def test_the_first_state_renders_a_prefix_with_the_rules_and_a_view_with_the_nex
 
     assert prompt.instructions.startswith("Eres la recepción de Clínica Norte.")
     assert "Una sola pregunta por turno" in prompt.instructions
-    # The view is the dynamic block alone: the marker that opens it never travels with it.
+    # The view is the dynamic block alone: the header that opens it never travels with it.
     assert "── dynamic ──" not in prompt.text_of("view")
     assert prompt.text_of("view").endswith("Nada más hasta identificar al paciente.")
