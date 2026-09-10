@@ -48,6 +48,7 @@ from pinecall.memory import PgvectorMemory
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.meter import Meter
 from pinecall.orgs.table import orgs_for
+from pinecall.orgs.turned import turned_for
 from pinecall.orgs.vault import keys_brought_by, vault_for
 from pinecall.providers.embed import embedder_for
 from pinecall.providers.models import models_for
@@ -99,9 +100,11 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # It holds no registry: which socket serves a call is the door's answer, given to serve().
     gateway.state.live = Live()
     gateway.state.snapshots = Snapshots(store)
-    # What an operator turned since this process started: the next session reads it through
-    # the very same config door a worker already asks.
-    gateway.state.overrides = Overrides()
+    # What an operator has turned, from the table into this process's memory: the next session
+    # reads it through the very same config door a worker already asks. Read once here, so a
+    # deploy does not hand every agent back the model its class declared with nobody told.
+    gateway.state.overrides = Overrides(turned_for(pool))
+    await gateway.state.overrides.loaded()
     # The suites: which run is happening right now, and where every run that has finished is kept.
     gateway.state.evals = Runner()
     gateway.state.eval_runs = runs_for(pool)

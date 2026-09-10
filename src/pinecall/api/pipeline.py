@@ -43,7 +43,7 @@ async def turn(
     """Turn the knobs. Refused whole or applied whole, and the next session is built with them."""
     declared = _declared(slug, key.org, registry)
     try:
-        overrides.set(slug, turned.checked(declared))
+        await overrides.set(key.org, slug, turned.checked(declared))
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused
     return await report(slug, declared, overrides.of(slug), store, settings)
