@@ -68,6 +68,28 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   itself in the wheel and the sdist, so an install carries its licence.
 
 ### Changed
+- **A tenant brings its own provider keys, with its own API key and no operator.**
+  `PUT /v1/provider-keys/{vendor}` · `GET /v1/provider-keys` · `DELETE /v1/provider-keys/{vendor}`
+  take no org — the key IS the org — and the listing is vendor names and never a value. The vault,
+  the mechanism and the one door that answers with a key are unchanged; what is new is that the
+  operator is no longer the only writer. `/v1/ops/orgs/{org}/provider-keys` stays for the cloud and
+  for the operator of a box. `pinecall keys add|rm|list` in both languages reads the key from
+  stdin, never from argv.
+- **A box can run its own embedder.** `pinecall-tei` (bge-m3) is a Quadlet unit installed only
+  where `EMBED_PROVIDER=tei` in `box.env` asks for it; a hub that embeds at Perplexity or
+  OpenRouter takes its key as an encrypted systemd credential instead, and a worker embeds nothing
+  because the gateway is what fills. On a hub an embedder that is down is the doctor's verdict now,
+  not its advice, and the line names what to fix. A hub that becomes a worker STOPS the media
+  plane it may not disable: `systemctl disable` refuses a generated unit before it would have
+  stopped anything, so the containers were outliving the role that owned them.
+- **Two quotas more, of the same kind, so a plan can switch memory and the knowledge base off:**
+  `memory_facts` and `knowledge_chunks` on `quotas` — NULL is no limit (what a self-hosted box
+  has), `0` refuses everything, N is a cap. `orgs quota` gains `--memory-facts` and
+  `--knowledge-chunks`; `PUT /v1/ops/orgs/{org}/quotas` gains both fields and
+  `GET /v1/ops/orgs/{org}` answers `holding` beside them. A knowledge push past the cap is refused
+  429 before a row is written; a hang-up past it writes no fact and asks no model; a `0` fill
+  answers with nothing, embeds nothing and writes no entry; reading and forgetting a contact's
+  memory are refused by no quota.
 - **The embedder is configurable and multi-model, and the knowledge base is embedded
   CONTEXTUALLY.** `Embedder` gains `embed_documents(documents)` — one vector per chunk, one list
   per document, the order given being the contract — and `PgKnowledge.put` groups the pieces by
