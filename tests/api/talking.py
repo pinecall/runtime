@@ -3,6 +3,7 @@
 from collections.abc import Mapping, Sequence
 from datetime import date
 from typing import Any
+from urllib.parse import quote
 
 from starlette.testclient import TestClient, WebSocketTestSession
 
@@ -58,11 +59,14 @@ def an_app(gateway: TestClient) -> WebSocketTestSession:
     return gateway.websocket_connect(APPS, headers={"Authorization": f"Bearer {A_KEY}"})
 
 
-def a_caller(gateway: TestClient, agent: str = AGENT) -> WebSocketTestSession:
+def a_caller(
+    gateway: TestClient, agent: str = AGENT, contact: str | None = None
+) -> WebSocketTestSession:
     """The caller on the chat socket, knocking with the org's key as `pinecall chat` does."""
-    return gateway.websocket_connect(
-        f"{CHAT}?agent={agent}", headers={"Authorization": f"Bearer {A_KEY}"}
-    )
+    said = f"{CHAT}?agent={agent}"
+    if contact is not None:
+        said = f"{said}&contact={quote(contact, safe='')}"
+    return gateway.websocket_connect(said, headers={"Authorization": f"Bearer {A_KEY}"})
 
 
 def declared(

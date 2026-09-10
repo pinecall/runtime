@@ -38,7 +38,7 @@ from pinecall.log.writers import Logs
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.providers.models import NoProvider
 from pinecall.session.text.session import TextSession, Watcher
-from pinecall.types import THE_WIDGET, CallContext, Route, a_call_id
+from pinecall.types import THE_WIDGET, CallContext, Contact, Route, a_call_id
 from pinecall_protocol import encode
 
 # Importing the handlers is what registers them: the app socket's table is filled at import time,
@@ -199,9 +199,21 @@ def _a_context(websocket: WebSocket, org: str, slug: str) -> CallContext:
         channel=THE_WIDGET,
         direction="inbound",
         caller=websocket.query_params.get("caller") or a_visitor(),
+        contact=_who_they_say_they_are(websocket),
         route=Route(org=org, agent=slug, channel=THE_WIDGET, number=None),
         today=date.today(),
     )
+
+
+# A number identifies a caller by itself; a web visitor is nobody until somebody says who they
+# are. In production that somebody is the token door, which seals a contact id the browser
+# cannot forge. Here it is the query string, and it is the same field: without it an agent that
+# declares `memory` remembers nothing of a web caller, which is right, and untestable, which is
+# not. The key on this socket is the org's own, so what it says about its own contact is its own.
+def _who_they_say_they_are(websocket: WebSocket) -> Contact | None:
+    """The contact this socket claims to be, when it claims one; memory files the call under it."""
+    said = websocket.query_params.get("contact")
+    return Contact(id=said) if said else None
 
 
 def _sending(websocket: WebSocket) -> Watcher:
