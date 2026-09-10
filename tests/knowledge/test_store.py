@@ -1,13 +1,13 @@
 """The base in Postgres: a push replaces it, a search reads it by words and by meaning, fused."""
 
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, override
 
 import pytest
 
 from pinecall.knowledge import Base, PgKnowledge
 from pinecall.log.store import open_pool
-from pinecall.providers.embedder import DIMENSIONS
+from pinecall.providers.embedder import DIMENSIONS, WrongModel
 from tests.knowledge.files import CLINICA, TARIFAS, an_org
 from tests.postgres import Dev
 from tests.vectors import HASH_MODEL, HashEmbedder
@@ -124,3 +124,41 @@ async def test_a_push_of_nothing_is_a_base_with_no_chunks(knowledge: PgKnowledge
     assert await knowledge.put(org, THE_BASE, []) == 0
     assert [listed.chunks for listed in await knowledge.bases(org)] == [0]
     assert await knowledge.search(org, THE_BASE, "horarios") == []
+
+
+async def test_a_base_pushed_with_another_model_is_refused_naming_both_and_the_way_out(
+    knowledge: PgKnowledge, org: str, postgres: Dev
+) -> None:
+    """Two models' vectors are numbers of the same width; ranking one by the other is a plausible
+    answer with no meaning in it. So the search refuses, and the sentence says to push again."""
+    await knowledge.put(org, THE_BASE, [CLINICA])
+    pool = await open_pool(postgres.dsn, schema=postgres.schema)
+    try:
+        other = PgKnowledge(pool, OtherModel())
+        with pytest.raises(WrongModel) as refused:
+            await other.search(org, THE_BASE, "horarios")
+    finally:
+        await pool.close()
+    assert str(refused.value) == (
+        f"base {THE_BASE} was pushed with {HASH_MODEL}; "
+        f"this gateway embeds with another-embedder: push it again"
+    )
+
+
+async def test_a_base_nobody_pushed_is_not_a_model_mismatch_but_an_empty_answer(
+    org: str, postgres: Dev
+) -> None:
+    """There is nothing to compare against, and a search of a name nobody pushed always said so."""
+    pool = await open_pool(postgres.dsn, schema=postgres.schema)
+    try:
+        assert await PgKnowledge(pool, OtherModel()).search(org, "nunca", "horarios") == []
+    finally:
+        await pool.close()
+
+
+class OtherModel(HashEmbedder):
+    """The same vectors under another model's name: only the name is what a base is refused by."""
+
+    @override
+    async def model(self) -> str:
+        return "another-embedder"

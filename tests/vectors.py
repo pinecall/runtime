@@ -5,7 +5,7 @@ import math
 import re
 from collections.abc import Sequence
 
-from pinecall.providers.embedder import DIMENSIONS
+from pinecall.providers.embedder import DIMENSIONS, every_chunk_on_its_own
 
 A_WORD = re.compile(r"\w+")
 
@@ -29,6 +29,10 @@ class HashEmbedder:
     async def embed(self, texts: Sequence[str]) -> list[list[float]]:
         """One vector per text, the same vector for the same words, whatever the order."""
         return [a_vector(text) for text in texts]
+
+    async def embed_documents(self, documents: Sequence[Sequence[str]]) -> list[list[list[float]]]:
+        """The Protocol's other half: this embedder reads no neighbours, so it only keeps order."""
+        return await every_chunk_on_its_own(self.embed, documents)
 
 
 def a_vector(text: str) -> list[float]:

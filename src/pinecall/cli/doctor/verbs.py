@@ -7,9 +7,10 @@ from urllib.parse import urlsplit, urlunsplit
 
 from pinecall._settings import Role, Settings, env_files_read, load_settings, variable_of
 from pinecall.cli.doctor.probes import Probes, live_probes
+from pinecall.providers.embed import base_url_of, key_field_of, model_of
 from pinecall.providers.knocks import KNOCKS
 
-PURPOSE: str = "keys present · keys answer · livekit · postgres · tei · lk"
+PURPOSE: str = "keys present · keys answer · livekit · postgres · embedder · lk"
 
 # pgvector installs under the name `vector`; the BM25 half of the search stack installs under
 # `pg_textsearch`. Both come from the Postgres image infra/compose/dev.yml runs.
@@ -30,9 +31,15 @@ KEY_REFUSED = (
 )
 
 # An embedder that is down stops no call: a fill that needs a vector is skipped and the call's
-# log says so (`retrieval_skipped`, `memory_skipped`, naming TEI), and the turn goes on. A push
-# to the knowledge base does need it, and answers with the same sentence. Advice, not outage.
-TEI_IS_ADVICE = "a fill without it is skipped and said in the call's log, so this stops no call"
+# log says so (`retrieval_skipped`, `memory_skipped`, naming the vendor), and the turn goes on. A
+# push to the knowledge base does need it, and answers 503 with the same sentence — never a bare
+# 500. Advice, not outage.
+EMBEDDER_IS_ADVICE = "a fill without it is skipped and said in the call's log: this stops no call"
+
+# TEI names the model it loaded at /info and answers 200 there. The hosted embedders have no such
+# door: what can be asked of them without spending anything is whether the host answers at all,
+# and whichever status it answers a keyless GET with is an answer.
+TEI_INFO = "/info"
 
 # The LiveKit CLI is how a person reads current documentation and manages trunks and dispatch
 # (`lk docs`, `lk sip`, `lk dispatch`) — livekit's own starter tells its agent to ask for it. It is
@@ -182,16 +189,34 @@ def check_postgres_is_ready(settings: Settings, probes: Probes) -> Result:
     return Result("postgres", True, f"{shown} — {', '.join(REQUIRED_EXTENSIONS)}")
 
 
-def check_tei_is_reachable(settings: Settings, probes: Probes) -> Result:
-    """TEI answers /info with the model it loaded; anything but 200 means it is serving nothing."""
-    url = f"{settings.tei_url.rstrip('/')}/info"
+# The line says which provider and which model this box embeds with, first, because that is the
+# fact a person is usually looking for: a box that retrieves nothing is far more often one running
+# the embedder somebody else configured than one whose service is down.
+def check_the_embedder_answers(settings: Settings, probes: Probes) -> Result:
+    """Which provider and model this box embeds with, its key present, and its door answering."""
+    runs = f"{settings.embed_provider} · {model_of(settings)}"
+    field = key_field_of(settings)
+    if field is not None and not getattr(settings, field):
+        return _no_embedder(f"{runs} — no {variable_of(field)}")
+    url = _where_the_embedder_answers(settings)
     try:
         status = probes.http_status(url)
     except Exception as failure:
-        return Result("tei", False, f"{url} — {_reason(failure)}; {TEI_IS_ADVICE}", advisory=True)
-    if status != 200:
-        return Result("tei", False, f"{url} — HTTP {status}; {TEI_IS_ADVICE}", advisory=True)
-    return Result("tei", True, f"{url} — HTTP {status}")
+        return _no_embedder(f"{runs} — {url} — {_reason(failure)}")
+    if field is None and status != 200:
+        return _no_embedder(f"{runs} — {url} — HTTP {status}")
+    return Result("embedder", True, f"{runs} — {url} — HTTP {status}")
+
+
+def _no_embedder(detail: str) -> Result:
+    """A ✗ that is advice: this box embeds nothing, and every call it carries still runs."""
+    return Result("embedder", False, f"{detail}; {EMBEDDER_IS_ADVICE}", advisory=True)
+
+
+def _where_the_embedder_answers(settings: Settings) -> str:
+    """TEI's /info, which names the model it loaded; the hosted providers' own base URL."""
+    base = base_url_of(settings).rstrip("/")
+    return f"{base}{TEI_INFO}" if settings.embed_provider == "tei" else base
 
 
 def check_the_livekit_cli_is_installed(_settings: Settings, probes: Probes) -> Result:
@@ -214,10 +239,10 @@ CHECKS: tuple[Check, ...] = (
     check_provider_keys_answer,
     check_livekit_is_reachable,
     check_postgres_is_ready,
-    check_tei_is_reachable,
+    check_the_embedder_answers,
     check_the_livekit_cli_is_installed,
 )
-ONLY_ON_A_HUB: frozenset[Check] = frozenset({check_postgres_is_ready, check_tei_is_reachable})
+ONLY_ON_A_HUB: frozenset[Check] = frozenset({check_postgres_is_ready, check_the_embedder_answers})
 
 
 def _http_url_of(livekit_url: str) -> str:

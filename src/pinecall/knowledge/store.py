@@ -10,7 +10,7 @@ from typing import Any
 
 from pinecall.knowledge.chunking import chunks_of
 from pinecall.log.store import Pool
-from pinecall.providers.embedder import Embedder, as_halfvec
+from pinecall.providers.embedder import Embedder, WrongModel, as_halfvec
 from pinecall.types import (
     CANDIDATES_PER_BRANCH,
     Chunk,
@@ -20,8 +20,12 @@ from pinecall.types import (
 )
 from pinecall.types.knowledge import DEFAULT_CHUNKS_PER_TURN
 
-# How many texts one call to the embedder carries.
-EMBED_BATCH = 32
+# What a search says when the vectors in the table and the vectors this gateway makes came out of
+# two different models: they are numbers of the same width and nothing else, and ranking one
+# against the other is a plausible answer with no meaning in it. The way out is in the sentence.
+PUSHED_WITH_ANOTHER_MODEL = (
+    "base {base} was pushed with {pushed}; this gateway embeds with {mine}: push it again"
+)
 
 # The BM25 index by the name 0009 gave it: pg_textsearch scores a text by one index's statistics
 # and the query names it, the query first — `to_bm25query(<query>, <index>)`.
@@ -58,6 +62,10 @@ FROM unnest($6::text[], $7::text[], $8::integer[], $9::text[], $10::text[])
 
 _BASES = "SELECT base, chunks, pushed_at FROM knowledge_bases WHERE org = $1 ORDER BY base"
 
+# Which model wrote this base's vectors. None when the org pushed no base by that name, which is
+# not an error here: a search of a base nobody pushed answers with nothing, as it always did.
+_MODEL_OF = "SELECT model FROM knowledge_bases WHERE org = $1 AND base = $2"
+
 # The chunks go with the row: 0009 declares them ON DELETE CASCADE. The row returned is the
 # answer to "was there one", so dropping a name never pushed is told apart from dropping a base.
 _DROP = "DELETE FROM knowledge_bases WHERE org = $1 AND base = $2 RETURNING base"
@@ -93,10 +101,19 @@ class PgKnowledge:
         self._pool = pool
         self._embedder = embedder
 
+    # One document per FILE, because that is what a document is here: the embedder is handed a
+    # file's chunks together, and a contextual model then embeds each one seeing its neighbours —
+    # a tariff line finds its own heading's words even when the line itself does not carry them.
+    # How a document is windowed to fit a model's context is the embedder's business, never this
+    # table's: the store hands over the shape and reads back the same shape.
     async def put(self, org: str, base: str, files: Sequence[KnowledgeFile]) -> int:
         """Replace the base with these files, chunked and embedded; how many chunks it became."""
-        pieces = [piece for file in files for piece in chunks_of(file)]
-        vectors = await self._embedded([piece.text for piece in pieces])
+        cut = [chunks_of(file) for file in files]
+        embedded = await self._embedder.embed_documents(
+            [[piece.text for piece in file] for file in cut]
+        )
+        pieces = [piece for file in cut for piece in file]
+        vectors = [vector for file in embedded for vector in file]
         await self._pool.execute(
             _PUT,
             org,
@@ -135,23 +152,21 @@ class PgKnowledge:
     ) -> list[Chunk]:
         """The best k chunks for the query, by meaning and by words, fused; under min_score, cut."""
         [vector] = await self._embedder.embed([query])
-        nearest, worded = await asyncio.gather(
+        # The base's row rides along with the two branches instead of gating them: it is one more
+        # index read on a primary key, and the turn's budget covers the slowest of the three
+        # rather than their sum. The refusal comes before a rank is read, either way.
+        pushed, nearest, worded = await asyncio.gather(
+            self._pool.fetchrow(_MODEL_OF, org, base),
             self._pool.fetch(_NEAREST, org, base, as_halfvec(vector), CANDIDATES_PER_BRANCH),
             self._pool.fetch(_BEST_WORDED, org, base, query, CANDIDATES_PER_BRANCH),
         )
+        _the_same_model(base, pushed, await self._embedder.model())
         chunks = [
             _a_chunk(row, base, score)
             for row, score in _fused((nearest, worded))
             if min_score is None or score >= min_score
         ]
         return chunks[:k]
-
-    async def _embedded(self, texts: Sequence[str]) -> list[list[float]]:
-        """Every text's vector, asked of the embedder a batch at a time."""
-        vectors: list[list[float]] = []
-        for start in range(0, len(texts), EMBED_BATCH):
-            vectors.extend(await self._embedder.embed(texts[start : start + EMBED_BATCH]))
-        return vectors
 
 
 # The fusion is types/fusion.py's, the same one memory ranks with: a candidate earns
@@ -164,6 +179,14 @@ def _fused(
     rows = {str(row["id"]): row for branch in branches for row in branch}
     fused = reciprocal_rank_fusion(*([str(row["id"]) for row in branch] for branch in branches))
     return [(rows[id], score) for id, score in relative_to_the_best(fused).items()]
+
+
+def _the_same_model(base: str, pushed: Mapping[str, Any] | None, mine: str) -> None:
+    """Refuse a base whose vectors another model wrote, naming both models and the way out."""
+    if pushed is not None and str(pushed["model"]) != mine:
+        raise WrongModel(
+            PUSHED_WITH_ANOTHER_MODEL.format(base=base, pushed=str(pushed["model"]), mine=mine)
+        )
 
 
 def _a_chunk(row: Mapping[str, Any], base: str, score: float) -> Chunk:

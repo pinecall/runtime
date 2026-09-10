@@ -89,6 +89,9 @@ as sentences.
   `DATABASE_URL=postgresql://pinecall:pinecall@[::1]:5432/pinecall` on such a machine.
 - **Nothing fixed by hand on a server counts.** A package goes in `PACKAGES`, a secret through
   `make secret`, a class of failure into the doctor; then the box re-converges via `make deploy`.
+- **TEI's CPU image has no arm64 build**, so on this Mac the dev stack's `tei` cannot start at
+  all and every fill is skipped. `EMBED_PROVIDER=perplexity` + `PERPLEXITY_API_KEY` embeds
+  contextually over HTTP with no container. `doctor`'s `embedder` line says which one is running.
 - A key is never printed — not in a commit, a test, a log line, a reply. Compare by sha256.
 - Versions and tags are the human's: never pick a number, never tag. `_version.py` stays `0.0.0`.
 - The shell may name a vendor's key differently (`ELEVENLABS_API_KEY`) than the runtime does

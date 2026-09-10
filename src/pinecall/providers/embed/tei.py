@@ -7,7 +7,12 @@ from typing import Any
 
 import httpx
 
-from pinecall.providers.embedder import DIMENSIONS, EmbedderUnreachable, WrongWidth
+from pinecall.providers.embedder import (
+    DIMENSIONS,
+    EmbedderUnreachable,
+    WrongWidth,
+    every_chunk_on_its_own,
+)
 
 # TEI's own name for a model it was not told, so a refusal always has a word to say.
 UNNAMED = "the embedder at TEI_URL"
@@ -46,6 +51,12 @@ class TeiEmbedder:
                 f"{DIMENSIONS}, bge-m3's width"
             )
         return vectors
+
+    # bge-m3 embeds one text at a time whatever it is handed, so a document is nothing to it but
+    # an order to keep; the contextual embedders are the ones that read the neighbours.
+    async def embed_documents(self, documents: Sequence[Sequence[str]]) -> list[list[list[float]]]:
+        """Every chunk of every document, batched flat and cut back where the documents were."""
+        return await every_chunk_on_its_own(self.embed, documents)
 
     async def model(self) -> str:
         """The model's id as TEI reports it, asked once and kept for the refusal's sentence."""

@@ -7,10 +7,10 @@ from pinecall.knowledge.chunking import (
     HEADING_JOINT,
     body_of,
     chunks_of,
-    estimated_tokens,
     prefixed,
 )
 from pinecall.types import KnowledgeFile
+from pinecall.types.counting import estimated_tokens
 
 pytestmark = pytest.mark.unit
 

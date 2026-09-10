@@ -15,7 +15,7 @@ from pinecall.providers.registry import Chat
 from pinecall.types import Model, ProviderKeys
 from tests.postgres import Dev
 from tests.session.fake_llm import FakeLLM, Scripted
-from tests.vectors import HashEmbedder, a_vector
+from tests.vectors import HASH_MODEL, HashEmbedder, a_vector
 
 # When every fact of this suite was learned, and when a call that remembers hangs up.
 LEARNED = datetime(2026, 9, 1, 10, 0, tzinfo=UTC)
@@ -25,8 +25,8 @@ _create_pool = cast("Any", asyncpg.create_pool)  # pyright: ignore[reportUnknown
 
 _A_ROW = """
 INSERT INTO contact_memories
-    (org, contact, text, category, embedding, valid_from, invalidated_at, confidence)
-VALUES ($1, $2, $3, $4, $5::text::halfvec, $6, $7, $8)
+    (org, contact, text, category, embedding, valid_from, invalidated_at, confidence, model)
+VALUES ($1, $2, $3, $4, $5::text::halfvec, $6, $7, $8, $9)
 RETURNING id
 """
 
@@ -101,11 +101,12 @@ async def a_row(
     learned: datetime = LEARNED,
     invalidated: datetime | None = None,
     confidence: float = 1.0,
+    model: str = HASH_MODEL,
 ) -> str:
-    """One fact in the table; its id."""
+    """One fact in the table; its id. `model` is whose vectors these are: the suite's."""
     vector = HalfVector(a_vector(like if like is not None else text)).to_text()
     row = await pool.fetchrow(
-        _A_ROW, org, contact, text, category, vector, learned, invalidated, confidence
+        _A_ROW, org, contact, text, category, vector, learned, invalidated, confidence, model
     )
     assert row is not None
     return str(row["id"])

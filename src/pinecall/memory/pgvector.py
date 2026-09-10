@@ -40,10 +40,14 @@ WHERE org = $1 AND contact = $2
   AND ($4::text[] IS NULL OR category = ANY($4::text[]))
 """
 
-# The dense branch: cosine over the halved vectors, the HNSW index's own operator class.
+# The dense branch: cosine over the halved vectors, the HNSW index's own operator class, and only
+# over the rows THIS embedder wrote — a vector of another model is a number of the same width and
+# nothing more. The words branch below carries no such filter on purpose: BM25 reads the text and
+# not the vector, so a fact written under an older embedder is still recalled by what it says.
 _BY_VECTOR = f"""
 SELECT {_COLUMNS} FROM contact_memories
 {_HELD}
+  AND model = $6
 ORDER BY embedding <=> $5::text::halfvec
 LIMIT {CANDIDATES_PER_BRANCH}
 """
@@ -73,8 +77,9 @@ ORDER BY (invalidated_at IS NULL) DESC, valid_from DESC, id
 _FORGET = "DELETE FROM contact_memories WHERE org = $1 AND contact = $2"
 
 _ADD = """
-INSERT INTO contact_memories (org, contact, text, category, embedding, valid_from, source_call)
-VALUES ($1, $2, $3, $4, $5::text::halfvec, $6, $7)
+INSERT INTO contact_memories
+    (org, contact, text, category, embedding, valid_from, source_call, model)
+VALUES ($1, $2, $3, $4, $5::text::halfvec, $6, $7, $8)
 RETURNING id
 """
 
@@ -83,12 +88,12 @@ RETURNING id
 _UPDATE = """
 WITH superseded AS (
     UPDATE contact_memories SET invalidated_at = $6
-    WHERE id = $8::uuid AND org = $1 AND contact = $2 AND invalidated_at IS NULL
+    WHERE id = $9::uuid AND org = $1 AND contact = $2 AND invalidated_at IS NULL
     RETURNING id
 )
 INSERT INTO contact_memories
-    (org, contact, text, category, embedding, valid_from, source_call, supersedes)
-SELECT $1, $2, $3, $4, $5::text::halfvec, $6, $7, superseded.id FROM superseded
+    (org, contact, text, category, embedding, valid_from, source_call, model, supersedes)
+SELECT $1, $2, $3, $4, $5::text::halfvec, $6, $7, $8, superseded.id FROM superseded
 RETURNING id
 """
 
@@ -122,7 +127,8 @@ class PgvectorMemory:
         vector = await self._embedded(query)
         held = (org, contact, as_of, list(kinds) or None)
         dense, sparse = await asyncio.gather(
-            self._pool.fetch(_BY_VECTOR, *held, vector), self._pool.fetch(_BY_WORDS, *held, query)
+            self._pool.fetch(_BY_VECTOR, *held, vector, await self._embedder.model()),
+            self._pool.fetch(_BY_WORDS, *held, query),
         )
         return ranked(
             [_a_candidate(row) for row in dense],
@@ -187,6 +193,9 @@ class PgvectorMemory:
         writing = [op for op in ops if op.op in OPS_THAT_WRITE]
         embedded = await self._embedded_all([op.text for op in writing])
         vectors = dict(zip(writing, embedded, strict=True))
+        # Written beside every vector, so a later recall can tell whose vectors these are without
+        # asking the embedder about a row it did not make.
+        model = await self._embedder.model()
         written: list[Fact] = []
         for op in ops:
             if op.op == "invalidate":
@@ -195,7 +204,7 @@ class PgvectorMemory:
             statement = _ADD if op.op == "add" else _UPDATE
             named = (op.of,) if op.op == "update" else ()
             row = await self._pool.fetchrow(
-                statement, org, contact, op.text, op.category, vectors[op], at, call, *named
+                statement, org, contact, op.text, op.category, vectors[op], at, call, model, *named
             )
             if row is not None:
                 written.append(
