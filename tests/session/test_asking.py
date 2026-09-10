@@ -101,6 +101,18 @@ def test_the_tools_the_model_was_handed_are_kept_beside_the_words() -> None:
     assert [tool["function"]["name"] for tool in asked.turns[0]["tools"]] == ["free_slots"]
 
 
+# Every tenant tool is a raw-schema tool: the app runs the body, so there is no Python function
+# to introspect (session/declaring.py). A reader that only knew livekit's decorated kind wrote
+# `tools: []` under the very calls whose finding was that they ran no tool at all.
+def test_a_tenant_tool_is_kept_too_and_it_is_the_raw_kind() -> None:
+    """The list must be the whole list, or the one number a broken golden turns on is a lie."""
+    asked = WhatWasAsked()
+
+    asked.asked(_a_request(), [_a_tenant_tool(), free_slots], "anthropic")
+
+    assert [_named(tool) for tool in asked.turns[0]["tools"]] == ["freeSlots", "free_slots"]
+
+
 def test_what_it_keeps_is_what_the_provider_would_have_been_sent() -> None:
     """Not a summary of the request: the formatter's own output, so nothing is lost on the way."""
     request = _a_request()
@@ -114,6 +126,27 @@ def test_what_it_keeps_is_what_the_provider_would_have_been_sent() -> None:
         "messages": messages,
         "tools": [],
     }
+
+
+def _a_tenant_tool() -> Any:
+    """One tool as `declared()` builds it: a schema the app owns, and a callable of ours."""
+
+    async def call(raw_arguments: dict[str, Any], context: Any) -> str:  # noqa: ARG001
+        return ""
+
+    return agents.function_tool(
+        call,
+        raw_schema={
+            "name": "freeSlots",
+            "description": "Horas libres de un día.",
+            "parameters": {"type": "object", "properties": {"day": {"type": "string"}}},
+        },
+    )
+
+
+def _named(tool: Any) -> str:
+    """A tool's name, whichever of the two shapes the request carried it in."""
+    return tool["function"]["name"] if "function" in tool else tool["name"]
 
 
 def _texts(messages: Any) -> list[str]:
