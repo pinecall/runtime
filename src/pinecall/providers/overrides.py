@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Any
+from collections.abc import Mapping
+from typing import Any, Protocol
 
 from pinecall.providers.llm import VENDORS as LLM_VENDORS
 from pinecall.providers.models import DEFAULT_VENDOR
@@ -130,19 +131,46 @@ def _refuse_an_unknown_vendor(modality: str, vendors: Vendors[Any], vendor: str)
         raise DeclarationRefused(NO_VENDOR.format(modality=modality, vendor=vendor, known=known))
 
 
-class Overrides:
-    """One process's turned knobs, by agent. Held on app.state, never at module level."""
+class Keeps(Protocol):
+    """Where a turned set survives a process. Satisfied structurally by orgs/turned.py, which is
+    below no line this package may cross: it stores columns and this module gives them meaning."""
 
-    def __init__(self) -> None:
+    async def all(self) -> Mapping[str, Mapping[str, str | None]]:
+        """Every agent that has a knob turned, by slug, each as its own columns."""
+        ...
+
+    async def put(self, org: str, agent: str, knobs: Mapping[str, str | None]) -> None:
+        """This agent's whole set, replaced whole: a knob left out stops being overridden."""
+        ...
+
+
+class Overrides:
+    """This process's memory of the turned knobs, by agent. Held on app.state, never globally."""
+
+    def __init__(self, kept: Keeps | None = None) -> None:
+        self._kept = kept
         self._by_agent: dict[str, Overridden] = {}
+
+    # Read once, when the process starts, and never again: a gateway holds the agents whose sockets
+    # it answers, so the table is small and the read is one query. What a second gateway turns is
+    # that gateway's until this one restarts, which is already true of the registry a slug lives in.
+    async def loaded(self) -> None:
+        """Every knob any operator has ever turned, from the table, into this process's memory."""
+        if self._kept is not None:
+            self._by_agent = {
+                agent: Overridden.model_validate(dict(knobs))
+                for agent, knobs in (await self._kept.all()).items()
+            }
 
     def of(self, agent: str) -> Overridden:
         """What is turned for this agent; every knob None until somebody turns one."""
         return self._by_agent.get(agent, Overridden())
 
-    def set(self, agent: str, turned: Overridden) -> None:
+    async def set(self, org: str, agent: str, turned: Overridden) -> None:
         """Replace this agent's whole set: a knob left out of the body stops being overridden."""
         self._by_agent[agent] = turned
+        if self._kept is not None:
+            await self._kept.put(org, agent, turned.model_dump(mode="json"))
 
     # The one place a config is read for a session, whichever door the session came through: the
     # worker's config hop and the chat socket both build from this, so neither can skip a knob.
