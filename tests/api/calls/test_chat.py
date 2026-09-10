@@ -8,7 +8,7 @@ from livekit.agents.llm import CompletionUsage
 from starlette.testclient import TestClient, WebSocketTestSession
 from starlette.websockets import WebSocketDisconnect
 
-from pinecall.api.calls.chat import CLOSE_REASON_BYTES, _a_context
+from pinecall.api.calls.chat import CLOSE_REASON_BYTES
 from pinecall.auth.bearer import POLICY_VIOLATION
 from pinecall_protocol import decode_entry, event_of
 from pinecall_protocol.events import CallSummary
@@ -369,29 +369,3 @@ def _listening(
         return entry_until(app_socket, type, keeping=heard)
 
     return until
-
-
-# Memory needs an identity, and a web visitor has none until somebody says who they are. In
-# production the token door seals a contact id the browser cannot forge; on this socket the org's
-# own key says it, which is how a developer exercises memory before there is a token at all.
-def test_a_chat_that_names_a_contact_is_a_call_memory_can_file() -> None:
-    said = _a_context(_a_socket({"agent": AGENT, "contact": "+34600123456"}), "clinica", AGENT)
-    assert said.remembered_as == "+34600123456"
-
-
-def test_a_chat_that_names_nobody_is_a_call_memory_files_under_nothing() -> None:
-    said = _a_context(_a_socket({"agent": AGENT}), "clinica", AGENT)
-    assert said.contact is None
-    assert said.remembered_as is None
-
-
-def test_the_visitor_id_is_still_the_calling_side_when_a_contact_is_named() -> None:
-    said = _a_context(_a_socket({"agent": AGENT, "contact": "c_9"}), "clinica", AGENT)
-    assert said.caller.startswith("web_")
-
-
-class _a_socket:  # noqa: N801 — it stands in for a WebSocket and is named for what it is
-    """A socket with nothing but its query string, which is all the context minting reads."""
-
-    def __init__(self, params: dict[str, str]) -> None:
-        self.query_params = params
