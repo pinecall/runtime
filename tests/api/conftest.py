@@ -181,10 +181,24 @@ def knowledge() -> Knowledge | None:
 
 @pytest.fixture
 def filling(
-    memory: Memory | None, knowledge: Knowledge | None, logs: Logs, live: Live, vault: Vault | None
+    memory: Memory | None,
+    knowledge: Knowledge | None,
+    logs: Logs,
+    live: Live,
+    vault: Vault | None,
+    orgs: MemoryOrgs,
+    admission: Admission,
 ) -> Filling:
-    """The gateway's Filler and Rememberer, over this test's tables, logs and live calls."""
-    return Filling(memory, knowledge, logs, live, partial(keys_brought_by, vault))
+    """The gateway's Filler and Rememberer, over this test's tables, logs, live calls and plan."""
+    return Filling(
+        memory,
+        knowledge,
+        logs,
+        live,
+        partial(keys_brought_by, vault),
+        orgs.quotas_of,
+        admission.may_remember,
+    )
 
 
 @pytest.fixture

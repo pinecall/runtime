@@ -37,7 +37,10 @@ async def test_a_new_org_gets_a_minted_id_and_is_found_by_id_and_by_slug(
         "messages": None,
         "agents": None,
         "concurrent_calls": None,
+        "memory_facts": None,
+        "knowledge_chunks": None,
     }
+    assert by_id["holding"] == {"memory_facts": 0, "knowledge_chunks": 0}
 
 
 async def test_the_listing_has_the_default_org_first_and_the_name_defaults_to_the_slug(
@@ -77,15 +80,22 @@ async def test_quotas_are_replaced_whole_and_a_limit_left_out_is_no_limit(
         "messages": None,
         "agents": 3,
         "concurrent_calls": None,
+        "memory_facts": None,
+        "knowledge_chunks": None,
     }
-    set_again = await ops_http.put(f"{ORGS}/{AN_ORG.slug}/quotas", json={"messages": 5})
+    set_again = await ops_http.put(
+        f"{ORGS}/{AN_ORG.slug}/quotas", json={"messages": 5, "memory_facts": 0}
+    )
     assert set_again.json() == {
         "minutes": None,
         "messages": 5,
         "agents": None,
         "concurrent_calls": None,
+        "memory_facts": 0,
+        "knowledge_chunks": None,
     }
-    assert (await ops_http.get(f"{ORGS}/{AN_ORG.id}")).json()["quotas"]["messages"] == 5
+    kept = (await ops_http.get(f"{ORGS}/{AN_ORG.id}")).json()["quotas"]
+    assert (kept["messages"], kept["memory_facts"]) == (5, 0), "zero is a limit, not an absence"
     negative = await ops_http.put(f"{ORGS}/{AN_ORG.slug}/quotas", json={"minutes": -1})
     assert negative.status_code == 400
 

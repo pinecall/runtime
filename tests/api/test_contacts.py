@@ -6,6 +6,9 @@ import httpx
 import pytest
 
 from pinecall.api._deps import NO_MEMORY
+from pinecall.orgs.table import MemoryOrgs
+from pinecall.types import Quotas
+from tests.api.conftest import A_RECORD
 from tests.filling.fakes import LEARNED, ScriptedMemory, a_fact
 
 pytestmark = pytest.mark.unit
@@ -47,6 +50,19 @@ async def test_forgetting_a_stranger_answers_zero_and_never_404(
 ) -> None:
     forgotten = await tenant_http.delete("/v1/contacts/nobody/memory")
     assert (forgotten.status_code, forgotten.json()) == (200, {"forgotten": 2})
+
+
+# Erasing is a right and not a feature: whatever an org's plan says, the contact who asks what
+# is known about them is told, and the contact who asks to be forgotten is forgotten.
+async def test_reading_and_forgetting_work_on_a_plan_that_keeps_no_memory_at_all(
+    tenant_http: httpx.AsyncClient, memory: ScriptedMemory, orgs: MemoryOrgs
+) -> None:
+    await orgs.set_quotas(A_RECORD.org, Quotas(memory_facts=0, knowledge_chunks=0))
+    read = await tenant_http.get(A_CONTACT)
+    assert (read.status_code, len(read.json()["facts"])) == (200, 2)
+    forgotten = await tenant_http.delete(A_CONTACT)
+    assert (forgotten.status_code, forgotten.json()) == (200, {"forgotten": 2})
+    assert memory.answers == []
 
 
 class TestOnADevKey:

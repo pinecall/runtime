@@ -21,7 +21,7 @@ from pinecall.types.fusion import (
 from pinecall.types.json import JsonObject
 from pinecall.types.knowledge import Chunk, Docs, Fact, KnowledgeFile, MemoryPolicy
 from pinecall.types.markers import MARKER_NAMES, Ask, Marker, MarkerName, filled, markers_in
-from pinecall.types.org import DEFAULT_ORG, QUOTAS, Org, QuotaName, Quotas, a_slug
+from pinecall.types.org import DEFAULT_ORG, QUOTAS, Counting, Org, QuotaName, Quotas, a_slug
 from pinecall.types.prompt import DEFAULT_LAYOUT, Blocks, PromptBlock, PromptRegion
 from pinecall.types.provider_keys import NO_ORG_KEYS, VENDORS, ProviderKeys
 from pinecall.types.refused import DeclarationRefused
@@ -51,6 +51,7 @@ __all__ = [
     "ConsentOutcome",
     "ConsentRead",
     "Contact",
+    "Counting",
     "DeclarationRefused",
     "Direction",
     "Docs",

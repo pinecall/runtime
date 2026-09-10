@@ -162,3 +162,26 @@ class OtherModel(HashEmbedder):
     @override
     async def model(self) -> str:
         return "another-embedder"
+
+
+async def test_the_chunks_an_org_keeps_are_summed_over_its_bases_and_one_can_be_left_out(
+    knowledge: PgKnowledge, org: str
+) -> None:
+    """What knowledge_chunks is measured against: a sum over the base rows, never a table."""
+    assert await knowledge.kept(org) == 0
+    await knowledge.put(org, THE_BASE, [CLINICA, TARIFAS])
+    await knowledge.put(org, "tarifas", [TARIFAS])
+    assert await knowledge.kept(org) == 6
+    assert await knowledge.kept(org, besides=THE_BASE) == 2, "the base a push replaces is freed"
+    assert await knowledge.kept(org, besides="nadie") == 6, "a base nobody pushed frees nothing"
+    await knowledge.drop(org, "tarifas")
+    assert await knowledge.kept(org) == 4
+
+
+async def test_how_many_chunks_a_push_would_become_is_the_cut_the_push_itself_makes(
+    knowledge: PgKnowledge, org: str
+) -> None:
+    """The number the quota judges a push by has to be the number the push then writes."""
+    assert knowledge.how_many_chunks([CLINICA, TARIFAS]) == 4
+    assert knowledge.how_many_chunks([]) == 0
+    assert await knowledge.put(org, THE_BASE, [CLINICA, TARIFAS]) == 4

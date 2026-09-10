@@ -6,6 +6,7 @@ from pinecall.cli import GROUPS, build_parser, gateway, main
 from pinecall.cli.doctor import verbs as doctor
 from pinecall.cli.routes import verbs as routes
 from pinecall.cli.sessions import verbs as sessions
+from pinecall.types import QUOTAS
 
 pytestmark = pytest.mark.unit
 
@@ -97,3 +98,12 @@ def test_every_group_says_in_one_line_what_it_is() -> None:
         "box",
     }
     assert all(purpose and "\n" not in purpose for purpose in GROUPS.values())
+
+
+def test_the_quota_verb_has_one_flag_per_quota_and_the_flags_are_the_wires_names() -> None:
+    """`orgs quota` sets the whole set, so a quota nobody typed a flag for could never be set."""
+    parsed = build_parser().parse_args(
+        ["orgs", "quota", "clinica", "--memory-facts", "0", "--knowledge-chunks", "5000"]
+    )
+    assert (parsed.memory_facts, parsed.knowledge_chunks) == (0, 5000)
+    assert all(hasattr(parsed, name) for name in QUOTAS)

@@ -16,8 +16,9 @@ from pinecall.log.entry import Entry
 from pinecall.log.logs import CallLog
 from pinecall.log.writers import Logs
 from pinecall.memory import DEFAULT_FACTS_PER_TURN, Memory, Spoken, facts_as_text
-from pinecall.types import AgentConfig, CallContext, Marker, ProviderKeys
+from pinecall.types import AgentConfig, CallContext, Counting, Marker, ProviderKeys, Quotas
 from pinecall_protocol import WireModel, encode
+from pinecall_protocol.defs import MemoryOp
 from pinecall_protocol.events import MemoryOps
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,12 @@ class Calls(Protocol):
 # import, so the read is handed in as a function.
 type KeysOf = Callable[[str], Awaitable[ProviderKeys]]
 
+# What the org's quotas say, and whether it may keep one more fact — both live in orgs/, which
+# filling may not import, so they arrive as functions exactly as the vault read above does. The
+# runtime prices nothing: these two answer what a plan INCLUDES, never what it costs.
+type QuotasOf = Callable[[str], Awaitable[Quotas]]
+type MayRemember = Callable[[str, str, Counting], Awaitable[bool]]
+
 
 # One per process. Nothing here is per call: the call arrives by id on every verb, and what the
 # service knows of it is asked of `calls` each time. A gateway on a dev key has no Postgres and so
@@ -64,12 +71,16 @@ class Filling:
         logs: Logs,
         calls: Calls,
         keys_of: KeysOf,
+        quotas_of: QuotasOf,
+        may_remember: MayRemember,
     ) -> None:
         self._memory = memory
         self._knowledge = knowledge
         self._logs = logs
         self._calls = calls
         self._keys_of = keys_of
+        self._quotas_of = quotas_of
+        self._may_remember = may_remember
 
     # ── the Filler ──────────────────────────────────────────────────────────────
 
@@ -84,21 +95,30 @@ class Filling:
         log = self._logs.opened(call)
         if opened is None or log is None:
             return {}
+        # One read for the whole turn, whatever its markers: a plan that switched a feature off
+        # answers its marker with nothing, and pays no embedder to find that out.
+        quotas = await self._quotas_of(opened.org)
         texts = await asyncio.gather(
-            *(self._one(opened, log, marker, query, speech_id) for marker in markers)
+            *(self._one(opened, log, quotas, marker, query, speech_id) for marker in markers)
         )
         return dict(zip((marker.line for marker in markers), texts, strict=True))
 
     async def _one(
-        self, opened: OpenCall, log: CallLog, marker: Marker, query: str, speech_id: str | None
+        self,
+        opened: OpenCall,
+        log: CallLog,
+        quotas: Quotas,
+        marker: Marker,
+        query: str,
+        speech_id: str | None,
     ) -> str:
         """One marker's text, its entry written; nothing and a skip entry when it could not be."""
         started = time.perf_counter()
         try:
             if marker.name == "memory":
-                return await self._recalled(opened, log, marker, query, speech_id, started)
+                return await self._recalled(opened, log, quotas, marker, query, speech_id, started)
             if marker.name == "retrieved":
-                return await self._retrieved(opened, log, marker, query, speech_id, started)
+                return await self._retrieved(opened, log, quotas, marker, query, speech_id, started)
         except Exception as failed:  # noqa: BLE001 — a fill must never break a reply
             logger.warning(
                 "call %s: %s not filled", opened.context.call, marker.name, exc_info=True
@@ -113,6 +133,7 @@ class Filling:
         self,
         opened: OpenCall,
         log: CallLog,
+        quotas: Quotas,
         marker: Marker,
         query: str,
         speech_id: str | None,
@@ -121,6 +142,11 @@ class Filling:
         """The contact's facts under the marker's ask, and memory.ops on the log."""
         contact = opened.context.remembered_as
         if self._memory is None or contact is None:
+            return ""
+        # A plan without memory is not a failure, so nothing is written: an empty memory.ops
+        # would say a search ran and found nothing, and no search ran. Nothing is embedded
+        # either — a fill that cannot use its answer must not pay for one.
+        if quotas.switched_off("memory_facts"):
             return ""
         ask = marker.ask
         facts = await self._memory.recall(
@@ -138,6 +164,7 @@ class Filling:
         self,
         opened: OpenCall,
         log: CallLog,
+        quotas: Quotas,
         marker: Marker,
         query: str,
         speech_id: str | None,
@@ -146,6 +173,11 @@ class Filling:
         """The best chunks of the agent's base under the marker's ask; docs.sources on the log."""
         docs = opened.config.docs
         if self._knowledge is None or docs is None:
+            return ""
+        # An org that may keep no chunks has none to find, and docs.sources with no sources would
+        # tell the grounded judge the base was searched and answered nothing. Nothing is written,
+        # and the query is not embedded to search a base that cannot exist.
+        if quotas.switched_off("knowledge_chunks"):
             return ""
         ask = marker.ask
         chunks = await self._knowledge.search(
@@ -174,6 +206,12 @@ class Filling:
         policy = opened.config.memory
         if contact is None or policy is None:
             return 0
+        # Before the model, never after: asking it is the whole cost of a hang-up, and an org that
+        # may keep no more facts must not pay for an extraction nothing will store. The gate wrote
+        # credits.exhausted into the agent's log; what this call did — nothing — goes on the call's.
+        if not await self._may_remember(opened.org, opened.context.route.agent, self._memory.kept):
+            await _written(log, "memory.ops", _nothing_kept(contact))
+            return 0
         turns = _spoken(await log.whole())
         ops = await self._memory.remember(
             opened.org,
@@ -188,6 +226,13 @@ class Filling:
         )
         await _written(log, "memory.ops", MemoryOps(ops=list(ops)))
         return len(ops)
+
+
+# The same shape a hang-up that DID remember writes, carrying what was written: nothing. The
+# reason is one entry away, in the agent's log, where every quota refusal has always been.
+def _nothing_kept(contact: str) -> MemoryOps:
+    """The memory.ops of a hang-up whose org may keep no more facts: an op that wrote none."""
+    return MemoryOps(ops=[MemoryOp(op="remember", contact=contact, facts=[], took_ms=0.0)])
 
 
 def _spoken(entries: Sequence[Entry]) -> list[Spoken]:

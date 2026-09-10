@@ -58,7 +58,7 @@ table; the declared ones have a socket.
 
 | entity | fields | lives | relations |
 |---|---|---|---|
-| **Org** | `id`, `slug`, `name` | `orgs` | has many keys, routes, calls, provider keys; **Quotas** (`minutes`, `messages`, `agents`, `concurrent_calls`) in `quotas`, one row per name |
+| **Org** | `id`, `slug`, `name` | `orgs` | has many keys, routes, calls, provider keys; **Quotas** in `quotas`, one row per org, replaced whole — four over what it CONSUMES (`minutes`, `messages`, `agents`, `concurrent_calls`) and two over what it KEEPS (`memory_facts`, `knowledge_chunks`). NULL is no limit, which is what a self-hosted box has; **0 is a real limit and is how a plan says it has no memory and no knowledge base at all** |
 | **API key** | `sha256`, `org`, `label`, scopes, revoked | `api_keys` | issued once, printed once, revoked by UPDATE. What a worker, an app and a CLI knock with |
 | **Route** | `org`, `agent`, `channel` (`phone`·`web`·`whatsapp`), `number`, `label` | `routes` | one door into one agent, in one org. A number is a route, never an agent. The operator's row outranks the app's declaration |
 | **AgentConfig** | `slug`, `channels`, `name`, `prompt` (→ PromptBlock: `name`, `region`), `greeting`, `language`, **Voice** (`provider`, `model`, `voice_id`), **Model** ×2 (`llm`, `stt`), **Turn** (`min_interruption_words`, `endpointing_ms`), `says`, `hears`, **KnowledgeFile** (`path`, `text`), **Docs** (`base`, `mode`, `k`, `min_score`), **MemoryPolicy** (`remember`, `forget`), `tools`, `state_fields` (→ Visibility), `events` | **no table** — declared by the app over `WS /v1/apps` at `agent.register`; the agent's own log `@<slug>` is the durable record | one agent, many app sockets (a fleet of `pinecall run`, or one console); many calls |
@@ -205,11 +205,17 @@ the session's `Rememberer` writes what the call taught about the contact; a miss
 `remember_failed`, recoverable, and the call seals. **A marker is filled by the gateway, never by
 the app**: the voice session's filler is the worker's gateway client (`POST /v1/calls/{call}/fill`,
 `/remember`), the text session's is the gateway's own `filling/`, in-process — one
-`Filling(memory, knowledge, logs, calls, keys_of)` per process, implementing both protocols, that
+`Filling(memory, knowledge, logs, calls, keys_of, quotas_of, may_remember)` per process,
+implementing both protocols, that
 recalls the contact's facts (the contact is `CallContext.remembered_as`: the resolved id, else
 the number on phone and WhatsApp, else nobody), searches the agent's `docs.base` under the
 marker's own `k`/`min_score`, writes `memory.ops` and `docs.sources` on the call's log with the
-turn's `speech_id`, and names the embedder's vendor and URL in the error entry when it is down. **A tool runs in the
+turn's `speech_id`, and names the embedder's vendor and URL in the error entry when it is down.
+The last two are the org's PLAN, asked of `orgs/` (which `filling/` may not import): a marker
+whose quota is `0` is filled with nothing, embeds nothing and writes no entry at all — a plan
+without the feature is not a failure and never reads as one — and a hang-up whose org may keep
+no more facts writes `memory.ops` with an op that kept none, its `credits.exhausted` one entry
+away in the agent's log, and asks no model to extract what it could not store. **A tool runs in the
 tenant's process**: the session
 sends `tool.call` to the gateway, the gateway relays it down the app socket the call is bound
 to, the tenant's `@tool` runs where it was written, `tool.result` rides back to the model.
@@ -245,7 +251,8 @@ clock. **Compact the view, never the log.** `docs/decisions/log.md`.
 ## 9. The tenants
 
 `orgs/table.py` (the orgs and their quotas), `admission.py` (may this org open one more call,
-hold one more agent), `meter.py` (every org's consumption, folded from the log as it grows, one
+hold one more agent, keep one more fact, push these chunks — one refusal vocabulary,
+`credits.exhausted` in the agent's own log and the same sentence at the door), `meter.py` (every org's consumption, folded from the log as it grows, one
 cursor per process), `vault.py` (a tenant's own provider keys, Fernet at rest, written at two
 doors — the tenant's own and the operator's — and read back by exactly one, the worker's). `auth/keys.py` (sha256, no salt; a **dev key** that needs no database and is
 then the only key honoured), `auth/bearer.py` (one parser of the header, one close code),

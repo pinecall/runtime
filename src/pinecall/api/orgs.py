@@ -7,7 +7,15 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import TypeAdapter
 
-from pinecall.api._deps import KeysDep, OrgsDep, RoutesDep, an_operator, an_org
+from pinecall.api._deps import (
+    KeysDep,
+    KnowledgeDep,
+    MemoryDep,
+    OrgsDep,
+    RoutesDep,
+    an_operator,
+    an_org,
+)
 from pinecall.auth.keys import Issued, ListedKey
 from pinecall.types import DeclarationRefused, Org, Quotas, a_slug
 from pinecall_protocol import WireModel
@@ -56,6 +64,8 @@ class WantedQuotas(WireModel):
     messages: int | None = None
     agents: int | None = None
     concurrent_calls: int | None = None
+    memory_facts: int | None = None
+    knowledge_chunks: int | None = None
 
 
 # ── the orgs ────────────────────────────────────────────────────────────────────
@@ -80,11 +90,25 @@ async def add(said: WantedOrg, orgs: OrgsDep) -> dict[str, Any]:
     return _as_json(org)
 
 
+# `holding` is what the two STOCK quotas are measured against, and it is answered here rather than
+# in /v1/ops/usage because that door is a cursor-paged fold of the log: every row there is an
+# event that happened at a position, and a count of what stands right now is not an event. Both
+# numbers are one indexed query over tables that already exist — never a counter column, and never
+# a table. On a gateway with no Postgres there is nowhere for either to be, so both are zero.
 @operator.get("/orgs/{named}")
-async def one(named: str, orgs: OrgsDep) -> dict[str, Any]:
-    """One org, by its id or its slug, with the quotas set on it."""
+async def one(
+    named: str, orgs: OrgsDep, memory: MemoryDep, knowledge: KnowledgeDep
+) -> dict[str, Any]:
+    """One org: the quotas set on it, and what it is holding against the two that are stocks."""
     org = await an_org(named, orgs)
-    return {**_as_json(org), "quotas": QUOTAS.dump_python(await orgs.quotas_of(org.id))}
+    return {
+        **_as_json(org),
+        "quotas": QUOTAS.dump_python(await orgs.quotas_of(org.id)),
+        "holding": {
+            "memory_facts": 0 if memory is None else await memory.kept(org.id),
+            "knowledge_chunks": 0 if knowledge is None else await knowledge.kept(org.id),
+        },
+    }
 
 
 @operator.delete("/orgs/{named}", status_code=NO_BODY)
@@ -111,6 +135,8 @@ async def set_quotas(named: str, said: WantedQuotas, orgs: OrgsDep) -> dict[str,
             messages=said.messages,
             agents=said.agents,
             concurrent_calls=said.concurrent_calls,
+            memory_facts=said.memory_facts,
+            knowledge_chunks=said.knowledge_chunks,
         )
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused

@@ -101,12 +101,19 @@ with the reason for a slug that is not one.
 
 ### `GET /v1/ops/orgs/{org}`
 
-One org, with the quotas set on it. `null` is no limit.
+One org, with the quotas set on it and what it is holding against the two that are stocks. `null`
+is no limit.
 
 ```json
 { "id": "org_3f2a9c1b8d0e", "slug": "clinica-norte", "name": "Clínica Norte",
-  "quotas": { "minutes": 1000, "messages": null, "agents": 5, "concurrent_calls": 10 } }
+  "quotas": { "minutes": 1000, "messages": null, "agents": 5, "concurrent_calls": 10,
+              "memory_facts": 5000, "knowledge_chunks": 2000 },
+  "holding": { "memory_facts": 412, "knowledge_chunks": 1860 } }
 ```
+
+`holding` is a count taken now, one indexed query over the rows themselves (`0` on a runtime with
+no database). It is here and not on `/v1/ops/usage`, which folds the log: a row there is an event
+at a cursor, and a stock has no cursor.
 
 ### `DELETE /v1/ops/orgs/{org}`
 
@@ -116,19 +123,21 @@ nobody typed.
 
 ## Quotas
 
-What an org may consume. The runtime holds the **mechanism**; whoever charges sets the numbers. A
-self-hosted box never sets any, and an org nobody limited has no limits.
+What an org may consume, and what it may keep. The runtime holds the **mechanism**; whoever charges
+sets the numbers. A self-hosted box never sets any, and an org nobody limited has no limits.
 
 ### `PUT /v1/ops/orgs/{org}/quotas`
 
 The whole set, replaced: a limit left out is no limit. Zero is a real limit and refuses everything.
 
 ```json
-{ "minutes": 1000, "agents": 5, "concurrent_calls": 10 }
+{ "minutes": 1000, "agents": 5, "concurrent_calls": 10,
+  "memory_facts": 5000, "knowledge_chunks": 2000 }
 ```
 
-`minutes` is minutes of call, summed from every `call.summary` in the org's logs; `messages` is
-turns, both sides, the same way; `agents` is how many agents the org's sockets may hold at once;
+Four of them are **flows** — what the org has consumed, or holds open right now. `minutes` is
+minutes of call, summed from every `call.summary` in the org's logs; `messages` is turns, both
+sides, the same way; `agents` is how many agents the org's sockets may hold at once;
 `concurrent_calls` is how many of its calls may be open on this gateway at once. The answer is the
 set as kept. A limit bites the **next** call and the next register: the gateway refuses with a
 `credits.exhausted` entry in the agent's own log and a `429` whose `detail` is the same sentence —
@@ -139,6 +148,27 @@ org clinica-norte has used 1000 of its 1000 minutes: credits.exhausted
 
 — on `POST /v1/calls`, on `POST /v1/tokens` (before the browser joins), on the chat socket (as the
 close reason) and on `agent.register` (as the `error` frame that follows the entry).
+
+Two are **stocks** — how much of a table the org may keep standing: `memory_facts`, the facts
+memory holds about its contacts, all together (a superseded one is history and is not counted), and
+`knowledge_chunks`, the chunks its bases hold, all together. Same mechanism, and it is what a plan
+switches memory and retrieval off with: `null` is no limit, a number is a cap, and **`0` is how a
+plan that does not include the feature is expressed** — a `0` org keeps neither, and its `memory`
+and `retrieved` markers fill with nothing, embed nothing and write no entry at all: a plan without
+a feature is not a failure and must not read as one.
+
+- **`PUT /v1/knowledge/{base}`** counts what the push would become — the org's other bases plus the
+  chunks these files cut into, the base being replaced counted as freed — and answers `429` before
+  a row is written, since a push is all or nothing: `org clinica-norte has used 2400 of its 2000
+  knowledge_chunks: credits.exhausted`. It is the one refusal here that writes **no**
+  `credits.exhausted` entry — a push names no agent and opens no call, so the org has no log for
+  it, and the tenant is reading the 429. The list and the drop are refused by no quota.
+- **`remember` at hang-up** reads the cap before asking a model, so an org that may keep no more
+  facts pays for no extraction: nothing is written, `memory.ops` carries an op that kept nothing,
+  and `credits.exhausted` goes into the agent's own log as every quota refusal does. Like minutes,
+  the cap bites the NEXT hang-up.
+- **A contact's memory is read and erased at every quota, `0` included**: erasing is a right, not a
+  feature. And a cap is about what is KEPT, so an org at its cap still recalls all of it.
 
 ## Keys
 
@@ -283,7 +313,7 @@ the `id`, followed by each new one as the log grows. A reconnecting `EventSource
 pinecall-runtime orgs list
 pinecall-runtime orgs add <slug> [--name <text>]
 pinecall-runtime orgs rm <org>
-pinecall-runtime orgs quota <org> [--minutes N] [--messages N] [--agents N] [--concurrent-calls N]
+pinecall-runtime orgs quota <org> [--minutes N] [--messages N] [--agents N] [--concurrent-calls N] [--memory-facts N] [--knowledge-chunks N]
 pinecall-runtime orgs provider-key set  <org> <vendor>   # the key is read from stdin, one line
 pinecall-runtime orgs provider-key rm   <org> <vendor>
 pinecall-runtime orgs provider-key list <org>

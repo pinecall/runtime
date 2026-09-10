@@ -229,3 +229,17 @@ async def test_a_fact_written_now_carries_the_model_that_embedded_it(
         "SELECT model FROM contact_memories WHERE org = $1 AND contact = $2", org, contact
     )
     assert [row["model"] for row in rows] == [HASH_MODEL]
+
+
+async def test_the_facts_an_org_keeps_are_counted_across_its_contacts_and_history_is_not(
+    memory: PgvectorMemory, pool: Pool, org: str, contact: str
+) -> None:
+    """What the memory_facts quota is measured against: the rows that hold, never every row."""
+    assert await memory.kept(org) == 0
+    await a_row(pool, org, contact, "prefiere la mañana")
+    await a_row(pool, org, "another-contact", "vive en Montevideo")
+    assert await memory.kept(org) == 2
+    await a_row(pool, org, contact, "prefería la tarde", invalidated=HUNG_UP)
+    assert await memory.kept(org) == 2, "a superseded row is history and not a fact held"
+    assert await memory.forget(org, contact) == 2
+    assert await memory.kept(org) == 1
