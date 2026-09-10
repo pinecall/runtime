@@ -6,12 +6,10 @@ import re
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
-from pydantic import Field
-
 from pinecall.memory.extraction import OPS_THAT_NAME_A_FACT, OPS_THAT_WRITE, Op, OpName, allowed
 from pinecall.memory.protocol import Spoken
-from pinecall.types import Channel, Fact, MemoryPolicy, ToolSpec
-from pinecall_protocol import WireModel
+from pinecall.types import Fact, MemoryPolicy, ToolSpec
+from pinecall_protocol.rest import ExtractionBroke, ExtractionGolden, ExtractionJudged
 
 # Who says a line of the transcript, in the golden's own words. The extractor reads `agent` and
 # `user`; a person writing a call down says caller, so both are taken and one is stored.
@@ -33,58 +31,6 @@ NOT_DECLARED = "{case}: expect.{field} names {named!r}, which the class does not
 NOT_HELD = "{case}: expect.invalidates names {named!r}, which this golden does not hold"
 
 _SPACES = re.compile(r"\s+")
-
-
-class Expected(WireModel):
-    """What must come of the call: one field is one of the four ways a hang-up costs a business."""
-
-    # Every category named got at least one fact. Never a sentence compared to a sentence: two
-    # ways of writing one fact are one fact, and an exact match would make every golden brittle.
-    writes: list[str] = Field(default_factory=list[str])
-    # No fact was written under any of these — the tenant's own `forget` words.
-    never: list[str] = Field(default_factory=list[str])
-    # The sharper half of `never`: no fact CARRIES one of these values, whatever category it went
-    # under. A card number the caller read out is what this exists for.
-    never_says: list[str] = Field(default_factory=list[str])
-    # Every held fact named here was superseded, and — the mirror, which is the half that catches
-    # the model that supersedes whatever it touches — no other held fact was.
-    invalidates: list[str] = Field(default_factory=list[str])
-
-
-class ExtractionGolden(WireModel):
-    """One call written down and what memory must make of it: the write side, judged by code."""
-
-    name: str
-    # The call as it happened, both speakers, because nothing here is re-run: a golden about
-    # extraction is a conversation ALREADY held, handed to the hang-up's one model call.
-    said: list[tuple[str, str]] = Field(default_factory=list[tuple[str, str]])
-    # What memory already holds about this contact, in the words a fact is written in. They are
-    # shown to the model with ids, and an `invalidates` names one of them by its own text.
-    holds: list[str] = Field(default_factory=list[str])
-    # Sentences somebody tried to get into memory. Planting one IS the assertion: admission must
-    # refuse every one of them, whatever the model did with the conversation itself.
-    plants: list[str] = Field(default_factory=list[str])
-    # The door the call came in by, as the model is told it. A golden that says nothing is a
-    # phone call, which is what a contact center means by a call.
-    channel: Channel = "phone"
-    expect: Expected = Field(default_factory=Expected)
-
-
-class Broke(WireModel):
-    """One thing that did not hold: which of the four questions, and the evidence in a sentence."""
-
-    check: str
-    detail: str
-
-
-class Judged(WireModel):
-    """One case, run: what memory would have kept, what admission refused, what did not hold."""
-
-    name: str
-    held: bool
-    wrote: list[str] = Field(default_factory=list[str])
-    refused: list[str] = Field(default_factory=list[str])
-    broke: list[Broke] = Field(default_factory=list[Broke])
 
 
 def undeclared(case: ExtractionGolden, policy: MemoryPolicy) -> str | None:
@@ -138,7 +84,7 @@ def judged(
     policy: MemoryPolicy,
     known: Sequence[Fact],
     tools: Sequence[ToolSpec] = (),
-) -> Judged:
+) -> ExtractionJudged:
     """What the policy lets through of the model's answer, and the four questions asked of it."""
     wrote = allowed(said, policy, known, tools)
     refused = [op for op in said if not any(op is kept for kept in wrote)]
@@ -150,7 +96,7 @@ def judged(
         *_superseded_exactly_what_it_should(case, wrote, known),
         *_refused_every_plant(survived),
     ]
-    return Judged(
+    return ExtractionJudged(
         name=case.name,
         held=not broke,
         wrote=[_as_a_line(op) for op in wrote],
@@ -162,11 +108,13 @@ def judged(
 # ── the four questions, and the plant ───────────────────────────────────────────
 
 
-def _wrote_under_every_category(case: ExtractionGolden, wrote: Sequence[Op]) -> list[Broke]:
+def _wrote_under_every_category(
+    case: ExtractionGolden, wrote: Sequence[Op]
+) -> list[ExtractionBroke]:
     """Misses what mattered: a category the call taught about and nothing was written under."""
     written = {op.category.casefold() for op in wrote if op.category and op.op in OPS_THAT_WRITE}
     return [
-        Broke(
+        ExtractionBroke(
             check="writes",
             detail=f"nothing was written under {named!r}; what was: {_categories(wrote)}",
         )
@@ -175,20 +123,22 @@ def _wrote_under_every_category(case: ExtractionGolden, wrote: Sequence[Op]) -> 
     ]
 
 
-def _kept_nothing_forgotten(case: ExtractionGolden, wrote: Sequence[Op]) -> list[Broke]:
+def _kept_nothing_forgotten(case: ExtractionGolden, wrote: Sequence[Op]) -> list[ExtractionBroke]:
     """Writes a forget category: the tenant said never keep this, and there it is."""
     forgotten = {named.casefold() for named in case.expect.never}
     return [
-        Broke(check="never", detail=f"a fact was kept under {op.category!r}: {op.text!r}")
+        ExtractionBroke(check="never", detail=f"a fact was kept under {op.category!r}: {op.text!r}")
         for op in wrote
         if op.category and op.category.casefold() in forgotten
     ]
 
 
-def _carried_no_forbidden_value(case: ExtractionGolden, wrote: Sequence[Op]) -> list[Broke]:
+def _carried_no_forbidden_value(
+    case: ExtractionGolden, wrote: Sequence[Op]
+) -> list[ExtractionBroke]:
     """The sharper half: a value that must not survive, in the text of a fact of any category."""
     return [
-        Broke(
+        ExtractionBroke(
             check="never_says",
             detail=f"{named!r} is in a fact memory would have kept: {op.text!r}",
         )
@@ -200,17 +150,19 @@ def _carried_no_forbidden_value(case: ExtractionGolden, wrote: Sequence[Op]) -> 
 
 def _superseded_exactly_what_it_should(
     case: ExtractionGolden, wrote: Sequence[Op], known: Sequence[Fact]
-) -> list[Broke]:
+) -> list[ExtractionBroke]:
     """Does not supersede, and its mirror: two versions of one fact, or a fact replaced for free."""
     named = {op.of for op in wrote if op.op in OPS_THAT_NAME_A_FACT}
     by_text = {fact.text: fact.id for fact in known}
     missing = [
-        Broke(check="invalidates", detail=f"{text!r} still holds beside what the call said")
+        ExtractionBroke(
+            check="invalidates", detail=f"{text!r} still holds beside what the call said"
+        )
         for text in case.expect.invalidates
         if by_text.get(text) not in named
     ]
     return missing + [
-        Broke(
+        ExtractionBroke(
             check="invalidates", detail=f"{fact.text!r} was superseded and nothing contradicts it"
         )
         for fact in known
@@ -218,10 +170,12 @@ def _superseded_exactly_what_it_should(
     ]
 
 
-def _refused_every_plant(survived: Sequence[Op]) -> list[Broke]:
+def _refused_every_plant(survived: Sequence[Op]) -> list[ExtractionBroke]:
     """Admission: a sentence about what the agent can DO is not a fact about a contact."""
     return [
-        Broke(check="plants", detail=f"admission let a planted sentence through: {op.text!r}")
+        ExtractionBroke(
+            check="plants", detail=f"admission let a planted sentence through: {op.text!r}"
+        )
         for op in survived
     ]
 
