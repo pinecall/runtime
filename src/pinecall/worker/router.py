@@ -13,7 +13,7 @@ from livekit.protocol import agent as jobs
 from pinecall._exceptions import PinecallError
 from pinecall.session.voice import sip
 from pinecall.types import THE_WIDGET, Channel, Direction, Route
-from pinecall.types.dispatch import AGENT_KEY, CALLER_KEY, DIRECTION_KEY
+from pinecall.types.dispatch import AGENT_KEY, APP_KEY, CALLER_KEY, DIRECTION_KEY
 
 # A dispatch has already named the agent, so its seat is read only if somebody is on it already.
 NOT_WAITED_FOR = 0.0
@@ -32,6 +32,8 @@ class Arrival:
     direction: Direction
     agent: str | None = None
     number: str | None = None
+    # Which app socket this dispatch asked for, when it named one. A spoken eval run does.
+    app: str | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict[str, Any])
 
 
@@ -52,6 +54,7 @@ async def arrival_of(job: jobs.Job, room: rtc.Room) -> Arrival:
         direction="outbound" if said.get(DIRECTION_KEY) == "outbound" else "inbound",
         agent=agent,
         number=numbers.dialled,
+        app=_text(said.get(APP_KEY)) or None,
         metadata=said,
     )
 
