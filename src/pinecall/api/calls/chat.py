@@ -112,7 +112,7 @@ async def chat(
     try:
         opened = await a_text_call(
             held,
-            _a_context(websocket, held.org, slug),
+            a_call_from(websocket, held.org, slug),
             overrides,
             vault,
             llms,
@@ -190,7 +190,7 @@ async def _every_turn(websocket: WebSocket, session: TextSession) -> None:
         return
 
 
-def _a_context(websocket: WebSocket, org: str, slug: str) -> CallContext:
+def a_call_from(websocket: WebSocket, org: str, slug: str) -> CallContext:
     """One call, minted here: the id, who the caller is, and the door they came through."""
     # A web caller is nobody yet: the visitor id travels as the calling side, which is what
     # call.started carries as `from`. Both ids are the shapes the token door mints too.
