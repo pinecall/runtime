@@ -35,6 +35,7 @@ from tests.api.conftest import (
     settings,
     snapshots,
     store,
+    tenant_http,
     threads,
     tokens,
     vault,
@@ -76,6 +77,7 @@ __all__ = [
     "settings",
     "snapshots",
     "store",
+    "tenant_http",
     "threads",
     "tokens",
     "vault",
@@ -141,6 +143,27 @@ async def test_no_row_of_a_text_call_on_the_orgs_own_key_carries_it(
     assert not leaked, f"the key came back from {leaked}"
 
 
+# The door this card opened: a tenant may WRITE its own key without an operator, and a key that
+# came in that way must be as unreadable afterwards as one an operator kept. Same store, same
+# doors, same scan — the only difference is who knocked.
+async def test_a_key_the_tenant_brought_at_its_own_door_leaks_from_none_of_them(
+    tenant_http: httpx.AsyncClient,  # noqa: F811 — the fixture, by name
+    gateway: TestClient,  # noqa: F811 — the fixture, by name
+    store: MemoryStore,  # noqa: F811 — the fixture, by name
+) -> None:
+    """Criterion 2 for the tenant's own door: it takes a key and no door ever gives one back."""
+    kept = await tenant_http.put("/v1/provider-keys/elevenlabs", json={"key": CANARY})
+    assert kept.status_code == 204, kept.text
+    with an_app(gateway) as app_socket:
+        declared(app_socket)
+        await _a_golden_call(store)
+        answered = {door: _read(gateway, door) for door in _the_doors_that_must_not()}
+        leaked = [door for door, body in answered.items() if CANARY in body]
+        assert not leaked, f"the key came back from {leaked}"
+        assert "elevenlabs" in answered["/v1/provider-keys"], "the vendor was never listed"
+        assert CANARY in _read(gateway, THE_ONE_DOOR_THAT_MAY)
+
+
 async def _the_org_brought_its_own_key(ops_http: httpx.AsyncClient) -> None:
     """The clinic's own ElevenLabs key, kept through the operator's door."""
     door = f"/v1/ops/orgs/{AN_ORG.slug}/provider-keys/elevenlabs"
@@ -177,6 +200,7 @@ def _the_doors_that_must_not(call: str = CALL) -> tuple[str, ...]:
     """Every door read with an org's API key, which is every door but the worker's own."""
     return (
         "/v1/routes",
+        "/v1/provider-keys",
         "/v1/agents",
         f"/v1/agents/{AGENT}/config",
         f"/v1/agents/{AGENT}/pipeline",

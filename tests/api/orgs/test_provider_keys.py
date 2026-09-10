@@ -1,7 +1,8 @@
-"""/v1/ops/orgs/{org}/provider-keys and the one door that reads a key back: whose, and to whom."""
+"""The provider-key doors — the tenant's, the operator's, the worker's: whose, and to whom."""
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
@@ -12,8 +13,17 @@ from pinecall._settings import Settings
 from pinecall.auth.keys import MemoryKeys
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.orgs.vault import NO_VAULT_KEY, Vault
-from pinecall.types import VENDORS
-from tests.api.conftest import A_DEV_KEY, A_KEY, A_LIVEKIT, A_RECORD, AGENT, AN_OPS_KEY, AN_ORG
+from pinecall.types import VENDORS, ProviderKeys
+from tests.api.conftest import (
+    A_DEV_KEY,
+    A_KEY,
+    A_LIVEKIT,
+    A_RECORD,
+    AGENT,
+    AN_OPS_KEY,
+    AN_ORG,
+    over_the_asgi_app,
+)
 from tests.api.orgs.test_two_orgs_never_cross import (
     A_NUMBER,
     ANOTHER_AGENT,
@@ -23,12 +33,14 @@ from tests.api.orgs.test_two_orgs_never_cross import (
     another_app,
     holding,
 )
-from tests.api.talking import a_door, an_app, got
+from tests.api.talking import a_call_the_app_ends, a_door, an_app, declared, got
 
 pytestmark = pytest.mark.unit
 
 THE_ORGS_KEY = "sk-the-clinic-brought-its-own-elevenlabs-key"
 OPS = f"/v1/ops/orgs/{AN_ORG.slug}/provider-keys"
+# The tenant's own, which names no org at all: the key that knocks IS the org.
+TENANT = "/v1/provider-keys"
 THE_WORKERS_DOOR = f"/v1/agents/{AGENT}/provider-keys"
 
 
@@ -44,9 +56,22 @@ def orgs() -> MemoryOrgs:
     return MemoryOrgs([AN_ORG, ANOTHER_ORG])
 
 
+@pytest.fixture
+async def shop_http(wired: None) -> AsyncIterator[httpx.AsyncClient]:  # noqa: ARG001
+    """The shop's own terminal on this same gateway, knocking with the shop's own key."""
+    http = over_the_asgi_app(f"Bearer {ANOTHER_KEY}")
+    yield http
+    await http.aclose()
+
+
 async def kept(ops_http: httpx.AsyncClient, vendor: str = "elevenlabs") -> httpx.Response:
     """The clinic brings its own key for one vendor, through the operator's own door."""
     return await ops_http.put(f"{OPS}/{vendor}", json={"key": THE_ORGS_KEY})
+
+
+async def brought(tenant_http: httpx.AsyncClient, vendor: str = "elevenlabs") -> httpx.Response:
+    """The same key, brought by the tenant itself, with no operator anywhere in it."""
+    return await tenant_http.put(f"{TENANT}/{vendor}", json={"key": THE_ORGS_KEY})
 
 
 # ── the operator's three doors ──────────────────────────────────────────────────
@@ -98,6 +123,88 @@ async def test_an_orgs_own_api_key_opens_none_of_the_operators_doors(gateway: Te
     assert handle.get(OPS, headers=theirs).status_code == 401
     assert handle.put(f"{OPS}/soniox", json={"key": "x"}, headers=theirs).status_code == 401
     assert handle.delete(f"{OPS}/soniox", headers=theirs).status_code == 401
+
+
+# ── the tenant's own three doors ────────────────────────────────────────────────
+
+
+async def test_a_tenant_brings_a_key_lists_the_vendor_and_takes_it_back(
+    tenant_http: httpx.AsyncClient,
+) -> None:
+    """Hosted is BYOK-first: a tenant holding its own API key needs no operator to bring a key."""
+    assert (await tenant_http.get(TENANT)).json() == {"vendors": []}
+    assert (await brought(tenant_http)).status_code == 204
+    listed = await tenant_http.get(TENANT)
+    assert listed.json() == {"vendors": ["elevenlabs"]}
+    assert THE_ORGS_KEY not in listed.text
+    assert (await tenant_http.delete(f"{TENANT}/elevenlabs")).status_code == 204
+    assert (await tenant_http.get(TENANT)).json() == {"vendors": []}
+
+
+async def test_the_listing_is_names_alone_in_the_order_a_person_reads_them(
+    tenant_http: httpx.AsyncClient,
+) -> None:
+    """Sorted, because a listing whose order is the insert order is a listing nobody can scan."""
+    for vendor in ("soniox", "anthropic", "elevenlabs"):
+        assert (await brought(tenant_http, vendor)).status_code == 204
+    assert (await tenant_http.get(TENANT)).json() == {
+        "vendors": ["anthropic", "elevenlabs", "soniox"]
+    }
+
+
+async def test_a_second_org_never_sees_the_first_ones_row_and_cannot_reach_it(
+    tenant_http: httpx.AsyncClient, shop_http: httpx.AsyncClient
+) -> None:
+    """There is no way to name another org here, so there is no way into another org's vault."""
+    assert (await brought(tenant_http)).status_code == 204
+    theirs = await shop_http.get(TENANT)
+    assert theirs.json() == {"vendors": []}
+    assert THE_ORGS_KEY not in theirs.text
+    assert (await shop_http.delete(f"{TENANT}/elevenlabs")).status_code == 404
+    assert (await tenant_http.get(TENANT)).json() == {"vendors": ["elevenlabs"]}
+
+
+async def test_taking_back_a_vendor_this_org_never_brought_is_404(
+    tenant_http: httpx.AsyncClient,
+) -> None:
+    """The same sentence the operator's door answers: a typo must never read as done."""
+    refused = await tenant_http.delete(f"{TENANT}/soniox")
+    assert refused.status_code == 404
+    assert "has no soniox key" in refused.json()["detail"]
+
+
+async def test_a_vendor_this_build_does_not_run_is_refused_by_name_at_the_tenants_door(
+    tenant_http: httpx.AsyncClient,
+) -> None:
+    """One `_a_known_vendor`, so the tenant is told what to type in the operator's own words."""
+    refused = await tenant_http.put(f"{TENANT}/11labs", json={"key": THE_ORGS_KEY})
+    assert refused.status_code == 400
+    assert all(vendor in refused.json()["detail"] for vendor in VENDORS)
+    assert THE_ORGS_KEY not in refused.text
+    assert (await tenant_http.delete(f"{TENANT}/11labs")).status_code == 400
+
+
+def test_the_tenants_doors_take_an_api_key_and_the_boxs_ops_key_is_not_one(
+    gateway: TestClient,
+) -> None:
+    """The mirror of the rule above it: /v1/ops is the box's, and this door is the tenant's."""
+    handle: Any = gateway
+    boxs = {"Authorization": f"Bearer {AN_OPS_KEY}"}
+    assert handle.get(TENANT, headers=boxs).status_code == 401
+    assert handle.put(f"{TENANT}/soniox", json={"key": "x"}, headers=boxs).status_code == 401
+    assert handle.delete(f"{TENANT}/soniox", headers=boxs).status_code == 401
+    assert handle.get(TENANT).status_code == 401
+
+
+async def test_a_call_of_that_org_then_runs_on_the_key_the_tenant_brought_itself(
+    tenant_http: httpx.AsyncClient, gateway: TestClient, keys_asked: list[ProviderKeys]
+) -> None:
+    """The whole point of the door: no operator was in it, and the next call is on that account."""
+    assert (await brought(tenant_http, "anthropic")).status_code == 204
+    with an_app(gateway) as ours:
+        declared(ours)
+        a_call_the_app_ends(gateway, ours)
+    assert keys_asked[-1] == {"anthropic": THE_ORGS_KEY}
 
 
 # ── the worker's door ───────────────────────────────────────────────────────────
@@ -173,6 +280,16 @@ class TestARuntimeWithNoVaultKey:
         assert refused.json()["detail"] == NO_VAULT_KEY
         assert (await ops_http.get(OPS)).status_code == 503
         assert (await ops_http.delete(f"{OPS}/elevenlabs")).status_code == 503
+
+    async def test_every_tenant_door_is_503_and_says_the_same_thing(
+        self, tenant_http: httpx.AsyncClient
+    ) -> None:
+        """A tenant is told what the operator is told: this box cannot keep anybody's key."""
+        refused = await brought(tenant_http)
+        assert refused.status_code == 503
+        assert refused.json()["detail"] == NO_VAULT_KEY
+        assert (await tenant_http.get(TENANT)).status_code == 503
+        assert (await tenant_http.delete(f"{TENANT}/elevenlabs")).status_code == 503
 
     def test_the_worker_is_told_the_org_brought_none_and_the_call_goes_on(
         self, gateway: TestClient

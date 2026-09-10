@@ -157,9 +157,9 @@ async def _a_store(settings: Settings) -> Store:
 app = FastAPI(title="Pinecall gateway", lifespan=lifespan)
 
 # One door per line, in the order a reader meets them: the app's socket and what it holds, the
-# calls it answers, the desk, the suites, the tenant's routes, the operator's tables under
-# /v1/ops, the tokens, Meta's webhook, the knowledge base and a contact's memory, and whose key
-# knocked.
+# calls it answers, the desk, the suites, the tenant's routes and the keys it brought of its own,
+# the operator's tables under /v1/ops, the tokens, Meta's webhook, the knowledge base and a
+# contact's memory, and whose key knocked.
 for door in (
     socket.router,
     agents.router,
@@ -179,6 +179,7 @@ for door in (
     voice.router,
     routes.router,
     routes.operator,
+    provider_keys.router,
     orgs.operator,
     provider_keys.operator,
     usage.operator,
