@@ -56,3 +56,14 @@ def request_context(
     items = [*chat_ctx.items, *lookups]
     items.extend(agents.ChatMessage(role="system", content=[text]) for text in blocks.dynamic_texts)
     return SystemBlocks(items, blocks.static_texts)
+
+
+# What `prompt.changed` deliberately does not carry: a live call keeps a hash of each block and
+# nothing else, because the log travels and a prompt holds the caller's own words. A run that is
+# being reproduced is the one reader that needs the text, and it asks for it here, by hand.
+def as_a_request(request: SystemBlocks, vendor: str) -> dict[str, Any]:
+    """One request as the vendor's own formatter builds it: the system blocks, then the messages."""
+    messages, extra = request.to_provider_format(vendor)
+    # Anthropic is the one format that carries the blocks apart (see the class above); every other
+    # vendor's system text is already inside `messages`, and an empty list here says exactly that.
+    return {"system": list(getattr(extra, "system_messages", ()) or ()), "messages": messages}

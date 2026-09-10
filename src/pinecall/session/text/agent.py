@@ -11,7 +11,8 @@ from livekit.agents.voice import ModelSettings
 from livekit.agents.voice.agent import Agent as LiveAgent
 
 from pinecall.providers.blocks import request_context
-from pinecall.providers.models import Chat
+from pinecall.providers.models import Chat, vendor_of
+from pinecall.session.asking import Asking, NotAsking
 from pinecall.session.lookups import TurnLookups
 from pinecall.types import Blocks
 from pinecall_protocol.events import ErrorEvent
@@ -75,6 +76,7 @@ class TextAgent(LiveAgent):
         llm: Chat,
         writer: Writer,
         lookups: TurnLookups,
+        asking: Asking = NotAsking(),  # noqa: B008 — stateless, shared on purpose
     ) -> None:
         # livekit's Agent.__init__ is generic over the plugin's own event type, which a strict
         # checker can only read as Unknown; the one ignore is here, at the one call.
@@ -84,6 +86,10 @@ class TextAgent(LiveAgent):
         self._blocks = blocks
         self._writer = writer
         self._lookups = lookups
+        self._asking = asking
+        # Read once: the vendor is the plugin this model came from and it cannot change mid-call,
+        # and `asked` needs it to run the same formatter the request is about to go through.
+        self._vendor = vendor_of(llm)
 
     # livekit's own hook, the one a spoken call runs between the caller's last word and the
     # request (agent_activity.py:2605). A text turn is handed to generate_reply by hand, which
@@ -114,6 +120,7 @@ class TextAgent(LiveAgent):
         """One request: the view last of all, the deltas as transcripts, the numbers an entry."""
         writer = self._writer
         request = request_context(chat_ctx, self._blocks, self._lookups.items)
+        self._asking.asked(request, tools, self._vendor)
         await writer.thinking()
         llm = cast(agents.LLM[Any], self.llm)  # pyright: ignore[reportUnknownMemberType]
         with Metered(llm) as metered:

@@ -16,6 +16,7 @@ from pinecall.log.logs import CallLog
 from pinecall.providers import prices
 from pinecall.providers.models import Chat
 from pinecall.session import clock, greeting
+from pinecall.session.asking import Asking, NotAsking
 from pinecall.session.declaring import declared
 from pinecall.session.knowing import a_line_for_the_file_it_ships_with
 from pinecall.session.lookups import Lookup, NoLookup, TurnLookups
@@ -66,6 +67,7 @@ class TextSession:
         lookup: Lookup = NoLookup(),  # noqa: B008 — stateless, shared on purpose
         rememberer: Rememberer = NoRememberer(),  # noqa: B008 — stateless, shared on purpose
         budgets: Budgets = Budgets(),  # noqa: B008 — frozen
+        asking: Asking = NotAsking(),  # noqa: B008 — stateless, shared on purpose
     ) -> None:
         self.context = context
         self.config = config
@@ -103,6 +105,9 @@ class TextSession:
             llm=llm,
             writer=self.turns,
             lookups=self.lookups,
+            # Nobody by default: only a run that has to be reproduced keeps the requests, and it
+            # is the run that hands the holder in. session/asking.py.
+            asking=asking,
         )
         # vad=None keeps livekit from building a silero client a text call would never listen to,
         # and "manual" turn detection is the truth of a text call: every turn is a frame the caller
