@@ -51,6 +51,15 @@ class Turn:
     endpointing_ms: int | None = None
 
 
+# Declaring this is what puts livekit's own end_call in front of the model. A class that says
+# nothing here cannot hang up, and a call ends when the caller does or when a supervisor says so.
+@dataclass(frozen=True)
+class Hangup:
+    """Whether the model may end the call itself, and when, in the tenant's own words."""
+
+    when: str = ""
+
+
 # Field names agree with the wire's AgentConfig, so the gateway maps one onto the other by name;
 # tests/types/test_wire_agreement.py holds them to it.
 @dataclass(frozen=True)
@@ -72,6 +81,7 @@ class AgentConfig:
     knowledge: KnowledgeFile | None = None
     docs: Docs | None = None
     memory: MemoryPolicy | None = None
+    hangup: Hangup | None = None
     tools: tuple[ToolSpec, ...] = ()
     state_fields: Mapping[str, Visibility] = field(default_factory=dict[str, Visibility])
     events: Mapping[str, frozenset[EventSource]] = field(

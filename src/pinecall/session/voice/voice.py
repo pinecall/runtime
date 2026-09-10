@@ -24,6 +24,7 @@ from pinecall.session.voice import commands, hearing
 from pinecall.session.voice.agent import VoiceAgent
 from pinecall.session.voice.barge_in import is_a_backchannel
 from pinecall.session.voice.events import Events
+from pinecall.session.voice.hanging_up import HOW_IT_ENDED, a_way_to_hang_up
 from pinecall.session.voice.metrics import Meters
 from pinecall.session.voice.platform import Platform
 from pinecall.session.voice.room import DataChannel, Facts, Holding
@@ -51,18 +52,6 @@ from pinecall_protocol.room import EventReceived
 # livekit's own Literal, which is the only thing `AgentSession.on` accepts.
 TOOLS_EXECUTED: EventTypes = "function_tools_executed"
 CLOSED: EventTypes = "close"
-
-# How livekit's own reason for closing the session reads on our wire. JOB_SHUTDOWN is the platform
-# taking the worker down with the call still on it (a deploy, a stop, a drain) and USER_INITIATED
-# is our own code closing the session outside hangup — the console's Ctrl+C is one — so both are
-# `drained`: nobody's fault and not an error. See docs/decisions/voice-bridge.md.
-HOW_IT_ENDED: dict[CloseReason, tuple[defs.EndReason, defs.EndedBy]] = {
-    CloseReason.PARTICIPANT_DISCONNECTED: ("caller_hung_up", "caller"),
-    CloseReason.ERROR: ("error", "platform"),
-    CloseReason.JOB_SHUTDOWN: ("drained", "platform"),
-    CloseReason.USER_INITIATED: ("drained", "platform"),
-    CloseReason.TASK_COMPLETED: ("agent_hung_up", "agent"),
-}
 
 
 # One per call, built by `a_bridge`, and it is the one object livekit's Agent, the command applier
@@ -103,7 +92,11 @@ class VoiceBridge:
         self.blocks = Blocks(config.prompt, _the_file_it_ships_with(config))
         self._agent = VoiceAgent(
             blocks=self.blocks,
-            tools=[*self.tools.declared_tools, *self.lookups.declared_tools],
+            tools=[
+                *self.tools.declared_tools,
+                *self.lookups.declared_tools,
+                *a_way_to_hang_up(config, self),
+            ],
             speaking=self,
             lookups=self.lookups,
         )
@@ -297,6 +290,14 @@ class VoiceBridge:
     def transferred(self) -> None:
         """A cold transfer took: the call ends as transferred, whatever closes the session."""
         self._ended = ("transferred", "agent")
+
+    # The same move as `transferred`, for the other thing that ends a call without our asking:
+    # livekit's end_call tool closes the session itself, as USER_INITIATED, which HOW_IT_ENDED
+    # would read as `drained` by the platform. Written down before the shutdown, so the log says
+    # what happened and not what the close reason looked like. hanging_up.py holds the why.
+    def ended_by_the_model(self) -> None:
+        """The model called end_call: this call ended because the agent decided it had."""
+        self._ended = ("agent_hung_up", "agent")
 
     # `by` is the agent unless somebody says otherwise: a supervisor's `end` verb is the one
     # caller of this that did not come from the agent's own turn, and call.ended must say so.
