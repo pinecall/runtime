@@ -59,6 +59,11 @@ class Golden(WireModel):
     # The caller's turns, in order. A one-turn golden writes one string; the field is a list
     # because a conversation with an event in the middle of it needs a middle.
     input: list[str] = Field(default_factory=list[str])
+    # What memory already holds about this caller when the call opens, in the words a fact is
+    # written in. A golden that seeds one is asking the question the whole feature exists for —
+    # does the agent USE what it remembered — and it never touches the memory table: the facts
+    # are answered to `recall` for this call and nothing is written down.
+    memory: list[str] = Field(default_factory=list[str])
     events: list[EventStep] = Field(default_factory=list[EventStep])
     # The day the call happens on, as the model is told it. A golden that names a weekday pins the
     # one it means, so it reads the same in September and in a year; without it the day is today's.
