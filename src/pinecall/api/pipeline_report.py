@@ -11,8 +11,8 @@ from pinecall.providers.overrides import Overridden
 from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS, vendor_running
 from pinecall.providers.registry import KEY_OF, NO_KEY
 from pinecall.providers.tts.voices import voice_names
-from pinecall.types import AgentConfig, Model, Voice
-from pinecall_protocol import WireModel
+from pinecall.types import AgentConfig, Greeting, Model, Voice
+from pinecall_protocol import WireModel, defs
 
 # How many of the agent's calls the medians are taken over. Enough that one bad morning does not
 # read as the pipeline's normal, few enough that the door answers while a person is looking at it.
@@ -43,7 +43,10 @@ class Report(WireModel):
     hears: Stage
     decides: Stage
     speaks: Stage
-    greeting: str | None
+    # The class's own opening, in the wire's shape: the screen must be able to say whether
+    # this agent reads words out or tells the model to find its own, because the knob below
+    # only ever sets words and would otherwise look like it changed nothing.
+    greeting: defs.GreetingConfig | None
     overrides: Overridden
     # The names the voice knob may be turned to, read off the one table: a screen that offered a
     # free text box let an operator paste an id no vendor knows, which ends a line and not a form.
@@ -74,7 +77,7 @@ async def report(
         hears=hears,
         decides=decides,
         speaks=speaks,
-        greeting=config.greeting,
+        greeting=_on_the_wire(config.greeting),
         overrides=turned,
         voices=list(voice_names()),
         calls=len(calls),
@@ -85,6 +88,15 @@ async def report(
         unavailable_reasons=_unavailable(
             {"hears": hears, "decides": decides, "speaks": speaks}, settings
         ),
+    )
+
+
+def _on_the_wire(greeting: Greeting | None) -> defs.GreetingConfig | None:
+    """The opening as the console reads it: the same two fields the class declared."""
+    if greeting is None:
+        return None
+    return defs.GreetingConfig(
+        say=greeting.say, reply=greeting.reply, allow_interruptions=greeting.allow_interruptions
     )
 
 

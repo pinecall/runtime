@@ -11,11 +11,11 @@ from datetime import date
 from pathlib import Path
 from typing import Protocol
 
-from livekit.agents import NOT_GIVEN, JobContext
+from livekit.agents import NOT_GIVEN, JobContext, NotGivenOr
 from livekit.agents.voice import Agent, AgentSession
 from livekit.agents.voice.room_io import RoomOptions
 
-from pinecall.session import clock
+from pinecall.session import clock, greeting
 from pinecall.session.voice import session
 from pinecall.session.voice.kit import Kit
 from pinecall.session.voice.platform import Platform
@@ -108,10 +108,42 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
         record=recordings.AUDIO_ONLY if recording is not None else False,
     )
     logger.info("the pipeline is live %.2fs after the job arrived", time.monotonic() - began)
+    # The opening, before the queue is served, because it is the FIRST thing said: a class that
+    # declared a greeting speaks now, and whatever the app sent while the room was being joined
+    # arrives after it. Its turn is a turn.agent like any other; nothing here is special-cased.
+    await greeting.open_the_call(config.greeting, say=_saying(live), reply=_replying(live))
     # Last: an `agent.say` has a started session to say it on. Everything the app sent before this
     # waits in the gateway's queue and arrives in the order it was sent.
     commands = asyncio.ensure_future(commanding.served(worker.gateway, bridge, context.call))
     ctx.add_shutdown_callback(letting_go(commands))
+
+
+# The same two calls session/voice/commands.py makes for agent.say and agent.reply, handed to the
+# greeting as a pair. livekit's own default for allow_interruptions is NOT_GIVEN, and a greeting
+# that says nothing about it must reach the session as undeclared rather than as a guess.
+def _saying(live: AgentSession[None]) -> greeting.Speaks:
+    """The verbatim verb: the words, out loud, with no model in the loop."""
+
+    async def said(text: str, interruptible: bool | None) -> None:
+        live.say(text, allow_interruptions=_or_livekits(interruptible))
+
+    return said
+
+
+def _replying(live: AgentSession[None]) -> greeting.Speaks:
+    """The improvised verb: one model turn, guided by words the caller never hears."""
+
+    async def replied(instructions: str, interruptible: bool | None) -> None:
+        live.generate_reply(
+            instructions=instructions, allow_interruptions=_or_livekits(interruptible)
+        )
+
+    return replied
+
+
+def _or_livekits(interruptible: bool | None) -> NotGivenOr[bool]:
+    """Undeclared is not False: an absent flag leaves the session's own default in place."""
+    return NOT_GIVEN if interruptible is None else interruptible
 
 
 # Decided before the session exists, so the bridge is born knowing the pointer call.summary will

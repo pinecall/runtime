@@ -155,7 +155,12 @@ def test_a_configure_says_which_fields_changed(gateway: TestClient) -> None:
             a_frame(
                 "agent.configure",
                 "clinica-norte",
-                {"config": {"greeting": "Clínica Norte, buenos días.", "language": "es-ES"}},
+                {
+                    "config": {
+                        "greeting": {"say": "Clínica Norte, buenos días."},
+                        "language": "es-ES",
+                    }
+                },
             )
         )
         entry = socket.receive_json()

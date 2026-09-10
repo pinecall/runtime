@@ -13,7 +13,7 @@ from pinecall.providers.registry import NoProvider, Vendors
 from pinecall.providers.stt import VENDORS as STT_VENDORS
 from pinecall.providers.tts.elevenlabs import a_model
 from pinecall.providers.tts.voices import voice_declared
-from pinecall.types import AgentConfig, DeclarationRefused, Model, Voice
+from pinecall.types import AgentConfig, DeclarationRefused, Greeting, Model, Voice
 from pinecall_protocol import WireModel
 
 # convo ms-14: an empty voice reached the vendor and a whole line of calls went out silent, because
@@ -59,13 +59,23 @@ class Overridden(WireModel):
         """What the app declared with these knobs turned: what the next session is built on."""
         return dataclasses.replace(
             config,
-            greeting=self.greeting or config.greeting,
+            greeting=self._greeting(config.greeting),
             voice=self._voice(config.voice),
             stt=self._model("stt", STT_VENDORS, self.stt, config.stt, DEFAULT_STT),
             llm=self._model("llm", LLM_VENDORS, self.llm, config.llm, DEFAULT_VENDOR),
         )
 
     # ── one knob at a time ──────────────────────────────────────────────────────
+
+    # An operator turning this knob types a sentence, so a turned greeting is always the words
+    # themselves — which is also how you stop a class that improvises its opening from doing it
+    # tonight, without a deploy. Going back to what the class declared is leaving the field out.
+    def _greeting(self, declared: Greeting | None) -> Greeting | None:
+        """The opening: the operator's words when the knob is turned, the class's when it is not."""
+        if self.greeting is None:
+            return declared
+        keeps = declared.allow_interruptions if declared else None
+        return Greeting(say=self.greeting, allow_interruptions=keeps)
 
     def _refuse_a_blank(self) -> None:
         """A knob that is there but empty is the bug this door exists to refuse."""

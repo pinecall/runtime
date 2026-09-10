@@ -3,7 +3,7 @@
 import pytest
 
 from pinecall.providers.declaration import changed_by, configured
-from pinecall.types import AgentConfig, Docs, KnowledgeFile, MemoryPolicy
+from pinecall.types import AgentConfig, Docs, Greeting, KnowledgeFile, MemoryPolicy
 from pinecall_protocol import defs
 
 pytestmark = pytest.mark.unit
@@ -31,9 +31,9 @@ def test_a_configure_that_leaves_the_three_out_keeps_what_the_agent_declared_bef
         CLARA,
         defs.AgentConfig.model_validate({"docs": {"base": "clinica-norte"}}),
     )
-    after = configured(before, defs.AgentConfig.model_validate({"greeting": "Hola."}))
+    after = configured(before, defs.AgentConfig.model_validate({"greeting": {"say": "Hola."}}))
     assert after.docs == Docs(base="clinica-norte")
-    assert after.greeting == "Hola."
+    assert after.greeting == Greeting(say="Hola.")
 
 
 def test_the_three_sent_as_null_clear_what_was_declared() -> None:

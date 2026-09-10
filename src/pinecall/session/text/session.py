@@ -15,7 +15,7 @@ from pinecall.log.entry import Entry
 from pinecall.log.logs import CallLog
 from pinecall.providers import prices
 from pinecall.providers.models import Chat
-from pinecall.session import clock
+from pinecall.session import clock, greeting
 from pinecall.session.declaring import declared
 from pinecall.session.knowing import a_line_for_the_file_it_ships_with
 from pinecall.session.lookups import Lookup, NoLookup, TurnLookups
@@ -151,6 +151,14 @@ class TextSession:
         }
         await self.emit("call.started", CallStarted.model_validate(started))
         await a_line_for_the_file_it_ships_with(self._blocks, self.emit)
+        # After call.started, so the opening is a turn INSIDE the call and not before it. A
+        # written turn cannot be cut short, so the flag a spoken greeting carries is dropped here
+        # rather than pretended at: nobody is talking over anybody in a chat.
+        await greeting.open_the_call(
+            self.config.greeting,
+            say=lambda text, _interruptible: self.say(text),
+            reply=lambda instructions, _interruptible: self.reply(instructions),
+        )
 
     async def hangup(self, reason: defs.EndReason, by: EndedBy) -> None:
         """The last three entries of the call, then the log is sealed. Twice is once."""

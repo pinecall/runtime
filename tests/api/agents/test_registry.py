@@ -5,7 +5,7 @@ import pytest
 from pinecall.api.agents.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
-from pinecall.types import DeclarationRefused
+from pinecall.types import DeclarationRefused, Greeting
 from pinecall.types.channel import Channel
 from pinecall_protocol import defs
 
@@ -65,11 +65,15 @@ async def test_a_re_register_on_the_same_socket_keeps_what_the_agent_declared() 
     """The app is correcting its doors, not forgetting who it is."""
     registry = Registry(Logs(MemoryStore()))
     await registry.register(A_SOCKET, "madrid", "clinica-norte", [a_door("web")])
-    await registry.configure(A_SOCKET, "clinica-norte", defs.AgentConfig(greeting="Clínica Norte."))
+    await registry.configure(
+        A_SOCKET,
+        "clinica-norte",
+        defs.AgentConfig(greeting=defs.GreetingConfig(say="Clínica Norte.")),
+    )
     await registry.register(A_SOCKET, "madrid", "clinica-norte", [a_door("phone", A_NUMBER)])
     held = registry.of("clinica-norte")
     assert held is not None
-    assert held.config.greeting == "Clínica Norte."
+    assert held.config.greeting == Greeting(say="Clínica Norte.")
     assert registry.at("web", None) is None
 
 
@@ -77,12 +81,14 @@ async def test_a_configure_only_changes_the_fields_the_app_sent() -> None:
     registry = Registry(Logs(MemoryStore()))
     await registry.register(A_SOCKET, "madrid", "clinica-norte", [a_door("web")])
     await registry.configure(
-        A_SOCKET, "clinica-norte", defs.AgentConfig(greeting="Buenos días.", language="es-ES")
+        A_SOCKET,
+        "clinica-norte",
+        defs.AgentConfig(greeting=defs.GreetingConfig(say="Buenos días."), language="es-ES"),
     )
     entry = await registry.configure(A_SOCKET, "clinica-norte", defs.AgentConfig(language="es-UY"))
     held = registry.of("clinica-norte")
     assert held is not None
-    assert (held.config.greeting, held.config.language) == ("Buenos días.", "es-UY")
+    assert (held.config.greeting, held.config.language) == (Greeting(say="Buenos días."), "es-UY")
     assert entry.data["changed"] == ["language"]
 
 
@@ -90,7 +96,9 @@ async def test_the_agents_own_log_carries_both_the_register_and_the_configure() 
     store = MemoryStore()
     registry = Registry(Logs(store))
     await registry.register(A_SOCKET, "madrid", "clinica-norte", [a_door("web")])
-    await registry.configure(A_SOCKET, "clinica-norte", defs.AgentConfig(greeting="Hola."))
+    await registry.configure(
+        A_SOCKET, "clinica-norte", defs.AgentConfig(greeting=defs.GreetingConfig(say="Hola."))
+    )
     written = await store.agent_since("clinica-norte")
     assert [entry.type for entry in written] == ["agent.registered", "agent.configured"]
     assert [entry.seq for entry in written] == [1, 2]
@@ -176,11 +184,15 @@ async def test_the_socket_that_joins_starts_from_what_the_agent_already_declared
     """The window between its register and its configure is a round trip; a call can land in it."""
     registry = Registry(Logs(MemoryStore()))
     await registry.register(A_SOCKET, "madrid", "clinica-norte", [a_door("web")])
-    await registry.configure(A_SOCKET, "clinica-norte", defs.AgentConfig(greeting="Clínica Norte."))
+    await registry.configure(
+        A_SOCKET,
+        "clinica-norte",
+        defs.AgentConfig(greeting=defs.GreetingConfig(say="Clínica Norte.")),
+    )
     await registry.register(ANOTHER_SOCKET, "madrid", "clinica-norte", [a_door("web")])
     held = registry.of("clinica-norte")
     assert held is not None
-    assert held.config.greeting == "Clínica Norte."
+    assert held.config.greeting == Greeting(say="Clínica Norte.")
 
 
 async def test_a_socket_correcting_its_own_doors_keeps_its_place_among_the_holders() -> None:

@@ -10,7 +10,9 @@ from pinecall.log.store import MemoryStore
 from pinecall.providers.overrides import BLANK, NOT_RUN_HERE
 from pinecall.providers.tts.elevenlabs import DEFAULT_MODEL
 from pinecall.providers.tts.voices import VOICES, known_voices, voice_names
+from pinecall.types import Greeting
 from pinecall.worker.client import Gateway
+from pinecall_protocol import defs
 from tests.api.conftest import AGENT, PIPELINE, PIPELINE_KNOBS
 from tests.api.pipeline.conftest import declared
 
@@ -37,7 +39,11 @@ async def test_the_pipeline_names_the_vendor_each_of_the_three_stages_runs(
         "elevenlabs",
         "a-declared-voice",
     )
-    assert said["greeting"] == "Clínica Norte, buenas."
+    assert said["greeting"] == {
+        "say": "Clínica Norte, buenas.",
+        "reply": None,
+        "allow_interruptions": None,
+    }
 
 
 async def test_the_medians_are_taken_over_every_turn_of_the_agents_last_calls(
@@ -90,6 +96,17 @@ async def test_a_voice_no_one_curated_is_refused_in_the_tables_own_sentence(
     assert config.voice.voice_id == "a-declared-voice"
 
 
+# The knob is a text box, so what an operator types is always the words themselves. Turning it on
+# an agent that improvises its opening is how you stop it improvising tonight, without a deploy.
+async def test_the_greeting_knob_turns_an_improvised_opening_into_the_words_typed(
+    fleet_http: httpx.AsyncClient, registry: Registry, worker_gateway: Gateway
+) -> None:
+    await declared(registry, greeting=defs.GreetingConfig(reply="saluda y preséntate"))
+    await fleet_http.put(PIPELINE_KNOBS, json={"greeting": "Buenas, Clínica Norte."})
+    config = await worker_gateway.agent(AGENT)
+    assert config.greeting == Greeting(say="Buenas, Clínica Norte.")
+
+
 async def test_the_pipeline_door_offers_the_names_the_table_curates_and_no_second_list(
     fleet_http: httpx.AsyncClient, registry: Registry
 ) -> None:
@@ -107,7 +124,7 @@ async def test_a_knob_left_out_of_the_next_body_goes_back_to_what_the_app_declar
     config = await worker_gateway.agent(AGENT)
     assert config.voice is not None
     assert config.voice.voice_id == "a-declared-voice"
-    assert config.greeting == "Buenas, Clínica Norte."
+    assert config.greeting == Greeting(say="Buenas, Clínica Norte.")
 
 
 # convo ms-14: an empty voice reached the vendor and a line of calls went out silent.
