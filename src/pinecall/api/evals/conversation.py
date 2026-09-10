@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
@@ -116,7 +117,11 @@ def an_eval_call(
     # budgets, so `docs.sources` is on the run's log for the grounded judge to read.
     return TextSession(
         context,
-        config,
+        # A golden is one turn under the state it declares, not a call from the top: it seeds
+        # the conversation that already happened, so nobody opens with a greeting on top of it.
+        # An agent's opening is exercised where a caller actually arrives — a live call, `chat`,
+        # `simulate` — and judged there by ring 4.
+        dataclasses.replace(config, greeting=None),
         logs.writing(call, config.slug),
         llm,
         # A golden that seeds `memory` answers its own facts to `recall` and nothing else moves:
