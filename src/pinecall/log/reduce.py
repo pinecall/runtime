@@ -4,7 +4,7 @@ from collections.abc import Callable, Iterable
 from typing import Any
 
 from pinecall.log import room
-from pinecall_protocol import WireModel, events, metrics
+from pinecall_protocol import ProtocolError, WireModel, events, metrics
 from pinecall_protocol.codec import encode, event_of
 from pinecall_protocol.defs import ToolResult
 from pinecall_protocol.envelope import Entry
@@ -83,11 +83,46 @@ def initial_state() -> State:
     return State.model_validate(nothing_known)
 
 
+# What a reader says about an entry it cannot read, in the log's own errors list.
+UNREADABLE = "unreadable"
+NOT_THIS_SHAPE = "{type} at seq {seq} is not the shape this reader knows: {why}"
+
+
+# A log outlives the shape of the entries in it: a call recorded before a field was renamed is
+# still in the table, and a reader that refuses it refuses the whole call with it. So an entry
+# this reader cannot validate is one line of the errors list and nothing more — the fold goes on,
+# and the state says out loud which seq it could not read. The TypeScript and Ruby reducers do
+# the same, because the three of them fold one golden log into one state.
+def _unreadable(state: State, entry: Entry, why: Exception) -> State:
+    """Record an entry no reader of this version can parse, and keep folding."""
+    state.errors.append(
+        LoggedError(
+            seq=entry.seq,
+            code=UNREADABLE,
+            message=NOT_THIS_SHAPE.format(type=entry.type, seq=entry.seq, why=_one_line(why)),
+        )
+    )
+    return state
+
+
+def _one_line(why: Exception) -> str:
+    """A validation error is many lines; the log carries the first, which names the field."""
+    return str(why).split("\n", 1)[0].strip()
+
+
 # A gap that carries a snapshot replaces the state outright: that is what the snapshot is for.
 # Every other entry mutates in place. Either way the seq moves to the entry's.
 def apply(state: State, entry: Entry) -> State:
     """One entry folded in. Returns the state to keep going with."""
-    data = event_of(entry)
+    try:
+        data = event_of(entry)
+    except ProtocolError as why:
+        state = _unreadable(state, entry, why)
+        state.seq = entry.seq
+        state.agent = entry.agent
+        if entry.call is not None:
+            state.call = entry.call
+        return state
     if isinstance(data, events.LogGap):
         state = _on_log_gap(state, data)
     elif entry.type in HANDLERS:
