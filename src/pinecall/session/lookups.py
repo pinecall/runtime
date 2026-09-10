@@ -221,6 +221,8 @@ class TurnLookups:
             if isinstance(answer, BaseException):
                 skipped.append(_skipped(tool, str(answer) or type(answer).__name__))
                 continue
+            if not _found_anything(answer):
+                continue
             items.extend(self._a_pair(tool, arguments_for(tool, query, self._contact), answer))
         self._items = tuple(items)
         return tuple(skipped)
@@ -250,6 +252,22 @@ class TurnLookups:
                 reply_required=False,
             ),
         )
+
+
+# A lookup that found nothing carries nothing, and it must not be in the request at all.
+#
+# Measured 2026-09-11 on clinica-norte, replaying a run's own recorded requests: with the empty
+# pairs in, `ofrece-las-horas-del-martes` called freeSlots 0 times in 8 and `identifica-al-paciente`
+# called findPatient 0 in 6. With them out, every other byte identical, 8 of 8 and 6 of 6. Two
+# tool rounds that answered `{"facts": []}` and `{"chunks": []}` sit between the caller's words and
+# the view, and a model that has just made two calls and found nothing writes an answer instead of
+# making a third. The caller's own sentence ends up five messages back from the end of the request.
+#
+# The tools stay declared, so a turn that really wants to ask can ask, and the log is untouched:
+# what a lookup did is written by the service that ran it (lookups/entries.py), never by the pair.
+def _found_anything(output: Mapping[str, Any]) -> bool:
+    """Whether a lookup came back with something. `{"facts": []}` is not context; it is noise."""
+    return any(bool(value) for value in output.values())
 
 
 def _skipped(tool: PlatformTool, why: str) -> ErrorEvent:
