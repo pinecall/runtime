@@ -2,7 +2,9 @@
 
 Everything a laptop needs to carry a call end to end, in one compose file. Nothing here is
 a product decision: it is the same five services a self-hosted box runs, pinned and small
-enough to fit on a machine that is also running an editor.
+enough to fit on a machine that is also running an editor. There, `tei` is a Quadlet unit and
+the box runs it only where it embeds on the machine rather than at a vendor (`box/README.md`,
+"The embedder"); the other four it always runs, on the same images as these.
 
 ```
 docker compose -f infra/compose/dev.yml up -d          the five services
@@ -128,5 +130,5 @@ Every other image in the stack is multi-arch.
 
 ---
 
-The box — the same five services on a machine a stranger can telephone, declared rather than
-scripted — is `infra/box/README.md`.
+The box — the same five services on a machine a stranger can telephone, the embedder being the
+one it may not want, declared rather than scripted — is `infra/box/README.md`.

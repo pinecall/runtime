@@ -1,0 +1,5 @@
+# The model's weights and nothing else: ~2.3 GB of bge-m3, fetched on the embedder's first start
+# and kept, so a restart costs seconds. Nothing in it is a tenant's, and losing it costs one
+# download — a box that stops embedding here keeps it until somebody types `podman volume rm`.
+[Volume]
+VolumeName=pinecall-tei

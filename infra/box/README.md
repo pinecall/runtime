@@ -1,7 +1,8 @@
 # The box
 
 The same five services as the dev stack (`../README.md`), on a machine a stranger can
-telephone — and declared rather than scripted.
+telephone — and declared rather than scripted. Four of the five are on every box; the fifth,
+the embedder, is a choice, and "The embedder" below is where it is made.
 
 This directory is a box **declared**: every file in it is one thing systemd, podman, Caddy or
 nftables reads, and there is no script. A fresh machine on any provider — a cloud that takes
@@ -17,7 +18,8 @@ infra/box/
 ├── sysusers.d/pinecall.conf   the service user
 ├── tmpfiles.d/pinecall.conf   every directory, with its owner and mode
 ├── nftables.conf              the fence, on the host: 5060 to the carrier and to nobody else
-├── containers/                the media plane as Quadlet units: redis · livekit · sip · postgres
+├── containers/                the media plane as Quadlet units: redis · livekit · sip · postgres,
+│                              and tei where the box embeds here rather than at a vendor
 ├── livekit.yaml · sip.yaml    what the two LiveKit containers mount
 ├── pinecall-secrets.service   the box's own secrets, drawn once, encrypted by systemd
 ├── pinecall-postgres-image.service   our Postgres image, built once per tag
@@ -90,8 +92,9 @@ sudo systemctl restart pinecall-gateway pinecall-worker    # they read their cre
 ```
 
 The names are the environment's own — `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SONIOX_API_KEY`,
-`DEEPGRAM_API_KEY`, `ELEVEN_API_KEY`, `WHATSAPP_ACCESS_TOKEN` — and each unit lists, by name,
-which of them it may see.
+`DEEPGRAM_API_KEY`, `ELEVEN_API_KEY`, `WHATSAPP_ACCESS_TOKEN`, and `PERPLEXITY_API_KEY` or
+`OPENROUTER_API_KEY` on a box that embeds at a vendor ("The embedder" below) — and each unit
+lists, by name, which of them it may see. The embedder's two are the gateway's alone.
 
 **The box holds no credential for the repository.** It cannot clone and it cannot fetch; the code
 is pushed to it by a person at a checkout, with `make deploy` — rsync, ssh, make and curl, and
@@ -105,7 +108,8 @@ One machine runs everything (`PINECALL_ROLE=all`, the default). The day the work
 machine of its own, the same directory stands up two: the **hub** — control plane and media
 plane, no worker — and a **worker**, which dials the hub by name and holds nothing but calls.
 The role is one line of `/etc/pinecall/box.env`, and the Makefile enables each role's units and
-disables the others', so a box that changes role changes it on its next deploy.
+disables the others', so a box that changes role changes it on its next deploy. The embedder is
+decided in the same file by the same rule — "The embedder", below.
 
 A worker box needs three things the hub does not put in its unit: where the SFU and the gateway
 are, and how many calls it holds.
@@ -119,8 +123,8 @@ PINECALL_MAX_JOBS=5                        # measured on THIS machine type — s
 
 And its own credentials, and no others: the LiveKit keypair and the vendors' keys copied from
 the hub (`box secret`, from stdin, over ssh), and a `PINECALL_API_KEY` issued there with
-`keys issue`. Never `DATABASE_URL`, never the ops key, never the vault key: a worker has no
-database and guards nothing.
+`keys issue`. Never `DATABASE_URL`, never the ops key, never the vault key, and never an
+embedder's: a worker has no database, guards nothing, and embeds nothing.
 
 It needs no port open but ssh. It registers by an outbound WebSocket, LiveKit hands it jobs on
 that socket, and the media goes to the hub's public UDP port. `nftables.conf` is the same file
@@ -141,6 +145,50 @@ tolerance is one call, never more.
 
 A fleet is summed in slots: `free = Σ(max − active)` over the workers that are up. That is the
 number a person watches and the number a loop scales on — never a CPU.
+
+## The embedder
+
+A hub turns text into vectors twice: a knowledge push embeds every chunk of a tenant's files, and
+a turn embeds the caller's sentence to find the few that answer it. There are two honest ways to
+have that, and one line of `/etc/pinecall/box.env` — beside `PINECALL_ROLE`, read by the manifest
+in the same way — chooses between them.
+
+| `EMBED_PROVIDER` | what it is | what it costs |
+|---|---|---|
+| `tei`, the default | `pinecall-tei`, a container beside the other four, serving `BAAI/bge-m3` | 2.3 GB of weights, a couple of gigabytes of RAM, and no key at all |
+| `perplexity` · `openrouter` | a vendor's door — Perplexity's is contextual, a chunk embedded while the model saw the file around it | one API key, in the credstore like every other, and every push leaves the building |
+
+`make install` puts `pinecall-tei.container` under Quadlet only where the box asked for it, and
+stops the container and takes the file away where it did not, so a changed line takes effect on
+the next deploy. **A worker never runs it and needs none**: it holds calls, and every marker in
+them is filled by the gateway on the hub. The container publishes on `127.0.0.1:8081` and nowhere
+else, exactly as Postgres does — the gateway is a process on the host and reaches it over
+loopback — so the fence has no line about the embedder and nothing outside can ask it anything.
+
+**The first start is minutes**: a cold box fetches those 2.3 GB before the port answers at all,
+which is why the unit's health start period is fifteen. Nothing waits for it — the gateway reaches
+the embedder lazily — so the box answers the telephone throughout, and what a call loses meanwhile
+is a filled marker, written into the log as `retrieval_skipped`, while a knowledge push answers
+503 and says so. Afterwards the weights live in the `pinecall-tei` volume and a restart is
+seconds; they are **not** removed with the unit, so a box that will not come back frees them by
+hand: `podman volume rm pinecall-tei`.
+
+Switching to a vendor, from the checkout — the key first, so the box is never configured for a
+door it cannot open — and back again by emptying the same line:
+
+```bash
+printf '%s' 'pplx-…' | make secret NAME=PERPLEXITY_API_KEY
+make ssh                     # sudoedit /etc/pinecall/box.env → EMBED_PROVIDER=perplexity
+make deploy                  # which ends with the one command that proves it, `make doctor`:
+#  ✓ embedder  perplexity · pplx-embed-context-v1-0.6b — https://api.perplexity.ai/v1 — HTTP 200
+#  ✓ embedder  tei · BAAI/bge-m3 — http://127.0.0.1:8081/info — HTTP 200
+```
+
+On a **hub** that line is the verdict and not advice: a hub answers the knowledge pushes, so an
+embedder down there fails the deploy, naming what to type — `systemctl start pinecall-tei`, or
+`make secret NAME=…`. On a laptop, and on the `all` a fresh `box.env` declares, it stays advice:
+TEI has no arm64 image, so a Mac cannot run it and `EMBED_PROVIDER=perplexity` is how that
+machine retrieves.
 
 ## Where the secrets live
 
@@ -189,8 +237,9 @@ vendor's cheapest door, once. A key that expired or was pasted wrong fails the d
 there, with its **name** on the screen and never its value, instead of failing a caller: the
 first voice call through the second box, 2026-09-09, found an ElevenLabs key the hub had carried
 dead since its `.env` days. A worker box is asked after what a worker has — the keys, the SFU —
-and never after the hub's Postgres; an embedder that is down is printed as advice, since nothing
-in the tree embeds yet.
+and never after the hub's Postgres or its embedder, because a worker has neither. On a **hub**
+the embedder's line is the verdict, since a hub is what answers a knowledge push; anywhere else
+it is advice, and every call still runs. "The embedder", above.
 
 ## Four traps on a real box, one line each
 

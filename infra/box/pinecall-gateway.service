@@ -17,6 +17,11 @@ WorkingDirectory=/opt/pinecall/app
 Environment=LIVEKIT_URL=ws://127.0.0.1:7880
 Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
 Environment=PINECALL_RECORDINGS=/var/lib/pinecall/recordings
+# Where the embedder answers on this box: pinecall-tei publishes on loopback and nowhere else, as
+# Postgres does, because this process is on the HOST and resolves no container name. A box that
+# embeds at a vendor says EMBED_PROVIDER in box.env, read after this line and winning over it,
+# and then this address is asked for nothing at all.
+Environment=TEI_URL=http://127.0.0.1:8081
 # The two values that are this box's and nobody else's: its domain, and the public URL of its SFU.
 EnvironmentFile=/etc/pinecall/box.env
 # Every secret this process may see, by name, out of /etc/credstore.encrypted, decrypted by
@@ -31,6 +36,11 @@ ImportCredential=OPENAI_API_KEY
 ImportCredential=SONIOX_API_KEY
 ImportCredential=DEEPGRAM_API_KEY
 ImportCredential=ELEVEN_API_KEY
+# The embedder's two, and the gateway's alone: a worker embeds nothing. Only the one this box's
+# EMBED_PROVIDER names is ever read, and on a box that runs pinecall-tei neither of them is there
+# — a credential that is not in the credstore is simply absent, which is what `tei` means.
+ImportCredential=PERPLEXITY_API_KEY
+ImportCredential=OPENROUTER_API_KEY
 ImportCredential=WHATSAPP_ACCESS_TOKEN
 # Postgres up, then the schema, then the doors: `podman healthcheck run` answers non-zero until
 # the database takes a connection, and a failed pre-start is retried by Restart= below.
