@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, Protocol, cast
 
 from livekit.agents import llm as agents
@@ -14,6 +15,29 @@ from pinecall.session.declaring import ToolUse, declared
 from pinecall.types import AgentConfig, PlatformTool, platform_tools
 from pinecall.types.lookup import NOT_LOOKED_UP, PLATFORM_TOOLS, arguments_for, skipped_code
 from pinecall_protocol.events import ErrorEvent
+
+# How many words the caller has to have said before this turn's lookups are worth starting on what
+# they have said so far. Under it a turn is a greeting or an acknowledgement — "hola", "sí, claro",
+# "buenos días" — which no index has an answer for and which would cost an embed to find that out.
+# At four words a caller has been talking for over a second (Spanish runs near two and a half words
+# a second), which is longer than a lookup takes: 121 ms and 167 ms measured on a live call, 552 ms
+# on its worst turn. So the answer is back before they stop, which is the whole point.
+WORDS_ENOUGH_TO_SEARCH_WITH = 4
+
+# What one lookup hands back when it is run as a task nobody may be awaiting: what it found, or the
+# failure as a VALUE. A task whose exception is never retrieved warns at collection, and a turn
+# that gave up on its budget retrieves nothing.
+type Answered = Mapping[str, Any] | BaseException
+
+
+# One turn's lookups already in flight: the words they were asked with — the caller's so far, and
+# not their last — and one task per tool, in the order the tools are declared.
+@dataclass(frozen=True)
+class _Running:
+    """The lookups of the turn being spoken: what they were asked, and the tasks that answer."""
+
+    query: str
+    tasks: tuple[asyncio.Task[Answered], ...]
 
 
 class Lookup(Protocol):
@@ -70,6 +94,7 @@ class TurnLookups:
         self._items: tuple[agents.ChatItem, ...] = ()
         self._speech: str | None = None
         self._runs = 0
+        self._running: _Running | None = None
 
     @property
     def declared_tools(self) -> list[agents.Tool]:
@@ -81,26 +106,45 @@ class TurnLookups:
         """This turn's pairs, in the order they ran: the request carries them and holds none."""
         return self._items
 
-    # The whole caller turn is the query; a later card may ask on the eager partial transcript.
-    # A lookup never delays a reply past the budget: past it, or on any failure, no pair is added
-    # and the log says which tool did not run and why.
+    # The caller is still talking, and a lookup takes about as long as one phrase does. Started on
+    # the first interim that carries a real question, its answer is already here when the turn ends
+    # and the budget only ever covers a tail. Run at turn end instead, it spends the whole budget
+    # inside the caller's silence and then skips anyway — which is what a live call measured on
+    # every turn it had. ONE run per turn: a second start is a second embed of the same sentence,
+    # on the tenant's money. A written caller has no interim, so a text session never calls this.
+    #
+    # The run is bound to its turn by being CONSUMED there, and this runtime has no turn that never
+    # ends: it runs one agent per call and so never pauses livekit's scheduling (agent_activity.py
+    # :1254 is the drain), and a transcript too short to cut the agent off is retained by livekit
+    # and folded into the turn that does complete (:2477 and audio_recognition.py:1218).
+    def heard_so_far(self, said: str) -> None:
+        """What the caller has said so far: this turn's lookups start here, or not at all."""
+        tools = self._what_the_platform_runs
+        if self._running is not None or not tools:
+            return
+        if len(said.split()) < WORDS_ENOUGH_TO_SEARCH_WITH:
+            return
+        # No speech exists while the caller is still speaking — the reply's handle is created after
+        # the turn ends (agent_activity.py:2672) — which is what the turn-end path files under too.
+        self._running = self._a_run(tools, said, None)
+
+    # The query is the caller's words SO FAR when a run started on them, and their whole turn when
+    # none did. A prefix finds what the finished phrase finds — "cuánto cuesta una revi" ranks the
+    # same chunks as "cuánto cuesta una revisión", because both indexes rank by the words that ARE
+    # there — and re-asking on the final text would spend the half second this exists to save. The
+    # pair carries the words that were actually asked, so a reader of the log and the model both
+    # see the prefix and never a query nobody sent; and `search` stands declared either way, so a
+    # turn that changed its mind halfway can ask again in its own words.
     async def turn_ended(self, query: str, speech_id: str | None) -> tuple[ErrorEvent, ...]:
         """The lookups this declaration asks for before a turn; what did not run, as entries."""
         self._items = ()
         self._speech = speech_id
+        running, self._running = self._running, None
         tools = self._what_the_platform_runs
         if not tools:
             return ()
-        try:
-            answered = await asyncio.wait_for(
-                asyncio.gather(
-                    *(self._ran(tool, query, speech_id) for tool in tools), return_exceptions=True
-                ),
-                self._budget_ms / 1000,
-            )
-        except TimeoutError:
-            return tuple(_skipped(tool, f"no answer within {self._budget_ms} ms") for tool in tools)
-        return self._what_came_back(tools, query, answered)
+        run = running or self._a_run(tools, query, speech_id)
+        return self._what_came_back(tools, run.query, await self._within_the_budget(run.tasks))
 
     # livekit's own callable for a tool the MODEL chose: the same service, the same encoding, and
     # a failure the model reads in its own turn rather than a turn that never comes.
@@ -125,19 +169,50 @@ class TurnLookups:
             tools.append("search")
         return tuple(tools)
 
-    async def _ran(
-        self, tool: PlatformTool, query: str, speech_id: str | None
-    ) -> Mapping[str, Any]:
-        """One lookup the platform runs on the caller's words, straight from the service."""
-        return await self._lookup.lookup(
-            self._call, tool, arguments_for(tool, query, self._contact), speech_id
+    def _a_run(self, tools: Sequence[PlatformTool], query: str, speech_id: str | None) -> _Running:
+        """This turn's lookups, one task per tool, running from now on these words."""
+        return _Running(
+            query,
+            tuple(asyncio.create_task(self._ran(tool, query, speech_id)) for tool in tools),
         )
+
+    # The budget is what the CALLER waits, so it is measured from the moment their turn ended and
+    # never from the moment a run started: a lookup already back is read with no wait at all. It is
+    # per tool, so a recall back in 487 ms is used even when the search beside it took 1085 and is
+    # still out: a skip is written for the tool the model really got nothing from and for no other.
+    # A task still running when the budget expires is cancelled — nobody will read its answer, and
+    # the tenant should stop paying for it the moment that is true.
+    async def _within_the_budget(self, tasks: Sequence[asyncio.Task[Answered]]) -> list[Answered]:
+        """What each lookup answered by the end of the budget, and a timeout for what did not."""
+        pending = [task for task in tasks if not task.done()]
+        if pending:
+            await asyncio.wait(pending, timeout=self._budget_ms / 1000)
+        answered: list[Answered] = []
+        for task in tasks:
+            if task.done():
+                answered.append(task.result())
+                continue
+            task.cancel()
+            answered.append(TimeoutError(f"no answer within {self._budget_ms} ms"))
+        return answered
+
+    # The failure comes back as a value and is never raised: a run started while the caller was
+    # still speaking may finish after the turn gave up on it, and a task nobody awaits must leave
+    # its complaint in the log rather than at the garbage collector.
+    async def _ran(self, tool: PlatformTool, query: str, speech_id: str | None) -> Answered:
+        """One lookup the platform runs on the caller's words, straight from the service."""
+        try:
+            return await self._lookup.lookup(
+                self._call, tool, arguments_for(tool, query, self._contact), speech_id
+            )
+        except Exception as failed:  # noqa: BLE001 — a lookup must never break a turn
+            return failed
 
     def _what_came_back(
         self,
         tools: Sequence[PlatformTool],
         query: str,
-        answered: Sequence[Mapping[str, Any] | BaseException],
+        answered: Sequence[Answered],
     ) -> tuple[ErrorEvent, ...]:
         """The pairs this turn carries, and one entry per lookup that came back a failure."""
         items: list[agents.ChatItem] = []

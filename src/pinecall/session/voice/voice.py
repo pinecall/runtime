@@ -91,14 +91,16 @@ class VoiceBridge:
         self._budgets = budgets
         self.writing = Writing(platform, context.call)
         self.meters = Meters(self.writing)
-        self.events = Events(self.writing, self.meters, self)
+        # The platform's own two tools are declared beside the app's, so the model sees one list
+        # and the `tools` block describes one list: session/lookups.py. Built before the
+        # subscriber, which hands them every interim transcript so a lookup starts while the
+        # caller is still talking and the budget only ever covers what is left of it.
+        self.lookups = TurnLookups(
+            lookup, context.call, context.remembered_as, config, budgets.voice_lookup_ms
+        )
+        self.events = Events(self.writing, self.meters, self, self.lookups)
         self.tools = Tools(config, platform, context.call, self.writing.emit)
         self.blocks = Blocks(config.prompt, _the_file_it_ships_with(config))
-        # The platform's own two tools are declared beside the app's, so the model sees one list
-        # and the `tools` block describes one list: session/lookups.py.
-        self.lookups = TurnLookups(
-            lookup, context.call, context.remembered_as, config, budgets.lookup_ms
-        )
         self._agent = VoiceAgent(
             blocks=self.blocks,
             tools=[*self.tools.declared_tools, *self.lookups.declared_tools],

@@ -27,14 +27,30 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `search`. The class's declaration brings each one — `memory` brings `recall`, `docs` brings
   `search` — they stand in the request's `tools` array beside the app's own, and their answers
   reach the model as `tool_result` blocks, JSON-encoded. With `docs.mode = "retrieved"` (the
-  default) and whenever `memory` is declared, the session runs the lookup when the caller's turn
-  ends, under `PINECALL_LOOKUP_BUDGET_MS` (250), and puts a real `tool_use` / `tool_result` pair
-  into the request; with `docs.mode = "tool"` the model calls `search` itself. At hang-up the call
+  default) and whenever `memory` is declared, the session runs the lookup itself and puts a real
+  `tool_use` / `tool_result` pair into the request — on a spoken call started while the caller is
+  still talking, under `PINECALL_VOICE_LOOKUP_BUDGET_MS` (250), and on a written one at turn end
+  under `PINECALL_TEXT_LOOKUP_BUDGET_MS` (3000); with `docs.mode = "tool"` the model calls
+  `search` itself. At hang-up the call
   is remembered under `PINECALL_REMEMBER_BUDGET_S` (8.0). `AgentConfig` declares `knowledge`
   (`{path, text}`, the file's own words in a static block), `docs` and `memory`; the worker asks
   `POST /v1/calls/{call}/lookup` and `/remember`; TEI is the embedder (`providers/embed/tei.py`,
   refused by name when it is not 1024 wide). A lookup that did not run is an `error` entry
   (`recall_skipped`, `search_skipped`, `remember_failed`), recoverable, and the call goes on.
+- **A spoken call's lookups start while the caller is still talking.** `recall` and `search` ran
+  when the turn ended, inside the caller's silence, and on a live two-turn call every one of them
+  was skipped: the same door that answers in 111 ms with nothing else happening took up to 1085 ms
+  against the reply the session was already generating, and 250 ms of a telephone line is all a turn
+  can spend. Now the first interim transcript carrying four words starts the run
+  (`session/voice/events.py` → `TurnLookups.heard_so_far`), one per turn, asked with the caller's
+  words so far; the end of the turn collects it — nothing to wait for when it is back, its tail
+  under budget when it is not, the whole run when the turn was too short to have started one. The
+  budget is now per tool and per channel: `PINECALL_LOOKUP_BUDGET_MS` is gone, replaced by
+  `PINECALL_VOICE_LOOKUP_BUDGET_MS` (250, a tail on a line somebody is listening to) and
+  `PINECALL_TEXT_LOOKUP_BUDGET_MS` (3000, a whole lookup nobody hears), and a `recall` that answered
+  is used beside a `search` that did not. Measured at 250 ms over six two-turn calls each way, the
+  caller waited 125–251 ms per turn before and 0 ms on five turns of six after.
+  `docs/decisions/retrieval.md`.
 - Memory itself: `memory/` and `0008_memory.sql`. `PgvectorMemory` keeps a contact's facts in
   `contact_memories`, bi-temporally — an update is a new row that supersedes the old one, an
   invalidation an end date, nothing is deleted but by `forget`, the right to be forgotten.
@@ -81,8 +97,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   descriptions say what the content is and where it came from, their answers are JSON objects
   inside `tool_result` blocks, and the dynamic region of the prompt is the view and nothing else.
   `docs/security/prompt-injection.md` is the contract and is public. `filling/` is `lookups/`,
-  `PINECALL_FILL_BUDGET_MS` is `PINECALL_LOOKUP_BUDGET_MS`, and `memory_skipped` /
-  `retrieval_skipped` are `recall_skipped` / `search_skipped`.
+  `PINECALL_FILL_BUDGET_MS` is `PINECALL_VOICE_LOOKUP_BUDGET_MS` / `PINECALL_TEXT_LOOKUP_BUDGET_MS`,
+  and `memory_skipped` / `retrieval_skipped` are `recall_skipped` / `search_skipped`.
 - **A tenant brings its own provider keys, with its own API key and no operator.**
   `PUT /v1/provider-keys/{vendor}` · `GET /v1/provider-keys` · `DELETE /v1/provider-keys/{vendor}`
   take no org — the key IS the org — and the listing is vendor names and never a value. The vault,

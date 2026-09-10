@@ -114,6 +114,13 @@ default) the platform calls them before the turn; with `docs.mode = "tool"` the 
 when it decides to. Either way there is a real `tool_use` and a real `tool_result`, so the call's
 log shows a call that actually happened.
 
+On a spoken call the platform starts them while the caller is still speaking, so that the answer is
+there when the turn ends rather than half a second of silence after it. The query is then the words
+the caller had said so far — `¿Cuánto cuesta una revisión` for a turn that ended `¿Cuánto cuesta una
+revisión dental?` — and **the `tool_use` carries the words that were actually sent**, never the
+finished sentence: a tenant reading their own log sees the query their knowledge base was asked, and
+so does the model. `docs/decisions/retrieval.md` has the measurements.
+
 When the platform runs one it fabricates the pair itself, and the pair is real in livekit's terms:
 the `tool_use` and the `tool_result` carry the same `call_id`, which is what the formatter groups
 them by, and a half it cannot match it drops — a model would then read a `tool_use` no result ever

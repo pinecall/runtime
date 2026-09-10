@@ -128,7 +128,7 @@ async def test_a_lookup_past_its_budget_is_a_recoverable_entry_and_the_turn_goes
         FakeLLM(),
         Answering(after_s=0.5),
         config=replace(REMEMBERS, docs=None),
-        budgets=Budgets(lookup_ms=0, remember_s=1.0),
+        budgets=Budgets(text_lookup_ms=0, remember_s=1.0),
     )
     await session.start()
     await session.set_prompt("view", A_VIEW)

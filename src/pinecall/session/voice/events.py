@@ -52,16 +52,26 @@ class Ending(Protocol):
         """End this call as an error, naming what will not change however often it is asked."""
 
 
+class Listening(Protocol):
+    """Who is handed the caller's words while they are still saying them: this turn's lookups."""
+
+    def heard_so_far(self, said: str) -> None:
+        """The interim transcript of the turn being spoken, for whoever can start work on it."""
+
+
 # One subscriber per session, holding nothing but the last thing it needs to join two facts: the
 # language the recogniser reported, and the speech the reply in flight belongs to. Everything else
 # is on the event itself, which is the whole reason this file is short.
 class Events:
     """The session's events, turned into entries in the order livekit produced them."""
 
-    def __init__(self, writing: Writing, meters: Meters, ending: Ending) -> None:
+    def __init__(
+        self, writing: Writing, meters: Meters, ending: Ending, listening: Listening
+    ) -> None:
         self._writing = writing
         self._meters = meters
         self._ending = ending
+        self._listening = listening
         self._dead_end = False
         self._live: AgentSession[None] | None = None
         self._language: str | None = None
@@ -93,6 +103,10 @@ class Events:
 
     # ── the caller ──────────────────────────────────────────────────────────────
 
+    # The interim goes on to the lookups as well as into the log: this is the one moment the
+    # platform hears the caller mid-sentence, and starting recall and search HERE is what keeps
+    # them off the turn's own clock (session/lookups.py:heard_so_far). Nothing else is done with
+    # it — the run is the lookups' to own, start to finish.
     def transcribed(self, event: session_events.UserInputTranscribedEvent) -> None:
         """user.transcript: what the recogniser hears, interim and final. Interim is ephemeral."""
         self._language = event.language or self._language
@@ -102,6 +116,8 @@ class Events:
             language=event.language,
         )
         self._writing.later("user.transcript", said, ephemeral=not event.is_final)
+        if not event.is_final:
+            self._listening.heard_so_far(event.transcript)
 
     def user_state(self, event: session_events.UserStateChangedEvent) -> None:
         """user.state: the platform's belief about what the person on the line is doing."""
