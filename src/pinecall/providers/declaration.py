@@ -11,6 +11,7 @@ from pinecall.types import (
     DEFAULT_LAYOUT,
     AgentConfig,
     Docs,
+    Greeting,
     Hangup,
     KnowledgeFile,
     MemoryPolicy,
@@ -81,7 +82,7 @@ def _sent(wire: defs.AgentConfig) -> dict[str, Any]:
     if "language" in sent:
         converted["language"] = wire.language
     if "greeting" in sent:
-        converted["greeting"] = wire.greeting
+        converted["greeting"] = _a_greeting(wire.greeting)
     if "voice" in sent:
         converted["voice"] = _a_voice(wire.voice)
     if "llm" in sent:
@@ -150,6 +151,14 @@ def _a_memory_policy(wire: defs.MemoryConfig | None) -> MemoryPolicy | None:
     if wire is None:
         return None
     return MemoryPolicy(remember=tuple(wire.remember), forget=tuple(wire.forget))
+
+
+# DeclarationRefused out of Greeting itself when neither verb or both were sent: the rule is one
+# rule, held by the shape, and this door only hands it the wire's own fields.
+def _a_greeting(wire: defs.GreetingConfig | None) -> Greeting | None:
+    if wire is None:
+        return None
+    return Greeting(say=wire.say, reply=wire.reply, allow_interruptions=wire.allow_interruptions)
 
 
 def _a_hangup(wire: defs.HangupConfig | None) -> Hangup | None:

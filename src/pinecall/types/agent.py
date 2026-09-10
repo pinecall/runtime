@@ -51,6 +51,28 @@ class Turn:
     endpointing_ms: int | None = None
 
 
+# The two verbs of agent.say and agent.reply, declared instead of called: the session runs one of
+# them the moment it opens, and a class that declares nothing here waits for the caller.
+GREETING_IS_ONE_VERB = (
+    "a greeting is one of two things: `say` the words, or `reply` what the model reads before "
+    "it finds its own. {said} — pick one."
+)
+
+
+@dataclass(frozen=True)
+class Greeting:
+    """How the agent opens a call: the words themselves, or the instruction the model answers."""
+
+    say: str | None = None
+    reply: str | None = None
+    allow_interruptions: bool | None = None
+
+    def __post_init__(self) -> None:
+        if (self.say is None) == (self.reply is None):
+            said = "both were declared" if self.say is not None else "neither was"
+            raise DeclarationRefused(GREETING_IS_ONE_VERB.format(said=said))
+
+
 # Declaring this is what puts livekit's own end_call in front of the model. A class that says
 # nothing here cannot hang up, and a call ends when the caller does or when a supervisor says so.
 @dataclass(frozen=True)
@@ -70,7 +92,7 @@ class AgentConfig:
     channels: frozenset[Channel] = frozenset()
     name: str | None = None
     prompt: tuple[PromptBlock, ...] = DEFAULT_LAYOUT
-    greeting: str | None = None
+    greeting: Greeting | None = None
     language: str | None = None
     voice: Voice | None = None
     llm: Model | None = None

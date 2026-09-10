@@ -3,6 +3,7 @@
 from pinecall.types.agent import (
     AgentConfig,
     EventSource,
+    Greeting,
     Hangup,
     Model,
     Turn,
@@ -68,6 +69,7 @@ __all__ = [
     "GateKind",
     "GateLine",
     "Grant",
+    "Greeting",
     "Hangup",
     "JsonObject",
     "KnowledgeFile",

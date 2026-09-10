@@ -25,14 +25,14 @@ async def fleet_http(worker_gateway: Gateway) -> AsyncIterator[httpx.AsyncClient
     await http.aclose()
 
 
-async def declared(registry: Registry) -> None:
+async def declared(registry: Registry, greeting: defs.GreetingConfig | None = None) -> None:
     """The clinic on air: an app socket holding it, with a voice and a model already declared."""
     await registry.register(AN_OWNER, A_RECORD.org, AGENT, [defs.Route(channel="web", number=None)])
     await registry.configure(
         AN_OWNER,
         AGENT,
         defs.AgentConfig(
-            greeting="Clínica Norte, buenas.",
+            greeting=greeting or defs.GreetingConfig(say="Clínica Norte, buenas."),
             language="es",
             voice=defs.VoiceConfig(provider="elevenlabs", voice_id="a-declared-voice"),
             llm=defs.ModelConfig(provider="anthropic", model="claude-haiku-4-5"),
