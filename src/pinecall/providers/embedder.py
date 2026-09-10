@@ -30,7 +30,7 @@ class WrongModel(PinecallError):
 
 
 # Raised with the vendor's name and its URL in the sentence, because the sentence is what the
-# log carries when a fill is skipped: "retrieval was not filled: TEI at … did not answer".
+# log carries when a lookup is skipped: "search did not run: TEI at … did not answer".
 class EmbedderUnreachable(PinecallError):
     """The embedder did not answer: nothing can be embedded, so nothing can be searched."""
 

@@ -18,8 +18,8 @@ from pinecall.api import _deps as whatsapp_graph
 from pinecall.api import _live as gateway_connected
 from pinecall.api._deps import (
     the_admission,
-    the_filling,
     the_knowledge,
+    the_lookups,
     the_memory,
     the_orgs,
     the_overrides,
@@ -33,11 +33,11 @@ from pinecall.api.whatsapp import threads as whatsapp_threads
 from pinecall.api.whatsapp.threads import Threads
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.scopes import KEY_PROJECTION, LivekitKeys, Reader
-from pinecall.filling import Filling
 from pinecall.knowledge import Knowledge
 from pinecall.log.snapshots import Snapshots
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
+from pinecall.lookups import Lookups
 from pinecall.memory import Memory
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.meter import Meter
@@ -180,7 +180,7 @@ def knowledge() -> Knowledge | None:
 
 
 @pytest.fixture
-def filling(
+def lookups(
     memory: Memory | None,
     knowledge: Knowledge | None,
     logs: Logs,
@@ -188,9 +188,9 @@ def filling(
     vault: Vault | None,
     orgs: MemoryOrgs,
     admission: Admission,
-) -> Filling:
+) -> Lookups:
     """The gateway's Filler and Rememberer, over this test's tables, logs, live calls and plan."""
-    return Filling(
+    return Lookups(
         memory,
         knowledge,
         logs,
@@ -265,7 +265,7 @@ def wired(
     threads: Threads,
     memory: Memory | None,
     knowledge: Knowledge | None,
-    filling: Filling,
+    lookups: Lookups,
 ) -> Iterator[None]:
     """The real app, its deps overridden for the length of one test."""
     app.dependency_overrides[deps.a_settings] = lambda: settings
@@ -286,7 +286,7 @@ def wired(
     app.dependency_overrides[whatsapp_threads.the_threads] = lambda: threads
     app.dependency_overrides[the_memory] = lambda: memory
     app.dependency_overrides[the_knowledge] = lambda: knowledge
-    app.dependency_overrides[the_filling] = lambda: filling
+    app.dependency_overrides[the_lookups] = lambda: lookups
     yield
     app.dependency_overrides.clear()
 

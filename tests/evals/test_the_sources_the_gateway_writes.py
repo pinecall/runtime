@@ -1,4 +1,4 @@
-"""Ring 4 reads `docs.sources` as the gateway writes it: a retrieved price is a grounded price."""
+"""Ring 4 reads `docs.sources` as the gateway writes it: a searched price is a grounded price."""
 
 from __future__ import annotations
 
@@ -6,13 +6,12 @@ import pytest
 
 from pinecall._settings import Settings
 from pinecall.evals.score import a_score
-from pinecall.types import markers_in
 from pinecall_protocol.events import Judgment
-from tests.filling.fakes import CALL, ScriptedKnowledge, a_chunk, a_config, a_served_call
+from tests.lookups.fakes import CALL, ScriptedKnowledge, a_chunk, a_config, a_served_call
 
 pytestmark = pytest.mark.unit
 
-(RETRIEVED,) = markers_in('<!-- retrieved: {"k":4} -->')
+SEARCHING = {"query": "¿cuánto cuesta la revisión?"}
 
 # The budget every unit test runs under: the grounded judge answers by code alone, off the log.
 NO_BUDGET = Settings(judge_ceiling_eur=0)
@@ -26,7 +25,7 @@ async def test_the_grounded_judge_finds_a_stated_price_in_the_sources_the_fill_w
         )
     )
     await served.heard("¿cuánto cuesta la revisión?")
-    await served.filling.fill(CALL, "¿cuánto cuesta la revisión?", [RETRIEVED], "sp_1")
+    await served.lookups.lookup(CALL, "search", SEARCHING, "sp_1")
     await served.said("La revisión son 45 €.")
 
     scored = await a_score(await served.log.whole(), a_config(), NO_BUDGET)
@@ -35,10 +34,10 @@ async def test_the_grounded_judge_finds_a_stated_price_in_the_sources_the_fill_w
     assert grounded.reason == "all 1 stated fact(s) appear in the evidence"
 
 
-async def test_a_price_the_fill_never_retrieved_is_still_ungrounded() -> None:
+async def test_a_price_the_search_never_found_is_still_ungrounded() -> None:
     served = a_served_call(knowledge=ScriptedKnowledge(answers=[]))
     await served.heard("¿cuánto cuesta?")
-    await served.filling.fill(CALL, "¿cuánto cuesta?", [RETRIEVED], "sp_1")
+    await served.lookups.lookup(CALL, "search", {"query": "¿cuánto cuesta?"}, "sp_1")
     await served.said("La revisión son 45 €.")
 
     scored = await a_score(await served.log.whole(), a_config(), NO_BUDGET)

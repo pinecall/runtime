@@ -36,7 +36,7 @@ WINDOW_TOKENS = 24_000
 FLAT = "/embeddings"
 CONTEXTUALIZED = "/contextualizedembeddings"
 
-# What a fill's error entry says when the embedder refuses: the vendor, the door, and the reason
+# What a lookup's error entry says when the embedder refuses: the vendor, the door, the reason
 # in the endpoint's own words when it gave any — a 400 that says `Invalid model` must not read
 # as a timeout.
 DID_NOT_ANSWER = "{vendor} at {url} did not answer: {why}"
@@ -151,7 +151,7 @@ class PerplexityEmbedder:
             )
         return vectors
 
-    # A connection refused, a timeout and a refusal are one fact to a fill — nothing can be
+    # A connection refused, a timeout and a refusal are one fact to a lookup — nothing can be
     # embedded — and the sentence carries the vendor, the door and, when the endpoint said
     # anything at all, the endpoint's own words.
     async def _asked(self, door: str, said: dict[str, Any]) -> Any:

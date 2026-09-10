@@ -12,8 +12,8 @@ router = APIRouter()
 
 
 # The history, not the current facts: every row memory ever held about this contact, the current
-# ones first, then what they superseded — with the two dates that bound each. What the marker
-# reads per turn is `recall`; this is what a person reads when the contact asks what is known.
+# ones first, then what they superseded — with the two dates that bound each. What a turn reads
+# is the `recall` tool; this is what a person reads when the contact asks what is known.
 @router.get("/v1/contacts/{contact}/memory")
 async def history(contact: str, key: KeyDep, memory: KeptMemoryDep) -> ContactMemory:
     """Everything memory ever kept about one contact of this org, current facts first."""

@@ -10,7 +10,7 @@ from pinecall.types import Chunk, KnowledgeFile
 from pinecall.types.knowledge import DEFAULT_CHUNKS_PER_TURN
 
 
-# What the doors and the fill hold: the verbs, never the table. PgKnowledge is the one
+# What the doors and a lookup hold: the verbs, never the table. PgKnowledge is the one
 # implementation in the tree; a test hands the service a fake of this shape and no Postgres.
 class Knowledge(Protocol):
     """The knowledge base as a turn and a push see it: put, bases, drop, search."""

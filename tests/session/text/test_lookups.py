@@ -1,50 +1,55 @@
-"""The markers on a text call: filled on the caller's words, remembered at hang-up, same entries."""
+"""The lookups of a text call: run on the caller's words, remembered at hang-up, same entries."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+import asyncio
+import json
+from collections.abc import Mapping
 from dataclasses import replace
+from typing import Any
 
 import pytest
 
 from pinecall._settings import Budgets
-from pinecall.log import hashed_prompt
 from pinecall.log.logs import CallLog
 from pinecall.log.store import MemoryStore
 from pinecall.session.text.session import TextSession
-from pinecall.types import AgentConfig, CallContext, KnowledgeFile, Marker, MemoryPolicy, Route
+from pinecall.types import AgentConfig, CallContext, Docs, MemoryPolicy, PlatformTool, Route
 from tests.session.fake_llm import FakeLLM, Scripted
 from tests.session.text.test_session import A_CALL, A_TUESDAY, AGENT
 
 pytestmark = pytest.mark.unit
 
-A_FILE = KnowledgeFile("./knowledge/clinica.md", "The clinic opens at nine and closes at six.")
-KNOWLEDGE = "<!-- knowledge: ./knowledge/clinica.md -->"
-MEMORY = '<!-- memory: {"kinds":["preference"],"limit":6} -->'
-A_VIEW = f"The caller is Ana.\n\n## You remember\n\n{MEMORY}"
+A_VIEW = "The caller is Ana. Two slots are free."
 
 REMEMBERS = AgentConfig(
     slug=AGENT,
     channels=frozenset({"web"}),
-    knowledge=A_FILE,
     memory=MemoryPolicy(remember=("preference",)),
+    docs=Docs(base="clinica", k=4),
 )
 
 
 class Answering:
-    """A filler that answers memory with what it was asked, and a rememberer that may fail."""
+    """A lookup service that answers both tools, and a rememberer that may fail."""
 
-    def __init__(self, failing: Exception | None = None) -> None:
+    def __init__(self, after_s: float = 0.0, failing: Exception | None = None) -> None:
+        self._after_s = after_s
         self._failing = failing
-        self.queries: list[tuple[str, str | None]] = []
+        self.asked: list[tuple[str, Mapping[str, Any], str | None]] = []
         self.remembered: list[str] = []
 
-    async def fill(
-        self, call: str, query: str, markers: Sequence[Marker], speech_id: str | None
-    ) -> Mapping[str, str]:
+    async def lookup(
+        self, call: str, tool: PlatformTool, input: Mapping[str, Any], speech_id: str | None
+    ) -> Mapping[str, Any]:
         assert call == A_CALL
-        self.queries.append((query, speech_id))
-        return {marker.line: f"- The caller said {query!r}." for marker in markers}
+        self.asked.append((tool, dict(input), speech_id))
+        await asyncio.sleep(self._after_s)
+        if tool == "recall":
+            return {
+                "facts": [{"text": "prefiere la mañana", "source": None, "since": "2026-09-01"}]
+            }
+        return {"chunks": [{"path": "tarifas.md", "heading": "Tarifas", "text": "Son 45 €."}]}
 
     async def remember(self, call: str) -> int:
         if self._failing is not None:
@@ -60,7 +65,7 @@ def a_session(
     config: AgentConfig = REMEMBERS,
     budgets: Budgets = Budgets(),  # noqa: B008 — frozen
 ) -> TextSession:
-    """One web call for the agent that remembers, filled and remembered by `answering`."""
+    """One web call for the agent that remembers, looked up and remembered by `answering`."""
     context = CallContext(
         call=A_CALL,
         channel="web",
@@ -71,60 +76,66 @@ def a_session(
     )
     log = CallLog(store, AGENT, A_CALL)
     return TextSession(
-        context, config, log, llm, filler=answering, rememberer=answering, budgets=budgets
+        context, config, log, llm, lookup=answering, rememberer=answering, budgets=budgets
     )
 
 
-async def test_the_callers_words_are_the_query_filed_under_their_speech_and_fill_the_view() -> None:
+async def test_the_callers_words_are_the_query_filed_under_their_own_speech() -> None:
     answering = Answering()
     llm = FakeLLM(Scripted(chunks=("Uno.",)))
     session = a_session(MemoryStore(), llm, answering)
     await session.start()
     await session.set_prompt("view", A_VIEW)
     await session.hears("quiero un turno")
-    assert answering.queries == [("quiero un turno", "sp_1")]
+    assert answering.asked == [
+        ("recall", {"query": "quiero un turno"}, "sp_1"),
+        ("search", {"query": "quiero un turno"}, "sp_1"),
+    ]
     (asked,) = llm.asked
-    assert asked.system.endswith("## You remember\n\n- The caller said 'quiero un turno'.")
-    assert MEMORY not in asked.system
+    # `current_date` is seeded at call start (session/clock.py); the lookups close the request.
+    assert [call.name for call in asked.calls][-2:] == ["recall", "search"]
+    assert [list(json.loads(output.output)) for output in asked.outputs][-2:] == [
+        ["facts"],
+        ["chunks"],
+    ]
+    assert asked.system.endswith(A_VIEW)
 
 
 async def test_an_agent_reply_is_no_query_and_asks_nobody() -> None:
-    """agent.reply puts the app's words in the history as the caller's; memory is not searched."""
+    """agent.reply puts the app's words in the history as the caller's; nothing is looked up."""
     answering = Answering()
     session = a_session(MemoryStore(), FakeLLM(), answering)
     await session.start()
     await session.set_prompt("view", A_VIEW)
     await session.reply("Offer the ten o'clock slot.")
-    assert answering.queries == []
+    assert answering.asked == []
 
 
-async def test_the_knowledge_file_is_in_the_static_prefix_and_the_hash_is_of_the_apps_text() -> (
-    None
-):
-    store = MemoryStore()
-    llm = FakeLLM(Scripted(chunks=("Uno.",)), Scripted(chunks=("Dos.",)))
-    session = a_session(store, llm, Answering())
+async def test_recall_and_search_are_declared_only_when_the_class_declares_them() -> None:
+    llm = FakeLLM(Scripted(chunks=("Uno.",)))
+    session = a_session(MemoryStore(), llm, Answering(), config=replace(REMEMBERS, docs=None))
     await session.start()
-    written = f"## What you know\n\n{KNOWLEDGE}"
-    await session.set_prompt("knowledge", written)
     await session.hears("hola")
-    await session.hears("¿a qué hora abren?")
-    first, second = llm.asked
-    assert first.instructions == second.instructions == f"## What you know\n\n{A_FILE.text}"
-    assert session.text_agent.instructions == written
-    (changed,) = [entry for entry in await store.since(A_CALL) if entry.type == "prompt.changed"]
-    assert changed.data["hash"] == hashed_prompt(written)
+    (asked,) = llm.asked
+    assert "recall" in asked.tools
+    assert "search" not in asked.tools
 
 
-async def test_a_fill_past_its_budget_is_a_recoverable_entry_and_the_turn_goes_on() -> None:
+async def test_a_lookup_past_its_budget_is_a_recoverable_entry_and_the_turn_goes_on() -> None:
     store = MemoryStore()
-    session = a_session(store, FakeLLM(), Answering(), budgets=Budgets(fill_ms=0, remember_s=1.0))
+    session = a_session(
+        store,
+        FakeLLM(),
+        Answering(after_s=0.5),
+        config=replace(REMEMBERS, docs=None),
+        budgets=Budgets(lookup_ms=0, remember_s=1.0),
+    )
     await session.start()
     await session.set_prompt("view", A_VIEW)
     await session.hears("hola")
     written = await store.since(A_CALL)
     (skipped,) = [entry for entry in written if entry.type == "error"]
-    assert skipped.data["code"] == "memory_skipped"
+    assert skipped.data["code"] == "recall_skipped"
     assert skipped.data["recoverable"] is True
     types = [entry.type for entry in written]
     assert types.index("turn.user") < types.index("error") < types.index("turn.agent")

@@ -81,7 +81,7 @@ ROLE := $(if $(ROLE),$(ROLE),all)
 # Who embeds, out of the same file and by the same rule: `tei` — the default, and what a box.env
 # with no such line means — is the container beside the other four; `perplexity` and `openrouter`
 # are a vendor's HTTP door and a key in the credstore, so that box runs no embedder of its own.
-# A WORKER embeds nothing whatever the line says: every marker is filled by the gateway, on the hub.
+# A WORKER embeds nothing whatever the line says: every lookup is run by the gateway, on the hub.
 EMBED_PROVIDER = $(shell sed -n 's/^EMBED_PROVIDER=//p' /etc/pinecall/box.env 2>/dev/null || true)
 EMBED_PROVIDER := $(if $(EMBED_PROVIDER),$(EMBED_PROVIDER),tei)
 

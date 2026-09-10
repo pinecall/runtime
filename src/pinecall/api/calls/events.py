@@ -315,8 +315,8 @@ async def opened(
     # same registration a text call gets, and it is what the call's tools travel down.
     app = serving.owner if serving is not None else None
     # What this call's agent declared, resolved the way the worker read it a moment ago through
-    # the config door — so a fill searches the base the worker's session was built to expect. An
-    # agent nobody holds any more declared nothing this gateway can name, and nothing is filled.
+    # the config door — so a lookup searches the base the worker's session was built to expect. An
+    # agent nobody holds any more declared nothing this gateway can name, and nothing is found.
     held = serving or registry.of(said.agent)
     config = overrides.config_for(said.agent, held.config) if held else AgentConfig(slug=said.agent)
     live.serve(context.call, said.agent, key.org, log, app, context=context, config=config)

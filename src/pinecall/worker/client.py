@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping
 from typing import Any
 
 import httpx
 from pydantic import TypeAdapter
 
 from pinecall.session.voice.platform import PlatformRefused
-from pinecall.types import AgentConfig, CallContext, Marker, ProviderKeys, Route
+from pinecall.types import AgentConfig, CallContext, PlatformTool, ProviderKeys, Route
 from pinecall.types.json import JsonObject
 from pinecall_protocol import Command
 from pinecall_protocol.defs import ToolResult
@@ -97,21 +97,17 @@ class Gateway:
 
     # The two doors memory and retrieval sit behind, on the gateway that has the database: the
     # worker holds no vectors and no facts, and asks with the caller's words. The gateway writes
-    # memory.ops and docs.sources on the call's log itself. This is the voice session's Filler and
+    # memory.ops and docs.sources on the call's log itself. This is the voice session's Lookup and
     # Rememberer, as it is its Platform: the same object, three protocols. docs/decisions/memory.md.
-    async def fill(
-        self, call: str, query: str, markers: Sequence[Marker], speech_id: str | None
-    ) -> Mapping[str, str]:
-        """This turn's fills from the gateway: every marker's line to the text it becomes."""
-        said: JsonObject = {
-            "query": query,
-            "markers": [{"name": marker.name, "payload": marker.payload} for marker in markers],
-        }
+    async def lookup(
+        self, call: str, tool: PlatformTool, input: Mapping[str, Any], speech_id: str | None
+    ) -> Mapping[str, Any]:
+        """One run of recall or search on the gateway: the JSON object its tool result carries."""
+        said: JsonObject = {"tool": tool, "input": dict(input)}
         if speech_id is not None:
             said["speech_id"] = speech_id
-        answer = await self._read("POST", f"/v1/calls/{call}/fill", said)
-        answered = {(one["name"], one["payload"]): str(one["text"]) for one in answer["fills"]}
-        return {marker.line: answered.get((marker.name, marker.payload), "") for marker in markers}
+        answer = await self._read("POST", f"/v1/calls/{call}/lookup", said)
+        return dict(answer["output"])
 
     async def remember(self, call: str) -> int:
         """The gateway reads the call's turns off its log and writes what memory keeps."""

@@ -9,7 +9,7 @@ from pinecall.api._deps import NO_MEMORY
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.types import Quotas
 from tests.api.conftest import A_RECORD
-from tests.filling.fakes import LEARNED, ScriptedMemory, a_fact
+from tests.lookups.fakes import LEARNED, ScriptedMemory, a_fact
 
 pytestmark = pytest.mark.unit
 

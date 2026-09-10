@@ -26,8 +26,8 @@ make deploy                                     # this checkout onto your box (d
   table and `tests/test_isolation.py` enforces it
   - `types/` the shapes, no IO · `log/` the truth, no framework · `providers/` the only vendor names
   - `session/` one call, `text/` in the gateway and `voice/` in the worker · `evals/` the rings
-  - `memory/` the contact's facts · `knowledge/` the knowledge base · `filling/` the gateway's
-    answer to a turn's markers — the three the gateway owns and the worker reaches over HTTP
+  - `memory/` the contact's facts · `knowledge/` the knowledge base · `lookups/` the gateway
+    running `recall` and `search` — the three the gateway owns and the worker reaches over HTTP
   - `api/` the gateway's doors · `worker/` the job · `cli/` the verbs · `migrations/` numbered SQL
   - `_settings.py` every variable, once · `_version.py` `0.0.0` until a person says otherwise
 - `tests/` mirrors `src/pinecall/` one to one; `test_isolation.py`, `test_layout.py`,
@@ -64,10 +64,12 @@ happened and the doc is the bug.
   outside `providers/` fails the suite; `api/` never imports `worker/`, `worker/` never `api/`.
 - The public surface of the root and of every package with an `__all__` is pinned by a test.
 - The prompt is a list of named blocks in two regions, in this order: static blocks (cached) ·
-  append-only history · dynamic blocks (replaced every turn). Never reorder.
-- A marker is filled by the gateway, never by the app: the worker asks over HTTP
-  (`POST /v1/calls/{call}/fill`, `/remember`), the text session asks `filling/` in-process, and
-  `worker/` imports none of `memory/`, `knowledge/`, `filling/`.
+  append-only history · the dynamic region, which is the view and nothing else. Never reorder.
+  What a lookup found reaches the model as a `tool_result`, never as part of the prompt:
+  `docs/security/prompt-injection.md` is the contract, and it is public.
+- A lookup is run by the gateway, never by the app: the worker asks over HTTP
+  (`POST /v1/calls/{call}/lookup`, `/remember`), the text session asks `lookups/` in-process, and
+  `worker/` imports none of `memory/`, `knowledge/`, `lookups/`.
 - Unit tests run on dead-sentinel keys (`tests/conftest.py`): everything constructs, a real call
   dies in seconds. The same golden log reduces to the same state here and in TypeScript.
 
@@ -90,7 +92,7 @@ as sentences.
 - **Nothing fixed by hand on a server counts.** A package goes in `PACKAGES`, a secret through
   `make secret`, a class of failure into the doctor; then the box re-converges via `make deploy`.
 - **TEI's CPU image has no arm64 build**, so on this Mac the dev stack's `tei` cannot start at
-  all and every fill is skipped. `EMBED_PROVIDER=perplexity` + `PERPLEXITY_API_KEY` embeds
+  all and every lookup is skipped. `EMBED_PROVIDER=perplexity` + `PERPLEXITY_API_KEY` embeds
   contextually over HTTP with no container. `doctor`'s `embedder` line says which one is running.
 - A key is never printed — not in a commit, a test, a log line, a reply. Compare by sha256.
 - Versions and tags are the human's: never pick a number, never tag. `_version.py` stays `0.0.0`.

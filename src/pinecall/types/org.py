@@ -69,7 +69,7 @@ class Quotas:
                 raise DeclarationRefused(f"a quota is a count, and {name} cannot be {limit}")
 
     # The three questions anybody asks a quota, so the NULL rule is written once and every door,
-    # every gate and every fill reads it off the same three lines.
+    # every gate and every lookup reads it off the same three lines.
     def reached(self, quota: QuotaName, used: float) -> int | None:
         """The limit, when this much is already at or past it: nothing more of it fits."""
         limit: int | None = getattr(self, quota)
@@ -83,7 +83,7 @@ class Quotas:
         return limit if limit is not None and keeping > limit else None
 
     # Zero is not "nearly none": it is a plan that does not include the feature at all, and the
-    # fills read it to answer with nothing rather than paying an embedder to find nothing.
+    # lookups read it to answer with nothing rather than paying an embedder to find nothing.
     def switched_off(self, quota: QuotaName) -> bool:
         """Whether the org may keep none of these at all, which is a feature it does not have."""
         limit: int | None = getattr(self, quota)

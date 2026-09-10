@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from pinecall._settings import Settings
 from pinecall.api._live import Live
 from pinecall.api.agents.registry import Registry
-from pinecall.filling import Filling
 from pinecall.log.writers import Logs
+from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.vault import Vault
 from pinecall.providers.models import Models
@@ -35,4 +35,4 @@ class Doors:
     logs: Logs
     live: Live
     graph: Graph
-    filling: Filling
+    lookups: Lookups

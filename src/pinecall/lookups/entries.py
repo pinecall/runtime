@@ -1,12 +1,12 @@
-"""What a fill writes on the call's log: memory.ops for a recall, docs.sources for a retrieval."""
+"""What a lookup writes on the call's log: memory.ops for a recall, docs.sources for a search."""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 
 from pinecall.knowledge.chunking import body_of
-from pinecall.types import Chunk, Fact
-from pinecall.types.markers import NOT_FILLED, SKIPPED, MarkerName
+from pinecall.types import Chunk, Fact, PlatformTool
+from pinecall.types.lookup import NOT_LOOKED_UP, skipped_code
 from pinecall_protocol.defs import DocSource, MemoryFact, MemoryOp
 from pinecall_protocol.events import DocsSources, ErrorEvent, MemoryOps
 
@@ -62,11 +62,8 @@ def a_retrieval(
     )
 
 
-def a_skip(name: MarkerName, why: str) -> ErrorEvent:
-    """The error entry of a marker the gateway could not fill: recoverable, and it names why."""
-    code = SKIPPED[name]
+def a_skip(tool: PlatformTool, why: str) -> ErrorEvent:
+    """The error entry of a lookup the gateway could not run: recoverable, and it names why."""
     return ErrorEvent(
-        code=code,
-        message=NOT_FILLED.format(what=code.removesuffix("_skipped"), why=why),
-        recoverable=True,
+        code=skipped_code(tool), message=NOT_LOOKED_UP.format(tool=tool, why=why), recoverable=True
     )

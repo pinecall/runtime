@@ -22,7 +22,7 @@ STATUS_OF: dict[type[Exception], int] = {
 }
 
 
-# A fill is NOT one of these doors: filling/service.py catches whatever a marker's fill raised,
+# A lookup is NOT one of these doors: lookups/service.py catches whatever a lookup raised,
 # writes `retrieval_skipped` or `memory_skipped` with that same sentence and lets the turn go on.
 # A call never dies for a down embedder; a push, which has nothing to hand back, says so.
 def refusals_answered_by(gateway: FastAPI) -> None:

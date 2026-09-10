@@ -45,12 +45,12 @@ def a_worker(settings: Settings) -> Worker:
         gateway=gateway,
         kit=kit_for(settings),
         # The worker is who hands a spoken call its judge: the session judges nothing itself. And
-        # its memory: a job process has no database, so the gateway is the session's Filler and
+        # its memory: a job process has no database, so the gateway is the session's Lookup and
         # Rememberer too — the same object, three protocols — under the budgets the box set.
         bridging=partial(
             a_bridge,
             score=a_score,
-            filler=gateway,
+            lookup=gateway,
             rememberer=gateway,
             budgets=settings.budgets,
         ),

@@ -1,21 +1,23 @@
-"""The gateway fills a turn's markers and remembers a call, and the log says what it did."""
+"""The gateway runs a lookup and remembers a call, and the log says what each one did."""
 
 from __future__ import annotations
 
+import json
 from functools import partial
 
 import pytest
 from cryptography.fernet import Fernet
 
-from pinecall.filling import Filling, OpenCall
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
+from pinecall.lookups import Lookups, OpenCall
 from pinecall.orgs.vault import MemoryVault, keys_brought_by
 from pinecall.providers.embed.tei import DID_NOT_ANSWER
 from pinecall.providers.embedder import EmbedderUnreachable
-from pinecall.types import Contact, Docs, KnowledgeFile, Quotas, markers_in
+from pinecall.session.lookups import as_tool_result
+from pinecall.types import Contact, Docs, Quotas
 from tests.api.conftest import A_VAULT_KEY
-from tests.filling.fakes import (
+from tests.lookups.fakes import (
     CALL,
     ORG,
     THE_NUMBER,
@@ -33,30 +35,25 @@ from tests.filling.fakes import (
 
 pytestmark = pytest.mark.unit
 
-(MEMORY,) = markers_in('<!-- memory: {"kinds":["preference"],"limit":6} -->')
-(RETRIEVED,) = markers_in('<!-- retrieved: {"k":2} -->')
-(SCORED,) = markers_in('<!-- retrieved: {"min_score":0.5} -->')
-(KNOWLEDGE,) = markers_in("<!-- knowledge: ./knowledge/clinica.md -->")
+RECALLING = {"contact": THE_NUMBER, "query": "quiero un turno"}
+SEARCHING = {"query": "¿cuánto cuesta?"}
 
 TEI_IS_DOWN = EmbedderUnreachable(
     DID_NOT_ANSWER.format(url="http://127.0.0.1:8081", why="connection refused")
 )
 
 
-async def test_a_memory_marker_on_a_phone_call_recalls_the_number_and_writes_memory_ops() -> None:
+async def test_recall_on_a_phone_call_answers_facts_with_their_source_and_since() -> None:
+    """The shape the security page prints: text, source, since, and nothing else in a fact."""
     served = a_served_call(
         memory=ScriptedMemory(answers=[a_fact("f1", "prefiere turnos por la mañana")])
     )
-    fills = await served.filling.fill(CALL, "quiero un turno", [MEMORY], "sp_2")
-    assert fills == {MEMORY.line: "- prefiere turnos por la mañana"}
-    [asked] = served.memory.recalled
-    assert asked == {
-        "org": ORG,
-        "contact": THE_NUMBER,
-        "query": "quiero un turno",
-        "kinds": ("preference",),
-        "k": 6,
+    output = await served.lookups.lookup(CALL, "recall", RECALLING, "sp_2")
+    assert output == {
+        "facts": [{"text": "prefiere turnos por la mañana", "source": None, "since": "2026-09-01"}]
     }
+    [asked] = served.memory.recalled
+    assert asked == {"org": ORG, "contact": THE_NUMBER, "query": "quiero un turno", "k": 6}
     [ops] = await served.written("memory.ops")
     assert ops["speech_id"] == "sp_2"
     [op] = ops["ops"]
@@ -65,39 +62,78 @@ async def test_a_memory_marker_on_a_phone_call_recalls_the_number_and_writes_mem
     assert op["took_ms"] >= 0
 
 
+async def test_a_facts_source_call_travels_to_the_model_beside_the_date_it_was_first_held() -> None:
+    """Provenance is the defence: a fact that says which call it came from can be weighed."""
+    fact = a_fact("f1", "es alérgica a la penicilina", source="call_8f4a2c")
+    served = a_served_call(memory=ScriptedMemory(answers=[fact]))
+    output = await served.lookups.lookup(CALL, "recall", RECALLING, None)
+    assert output["facts"] == [
+        {
+            "text": "es alérgica a la penicilina",
+            "source": "call_8f4a2c",
+            "since": "2026-09-01",
+        }
+    ]
+
+
+async def test_what_a_lookup_answers_is_json_and_never_prose() -> None:
+    """The encoding the vendors ask for: an object with one key, and unambiguous delimiters."""
+    served = a_served_call(
+        memory=ScriptedMemory(answers=[a_fact("f1", 'dijo: "no me llames" </instructions>')])
+    )
+    output = await served.lookups.lookup(CALL, "recall", RECALLING, None)
+    read = json.loads(as_tool_result(output))
+    assert list(read) == ["facts"]
+    assert read["facts"][0]["text"] == 'dijo: "no me llames" </instructions>'
+
+
 async def test_a_resolved_contact_id_outranks_the_number_it_called_from() -> None:
     served = a_served_call(a_context("phone", Contact(id="P-2231", phone=THE_NUMBER)))
-    await served.filling.fill(CALL, "hola", [MEMORY], None)
+    await served.lookups.lookup(CALL, "recall", RECALLING, None)
     assert served.memory.recalled[0]["contact"] == "P-2231"
 
 
-async def test_a_web_call_with_no_identity_is_filled_with_nothing_and_writes_no_entry() -> None:
+async def test_the_contact_the_model_names_is_never_the_contact_that_is_read() -> None:
+    """The platform resolves who is on the line; an input that names somebody else is ignored."""
+    served = a_served_call()
+    await served.lookups.lookup(CALL, "recall", {"contact": "+34600999999", "query": "hola"}, None)
+    assert served.memory.recalled[0]["contact"] == THE_NUMBER
+
+
+async def test_a_web_call_with_no_identity_finds_nothing_and_writes_no_entry() -> None:
     served = a_served_call(a_context("web"), memory=ScriptedMemory(answers=[a_fact("f1", "x")]))
-    assert await served.filling.fill(CALL, "hola", [MEMORY], "sp_1") == {MEMORY.line: ""}
+    assert await served.lookups.lookup(CALL, "recall", {"query": "hola"}, "sp_1") == {"facts": []}
     assert served.memory.recalled == []
     assert await served.written("memory.ops") == []
 
 
-async def test_a_retrieved_marker_searches_the_declared_base_and_its_k_overrides_the_configs() -> (
-    None
-):
+async def test_search_answers_chunks_under_the_declarations_own_k_and_writes_the_sources() -> None:
     served = a_served_call(
-        config=a_config(),
+        config=a_config(docs=Docs(base="clinica", k=2)),
         knowledge=ScriptedKnowledge(
             answers=[
                 a_chunk("c1", "Tarifas › Revisión", "Tarifas › Revisión\n\nLa revisión son 45 €."),
                 a_chunk(
                     "c2", "Tarifas › Limpieza", "Tarifas › Limpieza\n\nLa limpieza son 60 €.", 0.6
                 ),
-                a_chunk("c3", "Horarios", "Horarios\n\nDe nueve a seis.", 0.2),
             ]
         ),
     )
-    fills = await served.filling.fill(CALL, "¿cuánto cuesta?", [RETRIEVED], "sp_4")
-    assert fills[RETRIEVED.line] == (
-        "### tarifas.md › Tarifas › Revisión\nLa revisión son 45 €.\n\n"
-        "### tarifas.md › Tarifas › Limpieza\nLa limpieza son 60 €."
-    )
+    output = await served.lookups.lookup(CALL, "search", SEARCHING, "sp_4")
+    assert output == {
+        "chunks": [
+            {
+                "path": "tarifas.md",
+                "heading": "Tarifas › Revisión",
+                "text": "La revisión son 45 €.",
+            },
+            {
+                "path": "tarifas.md",
+                "heading": "Tarifas › Limpieza",
+                "text": "La limpieza son 60 €.",
+            },
+        ]
+    }
     [asked] = served.knowledge.searched
     assert (asked["base"], asked["k"], asked["min_score"]) == ("clinica", 2, None)
     [sources] = await served.written("docs.sources")
@@ -108,59 +144,51 @@ async def test_a_retrieved_marker_searches_the_declared_base_and_its_k_overrides
     ]
 
 
-async def test_the_markers_min_score_overrides_the_configs_and_the_configs_stands_otherwise() -> (
-    None
-):
-    served = a_served_call(config=a_config(docs=Docs(base="clinica", k=3, min_score=0.02)))
-    await served.filling.fill(CALL, "hola", [SCORED, RETRIEVED], None)
-    by_marker = {asked["k"]: asked["min_score"] for asked in served.knowledge.searched}
-    assert by_marker == {3: 0.5, 2: 0.02}
+async def test_the_declarations_min_score_is_what_the_base_is_searched_under() -> None:
+    served = a_served_call(config=a_config(docs=Docs(base="clinica", k=3, min_score=0.5)))
+    await served.lookups.lookup(CALL, "search", SEARCHING, None)
+    [asked] = served.knowledge.searched
+    assert (asked["k"], asked["min_score"]) == (3, 0.5)
 
 
-async def test_an_agent_that_declared_no_docs_fills_a_retrieved_marker_with_nothing() -> None:
+async def test_an_agent_that_declared_no_docs_finds_nothing_and_searches_nothing() -> None:
     served = a_served_call(config=a_config(docs=None))
-    assert await served.filling.fill(CALL, "hola", [RETRIEVED], None) == {RETRIEVED.line: ""}
+    assert await served.lookups.lookup(CALL, "search", SEARCHING, None) == {"chunks": []}
     assert served.knowledge.searched == []
     assert await served.written("docs.sources") == []
 
 
-async def test_a_down_embedder_fills_nothing_and_the_error_entry_names_tei() -> None:
+async def test_a_down_embedder_finds_nothing_and_the_error_entry_names_tei() -> None:
     served = a_served_call(
         knowledge=ScriptedKnowledge(failing=TEI_IS_DOWN),
         memory=ScriptedMemory(failing=TEI_IS_DOWN),
     )
-    fills = await served.filling.fill(CALL, "hola", [MEMORY, RETRIEVED], "sp_1")
-    assert fills == {MEMORY.line: "", RETRIEVED.line: ""}
+    assert await served.lookups.lookup(CALL, "recall", RECALLING, "sp_1") == {"facts": []}
+    assert await served.lookups.lookup(CALL, "search", SEARCHING, "sp_1") == {"chunks": []}
     errors = await served.written("error")
     assert sorted((one["code"], one["recoverable"]) for one in errors) == [
-        ("memory_skipped", True),
-        ("retrieval_skipped", True),
+        ("recall_skipped", True),
+        ("search_skipped", True),
     ]
     for one in errors:
         assert "TEI at http://127.0.0.1:8081 did not answer: connection refused" in one["message"]
-    assert errors[0]["message"].startswith(("memory was not filled", "retrieval was not filled"))
+    assert errors[0]["message"].startswith("recall did not run")
 
 
-async def test_a_knowledge_marker_is_answered_with_the_configs_text_and_no_entry() -> None:
-    file = KnowledgeFile("./knowledge/clinica.md", "Abrimos de nueve a seis.")
-    served = a_served_call(config=a_config(knowledge=file))
-    assert await served.filling.fill(CALL, "hola", [KNOWLEDGE], None) == {
-        KNOWLEDGE.line: "Abrimos de nueve a seis."
-    }
-    assert await served.store.since(CALL) == []
-
-
-async def test_a_call_this_gateway_does_not_serve_is_filled_with_nothing() -> None:
+async def test_a_call_this_gateway_does_not_serve_finds_nothing_in_the_tools_own_shape() -> None:
     served = a_served_call()
-    assert await served.filling.fill("call_elsewhere", "hola", [MEMORY], None) == {}
+    assert await served.lookups.lookup("call_elsewhere", "recall", RECALLING, None) == {"facts": []}
+    assert await served.lookups.lookup("call_elsewhere", "search", SEARCHING, None) == {
+        "chunks": []
+    }
 
 
-async def test_a_gateway_with_no_tables_answers_every_fill_with_nothing() -> None:
+async def test_a_gateway_with_no_tables_answers_every_lookup_with_nothing_found() -> None:
     """A dev key: no Postgres, no memory, no knowledge — and every turn still goes on."""
     logs = Logs(MemoryStore())
     logs.writing(CALL, "clinica-norte")
     opened = OpenCall(org=ORG, context=a_context(), config=a_config())
-    filling = Filling(
+    lookups = Lookups(
         None,
         None,
         logs,
@@ -168,11 +196,9 @@ async def test_a_gateway_with_no_tables_answers_every_fill_with_nothing() -> Non
         partial(keys_brought_by, None),
         *a_plan(logs, the_tenants()),
     )
-    assert await filling.fill(CALL, "hola", [MEMORY, RETRIEVED], None) == {
-        MEMORY.line: "",
-        RETRIEVED.line: "",
-    }
-    assert await filling.remember(CALL) == 0
+    assert await lookups.lookup(CALL, "recall", RECALLING, None) == {"facts": []}
+    assert await lookups.lookup(CALL, "search", SEARCHING, None) == {"chunks": []}
+    assert await lookups.remember(CALL) == 0
 
 
 async def test_remember_keeps_the_user_and_agent_turns_and_hands_memory_the_orgs_llm_and_keys() -> (
@@ -187,7 +213,7 @@ async def test_remember_keeps_the_user_and_agent_turns_and_hands_memory_the_orgs
     )
     await served.said("Hola Ana.")
 
-    assert await served.filling.remember(CALL) == 1
+    assert await served.lookups.remember(CALL) == 1
     [asked] = served.memory.remembered
     assert [(turn.role, turn.text) for turn in asked["turns"]] == [
         ("user", "hola, soy Ana"),
@@ -202,6 +228,7 @@ async def test_remember_keeps_the_user_and_agent_turns_and_hands_memory_the_orgs
     assert asked["llm"] == a_config().llm
     assert asked["keys"] == {"anthropic": "sk-the-clinics-own"}
     assert asked["policy"] == a_config().memory
+    assert asked["tools"] == a_config().tools
     [ops] = await served.written("memory.ops")
     assert ops["ops"][0]["op"] == "remember"
 
@@ -210,9 +237,9 @@ async def test_remember_writes_nothing_for_an_agent_with_no_policy_or_a_caller_w
     None
 ):
     nothing_declared = a_served_call(config=a_config(memory=None))
-    assert await nothing_declared.filling.remember(CALL) == 0
+    assert await nothing_declared.lookups.remember(CALL) == 0
     nobody = a_served_call(a_context("web"))
-    assert await nobody.filling.remember(CALL) == 0
+    assert await nobody.lookups.remember(CALL) == 0
     assert nobody.memory.remembered == []
 
 
@@ -227,7 +254,7 @@ async def test_a_hang_up_at_the_fact_cap_writes_no_fact_and_asks_no_model() -> N
     await served.heard("hola, soy Ana")
     await served.said("buenas, Ana")
 
-    assert await served.filling.remember(CALL) == 0
+    assert await served.lookups.remember(CALL) == 0
     assert served.memory.remembered == [], "no model was asked to extract anything"
     [ops] = await served.written("memory.ops")
     [op] = ops["ops"]
@@ -243,7 +270,7 @@ async def test_a_plan_with_no_memory_at_all_remembers_nothing_and_says_so_at_han
     await served.limited(Quotas(memory_facts=0))
     await served.heard("hola")
 
-    assert await served.filling.remember(CALL) == 0
+    assert await served.lookups.remember(CALL) == 0
     assert served.memory.remembered == []
     assert (await served.refusals())[0]["quota"] == "memory_facts"
 
@@ -255,29 +282,28 @@ async def test_under_the_cap_a_hang_up_remembers_exactly_as_it_did_before_there_
     await served.limited(Quotas(memory_facts=10))
     await served.heard("hola")
 
-    assert await served.filling.remember(CALL) == 1
+    assert await served.lookups.remember(CALL) == 1
     assert len(served.memory.remembered) == 1
     assert await served.refusals() == []
 
 
-async def test_a_plan_with_no_memory_fills_the_marker_with_nothing_and_writes_no_entry() -> None:
+async def test_a_plan_with_no_memory_answers_an_empty_object_and_writes_no_entry() -> None:
     """A plan without memory is not a failure: no memory.ops, no error, and no query embedded."""
     served = a_served_call(memory=ScriptedMemory(answers=[a_fact("f1", "prefiere la mañana")]))
     await served.limited(Quotas(memory_facts=0))
 
-    assert await served.filling.fill(CALL, "quiero un turno", [MEMORY], "sp_1") == {MEMORY.line: ""}
-    assert served.memory.recalled == [], "a fill that cannot use its answer never asks for one"
+    assert await served.lookups.lookup(CALL, "recall", RECALLING, "sp_1") == {"facts": []}
+    assert served.memory.recalled == [], "a lookup that cannot use its answer never asks for one"
     assert await served.written("memory.ops") == []
     assert await served.written("error") == []
 
 
-async def test_a_plan_with_no_knowledge_base_fills_the_retrieved_marker_with_nothing() -> None:
+async def test_a_plan_with_no_knowledge_base_answers_an_empty_object_and_writes_no_entry() -> None:
     """docs.sources with no sources would tell the grounded judge the base answered nothing."""
     served = a_served_call(knowledge=ScriptedKnowledge(answers=[a_chunk("c1", "Tarifas", "45 €")]))
     await served.limited(Quotas(knowledge_chunks=0))
 
-    fills = await served.filling.fill(CALL, "cuánto cuesta", [RETRIEVED], "sp_1")
-    assert fills == {RETRIEVED.line: ""}
+    assert await served.lookups.lookup(CALL, "search", SEARCHING, "sp_1") == {"chunks": []}
     assert served.knowledge.searched == []
     assert await served.written("docs.sources") == []
     assert await served.written("error") == []
@@ -288,6 +314,6 @@ async def test_a_memory_that_is_full_is_still_read_because_a_cap_is_about_keepin
     served = a_served_call(memory=ScriptedMemory(answers=[a_fact("f1", "prefiere la mañana")]))
     await served.limited(Quotas(memory_facts=1))
 
-    fills = await served.filling.fill(CALL, "quiero un turno", [MEMORY], "sp_1")
-    assert fills == {MEMORY.line: "- prefiere la mañana"}
+    output = await served.lookups.lookup(CALL, "recall", RECALLING, "sp_1")
+    assert [fact["text"] for fact in output["facts"]] == ["prefiere la mañana"]
     assert len(served.memory.recalled) == 1

@@ -17,7 +17,7 @@ from pinecall.providers.embedder import (
 # TEI's own name for a model it was not told, so a refusal always has a word to say.
 UNNAMED = "the embedder at TEI_URL"
 
-# What a fill's error entry says when the embedder is down: the vendor, the URL, and the reason.
+# What a lookup's error entry says when the embedder is down: the vendor, the URL, the reason.
 DID_NOT_ANSWER = "TEI at {url} did not answer: {why}"
 
 
@@ -65,7 +65,7 @@ class TeiEmbedder:
             self._model = str(info.get("model_id") or UNNAMED)
         return self._model
 
-    # A connection refused, a timeout and a 5xx are one fact to a fill — the embedder is down —
+    # A connection refused, a timeout and a 5xx are one fact to a lookup — the embedder is down —
     # and the sentence names TEI and its URL, so the error entry on the call's log does too.
     async def _asked(self, method: str, path: str, body: Any = None) -> httpx.Response:
         """One request to TEI, answered 2xx; anything else is EmbedderUnreachable, by name."""

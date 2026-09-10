@@ -8,11 +8,11 @@ from datetime import UTC, datetime
 from functools import partial
 from typing import Any
 
-from pinecall.filling import Filling, MayRemember, OpenCall, QuotasOf
 from pinecall.knowledge import Base
 from pinecall.log.logs import CallLog
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
+from pinecall.lookups import Lookups, MayRemember, OpenCall, QuotasOf
 from pinecall.memory import Spoken
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.meter import Meter
@@ -33,6 +33,7 @@ from pinecall.types import (
     ProviderKeys,
     Quotas,
     Route,
+    ToolSpec,
 )
 from pinecall_protocol import encode
 from pinecall_protocol.defs import MemoryOp
@@ -46,14 +47,14 @@ THE_NUMBER = "+34600000001"
 LEARNED = datetime(2026, 9, 1, 10, 0, tzinfo=UTC)
 
 
-def a_fact(id: str, text: str, score: float = 1.0) -> Fact:
-    """One fact of the caller, as recall would score it."""
+def a_fact(id: str, text: str, score: float = 1.0, source: str | None = None) -> Fact:
+    """One fact of the caller, as recall would score it; `source` is the call that taught it."""
     return Fact(
         id=id,
         contact=THE_NUMBER,
         text=text,
         category="preference",
-        source=None,
+        source=source,
         valid_from=LEARNED,
         invalidated_at=None,
         score=score,
@@ -80,15 +81,12 @@ class ScriptedMemory:
         contact: str,
         query: str,
         *,
-        kinds: Sequence[str] = (),
         k: int = 6,
         as_of: datetime | None = None,  # noqa: ARG002 — the Protocol's shape
     ) -> list[Fact]:
         if self.failing is not None:
             raise self.failing
-        self.recalled.append(
-            {"org": org, "contact": contact, "query": query, "kinds": tuple(kinds), "k": k}
-        )
+        self.recalled.append({"org": org, "contact": contact, "query": query, "k": k})
         return list(self.answers)[:k]
 
     async def remember(
@@ -103,6 +101,7 @@ class ScriptedMemory:
         llm: Model | None,
         keys: ProviderKeys,
         call: str | None = None,
+        tools: Sequence[ToolSpec] = (),
     ) -> list[MemoryOp]:
         self.remembered.append(
             {
@@ -114,6 +113,7 @@ class ScriptedMemory:
                 "llm": llm,
                 "keys": dict(keys),
                 "call": call,
+                "tools": tuple(tools),
             }
         )
         return [MemoryOp(op="remember", contact=contact, facts=[], took_ms=1.0)]
@@ -183,10 +183,10 @@ class ScriptedKnowledge:
         return list(self.answers)[:k]
 
 
-# What a Filling is handed about the org's plan: the quotas table, and the gate that reads it.
+# What a Lookups is handed about the org's plan: the quotas table, and the gate that reads it.
 # A suite that sets no quota gets the mechanism with no numbers in it, which is a self-hosted box.
 def a_plan(logs: Logs, orgs: MemoryOrgs) -> tuple[QuotasOf, MayRemember]:
-    """The two questions Filling asks orgs/, over this test's own tenants."""
+    """The two questions Lookups asks orgs/, over this test's own tenants."""
     # The meter is where minutes and messages are counted from; may_remember never asks it.
     return orgs.quotas_of, Admission(orgs, Meter(MemoryStore()), logs).may_remember
 
@@ -238,9 +238,9 @@ def a_config(
 
 @dataclass
 class Served:
-    """One Filling over one served call, with the log it writes into readable by the test."""
+    """One Lookups over one served call, with the log it writes into readable by the test."""
 
-    filling: Filling
+    lookups: Lookups
     store: MemoryStore
     log: CallLog
     memory: ScriptedMemory
@@ -292,7 +292,7 @@ def a_served_call(
     memory = memory or ScriptedMemory()
     knowledge = knowledge or ScriptedKnowledge()
     orgs = the_tenants()
-    filling = Filling(
+    lookups = Lookups(
         memory,
         knowledge,
         logs,
@@ -300,4 +300,4 @@ def a_served_call(
         partial(keys_brought_by, vault),
         *a_plan(logs, orgs),
     )
-    return Served(filling, store, log, memory, knowledge, orgs)
+    return Served(lookups, store, log, memory, knowledge, orgs)

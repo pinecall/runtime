@@ -16,14 +16,8 @@ from livekit.agents.voice.events import CloseReason, EventTypes, FunctionToolsEx
 from pinecall._settings import Budgets
 from pinecall.log import NOTHING_SAID, hashed_prompt
 from pinecall.providers import prices
-from pinecall.session.filling import (
-    Filler,
-    NoFiller,
-    NoRememberer,
-    Rememberer,
-    TurnFills,
-    remembered_within,
-)
+from pinecall.session.lookups import Lookup, NoLookup, TurnLookups
+from pinecall.session.remembering import NoRememberer, Rememberer, remembered_within
 from pinecall.session.scoring import Scorer, unjudged
 from pinecall.session.voice import commands, hearing
 from pinecall.session.voice.agent import VoiceAgent
@@ -83,7 +77,7 @@ class VoiceBridge:
         platform: Platform,
         recording: Path | None = None,
         score: Scorer = unjudged,
-        filler: Filler = NoFiller(),  # noqa: B008 — stateless, shared on purpose
+        lookup: Lookup = NoLookup(),  # noqa: B008 — stateless, shared on purpose
         rememberer: Rememberer = NoRememberer(),  # noqa: B008 — stateless, shared on purpose
         budgets: Budgets = Budgets(),  # noqa: B008 — frozen
     ) -> None:
@@ -99,14 +93,16 @@ class VoiceBridge:
         self.events = Events(self.writing, self.meters, self)
         self.tools = Tools(config, platform, context.call, self.writing.emit)
         self.blocks = Blocks(config.prompt)
-        self.filling = TurnFills(
-            filler, context.call, self.blocks, config.knowledge, budgets.fill_ms
+        # The platform's own two tools are declared beside the app's, so the model sees one list
+        # and the `tools` block describes one list: session/lookups.py.
+        self.lookups = TurnLookups(
+            lookup, context.call, context.remembered_as, config, budgets.lookup_ms
         )
         self._agent = VoiceAgent(
             blocks=self.blocks,
-            tools=self.tools.declared_tools,
+            tools=[*self.tools.declared_tools, *self.lookups.declared_tools],
             speaking=self,
-            filling=self.filling,
+            lookups=self.lookups,
         )
         self._live: AgentSession[None] | None = None
         # Built in opened(), because it needs the session and because who holds the line has
@@ -225,7 +221,7 @@ class VoiceBridge:
         return not (text and self._agent_is_speaking() and is_a_backchannel(text))
 
     async def skipped(self, error: ErrorEvent) -> None:
-        """A fill went unanswered: the entry, recoverable, and the reply goes on without it."""
+        """A lookup did not run: the entry, recoverable, and the reply goes on without it."""
         await self.writing.emit("error", error)
 
     # ── the app's commands ──────────────────────────────────────────────────────
@@ -382,9 +378,9 @@ def a_bridge(
     platform: Platform,
     recording: Path | None = None,
     score: Scorer = unjudged,
-    filler: Filler = NoFiller(),  # noqa: B008 — stateless, shared on purpose
+    lookup: Lookup = NoLookup(),  # noqa: B008 — stateless, shared on purpose
     rememberer: Rememberer = NoRememberer(),  # noqa: B008 — stateless, shared on purpose
     budgets: Budgets = Budgets(),  # noqa: B008 — frozen
 ) -> VoiceBridge:
     """The Bridging the worker is built with: one call in, its bridge out."""
-    return VoiceBridge(context, config, platform, recording, score, filler, rememberer, budgets)
+    return VoiceBridge(context, config, platform, recording, score, lookup, rememberer, budgets)

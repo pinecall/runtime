@@ -2,7 +2,7 @@
 # not have. Whether this file is under /etc/containers/systemd at all is EMBED_PROVIDER's answer
 # in /etc/pinecall/box.env, converged by infra/box/Makefile on every deploy — a hub that embeds
 # through Perplexity or OpenRouter holds none of the weights below, and a worker embeds nothing at
-# all, because every marker is filled by the gateway.
+# all, because every lookup is run by the gateway.
 [Unit]
 Description=Pinecall media plane: the embedder (text-embeddings-inference, bge-m3)
 
@@ -30,7 +30,7 @@ HealthRetries=12
 # A COLD box downloads ~2.3 GB of bge-m3 before this port answers anything, which is minutes on a
 # small machine — and a failure inside the start period counts against no retry. Nothing waits for
 # it: the gateway reaches the embedder lazily, so the box answers the telephone throughout, and
-# what a caller loses meanwhile is a filled marker, said in the call's log as `retrieval_skipped`.
+# what a caller loses meanwhile is a search, said in the call's log as `search_skipped`.
 HealthStartPeriod=900s
 
 [Service]
