@@ -226,3 +226,28 @@ def _a_message(item: agents.ChatItem) -> tuple[str, str]:
     """One history item as its role and text; a tool call here would be the test lying."""
     assert isinstance(item, agents.ChatMessage)
     return (item.role, item.text_content or "")
+
+
+# The one block the platform writes and the app never does. The file a class ships with travels
+# whole in the declaration, and until it was read into this block it reached nobody: a live call
+# on 2026-09-10 sent identity, tools and the view, and the seventeen thousand characters of the
+# clinic's own handbook went nowhere. docs/security/prompt-injection.md, the second row.
+def test_the_file_a_class_ships_with_is_read_into_the_knowledge_block() -> None:
+    blocks = Blocks(knowledge=A_CHUNK)
+    assert blocks.text_of("knowledge") == A_CHUNK
+    assert A_CHUNK in blocks.instructions
+
+
+def test_a_class_that_ships_no_file_has_an_empty_knowledge_block() -> None:
+    assert Blocks().text_of("knowledge") == ""
+
+
+def test_the_knowledge_the_platform_wrote_reaches_the_model_as_its_own_system_block() -> None:
+    blocks = Blocks(knowledge=A_CHUNK)
+    blocks.set("identity", IDENTITY)
+    blocks.set("tools", TOOLS)
+    assert _the_system_blocks(request_context(_a_conversation(blocks), blocks)) == [
+        IDENTITY,
+        A_CHUNK,
+        TOOLS,
+    ]

@@ -22,7 +22,7 @@ from pinecall.types.json import JsonObject
 from pinecall.types.knowledge import Chunk, Docs, Fact, KnowledgeFile, MemoryPolicy
 from pinecall.types.lookup import PLATFORM_TOOLS, PlatformTool, platform_tools
 from pinecall.types.org import DEFAULT_ORG, QUOTAS, Counting, Org, QuotaName, Quotas, a_slug
-from pinecall.types.prompt import DEFAULT_LAYOUT, Blocks, PromptBlock, PromptRegion
+from pinecall.types.prompt import DEFAULT_LAYOUT, KNOWLEDGE, Blocks, PromptBlock, PromptRegion
 from pinecall.types.provider_keys import NO_ORG_KEYS, VENDORS, ProviderKeys
 from pinecall.types.refused import DeclarationRefused
 from pinecall.types.route import Route
@@ -36,6 +36,7 @@ __all__ = [
     "DEFAULT_ORG",
     "GATE_DEFERRED_ON",
     "GRANTS",
+    "KNOWLEDGE",
     "NO_ORG_KEYS",
     "PLATFORM_TOOLS",
     "QUOTAS",

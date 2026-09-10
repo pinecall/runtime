@@ -16,6 +16,7 @@ from livekit.agents.voice.events import CloseReason, EventTypes, FunctionToolsEx
 from pinecall._settings import Budgets
 from pinecall.log import NOTHING_SAID, hashed_prompt
 from pinecall.providers import prices
+from pinecall.session.knowing import a_line_for_the_file_it_ships_with
 from pinecall.session.lookups import Lookup, NoLookup, TurnLookups
 from pinecall.session.remembering import NoRememberer, Rememberer, remembered_within
 from pinecall.session.scoring import Scorer, unjudged
@@ -92,7 +93,7 @@ class VoiceBridge:
         self.meters = Meters(self.writing)
         self.events = Events(self.writing, self.meters, self)
         self.tools = Tools(config, platform, context.call, self.writing.emit)
-        self.blocks = Blocks(config.prompt)
+        self.blocks = Blocks(config.prompt, _the_file_it_ships_with(config))
         # The platform's own two tools are declared beside the app's, so the model sees one list
         # and the `tools` block describes one list: session/lookups.py.
         self.lookups = TurnLookups(
@@ -142,6 +143,7 @@ class VoiceBridge:
             "started_at": self._started_at,
         }
         await self.writing.emit("call.started", CallStarted.model_validate(started))
+        await a_line_for_the_file_it_ships_with(self.blocks, self.writing.emit)
 
     # The shutdown callbacks of a job run gathered, not in order, so the session is closed here
     # first: its own close drains the last speech and adds the last turn to the history, and
@@ -384,3 +386,10 @@ def a_bridge(
 ) -> VoiceBridge:
     """The Bridging the worker is built with: one call in, its bridge out."""
     return VoiceBridge(context, config, platform, recording, score, lookup, rememberer, budgets)
+
+
+# The class's own file, as the declaration carried it. A class that ships none has an empty
+# knowledge block, which sends nothing at all.
+def _the_file_it_ships_with(config: AgentConfig) -> str:
+    """The text of the file this agent knows by heart, or nothing."""
+    return config.knowledge.text if config.knowledge is not None else ""

@@ -17,6 +17,7 @@ from pinecall.providers import prices
 from pinecall.providers.models import Chat
 from pinecall.session import clock
 from pinecall.session.declaring import declared
+from pinecall.session.knowing import a_line_for_the_file_it_ships_with
 from pinecall.session.lookups import Lookup, NoLookup, TurnLookups
 from pinecall.session.remembering import NoRememberer, Rememberer, remembered_within
 from pinecall.session.scoring import Scorer, unjudged
@@ -80,7 +81,7 @@ class TextSession:
         self.taken_by: Supervisor | None = None
         self._log = log
         self._watchers: list[Watcher] = []
-        self._blocks = Blocks(config.prompt)
+        self._blocks = Blocks(config.prompt, _the_file_it_ships_with(config))
         self._state: dict[str, Any] = {}
         self._speeches = 0
         self._started_at = time.time()
@@ -147,6 +148,7 @@ class TextSession:
             "started_at": self._started_at,
         }
         await self.emit("call.started", CallStarted.model_validate(started))
+        await a_line_for_the_file_it_ships_with(self._blocks, self.emit)
 
     async def hangup(self, reason: defs.EndReason, by: EndedBy) -> None:
         """The last three entries of the call, then the log is sealed. Twice is once."""
@@ -311,3 +313,10 @@ class TextSession:
         """The id that joins a turn to its transcripts, its metrics and its tool calls."""
         self._speeches += 1
         return f"sp_{self._speeches}"
+
+
+# The class's own file, as the declaration carried it. A class that ships none has an empty
+# knowledge block, which sends nothing at all.
+def _the_file_it_ships_with(config: AgentConfig) -> str:
+    """The text of the file this agent knows by heart, or nothing."""
+    return config.knowledge.text if config.knowledge is not None else ""
