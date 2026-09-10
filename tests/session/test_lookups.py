@@ -54,6 +54,17 @@ class Answering:
         return {"chunks": [{"path": "tarifas.md", "heading": "Tarifas", "text": "Son 45 €."}]}
 
 
+class OnlyDocsAnswer(Answering):
+    """Memory knows nothing about this caller and the docs have the answer: the commonest turn."""
+
+    @override
+    async def lookup(
+        self, call: str, tool: PlatformTool, input: Mapping[str, Any], speech_id: str | None
+    ) -> Mapping[str, Any]:
+        answered = await super().lookup(call, tool, input, speech_id)
+        return {"facts": []} if tool == "recall" else answered
+
+
 def a_lookups(
     service: Answering | NoLookup, config: AgentConfig = BOTH, budget_ms: int = 500
 ) -> TurnLookups:
@@ -225,13 +236,38 @@ async def test_a_class_that_declares_neither_asks_nobody_and_carries_no_pair() -
     assert (lookups.items, service.asked) == ((), [])
 
 
-async def test_the_no_lookup_answers_each_tool_in_its_own_empty_shape() -> None:
+# Measured 2026-09-11: with two empty pairs in the request, haiku called the tool the golden
+# expected 0 times in 8; with them out and every other byte the same, 8 of 8. A model that has
+# just made two calls and found nothing writes an answer instead of making a third, and the
+# caller's own sentence ends up five messages back from the end of the request.
+async def test_a_lookup_that_found_nothing_leaves_no_pair_at_all() -> None:
+    """An empty answer is not context. The tool stays declared, so a turn can still ask itself."""
     lookups = a_lookups(NoLookup())
-    await lookups.turn_ended("hola", None)
+
+    await lookups.turn_ended("cuánto cuesta una revisión", None)
+
+    assert lookups.items == ()
+
+
+async def test_a_lookup_that_found_something_still_carries_its_pair() -> None:
+    """The rule is about emptiness and nothing else: what was found reaches the model as before."""
+    lookups = a_lookups(Answering())
+
+    await lookups.turn_ended("cuánto cuesta una revisión", None)
+
     assert [json.loads(output.output) for output in _outputs(lookups)] == [
-        {"facts": []},
-        {"chunks": []},
+        {"facts": [{"text": "prefiere la mañana", "source": "call_8", "since": "2026-09-01"}]},
+        {"chunks": [{"path": "tarifas.md", "heading": "Tarifas", "text": "Son 45 €."}]},
     ]
+
+
+async def test_the_empty_one_goes_and_the_full_one_stays_in_the_same_turn() -> None:
+    """Docs that answered and a memory that did not is the common turn, and it carries one pair."""
+    lookups = a_lookups(OnlyDocsAnswer())
+
+    await lookups.turn_ended("cuánto cuesta una revisión", None)
+
+    assert [call.name for call in _calls(lookups)] == ["search"]
 
 
 # An eager run is a task, so the loop has to get a turn before it can have answered. A fake
