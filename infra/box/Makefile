@@ -103,9 +103,14 @@ enable-all:
 enable-hub:
 	systemctl enable -q nftables $(HUB_UNITS)
 	-systemctl disable -q --now $(WORKER_UNITS) 2>/dev/null
+# A hub that becomes a worker gives up the media plane, and the containers are given up the way
+# the embedder is: `systemctl disable` refuses a Quadlet-generated unit and refuses BEFORE it would
+# have stopped anything, so one command for the .service units and a separate `stop` for the
+# generated ones. Both in one line, and the media plane outlived the role that owned it.
 enable-worker:
 	systemctl enable -q nftables $(WORKER_UNITS)
-	-systemctl disable -q --now $(HUB_UNITS) $(CONTAINERS_) 2>/dev/null
+	-systemctl disable -q --now $(HUB_UNITS) 2>/dev/null
+	-systemctl stop -q $(CONTAINERS_) 2>/dev/null
 
 # The embedder, the same shape as the role above: box.env declares it, `make install` converges on
 # it, and a box that changes the line changes what it runs on its next deploy. `systemctl enable`

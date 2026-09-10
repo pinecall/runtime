@@ -151,3 +151,14 @@ def _arguments_the_dev_stack_starts_it_with() -> list[str]:
 def _credentials_imported_by(unit: Path) -> list[str]:
     """Every name a unit's ImportCredential= lines ask systemd to decrypt for that process."""
     return re.findall(r"^ImportCredential=(.+)$", unit.read_text(), re.M)
+
+
+# A hub that becomes a worker must give up the media plane, and `systemctl disable` refuses a
+# Quadlet-generated unit before it would have stopped anything. One command for both kinds left
+# four containers running on a machine that was no longer serving them.
+def test_a_box_that_becomes_a_worker_stops_the_containers_it_can_no_longer_disable() -> None:
+    planned = what_a_box_installs(role="worker").splitlines()
+    disabled = [line for line in planned if "systemctl disable" in line]
+    stopped = [line for line in planned if "systemctl stop -q" in line]
+    assert all("pinecall-postgres" not in line for line in disabled)
+    assert any("pinecall-postgres" in line and "pinecall-livekit" in line for line in stopped)
