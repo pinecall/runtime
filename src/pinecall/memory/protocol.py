@@ -59,6 +59,14 @@ class Memory(Protocol):
         """One model call over the call's turns; what it taught, as rows added and superseded."""
         ...
 
+    # The other way facts are written, and the only one with no model in it: the sentences are
+    # given, not extracted. A golden is what asks for it — it brings the facts a question's contact
+    # holds and needs no such contact to exist — and the write is a real one, so what a golden then
+    # measures is the ranking a call would get and not an arithmetic of its own.
+    async def hold(self, org: str, contact: str, facts: Sequence[str], *, at: datetime) -> None:
+        """These sentences as the contact's facts, embedded and written; no model is asked."""
+        ...
+
     async def forget(self, org: str, contact: str) -> int:
         """Every row of the contact, gone — the right to be forgotten. How many went."""
         ...

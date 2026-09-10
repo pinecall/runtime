@@ -178,6 +178,16 @@ class PgvectorMemory:
             )
         ]
 
+    # Every sentence embedded in one batch, then one INSERT each, all at the same moment: nothing
+    # is superseded and nothing is asked of a model, so what lands is exactly what was given. The
+    # confidence is the column's own default, which is what a fact nobody weighed is worth.
+    async def hold(self, org: str, contact: str, facts: Sequence[str], *, at: datetime) -> None:
+        """These sentences as the contact's facts, with this embedder's name beside each vector."""
+        vectors = await self._embedded_all(facts)
+        model = await self._embedder.model()
+        for text, vector in zip(facts, vectors, strict=True):
+            await self._pool.execute(_ADD, org, contact, text, None, vector, at, None, model)
+
     async def forget(self, org: str, contact: str) -> int:
         """One DELETE, and the count off its command tag."""
         tag = await self._pool.execute(_FORGET, org, contact)

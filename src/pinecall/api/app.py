@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from pinecall._settings import Settings, load_settings
 from pinecall.api import (
     contacts,
+    extraction,
     knowledge,
     listen,
     orgs,
@@ -115,7 +116,7 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # or a push needs a vector, so a gateway whose embedder is down still starts and the doctor's
     # line on it stays advice. One Lookups serves every text call in-process and every worker over
     # the lookup door.
-    embedder = embedder_for(settings, http)
+    gateway.state.embedder = embedder = embedder_for(settings, http)
     gateway.state.memory = (
         None if pool is None else PgvectorMemory(pool, embedder, gateway.state.llms)
     )
@@ -160,8 +161,8 @@ app = FastAPI(title="Pinecall gateway", lifespan=lifespan)
 
 # One door per line, in the order a reader meets them: the app's socket and what it holds, the
 # calls it answers, the desk, the suites, the tenant's routes and the keys it brought of its own,
-# the operator's tables under /v1/ops, the tokens, Meta's webhook, the knowledge base and a
-# contact's memory, and whose key knocked.
+# the operator's tables under /v1/ops, the tokens, Meta's webhook, the knowledge base, a contact's
+# memory and the goldens the write side is held to, and whose key knocked.
 for door in (
     socket.router,
     agents.router,
@@ -192,6 +193,7 @@ for door in (
     webhook.router,
     knowledge.router,
     contacts.router,
+    extraction.router,
     whoami.router,
 ):
     app.include_router(door)

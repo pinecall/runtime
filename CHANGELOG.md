@@ -7,6 +7,18 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **Memory can be held to a golden**, the way a base already can, and it is the only thing that
+  says `recall` returned the wrong facts: a ring watches a conversation and only ever sees the
+  facts memory handed over, never the better one it missed. `POST /v1/contacts/memory/eval` takes
+  questions that bring their own facts — `{holds, asks, expects}` — writes each question's facts to
+  a scratch contact of the org, recalls, deletes them, and answers `recall_at_k` and `ndcg_at_10`
+  by code with no model, plus every question it did not answer whole. Writing them is what makes
+  the figures the real ranking: the same two index scans, the same fusion, the same embedder a call
+  uses. A fact answers when what came back CONTAINS what was expected, folded for case, accents and
+  whitespace, because a fact is a sentence a model wrote and a golden names the substance.
+  `memory/scoring.py`; the arithmetic behind both figures is now one home, `types/goldens.py`,
+  shared with the base's golden and generalised once so a question may expect several facts.
+  `Memory.hold` is the write with no model in it. `docs/retrieval/spec.md` has the contract.
 - `Golden.memory`: a ring-1 golden may open its call already knowing things about the caller.
   `evals/remembering.py` answers those facts to the `recall` tool for that call and nothing else
   moves — the tool call, the result and the request are the real ones, the memory table is neither

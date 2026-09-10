@@ -18,6 +18,7 @@ from pinecall.api import _deps as whatsapp_graph
 from pinecall.api import _live as gateway_connected
 from pinecall.api._deps import (
     the_admission,
+    the_embedder,
     the_knowledge,
     the_lookups,
     the_memory,
@@ -51,6 +52,7 @@ from pinecall.types import Model, Org, ProviderKeys
 from pinecall.worker.client import Gateway
 from tests.api.fake_graph import FakeGraph
 from tests.session.fake_llm import FakeLLM
+from tests.vectors import HashEmbedder
 
 A_KEY = "pk_test_a_key_nobody_will_ever_deploy"
 
@@ -179,6 +181,13 @@ def knowledge() -> Knowledge | None:
     return None
 
 
+# The one thing a door asks the embedder for is the model's name, which a golden's answer carries.
+@pytest.fixture
+def embedder() -> HashEmbedder:
+    """The vectors this gateway would write: the suite's own, so nothing reaches TEI or a vendor."""
+    return HashEmbedder()
+
+
 @pytest.fixture
 def lookups(
     memory: Memory | None,
@@ -265,6 +274,7 @@ def wired(
     threads: Threads,
     memory: Memory | None,
     knowledge: Knowledge | None,
+    embedder: HashEmbedder,
     lookups: Lookups,
 ) -> Iterator[None]:
     """The real app, its deps overridden for the length of one test."""
@@ -286,6 +296,7 @@ def wired(
     app.dependency_overrides[whatsapp_threads.the_threads] = lambda: threads
     app.dependency_overrides[the_memory] = lambda: memory
     app.dependency_overrides[the_knowledge] = lambda: knowledge
+    app.dependency_overrides[the_embedder] = lambda: embedder
     app.dependency_overrides[the_lookups] = lambda: lookups
     yield
     app.dependency_overrides.clear()

@@ -6,10 +6,12 @@ import httpx
 import pytest
 
 from pinecall.api._deps import NO_MEMORY
+from pinecall.memory.protocol import DEFAULT_FACTS_PER_TURN
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.types import Quotas
 from tests.api.conftest import A_RECORD
 from tests.lookups.fakes import LEARNED, ScriptedMemory, a_fact
+from tests.vectors import HASH_MODEL
 
 pytestmark = pytest.mark.unit
 
@@ -79,3 +81,97 @@ class TestOnADevKey:
             assert answer.status_code == 503
             assert answer.json()["detail"] == NO_MEMORY
         assert NO_MEMORY == "this gateway keeps no memory: it runs on a dev key"
+
+
+# ── the golden ──────────────────────────────────────────────────────────────────
+
+EVAL = "/v1/contacts/memory/eval"
+
+A_QUESTION = {
+    "holds": ["Prefiere mañanas", "Alérgica a la penicilina"],
+    "asks": "¿le va bien el martes?",
+    "expects": ["Prefiere mañanas"],
+}
+
+
+# A golden is the only thing that can say memory returned the WRONG facts: the judge that runs on
+# every call weighs what the agent said against the facts it was handed, and never sees the better
+# one that was missed. docs/retrieval/spec.md.
+class TestAGolden:
+    """The questions bring their own facts, so this memory starts empty and ends empty."""
+
+    @pytest.fixture
+    def memory(self) -> ScriptedMemory:
+        """A memory holding nothing about anybody: what a golden needs and all it needs."""
+        return ScriptedMemory()
+
+    async def test_it_writes_its_own_facts_asks_them_and_leaves_no_contact_behind(
+        self, tenant_http: httpx.AsyncClient, memory: ScriptedMemory
+    ) -> None:
+        said = (await tenant_http.post(EVAL, json={"questions": [A_QUESTION], "k": 4})).json()
+        assert (said["questions"], said["k"]) == (1, 4)
+        assert (said["recall_at_k"], said["ndcg_at_10"]) == (1.0, 1.0)
+        assert said["misses"] == []
+        assert said["model"] == HASH_MODEL
+        assert said["took_ms"] >= 0
+        # The facts were the question's own and the scratch contact is gone: a golden reads no
+        # contact of this org and writes none of them either.
+        assert memory.answers == []
+        (asked,) = memory.recalled
+        assert (asked["query"], asked["k"]) == ("¿le va bien el martes?", 4)
+        assert asked["contact"].startswith("golden-")
+
+    async def test_a_question_it_misses_names_what_was_missing_and_what_came_back(
+        self, tenant_http: httpx.AsyncClient
+    ) -> None:
+        missed = {**A_QUESTION, "expects": ["Vive en Pocitos"]}
+        said = (await tenant_http.post(EVAL, json={"questions": [missed]})).json()
+        assert (said["recall_at_k"], said["ndcg_at_10"]) == (0.0, 0.0)
+        (miss,) = said["misses"]
+        assert miss["asks"] == "¿le va bien el martes?"
+        assert miss["missing"] == ["Vive en Pocitos"]
+        assert miss["found"] == ["Prefiere mañanas", "Alérgica a la penicilina"]
+
+    async def test_each_question_is_asked_of_its_own_facts_and_nobody_elses(
+        self, tenant_http: httpx.AsyncClient
+    ) -> None:
+        """The contact is emptied between questions, or the second one answers from the first."""
+        other = {
+            "holds": ["Vive en Pocitos"],
+            "asks": "¿dónde vive?",
+            "expects": ["Vive en Pocitos"],
+        }
+        said = (await tenant_http.post(EVAL, json={"questions": [A_QUESTION, other]})).json()
+        assert (said["questions"], said["recall_at_k"]) == (2, 1.0)
+        assert said["misses"] == []
+
+    async def test_a_golden_asked_with_no_k_is_asked_with_the_facts_a_turn_gets(
+        self, tenant_http: httpx.AsyncClient, memory: ScriptedMemory
+    ) -> None:
+        said = (await tenant_http.post(EVAL, json={"questions": [A_QUESTION]})).json()
+        assert said["k"] == DEFAULT_FACTS_PER_TURN
+        assert memory.recalled[0]["k"] == DEFAULT_FACTS_PER_TURN
+
+    async def test_the_scratch_contact_is_forgotten_even_when_a_question_fails(
+        self, tenant_http: httpx.AsyncClient, memory: ScriptedMemory
+    ) -> None:
+        """Facts of a half-run golden left behind would count against the org's own quota."""
+        memory.failing = RuntimeError("the embedder did not answer")
+        with pytest.raises(RuntimeError):
+            await tenant_http.post(EVAL, json={"questions": [A_QUESTION]})
+        assert memory.answers == []
+
+
+class TestAGoldenOnADevKey:
+    """No Postgres, no table to write a scratch contact into: the sentence every door answers."""
+
+    @pytest.fixture
+    def memory(self) -> None:
+        return None
+
+    async def test_it_answers_503_and_the_same_sentence(
+        self, tenant_http: httpx.AsyncClient
+    ) -> None:
+        refused = await tenant_http.post(EVAL, json={"questions": [A_QUESTION]})
+        assert refused.status_code == 503
+        assert refused.json()["detail"] == NO_MEMORY
