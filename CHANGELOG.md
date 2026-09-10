@@ -7,6 +7,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- `Golden.memory`: a ring-1 golden may open its call already knowing things about the caller.
+  `evals/remembering.py` answers those facts to the `recall` tool for that call and nothing else
+  moves — the tool call, the result and the request are the real ones, the memory table is neither
+  read nor written, and `remember` at hang-up is still the gateway's so a run writes no fact about
+  a caller nobody called as.
 - The runtime, from zero: one distribution, two processes (gateway, worker) on livekit-agents 1.8;
   the log with a seq born under the database; orgs, hashed API keys with scopes, quotas, usage,
   routes, the provider-key vault, the token door, WhatsApp's webhook, the operator API.
