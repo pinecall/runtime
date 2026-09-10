@@ -26,6 +26,10 @@ class PromptBlock:
 
 # The prompt when the app declares nothing: who the agent is, what it knows and what it may call,
 # then the history, then its view of the state — the view last, because it is the last thing read.
+# The block the file a class ships with is read into, written by the platform and never by
+# the app, so a knowledge file reaches the model as the operator's own words.
+KNOWLEDGE = "knowledge"
+
 DEFAULT_LAYOUT: tuple[PromptBlock, ...] = (
     PromptBlock("identity", "static"),
     PromptBlock("knowledge", "static"),
@@ -40,9 +44,14 @@ DEFAULT_LAYOUT: tuple[PromptBlock, ...] = (
 class Blocks:
     """One call's prompt: the blocks in the order they are sent, and the text each holds now."""
 
-    def __init__(self, layout: Sequence[PromptBlock] = DEFAULT_LAYOUT) -> None:
+    # The `knowledge` block is the one the platform writes and the app never does: the file's text
+    # travels whole in the declaration, and putting it here is what makes it the operator's words
+    # in the cached prefix. docs/security/prompt-injection.md, the second row of the table.
+    def __init__(self, layout: Sequence[PromptBlock] = DEFAULT_LAYOUT, knowledge: str = "") -> None:
         self._layout = tuple(layout)
         self._texts: dict[str, str] = {block.name: "" for block in self._layout}
+        if knowledge and KNOWLEDGE in self._texts:
+            self._texts[KNOWLEDGE] = knowledge
 
     def text_of(self, name: str) -> str:
         """What the app last wrote into one block; empty until it writes."""

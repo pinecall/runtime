@@ -12,8 +12,9 @@ import pytest
 from livekit.agents import llm as agents
 
 from pinecall.session.declaring import ToolUse
+from pinecall.session.knowing import a_line_for_the_file_it_ships_with
 from pinecall.session.lookups import NoLookup, TurnLookups
-from pinecall.types import AgentConfig, Docs, MemoryPolicy, PlatformTool
+from pinecall.types import AgentConfig, Blocks, Docs, MemoryPolicy, PlatformTool
 
 pytestmark = pytest.mark.unit
 
@@ -167,3 +168,32 @@ def _names(lookups: TurnLookups) -> list[str]:
     """The names of the tools this call declares to livekit, in the order they are sent."""
     told = [getattr(tool, "info", None) for tool in lookups.declared_tools]
     return [str(info.name) for info in told if info is not None]
+
+
+# The knowledge block is the platform's to write, so the app sends no prompt.set for it. Without a
+# line of its own the log lists identity, tools and the view, and a reader concludes the file
+# reached nobody — the conclusion a live call led its own author to on 2026-09-10, wrongly.
+@pytest.mark.asyncio
+async def test_the_file_a_class_ships_with_gets_a_line_of_its_own_in_the_log() -> None:
+    written: list[tuple[str, Any]] = []
+
+    async def emit(type: str, data: Any) -> None:
+        written.append((type, data))
+
+    blocks = Blocks(knowledge="La revisión son cuarenta euros.")
+    await a_line_for_the_file_it_ships_with(blocks, emit)
+    ((type, said),) = written
+    assert type == "prompt.changed"
+    assert said.name == "knowledge"
+    assert said.chars == len("La revisión son cuarenta euros.")
+
+
+@pytest.mark.asyncio
+async def test_a_class_that_ships_no_file_writes_no_line_about_one() -> None:
+    written: list[tuple[str, Any]] = []
+
+    async def emit(type: str, data: Any) -> None:
+        written.append((type, data))
+
+    await a_line_for_the_file_it_ships_with(Blocks(), emit)
+    assert written == []
