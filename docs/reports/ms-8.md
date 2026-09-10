@@ -53,10 +53,26 @@ Every one carries `by`, and every one has its own `seq`. That is the criterion, 
 has no speakers this process may reach, and `pinecall simulate --listen` already tells a person the
 same thing about the same room. `pinecall ui` is where a call is listened to.
 
-**2 — the Supervisor screen.** Built. `src/cli/ui/console/screens/live/supervise.tsx` is the panel:
-a hidden, silent seat in the room (`use-listen.ts`, `POST /v1/calls/{call}/listen`), one box with a
-whisper/say toggle, and the six verbs through `use-supervise.ts`. Nothing on it draws the state of
-the call: what a move did is in the timeline beside it, as its own `supervisor.*` line.
+**2 — the Supervisor screen.** Built, and until this chapter closed, unreachable. The panel is
+`src/cli/ui/console/screens/live/supervise.tsx`: a hidden, silent seat in the room (`use-listen.ts`,
+`POST /v1/calls/{call}/listen`), one box with a whisper/say toggle, and the six verbs through
+`use-supervise.ts`. Nothing on it draws the state of the call — what a move did is in the timeline
+beside it, as its own `supervisor.*` line.
+
+It was first written up here as "built" on the strength of reading it. Bernardo asked whether it
+actually worked, and it did not: `pinecall ui` served a blank page from a checkout, for two reasons
+at once, and so the panel had never been opened. The server guarded its own root with
+`files + sep`, and the directory arrives as a URL's path already ending in a separator, so the
+comparison read `…/console//` and every request — the bundle included — fell through to the page,
+which the browser then parsed as JavaScript. And `consoleFiles` asked only whether `console/`
+existed beside the module: it exists twice, the built one in the package and the SOURCE in a
+checkout, whose `index.html` points at `main.tsx`. Both are fixed and both are pinned by tests that
+fail when reverted.
+
+Opened afterwards, on the live web call this report's first section made: Calls lists it under
+LIVE, the desk row reads `listen · whisper · [text] · take over · transfer · end`, the timeline
+carries both speakers with each turn's lookups beside them (`recall · 0 facts · 235 ms`,
+`3 sources · 251 ms`), and the prompt panel names its four blocks with the seq each landed at.
 
 **3 — WhatsApp.** The third door, held to 87 passing tests across `tests/api/whatsapp/` and
 `tests/api/supervise/`. A signed Meta webhook opens a call on the same class; a second message
@@ -112,6 +128,11 @@ which the class can now declare that the model may do.
 claimed `recall` and `search` appear in the prompt's `<tools>` block. They do not: that block is
 built by the class from its own methods, and the platform's two tools live in the request's tools
 array. Found by printing a real prompt rather than by reading the code. Corrected.
+
+**A test fixture in a shape the caller never produces is not a test.** `ui.test.ts` has had
+"serves the console's files" since the console landed, and it passed throughout — because its
+fixture is `mkdtempSync`, which returns a path with no trailing separator, and the real caller
+hands one that always has it. The test was right about a world with one inhabitant.
 
 **A unit test cannot catch a field read off the wrong object.** `supervise` read the observation's
 folded event where it wanted the entry's own data, so every line printed the seq and the speaker
