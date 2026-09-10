@@ -87,7 +87,9 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
         worker.gateway.agent(route.agent), worker.gateway.provider_keys(route.agent)
     )
     context = a_call(ctx.room.name or ctx.job.id, arrival, route)
-    await worker.gateway.opened(context, route.agent, worker.app)
+    # What the dispatch named wins over the flag this process was started with: a spoken eval
+    # run has to reach the terminal holding its goldens, and that socket takes no unclaimed call.
+    await worker.gateway.opened(context, route.agent, arrival.app or worker.app)
     recording = where_the_audio_goes(ctx, context.call, worker.keeping)
     bridge = worker.bridging(context, config, worker.gateway, recording)
     # Registered before anything can fail: a call that dies mid-setup still seals its own log.

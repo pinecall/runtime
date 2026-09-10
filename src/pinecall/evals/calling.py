@@ -17,7 +17,7 @@ from pinecall._settings import Settings
 from pinecall.auth.scopes import a_room_token, secret_for
 from pinecall.evals import line as degrading
 from pinecall.evals import speech
-from pinecall.types.dispatch import AGENT_KEY, WORKER_NAME
+from pinecall.types.dispatch import AGENT_KEY, APP_KEY, CALLER_KEY, WORKER_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +26,10 @@ logger = logging.getLogger(__name__)
 # wrote a moment ago, which is what makes a `--voice` run safe to start from a card.
 A_SIMULATED_CALLER = "simulated_caller"
 
-# How long the caller waits for the dispatched job to join before giving up. A worker that is not
-# running is the usual reason, and it is worth saying so rather than holding an empty room.
-THE_AGENT_MAY_TAKE_S = 20.0
+# How long the caller waits for the dispatched job to be listening before giving up. A worker that
+# is not running is the usual reason, and it is worth saying so rather than holding an empty room.
+# Measured: a cold box whose room connection needed one retry took 15s to have ears.
+THE_AGENT_MAY_TAKE_S = 40.0
 
 # How long the caller listens after saying something. A whole turn is stt, the model and a voice;
 # what the agent actually said is read off the call's own log by whoever is watching it, so this
@@ -64,6 +65,12 @@ log, and whoever holds the persona reads it back from there — the same reason 
 the log rather than a session's history (docs/decisions/scoring.md)."""
 
 
+# What a run does after the caller's last word and before the line drops: ring 2 waits for the
+# agent to finish answering, because a golden that expects a tool on the last turn would otherwise
+# be judged on a call that ended mid-thought. A plain simulate passes none and hangs up.
+type Settled = Callable[[], Awaitable[None]]
+
+
 async def a_simulated_call(
     call: str,
     agent: str,
@@ -73,16 +80,24 @@ async def a_simulated_call(
     line: Line,
     settings: Settings,
     fleet: str = WORKER_NAME,
+    caller: str | None = None,
+    app: str | None = None,
+    settled: Settled | None = None,
 ) -> int:
-    """Open the room, dispatch the agent into it, improvise the turns out loud, and hang up."""
+    """Open the room, dispatch the agent into it, say the turns out loud, and hang up."""
     if line.interferer_db is not None and not line.interferer:
         line.interferer = (await speech.spoken(speech.A_TELEVISION)).pcm
-    async with _dispatch(call, agent, fleet, settings):
+    async with _dispatch(call, agent, fleet, settings, caller, app):
         room = rtc.Room()
         await room.connect(settings.livekit_url, _a_token(call, settings))
         try:
             await _until_the_agent_is_here(room, call)
-            return await _every_turn(_Mouth(room, line), turns, next_line)
+            spoken = await _every_turn(_Mouth(room, line), turns, next_line)
+            # Held open on purpose: the line drops when the run says the answer landed, not when
+            # the caller stops talking.
+            if settled is not None:
+                await settled()
+            return spoken
         finally:
             await room.disconnect()
 
@@ -90,11 +105,21 @@ async def a_simulated_call(
 class _Dispatch:
     """One `create_dispatch`, held open for the call and closed with the API client after it."""
 
-    def __init__(self, call: str, agent: str, fleet: str, settings: Settings) -> None:
+    def __init__(
+        self,
+        call: str,
+        agent: str,
+        fleet: str,
+        settings: Settings,
+        caller: str | None,
+        app: str | None,
+    ) -> None:
         self._call = call
         self._agent = agent
         self._fleet = fleet
         self._settings = settings
+        self._caller = caller
+        self._app = app
         self._api: api.LiveKitAPI | None = None
 
     # The dispatch is what puts the agent in the room: a room job whose metadata names the agent,
@@ -110,18 +135,37 @@ class _Dispatch:
             CreateAgentDispatchRequest(
                 room=self._call,
                 agent_name=self._fleet,
-                metadata=json.dumps({AGENT_KEY: self._agent}),
+                metadata=json.dumps(self._metadata()),
             )
         )
+
+    # A caller is named only when the run has a reason to: ring 2 marks its calls as eval callers
+    # so the app seeds the golden's state, exactly as a written eval call does. A plain simulate
+    # names nobody and the router falls back to the room, which is what it always did.
+    def _metadata(self) -> dict[str, str]:
+        """What the dispatch tells the worker: the agent, and who it should say is calling."""
+        said = {AGENT_KEY: self._agent}
+        if self._caller is not None:
+            said[CALLER_KEY] = self._caller
+        if self._app is not None:
+            said[APP_KEY] = self._app
+        return said
 
     async def __aexit__(self, *_closed: object) -> None:
         if self._api is not None:
             await self._api.aclose()
 
 
-def _dispatch(call: str, agent: str, fleet: str, settings: Settings) -> _Dispatch:
+def _dispatch(
+    call: str,
+    agent: str,
+    fleet: str,
+    settings: Settings,
+    caller: str | None = None,
+    app: str | None = None,
+) -> _Dispatch:
     """The agent asked into this room for the length of the call."""
-    return _Dispatch(call=call, agent=agent, fleet=fleet, settings=settings)
+    return _Dispatch(call=call, agent=agent, fleet=fleet, settings=settings, caller=caller, app=app)
 
 
 class _Mouth:
@@ -181,13 +225,27 @@ def _a_token(call: str, settings: Settings) -> str:
     )
 
 
+# Being in the room is not being ready to hear: the job joins, and its session — the ears, the
+# model and the voice — is built after. On a box whose media plane needed a retry the gap was 15
+# seconds, and a caller that talked into it said both its lines to nobody. The agent's own audio
+# track is what says the pipeline is live, so that is what is waited for.
 async def _until_the_agent_is_here(room: rtc.Room, call: str) -> None:
-    """Wait for the dispatched job to join, or say plainly that nobody did."""
+    """Wait for the dispatched job to be LISTENING, or say plainly that nobody answered."""
     deadline = time.monotonic() + THE_AGENT_MAY_TAKE_S
-    while not room.remote_participants and time.monotonic() < deadline:
+    while not _listening(room) and time.monotonic() < deadline:
         await asyncio.sleep(0.1)
-    if not room.remote_participants:
+    if not _listening(room):
         raise TimeoutError(NOBODY_ANSWERED.format(call=call, seconds=THE_AGENT_MAY_TAKE_S))
+
+
+def _listening(room: rtc.Room) -> bool:
+    """Whether somebody in the room has published audio: the agent's own voice, which it publishes
+    when its session starts. Presence alone is a job that has joined and is still building."""
+    return any(
+        publication.kind == rtc.TrackKind.KIND_AUDIO
+        for participant in room.remote_participants.values()
+        for publication in participant.track_publications.values()
+    )
 
 
 async def _every_turn(mouth: _Mouth, turns: int, next_line: NextLine) -> int:

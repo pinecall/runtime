@@ -15,13 +15,15 @@ from pydantic import Field
 from starlette.requests import HTTPConnection
 
 from pinecall._exceptions import PinecallError
-from pinecall._settings import Budgets
+from pinecall._settings import Budgets, Settings
 from pinecall.api._deps import held
 from pinecall.api._live import Live
 from pinecall.api.agents.registry import NO_AGENT, Registration, Registry
 from pinecall.api.evals.attachment import AppDetached, Attachment
 from pinecall.api.evals.conversation import a_conversation
 from pinecall.api.evals.scoring import Judging
+from pinecall.api.evals.spoken import a_spoken_conversation
+from pinecall.evals.calling import Line
 from pinecall.evals.goldens import Golden
 from pinecall.evals.runs import EvalRun, Opened, Runs
 from pinecall.log.store import Store
@@ -31,7 +33,7 @@ from pinecall.orgs.vault import Vault, keys_brought_by
 from pinecall.providers import declaration
 from pinecall.providers.models import Models
 from pinecall.providers.overrides import Overrides
-from pinecall.types import AgentConfig, Model, ProviderKeys, a_call_id
+from pinecall.types import AgentConfig, DeclarationRefused, Model, ProviderKeys, a_call_id
 from pinecall_protocol import WireModel, defs
 
 # The design says SIGKILL, and there is no child to signal: a run is coroutines in the gateway's
@@ -80,6 +82,13 @@ class Wanted(WireModel):
     # Which app socket to run against, as `WS /v1/chat?app=` names one. Absent takes whichever
     # socket the chat door would give a caller.
     app: str | None = None
+    # Ring 2: the same goldens, said out loud on a real line instead of written into a text
+    # session. The turns are the tenant's own lines either way — what changes is that a voice
+    # says them, ears hear them and the worker holds the session, which is the whole point.
+    voice: bool = False
+    # How spoilt the caller's line is, for a spoken run. None is a clean line.
+    interferer_db: float | None = None
+    packet_loss: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -98,6 +107,9 @@ class Process:
     # What runs a golden's lookups and remembers its hang-up, and how long a turn waits.
     lookups: Lookups
     budgets: Budgets
+    # What a spoken run needs to reach the media plane: the LiveKit pair and its url. A written
+    # run never touches it.
+    settings: Settings
 
 
 class Runner:
@@ -132,6 +144,8 @@ async def a_run(wanted: Wanted, runner: Runner, process: Process) -> EvalRun:
     serving = process.registry.serving(wanted.agent, wanted.app)
     if serving is None:
         raise NobodyServing(NO_AGENT.format(slug=wanted.agent))
+    if wanted.voice:
+        _refuse_what_a_spoken_run_cannot_do(wanted)
     # The same config a real caller would reach: what an operator turned on the Pipeline screen
     # is on this run too, because a golden that tested something else would test nothing.
     config = process.overrides.config_for(wanted.agent, serving.config)
@@ -191,19 +205,34 @@ async def _every_conversation(
             run = run.opening(Opened(golden=golden.name, model=named, call=call))
             await process.runs.put(run)
             try:
-                said = await a_conversation(
-                    golden,
-                    call=call,
-                    model=named,
-                    config=running,
-                    org=serving.org,
-                    app=app,
-                    logs=process.logs,
-                    live=process.live,
-                    llm=llm,
-                    store=process.store,
-                    lookups=process.lookups,
-                    budgets=process.budgets,
+                said = (
+                    await a_spoken_conversation(
+                        golden,
+                        call=call,
+                        model=named,
+                        agent=wanted.agent,
+                        store=process.store,
+                        settings=process.settings,
+                        line=Line(
+                            interferer_db=wanted.interferer_db, packet_loss=wanted.packet_loss
+                        ),
+                        app=serving.owner,
+                    )
+                    if wanted.voice
+                    else await a_conversation(
+                        golden,
+                        call=call,
+                        model=named,
+                        config=running,
+                        org=serving.org,
+                        app=app,
+                        logs=process.logs,
+                        live=process.live,
+                        llm=llm,
+                        store=process.store,
+                        lookups=process.lookups,
+                        budgets=process.budgets,
+                    )
                 )
             # The call itself has already ended as app_detached; what this adds is the run's own
             # arithmetic, which only the loop knows.
@@ -214,6 +243,33 @@ async def _every_conversation(
             run = replace(run, matrix=judging.matrix)
             await process.runs.put(run)
     return run
+
+
+# A spoken run reaches the model through the WORKER, which builds its session from the agent's
+# own declaration and the operator's knobs — this process never gets to swap the llm for a column.
+# Rather than print a matrix whose two columns ran the same model, the door says so.
+A_SPOKEN_RUN_HAS_ONE_MODEL = (
+    "--voice runs the model the agent declares: the worker builds the session, so a run cannot "
+    "put a golden through a second model out loud. Drop --model, or drop --voice."
+)
+
+# The worker seeds the clock from the day the call is opened on, and a dispatch carries no date.
+# A golden that pins a weekday would run on today and read as a red that is nobody's fault.
+A_SPOKEN_RUN_CANNOT_PIN_A_DAY = (
+    "golden {name} pins today={day}, and a spoken call runs on the real day: the worker seeds its "
+    "clock when the room opens. Run this golden without --voice."
+)
+
+
+def _refuse_what_a_spoken_run_cannot_do(wanted: Wanted) -> None:
+    """The two things ring 2 cannot honour, said before a single room is opened."""
+    if wanted.models:
+        raise DeclarationRefused(A_SPOKEN_RUN_HAS_ONE_MODEL)
+    for golden in wanted.goldens:
+        if golden.today is not None:
+            raise DeclarationRefused(
+                A_SPOKEN_RUN_CANNOT_PIN_A_DAY.format(name=golden.name, day=golden.today)
+            )
 
 
 def _the_app_left(judged: int, total: int, slug: str) -> AppDetached:

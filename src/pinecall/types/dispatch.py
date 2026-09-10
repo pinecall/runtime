@@ -13,6 +13,10 @@ WORKER_NAME = "pinecall"
 AGENT_KEY = "agent"
 DIRECTION_KEY = "direction"
 CALLER_KEY = "caller"
+# Which app socket is to serve this call, when the dispatch has a reason to name one: a spoken
+# eval run does, because the goldens and their seeded state live in the terminal that asked for
+# the run, and that socket takes no unclaimed calls. Absent, the gateway picks as it always has.
+APP_KEY = "app"
 
 # Ours, beside livekit's three: which scope minted the token that opened this call, and the JSON
 # the tenant's backend sealed into it. A dispatch that carries a scope was minted by POST

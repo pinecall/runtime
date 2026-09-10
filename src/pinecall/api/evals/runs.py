@@ -71,6 +71,7 @@ async def run_the_goldens(
         vault=vault,
         lookups=lookups,
         budgets=settings.budgets,
+        settings=settings,
     )
     try:
         return (await a_run(said, runner, process)).as_json
