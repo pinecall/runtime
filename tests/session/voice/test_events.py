@@ -61,14 +61,26 @@ class Ended:
         self.causes.append(cause)
 
 
+class Overheard:
+    """The lookups, as far as the subscriber reaches them: the words a run could start on."""
+
+    def __init__(self) -> None:
+        self.said: list[str] = []
+
+    def heard_so_far(self, said: str) -> None:
+        self.said.append(said)
+
+
 async def a_bridge_on(
-    session: ScriptedSession, ending: Ended | None = None
+    session: ScriptedSession,
+    ending: Ended | None = None,
+    listening: Overheard | None = None,
 ) -> tuple[Recording, Events, Writing]:
     """The events subscriber on a scripted session, writing to a recording gateway."""
     recording = Recording()
     writing = Writing(recording, CALL)
     writing.open()
-    events = Events(writing, Meters(writing), ending or Ended())
+    events = Events(writing, Meters(writing), ending or Ended(), listening or Overheard())
     events.watch(session)  # pyright: ignore[reportArgumentType]
     return recording, events, writing
 
@@ -86,6 +98,19 @@ async def test_the_callers_words_and_states_land_in_the_order_they_were_heard() 
     assert (interim.ephemeral, final.ephemeral) == (True, False)
     assert final.data == {"text": "hola, quiero un turno", "final": True, "language": "es"}
     assert recording.of("agent.state")[0].data == {"state": "thinking"}
+
+
+# The interim is the one moment the platform hears the caller mid-sentence, and it is what the
+# lookups start on. The final is already the turn, and the turn end runs its own path.
+async def test_only_the_interim_transcript_reaches_the_lookups_and_never_the_final() -> None:
+    session = ScriptedSession()
+    overheard = Overheard()
+    _recording, _events, writing = await a_bridge_on(session, listening=overheard)
+    session.emit("user_input_transcribed", heard("cuánto cuesta", final=False))
+    session.emit("user_input_transcribed", heard("cuánto cuesta una revi", final=False))
+    session.emit("user_input_transcribed", heard("cuánto cuesta una revisión", final=True))
+    await writing.flushed()
+    assert overheard.said == ["cuánto cuesta", "cuánto cuesta una revi"]
 
 
 async def test_a_user_turn_carries_its_report_whole_and_the_language_the_recogniser_said() -> None:

@@ -34,13 +34,21 @@ type EmbedProvider = Literal["tei", "perplexity", "openrouter"]
 
 
 # A lookup never delays a reply past its budget, and a slow model at hang-up never holds the
-# seal: the two numbers a session waits on memory and retrieval for, then goes on without them.
-# Declared here, once, because the two fields below take their defaults from it.
+# seal: the numbers a session waits on memory and retrieval for, then goes on without them.
+# Declared here, once, because the three fields below take their defaults from it.
+#
+# The two lookup budgets are named for the channel because they measure two different silences. On
+# a spoken call the lookups start while the caller is still talking (session/lookups.py), so what
+# this number buys is the TAIL — what is left of a run when the caller stops — and it is the
+# silence on the line before the agent answers. A written caller has no interim to start anything
+# on, so a text turn runs the whole lookup at turn end; nobody is listening to that, so it can
+# afford what a phone line cannot.
 @dataclass(frozen=True)
 class Budgets:
-    """What a turn may wait for its lookups, and a hang-up for its memory, before going on."""
+    """What each turn may wait for its lookups, and a hang-up for its memory, before going on."""
 
-    lookup_ms: int = 250
+    voice_lookup_ms: int = 250
+    text_lookup_ms: int = 3000
     remember_s: float = 8.0
 
 
@@ -285,9 +293,19 @@ class Settings(BaseSettings):
     # ── Memory and retrieval: what a turn and a hang-up wait for ──────────────
     # The language BM25 ranks in is the index's own, fixed in 0008 and 0009 (`spanish`): a
     # migration reads no setting, so there is none to read here either.
-    lookup_budget_ms: int = Field(
-        default=Budgets.lookup_ms,
-        description="What a turn waits for recall and search, in ms. Past it the reply goes on.",
+    voice_lookup_budget_ms: int = Field(
+        default=Budgets.voice_lookup_ms,
+        description=(
+            "What a spoken turn waits for the recall and search it started while the caller was "
+            "still talking, in ms. It is silence on the line, so it is small."
+        ),
+    )
+    text_lookup_budget_ms: int = Field(
+        default=Budgets.text_lookup_ms,
+        description=(
+            "What a written turn waits for recall and search, in ms. A written caller sends a "
+            "whole message, so the lookup only starts at the end — and nobody hears the wait."
+        ),
     )
     remember_budget_s: float = Field(
         default=Budgets.remember_s,
@@ -296,8 +314,12 @@ class Settings(BaseSettings):
 
     @property
     def budgets(self) -> Budgets:
-        """The two budgets as one thing a session is handed."""
-        return Budgets(lookup_ms=self.lookup_budget_ms, remember_s=self.remember_budget_s)
+        """The three budgets as one thing a session is handed."""
+        return Budgets(
+            voice_lookup_ms=self.voice_lookup_budget_ms,
+            text_lookup_ms=self.text_lookup_budget_ms,
+            remember_s=self.remember_budget_s,
+        )
 
     # pydantic resolves an env_file NAME against the working directory alone, so it is the one
     # part of the config that cannot express the walk. The dotenv source is rebuilt here over the

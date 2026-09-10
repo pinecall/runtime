@@ -89,9 +89,11 @@ class TextSession:
         self.turns = Turns(self)
         self.running = Running(self, config)
         # The platform's own two tools are declared beside the app's, so the model sees one list
-        # and the `tools` block describes one list: session/lookups.py.
+        # and the `tools` block describes one list: session/lookups.py. A written caller sends a
+        # whole message and there is no interim to start a lookup on, so the whole of it runs when
+        # the turn ends — under the text budget, because nobody is listening to a chat's silence.
         self.lookups = TurnLookups(
-            lookup, context.call, context.remembered_as, config, budgets.lookup_ms
+            lookup, context.call, context.remembered_as, config, budgets.text_lookup_ms
         )
         # Every declared tool, once, for the life of the call: livekit only runs a tool it holds,
         # so the declaration IS the registration, and a tools.set narrows `visibility` instead.

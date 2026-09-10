@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 from livekit.agents import llm as agents
 from livekit.agents.voice import AgentSession
+from livekit.agents.voice import events as session_events
 
 from pinecall._settings import Budgets
 from pinecall.session.voice import VoiceBridge, a_bridge
@@ -142,7 +143,7 @@ async def test_a_lookup_past_its_budget_is_a_recoverable_entry_and_the_turn_goes
         replace(REMEMBERS, docs=None),
         recording,
         lookup=Slow(),
-        budgets=Budgets(lookup_ms=0, remember_s=1.0),
+        budgets=Budgets(voice_lookup_ms=0, remember_s=1.0),
     )
     live: AgentSession[None] = AgentSession(
         llm=FakeLLM(Scripted(chunks=("Uno.",))),
@@ -159,6 +160,41 @@ async def test_a_lookup_past_its_budget_is_a_recoverable_entry_and_the_turn_goes
     assert skipped.data["code"] == "recall_skipped"
     assert skipped.data["recoverable"] is True
     assert "turn.agent" in recording.types
+
+
+# The defect this closes, measured on a live two-turn call: run at turn end, EVERY lookup was
+# skipped, because there the run competes with the reply the session is already generating.
+# Started on the interim, the same run is back before the caller stops — so a budget of ZERO, which
+# used to skip everything, still puts both pairs in front of the model and writes no skip at all.
+async def test_a_lookup_started_while_the_caller_talks_reaches_the_model_on_no_budget() -> None:
+    recording = Recording()
+    answering = Answering()
+    llm = FakeLLM(Scripted(chunks=("Cuarenta euros.",)))
+    bridge = a_bridge(
+        a_context(),
+        REMEMBERS,
+        recording,
+        lookup=answering,
+        budgets=Budgets(voice_lookup_ms=0, remember_s=1.0),
+    )
+    live: AgentSession[None] = AgentSession(
+        llm=llm, vad=None, turn_handling={"turn_detection": "manual"}
+    )
+    await bridge.opened(live)
+    await live.start(bridge.agent, record=False)  # pyright: ignore[reportUnknownMemberType]
+    live.emit("user_input_transcribed", _an_interim("cuánto cuesta una revisión"))
+    await _the_run_comes_back()
+    await _the_caller_said(bridge, "¿Cuánto cuesta una revisión?")
+    await live.generate_reply(user_input="¿Cuánto cuesta una revisión?")
+    await live.aclose()
+    assert [(tool, said["query"]) for tool, said, _speech in answering.asked] == [
+        ("recall", "cuánto cuesta una revisión"),
+        ("search", "cuánto cuesta una revisión"),
+    ]
+    (asked,) = llm.asked
+    assert [call.name for call in asked.calls] == ["recall", "search"]
+    assert [list(json.loads(output.output)) for output in asked.outputs] == [["facts"], ["chunks"]]
+    assert recording.of("error") == [], "nothing was skipped: the answers were already here"
 
 
 async def test_hang_up_remembers_between_call_ended_and_call_summary(
@@ -209,3 +245,15 @@ async def test_an_agent_that_declared_no_memory_asks_nobody_at_hang_up() -> None
 async def _the_caller_said(bridge: VoiceBridge, text: str) -> None:
     message = agents.ChatMessage(role="user", content=[text])
     await bridge.agent.on_user_turn_completed(bridge.agent.chat_ctx, message)
+
+
+# What the session emits mid-sentence, on the way from the recogniser (agent_activity.py:2321).
+def _an_interim(text: str) -> session_events.UserInputTranscribedEvent:
+    """One interim transcript of the turn being spoken, as livekit hands it to a subscriber."""
+    return session_events.UserInputTranscribedEvent(transcript=text, is_final=False)
+
+
+# An eager run is a task, so the loop has to get a turn before it can have answered.
+async def _the_run_comes_back() -> None:
+    """Let the lookups the interim started run to completion before the turn ends."""
+    await asyncio.sleep(0.05)

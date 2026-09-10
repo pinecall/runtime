@@ -87,8 +87,7 @@ async def test_a_caller_nobody_has_identified_is_left_out_and_never_named_as_nob
 async def test_each_run_leaves_a_pair_the_formatter_can_match_by_call_id() -> None:
     lookups = a_lookups(Answering())
     await lookups.turn_ended("quiero un turno", None)
-    calls = [item for item in lookups.items if isinstance(item, agents.FunctionCall)]
-    outputs = [item for item in lookups.items if isinstance(item, agents.FunctionCallOutput)]
+    calls, outputs = _calls(lookups), _outputs(lookups)
     assert [call.name for call in calls] == ["recall", "search"]
     assert [call.call_id for call in calls] == [output.call_id for output in outputs]
     assert len(set(call.call_id for call in calls)) == 2
@@ -98,17 +97,17 @@ async def test_each_run_leaves_a_pair_the_formatter_can_match_by_call_id() -> No
 async def test_a_tool_result_is_a_json_object_whose_key_is_facts_or_chunks() -> None:
     lookups = a_lookups(Answering())
     await lookups.turn_ended("quiero un turno", None)
-    outputs = [item for item in lookups.items if isinstance(item, agents.FunctionCallOutput)]
-    assert [list(json.loads(output.output)) for output in outputs] == [["facts"], ["chunks"]]
+    assert [list(json.loads(output.output)) for output in _outputs(lookups)] == [
+        ["facts"],
+        ["chunks"],
+    ]
 
 
 async def test_the_pair_is_replaced_whole_every_turn_and_holds_nothing_between_two() -> None:
     lookups = a_lookups(Answering())
     await lookups.turn_ended("uno", None)
     await lookups.turn_ended("dos", None)
-    calls = [item for item in lookups.items if isinstance(item, agents.FunctionCall)]
-    assert len(calls) == 2
-    assert json.loads(calls[0].arguments)["query"] == "dos"
+    assert _queries(lookups) == ["dos", "dos"]
 
 
 async def test_docs_in_tool_mode_runs_nothing_before_the_turn_and_still_answers_the_model() -> None:
@@ -144,8 +143,79 @@ async def test_one_lookup_that_fails_leaves_the_other_ones_pair_standing() -> No
     lookups = a_lookups(OnlySearchFails())
     skipped = await lookups.turn_ended("hola", None)
     assert [error.message for error in skipped] == ["search did not run: TEI is down"]
-    calls = [item for item in lookups.items if isinstance(item, agents.FunctionCall)]
-    assert [call.name for call in calls] == ["recall"]
+    assert [call.name for call in _calls(lookups)] == ["recall"]
+
+
+# ── started while the caller is still talking ───────────────────────────────────
+
+
+async def test_an_interim_of_enough_words_starts_the_run_and_the_turn_waits_for_nothing() -> None:
+    service = Answering()
+    lookups = a_lookups(service, budget_ms=0)
+    lookups.heard_so_far("cuánto cuesta una revisión")
+    await _the_run_comes_back()
+    assert _tools_asked(service) == ["recall", "search"]
+    # A budget of zero would skip anything still out: both are already back, so nothing is.
+    assert await lookups.turn_ended("¿cuánto cuesta una revisión?", "sp_1") == ()
+    assert [call.name for call in _calls(lookups)] == ["recall", "search"]
+    assert len(service.asked) == 2, "the end of the turn asks nobody a second time"
+
+
+async def test_a_turn_too_short_to_have_started_a_run_still_gets_its_lookups_at_the_end() -> None:
+    service = Answering()
+    lookups = a_lookups(service)
+    lookups.heard_so_far("buenos días")
+    await _the_run_comes_back()
+    assert service.asked == [], "a greeting is not a question, and an embed of one finds nothing"
+    assert await lookups.turn_ended("buenos días", None) == ()
+    assert _tools_asked(service) == ["recall", "search"]
+    assert _queries(lookups) == ["buenos días", "buenos días"]
+
+
+# The pair says the words the lookup was ACTUALLY asked with, which on an eager run is the caller's
+# prefix and not their finished sentence: a reader of the log sees what was sent, and the model
+# reads a tool_use it could itself have made.
+async def test_the_pair_carries_the_prefix_the_run_was_asked_with_and_no_second_run() -> None:
+    service = Answering()
+    lookups = a_lookups(service)
+    lookups.heard_so_far("cuánto cuesta una revisión")
+    lookups.heard_so_far("cuánto cuesta una revisión dental")
+    await _the_run_comes_back()
+    await lookups.turn_ended("¿cuánto cuesta una revisión dental?", None)
+    assert len(service.asked) == 2, "one run per turn: a second start is a second embed"
+    assert _queries(lookups) == ["cuánto cuesta una revisión", "cuánto cuesta una revisión"]
+
+
+async def test_a_run_started_for_one_turn_is_never_read_by_the_next() -> None:
+    service = Answering()
+    lookups = a_lookups(service)
+    lookups.heard_so_far("quiero pedir una cita")
+    await _the_run_comes_back()
+    await lookups.turn_ended("quiero pedir una cita", None)
+    await lookups.turn_ended("¿y cuánto cuesta?", None)
+    assert _queries(lookups) == ["¿y cuánto cuesta?", "¿y cuánto cuesta?"]
+    assert [dict(input)["query"] for _call, _tool, input, _speech in service.asked] == [
+        "quiero pedir una cita",
+        "quiero pedir una cita",
+        "¿y cuánto cuesta?",
+        "¿y cuánto cuesta?",
+    ]
+
+
+async def test_only_the_tool_still_out_when_the_budget_expires_is_the_one_skipped() -> None:
+    class OnlySearchIsSlow(Answering):
+        @override
+        async def lookup(
+            self, call: str, tool: PlatformTool, input: Mapping[str, Any], speech_id: str | None
+        ) -> Mapping[str, Any]:
+            if tool == "search":
+                await asyncio.sleep(0.5)
+            return await super().lookup(call, tool, input, speech_id)
+
+    lookups = a_lookups(OnlySearchIsSlow(), budget_ms=50)
+    skipped = await lookups.turn_ended("cuánto cuesta una revisión", None)
+    assert [error.code for error in skipped] == ["search_skipped"]
+    assert [call.name for call in _calls(lookups)] == ["recall"]
 
 
 async def test_a_class_that_declares_neither_asks_nobody_and_carries_no_pair() -> None:
@@ -158,8 +228,37 @@ async def test_a_class_that_declares_neither_asks_nobody_and_carries_no_pair() -
 async def test_the_no_lookup_answers_each_tool_in_its_own_empty_shape() -> None:
     lookups = a_lookups(NoLookup())
     await lookups.turn_ended("hola", None)
-    outputs = [item for item in lookups.items if isinstance(item, agents.FunctionCallOutput)]
-    assert [json.loads(output.output) for output in outputs] == [{"facts": []}, {"chunks": []}]
+    assert [json.loads(output.output) for output in _outputs(lookups)] == [
+        {"facts": []},
+        {"chunks": []},
+    ]
+
+
+# An eager run is a task, so the loop has to get a turn before it can have answered. A fake
+# service answers in one hop; this is the sleep that gives it one, and never a wait on wall clock.
+async def _the_run_comes_back() -> None:
+    """Let whatever `heard_so_far` started run to completion before the turn ends."""
+    await asyncio.sleep(0.05)
+
+
+def _calls(lookups: TurnLookups) -> list[agents.FunctionCall]:
+    """The tool_use half of every pair this turn left, in the order the tools ran."""
+    return [item for item in lookups.items if isinstance(item, agents.FunctionCall)]
+
+
+def _outputs(lookups: TurnLookups) -> list[agents.FunctionCallOutput]:
+    """The tool_result half of every pair this turn left, in the order the tools ran."""
+    return [item for item in lookups.items if isinstance(item, agents.FunctionCallOutput)]
+
+
+def _queries(lookups: TurnLookups) -> list[str]:
+    """The words each pair says its lookup was actually asked with."""
+    return [json.loads(call.arguments)["query"] for call in _calls(lookups)]
+
+
+def _tools_asked(service: Answering) -> list[str]:
+    """Which tools the service was asked to run, in the order it was asked."""
+    return [tool for _call, tool, _input, _speech in service.asked]
 
 
 # livekit's raw-tool helpers are generic over the wrapped function's ParamSpec, which a strict

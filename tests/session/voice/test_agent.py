@@ -61,10 +61,10 @@ async def an_agent(recording: Recording) -> tuple[VoiceAgent, Writing]:
     """The real agent over a real subscriber, writing every entry to a recording gateway."""
     writing = Writing(recording, CALL)
     writing.open()
-    events = Events(writing, Meters(writing), Ended())
+    lookups = TurnLookups(NoLookup(), CALL, None, CLARA, Budgets().voice_lookup_ms)
+    events = Events(writing, Meters(writing), Ended(), lookups)
     events.watch(ScriptedSession(current_speech=Speaking("sp_9")))  # pyright: ignore[reportArgumentType]
     blocks = Blocks()
-    lookups = TurnLookups(NoLookup(), CALL, None, CLARA, Budgets().lookup_ms)
     agent = VoiceAgent(blocks=blocks, tools=(), speaking=Playing(events), lookups=lookups)
     return agent, writing
 

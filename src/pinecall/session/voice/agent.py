@@ -59,19 +59,21 @@ class VoiceAgent(LiveAgent):
         self._speaking = speaking
         self._lookups = lookups
 
-    # livekit's hook between the caller's last word and the request (agent_activity.py:2605): the
-    # one moment a lookup can be run with the whole turn as the query. The hook is timed by
-    # livekit itself, as on_user_turn_completed_delay on the EOU block, and the budget inside
-    # TurnLookups (PINECALL_LOOKUP_BUDGET_MS) is what keeps that number small. No speech exists yet
-    # at this moment — the reply's handle is created after the hook returns (:2672) — so the
-    # lookup is filed under none.
+    # livekit's hook between the caller's last word and the request (agent_activity.py:2605), and
+    # the one moment the whole turn is known. The lookups usually started long before it, on an
+    # interim transcript the bridge handed them (session/voice/events.py), so what happens here is
+    # a run being COLLECTED: nothing to wait for when it is back, its tail under
+    # PINECALL_VOICE_LOOKUP_BUDGET_MS when it is not, and the whole run when the turn was too short
+    # to have started one. The hook is timed by livekit itself, as on_user_turn_completed_delay on
+    # the EOU block, which is why that budget is small. No speech exists yet at this moment — the
+    # reply's handle is created after the hook returns (:2672) — so the lookup is filed under none.
     @override
     async def on_user_turn_completed(
         self,
         turn_ctx: agents.ChatContext,  # noqa: ARG002 — livekit's signature
         new_message: agents.ChatMessage,
     ) -> None:
-        """The caller's words are the query: this turn's lookups, or why they did not run."""
+        """The caller's turn is over: this turn's lookups collected, or why they did not run."""
         for skipped in await self._lookups.turn_ended(new_message.text_content or "", None):
             await self._speaking.skipped(skipped)
 

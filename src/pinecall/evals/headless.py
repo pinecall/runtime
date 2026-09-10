@@ -74,8 +74,9 @@ async def a_headless_call(
     # cache lands on — and the dynamic ones are read per request, after the history. Never
     # reordered; a ring renders once and holds it, because nothing here moves the state.
     # No memory and no knowledge base behind a ring, so recall and search are declared exactly as
-    # they are on a call and both answer with nothing found — which is the truth here.
-    lookups = TurnLookups(NoLookup(), HEADLESS, None, config, read.budgets.lookup_ms)
+    # they are on a call and both answer with nothing found — which is the truth here. The written
+    # door has no interim to start a lookup on, so it takes the text budget; nothing waits it out.
+    lookups = TurnLookups(NoLookup(), HEADLESS, None, config, read.budgets.text_lookup_ms)
     agent = VoiceAgent(
         blocks=prompt,
         tools=[*declared(config.tools, answers), *lookups.declared_tools],

@@ -201,14 +201,21 @@ others cached. The tenant never writes a prompt: the class is the prompt, `rende
 own, and their answers reach the model **as `tool_result` blocks, JSON-encoded** — the one place
 both vendors name for anything that arrived from outside the conversation
 (`docs/security/prompt-injection.md`, a public contract). With `docs.mode = "retrieved"` (the
-default) and whenever `memory` is declared, the session runs the lookup itself when the caller's
-turn ends — livekit's `on_user_turn_completed` on both agents, the whole turn as the query, under
-`PINECALL_LOOKUP_BUDGET_MS` — and puts a real `FunctionCall` + `FunctionCallOutput` pair into the
-request, paired by `call_id` so livekit's formatter groups it (`session/lookups.py`, the same
-shape `clock.py` puts today's date in). Past the budget no pair is added and an `error` entry
-(`recall_skipped`, `search_skipped`) says why; with `docs.mode = "tool"` the platform runs nothing
-and the model calls `search` itself, through the same callable. The pair is rebuilt every turn and
-never kept in the history, so the cached prefix never moves. At hang-up, between `call.ended` and
+default) and whenever `memory` is declared, the session runs the lookup itself and puts a real
+`FunctionCall` + `FunctionCallOutput` pair into the request, paired by `call_id` so livekit's
+formatter groups it (`session/lookups.py`, the same shape `clock.py` puts today's date in).
+**On a spoken call it starts while the caller is still talking**: `session/voice/events.py` hands
+every interim transcript to `TurnLookups.heard_so_far`, and the first one carrying four words
+(`WORDS_ENOUGH_TO_SEARCH_WITH`) starts one task per tool, asked with the caller's words so far.
+One run per turn; livekit's `on_user_turn_completed` consumes it and drops it — already back, it
+is read with no wait; still out, its tail is awaited under `PINECALL_VOICE_LOOKUP_BUDGET_MS`; never
+started, because the turn was too short, it runs there and then. A text turn has no interim and runs
+the whole lookup at turn end, under `PINECALL_TEXT_LOOKUP_BUDGET_MS`, which is larger because nobody
+hears a chat's silence. Past the budget that tool's pair is left out and an `error` entry
+(`recall_skipped`, `search_skipped`) says why — per tool, so a `recall` that answered is used beside
+a `search` that did not; with `docs.mode = "tool"` the platform runs nothing and the model calls
+`search` itself, through the same callable. The pair is rebuilt every turn and never kept in the
+history, so the cached prefix never moves. At hang-up, between `call.ended` and
 `call.summary`, the session's `Rememberer` writes what the call taught about the contact; a miss
 is `remember_failed`, recoverable, and the call seals.
 
