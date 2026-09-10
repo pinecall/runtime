@@ -88,6 +88,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   itself in the wheel and the sdist, so an install carries its licence.
 
 ### Changed
+- **A base can be held to a golden**, which is the only thing that says the index missed a BETTER
+  passage — the judge that runs on every call can only weigh what the model was given.
+  `POST /v1/knowledge/{base}/eval` takes the questions and the chunk each should have found, and
+  answers `recall_at_k` and `ndcg_at_10` computed by code with no model in the loop, plus every
+  miss with what came back instead. A base listing now names the embedder that wrote its vectors,
+  so a tenant learns of a mismatch from the list and not from a 409 at the next turn.
+  `docs/retrieval/spec.md` is the whole contract: the four numbers already in the log, what each
+  targets, and the mapping onto OpenTelemetry GenAI's retrieval, memory and embeddings spans.
 - **What a lookup found is a tool result, not a piece of the prompt.** The view's markers
   (`<!-- memory: … -->`, `<!-- retrieved: … -->`, `<!-- knowledge: … -->`) are gone, and with them
   `types/markers.py`, `TurnFills`, the `Filler` protocol and `POST /v1/calls/{call}/fill`. They
