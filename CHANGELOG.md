@@ -7,6 +7,21 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **The write side of memory is held to goldens of its own**, which is the half that persists: the
+  hang-up makes ONE model call and it can miss what mattered, invent a fact, leave two versions of
+  one fact standing, or write a category the tenant listed as never-keep.
+  `POST /v1/agents/{slug}/memory/extraction` takes cases — a call already written down, both
+  speakers, plus what memory already holds — runs that very extraction per case on the org's own
+  model and keys, and asks four questions of what came back, all by code and none by comparing
+  sentences: every category named got a fact (the words are the class's own `memory.remember`, so a
+  golden that names one it never declared is refused), none went under a `forget` category, no
+  fact's TEXT carries a value the call showed must not survive (`never_says`, matched on the folded
+  words and on the digits alone, so a card number is caught however it was grouped), and exactly
+  the held facts the call contradicted were superseded — the mirror included, which is what catches
+  a model that replaces whatever it touches. A case may also PLANT sentences: planting one is the
+  assertion that admission refuses it. The answer carries what memory would have kept beside what
+  admission dropped. `memory/goldens.py`, `api/extraction.py`; `memory/extraction.py` now offers
+  `answered()` beside `extracted()` so both halves of the step can be judged.
 - **Memory can be held to a golden**, the way a base already can, and it is the only thing that
   says `recall` returned the wrong facts: a ring watches a conversation and only ever sees the
   facts memory handed over, never the better one it missed. `POST /v1/contacts/memory/eval` takes
