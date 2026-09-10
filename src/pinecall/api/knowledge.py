@@ -7,9 +7,19 @@ import time
 from fastapi import APIRouter, HTTPException
 
 from pinecall.api._deps import AdmissionDep, KeptKnowledgeDep, KeyDep
+from pinecall.knowledge.scoring import Answered, Question, Score, scored
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.types import KnowledgeFile
-from pinecall_protocol.rest import KnowledgeBase, KnowledgeList, KnowledgePush, KnowledgePushed
+from pinecall.types.knowledge import DEFAULT_CHUNKS_PER_TURN
+from pinecall_protocol.rest import (
+    GoldenMiss,
+    KnowledgeBase,
+    KnowledgeGolden,
+    KnowledgeList,
+    KnowledgePush,
+    KnowledgePushed,
+    KnowledgeScore,
+)
 
 router = APIRouter()
 
@@ -56,7 +66,12 @@ async def bases(key: KeyDep, knowledge: KeptKnowledgeDep) -> KnowledgeList:
     """Every base this org has pushed: its name, its size, when."""
     return KnowledgeList(
         bases=[
-            KnowledgeBase(base=one.base, chunks=one.chunks, pushed_at=one.pushed_at.timestamp())
+            KnowledgeBase(
+                base=one.base,
+                chunks=one.chunks,
+                model=one.model,
+                pushed_at=one.pushed_at.timestamp(),
+            )
             for one in await knowledge.bases(key.org)
         ]
     )
@@ -67,3 +82,51 @@ async def drop(base: str, key: KeyDep, knowledge: KeptKnowledgeDep) -> None:
     """The base and every chunk of it, gone. 404 when the org never pushed one by that name."""
     if not await knowledge.drop(key.org, base):
         raise HTTPException(status_code=404, detail=NO_SUCH_BASE.format(base=base))
+
+
+# A golden is the only thing that can say the index MISSED a better passage, because the judge that
+# runs on every call can only weigh what the model was given. Both figures are computed here, by
+# code, with no model in the loop: two runs of one golden over one base answer the same numbers,
+# which is what makes "we changed the embedder" a sentence with a figure after it.
+# docs/retrieval/spec.md.
+@router.post("/v1/knowledge/{base}/eval")
+async def evaluate(
+    base: str, said: KnowledgeGolden, key: KeyDep, knowledge: KeptKnowledgeDep
+) -> KnowledgeScore:
+    """Every question of the golden asked of the base, and how well it ranked the answers."""
+    held = next((one for one in await knowledge.bases(key.org) if one.base == base), None)
+    if held is None:
+        raise HTTPException(status_code=404, detail=NO_SUCH_BASE.format(base=base))
+    k = said.k or DEFAULT_CHUNKS_PER_TURN
+    started = time.perf_counter()
+    # Asked in order and one at a time: a golden is run when somebody changed something, never on
+    # a caller's clock, and a hundred concurrent searches would measure the pool and not the index.
+    answered = [
+        Answered(
+            question=Question(asks=one.asks, expects=one.expects),
+            # No min_score: a golden asks where the passage RANKED, and a threshold would answer
+            # a different question — whether it also cleared the bar the agent happens to set.
+            chunks=await knowledge.search(key.org, base, one.asks, k=k),
+        )
+        for one in said.questions
+    ]
+    return _as_a_score(
+        base, held.model, scored(answered, k), (time.perf_counter() - started) * 1000
+    )
+
+
+def _as_a_score(base: str, model: str, score: Score, took_ms: float) -> KnowledgeScore:
+    """The figures and every miss, as the wire carries them."""
+    return KnowledgeScore(
+        base=base,
+        model=model,
+        questions=score.questions,
+        k=score.k,
+        recall_at_k=score.recall_at_k,
+        ndcg_at_10=score.ndcg_at_10,
+        took_ms=took_ms,
+        misses=[
+            GoldenMiss(asks=one.question.asks, expects=one.question.expects, found=list(one.found))
+            for one in score.misses
+        ],
+    )

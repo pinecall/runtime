@@ -7,7 +7,7 @@ import pytest
 
 from pinecall.api._deps import NO_KNOWLEDGE
 from pinecall.orgs.table import MemoryOrgs
-from pinecall.types import Quotas
+from pinecall.types import Chunk, Quotas
 from tests.api.conftest import A_RECORD
 from tests.lookups.fakes import ScriptedKnowledge
 
@@ -140,3 +140,53 @@ class TestWhenThePlanCapsTheChunks:
         await self.limited(orgs, 0)
         assert (await tenant_http.get(KNOWLEDGE)).status_code == 200
         assert (await tenant_http.delete(f"{KNOWLEDGE}/clinica")).status_code == 204
+
+
+# A golden is the only thing that can say the index missed a BETTER passage: the judge that runs on
+# every call can only weigh what the model was given. docs/retrieval/spec.md.
+async def test_a_base_that_answers_every_question_first_scores_one_on_both(
+    tenant_http: httpx.AsyncClient, knowledge: ScriptedKnowledge
+) -> None:
+    knowledge.answers = [_a_chunk("tarifas.md", "Tarifas › Revisión")]
+    await tenant_http.put(f"{KNOWLEDGE}/clinica", json=A_PUSH)
+    said = (
+        await tenant_http.post(
+            f"{KNOWLEDGE}/clinica/eval",
+            json={"questions": [{"asks": "la revisión", "expects": "tarifas.md"}]},
+        )
+    ).json()
+    assert (said["questions"], said["recall_at_k"], said["ndcg_at_10"]) == (1, 1.0, 1.0)
+    assert said["misses"] == []
+    assert said["model"]
+
+
+async def test_a_question_the_base_misses_comes_back_with_what_it_found_instead(
+    tenant_http: httpx.AsyncClient, knowledge: ScriptedKnowledge
+) -> None:
+    knowledge.answers = [_a_chunk("horarios.md", "Horario de consulta")]
+    await tenant_http.put(f"{KNOWLEDGE}/clinica", json=A_PUSH)
+    said = (
+        await tenant_http.post(
+            f"{KNOWLEDGE}/clinica/eval",
+            json={"questions": [{"asks": "la revisión", "expects": "tarifas.md"}]},
+        )
+    ).json()
+    assert said["recall_at_k"] == 0.0
+    (missed,) = said["misses"]
+    assert missed["expects"] == "tarifas.md"
+    assert missed["found"] == ["horarios.md › Horario de consulta"]
+
+
+async def test_a_golden_against_a_base_nobody_pushed_is_the_refusal_a_drop_answers(
+    tenant_http: httpx.AsyncClient,
+) -> None:
+    refused = await tenant_http.post(
+        f"{KNOWLEDGE}/nadie/eval", json={"questions": [{"asks": "x", "expects": "y"}]}
+    )
+    assert refused.status_code == 404
+    assert "nadie" in refused.json()["detail"]
+
+
+def _a_chunk(path: str, heading: str) -> Chunk:
+    """One chunk as a search hands it back; where it came from is all a golden reads."""
+    return Chunk(id="c", base="clinica", path=path, heading=heading, text="…", score=1.0)

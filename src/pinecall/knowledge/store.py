@@ -38,6 +38,9 @@ class Base:
 
     base: str
     chunks: int
+    # Which embedder wrote this base's vectors. A listing that left it out was a listing where a
+    # tenant learned of a mismatch from a 409 at the next turn instead of from the list itself.
+    model: str
     pushed_at: datetime
 
 
@@ -60,7 +63,7 @@ FROM unnest($6::text[], $7::text[], $8::integer[], $9::text[], $10::text[])
     AS chunk (path, heading, ordinal, text, embedding)
 """
 
-_BASES = "SELECT base, chunks, pushed_at FROM knowledge_bases WHERE org = $1 ORDER BY base"
+_BASES = "SELECT base, chunks, model, pushed_at FROM knowledge_bases WHERE org = $1 ORDER BY base"
 
 # What the org KEEPS across every base, which is what its quota is about. The base's own row
 # already counts its chunks, so this is a sum over one index and not a scan of the chunks. NULL
@@ -141,7 +144,12 @@ class PgKnowledge:
         """Every base this org pushed, by name."""
         rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(_BASES, org)
         return [
-            Base(base=str(row["base"]), chunks=int(row["chunks"]), pushed_at=row["pushed_at"])
+            Base(
+                base=str(row["base"]),
+                chunks=int(row["chunks"]),
+                model=str(row["model"]),
+                pushed_at=row["pushed_at"],
+            )
             for row in rows
         ]
 

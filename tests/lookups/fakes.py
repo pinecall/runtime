@@ -46,6 +46,10 @@ AGENT = "clinica-norte"
 THE_NUMBER = "+34600000001"
 LEARNED = datetime(2026, 9, 1, 10, 0, tzinfo=UTC)
 
+# The embedder a fake base says wrote its vectors: a listing that left it out was a listing where a
+# tenant learned of a mismatch from a 409 instead of from the list.
+THE_MODEL = "BAAI/bge-m3"
+
 
 def a_fact(id: str, text: str, score: float = 1.0, source: str | None = None) -> Fact:
     """One fact of the caller, as recall would score it; `source` is the call that taught it."""
@@ -149,7 +153,7 @@ class ScriptedKnowledge:
 
     async def bases(self, org: str) -> list[Base]:  # noqa: ARG002
         return [
-            Base(base=base, chunks=len(files) * 2, pushed_at=LEARNED)
+            Base(base=base, chunks=len(files) * 2, model=THE_MODEL, pushed_at=LEARNED)
             for base, files in sorted(self.pushed.items())
         ]
 
