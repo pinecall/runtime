@@ -7,12 +7,12 @@ from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 
 from pinecall.types import KnowledgeFile
+from pinecall.types.counting import estimated_tokens
 
-# The cap, in the tokens a model counts, and the estimate that stands in for a tokenizer: prose
-# runs near 1.3 tokens a word, and a chunk that lands under 350 is small enough for eight of them
-# in front of a turn and large enough to hold a whole tariff.
+# The cap, in the tokens a model counts. A chunk that lands under 350 is small enough for eight of
+# them in front of a turn and large enough to hold a whole tariff. What a token is worth is
+# types/counting.py's, the one estimate the contextual embedder windows a document by too.
 CHUNK_TOKENS = 350
-TOKENS_PER_WORD = 1.3
 
 # Between the levels of a heading path ("Tarifas › Revisión"), and between a path and the text
 # under it. Both indexes read the path with the text, so a search by a heading's words finds it.
@@ -44,11 +44,6 @@ def chunks_of(file: KnowledgeFile) -> list[Piece]:
         for group in _paragraphs_under_the_cap(body, heading):
             pieces.append(Piece(file.path, heading, len(pieces), prefixed(heading, group)))
     return pieces
-
-
-def estimated_tokens(text: str) -> int:
-    """What a model would count, near enough to cut by: the words, times 1.3."""
-    return round(len(text.split()) * TOKENS_PER_WORD)
 
 
 def prefixed(heading: str | None, body: str) -> str:

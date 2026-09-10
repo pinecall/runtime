@@ -118,6 +118,8 @@ class ScriptedMemory:
         return gone
 
     async def history(self, org: str, contact: str) -> list[Fact]:  # noqa: ARG002
+        if self.failing is not None:
+            raise self.failing
         return list(self.answers)
 
 
@@ -131,6 +133,8 @@ class ScriptedKnowledge:
     pushed: dict[str, list[KnowledgeFile]] = field(default_factory=dict[str, list[KnowledgeFile]])
 
     async def put(self, org: str, base: str, files: Sequence[KnowledgeFile]) -> int:  # noqa: ARG002
+        if self.failing is not None:
+            raise self.failing
         self.pushed[base] = list(files)
         return len(files) * 2
 

@@ -27,8 +27,22 @@ Then, from an example in the agents repository, `pinecall run` registers the age
 `pinecall chat` talks to it. `pinecall knowledge push ./knowledge/docs --base clinica-norte`
 puts the agent's files where its `<!-- retrieved -->` marker reads from, and `pinecall memory
 <contact>` prints what a caller's calls taught the agent (`memory forget` erases it). Both are
-tables in Postgres and TEI vectors — on a dev key, with no database, a fill is empty and the
-push says so. Development happens from the checkout, with `uv`:
+tables in Postgres, and the vectors are whichever embedder `EMBED_PROVIDER` names — on a dev key,
+with no database, a fill is empty and the push says so.
+
+```
+EMBED_PROVIDER=tei                       who embeds: tei · perplexity · openrouter
+EMBED_MODEL=                             unset: BAAI/bge-m3 · pplx-embed-context-v1-0.6b ·
+                                         perplexity/pplx-embed-v1-0.6b, by provider
+EMBED_BASE_URL=                          unset: the provider's own door, and TEI_URL for TEI
+PERPLEXITY_API_KEY=                      the two hosted ones. Perplexity's default model is
+OPENROUTER_API_KEY=                      CONTEXTUAL: a chunk is embedded seeing its neighbours
+```
+
+TEI's CPU image has no arm64 build, so on an Apple Silicon laptop TEI cannot run at all and
+`EMBED_PROVIDER=perplexity` with `PERPLEXITY_API_KEY` is how that machine retrieves — no
+container, and a better base than bge-m3 gives. `docs/decisions/retrieval.md` says why, and what
+`push it again` means when a box changes embedder. Development happens from the checkout, with `uv`:
 
 ```
 scripts/format        ruff format, then the fixable lint rules
@@ -125,7 +139,7 @@ they arrive as systemd credentials — and need a LiveKit server, a Postgres 17 
 | verb | what |
 |---|---|
 | `migrate up` · `migrate status` | the schema, numbered SQL, applied in order |
-| `doctor` | keys present · keys answer · livekit · postgres · tei · lk — one line each, and what is down first |
+| `doctor` | keys present · keys answer · livekit · postgres · embedder · lk — one line each, and what is down first |
 | `box secrets` | every secret a box makes for itself, once; run twice rotates nothing |
 | `box secret <NAME>` | one secret you bring, from stdin, replaced in place |
 | `orgs list · add · rm · quota · provider-key` | the tenants, their quota, the vendor keys an org brings |

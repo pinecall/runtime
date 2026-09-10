@@ -1,6 +1,6 @@
 """The embedder: text in, vectors out, at the one width every halfvec column is declared at."""
 
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from typing import Protocol
 
 from pgvector import HalfVector
@@ -8,12 +8,25 @@ from pgvector import HalfVector
 from pinecall._exceptions import PinecallError
 
 # bge-m3's width, which is the width the migrations declare: halfvec(1024) on facts and chunks.
+# Perplexity's two embedders answer at the same 1024, which is why they can be swapped in at all.
 # An embedder of another width would write vectors no index can read, so it is refused by name.
 DIMENSIONS = 1024
+
+# How many texts one request carries when the embedder sees no context and a batch is only a
+# batch: large enough that a push is not a thousand round trips, small enough that one refused
+# request loses little. The knowledge base used to hold this number; the embedder owns it now,
+# because only the embedder knows what a request of its own costs.
+TEXTS_PER_BATCH = 32
 
 
 class WrongWidth(PinecallError):
     """The embedder answered vectors of a width the tables were not declared at."""
+
+
+# A vector is comparable only to vectors of the same model, so a table that keeps them says whose
+# they are; when the two disagree there is nothing to search, and the way out is to push again.
+class WrongModel(PinecallError):
+    """The rows were written by another model, so nothing this embedder answers can rank them."""
 
 
 # Raised with the vendor's name and its URL in the sentence, because the sentence is what the
@@ -39,6 +52,34 @@ class Embedder(Protocol):
     async def embed(self, texts: Sequence[str]) -> list[list[float]]:
         """One vector per text, in the order given."""
         ...
+
+    # What a push asks, and the reason retrieval improved: a chunk embedded while the model sees
+    # its neighbours is findable by what the file says around it, not only by its own words.
+    async def embed_documents(self, documents: Sequence[Sequence[str]]) -> list[list[list[float]]]:
+        """One vector per chunk, one list per document: the order given IS the contract."""
+        ...
+
+
+type Embed = Callable[[Sequence[str]], Awaitable[list[list[float]]]]
+"""One flat batch of texts to vectors: what an embedder with no notion of a document offers."""
+
+
+# The whole of embed_documents for an embedder that sees no context. The documents are only an
+# order to keep, so the chunks go out flat, a batch at a time, and come back cut where they were.
+async def every_chunk_on_its_own(
+    embed: Embed, documents: Sequence[Sequence[str]]
+) -> list[list[list[float]]]:
+    """embed_documents for a flat embedder: every chunk alone, the documents' shape restored."""
+    flat = [chunk for document in documents for chunk in document]
+    vectors: list[list[float]] = []
+    for start in range(0, len(flat), TEXTS_PER_BATCH):
+        vectors.extend(await embed(flat[start : start + TEXTS_PER_BATCH]))
+    cut: list[list[list[float]]] = []
+    at = 0
+    for document in documents:
+        cut.append(vectors[at : at + len(document)])
+        at += len(document)
+    return cut
 
 
 # Both tables take their vectors as text and cast at the door (`$n::halfvec`), which keeps the

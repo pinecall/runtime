@@ -25,6 +25,7 @@ from pinecall.api import (
     whoami,
 )
 from pinecall.api._live import Live
+from pinecall.api._refusals import refusals_answered_by
 from pinecall.api.agents import endpoints as agents
 from pinecall.api.agents import provider_keys as agents_provider_keys
 from pinecall.api.agents import socket
@@ -47,7 +48,7 @@ from pinecall.orgs.admission import Admission
 from pinecall.orgs.meter import Meter
 from pinecall.orgs.table import orgs_for
 from pinecall.orgs.vault import keys_brought_by, vault_for
-from pinecall.providers.embed.tei import TeiEmbedder
+from pinecall.providers.embed import embedder_for
 from pinecall.providers.models import models_for
 from pinecall.providers.overrides import Overrides
 from pinecall.routes.table import routes_for
@@ -104,16 +105,17 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     gateway.state.evals = Runner()
     gateway.state.eval_runs = runs_for(pool)
     # One httpx client for the life of the process, for the two services this gateway talks to
-    # over HTTP: Meta's Graph API, and TEI. The WhatsApp conversations open right now ride beside
-    # it; none of it is durable and none of it should be.
+    # over HTTP: Meta's Graph API, and whichever embedder EMBED_PROVIDER names. The WhatsApp
+    # conversations open right now ride beside it; none of it is durable and none of it should be.
     http = httpx.AsyncClient()
     gateway.state.graph = HttpGraph(http)
     gateway.state.threads = Threads()
     # Memory and the knowledge base are tables, so a gateway with no pool keeps neither and says
-    # so at the doors (api/_deps.py). The embedder is lazy: nothing talks to TEI until a fill or a
-    # push needs a vector, so a gateway with no TEI still starts and the doctor's line on it stays
-    # advice. One Filling serves every text call in-process and every worker over the fill door.
-    embedder = TeiEmbedder(settings.tei_url, http)
+    # so at the doors (api/_deps.py). The embedder is lazy: nothing is asked of it until a fill or
+    # a push needs a vector, so a gateway whose embedder is down still starts and the doctor's
+    # line on it stays advice. One Filling serves every text call in-process and every worker over
+    # the fill door.
+    embedder = embedder_for(settings, http)
     gateway.state.memory = (
         None if pool is None else PgvectorMemory(pool, embedder, gateway.state.llms)
     )
@@ -190,3 +192,7 @@ for door in (
     whoami.router,
 ):
     app.include_router(door)
+
+# What every door above answers when the embedder refuses or the rows were written by another
+# model: a status and the refusal's own sentence, in one table (api/_refusals.py).
+refusals_answered_by(app)

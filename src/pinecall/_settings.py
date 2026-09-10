@@ -28,6 +28,10 @@ ENV_FILES: tuple[str, ...] = (".env", "runtime/.env")
 
 type Role = Literal["all", "hub", "worker"]
 
+# Who turns this box's text into vectors. TEI is a container on the box; the other two are an
+# HTTP door across the internet, and the one way to retrieve on a machine TEI has no image for.
+type EmbedProvider = Literal["tei", "perplexity", "openrouter"]
+
 
 # A marker never delays a reply past its budget, and a slow model at hang-up never holds the
 # seal: the two numbers a session waits on memory and retrieval for, then goes on without them.
@@ -103,6 +107,27 @@ class Settings(BaseSettings):
         validation_alias="TEI_URL",
         description="TEI, the embedder. 8081, because the gateway serves 8080 on the same host.",
     )
+    # Which of the three embeds here, and with what. The model and the door each have a default
+    # per provider (providers/embed/__init__.py), so naming the provider alone is a whole
+    # configuration; naming the model alone is how a Perplexity box asks for the FLAT model.
+    embed_provider: EmbedProvider = Field(
+        default="tei",
+        validation_alias="EMBED_PROVIDER",
+        description="Who embeds: tei · perplexity · openrouter. The other two need their API key.",
+    )
+    embed_model: str | None = Field(
+        default=None,
+        validation_alias="EMBED_MODEL",
+        description=(
+            "The embedding model. Unset: BAAI/bge-m3 · pplx-embed-context-v1-0.6b · "
+            "perplexity/pplx-embed-v1-0.6b, by provider."
+        ),
+    )
+    embed_base_url: str | None = Field(
+        default=None,
+        validation_alias="EMBED_BASE_URL",
+        description="Where it is asked. Unset: the provider's own door, and TEI_URL for TEI.",
+    )
 
     # ── Provider keys, named exactly as each vendor's SDK names them ───────────
     anthropic_api_key: str | None = Field(
@@ -129,6 +154,17 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="ELEVEN_API_KEY",
         description="ElevenLabs, the TTS.",
+    )
+    # Not a call's vendors: the two the EMBEDDER may run on, read only by providers/embed.
+    perplexity_api_key: str | None = Field(
+        default=None,
+        validation_alias="PERPLEXITY_API_KEY",
+        description="Perplexity, an embedder: the contextual model and the flat one, direct.",
+    )
+    openrouter_api_key: str | None = Field(
+        default=None,
+        validation_alias="OPENROUTER_API_KEY",
+        description="OpenRouter, the other way to the flat model. It serves no contextual door.",
     )
     # Not a model vendor: the token the Graph API takes when a message goes back out. It sits
     # beside the others because an org may bring its own, and the registry reads both the same way.

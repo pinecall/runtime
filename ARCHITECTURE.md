@@ -31,7 +31,7 @@ This runtime does not implement a conversation. LiveKit does, and the line is dr
 | **`JobContext`**, **`JobProcess`**: one job, one process, prewarm | `worker/main.py`, `worker/entry.py` | `ctx.connect()`, `ctx.room` |
 | **`AgentSession`** + **`Agent`**: the conversation — VAD, turn detection, STT → LLM → TTS, interruption, the chat context | `session/voice/session.py`, `session/text/session.py`, `session/*/agent.py` | one session per call, ours subclassing `Agent` for the prompt's blocks |
 | **`livekit.agents.llm`**: `ChatContext`, `ChatMessage`, `FunctionCall`, `function_tool`, `ToolError` | `session/`, `evals/` | the model's history; our `ToolSpec` declared as a livekit tool (`session/declaring.py`) |
-| **plugins**: `anthropic`, `openai`, `soniox`, `deepgram`, `elevenlabs` | `providers/llm/*`, `stt/*`, `tts/*` — **the only files that may import a vendor** | the plugin IS the adapter; one file per vendor, registered in one line. `providers/embed/tei.py` is the one vendor that is not a plugin: TEI over HTTP, behind the `Embedder` protocol |
+| **plugins**: `anthropic`, `openai`, `soniox`, `deepgram`, `elevenlabs` | `providers/llm/*`, `stt/*`, `tts/*` — **the only files that may import a vendor** | the plugin IS the adapter; one file per vendor, registered in one line. `providers/embed/` is the one modality that is no plugin: TEI, Perplexity and OpenRouter over HTTP behind the `Embedder` protocol, built by `embedder_for(settings, http)` — the one place `EMBED_PROVIDER` is switched on |
 | **`livekit.agents.metrics`**: `LLMMetrics`, `STTMetrics`, `TTSMetrics`, `VADMetrics`, EOU, `AgentSessionUsage` | `session/voice/metrics.py`, `log/latencies.py`, `providers/usage.py` | every block, every field, under livekit's own names, on the wire |
 | **`livekit.agents.evals`**: `Judge`, `JudgeGroup`, `Verdict`, `Evaluator`, `JudgmentResult` | `evals/judges/*`, `evals/score.py` | our judges are theirs; `PolicyJudge` answers by code |
 | **`livekit.agents.cli`** | `cli/worker.py` | `worker dev \| start \| download-files` pass livekit's own flags through |
@@ -68,12 +68,13 @@ table; the declared ones have a socket.
 | **Grant** / **Scope** | `talk`·`chat`·`observe`·`supervise`·`participate` → `connects`, `audio`, `reads_log`, `sends_verbs`, `own_call_only`, `single_use`, `ttl_s`, `hears`, `hidden` | `tokens` (one row per call, spent once) | a token carries one call and one scope; spent by the dispatch that opens the call |
 | **Consent** | `GateLine` (`seq`, `kind`, `call_id`, `tool`, `audience`, `side_effect`) → `ConsentRead` (`kept`·`broken`·`ungated`·`undeclared`) | read off the log | ring-3 check and ring-4 judge, same rule |
 | **ProviderKeys** | `vendor → key` | `provider_keys` (`org`, `vendor`, `ciphertext`, `set_at`), Fernet under `PINECALL_VAULT_KEY` | absent row = the box's key (managed); one row = BYOK |
-| **Fact** | `id`, `contact`, `text`, `category`, `source`, `valid_from`, `invalidated_at`, `score` | `contact_memories` (plus `embedding halfvec(1024)`, `supersedes`, `confidence`) | one contact's facts in one org, bi-temporal: an update is a new row that supersedes the old one, an invalidation an end date, `forget` the one DELETE. `memory/` recalls them per turn (cosine and BM25, fused by rank, weighed by recency and confidence) and writes them at hang-up with one model call |
+| **Fact** | `id`, `contact`, `text`, `category`, `source`, `valid_from`, `invalidated_at`, `score` | `contact_memories` (plus `embedding halfvec(1024)`, `model`, `supersedes`, `confidence`) | one contact's facts in one org, bi-temporal: an update is a new row that supersedes the old one, an invalidation an end date, `forget` the one DELETE. `memory/` recalls them per turn (cosine over the rows THIS embedder wrote, BM25 over every one of them, fused by rank, weighed by recency and confidence) and writes them at hang-up with one model call |
 | **eval run** | `id`, `agent`, `started_at`, `finished_at`, `status`, `document` | `eval_runs` | ring-1 suites driven over live text sessions |
-| **Base** / **Chunk** | `base`, `chunks`, `pushed_at` · `id`, `base`, `path`, `heading`, `text`, `score` | `knowledge_bases` (`org`, `base`, `model`, `dimensions`, `chunks`, `pushed_at`) · `knowledge_chunks` (`id`, `org`, `base`, `path`, `heading`, `ordinal`, `text`, `embedding halfvec(1024)`), HNSW by cosine and BM25 in spanish | a push replaces the base whole (`knowledge/store.py`); a search is both indexes fused by reciprocal rank (`types/fusion.py`, the one fusion memory ranks with too). `docs/decisions/retrieval.md` |
+| **Base** / **Chunk** | `base`, `chunks`, `pushed_at` · `id`, `base`, `path`, `heading`, `text`, `score` | `knowledge_bases` (`org`, `base`, `model`, `dimensions`, `chunks`, `pushed_at`) · `knowledge_chunks` (`id`, `org`, `base`, `path`, `heading`, `ordinal`, `text`, `embedding halfvec(1024)`), HNSW by cosine and BM25 in spanish | a push replaces the base whole (`knowledge/store.py`); a chunk is embedded seeing its file's other chunks (`embed_documents`, one document per file); a search is both indexes fused by reciprocal rank (`types/fusion.py`, the one fusion memory ranks with too) and refuses a base another model pushed. `docs/decisions/retrieval.md` |
 
-Thirteen tables, nine migrations (`migrations/000N_*.sql`, applied in order by `migrate up`, never
-edited; `0008_memory` holds the contact's facts — **Fact** in `types/knowledge.py` is its shape —
+Thirteen tables, ten migrations (`migrations/00NN_*.sql`, applied in order by `migrate up`, never
+edited; `0008_memory` holds the contact's facts and `0010_memory_model` says which embedder wrote
+each one — **Fact** in `types/knowledge.py` is its shape —
 and `0009_knowledge` the knowledge base's chunks, **Chunk** beside it). `docs/decisions/types.md`,
 `orgs.md`, `keys.md`, `routes.md`, `tokens.md`, `provider-keys.md`, `log.md`, `memory.md`.
 
@@ -104,7 +105,7 @@ names the agent declared. A **scope** picks the projection a bearer reads throug
 ## 4. The gateway, process 1
 
 `api/app.py` is one FastAPI process: a lifespan that opens the Postgres pool, the key table,
-the routes, the vault and the meter, the embedder, memory, the knowledge base and the one `Filling`
+the routes, the vault and the meter, the embedder `EMBED_PROVIDER` names, memory, the knowledge base and the one `Filling`
 over them, then thirty routers, one door each. By resource:
 
 | door | what |
@@ -207,7 +208,7 @@ the app**: the voice session's filler is the worker's gateway client (`POST /v1/
 recalls the contact's facts (the contact is `CallContext.remembered_as`: the resolved id, else
 the number on phone and WhatsApp, else nobody), searches the agent's `docs.base` under the
 marker's own `k`/`min_score`, writes `memory.ops` and `docs.sources` on the call's log with the
-turn's `speech_id`, and names TEI in the error entry when the embedder is down. **A tool runs in the
+turn's `speech_id`, and names the embedder's vendor and URL in the error entry when it is down. **A tool runs in the
 tenant's process**: the session
 sends `tool.call` to the gateway, the gateway relays it down the app socket the call is bound
 to, the tenant's `@tool` runs where it was written, `tool.result` rides back to the model.

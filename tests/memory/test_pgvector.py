@@ -6,6 +6,7 @@ from pinecall.log.store import Pool
 from pinecall.memory import PgvectorMemory, Spoken
 from pinecall.types import MemoryPolicy
 from tests.memory.conftest import HUNG_UP, LEARNED, ScriptedModels, a_row
+from tests.vectors import HASH_MODEL
 
 pytestmark = pytest.mark.postgres
 
@@ -185,3 +186,46 @@ async def test_a_model_that_answers_garbage_writes_nothing_and_raises_nothing(
     )
     assert ops[0].facts == []
     assert await memory.history(org, contact) == []
+
+
+# ── whose vectors these are ─────────────────────────────────────────────────────
+
+
+async def test_a_fact_of_another_model_is_out_of_the_dense_branch_and_still_found_by_words(
+    memory: PgvectorMemory, pool: Pool, org: str, contact: str
+) -> None:
+    """The box changed embedder. The old fact's vector is a number of the same width and nothing
+    more, so it is no candidate by MEANING any more — both rows point at the query and only the
+    current model's is ranked for it. BM25 reads the text, so the old fact is not lost: it wins
+    the words branch, and being in one branch of two is what puts it second instead of first."""
+    await a_row(
+        pool,
+        org,
+        contact,
+        "prefiere el café cortado",
+        like="café cortado",
+        model="another-embedder",
+    )
+    await a_row(pool, org, contact, "vive en Montevideo", like="café cortado")
+    facts = await memory.recall(org, contact, "café cortado")
+    assert [fact.text for fact in facts] == ["vive en Montevideo", "prefiere el café cortado"]
+
+
+async def test_a_fact_written_now_carries_the_model_that_embedded_it(
+    memory: PgvectorMemory, models: ScriptedModels, pool: Pool, org: str, contact: str
+) -> None:
+    models.answer = '[{"op": "add", "text": "prefiere la mañana", "category": "preference"}]'
+    await memory.remember(
+        org,
+        contact,
+        [Spoken(role="user", text="mejor de mañana")],
+        channel="phone",
+        at=HUNG_UP,
+        policy=THE_POLICY,
+        llm=None,
+        keys={},
+    )
+    rows = await pool.fetch(
+        "SELECT model FROM contact_memories WHERE org = $1 AND contact = $2", org, contact
+    )
+    assert [row["model"] for row in rows] == [HASH_MODEL]

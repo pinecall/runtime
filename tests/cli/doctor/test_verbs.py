@@ -98,17 +98,58 @@ def test_an_ipv6_database_host_keeps_the_brackets_that_make_it_an_address(
 
 
 def test_a_tei_that_answers_anything_but_200_is_reported_and_stops_no_call() -> None:
-    """Nothing in the tree embeds yet: the ✗ is printed, with why, and never makes the verdict."""
-    results = doctor.run_checks(
-        load_settings(),
-        probes_that_answer(http_status=tei_that_serves_nothing),
+    """A down embedder is printed, with why, and never makes the verdict: no call needs one."""
+    embedder = _the_embedder(probes_that_answer(http_status=tei_that_serves_nothing))
+    assert not embedder.ok
+    assert embedder.advisory
+    assert "404" in embedder.detail
+    assert "stops no call" in embedder.detail
+    assert (
+        doctor.first_failure(_the_report(probes_that_answer(http_status=tei_that_serves_nothing)))
+        is None
     )
-    tei = next(result for result in results if result.name == "tei")
-    assert not tei.ok
-    assert tei.advisory
-    assert "404" in tei.detail
-    assert "stops no call" in tei.detail
-    assert doctor.first_failure(results) is None
+
+
+def test_the_embedder_line_says_which_provider_and_model_this_box_embeds_with() -> None:
+    embedder = _the_embedder(probes_that_answer())
+    assert embedder.ok
+    assert "tei · BAAI/bge-m3" in embedder.detail
+    assert "http://127.0.0.1:8081/info" in embedder.detail
+
+
+def test_a_hosted_embedder_with_no_key_is_named_by_its_variable_and_never_knocked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The key is missing, so nothing is asked of the vendor: the fix is a variable, not a probe."""
+    monkeypatch.setenv("EMBED_PROVIDER", "perplexity")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "")
+    embedder = _the_embedder(probes_that_answer())
+    assert not embedder.ok
+    assert embedder.advisory
+    assert "perplexity · pplx-embed-context-v1-0.6b" in embedder.detail
+    assert "no PERPLEXITY_API_KEY" in embedder.detail
+
+
+def test_a_hosted_embedder_that_answers_at_all_is_up_whatever_status_it_answers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """api.perplexity.ai has no /info and no free door: that it answers a GET is the whole check."""
+    monkeypatch.setenv("EMBED_PROVIDER", "openrouter")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "dead-sentinel")
+    embedder = _the_embedder(probes_that_answer(http_status=lambda _url: 405))
+    assert embedder.ok
+    assert "openrouter · perplexity/pplx-embed-v1-0.6b" in embedder.detail
+    assert "https://openrouter.ai/api/v1" in embedder.detail
+
+
+def _the_embedder(probes: Probes) -> doctor.Result:
+    """The one line of the report this box's embedder gets, whichever provider it names."""
+    return next(result for result in _the_report(probes) if result.name == "embedder")
+
+
+def _the_report(probes: Probes) -> list[doctor.Result]:
+    """Every check, against a stack where only what a test swapped is down."""
+    return doctor.run_checks(load_settings(), probes)
 
 
 def test_a_provider_key_is_reported_by_its_variable_and_never_by_its_value() -> None:

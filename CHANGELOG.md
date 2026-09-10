@@ -68,6 +68,28 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   itself in the wheel and the sdist, so an install carries its licence.
 
 ### Changed
+- **The embedder is configurable and multi-model, and the knowledge base is embedded
+  CONTEXTUALLY.** `Embedder` gains `embed_documents(documents)` — one vector per chunk, one list
+  per document, the order given being the contract — and `PgKnowledge.put` groups the pieces by
+  FILE, so a chunk is embedded while the model sees its neighbours instead of alone.
+  `providers/embed/perplexity.py` is one client for both of Perplexity's models: a name carrying
+  `-context-` goes to `POST /contextualizedembeddings` (a document at a time, in windows of
+  24 000 estimated tokens against the endpoint's 32 768, which it counts over the whole window),
+  anything else to `POST /embeddings`. The encoding is named in every request and belongs to the
+  vendor, measured against both: Perplexity takes `base64_int8` and refuses `float`, OpenRouter's
+  mirror of the same model answers floats. All three replies are unnormalised, so every vector is
+  stored at unit length. OpenRouter is the same class with another base URL, key, model and
+  encoding — it serves no contextual door.
+  `EMBED_PROVIDER` (`tei` · `perplexity` · `openrouter`, default `tei`), `EMBED_MODEL`,
+  `EMBED_BASE_URL` and `PERPLEXITY_API_KEY` / `OPENROUTER_API_KEY`; `embedder_for(settings, http)`
+  is the one place a provider name is switched on, and the doctor's `embedder` line says which
+  provider and model this box embeds with. TEI's CPU image has no arm64 build, so on an Apple
+  Silicon laptop this is the only way to retrieve at all. `docs/decisions/retrieval.md`.
+- A vector is only comparable to vectors of the same model, and both tables now say so out loud:
+  `knowledge.search` refuses a base another model pushed (`base clinica-norte was pushed with
+  pplx-embed-context-v1-0.6b; this gateway embeds with BAAI/bge-m3: push it again`), and
+  `0010_memory_model.sql` puts `model` on `contact_memories`, which the DENSE branch of a recall
+  filters on — BM25 is untouched, so an older fact is still recalled by its words.
 - The prompt is named blocks in two regions: `AgentConfig.prompt` declares the layout (default
   `identity · knowledge · tools`, the history, `view`), `prompt.set {name, text}` writes one block,
   `prompt.changed` and `State.prompt` are keyed by name, and `AgentConfig.instructions` is gone —
@@ -83,11 +105,20 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   (`types/fusion.py`, `providers/embedder.py:as_halfvec`); memory and the knowledge base both
   import them, and a tie in a fused order is settled by id on both.
 
+### Fixed
+- `PUT /v1/knowledge/{base}` answered a bare `500 Internal Server Error` when the embedder was
+  down — the whole reason, vendor and URL included, went to the gateway's log and nothing at all
+  to the tenant. `api/_refusals.py` maps `EmbedderUnreachable` to **503** and `WrongWidth` /
+  `WrongModel` to **409** at every door, each carrying the exception's own sentence, in one table
+  rather than a catch per endpoint. The fill door is deliberately not among them: a marker that
+  cannot be filled is still `retrieval_skipped` on the call's log and the turn still goes on.
+
 ### Removed
 - `PINECALL_TEXT_SEARCH_CONFIG`: nothing read it. The language BM25 stems in is the index's own,
   fixed in `0008_memory` and `0009_knowledge` (`spanish`).
-- `doctor --bench`: it printed that no embedder was wired. The embedder is wired; the TEI line
-  of the report now says what a down TEI costs (a skipped fill, said in the call's log).
+- `doctor --bench`: it printed that no embedder was wired. The embedder is wired; the `embedder`
+  line of the report names the provider and the model and says what a down one costs (a skipped
+  fill, said in the call's log).
 - `LeakageJudge`: it had no user in the tree, and a judge given a declaration nobody wrote would be
   judging a rule nobody wrote. The idea returns with the milestone that declares what another
   tenant owns.
