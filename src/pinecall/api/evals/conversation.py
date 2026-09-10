@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
+from typing import Any
 from uuid import uuid4
 
 from pinecall._settings import Budgets
@@ -21,6 +22,7 @@ from pinecall.log.store import Store
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.providers.models import Chat
+from pinecall.session.asking import Asking, NotAsking, WhatWasAsked
 from pinecall.session.text.session import TextSession
 from pinecall.types import AgentConfig, CallContext, Route
 from pinecall_protocol.commands import CallEvent, SessionConfigure
@@ -39,6 +41,9 @@ class Conversation:
     model: str
     call: str
     entries: Sequence[Entry]
+    # Every request this call made, as the provider received it. Empty on a spoken run, whose
+    # requests are built in the worker process and never reach this one.
+    asked: Sequence[Mapping[str, Any]] = ()
 
 
 async def a_conversation(
@@ -57,7 +62,10 @@ async def a_conversation(
     budgets: Budgets,
 ) -> Conversation:
     """Open the call, seed its state, say every turn, hang up, and read the log back whole."""
-    session = an_eval_call(golden, call, config, org, logs, llm, lookups, budgets)
+    # A run is the one reader allowed the prompt itself: a golden that breaks has to be openable
+    # turn by turn, and a hash in the log cannot be read. api/evals/scoring.py keeps the broken.
+    asked = WhatWasAsked()
+    session = an_eval_call(golden, call, config, org, logs, llm, lookups, budgets, asking=asked)
     settling = Settling(session)
     await logs.owned(session.call, session.agent, org)
     live.serve(
@@ -88,6 +96,7 @@ async def a_conversation(
         model=model,
         call=session.call,
         entries=await whole(store, session.call),
+        asked=asked.turns,
     )
 
 
@@ -100,6 +109,7 @@ def an_eval_call(
     llm: Chat,
     lookups: Lookups,
     budgets: Budgets,
+    asking: Asking = NotAsking(),  # noqa: B008 — stateless, shared on purpose
 ) -> TextSession:
     """One call under the id the run named: the caller nobody is, on the config this model runs."""
     context = CallContext(
@@ -130,6 +140,7 @@ def an_eval_call(
         # Never the golden's: a run must not write facts about a caller nobody called as.
         rememberer=lookups,
         budgets=budgets,
+        asking=asking,
     )
 
 

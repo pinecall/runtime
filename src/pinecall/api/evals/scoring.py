@@ -19,12 +19,16 @@ class Judging:
         self._config = config
         self._judge = rings.a_judge()
         self._cells: list[Any] = []
+        # What each conversation asked its model, by the cell it will be judged as. Kept for the
+        # whole run and answered only for the cells that broke: see `matrix`.
+        self._asked: dict[tuple[str, str], Any] = {}
 
     # One conversation at a time, the moment it ends: a person watching the run sees each golden's
     # verdict as it settles, and the matrix is the same one whether it is read half-way or whole.
     async def judged(self, one: Conversation) -> None:
         """This conversation under the judges its own golden asked for, added to the matrix."""
         case = _a_case(one, self._config)
+        self._asked[one.model, one.golden.name] = list(one.asked)
         # livekit's `LLM` is `Generic[TEvent]` (llm/llm.py:115) and every signature that
         # takes one in this tree leaves it bare, so pyright reads the call as partially
         # unknown. The parameter is livekit's to name, not ours.
@@ -38,7 +42,14 @@ class Judging:
     @property
     def matrix(self) -> dict[str, Any]:
         """Every cell answered so far, as one table of scores: the row's `matrix` at this moment."""
-        return as_json(rings.Matrix(runs=tuple(self._cells)))
+        table = as_json(rings.Matrix(runs=tuple(self._cells)))
+        for row in table["runs"]:
+            # Only where something broke. A green golden's prompt is a page nobody opens, and a
+            # suite of thirty would carry thirty of them in the row a person reads back.
+            if all(score["passed"] for score in row["scores"]):
+                continue
+            row["asked"] = self._asked.get((row["model"], row["golden"]), [])
+        return table
 
 
 def as_json(matrix: Any) -> dict[str, Any]:
