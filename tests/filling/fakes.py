@@ -8,12 +8,15 @@ from datetime import UTC, datetime
 from functools import partial
 from typing import Any
 
-from pinecall.filling import Filling, OpenCall
+from pinecall.filling import Filling, MayRemember, OpenCall, QuotasOf
 from pinecall.knowledge import Base
 from pinecall.log.logs import CallLog
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.memory import Spoken
+from pinecall.orgs.admission import Admission
+from pinecall.orgs.meter import Meter
+from pinecall.orgs.table import MemoryOrgs
 from pinecall.orgs.vault import MemoryVault, keys_brought_by
 from pinecall.types import (
     AgentConfig,
@@ -26,7 +29,9 @@ from pinecall.types import (
     KnowledgeFile,
     MemoryPolicy,
     Model,
+    Org,
     ProviderKeys,
+    Quotas,
     Route,
 )
 from pinecall_protocol import encode
@@ -122,6 +127,10 @@ class ScriptedMemory:
             raise self.failing
         return list(self.answers)
 
+    async def kept(self, org: str) -> int:  # noqa: ARG002
+        """What this org holds: the facts this fake was given, as a real table would count them."""
+        return len(self.answers)
+
 
 @dataclass
 class ScriptedKnowledge:
@@ -147,6 +156,16 @@ class ScriptedKnowledge:
     async def drop(self, org: str, base: str) -> bool:  # noqa: ARG002
         return self.pushed.pop(base, None) is not None
 
+    async def kept(self, org: str, besides: str | None = None) -> int:  # noqa: ARG002
+        """Every base's chunks but the one a push is about to replace, on this fake's own cut."""
+        return sum(
+            self.how_many_chunks(files) for base, files in self.pushed.items() if base != besides
+        )
+
+    def how_many_chunks(self, files: Sequence[KnowledgeFile]) -> int:
+        """This fake cuts every file into two, so a push of one file is two chunks."""
+        return len(files) * 2
+
     async def search(
         self,
         org: str,
@@ -162,6 +181,19 @@ class ScriptedKnowledge:
             {"org": org, "base": base, "query": query, "k": k, "min_score": min_score}
         )
         return list(self.answers)[:k]
+
+
+# What a Filling is handed about the org's plan: the quotas table, and the gate that reads it.
+# A suite that sets no quota gets the mechanism with no numbers in it, which is a self-hosted box.
+def a_plan(logs: Logs, orgs: MemoryOrgs) -> tuple[QuotasOf, MayRemember]:
+    """The two questions Filling asks orgs/, over this test's own tenants."""
+    # The meter is where minutes and messages are counted from; may_remember never asks it.
+    return orgs.quotas_of, Admission(orgs, Meter(MemoryStore()), logs).may_remember
+
+
+def the_tenants() -> MemoryOrgs:
+    """The one org these tests serve, with no limits until a test writes some."""
+    return MemoryOrgs([Org(id=ORG, slug=ORG, name=ORG)])
 
 
 class OneCall:
@@ -213,10 +245,23 @@ class Served:
     log: CallLog
     memory: ScriptedMemory
     knowledge: ScriptedKnowledge
+    orgs: MemoryOrgs
+
+    async def limited(self, quotas: Quotas) -> None:
+        """What the org's plan includes, set the way the operator's door sets it: whole."""
+        await self.orgs.set_quotas(ORG, quotas)
 
     async def written(self, type: str) -> list[dict[str, Any]]:
         """Every entry of that type on the call's log, as data."""
         return [dict(entry.data) for entry in await self.store.since(CALL) if entry.type == type]
+
+    async def refusals(self) -> list[dict[str, Any]]:
+        """Every credits.exhausted on the AGENT's log, which is where a quota refusal lands."""
+        return [
+            dict(entry.data)
+            for entry in await self.store.agent_since(AGENT)
+            if entry.type == "credits.exhausted"
+        ]
 
     async def heard(self, text: str, speech_id: str = "sp_1") -> None:
         """The caller's turn on the log, as the session writes it."""
@@ -246,5 +291,13 @@ def a_served_call(
     opened = OpenCall(org=ORG, context=context or a_context(), config=config or a_config())
     memory = memory or ScriptedMemory()
     knowledge = knowledge or ScriptedKnowledge()
-    filling = Filling(memory, knowledge, logs, OneCall(opened), partial(keys_brought_by, vault))
-    return Served(filling, store, log, memory, knowledge)
+    orgs = the_tenants()
+    filling = Filling(
+        memory,
+        knowledge,
+        logs,
+        OneCall(opened),
+        partial(keys_brought_by, vault),
+        *a_plan(logs, orgs),
+    )
+    return Served(filling, store, log, memory, knowledge, orgs)

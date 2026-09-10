@@ -126,6 +126,8 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
         gateway.state.logs,
         gateway.state.live,
         partial(keys_brought_by, gateway.state.vault),
+        gateway.state.orgs.quotas_of,
+        gateway.state.admission.may_remember,
     )
     try:
         yield

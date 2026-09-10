@@ -6,7 +6,8 @@ import time
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import KeptKnowledgeDep, KeyDep
+from pinecall.api._deps import AdmissionDep, KeptKnowledgeDep, KeyDep
+from pinecall.orgs.admission import QuotaExhausted
 from pinecall.types import KnowledgeFile
 from pinecall_protocol.rest import KnowledgeBase, KnowledgeList, KnowledgePush, KnowledgePushed
 
@@ -27,11 +28,25 @@ NO_BODY = 204
 # marker: a push on a box with no TEI is a 5xx that names TEI, never a half-written base.
 @router.put("/v1/knowledge/{base}")
 async def push(
-    base: str, said: KnowledgePush, key: KeyDep, knowledge: KeptKnowledgeDep
+    base: str,
+    said: KnowledgePush,
+    key: KeyDep,
+    knowledge: KeptKnowledgeDep,
+    admission: AdmissionDep,
 ) -> KnowledgePushed:
     """The tenant's files as this base, chunked, embedded and indexed; how many chunks, how long."""
     started = time.perf_counter()
     files = [KnowledgeFile(path=file.path, text=file.text) for file in said.files]
+    # What the org would keep once this push has landed: its OTHER bases, plus what these files
+    # become — the base being replaced is freed by the push itself, so it is not counted twice.
+    # Judged before a row is written, because a push is one statement and all or nothing.
+    keeping = await knowledge.kept(key.org, besides=base) + knowledge.how_many_chunks(files)
+    try:
+        await admission.a_push(key.org, keeping)
+    except QuotaExhausted as refused:
+        # 429 and the quota's own sentence, as every call door answers one: `pinecall knowledge
+        # push` prints it, and it names both figures — what this would keep, and what the cap is.
+        raise HTTPException(429, str(refused)) from refused
     chunks = await knowledge.put(key.org, base, files)
     return KnowledgePushed(base=base, chunks=chunks, took_ms=(time.perf_counter() - started) * 1000)
 

@@ -27,6 +27,18 @@ class Knowledge(Protocol):
         """Forget the base and its chunks. False when the org never pushed one by that name."""
         ...
 
+    # What the knowledge_chunks quota is measured against. `besides` is the base a push is about
+    # to replace whole: its chunks are freed by that push, so they are not what the org will keep.
+    async def kept(self, org: str, besides: str | None = None) -> int:
+        """How many chunks this org holds across its bases, not counting the one named."""
+        ...
+
+    # The other half of the same question, and the only one that can be asked before a row is
+    # written: a push is judged whole, so the door asks how big it would be and never guesses.
+    def how_many_chunks(self, files: Sequence[KnowledgeFile]) -> int:
+        """How many chunks these files would become, cut as a push would cut them."""
+        ...
+
     async def search(
         self,
         org: str,

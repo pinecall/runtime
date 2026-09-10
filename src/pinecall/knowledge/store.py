@@ -62,6 +62,14 @@ FROM unnest($6::text[], $7::text[], $8::integer[], $9::text[], $10::text[])
 
 _BASES = "SELECT base, chunks, pushed_at FROM knowledge_bases WHERE org = $1 ORDER BY base"
 
+# What the org KEEPS across every base, which is what its quota is about. The base's own row
+# already counts its chunks, so this is a sum over one index and not a scan of the chunks. NULL
+# for `besides` counts every base; a name leaves that one out, because a push replaces it whole.
+_KEPT = """
+SELECT coalesce(sum(chunks), 0) AS kept FROM knowledge_bases
+WHERE org = $1 AND ($2::text IS NULL OR base <> $2)
+"""
+
 # Which model wrote this base's vectors. None when the org pushed no base by that name, which is
 # not an error here: a search of a base nobody pushed answers with nothing, as it always did.
 _MODEL_OF = "SELECT model FROM knowledge_bases WHERE org = $1 AND base = $2"
@@ -140,6 +148,18 @@ class PgKnowledge:
     async def drop(self, org: str, base: str) -> bool:
         """Forget the base and its chunks. False when the org never pushed one by that name."""
         return await self._pool.fetchrow(_DROP, org, base) is not None
+
+    async def kept(self, org: str, besides: str | None = None) -> int:
+        """One sum over the base rows: the chunks the org holds, minus the base being replaced."""
+        row = await self._pool.fetchrow(_KEPT, org, besides)
+        return 0 if row is None else int(row["kept"])
+
+    # The cut is a pass of regexes over the tenant's own Markdown and runs twice on a push: once
+    # to say how big it would be, once to write it. The alternative is a `put` that reads quotas,
+    # which would put admission inside the table.
+    def how_many_chunks(self, files: Sequence[KnowledgeFile]) -> int:
+        """The same cut a push makes, counted: what the quota judges the push by."""
+        return sum(len(chunks_of(file)) for file in files)
 
     async def search(
         self,

@@ -19,6 +19,7 @@ from pinecall.orgs.vault import keys_brought_by
 from pinecall.session import clock
 from pinecall.session.text.session import TextSession
 from pinecall.types import AgentConfig
+from tests.filling.fakes import a_plan, the_tenants
 from tests.session.fake_llm import FakeLLM
 
 pytestmark = pytest.mark.unit
@@ -40,7 +41,9 @@ def a_call_of(golden: Golden) -> TextSession:
     """The call that golden opens, on a model nobody in this file ever reaches."""
     config = AgentConfig(slug=AGENT, channels=frozenset({"web"}))
     logs = Logs(MemoryStore())
-    filling = Filling(None, None, logs, Live(), partial(keys_brought_by, None))
+    filling = Filling(
+        None, None, logs, Live(), partial(keys_brought_by, None), *a_plan(logs, the_tenants())
+    )
     return an_eval_call(golden, A_CALL, config, ORG, logs, FakeLLM(), filling, Budgets())
 
 

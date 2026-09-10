@@ -1,4 +1,4 @@
-"""Admission: whether an org may open one more call or hold one more agent, by its quotas."""
+"""Admission: what an org may open, hold, keep and push right now, judged by its quotas."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pinecall._exceptions import PinecallError
 from pinecall.log.writers import Logs
 from pinecall.orgs.meter import Meter
 from pinecall.orgs.table import Orgs
-from pinecall.types import QuotaName, Quotas
+from pinecall.types import Counting, QuotaName, Quotas
 from pinecall_protocol import encode
 from pinecall_protocol.events import CreditsExhausted
 
@@ -51,7 +51,7 @@ class QuotaExhausted(PinecallError):
 # memory and are handed in by the door that has them, so this module reads the log and the quotas
 # table and nothing of the gateway's live tables. See docs/decisions/orgs.md for the order.
 class Admission:
-    """The gate every call and every register passes: the org's quotas against its facts."""
+    """The gate a call, a register, a hang-up and a push pass: the quotas against the facts."""
 
     def __init__(self, orgs: Orgs, meter: Meter, logs: Logs) -> None:
         self._orgs = orgs
@@ -73,14 +73,50 @@ class Admission:
         quotas = await self._orgs.quotas_of(org)
         await self._refuse_past(org, agent, quotas, "agents", holding)
 
+    # A hang-up refuses nobody: the call is over and nothing is waiting on an answer. So this one
+    # says no by answering False, and the entry it writes is the whole of the refusal — the
+    # gateway then writes what memory did (nothing) beside it, on the call's own log.
+    # `keeping` is called only when a limit is set, the way the meter is: counting an org's facts
+    # is a query over the table, and a box that limits nobody must not run one at every hang-up.
+    async def may_remember(self, org: str, agent: str, keeping: Counting) -> bool:
+        """Whether this org may keep one more fact about a contact, by what it keeps already."""
+        quotas = await self._orgs.quotas_of(org)
+        if quotas.memory_facts is None:
+            return True
+        kept = await keeping(org)
+        limit = quotas.reached("memory_facts", kept)
+        if limit is None:
+            return True
+        await self._written(org, agent, "memory_facts", used=kept, limit=limit)
+        return False
+
+    # The one refusal in this module that writes NO entry: a push names no agent and opens no
+    # call, so there is no log of the org's to write it into, and an org-level log is the third
+    # kind of log orgs.md declined to invent. The tenant is standing at the door reading the 429,
+    # which is the difference — a call refused here never rings and has to be found afterwards.
+    async def a_push(self, org: str, keeping: int) -> None:
+        """May this org keep this many chunks across its bases once the push has replaced one."""
+        quotas = await self._orgs.quotas_of(org)
+        limit = quotas.exceeded("knowledge_chunks", keeping)
+        if limit is None:
+            return
+        raise QuotaExhausted(
+            Exhausted(org=org, quota="knowledge_chunks", used=keeping, limit=limit)
+        )
+
     async def _refuse_past(
         self, org: str, agent: str, quotas: Quotas, quota: QuotaName, used: float
     ) -> None:
         """Write credits.exhausted to the agent's log and raise, when this quota is spent."""
-        limit: int | None = getattr(quotas, quota)
-        if limit is None or used < limit:
+        limit = quotas.reached(quota, used)
+        if limit is None:
             return
-        exhausted = Exhausted(org=org, quota=quota, used=used, limit=limit)
+        await self._written(org, agent, quota, used=used, limit=limit)
+        raise QuotaExhausted(Exhausted(org=org, quota=quota, used=used, limit=limit))
+
+    async def _written(
+        self, org: str, agent: str, quota: QuotaName, *, used: float, limit: int
+    ) -> None:
+        """The refusal on the agent's own log, which is the org's: one home for every quota."""
         event = CreditsExhausted(org=org, quota=quota, used=used, limit=limit)
         await self._logs.writing_agent(agent).append(EXHAUSTED, encode(event))
-        raise QuotaExhausted(exhausted)

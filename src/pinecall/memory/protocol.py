@@ -63,6 +63,12 @@ class Memory(Protocol):
         """Every row of the contact, gone — the right to be forgotten. How many went."""
         ...
 
+    # What the memory_facts quota is measured against. A count of rows and never a counter
+    # column: the rows are the truth and a number kept beside them is a second one that drifts.
+    async def kept(self, org: str) -> int:
+        """How many facts this org holds right now, across every contact it has ever met."""
+        ...
+
     async def history(self, org: str, contact: str) -> list[Fact]:
         """Every fact ever held about the contact: the current ones first, then the superseded."""
         ...

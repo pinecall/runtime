@@ -13,7 +13,7 @@ from pinecall.log.writers import Logs
 from pinecall.orgs.vault import MemoryVault, keys_brought_by
 from pinecall.providers.embed.tei import DID_NOT_ANSWER
 from pinecall.providers.embedder import EmbedderUnreachable
-from pinecall.types import Contact, Docs, KnowledgeFile, markers_in
+from pinecall.types import Contact, Docs, KnowledgeFile, Quotas, markers_in
 from tests.api.conftest import A_VAULT_KEY
 from tests.filling.fakes import (
     CALL,
@@ -26,7 +26,9 @@ from tests.filling.fakes import (
     a_config,
     a_context,
     a_fact,
+    a_plan,
     a_served_call,
+    the_tenants,
 )
 
 pytestmark = pytest.mark.unit
@@ -158,7 +160,14 @@ async def test_a_gateway_with_no_tables_answers_every_fill_with_nothing() -> Non
     logs = Logs(MemoryStore())
     logs.writing(CALL, "clinica-norte")
     opened = OpenCall(org=ORG, context=a_context(), config=a_config())
-    filling = Filling(None, None, logs, OneCall(opened), partial(keys_brought_by, None))
+    filling = Filling(
+        None,
+        None,
+        logs,
+        OneCall(opened),
+        partial(keys_brought_by, None),
+        *a_plan(logs, the_tenants()),
+    )
     assert await filling.fill(CALL, "hola", [MEMORY, RETRIEVED], None) == {
         MEMORY.line: "",
         RETRIEVED.line: "",
@@ -205,3 +214,80 @@ async def test_remember_writes_nothing_for_an_agent_with_no_policy_or_a_caller_w
     nobody = a_served_call(a_context("web"))
     assert await nobody.filling.remember(CALL) == 0
     assert nobody.memory.remembered == []
+
+
+# ── what the plan allows ────────────────────────────────────────────────────────
+
+
+async def test_a_hang_up_at_the_fact_cap_writes_no_fact_and_asks_no_model() -> None:
+    """The cap is read BEFORE the extraction: an org that can keep nothing pays for nothing."""
+    held = [a_fact("f1", "prefiere la mañana"), a_fact("f2", "alérgica a la penicilina")]
+    served = a_served_call(memory=ScriptedMemory(answers=held))
+    await served.limited(Quotas(memory_facts=2))
+    await served.heard("hola, soy Ana")
+    await served.said("buenas, Ana")
+
+    assert await served.filling.remember(CALL) == 0
+    assert served.memory.remembered == [], "no model was asked to extract anything"
+    [ops] = await served.written("memory.ops")
+    [op] = ops["ops"]
+    assert (op["op"], op["contact"], op["facts"]) == ("remember", THE_NUMBER, [])
+    assert await served.refusals() == [
+        {"org": ORG, "quota": "memory_facts", "used": 2.0, "limit": 2}
+    ]
+
+
+async def test_a_plan_with_no_memory_at_all_remembers_nothing_and_says_so_at_hang_up() -> None:
+    """Zero is a real limit: nothing is written, and the reason is on the log, not guessed at."""
+    served = a_served_call()
+    await served.limited(Quotas(memory_facts=0))
+    await served.heard("hola")
+
+    assert await served.filling.remember(CALL) == 0
+    assert served.memory.remembered == []
+    assert (await served.refusals())[0]["quota"] == "memory_facts"
+
+
+async def test_under_the_cap_a_hang_up_remembers_exactly_as_it_did_before_there_were_quotas() -> (
+    None
+):
+    served = a_served_call(memory=ScriptedMemory(answers=[a_fact("f1", "prefiere la mañana")]))
+    await served.limited(Quotas(memory_facts=10))
+    await served.heard("hola")
+
+    assert await served.filling.remember(CALL) == 1
+    assert len(served.memory.remembered) == 1
+    assert await served.refusals() == []
+
+
+async def test_a_plan_with_no_memory_fills_the_marker_with_nothing_and_writes_no_entry() -> None:
+    """A plan without memory is not a failure: no memory.ops, no error, and no query embedded."""
+    served = a_served_call(memory=ScriptedMemory(answers=[a_fact("f1", "prefiere la mañana")]))
+    await served.limited(Quotas(memory_facts=0))
+
+    assert await served.filling.fill(CALL, "quiero un turno", [MEMORY], "sp_1") == {MEMORY.line: ""}
+    assert served.memory.recalled == [], "a fill that cannot use its answer never asks for one"
+    assert await served.written("memory.ops") == []
+    assert await served.written("error") == []
+
+
+async def test_a_plan_with_no_knowledge_base_fills_the_retrieved_marker_with_nothing() -> None:
+    """docs.sources with no sources would tell the grounded judge the base answered nothing."""
+    served = a_served_call(knowledge=ScriptedKnowledge(answers=[a_chunk("c1", "Tarifas", "45 €")]))
+    await served.limited(Quotas(knowledge_chunks=0))
+
+    fills = await served.filling.fill(CALL, "cuánto cuesta", [RETRIEVED], "sp_1")
+    assert fills == {RETRIEVED.line: ""}
+    assert served.knowledge.searched == []
+    assert await served.written("docs.sources") == []
+    assert await served.written("error") == []
+
+
+async def test_a_memory_that_is_full_is_still_read_because_a_cap_is_about_keeping() -> None:
+    """Reached is not switched off: an org at its cap still recalls the facts it paid for."""
+    served = a_served_call(memory=ScriptedMemory(answers=[a_fact("f1", "prefiere la mañana")]))
+    await served.limited(Quotas(memory_facts=1))
+
+    fills = await served.filling.fill(CALL, "quiero un turno", [MEMORY], "sp_1")
+    assert fills == {MEMORY.line: "- prefiere la mañana"}
+    assert len(served.memory.recalled) == 1

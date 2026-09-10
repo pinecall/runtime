@@ -76,6 +76,11 @@ ORDER BY (invalidated_at IS NULL) DESC, valid_from DESC, id
 
 _FORGET = "DELETE FROM contact_memories WHERE org = $1 AND contact = $2"
 
+# What the org KEEPS, which is what its quota is about: the current rows, every contact together.
+# A superseded row is history and not a fact the org holds, so the count reads the same partial
+# index (org, contact) WHERE invalidated_at IS NULL that a recall does.
+_KEPT = "SELECT count(*) AS kept FROM contact_memories WHERE org = $1 AND invalidated_at IS NULL"
+
 _ADD = """
 INSERT INTO contact_memories
     (org, contact, text, category, embedding, valid_from, source_call, model)
@@ -182,6 +187,11 @@ class PgvectorMemory:
     async def history(self, org: str, contact: str) -> list[Fact]:
         """Every row, the current ones first and the newest of each group before the older."""
         return [_a_fact(row) for row in await self._pool.fetch(_EVERY_ROW, org, contact)]
+
+    async def kept(self, org: str) -> int:
+        """One count over the partial index: the facts that hold right now, across the org."""
+        row = await self._pool.fetchrow(_KEPT, org)
+        return 0 if row is None else int(row["kept"])
 
     # The sentences are embedded in one batch before any row is written; then each op is one
     # statement, in the order the model gave them. The facts handed back are the rows that now

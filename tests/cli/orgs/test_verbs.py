@@ -57,11 +57,15 @@ async def test_quota_prints_every_limit_and_a_dash_for_the_ones_left_open(
         "messages": None,
         "agents": 2,
         "concurrent_calls": None,
+        "memory_facts": 0,
+        "knowledge_chunks": 5000,
     }
     assert await set_quota("clinica", limits, operator, out) == 0
     said = out.getvalue()
     assert "minutes" in said and "120" in said
     assert "messages" in said and "—" in said
+    assert "knowledge_chunks" in said and "5000" in said
+    assert "memory_facts      0" in said, "zero is a limit and prints as one, never as a dash"
 
 
 async def test_rm_on_an_org_nobody_typed_is_a_refusal_a_person_can_read(

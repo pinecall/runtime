@@ -6,6 +6,7 @@ from typing import Any, get_args
 import pytest
 
 from pinecall.types import (
+    QUOTAS,
     AgentConfig,
     Contact,
     Docs,
@@ -22,7 +23,7 @@ from pinecall.types import (
 )
 from pinecall.types.channel import CHANNELS, DIRECTIONS
 from pinecall.types.knowledge import DocsMode
-from pinecall_protocol import WireModel, defs
+from pinecall_protocol import WireModel, defs, events
 
 pytestmark = pytest.mark.unit
 
@@ -54,6 +55,12 @@ RESOLVED_AT_THE_EDGE: dict[type[WireModel], frozenset[str]] = {
 def test_the_channels_and_directions_here_are_the_wires() -> None:
     assert CHANNELS == set(get_args(defs.Channel.__value__))
     assert DIRECTIONS == set(get_args(defs.Direction.__value__))
+
+
+def test_the_quota_names_here_are_the_ones_a_refusal_may_say() -> None:
+    """A quota this runtime can refuse for has to be a word credits.exhausted is allowed to say."""
+    said = events.CreditsExhausted.model_fields["quota"].annotation
+    assert set(QUOTAS) == set(get_args(said))
 
 
 def test_the_two_prompt_regions_here_are_the_wires() -> None:
