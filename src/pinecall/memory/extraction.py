@@ -77,10 +77,26 @@ async def extracted(
     tools: Sequence[ToolSpec] = (),
 ) -> list[Op]:
     """One request over the call, its answer parsed strictly, and only what the policy allows."""
+    said = await answered(chat, known=known, turns=turns, policy=policy, channel=channel)
+    return allowed(said, policy, known, tools)
+
+
+# The two halves of the step above, apart, because a golden is judged on BOTH: what the model
+# asked for says whether it noticed, and what `allowed` let through says what a caller would
+# find on the next call. A hang-up only ever wants the second — memory/goldens.py.
+async def answered(
+    chat: Chat,
+    *,
+    known: Sequence[Fact],
+    turns: Sequence[Spoken],
+    policy: MemoryPolicy,
+    channel: str,
+) -> list[Op]:
+    """What the model asked for, before any policy: one request, its answer parsed strictly."""
     response = await chat.chat(
         chat_ctx=_the_request(known, turns, policy, channel), extra_kwargs={"temperature": 0.0}
     ).collect()
-    return allowed(parsed(response.text), policy, known, tools)
+    return parsed(response.text)
 
 
 # Strict means: a JSON array of objects, each with a verb this package knows, a sentence where a

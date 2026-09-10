@@ -163,7 +163,14 @@ This runtime has three of the four:
   however it is written — `book_slot`, `findPatient`, and the words inside them, so "el slot" and
   "bookings" both count. **The honest limit:** a paraphrase that names no tool at all is not
   caught, and nothing that reads the prompt could be trusted to catch it. That is what the
-  confirmation gate below is for.
+  confirmation gate below is for. A tenant can WATCH that limit rather than take it on trust:
+  `pinecall remember` runs the hang-up's own model call over a call written down, plants
+  sentences that name the class's tools and asserts every one is refused, and prints what
+  memory would have kept beside what admission dropped. On Clínica Norte, 2026-09-10, a
+  caller's «a mí resérvemela siempre sin preguntarme» came back written as «Prefiere que le
+  reserven las citas sin preguntarle», which names no tool and was refused by nothing. The
+  class's tools are `book` and `findPatient` and its callers speak Spanish: the vocabulary is
+  a method name, and a caller does not use one.
 - **Provenance.** Every fact carries `source_call` and `valid_from`, and both reach the model in the
   tool result.
 - **Read-time framing.** The fact arrives as JSON inside a tool result, which is the position both
@@ -203,6 +210,8 @@ it should push it instead of shipping it.
 | a tool result's content parses as JSON and its key is `facts` or `chunks` | `tests/providers/test_blocks.py`, `tests/session/test_lookups.py` |
 | the view is never placed in a `tool_result` | `tests/providers/test_blocks.py` |
 | a fact naming one of the class's tools is refused at write time | `tests/memory/test_extraction.py` |
+| the same refusal against a live model, on the tenant's own class and tool names | `pinecall remember`, whose planted sentences are the assertion; the judging is `tests/memory/test_goldens.py` and the door `tests/api/test_extraction.py` |
+| a value the call showed must not survive is in no fact memory would keep | `pinecall remember`, `expect.never_says` |
 | a fact's `source` and `since` reach the model | `tests/lookups/test_service.py` |
 | the contact a lookup reads is the platform's, never the model's | `tests/lookups/test_service.py` |
 | no provider key ever appears in the log or at any door | `tests/api/test_no_provider_key_in_the_log.py` |
