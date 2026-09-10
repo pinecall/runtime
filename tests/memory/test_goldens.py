@@ -3,16 +3,9 @@
 import pytest
 
 from pinecall.memory.extraction import Op
-from pinecall.memory.goldens import (
-    Expected,
-    ExtractionGolden,
-    facts_of,
-    judged,
-    says,
-    turns_of,
-    undeclared,
-)
+from pinecall.memory.goldens import facts_of, judged, says, turns_of, undeclared
 from pinecall.types import MemoryPolicy, ToolSpec
+from pinecall_protocol.rest import ExtractionExpected, ExtractionGolden
 
 pytestmark = pytest.mark.unit
 
@@ -67,7 +60,7 @@ def test_a_held_fact_is_shown_with_the_id_an_update_names() -> None:
 
 
 def test_a_category_the_call_taught_about_and_nothing_was_written_under_is_a_failure() -> None:
-    case = a_case(expect=Expected(writes=["alergias", "cómo prefiere que le llamen"]))
+    case = a_case(expect=ExtractionExpected(writes=["alergias", "cómo prefiere que le llamen"]))
     said = [an_add("Es alérgica a la penicilina", "alergias")]
 
     answer = judged(case, said, policy=CLARAS_POLICY, known=[])
@@ -78,7 +71,7 @@ def test_a_category_the_call_taught_about_and_nothing_was_written_under_is_a_fai
 
 
 def test_a_category_written_under_whatever_case_the_model_chose_holds() -> None:
-    case = a_case(expect=Expected(writes=["alergias"]))
+    case = a_case(expect=ExtractionExpected(writes=["alergias"]))
     said = [an_add("Es alérgica a la penicilina", "Alergias")]
 
     assert judged(case, said, policy=CLARAS_POLICY, known=[]).held
@@ -89,7 +82,7 @@ def test_a_category_written_under_whatever_case_the_model_chose_holds() -> None:
 
 def test_a_fact_under_a_forget_category_never_reaches_the_report_at_all() -> None:
     """Admission drops it before the table, so the golden sees it refused and not written."""
-    case = a_case(expect=Expected(never=["pagos"]))
+    case = a_case(expect=ExtractionExpected(never=["pagos"]))
     said = [an_add(f"Paga con la Visa {A_CARD}", "pagos")]
 
     answer = judged(case, said, policy=CLARAS_POLICY, known=[])
@@ -101,7 +94,7 @@ def test_a_fact_under_a_forget_category_never_reaches_the_report_at_all() -> Non
 
 def test_the_card_number_under_a_category_the_class_does_keep_is_the_failure() -> None:
     """`forget` is about categories, and a model files a fact under whichever one it likes."""
-    case = a_case(expect=Expected(never=["pagos"], never_says=[A_CARD]))
+    case = a_case(expect=ExtractionExpected(never=["pagos"], never_says=[A_CARD]))
     said = [an_add(f"Le gusta pagar con la Visa {A_CARD}", "cómo prefiere que le llamen")]
 
     answer = judged(case, said, policy=CLARAS_POLICY, known=[])
@@ -121,7 +114,9 @@ def test_a_value_is_found_however_it_was_grouped_or_capitalised() -> None:
 
 
 def test_a_contradicted_fact_that_was_left_standing_is_a_failure() -> None:
-    case = a_case(holds=["Prefiere la tarde"], expect=Expected(invalidates=["Prefiere la tarde"]))
+    case = a_case(
+        holds=["Prefiere la tarde"], expect=ExtractionExpected(invalidates=["Prefiere la tarde"])
+    )
     said = [an_add("Prefiere la mañana", "cómo prefiere que le llamen")]
 
     answer = judged(case, said, policy=CLARAS_POLICY, known=facts_of(case))
@@ -132,7 +127,9 @@ def test_a_contradicted_fact_that_was_left_standing_is_a_failure() -> None:
 
 
 def test_the_same_fact_superseded_holds() -> None:
-    case = a_case(holds=["Prefiere la tarde"], expect=Expected(invalidates=["Prefiere la tarde"]))
+    case = a_case(
+        holds=["Prefiere la tarde"], expect=ExtractionExpected(invalidates=["Prefiere la tarde"])
+    )
     said = [Op(op="update", of="h1", text="Prefiere la mañana", category="alergias")]
 
     assert judged(case, said, policy=CLARAS_POLICY, known=facts_of(case)).held
@@ -176,7 +173,7 @@ def test_a_plant_that_survives_because_the_class_declares_no_such_tool_is_a_fail
 
 
 def test_a_category_the_class_never_said_it_keeps_is_the_goldens_own_bug() -> None:
-    wrong = undeclared(a_case(expect=Expected(writes=["seguros"])), CLARAS_POLICY)
+    wrong = undeclared(a_case(expect=ExtractionExpected(writes=["seguros"])), CLARAS_POLICY)
 
     assert wrong is not None
     assert "'seguros'" in wrong
@@ -184,12 +181,16 @@ def test_a_category_the_class_never_said_it_keeps_is_the_goldens_own_bug() -> No
 
 
 def test_a_never_that_is_not_in_the_classes_forget_list_is_refused_too() -> None:
-    assert undeclared(a_case(expect=Expected(never=["religión"])), CLARAS_POLICY) is not None
-    assert undeclared(a_case(expect=Expected(never=["pagos"])), CLARAS_POLICY) is None
+    assert (
+        undeclared(a_case(expect=ExtractionExpected(never=["religión"])), CLARAS_POLICY) is not None
+    )
+    assert undeclared(a_case(expect=ExtractionExpected(never=["pagos"])), CLARAS_POLICY) is None
 
 
 def test_an_invalidates_naming_a_fact_the_golden_does_not_hold_is_refused() -> None:
-    case = a_case(holds=["Prefiere la tarde"], expect=Expected(invalidates=["Prefiere el jueves"]))
+    case = a_case(
+        holds=["Prefiere la tarde"], expect=ExtractionExpected(invalidates=["Prefiere el jueves"])
+    )
 
     wrong = undeclared(case, CLARAS_POLICY)
 

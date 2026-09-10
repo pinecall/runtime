@@ -3,26 +3,22 @@
 from __future__ import annotations
 
 import time
-from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from pydantic import Field
 
 from pinecall.api._deps import KeyDep, LlmsDep, OverridesDep, VaultDep
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.memory.extraction import answered
-from pinecall.memory.goldens import (
-    ExtractionGolden,
-    Judged,
-    facts_of,
-    judged,
-    turns_of,
-    undeclared,
-)
+from pinecall.memory.goldens import facts_of, judged, turns_of, undeclared
 from pinecall.orgs.vault import keys_brought_by
 from pinecall.providers.models import DEFAULT_VENDOR, Chat
 from pinecall.types import AgentConfig, MemoryPolicy, Model
-from pinecall_protocol import WireModel
+from pinecall_protocol.rest import (
+    ExtractionCases,
+    ExtractionGolden,
+    ExtractionJudged,
+    ExtractionRun,
+)
 
 router = APIRouter()
 
@@ -32,12 +28,6 @@ router = APIRouter()
 KEEPS_NOTHING = "agent {slug} declares no memory.remember: there is nothing to extract"
 
 
-class Cases(WireModel):
-    """What the caller asks of one agent: the goldens, whole, as the tenant wrote them down."""
-
-    cases: list[ExtractionGolden] = Field(default_factory=list[ExtractionGolden])
-
-
 # The hang-up's one model call, run over a call that already happened, and judged by code. It is a
 # door and not a CLI-side loop for the reason `pinecall test` scores in the gateway: the org's
 # model, the org's provider keys and the class's resolved declaration are all here and none of
@@ -45,13 +35,13 @@ class Cases(WireModel):
 @router.post("/v1/agents/{slug}/memory/extraction")
 async def extraction(
     slug: str,
-    said: Cases,
+    said: ExtractionCases,
     key: KeyDep,
     registry: RegistryDep,
     overrides: OverridesDep,
     llms: LlmsDep,
     vault: VaultDep,
-) -> dict[str, Any]:
+) -> ExtractionRun:
     """Every case through one extraction each, and the four questions asked of what came back."""
     config = _the_agent(slug, key.org, registry, overrides)
     policy = config.memory
@@ -72,7 +62,7 @@ async def extraction(
     return _as_an_answer(slug, config.llm, results, (time.perf_counter() - started) * 1000)
 
 
-async def _one(case: ExtractionGolden, chat: Chat, config: AgentConfig) -> Judged:
+async def _one(case: ExtractionGolden, chat: Chat, config: AgentConfig) -> ExtractionJudged:
     """One case: what the model asked for, then the policy and the four checks over its answer."""
     policy = config.memory or MemoryPolicy()
     known = facts_of(case)
@@ -91,14 +81,14 @@ def _the_agent(slug: str, org: str, registry: RegistryDep, overrides: OverridesD
 
 
 def _as_an_answer(
-    slug: str, llm: Model | None, results: list[Judged], took_ms: float
-) -> dict[str, Any]:
+    slug: str, llm: Model | None, results: list[ExtractionJudged], took_ms: float
+) -> ExtractionRun:
     """The run as the verb prints it: which model answered, how many held, and every case."""
-    return {
-        "agent": slug,
-        "model": f"{llm.provider}/{llm.model}" if llm else DEFAULT_VENDOR,
-        "cases": len(results),
-        "held": sum(1 for one in results if one.held),
-        "took_ms": took_ms,
-        "results": [one.model_dump(mode="json") for one in results],
-    }
+    return ExtractionRun(
+        agent=slug,
+        model=f"{llm.provider}/{llm.model}" if llm else DEFAULT_VENDOR,
+        cases=len(results),
+        held=sum(1 for one in results if one.held),
+        took_ms=took_ms,
+        results=results,
+    )
