@@ -53,10 +53,22 @@ class WhatWasAsked:
 # The tools ARE part of the prompt: a provider caches them ahead of the system blocks, and a model
 # that ran none of them is judged on the list it was actually handed — which is every declared
 # tool, always, because narrowing it per stage would throw the cache away. session/visibility.py.
+#
+# BOTH kinds, and the raw one first, because the raw one is ours: every tenant tool is declared
+# from a ToolSpec through `function_tool(raw_schema=…)` (session/declaring.py), and a reader that
+# only knew livekit's decorated kind wrote `tools: []` under a call whose whole finding was that
+# it ran no tool. The platform's own — recall, search, the clock — are the decorated kind.
 def _declared_as(tools: Sequence[agents.Tool]) -> list[dict[str, Any]]:
     """Every tool the request carries, as a JSON schema, in the order the provider receives it."""
-    # livekit's FunctionTool is generic over an unbounded parameter, so a strict checker reads both
-    # its own guard and its own schema builder as partially unknown. One cast each, at the one call.
+    # livekit's tool types are generic over an unbounded parameter, so a strict checker reads its
+    # own guards and its own schema builder as partially unknown. One cast each, at the one call.
+    raw = cast("Callable[[Any], bool]", agents.is_raw_function_tool)  # pyright: ignore[reportUnknownMemberType]
     written = cast("Callable[[Any], bool]", agents.is_function_tool)  # pyright: ignore[reportUnknownMemberType]
     schema = cast("Callable[[Any], dict[str, Any]]", build_legacy_openai_schema)
-    return [schema(tool) for tool in tools if written(tool)]
+    kept = [tool for tool in tools if raw(tool) or written(tool)]
+    return [dict(_raw_schema_of(tool)) if raw(tool) else schema(tool) for tool in kept]
+
+
+def _raw_schema_of(tool: Any) -> Mapping[str, Any]:
+    """The schema a raw tool was declared with, off livekit's own info record."""
+    return cast("Mapping[str, Any]", tool.info.raw_schema)
