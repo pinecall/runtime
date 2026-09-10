@@ -120,6 +120,7 @@ over them, then thirty routers, one door each. By resource:
 | `POST /v1/tokens` | LiveKit's token endpoint with our three things in front: minted only for an agent the key's org answers, single-use, the dispatch riding it |
 | `GET /v1/routes` · `/v1/ops/routes` · `/v1/ops/orgs` · `/v1/ops/orgs/{org}/keys` · `/quotas` · `/provider-keys` · `/v1/ops/usage` | the tenant's read, and **the operator API** (`docs/protocol/operator-api.md`), keyed by `PINECALL_OPS_KEY` — what `pinecall/cloud` talks to |
 | `GET/POST /v1/whatsapp/webhook` | Meta's handshake and every delivered message; one thread per contact per number, each a text call (`api/whatsapp/`, `whatsapp/`) |
+| `PUT /v1/provider-keys/{vendor}` · `GET /v1/provider-keys` · `DELETE /v1/provider-keys/{vendor}` | **the keys a tenant brought of its own**, on the tenant's key and scoped to its org, which it cannot name: bring one (`{key}` → 204, replacing whatever that vendor had), read the vendors back by name and never a value, take one back (404 for a vendor never brought). A build that knows no such vendor is 400 with the list; a runtime with no `PINECALL_VAULT_KEY` is 503. `api/provider_keys.py` |
 | `PUT /v1/knowledge/{base}` · `GET /v1/knowledge` · `DELETE /v1/knowledge/{base}` | **the knowledge base**, on the tenant's key: a base pushed whole (`{files: [{path, text}]}` → `{base, chunks, took_ms}`), listed, dropped (404 for a name never pushed). `api/knowledge.py` |
 | `GET /v1/contacts/{contact}/memory` · `DELETE` | **a contact's memory**: every fact ever held, current first; and forget, the right to be forgotten (`{forgotten: n}`). `api/contacts.py` |
 | `GET /v1/whoami` | the name on the key that knocked |
@@ -245,8 +246,8 @@ clock. **Compact the view, never the log.** `docs/decisions/log.md`.
 
 `orgs/table.py` (the orgs and their quotas), `admission.py` (may this org open one more call,
 hold one more agent), `meter.py` (every org's consumption, folded from the log as it grows, one
-cursor per process), `vault.py` (a tenant's own provider keys, Fernet at rest, read by exactly one
-door — the worker's). `auth/keys.py` (sha256, no salt; a **dev key** that needs no database and is
+cursor per process), `vault.py` (a tenant's own provider keys, Fernet at rest, written at two
+doors — the tenant's own and the operator's — and read back by exactly one, the worker's). `auth/keys.py` (sha256, no salt; a **dev key** that needs no database and is
 then the only key honoured), `auth/bearer.py` (one parser of the header, one close code),
 `auth/scopes.py` (which projection, and the room token that carries one call, one scope).
 `routes/answering.py`: when the operator's table and the app's declaration both name a door, the
