@@ -2,6 +2,7 @@
 
 from tests.api.conftest import (  # noqa: F401 — imported so pytest collects them here
     admission,
+    embedder,
     graph,
     keys,
     keys_asked,
@@ -30,6 +31,7 @@ from tests.api.conftest import (  # noqa: F401 — imported so pytest collects t
 # pytest collects a fixture it finds in a conftest's namespace; this list is what says so out loud.
 __all__ = [
     "admission",
+    "embedder",
     "graph",
     "keys",
     "keys_asked",

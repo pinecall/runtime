@@ -2,8 +2,9 @@
 
 import pytest
 
-from pinecall.knowledge.scoring import AT, Answered, Question, answers, scored, where
+from pinecall.knowledge.scoring import Answered, Question, answers, scored, where
 from pinecall.types import Chunk
+from pinecall.types.goldens import AT
 
 pytestmark = pytest.mark.unit
 

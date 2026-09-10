@@ -234,3 +234,51 @@ async def test_the_facts_an_org_keeps_are_counted_across_its_contacts_and_histor
     assert await memory.kept(org) == 2, "a superseded row is history and not a fact held"
     assert await memory.forget(org, contact) == 2
     assert await memory.kept(org) == 1
+
+
+# ── the write a golden makes ────────────────────────────────────────────────────
+
+
+# What a memory golden needs and a call never asks for: the facts are GIVEN, not extracted, so the
+# ranking it then measures is the real one — the same two index scans, the same fusion, the same
+# embedder — over a contact nobody has. docs/retrieval/spec.md.
+async def test_hold_writes_the_sentences_it_was_given_and_asks_no_model(
+    memory: PgvectorMemory, org: str, contact: str, models: ScriptedModels
+) -> None:
+    said = ["prefiere turnos por la mañana", "vive en Montevideo con su perro"]
+    await memory.hold(org, contact, said, at=HUNG_UP)
+    held = await memory.history(org, contact)
+    # A set, because the rows share one valid_from and the history's tie-break is the row id: two
+    # facts written in the same breath have no order between them, and a golden asks for none.
+    assert {fact.text for fact in held} == set(said)
+    assert [fact.valid_from for fact in held] == [HUNG_UP, HUNG_UP]
+    assert [fact.category for fact in held] == [None, None]
+    assert models.built == [], "a golden pays for no model call, only for the embedding"
+
+
+async def test_a_fact_a_golden_held_is_recalled_by_the_two_branches_a_turn_reads(
+    memory: PgvectorMemory, org: str, contact: str
+) -> None:
+    """The point of writing them: what comes back is what a call would get, in that order."""
+    await memory.hold(
+        org,
+        contact,
+        ["prefiere turnos por la mañana", "vive en Montevideo con su perro", NOWHERE],
+        at=HUNG_UP,
+    )
+    facts = await memory.recall(org, contact, "turno de mañana", k=2)
+    assert [fact.text for fact in facts][0] == "prefiere turnos por la mañana"
+    assert facts[0].score == 1.0
+    assert len(facts) == 2, "k cuts, which is what makes a golden's recall@k a real question"
+
+
+async def test_the_facts_a_golden_held_carry_this_embedder_and_go_with_one_forget(
+    memory: PgvectorMemory, pool: Pool, org: str, contact: str
+) -> None:
+    await memory.hold(org, contact, ["prefiere la mañana", "vive en Pocitos"], at=HUNG_UP)
+    rows = await pool.fetch(
+        "SELECT model FROM contact_memories WHERE org = $1 AND contact = $2", org, contact
+    )
+    assert [row["model"] for row in rows] == [HASH_MODEL, HASH_MODEL]
+    assert await memory.forget(org, contact) == 2
+    assert await memory.history(org, contact) == []

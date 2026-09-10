@@ -2,20 +2,15 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
 from pinecall.types import Chunk
+from pinecall.types.goldens import figures
 
 # The separator a heading path is written with, in the chunk and in a golden alike: it is what
 # `chunks_as_text` puts in front of every passage, so a person writes what they already read.
 BETWEEN_HEADINGS = " › "
-
-# Where the discount stops mattering. Ten is the convention nDCG is named after and it is far past
-# any `k` a voice turn uses, so a chunk that ranked eleventh scores nothing and rightly: the model
-# never saw it.
-AT = 10
 
 
 @dataclass(frozen=True)
@@ -78,28 +73,15 @@ def answers(found: str, expects: str) -> bool:
     return found.startswith(f"{wanted}{BETWEEN_HEADINGS}")
 
 
-# Both figures over the same answers, because they say two different things about one run: recall
-# is whether the model could have used the passage at all, nDCG is whether it had to read past
-# nine others to get there. A base with recall 1.0 and nDCG 0.4 is one `k` away from being useless.
+# One relevant chunk per question, which is the arithmetic's simplest case: types/goldens.py does
+# both figures, here and for memory, and what is the knowledge base's own is which chunk answered.
 def scored(answered: Sequence[Answered], k: int) -> Score:
     """The golden's two figures, and every question the base missed."""
-    if not answered:
-        return Score(questions=0, k=k, recall_at_k=0.0, ndcg_at_10=0.0, misses=())
-    ranks = [one.rank for one in answered]
-    found = [rank for rank in ranks if rank is not None]
+    found = figures([(one.rank,) for one in answered])
     return Score(
         questions=len(answered),
         k=k,
-        recall_at_k=len(found) / len(answered),
-        ndcg_at_10=sum(_discounted(rank) for rank in ranks) / len(answered),
+        recall_at_k=found.recall_at_k,
+        ndcg_at_10=found.ndcg_at_10,
         misses=tuple(one for one in answered if one.rank is None),
     )
-
-
-# One relevant chunk per question, so the ideal DCG is 1 and the normalisation is the discount
-# itself. Rank one scores 1.0, rank two 0.63, rank ten 0.29, and past ten nothing at all.
-def _discounted(rank: int | None) -> float:
-    """What a question contributes to nDCG from the rank its answer landed at."""
-    if rank is None or rank > AT:
-        return 0.0
-    return 1.0 / math.log2(rank + 1)

@@ -21,6 +21,7 @@ from pinecall.memory import Memory
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.table import Orgs
 from pinecall.orgs.vault import NO_VAULT_KEY, Vault
+from pinecall.providers.embedder import Embedder
 from pinecall.providers.models import Models
 from pinecall.providers.overrides import Overrides
 from pinecall.routes.table import Routes
@@ -169,6 +170,14 @@ def the_lookups(connection: HTTPConnection) -> Lookups:
     return held(connection, "lookups", Lookups)
 
 
+# Whichever EMBED_PROVIDER named, opened once for the process and lazy: a gateway whose embedder is
+# down still starts. A door asks it for one thing only — the model's name, which is what says two
+# scores of one golden are comparable at all.
+def the_embedder(connection: HTTPConnection) -> Embedder:
+    """What memory and the knowledge base write vectors with. A Protocol, so no isinstance."""
+    return held(connection, "embedder")
+
+
 # Both are None on a gateway with no Postgres — a dev key — and the doors that need one say so
 # in a sentence (below), while a lookup there finds nothing and refuses nobody.
 def the_memory(connection: HTTPConnection) -> Memory | None:
@@ -194,6 +203,7 @@ RunsDep = Annotated[Runs, Depends(the_runs)]
 GraphDep = Annotated[Graph, Depends(the_graph)]
 VaultDep = Annotated["Vault | None", Depends(the_vault)]
 LookupsDep = Annotated[Lookups, Depends(the_lookups)]
+EmbedderDep = Annotated[Embedder, Depends(the_embedder)]
 MemoryDep = Annotated["Memory | None", Depends(the_memory)]
 KnowledgeDep = Annotated["Knowledge | None", Depends(the_knowledge)]
 

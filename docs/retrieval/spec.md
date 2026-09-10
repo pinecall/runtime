@@ -140,6 +140,61 @@ documents. Fifty to a hundred questions per base is the size that stops being no
 A golden is fixed and the index is the variable. **A question is never softened so a change can
 pass** — the same rule the conversation goldens are held to.
 
+## Quality: the right facts about this caller
+
+Everything above is about `search`. `recall` makes the same promise over the other table — the
+facts this caller taught earlier calls, the best six of them in front of the model — and it is
+just as invisible to a ring, for the same reason. A ring watches a conversation, so it only ever
+sees the facts memory handed over; ring 4's grounding judge weighs what the agent said against
+those facts, and the better fact that was never handed over is invisible to it.
+
+So memory has a golden of its own, deterministic in the same way and with the same two figures.
+What differs is the question. Nobody can name "the fact that should have won" for a contact the
+way they can name a heading in a file they wrote, because a contact's facts are whatever their
+earlier calls taught. So a memory question **brings its own facts**:
+
+```json
+[
+  { "holds": ["Prefiere mañanas", "Paciente de la doctora Vidal desde 2024", "Alérgica a la penicilina"],
+    "asks": "¿le va bien el martes?",
+    "expects": ["Prefiere mañanas"] }
+]
+```
+
+`holds` is what memory holds about this question's contact, `asks` is the caller's words, and
+`expects` is the fact or facts that should come back. No contact has to exist anywhere:
+`POST /v1/contacts/memory/eval` writes each question's facts to a scratch contact of the org, asks,
+and deletes them before the next question. Writing them is the point — it is what makes the figures
+the ranking a call would get, the same two index scans, the same reciprocal-rank fusion, the same
+embedder, rather than an arithmetic of ours over a list. Every fact of one question is written at
+the same moment, so the recency weighing treats them alike and what is measured is the words and
+the meaning; a golden that wanted to measure recency would have to carry dates, and none does.
+
+**A fact answers when what came back CONTAINS what was expected**, both folded: accents dropped,
+case folded, runs of whitespace collapsed. A fact is a sentence a model wrote, and a golden is
+written by a person who knows the substance and not the wording — "prefiere mañanas" is answered by
+*"Prefiere mañanas, nunca después de comer"*, and is not answered by *"Alérgica"*, which says less
+than was asked for. Equality in either direction would make every golden brittle, and the fold is
+the one the spanish text configuration behind the words branch already applies.
+
+The two figures are the two above, generalised once: a memory question may expect several facts, so
+`recall@k` is the share of the facts asked for that came back and `nDCG@10` is normalised by the
+best places those facts could have taken. A question that expects one fact reduces to exactly the
+base's arithmetic — it *is* the base's arithmetic, `types/goldens.py`, shared by both goldens.
+
+**Write questions whose contact holds more facts than a turn asks for.** A turn recalls six. A
+question whose contact holds four is answered whole by any ranking at all, and its `recall@6` is
+`1.00` however badly those four were ordered — the question discriminates nothing. `nDCG@10` still
+does, and a smaller `k` is what makes recall bite:
+
+```bash
+pinecall memory eval                 # memory/golden.json beside the agent file
+pinecall memory eval --k 1           # the best fact alone: is the right one first?
+```
+
+A golden is fixed and the ranking is the variable, here too. What you change when a question fails
+is the vocabulary a fact is written in, the embedder, `k`, or the weighing — never the question.
+
 ## The mapping to OpenTelemetry GenAI
 
 The runtime exports no traces today; the milestone that adds it should invent no vocabulary,

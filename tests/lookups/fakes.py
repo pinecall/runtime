@@ -122,6 +122,17 @@ class ScriptedMemory:
         )
         return [MemoryOp(op="remember", contact=contact, facts=[], took_ms=1.0)]
 
+    async def hold(
+        self,
+        org: str,  # noqa: ARG002 — the Protocol's shape
+        contact: str,  # noqa: ARG002 — the Protocol's shape
+        facts: Sequence[str],
+        *,
+        at: datetime,  # noqa: ARG002 — the Protocol's shape
+    ) -> None:
+        """The sentences given, in the order given: this fake ranks by nothing, so order is all."""
+        self.answers += [a_fact(f"held-{n}", text) for n, text in enumerate(facts, start=1)]
+
     async def forget(self, org: str, contact: str) -> int:  # noqa: ARG002
         gone, self.answers = len(self.answers), []
         return gone
