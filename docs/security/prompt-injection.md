@@ -88,8 +88,11 @@ words, and content that arrived from outside the conversation outranks nothing a
 
 ### Memory and retrieval are tools, and their answers are tool results
 
-`recall` and `search` are declared tools like any the tenant writes. They appear in the `<tools>`
-block the model reads, with a description that says what the content is and where it came from.
+`recall` and `search` are declared tools like any the tenant writes: they are in the tools array
+of every request, with a description that says what the content is and where it came from. They
+are NOT in the prompt's `<tools>` block, which the class builds from its own methods and which the
+runtime never adds to — a distinction worth knowing when reading a prompt printed by
+`pinecall prompt`, where the platform's two tools do not appear.
 Their answers reach the model as `tool_result` blocks whose content is a JSON object, never prose:
 
 ```json

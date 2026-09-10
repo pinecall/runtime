@@ -11,6 +11,7 @@ from pinecall.types import (
     DEFAULT_LAYOUT,
     AgentConfig,
     Docs,
+    Hangup,
     KnowledgeFile,
     MemoryPolicy,
     Model,
@@ -99,6 +100,8 @@ def _sent(wire: defs.AgentConfig) -> dict[str, Any]:
         converted["docs"] = _the_docs(wire.docs)
     if "memory" in sent:
         converted["memory"] = _a_memory_policy(wire.memory)
+    if "hangup" in sent:
+        converted["hangup"] = _a_hangup(wire.hangup)
     if "tools" in sent:
         converted["tools"] = tuple(a_tool(tool) for tool in wire.tools or ())
     if "state_fields" in sent:
@@ -147,6 +150,12 @@ def _a_memory_policy(wire: defs.MemoryConfig | None) -> MemoryPolicy | None:
     if wire is None:
         return None
     return MemoryPolicy(remember=tuple(wire.remember), forget=tuple(wire.forget))
+
+
+def _a_hangup(wire: defs.HangupConfig | None) -> Hangup | None:
+    if wire is None:
+        return None
+    return Hangup(when=wire.when)
 
 
 def _pronunciations(said: Sequence[defs.Pronunciation]) -> dict[str, str]:

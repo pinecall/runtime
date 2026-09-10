@@ -1,6 +1,14 @@
 """The shapes both processes speak: an org, a route, an agent, a call, a tool, a token. No IO."""
 
-from pinecall.types.agent import AgentConfig, EventSource, Model, Turn, Visibility, Voice
+from pinecall.types.agent import (
+    AgentConfig,
+    EventSource,
+    Hangup,
+    Model,
+    Turn,
+    Visibility,
+    Voice,
+)
 from pinecall.types.call import CallContext, Contact, a_call_id
 from pinecall.types.channel import THE_WIDGET, Channel, Direction
 from pinecall.types.consent import (
@@ -60,6 +68,7 @@ __all__ = [
     "GateKind",
     "GateLine",
     "Grant",
+    "Hangup",
     "JsonObject",
     "KnowledgeFile",
     "MemoryPolicy",

@@ -46,7 +46,7 @@ class VoiceAgent(LiveAgent):
         self,
         *,
         blocks: Blocks,
-        tools: Sequence[agents.Tool],
+        tools: Sequence[agents.Tool | agents.Toolset],
         speaking: Speaking,
         lookups: TurnLookups,
     ) -> None:
