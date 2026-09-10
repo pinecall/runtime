@@ -7,6 +7,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **A declared greeting is spoken.** `AgentConfig.greeting` had been on the wire since ms-2 and no
+  session ever read it: a string stored, overridden at the pipeline door, drawn in the console, and
+  never said out loud. It is now a `Greeting` — exactly one of `say` (the words, read out as
+  written, no model in the loop) or `reply` (what the model is told before it finds its own, which
+  the caller never hears) — and both doors run it the moment the session can speak. They are
+  `agent.say` and `agent.reply` declared instead of called; nothing new was invented on the wire.
+  A class that declares nothing waits for the caller, as before.
+  `session/greeting.py` holds the choice once and each door hands it its own pair of verbs.
 - **The write side of memory is held to goldens of its own**, which is the half that persists: the
   hang-up makes ONE model call and it can miss what mattered, invent a fact, leave two versions of
   one fact standing, or write a category the tenant listed as never-keep.
