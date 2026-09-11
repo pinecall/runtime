@@ -34,6 +34,9 @@ _LOOKING_AGAIN_IN_S = 0.25
 # came back "ran no tool at all" for exactly that, on a call that had not finished.
 AN_ANSWER_MAY_TAKE_S = 20.0
 
+# The two entries a tool round leaves. The agent's last word has to come after both of them.
+_A_TOOL_ROUND = frozenset({"tool.call", "tool.result"})
+
 NOBODY_SEALED = (
     "the spoken call {call} never sealed: the worker wrote no {terminal} within {seconds:.0f}s, "
     "so there is no finished call to judge"
@@ -105,10 +108,24 @@ async def _until_the_answer_lands(store: Store, call: str, said: int) -> None:
     """Hold the line until the agent has answered the last line, or until it plainly will not."""
     deadline = time.monotonic() + AN_ANSWER_MAY_TAKE_S
     while time.monotonic() < deadline:
-        entries = await whole(store, call)
-        if sum(1 for entry in entries if entry.type == "turn.agent") >= said:
+        if _the_answer_has_landed(await whole(store, call), said):
             return
         await asyncio.sleep(_LOOKING_AGAIN_IN_S)
+
+
+# Why the count alone is not enough. `en-el-chat-ofrece-mas-de-dos-horas`, spoken, 2026-09-11: the
+# agent called freeSlots and said "voy a consultar qué hay libre el lunes". That is one turn for
+# one line, the count was satisfied, the caller hung up — and the hours it had gone to fetch were
+# never read out. The judge then reported that the agent never said "nueve", which was true and
+# was the harness's doing. A turn that ANNOUNCES a tool is not the answer to anything.
+def _the_answer_has_landed(entries: Sequence[Entry], said: int) -> bool:
+    """Every line heard, and the agent's last word after both the last of them and any tool."""
+    answers = [at for at, entry in enumerate(entries) if entry.type == "turn.agent"]
+    heard = [at for at, entry in enumerate(entries) if entry.type == "turn.user"]
+    if not answers or len(heard) < said or answers[-1] < heard[-1]:
+        return False
+    tools = [at for at, entry in enumerate(entries) if entry.type in _A_TOOL_ROUND]
+    return not tools or answers[-1] > tools[-1]
 
 
 async def _once_it_is_sealed(store: Store, call: str) -> Sequence[Entry]:
