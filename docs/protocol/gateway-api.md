@@ -299,8 +299,9 @@ question brings its own facts to a scratch contact, so no contact of yours is re
 `POST /v1/agents/{slug}/memory/extraction` runs the write side: one call written down per case,
 one model call each — the very one a hang-up makes — judged by code.
 
-> Both of these are **tables**. A gateway with no database answers `503 … it has no database …`
-> and names what to do about it. That is not about your key.
+> Both of these are **tables**, and a gateway running on a dev key has no database at all — that
+> is what a dev key is for. So on one, these doors answer `503 … it runs on a dev key …` and name
+> the way out: issue an org key and start the gateway on it ([../multi-tenancy.md](../multi-tenancy.md)).
 
 ---
 
