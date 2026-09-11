@@ -35,7 +35,7 @@ NO_LABEL = "—"
 
 def configure(parser: argparse.ArgumentParser) -> None:
     """Three verbs, three parsers: each names its arguments, and `keys` alone prints them."""
-    verbs = parser.add_subparsers(title="verbs", metavar="<verb>", prog=f"{parser.prog} keys")
+    verbs = parser.add_subparsers(title="verbs", metavar="<verb>", prog=parser.prog)
 
     issuing = verbs.add_parser("issue", help="a new key for an org, printed once and never again")
     issuing.add_argument("--label", default=None, help="what this key is for, for the listing")

@@ -30,7 +30,7 @@ SEED_FILE = "infra/seed/routes.json"
 
 def configure(parser: argparse.ArgumentParser) -> None:
     """Four verbs, four parsers: each names its arguments, and `routes` alone prints them."""
-    verbs = parser.add_subparsers(title="verbs", metavar="<verb>", prog=f"{parser.prog} routes")
+    verbs = parser.add_subparsers(title="verbs", metavar="<verb>", prog=parser.prog)
 
     listing = verbs.add_parser("list", help="every door the org answers")
     with_an_org(listing)

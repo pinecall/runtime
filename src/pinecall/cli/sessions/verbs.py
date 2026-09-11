@@ -56,7 +56,7 @@ NOT_RECORDED = "call {call} was not recorded: its {summary} carries no path"
 
 def configure(parser: argparse.ArgumentParser) -> None:
     """Four verbs, four parsers: each names its arguments, and `sessions` alone prints them."""
-    verbs = parser.add_subparsers(title="verbs", metavar="<verb>", prog=f"{parser.prog} sessions")
+    verbs = parser.add_subparsers(title="verbs", metavar="<verb>", prog=parser.prog)
 
     listing = verbs.add_parser("list", help="the calls, newest first")
     listing.add_argument("--agent", help="only this agent's calls")
