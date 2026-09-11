@@ -45,17 +45,49 @@ class SystemBlocks(agents.ChatContext):
 # one of each, and none of it piles up behind a tool's output.
 #
 # The order is the one the security page fixes and nothing may reorder it: the static blocks, the
-# history, then what this turn's lookups found — each a real tool_use / tool_result pair, which is
+# history with this turn's lookups inside it — each a real tool_use / tool_result pair, which is
 # where everything from outside the conversation goes — and last the tenant's own view, which is
 # the only thing in the request that carries operator authority after the system field.
 # docs/security/prompt-injection.md.
 def request_context(
     chat_ctx: agents.ChatContext, blocks: Blocks, lookups: Sequence[agents.ChatItem] = ()
 ) -> SystemBlocks:
-    """One request: the history livekit built, this turn's lookups, then the dynamic blocks."""
-    items = [*chat_ctx.items, *lookups]
+    """One request: the history, this turn's lookups before the caller, then the dynamic blocks."""
+    items = _ahead_of_the_caller(chat_ctx.items, lookups)
     items.extend(agents.ChatMessage(role="system", content=[text]) for text in blocks.dynamic_texts)
     return SystemBlocks(items, blocks.static_texts)
+
+
+# A lookup's pair goes BEFORE the caller's newest words, which is where every framework that does
+# this puts it. livekit hands `on_user_turn_completed` a context that does not hold the new message
+# yet and appends it after the hook returns (agent_activity.py:2599-2606, then :2672 hands that
+# very context to the reply), and its own RAG example adds the retrieved text there; Pipecat's Mem0
+# service inserts memories near the head of the list; convo uses ChatContext.insert, which places
+# by created_at. This runtime appended them AFTER instead, and nothing said why.
+#
+# What that cost: the caller's sentence ended up several messages back from where the model
+# decides, behind two tool_results, with the view the last thing read. Measured 2026-09-11 by
+# replaying clinica-norte's own recorded requests — 0 of 8 on the golden's expected tool, and 8 of
+# 8 once the caller's words sat next to the view. It is also what Anthropic describes: text placed
+# after tool results reads as the end of the tool-using turn.
+#
+# The pair still lives only in the REQUEST and never in the history. livekit keeps that by handing
+# the hook a throwaway copy; this runtime cannot, because the text session hands its hook the real
+# chat_ctx (session/text/turns.py) and anything written there would pile up turn after turn. Same
+# contract, kept by splicing here instead of by copying there.
+def _ahead_of_the_caller(
+    items: Sequence[agents.ChatItem], lookups: Sequence[agents.ChatItem]
+) -> list[agents.ChatItem]:
+    """The history with this turn's lookups spliced in ahead of the caller's newest message."""
+    if not lookups:
+        return list(items)
+    # Only when the caller's own turn is the last thing on the context. A tool step of a turn
+    # already under way ends in a tool output, and `agent.reply` in nothing the caller said: there
+    # is no newest message to sit ahead of, so the pair goes where it always went.
+    last = items[-1] if items else None
+    if not (isinstance(last, agents.ChatMessage) and last.role == "user"):
+        return [*items, *lookups]
+    return [*items[:-1], *lookups, last]
 
 
 # What `prompt.changed` deliberately does not carry: a live call keeps a hash of each block and
