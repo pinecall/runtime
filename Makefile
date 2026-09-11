@@ -76,10 +76,11 @@ restart-all: require-box restart-hub
 # A hub: the gateway, then the health check through Caddy — and NOT the worker: `systemctl
 # restart` starts a unit the role disabled, and a hub that restarted its worker on every deploy
 # would be one machine with everything again, quietly.
-# The overflow agent and the loop restart with the gateway they speak to; `try-restart` because
-# the loop is enabled only on a hub whose box.env names a cloud, and is not there otherwise.
+# The overflow agent restarts with the gateway it speaks to. The loop is enabled only on a hub
+# whose box.env names a cloud — the manifest enables it and enabling starts nothing, so the first
+# deploy that names a cloud STARTS it here, and every later one restarts it.
 restart-hub: require-box
-	$(SSH) 'sudo systemctl restart pinecall-gateway pinecall-overflow && sudo systemctl try-restart pinecall-fleet'
+	$(SSH) 'sudo systemctl restart pinecall-gateway pinecall-overflow && { systemctl is-enabled -q pinecall-fleet && sudo systemctl restart pinecall-fleet || true; }'
 	$(MAKE) --no-print-directory health
 
 # A worker alone: one unit, and the proof is the hub's SFU saying it registered, not a URL here.
