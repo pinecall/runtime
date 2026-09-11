@@ -70,7 +70,7 @@ async def a_spoken_conversation(
         settings=settings,
         caller=_a_spoken_caller(),
         app=app,
-        settled=lambda: _until_the_answer_lands(store, call, len(said)),
+        settled=lambda so_far: _until_the_answer_lands(store, call, so_far),
     )
     entries = await _once_it_is_sealed(store, call)
     return Conversation(golden=golden, model=model, call=call, entries=entries)
