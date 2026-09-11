@@ -14,6 +14,7 @@ from pinecall._settings import Settings, load_settings
 from pinecall.api import (
     contacts,
     extraction,
+    fleet,
     knowledge,
     listen,
     orgs,
@@ -39,6 +40,7 @@ from pinecall.api.whatsapp import webhook
 from pinecall.api.whatsapp.threads import Threads
 from pinecall.auth.keys import keys_for
 from pinecall.evals.runs import runs_for
+from pinecall.fleet import Roster
 from pinecall.knowledge import PgKnowledge
 from pinecall.log.snapshots import Snapshots
 from pinecall.log.store import MemoryStore, Pool, PostgresStore, Store, StoreUnreachable, open_pool
@@ -99,6 +101,10 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     gateway.state.admission = Admission(gateway.state.orgs, Meter(store), gateway.state.logs)
     # It holds no registry: which socket serves a call is the door's answer, given to serve().
     gateway.state.live = Live()
+    # The fleet, as its heartbeats describe it: which workers are up and what each holds. This
+    # process's memory and nothing else — a restart forgets it and the next five seconds of
+    # heartbeats write it again. docs/decisions/fleet.md.
+    gateway.state.fleet = Roster()
     gateway.state.snapshots = Snapshots(store)
     # What an operator has turned, from the table into this process's memory: the next session
     # reads it through the very same config door a worker already asks. Read once here, so a
@@ -172,8 +178,9 @@ app = FastAPI(title="Pinecall gateway", lifespan=lifespan)
 
 # One door per line, in the order a reader meets them: the app's socket and what it holds, the
 # calls it answers, the desk, the suites, the tenant's routes and the keys it brought of its own,
-# the operator's tables under /v1/ops, the tokens, Meta's webhook, the knowledge base, a contact's
-# memory and the goldens the write side is held to, and whose key knocked.
+# the operator's tables under /v1/ops, the fleet's heartbeats and the operator's view of them,
+# the tokens, Meta's webhook, the knowledge base, a contact's memory and the goldens the write
+# side is held to, and whose key knocked.
 for door in (
     socket.router,
     agents.router,
@@ -197,6 +204,8 @@ for door in (
     orgs.operator,
     provider_keys.operator,
     usage.operator,
+    fleet.router,
+    fleet.operator,
     pipeline.router,
     tokens.router,
     listen.router,

@@ -9,6 +9,8 @@ from typing import cast
 
 from livekit.agents import AgentServer, WorkerOptions
 
+from pinecall.fleet import REFUSED_AT
+
 logger = logging.getLogger(__name__)
 
 # livekit-server hands a job only to a worker whose REPORTED load is under its target load: a
@@ -16,8 +18,8 @@ logger = logging.getLogger(__name__)
 # pkg/service/agentservice.go, JobRequestAffinity), and target_load is 0.7 unless livekit.yaml says
 # otherwise (pkg/agent/config.go, `const DefaultTargetLoad = 0.7`). At or over it the affinity is
 # zero, the dispatch dies with `no servers available (received 1 responses)`, and the worker stays
-# registered, healthy and silent. docs/decisions/worker.md.
-REFUSED_AT = 0.7
+# registered, healthy and silent. docs/decisions/worker.md. The line itself is the fleet's
+# (fleet/roster.py): the hub reads every heartbeat against the same number the gate reports on.
 
 # What a worker whose gate is not the machine reports: none. `dev` reports this, because dev mode
 # already refuses no job on load (agents/worker.py:148) — it just never said so to the server.

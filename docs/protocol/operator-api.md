@@ -309,38 +309,32 @@ With `Accept: text/event-stream` the same rows arrive as SSE frames, `event: usa
 the `id`, followed by each new one as the log grows. A reconnecting `EventSource` resumes from its
 `Last-Event-ID` by sending it as `after`.
 
+## The fleet
+
+Every `dev` or `start` worker heartbeats to the gateway every 5 s; the gateway keeps the roster
+in memory, and these doors read it. [../scaling.md](../scaling.md) is the whole picture.
+
+### `GET /v1/ops/fleet`
+
+`{now, workers: [{worker, active, max_jobs, load, draining, cordoned, seen_at}], totals: {workers,
+active, seats, free, accepting, full, busy}}` — every worker ever heard from, stale ones included
+so a reader sees when one went quiet; the totals count the ones heard in the last 30 s. `max_jobs`
+is null for a worker gated on CPU, which counts no seats. `full` is workers > 0 and accepting = 0.
+
+### `POST /v1/ops/fleet/{worker}/cordon` · `DELETE …/cordon`
+
+`204`: the worker learns on its next heartbeat, takes no new call, finishes what it holds and exits
+3. `404` for a name nobody has knocked with, so a typo never reads as done.
+
 ## The CLI over the same doors
 
-```
-pinecall-runtime orgs list
-pinecall-runtime orgs add <slug> [--name <text>]
-pinecall-runtime orgs rm <org>
-pinecall-runtime orgs quota <org> [--minutes N] [--messages N] [--agents N] [--concurrent-calls N] [--memory-facts N] [--knowledge-chunks N]
-pinecall-runtime orgs provider-key set  <org> <vendor>   # the key is read from stdin, one line
-pinecall-runtime orgs provider-key rm   <org> <vendor>
-pinecall-runtime orgs provider-key list <org>
-
-pinecall-runtime routes list [--org default]
-pinecall-runtime routes add <number> <agent> [--channel phone] [--org default]
-pinecall-runtime routes rm  <number> [--org default]
-pinecall-runtime routes seed [--file infra/seed/routes.json]
-
-pinecall-runtime keys issue  [--org default] [--label <text>]
-pinecall-runtime keys list   [--org default]
-pinecall-runtime keys revoke <fingerprint>
-```
-
-`orgs provider-key set` reads the key from **stdin** and never from a flag: argv is visible in
-`ps` to every user on the box, and a key pasted as an argument is a key in a shell history. It
-prints which vendor the org now runs on its own key, and never the key.
-
-`--org` takes an id or a slug and defaults to `default`. `keys issue` prints **the key alone on the
-first line**, so a script reads it with `head -1`, and the org, the label and the warning
-underneath. `pinecall-runtime migrate up` prints one the same way on a database whose `default` org
-has none — that, and nothing else, is what creates the first key on a fresh box.
-
-It reads `PINECALL_GATEWAY_URL` and `PINECALL_OPS_KEY` and speaks nothing but this API. `seed` takes
-a JSON array whose elements are `POST` bodies, applied in order.
+`pinecall-runtime orgs · keys · routes · fleet` speak nothing but this API, on `PINECALL_GATEWAY_URL`
+with `PINECALL_OPS_KEY`; every verb, flag by flag, is [../the-runtime-cli.md](../the-runtime-cli.md).
+Two rules worth repeating here: `orgs provider-key set` reads the key from **stdin** and never from
+a flag, because argv is in `ps` and in a shell history; and `keys issue` prints **the key alone on
+the first line** — a script reads it with `head -1` — and the org, the label and the warning under
+it. `pinecall-runtime migrate up` prints one the same way on a database whose `default` org has
+none, and that alone is what creates the first key on a fresh box.
 
 
 ## An agent's pipeline — `/v1/agents/{slug}/pipeline`

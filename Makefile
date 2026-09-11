@@ -71,13 +71,15 @@ restart: require-box
 # One machine with everything: the hub's two steps, then the worker it also runs.
 restart-all: require-box restart-hub
 	$(SSH) sudo systemctl restart pinecall-worker
-	$(SSH) 'systemctl is-active pinecall-gateway pinecall-worker | paste -sd " "'
+	$(SSH) 'systemctl is-active pinecall-gateway pinecall-overflow pinecall-worker | paste -sd " "'
 
 # A hub: the gateway, then the health check through Caddy — and NOT the worker: `systemctl
 # restart` starts a unit the role disabled, and a hub that restarted its worker on every deploy
 # would be one machine with everything again, quietly.
+# The overflow agent and the loop restart with the gateway they speak to; `try-restart` because
+# the loop is enabled only on a hub whose box.env names a cloud, and is not there otherwise.
 restart-hub: require-box
-	$(SSH) sudo systemctl restart pinecall-gateway
+	$(SSH) 'sudo systemctl restart pinecall-gateway pinecall-overflow && sudo systemctl try-restart pinecall-fleet'
 	$(MAKE) --no-print-directory health
 
 # A worker alone: one unit, and the proof is the hub's SFU saying it registered, not a URL here.

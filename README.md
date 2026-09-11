@@ -123,14 +123,15 @@ they arrive as systemd credentials — and need a LiveKit server, a Postgres 17 
 
 ## The CLI
 
-`pinecall-runtime <group> <verb>`. Ten groups; every verb answers `--help`.
+`pinecall-runtime <group> <verb>`. Eleven groups; every verb answers `--help`.
 
 **The two processes**
 
 | verb | what |
 |---|---|
 | `gateway [--host] [--port] [--reload]` | the control plane, on 8080 |
-| `worker dev` · `worker start` | the fleet, with livekit's own flags passed through |
+| `worker dev` · `worker start` | the fleet, with livekit's own flags passed through; each heartbeats to the gateway |
+| `worker overflow` | the hub's one worker that is never full: a sentence and a call back when every other is |
 | `worker talk` | one call served by THIS terminal — a `@tool` breakpoint lands where you typed |
 | `worker download-files` | livekit's model files, ahead of the first call |
 
@@ -142,6 +143,7 @@ they arrive as systemd credentials — and need a LiveKit server, a Postgres 17 
 | `doctor` | keys present · keys answer · livekit · postgres · embedder · lk — one line each, and what is down first |
 | `box secrets` | every secret a box makes for itself, once; run twice rotates nothing |
 | `box secret <NAME>` | one secret you bring, from stdin, replaced in place |
+| `fleet list · cordon · uncordon · loop` | the workers as the hub hears them, the graceful shrink, and the loop that keeps `busy` at the target over any cloud |
 | `orgs list · add · rm · quota · provider-key` | the tenants, their quotas (`--minutes --messages --agents --concurrent-calls --memory-facts --knowledge-chunks`, the whole set at once; a flag left out is no limit and `0` refuses everything), the vendor keys an org brings |
 | `keys issue · list · revoke` | an org's API keys: printed once, listed by fingerprint, revoked by UPDATE |
 | `routes list · add · rm · seed` | which agent answers a number, from the next call |
@@ -165,7 +167,7 @@ agents repository's, and speak to this gateway with the org's key.
 | | |
 |---|---|
 | `ARCHITECTURE.md` | LiveKit's half and ours, the entities, the wire, the two processes, the path of a call, the log, the rings |
-| `docs/scaling.md` | one server to a fleet: the three planes, seats not CPU, drain, and what is built vs next release |
+| `docs/scaling.md` | one server to a fleet: the three planes, seats not CPU, the heartbeats, cordon, the loop, overflow at the door |
 | `docs/the-runtime-cli.md` | every `pinecall-runtime` verb: what it takes, what it speaks to, and the two walkthroughs |
 | `docs/multi-tenancy.md` | orgs, keys and tenants: what a key IS, what a dev key deliberately cannot do, and how a tenant is given one |
 | `docs/protocol/gateway-api.md` | every door a tenant's own code may knock at, with an app in thirty lines |

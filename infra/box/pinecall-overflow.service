@@ -1,0 +1,33 @@
+# The overflow agent, on the hub: the one worker that is never full. It reports itself FULL to
+# livekit until the gateway says every real worker is, then it is the only worker a dispatch can
+# still reach: it tells the caller every line is busy, takes their number onto the agent's log
+# (callback.requested) and hangs up. No STT, no model — one sentence over the agent's own voice.
+# Installed to /etc/systemd/system/ by infra/box/Makefile, on every deploy; enabled on hub and all.
+[Unit]
+Description=Pinecall overflow agent (answers when every worker is full)
+Wants=network-online.target pinecall-gateway.service pinecall-worker-key.service
+After=network-online.target pinecall-livekit.service pinecall-gateway.service pinecall-worker-key.service
+
+[Service]
+User=pinecall
+Group=pinecall
+WorkingDirectory=/opt/pinecall/app
+Environment=LIVEKIT_URL=ws://127.0.0.1:7880
+Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
+EnvironmentFile=/etc/pinecall/box.env
+ImportCredential=LIVEKIT_API_KEY
+ImportCredential=LIVEKIT_API_SECRET
+ImportCredential=PINECALL_*
+ImportCredential=ELEVEN_API_KEY
+ImportCredential=OPENAI_API_KEY
+ImportCredential=ANTHROPIC_API_KEY
+ImportCredential=SONIOX_API_KEY
+ImportCredential=DEEPGRAM_API_KEY
+ExecStart=/opt/pinecall/venv/bin/pinecall-runtime worker overflow
+# Its calls last one sentence; a minute of grace finishes any it holds.
+TimeoutStopSec=60
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

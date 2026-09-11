@@ -19,6 +19,7 @@ from pinecall.api import _live as gateway_connected
 from pinecall.api._deps import (
     the_admission,
     the_embedder,
+    the_fleet,
     the_knowledge,
     the_lookups,
     the_memory,
@@ -34,6 +35,7 @@ from pinecall.api.whatsapp import threads as whatsapp_threads
 from pinecall.api.whatsapp.threads import Threads
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.scopes import KEY_PROJECTION, LivekitKeys, Reader
+from pinecall.fleet import Roster
 from pinecall.knowledge import Knowledge
 from pinecall.log.snapshots import Snapshots
 from pinecall.log.store import MemoryStore
@@ -167,6 +169,12 @@ def live() -> Live:
     return Live()
 
 
+@pytest.fixture
+def fleet() -> Roster:
+    """The workers that have knocked: none at the start of a test, so no door refuses a room."""
+    return Roster()
+
+
 # None is what a gateway on a dev key holds — no Postgres, no tables — and what most of this suite
 # runs on; the doors that need one override these two with a fake of the Protocol's shape.
 @pytest.fixture
@@ -276,6 +284,7 @@ def wired(
     knowledge: Knowledge | None,
     embedder: HashEmbedder,
     lookups: Lookups,
+    fleet: Roster,
 ) -> Iterator[None]:
     """The real app, its deps overridden for the length of one test."""
     app.dependency_overrides[deps.a_settings] = lambda: settings
@@ -298,6 +307,7 @@ def wired(
     app.dependency_overrides[the_knowledge] = lambda: knowledge
     app.dependency_overrides[the_embedder] = lambda: embedder
     app.dependency_overrides[the_lookups] = lambda: lookups
+    app.dependency_overrides[the_fleet] = lambda: fleet
     yield
     app.dependency_overrides.clear()
 

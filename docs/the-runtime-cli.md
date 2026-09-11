@@ -21,7 +21,7 @@ Three different things, and knowing which is which saves an afternoon:
 |---|---|
 | `gateway` · `worker` · `chat` · `box` · `doctor` | this machine |
 | `migrate` · `sessions` | **Postgres**, straight, over `DATABASE_URL` |
-| `orgs` · `keys` · `routes` | **a running gateway**, over `/v1/ops/*` with `PINECALL_OPS_KEY` |
+| `orgs` · `keys` · `routes` · `fleet` | **a running gateway**, over `/v1/ops/*` with `PINECALL_OPS_KEY` — and `fleet loop`, a cloud's own CLI beside it |
 
 So `keys issue` on a box whose gateway is down is refused by the client, not by the table, and
 `sessions list` works whether or not anything is running.
@@ -45,7 +45,7 @@ box) — and it uses the database whenever it answers, dev key or not. With a de
 ## `worker`
 
 ```
-pinecall-runtime worker [dev | start | talk | download-files] [flags…]
+pinecall-runtime worker [dev | start | overflow | talk | download-files] [flags…]
 ```
 
 The fleet: the process that holds spoken calls. `dev` for a laptop, `start` for a box, `talk` to
@@ -55,6 +55,17 @@ otherwise wait for. Everything after the verb is passed through to livekit's own
 A worker takes jobs off LiveKit and asks the gateway for everything else, so it needs
 `LIVEKIT_URL` and the pair, `PINECALL_GATEWAY_URL`, and a key to knock with. `PINECALL_MAX_JOBS`
 caps how many calls one machine holds; unset, it gates on CPU.
+
+`dev` and `start` also **heartbeat** to the gateway every five seconds — the worker's name
+(`PINECALL_WORKER_NAME`, else the short hostname), the calls it holds, its measured seats, its
+load — which is what `fleet list` shows and the loop sizes on. A worker told it was **cordoned**
+takes no new call, finishes the ones it holds, and exits **3**; the unit's
+`RestartPreventExitStatus=3` leaves it down.
+
+`overflow` is the one worker that is never full: it runs on the hub, reports itself full to
+LiveKit until the gateway says every real worker is, and then answers the call nobody else can
+— one sentence (`PINECALL_OVERFLOW_SAYS`), the caller's number onto the agent's log as
+`callback.requested`, and it hangs up. No STT, no model.
 
 ## `chat`
 
@@ -136,6 +147,40 @@ pinecall-runtime routes seed [--file infra/seed/routes.json]
 Which number reaches which agent, and through which door. A number belongs to one agent at a time;
 adding it again moves it. `seed` applies a file of them, which is how a box is brought up from a
 checkout rather than from six commands.
+
+## `fleet`
+
+```
+pinecall-runtime fleet list
+pinecall-runtime fleet cordon <worker>
+pinecall-runtime fleet uncordon <worker>
+pinecall-runtime fleet loop --cloud <gcp|aws|hetzner|./yours> --seats <n> [--target 0.6] [--min 1] [--max 10] [--every 15] [--once] [--dry-run]
+```
+
+`list` is the roster as the hub hears it — one line per worker that has ever knocked, with what
+it holds, its seats, its load, its standing (`accepting` · `full` · `draining` · `cordoned` ·
+`gone`) and when it was last heard — and the totals: `free = Σ(max − active)`, how many accept,
+and **FULL** when nobody does.
+
+```
+worker             held  seats  load  standing   heard
+pinecall-box       1     cpu    0.31  accepting  3s ago
+pinecall-worker-1  2     4      0.50  accepting  4s ago
+
+2 up · 3 calls · 2 seats free · 2 accepting
+```
+
+`cordon` is the graceful shrink: the worker is told on its next heartbeat, takes no new call,
+finishes the ones it holds, and leaves. `uncordon` takes it back while it is still there.
+
+`loop` is the fleet loop ([scaling.md](scaling.md)): every `--every` seconds it reads the roster
+and the cloud, and keeps `busy = active / seats` at `--target` — asks for a machine when over it,
+cordons the quietest one when under it by 0.15 or more, deletes a cordoned machine once it holds
+nothing, and deletes one that never dialled in. `--seats` is the `PINECALL_MAX_JOBS` baked into
+the image, so a machine still booting counts from the moment it is asked for. `--cloud` names a
+script under `infra/fleet/` or a path to yours ([../infra/fleet/README.md](../infra/fleet/README.md));
+the cloud's own CLI must be signed in wherever the loop runs. `--once --dry-run` prints one tick's
+verdict and touches nothing.
 
 ## `migrate`
 
@@ -223,6 +268,7 @@ own name, so the SDK that reads `ANTHROPIC_API_KEY` by itself and this runtime a
 | `PINECALL_ROLE` | what this box runs: `all` · `hub` · `worker` |
 | `PINECALL_GATEWAY_URL` | the gateway a worker's job asks |
 | `PINECALL_MAX_JOBS` · `PINECALL_APP` · `PINECALL_AGENT` | what a worker takes, and for whom |
+| `PINECALL_WORKER_NAME` · `PINECALL_OVERFLOW_SAYS` | its name in the roster (unset: the hostname), and the overflow agent's one sentence |
 | `RECORD` · `PINECALL_RECORDINGS` | whether a call's audio is kept, and where it lands |
 | `WHATSAPP_ACCESS_TOKEN` · `WHATSAPP_APP_SECRET` · `WHATSAPP_VERIFY_TOKEN` | Meta's webhook |
 | `PINECALL_JUDGE_CEILING_EUR` | what judging one call may spend on a model. Zero: no judge asks |

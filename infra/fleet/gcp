@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# The fleet on Google Cloud: three verbs over gcloud, and nothing else cloud-specific anywhere.
+#
+#   infra/fleet/gcp create <name>    a machine from the worker image, labelled the fleet's
+#   infra/fleet/gcp delete <name>    gone
+#   infra/fleet/gcp list             one line per fleet machine: name<TAB>created (ISO 8601)
+#
+# The image is a worker that was deployed once and frozen — `gcloud compute machine-images create
+# pinecall-worker --source-instance <a deployed worker> --source-instance-zone <zone>`. A machine
+# made from it boots with the worker's code, units, credentials and box.env; its new hostname is
+# the name given here, which is what it calls itself to the hub. Nothing is copied at boot.
+set -euo pipefail
+
+: "${PINECALL_FLEET_PROJECT:=$(gcloud config get-value project 2>/dev/null)}"
+: "${PINECALL_FLEET_ZONE:=us-central1-c}"
+: "${PINECALL_FLEET_IMAGE:=pinecall-worker}"
+: "${PINECALL_FLEET_TYPE:=e2-standard-4}"
+: "${PINECALL_FLEET_LABEL:=pinecall-fleet}"
+
+g() { gcloud --project "$PINECALL_FLEET_PROJECT" --quiet "$@"; }
+
+case "${1:-}" in
+  create)
+    g compute instances create "$2" --zone "$PINECALL_FLEET_ZONE" \
+      --source-machine-image "$PINECALL_FLEET_IMAGE" --machine-type "$PINECALL_FLEET_TYPE" \
+      --labels "$PINECALL_FLEET_LABEL=1" --format none ;;
+  delete)
+    g compute instances delete "$2" --zone "$PINECALL_FLEET_ZONE" ;;
+  list)
+    g compute instances list --filter="labels.$PINECALL_FLEET_LABEL=1" \
+      --format="csv[no-heading,separator='	'](name,creationTimestamp)" ;;
+  *)
+    echo "usage: $0 create <name> | delete <name> | list" >&2; exit 2 ;;
+esac

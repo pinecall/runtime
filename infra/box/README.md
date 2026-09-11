@@ -130,6 +130,11 @@ It needs no port open but ssh. It registers by an outbound WebSocket, LiveKit ha
 that socket, and the media goes to the hub's public UDP port. `nftables.conf` is the same file
 on every role; the doors it opens that nothing listens on are doors to nothing.
 
+## The fleet
+
+The loop that stands workers up for you, the image it clones, the cordon that drains one, and the
+overflow agent that answers the phone when every worker is full: [../../docs/scaling.md](../../docs/scaling.md).
+
 ## Slots
 
 A worker with `PINECALL_MAX_JOBS` reports its load to LiveKit as **calls held over calls it
@@ -225,8 +230,8 @@ is a mode in which the gateway opens no Postgres pool at all.
 same list cloud-init installed at birth — a test pins the two equal, so a box born before a
 package was added converges on its next deploy), overwrites what changed and leaves what did
 not; `systemd-sysusers` and `systemd-tmpfiles` make only what is missing; the fence and systemd
-are reloaded. The runtime's two units are restarted by `make restart`, the gateway first and the
-worker once the gateway answers. The **containers are not**: the media plane stays up through a
+are reloaded. The runtime's units are restarted by `make restart`, the gateway first (the overflow
+agent with it) and the worker once the gateway answers. The **containers are not**: the media plane stays up through a
 deploy, and a changed `.container` takes effect on its next restart, which is yours to time —
 `sudo systemctl restart pinecall-livekit` between two calls, not during one.
 

@@ -234,19 +234,28 @@ class Settings(BaseSettings):
         default=None,
         description="Calls this worker holds at once, measured on its machine. Unset: gate on CPU.",
     )
-    # livekit's worker keeps an http health/metrics server, and its production default is 8081 —
-    # which is where TEI answers on this stack (TEI_URL, "because the gateway serves 8080 on the
-    # same host"). On a box that is only a hub or only a worker they never meet; on `role=all`,
-    # one machine with the SFU, the embedder AND the fleet, they collide and the worker dies at
-    # bind (2026-09-11, the first time a full box ran a worker beside TEI). So the worker's own
-    # server has a port of its own, on loopback, that is neither the gateway's nor the embedder's.
+    # livekit's worker keeps an http health server whose production default is 8081 — TEI's port
+    # on this stack — and on `role=all` the two met and the worker died at bind (2026-09-11). So
+    # the worker's server has a port of its own, on loopback. docs/decisions/worker.md.
     worker_http_port: int = Field(
         default=8082,
         validation_alias="PINECALL_WORKER_HTTP_PORT",
-        description=(
-            "Where the worker's own health server binds, on loopback. Not the gateway's 8080 or "
-            "the embedder's 8081."
+        description="Where the worker's own health server binds, on loopback. Not 8080 or 8081.",
+    )
+    # Its name to the hub: what `fleet list` shows and `fleet cordon` names (decisions/fleet.md).
+    worker_name: str | None = Field(
+        default=None,
+        validation_alias="PINECALL_WORKER_NAME",
+        description="What this worker is called in its heartbeats. Unset: the short hostname.",
+    )
+    # What the overflow agent says when every worker is full, then hangs up (worker/overflow.py).
+    overflow_says: str = Field(
+        default=(
+            "En este momento todas nuestras líneas están ocupadas. Hemos tomado nota de su número "
+            "y le devolveremos la llamada en cuanto se libere una. Gracias por su paciencia."
         ),
+        validation_alias="PINECALL_OVERFLOW_SAYS",
+        description="What the overflow agent says when the fleet is full, before it hangs up.",
     )
     # An app socket id as the gateway minted it, which a job puts in the `app` of its call. A
     # developer's own worker sets it so the call is served by the process they typed the command
@@ -286,9 +295,8 @@ class Settings(BaseSettings):
         ),
     )
     # The one secret that guards other people's secrets: a Fernet key, generated once on the box,
-    # under which every tenant's own provider key is encrypted at rest. It lives here and never in
-    # the database, so a stolen dump is not a stolen tenant. Unset, the provider-key doors are
-    # closed and every call runs on the box's own vendor keys, which is what a laptop means.
+    # under which every tenant's own provider key is encrypted at rest — here and never in the
+    # database, so a stolen dump is not a stolen tenant. Unset, every call runs on the box's keys.
     vault_key: str | None = Field(
         default=None,
         description=(
@@ -301,8 +309,7 @@ class Settings(BaseSettings):
         description="How much both processes say: DEBUG, INFO, WARNING or ERROR.",
     )
     # What judging ONE call at hang-up may cost. Zero closes the door on every judge that would
-    # ask a model; the policies that answer by code still answer. One number per box: a judge's
-    # budget is not a quota, and stays the operator's. See docs/decisions/scoring.md.
+    # ask a model; the policies that answer by code still answer. docs/decisions/scoring.md.
     judge_ceiling_eur: float = Field(
         default=0.002,
         description="What judging one call may spend on a model, in euros. Zero: no judge asks.",

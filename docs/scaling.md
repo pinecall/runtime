@@ -1,35 +1,35 @@
 # Scaling: one server to a fleet
 
 The same runtime is one process on a laptop, one server that does everything, or a control plane
-with workers in as many regions as you need. It is **configuration, not a rewrite** — the machine
+with workers in as many machines as you need. It is **configuration, not a rewrite** — the machine
 you deploy is `PINECALL_ROLE` in a file, and nothing else moves.
 
-This page is what is true in the code today, marked **built** or **next release** line by line, so
-nobody reads the landing page as a promise the runtime already keeps. The operator's verbs are
+This page is what is true in the code today, and says so line by line. The operator's verbs are
 [the-runtime-cli.md](the-runtime-cli.md); the box that runs all of this is
-[../infra/box/README.md](../infra/box/README.md).
+[../infra/box/README.md](../infra/box/README.md); the per-cloud scripts are
+[../infra/fleet/README.md](../infra/fleet/README.md).
 
 ## Three planes, each grows on its own
 
 | plane | what it is | grows with |
 |---|---|---|
-| **Control plane** | the gateway: call records, keys, routes, quotas | requests, never calls |
+| **Control plane** | the gateway: call records, keys, routes, quotas, the roster | requests, never calls |
 | **Media plane** | LiveKit rooms, SIP trunks, WebRTC | one per region, next to the callers |
 | **Workers** | the conversations: speech, the model, the voice | one to thousands, each a number of calls |
 
 One machine runs all three (`PINECALL_ROLE=all`). A **hub** runs the control and media planes and
 holds no calls; a **worker** holds nothing but calls and dials the hub by name. That is the whole
-of the split — **built**, in `infra/box/`.
+of the split, in `infra/box/`.
 
-## Capacity is counted in calls, never in CPU — built
+## Capacity is counted in calls, never in CPU
 
 Each worker reports one number to LiveKit: the share of its seats in use, **live calls over the
-calls it was measured to hold** (`worker/load.py`, `SlotLoad`). LiveKit routes each new call to the
-worker with the most room, and stops routing to one at **0.7** of its seats.
+calls it was measured to hold** (`worker/load.py`, `SlotLoad`). LiveKit picks the worker for a new
+call at random, weighted by the room each has left, and stops routing to one at **0.7** of its seats.
 
 ```
 a worker's load  = active calls / PINECALL_MAX_JOBS
-the fleet's free  = Σ (max − active)   over the workers that are up
+the fleet's free  = Σ (max − active)   over the workers heard from in the last 30 s
 ```
 
 `PINECALL_MAX_JOBS` is **measured, never guessed**: on the machine type it will run on, calls with
@@ -42,10 +42,24 @@ half second and two calls inside that window both see the old count.
 > worker unset with `MAX_JOBS` falls back to the CPU average, which is right for a box it shares
 > with the SFU and wrong for one it has to itself.
 
-`free = Σ(max − active)` is the number a person watches and the number a loop will scale on. The
-number exists and is read on every dispatch today; **the loop that acts on it is next release** (below).
+## The hub hears every worker
 
-## Workers that dial out — built
+Every `dev` or `start` worker **heartbeats** to the gateway every five seconds
+(`POST /v1/fleet/heartbeat`, with the fleet's own org key): its name — the machine's hostname,
+which on every cloud is the instance's name — the calls it holds, its measured seats, its load.
+The gateway keeps the **roster** in memory (`fleet/roster.py`); a restart forgets it and the next
+round of heartbeats writes it again. `pinecall-runtime fleet list` is that roster as a person reads
+it, and `free`, `accepting` and **full** are read off it on every request that needs them.
+
+```
+worker             held  seats  load  standing   heard
+pinecall-box       1     cpu    0.31  accepting  3s ago
+pinecall-worker-1  2     4      0.50  accepting  4s ago
+
+2 up · 3 calls · 2 seats free · 2 accepting
+```
+
+## Workers that dial out
 
 A worker opens **one outbound connection** to the hub and asks for calls. No public address, no
 open port but ssh, no load balancer to configure (`infra/box/nftables.conf`, `pinecall-worker.service`).
@@ -53,17 +67,24 @@ Add a worker and it takes calls within minutes; its media goes to the hub's publ
 control to `PINECALL_GATEWAY_URL`, and it knocks with an org key minted on the hub.
 
 A worker on a full box (`role=all`) keeps its own health server on **loopback:8082**
-(`PINECALL_WORKER_HTTP_PORT`) — never the gateway's 8080 or the embedder's 8081, which share the
-machine (fixed 2026-09-11; a full box could not start a worker before).
+(`PINECALL_WORKER_HTTP_PORT`) — never the gateway's 8080 or the embedder's 8081, which share the machine.
 
-## Deploys that drain, not cut — built
+## Deploys that drain, not cut
 
 A restart is a drain. On `SIGTERM` the worker tells LiveKit it is full and finishes every call it
 holds; systemd gives it **fifteen minutes** of grace (`TimeoutStopSec=900`) where its default 90 s
 would cut a call mid-sentence. `make deploy` restarts the gateway first and the worker only once
 the gateway answers, so no call rings into the gap.
 
-## Concurrency per client, held at the door — built
+## Cordon: the graceful shrink
+
+`pinecall-runtime fleet cordon <worker>` is the drain an operator asks for. The worker learns on its
+next heartbeat, tells LiveKit it is full, finishes the calls it holds, and exits **3** — the code
+`RestartPreventExitStatus=3` in its unit leaves down, because the machine is about to be deleted or
+a person will start it back. `fleet uncordon` takes it back while it is still there. Nothing
+already inside a call is cut, ever.
+
+## Concurrency per client, held at the door
 
 What a plan sells is one number — the calls a tenant may hold at once — and it is enforced
 **before a worker is spent**, not after. `Admission.a_call` refuses a call past the org's
@@ -71,32 +92,65 @@ What a plan sells is one number — the calls a tenant may hold at once — and 
 (`orgs/admission.py`). A tenant over the line is refused with a sentence and `credits.exhausted` in
 its own log; nothing already inside the call is cut.
 
-## One boot file, any cloud — built
+## Overflow at the door
 
-Every server boots from the same standard file — `infra/box/cloud-init.yaml` — on any provider or
-from a USB stick. Hand it to the instance as user-data with three lines filled (ssh key, domain,
-the SFU's public URL); it installs podman, caddy, nftables and make, and systemd brings the rest
-up in order. The cloud only ever creates and deletes machines; **when and which is the runtime's,
-the same way everywhere.**
+When **no worker can take a call** — the roster knows at least one and none accepts — the runtime
+says so instead of opening a room nobody joins:
 
----
+- **The web widget** asks `POST /v1/tokens` for a seat and gets `503` with the numbers and the way
+  out, and `fleet.full` lands in the agent's log. The page offers a **call back** before any room is
+  made: `POST /v1/callbacks {agent, number}` writes `callback.requested` onto the agent's log, and
+  `GET /v1/callbacks` is every request the org's agents took, for its app to dial.
+- **A phone call** is answered by the **overflow agent** (`pinecall-runtime worker overflow`, on
+  the hub, never a seat). It registers under the fleet's name and reports itself *full* to LiveKit
+  until the gateway says every real worker is — LiveKit picks workers at random weighted by room,
+  so a worker that merely sat near the line would take a third of a half-full fleet's calls — and
+  then it is the one worker the dispatch can still reach. It says one sentence
+  (`PINECALL_OVERFLOW_SAYS`), writes the caller's number as `callback.requested`, `via: overflow`,
+  and hangs up. No STT, no model: it never fills.
 
-## What is next release
+The runtime **records** the call back; placing it is the tenant's app, which has the number, the
+agent and the outbound trunk of its own.
 
-These are named on the landing page and are **not in the code yet**. They all read the one number
-the fleet already reports (`free = Σ(max − active)`); none of them is a rewrite of anything above.
+## The fleet loop
 
-| | what it will do |
+`pinecall-runtime fleet loop --cloud gcp --seats 4` keeps the fleet at a target — **60 % busy** by
+default, `busy = active / seats` over the workers heard from — and it holds nothing between two
+ticks: the roster is the hub's and the machines are the cloud's.
+
+Every fifteen seconds (`fleet/decisions.py`, pure numbers in, decisions out):
+
+| when | it does |
 |---|---|
-| **The fleet loop** | keep workers ~60 % busy: when the free seats cross the line, request a server; it boots from the same file and dials the hub, taking calls in minutes |
-| **Cordon** | a server no longer needed takes no new calls, finishes the ones it holds, and only then is deleted — the graceful shrink, above the per-restart drain that already exists |
-| **Overflow at the door** | when every seat is taken: the web widget offers a call back before a room is made; a phone call is answered by an overflow agent on the control plane, which never fills, and called back |
-| **Media in every region** | a media plane next to the callers, so no turn crosses an ocean to be heard |
-| **Per-cloud machine scripts** | ~40 lines per provider — create, delete, list — the only cloud-specific code, with no Kubernetes and no autoscaler that decides by CPU |
+| a cordoned machine holds no call | **delete** it |
+| a machine never dialled in within 10 min, or fell silent for 5 | **delete** it |
+| fewer workers than `--min`, or no seat anywhere, or busy over the target | **grow**: `create pinecall-worker-<n>` |
+| busy would still be under the target **by 0.15** without the quietest one, and more than `--min` | **cordon** the quietest |
 
-The order that makes sense to build them, and why: **cordon** and **overflow at the door** first
-(they protect calls already inside, and both are decisions on numbers the runtime already holds),
-then the **fleet loop** (it needs the per-cloud create/delete under it), then **media per region**.
+A machine still booting counts as `--seats` of capacity from the moment it is asked for, so the
+loop asks once and waits, and the 0.15 of slack is what keeps a grow and a cordon from chasing
+each other across two ticks. The loop never cordons or deletes a machine the cloud does not
+**list** as the fleet's: a worker you stood up by hand counts in the numbers and is never let go.
+
+The cloud is one script with three verbs — `create <name>`, `delete <name>`, `list` — and
+`infra/fleet/` ships `gcp`, `aws` and `hetzner` at about forty lines each; a cloud of your own is
+`--cloud ./yours`. **The image is a worker that was deployed once and frozen**: a machine made from
+it boots with the code, the units, the credentials and `box.env`, its hostname is the name the loop
+gave it, and it dials the hub by itself. Nothing is copied at boot. The loop runs wherever the
+cloud's CLI is signed in — a laptop, or the hub as `pinecall-fleet.service` once `box.env` names
+`PINECALL_FLEET_CLOUD`.
+
+## Measured, 2026-09-11
+
+On the real hub (`pinecall-box`, GCP `e2-standard-4`) with one worker by hand and the loop run
+from a laptop: `fleet loop --min 2` asked GCP for `pinecall-worker-2` from the image and the new
+machine **heartbeated 47 s after `create` returned**; `--min 1` then cordoned it (the worker
+exited 3 five seconds later, `NRestarts=0`), deleted the machine on the next tick, and held on the
+one after. With both workers cordoned, `POST /v1/tokens` answered the `503` above, `POST
+/v1/callbacks` took a number, and a dispatch into a room with a visitor in it was answered by the
+overflow agent: the visitor heard the agent's track, and the call's log closed with `call.ended`,
+`agent_hung_up`, **10.7 s** after it opened. Every number here came out of that afternoon's
+terminal, not a benchmark.
 
 ## The shape of the numbers
 
@@ -107,6 +161,12 @@ The landing's worked example, for reference — the arithmetic, not a benchmark:
   = 50000 × 4 ÷ 60 ÷ 10 × 2  ≈  667 calls at once at the peak
 ```
 
-At ~16 live calls a worker and 60 % target busy, that is ~70 servers kept ready — the fleet loop's
-job, once it exists. Today the runtime **holds** that many calls if you stand the workers up by
-hand or by your own script; what is next release is the loop that stands them up **for** you.
+At ~16 live calls a worker and 60 % target busy, that is ~70 servers kept ready — which is
+`--max 70` and the loop's job.
+
+## What is not in the code
+
+One line of the landing page is still ahead of the runtime: **media in every region**. LiveKit's
+open-source server runs one region; routing a caller to the SFU nearest them is a cloud feature or
+a second full stack behind a geographic DNS answer, and this repository ships neither yet. Every
+other line above is code you can read, with a test beside it.

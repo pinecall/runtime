@@ -12,6 +12,7 @@ from pinecall._settings import Settings
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.keys import KeyRecord, Keys
 from pinecall.evals.runs import Runs
+from pinecall.fleet import Roster
 from pinecall.knowledge import Knowledge
 from pinecall.log.snapshots import Snapshots
 from pinecall.log.store import Store
@@ -165,6 +166,11 @@ def the_vault(connection: HTTPConnection) -> Vault | None:
     return vault
 
 
+def the_fleet(connection: HTTPConnection) -> Roster:
+    """Every worker that has knocked at this gateway lately, and what it holds."""
+    return held(connection, "fleet", Roster)
+
+
 def the_lookups(connection: HTTPConnection) -> Lookups:
     """The gateway's answer to a turn's lookups and to a hang-up: memory and the knowledge base."""
     return held(connection, "lookups", Lookups)
@@ -203,6 +209,7 @@ RunsDep = Annotated[Runs, Depends(the_runs)]
 GraphDep = Annotated[Graph, Depends(the_graph)]
 VaultDep = Annotated["Vault | None", Depends(the_vault)]
 LookupsDep = Annotated[Lookups, Depends(the_lookups)]
+FleetDep = Annotated[Roster, Depends(the_fleet)]
 EmbedderDep = Annotated[Embedder, Depends(the_embedder)]
 MemoryDep = Annotated["Memory | None", Depends(the_memory)]
 KnowledgeDep = Annotated["Knowledge | None", Depends(the_knowledge)]
