@@ -320,7 +320,12 @@ async def installed_extensions(dsn: str, *, timeout: float | None = None) -> set
 # driver — a second import of asyncpg is a second door to close.
 async def create_pool(dsn: str, *, schema: str = DEFAULT_SCHEMA) -> Any:
     """A plain connection pool, opened by the one module allowed to say the driver's name."""
-    return await _create_pool(dsn, server_settings={"search_path": search_path_of(schema)})
+    try:
+        return await _create_pool(dsn, server_settings={"search_path": search_path_of(schema)})
+    except (OSError, ValueError, asyncpg.PostgresError) as refused:
+        # The same three the store's own connect turns into StoreUnreachable: a caller that opens
+        # a pool must be able to say "no database answered" without naming the driver.
+        raise StoreUnreachable(f"{dsn}: {refused}") from refused
 
 
 async def apply_migrations(dsn: str, *, schema: str = DEFAULT_SCHEMA) -> list[str]:

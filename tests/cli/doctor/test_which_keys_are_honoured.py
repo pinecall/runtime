@@ -23,7 +23,7 @@ def test_a_dev_key_on_a_laptop_is_advice_and_says_what_it_costs(
     keys = named("api keys", results)
     assert not keys.ok
     assert keys.advisory
-    assert "knowledge, memory and the vault answer 503" in keys.detail
+    assert "the api_keys table not read" in keys.detail
     assert doctor.first_failure(results) is None
 
 

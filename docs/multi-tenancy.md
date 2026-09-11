@@ -29,7 +29,7 @@ So "clínica-norte does not have a key" is not a gap. It never had one, and it n
 | | what it is | who mints it | where it lives | opens |
 |---|---|---|---|---|
 | **org API key** | `pk_` + 256 bits. The tenant's own | the operator, once per org, as often as needed | the tenant's `~/.pinecall/credentials`, or `PINECALL_API_KEY` in their container | every `/v1/…` door, for that org's rows only |
-| **dev key** | `PINECALL_DEV_KEY`, one string in the gateway's own environment | whoever runs the gateway | the gateway's `.env`, and `~/.pinecall/dev` for the CLI beside it | everything, as org `default`, on a gateway that has **no database at all** |
+| **dev key** | `PINECALL_DEV_KEY`, one string in the gateway's own environment | whoever runs the gateway | the gateway's `.env`, and `~/.pinecall/dev` for the CLI beside it | everything, as org `default`, with or without a database |
 | **ops key** | `PINECALL_OPS_KEY`, the box's own | the box, once (`box secrets`) | a systemd credential on the box | `/v1/ops/*` and nothing else. It is a gate, not an identity: it belongs to no org |
 | **room token** | a LiveKit JWT bound to ONE call | the gateway, from an org key, per visit | a browser tab, for a minute | that call's room and that call's log. See [protocol/tokens.md](protocol/tokens.md) |
 
@@ -48,23 +48,28 @@ pinecall-runtime gateway      # writes ~/.pinecall/dev (0600): its URL and its k
 ```
 
 The tenant CLI beside it reads that file and needs no login — that is the whole point: `git clone`,
-`pnpm i`, `pinecall run`, and an agent answers. And **the dev key opens no Postgres pool at all**
-(`api/app.py:_a_pool`), which is what makes a clone run before a database exists. Everything that
-is a table is therefore absent or in memory:
+`pnpm i`, `pinecall run`, and an agent answers. A dev key **needs** no database and **uses** one
+when `DATABASE_URL` answers, exactly as the log does: with the dev stack up, the same laptop has
+the knowledge base, a contact's memory, durable routes and the vault, because those are tables and
+the tables are there. Without it, everything that is a table is absent or in memory:
 
-| on a dev key | |
-|---|---|
-| **absent** — the doors say so with a 503 that names the key | the knowledge base, a contact's memory, a tenant's own provider keys |
-| **in memory**, forgotten when the process exits | the orgs (only `default`, with no limits), the routes, the minted tokens, the pipeline overrides, the eval runs |
-| **still durable** | the log itself, when `DATABASE_URL` answers: the store is opened whether or not there is a pool |
-| **one key** | the dev key is the ONLY key that gateway honours. An exported `PINECALL_API_KEY` is ignored out loud, by the CLI and by the box alike |
+| on a dev key | with Postgres | without |
+|---|---|---|
+| the knowledge base, a contact's memory, a tenant's own provider keys | on | absent: the doors say so with a 503 that names the database |
+| the orgs, the routes, the minted tokens, the pipeline overrides, the eval runs | durable | in memory, forgotten when the process exits |
+| the log | durable | in memory, and the gateway says so on its first line |
+| which keys open the doors | **the dev key alone**, whatever `api_keys` holds | the dev key alone |
+
+An exported `PINECALL_API_KEY` is ignored out loud, by the CLI and by the box alike: a gateway on a
+dev key honours that key and no other.
 
 **Should the runtime allow this? Yes — and only here.** The alternative is that the first five
 minutes with this repo are a database installation. The rule that keeps it safe is short:
 
-> **A box never sets `PINECALL_DEV_KEY`.** A box needs the `orgs`, `api_keys` and `routes` tables,
-> and a gateway with a dev key has none of them. Setting one on a box with a database would make
-> every call org `default` and every real tenant invisible — not a leak, but a silence.
+> **A box never sets `PINECALL_DEV_KEY`.** A box has tenants, and a gateway with a dev key honours
+> that one key and reads no `api_keys` at all. Setting one on a box would make every call org
+> `default` and every real tenant invisible — not a leak, but a silence. The doctor's first line
+> is that silence, said out loud.
 
 A gateway with **neither** a dev key nor a database refuses to start at all: it could verify
 nothing.

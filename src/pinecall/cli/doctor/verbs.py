@@ -32,8 +32,9 @@ KEY_REFUSED = (
 
 # An embedder that is down stops no call: a lookup that needs a vector is skipped and the call's
 # log says so (`search_skipped`, `recall_skipped`, naming the vendor), and the turn goes on. On
-# a laptop, and on the `all` an untouched clone defaults to, that is the whole story — TEI has no
-# arm64 image to run on a Mac at all. Advice, not outage.
+# a laptop, and on the `all` an untouched clone defaults to, that is the whole story — on an
+# M-series Mac TEI runs only from the rolling arm64 tag infra/README.md names for TEI_IMAGE.
+# Advice, not outage.
 EMBEDDER_IS_ADVICE = "a lookup without it is skipped and said in the call's log: this stops no call"
 
 # A HUB is the machine that promised one. It holds the knowledge base and answers the pushes, and
@@ -52,17 +53,17 @@ BRING_A_LIVE_KEY = "put a live key in with `make secret NAME={variable}`, from t
 # and whichever status it answers a keyless GET with is an answer.
 TEI_INFO = "/info"
 
-# Which keys this gateway would honour, and the one combination nothing else catches. A dev key
-# opens NO Postgres pool at all (api/app.py:_a_pool), so a BOX that sets one answers every call as
-# org `default` and every real tenant becomes invisible — not a leak, a silence, and a silence no
-# other check here would notice. On a laptop it is the whole point, and the line says what it costs.
+# Which keys this gateway would honour, and the one combination nothing else catches. A dev key is
+# the ONLY key a gateway honours — the api_keys table is not read — so a BOX that sets one answers
+# every call as org `default` and every real tenant becomes invisible: not a leak, a silence, and a
+# silence no other check here would notice. On a laptop it is the whole point, and the line says so.
 DEV_KEY_ON_A_BOX = (
-    "PINECALL_DEV_KEY is set on a box: it opens NO database, so every call is org default and "
-    "every tenant is invisible. Unset it and start the gateway on an org key"
+    "PINECALL_DEV_KEY is set on a box: it is the only key honoured, so every call is org default "
+    "and every tenant is invisible. Unset it and start the gateway on the api_keys table"
 )
 A_DEV_KEY = (
-    "PINECALL_DEV_KEY — one key, org default, no database: knowledge, memory and the vault "
-    "answer 503. A box unsets it and issues org keys instead"
+    "PINECALL_DEV_KEY — one key, org default, the api_keys table not read; the tables are "
+    "Postgres's when it answers below. A box unsets it and issues org keys instead"
 )
 THE_KEYS_TABLE = "the api_keys table — `pinecall-runtime keys issue --org <slug>` mints one"
 
