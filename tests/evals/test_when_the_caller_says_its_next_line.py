@@ -2,7 +2,6 @@
 
 import pytest
 
-from pinecall.evals import calling
 from pinecall.evals.calling import Settled, every_turn
 
 pytestmark = pytest.mark.unit
@@ -38,7 +37,7 @@ class _Waited:
         self.after.append(so_far)
 
 
-async def _turns(said: _Said, settled: Settled | None) -> int:
+async def _turns(said: _Said, settled: Settled) -> int:
     """`every_turn` with a mouth that writes down what it said; the room is never touched."""
     return await every_turn(said, len(LINES), said.next_line, settled)
 
@@ -55,16 +54,6 @@ async def test_the_caller_waits_for_the_answer_to_each_line_before_saying_the_ne
 
     assert (spoken, said.out) == (2, list(LINES))
     assert waited.after == [1, 2]
-
-
-async def test_a_caller_with_nobody_to_ask_still_says_every_line(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """`simulate` hands in no `settled` and falls back to the silence. Nothing there changes."""
-    monkeypatch.setattr(calling, "A_LISTENING_SILENCE_S", 0.0)
-    said = _Said()
-
-    assert await _turns(said, None) == 2
 
 
 async def test_a_line_the_golden_does_not_have_ends_the_call_without_a_wait() -> None:
