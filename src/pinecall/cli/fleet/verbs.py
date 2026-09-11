@@ -158,7 +158,7 @@ async def loop(
         try:
             await tick(hub, cloud, line, time.time(), out, dry_run=dry_run)
         except (CloudRefused, OperatorRefused) as refused:
-            print(f"  {refused}", file=out)
+            print(f"  {refused}", file=out, flush=True)
             if once:
                 return 1
         if once:
