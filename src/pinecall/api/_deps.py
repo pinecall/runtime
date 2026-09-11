@@ -224,8 +224,18 @@ UnlockedVaultDep = Annotated[Vault, Depends(an_unlocked_vault)]
 # A dev key opens no Postgres pool at all (api/app.py), and memory and the knowledge base are
 # tables: the request was right and this gateway cannot honour it. 503, in a sentence that names
 # the cause, because a bare 503 from a push is the afternoon this repo already lost twice.
-NO_KNOWLEDGE = "this gateway keeps no knowledge: it runs on a dev key"
-NO_MEMORY = "this gateway keeps no memory: it runs on a dev key"
+# And the cause is the DATABASE, never the key: a gateway on a dev key with a pool keeps both of
+# these, and one with no pool keeps neither whatever key it runs on (api/app.py builds them from
+# the pool alone). The sentence said "it runs on a dev key" and sent a reader looking at their key
+# while a Postgres nobody could reach sat behind it — the very afternoon this comment warns about.
+NO_KNOWLEDGE = (
+    "this gateway keeps no knowledge: it has no database, so there is no table to push into. "
+    "Point DATABASE_URL at one and run `pinecall-runtime migrate up`."
+)
+NO_MEMORY = (
+    "this gateway keeps no memory: it has no database, so there is no table to read or forget. "
+    "Point DATABASE_URL at one and run `pinecall-runtime migrate up`."
+)
 
 
 async def a_kept_knowledge(knowledge: KnowledgeDep) -> Knowledge:

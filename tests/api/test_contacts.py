@@ -80,7 +80,8 @@ class TestOnADevKey:
         for answer in (await tenant_http.get(A_CONTACT), await tenant_http.delete(A_CONTACT)):
             assert answer.status_code == 503
             assert answer.json()["detail"] == NO_MEMORY
-        assert NO_MEMORY == "this gateway keeps no memory: it runs on a dev key"
+        assert "no database" in NO_MEMORY
+        assert "migrate up" in NO_MEMORY
 
 
 # ── the golden ──────────────────────────────────────────────────────────────────
