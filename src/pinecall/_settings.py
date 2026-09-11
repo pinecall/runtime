@@ -234,6 +234,20 @@ class Settings(BaseSettings):
         default=None,
         description="Calls this worker holds at once, measured on its machine. Unset: gate on CPU.",
     )
+    # livekit's worker keeps an http health/metrics server, and its production default is 8081 —
+    # which is where TEI answers on this stack (TEI_URL, "because the gateway serves 8080 on the
+    # same host"). On a box that is only a hub or only a worker they never meet; on `role=all`,
+    # one machine with the SFU, the embedder AND the fleet, they collide and the worker dies at
+    # bind (2026-09-11, the first time a full box ran a worker beside TEI). So the worker's own
+    # server has a port of its own, on loopback, that is neither the gateway's nor the embedder's.
+    worker_http_port: int = Field(
+        default=8082,
+        validation_alias="PINECALL_WORKER_HTTP_PORT",
+        description=(
+            "Where the worker's own health server binds, on loopback. Not the gateway's 8080 or "
+            "the embedder's 8081."
+        ),
+    )
     # An app socket id as the gateway minted it, which a job puts in the `app` of its call. A
     # developer's own worker sets it so the call is served by the process they typed the command
     # in; a fleet worker on a box sets none and takes the newest holder.

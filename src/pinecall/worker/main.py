@@ -110,6 +110,10 @@ def a_server(
         api_secret=settings.livekit_api_secret,
         load_fnc=_the_gate(settings, gated_by_machine_load),
         setup_fnc=warmed,
+        # Loopback and a port of its own: livekit's default is 8081, which is TEI's, and a full box
+        # runs both. Nothing outside the machine reads this server, so it never leaves loopback.
+        host="127.0.0.1",
+        port=settings.worker_http_port,
     )
     # livekit refuses a second one itself (worker.py:502); the fleet name is ours to insist on.
     server.rtc_session(job, agent_name=fleet)
