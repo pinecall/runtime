@@ -43,6 +43,7 @@ install: packages
 	install -m 644 nftables.conf /etc/nftables.conf
 	systemctl reload-or-restart nftables
 	systemctl daemon-reload
+	$(if $(FLEET_CLOUD),$(MAKE) --no-print-directory cloud-cli-$(FLEET_CLOUD),)
 	$(MAKE) --no-print-directory enable-$(ROLE)
 
 # Only what is missing is installed, so a deploy on a box that has everything asks apt nothing.
@@ -118,6 +119,25 @@ enable-worker:
 	systemctl enable -q nftables $(WORKER_UNITS)
 	-systemctl disable -q --now $(HUB_UNITS) pinecall-fleet 2>/dev/null
 	-systemctl stop -q $(CONTAINERS_) 2>/dev/null
+
+# The cloud's own CLI, for the loop, only on a hub whose box.env names a cloud: the vendor's apt
+# repository for gcloud and awscli, the release binary for hcloud. Never the snap — snapd refuses
+# a service user whose home is outside /home, which the box's is (/opt/pinecall). Installed once;
+# a box that has it asks for nothing.
+GOOGLE_KEYRING = /usr/share/keyrings/cloud.google.gpg
+HCLOUD_VERSION = 1.50.0
+.PHONY: cloud-cli-gcp cloud-cli-aws cloud-cli-hetzner
+cloud-cli-gcp:
+	@dpkg -s google-cloud-cli >/dev/null 2>&1 || { echo "installing google-cloud-cli"; \
+	  curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor --yes -o $(GOOGLE_KEYRING); \
+	  echo "deb [signed-by=$(GOOGLE_KEYRING)] https://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/sources.list.d/google-cloud-sdk.list; \
+	  apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends google-cloud-cli >/dev/null; }
+cloud-cli-aws:
+	@dpkg -s awscli >/dev/null 2>&1 || { echo "installing awscli"; \
+	  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends awscli >/dev/null; }
+cloud-cli-hetzner:
+	@test -x /usr/local/bin/hcloud || { echo "installing hcloud $(HCLOUD_VERSION)"; \
+	  curl -fsSL https://github.com/hetznercloud/cli/releases/download/v$(HCLOUD_VERSION)/hcloud-linux-amd64.tar.gz | tar -xz -C /usr/local/bin hcloud; }
 
 # The embedder, the same shape as the role above: box.env declares it, `make install` converges on
 # it, and a box that changes the line changes what it runs on its next deploy. `systemctl enable`
