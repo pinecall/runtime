@@ -15,7 +15,7 @@ from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
 from pinecall.api.whatsapp.threads import Thread, Threads
 from pinecall.routes.table import Routes
-from pinecall.types import Route
+from pinecall.types import PRODUCTION, Route
 from pinecall.whatsapp.signing import SIGNATURE_HEADER
 from pinecall_protocol import defs
 from tests.api.conftest import (
@@ -174,6 +174,7 @@ async def the_clinic_answers_at_the_number(
     await registry.register(
         AN_APP,
         A_RECORD.org,
+        PRODUCTION,
         AGENT,
         [door if declared else defs.Route(channel="web", number=None)],
     )

@@ -11,6 +11,7 @@ from pinecall.types import (
     DEFAULT_LAYOUT,
     AgentConfig,
     Docs,
+    Env,
     Greeting,
     Hangup,
     KnowledgeFile,
@@ -31,14 +32,15 @@ from pinecall_protocol import defs
 DEFAULT_TIMEOUT_S: float = ToolSpec.timeout_s
 
 
-def a_route(org: str, agent: str, wire: defs.Route) -> Route:
-    """One door, with the org the key named and the agent this socket speaks for."""
+def a_route(org: str, env: Env, agent: str, wire: defs.Route) -> Route:
+    """One door, with the org and the world the key named and the agent this socket speaks for."""
     return Route(
         org=org,
         agent=agent,
         channel=wire.channel,
         number=wire.number,
         label=wire.label,
+        env=env,
     )
 
 

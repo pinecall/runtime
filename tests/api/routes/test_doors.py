@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 from pinecall.api.agents.registry import Registry
+from pinecall.types import PRODUCTION
 from pinecall.worker import router
 from pinecall.worker.client import Gateway
 from pinecall_protocol import defs
@@ -21,7 +22,7 @@ TIENDA = "tienda-sur"
 async def declared(registry: Registry, agent: str = CLINICA, number: str = NUMBER) -> None:
     """The agent's app, holding one phone door, exactly as its socket would have claimed it."""
     await registry.register(
-        AN_OWNER, A_RECORD.org, agent, [defs.Route(channel="phone", number=number)]
+        AN_OWNER, A_RECORD.org, PRODUCTION, agent, [defs.Route(channel="phone", number=number)]
     )
 
 
@@ -57,7 +58,7 @@ async def test_the_worker_reads_the_union_and_keeps_every_door_no_operator_typed
     """One org, two doors: the typed one and the declared one both reach the worker."""
     await declared(registry)
     await registry.register(
-        AN_OWNER, A_RECORD.org, TIENDA, [defs.Route(channel="web", number=None)]
+        AN_OWNER, A_RECORD.org, PRODUCTION, TIENDA, [defs.Route(channel="web", number=None)]
     )
     answered = await worker_gateway.routes()
     assert {(route.agent, route.channel) for route in answered} == {

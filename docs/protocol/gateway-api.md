@@ -61,7 +61,7 @@ The upgrade carries the key on the header. Then the app sends **commands** and r
 {"type": "agent.register", "agent": "clinica-norte", "call": null, "id": "1", "data": {…}}
 // ← an entry (envelope.json), exactly as the log stores it
 {"seq": 1, "ts": 1789…, "call": null, "agent": "clinica-norte", "type": "agent.registered",
- "ephemeral": false, "data": {"app": "app_9f…", "routes": […]}}
+ "ephemeral": false, "data": {"app": "app_9f…", "routes": […], "env": "production"}}
 ```
 
 ### The three commands that open the shop
@@ -78,6 +78,11 @@ did not name one. `pinecall chat`, `pinecall test` and the console all register 
 
 Several sockets may hold the same agent at once. A call goes to the one it names (`?app=`), and
 otherwise to the newest socket that takes unclaimed calls.
+
+**Which world.** A key opens `production` or `development`, and the agent this socket registers
+is held in that world alone: the same slug on a box's key and on a laptop's is two agents, and
+neither sees the other's calls, doors or declaration. `agent.registered` and `call.started` carry
+`env`; a number claimed in one world is refused to a key of the other, naming the world that holds it.
 
 ### A call, from the app's side
 
@@ -363,38 +368,4 @@ hang-up's one model call) and are documented with the log, not here.
 
 ---
 
-## Every door, in one table
-
-| | | |
-|---|---|---|
-| `WS` | `/v1/apps` | the app socket: hold an agent, answer its tools |
-| `WS` | `/v1/chat?agent=` | one text caller |
-| `WS` | `/v1/attach?call=&token=` | a seat's live log, and the verbs back |
-| `GET` | `/v1/whoami` | the org, the key's id, its label |
-| `GET` | `/v1/agents` | the agents this gateway is holding for your org |
-| `GET` | `/v1/agents/{slug}/config` | what it declared, overrides applied |
-| `GET` | `/v1/agents/{slug}/pipeline` · `PUT …/pipeline/overrides` | what it runs on, and the five knobs |
-| `GET` | `/v1/agents/{slug}/provider-keys` | the org's own vendor keys, **in the clear**: the worker's door, see §6 |
-| `GET` | `/v1/agents/{slug}/sessions` | one line per finished call |
-| `GET` | `/v1/agents/{slug}/calls` | every call of the agent, as a log |
-| `GET` | `/v1/calls/{call}/events` | one call's log: a page, or SSE |
-| `GET` | `/v1/calls/{call}/state` | the call reduced |
-| `GET` | `/v1/calls/{call}/recording` | the audio, seekable |
-| `POST` | `/v1/calls/{call}/listen` · `/supervise` | a seat |
-| `POST` | `/v1/calls/{call}/verbs` | one supervisor verb |
-| `POST` | `/v1/tokens` | a room token for a browser — `503` and `fleet.full` when every worker is full |
-| `POST`·`GET` | `/v1/callbacks` | a number to call back when the fleet was full, and the list of them |
-| `GET` | `/v1/routes` | the numbers and doors your org answers |
-| `PUT`·`DELETE`·`GET` | `/v1/provider-keys[/{vendor}]` | the org's own vendor accounts |
-| `PUT`·`GET`·`DELETE` | `/v1/knowledge[/{base}]` · `POST …/eval` | the base the agent answers from |
-| `GET`·`DELETE` | `/v1/contacts/{contact}/memory` · `POST /v1/contacts/memory/eval` | what it keeps about a person |
-| `POST` | `/v1/agents/{slug}/memory/extraction` | what a hang-up makes of a call |
-| `POST` | `/v1/evals/run` · `GET /v1/evals/runs[/{id}]` · `POST /v1/evals/replay/{call}` | the suites and ring 3 |
-| `POST` | `/v1/evals/caller` · `/v1/evals/voice` | the improvising caller, and a spoken eval |
-| `POST` | `/v1/calls` · `/v1/calls/{call}/events` · `/sealed` · `/tools` · `/lookup` · `/remember` · `GET /commands` | the worker's own doors |
-| `POST`·`GET` | `/v1/fleet/heartbeat` · `/v1/fleet/standing` | the fleet's: what a worker holds, and whether all are full. The default org's key only |
-| `GET`·`POST` | `/v1/whatsapp/webhook` | Meta's |
-| | `/v1/ops/*` | the operator's, with the ops key — [operator-api.md](operator-api.md) |
-
-`GET /openapi.json` is the generated schema of all of it, and `pinecall-runtime doctor` on the box
-says which of these doors can actually answer today.
+Every door, method and path, in one table: [every-door.md](every-door.md).

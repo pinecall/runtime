@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException
 
 from pinecall.api._deps import KeyDep, LlmsDep, OverridesDep, VaultDep
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
+from pinecall.auth.keys import KeyRecord
 from pinecall.memory.extraction import answered
 from pinecall.memory.goldens import facts_of, judged, turns_of, undeclared
 from pinecall.orgs.vault import keys_brought_by
@@ -43,7 +44,7 @@ async def extraction(
     vault: VaultDep,
 ) -> ExtractionRun:
     """Every case through one extraction each, and the four questions asked of what came back."""
-    config = _the_agent(slug, key.org, registry, overrides)
+    config = _the_agent(slug, key, registry, overrides)
     policy = config.memory
     if policy is None or not policy.remember:
         raise HTTPException(status_code=400, detail=KEEPS_NOTHING.format(slug=slug))
@@ -72,10 +73,12 @@ async def _one(case: ExtractionGolden, chat: Chat, config: AgentConfig) -> Extra
     return judged(case, said, policy=policy, known=known, tools=config.tools)
 
 
-def _the_agent(slug: str, org: str, registry: RegistryDep, overrides: OverridesDep) -> AgentConfig:
+def _the_agent(
+    slug: str, key: KeyRecord, registry: RegistryDep, overrides: OverridesDep
+) -> AgentConfig:
     """The declaration this run is judged against, with the operator's knobs already turned."""
-    held = registry.of(slug)
-    if held is None or held.org != org:
+    held = registry.of(key.env, slug)
+    if held is None or held.org != key.org:
         raise HTTPException(status_code=404, detail=NO_AGENT.format(slug=slug))
     return overrides.config_for(slug, held.config)
 

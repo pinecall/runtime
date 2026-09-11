@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Literal, Protocol
 
 from pinecall.routes.table import Routes
-from pinecall.types import Route
+from pinecall.types import Env, Route
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +39,8 @@ class Declaration(Protocol):
 class Declaring(Protocol):
     """What the connected apps declared: every door of an org, and who answers at one door."""
 
-    def routes(self, org: str) -> tuple[Route, ...]:
-        """Every door this org answers right now, in the order its agents claimed them."""
+    def routes(self, org: str, env: Env) -> tuple[Route, ...]:
+        """Every door this org answers in this world right now, as its agents claimed them."""
         ...
 
     def at(self, channel: str, number: str | None) -> Declaration | None:
@@ -58,9 +58,9 @@ class Answering:
 
 # The one question both doors that need an org's routes ask — the worker's GET /v1/routes and the
 # token door, which mints only for an agent the org answers on the web — so it is asked here.
-async def answered(org: str, registry: Declaring, table: Routes) -> tuple[Answering, ...]:
-    """Both tables of one org, resolved: what is typed, and what is declared and still free."""
-    return doors(await table.of_org(org), registry.routes(org))
+async def answered(org: str, env: Env, registry: Declaring, table: Routes) -> tuple[Answering, ...]:
+    """Both tables of one org in one world: what is typed, and what is declared and still free."""
+    return doors(await table.of_org(org, env), registry.routes(org, env))
 
 
 def doors(stored: Sequence[Route], declared: Sequence[Route]) -> tuple[Answering, ...]:

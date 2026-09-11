@@ -36,5 +36,6 @@ def started(context: CallContext, to: str, at: float) -> CallStarted:
             "run": context.run,
             "caller": None,
             "started_at": at,
+            "env": context.env,
         }
     )

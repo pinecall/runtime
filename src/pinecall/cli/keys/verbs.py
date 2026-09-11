@@ -10,6 +10,7 @@ from typing import Any, TextIO
 from pinecall.auth.keys import Issued, KeyRecord
 from pinecall.cli.columns import as_columns
 from pinecall.cli.operator import Operator, against_the_gateway, with_an_org
+from pinecall.types import ENVS, KEY_SCOPES, PRODUCTION, an_env
 
 PURPOSE: str = "the org's API keys: issue | list | revoke"
 VERBS: tuple[str, ...] = ("issue", "list", "revoke")
@@ -39,6 +40,22 @@ def configure(parser: argparse.ArgumentParser) -> None:
 
     issuing = verbs.add_parser("issue", help="a new key for an org, printed once and never again")
     issuing.add_argument("--label", default=None, help="what this key is for, for the listing")
+    issuing.add_argument(
+        "--env",
+        default=PRODUCTION,
+        choices=sorted(ENVS),
+        help=f"which world the key opens (default {PRODUCTION})",
+    )
+    issuing.add_argument(
+        "--scope",
+        action="append",
+        default=None,
+        choices=sorted(KEY_SCOPES),
+        metavar="<scope>",
+        help="what the key may do; repeat for several, leave out for every scope",
+    )
+    issuing.add_argument("--subject", default=None, help="whose key it is: the member's id")
+    issuing.add_argument("--name", default=None, help="their name, so a seat says who sat down")
     with_an_org(issuing)
     issuing.set_defaults(run=run_issue)
 
@@ -54,8 +71,18 @@ def configure(parser: argparse.ArgumentParser) -> None:
 
 
 def run_issue(arguments: argparse.Namespace) -> int:
-    """One key for one org. The plaintext reaches this terminal and no file, ever."""
-    return against_the_gateway(partial(issue_key, arguments.org, arguments.label))
+    """One key for one org, into one world. The plaintext reaches this terminal and no file."""
+    return against_the_gateway(
+        partial(
+            issue_key,
+            arguments.org,
+            arguments.label,
+            env=arguments.env,
+            scopes=arguments.scope,
+            subject=arguments.subject,
+            name=arguments.name,
+        )
+    )
 
 
 def run_list(arguments: argparse.Namespace) -> int:
@@ -72,10 +99,23 @@ def run_revoke(arguments: argparse.Namespace) -> int:
 
 
 async def issue_key(
-    org: str, label: str | None, operator: Operator, out: TextIO = sys.stdout
+    org: str,
+    label: str | None,
+    operator: Operator,
+    out: TextIO = sys.stdout,
+    *,
+    env: str = PRODUCTION,
+    scopes: list[str] | None = None,
+    subject: str | None = None,
+    name: str | None = None,
 ) -> int:
     """Mint one key on the gateway's side and show it here, the once."""
-    answer = await operator.post(f"{OPS_ORGS}/{org}/keys", {"label": label})
+    said: dict[str, Any] = {"label": label, "env": env, "subject": subject, "name": name}
+    # Left out means every scope, and the door says so too: the body carries the list only when
+    # the operator named one, so the two defaults cannot drift apart.
+    if scopes is not None:
+        said["scopes"] = scopes
+    answer = await operator.post(f"{OPS_ORGS}/{org}/keys", said)
     print_the_key(_issued_of(answer), out)
     return 0
 
@@ -108,15 +148,18 @@ def print_the_key(issued: Issued, out: TextIO, err: TextIO | None = None) -> Non
     record = issued.record
     beside = err or sys.stderr
     print(issued.key, file=out)
-    print(f"  org {record.org} · {record.label or NO_LABEL}", file=beside)
+    print(f"  org {record.org} · {record.env} · {record.label or NO_LABEL}", file=beside)
+    print(f"  {_scopes_said(record)}", file=beside)
     print(f"  {PRINTED_ONCE}", file=beside)
 
 
 def _row_of(key: dict[str, Any]) -> tuple[str, ...]:
-    """One key as a person reads it: what it hashes to, what it is for, and whether it still is."""
+    """One key as a person reads it: its hash, which world, what for, whose, whether it still is."""
     return (
         str(key["fingerprint"]),
+        str(key["env"]),
         str(key["label"] or NO_LABEL),
+        str(key["name"] or key["subject"] or NO_LABEL),
         REVOKED if key["revoked_at"] else LIVE,
     )
 
@@ -129,8 +172,19 @@ def _issued_of(answer: dict[str, Any]) -> Issued:
             key_id=str(answer["key_id"]),
             org=str(answer["org"]),
             label=answer["label"] and str(answer["label"]),
+            env=an_env(str(answer["env"])),
+            scopes=frozenset(str(scope) for scope in answer["scopes"]),
+            subject=answer["subject"] and str(answer["subject"]),
+            name=answer["name"] and str(answer["name"]),
         ),
     )
+
+
+def _scopes_said(record: KeyRecord) -> str:
+    """What the key may do, in one line: `every scope`, or the ones it was issued with."""
+    if record.scopes == KEY_SCOPES:
+        return "every scope"
+    return "scopes " + " · ".join(sorted(record.scopes))
 
 
 def _print_the_verbs(parser: argparse.ArgumentParser, _arguments: Any) -> int:

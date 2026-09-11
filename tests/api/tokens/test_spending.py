@@ -10,7 +10,7 @@ from pinecall.api.agents.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.tokens.ledger import MemoryTokens, TokenRecord
 from pinecall.tokens.spending import TOKEN_SPENT
-from pinecall.types import CallContext, Route
+from pinecall.types import PRODUCTION, CallContext, Route
 from pinecall.types.dispatch import AGENT_KEY, SCOPE_KEY
 from pinecall.worker.client import Gateway, GatewayRefused
 from pinecall_protocol import defs
@@ -26,8 +26,8 @@ AN_OWNER = "app_the_spending_tests"
 async def held(registry: Registry) -> None:
     """The clinic on its web door, as its app socket would have registered it."""
     a_web_door = defs.Route(channel="web", number=None)
-    await registry.register(AN_OWNER, A_RECORD.org, AGENT, [a_web_door])
-    await registry.configure(AN_OWNER, AGENT, defs.AgentConfig(language="es"))
+    await registry.register(AN_OWNER, A_RECORD.org, PRODUCTION, AGENT, [a_web_door])
+    await registry.configure(AN_OWNER, PRODUCTION, AGENT, defs.AgentConfig(language="es"))
 
 
 def a_token_born_call(call: str = A_TOKENS_CALL) -> CallContext:

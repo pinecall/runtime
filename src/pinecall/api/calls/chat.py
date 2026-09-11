@@ -38,7 +38,7 @@ from pinecall.log.writers import Logs
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.providers.models import NoProvider
 from pinecall.session.text.session import TextSession, Watcher
-from pinecall.types import THE_WIDGET, CallContext, Contact, Route, a_call_id
+from pinecall.types import THE_WIDGET, CallContext, Contact, Env, Route, a_call_id
 from pinecall_protocol import encode
 
 # Importing the handlers is what registers them: the app socket's table is filled at import time,
@@ -96,11 +96,11 @@ async def chat(
     # `?app=` is how `pinecall chat` is served by its OWN process, where the tenant's breakpoints
     # are: without it a call takes whichever socket registered last. See docs/decisions/dispatch.md.
     app = websocket.query_params.get("app")
-    held = registry.serving(slug, app)
+    held = registry.serving(key.env, slug, app)
     # An API key IS its org, on this socket as on every door: another org's agent is refused in a
     # sentence that names the agent and not the org that holds it.
     if held is None or held.org != key.org:
-        why = ANOTHER_ORGS if held is not None else _why_not(registry, slug, app)
+        why = ANOTHER_ORGS if held is not None else _why_not(registry, key.env, slug, app)
         await websocket.accept()
         await websocket.close(
             code=POLICY_VIOLATION, reason=_as_a_close_reason(why.format(slug=slug))
@@ -112,7 +112,7 @@ async def chat(
     try:
         opened = await a_text_call(
             held,
-            a_call_from(websocket, held.org, slug),
+            a_call_from(websocket, held.org, held.env, slug),
             overrides,
             vault,
             llms,
@@ -139,11 +139,11 @@ async def chat(
 # Three reasons a chat cannot open, and they are three different things to do about it: the caller
 # named an app that is not there, nobody at all is holding the agent, or the only apps holding it
 # are consoles serving their own calls. A single sentence for all three would name none of them.
-def _why_not(registry: Registry, slug: str, app: SocketId | None) -> str:
+def _why_not(registry: Registry, env: Env, slug: str, app: SocketId | None) -> str:
     """Why this caller gets no call, in words the person who ran the command can act on."""
     if app is not None:
         return NOT_THAT_APP.format(app=app, slug=slug)
-    if registry.of(slug) is not None:
+    if registry.of(env, slug) is not None:
         return NO_UNCLAIMED.format(slug=slug)
     return _NOBODY_SERVING.format(slug=slug)
 
@@ -190,7 +190,7 @@ async def _every_turn(websocket: WebSocket, session: TextSession) -> None:
         return
 
 
-def a_call_from(websocket: WebSocket, org: str, slug: str) -> CallContext:
+def a_call_from(websocket: WebSocket, org: str, env: Env, slug: str) -> CallContext:
     """One call, minted here: the id, who the caller is, and the door they came through."""
     # A web caller is nobody yet: the visitor id travels as the calling side, which is what
     # call.started carries as `from`. Both ids are the shapes the token door mints too.
@@ -200,7 +200,7 @@ def a_call_from(websocket: WebSocket, org: str, slug: str) -> CallContext:
         direction="inbound",
         caller=websocket.query_params.get("caller") or a_visitor(),
         contact=_who_they_say_they_are(websocket),
-        route=Route(org=org, agent=slug, channel=THE_WIDGET, number=None),
+        route=Route(org=org, agent=slug, channel=THE_WIDGET, number=None, env=env),
         today=date.today(),
     )
 

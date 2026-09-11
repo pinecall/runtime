@@ -3,6 +3,7 @@
 import pytest
 from starlette.testclient import TestClient
 
+from pinecall.types import KEY_SCOPES
 from tests.api.conftest import A_KEY
 from tests.api.talking import got
 
@@ -15,7 +16,15 @@ def test_the_door_names_the_org_the_key_belongs_to(gateway: TestClient) -> None:
     status, body = got(gateway, WHOAMI)
 
     assert status == 200
-    assert body == {"org": "clinica", "key_id": "k_1", "label": "ring 0"}
+    assert body == {
+        "org": "clinica",
+        "key_id": "k_1",
+        "label": "ring 0",
+        "env": "production",
+        "scopes": sorted(KEY_SCOPES),
+        "subject": None,
+        "name": None,
+    }
 
 
 def test_the_answer_carries_neither_the_key_nor_its_hash(gateway: TestClient) -> None:

@@ -19,6 +19,7 @@ from pinecall.api._deps import (
 )
 from pinecall.api._serving import ServingDep
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
+from pinecall.auth.keys import KeyRecord
 from pinecall.auth.scopes import a_room_token, a_visitor, secret_for
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.routes import answering
@@ -107,7 +108,7 @@ async def mint(
 ) -> dict[str, Any]:
     """LiveKit's token endpoint: {server_url, participant_token}, plus the call it opens."""
     _refuse_what_is_ours_to_set(said)
-    agent = await _the_agent_the_org_answers(said, key.org, registry, table)
+    agent = await _the_agent_the_org_answers(said, key, registry, table)
     await _refuse_a_full_fleet(fleet, logs, agent)
     try:
         await admission.a_call(key.org, agent, live.running(key.org))
@@ -167,7 +168,7 @@ def _refuse_what_is_ours_to_set(said: Wanted) -> None:
 # when the job arrives (GET /v1/routes): a token for a door nobody answers is a call that dies
 # after the browser joined, so it is refused before, in the words the config door uses.
 async def _the_agent_the_org_answers(
-    said: Wanted, org: str, registry: RegistryDep, table: RoutesDep
+    said: Wanted, key: KeyRecord, registry: RegistryDep, table: RoutesDep
 ) -> str:
     """The agent the body names, if this key's org answers it on the web. 400 or 404 if not."""
     try:
@@ -176,7 +177,7 @@ async def _the_agent_the_org_answers(
         raise HTTPException(400, str(refused)) from refused
     if agent is None:
         raise HTTPException(400, NO_AGENT_NAMED)
-    answered = await answering.answered(org, registry, table)
+    answered = await answering.answered(key.org, key.env, registry, table)
     web_doors = (one.route for one in answered if one.route.channel == THE_WIDGET)
     if not any(route.agent == agent for route in web_doors):
         raise HTTPException(404, NO_AGENT.format(slug=agent))

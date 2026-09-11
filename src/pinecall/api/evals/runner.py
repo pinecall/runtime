@@ -33,7 +33,7 @@ from pinecall.orgs.vault import Vault, keys_brought_by
 from pinecall.providers import declaration
 from pinecall.providers.models import Models
 from pinecall.providers.overrides import Overrides
-from pinecall.types import AgentConfig, DeclarationRefused, Model, ProviderKeys, a_call_id
+from pinecall.types import AgentConfig, DeclarationRefused, Env, Model, ProviderKeys, a_call_id
 from pinecall_protocol import WireModel, defs
 
 # The design says SIGKILL, and there is no child to signal: a run is coroutines in the gateway's
@@ -102,6 +102,9 @@ class Process:
     live: Live
     store: Store
     runs: Runs
+    # The world the key that asked opens: the run is put to the app holding the agent THERE, so a
+    # laptop's suite never drives the box's agent and the box's never drives a laptop's.
+    env: Env
     # Where the org's own provider keys are kept, or None on a runtime that keeps nobody's.
     vault: Vault | None
     # What runs a golden's lookups and remembers its hang-up, and how long a turn waits.
@@ -141,7 +144,7 @@ class Runner:
 
 async def a_run(wanted: Wanted, runner: Runner, process: Process) -> EvalRun:
     """Every golden under every model, scored, stored, and answered as one finished run."""
-    serving = process.registry.serving(wanted.agent, wanted.app)
+    serving = process.registry.serving(process.env, wanted.agent, wanted.app)
     if serving is None:
         raise NobodyServing(NO_AGENT.format(slug=wanted.agent))
     if wanted.voice:
@@ -188,7 +191,7 @@ async def _every_conversation(
     keys: ProviderKeys,
 ) -> EvalRun:
     """The run as it stands after every call has been made and judged."""
-    app = Attachment(process.registry, wanted.agent, serving.owner)
+    app = Attachment(process.registry, serving.held_as, serving.owner)
     models = _the_models(wanted)
     total = len(models) * len(wanted.goldens)
     judged = 0
@@ -227,6 +230,7 @@ async def _every_conversation(
                         model=named,
                         config=running,
                         org=serving.org,
+                        env=serving.env,
                         app=app,
                         logs=process.logs,
                         live=process.live,

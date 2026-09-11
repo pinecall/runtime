@@ -14,7 +14,7 @@ from pinecall.api.evals.runner import Runner, the_runner
 from pinecall.evals.checks.replayed import Replayed, rebuild
 from pinecall.evals.runs import MemoryRuns
 from pinecall.providers.models import Chat
-from pinecall.types import Model, ProviderKeys
+from pinecall.types import PRODUCTION, Model, ProviderKeys
 from pinecall_protocol import decode_entries, defs
 from pinecall_protocol.envelope import Entry
 from tests.api.conftest import A_KEY, A_RECORD
@@ -63,9 +63,12 @@ async def serving(
     owner: str = AN_OWNER,
 ) -> None:
     """One app holding one agent on its own web door, as a register would have left it."""
-    await registry.register(owner, A_RECORD.org, slug, [defs.Route(channel="web", number=None)])
+    await registry.register(
+        owner, A_RECORD.org, PRODUCTION, slug, [defs.Route(channel="web", number=None)]
+    )
     await registry.configure(
         owner,
+        PRODUCTION,
         slug,
         defs.AgentConfig(events=events or [], tools=tools or []),
     )

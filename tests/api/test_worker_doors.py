@@ -10,7 +10,7 @@ from pinecall.api._live import Live
 from pinecall.api.agents.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
-from pinecall.types import CallContext, Route
+from pinecall.types import PRODUCTION, CallContext, Route
 from pinecall.worker.client import Gateway, GatewayRefused
 from pinecall_protocol import defs
 from pinecall_protocol.events import ToolCall
@@ -34,8 +34,12 @@ A_LAYOUT = [
 
 async def declared(registry: Registry) -> None:
     """The clinic, registered and configured the way its app socket would have done it."""
-    await registry.register(AN_OWNER, A_RECORD.org, AGENT, [defs.Route(channel="web", number=None)])
-    await registry.configure(AN_OWNER, AGENT, defs.AgentConfig(prompt=A_LAYOUT, tools=[A_TOOL]))
+    await registry.register(
+        AN_OWNER, A_RECORD.org, PRODUCTION, AGENT, [defs.Route(channel="web", number=None)]
+    )
+    await registry.configure(
+        AN_OWNER, PRODUCTION, AGENT, defs.AgentConfig(prompt=A_LAYOUT, tools=[A_TOOL])
+    )
 
 
 def a_context(org: str = A_RECORD.org) -> CallContext:

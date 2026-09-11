@@ -99,6 +99,29 @@ cd clinica-norte && pinecall run                # the agent is now that org's
 In a container there is no login: `PINECALL_API_KEY` in the environment is the same key, and
 `PINECALL_URL` says which gateway. That is the whole of a tenant's authentication.
 
+## Two worlds on one gateway
+
+A tenant writes an agent on a laptop and runs the same agent on the box, and the two must never
+see each other: a laptop's `pinecall run` must not take the clinic's number, and the clinic's
+sessions must not fill with a developer's test calls. So **the key knows where.** It is issued into
+`production` or `development`, and the gateway namespaces its registry and its routes by that
+word: the same slug is held once in each world, by different sockets; `GET /v1/agents`, `GET
+/v1/routes` and every door that names an agent answer the world the key opens; a dialled number
+is one agent's in one world, and a development key claiming a production number is refused with
+the world named. `agent.registered` and `call.started` carry `env`, so a console and a session
+list can say which world they are reading. A dev key opens development — a laptop is where things
+are written — and every key issued before the field existed is production's.
+
+```bash
+pinecall-runtime keys issue --org clinica --label "berna's laptop" --env development
+pinecall-runtime routes add +34910000000 clinica-norte --org clinica   # production, the default
+```
+
+The key also knows **what** — `scopes`, the doors as they are grouped — and **who** — `subject`
+and `name`, the member it was minted for. The doors that refuse on a scope, and the members and
+roles that preset them, are the next two cards; today every key issued with nothing said holds
+every scope, which is what an org's own machine key means.
+
 **One key per place, not one per tenant.** Issue a key for the laptop, one for CI, one for each
 deployment, each with a `--label` — a key you can revoke on its own is a key you will revoke.
 

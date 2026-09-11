@@ -14,7 +14,7 @@ from pinecall.orgs.admission import Admission
 from pinecall.providers.models import Models
 from pinecall.providers.overrides import Overrides
 from pinecall.session.scoring import unjudged
-from pinecall.types import AgentConfig, CallContext, Route
+from pinecall.types import PRODUCTION, AgentConfig, CallContext, Route
 from tests.api.conftest import AGENT
 
 pytestmark = pytest.mark.unit
@@ -27,6 +27,7 @@ def _held() -> Registration:
     return Registration(
         slug=AGENT,
         org="default",
+        env=PRODUCTION,
         owner=A_SOCKET,
         routes=(Route(org="default", agent=AGENT, channel="web", number=None),),
         config=AgentConfig(slug=AGENT),

@@ -1,5 +1,6 @@
 """The door's half: what a key hashes to, what Postgres is asked, and which Keys we get."""
 
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -16,6 +17,8 @@ from pinecall.auth.keys import (
     keys_for,
     mint,
 )
+from pinecall.log.store.postgres import MIGRATIONS
+from pinecall.types import DEVELOPMENT, ENVS, KEY_SCOPES, PRODUCTION
 
 pytestmark = pytest.mark.unit
 
@@ -90,10 +93,96 @@ async def test_postgres_revoke_reads_the_command_tag_so_a_stranger_is_told_apart
 
 
 async def test_postgres_keys_looks_the_key_up_by_its_hash_and_never_by_the_key() -> None:
-    pool = _APoolOfOneRow({"id": "k_1", "org": "madrid", "label": None})
+    pool = _APoolOfOneRow(_a_row("k_1", "madrid"))
     record = await PostgresKeys(pool).verify(A_KEY)
     assert record == KeyRecord(key_id="k_1", org="madrid", label=None)
     assert pool.asked == [fingerprint(A_KEY)]
+
+
+# ── the key knows where and who ─────────────────────────────────────────────────
+
+
+def test_a_key_issued_before_the_field_existed_is_productions_with_every_scope() -> None:
+    """What 0013 leaves every existing row as, and what a record built with nothing else means."""
+    record = KeyRecord(key_id="k_1", org="madrid")
+    assert record.env == PRODUCTION
+    assert record.scopes == KEY_SCOPES
+    assert (record.subject, record.name) == (None, None)
+
+
+async def test_a_key_is_issued_into_one_world_with_the_scopes_and_the_person_it_was_asked_for() -> (
+    None
+):
+    keys = MemoryKeys()
+    issued = await keys.issue(
+        org="clinica",
+        label="berna's laptop",
+        env=DEVELOPMENT,
+        scopes=frozenset({"calls", "talk"}),
+        subject="m_1",
+        name="Berna",
+    )
+    assert await keys.verify(issued.key) == issued.record
+    assert issued.record.env == DEVELOPMENT
+    assert issued.record.scopes == frozenset({"calls", "talk"})
+    assert (issued.record.subject, issued.record.name) == ("m_1", "Berna")
+    (listed,) = await keys.listed("clinica")
+    assert (listed.env, listed.scopes, listed.subject, listed.name) == (
+        DEVELOPMENT,
+        ("calls", "talk"),
+        "m_1",
+        "Berna",
+    )
+
+
+async def test_postgres_issue_writes_the_world_the_scopes_sorted_and_the_person() -> None:
+    """The columns travel in the INSERT's order; the scopes sorted, so two rows compare."""
+    pool = _APoolOfOneRow(None)
+    issued = await PostgresKeys(pool).issue(
+        org="clinica", env=DEVELOPMENT, scopes=frozenset({"talk", "calls"}), subject="m_1", name="B"
+    )
+    assert pool.asked == [
+        issued.record.key_id,
+        fingerprint(issued.key),
+        "clinica",
+        None,
+        DEVELOPMENT,
+        ["calls", "talk"],
+        "m_1",
+        "B",
+    ]
+
+
+async def test_postgres_reads_the_world_and_the_scopes_back_off_the_row() -> None:
+    row = _a_row("k_2", "madrid", env=DEVELOPMENT, scopes=["talk"], subject="m_1", name="Berna")
+    record = await PostgresKeys(_APoolOfOneRow(row)).verify(A_KEY)
+    assert record == KeyRecord(
+        key_id="k_2",
+        org="madrid",
+        env=DEVELOPMENT,
+        scopes=frozenset({"talk"}),
+        subject="m_1",
+        name="Berna",
+    )
+
+
+# The migration backfills every existing row with every scope, and SQL cannot import a Python
+# constant: the literal is read back out of the file and compared, so adding a scope to one side
+# and not the other fails here and not on a box.
+def test_the_migration_backfills_the_very_scopes_and_the_very_worlds_the_runtime_knows() -> None:
+    said = (MIGRATIONS / "0013_environments.sql").read_text(encoding="utf-8")
+    array = re.search(r"ARRAY\[(.*?)\]", said, re.S)
+    assert array is not None
+    assert sorted(re.findall(r"'([a-z]+)'", array.group(1))) == sorted(KEY_SCOPES)
+    worlds = re.findall(r"CHECK \(env IN \((.*?)\)\)", said)
+    assert worlds, "the env column is checked against the two worlds"
+    assert all(sorted(re.findall(r"'([a-z]+)'", one)) == sorted(ENVS) for one in worlds)
+
+
+def test_the_dev_key_opens_development() -> None:
+    """A laptop is where things are written: what `pinecall run` registers there is not deployed."""
+    assert DEV_KEY_RECORD.env == DEVELOPMENT
+    assert DEV_KEY_RECORD.scopes == KEY_SCOPES
 
 
 async def test_a_key_no_row_answers_to_is_none_and_not_an_error() -> None:
@@ -113,6 +202,27 @@ async def test_the_dev_key_carries_its_own_org() -> None:
 def test_a_gateway_with_no_dev_key_and_no_database_says_it_can_verify_nothing() -> None:
     with pytest.raises(RuntimeError, match="verify nothing"):
         keys_for(Settings(dev_key=None), pool=None)
+
+
+def _a_row(
+    key_id: str,
+    org: str,
+    *,
+    env: str = PRODUCTION,
+    scopes: list[str] | None = None,
+    subject: str | None = None,
+    name: str | None = None,
+) -> dict[str, Any]:
+    """One api_keys row as the lookup's SELECT hands it back, every column 0013 added included."""
+    return {
+        "id": key_id,
+        "org": org,
+        "label": None,
+        "env": env,
+        "scopes": sorted(KEY_SCOPES) if scopes is None else scopes,
+        "subject": subject,
+        "name": name,
+    }
 
 
 class _APoolOfOneRow:

@@ -16,6 +16,7 @@ from pinecall.cli.routes.verbs import (
     remove_route,
     seed_routes,
 )
+from pinecall.types import PRODUCTION
 from pinecall_protocol import defs
 from tests.api.conftest import A_RECORD
 
@@ -43,14 +44,16 @@ async def test_list_says_so_when_the_org_answers_nothing_at_all(operator: Operat
     """An empty screen is not an answer: a fresh box says which org it looked in."""
     out = printed()
     assert await list_routes(ORG, operator, out) == 0
-    assert out.getvalue().strip() == f"no routes in org {ORG}"
+    assert out.getvalue().strip() == f"no routes in org {ORG} in production"
 
 
 async def test_add_prints_the_route_and_names_the_agent_it_took_the_number_from(
     operator: Operator, registry: Registry
 ) -> None:
     """The loss is never silent, and the operator reads it in the terminal that caused it."""
-    await registry.register(AN_OWNER, ORG, CLINICA, [defs.Route(channel="phone", number=NUMBER)])
+    await registry.register(
+        AN_OWNER, ORG, PRODUCTION, CLINICA, [defs.Route(channel="phone", number=NUMBER)]
+    )
     out = printed()
     assert await add_route(ORG, NUMBER, TIENDA, "phone", operator, out) == 0
     said = out.getvalue()
@@ -62,7 +65,9 @@ async def test_list_shows_the_typed_row_and_the_declared_door_with_their_sources
     operator: Operator, registry: Registry
 ) -> None:
     """One table for the reader: what an operator typed, and what an app is holding."""
-    await registry.register(AN_OWNER, ORG, CLINICA, [defs.Route(channel="web", number=None)])
+    await registry.register(
+        AN_OWNER, ORG, PRODUCTION, CLINICA, [defs.Route(channel="web", number=None)]
+    )
     await add_route(ORG, NUMBER, TIENDA, "phone", operator, printed())
     out = printed()
     await list_routes(ORG, operator, out)

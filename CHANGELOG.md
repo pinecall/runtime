@@ -7,6 +7,16 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **The key knows where and who.** An API key is issued into one of two worlds — `production` or
+  `development` (`keys issue --env`) — and the gateway namespaces its registry and its routes by
+  it: the same slug is held once in each, `GET /v1/agents` and `GET /v1/routes` answer the key's
+  world, a call opened on the other world's route is `403`, and a development key claiming a number
+  production holds is refused with the world named. `agent.registered` and `call.started` carry
+  `env`. The key also carries `scopes` (the doors as they are grouped; `--scope`, repeatable, every
+  scope when left out), and `subject` and `name` for a person's key; `GET /v1/whoami` answers all
+  of them. `routes add --env` types a number into a world. Migration `0013` leaves every existing
+  key production's with every scope. The dev key opens development. The worker's tools door now
+  takes the org's key like every other worker door.
 - **A call's first entry names the run that opened it.** `call.ringing`, `call.dialing` and
   `call.started` carry `run`: the eval run's id, or null for a person. It replaces a caller id
   prefix (`eval_…`) that three processes read as a marker — the worker, to greet nobody on a call

@@ -1,9 +1,10 @@
-"""Route: one door into one agent, in one org. A number is a route, never an agent."""
+"""Route: one door into one agent, in one org, in one world. A number is a route, never an agent."""
 
 import re
 from dataclasses import dataclass
 
 from pinecall.types.channel import CHANNELS, CHANNELS_WITH_A_NUMBER, Channel
+from pinecall.types.key import ENVS, PRODUCTION, Env
 from pinecall.types.refused import DeclarationRefused
 
 # E.164: a plus, then up to fifteen digits, the first of them never zero.
@@ -19,12 +20,17 @@ class Route:
     channel: Channel
     number: str | None = None
     label: str | None = None
+    # Which world answers at this door: the one the key that declared or typed it opens. A door
+    # is one agent's in one world; the registry refuses the same number to the other world.
+    env: Env = PRODUCTION
 
     def __post_init__(self) -> None:
         if not self.org or not self.agent:
             raise DeclarationRefused(
                 "a route names the org that owns it and the agent that answers"
             )
+        if self.env not in ENVS:
+            raise DeclarationRefused(f"a route answers in one of {sorted(ENVS)}, not {self.env!r}")
         if self.channel not in CHANNELS:
             raise DeclarationRefused(
                 f"a route is a door: one of {sorted(CHANNELS)}, not {self.channel!r}"

@@ -7,6 +7,7 @@ from typing import Any
 from uuid import uuid4
 
 from pinecall.types.channel import CHANNELS, CHANNELS_WITH_A_NUMBER, DIRECTIONS, Channel, Direction
+from pinecall.types.key import Env
 from pinecall.types.refused import DeclarationRefused
 from pinecall.types.route import Route
 
@@ -67,6 +68,13 @@ class CallContext:
             raise DeclarationRefused(
                 f"a {self.channel} call cannot come through a {self.route.channel} route"
             )
+
+    # A call is one world's for its whole life, and it is the door's: the route the key declared
+    # or the operator typed says which, so call.started carries it without a second field.
+    @property
+    def env(self) -> Env:
+        """The world this call ran in, read off the door it came through."""
+        return self.route.env
 
     # The one rule of who a contact is across calls: the id the app resolved when it has one, else
     # the number on the channels that have one — the same person on the phone today and on

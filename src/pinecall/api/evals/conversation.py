@@ -23,7 +23,7 @@ from pinecall.lookups import Lookups
 from pinecall.providers.models import Chat
 from pinecall.session.asking import Asking, NotAsking, WhatWasAsked
 from pinecall.session.text.session import TextSession
-from pinecall.types import AgentConfig, CallContext, Route
+from pinecall.types import AgentConfig, CallContext, Env, Route
 from pinecall_protocol.commands import CallEvent, SessionConfigure
 
 
@@ -48,6 +48,7 @@ async def a_conversation(
     model: str,
     config: AgentConfig,
     org: str,
+    env: Env,
     app: Attachment,
     logs: Logs,
     live: Live,
@@ -61,7 +62,7 @@ async def a_conversation(
     # turn by turn, and a hash in the log cannot be read. api/evals/scoring.py keeps the broken.
     asked = WhatWasAsked()
     session = an_eval_call(
-        golden, call, run, config, org, logs, llm, lookups, budgets, asking=asked
+        golden, call, run, config, org, env, logs, llm, lookups, budgets, asking=asked
     )
     settling = Settling(session)
     await logs.owned(session.call, session.agent, org)
@@ -103,6 +104,7 @@ def an_eval_call(
     run: str,
     config: AgentConfig,
     org: str,
+    env: Env,
     logs: Logs,
     llm: Chat,
     lookups: Lookups,
@@ -119,7 +121,7 @@ def an_eval_call(
         direction="inbound",
         caller=a_visitor(),
         run=run,
-        route=Route(org=org, agent=config.slug, channel="web", number=None),
+        route=Route(org=org, agent=config.slug, channel="web", number=None, env=env),
         # A golden that names a weekday pins the day it means; the rest run on the real one.
         today=golden.today or date.today(),
     )

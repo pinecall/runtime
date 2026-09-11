@@ -17,7 +17,17 @@ from pinecall.api._deps import (
     an_org,
 )
 from pinecall.auth.keys import Issued, ListedKey
-from pinecall.types import DeclarationRefused, Org, Quotas, a_slug
+from pinecall.types import (
+    DEVELOPMENT,
+    KEY_SCOPES,
+    PRODUCTION,
+    DeclarationRefused,
+    Org,
+    Quotas,
+    a_slug,
+    an_env,
+    key_scopes,
+)
 from pinecall_protocol import WireModel
 
 # Every /v1/ops door takes the operator key and nothing else, checked before the endpoint runs.
@@ -52,9 +62,17 @@ class WantedOrg(WireModel):
 
 
 class WantedKey(WireModel):
-    """What `keys issue` sends: what the key is for. Whose it is, the path already said."""
+    """What `keys issue` sends: what the key is for, where it opens, what it may do, whose it is."""
 
     label: str | None = None
+    # Production unless the operator says: the key a box's worker and app run on is the deployed
+    # world's, and a development key is the deliberate act of issuing one for a laptop.
+    env: str = PRODUCTION
+    # Every scope when left out, which is what an org's own machine key holds. A person's key is
+    # issued with the scopes their role presets.
+    scopes: list[str] | None = None
+    subject: str | None = None
+    name: str | None = None
 
 
 class WantedQuotas(WireModel):
@@ -117,8 +135,9 @@ async def remove(named: str, orgs: OrgsDep, keys: KeysDep, table: RoutesDep) -> 
     org = await an_org(named, orgs)
     if any(key.revoked_at is None for key in await keys.listed(org.id)):
         raise HTTPException(409, STILL_IN_USE.format(org=org.slug, what="live keys"))
-    if await table.of_org(org.id):
-        raise HTTPException(409, STILL_IN_USE.format(org=org.slug, what="routes"))
+    for env in (PRODUCTION, DEVELOPMENT):
+        if await table.of_org(org.id, env):
+            raise HTTPException(409, STILL_IN_USE.format(org=org.slug, what="routes"))
     await orgs.remove(org.id)
 
 
@@ -154,7 +173,20 @@ async def set_quotas(named: str, said: WantedQuotas, orgs: OrgsDep) -> dict[str,
 async def issue(named: str, said: WantedKey, orgs: OrgsDep, keys: KeysDep) -> dict[str, Any]:
     """Mint a key for the org and answer with it, the once. The table keeps its sha256."""
     org = await an_org(named, orgs)
-    return _issued_as_json(await keys.issue(org=org.id, label=said.label))
+    try:
+        env = an_env(said.env)
+        scopes = KEY_SCOPES if said.scopes is None else key_scopes(said.scopes)
+    except DeclarationRefused as refused:
+        raise HTTPException(400, str(refused)) from refused
+    issued = await keys.issue(
+        org=org.id,
+        label=said.label,
+        env=env,
+        scopes=scopes,
+        subject=said.subject,
+        name=said.name,
+    )
+    return _issued_as_json(issued)
 
 
 @operator.get("/orgs/{named}/keys")
@@ -183,4 +215,13 @@ def _as_json(org: Org) -> dict[str, Any]:
 def _issued_as_json(issued: Issued) -> dict[str, Any]:
     """The issued key as the CLI reads it back: the key, and the record it was written under."""
     record = issued.record
-    return {"key": issued.key, "key_id": record.key_id, "org": record.org, "label": record.label}
+    return {
+        "key": issued.key,
+        "key_id": record.key_id,
+        "org": record.org,
+        "label": record.label,
+        "env": record.env,
+        "scopes": sorted(record.scopes),
+        "subject": record.subject,
+        "name": record.name,
+    }

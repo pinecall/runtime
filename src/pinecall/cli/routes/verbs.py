@@ -11,6 +11,7 @@ from typing import Any, TextIO, cast
 
 from pinecall.cli.columns import as_columns
 from pinecall.cli.operator import Operator, OperatorRefused, against_the_gateway, with_an_org
+from pinecall.types import ENVS, PRODUCTION
 
 PURPOSE: str = "numbers and channels: list | add | rm | seed"
 VERBS: tuple[str, ...] = ("list", "add", "rm", "seed")
@@ -34,6 +35,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
 
     listing = verbs.add_parser("list", help="every door the org answers")
     with_an_org(listing)
+    _in_a_world(listing)
     listing.set_defaults(run=run_list)
 
     adding = verbs.add_parser("add", help="a number answers for this agent, from the next call")
@@ -41,6 +43,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
     adding.add_argument("agent", metavar="<agent>", help="the agent's slug")
     adding.add_argument("--channel", default=DEFAULT_CHANNEL, help="phone (default) or whatsapp")
     with_an_org(adding)
+    _in_a_world(adding)
     adding.set_defaults(run=run_add)
 
     removing = verbs.add_parser("rm", help="the org stops answering this number")
@@ -56,14 +59,21 @@ def configure(parser: argparse.ArgumentParser) -> None:
 
 
 def run_list(arguments: argparse.Namespace) -> int:
-    """Every door of one org, and which table put it there."""
-    return against_the_gateway(partial(list_routes, arguments.org))
+    """Every door of one org in one world, and which table put it there."""
+    return against_the_gateway(partial(list_routes, arguments.org, env=arguments.env))
 
 
 def run_add(arguments: argparse.Namespace) -> int:
     """One number to one agent, live from the next call: nothing is restarted."""
     return against_the_gateway(
-        partial(add_route, arguments.org, arguments.number, arguments.agent, arguments.channel)
+        partial(
+            add_route,
+            arguments.org,
+            arguments.number,
+            arguments.agent,
+            arguments.channel,
+            env=arguments.env,
+        )
     )
 
 
@@ -80,11 +90,13 @@ def run_seed(arguments: argparse.Namespace) -> int:
 # ── the verbs, as coroutines over an Operator a test can hand in ────────────────
 
 
-async def list_routes(org: str, operator: Operator, out: TextIO = sys.stdout) -> int:
+async def list_routes(
+    org: str, operator: Operator, out: TextIO = sys.stdout, *, env: str = PRODUCTION
+) -> int:
     """Every door as one line. Nothing to list is a sentence, not an empty screen."""
-    answering = await operator.get(OPS_ROUTES, org=org)
+    answering = await operator.get(OPS_ROUTES, org=org, env=env)
     if not answering:
-        print(f"no routes in org {org}", file=out)
+        print(f"no routes in org {org} in {env}", file=out)
         return 0
     for line in as_columns([_row_of(door) for door in answering]):
         print(line, file=out)
@@ -92,12 +104,19 @@ async def list_routes(org: str, operator: Operator, out: TextIO = sys.stdout) ->
 
 
 async def add_route(
-    org: str, number: str, agent: str, channel: str, operator: Operator, out: TextIO = sys.stdout
+    org: str,
+    number: str,
+    agent: str,
+    channel: str,
+    operator: Operator,
+    out: TextIO = sys.stdout,
+    *,
+    env: str = PRODUCTION,
 ) -> int:
     """The number, and the agent that loses it when one was answering there already."""
-    said = {"org": org, "number": number, "agent": agent, "channel": channel}
+    said = {"org": org, "number": number, "agent": agent, "channel": channel, "env": env}
     answer = await operator.post(OPS_ROUTES, said)
-    print(f"{number} {channel} → {agent} in org {org}", file=out)
+    print(f"{number} {channel} → {agent} in org {org} · {env}", file=out)
     if overridden := answer.get("overrides"):
         print(f"agent {overridden} declared {number} too, and no longer answers it", file=out)
     return 0
@@ -123,6 +142,7 @@ async def seed_routes(path: Path, operator: Operator, out: TextIO = sys.stdout) 
             route.get("channel", DEFAULT_CHANNEL),
             operator,
             out,
+            env=route.get("env", PRODUCTION),
         )
     return 0
 
@@ -147,6 +167,18 @@ def _row_of(door: dict[str, Any]) -> tuple[str, ...]:
 
 
 # ── the plumbing every verb shares ──────────────────────────────────────────────
+
+
+# A number somebody bought rings the deployed agent, so production is the default; typing one
+# into development is the deliberate act, and the flag is the same word `keys issue` takes.
+def _in_a_world(parser: argparse.ArgumentParser) -> None:
+    """Which world's doors this verb speaks about."""
+    parser.add_argument(
+        "--env",
+        default=PRODUCTION,
+        choices=sorted(ENVS),
+        help=f"which world the number answers in (default {PRODUCTION})",
+    )
 
 
 def _print_the_verbs(parser: argparse.ArgumentParser, _arguments: Any) -> int:

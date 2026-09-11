@@ -13,6 +13,7 @@ from pinecall.log.entry import Entry
 from pinecall.log.store import MemoryStore
 from pinecall.orgs.vault import Vault
 from pinecall.routes.table import MemoryRoutes
+from pinecall.types import PRODUCTION
 from pinecall.whatsapp.graph import GraphRefused
 from pinecall.whatsapp.sending import NOT_SENT
 from pinecall_protocol import defs
@@ -159,7 +160,9 @@ async def test_an_image_is_acknowledged_and_never_opens_a_call(
 async def test_a_number_nobody_routed_is_200_and_opens_nothing(
     meta: httpx.AsyncClient, registry: Registry, threads: Threads, store: MemoryStore
 ) -> None:
-    await registry.register(AN_APP, A_RECORD.org, AGENT, [defs.Route(channel="web", number=None)])
+    await registry.register(
+        AN_APP, A_RECORD.org, PRODUCTION, AGENT, [defs.Route(channel="web", number=None)]
+    )
     assert await delivered(meta, a_body(a_text(HOLA))) == {"received": 1}
     assert threads.of(THE_CLINICS_NUMBER, ANA) is None
     assert await store.list_calls(AGENT) == []
@@ -180,7 +183,7 @@ async def test_the_operators_row_outranks_an_agent_that_declared_the_same_number
     llm.script.append(Scripted(chunks=(AN_ANSWER,)))
     await the_clinic_answers_at_the_number(registry, routes, typed=False, declared=True)
     await registry.register(
-        AN_APP, A_RECORD.org, THE_NIGHT_AGENT, [defs.Route(channel="web", number=None)]
+        AN_APP, A_RECORD.org, PRODUCTION, THE_NIGHT_AGENT, [defs.Route(channel="web", number=None)]
     )
     await routes.put(the_operators_row(THE_NIGHT_AGENT))
 

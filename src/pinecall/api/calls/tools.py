@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import LogsDep
+from pinecall.api._deps import KeyDep, LogsDep
 from pinecall.api._live import LiveDep
 from pinecall.api.agents.handlers import Socket, asked, handles
 from pinecall.api.agents.registry import RegistryDep
@@ -37,13 +37,14 @@ async def run_a_tool(
     call: str,
     agent: str,
     wanted: ToolCall,
+    key: KeyDep,
     registry: RegistryDep,
     logs: LogsDep,
     live: LiveDep,
 ) -> dict[str, Any]:
     """A worker's tool call through the app's own process and back, with both entries logged."""
-    held = registry.of(agent)
-    if held is None:
+    held = registry.of(key.env, agent)
+    if held is None or held.org != key.org:
         raise HTTPException(status_code=409, detail=NO_APP.format(agent=agent))
     log = logs.writing(call, agent)
 

@@ -84,6 +84,10 @@ UNKNOWN_EVENT = "no event is called {type!r}: the log takes the protocol's own v
 # running: a call it opened here would be written into somebody else's log.
 NOT_THIS_ORG = "that call's route belongs to another org"
 
+# The worker's key opens one world and the route it resolved is the other's: a key issued into
+# development cannot open a production call, whatever number rang.
+NOT_THIS_ENV = "this key opens {key}, and that call's route answers in {route}"
+
 # Nothing was ever opened under this id here. 404, not 409: from the writer's side the call does
 # not exist on this gateway at all, and the fix is to open it, not to retry.
 NOT_OPEN = "this gateway is not writing call {call!r}: open it with POST /v1/calls first"
@@ -289,6 +293,10 @@ async def opened(
     context = said.context
     if context.route.org != key.org:
         raise HTTPException(status_code=403, detail=NOT_THIS_ORG)
+    if context.env != key.env:
+        raise HTTPException(
+            status_code=403, detail=NOT_THIS_ENV.format(key=key.env, route=context.env)
+        )
     # A call a token opened is opened once: the second dispatch with the same token is refused
     # here, before a log exists for it, with the reason in the agent's own log.
     await spent(context, said.agent, tokens, logs)
@@ -300,14 +308,14 @@ async def opened(
         raise HTTPException(429, str(refused)) from refused
     # Which process serves this call is asked here exactly as the chat door asks it, of the same
     # function: an app id that names no holder of this agent is refused, never quietly ignored.
-    serving = registry.serving(said.agent, said.app)
+    serving = registry.serving(key.env, said.agent, said.app)
     if said.app is not None and serving is None:
         raise HTTPException(409, NOT_THAT_APP.format(app=said.app, slug=said.agent))
     # Held, but by consoles only: this is the phone call the flag exists to keep out of somebody's
     # terminal. Refused here, where the caller has not been greeted yet, rather than run with no app
     # socket on it — a conversation whose every tool goes out to nobody is worse than a line that
     # drops. A call whose app disconnected mid-setup is the other case, and it still goes through.
-    if serving is None and registry.of(said.agent) is not None:
+    if serving is None and registry.of(key.env, said.agent) is not None:
         raise HTTPException(409, NO_UNCLAIMED.format(slug=said.agent))
     # Whose call this is, on the head row, before the first entry: every reader of it will ask.
     await logs.owned(context.call, said.agent, key.org)
@@ -318,7 +326,7 @@ async def opened(
     # What this call's agent declared, resolved the way the worker read it a moment ago through
     # the config door — so a lookup searches the base the worker's session was built to expect. An
     # agent nobody holds any more declared nothing this gateway can name, and nothing is found.
-    held = serving or registry.of(said.agent)
+    held = serving or registry.of(key.env, said.agent)
     config = overrides.config_for(said.agent, held.config) if held else AgentConfig(slug=said.agent)
     live.serve(context.call, said.agent, key.org, log, app, context=context, config=config)
     type, event = arrived(context, context.route.number or said.agent)

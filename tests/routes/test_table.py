@@ -6,7 +6,7 @@ import pytest
 
 from pinecall.log.store import Pool
 from pinecall.routes.table import MemoryRoutes, PostgresRoutes, door_of, routes_for
-from pinecall.types import DeclarationRefused, Route
+from pinecall.types import PRODUCTION, DeclarationRefused, Route
 
 pytestmark = pytest.mark.unit
 
@@ -19,7 +19,7 @@ async def test_a_number_added_twice_moves_and_never_doubles() -> None:
     """The same rule the primary key enforces, in the table a dev clone runs on."""
     table = MemoryRoutes([Route(org=ORG, agent="clinica-norte", channel="phone", number=NUMBER)])
     await table.put(TYPED)
-    assert await table.of_org(ORG) == (TYPED,)
+    assert await table.of_org(ORG, PRODUCTION) == (TYPED,)
 
 
 async def test_removing_says_whether_there_was_a_row_to_remove() -> None:
@@ -32,7 +32,7 @@ async def test_removing_says_whether_there_was_a_row_to_remove() -> None:
 async def test_another_fleets_routes_are_not_this_fleets() -> None:
     """The org is the first half of the key, in memory exactly as in the database."""
     table = MemoryRoutes([TYPED])
-    assert await table.of_org("somebody-else") == ()
+    assert await table.of_org("somebody-else", PRODUCTION) == ()
 
 
 def test_a_route_with_no_number_is_refused_before_it_reaches_the_key() -> None:

@@ -15,6 +15,7 @@ from pinecall.api.calls.events import BAD_VERB, VERB_REFUSED
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
+from pinecall.types import PRODUCTION
 from pinecall_protocol import Command, decode_entries, defs
 from pinecall_protocol.commands import SupervisorVerb
 from pinecall_protocol.fixtures import GOLDEN_LOG
@@ -48,15 +49,15 @@ async def a_live_call(
     store: MemoryStore, registry: Registry, live: Live, logs: Logs, call: str = THE_CALL
 ) -> None:
     """The clinic held by its app socket, and a call of it up to the caller's first turn."""
-    if registry.of(AGENT) is None:
+    if registry.of(PRODUCTION, AGENT) is None:
         await registry.register(
-            AN_OWNER, A_RECORD.org, AGENT, [defs.Route(channel="web", number=None)]
+            AN_OWNER, A_RECORD.org, PRODUCTION, AGENT, [defs.Route(channel="web", number=None)]
         )
     for entry in decode_entries(GOLDEN_LOG.read_text()):
         await store.append(call=call, agent=AGENT, type=entry.type, data=entry.data)
         if entry.type == "turn.user":
             break
-    held = registry.of(AGENT)
+    held = registry.of(PRODUCTION, AGENT)
     assert held is not None
     live.serve(
         call,

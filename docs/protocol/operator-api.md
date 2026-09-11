@@ -34,25 +34,30 @@ table put it there.
 ```json
 [
   { "route": { "org": "default", "agent": "tienda-sur", "channel": "phone",
-               "number": "+59829000000", "label": null },
+               "number": "+59829000000", "label": null, "env": "production" },
     "source": "operator" },
   { "route": { "org": "default", "agent": "clinica-norte", "channel": "web",
-               "number": null, "label": null },
+               "number": null, "label": null, "env": "production" },
     "source": "app" }
 ]
 ```
 
 `source` is `operator` for a row in this table and `app` for a door a connected socket declared.
+`?env=` names which world's doors, `production` when left out; the worker's own `GET /v1/routes`
+answers the world its key opens.
 
 ### `POST /v1/ops/routes`
 
 Add a number, or move one. The body is one route:
 
 ```json
-{ "org": "default", "number": "+59829000000", "agent": "tienda-sur", "channel": "phone" }
+{ "org": "default", "number": "+59829000000", "agent": "tienda-sur", "channel": "phone",
+  "env": "production" }
 ```
 
-`org` is an id or a slug; the stored row names the id.
+`org` is an id or a slug; the stored row names the id. `env` is the world the number answers in,
+`production` when left out; a row is still one per `(org, number)`, so a number moves between worlds
+as it moves between agents.
 
 `channel` is `phone`, `whatsapp` or `web`; `number` is E.164 (`+` and up to fifteen digits, the
 first never zero) and is required — a widget answers at no number, and a `web` body is refused for
@@ -179,23 +184,35 @@ An API key is what a worker and a tenant's app knock at the runtime's own doors 
 none takes one from a parameter. It is **not** the ops key: the ops key is the box's and opens only
 `/v1/ops/*`; an API key is the tenant's and opens none of them. See `docs/decisions/keys.md`.
 
+And it knows **where and who**. `env` is the world it opens, `production` or `development`: the
+agents registered on it, the doors they claim and every call they take are that world's, the
+registry and the routes are namespaced by it, and a number claimed in one world is refused to a key
+of the other, naming the world that holds it. `scopes` is what it may do there, as the doors are
+grouped (`app` · `calls` · `talk` · `supervise` · `pipeline` · `knowledge` · `memory` · `evals` ·
+`numbers` · `keys` · `team` · `usage`); `subject` and `name` say whose it is when it is a person's.
+Every key issued before the fields existed is production's, with every scope.
+
 The table stores `sha256(key)` and never the key. Nothing here, and nothing anywhere else in the
 runtime, reads a key back: the response to `POST /v1/ops/orgs/{org}/keys` is the only place a key
 is ever carried in the clear, and it is carried once.
 
 ### `POST /v1/ops/orgs/{org}/keys`
 
-Issue a key for the org. The body says what it is for:
+Issue a key for the org. The body says what it is for, where it opens, what it may do, whose it is;
+every field is optional — `env` defaults to `production`, `scopes` left out is every scope, the
+rest to `null` — and a world or a scope nobody declared is `400` with the reason in `detail`:
 
 ```json
-{ "label": "the worker on this box" }
+{ "label": "berna's laptop", "env": "development",
+  "scopes": ["calls", "talk"], "subject": "m_1", "name": "Berna" }
 ```
 
-`label` defaults to `null`. The answer carries the key, once:
+The answer carries the key, once, with the record it was written under:
 
 ```json
-{ "key": "pk_yT3…", "key_id": "k_9f2c4a1b8d0e6f37",
-  "org": "org_3f2a9c1b8d0e", "label": "the worker on this box" }
+{ "key": "pk_yT3…", "key_id": "k_9f2c4a1b8d0e6f37", "org": "org_3f2a9c1b8d0e",
+  "label": "berna's laptop", "env": "development", "scopes": ["calls", "talk"],
+  "subject": "m_1", "name": "Berna" }
 ```
 
 Copy it. There is no verb that shows it again, and no recovery path — a lost key is revoked and
@@ -208,9 +225,9 @@ never keys:
 
 ```json
 [
-  { "fingerprint": "3f2a…", "org": "org_3f2a9c1b8d0e",
-    "label": "issued by migrate up", "created_at": "2026-09-07T14:02:11+00:00",
-    "revoked_at": null }
+  { "fingerprint": "3f2a…", "org": "org_3f2a9c1b8d0e", "label": "the worker on this box",
+    "created_at": "2026-09-07T14:02:11+00:00", "revoked_at": null,
+    "env": "production", "scopes": ["app", "calls", "…", "usage"], "subject": null, "name": null }
 ]
 ```
 
@@ -336,59 +353,7 @@ the first line** — a script reads it with `head -1` — and the org, the label
 it. `pinecall-runtime migrate up` prints one the same way on a database whose `default` org has
 none, and that alone is what creates the first key on a fresh box.
 
+## An agent's pipeline
 
-## An agent's pipeline — `/v1/agents/{slug}/pipeline`
-
-In this file because they are the same public contract — everything needed to self-host is here —
-but they are **not** the operator API and they take a different key: the org's own API key, as
-`Authorization: Bearer <key>`, on the one bearer parser every other door uses. The ops key does not
-open them. They belong to the AGENT, so a tenant's own dashboard opens them as readily as ours
-would — any UI is one client of them; `docs/decisions/pipeline.md` argues the shape.
-
-### `GET /v1/agents/{slug}/pipeline`
-
-What one agent hears, decides and speaks with right now, what those three have cost it, and what an
-operator has already turned. `404` when no app is holding the agent, in the same words the worker's
-config door answers with — a pipeline is a live thing and there is no empty one to show.
-
-```json
-{ "agent": "clinica-norte",
-  "hears":   { "vendor": "soniox", "model": null, "voice_id": null, "language": "es" },
-  "decides": { "vendor": "anthropic", "model": "claude-haiku-4-5", "voice_id": null, "language": null },
-  "speaks":  { "vendor": "elevenlabs", "model": null, "voice_id": "a-declared-voice", "language": "es" },
-  "greeting": "Clínica Norte, buenas.",
-  "overrides": { "voice": null, "tts_model": null, "stt": null, "llm": null, "greeting": null },
-  "calls": 12,
-  "medians": [ { "name": "transcription_delay", "seconds": 0.13, "turns": 41 },
-               { "name": "e2e_latency", "seconds": 0.94, "turns": 39 } ],
-  "unavailable_reasons": { "speaks": "elevenlabs has no API key in this process" } }
-```
-
-Each stage names the vendor a session **would** be built with, which is what the agent declared or
-this build's default for that modality — never a guess. `medians` is `log/latencies.py` over every
-turn of the agent's last calls together: livekit's own field names, in the order a turn happens,
-the median and not the mean, and a measure nobody measured has no row rather than a zero. `calls`
-is how many logs it read. `unavailable_reasons` names a stage whose vendor has no API key in this
-process, so a screen can say so before the line goes dead instead of after.
-
-### `PUT /v1/agents/{slug}/pipeline/overrides`
-
-Turn one or more of the five knobs. They are applied on the agent's **next session**, through
-`GET /v1/agents/{slug}/config` — the one door an agent's config has ever reached a worker by — so
-nothing is restarted and nothing is deployed.
-
-```json
-{ "voice": "a-voice-an-operator-chose", "llm": "anthropic/claude-sonnet-4-5" }
-```
-
-`voice` is the voice id that speaks · `tts_model` the model it speaks with · `stt` and `llm` take
-`vendor/model`, or a model alone to keep whichever vendor is already in use · `greeting` the first
-thing said on the next call.
-
-The body is the **whole** set: a knob left out stops being overridden and goes back to what the app
-declared. A knob that is present but **blank is refused** with `400` and the sentence that says
-why — an empty voice once reached the vendor and a whole line of calls went out silent. A `tts`
-model this build will not run is refused too, in the words that name the one it runs instead, and
-so is a vendor this build has no file for.
-
-The answer is the same report `GET` gives, so a screen redraws from what the gateway now holds.
+`GET /v1/agents/{slug}/pipeline` and `PUT …/pipeline/overrides` are the agent's own doors, on the
+org's API key, and have a page of their own: [pipeline-api.md](pipeline-api.md).

@@ -43,8 +43,44 @@ async def test_issue_prints_the_key_alone_on_stdout_and_the_words_about_it_on_st
     assert key.startswith("pk_") and " " not in key
     said = capsys.readouterr().err.splitlines()
     assert f"org {ORG}" in said[0]
+    assert "production" in said[0]
     assert "the worker on this box" in said[0]
-    assert "never shown again" in said[1]
+    assert said[1].strip() == "every scope"
+    assert "never shown again" in said[2]
+
+
+async def test_issue_takes_the_world_the_scopes_and_the_person_and_the_listing_shows_them(
+    operator: Operator, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`--env development --scope calls --scope talk --subject m_1 --name Berna`, as typed."""
+    out = printed()
+    assert (
+        await issue_key(
+            ORG,
+            "berna's laptop",
+            operator,
+            out,
+            env="development",
+            scopes=["talk", "calls"],
+            subject="m_1",
+            name="Berna",
+        )
+        == 0
+    )
+    said = capsys.readouterr().err.splitlines()
+    assert "development" in said[0]
+    assert said[1].strip() == "scopes calls · talk"
+    listing = printed()
+    await list_keys(ORG, operator, listing)
+    assert "development" in listing.getvalue()
+    assert "Berna" in listing.getvalue()
+
+
+async def test_issue_refuses_a_world_that_is_not_one_in_the_gateways_words(
+    operator: Operator,
+) -> None:
+    with pytest.raises(OperatorRefused, match="400.*staging"):
+        await issue_key(ORG, None, operator, printed(), env="staging")
 
 
 async def test_list_says_so_when_the_org_has_no_key_at_all(operator: Operator) -> None:

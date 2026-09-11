@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from pinecall.api.agents.registry import Registry
+from pinecall.types import PRODUCTION
 from pinecall_protocol import defs
 from tests.api.conftest import A_RECORD, AGENT
 from tests.session.fake_llm import FakeLLM, Scripted
@@ -44,8 +45,12 @@ def llm() -> FakeLLM:
 
 async def declared(registry: Registry, memory: defs.MemoryConfig | None = CLARAS_MEMORY) -> None:
     """The clinic on its socket, with the declaration the goldens are judged against."""
-    await registry.register(AN_OWNER, A_RECORD.org, AGENT, [defs.Route(channel="web", number=None)])
-    await registry.configure(AN_OWNER, AGENT, defs.AgentConfig(memory=memory, tools=[A_TOOL]))
+    await registry.register(
+        AN_OWNER, A_RECORD.org, PRODUCTION, AGENT, [defs.Route(channel="web", number=None)]
+    )
+    await registry.configure(
+        AN_OWNER, PRODUCTION, AGENT, defs.AgentConfig(memory=memory, tools=[A_TOOL])
+    )
 
 
 async def test_a_case_is_one_hang_up_and_the_answer_says_what_memory_would_have_kept(

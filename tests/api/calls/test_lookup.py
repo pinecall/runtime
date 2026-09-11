@@ -7,6 +7,7 @@ import pytest
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.log.store import MemoryStore
+from pinecall.types import PRODUCTION
 from pinecall.worker.client import Gateway, GatewayRefused
 from pinecall_protocol import defs
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, over_the_asgi_app
@@ -48,9 +49,13 @@ def memory() -> ScriptedMemory:
 async def declared(registry: Registry) -> None:
     """The clinic, holding a base and a memory policy, as its app would have declared it."""
     await registry.register(
-        AN_OWNER, A_RECORD.org, AGENT, [defs.Route(channel="phone", number="+34910000000")]
+        AN_OWNER,
+        A_RECORD.org,
+        PRODUCTION,
+        AGENT,
+        [defs.Route(channel="phone", number="+34910000000")],
     )
-    await registry.configure(AN_OWNER, AGENT, A_DECLARATION)
+    await registry.configure(AN_OWNER, PRODUCTION, AGENT, A_DECLARATION)
 
 
 async def a_phone_call(worker_gateway: Gateway, registry: Registry) -> None:
