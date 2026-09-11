@@ -12,6 +12,7 @@ from pinecall.evals.judges.expected import (
     EveryToolRanJudge,
     NoForbiddenToolRanJudge,
     NothingWasSaidJudge,
+    TheCallerWasHeardJudge,
     TheEventWasAnsweredJudge,
 )
 from pinecall.evals.judges.grounded import (
@@ -58,6 +59,7 @@ __all__ = [
     "Scope",
     "Score",
     "Spoken",
+    "TheCallerWasHeardJudge",
     "TheEventWasAnsweredJudge",
     "a_case",
     "a_headless_call",

@@ -60,9 +60,9 @@ async def test_a_golden_that_expects_nothing_at_all_is_still_judged_by_consent(
 
     assert answered.status_code == httpx.codes.OK, answered.text
     matrix: dict[str, Any] = answered.json()["matrix"]
-    assert matrix["metrics"] == ["consent"]
+    assert matrix["metrics"] == ["consent", "heard"]
     scores = matrix["runs"][0]["scores"]
-    assert [score["metric"] for score in scores] == ["consent"]
+    assert [score["metric"] for score in scores] == ["consent", "heard"]
     assert scores[0]["passed"] is True
     assert "no irreversible tool ran in this call" in scores[0]["reason"]
     # The whole point of a policy: it decided from the log, and nobody was asked anything.
@@ -82,7 +82,7 @@ async def test_consent_leads_the_columns_a_golden_did_ask_for(
     assert answered.status_code == httpx.codes.OK, answered.text
     matrix: dict[str, Any] = answered.json()["matrix"]
     # The order is the schema's — `not` is declared before `says` — with consent at the head.
-    assert matrix["metrics"] == ["consent", "silence", "says"]
+    assert matrix["metrics"] == ["consent", "heard", "silence", "says"]
     assert not matrix["failures"]
     assert matrix["judge_calls"] == 0
 
@@ -95,6 +95,8 @@ async def test_the_booking_that_ran_before_the_yes_turns_the_consent_column_red(
     """A grant that arrived after the tool: the reason names both seqs, and nothing was asked."""
     matrix = await judged(scored(BEFORE_THE_YES))
 
+    # No `heard` column: that fixture's golden puts no words in the caller's mouth, so there is
+    # nothing for it to have been heard saying, and a judge that could not look never answers.
     assert matrix["metrics"] == ["consent"]
     assert [failed["metric"] for failed in matrix["failures"]] == ["consent"]
     score = matrix["runs"][0]["scores"][0]

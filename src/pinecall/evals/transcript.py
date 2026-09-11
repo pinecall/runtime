@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from livekit.agents.llm import ChatContext, ChatMessage, FunctionCall, FunctionCallOutput
 
-from pinecall.evals.case import AGENT
+from pinecall.evals.case import AGENT, CALLER
 
 # livekit discriminates its own items by `type` and reads them that way itself
 # (evals/judge.py:59-87), so every reader here does the same: one word, and no isinstance chain
@@ -17,6 +17,15 @@ def said_by_the_agent(chat_ctx: ChatContext) -> tuple[str, ...]:
         item.text_content or ""
         for item in chat_ctx.items
         if isinstance(item, ChatMessage) and item.role == AGENT
+    )
+
+
+def said_by_the_caller(chat_ctx: ChatContext) -> tuple[str, ...]:
+    """Every turn the caller got through: what the agent HEARD, not what was said at it."""
+    return tuple(
+        item.text_content or ""
+        for item in chat_ctx.items
+        if isinstance(item, ChatMessage) and item.role == CALLER
     )
 
 

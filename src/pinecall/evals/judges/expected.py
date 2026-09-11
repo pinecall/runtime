@@ -10,9 +10,10 @@ from livekit.agents.llm import ChatContext
 
 from pinecall.evals.case import AGENT, Arrived, Case, Said
 from pinecall.evals.judges.policy import PolicyJudge, broken, held
-from pinecall.evals.transcript import said_by_the_agent, tools_called
+from pinecall.evals.transcript import said_by_the_agent, said_by_the_caller, tools_called
 from pinecall.types import GateLine
 
+HEARD = "Every line this golden puts in the caller's mouth reached the agent."
 TOOLS = "Every tool this golden names was called in the conversation."
 NOT_TOOLS = "The conversation called none of the tools this golden forbids."
 SAYS = "The agent said every phrase this golden names."
@@ -23,6 +24,32 @@ STAYED_QUIET = "The agent carried on without answering the facts that arrived mi
 # A golden that declares `replies` and injects no event is asking about something that never
 # happened. Broken rather than held: a check that could not look must never read as proof.
 NO_EVENT = "this golden expects a reply to an event, and no event.received reached the call"
+
+
+# A golden whose caller was never heard tested nothing, and every expectation written as an
+# ABSENCE — `not`, `not_tools` — passes on it by accident. Two did on 2026-09-11: a spoken run
+# greeted over the caller's only sentence, the call ended with one `turn.agent` and no `turn.user`,
+# and `no-reserva-antes-del-si` and `no-dice-un-precio-que-no-esta-escrito` both read as held. So
+# this rides in every golden's list beside consent: absent evidence is not evidence, and a check
+# that could not look must never read as proof.
+class TheCallerWasHeardJudge(PolicyJudge):
+    """Did the words this golden puts in the caller's mouth actually reach the agent."""
+
+    def __init__(self, said: int) -> None:
+        super().__init__(name="heard", criteria=HEARD)
+        self._said = said
+
+    @override
+    def decide(self, chat_ctx: ChatContext) -> JudgmentResult:
+        """The caller's turns on the log against the lines the golden wrote. Nothing else."""
+        heard = len(said_by_the_caller(chat_ctx))
+        if heard < self._said:
+            lines = "line" if self._said == 1 else "lines"
+            return broken(
+                f"the golden says {self._said} {lines} and the agent heard {heard}: "
+                "whatever else this call did, it was not this golden"
+            )
+        return held(f"the agent heard all {self._said} of the caller's lines")
 
 
 class EveryToolRanJudge(PolicyJudge):

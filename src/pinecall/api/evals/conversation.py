@@ -25,12 +25,14 @@ from pinecall.providers.models import Chat
 from pinecall.session.asking import Asking, NotAsking, WhatWasAsked
 from pinecall.session.text.session import TextSession
 from pinecall.types import AgentConfig, CallContext, Route
+from pinecall.types.dispatch import AN_EVAL_CALLER
 from pinecall_protocol.commands import CallEvent, SessionConfigure
 
 # A golden's caller is nobody: no browser minted a visitor id and no number dialled. The prefix
-# says in the log which calls a run opened, so `sessions` never mixes them up with real traffic.
+# says in the log which calls a run opened, so `sessions` never mixes them up with real traffic,
+# and it is what tells the worker that a spoken call opens mid-conversation and must not greet.
 # The call itself is named as every call this runtime mints is: `pinecall.types.a_call_id`.
-A_CALLER = "eval_"
+A_CALLER = AN_EVAL_CALLER
 
 
 @dataclass(frozen=True)

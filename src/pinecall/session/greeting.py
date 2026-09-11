@@ -5,11 +5,27 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 
 from pinecall.types import Greeting
+from pinecall.types.dispatch import AN_EVAL_CALLER
 
 # Both verbs take the same pair — the words, and whether the caller may cut them short — so the
 # session hands in its own two and this module picks between them. Neither session decides what a
 # greeting means: a greeting is one rule, and it is here.
 type Speaks = Callable[[str, bool | None], Awaitable[None]]
+
+
+# A call a RUN opened has no opening: the state it starts in is the conversation that already
+# happened, so a greeting on top of it is the agent answering a phone that was answered minutes
+# ago. A written golden has had this since the greeting landed (api/evals/conversation.py replaces
+# the config's), and a spoken one did not — the agent said "Clínica Norte, buenos días" into a line
+# where the caller was already speaking their only sentence, the AEC warmup swallowed it with
+# interruptions disabled, and the call ended with a `turn.agent` and not one `turn.user`. Eight of
+# eleven spoken goldens, every one of them, 2026-09-11. An agent's own opening is exercised where a
+# caller really arrives — a live call, `chat`, `simulate` — and judged there by ring 4.
+def the_greeting_for(greeting: Greeting | None, caller: str | None) -> Greeting | None:
+    """The opening this call gets: none at all when a run opened it, whatever the class declared."""
+    if caller is not None and caller.startswith(AN_EVAL_CALLER):
+        return None
+    return greeting
 
 
 async def open_the_call(greeting: Greeting | None, *, say: Speaks, reply: Speaks) -> None:
