@@ -10,9 +10,14 @@
 #   PINECALL_FLEET_FLAGS=--min 1 --max 10 --target 0.6
 #
 # The cloud's CLI must be on this box and signed in as an account that may create and delete
-# instances — on GCP a service account on the hub with roles/compute.instanceAdmin.v1; on AWS an
-# instance role; on Hetzner an API token in HCLOUD_TOKEN through `make secret`. The loop can also
-# run from any laptop that has the CLI: `pinecall-runtime fleet loop --cloud gcp --seats 4`.
+# instances — on GCP a service account ATTACHED to the hub VM (scope cloud-platform) holding
+# roles/compute.instanceAdmin.v1 and roles/iam.serviceAccountUser on the account the workers run
+# as, so gcloud needs no login at all: it reads the metadata server. On AWS an instance role; on
+# Hetzner an API token in HCLOUD_TOKEN through `make secret`. The loop can also run from any
+# laptop that has the CLI: `pinecall-runtime fleet loop --cloud gcp --seats 4`.
+#
+# gcloud on Ubuntu is a snap, which systemd's default PATH does not reach, and it wants a
+# writable config directory; both are given here rather than assumed of the service user's home.
 [Unit]
 Description=Pinecall fleet loop (adds and removes workers)
 Wants=network-online.target pinecall-gateway.service
@@ -23,6 +28,8 @@ User=pinecall
 Group=pinecall
 WorkingDirectory=/opt/pinecall/app
 Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
+Environment=PATH=/snap/bin:/usr/local/bin:/usr/bin:/bin
+Environment=CLOUDSDK_CONFIG=/var/lib/pinecall/gcloud
 EnvironmentFile=/etc/pinecall/box.env
 ImportCredential=PINECALL_OPS_KEY
 ImportCredential=HCLOUD_TOKEN
