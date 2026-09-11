@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from functools import partial
+from urllib.parse import urlparse
 
 from livekit.agents import AgentServer, JobContext, JobProcess
 
@@ -21,6 +23,8 @@ from pinecall.worker.load import MachineLoad, SlotLoad, reports_no_load
 # What livekit needs to register a worker at all: the media plane, and the pair that signs.
 LIVEKIT_FIELDS: tuple[str, ...] = ("livekit_url", "livekit_api_key", "livekit_api_secret")
 
+log = logging.getLogger(__name__)
+
 
 # livekit runs a call in a process of its own and hands that process the entrypoint BY NAME: the
 # function is pickled as module plus qualname (spawn on macOS, forkserver on Linux, worker.py:259),
@@ -32,15 +36,35 @@ async def job(ctx: JobContext) -> None:
     await answer(ctx, a_worker(load_settings()))
 
 
-# The api key before the dev key, and the order is not a preference. A box has PINECALL_API_KEY —
-# a real row in api_keys, issued by `pinecall-runtime keys issue` — and never a dev key, because a
-# gateway that reads one opens no database at all. A laptop has the dev key and no api key. A
-# laptop that has BOTH is pointed at a gateway with no tables, where only one of the two can work:
-# the api key is the deliberate one, and a worker that preferred a leftover dev key would knock as
-# a fleet nobody asked for. docs/decisions/keys.md.
+# Why a gateway on 127.0.0.1 changes which key is sent: a dev key is the ONLY key such a gateway
+# honours (it opens no database, so there are no api_keys rows to match), and a real org key
+# exported in the same shell is therefore provably wrong there. `cli/env.ts:doorFrom` decided this
+# for the tenant's CLI and says so out loud; this is the same rule, for the process on the other
+# side of the same door. It cost a full spoken suite: PINECALL_API_KEY was exported, the worker
+# preferred it, every job died on `GET /v1/routes: 401 this door takes an API key`, and the run sat
+# there until its fifteen-minute deadline (2026-09-11). A remote gateway keeps the old order — a
+# box runs on issued keys and never on a dev key — so nothing that worked stops.
+IGNORING_THE_API_KEY = "ignoring PINECALL_API_KEY: the local gateway at %s honours its dev key only"
+
+
+def the_key_for(settings: Settings) -> str:
+    """What this worker knocks at its gateway with: the dev key when that door takes only one."""
+    if settings.dev_key and _is_local(settings.gateway_url):
+        if settings.api_key:
+            log.warning(IGNORING_THE_API_KEY, settings.gateway_url)
+        return settings.dev_key
+    return settings.api_key or settings.dev_key or ""
+
+
+def _is_local(url: str) -> bool:
+    """Whether that gateway is the one a dev key can be running: loopback and nowhere else."""
+    host = urlparse(url).hostname or ""
+    return host in {"127.0.0.1", "::1", "localhost"}
+
+
 def a_worker(settings: Settings) -> Worker:
     """What every job of a process shares: the gateway, the vendors, the bridge, the recordings."""
-    gateway = reaching(settings.gateway_url, settings.api_key or settings.dev_key or "")
+    gateway = reaching(settings.gateway_url, the_key_for(settings))
     return Worker(
         gateway=gateway,
         kit=kit_for(settings),
