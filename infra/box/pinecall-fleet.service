@@ -16,8 +16,9 @@
 # Hetzner an API token in HCLOUD_TOKEN through `make secret`. The loop can also run from any
 # laptop that has the CLI: `pinecall-runtime fleet loop --cloud gcp --seats 4`.
 #
-# gcloud on Ubuntu is a snap, which systemd's default PATH does not reach, and it wants a
-# writable config directory; both are given here rather than assumed of the service user's home.
+# The cloud's CLI is the vendor's package, installed by the manifest (infra/box/Makefile,
+# cloud-cli-<name>) — never Ubuntu's snap, which refuses a service user homed under /opt — and it
+# keeps its configuration where tmpfiles made room for it, not in a home it does not have.
 [Unit]
 Description=Pinecall fleet loop (adds and removes workers)
 Wants=network-online.target pinecall-gateway.service
@@ -28,7 +29,7 @@ User=pinecall
 Group=pinecall
 WorkingDirectory=/opt/pinecall/app
 Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
-Environment=PATH=/snap/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=CLOUDSDK_CONFIG=/var/lib/pinecall/gcloud
 Environment=PYTHONUNBUFFERED=1
 EnvironmentFile=/etc/pinecall/box.env

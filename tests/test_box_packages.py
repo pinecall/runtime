@@ -199,3 +199,12 @@ def test_the_fleet_loop_is_enabled_only_when_box_env_names_a_cloud() -> None:
 def test_a_cordoned_worker_stays_down() -> None:
     """Exit 3 is the worker leaving on purpose (worker/heartbeat.py); systemd leaves it down."""
     assert "RestartPreventExitStatus=3" in WORKER.read_text()
+
+
+def test_a_hub_that_names_a_cloud_installs_that_clouds_own_cli_and_never_the_snap() -> None:
+    """snapd refuses a service user homed under /opt; the vendor's package is what the loop runs."""
+    quiet = what_a_box_installs(role="hub")
+    assert "google-cloud-cli" not in quiet
+    looping = what_a_box_installs(role="hub", fleet_cloud="gcp")
+    assert "google-cloud-cli" in looping
+    assert "/snap/bin" not in (BOX / "pinecall-fleet.service").read_text()
