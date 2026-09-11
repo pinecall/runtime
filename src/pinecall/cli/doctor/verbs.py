@@ -52,6 +52,20 @@ BRING_A_LIVE_KEY = "put a live key in with `make secret NAME={variable}`, from t
 # and whichever status it answers a keyless GET with is an answer.
 TEI_INFO = "/info"
 
+# Which keys this gateway would honour, and the one combination nothing else catches. A dev key
+# opens NO Postgres pool at all (api/app.py:_a_pool), so a BOX that sets one answers every call as
+# org `default` and every real tenant becomes invisible — not a leak, a silence, and a silence no
+# other check here would notice. On a laptop it is the whole point, and the line says what it costs.
+DEV_KEY_ON_A_BOX = (
+    "PINECALL_DEV_KEY is set on a box: it opens NO database, so every call is org default and "
+    "every tenant is invisible. Unset it and start the gateway on an org key"
+)
+A_DEV_KEY = (
+    "PINECALL_DEV_KEY — one key, org default, no database: knowledge, memory and the vault "
+    "answer 503. A box unsets it and issues org keys instead"
+)
+THE_KEYS_TABLE = "the api_keys table — `pinecall-runtime keys issue --org <slug>` mints one"
+
 # The LiveKit CLI is how a person reads current documentation and manages trunks and dispatch
 # (`lk docs`, `lk sip`, `lk dispatch`) — livekit's own starter tells its agent to ask for it. It is
 # a tool on the machine, never a dependency of a call, so its absence is advice and not an outage.
@@ -256,7 +270,18 @@ def check_the_livekit_cli_is_installed(_settings: Settings, probes: Probes) -> R
 
 # The order the report reads, and the first ✗ in it is the one the verdict names. `lk` is last
 # because it is the only line that cannot make the verdict.
+def check_which_keys_are_honoured(settings: Settings, _probes: Probes) -> Result:
+    """Which keys open this gateway's doors — the table, or the one dev key that replaces it."""
+    if not settings.dev_key:
+        return Result("api keys", True, THE_KEYS_TABLE)
+    # A box is a box by what it was told to be, or by having opened the operator API at all.
+    if settings.role != "all" or settings.ops_key:
+        return Result("api keys", False, DEV_KEY_ON_A_BOX)
+    return Result("api keys", False, A_DEV_KEY, advisory=True)
+
+
 CHECKS: tuple[Check, ...] = (
+    check_which_keys_are_honoured,
     check_provider_keys,
     check_provider_keys_answer,
     check_livekit_is_reachable,

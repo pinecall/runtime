@@ -165,6 +165,9 @@ agents repository's, and speak to this gateway with the org's key.
 | | |
 |---|---|
 | `ARCHITECTURE.md` | LiveKit's half and ours, the entities, the wire, the two processes, the path of a call, the log, the rings |
+| `docs/the-runtime-cli.md` | every `pinecall-runtime` verb: what it takes, what it speaks to, and the two walkthroughs |
+| `docs/multi-tenancy.md` | orgs, keys and tenants: what a key IS, what a dev key deliberately cannot do, and how a tenant is given one |
+| `docs/protocol/gateway-api.md` | every door a tenant's own code may knock at, with an app in thirty lines |
 | `docs/decisions/` | why each module is the way it is, one page per module |
 | `docs/protocol/` | the operator API and the token door, as public contracts |
 | `infra/box/README.md` | the box: standing one up, roles, slots, secrets, the fence, wiring a number |
