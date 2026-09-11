@@ -33,6 +33,9 @@ dependencies = [
   # Fernet, and nothing else: a tenant's own provider key is encrypted at rest under the box's
   # PINECALL_VAULT_KEY. See docs/decisions/provider-keys.md.
   "cryptography>=44,<51",
+  # argon2id, and nothing else: a member's password is a secret a person invented, and a sha256
+  # is a microsecond per guess. A key is 256 bits of CSPRNG and stays on sha256 (auth/keys.py).
+  "argon2-cffi>=23.1,<26",
 ]
 
 [project.optional-dependencies]

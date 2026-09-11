@@ -118,9 +118,18 @@ pinecall-runtime routes add +34910000000 clinica-norte --org clinica   # product
 ```
 
 The key also knows **what** — `scopes`, the doors as they are grouped — and **who** — `subject`
-and `name`, the member it was minted for. The doors that refuse on a scope, and the members and
-roles that preset them, are the next two cards; today every key issued with nothing said holds
-every scope, which is what an org's own machine key means.
+and `name`, the member it was minted for. A key issued with nothing said holds every scope, which
+is what an org's own machine key means; a person's key holds what their role presets.
+
+## People
+
+A person of an org is a **member**, not a shared key: invited with a one-use link (`POST
+/v1/members`, on the org's key), active once they chose a password (`POST /v1/invitations/{token}`),
+and holding keys of their own from then on — one per device, minted at `POST /v1/login` with the
+scopes of their role (`qa` · `supervisor` · `manager` · `admin` · `developer`) and their member id
+as `subject`. Disabling them keeps the row, revokes every key of theirs and refuses their login. A
+browser never carries a key in a URL: a key holder mints a one-use code (`POST /v1/login/codes`)
+and the browser spends it for a key of its own. The doors that refuse on a scope are the next card.
 
 **One key per place, not one per tenant.** Issue a key for the laptop, one for CI, one for each
 deployment, each with a `--label` — a key you can revoke on its own is a key you will revoke.

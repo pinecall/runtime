@@ -32,8 +32,10 @@ DEAD_SENTINEL_KEYS: dict[str, str] = {
 MARKS_THAT_KEEP_THE_REAL_ENVIRONMENT = ("needs_llm", "voice")
 
 # The Postgres fixtures are one module, shared by every package that has a table: log, auth, orgs,
-# routes, tokens, evals. A conftest under one of them would be invisible to the others.
-pytest_plugins = ["tests.postgres"]
+# routes, tokens, evals. A conftest under one of them would be invisible to the others. The
+# fixtures about people are the same shape of thing: one module, wanted by the api harness and by
+# the CLI suites that drive it, and a conftest at the ceiling could not hold them.
+pytest_plugins = ["tests.postgres", "tests.api.people"]
 
 
 def pytest_configure() -> None:

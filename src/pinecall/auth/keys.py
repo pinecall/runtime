@@ -53,6 +53,22 @@ class Issued:
     key: str
     record: KeyRecord
 
+    # The ONE shape a key in the clear ever travels in: the ops door's answer to `keys issue`,
+    # and the login door's answer to a person. Built here so neither spells it.
+    @property
+    def as_json(self) -> dict[str, Any]:
+        """The key, once, and the record it was written under."""
+        return {
+            "key": self.key,
+            "key_id": self.record.key_id,
+            "org": self.record.org,
+            "label": self.record.label,
+            "env": self.record.env,
+            "scopes": sorted(self.record.scopes),
+            "subject": self.record.subject,
+            "name": self.record.name,
+        }
+
 
 @dataclass(frozen=True)
 class ListedKey:

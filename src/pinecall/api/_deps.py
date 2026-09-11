@@ -10,7 +10,10 @@ from starlette.requests import HTTPConnection
 
 from pinecall._settings import Settings
 from pinecall.auth.bearer import bearer_of
+from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import KeyRecord, Keys
+from pinecall.auth.members import Members
+from pinecall.auth.throttle import Throttle
 from pinecall.evals.runs import Runs
 from pinecall.fleet import Roster
 from pinecall.knowledge import Knowledge
@@ -120,6 +123,21 @@ def the_orgs(connection: HTTPConnection) -> Orgs:
     return held(connection, "orgs")
 
 
+def the_members(connection: HTTPConnection) -> Members:
+    """The people of every org, and their invitations. A Protocol, so isinstance says nothing."""
+    return held(connection, "members")
+
+
+def the_login_codes(connection: HTTPConnection) -> LoginCodes:
+    """The one-use codes minted here for a browser to log in with."""
+    return held(connection, "login_codes", LoginCodes)
+
+
+def the_throttle(connection: HTTPConnection) -> Throttle:
+    """How often each name has knocked at the password door lately."""
+    return held(connection, "throttle", Throttle)
+
+
 def the_routes(connection: HTTPConnection) -> Routes:
     """The table this process writes. A Protocol, so isinstance says nothing here."""
     return held(connection, "routes")
@@ -199,6 +217,9 @@ def the_knowledge(connection: HTTPConnection) -> Knowledge | None:
 
 
 OrgsDep = Annotated[Orgs, Depends(the_orgs)]
+MembersDep = Annotated[Members, Depends(the_members)]
+LoginCodesDep = Annotated[LoginCodes, Depends(the_login_codes)]
+ThrottleDep = Annotated[Throttle, Depends(the_throttle)]
 RoutesDep = Annotated[Routes, Depends(the_routes)]
 TokensDep = Annotated[Tokens, Depends(the_tokens)]
 LogsDep = Annotated[Logs, Depends(the_logs)]

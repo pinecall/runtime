@@ -7,6 +7,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **Members and login.** An org's people are rows: `POST /v1/members` invites one with a one-use
+  token that dies in a week, `POST /v1/invitations/{token}` accepts it with a password (argon2id at
+  rest) and answers the person's first key, `POST /v1/login` mints a key for a person and a device
+  from org, email and password — one `401` sentence for every wrong thing, five tries a minute per
+  name — and `POST /v1/login/codes` mints a one-use code a key holder hands a browser so no key
+  ever rides a URL. Roles are presets of key scopes: `qa` · `supervisor` · `manager` · `admin` ·
+  `developer`. Disabling a member revokes their keys. Migration `0014`; `argon2-cffi` joins the
+  dependencies.
 - **The key knows where and who.** An API key is issued into one of two worlds — `production` or
   `development` (`keys issue --env`) — and the gateway namespaces its registry and its routes by
   it: the same slug is held once in each, `GET /v1/agents` and `GET /v1/routes` answer the key's
