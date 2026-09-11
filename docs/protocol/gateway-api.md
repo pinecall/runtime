@@ -316,8 +316,12 @@ bring its own account instead:
 | `DELETE /v1/provider-keys/{vendor}` | give that vendor back to the box's key |
 | `GET /v1/provider-keys` | `{"vendors": ["elevenlabs", …]}` — **names only** |
 
-No door of this runtime ever answers with a provider key: not a value, not a prefix, not a
-fingerprint. A key that was lost was lost at the vendor, and the fix is to set it again.
+No door a person reads answers with a provider key: not a value, not a prefix, not a fingerprint.
+**One door does read them back** — `GET /v1/agents/{slug}/provider-keys` answers `{"keys": {vendor:
+key}}` in the clear — and it is the worker's: an org's own keys, to the org's own process, on the
+org's own key, so a spoken call runs on the account the tenant brought. It is the whole reason the
+vault exists, and a tenant's own code may call it for the same reason. A key that was lost is set
+again.
 
 The row is encrypted at rest with **Fernet**, under `PINECALL_VAULT_KEY` — one secret, generated
 once on the box, that lives in the environment and never in the database, so a stolen dump is not
@@ -362,7 +366,7 @@ hang-up's one model call) and are documented with the log, not here.
 | `GET` | `/v1/agents` | the agents this gateway is holding for your org |
 | `GET` | `/v1/agents/{slug}/config` | what it declared, overrides applied |
 | `GET` | `/v1/agents/{slug}/pipeline` · `PUT …/pipeline/overrides` | what it runs on, and the five knobs |
-| `GET` | `/v1/agents/{slug}/provider-keys` | which vendors this agent's calls would use |
+| `GET` | `/v1/agents/{slug}/provider-keys` | the org's own vendor keys, **in the clear**: the worker's door, see §6 |
 | `GET` | `/v1/agents/{slug}/sessions` | one line per finished call |
 | `GET` | `/v1/agents/{slug}/calls` | every call of the agent, as a log |
 | `GET` | `/v1/calls/{call}/events` | one call's log: a page, or SSE |

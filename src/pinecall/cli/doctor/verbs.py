@@ -268,8 +268,6 @@ def check_the_livekit_cli_is_installed(_settings: Settings, probes: Probes) -> R
     return Result(LIVEKIT_CLI, True, f"{found} — {WHAT_LIVEKIT_CLI_IS_FOR}")
 
 
-# The order the report reads, and the first ✗ in it is the one the verdict names. `lk` is last
-# because it is the only line that cannot make the verdict.
 def check_which_keys_are_honoured(settings: Settings, _probes: Probes) -> Result:
     """Which keys open this gateway's doors — the table, or the one dev key that replaces it."""
     if not settings.dev_key:
@@ -280,6 +278,8 @@ def check_which_keys_are_honoured(settings: Settings, _probes: Probes) -> Result
     return Result("api keys", False, A_DEV_KEY, advisory=True)
 
 
+# The order the report reads, and the first ✗ in it is the one the verdict names. `lk` is last
+# because it is the only line that cannot make the verdict.
 CHECKS: tuple[Check, ...] = (
     check_which_keys_are_honoured,
     check_provider_keys,

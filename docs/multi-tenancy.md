@@ -119,7 +119,7 @@ Each of these is one rule in one place, and they are the whole of the isolation:
 | an agent | the registry answers only the org's own; another org's slug is "no app is holding it" |
 | a call token | bound to ONE call, and `refuse_another_call` refuses it on any other |
 | what a browser may see of an entry | the **public** projection, decided from what the reader IS, never from a parameter it sends ([protocol/projections.md](protocol/projections.md)) |
-| a provider key | one row per (org, vendor), encrypted; and no door ever answers with one |
+| a provider key | one row per (org, vendor), encrypted; read back by exactly one door, the worker's, on the org's own key |
 | a quota | `Admission` folds the org's own usage out of the log before every call and every register |
 
 The operator's key crosses those lines by design — it is the box's own — and it is the only thing
