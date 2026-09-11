@@ -5,21 +5,18 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Sequence
-from uuid import uuid4
 
 from pinecall._settings import Settings
-from pinecall.api.evals.conversation import A_CALLER, Conversation
+from pinecall.api.evals.conversation import Conversation
+from pinecall.auth.scopes import a_visitor
 from pinecall.evals.calling import Line, a_simulated_call
 from pinecall.evals.goldens import Golden
 from pinecall.log.entry import Entry
 from pinecall.log.replay import whole
 from pinecall.log.store import Store
-from pinecall_protocol.registry import TERMINAL_EVENT
-
-# A spoken golden says the lines the tenant wrote and nothing else: no model plays the caller
-# here, which is the whole difference from `simulate`. What ring 2 measures is the agent against
-# real ears and a real voice, not a conversation two models improvised at each other.
-THE_LINES_ARE_THE_TENANTS = True
+from pinecall_protocol.defs import AgentState
+from pinecall_protocol.events import AgentStateChanged
+from pinecall_protocol.registry import TERMINAL_EVENT, EventType
 
 # The worker seals the log after the caller's leg goes: `call.summary` and `call.score` are
 # written by the process that held the session, not by this one, and a judge that read the log
@@ -37,9 +34,10 @@ _LOOKING_AGAIN_IN_S = 0.25
 AN_ANSWER_MAY_TAKE_S = 30.0
 
 # What livekit publishes about itself, and the one of its five words that means "I have finished
-# and it is your turn" (pinecall_protocol.defs.AgentState).
-AGENT_STATE = "agent.state"
-IT_IS_LISTENING = "listening"
+# and it is your turn". Both typed by the protocol, so a misspelling is a type error and not a
+# run that never hangs up.
+AGENT_STATE: EventType = "agent.state"
+IT_IS_LISTENING: AgentState = "listening"
 
 NOBODY_SEALED = (
     "the spoken call {call} never sealed: the worker wrote no {terminal} within {seconds:.0f}s, "
@@ -51,6 +49,7 @@ async def a_spoken_conversation(
     golden: Golden,
     *,
     call: str,
+    run: str,
     model: str,
     agent: str,
     store: Store,
@@ -68,20 +67,13 @@ async def a_spoken_conversation(
         next_line=spoken.next_line,
         line=line or Line(interferer_db=None, packet_loss=0.0),
         settings=settings,
-        caller=_a_spoken_caller(),
+        caller=a_visitor(),
+        run=run,
         app=app,
         settled=lambda so_far: _until_the_answer_lands(store, call, so_far),
     )
     entries = await _once_it_is_sealed(store, call)
     return Conversation(golden=golden, model=model, call=call, entries=entries)
-
-
-# The same prefix a written eval call is minted with, because it is the same marker the app reads
-# to know which golden's state this call opens in (cli/testing/seeding.ts). A spoken call that did
-# not carry it would reach the class with an empty state and every seeded golden would be a lie.
-def _a_spoken_caller() -> str:
-    """Who the app is told is calling: an eval caller, so the seeding seam fires as in ring 1."""
-    return f"{A_CALLER}{uuid4().hex[:12]}"
 
 
 def _the_lines_of(golden: Golden) -> tuple[str, ...]:
@@ -112,7 +104,7 @@ async def _until_the_answer_lands(store: Store, call: str, said: int) -> None:
     """Hold the line until the agent has answered the last line, or until it plainly will not."""
     deadline = time.monotonic() + AN_ANSWER_MAY_TAKE_S
     while time.monotonic() < deadline:
-        if _the_answer_has_landed(await whole(store, call), said):
+        if the_answer_has_landed(await whole(store, call), said):
             return
         await asyncio.sleep(_LOOKING_AGAIN_IN_S)
 
@@ -129,7 +121,7 @@ async def _until_the_answer_lands(store: Store, call: str, said: int) -> None:
 # `thinking`, `speaking`, and back to `listening` when it has nothing left to say. A filler leaves
 # it thinking. So the line is held until it is listening again, and that is neither a guess nor a
 # count of anything.
-def _the_answer_has_landed(entries: Sequence[Entry], said: int) -> bool:
+def the_answer_has_landed(entries: Sequence[Entry], said: int) -> bool:
     """Every line heard, and the agent back to listening after the last of them."""
     heard = [at for at, entry in enumerate(entries) if entry.type == "turn.user"]
     if len(heard) < said:
@@ -138,7 +130,7 @@ def _the_answer_has_landed(entries: Sequence[Entry], said: int) -> bool:
     if not states:
         return False
     at, last = states[-1]
-    return at > heard[-1] and last.data.get("state") == IT_IS_LISTENING
+    return at > heard[-1] and AgentStateChanged.model_validate(last.data).state == IT_IS_LISTENING
 
 
 async def _once_it_is_sealed(store: Store, call: str) -> Sequence[Entry]:

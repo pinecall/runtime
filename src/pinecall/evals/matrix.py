@@ -15,11 +15,13 @@ from pinecall.evals.judges.model import Counted
 
 @dataclass(frozen=True)
 class Spoken:
-    """One golden spoken under one model, and the case its log reduced to."""
+    """One golden under one model: the case its log reduced to, and what its model was asked."""
 
     model: str
     golden: str
     case: Case
+    # Every request the call made, as the provider received it — or None when nobody kept them.
+    asked: Sequence[Mapping[str, Any]] | None = None
 
 
 @dataclass(frozen=True)
@@ -49,6 +51,13 @@ class Run:
     # `call.summary` verbatim: duration, turns, usage rows and cost. Nothing here is recomputed —
     # what the log did not measure, the matrix does not know.
     summary: Mapping[str, Any] | None
+    # What the model was asked, request by request, when the run that opened the call kept it.
+    asked: Sequence[Mapping[str, Any]] | None = None
+
+    @property
+    def broke(self) -> bool:
+        """Whether any judge answered no: the one thing a person has to reproduce."""
+        return any(not score.passed for score in self.scores)
 
     def at(self, metric: str) -> Score | None:
         """This cell's answer for one judge, or None when that judge was not run over it."""
@@ -102,7 +111,13 @@ async def a_matrix(spoken: Sequence[Spoken], judges: Sequence[Evaluator], llm: L
 async def _a_run(one: Spoken, judges: Sequence[Evaluator], llm: LLM[Any]) -> Run:
     """One case under every judge, in the order the judges were declared."""
     scores = [await _a_score(judge, one.case, llm) for judge in judges]
-    return Run(model=one.model, golden=one.golden, scores=tuple(scores), summary=one.case.summary)
+    return Run(
+        model=one.model,
+        golden=one.golden,
+        scores=tuple(scores),
+        summary=one.case.summary,
+        asked=one.asked,
+    )
 
 
 # The judge model is wrapped per score and thrown away, so the count belongs to the one judgment

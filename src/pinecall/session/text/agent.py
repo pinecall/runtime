@@ -107,9 +107,10 @@ class TextAgent(LiveAgent):
             await self._writer.skipped(skipped)
 
     # The prompt in livekit's terms: `instructions` is the static blocks joined, which livekit
-    # caches and never rebuilds, `chat_ctx` is the history, and this turn's lookups and the dynamic
-    # blocks are added HERE — after the history, inside the request only — so a view that changes
-    # every turn leaves the cached prefix byte for byte the same. The seam the voice agent cuts at.
+    # caches and never rebuilds, `chat_ctx` is the history, and the rest is added HERE, inside the
+    # request only — this turn's lookups ahead of the caller's newest words, the dynamic blocks
+    # after the history — so a view that changes every turn leaves the cached prefix byte for byte
+    # the same. The seam the voice agent cuts at.
     @override
     async def llm_node(  # pyright: ignore[reportIncompatibleMethodOverride]
         self,

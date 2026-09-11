@@ -25,6 +25,7 @@ from tests.session.fake_llm import FakeLLM
 pytestmark = pytest.mark.unit
 
 A_CALL = "call_the_one_this_golden_opens"
+A_RUN = "run_the_one_that_opened_it"
 AGENT = "clinica-norte"
 ORG = "org_the_clinic"
 A_TUESDAY = "2026-09-08"
@@ -44,7 +45,7 @@ def a_call_of(golden: Golden) -> TextSession:
     lookups = Lookups(
         None, None, logs, Live(), partial(keys_brought_by, None), *a_plan(logs, the_tenants())
     )
-    return an_eval_call(golden, A_CALL, config, ORG, logs, FakeLLM(), lookups, Budgets())
+    return an_eval_call(golden, A_CALL, A_RUN, config, ORG, logs, FakeLLM(), lookups, Budgets())
 
 
 async def test_a_golden_that_names_no_day_runs_on_the_real_one() -> None:

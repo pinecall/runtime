@@ -47,6 +47,8 @@ class CallContext:
     today: date
     contact: Contact | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict[str, Any])
+    # The eval run that opened this call, or None for a person. A run's call opens mid-conversation.
+    run: str | None = None
 
     def __post_init__(self) -> None:
         if not self.call:

@@ -20,6 +20,7 @@ from tests.session.fake_llm import FakeLLM
 pytestmark = pytest.mark.unit
 
 A_CALL = "call_the_one_this_golden_opens"
+A_RUN = "run_the_one_that_opened_it"
 AGENT = "clinica-norte"
 ORG = "org_the_clinic"
 THE_WORDS = "Clínica Norte, buenos días."
@@ -34,7 +35,9 @@ def a_call_of(greeting: Greeting) -> tuple[TextSession, MemoryStore]:
     lookups = Lookups(
         None, None, logs, Live(), partial(keys_brought_by, None), *a_plan(logs, the_tenants())
     )
-    return an_eval_call(golden, A_CALL, config, ORG, logs, FakeLLM(), lookups, Budgets()), store
+    return an_eval_call(
+        golden, A_CALL, A_RUN, config, ORG, logs, FakeLLM(), lookups, Budgets()
+    ), store
 
 
 async def test_the_greeting_a_class_declares_is_dropped_from_a_golden_call() -> None:

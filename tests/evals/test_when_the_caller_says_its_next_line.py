@@ -3,7 +3,7 @@
 import pytest
 
 from pinecall.evals import calling
-from pinecall.evals.calling import _every_turn
+from pinecall.evals.calling import every_turn
 
 pytestmark = pytest.mark.unit
 
@@ -39,8 +39,8 @@ class _Waited:
 
 
 async def _turns(said: _Said, settled: object | None) -> int:
-    """`_every_turn` with a mouth that writes down what it said; the room is never touched."""
-    return await _every_turn(said, len(LINES), said.next_line, settled)  # type: ignore[arg-type]
+    """`every_turn` with a mouth that writes down what it said; the room is never touched."""
+    return await every_turn(said, len(LINES), said.next_line, settled)  # type: ignore[arg-type]
 
 
 # Until this waited for the agent, the caller slept six fixed seconds between lines — and a turn
@@ -71,6 +71,6 @@ async def test_a_line_the_golden_does_not_have_ends_the_call_without_a_wait() ->
     """Nothing to answer means nothing to wait for: the run stops asking."""
     said, waited = _Said(lines=(LINES[0],)), _Waited()
 
-    spoken = await _every_turn(said, 2, said.next_line, waited)  # type: ignore[arg-type]
+    spoken = await every_turn(said, 2, said.next_line, waited)  # type: ignore[arg-type]
 
     assert (spoken, waited.after) == (1, [1])

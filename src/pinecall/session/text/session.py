@@ -150,6 +150,7 @@ class TextSession:
             "channel": self.context.channel,
             "direction": self.context.direction,
             "from": self.context.caller,
+            "run": self.context.run,
             "to": self.agent,
             "caller": None,
             "started_at": self._started_at,
