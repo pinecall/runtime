@@ -31,11 +31,15 @@ _LOOKING_AGAIN_IN_S = 0.25
 # How long the caller holds the line open after its last word. A golden whose expectation is a
 # tool on the last turn — most of them — is judged on whether the agent got there, so the line
 # cannot drop when the caller stops talking: the first spoken run of `identifica-al-paciente`
-# came back "ran no tool at all" for exactly that, on a call that had not finished.
-AN_ANSWER_MAY_TAKE_S = 20.0
+# came back "ran no tool at all" for exactly that, on a call that had not finished. Thirty and not
+# twenty because a turn that runs a tool speaks twice, and the two TTS rounds around it measured
+# thirteen seconds on 2026-09-11.
+AN_ANSWER_MAY_TAKE_S = 30.0
 
-# The two entries a tool round leaves. The agent's last word has to come after both of them.
-_A_TOOL_ROUND = frozenset({"tool.call", "tool.result"})
+# What livekit publishes about itself, and the one of its five words that means "I have finished
+# and it is your turn" (pinecall_protocol.defs.AgentState).
+AGENT_STATE = "agent.state"
+IT_IS_LISTENING = "listening"
 
 NOBODY_SEALED = (
     "the spoken call {call} never sealed: the worker wrote no {terminal} within {seconds:.0f}s, "
@@ -113,19 +117,28 @@ async def _until_the_answer_lands(store: Store, call: str, said: int) -> None:
         await asyncio.sleep(_LOOKING_AGAIN_IN_S)
 
 
-# Why the count alone is not enough. `en-el-chat-ofrece-mas-de-dos-horas`, spoken, 2026-09-11: the
-# agent called freeSlots and said "voy a consultar qué hay libre el lunes". That is one turn for
-# one line, the count was satisfied, the caller hung up — and the hours it had gone to fetch were
-# never read out. The judge then reported that the agent never said "nueve", which was true and
-# was the harness's doing. A turn that ANNOUNCES a tool is not the answer to anything.
+# Why neither a count of turns nor a tool round is the signal. `en-el-chat-ofrece-mas-de-dos-horas`,
+# spoken, 2026-09-11: the agent called freeSlots, then SAID "voy a consultar qué hay libre el
+# lunes" — a filler, spoken after the tool had already answered, because the model writes its
+# preamble and its tool call in one response and livekit speaks that preamble once the round is
+# done. That filler is a `turn.agent` landing after the tool, so a run watching for either one hung
+# up on it: 234 milliseconds later, in the middle of the generation that had the hours in it. On
+# the call before it the real answer arrived one second after the caller had already gone.
+#
+# The signal is the one livekit publishes about itself and the log already carries: the agent goes
+# `thinking`, `speaking`, and back to `listening` when it has nothing left to say. A filler leaves
+# it thinking. So the line is held until it is listening again, and that is neither a guess nor a
+# count of anything.
 def _the_answer_has_landed(entries: Sequence[Entry], said: int) -> bool:
-    """Every line heard, and the agent's last word after both the last of them and any tool."""
-    answers = [at for at, entry in enumerate(entries) if entry.type == "turn.agent"]
+    """Every line heard, and the agent back to listening after the last of them."""
     heard = [at for at, entry in enumerate(entries) if entry.type == "turn.user"]
-    if not answers or len(heard) < said or answers[-1] < heard[-1]:
+    if len(heard) < said:
         return False
-    tools = [at for at, entry in enumerate(entries) if entry.type in _A_TOOL_ROUND]
-    return not tools or answers[-1] > tools[-1]
+    states = [(at, entry) for at, entry in enumerate(entries) if entry.type == AGENT_STATE]
+    if not states:
+        return False
+    at, last = states[-1]
+    return at > heard[-1] and last.data.get("state") == IT_IS_LISTENING
 
 
 async def _once_it_is_sealed(store: Store, call: str) -> Sequence[Entry]:
