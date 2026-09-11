@@ -20,6 +20,14 @@ UNNAMED = "the embedder at TEI_URL"
 # What a lookup's error entry says when the embedder is down: the vendor, the URL, the reason.
 DID_NOT_ANSWER = "TEI at {url} did not answer: {why}"
 
+# A push embeds a whole folder and is on nobody's clock; a lookup is on a caller's and has a budget
+# of its own that cancels it (session/lookups.py). The http client's default timeout is a lookup's
+# five seconds, and the first batch a cold CPU embedder sees — bge-m3 warming up on a laptop —
+# takes longer than that: the first `knowledge push` of the day timed out and the second went
+# through (2026-09-11). So a batch of a push waits this long, and a batch of a lookup waits the
+# client's default as before.
+A_PUSH_MAY_TAKE_S = 120.0
+
 
 # One per process, over the one http client the process opened. /info names the model and is
 # read once; the width is measured on the vectors themselves, because /info does not carry it —
@@ -40,10 +48,16 @@ class TeiEmbedder:
 
     async def embed(self, texts: Sequence[str]) -> list[list[float]]:
         """One vector per text, from TEI, held to the width the tables are declared at."""
+        return await self._embed(texts, timeout=None)
+
+    async def _embed(self, texts: Sequence[str], *, timeout: float | None) -> list[list[float]]:
+        """One batch, with a lookup's patience or a push's."""
         if not texts:
             return []
         model = await self.model()
-        answer = await self._asked("POST", "/embed", {"inputs": list(texts), "truncate": True})
+        answer = await self._asked(
+            "POST", "/embed", {"inputs": list(texts), "truncate": True}, timeout=timeout
+        )
         vectors: list[list[float]] = answer.json()
         if vectors and len(vectors[0]) != DIMENSIONS:
             raise WrongWidth(
@@ -56,7 +70,11 @@ class TeiEmbedder:
     # an order to keep; the contextual embedders are the ones that read the neighbours.
     async def embed_documents(self, documents: Sequence[Sequence[str]]) -> list[list[list[float]]]:
         """Every chunk of every document, batched flat and cut back where the documents were."""
-        return await every_chunk_on_its_own(self.embed, documents)
+
+        async def a_patient_batch(texts: Sequence[str]) -> list[list[float]]:
+            return await self._embed(texts, timeout=A_PUSH_MAY_TAKE_S)
+
+        return await every_chunk_on_its_own(a_patient_batch, documents)
 
     async def model(self) -> str:
         """The model's id as TEI reports it, asked once and kept for the refusal's sentence."""
@@ -67,11 +85,14 @@ class TeiEmbedder:
 
     # A connection refused, a timeout and a 5xx are one fact to a lookup — the embedder is down —
     # and the sentence names TEI and its URL, so the error entry on the call's log does too.
-    async def _asked(self, method: str, path: str, body: Any = None) -> httpx.Response:
+    async def _asked(
+        self, method: str, path: str, body: Any = None, *, timeout: float | None = None
+    ) -> httpx.Response:
         """One request to TEI, answered 2xx; anything else is EmbedderUnreachable, by name."""
         url = f"{self._url}{path}"
+        patience = httpx.USE_CLIENT_DEFAULT if timeout is None else httpx.Timeout(timeout)
         try:
-            answer = await self._http.request(method, url, json=body)
+            answer = await self._http.request(method, url, json=body, timeout=patience)
             answer.raise_for_status()
         except httpx.HTTPError as failed:
             why = str(failed) or type(failed).__name__
