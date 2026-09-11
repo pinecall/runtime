@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import pytest
+
 from pinecall.evals import ConsentJudge, a_case
 from pinecall.types import GATE_DEFERRED_ON
 from tests.evals.fakes import CountingJudge
 from tests.evals.logs import BOOKING, LOOKING_UP, a_log
 from tests.evals.measuring import measured
+
+pytestmark = pytest.mark.unit
 
 # The judge answers from the gate's own trace, so it can never spend a prompt at all. The rule it
 # asks is `types/consent.py`, pinned by `tests/types/test_consent.py`; what

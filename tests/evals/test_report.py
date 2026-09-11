@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import pytest
+
 from pinecall.evals import ConsentJudge, Spoken, a_case, a_matrix, as_html
 from tests.evals.fakes import CountingJudge
 from tests.evals.logs import BOOKING, THE_GOLDENS_TOOLS, a_log, the_golden_call
+
+pytestmark = pytest.mark.unit
 
 
 async def a_report() -> str:

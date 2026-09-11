@@ -18,6 +18,7 @@ from pinecall.providers.models import Chat
 from pinecall.session import clock, greeting
 from pinecall.session.asking import Asking, NotAsking
 from pinecall.session.declaring import declared
+from pinecall.session.first_entries import started
 from pinecall.session.knowing import a_line_for_the_file_it_ships_with
 from pinecall.session.lookups import Lookup, NoLookup, TurnLookups
 from pinecall.session.remembering import NoRememberer, Rememberer, remembered_within
@@ -33,7 +34,6 @@ from pinecall_protocol.defs import EndedBy, Supervisor
 from pinecall_protocol.events import (
     CallEnded,
     CallScore,
-    CallStarted,
     CallSummary,
     Custom,
     PromptChanged,
@@ -145,23 +145,13 @@ class TextSession:
         # The pair a voice call opens with too (worker/entry.py): seeded once, here, before the app
         # has rendered a thing, so a caller who writes "mañana" is read by a model with a calendar.
         await remembered(self.text_agent, *clock.dated(self.context.today))
-        # `from` is a keyword, so this one event is built from the wire's own key names.
-        started: dict[str, Any] = {
-            "channel": self.context.channel,
-            "direction": self.context.direction,
-            "from": self.context.caller,
-            "run": self.context.run,
-            "to": self.agent,
-            "caller": None,
-            "started_at": self._started_at,
-        }
-        await self.emit("call.started", CallStarted.model_validate(started))
+        await self.emit("call.started", started(self.context, self.agent, self._started_at))
         await a_line_for_the_file_it_ships_with(self._blocks, self.emit)
         # After call.started, so the opening is a turn INSIDE the call and not before it. A
         # written turn cannot be cut short, so the flag a spoken greeting carries is dropped here
         # rather than pretended at: nobody is talking over anybody in a chat.
         await greeting.open_the_call(
-            self.config.greeting,
+            greeting.the_greeting_for(self.config.greeting, self.context.run),
             say=lambda text, _interruptible: self.say(text),
             reply=lambda instructions, _interruptible: self.reply(instructions),
         )

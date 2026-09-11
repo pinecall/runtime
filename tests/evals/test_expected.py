@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from pinecall.evals import (
     Case,
     EveryPhraseWasSaidJudge,
@@ -17,6 +19,8 @@ from tests.evals.conversations import a_call, a_case_of, arrived, asked, ran, re
 from tests.evals.fakes import CountingJudge
 from tests.evals.logs import BOOKING, a_log
 from tests.evals.measuring import measured
+
+pytestmark = pytest.mark.unit
 
 HELLO = "Hola, ¿hay hueco el martes?"
 

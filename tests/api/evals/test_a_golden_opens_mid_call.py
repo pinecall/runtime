@@ -40,10 +40,11 @@ def a_call_of(greeting: Greeting) -> tuple[TextSession, MemoryStore]:
     ), store
 
 
-async def test_the_greeting_a_class_declares_is_dropped_from_a_golden_call() -> None:
-    """The state a golden seeds IS the conversation that already happened; nobody greets on top."""
+async def test_the_class_keeps_its_greeting_and_the_call_knows_which_run_opened_it() -> None:
+    """One rule, at the opening: the session reads `context.run`; the config is not rewritten."""
     session, _ = a_call_of(Greeting(say=THE_WORDS))
-    assert session.config.greeting is None
+    assert session.config.greeting == Greeting(say=THE_WORDS)
+    assert session.context.run == A_RUN
 
 
 async def test_a_golden_run_writes_no_opening_turn_at_all() -> None:

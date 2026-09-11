@@ -6,6 +6,8 @@ import math
 import random
 from array import array
 
+import pytest
+
 from pinecall.evals.line import (
     FRAME_MS,
     LOST,
@@ -15,6 +17,8 @@ from pinecall.evals.line import (
     said_of,
     with_losses,
 )
+
+pytestmark = pytest.mark.unit
 
 RATE = 48_000
 

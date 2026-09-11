@@ -29,7 +29,6 @@ from pinecall.evals.judges.register import Register, RegisterJudge
 from pinecall.evals.matrix import Matrix, Run, Score, Spoken, a_matrix
 from pinecall.evals.report import as_html
 from pinecall.evals.score import a_score
-from pinecall.evals.speech import NoVoice
 from pinecall.evals.transcript import answered_by_the_app, said_by_the_agent, tools_called
 
 __all__ = [
@@ -49,7 +48,6 @@ __all__ = [
     "Line",
     "Matrix",
     "NoForbiddenToolRanJudge",
-    "NoVoice",
     "NothingWasSaidJudge",
     "PolicyJudge",
     "Register",

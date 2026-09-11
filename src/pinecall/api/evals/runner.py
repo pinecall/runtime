@@ -157,7 +157,7 @@ async def a_run(wanted: Wanted, runner: Runner, process: Process) -> EvalRun:
         await process.runs.put(run)
         try:
             async with asyncio.timeout(A_RUN_MAY_TAKE_S):
-                judging = _the_judging(config)
+                judging = Judging(config)
                 run = await _every_conversation(
                     wanted, run, config, serving, process, judging, keys
                 )
@@ -277,11 +277,6 @@ def _refuse_what_a_spoken_run_cannot_do(wanted: Wanted) -> None:
 def _the_app_left(judged: int, total: int, slug: str) -> AppDetached:
     """Why the run stopped, as a person reads it: how far it got, of how many, and whose app."""
     return AppDetached(THE_APP_LEFT.format(done=judged, total=total, slug=slug))
-
-
-def _the_judging(config: AgentConfig) -> Judging:
-    """This run's judge, with the panel each golden asks for."""
-    return Judging(config)
 
 
 async def _finished(run: EvalRun, process: Process) -> EvalRun:

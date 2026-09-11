@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 from tests.evals.clinica import declared, prompt_at
+
+pytestmark = pytest.mark.unit
 
 # The stage the tenant's own capture calls 0. Named here too, because a reader of this file
 # should not have to open the ring to know which state these assertions are about.
