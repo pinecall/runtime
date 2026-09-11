@@ -17,7 +17,7 @@ from pinecall.log import REFUSED
 from pinecall.log.entry import Entry, unstored
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import Admission, QuotaExhausted
-from pinecall.types import DeclarationRefused
+from pinecall.types import DeclarationRefused, Env
 from pinecall_protocol import Command, ProtocolError, WireModel, encode
 from pinecall_protocol.commands import AgentConfigure, AgentRegister
 from pinecall_protocol.events import ErrorEvent, Pong
@@ -84,6 +84,11 @@ class AppSocket:
     def org(self) -> str:
         """The org the key names: whose every agent on this socket is."""
         return self.key.org
+
+    @property
+    def env(self) -> Env:
+        """The world the key opens: where every agent on this socket is held."""
+        return self.key.env
 
     async def serve(self) -> None:
         """Read frames until the app goes away. Every frame is answered, none of them raises out."""
@@ -172,12 +177,14 @@ async def register(socket: Socket, command: Command) -> None:
     """This socket speaks for this agent and answers these doors, or it is told why not."""
     wanted = asked(command, AgentRegister)
     # One more agent for this org, unless it already holds this one: a socket correcting its own
-    # doors, or a second process of the same agent, is not a new agent.
-    others = [held for held in socket.registry.holding(socket.org) if held.slug != command.agent]
+    # doors, or a second process of the same agent, is not a new agent — and neither is the same
+    # slug held in the other world, so the count is of slugs across both.
+    others = {held.slug for held in socket.registry.holding(socket.org)} - {command.agent}
     await socket.admission.an_agent(socket.org, command.agent, len(others))
     entry = await socket.registry.register(
         owner=socket.id,
         org=socket.org,
+        env=socket.env,
         slug=command.agent,
         routes=wanted.routes,
         sdk=wanted.sdk,
@@ -190,7 +197,7 @@ async def register(socket: Socket, command: Command) -> None:
 async def configure(socket: Socket, command: Command) -> None:
     """Declare or change what the agent is. Only the fields the app sent change."""
     wanted = asked(command, AgentConfigure)
-    entry = await socket.registry.configure(socket.id, command.agent, wanted.config)
+    entry = await socket.registry.configure(socket.id, socket.env, command.agent, wanted.config)
     await socket.send(entry)
 
 

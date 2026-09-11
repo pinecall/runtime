@@ -8,7 +8,7 @@ from contextlib import suppress
 from typing import Any
 
 from pinecall._exceptions import PinecallError
-from pinecall.api.agents.registry import Registry, SocketId
+from pinecall.api.agents.registry import Held, Registry, SocketId
 from pinecall_protocol import defs
 
 # What a call that was left with nobody rendering it is ended as, and who ended it: not the caller
@@ -31,9 +31,9 @@ class AppDetached(PinecallError):
 class Attachment:
     """One run's grip on the app it drives: the socket the registry chose, watched as it works."""
 
-    def __init__(self, registry: Registry, agent: str, app: SocketId) -> None:
+    def __init__(self, registry: Registry, held: Held, app: SocketId) -> None:
         self._registry = registry
-        self._agent = agent
+        self._held = held
         self._app = app
 
     @property
@@ -44,7 +44,7 @@ class Attachment:
     @property
     def held(self) -> bool:
         """True while that socket is still holding the agent; False the moment it disconnects."""
-        return self._registry.on(self._agent, self._app) is not None
+        return self._registry.on(*self._held, self._app) is not None
 
     # The conversation is a task rather than an await so that the watch can end it: a turn waiting
     # on a model would otherwise hold the run for the whole of that model's own timeout, which is
@@ -58,7 +58,7 @@ class Attachment:
             if driving.done():
                 return driving.result()
             await _cancelled(driving)
-            raise AppDetached(LEFT.format(app=self._app, slug=self._agent))
+            raise AppDetached(LEFT.format(app=self._app, slug=self._held[1]))
         finally:
             await _cancelled(watching)
 

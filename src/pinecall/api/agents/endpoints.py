@@ -24,7 +24,7 @@ async def config(
     slug: str, key: KeyDep, registry: RegistryDep, overrides: OverridesDep
 ) -> dict[str, Any]:
     """What the app declared about this agent, resolved: the session is built from it."""
-    held = registry.of(slug)
+    held = registry.of(key.env, slug)
     if held is None or held.org != key.org:
         raise HTTPException(status_code=404, detail=NO_AGENT.format(slug=slug))
     # The turned knobs are laid on through config_for(), the one applying function every door
@@ -39,10 +39,10 @@ async def config(
 # the protocol's (protocol/schema/rest.json), so the console parses it with a generated schema.
 @router.get("/v1/agents")
 async def agents(key: KeyDep, registry: RegistryDep) -> AgentList:
-    """The org's agents, by slug, in the order their sockets claimed them."""
+    """The org's agents in the key's world, by slug, in the order their sockets claimed them."""
     return AgentList(
         agents=[
             HeldAgent(slug=held.slug, channels=sorted(held.config.channels))
-            for held in registry.holding(key.org)
+            for held in registry.holding(key.org, key.env)
         ]
     )

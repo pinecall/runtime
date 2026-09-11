@@ -11,6 +11,7 @@ from pinecall.api._deps import what_is_live
 from pinecall.api.agents.registry import Registry, Send, SocketId
 from pinecall.log.entry import Entry
 from pinecall.orgs.admission import Admission
+from pinecall.types import Env
 from pinecall_protocol import Command, ProtocolError, WireModel, command_of
 from pinecall_protocol.defs import ToolResult
 
@@ -58,6 +59,11 @@ class Socket(Protocol):
     @property
     def org(self) -> str:
         """The org the key names: whose every agent on this socket is."""
+        ...
+
+    @property
+    def env(self) -> Env:
+        """The world the key opens: where every agent on this socket is held."""
         ...
 
     async def send(self, entry: Entry) -> None:

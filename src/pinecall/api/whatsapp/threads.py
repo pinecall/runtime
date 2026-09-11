@@ -149,7 +149,7 @@ class Threads:
         route = await answering(doors.routes, doors.registry, inbound.number)
         if route is None:
             return None
-        held = doors.registry.serving(route.agent, None)
+        held = doors.registry.serving(route.env, route.agent, None)
         if held is None:
             logger.warning(NOBODY_SERVING, route.agent, inbound.number)
             return None

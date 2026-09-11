@@ -1,4 +1,4 @@
-"""Which sockets hold which agent and which doors, live; the durable record is the agent's log."""
+"""Which sockets hold which agent and which doors, live, in which world; the record is the log."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from starlette.requests import HTTPConnection
 from pinecall.api._deps import held
 from pinecall.log.entry import Entry
 from pinecall.providers import declaration
-from pinecall.types import AgentConfig, DeclarationRefused, Route
+from pinecall.types import PRODUCTION, AgentConfig, DeclarationRefused, Env, Route
 from pinecall.types.channel import CHANNELS_WITH_A_NUMBER
 from pinecall_protocol import WireModel, defs, encode
 from pinecall_protocol.events import AgentConfigured, AgentRegistered
@@ -60,13 +60,21 @@ def a_socket_id() -> SocketId:
 # How an entry reaches somebody who is reading a call.
 type Send = Callable[[Entry], Awaitable[None]]
 
+# The name an agent is held under: its world, then its slug. The same slug is held once in each
+# world, by different sockets, and neither sees the other — a laptop's `pinecall run` on a dev key
+# and the box's on a production key are two agents to this table and one log to the store.
+type Held = tuple[Env, str]
+
 
 @dataclass(frozen=True)
 class Registration:
-    """One agent as ONE socket holds it: whose it is, which doors it answers, what it declared."""
+    """One agent as ONE socket holds it: whose it is, where, which doors, what it declared."""
 
     slug: str
     org: str
+    # The world the key that registered it opens: every door here and every call it takes is
+    # that world's, and call.started says so.
+    env: Env
     owner: SocketId
     routes: tuple[Route, ...]
     config: AgentConfig
@@ -74,6 +82,11 @@ class Registration:
     # Whether a call that named no app may be handed to this socket. A console says no and stays a
     # full holder in every other way. See docs/decisions/dispatch.md.
     takes_unclaimed: bool = True
+
+    @property
+    def held_as(self) -> Held:
+        """The name this table keeps the agent under."""
+        return (self.env, self.slug)
 
     # The web route is deliberately left out: see docs/decisions/routes.md. Every agent's widget
     # would be the one door ("web", None), and the second agent of a fleet would be refused it.
@@ -91,20 +104,22 @@ class Registry:
         # Many sockets may hold one agent — see docs/decisions/dispatch.md. The list is the order
         # they claimed it in, so the newest is the last, and a socket correcting its own doors
         # keeps its place: it is the same process, not a newer one.
-        self._agents: dict[str, list[Registration]] = {}
-        self._at: dict[tuple[str, str | None], str] = {}
-        self._owned: dict[SocketId, set[str]] = {}
+        self._agents: dict[Held, list[Registration]] = {}
+        # A dialled door is one agent's in one world: the number exists once in the world, so the
+        # table is not namespaced here — it is what refuses a development key a production number.
+        self._at: dict[tuple[str, str | None], Held] = {}
+        self._owned: dict[SocketId, set[Held]] = {}
 
     # ── reading ─────────────────────────────────────────────────────────────────
 
-    def of(self, slug: str) -> Registration | None:
-        """The newest socket holding this agent: what it declared, and the doors it answers."""
-        holding = self._agents.get(slug)
+    def of(self, env: Env, slug: str) -> Registration | None:
+        """The newest socket holding this agent in this world: what it declared, its doors."""
+        holding = self._agents.get((env, slug))
         return holding[-1] if holding else None
 
-    def on(self, slug: str, app: SocketId) -> Registration | None:
+    def on(self, env: Env, slug: str, app: SocketId) -> Registration | None:
         """This agent as one named socket holds it, which is what `?app=` asks for. None if not."""
-        return next((held for held in self._agents.get(slug, ()) if held.owner == app), None)
+        return next((held for held in self._agents.get((env, slug), ()) if held.owner == app), None)
 
     # THE one answer to "which process serves this call", asked by both doors that open one: the
     # chat door with `?app=`, and POST /v1/calls with the app id the worker was given. Two doors
@@ -112,27 +127,41 @@ class Registry:
     # none, and only this question does: `of()` still means the newest holder, whatever it declared,
     # because a console alone still declares the agent and still serves its own call.
     # See docs/decisions/dispatch.md.
-    def serving(self, slug: str, app: SocketId | None) -> Registration | None:
+    def serving(self, env: Env, slug: str, app: SocketId | None) -> Registration | None:
         """Who takes a call: the socket it named, or the newest one that takes unclaimed calls."""
         if app is not None:
-            return self.on(slug, app)
-        holding = self._agents.get(slug, ())
+            return self.on(env, slug, app)
+        holding = self._agents.get((env, slug), ())
         return next((held for held in reversed(holding) if held.takes_unclaimed), None)
 
-    def holding(self, org: str) -> tuple[Registration, ...]:
-        """Every agent this org is holding right now, once each, as its newest socket has it."""
-        return tuple(holding[-1] for holding in self._agents.values() if holding[-1].org == org)
+    def holding(self, org: str, env: Env | None = None) -> tuple[Registration, ...]:
+        """Every agent this org holds in that world — or in both, when none is named — once each."""
+        return tuple(
+            holding[-1]
+            for (world, _), holding in self._agents.items()
+            if holding[-1].org == org and (env is None or world == env)
+        )
 
-    def routes(self, org: str) -> tuple[Route, ...]:
-        """Every door this org answers right now, in the order its agents claimed them."""
-        return tuple(route for held in self.holding(org) for route in held.routes)
+    def routes(self, org: str, env: Env) -> tuple[Route, ...]:
+        """Every door this org answers in this world right now, as its agents claimed them."""
+        return tuple(route for held in self.holding(org, env) for route in held.routes)
 
     # Only a dialled door is in the table, so ("web", None) is None however many agents hold a
     # widget: a web arrival names its agent and never asks this. See docs/decisions/routes.md.
     def at(self, channel: str, number: str | None) -> Registration | None:
-        """Who answers this door: the number a call arrives on, resolved to one agent."""
-        slug = self._at.get((channel, number))
-        return None if slug is None else self.of(slug)
+        """Who answers this door, in whichever world claimed it: a number rings in one place."""
+        held = self._at.get((channel, number))
+        return None if held is None else self.of(*held)
+
+    # The one reader that knows a slug and no world: the sink, projecting an entry by the state
+    # fields its agent declared. Production's declaration when the agent is held there, because
+    # that is the one a stranger's log was written under; a laptop's otherwise.
+    def declared(self, slug: str) -> AgentConfig | None:
+        """What this agent declared, wherever it is held. None when no socket holds it at all."""
+        held = self.of(PRODUCTION, slug) or next(
+            (holding[-1] for (_, name), holding in self._agents.items() if name == slug), None
+        )
+        return None if held is None else held.config
 
     # ── claiming ────────────────────────────────────────────────────────────────
 
@@ -140,6 +169,7 @@ class Registry:
         self,
         owner: SocketId,
         org: str,
+        env: Env,
         slug: str,
         routes: Sequence[defs.Route],
         sdk: str | None = None,
@@ -147,18 +177,19 @@ class Registry:
     ) -> Entry:
         """Add this socket to the agent's holders, take its doors, and write agent.registered."""
         await self._refuse_another_orgs_slug(org, slug)
-        doors = [declaration.a_route(org, slug, route) for route in routes]
-        self._refuse_a_taken_door(slug, doors)
+        doors = [declaration.a_route(org, env, slug, route) for route in routes]
+        self._refuse_a_taken_door((env, slug), doors)
         # This socket correcting its own doors keeps what it declared; a socket joining an agent
         # somebody else holds starts from what that agent already is, and corrects it with the
         # agent.configure one round trip later. A call landing in that window must not find an
         # agent with no instructions. See docs/decisions/dispatch.md.
-        held = self.on(slug, owner) or self.of(slug)
+        held = self.on(env, slug, owner) or self.of(env, slug)
         config = held.config if held else declaration.an_agent(slug, doors)
         self._replace(
             Registration(
                 slug=slug,
                 org=org,
+                env=env,
                 owner=owner,
                 routes=tuple(doors),
                 config=dataclasses.replace(config, channels=frozenset(r.channel for r in doors)),
@@ -166,11 +197,13 @@ class Registry:
                 takes_unclaimed=takes_unclaimed,
             )
         )
-        return await self._append(slug, "agent.registered", _registered(owner, doors, sdk))
+        return await self._append(slug, "agent.registered", _registered(owner, doors, sdk, env))
 
-    async def configure(self, owner: SocketId, slug: str, wire: defs.AgentConfig) -> Entry:
+    async def configure(
+        self, owner: SocketId, env: Env, slug: str, wire: defs.AgentConfig
+    ) -> Entry:
         """Apply the fields this configure carries, and write agent.configured to its log."""
-        held = self.on(slug, owner)
+        held = self.on(env, slug, owner)
         if held is None:
             raise DeclarationRefused(
                 f"agent {slug} is not registered on this socket: register it before configuring it"
@@ -182,20 +215,21 @@ class Registry:
     def release(self, owner: SocketId) -> frozenset[str]:
         """This socket is gone: it stops holding its agents, and whoever is left keeps them."""
         released = self._owned.pop(owner, set())
-        for slug in released:
-            left = [held for held in self._agents.get(slug, ()) if held.owner != owner]
+        for name in released:
+            left = [held for held in self._agents.get(name, ()) if held.owner != owner]
             if left:
-                self._agents[slug] = left
+                self._agents[name] = left
             else:
-                self._agents.pop(slug, None)
-            self._claim_doors(slug)
-        return frozenset(released)
+                self._agents.pop(name, None)
+            self._claim_doors(name)
+        return frozenset(slug for _, slug in released)
 
     # ── the rules ───────────────────────────────────────────────────────────────
 
     # Durable, not live: the slug's owner is on its own log's head row, so an org that registered
     # `clinica-norte` last month still owns it today with no socket open, and a second org that
-    # picks the same word is refused before it writes a line into the first one's log.
+    # picks the same word is refused before it writes a line into the first one's log. One log
+    # per slug, whatever the world: the entries say which world each claim and each call was.
     async def _refuse_another_orgs_slug(self, org: str, slug: str) -> None:
         """A slug is one org's: the first to register it, for as long as its log exists."""
         owner = await self._logs.owner(None, slug)
@@ -203,42 +237,47 @@ class Registry:
             raise DeclarationRefused(f"agent {slug} belongs to another org: a slug is one org's")
         await self._logs.owned(None, slug, org)
 
-    def _refuse_a_taken_door(self, slug: str, routes: Sequence[Route]) -> None:
-        """A number answers for one agent at a time, and never twice in the same register."""
+    # A number is one door in the world, so the table of doors is not namespaced: the same agent
+    # in the OTHER world is a taker too, and a development key claiming a production number is
+    # refused in a sentence that says which world holds it.
+    def _refuse_a_taken_door(self, name: Held, routes: Sequence[Route]) -> None:
+        """A number answers for one agent in one world at a time, and never twice in a register."""
+        _, slug = name
         claimed: set[tuple[str, str | None]] = set()
         for route in _dialled(routes):
             if route.door in claimed:
                 raise DeclarationRefused(f"agent {slug} claims the door {_said(route)} twice")
             claimed.add(route.door)
             taken = self._at.get(route.door)
-            if taken is not None and taken != slug:
+            if taken is not None and taken != name:
+                taken_env, taken_slug = taken
                 raise DeclarationRefused(
-                    f"the door {_said(route)} already answers for agent {taken}"
+                    f"the door {_said(route)} already answers for agent {taken_slug} in {taken_env}"
                 )
 
     # ── the table ───────────────────────────────────────────────────────────────
 
     def _replace(self, registration: Registration) -> None:
         """Commit a claim: this socket's place among the holders, its doors, what it now holds."""
-        holding = self._agents.setdefault(registration.slug, [])
+        holding = self._agents.setdefault(registration.held_as, [])
         for at, already in enumerate(holding):
             if already.owner == registration.owner:
                 holding[at] = registration
                 break
         else:
             holding.append(registration)
-        self._claim_doors(registration.slug)
-        self._owned.setdefault(registration.owner, set()).add(registration.slug)
+        self._claim_doors(registration.held_as)
+        self._owned.setdefault(registration.owner, set()).add(registration.held_as)
 
-    def _claim_doors(self, slug: str) -> None:
+    def _claim_doors(self, name: Held) -> None:
         """The doors this agent answers are its newest socket's, and only those."""
-        held = self.of(slug)
+        held = self.of(*name)
         wanted: set[tuple[str, str | None]] = set(held.dialled_doors) if held else set()
-        for door in [door for door, answering in self._at.items() if answering == slug]:
+        for door in [door for door, answering in self._at.items() if answering == name]:
             if door not in wanted:
                 del self._at[door]
         for door in wanted:
-            self._at[door] = slug
+            self._at[door] = name
 
     # Through the process's live log, not the store: a console holding the agent's SSE stream open
     # hears a register the moment it is accepted, instead of on its next reconnect.
@@ -249,9 +288,11 @@ class Registry:
 
 # encode() drops what nobody set, so an optional field is left out here rather than sent as null:
 # the schema says `label` is a string when it is there, and null is not a string.
-def _registered(owner: SocketId, routes: Sequence[Route], sdk: str | None) -> AgentRegistered:
+def _registered(
+    owner: SocketId, routes: Sequence[Route], sdk: str | None, env: Env
+) -> AgentRegistered:
     """The agent.registered payload: this socket's id, the doors as the wire says them, the SDK."""
-    said: dict[str, Any] = {"app": owner, "routes": [_wire(route) for route in routes]}
+    said: dict[str, Any] = {"app": owner, "routes": [_wire(route) for route in routes], "env": env}
     if sdk is not None:
         said["sdk"] = sdk
     return AgentRegistered(**said)

@@ -10,7 +10,7 @@ from pydantic import TypeAdapter
 from pinecall.api._deps import KeyDep, OrgsDep, RoutesDep, an_operator, an_org
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.routes import answering
-from pinecall.types import Channel, DeclarationRefused, Route
+from pinecall.types import PRODUCTION, Channel, DeclarationRefused, Env, Route
 from pinecall_protocol import WireModel
 
 # The worker's own door, on the org's API key, exactly as every other door of the runtime.
@@ -39,14 +39,19 @@ NO_SUCH_ROUTE = "no route for {number} in org {org}"
 # would move a number inside somebody else's.
 ORG = Query(description="whose routes: the org the agents register under, by id or slug")
 
+# Which world's doors. Production unless the operator says: a number somebody bought rings the
+# deployed agent, and typing one into development is the deliberate act.
+ENV = Query(PRODUCTION, description="which world's doors: production (default) or development")
+
 
 class Wanted(WireModel):
-    """What `routes add` sends: the number, the agent that answers it, and the door it is."""
+    """What `routes add` sends: the number, the agent that answers it, the door, the world."""
 
     org: str
     number: str
     agent: str
     channel: Channel
+    env: Env = PRODUCTION
 
 
 # The org is the key's here, never a query parameter: a worker reads the doors of the org whose
@@ -54,19 +59,19 @@ class Wanted(WireModel):
 # a call into somebody else's agent.
 @router.get("/v1/routes")
 async def routes(key: KeyDep, registry: RegistryDep, table: RoutesDep) -> list[dict[str, Any]]:
-    """Every door the org answers right now, so a job can be resolved without asking again."""
-    answered = await answering.answered(key.org, registry, table)
+    """Every door the org answers in the key's world, so a job is resolved without asking again."""
+    answered = await answering.answered(key.org, key.env, registry, table)
     return list(ROUTES.dump_python(tuple(door.route for door in answered), mode="json"))
 
 
 @operator.get("/routes")
 async def listed(
-    registry: RegistryDep, table: RoutesDep, orgs: OrgsDep, org: str = ORG
+    registry: RegistryDep, table: RoutesDep, orgs: OrgsDep, org: str = ORG, env: Env = ENV
 ) -> list[dict[str, Any]]:
     """The same doors the worker is given, each saying which of the two tables put it there."""
     owner = await an_org(org, orgs)
     return list(
-        ANSWERING.dump_python(await answering.answered(owner.id, registry, table), mode="json")
+        ANSWERING.dump_python(await answering.answered(owner.id, env, registry, table), mode="json")
     )
 
 
@@ -78,7 +83,8 @@ async def add(
     route = _a_route(said, (await an_org(said.org, orgs)).id)
     await table.put(route)
     taken_from = [
-        lost.agent for _, lost in answering.overridden([route], registry.routes(route.org))
+        lost.agent
+        for _, lost in answering.overridden([route], registry.routes(route.org, route.env))
     ]
     return {"route": _as_json(route), "overrides": taken_from[0] if taken_from else None}
 
@@ -99,6 +105,8 @@ def _as_json(route: Route) -> dict[str, Any]:
 def _a_route(said: Wanted, org: str) -> Route:
     """The domain's own Route, so a number that is not a number is refused before it is stored."""
     try:
-        return Route(org=org, agent=said.agent, channel=said.channel, number=said.number)
+        return Route(
+            org=org, agent=said.agent, channel=said.channel, number=said.number, env=said.env
+        )
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused

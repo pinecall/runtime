@@ -118,35 +118,47 @@ encrypted under `PINECALL_VAULT_KEY`; without one this verb is refused with a se
 ## `keys`
 
 ```
-pinecall-runtime keys issue [--org <org>] [--label "…"]
+pinecall-runtime keys issue [--org <org>] [--label "…"] [--env production|development]
+                            [--scope <scope>]… [--subject <member>] [--name "…"]
 pinecall-runtime keys list  [--org <org>]
 pinecall-runtime keys revoke <fingerprint>
 ```
 
 ```console
-$ pinecall-runtime keys issue --org clinica --label "berna's laptop"
+$ pinecall-runtime keys issue --org clinica --label "berna's laptop" --env development
 pk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-copy it now: the table keeps the fingerprint, and the key is never shown again
+  org clinica · development · berna's laptop
+  every scope
+  copy it now: the table keeps the fingerprint, and the key is never shown again
 ```
 
 That sentence is the whole group: the table stores a sha256 and **no verb anywhere reads a key
-back**. `list` prints fingerprint, label, created, and whether it is revoked. `revoke` takes a
+back**. `list` prints fingerprint, world, label, whose, and whether it is revoked. `revoke` takes a
 fingerprint as `list` prints it and stops that key from being honoured; the row and the history
 stay, so log entries that name it remain readable. Issue one key per place — a laptop, CI, each
 deployment — with a label, because a key you can revoke on its own is a key you will revoke.
 
+`--env` is **the key knowing where**: the agents registered on it, the doors they claim and every
+call they take are that world's, and the gateway keeps production and development apart — the same
+slug held once in each, a number in one refused to the other. A box's worker and app run on a
+production key, which is the default; a laptop gets a development one. `--scope`, repeatable, is
+what the key may do (`app` · `calls` · `talk` · `supervise` · `pipeline` · `knowledge` · `memory` ·
+`evals` · `numbers` · `keys` · `team` · `usage`); left out is every scope. `--subject` and `--name`
+say whose the key is when it is a person's, so a seat minted from it says who sat down.
+
 ## `routes`
 
 ```
-pinecall-runtime routes list [--org <org>]
-pinecall-runtime routes add <number> <agent> [--channel phone|whatsapp] [--org <org>]
+pinecall-runtime routes list [--org <org>] [--env production|development]
+pinecall-runtime routes add <number> <agent> [--channel phone|whatsapp] [--org <org>] [--env …]
 pinecall-runtime routes rm  <number> [--org <org>]
 pinecall-runtime routes seed [--file infra/seed/routes.json]
 ```
 
-Which number reaches which agent, and through which door. A number belongs to one agent at a time;
-adding it again moves it. `seed` applies a file of them, which is how a box is brought up from a
-checkout rather than from six commands.
+Which number reaches which agent, through which door, in which world. A number belongs to one agent
+at a time; adding it again moves it — to another agent, or with `--env` to the other world. `list`
+answers one world, production unless asked. `seed` applies a file of them (each route may carry an
+`env`), which is how a box is brought up from a checkout rather than from six commands.
 
 ## `fleet`
 

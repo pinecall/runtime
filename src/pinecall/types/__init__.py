@@ -28,6 +28,16 @@ from pinecall.types.fusion import (
     relative_to_the_best,
 )
 from pinecall.types.json import JsonObject
+from pinecall.types.key import (
+    DEVELOPMENT,
+    ENVS,
+    KEY_SCOPES,
+    PRODUCTION,
+    Env,
+    KeyScope,
+    an_env,
+    key_scopes,
+)
 from pinecall.types.knowledge import Chunk, Docs, Fact, KnowledgeFile, MemoryPolicy
 from pinecall.types.lookup import PLATFORM_TOOLS, PlatformTool, platform_tools
 from pinecall.types.org import DEFAULT_ORG, QUOTAS, Counting, Org, QuotaName, Quotas, a_slug
@@ -43,11 +53,15 @@ __all__ = [
     "CONFIRMATIONS",
     "DEFAULT_LAYOUT",
     "DEFAULT_ORG",
+    "DEVELOPMENT",
+    "ENVS",
     "GATE_DEFERRED_ON",
     "GRANTS",
+    "KEY_SCOPES",
     "KNOWLEDGE",
     "NO_ORG_KEYS",
     "PLATFORM_TOOLS",
+    "PRODUCTION",
     "QUOTAS",
     "RRF_K",
     "THE_WIDGET",
@@ -64,6 +78,7 @@ __all__ = [
     "DeclarationRefused",
     "Direction",
     "Docs",
+    "Env",
     "EventSource",
     "Fact",
     "GateKind",
@@ -72,6 +87,7 @@ __all__ = [
     "Greeting",
     "Hangup",
     "JsonObject",
+    "KeyScope",
     "KnowledgeFile",
     "MemoryPolicy",
     "Model",
@@ -91,8 +107,10 @@ __all__ = [
     "Voice",
     "a_call_id",
     "a_slug",
+    "an_env",
     "consent_of",
     "grant_for",
+    "key_scopes",
     "platform_tools",
     "reciprocal_rank_fusion",
     "relative_to_the_best",

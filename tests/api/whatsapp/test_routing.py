@@ -6,6 +6,7 @@ import pytest
 
 from pinecall.api.agents.registry import Registry
 from pinecall.routes.table import MemoryRoutes
+from pinecall.types import PRODUCTION
 from pinecall.whatsapp.routing import answering
 from pinecall_protocol import defs
 from tests.api.conftest import A_RECORD, AGENT
@@ -22,6 +23,7 @@ async def test_an_agent_with_a_phone_and_a_whatsapp_on_one_number_answers_whatsa
     await registry.register(
         AN_APP,
         A_RECORD.org,
+        PRODUCTION,
         AGENT,
         [
             defs.Route(channel="phone", number=THE_CLINICS_NUMBER),
@@ -40,7 +42,11 @@ async def test_an_agent_with_only_a_phone_on_that_number_answers_no_whatsapp(
     registry: Registry, routes: MemoryRoutes
 ) -> None:
     await registry.register(
-        AN_APP, A_RECORD.org, AGENT, [defs.Route(channel="phone", number=THE_CLINICS_NUMBER)]
+        AN_APP,
+        A_RECORD.org,
+        PRODUCTION,
+        AGENT,
+        [defs.Route(channel="phone", number=THE_CLINICS_NUMBER)],
     )
 
     assert await answering(routes, registry, THE_CLINICS_NUMBER) is None

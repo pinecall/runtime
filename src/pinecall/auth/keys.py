@@ -11,7 +11,7 @@ from typing import Any, Protocol
 
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.types import DEFAULT_ORG
+from pinecall.types import DEFAULT_ORG, DEVELOPMENT, KEY_SCOPES, PRODUCTION, Env, an_env
 
 # What a key looks like when it is read out loud: a prefix nobody else uses, so a key pasted into
 # an issue or a log line is recognised for what it is, and 256 bits of CSPRNG after it.
@@ -25,13 +25,25 @@ KEY_ID_BYTES = 8
 
 # An API key IS the org: every door that takes one reads the org off this record and nothing else,
 # which is why a key that could name another org would be a key that could read another's log.
+# And it knows WHERE and WHO: the world it opens, what it may do there, and whose it is.
 @dataclass(frozen=True)
 class KeyRecord:
-    """Whose key this is: the org that owns it, and what the operator called it."""
+    """Whose key this is: the org that owns it, the world it opens, what it may do, who holds it."""
 
     key_id: str
     org: str
     label: str | None = None
+    # Which of the two worlds: the agents registered on this key, the doors they claim and every
+    # call they take are that world's. A key issued before the field existed is production's.
+    env: Env = PRODUCTION
+    # What the key may do there, as the doors are grouped (types/key.py). Every scope is what a
+    # key issued before the field existed holds, and what an org's own machine key still gets.
+    scopes: frozenset[str] = KEY_SCOPES
+    # Whose key it is when it is a person's: the member it was minted for, and their name, so a
+    # seat minted from it names who sat down. An org's own key — the worker's, the app's — names
+    # nobody, and the label says what it is for.
+    subject: str | None = None
+    name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -51,6 +63,11 @@ class ListedKey:
     label: str | None
     created_at: str
     revoked_at: str | None = None
+    env: Env = PRODUCTION
+    # Sorted, so two listings of one key read the same and a test can name the whole set.
+    scopes: tuple[str, ...] = ()
+    subject: str | None = None
+    name: str | None = None
 
 
 # A Pinecall key is 256 bits from a CSPRNG, not a password somebody chose. There is nothing to
@@ -74,8 +91,17 @@ class Keys(Protocol):
         """The record behind the key, or None when nothing answers to it."""
         ...
 
-    async def issue(self, org: str, label: str | None = None) -> Issued:
-        """A new key for this org. The plaintext is in the answer and nowhere else, ever."""
+    async def issue(
+        self,
+        org: str,
+        label: str | None = None,
+        *,
+        env: Env = PRODUCTION,
+        scopes: frozenset[str] = KEY_SCOPES,
+        subject: str | None = None,
+        name: str | None = None,
+    ) -> Issued:
+        """A new key for this org, in one world. The plaintext is in the answer and nowhere else."""
         ...
 
     async def listed(self, org: str) -> tuple[ListedKey, ...]:
@@ -105,10 +131,27 @@ class MemoryKeys:
         row = self._rows[fingerprint(key)]
         return None if row.revoked_at is not None else record
 
-    async def issue(self, org: str, label: str | None = None) -> Issued:
+    async def issue(
+        self,
+        org: str,
+        label: str | None = None,
+        *,
+        env: Env = PRODUCTION,
+        scopes: frozenset[str] = KEY_SCOPES,
+        subject: str | None = None,
+        name: str | None = None,
+    ) -> Issued:
         """Mint, remember, hand back. A process that exits forgets every key it issued."""
         key = mint()
-        record = KeyRecord(key_id=_a_key_id(), org=org, label=label)
+        record = KeyRecord(
+            key_id=_a_key_id(),
+            org=org,
+            label=label,
+            env=env,
+            scopes=scopes,
+            subject=subject,
+            name=name,
+        )
         self._records[key] = record
         self._rows[fingerprint(key)] = _a_listing(fingerprint(key), record)
         return Issued(key=key, record=record)
@@ -129,17 +172,18 @@ class MemoryKeys:
 # A revoked key is kept, not deleted: the logs it wrote name it, and a row that vanishes makes
 # those unreadable.
 _LOOKUP = """
-SELECT id, org, label
+SELECT id, org, label, env, scopes, subject, name
   FROM api_keys
  WHERE hash = $1 AND revoked_at IS NULL
 """
 
 _ISSUE = """
-INSERT INTO api_keys (id, hash, org, label) VALUES ($1, $2, $3, $4)
+INSERT INTO api_keys (id, hash, org, label, env, scopes, subject, name)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 """
 
 _OF_ORG = """
-SELECT hash, org, label, created_at, revoked_at
+SELECT hash, org, label, env, scopes, subject, name, created_at, revoked_at
   FROM api_keys
  WHERE org = $1
  ORDER BY created_at, id
@@ -166,11 +210,30 @@ class PostgresKeys:
         row = await self._pool.fetchrow(_LOOKUP, fingerprint(key))
         return None if row is None else _a_record(row)
 
-    async def issue(self, org: str, label: str | None = None) -> Issued:
+    async def issue(
+        self,
+        org: str,
+        label: str | None = None,
+        *,
+        env: Env = PRODUCTION,
+        scopes: frozenset[str] = KEY_SCOPES,
+        subject: str | None = None,
+        name: str | None = None,
+    ) -> Issued:
         """The only moment a key exists in the clear: it is minted here, hashed, and let go."""
         key = mint()
-        record = KeyRecord(key_id=_a_key_id(), org=org, label=label)
-        await self._pool.execute(_ISSUE, record.key_id, fingerprint(key), org, label)
+        record = KeyRecord(
+            key_id=_a_key_id(),
+            org=org,
+            label=label,
+            env=env,
+            scopes=scopes,
+            subject=subject,
+            name=name,
+        )
+        await self._pool.execute(
+            _ISSUE, record.key_id, fingerprint(key), org, label, env, sorted(scopes), subject, name
+        )
         return Issued(key=key, record=record)
 
     async def listed(self, org: str) -> tuple[ListedKey, ...]:
@@ -186,7 +249,9 @@ class PostgresKeys:
 
 # A laptop is one tenant, and it is the default org: the logs a dev clone writes against a
 # database that has been migrated are the default org's, and the dev key must read them back.
-DEV_KEY_RECORD = KeyRecord(key_id="dev", org=DEFAULT_ORG, label="PINECALL_DEV_KEY")
+# And a laptop is where things are written, so the one key it runs on opens development: what
+# `pinecall run` registers there is a development agent, and its calls say so.
+DEV_KEY_RECORD = KeyRecord(key_id="dev", org=DEFAULT_ORG, label="PINECALL_DEV_KEY", env=DEVELOPMENT)
 
 
 def keys_for(settings: Settings, pool: Pool | None) -> Keys:
@@ -210,26 +275,47 @@ def _now() -> str:
 
 def _a_listing(hashed: str, record: KeyRecord) -> ListedKey:
     """A record the memory twin was handed, as the operator's listing shows it."""
-    return ListedKey(fingerprint=hashed, org=record.org, label=record.label, created_at=_now())
+    return ListedKey(
+        fingerprint=hashed,
+        org=record.org,
+        label=record.label,
+        created_at=_now(),
+        env=record.env,
+        scopes=tuple(sorted(record.scopes)),
+        subject=record.subject,
+        name=record.name,
+    )
 
 
 def _a_record(row: Any) -> KeyRecord:
-    """One row of the lookup as the door reads it: whose key knocked."""
-    label = row["label"]
+    """One row of the lookup as the door reads it: whose key knocked, where, and as whom."""
     return KeyRecord(
         key_id=str(row["id"]),
         org=str(row["org"]),
-        label=None if label is None else str(label),
+        label=_text(row["label"]),
+        env=an_env(str(row["env"])),
+        scopes=frozenset(str(scope) for scope in row["scopes"]),
+        subject=_text(row["subject"]),
+        name=_text(row["name"]),
     )
 
 
 def _a_listed_key(row: Any) -> ListedKey:
     """One row of the listing. The hash column IS the fingerprint; there is nothing else to show."""
-    label, revoked = row["label"], row["revoked_at"]
+    revoked = row["revoked_at"]
     return ListedKey(
         fingerprint=str(row["hash"]),
         org=str(row["org"]),
-        label=None if label is None else str(label),
+        label=_text(row["label"]),
         created_at=str(row["created_at"]),
         revoked_at=None if revoked is None else str(revoked),
+        env=an_env(str(row["env"])),
+        scopes=tuple(sorted(str(scope) for scope in row["scopes"])),
+        subject=_text(row["subject"]),
+        name=_text(row["name"]),
     )
+
+
+def _text(column: Any) -> str | None:
+    """A nullable text column as the record holds it: the string, or None when the row has none."""
+    return None if column is None else str(column)

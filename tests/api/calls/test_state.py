@@ -13,6 +13,7 @@ from pinecall.log import snapshots as memo
 from pinecall.log.reduce import reduce
 from pinecall.log.snapshots import Snapshots
 from pinecall.log.store import MemoryStore
+from pinecall.types import PRODUCTION
 from pinecall_protocol import decode_entries, encode
 from pinecall_protocol.defs import AgentConfig, StateFieldSpec
 from pinecall_protocol.fixtures import GOLDEN_LOG
@@ -45,9 +46,12 @@ async def load_the_golden(store: MemoryStore) -> int:
 
 async def declare_the_golden_agent(registry: Registry) -> None:
     """Register and configure the agent, so the sink can read what it said about its state."""
-    await registry.register(owner=AN_OWNER, org="clinica", slug=THE_AGENT, routes=[])
+    await registry.register(
+        owner=AN_OWNER, org="clinica", env=PRODUCTION, slug=THE_AGENT, routes=[]
+    )
     await registry.configure(
         AN_OWNER,
+        PRODUCTION,
         THE_AGENT,
         AgentConfig(
             state_fields=[

@@ -13,7 +13,7 @@ from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.vault import keys_brought_by
 from pinecall.session.text.session import TextSession
-from pinecall.types import AgentConfig, Greeting
+from pinecall.types import PRODUCTION, AgentConfig, Greeting
 from tests.lookups.fakes import a_plan, the_tenants
 from tests.session.fake_llm import FakeLLM
 
@@ -36,7 +36,7 @@ def a_call_of(greeting: Greeting) -> tuple[TextSession, MemoryStore]:
         None, None, logs, Live(), partial(keys_brought_by, None), *a_plan(logs, the_tenants())
     )
     return an_eval_call(
-        golden, A_CALL, A_RUN, config, ORG, logs, FakeLLM(), lookups, Budgets()
+        golden, A_CALL, A_RUN, config, ORG, PRODUCTION, logs, FakeLLM(), lookups, Budgets()
     ), store
 
 

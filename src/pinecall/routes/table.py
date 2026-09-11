@@ -7,33 +7,34 @@ from collections.abc import Sequence
 from typing import Any, Protocol, cast
 
 from pinecall.log.store import Pool
-from pinecall.types import Channel, DeclarationRefused, Route
+from pinecall.types import Channel, DeclarationRefused, Env, Route, an_env
 
 logger = logging.getLogger(__name__)
 
 # A route an operator types answers at a number: the widget has none, and nothing dials it.
 NOT_A_NUMBER = "an operator's route answers at a number, and the {channel} widget has none"
 
-# The row is the door. One number per org, whatever channel carries it, so moving a number is
-# an update of one row — which is what makes `routes add` a change with no deploy behind it.
+# The row is the door. One number per org, whatever channel carries it and whichever world it
+# answers in, so moving a number — to another agent, or to the other world — is an update of one
+# row, which is what makes `routes add` a change with no deploy behind it.
 OF_ORG = """
-SELECT org, number, agent, channel
+SELECT org, number, agent, channel, env
   FROM routes
- WHERE org = $1
+ WHERE org = $1 AND env = $2
  ORDER BY added_at, number
 """
 
 PUT = """
-INSERT INTO routes (org, number, agent, channel) VALUES ($1, $2, $3, $4)
+INSERT INTO routes (org, number, agent, channel, env) VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (org, number)
-     DO UPDATE SET agent = excluded.agent, channel = excluded.channel
+     DO UPDATE SET agent = excluded.agent, channel = excluded.channel, env = excluded.env
 """
 
 # The door, read from the other side: an inbound message knows the number it arrived at and
 # nothing about whose it is. (org, number) is the primary key, so a number that two orgs typed is
 # two rows — the oldest answers, and answering.py's own warning names both.
 AT = """
-SELECT org, number, agent, channel
+SELECT org, number, agent, channel, env
   FROM routes
  WHERE channel = $1 AND number = $2
  ORDER BY added_at
@@ -48,12 +49,12 @@ DELETED_NOTHING = "DELETE 0"
 class Routes(Protocol):
     """Where the gateway asks which numbers an operator has assigned, and writes what it is told."""
 
-    async def of_org(self, org: str) -> tuple[Route, ...]:
-        """Every route this org's operator has typed, in the order they were typed."""
+    async def of_org(self, org: str, env: Env) -> tuple[Route, ...]:
+        """Every route this org's operator typed into this world, in the order they were typed."""
         ...
 
     async def at(self, channel: Channel, number: str) -> Route | None:
-        """Which agent an inbound call at this door reaches, in whichever org typed it first."""
+        """Which agent an inbound call at this door reaches, in whichever org and world typed it."""
         ...
 
     async def put(self, route: Route) -> None:
@@ -71,9 +72,11 @@ class MemoryRoutes:
     def __init__(self, routes: Sequence[Route] = ()) -> None:
         self._rows: dict[tuple[str, str], Route] = {door_of(route): route for route in routes}
 
-    async def of_org(self, org: str) -> tuple[Route, ...]:
+    async def of_org(self, org: str, env: Env) -> tuple[Route, ...]:
         """In the order they were typed: a re-put leaves a number where the operator saw it."""
-        return tuple(route for route in self._rows.values() if route.org == org)
+        return tuple(
+            route for route in self._rows.values() if route.org == org and route.env == env
+        )
 
     async def at(self, channel: Channel, number: str) -> Route | None:
         """The first row typed for this door, and a warning when a second org typed it too."""
@@ -96,9 +99,9 @@ class PostgresRoutes:
     def __init__(self, pool: Pool) -> None:
         self._pool = pool
 
-    async def of_org(self, org: str) -> tuple[Route, ...]:
+    async def of_org(self, org: str, env: Env) -> tuple[Route, ...]:
         """One indexed read on the primary key's own prefix. No cache: a cache is a stale route."""
-        rows = await self._pool.fetch(OF_ORG, org)
+        rows = await self._pool.fetch(OF_ORG, org, env)
         return tuple(route_of_row(row) for row in rows)
 
     async def at(self, channel: Channel, number: str) -> Route | None:
@@ -109,7 +112,7 @@ class PostgresRoutes:
     async def put(self, route: Route) -> None:
         """Insert, or move the number: the conflict target is the door, so nothing is duplicated."""
         org, number = door_of(route)
-        await self._pool.execute(PUT, org, number, route.agent, route.channel)
+        await self._pool.execute(PUT, org, number, route.agent, route.channel, route.env)
 
     async def remove(self, org: str, number: str) -> bool:
         """The command tag says whether a row went, so a number nobody typed is told apart."""
@@ -147,6 +150,7 @@ def route_of_row(row: Any) -> Route:
         agent=str(row["agent"]),
         channel=cast(Channel, str(row["channel"])),
         number=str(row["number"]),
+        env=an_env(str(row["env"])),
     )
 
 

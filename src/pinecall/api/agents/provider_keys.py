@@ -21,7 +21,7 @@ async def provider_keys(
     slug: str, key: KeyDep, registry: RegistryDep, vault: VaultDep
 ) -> dict[str, ProviderKeys]:
     """The keys this org brought of its own. Empty is the common case: the box's env keys run."""
-    held = registry.of(slug)
+    held = registry.of(key.env, slug)
     if held is None or held.org != key.org:
         raise HTTPException(status_code=404, detail=NO_AGENT.format(slug=slug))
     return {"keys": dict(await keys_brought_by(vault, key.org))}

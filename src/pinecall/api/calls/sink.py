@@ -125,10 +125,11 @@ def a_projection(registry: RegistryDep) -> Project:
     return project
 
 
+# An entry names its agent and not the world it was written in, and this reader may hold no key
+# at all: the registry answers with the declaration a stranger's log was written under.
 def declared_by(registry: Registry, agent: str) -> AgentConfig | None:
     """What the agent said about its state fields. An agent nobody holds declared nothing."""
-    registered = registry.of(agent)
-    return None if registered is None else registered.config
+    return registry.declared(agent)
 
 
 # ── what the reader asked for ───────────────────────────────────────────────────

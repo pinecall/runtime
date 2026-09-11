@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pinecall.api._deps import KeyDep, OverridesDep, SettingsDep, StoreDep
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.api.pipeline_report import Report, report
+from pinecall.auth.keys import KeyRecord
 from pinecall.providers.overrides import Overridden
 from pinecall.types import AgentConfig, DeclarationRefused
 
@@ -23,9 +24,7 @@ async def pipeline(
     settings: SettingsDep,
 ) -> Report:
     """What this agent hears, decides and speaks with, what it measured, and what is turned."""
-    return await report(
-        slug, _declared(slug, key.org, registry), overrides.of(slug), store, settings
-    )
+    return await report(slug, _declared(slug, key, registry), overrides.of(slug), store, settings)
 
 
 # PUT and not PATCH: the body is the whole set of knobs, so leaving one out is how an operator
@@ -41,7 +40,7 @@ async def turn(
     settings: SettingsDep,
 ) -> Report:
     """Turn the knobs. Refused whole or applied whole, and the next session is built with them."""
-    declared = _declared(slug, key.org, registry)
+    declared = _declared(slug, key, registry)
     try:
         await overrides.set(key.org, slug, turned.checked(declared))
     except DeclarationRefused as refused:
@@ -49,9 +48,9 @@ async def turn(
     return await report(slug, declared, overrides.of(slug), store, settings)
 
 
-def _declared(slug: str, org: str, registry: RegistryDep) -> AgentConfig:
+def _declared(slug: str, key: KeyRecord, registry: RegistryDep) -> AgentConfig:
     """What the app says about this agent right now. Nothing is turned on an agent nobody holds."""
-    held = registry.of(slug)
-    if held is None or held.org != org:
+    held = registry.of(key.env, slug)
+    if held is None or held.org != key.org:
         raise HTTPException(404, NO_AGENT.format(slug=slug))
     return held.config

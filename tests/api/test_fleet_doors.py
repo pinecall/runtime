@@ -11,7 +11,7 @@ from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import MemoryKeys
 from pinecall.fleet import Heartbeat
 from pinecall.log.store import MemoryStore
-from pinecall.types import DEFAULT_ORG
+from pinecall.types import DEFAULT_ORG, PRODUCTION
 from pinecall.worker.client import Gateway, GatewayRefused
 from pinecall_protocol import defs
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, over_the_asgi_app
@@ -98,7 +98,11 @@ async def test_a_callback_lands_on_the_agents_log_and_the_org_reads_it_back(
 ) -> None:
     """The tenant's own key: the agent must be its org's, and the request is written as an event."""
     await registry.register(
-        "app_1", A_RECORD.org, AGENT, [defs.Route(channel="phone", number="+34910000000")]
+        "app_1",
+        A_RECORD.org,
+        PRODUCTION,
+        AGENT,
+        [defs.Route(channel="phone", number="+34910000000")],
     )
     await worker_gateway.callback_requested(AGENT, "phone", "+34600000000", "call_1")
     written = await store.agent_since(AGENT)

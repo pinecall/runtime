@@ -36,7 +36,7 @@ def in_a_call(type: str) -> Callable[[CallHandler], Handler]:
 
     def take(handler: CallHandler) -> Handler:
         async def with_a_session(socket: Socket, command: Command) -> None:
-            if socket.registry.on(command.agent, socket.id) is None:
+            if socket.registry.on(socket.env, command.agent, socket.id) is None:
                 raise DeclarationRefused(f"agent {command.agent} is not registered on this socket")
             # The socket knows nothing about text/: it hands back whatever is running on that
             # call, and this is the module that knows a running call is a TextSession.

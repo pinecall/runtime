@@ -97,7 +97,7 @@ async def aimed(
     # A token was minted for ONE call and carries no org; the key carries an org and no call.
     # Each is checked against what it has, and neither reaches a call the other's holder owns.
     if reader.key is not None:
-        held = registry.of(agent)
+        held = registry.of(reader.key.env, agent)
         if held is None or held.org != reader.key.org:
             raise VerbRefused(403, NOT_YOUR_CALL)
     elif reader.call != call:

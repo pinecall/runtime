@@ -41,12 +41,12 @@ SINCE = Query(0.0, ge=0, description="only runs started after this many seconds 
 OF_AGENT = Query(None, description="only this agent's runs; every agent of the org's when absent")
 
 
-# The key is a gate here and not an identity, exactly as the replay door beside it: it says this
-# door may be opened, and nothing about the run depends on whose key it was.
+# The key says which world's app the run is put to, and nothing else about the run depends on
+# whose key it was: the replay door beside it takes the same key as a gate alone.
 @router.post("/v1/evals/run")
 async def run_the_goldens(
     said: Wanted,
-    key: KeyDep,  # noqa: ARG001
+    key: KeyDep,
     runner: RunnerDep,
     registry: RegistryDep,
     overrides: OverridesDep,
@@ -68,6 +68,7 @@ async def run_the_goldens(
         live=live,
         store=store,
         runs=runs,
+        env=key.env,
         vault=vault,
         lookups=lookups,
         budgets=settings.budgets,
