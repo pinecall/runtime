@@ -19,21 +19,17 @@ class Judging:
         self._config = config
         self._judge = rings.a_judge()
         self._cells: list[Any] = []
-        # What each conversation asked its model, by the cell it will be judged as. Kept for the
-        # whole run and answered only for the cells that broke: see `matrix`.
-        self._asked: dict[tuple[str, str], Any] = {}
 
     # One conversation at a time, the moment it ends: a person watching the run sees each golden's
     # verdict as it settles, and the matrix is the same one whether it is read half-way or whole.
     async def judged(self, one: Conversation) -> None:
         """This conversation under the judges its own golden asked for, added to the matrix."""
         case = _a_case(one, self._config)
-        self._asked[one.model, one.golden.name] = list(one.asked)
         # livekit's `LLM` is `Generic[TEvent]` (llm/llm.py:115) and every signature that
         # takes one in this tree leaves it bare, so pyright reads the call as partially
         # unknown. The parameter is livekit's to name, not ours.
         measured = await rings.a_matrix(  # pyright: ignore[reportUnknownMemberType]
-            [rings.Spoken(model=one.model, golden=one.golden.name, case=case)],
+            [rings.Spoken(model=one.model, golden=one.golden.name, case=case, asked=one.asked)],
             _judges_for(one.golden, case),
             self._judge,
         )
@@ -42,14 +38,7 @@ class Judging:
     @property
     def matrix(self) -> dict[str, Any]:
         """Every cell answered so far, as one table of scores: the row's `matrix` at this moment."""
-        table = as_json(rings.Matrix(runs=tuple(self._cells)))
-        for row in table["runs"]:
-            # Only where something broke. A green golden's prompt is a page nobody opens, and a
-            # suite of thirty would carry thirty of them in the row a person reads back.
-            if all(score["passed"] for score in row["scores"]):
-                continue
-            row["asked"] = self._asked.get((row["model"], row["golden"]), [])
-        return table
+        return as_json(rings.Matrix(runs=tuple(self._cells)))
 
 
 def as_json(matrix: Any) -> dict[str, Any]:
@@ -71,7 +60,7 @@ def as_json(matrix: Any) -> dict[str, Any]:
 
 def _a_row(run: Any) -> dict[str, Any]:
     """One cell: every judge's answer about one golden under one model, and the call's summary."""
-    return {
+    row: dict[str, Any] = {
         "model": run.model,
         "golden": run.golden,
         "scores": [
@@ -91,6 +80,12 @@ def _a_row(run: Any) -> dict[str, Any]:
         # what the log did not measure, a report never learns.
         "summary": run.summary,
     }
+    # Only where something broke: a green golden's prompt is a page nobody opens, and a suite of
+    # thirty would carry thirty of them in the row a person reads back. A list is what the model was
+    # asked, request by request; null says the run that opened the call kept no requests at all.
+    if run.broke:
+        row["asked"] = run.asked
+    return row
 
 
 def _a_case(one: Conversation, config: AgentConfig) -> Any:

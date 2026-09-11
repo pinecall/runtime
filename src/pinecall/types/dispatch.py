@@ -13,13 +13,11 @@ WORKER_NAME = "pinecall"
 AGENT_KEY = "agent"
 DIRECTION_KEY = "direction"
 CALLER_KEY = "caller"
-# What a run dials as. Nobody minted a visitor id and no number rang, so the caller of an eval call
-# is this prefix and a random tail — and the prefix is the one thing that tells such a call apart
-# from a person who opened the same door. It is spelled HERE and not in the gateway's eval package
-# because three processes read it: the gateway mints it (api/evals/conversation.py), the worker
-# reads it off the dispatch to know a call opened mid-conversation (session/greeting.py), and the
-# tenant's CLI reads it to hand that call its golden's state (cli/testing/seeding.ts).
-AN_EVAL_CALLER = "eval_"
+# Which eval run opened this call, when one did. A call a run opened starts mid-conversation — the
+# golden's state is the conversation that already happened — so the worker greets nobody on it
+# (session/greeting.py) and the tenant's app seeds that state into it (cli/testing/seeding.ts).
+# Both read the fact itself: the run's id, on the dispatch and on the call's first entry.
+RUN_KEY = "run"
 # Which app socket is to serve this call, when the dispatch has a reason to name one: a spoken
 # eval run does, because the goldens and their seeded state live in the terminal that asked for
 # the run, and that socket takes no unclaimed calls. Absent, the gateway picks as it always has.

@@ -7,13 +7,13 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
-from uuid import uuid4
 
 from pinecall._settings import Budgets
 from pinecall.api._live import Live
 from pinecall.api.agents import on_a_call as commands
 from pinecall.api.evals.attachment import APP_DETACHED, ENDED_BY, AppDetached, Attachment
 from pinecall.api.evals.settling import Settling
+from pinecall.auth.scopes import a_visitor
 from pinecall.evals.goldens import Golden
 from pinecall.evals.remembering import Remembering
 from pinecall.log.entry import Entry
@@ -25,14 +25,7 @@ from pinecall.providers.models import Chat
 from pinecall.session.asking import Asking, NotAsking, WhatWasAsked
 from pinecall.session.text.session import TextSession
 from pinecall.types import AgentConfig, CallContext, Route
-from pinecall.types.dispatch import AN_EVAL_CALLER
 from pinecall_protocol.commands import CallEvent, SessionConfigure
-
-# A golden's caller is nobody: no browser minted a visitor id and no number dialled. The prefix
-# says in the log which calls a run opened, so `sessions` never mixes them up with real traffic,
-# and it is what tells the worker that a spoken call opens mid-conversation and must not greet.
-# The call itself is named as every call this runtime mints is: `pinecall.types.a_call_id`.
-A_CALLER = AN_EVAL_CALLER
 
 
 @dataclass(frozen=True)
@@ -43,15 +36,16 @@ class Conversation:
     model: str
     call: str
     entries: Sequence[Entry]
-    # Every request this call made, as the provider received it. Empty on a spoken run, whose
-    # requests are built in the worker process and never reach this one.
-    asked: Sequence[Mapping[str, Any]] = ()
+    # Every request this call made, as the provider received it — or None when nobody kept them:
+    # a spoken run's requests are built in the worker process and never reach this one.
+    asked: Sequence[Mapping[str, Any]] | None = None
 
 
 async def a_conversation(
     golden: Golden,
     *,
     call: str,
+    run: str,
     model: str,
     config: AgentConfig,
     org: str,
@@ -67,7 +61,9 @@ async def a_conversation(
     # A run is the one reader allowed the prompt itself: a golden that breaks has to be openable
     # turn by turn, and a hash in the log cannot be read. api/evals/scoring.py keeps the broken.
     asked = WhatWasAsked()
-    session = an_eval_call(golden, call, config, org, logs, llm, lookups, budgets, asking=asked)
+    session = an_eval_call(
+        golden, call, run, config, org, logs, llm, lookups, budgets, asking=asked
+    )
     settling = Settling(session)
     await logs.owned(session.call, session.agent, org)
     live.serve(
@@ -105,6 +101,7 @@ async def a_conversation(
 def an_eval_call(
     golden: Golden,
     call: str,
+    run: str,
     config: AgentConfig,
     org: str,
     logs: Logs,
@@ -113,12 +110,16 @@ def an_eval_call(
     budgets: Budgets,
     asking: Asking = NotAsking(),  # noqa: B008 — stateless, shared on purpose
 ) -> TextSession:
-    """One call under the id the run named: the caller nobody is, on the config this model runs."""
+    """One call under the id the run named, opened by that run, on the config this model runs."""
+    # The caller is nobody — no browser minted a visitor id and no number dialled — so it gets the
+    # identity the chat door mints for a caller that arrived with none. What tells this call apart
+    # from a person's is not its name but the run that opened it, on the call's first entry.
     context = CallContext(
         call=call,
         channel="web",
         direction="inbound",
-        caller=f"{A_CALLER}{uuid4().hex[:12]}",
+        caller=a_visitor(),
+        run=run,
         route=Route(org=org, agent=config.slug, channel="web", number=None),
         # A golden that names a weekday pins the day it means; the rest run on the real one.
         today=golden.today or date.today(),

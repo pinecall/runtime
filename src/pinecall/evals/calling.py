@@ -17,7 +17,7 @@ from pinecall._settings import Settings
 from pinecall.auth.scopes import a_room_token, secret_for
 from pinecall.evals import line as degrading
 from pinecall.evals import speech
-from pinecall.types.dispatch import AGENT_KEY, APP_KEY, CALLER_KEY, WORKER_NAME
+from pinecall.types.dispatch import AGENT_KEY, APP_KEY, CALLER_KEY, RUN_KEY, WORKER_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +32,8 @@ A_SIMULATED_CALLER = "simulated_caller"
 THE_AGENT_MAY_TAKE_S = 40.0
 
 # How long the caller listens after saying something, when nobody handed in a `settled` that can
-# tell. A whole turn is stt, the model and a voice; what the agent actually said is read off the
-# call's own log by whoever is watching it, so this side only has to leave a silence long enough
-# for one to happen. Six is enough for a turn that only talks and is NOT enough for one that runs a
-# tool — measured at thirteen seconds on 2026-09-11, because the model announces the tool, the
-# voice says that, the tool runs, and the voice says the answer. That is what `settled` is for.
+# tell. Six is enough for a turn that only talks and NOT enough for one that runs a tool — measured
+# at thirteen seconds on 2026-09-11 — which is what `settled` is for.
 A_LISTENING_SILENCE_S = 6.0
 
 NOBODY_ANSWERED = "no agent joined room {call} in {seconds:.0f}s: is `pinecall-runtime worker` up?"
@@ -86,20 +83,22 @@ async def a_simulated_call(
     settings: Settings,
     fleet: str = WORKER_NAME,
     caller: str | None = None,
+    run: str | None = None,
     app: str | None = None,
     settled: Settled | None = None,
 ) -> int:
     """Open the room, dispatch the agent into it, say the turns out loud, and hang up."""
     if line.interferer_db is not None and not line.interferer:
-        line.interferer = (await speech.spoken(speech.A_TELEVISION)).pcm
-    async with _dispatch(call, agent, fleet, settings, caller, app):
+        line.interferer = await speech.spoken(speech.A_TELEVISION)
+    async with _dispatch(call, agent, fleet, settings, caller, run, app):
         room = rtc.Room()
         await room.connect(settings.livekit_url, _a_token(call, settings))
         try:
+            # In the order of a phone call: the caller is on the line, then somebody picks up, then
+            # the caller speaks. The line is held open until the run says the answer has landed.
+            mouth = await _Mouth.on(room, line)
             await _until_the_agent_is_here(room, call)
-            # Held open on purpose: the line drops when the run says the answer landed, not when
-            # the caller stops talking — and the same wait sits between two of the caller's lines.
-            return await _every_turn(_Mouth(room, line), turns, next_line, settled)
+            return await every_turn(mouth, turns, next_line, settled)
         finally:
             await room.disconnect()
 
@@ -114,6 +113,7 @@ class _Dispatch:
         fleet: str,
         settings: Settings,
         caller: str | None,
+        run: str | None,
         app: str | None,
     ) -> None:
         self._call = call
@@ -121,6 +121,7 @@ class _Dispatch:
         self._fleet = fleet
         self._settings = settings
         self._caller = caller
+        self._run = run
         self._app = app
         self._api: api.LiveKitAPI | None = None
 
@@ -141,14 +142,16 @@ class _Dispatch:
             )
         )
 
-    # A caller is named only when the run has a reason to: ring 2 marks its calls as eval callers
-    # so the app seeds the golden's state, exactly as a written eval call does. A plain simulate
-    # names nobody and the router falls back to the room, which is what it always did.
+    # A caller and a run are named only when there is a reason to. Ring 2 says which run opened the
+    # call, so the worker and the app treat it as a written eval call: no greeting, the golden's
+    # state seeded. A plain simulate names neither, and the router falls back to the room.
     def _metadata(self) -> dict[str, str]:
-        """What the dispatch tells the worker: the agent, and who it should say is calling."""
+        # A caller and a run are named only when there is a reason to. Ring 2 says which run opened
         said = {AGENT_KEY: self._agent}
         if self._caller is not None:
             said[CALLER_KEY] = self._caller
+        if self._run is not None:
+            said[RUN_KEY] = self._run
         if self._app is not None:
             said[APP_KEY] = self._app
         return said
@@ -164,57 +167,55 @@ def _dispatch(
     fleet: str,
     settings: Settings,
     caller: str | None = None,
+    run: str | None = None,
     app: str | None = None,
 ) -> _Dispatch:
     """The agent asked into this room for the length of the call."""
-    return _Dispatch(call=call, agent=agent, fleet=fleet, settings=settings, caller=caller, app=app)
+    return _Dispatch(call, agent, fleet, settings, caller, run, app)
 
 
 class _Mouth:
-    """The caller's own track: published once, at the rate the box's speech tool actually writes."""
+    """The caller's own track: published once, at the room's rate, before a word of it exists."""
 
-    def __init__(self, room: rtc.Room, line: Line) -> None:
-        self._room = room
+    def __init__(self, source: rtc.AudioSource, line: Line) -> None:
+        self._source = source
         self._line = line
-        self._source: rtc.AudioSource | None = None
+
+    # Published BEFORE the agent is waited for. A room's audio flows because somebody subscribed
+    # to a track, and a subscription is signalled, negotiated and then opened: a track opened and
+    # pushed into in one breath handed the agent a line already playing, and the 1.7 seconds it took
+    # to subscribe were the caller's whole first sentence (2026-09-11, `identifica-al-paciente`, one
+    # run in three). The three lines are livekit's own (examples/primitives/echo-agent.py:45-50).
+    @classmethod
+    async def on(cls, room: rtc.Room, line: Line) -> _Mouth:
+        """The caller's microphone in this room: open, silent, and kept for the whole call."""
+        source = rtc.AudioSource(sample_rate=speech.SAMPLE_RATE, num_channels=speech.CHANNELS)
+        track = rtc.LocalAudioTrack.create_audio_track(A_SIMULATED_CALLER, source)
+        await room.local_participant.publish_track(
+            track, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE)
+        )
+        return cls(source, line)
 
     async def say(self, text: str) -> None:
-        """One line spoken by the box, mixed with the interferer, and published frame by frame."""
-        said = await speech.spoken(text)
-        pcm = (
-            said.pcm
-            if self._line.interferer_db is None
-            else degrading.mixed(said.pcm, self._line.interferer, self._line.interferer_db)
-        )
+        """One line spoken by the box, mixed with the interferer, and pushed frame by frame."""
+        pcm = await speech.spoken(text)
+        if self._line.interferer_db is not None:
+            pcm = degrading.mixed(pcm, self._line.interferer, self._line.interferer_db)
         frames = degrading.with_losses(
-            degrading.frames_of(pcm, said.sample_rate), self._line.packet_loss, self._line.random
+            degrading.frames_of(pcm, speech.SAMPLE_RATE), self._line.packet_loss, self._line.random
         )
-        source = await self._published(said.sample_rate)
         # No sleep between frames: livekit's own publisher pushes them straight into the source and
         # lets it pace them (examples/primitives/echo-agent.py:94), and its queue is a second of
         # audio. Sleeping here as well would put the caller on the line at half speed.
         for frame in frames:
-            await source.capture_frame(
+            await self._source.capture_frame(
                 rtc.AudioFrame(
                     data=frame,
-                    sample_rate=said.sample_rate,
+                    sample_rate=speech.SAMPLE_RATE,
                     num_channels=speech.CHANNELS,
                     samples_per_channel=len(frame) // 2,
                 )
             )
-
-    # The track is published at the FIRST thing the caller says, because the rate is the speech
-    # tool's own and this is where it is first known. The three lines are livekit's own
-    # (examples/primitives/echo-agent.py:45-50), down to the microphone source.
-    async def _published(self, sample_rate: int) -> rtc.AudioSource:
-        """The caller's microphone in this room, opened once and kept for the whole call."""
-        if self._source is None:
-            self._source = rtc.AudioSource(sample_rate=sample_rate, num_channels=speech.CHANNELS)
-            track = rtc.LocalAudioTrack.create_audio_track(A_SIMULATED_CALLER, self._source)
-            await self._room.local_participant.publish_track(
-                track, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE)
-            )
-        return self._source
 
 
 # A talk token, because the caller publishes a microphone: a participate token reads a call and
@@ -250,7 +251,7 @@ def _listening(room: rtc.Room) -> bool:
     )
 
 
-async def _every_turn(
+async def every_turn(
     mouth: _Mouth, turns: int, next_line: NextLine, settled: Settled | None = None
 ) -> int:
     """The caller's turns, said out loud one at a time, each waiting for the answer to the last."""

@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 
 from pinecall.types import Greeting
-from pinecall.types.dispatch import AN_EVAL_CALLER
 
 # Both verbs take the same pair — the words, and whether the caller may cut them short — so the
 # session hands in its own two and this module picks between them. Neither session decides what a
@@ -21,9 +20,9 @@ type Speaks = Callable[[str, bool | None], Awaitable[None]]
 # interruptions disabled, and the call ended with a `turn.agent` and not one `turn.user`. Eight of
 # eleven spoken goldens, every one of them, 2026-09-11. An agent's own opening is exercised where a
 # caller really arrives — a live call, `chat`, `simulate` — and judged there by ring 4.
-def the_greeting_for(greeting: Greeting | None, caller: str | None) -> Greeting | None:
+def the_greeting_for(greeting: Greeting | None, run: str | None) -> Greeting | None:
     """The opening this call gets: none at all when a run opened it, whatever the class declared."""
-    if caller is not None and caller.startswith(AN_EVAL_CALLER):
+    if run is not None:
         return None
     return greeting
 

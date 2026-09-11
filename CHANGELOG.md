@@ -7,6 +7,20 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **A call's first entry names the run that opened it.** `call.ringing`, `call.dialing` and
+  `call.started` carry `run`: the eval run's id, or null for a person. It replaces a caller id
+  prefix (`eval_…`) that three processes read as a marker — the worker, to greet nobody on a call
+  that opens mid-conversation; the tenant's CLI, to seed the golden's state; the gateway, to mint
+  it in two places. The fact is now on the dispatch (`run`) and on the wire, and a golden's caller
+  is the visitor id every caller with none gets.
+- **The worker reads `~/.pinecall/dev`.** A gateway on a dev key leaves its door there and the
+  tenant's CLI already read it; the worker now does too, from `pinecall.auth.dev_file`, and knocks
+  with that key when its gateway is that door — saying out loud that an exported
+  `PINECALL_API_KEY` is being ignored. Which key a worker sends no longer depends on whether the
+  url happens to be loopback.
+- **What a broken golden's model was asked rides the cell.** `Spoken` and `Run` carry `asked`;
+  the row's JSON writes it only under a cell that broke, and writes `null` when the run kept no
+  requests — a spoken run builds them in the worker — where an empty list used to stand for both.
 - **A declared greeting is spoken.** `AgentConfig.greeting` had been on the wire since ms-2 and no
   session ever read it: a string stored, overridden at the pipeline door, drawn in the console, and
   never said out loud. It is now a `Greeting` — exactly one of `say` (the words, read out as
@@ -128,6 +142,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   itself in the wheel and the sdist, so an install carries its licence.
 
 ### Changed
+- **The simulated caller is on the line before anybody picks up.** Its track is published at
+  connect, at 48 kHz, and only then is the agent waited for: a track opened and pushed into in one
+  breath handed the agent a line already playing, and the 1.7 s it took to subscribe were the whole
+  first sentence (`identifica-al-paciente`, one spoken run in three). `evals/speech.py` returns
+  every line at that one rate — espeak-ng's own rate is resampled by livekit's `AudioResampler`.
+- **The spoken run decodes `agent.state` through the protocol** (`AgentStateChanged`, typed
+  `AgentState`), instead of reading a raw dict key against a bare string.
 - **A base can be held to a golden**, which is the only thing that says the index missed a BETTER
   passage — the judge that runs on every call can only weigh what the model was given.
   `POST /v1/knowledge/{base}/eval` takes the questions and the chunk each should have found, and

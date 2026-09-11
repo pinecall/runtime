@@ -371,6 +371,7 @@ def _arrived(context: CallContext, agent: str) -> tuple[str, WireModel]:
     said: dict[str, Any] = {
         "channel": context.channel,
         "from": context.caller,
+        "run": context.run,
         "to": context.route.number or agent,
         "caller": None,
     }

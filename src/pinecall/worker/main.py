@@ -5,11 +5,11 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from functools import partial
-from urllib.parse import urlparse
 
 from livekit.agents import AgentServer, JobContext, JobProcess
 
 from pinecall._settings import Settings, load_settings, variable_of
+from pinecall.auth import dev_file
 from pinecall.evals import a_score
 from pinecall.providers.pipeline import warm_the_vendor_tables
 from pinecall.session.voice import a_bridge
@@ -36,35 +36,29 @@ async def job(ctx: JobContext) -> None:
     await answer(ctx, a_worker(load_settings()))
 
 
-# Why a gateway on 127.0.0.1 changes which key is sent: a dev key is the ONLY key such a gateway
-# honours (it opens no database, so there are no api_keys rows to match), and a real org key
-# exported in the same shell is therefore provably wrong there. `cli/env.ts:doorFrom` decided this
-# for the tenant's CLI and says so out loud; this is the same rule, for the process on the other
-# side of the same door. It cost a full spoken suite: PINECALL_API_KEY was exported, the worker
-# preferred it, every job died on `GET /v1/routes: 401 this door takes an API key`, and the run sat
-# there until its fifteen-minute deadline (2026-09-11). A remote gateway keeps the old order — a
-# box runs on issued keys and never on a dev key — so nothing that worked stops.
+# Which key a worker knocks with is the question the tenant's CLI answers in `cli/env.ts:doorFrom`,
+# answered from the same fact: a gateway running on a dev key leaves its door in ~/.pinecall/dev,
+# and that gateway honours its own key and no other — it opens no database, so there is no
+# api_keys row for an org key to match. A worker about to knock at THAT url therefore sends the
+# dev key it left, and says so when an org key was exported beside it: PINECALL_API_KEY in the
+# shell, a gateway on a dev key, and every job of a spoken suite died on `GET /v1/routes: 401`
+# until the run timed out (2026-09-11). Any other gateway keeps the old order — the org key, then
+# a dev key exported by hand for a gateway that has no file of its own.
 IGNORING_THE_API_KEY = "ignoring PINECALL_API_KEY: the local gateway at %s honours its dev key only"
 
 
-def the_key_for(settings: Settings) -> str:
-    """What this worker knocks at its gateway with: the dev key when that door takes only one."""
-    if settings.dev_key and _is_local(settings.gateway_url):
+def the_key_for(settings: Settings, door: dev_file.Door | None) -> str:
+    """What this worker knocks at its gateway with: the door's own key when the door is that one."""
+    if door is not None and door.is_at(settings.gateway_url):
         if settings.api_key:
             log.warning(IGNORING_THE_API_KEY, settings.gateway_url)
-        return settings.dev_key
+        return door.key
     return settings.api_key or settings.dev_key or ""
-
-
-def _is_local(url: str) -> bool:
-    """Whether that gateway is the one a dev key can be running: loopback and nowhere else."""
-    host = urlparse(url).hostname or ""
-    return host in {"127.0.0.1", "::1", "localhost"}
 
 
 def a_worker(settings: Settings) -> Worker:
     """What every job of a process shares: the gateway, the vendors, the bridge, the recordings."""
-    gateway = reaching(settings.gateway_url, the_key_for(settings))
+    gateway = reaching(settings.gateway_url, the_key_for(settings, dev_file.found()))
     return Worker(
         gateway=gateway,
         kit=kit_for(settings),

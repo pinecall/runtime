@@ -114,7 +114,7 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     # declared a greeting speaks now, and whatever the app sent while the room was being joined
     # arrives after it. Its turn is a turn.agent like any other; nothing here is special-cased.
     await greeting.open_the_call(
-        greeting.the_greeting_for(config.greeting, context.caller),
+        greeting.the_greeting_for(config.greeting, context.run),
         say=_saying(live),
         reply=_replying(live),
     )
@@ -175,6 +175,7 @@ def a_call(call: str, arrival: router.Arrival, route: Route) -> CallContext:
         route=route,
         today=date.today(),
         metadata=arrival.metadata,
+        run=arrival.run,
     )
 
 

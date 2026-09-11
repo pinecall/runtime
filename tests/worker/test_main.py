@@ -11,6 +11,7 @@ import pytest
 from livekit.agents import JobContext, JobExecutorType, JobProcess
 
 from pinecall._settings import load_settings
+from pinecall.auth import dev_file
 from pinecall.evals import a_score
 from pinecall.providers import llm, stt, tts
 from pinecall.session.voice import VoiceBridge, a_bridge
@@ -22,6 +23,14 @@ pytestmark = pytest.mark.unit
 
 A_DEV_KEY = "a-dev-key-left-over-in-this-shell"
 A_FLEETS_KEY = "pk_a_fleets_key_nobody_will_ever_deploy"
+
+
+@pytest.fixture(autouse=True)
+def a_home_of_its_own(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every worker here reads a ~/.pinecall of this test's own: the machine's door is nobody's."""
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+
 A_MEDIA_PLANE = "wss://a-project.livekit.cloud"
 A_LIVEKIT_KEY = "APIaFakeKeyForATest"
 A_LIVEKIT_SECRET = "a-fake-secret-that-signs-nothing"
@@ -169,19 +178,17 @@ def test_the_worker_knocks_with_the_fleets_own_api_key(monkeypatch: pytest.Monke
     assert _the_bearer_of(main.a_worker(load_settings())) == f"Bearer {A_FLEETS_KEY}"
 
 
-# This test used to say the opposite — "the api key was issued on purpose; a dev key left in a
-# shell was not" — and that reasoning was wrong about which of the two can WORK. A gateway on a
-# dev key opens no database, so there are no api_keys rows for the issued key to match and it is
-# refused with a bare 401. On 2026-09-11 a whole spoken suite died that way: every job answered
-# `GET /v1/routes: 401 this door takes an API key` and the run sat until its fifteen-minute
-# deadline. The tenant's CLI had already decided this the other way (cli/env.ts:doorFrom); the
-# worker is the same door's other side. The URL is what tells the two cases apart.
-def test_a_laptop_with_both_keys_knocks_at_a_local_gateway_with_the_dev_key(
+# A gateway on a dev key opens no database, so there are no api_keys rows for an issued key to
+# match and it is refused with a bare 401. On 2026-09-11 a whole spoken suite died that way: every
+# job answered `GET /v1/routes: 401 this door takes an API key` and the run sat until its
+# fifteen-minute deadline. What tells the two cases apart is not the url's shape but the gateway's
+# own word: the door it left in ~/.pinecall/dev, which the tenant's CLI reads the same way.
+def test_a_laptop_knocks_at_the_gateway_that_left_its_door_with_that_doors_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A dev-key gateway honours one key. The exported org key is provably not it."""
+    dev_file.written(A_DEV_KEY, 8080)
     monkeypatch.setenv("PINECALL_API_KEY", A_FLEETS_KEY)
-    monkeypatch.setenv("PINECALL_DEV_KEY", A_DEV_KEY)
     monkeypatch.setenv("PINECALL_GATEWAY_URL", "http://127.0.0.1:8080")
     assert _the_bearer_of(main.a_worker(load_settings())) == f"Bearer {A_DEV_KEY}"
 
@@ -189,14 +196,14 @@ def test_a_laptop_with_both_keys_knocks_at_a_local_gateway_with_the_dev_key(
 def test_a_laptop_with_both_keys_knocks_at_a_BOX_with_the_key_it_was_issued(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A box runs on issued keys and never on a dev key: a dev key in the .env is not about it."""
+    """A box runs on issued keys and never on a dev key: a door on this machine is not about it."""
+    dev_file.written(A_DEV_KEY, 8080)
     monkeypatch.setenv("PINECALL_API_KEY", A_FLEETS_KEY)
-    monkeypatch.setenv("PINECALL_DEV_KEY", A_DEV_KEY)
     monkeypatch.setenv("PINECALL_GATEWAY_URL", "https://gateway.example.com")
     assert _the_bearer_of(main.a_worker(load_settings())) == f"Bearer {A_FLEETS_KEY}"
 
 
-def test_a_laptop_with_only_a_dev_key_still_knocks_with_it(
+def test_a_laptop_with_only_a_dev_key_exported_still_knocks_with_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A clone runs the gateway before Postgres exists, and its worker has to reach that gateway."""

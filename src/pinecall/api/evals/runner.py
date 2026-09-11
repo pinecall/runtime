@@ -209,6 +209,7 @@ async def _every_conversation(
                     await a_spoken_conversation(
                         golden,
                         call=call,
+                        run=run.id,
                         model=named,
                         agent=wanted.agent,
                         store=process.store,
@@ -222,6 +223,7 @@ async def _every_conversation(
                     else await a_conversation(
                         golden,
                         call=call,
+                        run=run.id,
                         model=named,
                         config=running,
                         org=serving.org,

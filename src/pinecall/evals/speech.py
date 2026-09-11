@@ -1,16 +1,18 @@
-"""A synthetic caller's own voice: the box's speech tool, as PCM a room can carry."""
+"""A synthetic caller's own voice: the box's speech tool, as PCM at the rate a room is opened at."""
 
 from __future__ import annotations
 
 import asyncio
 import shutil
 import wave
-from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-# The rate everything downstream is written for: LiveKit's own examples publish at 48 kHz mono, and
-# it is what `say` is asked for so that nothing has to resample a caller on the way to the room.
+from livekit import rtc
+
+# The rate everything downstream is written for: LiveKit's own examples publish at 48 kHz mono.
+# Every line comes back at this rate, whatever the tool wrote, so a caller's track can be opened
+# before a word of it exists.
 SAMPLE_RATE = 48_000
 CHANNELS = 1
 
@@ -19,7 +21,7 @@ CHANNELS = 1
 SAY = "say"
 A_SPANISH_VOICE = "Mónica"
 
-# Linux, where `say` is not: espeak-ng writes a WAVE at its own rate, which is read off the file.
+# Linux, where `say` is not: espeak-ng writes a WAVE at its own rate and is resampled below.
 ESPEAK = "espeak-ng"
 
 # What the sports bulletin of those calls was: a second voice, reading something nobody is listening
@@ -39,28 +41,20 @@ class NoVoice(RuntimeError):
     """Nothing on this box can turn a line into audio, so no caller can be put on a line."""
 
 
-@dataclass(frozen=True)
-class Audio:
-    """One line said out loud: the samples, and the rate whoever publishes them must declare."""
-
-    pcm: bytes
-    sample_rate: int
-
-
 def a_speech_tool() -> str | None:
     """Which of the two this box has, or None when it has neither."""
     return next((tool for tool in (SAY, ESPEAK) if shutil.which(tool) is not None), None)
 
 
-async def spoken(text: str, *, voice: str = A_SPANISH_VOICE) -> Audio:
-    """One line said out loud by the box, as 16-bit mono PCM at whatever rate the tool wrote."""
+async def spoken(text: str, *, voice: str = A_SPANISH_VOICE) -> bytes:
+    """One line said out loud by the box, as 16-bit mono PCM at SAMPLE_RATE."""
     tool = a_speech_tool()
     if tool is None:
         raise NoVoice(NO_SPEECH_TOOL)
     with TemporaryDirectory() as folder:
         written = Path(folder) / "said.wav"
         await _run(_the_command(tool, text, written, voice))
-        return _read(written)
+        return pcm_of(written)
 
 
 def _the_command(tool: str, text: str, written: Path, voice: str) -> list[str]:
@@ -81,9 +75,20 @@ async def _run(command: list[str]) -> None:
         raise NoVoice(f"{command[0]} refused to speak: {refused}")
 
 
-# The rate is read off the file rather than assumed: `say` is asked for 48 kHz and gives it, and
-# espeak-ng writes at whatever it likes. Whoever publishes this declares the rate it came back with.
-def _read(written: Path) -> Audio:
-    """The samples of a WAVE the tool just wrote, mono 16-bit, at the rate it chose."""
+# The rate is read off the file rather than assumed: `say` gives the one it was asked for and
+# espeak-ng writes at whatever it likes, which is brought to SAMPLE_RATE by livekit's own resampler.
+def pcm_of(written: Path) -> bytes:
+    """The samples of a WAVE the tool just wrote, mono 16-bit, at the room's rate."""
     with wave.open(str(written), "rb") as sound:
-        return Audio(pcm=sound.readframes(sound.getnframes()), sample_rate=sound.getframerate())
+        pcm, rate = sound.readframes(sound.getnframes()), sound.getframerate()
+    return pcm if rate == SAMPLE_RATE else _at_the_rooms_rate(pcm, rate)
+
+
+def _at_the_rooms_rate(pcm: bytes, rate: int) -> bytes:
+    """The same samples at SAMPLE_RATE, through the resampler the room itself would use."""
+    resampler = rtc.AudioResampler(rate, SAMPLE_RATE, num_channels=CHANNELS)
+    frame = rtc.AudioFrame(
+        data=pcm, sample_rate=rate, num_channels=CHANNELS, samples_per_channel=len(pcm) // 2
+    )
+    resampled = [*resampler.push(frame), *resampler.flush()]
+    return b"".join(bytes(one.data) for one in resampled)

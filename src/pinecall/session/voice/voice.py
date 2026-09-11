@@ -133,6 +133,7 @@ class VoiceBridge:
             "channel": self.context.channel,
             "direction": self.context.direction,
             "from": self.context.caller,
+            "run": self.context.run,
             "to": self.context.route.number or self.config.slug,
             "caller": None,
             "started_at": self._started_at,
