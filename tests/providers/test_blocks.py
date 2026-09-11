@@ -22,6 +22,7 @@ A_VIEW = "The caller is Ana. Two slots are free."
 
 A_FACT = "Prefiere que le llamen por la mañana."
 A_CHUNK = "La revisión son cuarenta euros."
+SAID = "¿Tiene algo el martes?"
 
 
 def test_the_anthropic_request_carries_one_system_block_per_static_block_in_order() -> None:
@@ -109,23 +110,69 @@ def test_both_halves_of_a_fabricated_pair_survive_the_formatter_in_order() -> No
     tool_use with no result. This reads the request Anthropic would actually be sent."""
     blocks = _written()
     blocks.set("view", A_VIEW)
-    lookups = (
-        *_a_lookup("recall", {"facts": [{"text": A_FACT, "source": "call_8f4a2c"}]}),
-        *_a_lookup("search", {"chunks": [{"path": "tarifas.md", "text": A_CHUNK}]}, at=2),
+    messages, _data = anthropic_request(
+        request_context(_the_caller_just_spoke(blocks), blocks, _two_lookups())
     )
-    messages, _data = anthropic_request(request_context(_a_conversation(blocks), blocks, lookups))
     kinds = [
         (message["role"], block["type"], block.get("name") or block.get("tool_use_id"))
         for message in messages
         for block in message["content"]
     ]
-    assert kinds[-5:] == [
+    assert kinds[-6:] == [
         ("assistant", "tool_use", "recall"),
         ("user", "tool_result", "lu_1_recall"),
         ("assistant", "tool_use", "search"),
         ("user", "tool_result", "lu_2_search"),
         ("user", "text", None),
+        ("user", "text", None),
     ]
+
+
+# Where the pair goes, and the reason the whole file exists in this order. livekit hands
+# `on_user_turn_completed` a context WITHOUT the caller's new message and appends it after
+# (agent_activity.py:2599-2606, :2672), so anything a lookup adds there lands ahead of what they
+# just said. Appended after it instead, their sentence sits several messages back from where the
+# model decides, behind two tool_results — 0 of 8 on clinica-norte's own recorded request, 8 of 8
+# with the words next to the view (2026-09-11).
+def test_a_lookup_lands_ahead_of_the_caller_so_their_words_stay_next_to_the_view() -> None:
+    """The request ends with the caller's sentence and then the view, with nothing between them."""
+    blocks = _written()
+    blocks.set("view", A_VIEW)
+
+    messages, _data = anthropic_request(
+        request_context(_the_caller_just_spoke(blocks), blocks, _two_lookups())
+    )
+
+    assert [block["text"] for block in messages[-1]["content"] if block["type"] == "text"] == [
+        SAID,
+        f"<instructions>\n{A_VIEW}\n</instructions>",
+    ]
+
+
+def test_a_turn_the_caller_did_not_open_keeps_its_lookups_at_the_end() -> None:
+    """A tool step, or `agent.reply`: no newest message to sit ahead of, so nothing is moved."""
+    blocks = _written()
+    blocks.set("view", A_VIEW)
+
+    request = request_context(_a_conversation(blocks), blocks, _two_lookups())
+
+    # …the agent's own last turn, then the two pairs, then the view. The order this always had.
+    assert [type(item).__name__ for item in request.items][-6:] == [
+        "ChatMessage",
+        "FunctionCall",
+        "FunctionCallOutput",
+        "FunctionCall",
+        "FunctionCallOutput",
+        "ChatMessage",
+    ]
+
+
+def _two_lookups() -> tuple[agents.ChatItem, ...]:
+    """One recall and one search, both with something in them, as a real turn carries them."""
+    return (
+        *_a_lookup("recall", {"facts": [{"text": A_FACT, "source": "call_8f4a2c"}]}),
+        *_a_lookup("search", {"chunks": [{"path": "tarifas.md", "text": A_CHUNK}]}, at=2),
+    )
 
 
 def test_a_tool_results_content_parses_as_json_and_its_key_is_facts_or_chunks() -> None:
@@ -213,6 +260,16 @@ def _a_conversation(blocks: Blocks) -> agents.ChatContext:
     update_instructions(context, instructions=blocks.instructions, add_if_missing=True)
     context.add_message(role="user", content="Hola, quiero una cita.")
     context.add_message(role="assistant", content="Claro. ¿Para qué día?")
+    return context
+
+
+# What `llm_node` is ACTUALLY handed: livekit appends the caller's new message before the reply is
+# generated (agent_activity.py:2672), so the context always ends with what they just said. The
+# fixture above ends on the agent instead, which is why it could not see where a lookup lands.
+def _the_caller_just_spoke(blocks: Blocks, said: str = SAID) -> agents.ChatContext:
+    """The same conversation one turn on, ending where every real request ends."""
+    context = _a_conversation(blocks)
+    context.add_message(role="user", content=said)
     return context
 
 
