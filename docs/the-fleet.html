@@ -119,7 +119,7 @@ infra/fleet/&lt;cloud&gt; list             name&lt;TAB&gt;created-at (ISO 8601),
 </table></div>
 
 <h2 id="blocked">6. Are we stuck? No. What is left, and why</h2>
-<h3>The cloud credential is the operator's, per provider <span class="tag warn">yours</span></h3>
+<h3>The cloud credential is the operator's, per provider <span class="tag">done on the hub</span></h3>
 <p>The loop is provider-neutral by construction: it runs a script and reads lines. What is <em>not</em> neutral — and cannot be — is <b>who is allowed to create and delete machines</b>. Every cloud names that permission differently, and every cloud requires you to grant it:</p>
 <div class="wide"><table>
 <tr><th>cloud</th><th>the permission</th><th>how the loop's machine gets it</th></tr>
@@ -127,7 +127,7 @@ infra/fleet/&lt;cloud&gt; list             name&lt;TAB&gt;created-at (ISO 8601),
 <tr><td>AWS</td><td><code>ec2:RunInstances</code>, <code>TerminateInstances</code>, <code>DescribeInstances</code></td><td>an instance role on the hub (or <code>aws configure</code> on a laptop)</td></tr>
 <tr><td>Hetzner</td><td>a project API token, read+write</td><td><code>HCLOUD_TOKEN</code> through <code>make secret</code></td></tr>
 </table></div>
-<p>Today the loop runs from a laptop whose <code>gcloud</code> is signed in, and that is a complete, working fleet. Running it unattended on the hub (<code>pinecall-fleet.service</code>, enabled by <code>PINECALL_FLEET_CLOUD</code> in <code>box.env</code>) needs the hub's own credential — <b>one IAM decision per cloud, taken by the account's owner, not by code</b>. Nothing in the repository chooses a provider.</p>
+<p>On <code>pinecall-box</code> this was done on 2026-09-11: the address reserved as static, a service account <code>pinecall-fleet</code> with the two roles attached to the stopped VM with the <code>cloud-platform</code> scope, three lines in <code>box.env</code>, one deploy — and <code>pinecall-fleet.service</code> now runs the loop on the hub, reading its credential from the metadata server, with the vendor's own <code>gcloud</code> that the manifest installs (never the snap, which refuses a service user homed under <code>/opt</code>). The loop still runs from any laptop too. The decision itself — <b>which account may create and delete machines</b> — stays the owner's on every cloud; the repository takes it and never makes it.</p>
 <h3>Media in every region <span class="tag warn">not built</span></h3>
 <p>LiveKit's open-source server is one region. Routing a caller to the nearest SFU is a cloud feature or a second full stack behind a geographic DNS answer; the repository ships neither and <code>scaling.md</code> says so.</p>
 <h3>Dialing back <span class="tag warn">the tenant's</span></h3>
