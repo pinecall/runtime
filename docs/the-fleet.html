@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Fleet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root { color-scheme: light dark;
+    --ground:#f6f7f9; --paper:#ffffff; --ink:#15181d; --muted:#5b6472; --line:#e3e6ea;
+    --accent:#0f766e; --accent-ink:#ffffff; --soft:#e6f4f2; --warn:#b45309; --warn-soft:#fdf1e3; --code:#eef0f3; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --ground:#0f1216; --paper:#161a20; --ink:#e6e8eb; --muted:#98a1ad; --line:#242a33;
+    --accent:#2dd4bf; --accent-ink:#06201d; --soft:#12302d; --warn:#f2b46d; --warn-soft:#2b2115; --code:#1d232b; } }
+  :root[data-theme="dark"] {
+    --ground:#0f1216; --paper:#161a20; --ink:#e6e8eb; --muted:#98a1ad; --line:#242a33;
+    --accent:#2dd4bf; --accent-ink:#06201d; --soft:#12302d; --warn:#f2b46d; --warn-soft:#2b2115; --code:#1d232b; }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--ground); color:var(--ink); font:16px/1.6 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; padding-block:0 4rem; padding-inline:clamp(16px,4vw,40px); }
+  main { max-width:76ch; margin:0 auto }
+  h1,h2,h3 { line-height:1.2; text-wrap:balance; letter-spacing:-.01em }
+  h1 { font-size:2.1rem; font-weight:700; margin:3rem 0 .5rem }
+  h2 { font-size:1.35rem; font-weight:600; margin:3rem 0 .75rem; padding-top:1.25rem; border-top:1px solid var(--line) }
+  h3 { font-size:1.05rem; font-weight:600; margin:1.75rem 0 .5rem }
+  p, li { max-width:70ch } .lead { font-size:1.15rem; color:var(--muted); margin:0 0 1.5rem }
+  code, pre, td.mono { font:.88em/1.5 "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace }
+  code { background:var(--code); padding:.1em .35em; border-radius:4px }
+  pre { background:var(--code); padding:1rem 1.1rem; border-radius:8px; overflow-x:auto; margin:1rem 0 } pre code { background:none; padding:0 }
+  .wide { overflow-x:auto; margin:1rem 0 } table { border-collapse:collapse; width:100%; font-size:.93rem } th, td { text-align:left; vertical-align:top; padding:.55rem .7rem; border-bottom:1px solid var(--line) }
+  th { font-weight:600; color:var(--muted); font-size:.8rem; letter-spacing:.04em; text-transform:uppercase } td:first-child { white-space:nowrap }
+  .glance { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:10px; overflow:hidden; margin:1.5rem 0 }
+  .glance div { background:var(--paper); padding:.9rem 1rem } .glance b { display:block; font-size:1.4rem; font-weight:600; font-variant-numeric:tabular-nums } .glance span { color:var(--muted); font-size:.85rem }
+  .tag { display:inline-block; font-size:.72rem; font-weight:600; letter-spacing:.05em; text-transform:uppercase; padding:.15em .5em; border-radius:999px; background:var(--soft); color:var(--accent); vertical-align:middle }
+  .tag.warn { background:var(--warn-soft); color:var(--warn) }
+  .note { border-left:3px solid var(--accent); background:var(--paper); padding:.8rem 1rem; border-radius:0 8px 8px 0; margin:1.25rem 0 } .note.warn { border-color:var(--warn) }
+  .steps { counter-reset:s; padding:0; list-style:none } .steps li { counter-increment:s; position:relative; padding-left:2.4rem; margin:.7rem 0 }
+  .steps li::before { content:counter(s); position:absolute; left:0; top:.1rem; width:1.6rem; height:1.6rem; border-radius:50%; background:var(--accent); color:var(--accent-ink); font-weight:600; font-size:.85rem; display:grid; place-items:center }
+  a { color:var(--accent) } small { color:var(--muted) } :focus-visible { outline:2px solid var(--accent); outline-offset:2px }
+</style>
+</head>
+<body>
+<main>
+<h1>The Fleet</h1>
+<p class="lead">How one runtime goes from a laptop to a fleet of workers on any cloud: every way to run it, every verb and door that drives it, what was measured on the real machines, and the honest list of what is not there. <small>Written 2026-09-11, against runtime <code>e4b65c5</code>.</small></p>
+
+<div class="glance">
+  <div><b>47 s</b><span>from <code>create</code> to the new machine's first heartbeat</span></div>
+  <div><b>exit 3</b><span>a cordoned worker drains and stays down</span></div>
+  <div><b>0.7</b><span>the load LiveKit stops routing at — one number, both sides</span></div>
+  <div><b>503</b><span>what a full fleet answers instead of a dead room</span></div>
+  <div><b>3 verbs</b><span>a cloud is <code>create</code> · <code>delete</code> · <code>list</code></span></div>
+</div>
+
+<h2 id="ways">1. The four ways to run it</h2>
+<p>The same distribution, the same units, the same image. What changes is one line — <code>PINECALL_ROLE</code> — and how many machines carry it.</p>
+<div class="wide"><table>
+<tr><th>shape</th><th>what runs where</th><th>you type</th><th>when</th></tr>
+<tr><td>a laptop</td><td>gateway on a dev key, <code>worker dev</code>, the compose stack</td><td><code>pinecall-runtime gateway</code> · <code>worker dev</code></td><td>writing an agent</td></tr>
+<tr><td>one box <code>all</code></td><td>Caddy, LiveKit, SIP, Postgres, TEI, gateway, <b>overflow</b>, worker — one machine</td><td><code>make deploy</code></td><td>the first customer; today's <code>pinecall-box</code></td></tr>
+<tr><td>hub + workers</td><td>hub: control + media + overflow. Each worker: calls only, dials the hub, measured <code>MAX_JOBS</code></td><td><code>make deploy</code> per machine, or the image</td><td>more calls than one machine holds</td></tr>
+<tr><td>the loop</td><td>hub + workers as above, and <code>fleet loop</code> adding and removing machines from an image</td><td><code>pinecall-runtime fleet loop --cloud gcp --seats 4</code></td><td>load that moves during the day</td></tr>
+</table></div>
+
+<h2 id="count">2. How capacity is counted</h2>
+<p>Never CPU. A worker reports <b>calls held over calls it was measured to hold</b>; LiveKit stops handing it calls at <b>0.7</b> of that, and picks among the rest <em>at random, weighted by the room each has left</em> (livekit-server <code>selectWorkerWeightedByLoad</code>). The hub adds the same numbers up:</p>
+<pre><code>a worker's load  = active / PINECALL_MAX_JOBS
+the fleet's free  = Σ (max − active)       over workers heard in the last 30 s
+accepting         = workers under 0.7, not cordoned, not draining
+full              = somebody is there and nobody accepts</code></pre>
+<p><code>MAX_JOBS</code> is measured on the machine type — calls with real audio, five more each step, until the p95 of first audio crosses 1.8 s — and set one under that. A worker without it (the hub's own on a full box) reports the machine's CPU and counts no seats.</p>
+
+<h2 id="pieces">3. Every method, by who calls it</h2>
+<h3>The worker → the hub <span class="tag">built</span></h3>
+<div class="wide"><table>
+<tr><th>door</th><th>what</th></tr>
+<tr><td><code>POST /v1/fleet/heartbeat</code></td><td>every 5 s: <code>{worker, active, max_jobs, load, draining}</code>. Back: <code>{cordoned, full}</code>. Takes the <b>default org's key</b> — the one the worker-key unit mints — and no tenant's.</td></tr>
+<tr><td><code>GET /v1/fleet/standing</code></td><td>the totals; the overflow agent's one question.</td></tr>
+</table></div>
+<h3>The operator → the hub <span class="tag">built</span></h3>
+<div class="wide"><table>
+<tr><th>verb</th><th>door</th><th>what</th></tr>
+<tr><td><code>fleet list</code></td><td><code>GET /v1/ops/fleet</code></td><td>one line per worker: held, seats, load, standing (<code>accepting · full · draining · cordoned · gone</code>), last heard; then the totals</td></tr>
+<tr><td><code>fleet cordon &lt;w&gt;</code></td><td><code>POST /v1/ops/fleet/{w}/cordon</code></td><td>no new call, finish what it holds, exit 3; the unit leaves it down</td></tr>
+<tr><td><code>fleet uncordon &lt;w&gt;</code></td><td><code>DELETE …/cordon</code></td><td>taken back while it is still there</td></tr>
+<tr><td><code>fleet loop</code></td><td>the two above + the cloud script</td><td>grow · cordon · delete · hold, every 15 s</td></tr>
+</table></div>
+<h3>The public → the hub, when it is full <span class="tag">built</span></h3>
+<div class="wide"><table>
+<tr><th>door</th><th>what</th></tr>
+<tr><td><code>POST /v1/tokens</code></td><td><b>503</b> with the numbers and the way out; <code>fleet.full</code> on the agent's log. Before any room exists.</td></tr>
+<tr><td><code>POST /v1/callbacks</code></td><td><code>{agent, number}</code> → <code>callback.requested</code> on the agent's log, <code>via: widget</code></td></tr>
+<tr><td><code>GET /v1/callbacks</code> · <code>pinecall callbacks</code></td><td>every number left, oldest first, for the org's app to dial</td></tr>
+<tr><td>a phone call</td><td>answered by <code>worker overflow</code> on the hub: one sentence, the caller's number as <code>callback.requested</code>, <code>via: overflow</code>, hang up. No STT, no model.</td></tr>
+</table></div>
+<h3>The loop → the cloud <span class="tag">built</span></h3>
+<pre><code>infra/fleet/&lt;cloud&gt; create &lt;name&gt;     boots from the worker image; hostname = name
+infra/fleet/&lt;cloud&gt; delete &lt;name&gt;
+infra/fleet/&lt;cloud&gt; list             name&lt;TAB&gt;created-at (ISO 8601), fleet-labelled only</code></pre>
+<p>Shipped: <code>gcp</code>, <code>aws</code>, <code>hetzner</code> — about forty lines of the vendor's own CLI each. Yours: <code>--cloud ./mine</code> with the same three verbs. The runtime imports no cloud SDK, ever.</p>
+
+<h2 id="loop">4. One tick of the loop</h2>
+<ol class="steps">
+<li><b>Read both tables.</b> The hub's seats (<code>GET /v1/ops/fleet</code>) and the cloud's machines (<code>list</code>). Nothing is kept between ticks: a loop restarted mid-boot sees the booting machine in <code>list</code> and waits for it.</li>
+<li><b>Delete what is finished.</b> A cordoned machine holding no call, or cordoned and gone silent; a machine that never dialled in within 10 min; one silent for 5.</li>
+<li><b>Grow</b> when fewer than <code>--min</code>, when there is no seat anywhere, or when <code>busy = active / seats</code> is over <code>--target</code> (0.6). A booting machine counts as <code>--seats</code> of capacity from the moment it is asked for, so the loop asks once. The name is the smallest free <code>pinecall-worker-N</code>.</li>
+<li><b>Cordon</b> the quietest managed worker only if the fleet would still sit under the target <b>by 0.15</b> without it and stay above <code>--min</code>. Ties go to the newest. The loop never touches a machine the cloud does not list as the fleet's.</li>
+</ol>
+<div class="note">The <b>image is a deployed worker, frozen</b>. A box holds no credential for the repository and cannot fetch code, so a machine the loop makes boots from an image of a worker that was deployed once: code, units, encrypted credentials (host key — the clone carries it), <code>box.env</code>. Its hostname is the name the loop gave it, which is what it heartbeats under. Refresh the image after a worker deploy.</div>
+
+<h2 id="measured">5. What was measured, on the real machines</h2>
+<div class="wide"><table>
+<tr><th>run</th><th>seen</th></tr>
+<tr><td><code>fleet loop --min 2 --once</code></td><td>GCP created <code>pinecall-worker-2</code> from the image; it heartbeated <b>47 s</b> after <code>create</code> returned</td></tr>
+<tr><td><code>fleet loop --min 1</code>, three ticks</td><td>cordoned worker-2 → its unit showed <code>ExecMainStatus=3, NRestarts=0</code> → deleted on the next tick → <code>hold</code></td></tr>
+<tr><td><code>fleet cordon pinecall-worker-1</code></td><td>drained, exit 3, stayed down; <code>uncordon</code> + <code>systemctl start</code> brought it back</td></tr>
+<tr><td>both workers cordoned</td><td><code>POST /v1/tokens</code> → 503 with the sentence; <code>POST /v1/callbacks</code> → 204 and listed</td></tr>
+<tr><td>a dispatch with a visitor in the room</td><td>the overflow agent answered it; the visitor heard the agent's audio track; <code>call.ended agent_hung_up</code> 10.7 s after it opened</td></tr>
+</table></div>
+
+<h2 id="blocked">6. Are we stuck? No. What is left, and why</h2>
+<h3>The cloud credential is the operator's, per provider <span class="tag warn">yours</span></h3>
+<p>The loop is provider-neutral by construction: it runs a script and reads lines. What is <em>not</em> neutral — and cannot be — is <b>who is allowed to create and delete machines</b>. Every cloud names that permission differently, and every cloud requires you to grant it:</p>
+<div class="wide"><table>
+<tr><th>cloud</th><th>the permission</th><th>how the loop's machine gets it</th></tr>
+<tr><td>GCP</td><td><code>roles/compute.instanceAdmin.v1</code></td><td>a service account attached to the hub VM (or <code>gcloud auth</code> on a laptop)</td></tr>
+<tr><td>AWS</td><td><code>ec2:RunInstances</code>, <code>TerminateInstances</code>, <code>DescribeInstances</code></td><td>an instance role on the hub (or <code>aws configure</code> on a laptop)</td></tr>
+<tr><td>Hetzner</td><td>a project API token, read+write</td><td><code>HCLOUD_TOKEN</code> through <code>make secret</code></td></tr>
+</table></div>
+<p>Today the loop runs from a laptop whose <code>gcloud</code> is signed in, and that is a complete, working fleet. Running it unattended on the hub (<code>pinecall-fleet.service</code>, enabled by <code>PINECALL_FLEET_CLOUD</code> in <code>box.env</code>) needs the hub's own credential — <b>one IAM decision per cloud, taken by the account's owner, not by code</b>. Nothing in the repository chooses a provider.</p>
+<h3>Media in every region <span class="tag warn">not built</span></h3>
+<p>LiveKit's open-source server is one region. Routing a caller to the nearest SFU is a cloud feature or a second full stack behind a geographic DNS answer; the repository ships neither and <code>scaling.md</code> says so.</p>
+<h3>Dialing back <span class="tag warn">the tenant's</span></h3>
+<p>The runtime <em>records</em> <code>callback.requested</code>; the org's app has the number, the agent's words and the outbound trunk, so it places the call. <code>GET /v1/callbacks</code> hands the list over and stops.</p>
+<h3>What does <code>pinecall run</code> do when the gateway falls? <span class="tag">built</span></h3>
+<p>It reconnects. The app socket is <b>ours</b>, not LiveKit's (LiveKit reconnects media rooms; the app socket is the runtime's WebSocket at <code>/v1/apps</code>), and <code>src/client/connection.ts</code> retries with full-jitter exponential backoff — 500 ms first, doubling, capped at 30 s, no attempt limit — and <code>agent.ts</code> sends <code>agent.register</code> and the declaration again on every open, because the gateway's registry is memory. A deploy's restart window is about five seconds; each try inside it prints one <code>Unexpected server response: 502</code> through the error door, which is what looked like a crash and was not: the processes were found alive an hour later. Only the <em>first</em> connect rejects — a wrong key, a host nobody is on — which is right. One "reconnected" line on stdout would make this legible; it is the only thing missing.</p>
+
+<h2 id="start">7. From here, in ten lines</h2>
+<pre><code># the hub is deployed and one worker was deployed by hand (infra/box/README.md)
+gcloud compute machine-images create pinecall-worker --source-instance pinecall-worker-1 --source-instance-zone us-central1-c
+gcloud compute instances add-labels pinecall-worker-1 --labels pinecall-fleet=1 --zone us-central1-c
+
+pinecall-runtime fleet list                                   # the roster, as the hub hears it
+pinecall-runtime fleet loop --cloud gcp --seats 4 --once --dry-run   # one tick, nothing touched
+pinecall-runtime fleet loop --cloud gcp --seats 4 --min 1 --max 10   # the loop, until you stop it
+
+pinecall-runtime fleet cordon pinecall-worker-3               # let one go by hand, gracefully
+pinecall callbacks                                            # whom to call back (the tenant's CLI)</code></pre>
+<p><small>Source: <code>fleet/roster.py</code> · <code>fleet/decisions.py</code> · <code>fleet/loop.py</code> · <code>api/fleet.py</code> · <code>worker/heartbeat.py</code> · <code>worker/overflow.py</code> · <code>infra/fleet/</code>. Prose: <a href="scaling.md">scaling.md</a>, <a href="the-runtime-cli.md">the-runtime-cli.md</a>.</small></p>
+</main>
+</body>
+</html>
