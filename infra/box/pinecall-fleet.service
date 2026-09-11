@@ -30,6 +30,7 @@ WorkingDirectory=/opt/pinecall/app
 Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
 Environment=PATH=/snap/bin:/usr/local/bin:/usr/bin:/bin
 Environment=CLOUDSDK_CONFIG=/var/lib/pinecall/gcloud
+Environment=PYTHONUNBUFFERED=1
 EnvironmentFile=/etc/pinecall/box.env
 ImportCredential=PINECALL_OPS_KEY
 ImportCredential=HCLOUD_TOKEN

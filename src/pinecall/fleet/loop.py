@@ -48,9 +48,11 @@ async def tick(
     seats = await hub.seats()
     machines = cloud.machines()
     decided = decide(seats, machines, line, now)
-    print(_status_line(seats, machines, line, now, decided), file=out)
+    # Flushed line by line: under systemd stdout is a pipe, block-buffered, and a loop that says one
+    # line every fifteen seconds would be silent for hours (2026-09-11, the first hour on the hub).
+    print(_status_line(seats, machines, line, now, decided), file=out, flush=True)
     for decision in decided:
-        print(f"  {_said(decision)}{'  (dry run)' if dry_run else ''}", file=out)
+        print(f"  {_said(decision)}{'  (dry run)' if dry_run else ''}", file=out, flush=True)
         if not dry_run:
             await _act(decision, hub, cloud)
     return decided
