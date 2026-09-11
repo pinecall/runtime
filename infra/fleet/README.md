@@ -30,3 +30,31 @@ label it and it joins the fleet the loop sizes.
 
 A cloud of your own is forty lines: the same three verbs, the same `list` line, and
 `--cloud ./path/to/it`.
+
+## Giving the hub the right to grow the fleet, on GCP
+
+The permission lives on the **VM**, not in a file: a service account attached to the hub, so
+`gcloud` on the box reads the metadata server and never logs in. Once, from a laptop:
+
+```bash
+P=<project>; SA=pinecall-fleet@$P.iam.gserviceaccount.com
+gcloud compute addresses create pinecall-box-ip --addresses <the hub's IP> --region <region>   # first: the IP outlives a stop
+gcloud iam service-accounts create pinecall-fleet --display-name "Pinecall fleet loop"
+gcloud projects add-iam-policy-binding $P --member serviceAccount:$SA --role roles/compute.instanceAdmin.v1
+gcloud iam service-accounts add-iam-policy-binding <the workers' service account> --member serviceAccount:$SA --role roles/iam.serviceAccountUser
+gcloud compute instances stop <hub>; gcloud compute instances set-service-account <hub> --service-account $SA --scopes cloud-platform; gcloud compute instances start <hub>
+```
+
+The stop is the one disruptive step — a service account can only be attached to a stopped VM —
+so reserve the address first, and do it between two calls. Then in `/etc/pinecall/box.env`:
+
+```
+PINECALL_FLEET_CLOUD=gcp
+PINECALL_FLEET_SEATS=4
+PINECALL_FLEET_PROJECT=<project>
+```
+
+and `make deploy`: the manifest enables `pinecall-fleet.service`, and `journalctl -u
+pinecall-fleet -f` is the loop, one line a tick. `instanceAdmin.v1` is create, delete, list and
+label instances and use a machine image; `serviceAccountUser` is the right to start a machine
+that runs as the workers' own account. Nothing else.
