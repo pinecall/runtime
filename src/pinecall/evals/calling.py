@@ -31,9 +31,12 @@ A_SIMULATED_CALLER = "simulated_caller"
 # Measured: a cold box whose room connection needed one retry took 15s to have ears.
 THE_AGENT_MAY_TAKE_S = 40.0
 
-# How long the caller listens after saying something. A whole turn is stt, the model and a voice;
-# what the agent actually said is read off the call's own log by whoever is watching it, so this
-# side only has to leave a silence long enough for one to happen.
+# How long the caller listens after saying something, when nobody handed in a `settled` that can
+# tell. A whole turn is stt, the model and a voice; what the agent actually said is read off the
+# call's own log by whoever is watching it, so this side only has to leave a silence long enough
+# for one to happen. Six is enough for a turn that only talks and is NOT enough for one that runs a
+# tool — measured at thirteen seconds on 2026-09-11, because the model announces the tool, the
+# voice says that, the tool runs, and the voice says the answer. That is what `settled` is for.
 A_LISTENING_SILENCE_S = 6.0
 
 NOBODY_ANSWERED = "no agent joined room {call} in {seconds:.0f}s: is `pinecall-runtime worker` up?"
@@ -65,10 +68,12 @@ log, and whoever holds the persona reads it back from there — the same reason 
 the log rather than a session's history (docs/decisions/scoring.md)."""
 
 
-# What a run does after the caller's last word and before the line drops: ring 2 waits for the
-# agent to finish answering, because a golden that expects a tool on the last turn would otherwise
-# be judged on a call that ended mid-thought. A plain simulate passes none and hangs up.
-type Settled = Callable[[], Awaitable[None]]
+# What a run does after EVERY line the caller says — between two of them, and after the last one
+# before the line drops. It is given how many lines have been said so far and waits for the agent
+# to have finished answering them: a golden that expects a tool on its last turn would otherwise be
+# judged on a call that ended mid-thought, and its SECOND line would be said over the answer to its
+# first. A plain simulate passes none and falls back to the silence below.
+type Settled = Callable[[int], Awaitable[None]]
 
 
 async def a_simulated_call(
@@ -92,12 +97,9 @@ async def a_simulated_call(
         await room.connect(settings.livekit_url, _a_token(call, settings))
         try:
             await _until_the_agent_is_here(room, call)
-            spoken = await _every_turn(_Mouth(room, line), turns, next_line)
             # Held open on purpose: the line drops when the run says the answer landed, not when
-            # the caller stops talking.
-            if settled is not None:
-                await settled()
-            return spoken
+            # the caller stops talking — and the same wait sits between two of the caller's lines.
+            return await _every_turn(_Mouth(room, line), turns, next_line, settled)
         finally:
             await room.disconnect()
 
@@ -248,8 +250,10 @@ def _listening(room: rtc.Room) -> bool:
     )
 
 
-async def _every_turn(mouth: _Mouth, turns: int, next_line: NextLine) -> int:
-    """The caller's turns, said out loud one at a time, with a silence for the answer after each."""
+async def _every_turn(
+    mouth: _Mouth, turns: int, next_line: NextLine, settled: Settled | None = None
+) -> int:
+    """The caller's turns, said out loud one at a time, each waiting for the answer to the last."""
     spoken = 0
     for turn in range(turns):
         text, hanging_up = await next_line(turns - turn)
@@ -257,7 +261,14 @@ async def _every_turn(mouth: _Mouth, turns: int, next_line: NextLine) -> int:
             break
         await mouth.say(text)
         spoken += 1
-        await asyncio.sleep(A_LISTENING_SILENCE_S)
         if hanging_up:
             break
+        # The wait that knows, or the silence that guesses. A caller that guesses says its second
+        # line over the answer to its first: `reserva-cuando-el-paciente-dice-que-si` was heard
+        # once out of twice, every spoken run, until this waited for the agent instead of six
+        # seconds (2026-09-11).
+        if settled is not None:
+            await settled(spoken)
+        else:
+            await asyncio.sleep(A_LISTENING_SILENCE_S)
     return spoken
