@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import pytest
+
 from pinecall.evals import Case, Said, a_case
 from tests.evals.logs import THE_GOLDENS_TOOLS, the_golden_call
+
+pytestmark = pytest.mark.unit
 
 # The turn of the golden this file asks about most: the one that answered after retrieval and a
 # tool, so it carries a source, a call, a metrics block and every typed block of its own speech.

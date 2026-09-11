@@ -13,10 +13,8 @@ WORKER_NAME = "pinecall"
 AGENT_KEY = "agent"
 DIRECTION_KEY = "direction"
 CALLER_KEY = "caller"
-# Which eval run opened this call, when one did. A call a run opened starts mid-conversation — the
-# golden's state is the conversation that already happened — so the worker greets nobody on it
-# (session/greeting.py) and the tenant's app seeds that state into it (cli/testing/seeding.ts).
-# Both read the fact itself: the run's id, on the dispatch and on the call's first entry.
+# Which eval run opened this call, when one did: the worker greets nobody on it and the tenant's
+# app seeds the golden's state into it. The same fact rides the call's first entry on the wire.
 RUN_KEY = "run"
 # Which app socket is to serve this call, when the dispatch has a reason to name one: a spoken
 # eval run does, because the goldens and their seeded state live in the terminal that asked for

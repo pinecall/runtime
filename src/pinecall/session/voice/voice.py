@@ -16,6 +16,7 @@ from livekit.agents.voice.events import CloseReason, EventTypes, FunctionToolsEx
 from pinecall._settings import Budgets
 from pinecall.log import NOTHING_SAID, hashed_prompt
 from pinecall.providers import prices
+from pinecall.session.first_entries import started
 from pinecall.session.knowing import a_line_for_the_file_it_ships_with
 from pinecall.session.lookups import Lookup, NoLookup, TurnLookups
 from pinecall.session.remembering import NoRememberer, Rememberer, remembered_within
@@ -37,7 +38,6 @@ from pinecall_protocol.codec import decode_entry
 from pinecall_protocol.events import (
     CallEnded,
     CallScore,
-    CallStarted,
     CallSummary,
     Custom,
     ErrorEvent,
@@ -128,17 +128,10 @@ class VoiceBridge:
         self._hold_the_room()
         live.on(TOOLS_EXECUTED, self._tools_executed)  # pyright: ignore[reportUnknownMemberType] — livekit's callback is `(...) -> Unknown`
         live.on(CLOSED, self._session_closed)  # pyright: ignore[reportUnknownMemberType] — livekit's callback is `(...) -> Unknown`
-        # `from` is a keyword, so this one event is built from the wire's own key names.
-        started = {
-            "channel": self.context.channel,
-            "direction": self.context.direction,
-            "from": self.context.caller,
-            "run": self.context.run,
-            "to": self.context.route.number or self.config.slug,
-            "caller": None,
-            "started_at": self._started_at,
-        }
-        await self.writing.emit("call.started", CallStarted.model_validate(started))
+        await self.writing.emit(
+            "call.started",
+            started(self.context, self.context.route.number or self.config.slug, self._started_at),
+        )
         await a_line_for_the_file_it_ships_with(self.blocks, self.writing.emit)
 
     # The shutdown callbacks of a job run gathered, not in order, so the session is closed here

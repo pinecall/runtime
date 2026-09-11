@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 from pinecall import evals
+
+pytestmark = pytest.mark.unit
 
 THE_SURFACE = [
     "EXTRACTORS",
@@ -21,7 +25,6 @@ THE_SURFACE = [
     "Line",
     "Matrix",
     "NoForbiddenToolRanJudge",
-    "NoVoice",
     "NothingWasSaidJudge",
     "PolicyJudge",
     "Register",
@@ -31,6 +34,7 @@ THE_SURFACE = [
     "Scope",
     "Score",
     "Spoken",
+    "TheCallerWasHeardJudge",
     "TheEventWasAnsweredJudge",
     "a_case",
     "a_headless_call",

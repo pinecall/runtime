@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
-from typing import Any, Protocol, cast
+from collections.abc import Mapping, Sequence
+from typing import Any, Protocol
 
 from livekit.agents import llm as agents
 from livekit.agents.llm.utils import (
@@ -60,15 +60,12 @@ class WhatWasAsked:
 # it ran no tool. The platform's own — recall, search, the clock — are the decorated kind.
 def _declared_as(tools: Sequence[agents.Tool]) -> list[dict[str, Any]]:
     """Every tool the request carries, as a JSON schema, in the order the provider receives it."""
-    # livekit's tool types are generic over an unbounded parameter, so a strict checker reads its
-    # own guards and its own schema builder as partially unknown. One cast each, at the one call.
-    raw = cast("Callable[[Any], bool]", agents.is_raw_function_tool)  # pyright: ignore[reportUnknownMemberType]
-    written = cast("Callable[[Any], bool]", agents.is_function_tool)  # pyright: ignore[reportUnknownMemberType]
-    schema = cast("Callable[[Any], dict[str, Any]]", build_legacy_openai_schema)
-    kept = [tool for tool in tools if raw(tool) or written(tool)]
-    return [dict(_raw_schema_of(tool)) if raw(tool) else schema(tool) for tool in kept]
-
-
-def _raw_schema_of(tool: Any) -> Mapping[str, Any]:
-    """The schema a raw tool was declared with, off livekit's own info record."""
-    return cast("Mapping[str, Any]", tool.info.raw_schema)
+    declared: list[dict[str, Any]] = []
+    # livekit's two guards narrow to tool types that are generic over an unbounded parameter, which
+    # a strict checker reads as partially unknown; the narrowing itself is what this relies on.
+    for tool in tools:
+        if agents.is_raw_function_tool(tool):  # pyright: ignore[reportUnknownMemberType]
+            declared.append(dict(tool.info.raw_schema))
+        elif agents.is_function_tool(tool):  # pyright: ignore[reportUnknownMemberType]
+            declared.append(build_legacy_openai_schema(tool))
+    return declared

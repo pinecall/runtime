@@ -9,6 +9,7 @@ import random as randomness
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from typing import Protocol
 
 from livekit import api, rtc
 from livekit.protocol.agent_dispatch import CreateAgentDispatchRequest
@@ -17,6 +18,7 @@ from pinecall._settings import Settings
 from pinecall.auth.scopes import a_room_token, secret_for
 from pinecall.evals import line as degrading
 from pinecall.evals import speech
+from pinecall.evals.polling import until
 from pinecall.types.dispatch import AGENT_KEY, APP_KEY, CALLER_KEY, RUN_KEY, WORKER_NAME
 
 logger = logging.getLogger(__name__)
@@ -35,6 +37,10 @@ THE_AGENT_MAY_TAKE_S = 40.0
 # tell. Six is enough for a turn that only talks and NOT enough for one that runs a tool — measured
 # at thirteen seconds on 2026-09-11 — which is what `settled` is for.
 A_LISTENING_SILENCE_S = 6.0
+
+# How long the caller's seat in the room is good for: longer than any run holds a line, so the
+# token never ends a call that the run's own deadlines had not.
+A_CALL_MAY_LAST_S = 15 * 60.0
 
 NOBODY_ANSWERED = "no agent joined room {call} in {seconds:.0f}s: is `pinecall-runtime worker` up?"
 
@@ -71,6 +77,14 @@ the log rather than a session's history (docs/decisions/scoring.md)."""
 # judged on a call that ended mid-thought, and its SECOND line would be said over the answer to its
 # first. A plain simulate passes none and falls back to the silence below.
 type Settled = Callable[[int], Awaitable[None]]
+
+
+class Speaks(Protocol):
+    """Whoever says the caller's lines out loud: the room's mouth, or a test's notebook."""
+
+    async def say(self, text: str) -> None:
+        """One line, said."""
+        ...
 
 
 async def a_simulated_call(
@@ -126,8 +140,8 @@ class _Dispatch:
         self._api: api.LiveKitAPI | None = None
 
     # The dispatch is what puts the agent in the room: a room job whose metadata names the agent,
-    # which is the door `worker/router.py:52-56` reads first and the one an outbound call already
-    # arrives through. Nothing here dials anything and no SIP leg is waited for.
+    # which is the door `worker/router.py:arrival_of` reads first and the one an outbound call
+    # already arrives through. Nothing here dials anything and no SIP leg is waited for.
     async def __aenter__(self) -> None:
         self._api = api.LiveKitAPI(
             self._settings.livekit_url,
@@ -146,7 +160,7 @@ class _Dispatch:
     # call, so the worker and the app treat it as a written eval call: no greeting, the golden's
     # state seeded. A plain simulate names neither, and the router falls back to the room.
     def _metadata(self) -> dict[str, str]:
-        # A caller and a run are named only when there is a reason to. Ring 2 says which run opened
+        """What the dispatch tells the worker: the agent, the caller, and which run opened it."""
         said = {AGENT_KEY: self._agent}
         if self._caller is not None:
             said[CALLER_KEY] = self._caller
@@ -222,9 +236,8 @@ class _Mouth:
 # publishes nothing, which is exactly what the grants table says of it.
 def _a_token(call: str, settings: Settings) -> str:
     """The caller's seat in the room, signed with the pair every call token is signed with."""
-    for_the_whole_call = THE_AGENT_MAY_TAKE_S + A_LISTENING_SILENCE_S * 60
     return a_room_token(
-        call, "talk", time.time() + for_the_whole_call, secret_for(settings), A_SIMULATED_CALLER
+        call, "talk", time.time() + A_CALL_MAY_LAST_S, secret_for(settings), A_SIMULATED_CALLER
     )
 
 
@@ -234,10 +247,11 @@ def _a_token(call: str, settings: Settings) -> str:
 # track is what says the pipeline is live, so that is what is waited for.
 async def _until_the_agent_is_here(room: rtc.Room, call: str) -> None:
     """Wait for the dispatched job to be LISTENING, or say plainly that nobody answered."""
-    deadline = time.monotonic() + THE_AGENT_MAY_TAKE_S
-    while not _listening(room) and time.monotonic() < deadline:
-        await asyncio.sleep(0.1)
-    if not _listening(room):
+
+    async def listening() -> bool:
+        return _listening(room)
+
+    if not await until(listening, within_s=THE_AGENT_MAY_TAKE_S):
         raise TimeoutError(NOBODY_ANSWERED.format(call=call, seconds=THE_AGENT_MAY_TAKE_S))
 
 
@@ -252,7 +266,7 @@ def _listening(room: rtc.Room) -> bool:
 
 
 async def every_turn(
-    mouth: _Mouth, turns: int, next_line: NextLine, settled: Settled | None = None
+    mouth: Speaks, turns: int, next_line: NextLine, settled: Settled | None = None
 ) -> int:
     """The caller's turns, said out loud one at a time, each waiting for the answer to the last."""
     spoken = 0

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
-import time
 from collections.abc import Sequence
 
 from pinecall._settings import Settings
@@ -11,6 +9,7 @@ from pinecall.api.evals.conversation import Conversation
 from pinecall.auth.scopes import a_visitor
 from pinecall.evals.calling import Line, a_simulated_call
 from pinecall.evals.goldens import Golden
+from pinecall.evals.polling import until
 from pinecall.log.entry import Entry
 from pinecall.log.replay import whole
 from pinecall.log.store import Store
@@ -23,7 +22,6 @@ from pinecall_protocol.registry import TERMINAL_EVENT, EventType
 # before they landed would score a call that had not finished. Polled, because nothing on the
 # wire announces a seal to a reader that is not streaming it.
 A_SEAL_MAY_TAKE_S = 25.0
-_LOOKING_AGAIN_IN_S = 0.25
 
 # How long the caller holds the line open after its last word. A golden whose expectation is a
 # tool on the last turn — most of them — is judged on whether the agent got there, so the line
@@ -102,11 +100,11 @@ class _Reading:
 # not guess. A turn that never comes is the deadline, and the judges see the call as it really was.
 async def _until_the_answer_lands(store: Store, call: str, said: int) -> None:
     """Hold the line until the agent has answered the last line, or until it plainly will not."""
-    deadline = time.monotonic() + AN_ANSWER_MAY_TAKE_S
-    while time.monotonic() < deadline:
-        if the_answer_has_landed(await whole(store, call), said):
-            return
-        await asyncio.sleep(_LOOKING_AGAIN_IN_S)
+
+    async def landed() -> bool:
+        return the_answer_has_landed(await whole(store, call), said)
+
+    await until(landed, within_s=AN_ANSWER_MAY_TAKE_S)
 
 
 # Why neither a count of turns nor a tool round is the signal. `en-el-chat-ofrece-mas-de-dos-horas`,
@@ -135,13 +133,15 @@ def the_answer_has_landed(entries: Sequence[Entry], said: int) -> bool:
 
 async def _once_it_is_sealed(store: Store, call: str) -> Sequence[Entry]:
     """The whole log, once the worker has closed it. Refused rather than judged half-written."""
-    deadline = time.monotonic() + A_SEAL_MAY_TAKE_S
-    while True:
+    entries: Sequence[Entry] = ()
+
+    async def sealed() -> bool:
+        nonlocal entries
         entries = await whole(store, call)
-        if any(entry.type == TERMINAL_EVENT for entry in entries):
-            return entries
-        if time.monotonic() >= deadline:
-            raise TimeoutError(
-                NOBODY_SEALED.format(call=call, terminal=TERMINAL_EVENT, seconds=A_SEAL_MAY_TAKE_S)
-            )
-        await asyncio.sleep(_LOOKING_AGAIN_IN_S)
+        return any(entry.type == TERMINAL_EVENT for entry in entries)
+
+    if not await until(sealed, within_s=A_SEAL_MAY_TAKE_S):
+        raise TimeoutError(
+            NOBODY_SEALED.format(call=call, terminal=TERMINAL_EVENT, seconds=A_SEAL_MAY_TAKE_S)
+        )
+    return entries

@@ -53,10 +53,11 @@ from pinecall.log.logs import CallLog
 from pinecall.log.store import DEFAULT_LIMIT, Store
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import QuotaExhausted
+from pinecall.session.first_entries import arrived
 from pinecall.tokens.spending import spent
 from pinecall.types import AgentConfig, CallContext
-from pinecall_protocol import ProtocolError, WireModel, defs, encode
-from pinecall_protocol.events import CallDialing, CallRinging, ErrorEvent
+from pinecall_protocol import ProtocolError, WireModel, encode
+from pinecall_protocol.events import ErrorEvent
 from pinecall_protocol.registry import EVENTS, TERMINAL_EVENT
 
 router = APIRouter()
@@ -320,7 +321,7 @@ async def opened(
     held = serving or registry.of(said.agent)
     config = overrides.config_for(said.agent, held.config) if held else AgentConfig(slug=said.agent)
     live.serve(context.call, said.agent, key.org, log, app, context=context, config=config)
-    type, event = _arrived(context, said.agent)
+    type, event = arrived(context, context.route.number or said.agent)
     await log.append(type, encode(event))
 
 
@@ -361,20 +362,3 @@ def _the_open_log(logs: Logs, call: str) -> CallLog:
     if log is None:
         raise HTTPException(status_code=404, detail=NOT_OPEN.format(call=call))
     return log
-
-
-# An inbound call was offered to an agent and an outbound one is being placed; the two are
-# different facts and the protocol gives each its own first entry.
-def _arrived(context: CallContext, agent: str) -> tuple[str, WireModel]:
-    """The first entry of a call, told by the direction it came from."""
-    door = defs.Route(channel=context.route.channel, number=context.route.number)
-    said: dict[str, Any] = {
-        "channel": context.channel,
-        "from": context.caller,
-        "run": context.run,
-        "to": context.route.number or agent,
-        "caller": None,
-    }
-    if context.direction == "outbound":
-        return "call.dialing", CallDialing.model_validate(said)
-    return "call.ringing", CallRinging.model_validate({**said, "route": door})

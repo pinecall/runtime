@@ -142,6 +142,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   itself in the wheel and the sdist, so an install carries its licence.
 
 ### Changed
+- **One rule for "a call a run opened has no opening".** Both sessions ask `the_greeting_for`
+  with the call's `run`; the eval runner no longer rewrites the class's config with `greeting=None`.
+  The three first entries of a call (`call.ringing`, `call.dialing`, `call.started`) are built in
+  one module, `session/first_entries.py`, instead of three copies.
+- **The evals surface test and nine evals test files are under the `unit` mark**, so `pytest -m
+  unit` runs them: 120 tests the gate had been skipping, one of them red (`__all__` had grown by a
+  judge the pinned list did not have). `NoVoice` left the public surface; nobody imported it.
 - **The simulated caller is on the line before anybody picks up.** Its track is published at
   connect, at 48 kHz, and only then is the agent waited for: a track opened and pushed into in one
   breath handed the agent a line already playing, and the 1.7 s it took to subscribe were the whole

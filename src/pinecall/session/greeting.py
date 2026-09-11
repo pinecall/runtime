@@ -13,13 +13,7 @@ type Speaks = Callable[[str, bool | None], Awaitable[None]]
 
 
 # A call a RUN opened has no opening: the state it starts in is the conversation that already
-# happened, so a greeting on top of it is the agent answering a phone that was answered minutes
-# ago. A written golden has had this since the greeting landed (api/evals/conversation.py replaces
-# the config's), and a spoken one did not — the agent said "Clínica Norte, buenos días" into a line
-# where the caller was already speaking their only sentence, the AEC warmup swallowed it with
-# interruptions disabled, and the call ended with a `turn.agent` and not one `turn.user`. Eight of
-# eleven spoken goldens, every one of them, 2026-09-11. An agent's own opening is exercised where a
-# caller really arrives — a live call, `chat`, `simulate` — and judged there by ring 4.
+# happened. Both sessions ask here, so the rule is written once (docs/decisions/dispatch.md, `run`).
 def the_greeting_for(greeting: Greeting | None, run: str | None) -> Greeting | None:
     """The opening this call gets: none at all when a run opened it, whatever the class declared."""
     if run is not None:

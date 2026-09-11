@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import pytest
+
 from pinecall.evals import RegisterJudge
 from pinecall.evals.judges.register import Register
 from tests.evals.conversations import a_case_of, asked, replied
 from tests.evals.fakes import CountingJudge
 from tests.evals.measuring import measured
+
+pytestmark = pytest.mark.unit
 
 HELLO = "Hola, quería una cita."
 

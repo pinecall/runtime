@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import pytest
+
 from pinecall.evals import ConsentJudge, Matrix, RegisterJudge, Spoken, a_case, a_matrix
 from tests.evals.fakes import CountingJudge
 from tests.evals.logs import BOOKING, a_log
 from tests.evals.measuring import measured
+
+pytestmark = pytest.mark.unit
 
 HAIKU = "claude-haiku-4-5"
 SONNET = "claude-sonnet-4-6"
