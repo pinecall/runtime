@@ -260,12 +260,16 @@ class Settings(BaseSettings):
         default=None,
         description="The org's own API key, as `pinecall-runtime keys issue` printed it.",
     )
-    # One API key that needs no database, so a clone runs the gateway before Postgres exists.
-    # Set it and it is the ONLY key the gateway honours, and it opens NO Postgres pool at all —
-    # so a box, which needs the routes and api_keys tables, never sets it. Development only.
+    # One API key that needs no database, so a clone runs the gateway before Postgres exists —
+    # and uses the database when it is there, tables and all. Set it and it is the ONLY key the
+    # gateway honours, whatever the api_keys table says, which is why a box, which has tenants,
+    # never sets it. Development only.
     dev_key: str | None = Field(
         default=None,
-        description="One API key that needs no database. Set it and it is the only one. Dev only.",
+        description=(
+            "One API key that needs no database, and uses one when it answers. Set it and it is "
+            "the only key honoured. Dev only."
+        ),
     )
     # The one secret that guards other people's secrets: a Fernet key, generated once on the box,
     # under which every tenant's own provider key is encrypted at rest. It lives here and never in

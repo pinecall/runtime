@@ -76,18 +76,18 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     gateway.state.settings = settings
     gateway.state.store = store
     gateway.state.keys = keys_for(settings, pool)
-    # Who the tenants are and what each may consume. A clone with only a dev key has the default
-    # org in memory and no limits, which is what a laptop means.
+    # Who the tenants are and what each may consume. A clone with no database has the default
+    # org in memory and no limits, which is what a laptop with nothing up yet means.
     gateway.state.orgs = orgs_for(pool)
     # Where a tenant that brought its own provider keys keeps them. None when the box was given
     # no PINECALL_VAULT_KEY, which is every install that runs on its own vendor keys — the
     # default, and the whole of a laptop. docs/decisions/provider-keys.md.
     gateway.state.vault = vault_for(settings, pool)
-    # Which number reaches which agent, durably. A clone with only a dev key routes in
-    # memory: it can still be told, and it forgets when the process does.
+    # Which number reaches which agent, durably. A clone with no database routes in memory: it
+    # can still be told, and it forgets when the process does.
     gateway.state.routes = routes_for(pool)
     # Which call tokens were minted and which were spent: the one semantics LiveKit's token has
-    # no word for. A clone with only a dev key keeps it in memory, like the routes.
+    # no word for. A clone with no database keeps it in memory, like the routes.
     gateway.state.tokens = tokens_for(pool)
     gateway.state.llms = models_for(settings)
     # Which calls this process is writing: what a reader subscribes to for the live half. The
@@ -143,9 +143,17 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
             await pool.close()
 
 
+# The pool follows the URL exactly as the store does, dev key or not. A dev key means one key and no
+# database REQUIRED — a clone runs before Postgres exists — and not no database ever: the day the
+# dev stack is up, the same laptop has the knowledge base, a contact's memory and a durable set of
+# routes, because those are tables and the tables are there. (Until 2026-09-11 a dev key refused
+# the pool even with Postgres answering, and the doors it closed said "it runs on a dev key".)
 async def _a_pool(settings: Settings) -> Pool | None:
-    """No pool when the dev key is set: that is the whole point of it — a clone with no Postgres."""
-    return None if settings.dev_key else await open_pool(settings.database_url)
+    """Postgres when the URL answers, and none when it does not; the store says so out loud."""
+    try:
+        return await open_pool(settings.database_url)
+    except StoreUnreachable:
+        return None
 
 
 # A clone with only a dev key still runs, and the one warning line is the whole difference between

@@ -37,8 +37,8 @@ pinecall-runtime gateway [--host 0.0.0.0] [--port 8080] [--reload]
 The control plane: HTTP and WebSocket, one process, the whole API of
 [protocol/gateway-api.md](protocol/gateway-api.md). It needs, at the least, one key of each
 provider role and either `PINECALL_DEV_KEY` (a laptop) or `DATABASE_URL` with the schema applied (a
-box). With a dev key it writes `~/.pinecall/dev` (0600) so the tenant CLI on the same machine finds
-it with nothing exported.
+box) — and it uses the database whenever it answers, dev key or not. With a dev key it writes
+`~/.pinecall/dev` (0600) so the tenant CLI on the same machine finds it with nothing exported.
 
 `--reload` restarts on a source change; it is for writing the runtime, not for running it.
 
@@ -163,8 +163,8 @@ run after a deploy.
 $ pinecall-runtime doctor
 env: /Users/berna/pinecall-v2/runtime/.env
 
-! api keys              PINECALL_DEV_KEY — one key, org default, no database: knowledge, memory
-                        and the vault answer 503. A box unsets it and issues org keys instead
+! api keys              PINECALL_DEV_KEY — one key, org default, the api_keys table not read; the
+                        tables are Postgres's when it answers below. A box unsets it and issues org keys
 ✓ provider keys         llm ANTHROPIC_API_KEY, OPENAI_API_KEY · stt SONIOX_API_KEY, … · tts ELEVEN_API_KEY
 ✓ provider keys answer  ANTHROPIC_API_KEY · OPENAI_API_KEY · SONIOX_API_KEY · …
 ✓ livekit               http://127.0.0.1:7880/ — HTTP 200
@@ -180,8 +180,9 @@ all up
 asks after depends on `PINECALL_ROLE`: `all`, `hub` (no worker) or `worker`.
 
 The first line is the one that reads differently on a laptop and on a box. A dev key is advice
-here and **the first thing down** on a box, because it opens no database: every call would be org
-`default` and every tenant invisible — a silence no other check would notice.
+here and **the first thing down** on a box, because it is the only key such a gateway honours:
+every call would be org `default` and every tenant invisible — a silence no other check would
+notice.
 
 ## `box`
 
@@ -215,7 +216,7 @@ own name, so the SDK that reads `ANTHROPIC_API_KEY` by itself and this runtime a
 | `DATABASE_URL` | Postgres 17 with pgvector and pg_textsearch: the one stateful service |
 | `TEI_URL` · `EMBED_PROVIDER` · `EMBED_MODEL` · `EMBED_BASE_URL` | who embeds, and where |
 | `ANTHROPIC_API_KEY` · `OPENAI_API_KEY` · `SONIOX_API_KEY` · `DEEPGRAM_API_KEY` · `ELEVEN_API_KEY` | a call needs one key of each role: llm, stt, tts |
-| `PINECALL_DEV_KEY` | one key, org `default`, **no database at all**. Development only |
+| `PINECALL_DEV_KEY` | one key, org `default`, the only one honoured; needs no database, uses one when it answers. Development only |
 | `PINECALL_API_KEY` | an org's key, for a worker or an app that runs here |
 | `PINECALL_OPS_KEY` | what `/v1/ops/*` is authenticated by. Unset, the operator API is closed |
 | `PINECALL_VAULT_KEY` | the Fernet key a tenant's own provider keys are encrypted under |
@@ -241,10 +242,12 @@ pinecall-runtime gateway                           # writes ~/.pinecall/dev; the
 pinecall-runtime worker dev                        # in another terminal, for spoken calls
 ```
 
-That gateway runs on a dev key: one org, no tables, and the knowledge base, contact memory and
-provider-key vault answer `503` naming the key. It is what a laptop means, and the trade is that
-nothing had to be installed first. To have those on a laptop, run it the way a box runs — see
-below, and point `DATABASE_URL` at the compose Postgres.
+That gateway runs on a dev key: one key, org `default`, and no `pinecall login` anywhere. With the
+compose Postgres answering it has every table a box has — the knowledge base, contact memory, the
+vault (given a `PINECALL_VAULT_KEY`), durable routes — and without it, it still runs, keeps its
+log in memory and says so on its first line. On an M-series Mac, TEI needs the arm64 tag
+`infra/README.md` names in `TEI_IMAGE`; without an embedder a push answers 503 and a lookup is
+skipped and said in the call's log.
 
 ## A box, from nothing
 
