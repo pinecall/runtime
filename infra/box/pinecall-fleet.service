@@ -1,0 +1,34 @@
+# The fleet loop, on the hub: every fifteen seconds it reads the roster and the cloud, and keeps
+# the fleet at the target — a machine asked for when busy crosses it, one cordoned and deleted when
+# there is one too many. It speaks to the cloud through ONE script, infra/fleet/<cloud>, and to the
+# gateway through the operator API on this box.
+#
+# Installed by infra/box/Makefile; enabled only when /etc/pinecall/box.env names a cloud:
+#
+#   PINECALL_FLEET_CLOUD=gcp        # the script under infra/fleet/, or a path to yours
+#   PINECALL_FLEET_SEATS=4          # PINECALL_MAX_JOBS baked into the worker image
+#   PINECALL_FLEET_FLAGS=--min 1 --max 10 --target 0.6
+#
+# The cloud's CLI must be on this box and signed in as an account that may create and delete
+# instances — on GCP a service account on the hub with roles/compute.instanceAdmin.v1; on AWS an
+# instance role; on Hetzner an API token in HCLOUD_TOKEN through `make secret`. The loop can also
+# run from any laptop that has the CLI: `pinecall-runtime fleet loop --cloud gcp --seats 4`.
+[Unit]
+Description=Pinecall fleet loop (adds and removes workers)
+Wants=network-online.target pinecall-gateway.service
+After=network-online.target pinecall-gateway.service
+
+[Service]
+User=pinecall
+Group=pinecall
+WorkingDirectory=/opt/pinecall/app
+Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
+EnvironmentFile=/etc/pinecall/box.env
+ImportCredential=PINECALL_OPS_KEY
+ImportCredential=HCLOUD_TOKEN
+ExecStart=/bin/sh -c 'exec /opt/pinecall/venv/bin/pinecall-runtime fleet loop --cloud "$PINECALL_FLEET_CLOUD" --seats "$PINECALL_FLEET_SEATS" $PINECALL_FLEET_FLAGS'
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

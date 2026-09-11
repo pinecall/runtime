@@ -3,6 +3,7 @@
 from tests.api.conftest import (  # noqa: F401 — imported so pytest collects them here
     admission,
     embedder,
+    fleet,
     graph,
     keys,
     keys_asked,
@@ -32,6 +33,7 @@ from tests.api.conftest import (  # noqa: F401 — imported so pytest collects t
 __all__ = [
     "admission",
     "embedder",
+    "fleet",
     "graph",
     "keys",
     "keys_asked",

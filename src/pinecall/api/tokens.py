@@ -8,7 +8,15 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import Field
 
-from pinecall.api._deps import AdmissionDep, KeyDep, RoutesDep, SettingsDep, TokensDep
+from pinecall.api._deps import (
+    AdmissionDep,
+    FleetDep,
+    KeyDep,
+    LogsDep,
+    RoutesDep,
+    SettingsDep,
+    TokensDep,
+)
 from pinecall.api._serving import ServingDep
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.auth.scopes import a_room_token, a_visitor, secret_for
@@ -18,7 +26,8 @@ from pinecall.tokens.ledger import TokenRecord
 from pinecall.tokens.room import a_dispatch, the_agent_a_client_named
 from pinecall.types import THE_WIDGET, DeclarationRefused, a_call_id
 from pinecall.types.token import LONGEST_VISIT_TTL_S, MINTED_FOR_A_VISIT, ONE_VISIT_TTL_S
-from pinecall_protocol import WireModel
+from pinecall_protocol import WireModel, encode
+from pinecall_protocol.events import FleetFull
 
 router = APIRouter()
 
@@ -46,6 +55,14 @@ REFUSED_FIELDS: dict[str, str] = {
 # Our attributes are ours: a body may not pre-fill the scope a token was minted with.
 OUR_ATTRIBUTES = "pinecall."
 NOT_YOUR_ATTRIBUTE = "participant_attributes under {prefix} are minted here"
+
+# Every worker is full: a token minted now would open a room nobody joins. 503, with the numbers
+# and the door that takes a number instead, and `fleet.full` in the agent's log before it — the
+# same shape as credits.exhausted. A gateway no worker has knocked at refuses nothing here.
+FLEET_FULL = (
+    "every seat of the fleet is taken: {active} calls on {workers} workers. Offer a call back — "
+    "POST /v1/callbacks with the number — or try again in a minute."
+)
 
 
 class Wanted(WireModel):
@@ -85,10 +102,13 @@ async def mint(
     settings: SettingsDep,
     admission: AdmissionDep,
     live: ServingDep,
+    fleet: FleetDep,
+    logs: LogsDep,
 ) -> dict[str, Any]:
     """LiveKit's token endpoint: {server_url, participant_token}, plus the call it opens."""
     _refuse_what_is_ours_to_set(said)
     agent = await _the_agent_the_org_answers(said, key.org, registry, table)
+    await _refuse_a_full_fleet(fleet, logs, agent)
     try:
         await admission.a_call(key.org, agent, live.running(key.org))
     except QuotaExhausted as refused:
@@ -120,6 +140,16 @@ async def mint(
         "participant_token": token,
         "call": call,
     }
+
+
+async def _refuse_a_full_fleet(fleet: FleetDep, logs: LogsDep, agent: str) -> None:
+    """503 when no worker can take one more call, written into the agent's log first."""
+    totals = fleet.totals(time.time())
+    if not totals.full:
+        return
+    event = FleetFull(channel=THE_WIDGET, workers=totals.workers, active=totals.active)
+    await logs.writing_agent(agent).append("fleet.full", encode(event))
+    raise HTTPException(503, FLEET_FULL.format(active=totals.active, workers=totals.workers))
 
 
 def _refuse_what_is_ours_to_set(said: Wanted) -> None:

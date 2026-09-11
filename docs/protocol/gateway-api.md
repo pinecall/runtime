@@ -200,7 +200,15 @@ serves it, `contact=<id>` to say who is calling (memory files the call under it)
 `caller=<id>` for the `from` on `call.started`.
 
 `POST /v1/tokens` takes `{agent, scope, contact?, ttl_s?, metadata?, participant_identity?}` and
-answers `{server_url, participant_token, call}`. The call id is minted **before** the browser
+answers `{server_url, participant_token, call}` — or **`503`** when every worker of the fleet is
+full, with the numbers and the way out in the sentence (`every seat of the fleet is taken: 12
+calls on 3 workers. Offer a call back — POST /v1/callbacks with the number — or try again in a
+minute.`) and `fleet.full` in the agent's log. Your page offers the visitor a call back **before**
+any room is made: `POST /v1/callbacks` with `{agent, number, contact?}` writes
+`callback.requested` onto the agent's log, and `GET /v1/callbacks[?agent=&after=]` is every
+request your agents took, oldest first, for your app to dial. A phone caller who arrives when the
+fleet is full is answered by the overflow agent on the hub, hears one sentence, and lands on the
+same log the same way, `via: "overflow"`. The call id is minted **before** the browser
 joins, so your page can watch the log from the first entry. `scope` is `talk` (audio) or `chat`;
 both are single-use and live 60 s by default, 600 s at the most. The room is the call, the
 identity is `web_…` unless you set one, and the fields the gateway owns — the room name, the
@@ -374,7 +382,8 @@ hang-up's one model call) and are documented with the log, not here.
 | `GET` | `/v1/calls/{call}/recording` | the audio, seekable |
 | `POST` | `/v1/calls/{call}/listen` · `/supervise` | a seat |
 | `POST` | `/v1/calls/{call}/verbs` | one supervisor verb |
-| `POST` | `/v1/tokens` | a room token for a browser |
+| `POST` | `/v1/tokens` | a room token for a browser — `503` and `fleet.full` when every worker is full |
+| `POST`·`GET` | `/v1/callbacks` | a number to call back when the fleet was full, and the list of them |
 | `GET` | `/v1/routes` | the numbers and doors your org answers |
 | `PUT`·`DELETE`·`GET` | `/v1/provider-keys[/{vendor}]` | the org's own vendor accounts |
 | `PUT`·`GET`·`DELETE` | `/v1/knowledge[/{base}]` · `POST …/eval` | the base the agent answers from |
@@ -383,6 +392,7 @@ hang-up's one model call) and are documented with the log, not here.
 | `POST` | `/v1/evals/run` · `GET /v1/evals/runs[/{id}]` · `POST /v1/evals/replay/{call}` | the suites and ring 3 |
 | `POST` | `/v1/evals/caller` · `/v1/evals/voice` | the improvising caller, and a spoken eval |
 | `POST` | `/v1/calls` · `/v1/calls/{call}/events` · `/sealed` · `/tools` · `/lookup` · `/remember` · `GET /commands` | the worker's own doors |
+| `POST`·`GET` | `/v1/fleet/heartbeat` · `/v1/fleet/standing` | the fleet's: what a worker holds, and whether all are full. The default org's key only |
 | `GET`·`POST` | `/v1/whatsapp/webhook` | Meta's |
 | | `/v1/ops/*` | the operator's, with the ops key — [operator-api.md](operator-api.md) |
 

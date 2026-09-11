@@ -93,6 +93,7 @@ def test_every_group_says_in_one_line_what_it_is() -> None:
         "orgs",
         "routes",
         "keys",
+        "fleet",
         "migrate",
         "doctor",
         "box",

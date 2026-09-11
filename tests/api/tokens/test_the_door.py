@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
+import time
 from typing import Any
 
 import pytest
@@ -14,6 +16,8 @@ from pinecall._settings import Settings
 from pinecall.api import _deps as deps
 from pinecall.api.app import app
 from pinecall.auth.scopes import SCOPE_ATTRIBUTE, THE_MICROPHONE
+from pinecall.fleet import Heartbeat, Roster
+from pinecall.log.store import MemoryStore
 from pinecall.tokens.ledger import MemoryTokens
 from pinecall.types.dispatch import AGENT_KEY, CALLER_KEY, METADATA_KEY, SCOPE_KEY, WORKER_NAME
 from tests.api.conftest import A_DEV_KEY, A_KEY, A_LIVEKIT, AGENT, AN_OPS_KEY
@@ -221,3 +225,23 @@ def test_the_door_takes_the_api_key_and_nothing_else(gateway: TestClient) -> Non
     """The key never reaches a browser: only the tenant's backend can knock here."""
     nobody, _ = minted(gateway, bearer="pk_not_a_key_anybody_issued")
     assert nobody == 401
+
+
+# Every worker full: a token minted now would open a room nobody joins, so the door says no with
+# the numbers and the callback door, and writes fleet.full into the agent's log first — the same
+# shape as credits.exhausted. A roster nobody knocked at (every other test here) refuses nothing.
+def test_a_full_fleet_refuses_the_token_with_a_503_and_writes_fleet_full(
+    gateway: TestClient, store: MemoryStore, fleet: Roster
+) -> None:
+    fleet.report(
+        Heartbeat(worker="w1", active=3, max_jobs=4, load=0.75, draining=False), time.time()
+    )
+    with an_app(gateway) as app_socket:
+        app_socket.send_json(a_register(AGENT, a_door("web")))
+        app_socket.receive_json()
+        status, said = minted(gateway)
+    assert status == 503
+    assert "3 calls on 1 workers" in said["detail"] and "/v1/callbacks" in said["detail"]
+    written = asyncio.run(store.agent_since(AGENT))
+    assert written[-1].type == "fleet.full"
+    assert written[-1].data == {"channel": "web", "workers": 1, "active": 3}

@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# The fleet on Hetzner Cloud: three verbs over hcloud, and nothing else cloud-specific anywhere.
+#
+#   infra/fleet/hetzner create <name>    a server from the worker snapshot, labelled the fleet's
+#   infra/fleet/hetzner delete <name>    gone
+#   infra/fleet/hetzner list             one line per fleet server: name<TAB>created (ISO 8601)
+#
+# The snapshot is a worker that was deployed once and frozen — `hcloud server create-image --type
+# snapshot --description pinecall-worker <a deployed worker>`; its id goes in PINECALL_FLEET_IMAGE.
+# Hetzner sets the hostname to the server's name, which is what it calls itself to the hub.
+set -euo pipefail
+
+: "${PINECALL_FLEET_IMAGE:?the worker snapshot id}"
+: "${PINECALL_FLEET_TYPE:=cpx31}"
+: "${PINECALL_FLEET_LOCATION:=fsn1}"
+: "${PINECALL_FLEET_LABEL:=pinecall-fleet}"
+
+case "${1:-}" in
+  create)
+    hcloud server create --name "$2" --image "$PINECALL_FLEET_IMAGE" --type "$PINECALL_FLEET_TYPE" \
+      --location "$PINECALL_FLEET_LOCATION" --label "$PINECALL_FLEET_LABEL=1" >/dev/null ;;
+  delete)
+    hcloud server delete "$2" ;;
+  list)
+    hcloud server list --selector "$PINECALL_FLEET_LABEL=1" --output noheader --output 'columns=name,created' \
+      | awk '{print $1 "\t" $2}' ;;
+  *)
+    echo "usage: $0 create <name> | delete <name> | list" >&2; exit 2 ;;
+esac

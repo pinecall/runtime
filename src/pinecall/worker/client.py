@@ -9,8 +9,9 @@ from typing import Any
 import httpx
 from pydantic import TypeAdapter
 
+from pinecall.fleet import Heartbeat, Standing
 from pinecall.session.voice.platform import PlatformRefused
-from pinecall.types import AgentConfig, CallContext, PlatformTool, ProviderKeys, Route
+from pinecall.types import AgentConfig, CallContext, Channel, PlatformTool, ProviderKeys, Route
 from pinecall.types.json import JsonObject
 from pinecall_protocol import Command
 from pinecall_protocol.defs import ToolResult
@@ -37,6 +38,8 @@ KEYS: TypeAdapter[dict[str, str]] = TypeAdapter(dict[str, str])
 CONTEXT: TypeAdapter[CallContext] = TypeAdapter(CallContext)
 RESULT: TypeAdapter[ToolResult] = TypeAdapter(ToolResult)
 COMMAND: TypeAdapter[Command] = TypeAdapter(Command)
+BEAT: TypeAdapter[Heartbeat] = TypeAdapter(Heartbeat)
+STANDING: TypeAdapter[Standing] = TypeAdapter(Standing)
 
 
 class GatewayRefused(PlatformRefused):
@@ -94,6 +97,31 @@ class Gateway:
     async def sealed(self, call: str) -> None:
         """The call is over and nothing more will be written to it."""
         await self._read("POST", f"/v1/calls/{call}/sealed")
+
+    # ── the fleet's two doors ───────────────────────────────────────────────────
+
+    async def heartbeat(self, beat: Heartbeat) -> Standing:
+        """What this worker holds, to the hub; back comes whether it was cordoned."""
+        said = await self._read("POST", "/v1/fleet/heartbeat", BEAT.dump_python(beat, mode="json"))
+        return STANDING.validate_python(said)
+
+    async def fleet_is_full(self) -> bool:
+        """Whether no worker of the fleet can take a call right now: the overflow's one question."""
+        said = await self._read("GET", "/v1/fleet/standing")
+        return bool(said["full"])
+
+    async def callback_requested(
+        self, agent: str, channel: Channel, number: str, call: str | None
+    ) -> None:
+        """The number the overflow agent took, onto the agent's log, for the app to dial back."""
+        said: JsonObject = {
+            "agent": agent,
+            "channel": channel,
+            "number": number,
+            "via": "overflow",
+            "call": call,
+        }
+        await self._read("POST", "/v1/callbacks", said)
 
     # The two doors memory and retrieval sit behind, on the gateway that has the database: the
     # worker holds no vectors and no facts, and asks with the caller's words. The gateway writes

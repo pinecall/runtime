@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# The fleet on AWS: three verbs over the aws CLI, and nothing else cloud-specific anywhere.
+#
+#   infra/fleet/aws create <name>    an instance from the worker AMI, tagged the fleet's
+#   infra/fleet/aws delete <name>    terminated
+#   infra/fleet/aws list             one line per fleet instance: name<TAB>launched (ISO 8601)
+#
+# The AMI is a worker that was deployed once and frozen — `aws ec2 create-image --instance-id
+# <a deployed worker> --name pinecall-worker`. The instance's Name tag is its hostname on Ubuntu
+# cloud images only when the AMI sets it; the user-data below writes the hostname from the tag so
+# the machine calls itself by the name given here.
+set -euo pipefail
+
+: "${PINECALL_FLEET_AMI:?the worker AMI id, ami-…}"
+: "${PINECALL_FLEET_SUBNET:?the subnet id the workers boot in}"
+: "${PINECALL_FLEET_SG:?the security group: ssh in, everything out}"
+: "${PINECALL_FLEET_TYPE:=c6i.xlarge}"
+: "${PINECALL_FLEET_TAG:=pinecall-fleet}"
+
+case "${1:-}" in
+  create)
+    aws ec2 run-instances --image-id "$PINECALL_FLEET_AMI" --instance-type "$PINECALL_FLEET_TYPE" \
+      --subnet-id "$PINECALL_FLEET_SUBNET" --security-group-ids "$PINECALL_FLEET_SG" \
+      --user-data "#!/bin/sh
+hostnamectl set-hostname $2" \
+      --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$2},{Key=$PINECALL_FLEET_TAG,Value=1}]" \
+      --output text --query 'Instances[0].InstanceId' >/dev/null ;;
+  delete)
+    id=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=$2" "Name=instance-state-name,Values=pending,running" \
+      --output text --query 'Reservations[].Instances[].InstanceId')
+    [ -n "$id" ] && aws ec2 terminate-instances --instance-ids $id --output text >/dev/null ;;
+  list)
+    aws ec2 describe-instances --filters "Name=tag:$PINECALL_FLEET_TAG,Values=1" "Name=instance-state-name,Values=pending,running" \
+      --output text --query "Reservations[].Instances[].[Tags[?Key=='Name']|[0].Value, LaunchTime]" ;;
+  *)
+    echo "usage: $0 create <name> | delete <name> | list" >&2; exit 2 ;;
+esac

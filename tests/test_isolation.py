@@ -40,10 +40,23 @@ MAY_IMPORT: dict[str, frozenset[str]] = {
             "memory",
             "knowledge",
             "lookups",
+            "fleet",
         }
     ),
+    "fleet": frozenset({"types"}),
     "worker": frozenset(
-        {"types", "auth", "log", "providers", "orgs", "routes", "tokens", "session", "evals"}
+        {
+            "types",
+            "auth",
+            "log",
+            "providers",
+            "orgs",
+            "routes",
+            "tokens",
+            "session",
+            "evals",
+            "fleet",
+        }
     ),
 }
 

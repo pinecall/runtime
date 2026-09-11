@@ -39,6 +39,12 @@ ExecStart=/opt/pinecall/venv/bin/pinecall-runtime worker start
 TimeoutStopSec=900
 Restart=always
 RestartSec=3
+# A cordon is a stop on purpose: the hub told this worker to drain and leave (`fleet cordon`, or
+# the loop letting a machine go), and the process exits 3 once it holds no call. systemd reads
+# that as a clean stop and leaves it down — the machine is about to be deleted, or a person will
+# `systemctl start` it back. Measured 2026-09-11 on pinecall-worker-1: status=3, no restart.
+SuccessExitStatus=3
+RestartPreventExitStatus=3
 
 [Install]
 WantedBy=multi-user.target

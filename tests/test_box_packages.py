@@ -40,10 +40,19 @@ def packages_the_manifest_converges() -> set[str]:
 # enable-<role> included — and runs not one of them. A box reads its role and its embedder from
 # /etc/pinecall/box.env; on the command line they win over that file, so each test names the box
 # it is asking about rather than depending on a file this machine does not have.
-def what_a_box_installs(*, role: str = "all", embed_provider: str = "tei") -> str:
+def what_a_box_installs(
+    *, role: str = "all", embed_provider: str = "tei", fleet_cloud: str = ""
+) -> str:
     """Every command `make install` would run on a box of that role, with nothing run."""
     plan = subprocess.run(
-        ["make", "-n", "install", f"ROLE={role}", f"EMBED_PROVIDER={embed_provider}"],
+        [
+            "make",
+            "-n",
+            "install",
+            f"ROLE={role}",
+            f"EMBED_PROVIDER={embed_provider}",
+            f"FLEET_CLOUD={fleet_cloud}",
+        ],
         cwd=MANIFEST.parent,
         capture_output=True,
         check=True,
@@ -162,3 +171,31 @@ def test_a_box_that_becomes_a_worker_stops_the_containers_it_can_no_longer_disab
     stopped = [line for line in planned if "systemctl stop -q" in line]
     assert all("pinecall-postgres" not in line for line in disabled)
     assert any("pinecall-postgres" in line and "pinecall-livekit" in line for line in stopped)
+
+
+# The overflow agent lives where the media plane is and never counts as a seat: a hub and a full
+# box enable it, a worker does not. The loop is enabled only on a hub whose box.env names a cloud.
+def test_the_overflow_agent_is_the_hubs_and_never_a_workers() -> None:
+    for role in ("all", "hub"):
+        enabled = [
+            line
+            for line in what_a_box_installs(role=role).splitlines()
+            if "systemctl enable" in line
+        ]
+        assert any("pinecall-overflow" in line for line in enabled), role
+    worker = what_a_box_installs(role="worker")
+    assert "enable -q nftables pinecall-worker" in worker
+    assert "disable -q --now" in worker and "pinecall-overflow" in worker
+
+
+def test_the_fleet_loop_is_enabled_only_when_box_env_names_a_cloud() -> None:
+    quiet = what_a_box_installs(role="hub")
+    assert not any("enable" in line and "pinecall-fleet" in line for line in quiet.splitlines())
+    assert "disable -q --now pinecall-fleet" in quiet
+    looping = what_a_box_installs(role="hub", fleet_cloud="gcp")
+    assert any("enable" in line and "pinecall-fleet" in line for line in looping.splitlines())
+
+
+def test_a_cordoned_worker_stays_down() -> None:
+    """Exit 3 is the worker leaving on purpose (worker/heartbeat.py); systemd leaves it down."""
+    assert "RestartPreventExitStatus=3" in WORKER.read_text()

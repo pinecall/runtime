@@ -93,15 +93,22 @@ ifeq ($(ROLE),worker)
 EMBEDDER := elsewhere
 endif
 
-HUB_UNITS    = caddy pinecall-secrets pinecall-gateway pinecall-worker-key pinecall-operator-key
+# The overflow agent is the hub's: it answers only when every real worker is full, so it lives
+# where the media plane is and never counts as a seat. The fleet loop is the hub's too, and only
+# when box.env names a cloud — a hub whose workers a person stands up runs no loop.
+HUB_UNITS    = caddy pinecall-secrets pinecall-gateway pinecall-worker-key pinecall-operator-key pinecall-overflow
 WORKER_UNITS = pinecall-worker
 CONTAINERS_  = pinecall-redis pinecall-livekit pinecall-sip pinecall-postgres
+FLEET_CLOUD  = $(shell sed -n 's/^PINECALL_FLEET_CLOUD=//p' /etc/pinecall/box.env 2>/dev/null || true)
+FLEET_UNIT   = $(if $(FLEET_CLOUD),pinecall-fleet,)
 
 .PHONY: enable-all enable-hub enable-worker
 enable-all:
-	systemctl enable -q nftables $(HUB_UNITS) $(WORKER_UNITS)
+	systemctl enable -q nftables $(HUB_UNITS) $(WORKER_UNITS) $(FLEET_UNIT)
+	$(if $(FLEET_UNIT),,-systemctl disable -q --now pinecall-fleet 2>/dev/null)
 enable-hub:
-	systemctl enable -q nftables $(HUB_UNITS)
+	systemctl enable -q nftables $(HUB_UNITS) $(FLEET_UNIT)
+	$(if $(FLEET_UNIT),,-systemctl disable -q --now pinecall-fleet 2>/dev/null)
 	-systemctl disable -q --now $(WORKER_UNITS) 2>/dev/null
 # A hub that becomes a worker gives up the media plane, and the containers are given up the way
 # the embedder is: `systemctl disable` refuses a Quadlet-generated unit and refuses BEFORE it would
@@ -109,7 +116,7 @@ enable-hub:
 # generated ones. Both in one line, and the media plane outlived the role that owned it.
 enable-worker:
 	systemctl enable -q nftables $(WORKER_UNITS)
-	-systemctl disable -q --now $(HUB_UNITS) 2>/dev/null
+	-systemctl disable -q --now $(HUB_UNITS) pinecall-fleet 2>/dev/null
 	-systemctl stop -q $(CONTAINERS_) 2>/dev/null
 
 # The embedder, the same shape as the role above: box.env declares it, `make install` converges on

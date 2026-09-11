@@ -11,6 +11,7 @@ from livekit.agents import AgentServer
 from pinecall._settings import load_settings
 from pinecall.cli import build_parser, worker
 from pinecall.worker import recordings
+from pinecall.worker.heartbeat import CORDONED_EXIT, Heartbeats
 from pinecall.worker.load import MachineLoad, reports_no_load
 
 pytestmark = pytest.mark.unit
@@ -22,6 +23,7 @@ def test_every_verb_names_the_livekit_verb_it_hands_the_process_to() -> None:
     assert worker.LIVEKIT_VERBS == {
         "dev": "dev",
         "start": "start",
+        "overflow": "start",
         "talk": "console",
         "download-files": "download-files",
     }
@@ -187,11 +189,12 @@ def _remembering(seen: list[list[str]]) -> Callable[[object], None]:
     return run_app
 
 
-def _handed_over(_verb: str, _flags: list[str], _settings: object) -> None:
+def _handed_over(_verb: str, _flags: list[str], _settings: object) -> int:
     """The process reaching livekit, with nothing behind it: this file never opens a microphone."""
+    return 0
 
 
-def _never_handed_over(_verb: str, _flags: list[str], _settings: object) -> None:
+def _never_handed_over(_verb: str, _flags: list[str], _settings: object) -> int:
     """A refused recording must not reach livekit, and this is the assertion that it does not."""
     raise AssertionError("the process was handed over after the recording was refused")
 
@@ -210,3 +213,34 @@ def _the_verbs_that_warmed(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         )
         worker.hand_over(verb, [], load_settings())
     return warmed_by
+
+
+# click ends livekit's CLI with SystemExit(0), which swallowed a cordon's exit 3 the first time a
+# worker was cordoned on a real box: systemd read 0, restarted it, and it cordoned itself again.
+def test_a_cordoned_worker_leaves_with_exit_3_through_clicks_own_system_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def clicks_exit(_server: object) -> None:
+        raise SystemExit(0)
+
+    monkeypatch.setattr(worker, "run_app", clicks_exit)
+    monkeypatch.setattr(worker.Heartbeats, "start_with", _cordoned_at_once)
+    assert worker.hand_over("start", [], load_settings()) == CORDONED_EXIT
+
+
+def test_an_uncordoned_worker_leaves_with_clicks_own_code(monkeypatch: pytest.MonkeyPatch) -> None:
+    def clicks_exit(_server: object) -> None:
+        raise SystemExit(0)
+
+    monkeypatch.setattr(worker, "run_app", clicks_exit)
+    monkeypatch.setattr(worker.Heartbeats, "start_with", _never_beating)
+    assert worker.hand_over("start", [], load_settings()) == 0
+
+
+def _cordoned_at_once(pulse: Heartbeats) -> None:
+    """The hub's cordon, arrived before the first beat: what a worker started cordoned would see."""
+    pulse.cordoned = True
+
+
+def _never_beating(_pulse: Heartbeats) -> None:
+    """A heartbeat that never starts: this file opens no socket."""
