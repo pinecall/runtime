@@ -368,4 +368,26 @@ hang-up's one model call) and are documented with the log, not here.
 
 ---
 
+## 8. People: members and login
+
+An org's people are rows, not shared keys. A key holder invites one — `POST /v1/members` with
+`{email, name, role, agents?}` answers `201` with the member and a one-use `token`, shown once and
+dead in a week — and the person accepts at `POST /v1/invitations/{token}` with `{password, env?,
+device?}` (no key at that door; twelve characters at least, argon2id at rest), which makes them
+`active` and answers their **first key**, in the one shape a key travels in: `{key, key_id, org,
+label, env, scopes, subject, name, member}`. `subject` is the member's id and `scopes` the preset of
+their role: `qa` · `supervisor` · `manager` · `admin` · `developer` (`types/member.py`). `GET
+/v1/members` lists them; `PATCH /v1/members/{id}` replaces `role`, `agents` or `status` — `disabled`
+revokes every key of theirs and refuses their login, `active` re-enables one who had a password and
+never activates one still invited.
+
+`POST /v1/login` takes `{org, email, password, env?, device?}` and answers a key for that person and
+that device. Every wrong thing — the org, the email, the password, an invitation not yet accepted —
+is one `401` sentence; a disabled member is `403`; the sixth try in a minute for one name is `429`
+whatever the password. Or it takes `{code, device?}`: a key holder minted the code at `POST
+/v1/login/codes` (five minutes, one use), which is how `pinecall run` prints
+`?login=<code>` and a browser ends up holding a key of its own, never the org's.
+
+---
+
 Every door, method and path, in one table: [every-door.md](every-door.md).

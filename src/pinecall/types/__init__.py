@@ -40,6 +40,7 @@ from pinecall.types.key import (
 )
 from pinecall.types.knowledge import Chunk, Docs, Fact, KnowledgeFile, MemoryPolicy
 from pinecall.types.lookup import PLATFORM_TOOLS, PlatformTool, platform_tools
+from pinecall.types.member import ROLE_SCOPES, ROLES, STATUSES, Member, MemberStatus, Role, a_role
 from pinecall.types.org import DEFAULT_ORG, QUOTAS, Counting, Org, QuotaName, Quotas, a_slug
 from pinecall.types.prompt import DEFAULT_LAYOUT, KNOWLEDGE, Blocks, PromptBlock, PromptRegion
 from pinecall.types.provider_keys import NO_ORG_KEYS, VENDORS, ProviderKeys
@@ -63,7 +64,10 @@ __all__ = [
     "PLATFORM_TOOLS",
     "PRODUCTION",
     "QUOTAS",
+    "ROLES",
+    "ROLE_SCOPES",
     "RRF_K",
+    "STATUSES",
     "THE_WIDGET",
     "VENDORS",
     "AgentConfig",
@@ -89,6 +93,8 @@ __all__ = [
     "JsonObject",
     "KeyScope",
     "KnowledgeFile",
+    "Member",
+    "MemberStatus",
     "MemoryPolicy",
     "Model",
     "Org",
@@ -98,6 +104,7 @@ __all__ = [
     "ProviderKeys",
     "QuotaName",
     "Quotas",
+    "Role",
     "Route",
     "Scope",
     "SideEffect",
@@ -106,6 +113,7 @@ __all__ = [
     "Visibility",
     "Voice",
     "a_call_id",
+    "a_role",
     "a_slug",
     "an_env",
     "consent_of",

@@ -17,6 +17,8 @@ from pinecall.api import (
     fleet,
     knowledge,
     listen,
+    login,
+    members,
     orgs,
     pipeline,
     provider_keys,
@@ -38,7 +40,10 @@ from pinecall.api.evals.runner import Runner
 from pinecall.api.supervise import verbs
 from pinecall.api.whatsapp import webhook
 from pinecall.api.whatsapp.threads import Threads
+from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import keys_for
+from pinecall.auth.members import members_for
+from pinecall.auth.throttle import Throttle
 from pinecall.evals.runs import runs_for
 from pinecall.fleet import Roster
 from pinecall.knowledge import PgKnowledge
@@ -81,6 +86,12 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # Who the tenants are and what each may consume. A clone with no database has the default
     # org in memory and no limits, which is what a laptop with nothing up yet means.
     gateway.state.orgs = orgs_for(pool)
+    # The people of every org and their invitations; the codes a key holder mints so a browser
+    # logs in with no key in a URL; and how often each name has knocked with a password. The
+    # last two are this process's memory on purpose: a five-minute word and a one-minute count.
+    gateway.state.members = members_for(pool)
+    gateway.state.login_codes = LoginCodes()
+    gateway.state.throttle = Throttle()
     # Where a tenant that brought its own provider keys keeps them. None when the box was given
     # no PINECALL_VAULT_KEY, which is every install that runs on its own vendor keys — the
     # default, and the whole of a laptop. docs/decisions/provider-keys.md.
@@ -180,7 +191,7 @@ app = FastAPI(title="Pinecall gateway", lifespan=lifespan)
 # calls it answers, the desk, the suites, the tenant's routes and the keys it brought of its own,
 # the operator's tables under /v1/ops, the fleet's heartbeats and the operator's view of them,
 # the tokens, Meta's webhook, the knowledge base, a contact's memory and the goldens the write
-# side is held to, and whose key knocked.
+# side is held to, the org's people and the door they log in at, and whose key knocked.
 for door in (
     socket.router,
     agents.router,
@@ -214,6 +225,8 @@ for door in (
     knowledge.router,
     contacts.router,
     extraction.router,
+    members.router,
+    login.router,
     whoami.router,
 ):
     app.include_router(door)

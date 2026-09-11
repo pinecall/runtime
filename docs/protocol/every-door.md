@@ -8,6 +8,11 @@ is for. The prose, the shapes and the refusals are on that page and in the pages
 | `WS` | `/v1/apps` | the app socket: hold an agent, answer its tools |
 | `WS` | `/v1/chat?agent=` | one text caller |
 | `WS` | `/v1/attach?call=&token=` | a seat's live log, and the verbs back |
+| `GET` | `/v1/members` · `POST` | the org's people; invite one, the token once |
+| `PATCH` | `/v1/members/{id}` | role, agents, standing; disabled revokes their keys |
+| `POST` | `/v1/invitations/{token}` | accept with a password: active, and the first key |
+| `POST` | `/v1/login` | a key for a person and a device: org, email, password — or a code |
+| `POST` | `/v1/login/codes` | a one-use code a key holder mints for a browser |
 | `GET` | `/v1/whoami` | the org, the key's id, its label, the world it opens (`env`), its `scopes`, and whose it is (`subject`, `name`) |
 | `GET` | `/v1/agents` | the agents this gateway is holding for your org |
 | `GET` | `/v1/agents/{slug}/config` | what it declared, overrides applied |

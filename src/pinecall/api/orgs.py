@@ -16,7 +16,7 @@ from pinecall.api._deps import (
     an_operator,
     an_org,
 )
-from pinecall.auth.keys import Issued, ListedKey
+from pinecall.auth.keys import ListedKey
 from pinecall.types import (
     DEVELOPMENT,
     KEY_SCOPES,
@@ -186,7 +186,7 @@ async def issue(named: str, said: WantedKey, orgs: OrgsDep, keys: KeysDep) -> di
         subject=said.subject,
         name=said.name,
     )
-    return _issued_as_json(issued)
+    return issued.as_json
 
 
 @operator.get("/orgs/{named}/keys")
@@ -210,18 +210,3 @@ async def revoke(fingerprint: str, keys: KeysDep) -> dict[str, Any]:
 def _as_json(org: Org) -> dict[str, Any]:
     """One org as the wire says it, through the adapter the listing already uses."""
     return dict(ORGS.dump_python((org,), mode="json")[0])
-
-
-def _issued_as_json(issued: Issued) -> dict[str, Any]:
-    """The issued key as the CLI reads it back: the key, and the record it was written under."""
-    record = issued.record
-    return {
-        "key": issued.key,
-        "key_id": record.key_id,
-        "org": record.org,
-        "label": record.label,
-        "env": record.env,
-        "scopes": sorted(record.scopes),
-        "subject": record.subject,
-        "name": record.name,
-    }

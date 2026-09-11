@@ -21,10 +21,13 @@ from pinecall.api._deps import (
     the_embedder,
     the_fleet,
     the_knowledge,
+    the_login_codes,
     the_lookups,
+    the_members,
     the_memory,
     the_orgs,
     the_overrides,
+    the_throttle,
     the_vault,
 )
 from pinecall.api._live import Live
@@ -33,8 +36,11 @@ from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
 from pinecall.api.whatsapp import threads as whatsapp_threads
 from pinecall.api.whatsapp.threads import Threads
+from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import KeyRecord, MemoryKeys
+from pinecall.auth.members import MemoryMembers
 from pinecall.auth.scopes import KEY_PROJECTION, LivekitKeys, Reader
+from pinecall.auth.throttle import Throttle
 from pinecall.fleet import Roster
 from pinecall.knowledge import Knowledge
 from pinecall.log.snapshots import Snapshots
@@ -285,6 +291,9 @@ def wired(
     embedder: HashEmbedder,
     lookups: Lookups,
     fleet: Roster,
+    members: MemoryMembers,
+    login_codes: LoginCodes,
+    throttle: Throttle,
 ) -> Iterator[None]:
     """The real app, its deps overridden for the length of one test."""
     app.dependency_overrides[deps.a_settings] = lambda: settings
@@ -308,6 +317,9 @@ def wired(
     app.dependency_overrides[the_embedder] = lambda: embedder
     app.dependency_overrides[the_lookups] = lambda: lookups
     app.dependency_overrides[the_fleet] = lambda: fleet
+    app.dependency_overrides[the_members] = lambda: members
+    app.dependency_overrides[the_login_codes] = lambda: login_codes
+    app.dependency_overrides[the_throttle] = lambda: throttle
     yield
     app.dependency_overrides.clear()
 
