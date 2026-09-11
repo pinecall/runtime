@@ -242,7 +242,10 @@ pinecall-runtime gateway                           # writes ~/.pinecall/dev; the
 pinecall-runtime worker dev                        # in another terminal, for spoken calls
 ```
 
-That gateway runs on a dev key: one key, org `default`, and no `pinecall login` anywhere. With the
+That gateway runs on a dev key: one key, org `default`, and no `pinecall login` anywhere. Give it
+a database of its own if the same Postgres also holds a real org — `create database pinecall_dev`,
+the two extensions, `migrate up` against it — because a dev key IS org `default`, and an agent
+another org registered in the shared database is one the dev key is told it cannot read. With the
 compose Postgres answering it has every table a box has — the knowledge base, contact memory, the
 vault (given a `PINECALL_VAULT_KEY`), durable routes — and without it, it still runs, keeps its
 log in memory and says so on its first line. On an M-series Mac, TEI needs the arm64 tag

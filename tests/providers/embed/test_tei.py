@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.providers.embed.tei import UNNAMED, TeiEmbedder
+from pinecall.providers.embed.tei import A_PUSH_MAY_TAKE_S, UNNAMED, TeiEmbedder
 from pinecall.providers.embedder import DIMENSIONS, Embedder, EmbedderUnreachable, WrongWidth
 
 pytestmark = pytest.mark.unit
@@ -102,3 +102,15 @@ async def test_a_tei_that_answers_5xx_is_unreachable_too() -> None:
     embedder = TeiEmbedder(TEI, httpx.AsyncClient(transport=httpx.MockTransport(broken)))
     with pytest.raises(EmbedderUnreachable, match="TEI at"):
         await embedder.model()
+
+
+# The client's timeout is a lookup's, and a lookup is on a caller's clock. A push is on nobody's:
+# a whole folder through a CPU embedder that may still be loading its model.
+async def test_a_push_waits_for_a_cold_embedder_and_a_lookup_does_not() -> None:
+    embedder, seen = a_tei()
+    await embedder.embed(["una consulta"])
+    await embedder.embed_documents([["un capítulo", "otro"]])
+    posted = _the_posts(seen)
+    lookup, push = (request.extensions["timeout"] for request in posted)
+    assert lookup["read"] == httpx.AsyncClient().timeout.read
+    assert push["read"] == A_PUSH_MAY_TAKE_S
