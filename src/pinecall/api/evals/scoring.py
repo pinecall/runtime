@@ -112,6 +112,10 @@ def _judges_for(golden: Golden, case: Any) -> list[Any]:
     """Consent, which every call carries its own evidence for, then whatever `expect` names."""
     expect = golden.expect
     judges: list[Any] = [rings.ConsentJudge(case.gate)]
+    # Beside consent and for the same reason: it asks nobody, it costs nothing, and without it a
+    # golden whose caller was never heard reads as held by every expectation written as an absence.
+    if golden.input:
+        judges.append(rings.TheCallerWasHeardJudge(len(golden.input)))
     if expect.tools:
         judges.append(rings.EveryToolRanJudge(expect.tools))
     if expect.not_tools:

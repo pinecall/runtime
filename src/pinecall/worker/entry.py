@@ -113,7 +113,11 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     # The opening, before the queue is served, because it is the FIRST thing said: a class that
     # declared a greeting speaks now, and whatever the app sent while the room was being joined
     # arrives after it. Its turn is a turn.agent like any other; nothing here is special-cased.
-    await greeting.open_the_call(config.greeting, say=_saying(live), reply=_replying(live))
+    await greeting.open_the_call(
+        greeting.the_greeting_for(config.greeting, context.caller),
+        say=_saying(live),
+        reply=_replying(live),
+    )
     # Last: an `agent.say` has a started session to say it on. Everything the app sent before this
     # waits in the gateway's queue and arrives in the order it was sent.
     commands = asyncio.ensure_future(commanding.served(worker.gateway, bridge, context.call))

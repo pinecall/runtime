@@ -71,9 +71,9 @@ async def test_a_run_over_the_goldens_stores_its_scores_and_answers_the_matrix(
     matrix = run["matrix"]
     assert matrix["goldens"] == ["greets", "prices"]
     # `consent` leads every row whatever the golden asked for: api/evals/scoring.py.
-    assert matrix["metrics"] == ["consent", "says", "silence"]
+    assert matrix["metrics"] == ["consent", "heard", "says", "silence"]
     assert not matrix["failures"]
-    assert [score["score"] for row in matrix["runs"] for score in row["scores"]] == [1.0] * 5
+    assert [score["score"] for row in matrix["runs"] for score in row["scores"]] == [1.0] * 7
     # Every one of those judges answers by code, so nothing was ever asked of a model.
     assert matrix["judge_calls"] == 0
     kept = await eval_runs.of(run["id"])
@@ -142,7 +142,7 @@ async def test_a_golden_with_an_event_injects_it_at_the_declared_turn(
 
     assert answered.status_code == 200, answered.text
     run: dict[str, Any] = answered.json()
-    assert run["matrix"]["metrics"] == ["consent", "replies"]
+    assert run["matrix"]["metrics"] == ["consent", "heard", "replies"]
     assert not run["matrix"]["failures"]
 
     entries = await whole(store, run["calls"][0]["call"])
