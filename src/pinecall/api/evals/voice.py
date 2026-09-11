@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import Field
 
 from pinecall.api._deps import KeyDep, LlmsDep, SettingsDep, StoreDep, VaultDep
+from pinecall.api.evals.listening import until_the_answer_lands
 from pinecall.evals.caller import (
     NO_MODEL,
     Asking,
@@ -90,6 +91,9 @@ async def a_voice_call(
             next_line=next_line,
             line=line,
             settings=settings,
+            # The persona speaks again when the agent is listening again, never on a clock: the
+            # same wait the golden runner makes, so a turn that runs a tool is not talked over.
+            settled=lambda so_far: until_the_answer_lands(store, said.call, so_far),
         )
     except (TimeoutError, RuntimeError) as broke:
         raise HTTPException(503, NO_LINE.format(broke=broke)) from broke

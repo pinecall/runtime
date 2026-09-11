@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import random as randomness
@@ -32,11 +31,6 @@ A_SIMULATED_CALLER = "simulated_caller"
 # is not running is the usual reason, and it is worth saying so rather than holding an empty room.
 # Measured: a cold box whose room connection needed one retry took 15s to have ears.
 THE_AGENT_MAY_TAKE_S = 40.0
-
-# How long the caller listens after saying something, when nobody handed in a `settled` that can
-# tell. Six is enough for a turn that only talks and NOT enough for one that runs a tool — measured
-# at thirteen seconds on 2026-09-11 — which is what `settled` is for.
-A_LISTENING_SILENCE_S = 6.0
 
 # How long the caller's seat in the room is good for: longer than any run holds a line, so the
 # token never ends a call that the run's own deadlines had not.
@@ -71,11 +65,11 @@ log, and whoever holds the persona reads it back from there — the same reason 
 the log rather than a session's history (docs/decisions/scoring.md)."""
 
 
-# What a run does after EVERY line the caller says — between two of them, and after the last one
+# What the caller does after EVERY line it says — between two of them, and after the last one
 # before the line drops. It is given how many lines have been said so far and waits for the agent
 # to have finished answering them: a golden that expects a tool on its last turn would otherwise be
 # judged on a call that ended mid-thought, and its SECOND line would be said over the answer to its
-# first. A plain simulate passes none and falls back to the silence below.
+# first. There is no clock to fall back on: a caller that guesses talks over the agent.
 type Settled = Callable[[int], Awaitable[None]]
 
 
@@ -96,10 +90,10 @@ async def a_simulated_call(
     line: Line,
     settings: Settings,
     fleet: str = WORKER_NAME,
+    settled: Settled,
     caller: str | None = None,
     run: str | None = None,
     app: str | None = None,
-    settled: Settled | None = None,
 ) -> int:
     """Open the room, dispatch the agent into it, say the turns out loud, and hang up."""
     if line.interferer_db is not None and not line.interferer:
@@ -265,9 +259,7 @@ def _listening(room: rtc.Room) -> bool:
     )
 
 
-async def every_turn(
-    mouth: Speaks, turns: int, next_line: NextLine, settled: Settled | None = None
-) -> int:
+async def every_turn(mouth: Speaks, turns: int, next_line: NextLine, settled: Settled) -> int:
     """The caller's turns, said out loud one at a time, each waiting for the answer to the last."""
     spoken = 0
     for turn in range(turns):
@@ -278,12 +270,8 @@ async def every_turn(
         spoken += 1
         if hanging_up:
             break
-        # The wait that knows, or the silence that guesses. A caller that guesses says its second
-        # line over the answer to its first: `reserva-cuando-el-paciente-dice-que-si` was heard
-        # once out of twice, every spoken run, until this waited for the agent instead of six
-        # seconds (2026-09-11).
-        if settled is not None:
-            await settled(spoken)
-        else:
-            await asyncio.sleep(A_LISTENING_SILENCE_S)
+        # A caller that guessed said its second line over the answer to its first:
+        # `reserva-cuando-el-paciente-dice-que-si` was heard once out of twice, every spoken run,
+        # until this waited for the agent instead of six seconds (2026-09-11).
+        await settled(spoken)
     return spoken

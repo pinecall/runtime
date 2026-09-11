@@ -2,7 +2,7 @@
 
 import pytest
 
-from pinecall.api.evals.spoken import the_answer_has_landed
+from pinecall.api.evals.listening import the_answer_has_landed
 from pinecall.log.entry import Entry
 
 pytestmark = pytest.mark.unit

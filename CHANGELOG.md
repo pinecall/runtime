@@ -235,6 +235,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   import them, and a tie in a fused order is settled by id on both.
 
 ### Fixed
+- **`simulate --voice` no longer talks over the agent.** The persona slept six fixed seconds
+  between its lines while the golden runner waited for `agent.state: listening`; a turn that runs a
+  tool takes thirteen, and the recordings had the caller speaking over the answer. The one wait is
+  `api/evals/listening.py`, required of every spoken caller — the fixed silence is gone.
 - `PUT /v1/knowledge/{base}` answered a bare `500 Internal Server Error` when the embedder was
   down — the whole reason, vendor and URL included, went to the gateway's log and nothing at all
   to the tenant. `api/_refusals.py` maps `EmbedderUnreachable` to **503** and `WrongWidth` /
