@@ -77,8 +77,8 @@ class TestOnADevKey:
         for answer in (pushed, listed, dropped):
             assert answer.status_code == 503
             assert answer.json()["detail"] == NO_KNOWLEDGE
-        assert "no database" in NO_KNOWLEDGE
-        assert "migrate up" in NO_KNOWLEDGE
+        assert "dev key" in NO_KNOWLEDGE
+        assert "keys issue" in NO_KNOWLEDGE
 
 
 # ── what the plan allows ────────────────────────────────────────────────────────

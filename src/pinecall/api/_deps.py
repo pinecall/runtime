@@ -221,20 +221,26 @@ async def an_unlocked_vault(vault: VaultDep) -> Vault:
 
 UnlockedVaultDep = Annotated[Vault, Depends(an_unlocked_vault)]
 
-# A dev key opens no Postgres pool at all (api/app.py), and memory and the knowledge base are
-# tables: the request was right and this gateway cannot honour it. 503, in a sentence that names
-# the cause, because a bare 503 from a push is the afternoon this repo already lost twice.
-# And the cause is the DATABASE, never the key: a gateway on a dev key with a pool keeps both of
-# these, and one with no pool keeps neither whatever key it runs on (api/app.py builds them from
-# the pool alone). The sentence said "it runs on a dev key" and sent a reader looking at their key
-# while a Postgres nobody could reach sat behind it — the very afternoon this comment warns about.
+# A dev key opens no Postgres pool at all (api/app.py:_a_pool, "that is the whole point of it"),
+# and memory and the knowledge base are tables: the request was right and this gateway cannot
+# honour it. 503, in a sentence that names the cause, because a bare 503 from a push is the
+# afternoon this repo already lost twice.
+#
+# The cause is the KEY and not the database, and this is the one place that is easy to get
+# backwards — it was, on 2026-09-11, and the sentence spent an hour telling people to point
+# DATABASE_URL at something. The derivation: a dev key opens no pool; a gateway with neither a dev
+# key nor a database refuses to start at all (auth/keys.py:keys_for), because it could verify
+# nothing. So the ONLY way to reach these two refusals is a dev key, and the way out of one is an
+# org key.
 NO_KNOWLEDGE = (
-    "this gateway keeps no knowledge: it has no database, so there is no table to push into. "
-    "Point DATABASE_URL at one and run `pinecall-runtime migrate up`."
+    "this gateway keeps no knowledge: it runs on a dev key, which opens no database at all. "
+    "Issue an org key (`pinecall-runtime keys issue --org <slug>`), start the gateway on that "
+    "instead of PINECALL_DEV_KEY, and push again."
 )
 NO_MEMORY = (
-    "this gateway keeps no memory: it has no database, so there is no table to read or forget. "
-    "Point DATABASE_URL at one and run `pinecall-runtime migrate up`."
+    "this gateway keeps no memory: it runs on a dev key, which opens no database at all. "
+    "Issue an org key (`pinecall-runtime keys issue --org <slug>`), start the gateway on that "
+    "instead of PINECALL_DEV_KEY, and read it again."
 )
 
 
