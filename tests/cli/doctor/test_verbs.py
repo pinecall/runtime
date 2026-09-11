@@ -1,6 +1,6 @@
 """The doctor against fakes: every check gives a reason, and the first ✗ decides the exit code."""
 
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
@@ -9,24 +9,9 @@ from pinecall._settings import load_settings
 from pinecall.cli import main
 from pinecall.cli.doctor import verbs as doctor
 from pinecall.cli.doctor.probes import Probes
+from tests.cli.doctor.reading import named, probes_that_answer
 
 pytestmark = pytest.mark.unit
-
-
-def probes_that_answer(
-    *,
-    http_status: Callable[[str], int] = lambda _url: 200,
-    knock: Callable[[str, Mapping[str, str]], int] = lambda _url, _headers: 200,
-    postgres_extensions: Callable[[str], set[str]] = lambda _dsn: set(doctor.REQUIRED_EXTENSIONS),
-    executable_path: Callable[[str], str | None] = lambda program: f"/opt/homebrew/bin/{program}",
-) -> Probes:
-    """A stack where everything is up, with one answer swapped for the check under test."""
-    return Probes(
-        http_status=http_status,
-        knock=knock,
-        postgres_extensions=postgres_extensions,
-        executable_path=executable_path,
-    )
 
 
 def elevenlabs_refuses(url: str, _headers: Mapping[str, str]) -> int:
@@ -183,8 +168,7 @@ def _the_report(probes: Probes) -> list[doctor.Result]:
 
 
 def test_a_provider_key_is_reported_by_its_variable_and_never_by_its_value() -> None:
-    keys = doctor.run_checks(load_settings(), probes_that_answer())[0]
-    assert keys.name == "provider keys"
+    keys = named("provider keys", doctor.run_checks(load_settings(), probes_that_answer()))
     assert keys.ok
     assert "ANTHROPIC_API_KEY" in keys.detail
     assert "sk-ant-dead-sentinel" not in keys.detail
@@ -228,8 +212,7 @@ def test_the_doctor_exits_one_naming_the_first_thing_down(
 
 
 def test_a_key_every_vendor_answers_is_reported_by_its_variable_alone() -> None:
-    answer = doctor.run_checks(load_settings(), probes_that_answer())[1]
-    assert answer.name == "provider keys answer"
+    answer = named("provider keys answer", doctor.run_checks(load_settings(), probes_that_answer()))
     assert answer.ok
     assert "ELEVEN_API_KEY" in answer.detail
     assert "dead-sentinel" not in answer.detail
@@ -281,6 +264,7 @@ def test_a_worker_is_asked_after_no_postgres_and_no_embedder(
         probes_that_answer(postgres_extensions=lambda _dsn: set()),
     )
     assert [result.name for result in results] == [
+        "api keys",
         "provider keys",
         "provider keys answer",
         "livekit",

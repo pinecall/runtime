@@ -5,6 +5,8 @@ ones a worker, an app or a browser uses. It is a **public contract**. Everything
 self-host is in this repo; everything needed to charge for it lives outside, in `pinecall/cloud`,
 and that half only ever reaches a runtime through this API. Nothing here prices anything, and
 nothing here is private.
+The model underneath — what an org is, what a key IS, how a tenant is given one — is
+[../multi-tenancy.md](../multi-tenancy.md), and the verbs are [../the-runtime-cli.md](../the-runtime-cli.md).
 
 ## Authentication
 

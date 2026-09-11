@@ -5,7 +5,8 @@ Every door a tenant's own code may knock at, and what comes back. This is the co
 nothing else — so an app written against this document in any language is a first-class client.
 
 The operator's half (`/v1/ops/*`, orgs, quotas, routes, usage) is [operator-api.md](operator-api.md)
-and takes a different key. Every wire shape named below — each event, each command, the envelope —
+and takes a different key; who a key belongs to at all is [../multi-tenancy.md](../multi-tenancy.md),
+and the terminal that issues one is [../the-runtime-cli.md](../the-runtime-cli.md). Every wire shape named below — each event, each command, the envelope —
 is generated from the schema into the **protocol** repo's `docs/`: `events.md`, `commands.md`,
 `shapes.md`. The terminal that speaks all of this is the **agents** repo's `docs/the-cli.md`.
 
