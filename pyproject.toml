@@ -83,10 +83,10 @@ path = "src/pinecall/_version.py"
 # because it is not a source, and named here so the wheel carries it anyway.
 [tool.hatch.build.targets.wheel]
 packages = ["src/pinecall"]
-artifacts = ["src/pinecall/gateway/console/**"]
+artifacts = ["src/pinecall/gateway/console/**", "src/pinecall/gateway/admin/**"]
 
 [tool.hatch.build.targets.sdist]
-artifacts = ["src/pinecall/gateway/console/**"]
+artifacts = ["src/pinecall/gateway/console/**", "src/pinecall/gateway/admin/**"]
 
 # ── pytest ──────────────────────────────────────────────────────────────────────
 

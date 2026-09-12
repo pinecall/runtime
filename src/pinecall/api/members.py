@@ -4,9 +4,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
-from pinecall.api._deps import AdmissionDep, KeysDep, MembersDep, TeamKeyDep
+from pinecall.api._deps import (
+    AdmissionDep,
+    KeysDep,
+    MembersDep,
+    OrgsDep,
+    TeamKeyDep,
+    an_operator,
+    an_org,
+)
 from pinecall.auth import passwords
 from pinecall.auth.keys import Keys
 from pinecall.orgs.admission import QuotaExhausted
@@ -15,6 +23,11 @@ from pinecall.types.member import STATUSES, MemberStatus
 from pinecall_protocol import WireModel
 
 router = APIRouter()
+
+# The same gate every /v1/ops door takes. The operator READS an org's people and never changes
+# them: who works at a tenant is the tenant's to decide, and a box that could edit a member could
+# put itself in somebody's org. Inviting and disabling stay on the tenant's own door above.
+operator = APIRouter(prefix="/v1/ops", dependencies=[Depends(an_operator)])
 
 # The invitation is handed back once: the token is in this answer and hashed everywhere else.
 INVITED = 201
@@ -173,4 +186,15 @@ def member_as_json(member: Member) -> dict[str, Any]:
         "agents": sorted(member.agents),
         "status": member.status,
         "scopes": sorted(member.scopes),
+    }
+
+
+@operator.get("/orgs/{named}/members")
+async def of_one_org(named: str, orgs: OrgsDep, members: MembersDep) -> dict[str, Any]:
+    """Every member of the named org, oldest first, and how many of them hold a seat."""
+    org = await an_org(named, orgs)
+    listed = await members.listed(org.id)
+    return {
+        "members": [member_as_json(member) for member in listed],
+        "seated": await members.seated(org.id),
     }

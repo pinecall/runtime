@@ -12,7 +12,6 @@ from fastapi import FastAPI
 
 from pinecall._settings import Settings, load_settings
 from pinecall.api import (
-    console,
     contacts,
     discovery,
     extraction,
@@ -26,6 +25,7 @@ from pinecall.api import (
     members,
     numbers,
     orgs,
+    pages,
     pipeline,
     provider_keys,
     routes,
@@ -250,19 +250,21 @@ for door in (
     contacts.router,
     extraction.router,
     members.router,
+    members.operator,
     login.router,
     floor.router,
     numbers.router,
     managed.router,
     signup.router,
     whoami.router,
+    whoami.operator,
     discovery.router,
 ):
     app.include_router(door)
 
-# The console, LAST and alone: its one route is the gateway's only catch-all, and it must come
-# after every door above so that no /v1 path is ever answered with a page. api/console.py.
-app.include_router(console.router)
+# The two pages, LAST and alone: the console's route is the gateway's only catch-all, and it must
+# come after every door above so that no /v1 path is ever answered with a page. api/pages.py.
+app.include_router(pages.router)
 
 # What every door above answers when the embedder refuses or the rows were written by another
 # model: a status and the refusal's own sentence, in one table (api/_refusals.py).
