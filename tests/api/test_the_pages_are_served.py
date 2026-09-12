@@ -1,4 +1,4 @@
-"""The gateway serves the console at `/`: the page for every screen, its assets, the API apart."""
+"""The gateway serves two pages: the tenant's console at `/`, the operator's admin under it."""
 
 from __future__ import annotations
 
@@ -9,9 +9,9 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.api import console
+from pinecall.api import pages
 from pinecall.api.app import app
-from pinecall.api.console import NOT_BUILT
+from pinecall.api.pages import NOT_BUILT
 
 pytestmark = pytest.mark.unit
 
@@ -19,6 +19,7 @@ THE_PAGE = (
     "<!doctype html><html><head><title>c</title></head><body><div id=root></div></body></html>"
 )
 AN_ASSET = "console.log('the console')"
+THE_ADMIN_PAGE = "<!doctype html><html><head><title>a</title></head><body>admin</body></html>"
 
 # Every shape a browser asks for: the root, a screen, a deep screen, an asset, the page by name.
 SCREENS = ("/", "/a/clinica-norte", "/a/clinica-norte/sessions/call_1", "/keys", "/index.html")
@@ -30,7 +31,7 @@ def built(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     (tmp_path / "assets").mkdir()
     (tmp_path / "index.html").write_text(THE_PAGE)
     (tmp_path / "assets" / "app.js").write_text(AN_ASSET)
-    monkeypatch.setattr(console, "CONSOLE", tmp_path)
+    monkeypatch.setattr(pages, "CONSOLE", pages.Page(name="console", directory=tmp_path))
     return tmp_path
 
 
@@ -79,18 +80,71 @@ def test_a_url_cannot_climb_out_of_the_consoles_directory(
 def test_a_gateway_nobody_built_the_console_into_says_so(
     gateway: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(console, "CONSOLE", tmp_path / "never-built")
+    monkeypatch.setattr(pages, "CONSOLE", pages.Page("console", tmp_path / "never-built"))
     status, content_type, body = fetched(gateway, "/a/clinica-norte")
     assert status == 404
     assert content_type.startswith("application/json")
-    assert json.loads(body) == {"detail": NOT_BUILT}
+    assert json.loads(body) == {"detail": NOT_BUILT.format(page="console")}
+
+
+# ── the operator's page ─────────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def admin_built(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """An admin page as scripts/console leaves it, in a directory of its own."""
+    built = tmp_path / "admin"
+    (built / "assets").mkdir(parents=True)
+    (built / "index.html").write_text(THE_ADMIN_PAGE)
+    (built / "assets" / "admin.js").write_text("console.log('the admin')")
+    monkeypatch.setattr(pages, "ADMIN", pages.Page(name="admin", directory=built))
+    return built
+
+
+@pytest.mark.parametrize("path", ["/admin", "/admin/", "/admin/orgs", "/admin/orgs/clinica"])
+def test_every_operator_screen_is_the_admin_page_and_never_the_consoles(
+    gateway: TestClient,
+    built: Path,  # noqa: ARG001 — the console is built too, and must not be what answers
+    admin_built: Path,  # noqa: ARG001
+    path: str,
+) -> None:
+    status, content_type, body = fetched(gateway, path)
+    assert status == 200, path
+    assert content_type.startswith("text/html")
+    assert body == THE_ADMIN_PAGE, path
+
+
+def test_the_admin_page_serves_its_own_assets(
+    gateway: TestClient,
+    built: Path,  # noqa: ARG001
+    admin_built: Path,  # noqa: ARG001
+) -> None:
+    status, content_type, body = fetched(gateway, "/admin/assets/admin.js")
+    assert (status, body) == (200, "console.log('the admin')")
+    assert "javascript" in content_type
+
+
+def test_a_gateway_nobody_built_the_admin_into_says_which_page_is_missing(
+    gateway: TestClient,
+    built: Path,  # noqa: ARG001
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """And says `admin`, not `console`: the sentence names the page that is not there."""
+    monkeypatch.setattr(pages, "ADMIN", pages.Page("admin", tmp_path / "never-built"))
+    status, _, body = fetched(gateway, "/admin/orgs")
+    assert status == 404
+    assert json.loads(body) == {"detail": NOT_BUILT.format(page="admin")}
 
 
 def test_exactly_one_catch_all_and_it_is_the_last_route() -> None:
-    """Every door names its own path; the one `{path:path}` is the console's, after all of them."""
+    """Every door names its own path; the one `{path:path}` is the console's, after all of them.
+
+    The admin's `/admin/{path:path}` is a path of its own and is declared before it, which is
+    what makes `/admin` the operator's page and not a screen of the tenant's console."""
     declared = _every_path(app.routes)
-    catch_alls = [path for path in declared if "{path:path}" in path]
-    assert catch_alls == ["/{path:path}"]
+    catch_alls = [path for path in declared if path.endswith("{path:path}")]
+    assert catch_alls == ["/admin/{path:path}", "/{path:path}"]
     assert declared[-1] == "/{path:path}"
 
 

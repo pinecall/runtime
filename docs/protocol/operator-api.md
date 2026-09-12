@@ -12,6 +12,11 @@ The model underneath — what an org is, what a key IS, how a tenant is given on
 
 One key, out of the environment: `PINECALL_OPS_KEY`, sent as `Authorization: Bearer <key>`.
 
+`GET /v1/ops/whoami` answers `{operator: true, version, domain}` and is what the operator's page —
+served at **`/admin`** by the same gateway — proves its key at before it draws anything, exactly as
+the console proves a person's at `/v1/whoami`. `domain` is null on a box that was told none, and
+the page then says the host it was loaded from.
+
 It is the **box's** key, not an org's, so every door here names its org explicitly. An API key
 (the kind an app or a worker holds) does not open these doors, and the ops key does not open
 theirs. An unset `PINECALL_OPS_KEY` closes `/v1/ops/*` entirely, which is the safe default: a
@@ -79,6 +84,12 @@ when the number took nothing from anybody.
 Forget the number. `204` when a row went; `404` when no row answered to it — a typo in `routes rm`
 must never read as done. Whatever a running app declares for that number answers again from the
 next call.
+
+`GET /v1/ops/orgs/{named}/members` is the org's people as the operator reads them —
+`{members: [...], seated}` — and it is the only door here that touches a tenant's people. It is
+**read only**: who works at a tenant is the tenant's to decide, and a box that could edit a member
+could put itself in somebody's org. Inviting, changing a role and disabling are the tenant's own
+`/v1/members` ([people.md](people.md)).
 
 ## Orgs
 
