@@ -8,7 +8,8 @@ from fastapi import APIRouter, HTTPException, Request
 
 from pinecall.api._deps import KeyDep, KeysDep, LoginCodesDep, MembersDep, OrgsDep, ThrottleDep
 from pinecall.auth import passwords
-from pinecall.types import PRODUCTION, DeclarationRefused, an_env, for_a_person
+from pinecall.auth.keys import KeyRecord
+from pinecall.types import PRODUCTION, DeclarationRefused, Env, an_env, for_a_person
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -98,26 +99,34 @@ async def a_code(key: KeyDep, codes: LoginCodesDep) -> dict[str, Any]:
     return {"code": minted.code, "expires_at": minted.expires_at}
 
 
-# The scopes come off the MEMBER and not off the key that asked: a person's production key does
-# not hold `app`, and reading its scopes would carry that absence into development, where what
-# they run is their own. The role is the source, here as at login.
 @router.post("/v1/login/env")
 async def the_other_world(
     said: OtherWorld, key: KeyDep, keys: KeysDep, members: MembersDep
 ) -> dict[str, Any]:
     """A key for the same person, with what their role opens there, in the world named."""
-    if key.subject is None:
-        raise HTTPException(403, ONE_WORLD_EACH)
     try:
         env = an_env(said.env)
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused
+    return await for_the_same_person(key, env, key.label, keys, members)
+
+
+# The one place a key is minted FROM another key: the console's world toggle above, and the card
+# that signs a terminal in (api/pairing.py). The scopes come off the MEMBER and not off the key
+# that asked — a person's production key does not hold `app`, and reading its scopes would carry
+# that absence into development, where what they run is their own. The role is the source.
+async def for_the_same_person(
+    key: KeyRecord, env: Env, label: str | None, keys: KeysDep, members: MembersDep
+) -> dict[str, Any]:
+    """A key for the person this one names, in the world named, with what their role opens there."""
+    if key.subject is None:
+        raise HTTPException(403, ONE_WORLD_EACH)
     member = await members.find(key.org, key.subject)
     if member is None or member.status != "active":
         raise HTTPException(403, NOT_A_MEMBER)
     issued = await keys.issue(
         org=key.org,
-        label=key.label,
+        label=label,
         env=env,
         scopes=for_a_person(member.scopes, env),
         subject=key.subject,

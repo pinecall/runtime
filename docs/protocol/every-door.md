@@ -25,6 +25,10 @@ is for. The prose, the shapes and the refusals are on that page and in the pages
 | `POST` | `/v1/invitations/{token}` | accept with a password: active, and the first key |
 | `POST` | `/v1/login` | a key for a person and a device: org, email, password — or a code |
 | `POST` | `/v1/login/codes` | a one-use code a key holder mints for a browser |
+| `POST` | `/v1/login/pairings` | a word a terminal prints, so a person signs it in from a browser — no key |
+| `GET` | `/v1/login/pairings/{code}` | what the card is about to approve: which terminal, and whether it is answered — no key |
+| `POST` | `/v1/login/pairings/{code}` | sign that terminal in as the person this browser is — any person's key |
+| `GET` | `/v1/login/pairings/{code}/key` | the terminal collects its key, once. 202 while nobody has approved — no key |
 | `POST` | `/v1/signup` | where `PINECALL_SIGNUP` is on, off by default: a new org allowed what its gateway's policy says, its admin active, their first key and a login code |
 | `GET` | `/v1/whoami` | the org, the key's id, its label, the world it opens (`env`), its `scopes`, and whose it is (`subject`, `name`) |
 | `GET` | `/v1/ops/whoami` | **the box's own**: that this key is the operator's, the version, the domain — what the `/admin` page proves its key at |

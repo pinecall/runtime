@@ -108,6 +108,10 @@ ASKS_NOTHING_OR_ASKS_INSIDE: dict[str, str] = {
     "POST /v1/signup": "takes no key: it makes the org that will hold one, on the cloud alone",
     "POST /v1/login/codes": "any key may mint a code for its own record",
     "POST /v1/login/env": "a person's key may mint the same person's key in the other world",
+    "POST /v1/login/pairings": "takes no key: a terminal asking to be signed in has none yet",
+    "GET /v1/login/pairings/{code}": "takes no key: what the card approves, no key in it",
+    "POST /v1/login/pairings/{code}": "any person's key may sign a terminal in as themselves",
+    "GET /v1/login/pairings/{code}/key": "takes no key: the word itself is the right",
     "POST /v1/invitations/{token}": "takes no key: the token is the right",
     "GET /v1/whatsapp/webhook": "Meta's handshake, signed",
     "POST /v1/whatsapp/webhook": "Meta's delivery, signed",
@@ -126,10 +130,34 @@ OPENS_TO_EITHER: dict[str, frozenset[str]] = {
 }
 
 
+# FastAPI 0.141 stopped flattening an included router into `app.routes`: it puts a wrapper there
+# that holds the real router. Walking `app.routes` alone found no APIRoute at all, so this test
+# passed over an empty list and pinned NOTHING — every door's scope went unchecked from the
+# upgrade until somebody read the walk. Both shapes are unwrapped here, so it cannot happen again
+# quietly: `test_the_walk_actually_reaches_the_doors` below fails if the list comes back empty.
+def _doors_of(app_or_router: Any) -> list[Any]:
+    """Every real route under an app, through whatever wrapper the version puts in the way."""
+    found: list[Any] = []
+    for route in app_or_router.routes:
+        inner = getattr(route, "original_router", None)
+        if inner is not None:
+            found.extend(_doors_of(inner))
+        else:
+            found.append(route)
+    return found
+
+
+def test_the_walk_actually_reaches_the_doors() -> None:
+    """The guard on the guard: a flattener that returns nothing makes the test below vacuous."""
+    reached = [route for route in _doors_of(app) if isinstance(route, APIRoute)]
+    assert len(reached) > 50, f"the walk found {len(reached)} doors, so it is pinning nothing"
+    assert any(route.path == "/v1/whoami" for route in reached)
+
+
 def test_every_tenant_door_declares_exactly_one_scope() -> None:
     """Walk the app: one scoped dep per door; the exceptions are the lists above, never a guess."""
     undeclared: list[str] = []
-    for route in app.routes:
+    for route in _doors_of(app):
         if isinstance(route, APIWebSocketRoute):
             doors = [f"WS {route.path}"]
         elif isinstance(route, APIRoute):

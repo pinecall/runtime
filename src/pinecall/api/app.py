@@ -26,6 +26,7 @@ from pinecall.api import (
     numbers,
     orgs,
     pages,
+    pairing,
     pipeline,
     provider_keys,
     routes,
@@ -50,6 +51,7 @@ from pinecall.api.whatsapp.threads import Threads
 from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import keys_for
 from pinecall.auth.members import members_for
+from pinecall.auth.pairing import Pairings
 from pinecall.auth.throttle import Throttle
 from pinecall.evals.runs import runs_for
 from pinecall.extensions import extensions_from
@@ -134,6 +136,8 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # last two are this process's memory on purpose: a five-minute word and a one-minute count.
     gateway.state.members = members_for(pool)
     gateway.state.login_codes = LoginCodes()
+    # The words `pinecall login` prints, until a browser leaves a key in one. See api/pairing.py.
+    gateway.state.pairings = Pairings()
     gateway.state.throttle = Throttle()
     # Where a tenant that brought its own provider keys keeps them. None when the box was given
     # no PINECALL_VAULT_KEY, which is every install that runs on its own vendor keys — the
@@ -282,6 +286,7 @@ for door in (
     members.router,
     members.operator,
     login.router,
+    pairing.router,
     floor.router,
     numbers.router,
     managed.router,

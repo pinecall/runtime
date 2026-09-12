@@ -13,6 +13,7 @@ from pinecall.auth.bearer import bearer_of
 from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import KeyRecord, Keys, not_opening
 from pinecall.auth.members import Members
+from pinecall.auth.pairing import Pairings
 from pinecall.auth.throttle import Throttle
 from pinecall.evals.runs import Runs
 from pinecall.extensions import Extensions
@@ -174,6 +175,11 @@ def the_login_codes(connection: HTTPConnection) -> LoginCodes:
     return held(connection, "login_codes", LoginCodes)
 
 
+def the_pairings(connection: HTTPConnection) -> Pairings:
+    """The words a terminal printed, waiting for a browser to leave a key in one."""
+    return held(connection, "pairings", Pairings)
+
+
 def the_throttle(connection: HTTPConnection) -> Throttle:
     """How often each name has knocked at the password door lately."""
     return held(connection, "throttle", Throttle)
@@ -278,6 +284,7 @@ ExtensionsDep = Annotated[Extensions, Depends(the_extensions)]
 OrgsDep = Annotated[Orgs, Depends(the_orgs)]
 MembersDep = Annotated[Members, Depends(the_members)]
 LoginCodesDep = Annotated[LoginCodes, Depends(the_login_codes)]
+PairingsDep = Annotated[Pairings, Depends(the_pairings)]
 ThrottleDep = Annotated[Throttle, Depends(the_throttle)]
 RoutesDep = Annotated[Routes, Depends(the_routes)]
 TokensDep = Annotated[Tokens, Depends(the_tokens)]
