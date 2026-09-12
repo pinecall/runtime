@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from pinecall.api._deps import KeyDep, SettingsDep, SnapshotsDep
+from pinecall.api._deps import SettingsDep, SnapshotsDep, SuperviseKeyDep
 from pinecall.tokens.seating import a_seat_in
 
 router = APIRouter()
@@ -18,7 +18,7 @@ A_LISTENER = "observe"
 
 @router.post("/v1/calls/{call}/listen")
 async def listen(
-    call: str, key: KeyDep, snapshots: SnapshotsDep, settings: SettingsDep
+    call: str, key: SuperviseKeyDep, snapshots: SnapshotsDep, settings: SettingsDep
 ) -> dict[str, Any]:
     """A token that hears one live call: {server_url, participant_token, call, identity}."""
     return await a_seat_in(call, A_LISTENER, key, snapshots, settings)

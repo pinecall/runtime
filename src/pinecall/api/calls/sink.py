@@ -15,7 +15,7 @@ from pinecall._settings import Settings
 from pinecall.api._deps import KeysDep, SettingsDep
 from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.auth.bearer import bearer_of
-from pinecall.auth.keys import Keys
+from pinecall.auth.keys import Keys, not_opening
 from pinecall.auth.scopes import LivekitKeys, Reader, a_reader, secret_for
 from pinecall.log.entry import Entry
 from pinecall.log.filters import Filter, FilterRefused
@@ -99,7 +99,16 @@ async def the_reader(
     reader = await reading(connection, keys, settings, token)
     if reader is None:
         raise HTTPException(401, "a log is read with a key", {"WWW-Authenticate": "Bearer"})
+    # A token's grant already says what it reads; a key reads a call with the `calls` scope.
+    if reader.key is not None and (closed := not_opening(reader.key, READS)) is not None:
+        raise HTTPException(403, closed)
     return reader
+
+
+# The scope every read door asks of a key. Named here because the_reader is the one door they
+# share, and the test over the routes reads it off this function the way it reads a scoped dep.
+READS = "calls"
+the_reader.__dict__["pinecall_scope"] = READS
 
 
 # A process with neither a LiveKit pair nor a dev key can still serve API keys; it just cannot

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from pinecall.api._deps import KeyDep, OrgsDep, UnlockedVaultDep, an_operator, an_org
+from pinecall.api._deps import OrgsDep, ProviderKeysKeyDep, UnlockedVaultDep, an_operator, an_org
 from pinecall.api.orgs import NO_BODY
 from pinecall.types import VENDORS
 from pinecall_protocol import WireModel
@@ -63,13 +63,15 @@ async def vendors(named: str, orgs: OrgsDep, vault: UnlockedVaultDep) -> dict[st
 
 
 @router.put("/v1/provider-keys/{vendor}", status_code=NO_BODY)
-async def bring(vendor: str, said: WantedKey, key: KeyDep, vault: UnlockedVaultDep) -> None:
+async def bring(
+    vendor: str, said: WantedKey, key: ProviderKeysKeyDep, vault: UnlockedVaultDep
+) -> None:
     """This org's own key for one vendor, from the next call on. Replaces whatever it had."""
     await vault.put(key.org, _a_known_vendor(vendor), said.key)
 
 
 @router.delete("/v1/provider-keys/{vendor}", status_code=NO_BODY)
-async def take_back(vendor: str, key: KeyDep, vault: UnlockedVaultDep) -> None:
+async def take_back(vendor: str, key: ProviderKeysKeyDep, vault: UnlockedVaultDep) -> None:
     """Back to the box's own key for that vendor, from the next call on."""
     if not await vault.drop(key.org, _a_known_vendor(vendor)):
         raise HTTPException(404, NO_SUCH_KEY.format(org=key.org, vendor=vendor))
@@ -79,7 +81,7 @@ async def take_back(vendor: str, key: KeyDep, vault: UnlockedVaultDep) -> None:
 # this door and never comes back out of it. The only body in the runtime that carries one is the
 # worker's own, api/agents/provider_keys.py, and that is what makes this feature auditable.
 @router.get("/v1/provider-keys")
-async def brought(key: KeyDep, vault: UnlockedVaultDep) -> dict[str, list[str]]:
+async def brought(key: ProviderKeysKeyDep, vault: UnlockedVaultDep) -> dict[str, list[str]]:
     """Which vendors this org brought its own key for. The rest run on the box's."""
     return {"vendors": list(await vault.vendors_of(key.org))}
 

@@ -6,7 +6,7 @@ import time
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import AdmissionDep, KeptKnowledgeDep, KeyDep
+from pinecall.api._deps import AdmissionDep, KeptKnowledgeDep, KnowledgeKeyDep
 from pinecall.knowledge.scoring import Answered, Question, Score, scored
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.types import KnowledgeFile
@@ -40,7 +40,7 @@ NO_BODY = 204
 async def push(
     base: str,
     said: KnowledgePush,
-    key: KeyDep,
+    key: KnowledgeKeyDep,
     knowledge: KeptKnowledgeDep,
     admission: AdmissionDep,
 ) -> KnowledgePushed:
@@ -62,7 +62,7 @@ async def push(
 
 
 @router.get("/v1/knowledge")
-async def bases(key: KeyDep, knowledge: KeptKnowledgeDep) -> KnowledgeList:
+async def bases(key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep) -> KnowledgeList:
     """Every base this org has pushed: its name, its size, when."""
     return KnowledgeList(
         bases=[
@@ -78,7 +78,7 @@ async def bases(key: KeyDep, knowledge: KeptKnowledgeDep) -> KnowledgeList:
 
 
 @router.delete("/v1/knowledge/{base}", status_code=NO_BODY)
-async def drop(base: str, key: KeyDep, knowledge: KeptKnowledgeDep) -> None:
+async def drop(base: str, key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep) -> None:
     """The base and every chunk of it, gone. 404 when the org never pushed one by that name."""
     if not await knowledge.drop(key.org, base):
         raise HTTPException(status_code=404, detail=NO_SUCH_BASE.format(base=base))
@@ -91,7 +91,7 @@ async def drop(base: str, key: KeyDep, knowledge: KeptKnowledgeDep) -> None:
 # docs/retrieval/spec.md.
 @router.post("/v1/knowledge/{base}/eval")
 async def evaluate(
-    base: str, said: KnowledgeGolden, key: KeyDep, knowledge: KeptKnowledgeDep
+    base: str, said: KnowledgeGolden, key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep
 ) -> KnowledgeScore:
     """Every question of the golden asked of the base, and how well it ranked the answers."""
     held = next((one for one in await knowledge.bases(key.org) if one.base == base), None)

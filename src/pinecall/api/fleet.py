@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import TypeAdapter
 
-from pinecall.api._deps import FleetDep, KeyDep, LogsDep, StoreDep, an_operator
+from pinecall.api._deps import AppKeyDep, CallsKeyDep, FleetDep, LogsDep, StoreDep, an_operator
 from pinecall.fleet import Heartbeat, Seat, Standing, Totals
 from pinecall.log.store import DEFAULT_LIMIT
 from pinecall.types import DEFAULT_ORG, Channel
@@ -49,7 +49,8 @@ class WantedCallback(WireModel):
     agent: str
     number: str
     channel: Channel = "web"
-    via: str = "widget"
+    # The wire's own closed set: a via that is neither is refused by the shape, as a 422.
+    via: Literal["overflow", "widget"] = "widget"
     call: str | None = None
 
 
@@ -57,15 +58,16 @@ class WantedCallback(WireModel):
 
 
 @router.post("/v1/fleet/heartbeat")
-async def heartbeat(said: Heartbeat, key: KeyDep, fleet: FleetDep) -> dict[str, Any]:
+async def heartbeat(said: Heartbeat, key: AppKeyDep, fleet: FleetDep) -> dict[str, Any]:
     """A worker says what it holds; the hub says whether it was cordoned and whether all is full."""
     _the_fleets_key(key.org)
     standing = fleet.report(said, time.time())
-    return STANDING.dump_python(standing)
+    dumped: dict[str, Any] = STANDING.dump_python(standing)
+    return dumped
 
 
 @router.get("/v1/fleet/standing")
-async def standing(key: KeyDep, fleet: FleetDep) -> dict[str, Any]:
+async def standing(key: AppKeyDep, fleet: FleetDep) -> dict[str, Any]:
     """The fleet's numbers as the overflow agent reads them: full, or not."""
     _the_fleets_key(key.org)
     return _totals(fleet.totals(time.time()))
@@ -76,11 +78,9 @@ async def standing(key: KeyDep, fleet: FleetDep) -> dict[str, Any]:
 
 @router.post("/v1/callbacks", status_code=204)
 async def callback_requested(
-    said: WantedCallback, key: KeyDep, store: StoreDep, logs: LogsDep
+    said: WantedCallback, key: AppKeyDep, store: StoreDep, logs: LogsDep
 ) -> None:
     """A number to call back, onto the agent's log: the widget before a room, or the overflow."""
-    if said.via not in ("overflow", "widget"):
-        raise HTTPException(400, "via is overflow or widget")
     if await store.owner(None, said.agent) != key.org:
         raise HTTPException(404, NOT_THIS_ORGS_AGENT.format(agent=said.agent))
     event = CallbackRequested(
@@ -91,7 +91,7 @@ async def callback_requested(
 
 @router.get("/v1/callbacks")
 async def callbacks(
-    key: KeyDep, store: StoreDep, after: int = AFTER, agent: str | None = OF_AGENT
+    key: CallsKeyDep, store: StoreDep, after: int = AFTER, agent: str | None = OF_AGENT
 ) -> dict[str, Any]:
     """Every request this org's agents took, oldest first, and where the next page starts."""
     page = await store.across([CALLBACK], after=after, limit=DEFAULT_LIMIT)

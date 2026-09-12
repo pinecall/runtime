@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import KeyDep, LlmsDep, VaultDep
+from pinecall.api._deps import EvalsKeyDep, LlmsDep, VaultDep
 from pinecall.evals.caller import NO_MODEL, Asking, Improvised, what_they_say_next
 from pinecall.orgs.vault import keys_brought_by
 from pinecall.providers.models import NoProvider
@@ -19,7 +19,7 @@ THE_MODEL_REFUSED = "the model playing the caller answered nothing usable: {brok
 # the key is an identity here and not only a gate: the caller is played on the org's own key when
 # it brought one, so a tenant who simulates a hundred turns spends their account and not the box's.
 @router.post("/v1/evals/caller")
-async def next_line(said: Asking, key: KeyDep, llms: LlmsDep, vault: VaultDep) -> Improvised:
+async def next_line(said: Asking, key: EvalsKeyDep, llms: LlmsDep, vault: VaultDep) -> Improvised:
     """One turn of an improvised caller: the persona and the call so far in, one line out."""
     try:
         llm = llms(None, await keys_brought_by(vault, key.org))

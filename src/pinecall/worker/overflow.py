@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Callable, Coroutine
 
 from livekit.agents import AgentServer, JobContext
 from livekit.agents.voice import Agent, AgentSession
@@ -153,7 +154,9 @@ async def _somebody_arrived(ctx: JobContext) -> bool:
     return True
 
 
-def _sealing(gateway: Gateway, call: str, began: float):  # noqa: ANN202 — livekit's callback shape
+def _sealing(
+    gateway: Gateway, call: str, began: float
+) -> Callable[[str], Coroutine[None, None, None]]:
     """The shutdown callback: call.ended by the agent, then the log is closed."""
 
     async def seal(_reason: str) -> None:

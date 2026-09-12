@@ -11,10 +11,10 @@ from pydantic import Field
 from pinecall.api._deps import (
     AdmissionDep,
     FleetDep,
-    KeyDep,
     LogsDep,
     RoutesDep,
     SettingsDep,
+    TalkKeyDep,
     TokensDep,
 )
 from pinecall.api._serving import ServingDep
@@ -96,7 +96,7 @@ class Wanted(WireModel):
 @router.post("/v1/tokens", status_code=CREATED)
 async def mint(
     said: Wanted,
-    key: KeyDep,
+    key: TalkKeyDep,
     registry: RegistryDep,
     table: RoutesDep,
     tokens: TokensDep,

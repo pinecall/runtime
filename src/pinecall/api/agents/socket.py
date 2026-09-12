@@ -11,8 +11,8 @@ from pydantic import ValidationError
 from pinecall.api._deps import AdmissionDep, KeysDep, LogsDep, a_key_on_a_socket
 from pinecall.api.agents.handlers import HANDLERS, Live, LiveDep, Socket, asked, handles
 from pinecall.api.agents.registry import Registry, RegistryDep, SocketId, a_socket_id
-from pinecall.auth.bearer import POLICY_VIOLATION
-from pinecall.auth.keys import KeyRecord
+from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
+from pinecall.auth.keys import KeyRecord, not_opening
 from pinecall.log import REFUSED
 from pinecall.log.entry import Entry, unstored
 from pinecall.log.writers import Logs
@@ -44,6 +44,10 @@ async def apps(
         await websocket.close(code=POLICY_VIOLATION)
         return
     await websocket.accept()
+    # Holding an agent is the `app` scope: a person's key without it is told so and closed.
+    if (closed := not_opening(key, "app")) is not None:
+        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(closed))
+        return
     socket = AppSocket(websocket, key, logs, registry, live, admission)
     live.connect(socket.id, socket.send)
     try:

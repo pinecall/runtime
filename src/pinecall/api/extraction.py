@@ -6,7 +6,7 @@ import time
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import KeyDep, LlmsDep, OverridesDep, VaultDep
+from pinecall.api._deps import LlmsDep, MemoryKeyDep, OverridesDep, VaultDep
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.auth.keys import KeyRecord
 from pinecall.memory.extraction import answered
@@ -37,7 +37,7 @@ KEEPS_NOTHING = "agent {slug} declares no memory.remember: there is nothing to e
 async def extraction(
     slug: str,
     said: ExtractionCases,
-    key: KeyDep,
+    key: MemoryKeyDep,
     registry: RegistryDep,
     overrides: OverridesDep,
     llms: LlmsDep,

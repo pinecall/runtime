@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from pinecall.api._deps import (
-    KeyDep,
+    EvalsKeyDep,
     LlmsDep,
     LogsDep,
     LookupsDep,
@@ -46,7 +46,7 @@ OF_AGENT = Query(None, description="only this agent's runs; every agent of the o
 @router.post("/v1/evals/run")
 async def run_the_goldens(
     said: Wanted,
-    key: KeyDep,
+    key: EvalsKeyDep,
     runner: RunnerDep,
     registry: RegistryDep,
     overrides: OverridesDep,
@@ -93,7 +93,7 @@ async def run_the_goldens(
 # everybody else's. The agents repo's docs/decisions/evals-screen.md.
 @router.get("/v1/evals/runs")
 async def listed(
-    key: KeyDep,
+    key: EvalsKeyDep,
     runs: RunsDep,
     store: StoreDep,
     limit: int = HOW_MANY,
@@ -108,7 +108,7 @@ async def listed(
 
 
 @router.get("/v1/evals/runs/{id}")
-async def one_run(id: str, key: KeyDep, runs: RunsDep, store: StoreDep) -> dict[str, Any]:
+async def one_run(id: str, key: EvalsKeyDep, runs: RunsDep, store: StoreDep) -> dict[str, Any]:
     """One run, whole: the calls it opened, and the matrix as far as it has been judged."""
     run = await runs.of(id)
     if run is None or not await _is_the_orgs(key.org, store, run.agent):

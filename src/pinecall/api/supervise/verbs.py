@@ -10,8 +10,9 @@ from starlette.requests import Request
 from pinecall.api._deps import KeysDep, SettingsDep, SnapshotsDep
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.calls.sink import reading
-from pinecall.api.supervise.aiming import QueueingDep, VerbRefused
+from pinecall.api.supervise.aiming import STEERS, QueueingDep, VerbRefused
 from pinecall.api.supervise.aiming import aimed as aimed_at
+from pinecall.auth.keys import not_opening
 from pinecall_protocol import verbs
 
 router = APIRouter()
@@ -41,6 +42,8 @@ async def verb(
     reader = await reading(request, keys, settings, None)
     if reader is None:
         raise HTTPException(401, NO_BEARER, {"WWW-Authenticate": "Bearer"})
+    if reader.key is not None and (closed := not_opening(reader.key, STEERS)) is not None:
+        raise HTTPException(403, closed)
     try:
         await aimed_at(live, registry, snapshots, reader, call, said)
     except VerbRefused as refused:

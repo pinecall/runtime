@@ -34,12 +34,19 @@ the knowledge it may push and the provider keys it may bring are that org's. Ano
 `403 this key does not read that org's log`, never a 404 — whether a call exists is not another
 tenant's business.
 
+**A key opens what its scopes say.** Every tenant door asks for exactly one and refuses without it
+as `403 this key does not open knowledge: it opens calls · evals`. A machine key holds every scope;
+a person's holds their role's (§8). `app`: the app socket and the worker's doors. `calls`: `GET
+/v1/agents` and every read of a log. `talk`: `POST /v1/tokens`, `WS /v1/chat`. `supervise`: listen,
+the seat, the verbs by key. `pipeline` · `knowledge` · `memory` · `evals` · `keys` · `team`: the
+doors of that name. `GET /v1/whoami` and `POST /v1/login/codes` ask for none.
+
 **The one exception to the header** is `?token=` on the two log doors, because an `EventSource` in
 a browser cannot set a header. Only a short-lived room token is accepted there (see Tokens), never
 an API key: a URL ends up in an access log.
 
 **Refusals** are FastAPI's shape — `{"detail": "…"}` under the status — and the sentence names the
-fix. `401` no key; `403` another org's, or a token reading a call it was not minted for; `404` a
+fix. `401` no key; `403` another org's, or a token reading a call it was not minted for; `403` also a key whose scopes do not open the door; `404` a
 thing that is not there; `409` a request that disagrees with what is stored; `422` a body that is
 not the shape; `429` a quota; `503` the request was right and this box cannot honour it (no
 database, no embedder, no vault key). A socket has no status to answer with, so it closes with
