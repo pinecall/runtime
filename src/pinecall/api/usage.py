@@ -1,4 +1,4 @@
-"""GET /v1/ops/usage: what every org consumed, as a projection over the log with its own cursor."""
+"""GET /v1/ops/usage and GET /v1/usage: what an org consumed, folded off the log with a cursor."""
 
 from __future__ import annotations
 
@@ -11,12 +11,16 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query
 from starlette.responses import StreamingResponse
 
-from pinecall.api._deps import OrgsDep, StoreDep, an_operator
+from pinecall.api._deps import OrgsDep, StoreDep, UsageKeyDep, an_operator
 from pinecall.api.calls.sink import SSE, SSE_HEADERS, AcceptDep, wants_sse
 from pinecall.log.store import DEFAULT_LIMIT, Store
 from pinecall.log.usage import METERED_TYPES, UsageRow, a_usage_row, totals_by_org
 
 operator = APIRouter(prefix="/v1/ops", dependencies=[Depends(an_operator)])
+
+# The tenant's own read of the same rows, cut to its org by its key: what the console's Usage
+# screen draws. A page and never a stream — a person reads a total, a cloud follows a cursor.
+router = APIRouter()
 
 # No table, no aggregate: the rows ARE the log's call.summary and call.score entries, folded one
 # by one, and the cursor is the position the store wrote them at. A cloud that bills reads this
@@ -49,6 +53,23 @@ async def usage(
         "totals": {org: asdict(totals) for org, totals in totals_by_org(rows).items()},
         # The cursor moves past every row READ, filtered or not: a page whose every row was
         # another org's still makes progress, and an empty read is the end.
+        "next": read[-1].cursor if read else None,
+    }
+
+
+@router.get("/v1/usage")
+async def my_usage(
+    key: UsageKeyDep,
+    store: StoreDep,
+    after: int = AFTER,
+    limit: Annotated[int, Query(ge=1, le=DEFAULT_LIMIT)] = DEFAULT_LIMIT,
+) -> dict[str, Any]:
+    """This org's metered rows above the cursor, with its totals and the cursor to resume from."""
+    read, rows = await _a_page(store, after, limit, key.org)
+    totals = totals_by_org(rows).get(key.org)
+    return {
+        "rows": [asdict(row) for row in rows],
+        "totals": None if totals is None else asdict(totals),
         "next": read[-1].cursor if read else None,
     }
 

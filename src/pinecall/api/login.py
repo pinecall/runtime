@@ -35,6 +35,17 @@ ONE_OR_THE_OTHER = "log in with org, email and password, or with a code — one 
 LOGGED_IN = "login"
 A_BROWSER = "console"
 
+# A key opens one world. A person's key may mint the same person's key in the other world — same
+# scopes, same subject, same label — because the console's toggle is that person looking the
+# other way, not a new right. An org's machine key names nobody and gets nothing here.
+ONE_WORLD_EACH = "an org's own key opens one world: issue another with `keys issue --env`"
+
+
+class OtherWorld(WireModel):
+    """Which world the person wants a key for now."""
+
+    env: str
+
 
 class Login(WireModel):
     """Either a person's org, email and password, or a code somebody's key minted for them."""
@@ -79,6 +90,21 @@ async def a_code(key: KeyDep, codes: LoginCodesDep) -> dict[str, Any]:
     """A one-use code standing for this key's record, good for five minutes."""
     minted = codes.mint(key)
     return {"code": minted.code, "expires_at": minted.expires_at}
+
+
+@router.post("/v1/login/env")
+async def the_other_world(said: OtherWorld, key: KeyDep, keys: KeysDep) -> dict[str, Any]:
+    """A key for the same person, with the same scopes, in the world named."""
+    if key.subject is None:
+        raise HTTPException(403, ONE_WORLD_EACH)
+    try:
+        env = an_env(said.env)
+    except DeclarationRefused as refused:
+        raise HTTPException(400, str(refused)) from refused
+    issued = await keys.issue(
+        org=key.org, label=key.label, env=env, scopes=key.scopes, subject=key.subject, name=key.name
+    )
+    return issued.as_json
 
 
 async def _with_a_password(

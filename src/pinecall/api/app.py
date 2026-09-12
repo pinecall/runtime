@@ -219,6 +219,7 @@ for door in (
     orgs.operator,
     provider_keys.operator,
     usage.operator,
+    usage.router,
     fleet.router,
     fleet.operator,
     pipeline.router,
