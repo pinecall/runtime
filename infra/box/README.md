@@ -210,7 +210,7 @@ environment file. There is no `.env` on the box, and a stolen disk is not a stol
 | `PINECALL_OPERATOR_KEY` — yours | you, once, with `systemd-creds decrypt` | `pinecall-operator-key.service`, once |
 | the vendors' keys | the gateway and the worker | you: `pinecall-runtime box secret <NAME>` |
 | `TWILIO_ACCOUNT_SID` `TWILIO_API_KEY` `TWILIO_API_SECRET` — the box's own Twilio, for the numbers it buys for a tenant | the gateway | you, the same way; unset, `POST /v1/numbers/buy` says so |
-| `PINECALL_CLOUD`, `PINECALL_SITE` — whether this box takes sign-ups, and the landing origins a browser may knock from | the gateway | you: two lines of `/etc/pinecall/box.env` |
+| `PINECALL_SIGNUP` — whether a stranger may make an org here, off unless set; `PINECALL_CLOUD` — whether a plan is billed | the gateway | you: a line each in `/etc/pinecall/box.env` |
 
 `box secrets` run twice rotates nothing: a credential that is there is kept, and the two key units
 carry a `ConditionPathExists=!` on the file they would make. Rotating one of THOSE is deleting its

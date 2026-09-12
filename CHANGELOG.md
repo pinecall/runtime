@@ -7,9 +7,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
-- **`PINECALL_SITE`.** The origins a browser may knock from, comma separated: the landing page's,
-  since the console is served by the gateway and is already same-origin. A box that names none
-  adds no CORS middleware and answers no preflight. No cookie ever rides a cross-origin knock.
+- **`PINECALL_SIGNUP`.** Whether a stranger may make an org at this gateway, and it is **off
+  unless set**: a box somebody runs for their own agents is never asked to close a door. Its own
+  flag and not `cloud`, because those are two facts — a box of its own may want sign-ups, and a
+  cloud may close them. `GET /.well-known/pinecall` now answers `{version, cloud, signup}`, which
+  is what the console reads to decide whether to draw a way in. The gateway sends no CORS header
+  at all: the console it serves is the same origin, and a site elsewhere links rather than posts.
 - **Sign-up on the cloud.** `POST /v1/signup {org, name?, email, person, password}` — only where
   `PINECALL_CLOUD` is set — makes the org on the free trial (the quotas `api/signup.py` spells:
   45 minutes, 500 messages, 2 agents, 2 calls at once, 1 bought number, memory and knowledge

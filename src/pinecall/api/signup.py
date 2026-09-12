@@ -24,9 +24,13 @@ router = APIRouter()
 
 MADE = 201
 
-# A box of its own has an operator who makes orgs (`orgs add`) and invites people; only Pinecall's
-# cloud lets a stranger make one. The setting is PINECALL_CLOUD, and /.well-known/pinecall says it.
-NOT_HERE = "this gateway takes no sign-ups: it is a box of its own, and its operator invites people"
+# Off unless the person who runs this gateway turned it on: a box somebody runs for their own
+# agents has an operator who makes orgs (`orgs add`) and invites people, and wants no stranger
+# making one. The setting is PINECALL_SIGNUP, and /.well-known/pinecall says whether it is on.
+NOT_HERE = (
+    "this gateway takes no sign-ups: set PINECALL_SIGNUP to open them, or have its operator make "
+    "the org and invite you"
+)
 TAKEN = "{slug} is taken: pick another name for the org"
 TOO_MANY = "too many sign-ups from here: try again in a minute"
 
@@ -75,7 +79,7 @@ async def signup(
     throttle: ThrottleDep,
 ) -> dict[str, Any]:
     """The org on the free trial, its admin active, their first key, a code for a browser."""
-    if not settings.cloud:
+    if not settings.signup:
         raise HTTPException(403, NOT_HERE)
     if not throttle.allowed(f"{the_client(request)} signup"):
         raise HTTPException(429, TOO_MANY)

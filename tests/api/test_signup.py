@@ -32,14 +32,14 @@ TIENDA = {
 
 @pytest.fixture
 def settings() -> Settings:
-    """Pinecall's cloud: the one gateway that takes a sign-up."""
+    """A gateway whose operator opened sign-ups. Off is the default, and the test below is that."""
     return Settings(
         dev_key=A_DEV_KEY,
         ops_key=AN_OPS_KEY,
         livekit_api_key=A_LIVEKIT.api_key,
         livekit_api_secret=A_LIVEKIT.api_secret,
         vault_key=A_VAULT_KEY,
-        cloud=True,
+        signup=True,
     )
 
 
@@ -90,17 +90,36 @@ async def test_the_code_logs_a_browser_in_and_the_password_logs_the_person_in_af
     assert later.status_code == 200, later.text
 
 
-async def test_a_box_of_its_own_takes_no_sign_ups(
+async def test_a_gateway_nobody_opened_sign_ups_on_takes_none_and_that_is_the_default(
     stranger: httpx.AsyncClient, settings: Settings, orgs: MemoryOrgs
 ) -> None:
+    """Off unless said: a dev running this for their own agents is never asked to close a door."""
     from pinecall.api import _deps
     from pinecall.api.app import app
 
-    a_box = settings.model_copy(update={"cloud": False})
-    app.dependency_overrides[_deps.a_settings] = lambda: a_box
+    assert Settings(dev_key=A_DEV_KEY, ops_key=AN_OPS_KEY).signup is False
+    shut = settings.model_copy(update={"signup": False})
+    app.dependency_overrides[_deps.a_settings] = lambda: shut
     answer = await signed_up(stranger)
     assert (answer.status_code, answer.json()["detail"]) == (403, NOT_HERE)
+    assert "PINECALL_SIGNUP" in answer.json()["detail"]
     assert await orgs.find("tienda-sur") is None
+
+
+async def test_discovery_says_whether_a_stranger_may_sign_up_and_it_is_not_cloud(
+    stranger: httpx.AsyncClient, settings: Settings
+) -> None:
+    """A page asks this before anybody has a key, and reads `signup` — never `cloud`."""
+    from pinecall.api import _deps
+    from pinecall.api.app import app
+
+    said = (await stranger.get("/.well-known/pinecall")).json()
+    assert said["signup"] is True and said["cloud"] is False, "two facts, and they are apart"
+    app.dependency_overrides[_deps.a_settings] = lambda: settings.model_copy(
+        update={"signup": False, "cloud": True}
+    )
+    said = (await stranger.get("/.well-known/pinecall")).json()
+    assert said["signup"] is False and said["cloud"] is True
 
 
 async def test_the_refusals_are_sentences_and_a_refused_signup_makes_no_org(
