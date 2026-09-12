@@ -21,6 +21,11 @@ whatever the password. Or it takes `{code, device?}`: a key holder minted the co
 /v1/login/codes` (five minutes, one use), which is how `pinecall run` prints
 `?login=<code>` and a browser ends up holding a key of its own, never the org's.
 
+A browser on ANOTHER origin — the landing page — is refused by the same-origin rule unless the
+gateway welcomes it, so `PINECALL_SITE` names the origins that may knock, comma separated
+(`https://pinecall.io, https://www.pinecall.io`). A box that names none adds no CORS at all and
+answers no preflight. Nothing there carries a cookie: the key is a Bearer the page holds.
+
 **On Pinecall's cloud alone** (`/.well-known/pinecall` says `cloud: true`), a stranger makes an org:
 `POST /v1/signup {org, name?, email, person, password, device?}` — no key — answers `201` with the
 same key shape plus `slug`, the `member` (an `admin`, `active`, password kept) and a one-use `code`

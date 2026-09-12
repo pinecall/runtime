@@ -7,6 +7,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **`PINECALL_SITE`.** The origins a browser may knock from, comma separated: the landing page's,
+  since the console is served by the gateway and is already same-origin. A box that names none
+  adds no CORS middleware and answers no preflight. No cookie ever rides a cross-origin knock.
 - **Sign-up on the cloud.** `POST /v1/signup {org, name?, email, person, password}` — only where
   `PINECALL_CLOUD` is set — makes the org on the free trial (the quotas `api/signup.py` spells:
   45 minutes, 500 messages, 2 agents, 2 calls at once, 1 bought number, memory and knowledge

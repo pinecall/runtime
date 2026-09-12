@@ -28,14 +28,9 @@ type EmbedProvider = Literal["tei", "perplexity", "openrouter"]
 
 # A lookup never delays a reply past its budget, and a slow model at hang-up never holds the
 # seal: the numbers a session waits on memory and retrieval for, then goes on without them.
-# Declared here, once, because the three fields below take their defaults from it.
-#
-# The two lookup budgets are named for the channel because they measure two different silences. On
-# a spoken call the lookups start while the caller is still talking (session/lookups.py), so what
-# this number buys is the TAIL — what is left of a run when the caller stops — and it is the
-# silence on the line before the agent answers. A written caller has no interim to start anything
-# on, so a text turn runs the whole lookup at turn end; nobody is listening to that, so it can
-# afford what a phone line cannot.
+# Declared here, once, because the three fields below take their defaults from it. The two lookup
+# budgets are named for the CHANNEL because each measures a different silence, and the field that
+# reads each one says which (session/lookups.py starts a spoken call's while the caller talks).
 @dataclass(frozen=True)
 class Budgets:
     """What each turn may wait for its lookups, and a hang-up for its memory, before going on."""
@@ -50,16 +45,13 @@ class Settings(BaseSettings):
 
     # A real environment variable WINS over the file: pydantic-settings reads the process
     # environment before the dotenv source. That is what a box with systemd's EnvironmentFile
-    # needs, and what a laptop that exports a key from another project will feel — the export
+    # needs, and what a laptop exporting a key from another project will feel — the export
     # shadows the file, and `env | grep PINECALL` is the first thing to run when it surprises.
-    # extra="ignore" because the file may carry names this runtime does not read; an unknown key
-    # is skipped, never an error at startup.
+    # extra="ignore" because the file may carry names this runtime does not read.
     # A box hands its secrets over as systemd credentials: one file per name under the directory
-    # systemd names in CREDENTIALS_DIRECTORY, readable by this process alone and by nobody down
-    # the tree (`ImportCredential=` in infra/box/*.service). pydantic reads such a directory as
-    # a secrets source, matching files by the same names the environment uses, so
-    # `/run/credentials/pinecall-gateway.service/DATABASE_URL` is `DATABASE_URL`. A laptop sets
-    # no such variable and the source is simply absent.
+    # named in CREDENTIALS_DIRECTORY, readable by this process alone (`ImportCredential=` in
+    # infra/box/*.service). pydantic reads such a directory as a secrets source, matching the
+    # names the environment uses, so `/run/credentials/…/DATABASE_URL` is `DATABASE_URL`.
     model_config = SettingsConfigDict(
         env_prefix=ENV_PREFIX,
         env_file=ENV_FILES,
@@ -94,8 +86,6 @@ class Settings(BaseSettings):
         validation_alias="LIVEKIT_PUBLIC_URL",
         description="The LiveKit URL a browser is told to join. Unset, it hears LIVEKIT_URL.",
     )
-    # The box's own public name — what Caddy answers to, and where a carrier sends the INVITE for
-    # a number a tenant imports (sip:<domain>:5060). The box already has it in box.env.
     # The box's own carrier account, for the numbers it buys FOR a tenant (POST /v1/numbers/buy):
     # the same three names infra/tools/twilio_trunk.py reads. Unset, the door says so; a tenant's
     # own account is a row of the carriers table and never these.
@@ -114,9 +104,17 @@ class Settings(BaseSettings):
         validation_alias="TWILIO_API_SECRET",
         description="The API key's secret, or the account's auth token when no key is set.",
     )
+    # The box's own public name — what Caddy answers to, and where a carrier sends the INVITE for
+    # a number a tenant imports (sip:<domain>:5060). The box already has it in box.env.
     domain: str | None = Field(
         default=None,
         description="The box's public name: where a carrier sends a call. Unset, nothing imports.",
+    )
+    # The console is served HERE and is same-origin, so it needs none of this; a LANDING page is
+    # somewhere else, and the door it knocks at from a browser is the sign-up (api/app.py).
+    site: str = Field(
+        default="",
+        description="Origins a browser may knock from: the landing page's, comma separated.",
     )
 
     # ── The services the doctor asks after: Postgres, and the embedder ─────────
@@ -231,7 +229,7 @@ class Settings(BaseSettings):
 
     # ── The worker: which gateway it asks, and on whose behalf ──────────────────
     # Read in the JOB process, never the parent: livekit runs a call in a process of its own and
-    # hands it the entrypoint by name, so a flag parsed in the parent would not reach it and the
+    # hands it the entrypoint by name, so a flag parsed in the parent never reaches it — the
     # environment is the one thing the child inherits.
     gateway_url: str = Field(
         default="http://127.0.0.1:8080",
@@ -244,9 +242,8 @@ class Settings(BaseSettings):
     # How many calls this worker holds at once, MEASURED on this machine and never guessed: the
     # concurrency at which the p95 first-audio crossed 1.8 s on a ramp, one slot under it for the
     # half-second window livekit re-reads the load in (livekit/agents#4884). Set, the worker
-    # reports slots to livekit — active over max — and stops taking jobs at 0.7 of them; unset,
-    # it reports the machine's CPU, which is right for a box the worker shares and wrong for one
-    # it has to itself. infra/box/README.md, "Slots".
+    # reports slots — active over max — and stops taking jobs at 0.7 of them; unset, it reports
+    # the machine's CPU, right for a box it shares and wrong for one it has alone. "Slots".
     max_jobs: int | None = Field(
         default=None,
         description="Calls this worker holds at once, measured on its machine. Unset: gate on CPU.",
@@ -302,8 +299,7 @@ class Settings(BaseSettings):
     )
     # One API key that needs no database, so a clone runs the gateway before Postgres exists —
     # and uses the database when it is there, tables and all. Set it and it is the ONLY key the
-    # gateway honours, whatever the api_keys table says, which is why a box, which has tenants,
-    # never sets it. Development only.
+    # gateway honours, whatever the api_keys table says: a box, which has tenants, never sets it.
     dev_key: str | None = Field(
         default=None,
         description=(
@@ -365,10 +361,9 @@ class Settings(BaseSettings):
 
     # pydantic resolves an env_file NAME against the working directory alone, so it is the one
     # part of the config that cannot express the walk. The dotenv source is rebuilt here over the
-    # absolute paths env_files_read() found; everything else about it — the prefix, the encoding,
-    # its place AFTER the process environment — is still model_config's. When model_config carries
-    # no env_file the default source is handed back untouched, which is how tests/conftest.py
-    # keeps the suite off the operator's file by clearing that one key.
+    # absolute paths env_files_read() found; everything else — the prefix, the encoding, its place
+    # AFTER the process environment — is still model_config's. With no env_file the default source
+    # is handed back untouched, which is how tests/conftest.py keeps the suite off your file.
     @override
     @classmethod
     def settings_customise_sources(
@@ -384,6 +379,11 @@ class Settings(BaseSettings):
             return init_settings, env_settings, dotenv_settings, file_secret_settings
         walked = DotEnvSettingsSource(settings_cls, env_file=env_files_read())
         return init_settings, env_settings, walked, file_secret_settings
+
+
+def origins_of(settings: Settings) -> tuple[str, ...]:
+    """The origins `site` names, as a list. Empty is a box with no page in front of it."""
+    return tuple(one.strip() for one in settings.site.split(",") if one.strip())
 
 
 def load_settings() -> Settings:
