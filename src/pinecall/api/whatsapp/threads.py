@@ -182,6 +182,7 @@ class Threads:
             held.owner,
             context=session.context,
             config=session.config,
+            holder=held.holder,
         )
         doors.live.open(session)
         thread = Thread(

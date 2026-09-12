@@ -14,6 +14,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   terminal mints one and polls, the browser reads and approves. That mints the TERMINAL's own key
   — same person, development, labelled as that machine — and a password is typed into a page and
   never into a shell. `docs/protocol/people.md`.
+- **In development, a contact's facts and a knowledge base are one DEVELOPER's** (`0021`). 0018
+  gave both tables the world they were written in; development was still one pile shared by the
+  team, so one developer's `knowledge push` replaced what the other two were testing against and
+  one test call's extracted fact arrived in another's. Both now carry whose corner wrote them.
+  Knowledge **falls back** — a developer who has pushed nothing reads the org's, because nobody
+  joins a team to an empty base — while a push, a drop, and memory never do. The quotas still
+  count every corner: the rows are the org's.
 - **Where a ring lands in development, in two steps.** An org shares one development number, so
   three developers on one agent meant the newest `pinecall run` silently took the others' calls,
   answered in a colleague's scrollback with nothing saying so. Now a developer says which number
@@ -152,18 +159,17 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **The write side of memory is held to goldens of its own**, which is the half that persists: the
   hang-up makes ONE model call and it can miss what mattered, invent a fact, leave two versions of
   one fact standing, or write a category the tenant listed as never-keep.
-  `POST /v1/agents/{slug}/memory/extraction` takes cases — a call already written down, both
-  speakers, plus what memory already holds — runs that very extraction per case on the org's own
-  model and keys, and asks four questions of what came back, all by code and none by comparing
-  sentences: every category named got a fact (the words are the class's own `memory.remember`, so a
+  `POST /v1/agents/{slug}/memory/extraction` takes cases — a call already written down, plus what
+  memory already holds — runs that very extraction per case on the org's own model and keys, and
+  asks four questions of what came back, all by code: every category named got a fact (the words
+  are the class's own `memory.remember`, so a
   golden that names one it never declared is refused), none went under a `forget` category, no
   fact's TEXT carries a value the call showed must not survive (`never_says`, matched on the folded
-  words and on the digits alone, so a card number is caught however it was grouped), and exactly
-  the held facts the call contradicted were superseded — the mirror included, which is what catches
-  a model that replaces whatever it touches. A case may also PLANT sentences: planting one is the
-  assertion that admission refuses it. The answer carries what memory would have kept beside what
-  admission dropped. `memory/goldens.py`, `api/extraction.py`; `memory/extraction.py` now offers
-  `answered()` beside `extracted()` so both halves of the step can be judged.
+  words and on the digits alone), and exactly the held facts the call contradicted were superseded
+  — the mirror included, which is what catches a model that replaces whatever it touches. A case
+  may also PLANT sentences: planting one is the assertion that admission refuses it.
+  `memory/goldens.py`, `api/extraction.py`; `memory/extraction.py` offers `answered()` beside
+  `extracted()`.
 - **Memory can be held to a golden**, the way a base already can, and it is the only thing that
   says `recall` returned the wrong facts: a ring watches a conversation and only ever sees the
   facts memory handed over, never the better one it missed. `POST /v1/contacts/memory/eval` takes
@@ -237,14 +243,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - The knowledge base (`knowledge/`, migration `0009_knowledge`): a tenant's Markdown files
   chunked by heading under ~350 tokens, each chunk under its heading path, embedded in batches
   and kept in `knowledge_chunks` with an HNSW index by cosine and a BM25 index in spanish; a push
-  replaces the base whole in one statement; a search fuses both indexes by reciprocal rank and
-  hands the model `{path, heading, text}` per chunk. The row in `knowledge_bases` says which model
-  wrote the vectors, so an `Embedder` now names its model.
+  replaces the base whole in one statement, and a search fuses both indexes by reciprocal rank.
+  The row in `knowledge_bases` says which model wrote the vectors.
 - The lookup itself (`lookups/`): one `Lookups` per gateway is the session's `Lookup` and
   `Rememberer` for every text call in-process and, over `POST /v1/calls/{call}/lookup` and
-  `/remember` (worker-only), for every spoken one. `recall` reads the contact from
-  `CallContext.remembered_as`, never from what the model wrote in the tool's input; `search` uses
-  the agent's declared `k`/`min_score`; both are written on the call's log with its `speech_id`.
+  `/remember`, for every spoken one. `recall` reads the contact from `CallContext.remembered_as`
+  and never from what the model wrote in the tool's input; both are written on the call's log.
 - The knowledge base's doors on the tenant's key (`PUT`/`GET`/`DELETE /v1/knowledge[/{base}]`,
   the base replaced whole) and a contact's (`GET`/`DELETE /v1/contacts/{contact}/memory`).
 - The licence where an operator meets it: the copyright line filled, a License section in
@@ -255,11 +259,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `knowledge_bases` and `knowledge_chunks` carry `env` (`0018`, everything already written is
   production's), and every read and write says which: a test call on a laptop no longer writes
   facts into the memory a production call reads under the same number, and a `knowledge push`
-  with a development key replaces the development base and never the one the telephone answers
-  from — promoting is the same push made with the key the box runs on. The two `kept` counts the
-  quotas read take both worlds, because a row a laptop wrote is a row on the same disk; the push
-  door does the "less the base being replaced" arithmetic itself, and `Knowledge.kept` lost its
-  `besides` for it.
+  with a development key replaces the development base and never the telephone's — promoting is
+  the same push made with the box's key. The `kept` counts the quotas read take both worlds,
+  because a row a laptop wrote is a row on the same disk.
 - **An agent is held per person in development.** The registry's name for a holding is
   `(env, holder, slug)`: nobody's corner in production, where what is deployed is the org's, and
   the member the key was minted for in development. Two developers of one tenant now each run the
@@ -334,8 +336,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   reading and forgetting a contact's memory are refused by no quota.
 - **The embedder is configurable and multi-model, and the knowledge base is embedded
   CONTEXTUALLY.** `Embedder` gains `embed_documents(documents)` — one vector per chunk, one list
-  per document, the order given being the contract — and `PgKnowledge.put` groups the pieces by
-  FILE, so a chunk is embedded while the model sees its neighbours instead of alone.
+  per document — and `PgKnowledge.put` groups the pieces by FILE, so a chunk is embedded while the
+  model sees its neighbours instead of alone.
   `providers/embed/perplexity.py` is one client for both of Perplexity's models: a name carrying
   `-context-` goes to `POST /contextualizedembeddings` (a document at a time, in windows of
   24 000 estimated tokens against the endpoint's 32 768), anything else to `POST /embeddings`. The
@@ -381,12 +383,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   between its lines while the golden runner waited for `agent.state: listening`; a turn that runs a
   tool takes thirteen, and the recordings had the caller speaking over the answer. The one wait is
   `api/evals/listening.py`, required of every spoken caller — the fixed silence is gone.
-- `PUT /v1/knowledge/{base}` answered a bare `500 Internal Server Error` when the embedder was
-  down — the whole reason, vendor and URL included, went to the gateway's log and nothing at all
-  to the tenant. `api/_refusals.py` maps `EmbedderUnreachable` to **503** and `WrongWidth` /
-  `WrongModel` to **409** at every door, each carrying the exception's own sentence, in one table
-  rather than a catch per endpoint. The lookup door is deliberately not among them: a lookup that
-  could not run is still `search_skipped` on the call's log and the turn still goes on.
+- `PUT /v1/knowledge/{base}` answered a bare `500` when the embedder was down, with the whole
+  reason in the gateway's log and nothing at all to the tenant. `api/_refusals.py` maps
+  `EmbedderUnreachable` to **503** and `WrongWidth`/`WrongModel` to **409** at every door, each
+  carrying the exception's own sentence. The lookup door is deliberately not among them: a lookup
+  that could not run is still `search_skipped` on the call's log and the turn goes on.
 
 ### Removed
 - `PINECALL_TEXT_SEARCH_CONFIG`: nothing read it. The language BM25 stems in is the index's own,

@@ -84,6 +84,7 @@ class ScriptedMemory:
         self,
         org: str,
         env: Env,
+        holder: str | None,
         contact: str,
         query: str,
         *,
@@ -92,13 +93,16 @@ class ScriptedMemory:
     ) -> list[Fact]:
         if self.failing is not None:
             raise self.failing
-        self.recalled.append({"org": org, "env": env, "contact": contact, "query": query, "k": k})
+        self.recalled.append(
+            {"org": org, "env": env, "holder": holder, "contact": contact, "query": query, "k": k}
+        )
         return list(self.answers)[:k]
 
     async def remember(
         self,
         org: str,
         env: Env,
+        holder: str | None,  # noqa: ARG002 — the Protocol's shape
         contact: str,
         turns: Sequence[Spoken],
         *,
@@ -130,6 +134,7 @@ class ScriptedMemory:
         self,
         org: str,  # noqa: ARG002 — the Protocol's shape
         env: Env,  # noqa: ARG002 — the Protocol's shape
+        holder: str | None,  # noqa: ARG002 — the Protocol's shape
         contact: str,  # noqa: ARG002 — the Protocol's shape
         facts: Sequence[str],
         *,
@@ -138,11 +143,17 @@ class ScriptedMemory:
         """The sentences given, in the order given: this fake ranks by nothing, so order is all."""
         self.answers += [a_fact(f"held-{n}", text) for n, text in enumerate(facts, start=1)]
 
-    async def forget(self, org: str, env: Env, contact: str) -> int:  # noqa: ARG002
+    async def forget(self, org: str, env: Env, holder: str | None, contact: str) -> int:  # noqa: ARG002
         gone, self.answers = len(self.answers), []
         return gone
 
-    async def history(self, org: str, env: Env, contact: str) -> list[Fact]:  # noqa: ARG002
+    async def history(
+        self,
+        org: str,  # noqa: ARG002 — the Protocol's shape
+        env: Env,  # noqa: ARG002 — the Protocol's shape
+        holder: str | None,  # noqa: ARG002 — the Protocol's shape
+        contact: str,  # noqa: ARG002 — the Protocol's shape
+    ) -> list[Fact]:
         if self.failing is not None:
             raise self.failing
         return list(self.answers)
@@ -161,19 +172,26 @@ class ScriptedKnowledge:
     searched: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
     pushed: dict[str, list[KnowledgeFile]] = field(default_factory=dict[str, list[KnowledgeFile]])
 
-    async def put(self, org: str, env: Env, base: str, files: Sequence[KnowledgeFile]) -> int:  # noqa: ARG002
+    async def put(
+        self,
+        org: str,  # noqa: ARG002 — the Protocol's shape
+        env: Env,  # noqa: ARG002 — the Protocol's shape
+        holder: str | None,  # noqa: ARG002 — the Protocol's shape
+        base: str,
+        files: Sequence[KnowledgeFile],
+    ) -> int:
         if self.failing is not None:
             raise self.failing
         self.pushed[base] = list(files)
         return len(files) * 2
 
-    async def bases(self, org: str, env: Env) -> list[Base]:  # noqa: ARG002
+    async def bases(self, org: str, env: Env, holder: str | None = None) -> list[Base]:  # noqa: ARG002
         return [
             Base(base=base, chunks=len(files) * 2, model=THE_MODEL, pushed_at=LEARNED)
             for base, files in sorted(self.pushed.items())
         ]
 
-    async def drop(self, org: str, env: Env, base: str) -> bool:  # noqa: ARG002
+    async def drop(self, org: str, env: Env, holder: str | None, base: str) -> bool:  # noqa: ARG002
         return self.pushed.pop(base, None) is not None
 
     async def kept(self, org: str) -> int:  # noqa: ARG002
@@ -188,6 +206,7 @@ class ScriptedKnowledge:
         self,
         org: str,
         env: Env,
+        holder: str | None,
         base: str,
         query: str,
         *,
@@ -197,7 +216,15 @@ class ScriptedKnowledge:
         if self.failing is not None:
             raise self.failing
         self.searched.append(
-            {"org": org, "env": env, "base": base, "query": query, "k": k, "min_score": min_score}
+            {
+                "org": org,
+                "env": env,
+                "holder": holder,
+                "base": base,
+                "query": query,
+                "k": k,
+                "min_score": min_score,
+            }
         )
         return list(self.answers)[:k]
 

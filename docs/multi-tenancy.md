@@ -149,11 +149,22 @@ agent's **line**: the first corner to hold it takes it, a second developer claim
 handed on when that terminal closes. Before either, the newest `pinecall run` silently took the
 others' calls. Production needs none of it: one corner, and its line is nobody's.
 
-**And so does the data.** A contact's facts and a knowledge base carry the world of the key that
-pushed or the call that taught them (`0018`): a test call on a laptop never writes into the memory
-a production call reads under the same number, and a `knowledge push` from that laptop replaces
-the laptop's base and never the telephone's. Promoting knowledge is the same push made with the
-box's key. The counts behind `memory_facts` and `knowledge_chunks` read both worlds, because a
+**And so does the data — twice.** A contact's facts and a knowledge base carry the world of the
+key that pushed or the call that taught them (`0018`): a test call on a laptop never writes into
+the memory a production call reads under the same number, and a `knowledge push` from that laptop
+replaces the laptop's base and never the telephone's. Promoting knowledge is the same push made
+with the box's key. And they carry WHOSE corner, exactly as the registry does (`0021`): before it,
+development was one pile shared by the team, so one developer's push replaced what the other two
+were testing against and one test call's extracted fact arrived in another's. The org's own corner
+is the empty string and not NULL, because it is part of a key and a NULL in one matches nothing —
+production is always the org's, and so is anything a development key naming nobody wrote.
+
+Knowledge **falls back** and memory does not, and the difference is what each one is. A base is
+something somebody wrote down for the agent to read, so a developer who has pushed none still
+reads the org's, the way `Registry.of()` falls back to the org's corner: nobody joins a team to an
+empty knowledge base. A push and a drop never fall back — they are about one copy, and a laptop's
+drop must not take the telephone's base. A contact's facts are what a CALL learned, and there is
+no org-wide development call to inherit from: they are the corner's, or nothing. The counts behind `memory_facts` and `knowledge_chunks` read both worlds, because a
 row a laptop wrote is a row on the same disk. `agent.registered` and `call.started` carry `env`, so a console and a session
 list can say which world they are reading. A dev key opens development — a laptop is where things
 are written — and every key issued before the field existed is production's.

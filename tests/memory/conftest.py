@@ -23,10 +23,13 @@ HUNG_UP = datetime(2026, 9, 10, 12, 0, tzinfo=UTC)
 
 _create_pool = cast("Any", asyncpg.create_pool)  # pyright: ignore[reportUnknownMemberType]
 
+# The org's own corner, spelled here rather than defaulted: 0021 drops the column's DEFAULT on
+# purpose, so no policy lives in the table and every writer says whose a row is.
 _A_ROW = """
 INSERT INTO contact_memories
-    (org, env, contact, text, category, embedding, valid_from, invalidated_at, confidence, model)
-VALUES ($1, 'production', $2, $3, $4, $5::text::halfvec, $6, $7, $8, $9)
+    (org, env, holder, contact, text, category, embedding, valid_from, invalidated_at,
+     confidence, model)
+VALUES ($1, 'production', '', $2, $3, $4, $5::text::halfvec, $6, $7, $8, $9)
 RETURNING id
 """
 

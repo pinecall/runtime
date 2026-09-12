@@ -338,7 +338,18 @@ async def opened(
     # agent nobody holds any more declared nothing this gateway can name, and nothing is found.
     held = serving or registry.of(key.env, said.agent, held_by(key))
     config = overrides.config_for(said.agent, held.config) if held else AgentConfig(slug=said.agent)
-    live.serve(context.call, said.agent, key.org, log, app, context=context, config=config)
+    # Whose corner serves it, from the registration the door just resolved: what this call recalls
+    # and searches is that corner's, and a call nobody is holding belongs to the org's own.
+    live.serve(
+        context.call,
+        said.agent,
+        key.org,
+        log,
+        app,
+        context=context,
+        config=config,
+        holder=None if serving is None else serving.holder,
+    )
     type, event = arrived(context, context.route.number or said.agent)
     await log.append(type, encode(event))
 

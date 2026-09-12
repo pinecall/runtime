@@ -74,6 +74,7 @@ async def a_conversation(
         app.socket,
         context=session.context,
         config=session.config,
+        holder=app.holder,
     )
     live.open(session)
     try:
