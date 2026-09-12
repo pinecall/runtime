@@ -32,9 +32,11 @@ key, which is how a page or a CLI knows whether to offer one at all.
 
 `POST /v1/signup {org, name?, email, person, password, device?}` — no key — answers `201` with the
 same key shape plus `slug`, the `member` (an `admin`, `active`, password kept) and a one-use `code`
-good for `/?login=<code>`. The org is on the **free trial**, the one set of quotas `api/signup.py`
-spells (forty-five minutes, two agents, one bought number …), replaced whole by a plan later.
-Refusals: `403` where sign-ups are shut, naming the setting; `409` a slug taken; `400` a bad slug,
+good for `/?login=<code>`. **What the org may do is not this runtime's to say**: it asks the one
+point a package beside it may have plugged a policy into (`extensions.admitted`, given the org and
+the email, answering `Quotas`) and writes the answer in the same breath the org is made. With no
+such package — a box of its own — the answer is no limit and no row, the same as `orgs add`. A
+plan, a trial, a price: those live in the package that charges, never here. Refusals: `403` where sign-ups are shut, naming the setting; `409` a slug taken; `400` a bad slug,
 email or a short password — nothing half-made — and `429` the sixth sign-up from one place in a
 minute.
 

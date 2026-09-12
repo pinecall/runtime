@@ -9,11 +9,12 @@ import httpx
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.api.signup import FREE_TRIAL, NOT_HERE, TAKEN, TOO_MANY
+from pinecall.api.signup import NOT_HERE, TAKEN, TOO_MANY
 from pinecall.auth.keys import MemoryKeys
 from pinecall.auth.throttle import TRIES_PER_WINDOW
+from pinecall.extensions import Extensions
 from pinecall.orgs.table import MemoryOrgs
-from pinecall.types import KEY_SCOPES
+from pinecall.types import KEY_SCOPES, Quotas
 from tests.api.conftest import A_DEV_KEY, A_LIVEKIT, A_VAULT_KEY, AN_OPS_KEY, over_the_asgi_app
 
 pytestmark = pytest.mark.unit
@@ -63,7 +64,8 @@ async def test_a_signup_makes_the_org_on_the_trial_with_its_admin_and_hands_over
     body = answer.json()
     org = await orgs.find("tienda-sur")
     assert org is not None and org.name == "Tienda Sur"
-    assert await orgs.quotas_of(org.id) == FREE_TRIAL
+    # No policy plugged in: the runtime's own answer, which is no limit and no row.
+    assert await orgs.quotas_of(org.id) == Quotas()
     assert (body["org"], body["slug"], body["env"], body["label"]) == (
         org.id,
         "tienda-sur",
@@ -75,6 +77,26 @@ async def test_a_signup_makes_the_org_on_the_trial_with_its_admin_and_hands_over
     assert body["subject"] == body["member"]["id"] and body["name"] == "Ana"
     assert await keys.verify(body["key"]) is not None
     assert A_PASSWORD not in answer.text
+
+
+async def test_a_policy_plugged_into_the_point_decides_what_the_new_org_may_do(
+    stranger: httpx.AsyncClient, orgs: MemoryOrgs, extensions: Extensions
+) -> None:
+    """The runtime knows no plan; a package beside it maps one onto Quotas, and the door obeys."""
+    a_trial = Quotas(minutes=45, agents=2, numbers=1)
+    seen: list[tuple[str, str]] = []
+
+    def admitted(org: Any, email: str) -> Quotas:
+        seen.append((org.slug, email))
+        return a_trial
+
+    extensions.admitted = admitted
+    answer = await signed_up(stranger)
+    assert answer.status_code == 201, answer.text
+    org = await orgs.find("tienda-sur")
+    assert org is not None
+    assert await orgs.quotas_of(org.id) == a_trial
+    assert seen == [("tienda-sur", TIENDA["email"])]
 
 
 async def test_the_code_logs_a_browser_in_and_the_password_logs_the_person_in_after(

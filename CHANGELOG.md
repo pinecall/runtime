@@ -7,6 +7,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **`extensions/`, and no plan in the runtime.** The points a package installed beside the runtime
+  plugs its policy into, named by `PINECALL_EXTENSIONS` and imported at startup — a name that does
+  not import stops the start rather than admitting orgs without limits. One point today:
+  `admitted(org, email) -> Quotas`, asked at the sign-up and written in the same breath the org is
+  made. The runtime's own answer is no limit and no row. The free-trial numbers that lived in
+  `api/signup.py` are gone: a trial is a plan, and a plan is the charging package's to spell. The
+  cut is sentry's and getsentry's; ARCHITECTURE §12 says how.
 - **`PINECALL_SIGNUP`.** Whether a stranger may make an org at this gateway, and it is **off
   unless set**: a box somebody runs for their own agents is never asked to close a door. Its own
   flag and not `cloud`, because those are two facts — a box of its own may want sign-ups, and a

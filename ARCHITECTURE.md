@@ -132,7 +132,7 @@ over them, then thirty routers, one door each. By resource:
 | `PUT/GET/DELETE /v1/carrier` · `GET /v1/numbers/available` · `POST /v1/numbers` · `DELETE /v1/numbers/{number}` | **a tenant's own numbers**: its carrier brought (a Twilio account verified once, or a SIP peer), what the account owns, one number imported in three looked-up-first writes — the carrier's trunk, the SFU's trunk, the route — or the plan alone with `?dry_run=true`, and one let go. `api/numbers.py`, `orgs/carriers.py`, `routes/twilio.py`, `routes/trunks.py`; `docs/protocol/numbers.md` |
 | `POST /v1/numbers/buy` | **a number the box buys for the org** on its own Twilio (`TWILIO_ACCOUNT_SID`, `TWILIO_API_KEY`, `TWILIO_API_SECRET`): Twilio's search for one in the country and area asked, the purchase, the box's trunk `pinecall`, then the SFU's trunk and a route flagged `managed` — the stock the `numbers` quota caps, refused `429` before the carrier is asked. `api/managed.py`, the same steps as the import; `docs/protocol/numbers.md` |
 | `GET /v1/usage` · `GET /v1/numbers` · `POST /v1/login/env` | the org's own tables on the tenant's key: its metered rows and totals (`usage`), its doors with their source (`numbers`), and the same person's key for the other world (the console's toggle). `api/usage.py`, `api/routes.py`, `api/login.py` |
-| `POST /v1/signup` | **a new org**, no key, where `PINECALL_SIGNUP` is on — off by default, its own flag and not `cloud`, because a box run for its own agents wants no stranger making one: the org on the free trial (`FREE_TRIAL`, the one set of quotas spelled in `api/signup.py`), its first admin invited and accepted in one breath — the same path a person invited later walks — their first key and a login code for the browser. Throttled per client; a box of its own refuses. `docs/protocol/people.md` |
+| `POST /v1/signup` | **a new org**, no key, where `PINECALL_SIGNUP` is on — off by default, its own flag and not `cloud`, because a box run for its own agents wants no stranger making one: the org, allowed what the policy plugged into `extensions.admitted` says in the same breath it is made (the runtime's own answer is no limit and no row), its first admin invited and accepted — the same path a person invited later walks — their first key and a login code for the browser. Throttled per client; a box of its own refuses. `docs/protocol/people.md` |
 | `GET /.well-known/pinecall` | **discovery**, no key: `{version, cloud, signup}` — which runtime answers here, and whether it is Pinecall's hosted gateway (`PINECALL_CLOUD`) or a box of its own. `api/discovery.py` |
 | `GET /{path}` — the LAST route | **the console**: the built page from `src/pinecall/gateway/console/` (package data `scripts/console` copies in from the agents repo, git-ignored, shipped in the wheel) for every path that is not a door's, its assets as themselves, and a JSON 404 under `/v1/` and `/.well-known/` as before. One catch-all, and `tests/api/test_the_console_is_served.py` pins that it is one and last. `api/console.py` |
 | `GET /v1/whoami` | the name on the key that knocked: the org, the key's id and label, the world it opens, its scopes, and the person it was minted for |
@@ -317,6 +317,7 @@ The whole table, enforced by `tests/test_isolation.py`:
 
 ```
 types      ← nothing                          (no IO, no framework)
+extensions ← types                            the points a package beside us plugs policy into
 log        ← types                            (no framework, no driver outside store/)
 providers  ← types                            (the only place a vendor is named)
 auth       ← types, log
@@ -344,7 +345,15 @@ One machine (`PINECALL_ROLE=all`), or a **hub** — gateway, SFU, SIP, Redis, Po
 cloud-init, systemd units, Quadlet containers, nftables, encrypted systemd credentials, a
 Makefile that is the manifest, on any provider. `infra/box/README.md`, `docs/decisions/box.md`.
 
-Everything a self-host needs is here, open: orgs, keys, quotas, usage, routes, the log, the
-vault, the operator API, the box. Everything that charges — signup, plans, Stripe, managed
-provider keys, the fleet dashboard — is `pinecall/cloud`, private, and only ever talks to a
-runtime through the operator API. The same image runs on our box and on a customer's.
+Everything the product does is here, open: orgs, keys, quotas, usage, routes, the log, the
+vault, the operator API, the sign-up as a mechanism, the box. **Nothing that charges is**: no
+plan, no price, no trial, no card. Where the two meet is `extensions/` — named points the
+runtime answers itself until a package installed beside it registers another (`points.py`,
+`loading.py`, `PINECALL_EXTENSIONS`). Today there is one point, what a new org may do, and it
+speaks `Quotas`, never a plan. This is how `sentry` and `getsentry` are cut: the open package
+holds every mechanism, the private one imports it and plugs policy in, and the door never learns
+who answered. `pinecall/cloud`, private, is that package for our box — the trial, the plans,
+Stripe fed from the meter — and it never ships to a customer, whose box names nothing in
+`PINECALL_EXTENSIONS` and runs the very same code with the runtime's own answers. What spans many
+boxes — a fleet dashboard, an admin over every tenant — is a service apart that talks to each
+runtime through the operator API.
