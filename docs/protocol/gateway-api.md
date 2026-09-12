@@ -12,7 +12,9 @@ is generated from the schema into the **protocol** repo's `docs/`: `events.md`, 
 
 ## The shape of it
 
-A gateway is an API and serves no page. Three kinds of connection, and only three:
+A gateway is an API at `/v1`, and it serves ONE page: the console, at `/` and every path that is
+not a door's (`api/console.py`, the last route). The page holds a person's scoped key, never the
+org's (§8). Three kinds of connection, and only three:
 
 | | what it is | who opens it |
 |---|---|---|

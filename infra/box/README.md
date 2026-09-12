@@ -98,9 +98,9 @@ lists, by name, which of them it may see. The embedder's two are the gateway's a
 
 **The box holds no credential for the repository.** It cannot clone and it cannot fetch; the code
 is pushed to it by a person at a checkout, with `make deploy` — rsync, ssh, make and curl, and
-no tool that does not come with a Unix. That deploy carries no build
-step: the gateway is an API and serves no page, so the two directories it rsyncs — this repository
-and the wire beside it — are Python and nothing else. `../../docs/decisions/box.md` argues both.
+no tool that does not come with a Unix. Its one build step runs on the laptop: `scripts/console`
+bundles the agents repo's console into `src/pinecall/gateway/console/`, the rsync carries it, the
+gateway serves it at `/`. The rest is Python. `../../docs/decisions/box.md` argues both.
 
 ## Roles, and a second box
 

@@ -18,9 +18,11 @@
 #
 # THE BOX HOLDS NO CREDENTIAL FOR THE REPOSITORY, deliberately (docs/decisions/box.md). It cannot
 # clone and cannot fetch: the code is pushed to it by a person at a checkout, and the only account
-# involved is the one that already has ssh. There is no build step — the gateway is an API and
-# serves no page — so what travels is this repository and the wire beside it, Python and no more.
-# Every command below is echoed as it runs, which is the whole point of make over a tool.
+# involved is the one that already has ssh. ONE build step, and it is the console: the gateway
+# serves the page at `/`, so `scripts/console` builds the agents repo's bundle and copies it in as
+# package data before the sync carries it. Everything else that travels is this repository and
+# the wire beside it, Python and no more. Every command below is echoed as it runs, which is the
+# whole point of make over a tool.
 
 -include deploy.local.mk
 
@@ -40,9 +42,14 @@ RSYNC = rsync -az --delete -e "ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=y
 UV_SYNC = sudo -u pinecall env UV_PROJECT_ENVIRONMENT=/opt/pinecall/venv UV_CACHE_DIR=/opt/pinecall/.cache/uv \
           /opt/pinecall/bin/uv sync -q --frozen --project $(REMOTE)/runtime --extra runtime
 
-.PHONY: deploy sync install restart restart-all restart-hub restart-worker health doctor secret status logs ssh require-box
+.PHONY: deploy console sync install restart restart-all restart-hub restart-worker health doctor secret status logs ssh require-box
 
-deploy: sync install restart doctor
+deploy: console sync install restart doctor
+
+# The console into src/pinecall/gateway/console, from the agents checkout beside this one (or
+# PINECALL_AGENTS). The sync below carries it; the gateway serves it at `/`.
+console:
+	scripts/console
 
 # Two directories and no more: this repository, and the wire it is generated against. The wire is
 # an editable path dependency (`../protocol/python`), so the checkout beside this one is what the

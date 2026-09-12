@@ -79,6 +79,15 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 path = "src/pinecall/_version.py"
 
+# The console is a build the agents repo's vite wrote and scripts/console copied in: git-ignored,
+# because it is not a source, and named here so the wheel carries it anyway.
+[tool.hatch.build.targets.wheel]
+packages = ["src/pinecall"]
+artifacts = ["src/pinecall/gateway/console/**"]
+
+[tool.hatch.build.targets.sdist]
+artifacts = ["src/pinecall/gateway/console/**"]
+
 # ── pytest ──────────────────────────────────────────────────────────────────────
 
 [tool.pytest.ini_options]

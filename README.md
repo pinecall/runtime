@@ -71,7 +71,8 @@ credential for the repository and is never told which cloud it is on.
                      BOX     = deploy@203.0.113.7
                      DOMAIN  = box.example.com
                      SSH_KEY = ~/.ssh/id_ed25519       # optional
-3. make deploy     from this directory. rsync the checkout · `make -C infra/box install` (the
+3. make deploy     from this directory. `scripts/console` (the agents repo's console bundled and
+                   copied in as package data; needs pnpm and ../agents) · rsync the checkout · `make -C infra/box install` (the
                    packages, every unit and container file, the fence, the role) · `uv sync
                    --frozen` as the service user · restart, gateway first and the worker once
                    the gateway answers through Caddy · the doctor, last
