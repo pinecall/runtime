@@ -9,8 +9,9 @@ from functools import partial
 
 import httpx
 from fastapi import FastAPI
+from starlette.middleware.cors import CORSMiddleware
 
-from pinecall._settings import Settings, load_settings
+from pinecall._settings import Settings, load_settings, origins_of
 from pinecall.api import (
     console,
     contacts,
@@ -200,7 +201,28 @@ async def _a_store(settings: Settings) -> Store:
         return MemoryStore()
 
 
+# A browser refuses a cross-origin call unless the door says that origin is welcome, and the
+# landing page's sign-up is the one door knocked at from another origin: the console is served
+# HERE, so it is the same origin as every door it uses. A box that names no site adds no
+# middleware at all and answers no preflight, which is the honest answer for a gateway with no
+# page in front of it. Called at import, because middleware is decided before the app serves.
+def welcomed(gateway: FastAPI, settings: Settings) -> None:
+    """The origins PINECALL_SITE names, and the little a JSON post needs: no more, and no cookie."""
+    sites = origins_of(settings)
+    if not sites:
+        return
+    gateway.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(sites),
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["content-type"],
+        allow_credentials=False,
+    )
+
+
 app = FastAPI(title="Pinecall gateway", lifespan=lifespan)
+
+welcomed(app, load_settings())
 
 # One door per line, in the order a reader meets them: the app's socket and what it holds, the
 # calls it answers, the desk, the suites, the tenant's routes and the keys it brought of its own,
