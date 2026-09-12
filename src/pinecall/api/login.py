@@ -78,7 +78,7 @@ async def login(
         return await _with_a_code(said, keys, codes)
     if said.org is None or said.email is None or said.password is None:
         raise HTTPException(400, ONE_OR_THE_OTHER)
-    return await _with_a_password(said, _the_client(request), orgs, members, keys, throttle)
+    return await _with_a_password(said, the_client(request), orgs, members, keys, throttle)
 
 
 # A key holder — `pinecall run`, a person already in — mints a word a browser can carry in a URL
@@ -163,6 +163,6 @@ async def _with_a_code(said: Login, keys: KeysDep, codes: LoginCodesDep) -> dict
     return issued.as_json
 
 
-def _the_client(request: Request) -> str:
+def the_client(request: Request) -> str:
     """Where the knock came from, for the throttle. Unknown is one name, and it is throttled too."""
     return request.client.host if request.client is not None else "unknown"

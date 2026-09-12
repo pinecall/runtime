@@ -7,6 +7,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **Sign-up on the cloud.** `POST /v1/signup {org, name?, email, person, password}` — only where
+  `PINECALL_CLOUD` is set — makes the org on the free trial (the quotas `api/signup.py` spells:
+  45 minutes, 500 messages, 2 agents, 2 calls at once, 1 bought number, memory and knowledge
+  capped), its first `admin` active with that password, and answers their first key with a
+  one-use login code for the console. Throttled five a minute per client; a box refuses `403`.
 - **Numbers the box buys for a tenant.** `POST /v1/numbers/buy {country, area_code?, agent}` finds
   one local voice number on the box's own Twilio (`TWILIO_ACCOUNT_SID`, `TWILIO_API_KEY`,
   `TWILIO_API_SECRET`, the names `twilio_trunk.py` already reads; the gateway unit imports them),

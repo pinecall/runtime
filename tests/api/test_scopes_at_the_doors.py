@@ -105,6 +105,7 @@ def test_the_chat_socket_closes_a_key_without_talk_and_says_why(gateway: TestCli
 ASKS_NOTHING_OR_ASKS_INSIDE: dict[str, str] = {
     "GET /v1/whoami": "any key may ask whose it is",
     "POST /v1/login": "takes no key: it mints one",
+    "POST /v1/signup": "takes no key: it makes the org that will hold one, on the cloud alone",
     "POST /v1/login/codes": "any key may mint a code for its own record",
     "POST /v1/login/env": "a person's key may mint the same person's key in the other world",
     "POST /v1/invitations/{token}": "takes no key: the token is the right",
