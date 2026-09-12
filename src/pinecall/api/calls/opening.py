@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from pinecall._settings import Budgets
-from pinecall.api.agents.registry import Registration
+from pinecall.api.agents.holding import Registration
 from pinecall.evals import a_score
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups

@@ -8,7 +8,9 @@ from contextlib import suppress
 from typing import Any
 
 from pinecall._exceptions import PinecallError
-from pinecall.api.agents.registry import Agent, Registry, SocketId
+from pinecall.api.agents.doors import Agent
+from pinecall.api.agents.holding import SocketId
+from pinecall.api.agents.registry import Registry
 from pinecall_protocol import defs
 
 # What a call that was left with nobody rendering it is ended as, and who ended it: not the caller

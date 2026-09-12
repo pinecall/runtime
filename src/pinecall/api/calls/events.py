@@ -53,6 +53,7 @@ from pinecall.log.logs import CallLog
 from pinecall.log.store import DEFAULT_LIMIT, Store
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import QuotaExhausted
+from pinecall.providers.declaration import rang
 from pinecall.session.first_entries import arrived
 from pinecall.tokens.spending import spent
 from pinecall.types import AgentConfig, CallContext
@@ -313,14 +314,19 @@ async def opened(
         raise HTTPException(429, str(refused)) from refused
     # Which process serves this call is asked here exactly as the chat door asks it, of the same
     # function: an app id that names no holder of this agent is refused, never quietly ignored.
-    serving = registry.serving(key.env, said.agent, said.app, held_by(key))
+    # Whose corner, though, depends on how the call ARRIVED. A number is the org's door and the
+    # worker that dialled it holds a key naming nobody, so a ring lands on the LINE — nobody's
+    # corner in production, and in development the developer who claimed it. Everything else was
+    # opened BY a key holder, and lands in theirs. See api/agents/doors.py.
+    whose = registry.line_for(key.env, said.agent) if rang(context.route) else held_by(key)
+    serving = registry.serving(key.env, said.agent, said.app, whose)
     if said.app is not None and serving is None:
         raise HTTPException(409, NOT_THAT_APP.format(app=said.app, slug=said.agent))
     # Held, but by consoles only: this is the phone call the flag exists to keep out of somebody's
     # terminal. Refused here, where the caller has not been greeted yet, rather than run with no app
     # socket on it — a conversation whose every tool goes out to nobody is worse than a line that
     # drops. A call whose app disconnected mid-setup is the other case, and it still goes through.
-    if serving is None and registry.of(key.env, said.agent, held_by(key)) is not None:
+    if serving is None and registry.of(key.env, said.agent, whose) is not None:
         raise HTTPException(409, NO_UNCLAIMED.format(slug=said.agent))
     # Whose call this is, on the head row, before the first entry: every reader of it will ask.
     await logs.owned(context.call, said.agent, key.org)
@@ -331,7 +337,7 @@ async def opened(
     # What this call's agent declared, resolved the way the worker read it a moment ago through
     # the config door — so a lookup searches the base the worker's session was built to expect. An
     # agent nobody holds any more declared nothing this gateway can name, and nothing is found.
-    held = serving or registry.of(key.env, said.agent, held_by(key))
+    held = serving or registry.of(key.env, said.agent, whose)
     config = overrides.config_for(said.agent, held.config) if held else AgentConfig(slug=said.agent)
     live.serve(context.call, said.agent, key.org, log, app, context=context, config=config)
     type, event = arrived(context, context.route.number or said.agent)

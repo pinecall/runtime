@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Annotated
-from uuid import uuid4
 
 from fastapi import Depends
 from starlette.requests import HTTPConnection
 
 from pinecall.api._deps import held
+from pinecall.api.agents.doors import Agent, Doors
+from pinecall.api.agents.holding import Held, Registration, SocketId
 from pinecall.log.entry import Entry
 from pinecall.providers import declaration
 from pinecall.types import PRODUCTION, AgentConfig, DeclarationRefused, Env, Route
@@ -41,77 +41,9 @@ NO_UNCLAIMED = (
     "agent {slug} is held only by apps that take no call they did not open: start `pinecall run`"
 )
 
-# A socket's id is minted, not id(websocket): it travels to the app in agent.registered and comes
-# back on `?app=`, and CPython reuses an address the moment the object at it is collected — a stale
-# one would name a socket somebody else now holds. Named HERE, and imported by handlers.py and by
-# api/_live.py, because handlers.py imports this module — the alias in handlers would have
-# made this module import handlers back, which is the cycle handlers.py exists to prevent.
-type SocketId = str
-
-_AN_APP = "app_"
-
-
-def a_socket_id() -> SocketId:
-    """One connected app, told apart from every other for as long as this process runs."""
-    return f"{_AN_APP}{uuid4().hex[:12]}"
-
-
-# How an entry reaches somebody who is reading a call.
-type Send = Callable[[Entry], Awaitable[None]]
-
-# The name an agent is held under: its world, whose corner of that world, and its slug. Nobody's
-# corner in production — what is deployed is the ORG's, held by the key its box runs on, and a
-# person's key does not open `app` there at all (types/key.py). In development the member the key
-# was minted for, so two developers of one tenant each hold their own `tienda-sur` and neither
-# takes the other's; a development key that names nobody — CI's — holds the org's own, which is
-# what a developer holding nothing falls back to. A DIALLED door is namespaced by none of this: a
-# number exists once in a world and rings in one place. docs/decisions/dispatch.md.
-type Held = tuple[Env, str | None, str]
-
-# One world and one slug: what a dialled door answers for, and what a listing shows once.
-type Agent = tuple[Env, str]
-
-
-@dataclass(frozen=True)
-class Registration:
-    """One agent as ONE socket holds it: whose it is, where, which doors, what it declared."""
-
-    slug: str
-    org: str
-    # The world the key that registered it opens: every door here and every call it takes is
-    # that world's, and call.started says so.
-    env: Env
-    owner: SocketId
-    routes: tuple[Route, ...]
-    config: AgentConfig
-    # Whose corner of `env` this is: the member in development, nobody in production and nobody
-    # for a development key that names none. See `Held` above. Last with the defaulted fields
-    # rather than beside `env`, because nobody's corner is what almost every registration has.
-    holder: str | None = None
-    sdk: str | None = None
-    # Whether a call that named no app may be handed to this socket. A console says no and stays a
-    # full holder in every other way. See docs/decisions/dispatch.md.
-    takes_unclaimed: bool = True
-    # The order this process accepted the claim in. Two corners of one world may hold the same
-    # slug, so "the newest holder" of a shared door has to be a number and not a dict's order.
-    claimed: int = 0
-
-    @property
-    def held_as(self) -> Held:
-        """The name this table keeps the agent under."""
-        return (self.env, self.holder, self.slug)
-
-    @property
-    def agent(self) -> Agent:
-        """The world and the slug: what a dialled door answers for, whoever is holding it."""
-        return (self.env, self.slug)
-
-    # The web route is deliberately left out: see docs/decisions/routes.md. Every agent's widget
-    # would be the one door ("web", None), and the second agent of a fleet would be refused it.
-    @property
-    def dialled_doors(self) -> tuple[tuple[str, str | None], ...]:
-        """The doors somebody dials: the pairs the registry keeps unique, one agent each."""
-        return tuple(route.door for route in declaration.dialled(self.routes))
+# A corner asked for the line of an agent it is not holding, or holds only in a console. A ring
+# lands on the line, so handing it to a corner with no app in it would drop the call.
+NOT_HOLDING = "agent {slug} is not held in {env} by an app of yours that answers an unclaimed call"
 
 
 class Registry:
@@ -123,11 +55,9 @@ class Registry:
         # they claimed it in, so the newest is the last, and a socket correcting its own doors
         # keeps its place: it is the same process, not a newer one.
         self._agents: dict[Held, list[Registration]] = {}
-        # A dialled door is one agent's in one world: the number exists once in the world, so it
-        # is keyed by the world and the slug and by nobody's corner — it is what refuses a
-        # development key a production number, and what lets two developers of one tenant declare
-        # the same number without taking it from each other's agent.
-        self._at: dict[tuple[str, str | None], Agent] = {}
+        # The public side of the table: which agent each dialled door answers for, and whose
+        # corner of the world its ring goes to. See api/agents/doors.py.
+        self._doors = Doors()
         self._owned: dict[SocketId, set[Held]] = {}
         # Counts accepted claims, so `answering` can say which of two corners took a door last.
         self._claims = 0
@@ -149,21 +79,48 @@ class Registry:
             default=None,
         )
 
-    # What a door that RANG reaches: no key said whose corner, because a number is the org's. In
-    # production there is one corner and this is `serving` with no app; in development it is
-    # whichever developer started last, which is what a shared number being shared means.
+    # What a door that RANG reaches. No key says whose corner, because a number is the ORG's: the
+    # worker that dialled it holds a key naming nobody. So the corner is the LINE — nobody's in
+    # production, where there is one; in development the developer who claimed it.
     def taking(self, env: Env, slug: str) -> Registration | None:
-        """Who takes a call that arrived at a door, in whichever corner. None when nobody does."""
-        return max(
-            (
-                unclaimed
-                for name in self._agents
-                if name[0::2] == (env, slug)
-                if (unclaimed := self._takes_unclaimed(name)) is not None
-            ),
-            key=lambda held: held.claimed,
-            default=None,
+        """Who takes a call that arrived at a door: the corner holding the line. None when none."""
+        return self.serving(env, slug, None, self.line_for(env, slug))
+
+    def line_for(self, env: Env, slug: str) -> str | None:
+        """Whose corner the ring goes to. Nobody's corner is None too: ask `has_a_line` first."""
+        return self._doors.line((env, slug))
+
+    def has_a_line(self, env: Env, slug: str) -> bool:
+        """Whether any corner is answering this agent's ring at all."""
+        return self._doors.claimed((env, slug))
+
+    # A second developer running the same agent does not take the first one's calls by starting
+    # later; they say so. The refusal names what is missing, because a claim on an agent this
+    # corner is not holding would ring in a terminal with no app in it.
+    def take_the_line(self, env: Env, slug: str, holder: str | None) -> Registration:
+        """Hand this agent's ringing doors to this corner, whoever had them."""
+        taking = self._takes_unclaimed((env, holder, slug))
+        if taking is None:
+            raise DeclarationRefused(NOT_HOLDING.format(slug=slug, env=env))
+        self._doors.take((env, slug), holder)
+        return taking
+
+    def drop_the_line(self, env: Env, slug: str, holder: str | None) -> bool:
+        """This corner stops answering the ring, and the next corner still holding it picks up."""
+        if not self._doors.release((env, slug), holder):
+            return False
+        self._the_next_corner_answers(env, slug)
+        return True
+
+    def waiting_for_the_line(self, env: Env, slug: str) -> tuple[Registration, ...]:
+        """Every corner holding this agent that could take the line, newest claim first."""
+        taking = (
+            unclaimed
+            for name in self._agents
+            if name[0::2] == (env, slug)
+            if (unclaimed := self._takes_unclaimed(name)) is not None
         )
+        return tuple(sorted(taking, key=lambda held: held.claimed, reverse=True))
 
     def on(self, env: Env, slug: str, app: SocketId) -> Registration | None:
         """This agent as one named socket holds it, which is what `?app=` asks for. None if not."""
@@ -224,7 +181,7 @@ class Registry:
     # widget: a web arrival names its agent and never asks this. See docs/decisions/routes.md.
     def at(self, channel: str, number: str | None) -> Registration | None:
         """Who answers this door, in whichever world claimed it: a number rings in one place."""
-        agent = self._at.get((channel, number))
+        agent = self._doors.at((channel, number))
         return None if agent is None else self.answering(*agent)
 
     # The one reader that knows a slug and no world: the sink, projecting an entry by the state
@@ -254,7 +211,7 @@ class Registry:
         """Add this socket to the agent's holders, take its doors, and write agent.registered."""
         await self._refuse_another_orgs_slug(org, slug)
         doors = [declaration.a_route(org, env, slug, route) for route in routes]
-        self._refuse_a_taken_door((env, slug), doors)
+        self._doors.refuse_a_taken_one((env, slug), doors)
         # This socket correcting its own doors keeps what it declared; a socket joining an agent
         # somebody else holds starts from what that agent already is, and corrects it with the
         # agent.configure one round trip later. A call landing in that window must not find an
@@ -302,8 +259,13 @@ class Registry:
                 self._agents[name] = left
             else:
                 self._agents.pop(name, None)
-            env, _, slug = name
+            env, holder, slug = name
             self._claim_doors((env, slug))
+            # The corner that was answering the ring is gone. Whoever is still holding the agent
+            # picks it up — that is not "the newest wins", because it happens only when the
+            # terminal that HAD the line closed.
+            if self._doors.release((env, slug), holder):
+                self._the_next_corner_answers(env, slug)
             detached = AgentDetached(app=owner, env=env, left=not left)
             await self._append(slug, "agent.detached", detached)
         return frozenset(slug for _, _, slug in released)
@@ -321,24 +283,6 @@ class Registry:
             raise DeclarationRefused(f"agent {slug} belongs to another org: a slug is one org's")
         await self._logs.owned(None, slug, org)
 
-    # A number is one door in the world, so the table of doors is not namespaced by world or by
-    # corner: the same agent in the OTHER world is a taker too, and a development key claiming a
-    # production number is refused in a sentence that says which world holds it.
-    def _refuse_a_taken_door(self, agent: Agent, routes: Sequence[Route]) -> None:
-        """A number answers for one agent in one world at a time, and never twice in a register."""
-        _, slug = agent
-        claimed: set[tuple[str, str | None]] = set()
-        for route in declaration.dialled(routes):
-            if route.door in claimed:
-                raise DeclarationRefused(f"agent {slug} claims the door {_said(route)} twice")
-            claimed.add(route.door)
-            taken = self._at.get(route.door)
-            if taken is not None and taken != agent:
-                taken_env, taken_slug = taken
-                raise DeclarationRefused(
-                    f"the door {_said(route)} already answers for agent {taken_slug} in {taken_env}"
-                )
-
     # ── the table ───────────────────────────────────────────────────────────────
 
     def _replace(self, registration: Registration) -> None:
@@ -353,6 +297,11 @@ class Registry:
         else:
             holding.append(claim)
         self._claim_doors(claim.agent)
+        # Alone, nobody claims anything: the first corner to hold the agent answers its ring, and
+        # every corner after it has to say so. A console takes no call it did not open, so it is
+        # never handed a line it would not pick up.
+        if claim.takes_unclaimed:
+            self._doors.take_if_free(claim.agent, claim.holder)
         self._owned.setdefault(claim.owner, set()).add(claim.held_as)
 
     def _newest(self, name: Held) -> Registration | None:
@@ -365,28 +314,25 @@ class Registry:
         such socket, which is what refuses a call into a terminal that only serves its own."""
         return next((h for h in reversed(self._agents.get(name, ())) if h.takes_unclaimed), None)
 
-    # Keyed by the world and the slug, never by a corner: a developer running the agent locally
-    # answers the shared development number until the next one starts, and neither is refused.
+    # Keyed by the world and the slug, never by a corner: a number is the org's door, and both
+    # developers of one tenant declare it without taking it from each other. WHO picks it up is
+    # the line, which `_the_next_corner_answers` and `take_the_line` are about.
     def _claim_doors(self, agent: Agent) -> None:
         """The doors this agent answers are its newest socket's in this world, and only those."""
         held = self.answering(*agent)
-        wanted: set[tuple[str, str | None]] = set(held.dialled_doors) if held else set()
-        for door in [door for door, answered in self._at.items() if answered == agent]:
-            if door not in wanted:
-                del self._at[door]
-        for door in wanted:
-            self._at[door] = agent
+        self._doors.answered_by(agent, held.routes if held else ())
+
+    def _the_next_corner_answers(self, env: Env, slug: str) -> None:
+        """With the line free, the newest corner that takes an unclaimed call picks it up."""
+        left = self.waiting_for_the_line(env, slug)
+        if left:
+            self._doors.take((env, slug), left[0].holder)
 
     # Through the process's live log, not the store: a console holding the agent's SSE stream open
     # hears a register the moment it is accepted, instead of on its next reconnect.
     async def _append(self, slug: str, type: str, event: WireModel) -> Entry:
         """The claim is not accepted until the agent's own log says so; call is None, always."""
         return await self._logs.writing_agent(slug).append(type, encode(event))
-
-
-def _said(route: Route) -> str:
-    """A door, for a person: 'phone +34910000000'. Only a dialled door is ever refused."""
-    return f"{route.channel} {route.number}"
 
 
 # ── how a route asks for it ─────────────────────────────────────────────────────

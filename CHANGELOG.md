@@ -7,6 +7,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **The line: which terminal a development number rings in.** An org shares one development
+  number, so three developers on one agent meant the newest `pinecall run` silently took the
+  others' calls — answered in a colleague's scrollback with nothing on either screen saying so.
+  The ring now lands on the agent's **line**: the first corner to hold it takes it, a second
+  developer claims it, and it is handed on when that terminal closes. `GET /v1/agents/{slug}/line`
+  (`calls`) says whose it is by name and who else could take it; `POST` claims and `DELETE`
+  releases (both `app`). Production has one corner and the box holds it. `api/agents/doors.py`.
 - **The operator invites an org's first person.** `POST /v1/ops/orgs/{named}/members` and
   `pinecall-runtime orgs invite <org> <email> --name … [--role]`: how a tenant exists at all on a
   gateway that takes no sign-up — the box makes the org and invites its admin, and prints a
@@ -237,14 +244,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   org's own model and keys. The embedder is reached lazily and, down, is named in the error entry
   (`TEI at … did not answer`). Ring 1's sessions are built with the same `Lookups`, so a golden
   carries its sources, and the grounded judge reads them.
-- The knowledge base's doors, on the tenant's key: `PUT /v1/knowledge/{base}` (the base replaced
-  whole), `GET /v1/knowledge`, `DELETE /v1/knowledge/{base}` (404 for a name never pushed); and a
-  contact's, `GET /v1/contacts/{contact}/memory` (the history, current first) and `DELETE`
-  (forget, the right to be forgotten). On a dev key each answers 503 with its sentence
-  (`this gateway keeps no knowledge: it runs on a dev key`, `… no memory …`).
-- The licence is spelled out where an operator meets it: the Apache-2.0 copyright line is
-  filled (`Pinecall`), `README.md` has a License section, and `license-files` puts the text
-  itself in the wheel and the sdist, so an install carries its licence.
+- The knowledge base's doors on the tenant's key — `PUT`/`GET`/`DELETE /v1/knowledge[/{base}]`,
+  the base replaced whole — and a contact's `GET`/`DELETE /v1/contacts/{contact}/memory`.
+- The licence is spelled out where an operator meets it: the Apache-2.0 copyright line filled,
+  a License section in `README.md`, and `license-files` putting the text in the wheel and sdist.
 
 ### Changed
 - **A contact's facts and a knowledge base are one world's.** `contact_memories`,

@@ -212,4 +212,14 @@ def a_door(route: Route) -> defs.Route:
 
 def dialled(routes: Sequence[Route]) -> tuple[Route, ...]:
     """The routes somebody dials. A web route names no door: what identifies it is its agent."""
-    return tuple(route for route in routes if route.channel in CHANNELS_WITH_A_NUMBER)
+    return tuple(route for route in routes if rang(route))
+
+
+def rang(route: Route) -> bool:
+    """Whether a call at this route ARRIVED at a door, rather than being opened by a key holder.
+
+    The two are served by different corners of a world: what a key opened lands in the holder's,
+    and what rang lands on the agent's line, because a number is the org's door and the worker
+    that dialled it holds a key naming nobody. See api/agents/doors.py.
+    """
+    return route.channel in CHANNELS_WITH_A_NUMBER

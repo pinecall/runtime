@@ -8,7 +8,8 @@ from typing import Annotated, Any, Protocol
 from fastapi import Depends
 
 from pinecall.api._deps import what_is_live
-from pinecall.api.agents.registry import Registry, Send, SocketId
+from pinecall.api.agents.holding import Send, SocketId
+from pinecall.api.agents.registry import Registry
 from pinecall.log.entry import Entry
 from pinecall.orgs.admission import Admission
 from pinecall.types import Env

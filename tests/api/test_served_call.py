@@ -12,7 +12,8 @@ from fastapi import HTTPException
 from starlette.testclient import TestClient
 
 from pinecall.api._live import Live
-from pinecall.api.agents.registry import Registry, Send
+from pinecall.api.agents.holding import Send
+from pinecall.api.agents.registry import Registry
 from pinecall.api.calls import commands as door
 from pinecall.log.entry import Entry
 from pinecall.worker import commanding
