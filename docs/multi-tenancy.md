@@ -163,22 +163,34 @@ is what an org's own machine key means; a person's key holds what their role pre
 ## People
 
 A person of an org is a **member**, not a shared key: invited with a one-use link (`POST
-/v1/members`, on the org's key), active once they chose a password (`POST /v1/invitations/{token}`),
-and holding keys of their own from then on — one per device, minted at `POST /v1/login` with the
+/v1/members` on the org's own key — or `POST /v1/ops/orgs/{org}/members`, which is how the box
+gives an org its first admin where sign-ups are shut), active once they chose a password on the
+card that link opens (`POST /v1/invitations/{token}`), and holding keys of their own from then on — one per device, minted at `POST /v1/login` with the
 scopes of their role (`qa` · `supervisor` · `manager` · `admin` · `developer`) and their member id
 as `subject`. **In production a person's key never holds `app`**: a deployed agent is held by a key
 issued for a machine (`POST /v1/keys`, or `keys issue --scope app`), not by whoever is logged in. Disabling them keeps the row, revokes every key of theirs and refuses their login. A
 browser never carries a key in a URL: a key holder mints a one-use code (`POST /v1/login/codes`)
-and the browser spends it for a key of its own. The doors that refuse on a scope are the next card.
+and the browser spends it for a key of its own. Which door each scope opens, and every refusal
+in the words it is said in: [protocol/people.md](protocol/people.md) and
+[protocol/gateway-api.md](protocol/gateway-api.md).
 
 **One key per place, not one per tenant.** Issue a key for the laptop, one for CI, one for each
 deployment, each with a `--label` — a key you can revoke on its own is a key you will revoke.
 
 ## Taking it back
 
+The tenant does this itself, on a key that opens `keys` — the Keys screen of its console, or:
+
 ```bash
-pinecall-runtime keys list --org clinica         # fingerprints, labels, created, revoked
-pinecall-runtime keys revoke <fingerprint>       # stops being honoured from the next request
+pinecall keys list                               # fingerprints, labels, worlds, whose, revoked
+pinecall keys revoke <fingerprint>               # stops being honoured from the next request
+```
+
+The operator can too, for a tenant who asked, and is the only one who can remove the org:
+
+```bash
+pinecall-runtime keys list --org clinica
+pinecall-runtime keys revoke <fingerprint>
 pinecall-runtime orgs rm clinica                 # refused while it still has keys or routes
 ```
 
@@ -239,13 +251,18 @@ what a plan sells a team by, counted as everybody the org has not disabled. A te
 | | |
 |---|---|
 | `orgs` | id, slug, name. `default` is seeded by the migrations |
-| `api_keys` | sha256 fingerprint, org, label, created_at, revoked_at. Never the key |
-| `quotas` | one row per org, the whole set replaced |
-| `routes` | number → (org, agent, channel). One number belongs to one agent at a time |
+| `quotas` | one row per org, the whole set of eight replaced at once |
+| `api_keys` | sha256 fingerprint, org, label, `env`, `scopes`, `subject`, `name`, created_at, revoked_at. **Never the key**, and a revoked row is kept |
+| `members` | one person of one org: email (unique per org), name, `role`, `agents`, `status`, the argon2id hash. A disabled row stays |
+| `invitations` | the sha256 of a one-use token, whose it is, when it expires, when it was spent |
+| `routes` | (org, number) → (agent, channel), plus `env` and `managed`. One number is one door |
+| `carriers` | one per org: `twilio` or `sip`, the account it names, the credentials as Fernet ciphertext |
 | `provider_keys` | one row per (org, vendor), Fernet ciphertext under `PINECALL_VAULT_KEY` |
 | `call_log`, `call_log_head` | every entry, with the org that owns the call |
-| `knowledge_bases`, `knowledge_chunks`, `contact_memories` | per org |
-| `tokens` | which room tokens were minted and which were spent |
+| `contact_memories` | a contact's facts, per org **and world** — a test call's never reach production's |
+| `knowledge_bases`, `knowledge_chunks` | a base per (org, `env`, name); a laptop's push never replaces the box's |
+| `eval_runs`, `pipeline_overrides`, `tokens` | the suites run, the operator's knobs, the room tokens minted and spent |
 
-A tenant is a row in `orgs` and at least one row in `api_keys`. Everything else follows from the
-key their app knocks with.
+A tenant is a row in `orgs` and at least one way in: a **person** (a row in `members`, invited and
+then holding keys of their own) or a **machine** (a row in `api_keys`). Everything else follows
+from the key whoever knocks is carrying.
