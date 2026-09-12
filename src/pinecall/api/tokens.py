@@ -19,7 +19,7 @@ from pinecall.api._deps import (
 )
 from pinecall.api._serving import ServingDep
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
-from pinecall.auth.keys import KeyRecord
+from pinecall.auth.keys import KeyRecord, held_by
 from pinecall.auth.scopes import a_room_token, a_visitor, secret_for
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.routes import answering
@@ -177,7 +177,7 @@ async def _the_agent_the_org_answers(
         raise HTTPException(400, str(refused)) from refused
     if agent is None:
         raise HTTPException(400, NO_AGENT_NAMED)
-    answered = await answering.answered(key.org, key.env, registry, table)
+    answered = await answering.answered(key.org, key.env, registry, table, held_by(key))
     web_doors = (one.route for one in answered if one.route.channel == THE_WIDGET)
     if not any(route.agent == agent for route in web_doors):
         raise HTTPException(404, NO_AGENT.format(slug=agent))

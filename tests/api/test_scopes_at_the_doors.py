@@ -118,8 +118,16 @@ ASKS_NOTHING_OR_ASKS_INSIDE: dict[str, str] = {
 }
 
 
+# The doors that open to EITHER of two scopes, each with the reason. A declaration is read by the
+# worker holding the agent and by a console watching it, and a person's key holds no `app` in
+# production. Named by path, so a second such door is a line here and never a surprise.
+OPENS_TO_EITHER: dict[str, frozenset[str]] = {
+    "GET /v1/agents/{slug}/config": frozenset({"app", "calls"}),
+}
+
+
 def test_every_tenant_door_declares_exactly_one_scope() -> None:
-    """Walk the app: one scoped dep per door, and the exceptions are the list above, not a guess."""
+    """Walk the app: one scoped dep per door; the exceptions are the lists above, never a guess."""
     undeclared: list[str] = []
     for route in app.routes:
         if isinstance(route, APIWebSocketRoute):
@@ -135,17 +143,27 @@ def test_every_tenant_door_declares_exactly_one_scope() -> None:
             if door in ASKS_NOTHING_OR_ASKS_INSIDE:
                 assert not scopes, f"{door} is listed as asking nothing by a dep, and asks {scopes}"
                 continue
-            if len(scopes) != 1 or scopes[0] not in KEY_SCOPES:
+            wanted = OPENS_TO_EITHER.get(door)
+            if len(scopes) != 1 or not scopes[0] <= KEY_SCOPES:
                 undeclared.append(f"{door}: {scopes}")
+            elif scopes[0] != (wanted or _the_one(scopes[0])):
+                undeclared.append(
+                    f"{door}: opens to {sorted(scopes[0])}, and is not listed as such"
+                )
     assert not undeclared, "\n".join(undeclared)
 
 
-def _scopes_of(dependant: Dependant) -> list[str]:
-    """The scopes the door's dependency tree declares, wherever in the tree they sit."""
-    found: list[str] = []
+def _the_one(scopes: frozenset[str]) -> frozenset[str]:
+    """This set when it is one scope, or an empty one — which no door declares — when it is not."""
+    return scopes if len(scopes) == 1 else frozenset()
+
+
+def _scopes_of(dependant: Dependant) -> list[frozenset[str]]:
+    """The scope sets the door's dependency tree declares, one per scoped dep, wherever they sit."""
+    found: list[frozenset[str]] = []
     for dependency in dependant.dependencies:
-        scope = getattr(dependency.call, "__dict__", {}).get(SCOPE_OF_THE_DOOR)
-        if scope is not None:
-            found.append(scope)
+        scopes = getattr(dependency.call, "__dict__", {}).get(SCOPE_OF_THE_DOOR)
+        if scopes is not None:
+            found.append(frozenset(scopes))
         found.extend(_scopes_of(dependency))
     return found

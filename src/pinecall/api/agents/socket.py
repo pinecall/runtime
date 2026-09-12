@@ -187,10 +187,9 @@ async def register(socket: Socket, command: Command) -> None:
     wanted = asked(command, AgentRegister)
     # One more agent for this org, unless it already holds this one: a socket correcting its own
     # doors, or a second process of the same agent, is not a new agent — and neither is the same
-    # slug held in the other world, so the count is of slugs across both.
-    others = {held.slug for held in socket.registry.holding(socket.org, holder=socket.holder)} - {
-        command.agent
-    }
+    # slug held in the other world or in another developer's corner. The count is the ORG's slugs
+    # across every world and every corner, because the quota is the org's and not a person's.
+    others = socket.registry.slugs(socket.org) - {command.agent}
     await socket.admission.an_agent(socket.org, command.agent, len(others))
     entry = await socket.registry.register(
         owner=socket.id,

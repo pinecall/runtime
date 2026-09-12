@@ -12,7 +12,7 @@ from starlette.requests import HTTPConnection
 from starlette.responses import StreamingResponse
 
 from pinecall._settings import Settings
-from pinecall.api._deps import KeysDep, SettingsDep
+from pinecall.api._deps import SCOPE_OF_THE_DOOR, KeysDep, SettingsDep
 from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.keys import Keys, not_opening
@@ -106,9 +106,10 @@ async def the_reader(
 
 
 # The scope every read door asks of a key. Named here because the_reader is the one door they
-# share, and the test over the routes reads it off this function the way it reads a scoped dep.
+# share, and the test over the routes reads it off this function the way it reads a scoped dep —
+# under the same attribute name and in the same shape `opening()` writes, spelled there once.
 READS = "calls"
-the_reader.__dict__["pinecall_scope"] = READS
+the_reader.__dict__[SCOPE_OF_THE_DOOR] = frozenset({READS})
 
 
 # A process with neither a LiveKit pair nor a dev key can still serve API keys; it just cannot

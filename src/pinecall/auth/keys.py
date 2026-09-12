@@ -89,6 +89,7 @@ class ListedKey:
 # What a door says when the key is real, the org is right, and the key still may not do this. It
 # names what the key DOES open, so a person reading it on their terminal knows which role to ask
 # for. One sentence for every door and both sockets: the doors read scopes and reason no further.
+# A door that opens to either of two scopes names both — "does not open app or calls".
 NOT_OPENED = "this key does not open {scope}: it opens {opens}"
 
 
@@ -102,11 +103,12 @@ def held_by(record: KeyRecord) -> str | None:
     return record.subject if record.env == DEVELOPMENT else None
 
 
-def not_opening(record: KeyRecord, scope: str) -> str | None:
-    """The refusal when this key lacks the scope, or None when it holds it."""
-    if scope in record.scopes:
+def not_opening(record: KeyRecord, *scopes: str) -> str | None:
+    """The refusal when this key holds none of these scopes, or None when it holds one."""
+    if any(scope in record.scopes for scope in scopes):
         return None
-    return NOT_OPENED.format(scope=scope, opens=" · ".join(sorted(record.scopes)) or "nothing")
+    wanted = " or ".join(sorted(scopes))
+    return NOT_OPENED.format(scope=wanted, opens=" · ".join(sorted(record.scopes)) or "nothing")
 
 
 # A Pinecall key is 256 bits from a CSPRNG, not a password somebody chose. There is nothing to
