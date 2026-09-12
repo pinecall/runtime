@@ -118,8 +118,9 @@ pinecall-runtime routes add +34910000000 tienda-sur --org pinecall --channel pho
 ```
 
 In a container there is no login: `PINECALL_API_KEY` in the environment is that key, and
-`PINECALL_URL` says which gateway. On a laptop, `pinecall login https://box.pinecall.io` keeps a
-key typed once. That is the whole of a tenant's authentication.
+`PINECALL_URL` says which gateway. On a laptop, `pinecall login` keeps a key **nobody typed** —
+it prints a link, the person signs in on that page, and the page mints the terminal a key of its
+own (see below). That is the whole of a tenant's authentication.
 
 ## Two worlds on one gateway
 
@@ -139,8 +140,12 @@ nobody — CI's, a machine's — holds the org's own, which is what a developer 
 back to. Production is namespaced by nobody, because there is one holder there by construction:
 a person's key does not open `app` in production at all (see below), so what holds a deployed
 slug is a key issued for a machine. The exception is a **dialled** door: a number exists once in
-a world, so the development number is the org's and the newest `pinecall run` answers it — web
-and chat are each developer's own, the telephone is shared.
+a world, so the development number is the org's and a call at it rings in one terminal — web and
+chat are each developer's own, the telephone is shared. WHICH terminal is the agent's **line**
+(`api/agents/doors.py`): the first corner to hold the agent takes it, a second developer claims it
+at `POST /v1/agents/{slug}/line`, and it is handed on when the terminal holding it closes. Before
+it, the newest `pinecall run` silently took the others' calls. Production needs none of it: one
+corner, and its line is nobody's.
 
 **And so does the data.** A contact's facts and a knowledge base carry the world of the key that
 pushed or the call that taught them (`0018`): a test call on a laptop never writes into the memory
@@ -170,9 +175,18 @@ scopes of their role (`qa` · `supervisor` · `manager` · `admin` · `developer
 as `subject`. **In production a person's key never holds `app`**: a deployed agent is held by a key
 issued for a machine (`POST /v1/keys`, or `keys issue --scope app`), not by whoever is logged in. Disabling them keeps the row, revokes every key of theirs and refuses their login. A
 browser never carries a key in a URL: a key holder mints a one-use code (`POST /v1/login/codes`)
-and the browser spends it for a key of its own. Which door each scope opens, and every refusal
-in the words it is said in: [protocol/people.md](protocol/people.md) and
-[protocol/gateway-api.md](protocol/gateway-api.md).
+and the browser spends it for a key of its own.
+
+**And a terminal never carries a password.** `pinecall login` holds no key, and the person at it
+has none to paste — a key is minted FOR a person and kept BY the browser that minted it, never
+shown. So the two meet at a word: the terminal opens a pairing (`POST /v1/login/pairings`, no
+key), prints `<gateway>/cli?c=<code>`, and polls; the browser holding the person's key reads what
+it is approving and approves it; the terminal collects a key of its own, once. Ten minutes, one
+collection, and nothing but a dead word ever sits in a shell history. It is also why SSO later
+touches none of this: the terminal's half knows nothing about how the person proved who they are.
+
+Which door each scope opens, and every refusal in the words it is said in:
+[protocol/people.md](protocol/people.md) and [protocol/gateway-api.md](protocol/gateway-api.md).
 
 **One key per place, not one per tenant.** Issue a key for the laptop, one for CI, one for each
 deployment, each with a `--label` — a key you can revoke on its own is a key you will revoke.
