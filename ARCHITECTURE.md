@@ -74,11 +74,22 @@ table; the declared ones have a socket.
 | **eval run** | `id`, `agent`, `started_at`, `finished_at`, `status`, `document` | `eval_runs` | ring-1 suites driven over live text sessions |
 | **Base** / **Chunk** | `base`, `chunks`, `pushed_at` · `id`, `base`, `path`, `heading`, `text`, `score` | `knowledge_bases` (`org`, `env`, `base`, `model`, `dimensions`, `chunks`, `pushed_at`) · `knowledge_chunks` (`id`, `org`, `env`, `base`, `path`, `heading`, `ordinal`, `text`, `embedding halfvec(1024)`), HNSW by cosine and BM25 in spanish | a base is one world's (`0018`): a laptop's push never replaces the one the telephone answers from, and promoting is the same push with the box's key. A push replaces the base whole (`knowledge/store.py`); a chunk is embedded seeing its file's other chunks (`embed_documents`, one document per file); a search is both indexes fused by reciprocal rank (`types/fusion.py`, the one fusion memory ranks with too) and refuses a base another model pushed. `docs/decisions/retrieval.md` |
 
-Thirteen tables, nineteen migrations (`migrations/00NN_*.sql`, applied in order by `migrate up`, never
-edited; `0008_memory` holds the contact's facts and `0010_memory_model` says which embedder wrote
-each one — **Fact** in `types/knowledge.py` is its shape —
-and `0009_knowledge` the knowledge base's chunks, **Chunk** beside it). `docs/decisions/types.md`,
-`orgs.md`, `keys.md`, `routes.md`, `tokens.md`, `provider-keys.md`, `log.md`, `memory.md`.
+Thirteen tables, twenty-one migrations (`migrations/00NN_*.sql`, applied in order by `migrate up`;
+`0008_memory` holds the contact's facts and `0010_memory_model` says which embedder wrote each one
+— **Fact** in `types/knowledge.py` is its shape — and `0009_knowledge` the knowledge base's
+chunks, **Chunk** beside it). `docs/decisions/types.md`, `orgs.md`, `keys.md`, `routes.md`,
+`tokens.md`, `provider-keys.md`, `log.md`, `memory.md`.
+
+**A migration is never edited, and that is now enforced and not asked.** `schema_migrations` keeps
+a `sha256` per applied file and `log/store/migrating.py` refuses a checkout where one has changed:
+every database that ran it has the OLD one, and the fix for an old migration is a new migration.
+A run takes an advisory lock before any DDL, holds each migration to a 5 s statement and a 1 s
+lock timeout inside its own transaction, and says which database it is talking to before it
+applies anything. `migrations/migrations.lock` names the last one that landed — bumping it is what
+makes two branches adding `0022` conflict in git, and it is the baseline `scripts/lint-migrations`
+lints above with **squawk**, which reads the `.sql` for what it will do to a table that has rows.
+What proves a migration against data is `tests/migrations.py`: a schema built as a box HAD it,
+rows written, then the migration applied on top.
 
 ## 3. The wire
 
