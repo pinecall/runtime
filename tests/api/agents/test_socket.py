@@ -76,9 +76,11 @@ def test_the_register_is_written_to_the_agents_own_log(
     with open_socket(gateway) as socket:
         socket.send_json(a_register("clinica-norte", a_door("web")))
         socket.receive_json()
+    # Arriving and leaving are both written: the socket closing is the agent.detached.
     written = _read(store, "clinica-norte")
-    assert [entry.type for entry in written] == ["agent.registered"]
+    assert [entry.type for entry in written] == ["agent.registered", "agent.detached"]
     assert written[0].call is None
+    assert written[1].data["left"] is True
 
 
 def test_a_second_socket_takes_the_same_agent_and_the_first_keeps_answering(

@@ -1,5 +1,6 @@
 """The app holding the agent closes mid-run: the run stops there, and says how far it got."""
 
+import asyncio
 import time
 from typing import Any, override
 
@@ -48,7 +49,9 @@ class Leaving(FakeLLM):
         """The next scripted answer, and — once — the app going away as it is asked for."""
         if len(self.asked) == self._on_request and self.left_at is None:
             self.left_at = time.time()
-            self._registry.release(AN_OWNER)
+            # The table is cleared before the first await inside release: the watch sees the
+            # socket gone on its next look, and agent.detached lands a tick later.
+            asyncio.ensure_future(self._registry.release(AN_OWNER))  # noqa: RUF006
         return super().chat(**asked)
 
 

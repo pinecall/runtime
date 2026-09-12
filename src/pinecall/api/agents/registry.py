@@ -17,7 +17,7 @@ from pinecall.providers import declaration
 from pinecall.types import PRODUCTION, AgentConfig, DeclarationRefused, Env, Route
 from pinecall.types.channel import CHANNELS_WITH_A_NUMBER
 from pinecall_protocol import WireModel, defs, encode
-from pinecall_protocol.events import AgentConfigured, AgentRegistered
+from pinecall_protocol.events import AgentConfigured, AgentDetached, AgentRegistered
 
 # The type only, and never at import time: api/calls/ reads this module through the sink, so
 # naming its package here for real would close the circle. See docs/decisions/api.md.
@@ -212,7 +212,10 @@ class Registry:
         configured = AgentConfigured(changed=list(declaration.changed_by(wire)))
         return await self._append(slug, "agent.configured", configured)
 
-    def release(self, owner: SocketId) -> frozenset[str]:
+    # The other half of register, and written down like it: a console reading the floor saw
+    # processes arrive and never leave until agent.detached said so — which socket, which world,
+    # and whether the agent is held there by anybody still.
+    async def release(self, owner: SocketId) -> frozenset[str]:
         """This socket is gone: it stops holding its agents, and whoever is left keeps them."""
         released = self._owned.pop(owner, set())
         for name in released:
@@ -222,6 +225,9 @@ class Registry:
             else:
                 self._agents.pop(name, None)
             self._claim_doors(name)
+            env, slug = name
+            detached = AgentDetached(app=owner, env=env, left=not left)
+            await self._append(slug, "agent.detached", detached)
         return frozenset(slug for _, slug in released)
 
     # ── the rules ───────────────────────────────────────────────────────────────

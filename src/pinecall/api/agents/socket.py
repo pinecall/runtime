@@ -56,7 +56,7 @@ async def apps(
         pass
     finally:
         live.disconnect(socket.id)
-        registry.release(socket.id)
+        await registry.release(socket.id)
 
 
 class AppSocket:
