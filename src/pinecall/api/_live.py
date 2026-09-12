@@ -10,6 +10,7 @@ from fastapi import Depends
 
 from pinecall.api._deps import what_is_live
 from pinecall.api.agents.registry import Send, SocketId
+from pinecall.log.entry import Entry
 from pinecall.log.fanout import Subscription
 from pinecall.log.logs import CallLog
 from pinecall.lookups import OpenCall
@@ -17,6 +18,7 @@ from pinecall.session.pending import ToolCalls
 from pinecall.session.text.session import TextSession
 from pinecall.types import AgentConfig, CallContext
 from pinecall_protocol import Command
+from pinecall_protocol.commands import DevAnswer
 from pinecall_protocol.defs import ToolResult
 
 
@@ -48,6 +50,9 @@ class Live:
         self._sessions: dict[str, TextSession] = {}
         self._waiting: dict[str, ToolCalls] = {}
         self._served: dict[str, Served] = {}
+        # The console's asks of an app, waiting for that app's dev.answer, by the id the gateway
+        # minted. A future and not a queue: one ask, one answer, and the door awaiting it.
+        self._asked: dict[str, asyncio.Future[DevAnswer]] = {}
         # The loop keeps no strong reference to a task: a pump nobody holds can be collected in
         # the middle of a call, and the app simply stops hearing it.
         self._pumps: set[asyncio.Task[None]] = set()
@@ -61,6 +66,36 @@ class Live:
     def disconnect(self, owner: SocketId) -> None:
         """The app socket is gone. Its calls keep running until the caller hangs up."""
         self._apps.pop(owner, None)
+
+    # ── the console's asks of an app ────────────────────────────────────────────
+
+    # A dev.request is a fact about two processes talking and not about the world, so it goes down
+    # the one socket the door chose and is stored nowhere: the log is the truth, and this is not.
+    async def tell(self, owner: SocketId, entry: Entry) -> bool:
+        """One unstored entry down one app socket. False when that socket is not open here."""
+        send = self._apps.get(owner)
+        if send is None:
+            return False
+        await send(entry)
+        return True
+
+    def asked(self, id: str) -> asyncio.Future[DevAnswer]:
+        """The answer a dev.request by this id will get, awaited by the door that sent it."""
+        answer: asyncio.Future[DevAnswer] = asyncio.get_running_loop().create_future()
+        self._asked[id] = answer
+        return answer
+
+    def forget_asked(self, id: str) -> None:
+        """The door stopped waiting — it timed out, or the app went — and nothing lands here now."""
+        self._asked.pop(id, None)
+
+    def dev_answered(self, answer: DevAnswer) -> bool:
+        """The app answered a dev.request; False when no door here is waiting on that id."""
+        waiting = self._asked.pop(answer.id, None)
+        if waiting is None or waiting.done():
+            return False
+        waiting.set_result(answer)
+        return True
 
     # ── every call, whoever runs it ─────────────────────────────────────────────
 
