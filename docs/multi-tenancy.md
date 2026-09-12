@@ -3,7 +3,9 @@
 Who a key belongs to, what each kind of credential opens, why a laptop needs none of it, and how a
 real tenant is given one. The doors are [protocol/gateway-api.md](protocol/gateway-api.md) and
 [protocol/operator-api.md](protocol/operator-api.md); the verbs are
-[the-runtime-cli.md](the-runtime-cli.md). This page is the model underneath both.
+[the-runtime-cli.md](the-runtime-cli.md). This page is the model underneath both, from the
+operator's side; the same model as a tenant's developer walks it — sign-up, laptop, console,
+deploy, team — is the agents repo's `docs/worlds-and-teams.md`.
 
 ## An agent has no key. An org has keys.
 
