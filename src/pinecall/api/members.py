@@ -64,7 +64,7 @@ class Accepting(WireModel):
 @router.get("/v1/members")
 async def listed(key: TeamKeyDep, members: MembersDep) -> dict[str, Any]:
     """Every member of the key's org, oldest first, disabled ones included."""
-    return {"members": [_as_json(member) for member in await members.listed(key.org)]}
+    return {"members": [member_as_json(member) for member in await members.listed(key.org)]}
 
 
 @router.post("/v1/members", status_code=INVITED)
@@ -80,7 +80,7 @@ async def invite(said: WantedMember, key: TeamKeyDep, members: MembersDep) -> di
     if invited is None:
         raise HTTPException(409, ALREADY_A_MEMBER.format(email=said.email))
     return {
-        "member": _as_json(invited.member),
+        "member": member_as_json(invited.member),
         "token": invited.token,
         "expires_at": invited.expires_at,
     }
@@ -108,7 +108,7 @@ async def change(
     # the rows stay, revoked, so the log entries that name them stay readable.
     if status == "disabled":
         await _revoked_every_key_of(keys, key.org, id)
-    return _as_json(changed)
+    return member_as_json(changed)
 
 
 # No key at this door: the person holding the link has none yet. What lets them in is the token,
@@ -133,7 +133,7 @@ async def accept(token: str, said: Accepting, members: MembersDep, keys: KeysDep
         subject=member.id,
         name=member.name,
     )
-    return {**issued.as_json, "member": _as_json(member)}
+    return {**issued.as_json, "member": member_as_json(member)}
 
 
 async def _revoked_every_key_of(keys: Keys, org: str, member: str) -> None:
@@ -150,7 +150,7 @@ def _a_status(word: str) -> MemberStatus:
     return "invited" if word == "invited" else ("active" if word == "active" else "disabled")
 
 
-def _as_json(member: Member) -> dict[str, Any]:
+def member_as_json(member: Member) -> dict[str, Any]:
     """One member as the wire says it: the agents sorted, the scopes their role presets beside."""
     return {
         "id": member.id,

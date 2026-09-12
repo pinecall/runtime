@@ -23,6 +23,7 @@ is for. The prose, the shapes and the refusals are on that page and in the pages
 | `POST` | `/v1/invitations/{token}` | accept with a password: active, and the first key |
 | `POST` | `/v1/login` | a key for a person and a device: org, email, password — or a code |
 | `POST` | `/v1/login/codes` | a one-use code a key holder mints for a browser |
+| `POST` | `/v1/signup` | cloud only (`PINECALL_CLOUD`): a new org on the free trial, its admin active, their first key and a login code |
 | `GET` | `/v1/whoami` | the org, the key's id, its label, the world it opens (`env`), its `scopes`, and whose it is (`subject`, `name`) |
 | `GET` | `/v1/agents` | the agents this gateway is holding for your org |
 | `GET` | `/v1/agents/{slug}/config` | what it declared, overrides applied |

@@ -28,6 +28,7 @@ from pinecall.api import (
     pipeline,
     provider_keys,
     routes,
+    signup,
     supervise_seat,
     tokens,
     usage,
@@ -246,6 +247,7 @@ for door in (
     floor.router,
     numbers.router,
     managed.router,
+    signup.router,
     whoami.router,
     discovery.router,
 ):
