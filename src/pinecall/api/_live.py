@@ -38,6 +38,10 @@ class Served:
     commands: asyncio.Queue[Command | None]
     context: CallContext
     config: AgentConfig
+    # Whose corner of the world serves it, as the door that opened the call resolved it: the
+    # developer in development, nobody in production. What this call recalls and searches is that
+    # corner's, so a test call on one laptop never reads what another laptop's test call wrote.
+    holder: str | None = None
 
 
 # None of this is durable and none of it should be: it is a fact about which sockets are open right
@@ -113,6 +117,7 @@ class Live:
         *,
         context: CallContext,
         config: AgentConfig,
+        holder: str | None = None,
     ) -> None:
         """Every entry of this call to the ONE app socket its door chose, for the whole call."""
         if call in self._served:
@@ -129,6 +134,7 @@ class Live:
             commands=asyncio.Queue(),
             context=context,
             config=config,
+            holder=holder,
         )
         send = None if app is None else self._apps.get(app)
         if send is None:
@@ -160,7 +166,12 @@ class Live:
         served = self._served.get(call)
         if served is None:
             return None
-        return OpenCall(org=served.org, context=served.context, config=served.config)
+        return OpenCall(
+            org=served.org,
+            context=served.context,
+            config=served.config,
+            holder=served.holder,
+        )
 
     def close(self, call: str) -> None:
         """The call is over and nothing more will be said on it."""

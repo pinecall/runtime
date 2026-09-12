@@ -127,7 +127,7 @@ async def chat(
     await websocket.accept()
     session = opened.session
     await logs.owned(session.call, slug, held.org)
-    await _talk(websocket, session, live, logs, held.owner, held.org)
+    await _talk(websocket, session, live, logs, held.owner, held.org, held.holder)
 
 
 # Three reasons a chat cannot open, and they are three different things to do about it: the caller
@@ -143,7 +143,13 @@ def _why_not(registry: Registry, key: KeyRecord, slug: str, app: SocketId | None
 
 
 async def _talk(
-    websocket: WebSocket, session: TextSession, live: Live, logs: Logs, app: SocketId, org: str
+    websocket: WebSocket,
+    session: TextSession,
+    live: Live,
+    logs: Logs,
+    app: SocketId,
+    org: str,
+    holder: str | None,
 ) -> None:
     """The call, from call.started to the hangup: every frame the caller sends is one turn."""
     # Every entry, unprojected, to both sides: the caller's socket, watched from here, and the
@@ -158,6 +164,7 @@ async def _talk(
         app,
         context=session.context,
         config=session.config,
+        holder=holder,
     )
     live.open(session)
     try:

@@ -31,11 +31,15 @@ SPOKEN: dict[str, Literal["user", "agent"]] = {"turn.user": "user", "turn.agent"
 # (api/_live.py) and the service never sees the table, the registry or the app state.
 @dataclass(frozen=True)
 class OpenCall:
-    """One call as a lookup sees it: whose org, how it arrived, what its agent declared."""
+    """One call as a lookup sees it: whose org, whose corner, how it arrived, what it declared."""
 
     org: str
     context: CallContext
     config: AgentConfig
+    # Whose corner of the world this call is being served in: the developer in development, and
+    # nobody in production. What it recalls and what it searches are that corner's, so a test call
+    # on one laptop never reads the facts another laptop's test call planted. See 0021.
+    holder: str | None = None
 
 
 class Calls(Protocol):
@@ -127,7 +131,12 @@ class Lookups:
         if self._memory is None or contact is None or quotas.switched_off("memory_facts"):
             return recalled(())
         facts = await self._memory.recall(
-            opened.org, opened.context.route.env, contact, query, k=DEFAULT_FACTS_PER_TURN
+            opened.org,
+            opened.context.route.env,
+            opened.holder,
+            contact,
+            query,
+            k=DEFAULT_FACTS_PER_TURN,
         )
         took_ms = _since(started)
         await _written(log, "memory.ops", a_recall(contact, query, facts, took_ms, speech_id))
@@ -152,6 +161,7 @@ class Lookups:
         chunks = await self._knowledge.search(
             opened.org,
             opened.context.route.env,
+            opened.holder,
             docs.base,
             query,
             k=docs.k,
@@ -186,6 +196,7 @@ class Lookups:
         ops = await self._memory.remember(
             opened.org,
             opened.context.route.env,
+            opened.holder,
             contact,
             turns,
             channel=opened.context.channel,

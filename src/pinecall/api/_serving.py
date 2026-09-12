@@ -28,6 +28,7 @@ class Serving(Protocol):
         *,
         context: CallContext,
         config: AgentConfig,
+        holder: str | None = None,
     ) -> None:
         """Every entry of this call to ONE app socket, chosen now and kept for the whole call."""
         ...

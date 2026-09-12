@@ -23,6 +23,7 @@ from pinecall.types import (
     Model,
     ProviderKeys,
     ToolSpec,
+    whose,
 )
 from pinecall_protocol.defs import MemoryFact, MemoryOp
 
@@ -34,10 +35,10 @@ _COLUMNS = "id, contact, text, category, source_call, valid_from, invalidated_at
 # What "current" means for a recall: with no as_of, the rows nobody invalidated — the partial
 # index's own WHERE; with one, the rows that held at that moment, which is the bi-temporal read.
 _HELD = """
-WHERE org = $1 AND env = $2 AND contact = $3
-  AND (($4::timestamptz IS NULL AND invalidated_at IS NULL)
-       OR ($4::timestamptz IS NOT NULL AND valid_from <= $4
-           AND (invalidated_at IS NULL OR invalidated_at > $4)))
+WHERE org = $1 AND env = $2 AND holder = $3 AND contact = $4
+  AND (($5::timestamptz IS NULL AND invalidated_at IS NULL)
+       OR ($5::timestamptz IS NOT NULL AND valid_from <= $5
+           AND (invalidated_at IS NULL OR invalidated_at > $5)))
 """
 
 # The dense branch: cosine over the halved vectors, the HNSW index's own operator class, and only
@@ -47,8 +48,8 @@ WHERE org = $1 AND env = $2 AND contact = $3
 _BY_VECTOR = f"""
 SELECT {_COLUMNS} FROM contact_memories
 {_HELD}
-  AND model = $6
-ORDER BY embedding <=> $5::text::halfvec
+  AND model = $7
+ORDER BY embedding <=> $6::text::halfvec
 LIMIT {CANDIDATES_PER_BRANCH}
 """
 
@@ -58,23 +59,25 @@ LIMIT {CANDIDATES_PER_BRANCH}
 _BY_WORDS = f"""
 SELECT {_COLUMNS} FROM contact_memories
 {_HELD}
-ORDER BY text <@> to_bm25query($5, 'contact_memories_text_bm25')
+ORDER BY text <@> to_bm25query($6, 'contact_memories_text_bm25')
 LIMIT {CANDIDATES_PER_BRANCH}
 """
 
 _CURRENT = f"""
 SELECT {_COLUMNS} FROM contact_memories
-WHERE org = $1 AND env = $2 AND contact = $3 AND invalidated_at IS NULL
+WHERE org = $1 AND env = $2 AND holder = $3 AND contact = $4 AND invalidated_at IS NULL
 ORDER BY valid_from, id
 """
 
 _EVERY_ROW = f"""
 SELECT {_COLUMNS} FROM contact_memories
-WHERE org = $1 AND env = $2 AND contact = $3
+WHERE org = $1 AND env = $2 AND holder = $3 AND contact = $4
 ORDER BY (invalidated_at IS NULL) DESC, valid_from DESC, id
 """
 
-_FORGET = "DELETE FROM contact_memories WHERE org = $1 AND env = $2 AND contact = $3"
+_FORGET = (
+    "DELETE FROM contact_memories WHERE org = $1 AND env = $2 AND holder = $3 AND contact = $4"
+)
 
 # What the org KEEPS, which is what its quota is about: the current rows, every contact together,
 # in BOTH worlds — a fact a test call wrote is a row on the same disk as one a real call wrote. A
@@ -84,8 +87,8 @@ _KEPT = "SELECT count(*) AS kept FROM contact_memories WHERE org = $1 AND invali
 
 _ADD = """
 INSERT INTO contact_memories
-    (org, env, contact, text, category, embedding, valid_from, source_call, model)
-VALUES ($1, $2, $3, $4, $5, $6::text::halfvec, $7, $8, $9)
+    (org, env, holder, contact, text, category, embedding, valid_from, source_call, model)
+VALUES ($1, $2, $3, $4, $5, $6, $7::text::halfvec, $8, $9, $10)
 RETURNING id
 """
 
@@ -93,19 +96,22 @@ RETURNING id
 # same statement: the two never disagree, and a fact somebody already superseded takes no row.
 _UPDATE = """
 WITH superseded AS (
-    UPDATE contact_memories SET invalidated_at = $7
-    WHERE id = $10::uuid AND org = $1 AND env = $2 AND contact = $3 AND invalidated_at IS NULL
+    UPDATE contact_memories SET invalidated_at = $8
+    WHERE id = $11::uuid AND org = $1 AND env = $2 AND holder = $3 AND contact = $4
+      AND invalidated_at IS NULL
     RETURNING id
 )
 INSERT INTO contact_memories
-    (org, env, contact, text, category, embedding, valid_from, source_call, model, supersedes)
-SELECT $1, $2, $3, $4, $5, $6::text::halfvec, $7, $8, $9, superseded.id FROM superseded
+    (org, env, holder, contact, text, category, embedding, valid_from, source_call, model,
+     supersedes)
+SELECT $1, $2, $3, $4, $5, $6, $7::text::halfvec, $8, $9, $10, superseded.id FROM superseded
 RETURNING id
 """
 
 _INVALIDATE = """
-UPDATE contact_memories SET invalidated_at = $4
-WHERE id = $5::uuid AND org = $1 AND env = $2 AND contact = $3 AND invalidated_at IS NULL
+UPDATE contact_memories SET invalidated_at = $5
+WHERE id = $6::uuid AND org = $1 AND env = $2 AND holder = $3 AND contact = $4
+  AND invalidated_at IS NULL
 """
 
 
@@ -123,6 +129,7 @@ class PgvectorMemory:
         self,
         org: str,
         env: Env,
+        holder: str | None,
         contact: str,
         query: str,
         *,
@@ -131,7 +138,7 @@ class PgvectorMemory:
     ) -> list[Fact]:
         """Dense and BM25 over the contact's held facts, fused by rank, the best k at 0..1."""
         vector = await self._embedded(query)
-        held = (org, env, contact, as_of)
+        held = (org, env, whose(holder), contact, as_of)
         dense, sparse = await asyncio.gather(
             self._pool.fetch(_BY_VECTOR, *held, vector, await self._embedder.model()),
             self._pool.fetch(_BY_WORDS, *held, query),
@@ -147,6 +154,7 @@ class PgvectorMemory:
         self,
         org: str,
         env: Env,
+        holder: str | None,
         contact: str,
         turns: Sequence[Spoken],
         *,
@@ -163,7 +171,10 @@ class PgvectorMemory:
         written: list[Fact] = []
         # A tenant that named nothing worth keeping keeps nothing, and pays for no model call.
         if policy.remember:
-            known = [_a_fact(row) for row in await self._pool.fetch(_CURRENT, org, env, contact)]
+            known = [
+                _a_fact(row)
+                for row in await self._pool.fetch(_CURRENT, org, env, whose(holder), contact)
+            ]
             chat = self._models(llm, keys)
             try:
                 ops = await extracted(
@@ -171,7 +182,7 @@ class PgvectorMemory:
                 )
             finally:
                 await chat.aclose()
-            written = await self._applied(org, env, contact, ops, at=at, call=call)
+            written = await self._applied(org, env, holder, contact, ops, at=at, call=call)
         took_ms = (time.perf_counter() - started) * 1000
         return [
             MemoryOp(
@@ -186,22 +197,34 @@ class PgvectorMemory:
     # is superseded and nothing is asked of a model, so what lands is exactly what was given. The
     # confidence is the column's own default, which is what a fact nobody weighed is worth.
     async def hold(
-        self, org: str, env: Env, contact: str, facts: Sequence[str], *, at: datetime
+        self,
+        org: str,
+        env: Env,
+        holder: str | None,
+        contact: str,
+        facts: Sequence[str],
+        *,
+        at: datetime,
     ) -> None:
         """These sentences as the contact's facts, with this embedder's name beside each vector."""
         vectors = await self._embedded_all(facts)
         model = await self._embedder.model()
         for text, vector in zip(facts, vectors, strict=True):
-            await self._pool.execute(_ADD, org, env, contact, text, None, vector, at, None, model)
+            await self._pool.execute(
+                _ADD, org, env, whose(holder), contact, text, None, vector, at, None, model
+            )
 
-    async def forget(self, org: str, env: Env, contact: str) -> int:
+    async def forget(self, org: str, env: Env, holder: str | None, contact: str) -> int:
         """One DELETE, and the count off its command tag."""
-        tag = await self._pool.execute(_FORGET, org, env, contact)
+        tag = await self._pool.execute(_FORGET, org, env, whose(holder), contact)
         return int(tag.split()[-1])
 
-    async def history(self, org: str, env: Env, contact: str) -> list[Fact]:
+    async def history(self, org: str, env: Env, holder: str | None, contact: str) -> list[Fact]:
         """Every row, the current ones first and the newest of each group before the older."""
-        return [_a_fact(row) for row in await self._pool.fetch(_EVERY_ROW, org, env, contact)]
+        return [
+            _a_fact(row)
+            for row in await self._pool.fetch(_EVERY_ROW, org, env, whose(holder), contact)
+        ]
 
     async def kept(self, org: str) -> int:
         """One count over the partial index: the facts that hold right now, across the org."""
@@ -215,6 +238,7 @@ class PgvectorMemory:
         self,
         org: str,
         env: Env,
+        holder: str | None,
         contact: str,
         ops: Sequence[Op],
         *,
@@ -231,7 +255,7 @@ class PgvectorMemory:
         written: list[Fact] = []
         for op in ops:
             if op.op == "invalidate":
-                await self._pool.execute(_INVALIDATE, org, env, contact, at, op.of)
+                await self._pool.execute(_INVALIDATE, org, env, whose(holder), contact, at, op.of)
                 continue
             statement = _ADD if op.op == "add" else _UPDATE
             named = (op.of,) if op.op == "update" else ()
@@ -239,6 +263,7 @@ class PgvectorMemory:
                 statement,
                 org,
                 env,
+                whose(holder),
                 contact,
                 op.text,
                 op.category,

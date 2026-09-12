@@ -44,6 +44,12 @@ class Attachment:
         return self._app
 
     @property
+    def holder(self) -> str | None:
+        """Whose corner that socket is in: what the run's calls recall and search. See 0021."""
+        held = self._registry.on(*self._agent, self._app)
+        return None if held is None else held.holder
+
+    @property
     def held(self) -> bool:
         """True while that socket is still holding the agent; False the moment it disconnects."""
         return self._registry.on(*self._agent, self._app) is not None

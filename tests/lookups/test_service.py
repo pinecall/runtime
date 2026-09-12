@@ -54,6 +54,7 @@ async def test_recall_on_a_phone_call_answers_facts_with_their_source_and_since(
     }
     [asked] = served.memory.recalled
     assert asked == {
+        "holder": None,
         "org": ORG,
         "env": "production",
         "contact": THE_NUMBER,

@@ -32,10 +32,17 @@ class Memory(Protocol):
     # laptop learns about a number never reaches the memory a production call reads under that
     # same number, and the other way round. Every read and write says which; `kept` alone reads
     # both, because a quota is about rows on a disk. 0018 is where the column went in.
+    #
+    # And one CORNER's (0021): three developers of one tenant test against the same numbers, and
+    # before this the fact one of them planted arrived in another's call. `holder` is the member
+    # the key names, or None for the org's own — production's always, and CI's. Unlike a knowledge
+    # base there is NO fallback: a base is something somebody wrote down for the agent to read,
+    # and a fact is what a CALL learned. There is no org-wide development call to inherit from.
     async def recall(
         self,
         org: str,
         env: Env,
+        holder: str | None,
         contact: str,
         query: str,
         *,
@@ -51,6 +58,7 @@ class Memory(Protocol):
         self,
         org: str,
         env: Env,
+        holder: str | None,
         contact: str,
         turns: Sequence[Spoken],
         *,
@@ -70,12 +78,19 @@ class Memory(Protocol):
     # holds and needs no such contact to exist — and the write is a real one, so what a golden then
     # measures is the ranking a call would get and not an arithmetic of its own.
     async def hold(
-        self, org: str, env: Env, contact: str, facts: Sequence[str], *, at: datetime
+        self,
+        org: str,
+        env: Env,
+        holder: str | None,
+        contact: str,
+        facts: Sequence[str],
+        *,
+        at: datetime,
     ) -> None:
         """These sentences as the contact's facts, embedded and written; no model is asked."""
         ...
 
-    async def forget(self, org: str, env: Env, contact: str) -> int:
+    async def forget(self, org: str, env: Env, holder: str | None, contact: str) -> int:
         """Every row of the contact, gone — the right to be forgotten. How many went."""
         ...
 
@@ -85,6 +100,6 @@ class Memory(Protocol):
         """How many facts this org holds right now, every contact and both worlds together."""
         ...
 
-    async def history(self, org: str, env: Env, contact: str) -> list[Fact]:
+    async def history(self, org: str, env: Env, holder: str | None, contact: str) -> list[Fact]:
         """Every fact ever held about the contact: the current ones first, then the superseded."""
         ...

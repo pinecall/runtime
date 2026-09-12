@@ -81,3 +81,15 @@ def key_scopes(words: Iterable[str]) -> frozenset[str]:
                 f"{word!r} is not a key scope; the scopes are {sorted(KEY_SCOPES)}"
             )
     return wanted
+
+
+# The org's own corner, as the tables that are namespaced by one spell it. Not NULL: it is part of
+# a primary key, and a NULL in one matches nothing. A production row is always the org's — a
+# person's key opens no `app` there — and so is anything a development key naming nobody wrote,
+# which is CI's. See 0021, and api/agents/registry.py for the same idea in the live table.
+THE_ORGS_OWN = ""
+
+
+def whose(holder: str | None) -> str:
+    """The corner a row belongs to, as the column spells it. Nobody's is the org's own."""
+    return THE_ORGS_OWN if holder is None else holder
