@@ -7,6 +7,7 @@ import pytest
 
 from pinecall.auth.codes import LoginCodes
 from pinecall.auth.members import MemoryMembers
+from pinecall.auth.pairing import Pairings
 from pinecall.auth.throttle import Throttle
 from tests.api.conftest import over_the_asgi_app
 
@@ -24,6 +25,12 @@ def members() -> MemoryMembers:
 def login_codes() -> LoginCodes:
     """The one-use codes minted here: none at the start of a test."""
     return LoginCodes()
+
+
+@pytest.fixture
+def pairings() -> Pairings:
+    """The words a terminal printed, waiting for a browser: none at the start of a test."""
+    return Pairings()
 
 
 @pytest.fixture

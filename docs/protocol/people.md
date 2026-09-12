@@ -59,3 +59,24 @@ minute.
 The console is served by this gateway, so it is the same origin as every door it uses, and the
 sign-up is **its** screen (`/signup`): a site somewhere else links to it rather than posting here.
 That is why this runtime sends no CORS header at all — there is no legitimate cross-origin caller.
+
+## Signing a terminal in
+
+`pinecall login` holds no key, and the person at it has none to paste: a key is minted for a person
+and kept by the browser that minted it. So the terminal and the browser meet at a **word**.
+
+`POST /v1/login/pairings {device?}` — no key — answers `{code, expires_at}`. The terminal prints
+`<gateway>/cli?c=<code>`, opens it, and asks `GET /v1/login/pairings/{code}/key` until it answers.
+That door is `202` with an empty body while nobody has approved, `200 {key}` once somebody has, and
+`404` once the key has been collected or the word has died — ten minutes, whichever comes first.
+
+The browser, holding the person's key, reads `GET /v1/login/pairings/{code}` — `{device,
+expires_at, answered}`, and never a key — so the card can say **what** it is about to sign in, and
+then `POST /v1/login/pairings/{code}` approves it. What that mints is the TERMINAL's own key: a
+fresh one for the same person, in **development**, labelled as that machine, so it is revoked on
+its own from the Keys screen. The browser's key never travels to the terminal, and the terminal's
+never travels through the browser.
+
+**The password is typed into a page and never into a shell.** That is the point, and it is also why
+the day an org signs in with Google or SAML none of this changes: the terminal's half of the dance
+knows nothing about how the person proved who they are.

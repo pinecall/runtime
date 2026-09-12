@@ -7,13 +7,18 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **A terminal is signed in from a browser.** `pinecall login` holds no key and the person at it
+  has none to paste, so the two meet at a word: four doors under `/v1/login/pairings` — the
+  terminal mints one and polls, the browser reads what it is approving and approves it. That mints
+  the TERMINAL's own key: same person, development, labelled as that machine, revoked on its own.
+  A password is typed into a page and never into a shell, which is why SSO changes none of it.
+  `auth/pairing.py`, `api/pairing.py`, `docs/protocol/people.md`.
 - **The line: which terminal a development number rings in.** An org shares one development
   number, so three developers on one agent meant the newest `pinecall run` silently took the
-  others' calls — answered in a colleague's scrollback with nothing on either screen saying so.
-  The ring now lands on the agent's **line**: the first corner to hold it takes it, a second
-  developer claims it, and it is handed on when that terminal closes. `GET /v1/agents/{slug}/line`
-  (`calls`) says whose it is by name and who else could take it; `POST` claims and `DELETE`
-  releases (both `app`). Production has one corner and the box holds it. `api/agents/doors.py`.
+  others' calls — answered in a colleague's scrollback with nothing saying so. The ring now lands
+  on the agent's **line**: the first corner to hold it takes it, a second claims it, and it is
+  handed on when that terminal closes. `GET/POST/DELETE /v1/agents/{slug}/line` — `calls` to read,
+  `app` to claim. Production has one corner and the box holds it. `api/agents/doors.py`.
 - **The operator invites an org's first person.** `POST /v1/ops/orgs/{named}/members` and
   `pinecall-runtime orgs invite <org> <email> --name … [--role]`: how a tenant exists at all on a
   gateway that takes no sign-up — the box makes the org and invites its admin, and prints a
@@ -229,25 +234,20 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - The knowledge base (`knowledge/`, migration `0009_knowledge`): a tenant's Markdown files
   chunked by heading under ~350 tokens, each chunk under its heading path, embedded in batches
   and kept in `knowledge_chunks` with an HNSW index by cosine and a BM25 index in spanish; a push
-  replaces the base whole in one statement; a search fuses both indexes by reciprocal rank
-  (k=60, thirty candidates a branch) and hands the model `{path, heading, text}` per chunk.
-  The row in `knowledge_bases` says which model wrote the vectors, so an `Embedder` now names
-  its model (`model()`, what TEI's `/info` reports).
+  replaces the base whole in one statement; a search fuses both indexes by reciprocal rank and
+  hands the model `{path, heading, text}` per chunk. The row in `knowledge_bases` says which model
+  wrote the vectors, so an `Embedder` now names its model.
 - The lookup itself (`lookups/`): one `Lookups` per gateway is the session's `Lookup` and
   `Rememberer` for every text call in-process and, over `POST /v1/calls/{call}/lookup` and
-  `/remember` (worker-only, 404 in the events door's words for another org's call), for every
-  spoken one. `recall` reads the contact — `CallContext.remembered_as`: the resolved id, else the
-  number on phone and WhatsApp, else nobody and nothing is written, and never what the model wrote
-  in the tool's input — `search` searches the agent's `docs.base` under its declared `k`/
-  `min_score`, and the gateway writes `memory.ops` and `docs.sources` on the call's log with the
-  turn's `speech_id`; at hang-up `remember` reads the call's turns off its log and runs on the
-  org's own model and keys. The embedder is reached lazily and, down, is named in the error entry
-  (`TEI at … did not answer`). Ring 1's sessions are built with the same `Lookups`, so a golden
-  carries its sources, and the grounded judge reads them.
+  `/remember` (worker-only), for every spoken one. `recall` reads the contact from
+  `CallContext.remembered_as` and never from what the model wrote in the tool's input; `search`
+  searches the agent's `docs.base` under its declared `k`/`min_score`; the gateway writes
+  `memory.ops` and `docs.sources` on the call's log with the turn's `speech_id`. Ring 1 is built
+  with the same `Lookups`, so a golden carries its sources and the grounded judge reads them.
 - The knowledge base's doors on the tenant's key — `PUT`/`GET`/`DELETE /v1/knowledge[/{base}]`,
   the base replaced whole — and a contact's `GET`/`DELETE /v1/contacts/{contact}/memory`.
-- The licence is spelled out where an operator meets it: the Apache-2.0 copyright line filled,
-  a License section in `README.md`, and `license-files` putting the text in the wheel and sdist.
+- The licence where an operator meets it: the copyright line filled, a License section in
+  `README.md`, and `license-files` putting the text in the wheel and the sdist.
 
 ### Changed
 - **A contact's facts and a knowledge base are one world's.** `contact_memories`,

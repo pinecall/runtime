@@ -27,6 +27,7 @@ from pinecall.api._deps import (
     the_memory,
     the_orgs,
     the_overrides,
+    the_pairings,
     the_throttle,
     the_vault,
 )
@@ -39,6 +40,7 @@ from pinecall.api.whatsapp.threads import Threads
 from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members import MemoryMembers
+from pinecall.auth.pairing import Pairings
 from pinecall.auth.scopes import KEY_PROJECTION, LivekitKeys, Reader
 from pinecall.auth.throttle import Throttle
 from pinecall.extensions import Extensions
@@ -297,6 +299,7 @@ def wired(
     fleet: Roster,
     members: MemoryMembers,
     login_codes: LoginCodes,
+    pairings: Pairings,
     throttle: Throttle,
     carriers: MemoryCarriers,
     trunks: MemoryTrunks,
@@ -327,6 +330,7 @@ def wired(
     app.dependency_overrides[the_fleet] = lambda: fleet
     app.dependency_overrides[the_members] = lambda: members
     app.dependency_overrides[the_login_codes] = lambda: login_codes
+    app.dependency_overrides[the_pairings] = lambda: pairings
     app.dependency_overrides[the_throttle] = lambda: throttle
     app.dependency_overrides[deps.the_extensions] = lambda: extensions
     app.dependency_overrides[deps.the_carriers] = lambda: carriers
