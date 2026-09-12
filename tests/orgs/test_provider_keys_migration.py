@@ -8,7 +8,12 @@ from uuid import uuid4
 import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
 import pytest
 
-from pinecall.log.store.migrating import MIGRATIONS_TABLE, RECORD_MIGRATION, apply_migrations
+from pinecall.log.store.migrating import (
+    MIGRATIONS_TABLE,
+    RECORD_MIGRATION,
+    a_hash,
+    apply_migrations,
+)
 from pinecall.log.store.postgres import MIGRATIONS
 from tests.postgres import Dev
 
@@ -45,7 +50,7 @@ async def a_box_from_before(postgres: Dev) -> AsyncIterator[Box]:
         await connection.execute(MIGRATIONS_TABLE)
         for name in BEFORE_PROVIDER_KEYS:
             await connection.execute((MIGRATIONS / name).read_text(encoding="utf-8"))
-            await connection.execute(RECORD_MIGRATION, name)
+            await connection.execute(RECORD_MIGRATION, name, a_hash(MIGRATIONS / name))
         await connection.execute("insert into orgs (id, slug, name) values ($1, $1, $1)", THE_ORG)
         yield Box(dsn=postgres.dsn, schema=schema, connection=connection)
     finally:
@@ -58,7 +63,9 @@ async def test_0007_applies_on_top_of_0006_and_leaves_one_row_per_org_and_vendor
 ) -> None:
     """Criterion 4: a box that is up takes the migration with no manual step and no downtime."""
     box = a_box_from_before
-    assert (await apply_migrations(box.dsn, schema=box.schema))[0] == "0007_provider_keys.sql"
+    assert (await apply_migrations(box.dsn, schema=box.schema)).applied[
+        0
+    ] == "0007_provider_keys.sql"
     read = box.connection
     await read.execute(
         "insert into provider_keys (org, vendor, ciphertext) values ($1, $2, $3)",

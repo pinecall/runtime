@@ -4,16 +4,33 @@ import argparse
 import asyncio
 
 from pinecall._settings import load_settings
-from pinecall.log.store.migrating import apply_migrations
-from pinecall.log.store.postgres import DEFAULT_SCHEMA, MIGRATIONS
+from pinecall.log.store.migrating import (
+    POST_DEPLOY,
+    Applied,
+    SchemaRefused,
+    apply_migrations,
+    every,
+    migrations_behind,
+    ordered,
+)
+from pinecall.log.store.postgres import DEFAULT_SCHEMA, create_pool
 
-PURPOSE: str = "the database schema: up | status"
-VERBS: tuple[str, ...] = ("up", "status")
+PURPOSE: str = "the database schema: up | status | plan"
+VERBS: tuple[str, ...] = ("up", "status", "plan")
 
 # The schema is applied here and nothing is minted here: `keys issue` is the one place a key
 # exists in the clear, and a verb that a unit runs before every start must print no secret into
 # a journal. 0006 seeds the `default` org; its first key is `pinecall-runtime keys issue`.
 NO_KEY_YET = "org default has no key yet — `pinecall-runtime keys issue --org default` mints one"
+
+# Said BEFORE anything is applied, and by `status` and `plan` too. A laptop with two databases on
+# it and a `.env` naming one of them is how four migrations of difference become a 404 in a
+# browser; a verb that says which database it is talking to is the whole of the fix.
+AT = "at {database} · schema {schema}"
+
+# Post-deployment files are named and never run at startup: an index on a big table takes longer
+# than the five seconds a startup migration is held to. `migrate up --post` is a person's move.
+WAITING = "{count} post-deployment migration(s) not run: `pinecall-runtime migrate up --post`"
 
 
 def configure(parser: argparse.ArgumentParser) -> None:
@@ -24,33 +41,63 @@ def configure(parser: argparse.ArgumentParser) -> None:
         default=DEFAULT_SCHEMA,
         help="apply into this schema instead of public (a test run owns its own copy)",
     )
+    parser.add_argument(
+        "--post",
+        action="store_true",
+        help=f"the {POST_DEPLOY} files instead: what takes longer than a deploy may wait for",
+    )
     parser.set_defaults(run=run)
 
 
 def run(arguments: argparse.Namespace) -> int:
-    """Apply, or just say what there is. Applying twice applies nothing: the record is the guard."""
-    if arguments.verb == "status":
-        return _report_the_files()
-    return asyncio.run(_migrate(arguments.schema))
+    """Apply, or just say. Applying twice applies nothing: the record is the guard."""
+    try:
+        if arguments.verb == "plan":
+            return _plan(arguments.post)
+        if arguments.verb == "status":
+            return asyncio.run(_status(arguments.schema))
+        return asyncio.run(_migrate(arguments.schema, arguments.post))
+    except SchemaRefused as refused:
+        # Not a traceback: this is a sentence a person acts on, and the exit code says it failed.
+        print(str(refused))
+        return 1
 
 
-async def _migrate(schema: str) -> int:
+async def _migrate(schema: str, post: bool) -> int:
     """The whole point of the verb: whatever this database has not run yet, in name order."""
     dsn = load_settings().database_url
-    applied = await apply_migrations(dsn, schema=schema)
-    if not applied:
-        print(f"nothing to apply — {schema} is up to date")
-    for name in applied:
+    ran: Applied = await apply_migrations(dsn, schema=schema, post=post)
+    print(AT.format(database=ran.database, schema=ran.schema))
+    for name in ran.applied:
         print(f"applied {name}")
+    if not ran.applied:
+        print("nothing to apply — up to date")
+    if ran.waiting:
+        print(WAITING.format(count=len(ran.waiting)))
     # 0006 is the migration that seeds the org, so the run that applies it is the one run on
     # which the sentence is true.
-    if any(name.endswith("_orgs.sql") for name in applied):
+    if any(name.endswith("_orgs.sql") for name in ran.applied):
         print(NO_KEY_YET)
     return 0
 
 
-def _report_the_files() -> int:
-    """What the distribution ships, without touching the database: the ordered list of files."""
-    for path in sorted(MIGRATIONS.glob("*.sql")):
+async def _status(schema: str) -> int:
+    """What the DATABASE has, which is the question the verb's name asks — not what the disk has."""
+    dsn = load_settings().database_url
+    pool = await create_pool(dsn, schema=schema)
+    try:
+        behind = set(await migrations_behind(pool))
+    finally:
+        await pool.close()
+    print(AT.format(database=dsn.split("@")[-1], schema=schema))
+    for path in every():
+        mark = "waiting" if path.name.endswith(POST_DEPLOY) else "applied"
+        print(f"{'behind ' if path.name in behind else mark} {path.name}")
+    return 0
+
+
+def _plan(post: bool) -> int:
+    """What a run of this kind WOULD apply, touching no database at all."""
+    for path in ordered(post=post):
         print(path.name)
     return 0

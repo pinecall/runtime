@@ -3,6 +3,7 @@
 import pytest
 
 from pinecall.cli import build_parser, main
+from pinecall.log.store.migrating import POST_DEPLOY
 from pinecall.log.store.postgres import MIGRATIONS
 
 pytestmark = pytest.mark.unit
@@ -19,9 +20,23 @@ def test_an_unknown_verb_is_a_usage_error_today() -> None:
     assert refused.value.code == 2
 
 
-def test_status_lists_the_files_the_distribution_ships(capsys: pytest.CaptureFixture[str]) -> None:
-    """No database is touched: a person can read what would run before running it."""
-    assert main(["migrate", "status"]) == 0
+def test_plan_lists_what_would_run_and_touches_no_database(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`status` asks the DATABASE; `plan` is the one that answers off the disk alone."""
+    assert main(["migrate", "plan"]) == 0
+
     printed = capsys.readouterr().out.split()
-    assert printed == sorted(path.name for path in MIGRATIONS.glob("*.sql"))
+    startup = sorted(p.name for p in MIGRATIONS.glob("*.sql") if not p.name.endswith(POST_DEPLOY))
+    assert printed == startup
     assert printed, "the distribution ships at least the table"
+
+
+def test_plan_post_lists_the_ones_a_deploy_does_not_wait_for(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """They are named and never run at startup, so `--post` is how a person sees them at all."""
+    assert main(["migrate", "plan", "--post"]) == 0
+
+    printed = capsys.readouterr().out.split()
+    assert all(name.endswith(POST_DEPLOY) for name in printed)

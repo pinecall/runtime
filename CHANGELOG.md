@@ -7,6 +7,15 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **The migrations got a guard.** `schema_migrations` keeps a **sha256** and refuses a checkout
+  whose applied file changed: the rule against editing one is now a gate, and it is the only thing
+  that catches two databases silently disagreeing. Every run takes an **advisory lock** first,
+  sets a **5 s statement and 1 s lock timeout** per migration, and **says which database** it is
+  talking to; `migrate status` asks the database rather than listing the disk, `migrate plan`
+  touches nothing, and a `.post.sql` never runs at startup. `migrations.lock` names the last
+  migration that landed — bumping it makes two branches adding `0022` conflict in git, and it is
+  the baseline for **squawk**, which gates every unlanded migration in `scripts/lint`. And
+  `tests/migrations.py` builds a schema as a box HAD it, with rows, so 0021 is proven not hoped.
 - **`GET /v1/whoami` carries the org's `slug`** beside its id: `org` is what doors take, `slug` is
   the word its people read, and `pinecall login` was printing the id at them.
 - **A terminal is signed in from a browser.** `pinecall login` holds no key and the person at it
@@ -162,30 +171,27 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `POST /v1/agents/{slug}/memory/extraction` takes cases — a call already written down, plus what
   memory already holds — runs that very extraction per case on the org's own model and keys, and
   asks four questions of what came back, all by code: every category named got a fact (the words
-  are the class's own `memory.remember`, so a
-  golden that names one it never declared is refused), none went under a `forget` category, no
-  fact's TEXT carries a value the call showed must not survive (`never_says`, matched on the folded
-  words and on the digits alone), and exactly the held facts the call contradicted were superseded
-  — the mirror included, which is what catches a model that replaces whatever it touches. A case
-  may also PLANT sentences: planting one is the assertion that admission refuses it.
-  `memory/goldens.py`, `api/extraction.py`; `memory/extraction.py` offers `answered()` beside
-  `extracted()`.
+  are the class's own `memory.remember`), none went under a `forget` category, no fact's TEXT
+  carries a value the call showed must not survive (`never_says`, matched on the folded words and
+  on the digits alone), and exactly the held facts the call contradicted were superseded — the
+  mirror included, which catches a model that replaces whatever it touches. A case may also PLANT
+  sentences: planting one is the assertion that admission refuses it. `memory/goldens.py`,
+  `api/extraction.py`.
 - **Memory can be held to a golden**, the way a base already can, and it is the only thing that
   says `recall` returned the wrong facts: a ring watches a conversation and only ever sees the
   facts memory handed over, never the better one it missed. `POST /v1/contacts/memory/eval` takes
   questions that bring their own facts — `{holds, asks, expects}` — writes each question's facts to
   a scratch contact of the org, recalls, deletes them, and answers `recall_at_k` and `ndcg_at_10`
   by code with no model, plus every question it did not answer whole. Writing them is what makes
-  the figures the real ranking: the same two index scans, the same fusion, the same embedder a call
-  uses. A fact answers when what came back CONTAINS what was expected, folded for case, accents and
-  whitespace, because a fact is a sentence a model wrote and a golden names the substance.
-  `memory/scoring.py`; the arithmetic behind both figures is now one home, `types/goldens.py`,
-  shared with the base's golden and generalised once so a question may expect several facts.
+  the figures the real ranking: the same two index scans, the same fusion, the same embedder a
+  call uses. A fact answers when what came back CONTAINS what was expected, folded for case and
+  accents, because a fact is a sentence a model wrote and a golden names the substance.
+  `memory/scoring.py`; the arithmetic behind both figures lives once in `types/goldens.py`.
   `Memory.hold` is the write with no model in it. `docs/retrieval/spec.md` has the contract.
 - `Golden.memory`: a ring-1 golden may open its call already knowing things about the caller.
   `evals/remembering.py` answers those facts to the `recall` tool for that call and nothing else
-  moves — the tool call, the result and the request are the real ones, the memory table is neither
-  read nor written, and `remember` at hang-up is still the gateway's so a run writes no fact about
+  moves — the tool call, the result and the request are real, the memory table is neither read nor
+  written, and `remember` at hang-up is still the gateway's so a run writes no fact about
   a caller nobody called as.
 - The runtime, from zero: one distribution, two processes (gateway, worker) on livekit-agents 1.8;
   the log with a seq born under the database; orgs, hashed API keys with scopes, quotas, usage,
@@ -206,30 +212,25 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - The seam memory and retrieval land on: **two declared tools the platform runs**, `recall` and
   `search`. The class's declaration brings each one — `memory` brings `recall`, `docs` brings
   `search` — they stand in the request's `tools` array beside the app's own, and their answers
-  reach the model as `tool_result` blocks, JSON-encoded. With `docs.mode = "retrieved"` (the
-  default) and whenever `memory` is declared, the session runs the lookup itself and puts a real
-  `tool_use` / `tool_result` pair into the request — on a spoken call started while the caller is
-  still talking, under `PINECALL_VOICE_LOOKUP_BUDGET_MS` (250), and on a written one at turn end
-  under `PINECALL_TEXT_LOOKUP_BUDGET_MS` (3000); with `docs.mode = "tool"` the model calls
-  `search` itself. At hang-up the call
-  is remembered under `PINECALL_REMEMBER_BUDGET_S` (8.0). `AgentConfig` declares `knowledge`
-  (`{path, text}`, the file's own words in a static block), `docs` and `memory`; the worker asks
-  `POST /v1/calls/{call}/lookup` and `/remember`; TEI is the embedder (`providers/embed/tei.py`,
-  refused by name when it is not 1024 wide). A lookup that did not run is an `error` entry
-  (`recall_skipped`, `search_skipped`, `remember_failed`), recoverable, and the call goes on.
+  reach the model as `tool_result` blocks. With `docs.mode = "retrieved"` (the default) and
+  whenever `memory` is declared, the session runs the lookup itself and puts a real `tool_use` /
+  `tool_result` pair into the request — on a spoken call while the caller is still talking, under
+  `PINECALL_VOICE_LOOKUP_BUDGET_MS` (250), and on a written one at turn end under
+  `PINECALL_TEXT_LOOKUP_BUDGET_MS` (3000); with `docs.mode = "tool"` the model calls `search`
+  itself. At hang-up the call is remembered under `PINECALL_REMEMBER_BUDGET_S` (8.0).
+  `AgentConfig` declares `knowledge`, `docs` and `memory`; the worker asks
+  `POST /v1/calls/{call}/lookup` and `/remember`. A lookup that did not run is a recoverable
+  `error` entry (`recall_skipped`, `search_skipped`, `remember_failed`), and the call goes on.
 - **A spoken call's lookups start while the caller is still talking.** `recall` and `search` ran
   when the turn ended, inside the caller's silence, and on a live two-turn call every one of them
-  was skipped: the same door that answers in 111 ms with nothing else happening took up to 1085 ms
-  against the reply the session was already generating, and 250 ms of a telephone line is all a turn
-  can spend. Now the first interim transcript carrying four words starts the run
-  (`session/voice/events.py` → `TurnLookups.heard_so_far`), one per turn, asked with the caller's
-  words so far; the end of the turn collects it — nothing to wait for when it is back, its tail
-  under budget when it is not, the whole run when the turn was too short to have started one. The
-  budget is now per tool and per channel: `PINECALL_LOOKUP_BUDGET_MS` is gone, replaced by
-  `PINECALL_VOICE_LOOKUP_BUDGET_MS` (250, a tail on a line somebody is listening to) and
-  `PINECALL_TEXT_LOOKUP_BUDGET_MS` (3000, a whole lookup nobody hears), and a `recall` that answered
-  is used beside a `search` that did not. Measured at 250 ms over six two-turn calls each way, the
-  caller waited 125–251 ms per turn before and 0 ms on five turns of six after.
+  was skipped: the same door that answers in 111 ms idle took up to 1085 ms against the reply the
+  session was already generating, and 250 ms of a telephone line is all a turn can spend. Now the
+  first interim transcript carrying four words starts the run (`TurnLookups.heard_so_far`), one
+  per turn; the end of the turn collects it — nothing to wait for when it is back, its tail under
+  budget when it is not. The budget is per tool and per channel now:
+  `PINECALL_LOOKUP_BUDGET_MS` is gone, replaced by `PINECALL_VOICE_LOOKUP_BUDGET_MS` (250) and
+  `PINECALL_TEXT_LOOKUP_BUDGET_MS` (3000). Measured over six two-turn calls each way, the caller
+  waited 125–251 ms per turn before and 0 ms on five turns of six after.
   `docs/decisions/retrieval.md`.
 - Memory itself: `memory/` and `0008_memory.sql`. `PgvectorMemory` keeps a contact's facts in
   `contact_memories`, bi-temporally — an update is a new row that supersedes the old one, an
@@ -339,16 +340,15 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   per document — and `PgKnowledge.put` groups the pieces by FILE, so a chunk is embedded while the
   model sees its neighbours instead of alone.
   `providers/embed/perplexity.py` is one client for both of Perplexity's models: a name carrying
-  `-context-` goes to `POST /contextualizedembeddings` (a document at a time, in windows of
-  24 000 estimated tokens against the endpoint's 32 768), anything else to `POST /embeddings`. The
-  encoding is named in every request and belongs to the vendor: Perplexity takes `base64_int8` and
-  refuses `float`, OpenRouter's mirror answers floats. All three replies are unnormalised, so every
-  vector is stored at unit length. OpenRouter is the same class with another base URL and model.
+  `-context-` goes to `POST /contextualizedembeddings` (a document at a time, windowed), anything
+  else to `POST /embeddings`. The encoding belongs to the vendor: Perplexity takes `base64_int8`
+  and refuses `float`, OpenRouter's mirror answers floats. All three replies are unnormalised, so
+  every vector is stored at unit length.
   `EMBED_PROVIDER` (`tei` · `perplexity` · `openrouter`, default `tei`), `EMBED_MODEL`,
-  `EMBED_BASE_URL` and `PERPLEXITY_API_KEY` / `OPENROUTER_API_KEY`; `embedder_for(settings, http)`
-  is the one place a provider name is switched on, and the doctor's `embedder` line says which
-  provider and model this box embeds with. TEI's CPU image has no arm64 build, so on an Apple
-  Silicon laptop this is the only way to retrieve at all. `docs/decisions/retrieval.md`.
+  `EMBED_BASE_URL` and the two keys; `embedder_for(settings, http)` is the one place a provider
+  name is switched on, and the doctor says which this box embeds with. TEI's CPU image has no
+  arm64 build, so on an Apple Silicon laptop this is the only way to retrieve at all.
+  `docs/decisions/retrieval.md`.
 - A vector is only comparable to vectors of the same model, and both tables now say so out loud:
   `knowledge.search` refuses a base another model pushed (`base clinica-norte was pushed with
   pplx-embed-context-v1-0.6b; this gateway embeds with BAAI/bge-m3: push it again`), and

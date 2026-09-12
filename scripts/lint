@@ -10,3 +10,5 @@ uv run ruff check .
 uv run pyright
 uv run pyright --project infra/tools
 uv run mypy
+# Last, because it is about what a migration does to a box and not about whether the tree parses.
+scripts/lint-migrations
