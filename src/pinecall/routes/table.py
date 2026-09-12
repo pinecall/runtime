@@ -18,23 +18,28 @@ NOT_A_NUMBER = "an operator's route answers at a number, and the {channel} widge
 # answers in, so moving a number — to another agent, or to the other world — is an update of one
 # row, which is what makes `routes add` a change with no deploy behind it.
 OF_ORG = """
-SELECT org, number, agent, channel, env
+SELECT org, number, agent, channel, env, managed
   FROM routes
  WHERE org = $1 AND env = $2
  ORDER BY added_at, number
 """
 
 PUT = """
-INSERT INTO routes (org, number, agent, channel, env) VALUES ($1, $2, $3, $4, $5)
+INSERT INTO routes (org, number, agent, channel, env, managed) VALUES ($1, $2, $3, $4, $5, $6)
      ON CONFLICT (org, number)
-     DO UPDATE SET agent = excluded.agent, channel = excluded.channel, env = excluded.env
+     DO UPDATE SET agent = excluded.agent, channel = excluded.channel, env = excluded.env,
+                   managed = excluded.managed
 """
+
+# How many numbers the box bought for the org: the stock the `numbers` quota caps, a count of
+# rows and never a counter.
+MANAGED = "SELECT count(*) FROM routes WHERE org = $1 AND managed"
 
 # The door, read from the other side: an inbound message knows the number it arrived at and
 # nothing about whose it is. (org, number) is the primary key, so a number that two orgs typed is
 # two rows — the oldest answers, and answering.py's own warning names both.
 AT = """
-SELECT org, number, agent, channel, env
+SELECT org, number, agent, channel, env, managed
   FROM routes
  WHERE channel = $1 AND number = $2
  ORDER BY added_at
@@ -65,6 +70,10 @@ class Routes(Protocol):
         """Forget the number. False when no row answered to it, so a typo is never silence."""
         ...
 
+    async def managed_by(self, org: str) -> int:
+        """How many numbers the box bought for this org: what the `numbers` quota is measured on."""
+        ...
+
 
 class MemoryRoutes:
     """The table of a process with no database: a dev clone routes, and forgets when it exits."""
@@ -92,6 +101,10 @@ class MemoryRoutes:
         """Whether there was a row to forget."""
         return self._rows.pop((org, number), None) is not None
 
+    async def managed_by(self, org: str) -> int:
+        """A count of the rows the box bought, across both worlds."""
+        return sum(1 for route in self._rows.values() if route.org == org and route.managed)
+
 
 class PostgresRoutes:
     """The table in Postgres, read on every request: a route added now answers the next call."""
@@ -112,12 +125,19 @@ class PostgresRoutes:
     async def put(self, route: Route) -> None:
         """Insert, or move the number: the conflict target is the door, so nothing is duplicated."""
         org, number = door_of(route)
-        await self._pool.execute(PUT, org, number, route.agent, route.channel, route.env)
+        await self._pool.execute(
+            PUT, org, number, route.agent, route.channel, route.env, route.managed
+        )
 
     async def remove(self, org: str, number: str) -> bool:
         """The command tag says whether a row went, so a number nobody typed is told apart."""
         tag = await self._pool.execute(REMOVE, org, number)
         return tag.strip() != DELETED_NOTHING
+
+    async def managed_by(self, org: str) -> int:
+        """One count over the rows the box bought."""
+        row = await self._pool.fetchrow(MANAGED, org)
+        return 0 if row is None else int(row["count"])
 
 
 # A number belongs to one org in practice — an operator typed it because Meta or the carrier gave
@@ -151,6 +171,7 @@ def route_of_row(row: Any) -> Route:
         channel=cast(Channel, str(row["channel"])),
         number=str(row["number"]),
         env=an_env(str(row["env"])),
+        managed=bool(row["managed"]),
     )
 
 

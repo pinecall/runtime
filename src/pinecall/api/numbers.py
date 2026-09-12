@@ -1,4 +1,6 @@
-"""The org's numbers: its carrier, what that account owns, one number imported, one let go."""
+"""The org's numbers: its carrier, what that account owns, one imported, one let go."""
+
+# A number the box BUYS for the org is api/managed.py, which reuses the trunk steps written here.
 
 from __future__ import annotations
 
@@ -17,8 +19,15 @@ from pinecall.api._deps import (
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.auth.keys import KeyRecord
 from pinecall.routes import answering
+from pinecall.routes.table import Routes
 from pinecall.routes.trunks import NO_LIVEKIT, Trunks
-from pinecall.routes.twilio import TWILIO_SIGNALLING, TwilioApi, TwilioRefused, origination_uri
+from pinecall.routes.twilio import (
+    TWILIO_SIGNALLING,
+    TwilioApi,
+    TwilioNumber,
+    TwilioRefused,
+    origination_uri,
+)
 from pinecall.types import (
     Carrier,
     DeclarationRefused,
@@ -118,7 +127,7 @@ async def numbers(
 ) -> list[dict[str, Any]]:
     """Every door the org answers in the key's world, and whether an operator typed it."""
     answered = await answering.answered(key.org, key.env, registry, table)
-    return [{"route": _as_json(door.route), "source": door.source} for door in answered]
+    return [{"route": as_json(door.route), "source": door.source} for door in answered]
 
 
 @router.get("/v1/numbers/available")
@@ -155,7 +164,7 @@ async def imported(
     dry_run: bool = DRY_RUN,
 ) -> dict[str, Any]:
     """One number into this org's world: the carrier's trunk, the SFU's trunk, the route."""
-    route = _a_route(key, said)
+    route = a_route(key, said.number, said.agent, said.channel)
     carrier = await carriers.of(key.org)
     if carrier is None:
         raise HTTPException(404, NO_CARRIER)
@@ -166,16 +175,28 @@ async def imported(
     steps: list[str] = []
     try:
         if isinstance(carrier.account, TwilioAccount):
-            await _on_twilio(
-                twilio(carrier.account), carrier, route, settings.domain, steps, dry_run
-            )
-        await _on_the_sfu(trunks, carrier, route, steps, dry_run)
+            api = twilio(carrier.account)
+            owned = {one.number: one for one in await api.numbers()}
+            if route.number not in owned:
+                raise HTTPException(
+                    404,
+                    NOT_ON_ACCOUNT.format(number=route.number, account=carrier.account.account_sid),
+                )
+            name = CARRIER_TRUNK.format(org=carrier.org)
+            account = carrier.account.account_sid
+            await trunked(api, name, account, route, owned, settings.domain, steps, dry_run)
+        await on_the_sfu(trunks, carrier, route, steps, dry_run)
     except TwilioRefused as refused:
         raise HTTPException(502, str(refused)) from refused
+    return await routed(route, steps, table, dry_run)
+
+
+async def routed(route: Route, steps: list[str], table: Routes, dry_run: bool) -> dict[str, Any]:
+    """The last step of an import and of a purchase: the route row, and the answer with the plan."""
     steps.append(f"route    {route.number} {route.channel} → {route.agent} in {route.env}")
     if not dry_run:
         await table.put(route)
-    return {"route": _as_json(route), "steps": steps, "dry_run": dry_run}
+    return {"route": as_json(route), "steps": steps, "dry_run": dry_run}
 
 
 @router.delete("/v1/numbers/{number}", status_code=NO_BODY)
@@ -192,21 +213,20 @@ async def let_go(number: str, key: NumbersKeyDep, trunks: TrunksDep, table: Rout
 
 # Each step is looked up before it is written, and the plan says which it found standing: a
 # second run of an import that was interrupted must create nothing twice. Nothing is deleted.
-async def _on_twilio(
-    api: TwilioApi, carrier: Carrier, route: Route, domain: str, steps: list[str], dry: bool
+async def trunked(
+    api: TwilioApi,
+    name: str,
+    account: str,
+    route: Route,
+    owned: dict[str, TwilioNumber],
+    domain: str,
+    steps: list[str],
+    dry: bool,
 ) -> None:
-    """The org's trunk on its account, pointed at the box, with the number attached."""
-    account = carrier.account
-    assert isinstance(account, TwilioAccount)
-    owned = {one.number: one for one in await api.numbers()}
-    if route.number not in owned:
-        raise HTTPException(
-            404, NOT_ON_ACCOUNT.format(number=route.number, account=account.account_sid)
-        )
-    name = CARRIER_TRUNK.format(org=carrier.org)
+    """The trunk named so on the account, pointed at the box, with the number attached to it."""
     trunk = await api.trunk_named(name)
     if trunk is None:
-        steps.append(f"trunk    {name} — created on account {account.account_sid}")
+        steps.append(f"trunk    {name} — created on account {account}")
         if not dry:
             trunk = await api.create_trunk(name)
     else:
@@ -223,11 +243,11 @@ async def _on_twilio(
         steps.append(f"number   {route.number} — on the trunk already")
     else:
         steps.append(f"number   {route.number} — attached to the trunk")
-        if not dry and trunk is not None:
+        if not dry and trunk is not None and route.number in owned:
             await api.attached(trunk.sid, owned[route.number].sid)
 
 
-async def _on_the_sfu(
+async def on_the_sfu(
     trunks: Trunks, carrier: Carrier, route: Route, steps: list[str], dry: bool
 ) -> None:
     """The org's inbound trunk on LiveKit with the number admitted, and its rule."""
@@ -240,7 +260,7 @@ async def _on_the_sfu(
         f"livekit  inbound trunk pinecall-{carrier.org}: +{route.number}, from {len(allowed)} "
         f"networks{' with SIP auth' if auth else ''}; one room per caller"
     )
-    # A dialled route always has one: _a_route refused a channel without a number already.
+    # A dialled route always has one: a_route refused a channel without a number already.
     if not dry and route.number is not None:
         await trunks.admitted(carrier.org, route.number, allowed, auth)
 
@@ -270,20 +290,22 @@ def _a_carrier(org: str, said: WantedCarrier) -> Carrier:
         raise HTTPException(400, str(refused)) from refused
 
 
-def _a_route(key: KeyRecord, said: WantedNumber) -> Route:
-    """The route the import ends in, refused before any account is touched when it is not one."""
-    if said.channel not in CHANNELS_WITH_A_NUMBER:
-        raise HTTPException(400, NOT_A_NUMBER_CHANNEL.format(channel=said.channel))
-    channel: Channel = "phone" if said.channel == "phone" else "whatsapp"
+def a_route(
+    key: KeyRecord, number: str, agent: str, channel: str, *, managed: bool = False
+) -> Route:
+    """The route an import or a purchase ends in, refused before any account is touched."""
+    if channel not in CHANNELS_WITH_A_NUMBER:
+        raise HTTPException(400, NOT_A_NUMBER_CHANNEL.format(channel=channel))
+    on: Channel = "phone" if channel == "phone" else "whatsapp"
     try:
         return Route(
-            org=key.org, agent=said.agent, channel=channel, number=said.number, env=key.env
+            org=key.org, agent=agent, channel=on, number=number, env=key.env, managed=managed
         )
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused
 
 
-def _as_json(route: Route) -> dict[str, Any]:
+def as_json(route: Route) -> dict[str, Any]:
     """One route as the wire says it: every field of the domain's own Route."""
     return {
         "org": route.org,
@@ -292,4 +314,5 @@ def _as_json(route: Route) -> dict[str, Any]:
         "number": route.number,
         "label": route.label,
         "env": route.env,
+        "managed": route.managed,
     }

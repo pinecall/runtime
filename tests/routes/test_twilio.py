@@ -9,6 +9,7 @@ import httpx
 import pytest
 
 from pinecall.routes.twilio import (
+    ACCOUNTS_API,
     TRUNKING_API,
     TWILIO_SIGNALLING,
     HttpTwilio,
@@ -47,7 +48,14 @@ class _Twilio:
             if "/OriginationUrls" in url:
                 self.origination = [{"sid": "OU_1", "sip_url": form["SipUrl"]}]
                 return httpx.Response(201, json={"sid": "OU_1", "sip_url": form["SipUrl"]})
+            if url.endswith("/IncomingPhoneNumbers.json"):
+                return httpx.Response(
+                    201, json={"sid": "PN_9", "phone_number": form["PhoneNumber"]}
+                )
             return httpx.Response(201, json={"sid": "PN_1"})
+        if "/AvailablePhoneNumbers/US/Local.json" in url:
+            for_sale = [{"phone_number": "+14175550100"}] if "AreaCode=417" in url else []
+            return httpx.Response(200, json={"available_phone_numbers": for_sale})
         if url.endswith(f"/Accounts/{A_SID}.json"):
             return httpx.Response(200, json={"friendly_name": "Clínica Norte"})
         if "IncomingPhoneNumbers" in url:
@@ -115,6 +123,19 @@ async def test_a_number_is_attached_by_its_sid() -> None:
     assert fake.writes[-1] == (
         f"{TRUNKING_API}/Trunks/TK_1/PhoneNumbers",
         {"PhoneNumberSid": "PN_1"},
+    )
+
+
+async def test_shopping_asks_for_one_local_voice_number_and_buying_is_one_post() -> None:
+    fake = _Twilio()
+    twilio = HttpTwilio(a_client(fake), ACCOUNT)
+    assert await twilio.for_sale("us", "417") == "+14175550100"
+    assert await twilio.for_sale("US", "999") is None
+    bought = await twilio.bought("+14175550100")
+    assert (bought.sid, bought.number) == ("PN_9", "+14175550100")
+    assert fake.writes[-1] == (
+        f"{ACCOUNTS_API}/Accounts/{A_SID}/IncomingPhoneNumbers.json",
+        {"PhoneNumber": "+14175550100"},
     )
 
 

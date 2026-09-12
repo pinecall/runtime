@@ -185,7 +185,7 @@ the database. A runtime without one cannot keep somebody else's secret and says 
 ```bash
 pinecall-runtime orgs quota clinica --minutes 2000 --messages 5000 --agents 5 \
                                     --concurrent-calls 10 --memory-facts 50000 \
-                                    --knowledge-chunks 20000
+                                    --knowledge-chunks 20000 --numbers 1
 ```
 
 The whole set is replaced at once, and a limit left out is **no limit**. The meter is a fold over

@@ -73,6 +73,11 @@ class Admission:
         quotas = await self._orgs.quotas_of(org)
         await self._refuse_past(org, agent, quotas, "agents", holding)
 
+    async def a_managed_number(self, org: str, agent: str, bought: int) -> None:
+        """May the box buy one more number for this org, with `bought` on its account already."""
+        quotas = await self._orgs.quotas_of(org)
+        await self._refuse_past(org, agent, quotas, "numbers", bought)
+
     # A hang-up refuses nobody: the call is over and nothing is waiting on an answer. So this one
     # says no by answering False, and the entry it writes is the whole of the refusal — the
     # gateway then writes what memory did (nothing) beside it, on the call's own log.

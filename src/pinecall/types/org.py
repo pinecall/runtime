@@ -20,7 +20,13 @@ _A_SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 # STOCK — how much of a table the org may keep standing — which is how a plan switches memory and
 # retrieval off without the runtime learning what a plan is. docs/decisions/orgs.md.
 type QuotaName = Literal[
-    "minutes", "messages", "agents", "concurrent_calls", "memory_facts", "knowledge_chunks"
+    "minutes",
+    "messages",
+    "agents",
+    "concurrent_calls",
+    "memory_facts",
+    "knowledge_chunks",
+    "numbers",
 ]
 QUOTAS: tuple[QuotaName, ...] = (
     "minutes",
@@ -29,6 +35,9 @@ QUOTAS: tuple[QuotaName, ...] = (
     "concurrent_calls",
     "memory_facts",
     "knowledge_chunks",
+    # The numbers bought for the org on the box's own carrier account, a STOCK: the ones a tenant
+    # imports from its own account are its own and count against nothing here.
+    "numbers",
 )
 
 
@@ -61,6 +70,7 @@ class Quotas:
     concurrent_calls: int | None = None
     memory_facts: int | None = None
     knowledge_chunks: int | None = None
+    numbers: int | None = None
 
     def __post_init__(self) -> None:
         for name in QUOTAS:

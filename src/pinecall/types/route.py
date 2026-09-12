@@ -23,6 +23,9 @@ class Route:
     # Which world answers at this door: the one the key that declared or typed it opens. A door
     # is one agent's in one world; the registry refuses the same number to the other world.
     env: Env = PRODUCTION
+    # True for a number the box bought for the org on its own carrier account: the plan caps
+    # those (`numbers`); a number the tenant imported from its own account is its own.
+    managed: bool = False
 
     def __post_init__(self) -> None:
         if not self.org or not self.agent:

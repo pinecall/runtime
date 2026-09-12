@@ -12,23 +12,22 @@ from twilio_rest import ACCOUNTS_API, TRUNKING_API, Twilio, TwilioRefused
 # The name the dispatch rule asks for is the name the worker joins the media plane under, so it is
 # imported from the package both processes hold rather than spelled again here: a rule naming a
 # worker nobody registered rings forever.
+from pinecall.routes.twilio import BOX_TRUNK as TRUNK_NAME
+from pinecall.routes.twilio import ORIGINATION_NAME, origination_uri
 from pinecall.types.dispatch import WORKER_NAME
 
-TRUNK_NAME = "pinecall"
-ORIGINATION_NAME = "pinecall-box"
 LIVEKIT_TRUNK_NAME = "pinecall-inbound"
 LIVEKIT_RULE_NAME = "pinecall-one-room-per-caller"
 
 # One room per caller, named so a person reading the SFU's room list knows what they are looking at.
 ROOM_PREFIX = "call-"
 
-# The port and the transport are written down rather than left to the carrier to discover: the box
-# publishes 5060 for UDP and TCP (`infra/box/containers/pinecall-sip.container`), livekit-sip
-# listens there and nowhere else (`infra/box/sip.yaml`, `sip_port: 5060`), there is no TLS
-# listener on 5061, and the fence opens
+# The port and the transport are written down (routes/twilio.py, `origination_uri`) rather than
+# left to the carrier to discover: the box publishes 5060 for UDP and TCP
+# (`infra/box/containers/pinecall-sip.container`), livekit-sip listens there and nowhere else
+# (`infra/box/sip.yaml`, `sip_port: 5060`), there is no TLS listener on 5061, and the fence opens
 # exactly that pair. A bare hostname sends Twilio looking for NAPTR and SRV records the box does
 # not publish, and what comes back from that is a carrier's default, not ours.
-SIP_PORT = 5060
 
 # What the operator is told when the trunk is already there. A second trunk with the same purpose
 # is how a number ends up attached to the one nobody is watching, and a delete-and-recreate loop is
@@ -311,11 +310,6 @@ def origination_form(sip_host: str) -> dict[str, str]:
         "Priority": "10",
         "Enabled": "true",
     }
-
-
-def origination_uri(sip_host: str) -> str:
-    """Where the carrier sends the INVITE: the box's own name, its port, and UDP."""
-    return f"sip:{sip_host}:{SIP_PORT};transport=udp"
 
 
 def parse_arguments(argv: list[str]) -> argparse.Namespace:

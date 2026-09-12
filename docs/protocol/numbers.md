@@ -52,7 +52,31 @@ The route removed and the number off the org's SFU trunk. The carrier account is
 number stays on the tenant's trunk, theirs to reattach or move in their own console. `404` for a
 number this org never imported in this world.
 
+## Buying one — `POST /v1/numbers/buy {country, area_code?, agent, channel?}`
+
+For an org with no carrier of its own: a number bought on the **box's** Twilio account and billed
+to the box, then wired exactly as an import is. The gateway needs `TWILIO_ACCOUNT_SID` and
+`TWILIO_API_SECRET` (an API key's secret, with `TWILIO_API_KEY`; or the auth token) — the same
+three names `infra/tools/twilio_trunk.py` reads — or the door answers `503` and says to bring a
+carrier and import instead. The steps, in the answer's `steps`:
+
+1. **buy**: Twilio's own search for one local, voice-capable number in that ISO country and area
+   code (`404` when it has none there); a dry run names the number it found and pays for nothing.
+2. **the box's trunk**: the trunk named `pinecall` on the box's account — the one `twilio_trunk.py`
+   wires for an operator — created once if the box has none, its origination URI the box, the
+   number attached.
+3. **the SFU's trunk** and 4. **the route**, as an import: the org's own LiveKit inbound trunk
+   `pinecall-<org>` admits the number from Twilio's networks, and the route is written with
+   `managed: true`.
+
+What the box buys is a **stock the plan caps**: the `numbers` quota (`PUT /v1/ops/orgs/{org}/quotas`)
+is measured on the org's managed routes alone — a number the tenant imported from its own account
+counts against nothing — and the door answers `429 org <org> has used 1 of its 1 numbers:
+credits.exhausted` before Twilio is asked, `0` meaning the plan includes none. Letting a managed
+number go (`DELETE /v1/numbers/{number}`) makes room again; the number itself stays on the box's
+account, the operator's to release there.
+
 ## What this does not do
 
-Buy a number. `infra/tools/twilio_trunk.py` still wires the box's own trunk for an operator, one
-number at a time, and says so before every write.
+Release a bought number from the box's Twilio account: that is money and a decision, and it is
+made in Twilio's console by the operator.

@@ -37,6 +37,15 @@ TIMEOUT_S = 30.0
 SIP_PORT = 5060
 ORIGINATION_NAME = "pinecall-box"
 
+# The trunk on the BOX's own account, the one infra/tools/twilio_trunk.py wires for an operator
+# and the one a number the box buys for a tenant is attached to. A tenant's trunk on its own
+# account is `pinecall-<org>` (api/numbers.py); this one is the box's, and there is one.
+BOX_TRUNK = "pinecall"
+
+# Twilio names an ISO country by two letters and looks for a local number a page at a time; one
+# is what a plan buys, so one is what is asked for.
+A_COUNTRY = 2
+
 
 class TwilioRefused(PinecallError):
     """Twilio answered anything but 2xx. The message carries what it said, for the door."""
@@ -89,6 +98,14 @@ class TwilioApi(Protocol):
 
     async def attached(self, trunk_sid: str, number_sid: str) -> None:
         """One number onto the trunk: from here the trunk owns its calls."""
+        ...
+
+    async def for_sale(self, country: str, area_code: str | None) -> str | None:
+        """One local, voice-capable number the account could buy there, E.164 — or none."""
+        ...
+
+    async def bought(self, number: str) -> TwilioNumber:
+        """The number bought onto the account: this is the write that costs money."""
         ...
 
 
@@ -168,6 +185,26 @@ class HttpTwilio:
         """The number onto the trunk. Its voice URL stops mattering: the trunk owns the call."""
         await self._post(
             f"{TRUNKING_API}/Trunks/{trunk_sid}/PhoneNumbers", {"PhoneNumberSid": number_sid}
+        )
+
+    async def for_sale(self, country: str, area_code: str | None) -> str | None:
+        """Twilio's own search, one result: a number nobody holds, in that country and area."""
+        path = f"{ACCOUNTS_API}/Accounts/{self._account.account_sid}/AvailablePhoneNumbers"
+        query = "VoiceEnabled=true&PageSize=1"
+        if area_code:
+            query += f"&AreaCode={area_code}"
+        said = await self._get(f"{path}/{country[:A_COUNTRY].upper()}/Local.json?{query}")
+        rows: list[dict[str, Any]] = list(said.get("available_phone_numbers", []))
+        return str(rows[0]["phone_number"]) if rows else None
+
+    async def bought(self, number: str) -> TwilioNumber:
+        """One POST to IncomingPhoneNumbers: the number is the account's from here."""
+        path = f"{ACCOUNTS_API}/Accounts/{self._account.account_sid}/IncomingPhoneNumbers.json"
+        row = await self._post(path, {"PhoneNumber": number})
+        return TwilioNumber(
+            sid=str(row["sid"]),
+            number=str(row["phone_number"]),
+            name=str(row.get("friendly_name") or row["phone_number"]),
         )
 
     async def _a_trunk(self, row: dict[str, Any]) -> Trunk:

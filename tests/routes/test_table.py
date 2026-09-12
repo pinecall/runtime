@@ -29,6 +29,16 @@ async def test_removing_says_whether_there_was_a_row_to_remove() -> None:
     assert await table.remove(ORG, NUMBER) is False
 
 
+async def test_the_numbers_the_box_bought_are_counted_apart_from_the_imported() -> None:
+    """What the `numbers` quota is measured on: the managed rows, in both worlds, and no other."""
+    bought = Route(
+        org=ORG, agent="tienda-sur", channel="phone", number="+14175550100", managed=True
+    )
+    table = MemoryRoutes([TYPED, bought])
+    assert await table.managed_by(ORG) == 1
+    assert await table.managed_by("somebody-else") == 0
+
+
 async def test_another_fleets_routes_are_not_this_fleets() -> None:
     """The org is the first half of the key, in memory exactly as in the database."""
     table = MemoryRoutes([TYPED])

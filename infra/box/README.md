@@ -1,14 +1,12 @@
 # The box
 
-The same five services as the dev stack (`../README.md`), on a machine a stranger can
-telephone — and declared rather than scripted. Four of the five are on every box; the fifth,
-the embedder, is a choice, and "The embedder" below is where it is made.
+The same five services as the dev stack (`../README.md`), on a machine a stranger can telephone,
+declared rather than scripted. Four are on every box; the fifth, the embedder, is a choice ("The embedder").
 
 This directory is a box **declared**: every file in it is one thing systemd, podman, Caddy or
 nftables reads, and there is no script. A fresh machine on any provider — a cloud that takes
 cloud-init, which is all of them, or a bare one through a NoCloud seed — boots from
-`cloud-init.yaml`, and everything after that arrives with `make deploy` and is made by systemd
-from the files in this directory. Nothing here knows which cloud it is on.
+`cloud-init.yaml`; everything after arrives with `make deploy`, made by systemd from these files.
 
 ```
 infra/box/
@@ -211,6 +209,7 @@ environment file. There is no `.env` on the box, and a stolen disk is not a stol
 | `PINECALL_API_KEY` — the org's key the worker knocks with | the worker | `pinecall-worker-key.service`, once |
 | `PINECALL_OPERATOR_KEY` — yours | you, once, with `systemd-creds decrypt` | `pinecall-operator-key.service`, once |
 | the vendors' keys | the gateway and the worker | you: `pinecall-runtime box secret <NAME>` |
+| `TWILIO_ACCOUNT_SID` `TWILIO_API_KEY` `TWILIO_API_SECRET` — the box's own Twilio, for the numbers it buys for a tenant | the gateway | you, the same way; unset, `POST /v1/numbers/buy` says so |
 
 `box secrets` run twice rotates nothing: a credential that is there is kept, and the two key units
 carry a `ConditionPathExists=!` on the file they would make. Rotating one of THOSE is deleting its
@@ -290,9 +289,8 @@ into a credential without a shell in between.
 
 ## Wire a number — the order, and it is ten minutes
 
-This is what was actually run on 2026-09-08 to put **+1 417 674 3169** on `box.pinecall.io`, in
-the sequence it was run. `../../docs/decisions/sip.md` argues why each step is what it is; this is the
-order. Every tool here takes `--dry-run` first.
+What was run on 2026-09-08 to put **+1 417 674 3169** on `box.pinecall.io`, in the order it was
+run; `../../docs/decisions/sip.md` argues why each step is what it is. Every tool takes `--dry-run`.
 
 ```bash
 export TWILIO_ACCOUNT_SID=… TWILIO_API_KEY=… TWILIO_API_SECRET=…   # from your own .env, never ours
@@ -322,11 +320,12 @@ uv run pinecall-runtime routes list
 
 A **second** number on the same trunk is step 3 alone plus two additions: attach it to the trunk
 in the carrier's console, and add it to the inbound trunk's `numbers` (`lk sip inbound update`, or
-the console). `twilio_trunk.py` deliberately does neither — it says the standing trunk is already
-there and stops, because attaching a number to a trunk is a decision and not a re-run.
+the console). `twilio_trunk.py` deliberately does neither: attaching a number is a decision, not a
+re-run. A number the box **buys for a tenant** (`POST /v1/numbers/buy`, the three `TWILIO_*` above)
+the gateway attaches to this trunk and admits on the tenant's own `pinecall-<org>` inbound trunk.
 
-**Another carrier is another set**: edit `carrier_signalling` in `nftables.conf`, deploy,
-and the trunk tool reads the same set — there is no second list to keep in step.
+**Another carrier is another set**: edit `carrier_signalling` in `nftables.conf` and deploy; the
+trunk tool reads the same set, so there is no second list to keep in step.
 
 ## The four fences on 5060, and why there are four
 

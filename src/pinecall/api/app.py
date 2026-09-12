@@ -21,6 +21,7 @@ from pinecall.api import (
     knowledge,
     listen,
     login,
+    managed,
     members,
     numbers,
     orgs,
@@ -244,6 +245,7 @@ for door in (
     login.router,
     floor.router,
     numbers.router,
+    managed.router,
     whoami.router,
     discovery.router,
 ):

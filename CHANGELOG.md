@@ -7,6 +7,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **Numbers the box buys for a tenant.** `POST /v1/numbers/buy {country, area_code?, agent}` finds
+  one local voice number on the box's own Twilio (`TWILIO_ACCOUNT_SID`, `TWILIO_API_KEY`,
+  `TWILIO_API_SECRET`, the names `twilio_trunk.py` already reads; the gateway unit imports them),
+  buys it, attaches it to the box's trunk `pinecall` and wires it as an import does; `?dry_run=true`
+  names the number and pays for nothing. The route carries `managed: true`, and a new quota
+  **`numbers`** (`orgs quota --numbers`, migration `0016`) caps how many the box buys for an org —
+  imported numbers count against nothing. `credits.exhausted` may now name `numbers`.
 - **A tenant's own numbers.** `PUT /v1/carrier` brings the org's Twilio account (verified once) or a
   SIP peer, sealed under the vault key; `GET /v1/numbers/available` lists what the account owns;
   `POST /v1/numbers {number, agent}` imports one — the carrier's trunk `pinecall-<org>` pointed at

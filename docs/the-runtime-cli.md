@@ -99,6 +99,7 @@ pinecall-runtime orgs add <slug> [--name "…"]
 pinecall-runtime orgs rm <org>
 pinecall-runtime orgs quota <org> [--minutes n] [--messages n] [--agents n]
                                   [--concurrent-calls n] [--memory-facts n] [--knowledge-chunks n]
+                                  [--numbers n]
 pinecall-runtime orgs provider-key set <org> <vendor>     # the key on stdin
 pinecall-runtime orgs provider-key rm  <org> <vendor>
 pinecall-runtime orgs provider-key list <org>
