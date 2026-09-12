@@ -74,7 +74,7 @@ async def signup(
         raise HTTPException(429, TOO_MANY)
     try:
         slug = a_slug(said.org)
-        hashed = passwords.hashed(said.password)
+        hashed = passwords.hashed(said.password, settings.min_password)
         Member(
             id=A_PLACEHOLDER, org=A_PLACEHOLDER, email=said.email, name=said.person, role="admin"
         )

@@ -13,6 +13,7 @@ from pydantic_settings import (
 )
 
 from pinecall._env_files import ENV_FILES, env_files_read
+from pinecall._vendor_keys import VendorKeys
 
 # Our own knobs carry this prefix; a vendor key keeps the vendor's own name (the alias on the
 # field), so the SDK that reads ANTHROPIC_API_KEY by itself and this class agree.
@@ -40,7 +41,7 @@ class Budgets:
     remember_s: float = 8.0
 
 
-class Settings(BaseSettings):
+class Settings(VendorKeys):
     """The environment, typed and frozen. One per process, built by load_settings()."""
 
     # A real environment variable WINS over the file: pydantic-settings reads the process
@@ -146,51 +147,6 @@ class Settings(BaseSettings):
         description="Where it is asked. Unset: the provider's own door, and TEI_URL for TEI.",
     )
 
-    # ── Provider keys, named exactly as each vendor's SDK names them ───────────
-    anthropic_api_key: str | None = Field(
-        default=None,
-        validation_alias="ANTHROPIC_API_KEY",
-        description="Anthropic, an LLM. Every provider key keeps the vendor's own variable name.",
-    )
-    openai_api_key: str | None = Field(
-        default=None,
-        validation_alias="OPENAI_API_KEY",
-        description="OpenAI, the other LLM a call may run on.",
-    )
-    soniox_api_key: str | None = Field(
-        default=None,
-        validation_alias="SONIOX_API_KEY",
-        description="Soniox, an STT. A call needs one key of each role: llm, stt, tts.",
-    )
-    deepgram_api_key: str | None = Field(
-        default=None,
-        validation_alias="DEEPGRAM_API_KEY",
-        description="Deepgram, the other STT.",
-    )
-    eleven_api_key: str | None = Field(
-        default=None,
-        validation_alias="ELEVEN_API_KEY",
-        description="ElevenLabs, the TTS.",
-    )
-    # Not a call's vendors: the two the EMBEDDER may run on, read only by providers/embed.
-    perplexity_api_key: str | None = Field(
-        default=None,
-        validation_alias="PERPLEXITY_API_KEY",
-        description="Perplexity, an embedder: the contextual model and the flat one, direct.",
-    )
-    openrouter_api_key: str | None = Field(
-        default=None,
-        validation_alias="OPENROUTER_API_KEY",
-        description="OpenRouter, the other way to the flat model. It serves no contextual door.",
-    )
-    # Not a model vendor: the token the Graph API takes when a message goes back out. It sits
-    # beside the others because an org may bring its own, and the registry reads both the same way.
-    whatsapp_access_token: str | None = Field(
-        default=None,
-        validation_alias="WHATSAPP_ACCESS_TOKEN",
-        description="The box's own WhatsApp Cloud API token, used for an org that brought none.",
-    )
-
     # ── WhatsApp: the two secrets the webhook itself is guarded by ──────────────
     whatsapp_app_secret: str | None = Field(
         default=None,
@@ -281,6 +237,11 @@ class Settings(BaseSettings):
         default="all",
         description="What this box runs: all · hub · worker. The doctor asks after what it has.",
     )
+    # The operator's call and not this runtime's: their box, their people. 0 is no rule at all.
+    # What stops a guess is argon2id at rest and five tries a minute, never the floor.
+    min_password: int = Field(
+        default=8, ge=0, description="How short a member's password may be. 0 is no rule."
+    )
     ops_key: str | None = Field(
         default=None,
         description="The key /v1/ops/* is authenticated by. Unset, the operator API is closed.",
@@ -367,11 +328,11 @@ class Settings(BaseSettings):
             remember_s=self.remember_budget_s,
         )
 
-    # pydantic resolves an env_file NAME against the working directory alone, so it is the one
-    # part of the config that cannot express the walk. The dotenv source is rebuilt here over the
-    # absolute paths env_files_read() found; everything else — the prefix, the encoding, its place
-    # AFTER the process environment — is still model_config's. With no env_file the default source
-    # is handed back untouched, which is how tests/conftest.py keeps the suite off your file.
+    # pydantic resolves an env_file NAME against the working directory alone, so it is the one part
+    # of the config that cannot express the walk: the dotenv source is rebuilt here over the
+    # absolute paths env_files_read() found, and everything else — the prefix, the encoding, its
+    # place AFTER the process environment — is still model_config's. With no env_file the default
+    # source is handed back untouched, which is how tests/conftest.py keeps the suite off your file.
     @override
     @classmethod
     def settings_customise_sources(

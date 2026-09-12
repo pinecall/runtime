@@ -14,9 +14,9 @@ from pinecall.api._deps import (
     MemoryDep,
     OrgsDep,
     RoutesDep,
-    an_operator,
     an_org,
 )
+from pinecall.api._operator import an_operator
 from pinecall.auth.keys import ListedKey
 from pinecall.types import (
     DEVELOPMENT,

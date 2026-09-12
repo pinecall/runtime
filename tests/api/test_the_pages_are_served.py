@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
+from pinecall._settings import Settings
 from pinecall.api import pages
 from pinecall.api.app import app
 from pinecall.api.pages import NOT_BUILT
@@ -166,7 +167,14 @@ def test_the_well_known_door_says_which_runtime_and_whose(gateway: TestClient) -
     status, content_type, body = fetched(gateway, "/.well-known/pinecall")
     assert status == 200 and content_type.startswith("application/json")
     said = json.loads(body)
-    assert said == {"version": said["version"], "cloud": False, "signup": False}
+    # The floor rides here because a page asking for a password must say the rule before anybody
+    # types, and it holds no key when it asks. The suite's settings take the default.
+    assert said == {
+        "version": said["version"],
+        "cloud": False,
+        "signup": False,
+        "min_password": Settings().min_password,
+    }
     assert isinstance(said["version"], str)
 
 

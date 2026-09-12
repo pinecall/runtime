@@ -55,6 +55,11 @@ class Member:
     # Which of the org's agents this person works on. Empty means every one of them.
     agents: frozenset[str] = frozenset()
     status: MemberStatus = "invited"
+    # Whether this person runs the BOX, which is a different thing from running their org: their
+    # own key opens /v1/ops/* as well as their org's doors. Nobody is one until somebody holding
+    # the ops key says so, and an org's `admin` is not one by being an admin — an admin owns a
+    # tenant, an operator owns the machine every tenant is on. See 0020.
+    operator: bool = False
 
     def __post_init__(self) -> None:
         if not self.id or not self.org:

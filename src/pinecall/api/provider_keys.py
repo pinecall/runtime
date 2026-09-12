@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from pinecall.api._deps import OrgsDep, ProviderKeysKeyDep, UnlockedVaultDep, an_operator, an_org
+from pinecall.api._deps import OrgsDep, ProviderKeysKeyDep, UnlockedVaultDep, an_org
+from pinecall.api._operator import an_operator
 from pinecall.api.orgs import NO_BODY
 from pinecall.types import VENDORS
 from pinecall_protocol import WireModel

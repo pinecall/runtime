@@ -7,7 +7,8 @@ from typing import Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import TypeAdapter
 
-from pinecall.api._deps import AppKeyDep, OrgsDep, RoutesDep, an_operator, an_org
+from pinecall.api._deps import AppKeyDep, OrgsDep, RoutesDep, an_org
+from pinecall.api._operator import an_operator
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.auth.keys import held_by
 from pinecall.routes import answering

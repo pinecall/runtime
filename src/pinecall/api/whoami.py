@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from pinecall._version import __version__
-from pinecall.api._deps import KeyDep, SettingsDep, an_operator
+from pinecall.api._deps import KeyDep, KeysDep, SettingsDep
+from pinecall.api._operator import an_operator
+from pinecall.auth.bearer import bearer_of
+from pinecall.auth.keys import KeyRecord
 from pinecall.types import Env
 from pinecall_protocol import WireModel
 
@@ -56,12 +59,35 @@ class TheBox(WireModel):
     # The domain this box answers on, so a person with two boxes open knows which tab is which.
     # None on a box that was told no domain — a laptop — and the page then says the URL it loaded.
     domain: str | None = None
+    # Who is looking, when it is a person rather than the box's own key: their name and their org,
+    # so the page's header says a name instead of a host. Null for the key out of the environment,
+    # which belongs to nobody and is nobody.
+    name: str | None = None
+    org: str | None = None
 
 
 # The door the operator's page proves its key at, exactly as the console proves a person's at
 # /v1/whoami: a key that opens nothing is a page a person would trust tomorrow and a refusal they
 # would not understand. It reads the settings and no table, because the ops key names no org.
 @operator.get("/whoami")
-async def the_box(settings: SettingsDep) -> TheBox:
-    """That this key opens the operator's doors, and which box they are."""
-    return TheBox(operator=True, version=__version__, domain=settings.domain or None)
+async def the_box(settings: SettingsDep, keys: KeysDep, request: Request) -> TheBox:
+    """That this key opens the operator's doors, which box they are, and who is holding it."""
+    whose = await _whose(request, keys)
+    return TheBox(
+        operator=True,
+        version=__version__,
+        domain=settings.domain or None,
+        name=None if whose is None else whose.name,
+        org=None if whose is None else whose.org,
+    )
+
+
+# The gate already let this request through, so the only question left is which of the two ways it
+# came: a person's key has a record, the box's own key has none and verifies as nothing.
+async def _whose(request: Request, keys: KeysDep) -> KeyRecord | None:
+    """The record behind the bearer, when it is a person's key rather than the box's own."""
+    bearer = bearer_of(request.headers)
+    if bearer is None:
+        return None
+    record = await keys.verify(bearer)
+    return record if record is not None and record.subject is not None else None

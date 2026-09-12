@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from hmac import compare_digest
 from typing import Annotated, Any, cast
 
 from fastapi import Depends, HTTPException
@@ -101,16 +100,6 @@ async def a_key_on_a_socket(websocket: HTTPConnection, keys: Keys) -> KeyRecord 
     """The key travels as the Authorization header of the upgrade, never in the URL."""
     bearer = bearer_of(websocket.headers)
     return None if bearer is None else await keys.verify(bearer)
-
-
-# An operator is not a tenant: the ops key is the box's own, out of the environment, and it opens
-# every /v1/ops door there will ever be. It carries no record, so it is a gate and not an identity —
-# a router takes it in `dependencies=` and its endpoints never mention it.
-async def an_operator(connection: HTTPConnection, settings: SettingsDep) -> None:
-    """Whether the operator key knocked. An unset key closes /v1/ops, which is the safe default."""
-    bearer = bearer_of(connection.headers)
-    if not settings.ops_key or bearer is None or not compare_digest(bearer, settings.ops_key):
-        raise HTTPException(401, "this door takes the operator key", {"WWW-Authenticate": "Bearer"})
 
 
 SettingsDep = Annotated[Settings, Depends(a_settings)]
