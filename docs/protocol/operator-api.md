@@ -195,7 +195,8 @@ agents registered on it, the doors they claim and every call they take are that 
 registry and the routes are namespaced by it, and a number claimed in one world is refused to a key
 of the other, naming the world that holds it. `scopes` is what it may do there, as the doors are
 grouped (`app` · `calls` · `talk` · `supervise` · `pipeline` · `knowledge` · `memory` · `evals` ·
-`numbers` · `keys` · `team` · `usage`); `subject` and `name` say whose it is when it is a person's.
+`numbers` · `keys` · `providers` · `team` · `usage`); `subject` and `name` say whose it is when it
+is a person's. An org issues its own machine keys at `POST /v1/keys` without any of this.
 Every key issued before the fields existed is production's, with every scope.
 
 The table stores `sha256(key)` and never the key. Nothing here, and nothing anywhere else in the

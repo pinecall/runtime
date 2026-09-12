@@ -7,6 +7,16 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **An org issues its own keys.** `GET /v1/keys`, `POST /v1/keys` and
+  `POST /v1/keys/{fingerprint}/revoke` on the org's own key (`keys`): the key a tenant's server
+  runs on no longer has to come from the box's operator. A POST mints a key for a MACHINE —
+  `app` and production when nothing is said, naming nobody, because people get keys by logging in
+  — and answers it in the clear the once; the listing is fingerprints and never a key; a key may
+  not issue a scope it does not itself open, and another org's fingerprint is the 404 a stranger's
+  is.
+- **`providers`, a scope of its own.** The vendor keys an org brought are `providers` from here;
+  `keys` is the org's own API keys. `0017` hands `providers` to every row that held the old `keys`,
+  so nothing a live key could do yesterday is refused today. `manager` and `admin` preset both.
 - **`extensions/`, and no plan in the runtime.** The points a package installed beside the runtime
   plugs its policy into, named by `PINECALL_EXTENSIONS` and imported at startup — a name that does
   not import stops the start rather than admitting orgs without limits. One point today:
@@ -221,6 +231,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   itself in the wheel and the sdist, so an install carries its licence.
 
 ### Changed
+- **A person's key does not hold `app` in production.** Holding an agent is a deployment, and a
+  deployment is a process on a box, not a laptop that happens to be logged in — so two developers
+  can no longer take production's agent from each other by running it. Every key minted for a
+  person carries their role's preset in development and that preset less `app` in production: at
+  login, at an accepted invitation, at sign-up, and at `POST /v1/login/env`, which now reads the
+  member's role rather than the scopes of the key that asked, and refuses a key whose member is
+  gone or disabled. What holds a deployed slug is a key issued for a machine.
 - **One rule for "a call a run opened has no opening".** Both sessions ask `the_greeting_for`
   with the call's `run`; the eval runner no longer rewrites the class's config with `greeting=None`.
   The three first entries of a call (`call.ringing`, `call.dialing`, `call.started`) are built in

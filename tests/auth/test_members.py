@@ -43,7 +43,7 @@ async def test_accepting_spends_the_token_sets_the_password_and_makes_the_member
 
 async def test_an_expired_or_unknown_token_accepts_nobody() -> None:
     clock = _Clock()
-    members = MemoryMembers(clock)
+    members = MemoryMembers(clock=clock)
     invited = await members.invite(ORG, "berna@clinica.uy", "Berna", "qa", [])
     assert invited is not None
     clock.now += INVITATION_TTL_S

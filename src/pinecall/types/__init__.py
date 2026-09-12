@@ -39,11 +39,13 @@ from pinecall.types.json import JsonObject
 from pinecall.types.key import (
     DEVELOPMENT,
     ENVS,
+    HOLDING,
     KEY_SCOPES,
     PRODUCTION,
     Env,
     KeyScope,
     an_env,
+    for_a_person,
     key_scopes,
 )
 from pinecall.types.knowledge import Chunk, Docs, Fact, KnowledgeFile, MemoryPolicy
@@ -67,6 +69,7 @@ __all__ = [
     "ENVS",
     "GATE_DEFERRED_ON",
     "GRANTS",
+    "HOLDING",
     "KEY_SCOPES",
     "KNOWLEDGE",
     "NO_ORG_KEYS",
@@ -131,6 +134,7 @@ __all__ = [
     "a_slug",
     "an_env",
     "consent_of",
+    "for_a_person",
     "grant_for",
     "key_scopes",
     "platform_tools",

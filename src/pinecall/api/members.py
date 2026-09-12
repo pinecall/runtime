@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException
 from pinecall.api._deps import KeysDep, MembersDep, TeamKeyDep
 from pinecall.auth import passwords
 from pinecall.auth.keys import Keys
-from pinecall.types import PRODUCTION, DeclarationRefused, Member, a_role, an_env
+from pinecall.types import PRODUCTION, DeclarationRefused, Member, a_role, an_env, for_a_person
 from pinecall.types.member import STATUSES, MemberStatus
 from pinecall_protocol import WireModel
 
@@ -129,7 +129,7 @@ async def accept(token: str, said: Accepting, members: MembersDep, keys: KeysDep
         org=member.org,
         label=said.device or "invitation",
         env=env,
-        scopes=member.scopes,
+        scopes=for_a_person(member.scopes, env),
         subject=member.id,
         name=member.name,
     )

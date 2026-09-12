@@ -144,7 +144,9 @@ call they take are that world's, and the gateway keeps production and developmen
 slug held once in each, a number in one refused to the other. A box's worker and app run on a
 production key, which is the default; a laptop gets a development one. `--scope`, repeatable, is
 what the key may do (`app` · `calls` · `talk` · `supervise` · `pipeline` · `knowledge` · `memory` ·
-`evals` · `numbers` · `keys` · `team` · `usage`); left out is every scope. `--subject` and `--name`
+`evals` · `numbers` · `keys` — the org's own API keys — · `providers` — the vendor keys it brought
+— · `team` · `usage`); left out is every scope. An org issues its own machine keys without the
+operator at `POST /v1/keys`; these verbs are the box's way in, on `PINECALL_OPS_KEY`. `--subject` and `--name`
 say whose the key is when it is a person's, so a seat minted from it says who sat down.
 
 ## `routes`

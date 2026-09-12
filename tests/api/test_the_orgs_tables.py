@@ -10,8 +10,9 @@ from starlette.testclient import TestClient
 from pinecall.api.agents.registry import Registry
 from pinecall.api.login import ONE_WORLD_EACH
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
+from pinecall.auth.members import MemoryMembers
 from pinecall.log.store import MemoryStore
-from pinecall.types import DEVELOPMENT, PRODUCTION
+from pinecall.types import DEVELOPMENT, PRODUCTION, Member
 from pinecall_protocol import defs
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, Json
 from tests.api.talking import got
@@ -30,10 +31,21 @@ ANA = KeyRecord(
     name="Ana",
 )
 
+# The row her key's subject names. A key for a person is minted from a member, so a world it is
+# asked to look into is read off that member's role and not off the key that asked.
+A_MEMBER = Member(
+    id="m_ana", org=A_RECORD.org, email="ana@acme.com", name="Ana", role="manager", status="active"
+)
+
 
 @pytest.fixture
 def keys() -> MemoryKeys:
     return MemoryKeys({A_KEY: A_RECORD, ANAS_KEY: ANA})
+
+
+@pytest.fixture
+def members() -> MemoryMembers:
+    return MemoryMembers([A_MEMBER])
 
 
 # starlette's TestClient types its requests through httpx's private `_types`: one untyped handle.
@@ -104,7 +116,7 @@ def test_a_person_looks_the_other_way_and_holds_a_key_for_that_world_too(
         "Ana",
         "laptop",
     )
-    assert said["scopes"] == sorted(ANA.scopes)
+    assert said["scopes"] == sorted(A_MEMBER.scopes), "her role, in that world"
     _, who = got(gateway, "/v1/whoami", str(said["key"]))
     assert (who["env"], who["subject"]) == (DEVELOPMENT, "m_ana")
 

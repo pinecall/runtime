@@ -18,6 +18,7 @@ from pinecall.api import (
     extraction,
     fleet,
     floor,
+    keys,
     knowledge,
     listen,
     login,
@@ -207,8 +208,9 @@ app = FastAPI(title="Pinecall gateway", lifespan=lifespan)
 
 
 # One door per line, in the order a reader meets them: the app's socket and what it holds, the
-# calls it answers, the desk, the suites, the tenant's routes and the keys it brought of its own,
-# the operator's tables under /v1/ops, the fleet's heartbeats and the operator's view of them,
+# calls it answers, the desk, the suites, the tenant's routes, the API keys its machines run on
+# and the provider keys it brought of its own, the operator's tables under /v1/ops, the fleet's
+# heartbeats and the operator's view of them,
 # the tokens, Meta's webhook, the knowledge base, a contact's memory and the goldens the write
 # side is held to, the org's people and the door they log in at, and whose key knocked.
 for door in (
@@ -231,6 +233,7 @@ for door in (
     voice.router,
     routes.router,
     routes.operator,
+    keys.router,
     provider_keys.router,
     orgs.operator,
     provider_keys.operator,

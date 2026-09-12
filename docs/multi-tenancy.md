@@ -127,7 +127,8 @@ A person of an org is a **member**, not a shared key: invited with a one-use lin
 /v1/members`, on the org's key), active once they chose a password (`POST /v1/invitations/{token}`),
 and holding keys of their own from then on — one per device, minted at `POST /v1/login` with the
 scopes of their role (`qa` · `supervisor` · `manager` · `admin` · `developer`) and their member id
-as `subject`. Disabling them keeps the row, revokes every key of theirs and refuses their login. A
+as `subject`. **In production a person's key never holds `app`**: a deployed agent is held by a key
+issued for a machine (`POST /v1/keys`, or `keys issue --scope app`), not by whoever is logged in. Disabling them keeps the row, revokes every key of theirs and refuses their login. A
 browser never carries a key in a URL: a key holder mints a one-use code (`POST /v1/login/codes`)
 and the browser spends it for a key of its own. The doors that refuse on a scope are the next card.
 

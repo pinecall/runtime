@@ -15,7 +15,9 @@ is for. The prose, the shapes and the refusals are on that page and in the pages
 | `POST` | `/v1/numbers` · `?dry_run=true` | import one number: the carrier's trunk pointed here, the SFU's trunk admitting it, the route — or the plan alone |
 | `POST` | `/v1/numbers/buy` · `?dry_run=true` | buy one number on the box's own Twilio into the org, wired as an import, capped by the `numbers` quota — or the plan alone |
 | `DELETE` | `/v1/numbers/{number}` | let a number go: the route and the admission; the carrier untouched |
-| `POST` | `/v1/login/env` | the same person's key for the other world |
+| `GET` | `/v1/keys` · `POST` | the org's own API keys by fingerprint; mint one for a machine, answered once — `keys` |
+| `POST` | `/v1/keys/{fingerprint}/revoke` | stop one of the org's keys; the row and its history stay |
+| `POST` | `/v1/login/env` | the same person's key for the other world, with what their role opens there |
 | `GET` | `/v1/sessions?limit=` | the org's newest calls across every agent, the same rows as an agent's |
 | `GET` | `/v1/events` | SSE, live only: the org's floor changing — an agent held, a call ringing, up, over |
 | `GET` | `/v1/members` · `POST` | the org's people; invite one, the token once |
@@ -39,7 +41,7 @@ is for. The prose, the shapes and the refusals are on that page and in the pages
 | `POST` | `/v1/tokens` | a room token for a browser — `503` and `fleet.full` when every worker is full |
 | `POST`·`GET` | `/v1/callbacks` | a number to call back when the fleet was full, and the list of them |
 | `GET` | `/v1/routes` | the numbers and doors your org answers |
-| `PUT`·`DELETE`·`GET` | `/v1/provider-keys[/{vendor}]` | the org's own vendor accounts |
+| `PUT`·`DELETE`·`GET` | `/v1/provider-keys[/{vendor}]` | the org's own vendor accounts — `providers` |
 | `PUT`·`GET`·`DELETE` | `/v1/knowledge[/{base}]` · `POST …/eval` | the base the agent answers from |
 | `GET`·`DELETE` | `/v1/contacts/{contact}/memory` · `POST /v1/contacts/memory/eval` | what it keeps about a person |
 | `POST` | `/v1/agents/{slug}/memory/extraction` | what a hang-up makes of a call |

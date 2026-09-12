@@ -14,7 +14,7 @@ from pinecall.auth.keys import MemoryKeys
 from pinecall.auth.throttle import TRIES_PER_WINDOW
 from pinecall.extensions import Extensions
 from pinecall.orgs.table import MemoryOrgs
-from pinecall.types import KEY_SCOPES, Quotas
+from pinecall.types import HOLDING, KEY_SCOPES, Quotas
 from tests.api.conftest import A_DEV_KEY, A_LIVEKIT, A_VAULT_KEY, AN_OPS_KEY, over_the_asgi_app
 
 pytestmark = pytest.mark.unit
@@ -72,7 +72,7 @@ async def test_a_signup_makes_the_org_on_the_trial_with_its_admin_and_hands_over
         "production",
         "signup",
     )
-    assert body["scopes"] == sorted(KEY_SCOPES), "the first person owns the org"
+    assert body["scopes"] == sorted(KEY_SCOPES - {HOLDING}), "every door of the org but one"
     assert (body["member"]["role"], body["member"]["status"]) == ("admin", "active")
     assert body["subject"] == body["member"]["id"] and body["name"] == "Ana"
     assert await keys.verify(body["key"]) is not None

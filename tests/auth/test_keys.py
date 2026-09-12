@@ -166,14 +166,23 @@ async def test_postgres_reads_the_world_and_the_scopes_back_off_the_row() -> Non
     )
 
 
-# The migration backfills every existing row with every scope, and SQL cannot import a Python
-# constant: the literal is read back out of the file and compared, so adding a scope to one side
-# and not the other fails here and not on a box.
-def test_the_migration_backfills_the_very_scopes_and_the_very_worlds_the_runtime_knows() -> None:
-    said = (MIGRATIONS / "0013_environments.sql").read_text(encoding="utf-8")
-    array = re.search(r"ARRAY\[(.*?)\]", said, re.S)
+# A scope added in Python is a scope no existing row holds until a migration hands it over, and
+# SQL cannot import a Python constant. So the words the migrations name are read back out of the
+# files and compared: 0013 backfilled the twelve of its day, 0017 handed the thirteenth to the
+# rows that had earned it, and together they are what the runtime knows. Adding one on the Python
+# side and not the SQL side fails here, and not on somebody's box.
+def test_the_migrations_hand_over_the_very_scopes_the_runtime_knows() -> None:
+    backfilled = (MIGRATIONS / "0013_environments.sql").read_text(encoding="utf-8")
+    array = re.search(r"ARRAY\[(.*?)\]", backfilled, re.S)
     assert array is not None
-    assert sorted(re.findall(r"'([a-z]+)'", array.group(1))) == sorted(KEY_SCOPES)
+    since = (MIGRATIONS / "0017_provider_scope.sql").read_text(encoding="utf-8")
+    handed = set(re.findall(r"array_append\(scopes, '([a-z]+)'\)", since))
+    assert handed, "0017 hands a scope to the rows that hold the one it was cut from"
+    assert set(re.findall(r"'([a-z]+)'", array.group(1))) | handed == KEY_SCOPES
+
+
+def test_the_migration_checks_the_very_worlds_the_runtime_knows() -> None:
+    said = (MIGRATIONS / "0013_environments.sql").read_text(encoding="utf-8")
     worlds = re.findall(r"CHECK \(env IN \((.*?)\)\)", said)
     assert worlds, "the env column is checked against the two worlds"
     assert all(sorted(re.findall(r"'([a-z]+)'", one)) == sorted(ENVS) for one in worlds)
