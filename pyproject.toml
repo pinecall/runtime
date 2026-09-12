@@ -66,6 +66,10 @@ dev = [
   "pytest-timeout>=2.4.0",
   # Order dependence is a bug the suite must find by itself: every run shuffles.
   "pytest-randomly>=3.16,<4",
+  # Lints the .sql of a migration for what it does to a table that HAS rows: a lock held too
+  # long, an index built while writes are blocked. `.squawk.toml` says which rules the runner
+  # answers instead. Rust, shipped as a wheel, so it costs nothing at import time.
+  "squawk-cli>=2.65,<3",
 ]
 
 [tool.uv.sources]

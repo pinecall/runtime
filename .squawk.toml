@@ -1,0 +1,22 @@
+# Squawk lints the .sql of a migration for what it will do to a table that HAS rows: a lock held
+# too long, an index built while writes are blocked, a constraint validated in one pass. What it
+# cannot see is the runner that applies the file, so the four rules below are answered there —
+# once, for every migration — rather than repeated in every file.
+#
+# Everything else is on. `scripts/lint` runs this, so an unsafe migration fails the gate rather
+# than being noticed in a review, or in production.
+
+excluded_rules = [
+    # Both are set by the runner inside each migration's own transaction, so a migration cannot
+    # hang the deploy behind somebody's long query: log/store/migrating.py, `_apply_one`.
+    "require-lock-timeout",
+    "require-statement-timeout",
+    # "Missing transaction, the migration can't be rerun if it fails part way through." It can:
+    # `_apply_one` wraps the file AND its row in schema_migrations in one transaction, so half a
+    # migration is never recorded. Squawk lints the file alone and cannot see that.
+    "prefer-robust-stmts",
+    # A migration of this runtime runs against a schema that is minutes old on a laptop and small
+    # on a box; `int` where a row count could pass two billion is worth arguing about in review,
+    # not worth failing a gate that would then be excluded per-file everywhere.
+    "prefer-bigint-over-int",
+]

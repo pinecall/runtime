@@ -1952,6 +1952,7 @@ dev = [
     { name = "pytest-xdist" },
     { name = "respx" },
     { name = "ruff" },
+    { name = "squawk-cli" },
     { name = "time-machine" },
 ]
 
@@ -1988,6 +1989,7 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.8,<4" },
     { name = "respx", specifier = ">=0.23,<1" },
     { name = "ruff", specifier = ">=0.16,<1" },
+    { name = "squawk-cli", specifier = ">=2.65,<3" },
     { name = "time-machine", specifier = ">=3,<4" },
 ]
 
@@ -2550,6 +2552,20 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c5/6f/6292145099f72a153a710245f46ae43e5fb6c77bec1b6086cb76c12dc280/sounddevice-0.5.6-py3-none-win32.whl", hash = "sha256:b36b807eb02abd257198bf84b2af05e4fea199a9d2f0019014169c7136d45e9c", size = 1009627, upload-time = "2026-08-17T07:55:00.401Z" },
     { url = "https://files.pythonhosted.org/packages/8d/3e/cbc593c31a5f0d817b3fe97e64aa8461bd0f55cb07b67ce1b776296ae336/sounddevice-0.5.6-py3-none-win_amd64.whl", hash = "sha256:7f4162f514f007b0bf25a3ccfed3f1705bc2ec311888a90232729eec4f57a4f4", size = 1009630, upload-time = "2026-08-17T07:55:02.088Z" },
     { url = "https://files.pythonhosted.org/packages/60/a4/b0c21c9f215a6fd9606b8f8748c21212dc098e5d5a2d93068c50edcf19b4/sounddevice-0.5.6-py3-none-win_arm64.whl", hash = "sha256:c8ae19173e5f27f8c12d4b5eee2dbfe542cee125d591e663e0fb4dfb75246d45", size = 1009630, upload-time = "2026-08-17T07:55:03.689Z" },
+]
+
+[[package]]
+name = "squawk-cli"
+version = "2.65.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/8e/08/8740c8bd719c96a08a468898a7cb2553d8b7838cd3dd7defe4b72f30197d/squawk_cli-2.65.0.tar.gz", hash = "sha256:cd429a528ebb55a7eb97e6571d4c029ca672037e356012f72642e2b57b4fd3b6", size = 1369624, upload-time = "2026-09-10T04:15:26.213Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/69/b7/538c5c44c1dce24c99d79c45e17e5cc70aa12c3c5c61ffaae0b21dff3f83/squawk_cli-2.65.0-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:16b1e4ecccbe15958415ab4f2532e12c1694884e9cfe06d005422977a1adae88", size = 5954154, upload-time = "2026-09-10T04:15:24.796Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/70/2704a0f623bf1d9a65e86fb2e89936089d772973a94e9f1ebb1a3be6d7f3/squawk_cli-2.65.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:9afb0db939ff7de10e02c4d7a0752ef6f7e076f6cbb34d479f78e4fc61e1724a", size = 5721279, upload-time = "2026-09-10T04:15:23.3Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/dd/ee87829c4ffaa17f1e705dc1a6e53bd82abb891e79e412c68fef57d637db/squawk_cli-2.65.0-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:b016159ca6e7be2618e677791fc7476ba08f15b2fe3862986feeaadc8e60b025", size = 7073497, upload-time = "2026-09-10T04:15:20.097Z" },
+    { url = "https://files.pythonhosted.org/packages/80/6c/a50a9bcfa68a94758eca03fec78addd20301af276d876a07db061acf0a9e/squawk_cli-2.65.0-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:d3ce2d832791c8e736454f354b2d1241fb672162d1273933807ba832c2fb30f2", size = 8042666, upload-time = "2026-09-10T04:15:21.879Z" },
+    { url = "https://files.pythonhosted.org/packages/fa/59/363f36ce1c0228bbf123f8d20f7058c558836601ad376ef03835fb28b1f5/squawk_cli-2.65.0-py3-none-win32.whl", hash = "sha256:5da670b43bd73b49b436c63bfb5d03f4efa19054c2de72f961ecc06e3bfd8268", size = 4930910, upload-time = "2026-09-10T04:15:29.076Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/f0/95a49703ad51c2a15bdd50c0332efbdf6cacf6e1c6cb349635045a0c0c3a/squawk_cli-2.65.0-py3-none-win_amd64.whl", hash = "sha256:ee8103c0fe7bcf00031e2982bc813408bff74315f177f04a287b44b0f1a8243f", size = 5569873, upload-time = "2026-09-10T04:15:27.353Z" },
 ]
 
 [[package]]

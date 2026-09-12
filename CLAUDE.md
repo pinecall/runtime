@@ -11,7 +11,7 @@ file in English. What it is: [ARCHITECTURE.md](ARCHITECTURE.md). How it is deplo
 docker compose -f infra/compose/dev.yml up -d   # livekit · sip · redis · postgres · tei
 scripts/bootstrap                               # uv sync, every extra and tool group
 scripts/format                                  # ruff format, then the fixable lint rules
-scripts/lint                                    # ruff · pyright strict (src, infra/tools) · mypy strict — the gate
+scripts/lint                                    # ruff · pyright · mypy · squawk over unlanded migrations — the gate
 scripts/test                                    # pytest -m "unit or postgres", plus infra/tools/tests
 uv run pytest -m unit                           # ring 0: no keys, no network, SHUFFLED — three green runs, or nothing
 uv run pytest tests/cli/doctor/test_verbs.py    # one file
@@ -96,6 +96,17 @@ as sentences.
 - **TEI's CPU image has no arm64 build**, so on this Mac the dev stack's `tei` cannot start at
   all and every lookup is skipped. `EMBED_PROVIDER=perplexity` + `PERPLEXITY_API_KEY` embeds
   contextually over HTTP with no container. `doctor`'s `embedder` line says which one is running.
+- **An applied migration is NEVER edited.** `schema_migrations.sha256` refuses a checkout whose
+  file changed, by name and by both hashes, because every database that ran it has the OLD one.
+  The fix for an old migration is a NEW migration. Adding one means bumping
+  `migrations/migrations.lock` in the same commit — that is what makes two branches adding `0022`
+  conflict in git, and it is the linter's baseline. `scripts/lint-migrations` (squawk) gates only
+  what sits above that line. Three rules it will not catch and a review must: never rename a
+  column (rename in code, keep the column), drop one in TWO migrations (the code stops using it
+  first), and a constraint on a populated table goes in `NOT VALID` then `VALIDATE`.
+- **A migration is held to five seconds at startup.** The unit runs `migrate up` before the
+  gateway opens, so anything slower is a `.post.sql` — named, never run at startup, applied by a
+  person with `migrate up --post`. An index on a big table is always one of those.
 - **A test that walks `app.routes` can go vacuous on a FastAPI upgrade.** 0.141 stopped
   flattening an included router into it and puts a wrapper there (`original_router`), so
   `test_scopes_at_the_doors` found no `APIRoute` at all and pinned every door's scope over an

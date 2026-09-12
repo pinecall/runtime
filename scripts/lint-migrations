@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Squawk over the migrations that have NOT landed: everything above `migrations.lock`.
+#
+# What is at or below that line has run on databases that keep its sha256, so it may never be
+# edited — the fix for an old migration is a new migration. Linting it would fail the gate for
+# something nobody is allowed to fix. What is above it has run nowhere yet, and is exactly what
+# is worth stopping.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+MIGRATIONS=src/pinecall/migrations
+LOCK="$MIGRATIONS/migrations.lock"
+
+LANDED="$(grep -v '^#' "$LOCK" | tr -d '[:space:]')"
+[ -n "$LANDED" ] || { echo "migrations.lock names nothing" >&2; exit 1; }
+
+NEW=()
+for path in "$MIGRATIONS"/*.sql; do
+  [ "$(basename "$path")" \> "$LANDED" ] && NEW+=("$path")
+done
+
+if [ "${#NEW[@]}" -eq 0 ]; then
+  echo "migrations: nothing above $LANDED"
+  exit 0
+fi
+
+echo "migrations: linting ${#NEW[@]} above $LANDED"
+uv run squawk "${NEW[@]}"

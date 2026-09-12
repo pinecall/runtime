@@ -1,0 +1,11 @@
+# The last migration that has LANDED. Two things hang off this one line.
+#
+# A merge guard, which is Sentry's use of it: adding a migration means bumping this, so two
+# branches that both add `0022` conflict HERE, in git, instead of merging cleanly and leaving one
+# of them never to run.
+#
+# And the linter's baseline. `scripts/lint-migrations` checks what sits ABOVE this line and
+# nothing at or below it: those have run on databases that keep their sha256, so they may never
+# be edited — the fix for an old migration is a new migration, and a gate that failed on them
+# would be a gate demanding something forbidden.
+0021_a_developers_own.sql

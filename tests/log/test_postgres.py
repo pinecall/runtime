@@ -45,7 +45,7 @@ async def test_the_table_refuses_an_update_and_a_delete(
 
 async def test_migrations_applied_twice_apply_nothing(postgres: Dev) -> None:
     """The record is the guard: `migrate` is safe to run on every deploy, which is the point."""
-    assert await apply_migrations(postgres.dsn, schema=postgres.schema) == []
+    assert (await apply_migrations(postgres.dsn, schema=postgres.schema)).applied == ()
 
 
 async def test_the_golden_log_replays_to_the_same_state_through_postgres(

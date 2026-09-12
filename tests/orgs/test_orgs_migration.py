@@ -10,7 +10,12 @@ import pytest
 
 from pinecall.auth.keys import PostgresKeys, fingerprint
 from pinecall.log.store import open_pool
-from pinecall.log.store.migrating import MIGRATIONS_TABLE, RECORD_MIGRATION, apply_migrations
+from pinecall.log.store.migrating import (
+    MIGRATIONS_TABLE,
+    RECORD_MIGRATION,
+    a_hash,
+    apply_migrations,
+)
 from pinecall.log.store.postgres import MIGRATIONS
 from tests.postgres import Dev
 
@@ -55,7 +60,7 @@ async def a_box_from_before(postgres: Dev) -> AsyncIterator[Box]:
         await connection.execute(MIGRATIONS_TABLE)
         for name in BEFORE_ORGS:
             await connection.execute((MIGRATIONS / name).read_text(encoding="utf-8"))
-            await connection.execute(RECORD_MIGRATION, name)
+            await connection.execute(RECORD_MIGRATION, name, a_hash(MIGRATIONS / name))
         await connection.execute(
             "insert into api_keys (id, hash, org, fleet, label) values ($1, $2, $3, $4, $5)",
             "k_1",
@@ -111,7 +116,7 @@ async def test_every_fleet_the_box_knew_becomes_an_org_and_its_rows_follow_it(
     """Criterion 4, the second half: a fleet in use migrates with no manual step and no reissue."""
     box = a_box_from_before
     # Every migration this box has not seen, and 0006 is the first of them.
-    assert (await apply_migrations(box.dsn, schema=box.schema))[0] == "0006_orgs.sql"
+    assert (await apply_migrations(box.dsn, schema=box.schema)).applied[0] == "0006_orgs.sql"
     read = box.connection
     orgs = {row["id"]: row["slug"] for row in await read.fetch("select id, slug from orgs")}
     assert orgs == {"default": "default", "madrid": "madrid"}
