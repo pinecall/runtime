@@ -14,6 +14,7 @@ from pinecall.providers.embedder import Embedder, WrongModel, as_halfvec
 from pinecall.types import (
     CANDIDATES_PER_BRANCH,
     Chunk,
+    Env,
     KnowledgeFile,
     reciprocal_rank_fusion,
     relative_to_the_best,
@@ -49,45 +50,47 @@ class Base:
 # which keeps the driver out of the vector type entirely.
 _PUT = """
 WITH pushed AS (
-    INSERT INTO knowledge_bases (org, base, model, dimensions, chunks, pushed_at)
-        VALUES ($1, $2, $3, $4, $5, now())
-        ON CONFLICT (org, base) DO UPDATE
+    INSERT INTO knowledge_bases (org, env, base, model, dimensions, chunks, pushed_at)
+        VALUES ($1, $2, $3, $4, $5, $6, now())
+        ON CONFLICT (org, env, base) DO UPDATE
         SET model = excluded.model, dimensions = excluded.dimensions,
             chunks = excluded.chunks, pushed_at = now()
 ), replaced AS (
-    DELETE FROM knowledge_chunks WHERE org = $1 AND base = $2
+    DELETE FROM knowledge_chunks WHERE org = $1 AND env = $2 AND base = $3
 )
-INSERT INTO knowledge_chunks (org, base, path, heading, ordinal, text, embedding)
-SELECT $1, $2, chunk.path, chunk.heading, chunk.ordinal, chunk.text, chunk.embedding::halfvec
-FROM unnest($6::text[], $7::text[], $8::integer[], $9::text[], $10::text[])
+INSERT INTO knowledge_chunks (org, env, base, path, heading, ordinal, text, embedding)
+SELECT $1, $2, $3, chunk.path, chunk.heading, chunk.ordinal, chunk.text, chunk.embedding::halfvec
+FROM unnest($7::text[], $8::text[], $9::integer[], $10::text[], $11::text[])
     AS chunk (path, heading, ordinal, text, embedding)
 """
 
-_BASES = "SELECT base, chunks, model, pushed_at FROM knowledge_bases WHERE org = $1 ORDER BY base"
-
-# What the org KEEPS across every base, which is what its quota is about. The base's own row
-# already counts its chunks, so this is a sum over one index and not a scan of the chunks. NULL
-# for `besides` counts every base; a name leaves that one out, because a push replaces it whole.
-_KEPT = """
-SELECT coalesce(sum(chunks), 0) AS kept FROM knowledge_bases
-WHERE org = $1 AND ($2::text IS NULL OR base <> $2)
+_BASES = """
+SELECT base, chunks, model, pushed_at FROM knowledge_bases
+WHERE org = $1 AND env = $2 ORDER BY base
 """
+
+# What the org KEEPS across every base of BOTH worlds, which is what its quota is about: a chunk
+# a laptop pushed is a row on the same disk as one the box pushed. The base's own row already
+# counts its chunks, so this is a sum over one index and not a scan of the chunks. What a push
+# about to replace a base would free is the door's arithmetic, not this query's — the door already
+# holds that base's row from the listing it drew.
+_KEPT = "SELECT coalesce(sum(chunks), 0) AS kept FROM knowledge_bases WHERE org = $1"
 
 # Which model wrote this base's vectors. None when the org pushed no base by that name, which is
 # not an error here: a search of a base nobody pushed answers with nothing, as it always did.
-_MODEL_OF = "SELECT model FROM knowledge_bases WHERE org = $1 AND base = $2"
+_MODEL_OF = "SELECT model FROM knowledge_bases WHERE org = $1 AND env = $2 AND base = $3"
 
 # The chunks go with the row: 0009 declares them ON DELETE CASCADE. The row returned is the
 # answer to "was there one", so dropping a name never pushed is told apart from dropping a base.
-_DROP = "DELETE FROM knowledge_bases WHERE org = $1 AND base = $2 RETURNING base"
+_DROP = "DELETE FROM knowledge_bases WHERE org = $1 AND env = $2 AND base = $3 RETURNING base"
 
 # The dense branch: nearest by cosine, the HNSW index's own order.
 _NEAREST = """
 SELECT id, path, heading, text
 FROM knowledge_chunks
-WHERE org = $1 AND base = $2
-ORDER BY embedding <=> $3::halfvec
-LIMIT $4
+WHERE org = $1 AND env = $2 AND base = $3
+ORDER BY embedding <=> $4::halfvec
+LIMIT $5
 """
 
 # The words branch. `<@>` answers the negative BM25 score, lower is better, and 0 is a text
@@ -95,13 +98,13 @@ LIMIT $4
 _BEST_WORDED = f"""
 SELECT id, path, heading, text
 FROM (
-    SELECT id, path, heading, text, text <@> to_bm25query($3, '{TEXT_INDEX}') AS score
+    SELECT id, path, heading, text, text <@> to_bm25query($4, '{TEXT_INDEX}') AS score
     FROM knowledge_chunks
-    WHERE org = $1 AND base = $2
+    WHERE org = $1 AND env = $2 AND base = $3
 ) scored
 WHERE score < 0
 ORDER BY score
-LIMIT $4
+LIMIT $5
 """
 
 
@@ -117,7 +120,7 @@ class PgKnowledge:
     # a tariff line finds its own heading's words even when the line itself does not carry them.
     # How a document is windowed to fit a model's context is the embedder's business, never this
     # table's: the store hands over the shape and reads back the same shape.
-    async def put(self, org: str, base: str, files: Sequence[KnowledgeFile]) -> int:
+    async def put(self, org: str, env: Env, base: str, files: Sequence[KnowledgeFile]) -> int:
         """Replace the base with these files, chunked and embedded; how many chunks it became."""
         cut = [chunks_of(file) for file in files]
         embedded = await self._embedder.embed_documents(
@@ -128,6 +131,7 @@ class PgKnowledge:
         await self._pool.execute(
             _PUT,
             org,
+            env,
             base,
             await self._embedder.model(),
             self._embedder.dimensions,
@@ -140,9 +144,9 @@ class PgKnowledge:
         )
         return len(pieces)
 
-    async def bases(self, org: str) -> list[Base]:
-        """Every base this org pushed, by name."""
-        rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(_BASES, org)
+    async def bases(self, org: str, env: Env) -> list[Base]:
+        """Every base this org pushed in this world, by name."""
+        rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(_BASES, org, env)
         return [
             Base(
                 base=str(row["base"]),
@@ -153,13 +157,13 @@ class PgKnowledge:
             for row in rows
         ]
 
-    async def drop(self, org: str, base: str) -> bool:
+    async def drop(self, org: str, env: Env, base: str) -> bool:
         """Forget the base and its chunks. False when the org never pushed one by that name."""
-        return await self._pool.fetchrow(_DROP, org, base) is not None
+        return await self._pool.fetchrow(_DROP, org, env, base) is not None
 
-    async def kept(self, org: str, besides: str | None = None) -> int:
-        """One sum over the base rows: the chunks the org holds, minus the base being replaced."""
-        row = await self._pool.fetchrow(_KEPT, org, besides)
+    async def kept(self, org: str) -> int:
+        """One sum over the base rows: every chunk this org holds, in both worlds."""
+        row = await self._pool.fetchrow(_KEPT, org)
         return 0 if row is None else int(row["kept"])
 
     # The cut is a pass of regexes over the tenant's own Markdown and runs twice on a push: once
@@ -172,6 +176,7 @@ class PgKnowledge:
     async def search(
         self,
         org: str,
+        env: Env,
         base: str,
         query: str,
         *,
@@ -184,9 +189,9 @@ class PgKnowledge:
         # index read on a primary key, and the turn's budget covers the slowest of the three
         # rather than their sum. The refusal comes before a rank is read, either way.
         pushed, nearest, worded = await asyncio.gather(
-            self._pool.fetchrow(_MODEL_OF, org, base),
-            self._pool.fetch(_NEAREST, org, base, as_halfvec(vector), CANDIDATES_PER_BRANCH),
-            self._pool.fetch(_BEST_WORDED, org, base, query, CANDIDATES_PER_BRANCH),
+            self._pool.fetchrow(_MODEL_OF, org, env, base),
+            self._pool.fetch(_NEAREST, org, env, base, as_halfvec(vector), CANDIDATES_PER_BRANCH),
+            self._pool.fetch(_BEST_WORDED, org, env, base, query, CANDIDATES_PER_BRANCH),
         )
         _the_same_model(base, pushed, await self._embedder.model())
         chunks = [

@@ -14,7 +14,7 @@ from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups, OpenCall
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.orgs.vault import keys_brought_by
-from pinecall.types import Docs, Org, Quotas
+from pinecall.types import PRODUCTION, Docs, Org, Quotas
 from tests.knowledge.files import CLINICA, TARIFAS, an_org
 from tests.lookups.fakes import AGENT, CALL, OneCall, a_config, a_context, a_plan, the_tenants
 from tests.postgres import Dev
@@ -57,7 +57,7 @@ async def test_a_pushed_base_answers_a_search_and_the_log_names_the_sources(
     knowledge: PgKnowledge, raw_connection: Any
 ) -> None:
     org = await an_org(raw_connection)
-    assert await knowledge.put(org, "clinica", [CLINICA, TARIFAS]) == 4
+    assert await knowledge.put(org, PRODUCTION, "clinica", [CLINICA, TARIFAS]) == 4
     store = MemoryStore()
     logs = Logs(store)
     logs.writing(CALL, AGENT)
@@ -97,7 +97,7 @@ async def test_a_plan_that_keeps_no_chunks_finds_nothing_and_embeds_nothing(
 ) -> None:
     """The base is right there in Postgres; the plan says the org has none, so nobody looks."""
     org = await an_org(raw_connection)
-    assert await knowledge.put(org, "clinica", [CLINICA, TARIFAS]) == 4
+    assert await knowledge.put(org, PRODUCTION, "clinica", [CLINICA, TARIFAS]) == 4
     embedder.queries = 0
     store = MemoryStore()
     logs = Logs(store)

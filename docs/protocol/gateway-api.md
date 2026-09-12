@@ -93,14 +93,12 @@ did not name one. `pinecall chat`, `pinecall test` and the console all register 
 Several sockets may hold the same agent at once. A call goes to the one it names (`?app=`), and
 otherwise to the newest socket that takes unclaimed calls.
 
-**In development an agent is held per person.** The registry namespaces development by the member
-the key was minted for, so two developers of one tenant each run `tienda-sur` on their own laptop
-and neither takes the other's: what each of them reaches — `GET /v1/agents`, `WS /v1/chat`, the
-config door, a suite — is the socket in their own corner. A development key that names nobody
-(CI's, a machine's) holds the org's own, and a person holding none falls back to it. Production is
-namespaced by nobody, because a person's key does not open `app` there: what holds a deployed slug
-is a key issued for a machine (§7). A **dialled** door is the exception — a number exists once in a
-world, so the development number is the org's and the newest `pinecall run` answers it.
+**In development an agent is held per person.** Development is namespaced by the member the key
+was minted for: two developers each run `tienda-sur` on their own laptop, and what each reaches —
+`GET /v1/agents`, `WS /v1/chat`, the config door, a suite — is their own socket. A development key
+naming nobody (CI's) holds the org's own, which a person holding none falls back to. Production has
+one corner, because a person's key does not open `app` there (§7). A **dialled** door is the
+exception: a number exists once in a world, and the newest `pinecall run` answers the shared one.
 
 **Which world.** A key opens `production` or `development`, and the agent this socket registers
 is held in that world alone: the same slug on a box's key and on a laptop's is two agents, and
@@ -337,6 +335,11 @@ question brings its own facts to a scratch contact, so no contact of yours is re
 `POST /v1/agents/{slug}/memory/extraction` runs the write side: one call written down per case,
 one model call each — the very one a hang-up makes — judged by code.
 
+**Both are one world's.** A base and a contact's facts carry the `env` of the key that pushed or
+the call that taught them: a laptop's push never replaces the base the telephone answers from, and
+a test call's facts never reach the memory a production call reads under the same number.
+Promoting knowledge is the same push with the key the box runs on. The quotas count both worlds.
+
 > Both of these are **tables**. A gateway whose `DATABASE_URL` did not answer has none, and these
 > doors say so — `503 … no database answered at DATABASE_URL …` — and name the way out: the dev
 > stack up, `pinecall-runtime migrate up`, the gateway started again.
@@ -345,8 +348,8 @@ one model call each — the very one a hang-up makes — judged by code.
 
 ## 6. Provider keys, and the vault
 
-An org may bring its own key for a vendor, kept encrypted under the box's vault key and read back
-by the worker alone: [provider-keys.md](provider-keys.md).
+An org may bring its own vendor keys, sealed under the box's vault key and read back by the
+worker alone (`providers`): [provider-keys.md](provider-keys.md).
 
 ---
 
@@ -379,11 +382,10 @@ tenant's read of what the operator's `/v1/ops/usage` pages; and `GET /v1/numbers
 the org answers in the key's world, each saying whether an operator typed it or an app declared
 it (`numbers`). `GET /v1/keys` is the org's own API keys by fingerprint, never a key; `POST
 /v1/keys {label?, env?, scopes?}` mints one for a machine — `app` and production when nothing is
-said, naming nobody — and answers it in the clear the once; `POST /v1/keys/{fingerprint}/revoke`
-stops one, and a fingerprint that is not the org's is `404` like one that is nobody's. A key may
-not issue a scope it does not itself open (`keys`). A person holds one key per world: `POST
-/v1/login/env {env}` with their key mints the same person's key, with what their role opens
-there, in the other — how the console's toggle looks the other way.
+said, naming nobody — answered in the clear the once; `POST /v1/keys/{fingerprint}/revoke` stops
+one, and another org's fingerprint is `404` like nobody's. A key may not issue a scope it does not
+itself open (`keys`). A person holds one key per world: `POST /v1/login/env {env}` mints the same
+person's key, with what their role opens there, in the other — the console's toggle.
 A tenant's own carrier and its numbers imported — Twilio or SIP, the carrier's trunk pointed at the
 box, the SFU's trunk admitting the number, the route — are [numbers.md](numbers.md).
 
@@ -391,9 +393,7 @@ box, the SFU's trunk admitting the number, the route — are [numbers.md](number
 
 An org's people are rows, not shared keys: invited with a one-use token, active with a password
 of their own, each key minted for one person and one device (`subject`, `name`), a code a browser
-spends for a key of its own — and, where `PINECALL_SIGNUP` is on, `POST /v1/signup` makes an org,
-allowed what that gateway's policy says. The doors, the shapes and every refusal: [people.md](people.md).
-
----
+spends for a key of its own — and, where `PINECALL_SIGNUP` is on, `POST /v1/signup` makes an org
+allowed what the gateway's policy says. Doors, shapes and refusals: [people.md](people.md).
 
 Every door, method and path, in one table: [every-door.md](every-door.md).

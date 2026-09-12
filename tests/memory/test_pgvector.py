@@ -4,7 +4,7 @@ import pytest
 
 from pinecall.log.store import Pool
 from pinecall.memory import PgvectorMemory, Spoken
-from pinecall.types import MemoryPolicy
+from pinecall.types import DEVELOPMENT, PRODUCTION, MemoryPolicy
 from tests.memory.conftest import HUNG_UP, LEARNED, ScriptedModels, a_row
 from tests.vectors import HASH_MODEL
 
@@ -22,7 +22,7 @@ async def test_a_fact_is_recalled_by_its_words_when_its_vector_says_nothing(
     """The BM25 branch alone: the words match after stemming, the vector was hashed elsewhere."""
     await a_row(pool, org, contact, "prefiere turnos por la mañana", like=NOWHERE)
     await a_row(pool, org, contact, "vive en Montevideo con su perro", like="perro casa")
-    facts = await memory.recall(org, contact, "turno de mañana")
+    facts = await memory.recall(org, PRODUCTION, contact, "turno de mañana")
     assert facts[0].text == "prefiere turnos por la mañana"
     assert facts[0].score == 1.0
 
@@ -33,7 +33,7 @@ async def test_a_fact_is_recalled_by_its_vector_when_its_words_say_nothing(
     """The dense branch alone: no word in common with the query, the same direction as it."""
     await a_row(pool, org, contact, "le gusta el café cortado", like="bebida caliente preferida")
     await a_row(pool, org, contact, "vive en Montevideo con su perro", like=NOWHERE)
-    facts = await memory.recall(org, contact, "bebida caliente preferida")
+    facts = await memory.recall(org, PRODUCTION, contact, "bebida caliente preferida")
     assert facts[0].text == "le gusta el café cortado"
     assert facts[0].score == 1.0
 
@@ -44,7 +44,7 @@ async def test_the_fact_both_branches_find_comes_first(
     await a_row(pool, org, contact, "prefiere turnos por la tarde", like=NOWHERE)
     await a_row(pool, org, contact, "vive en Montevideo", like="turnos por la mañana")
     await a_row(pool, org, contact, "prefiere turnos por la mañana")
-    facts = await memory.recall(org, contact, "turnos por la mañana")
+    facts = await memory.recall(org, PRODUCTION, contact, "turnos por la mañana")
     assert facts[0].text == "prefiere turnos por la mañana"
     assert facts[0].score == 1.0
     assert {fact.text for fact in facts[1:]} == {
@@ -59,9 +59,9 @@ async def test_an_invalidated_fact_is_not_recalled_but_is_in_the_history(
 ) -> None:
     await a_row(pool, org, contact, "prefiere turnos por la mañana", invalidated=HUNG_UP)
     await a_row(pool, org, contact, "prefiere turnos por la tarde")
-    recalled = await memory.recall(org, contact, "turnos")
+    recalled = await memory.recall(org, PRODUCTION, contact, "turnos")
     assert [fact.text for fact in recalled] == ["prefiere turnos por la tarde"]
-    history = await memory.history(org, contact)
+    history = await memory.history(org, PRODUCTION, contact)
     assert [fact.text for fact in history] == [
         "prefiere turnos por la tarde",
         "prefiere turnos por la mañana",
@@ -75,7 +75,7 @@ async def test_a_recall_as_of_a_moment_reads_what_held_then(
 ) -> None:
     await a_row(pool, org, contact, "prefiere turnos por la mañana", invalidated=HUNG_UP)
     await a_row(pool, org, contact, "prefiere turnos por la tarde", learned=HUNG_UP)
-    facts = await memory.recall(org, contact, "turnos", as_of=LEARNED)
+    facts = await memory.recall(org, PRODUCTION, contact, "turnos", as_of=LEARNED)
     assert [fact.text for fact in facts] == ["prefiere turnos por la mañana"]
 
 
@@ -85,10 +85,10 @@ async def test_forget_takes_every_row_of_the_contact_and_answers_how_many(
     for text in ("uno", "dos", "tres"):
         await a_row(pool, org, contact, text)
     await a_row(pool, org, "somebody-else", "cuatro")
-    assert await memory.forget(org, contact) == 3
-    assert await memory.forget(org, contact) == 0
-    assert await memory.history(org, contact) == []
-    assert len(await memory.history(org, "somebody-else")) == 1
+    assert await memory.forget(org, PRODUCTION, contact) == 3
+    assert await memory.forget(org, PRODUCTION, contact) == 0
+    assert await memory.history(org, PRODUCTION, contact) == []
+    assert len(await memory.history(org, PRODUCTION, "somebody-else")) == 1
 
 
 async def test_remember_adds_supersedes_and_invalidates_as_the_model_asked(
@@ -105,6 +105,7 @@ async def test_remember_adds_supersedes_and_invalidates_as_the_model_asked(
     turns = [Spoken("user", "me mudé, y ahora prefiero la tarde"), Spoken("agent", "anotado")]
     ops = await memory.remember(
         org,
+        PRODUCTION,
         contact,
         turns,
         channel="phone",
@@ -120,7 +121,11 @@ async def test_remember_adds_supersedes_and_invalidates_as_the_model_asked(
         ("prefiere turnos por la tarde", "preference", "CA_1"),
     ]
     assert ops[0].took_ms >= 0
-    current = [fact for fact in await memory.history(org, contact) if fact.invalidated_at is None]
+    current = [
+        fact
+        for fact in await memory.history(org, PRODUCTION, contact)
+        if fact.invalidated_at is None
+    ]
     assert {fact.text for fact in current} == {
         "es alérgico a la penicilina",
         "prefiere turnos por la tarde",
@@ -148,10 +153,18 @@ async def test_a_forget_category_never_reaches_the_table_and_a_fence_is_forgiven
         ' {"op": "add", "text": "prefiere que le hablen de usted", "category": "preference"}]\n```'
     )
     ops = await memory.remember(
-        org, contact, [], channel="whatsapp", at=HUNG_UP, policy=THE_POLICY, llm=None, keys={}
+        org,
+        PRODUCTION,
+        contact,
+        [],
+        channel="whatsapp",
+        at=HUNG_UP,
+        policy=THE_POLICY,
+        llm=None,
+        keys={},
     )
     assert [fact.text for fact in ops[0].facts] == ["prefiere que le hablen de usted"]
-    assert [fact.text for fact in await memory.history(org, contact)] == [
+    assert [fact.text for fact in await memory.history(org, PRODUCTION, contact)] == [
         "prefiere que le hablen de usted"
     ]
 
@@ -161,11 +174,19 @@ async def test_a_tenant_that_named_nothing_to_remember_asks_no_model_and_writes_
 ) -> None:
     turns = [Spoken("user", "soy alérgico a la penicilina")]
     ops = await memory.remember(
-        org, contact, turns, channel="web", at=HUNG_UP, policy=MemoryPolicy(), llm=None, keys={}
+        org,
+        PRODUCTION,
+        contact,
+        turns,
+        channel="web",
+        at=HUNG_UP,
+        policy=MemoryPolicy(),
+        llm=None,
+        keys={},
     )
     assert ops[0].facts == []
     assert models.built == []
-    assert await memory.history(org, contact) == []
+    assert await memory.history(org, PRODUCTION, contact) == []
 
 
 async def test_a_model_that_answers_garbage_writes_nothing_and_raises_nothing(
@@ -173,10 +194,18 @@ async def test_a_model_that_answers_garbage_writes_nothing_and_raises_nothing(
 ) -> None:
     models.answer = "Claro, el paciente prefiere la tarde."
     ops = await memory.remember(
-        org, contact, [], channel="phone", at=HUNG_UP, policy=THE_POLICY, llm=None, keys={}
+        org,
+        PRODUCTION,
+        contact,
+        [],
+        channel="phone",
+        at=HUNG_UP,
+        policy=THE_POLICY,
+        llm=None,
+        keys={},
     )
     assert ops[0].facts == []
-    assert await memory.history(org, contact) == []
+    assert await memory.history(org, PRODUCTION, contact) == []
 
 
 # ── whose vectors these are ─────────────────────────────────────────────────────
@@ -198,7 +227,7 @@ async def test_a_fact_of_another_model_is_out_of_the_dense_branch_and_still_foun
         model="another-embedder",
     )
     await a_row(pool, org, contact, "vive en Montevideo", like="café cortado")
-    facts = await memory.recall(org, contact, "café cortado")
+    facts = await memory.recall(org, PRODUCTION, contact, "café cortado")
     assert [fact.text for fact in facts] == ["vive en Montevideo", "prefiere el café cortado"]
 
 
@@ -208,6 +237,7 @@ async def test_a_fact_written_now_carries_the_model_that_embedded_it(
     models.answer = '[{"op": "add", "text": "prefiere la mañana", "category": "preference"}]'
     await memory.remember(
         org,
+        PRODUCTION,
         contact,
         [Spoken(role="user", text="mejor de mañana")],
         channel="phone",
@@ -232,7 +262,7 @@ async def test_the_facts_an_org_keeps_are_counted_across_its_contacts_and_histor
     assert await memory.kept(org) == 2
     await a_row(pool, org, contact, "prefería la tarde", invalidated=HUNG_UP)
     assert await memory.kept(org) == 2, "a superseded row is history and not a fact held"
-    assert await memory.forget(org, contact) == 2
+    assert await memory.forget(org, PRODUCTION, contact) == 2
     assert await memory.kept(org) == 1
 
 
@@ -246,8 +276,8 @@ async def test_hold_writes_the_sentences_it_was_given_and_asks_no_model(
     memory: PgvectorMemory, org: str, contact: str, models: ScriptedModels
 ) -> None:
     said = ["prefiere turnos por la mañana", "vive en Montevideo con su perro"]
-    await memory.hold(org, contact, said, at=HUNG_UP)
-    held = await memory.history(org, contact)
+    await memory.hold(org, PRODUCTION, contact, said, at=HUNG_UP)
+    held = await memory.history(org, PRODUCTION, contact)
     # A set, because the rows share one valid_from and the history's tie-break is the row id: two
     # facts written in the same breath have no order between them, and a golden asks for none.
     assert {fact.text for fact in held} == set(said)
@@ -262,11 +292,12 @@ async def test_a_fact_a_golden_held_is_recalled_by_the_two_branches_a_turn_reads
     """The point of writing them: what comes back is what a call would get, in that order."""
     await memory.hold(
         org,
+        PRODUCTION,
         contact,
         ["prefiere turnos por la mañana", "vive en Montevideo con su perro", NOWHERE],
         at=HUNG_UP,
     )
-    facts = await memory.recall(org, contact, "turno de mañana", k=2)
+    facts = await memory.recall(org, PRODUCTION, contact, "turno de mañana", k=2)
     assert [fact.text for fact in facts][0] == "prefiere turnos por la mañana"
     assert facts[0].score == 1.0
     assert len(facts) == 2, "k cuts, which is what makes a golden's recall@k a real question"
@@ -275,10 +306,29 @@ async def test_a_fact_a_golden_held_is_recalled_by_the_two_branches_a_turn_reads
 async def test_the_facts_a_golden_held_carry_this_embedder_and_go_with_one_forget(
     memory: PgvectorMemory, pool: Pool, org: str, contact: str
 ) -> None:
-    await memory.hold(org, contact, ["prefiere la mañana", "vive en Pocitos"], at=HUNG_UP)
+    await memory.hold(
+        org, PRODUCTION, contact, ["prefiere la mañana", "vive en Pocitos"], at=HUNG_UP
+    )
     rows = await pool.fetch(
         "SELECT model FROM contact_memories WHERE org = $1 AND contact = $2", org, contact
     )
     assert [row["model"] for row in rows] == [HASH_MODEL, HASH_MODEL]
-    assert await memory.forget(org, contact) == 2
-    assert await memory.history(org, contact) == []
+    assert await memory.forget(org, PRODUCTION, contact) == 2
+    assert await memory.history(org, PRODUCTION, contact) == []
+
+
+async def test_a_contacts_facts_are_one_worlds_and_a_test_call_never_reaches_the_real_ones(
+    memory: PgvectorMemory, org: str, contact: str
+) -> None:
+    """The whole point of 0018: the same contact under a laptop's key is another contact to memory."""
+    await memory.hold(org, PRODUCTION, contact, ["prefiere que la llamen a la tarde"], at=HUNG_UP)
+    await memory.hold(org, DEVELOPMENT, contact, ["test: dice que su pedido no llegó"], at=HUNG_UP)
+    deployed = await memory.recall(org, PRODUCTION, contact, "pedido")
+    written = await memory.recall(org, DEVELOPMENT, contact, "pedido")
+    assert [fact.text for fact in deployed] == ["prefiere que la llamen a la tarde"]
+    assert [fact.text for fact in written] == ["test: dice que su pedido no llegó"]
+    # Forgetting the laptop's contact leaves the real one's facts standing; the quota saw both.
+    assert await memory.kept(org) == 2
+    assert await memory.forget(org, DEVELOPMENT, contact) == 1
+    assert len(await memory.history(org, PRODUCTION, contact)) == 1
+    assert await memory.kept(org) == 1

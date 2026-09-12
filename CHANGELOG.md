@@ -231,6 +231,15 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   itself in the wheel and the sdist, so an install carries its licence.
 
 ### Changed
+- **A contact's facts and a knowledge base are one world's.** `contact_memories`,
+  `knowledge_bases` and `knowledge_chunks` carry `env` (`0018`, everything already written is
+  production's), and every read and write says which: a test call on a laptop no longer writes
+  facts into the memory a production call reads under the same number, and a `knowledge push`
+  with a development key replaces the development base and never the one the telephone answers
+  from — promoting is the same push made with the key the box runs on. The two `kept` counts the
+  quotas read take both worlds, because a row a laptop wrote is a row on the same disk; the push
+  door does the "less the base being replaced" arithmetic itself, and `Knowledge.kept` lost its
+  `besides` for it.
 - **An agent is held per person in development.** The registry's name for a holding is
   `(env, holder, slug)`: nobody's corner in production, where what is deployed is the org's, and
   the member the key was minted for in development. Two developers of one tenant now each run the

@@ -47,23 +47,25 @@ async def push(
     """The tenant's files as this base, chunked, embedded and indexed; how many chunks, how long."""
     started = time.perf_counter()
     files = [KnowledgeFile(path=file.path, text=file.text) for file in said.files]
-    # What the org would keep once this push has landed: its OTHER bases, plus what these files
-    # become — the base being replaced is freed by the push itself, so it is not counted twice.
-    # Judged before a row is written, because a push is one statement and all or nothing.
-    keeping = await knowledge.kept(key.org, besides=base) + knowledge.how_many_chunks(files)
+    # What the org would keep once this push has landed: everything it holds in both worlds, less
+    # what the base being replaced frees — the push replaces it whole — plus what these files
+    # become. Judged before a row is written, because a push is one statement and all or nothing.
+    held = await knowledge.bases(key.org, key.env)
+    freed = next((one.chunks for one in held if one.base == base), 0)
+    keeping = await knowledge.kept(key.org) - freed + knowledge.how_many_chunks(files)
     try:
         await admission.a_push(key.org, keeping)
     except QuotaExhausted as refused:
         # 429 and the quota's own sentence, as every call door answers one: `pinecall knowledge
         # push` prints it, and it names both figures — what this would keep, and what the cap is.
         raise HTTPException(429, str(refused)) from refused
-    chunks = await knowledge.put(key.org, base, files)
+    chunks = await knowledge.put(key.org, key.env, base, files)
     return KnowledgePushed(base=base, chunks=chunks, took_ms=(time.perf_counter() - started) * 1000)
 
 
 @router.get("/v1/knowledge")
 async def bases(key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep) -> KnowledgeList:
-    """Every base this org has pushed: its name, its size, when."""
+    """Every base this org has pushed in the key's world: its name, its size, when."""
     return KnowledgeList(
         bases=[
             KnowledgeBase(
@@ -72,7 +74,7 @@ async def bases(key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep) -> KnowledgeL
                 model=one.model,
                 pushed_at=one.pushed_at.timestamp(),
             )
-            for one in await knowledge.bases(key.org)
+            for one in await knowledge.bases(key.org, key.env)
         ]
     )
 
@@ -80,7 +82,7 @@ async def bases(key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep) -> KnowledgeL
 @router.delete("/v1/knowledge/{base}", status_code=NO_BODY)
 async def drop(base: str, key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep) -> None:
     """The base and every chunk of it, gone. 404 when the org never pushed one by that name."""
-    if not await knowledge.drop(key.org, base):
+    if not await knowledge.drop(key.org, key.env, base):
         raise HTTPException(status_code=404, detail=NO_SUCH_BASE.format(base=base))
 
 
@@ -94,7 +96,8 @@ async def evaluate(
     base: str, said: KnowledgeGolden, key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep
 ) -> KnowledgeScore:
     """Every question of the golden asked of the base, and how well it ranked the answers."""
-    held = next((one for one in await knowledge.bases(key.org) if one.base == base), None)
+    bases_held = await knowledge.bases(key.org, key.env)
+    held = next((one for one in bases_held if one.base == base), None)
     if held is None:
         raise HTTPException(status_code=404, detail=NO_SUCH_BASE.format(base=base))
     k = said.k or DEFAULT_CHUNKS_PER_TURN
@@ -106,7 +109,7 @@ async def evaluate(
             question=Question(asks=one.asks, expects=one.expects),
             # No min_score: a golden asks where the passage RANKED, and a threshold would answer
             # a different question — whether it also cleared the bar the agent happens to set.
-            chunks=await knowledge.search(key.org, base, one.asks, k=k),
+            chunks=await knowledge.search(key.org, key.env, base, one.asks, k=k),
         )
         for one in said.questions
     ]

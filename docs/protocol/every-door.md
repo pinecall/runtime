@@ -42,8 +42,8 @@ is for. The prose, the shapes and the refusals are on that page and in the pages
 | `POST`·`GET` | `/v1/callbacks` | a number to call back when the fleet was full, and the list of them |
 | `GET` | `/v1/routes` | the numbers and doors your org answers |
 | `PUT`·`DELETE`·`GET` | `/v1/provider-keys[/{vendor}]` | the org's own vendor accounts — `providers` |
-| `PUT`·`GET`·`DELETE` | `/v1/knowledge[/{base}]` · `POST …/eval` | the base the agent answers from |
-| `GET`·`DELETE` | `/v1/contacts/{contact}/memory` · `POST /v1/contacts/memory/eval` | what it keeps about a person |
+| `PUT`·`GET`·`DELETE` | `/v1/knowledge[/{base}]` · `POST …/eval` | the base the agent answers from, in the key's world |
+| `GET`·`DELETE` | `/v1/contacts/{contact}/memory` · `POST /v1/contacts/memory/eval` | what it keeps about a person, in the key's world |
 | `POST` | `/v1/agents/{slug}/memory/extraction` | what a hang-up makes of a call |
 | `POST` | `/v1/evals/run` · `GET /v1/evals/runs[/{id}]` · `POST /v1/evals/replay/{call}` | the suites and ring 3 |
 | `POST` | `/v1/evals/caller` · `/v1/evals/voice` | the improvising caller, and a spoken eval |

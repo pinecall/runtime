@@ -126,7 +126,9 @@ class Lookups:
         # either — a lookup that cannot use its answer must not pay for one.
         if self._memory is None or contact is None or quotas.switched_off("memory_facts"):
             return recalled(())
-        facts = await self._memory.recall(opened.org, contact, query, k=DEFAULT_FACTS_PER_TURN)
+        facts = await self._memory.recall(
+            opened.org, opened.context.route.env, contact, query, k=DEFAULT_FACTS_PER_TURN
+        )
         took_ms = _since(started)
         await _written(log, "memory.ops", a_recall(contact, query, facts, took_ms, speech_id))
         return recalled(facts)
@@ -148,7 +150,12 @@ class Lookups:
         if self._knowledge is None or docs is None or quotas.switched_off("knowledge_chunks"):
             return found(())
         chunks = await self._knowledge.search(
-            opened.org, docs.base, query, k=docs.k, min_score=docs.min_score
+            opened.org,
+            opened.context.route.env,
+            docs.base,
+            query,
+            k=docs.k,
+            min_score=docs.min_score,
         )
         took_ms = _since(started)
         await _written(log, "docs.sources", a_retrieval(query, chunks, took_ms, speech_id))
@@ -178,6 +185,7 @@ class Lookups:
         turns = _spoken(await log.whole())
         ops = await self._memory.remember(
             opened.org,
+            opened.context.route.env,
             contact,
             turns,
             channel=opened.context.channel,

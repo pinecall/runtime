@@ -25,8 +25,8 @@ _create_pool = cast("Any", asyncpg.create_pool)  # pyright: ignore[reportUnknown
 
 _A_ROW = """
 INSERT INTO contact_memories
-    (org, contact, text, category, embedding, valid_from, invalidated_at, confidence, model)
-VALUES ($1, $2, $3, $4, $5::text::halfvec, $6, $7, $8, $9)
+    (org, env, contact, text, category, embedding, valid_from, invalidated_at, confidence, model)
+VALUES ($1, 'production', $2, $3, $4, $5::text::halfvec, $6, $7, $8, $9)
 RETURNING id
 """
 
