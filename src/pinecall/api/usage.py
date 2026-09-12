@@ -11,7 +11,8 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query
 from starlette.responses import StreamingResponse
 
-from pinecall.api._deps import OrgsDep, StoreDep, UsageKeyDep, an_operator
+from pinecall.api._deps import OrgsDep, StoreDep, UsageKeyDep
+from pinecall.api._operator import an_operator
 from pinecall.api.calls.sink import SSE, SSE_HEADERS, AcceptDep, wants_sse
 from pinecall.log.store import DEFAULT_LIMIT, Store
 from pinecall.log.usage import METERED_TYPES, UsageRow, a_usage_row, totals_by_org

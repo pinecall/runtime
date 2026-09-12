@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 import pytest
 
+from pinecall._settings import Settings
 from pinecall.api.login import NO_CODE, NOBODY, ONE_OR_THE_OTHER
 from pinecall.api.members import ALREADY_A_MEMBER, NO_INVITATION, NOT_BY_HAND
 from pinecall.auth.keys import MemoryKeys
@@ -83,8 +84,11 @@ async def test_a_spent_expired_or_invented_token_is_one_404_and_a_short_password
     await accepted(stranger, said["token"])
     again = await stranger.post(f"/v1/invitations/{said['token']}", json={"password": A_PASSWORD})
     assert (again.status_code, again.json()["detail"]) == (404, NO_INVITATION)
-    short = await stranger.post("/v1/invitations/inv_x", json={"password": "short"})
-    assert short.status_code == 400 and "at least 12" in short.json()["detail"]
+    # The floor is the box's (`PINECALL_MIN_PASSWORD`), so the test asks the suite's settings for
+    # it rather than naming a number the operator is free to move.
+    floor = Settings().min_password
+    short = await stranger.post("/v1/invitations/inv_x", json={"password": "a" * (floor - 1)})
+    assert short.status_code == 400 and f"at least {floor}" in short.json()["detail"]
 
 
 async def test_login_with_the_password_mints_a_key_for_that_person_and_device(

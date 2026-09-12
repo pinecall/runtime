@@ -11,10 +11,11 @@ from pinecall.api._deps import (
     KeysDep,
     MembersDep,
     OrgsDep,
+    SettingsDep,
     TeamKeyDep,
-    an_operator,
     an_org,
 )
+from pinecall.api._operator import an_operator
 from pinecall.auth import passwords
 from pinecall.auth.keys import Keys
 from pinecall.auth.members import Members
@@ -177,11 +178,13 @@ async def change(
 # one-use and a week old at most; what they leave is a password of their own, hashed; what they
 # take away is their first key, minted for them with the scopes their role presets.
 @router.post("/v1/invitations/{token}")
-async def accept(token: str, said: Accepting, members: MembersDep, keys: KeysDep) -> dict[str, Any]:
+async def accept(
+    token: str, said: Accepting, members: MembersDep, keys: KeysDep, settings: SettingsDep
+) -> dict[str, Any]:
     """Spend the invitation: the member is active, and the answer is their first key, once."""
     try:
         env = an_env(said.env)
-        kept = passwords.hashed(said.password)
+        kept = passwords.hashed(said.password, settings.min_password)
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused
     member = await members.accept(token, kept)
@@ -222,7 +225,34 @@ def member_as_json(member: Member) -> dict[str, Any]:
         "agents": sorted(member.agents),
         "status": member.status,
         "scopes": sorted(member.scopes),
+        # Whether they run the BOX, which no role gives and only the box grants. A tenant reading
+        # its own team sees it too: somebody who can open every org's door is not a secret from
+        # the org they are in.
+        "operator": member.operator,
     }
+
+
+class Running(WireModel):
+    """Whether this person runs the box. False takes it back, and takes it back at once."""
+
+    operator: bool
+
+
+# The one write the BOX makes into a tenant's people, and it changes nothing about their org: an
+# operator is a person whose own key opens /v1/ops/* as well as their org's doors. It is not part
+# of PATCH /v1/members — everything there is the org's to change, on a key with `team`, and this
+# one in the same body would be one field away from an org promoting its own admin to run the
+# machine it is a tenant on.
+@operator.put("/orgs/{named}/members/{id}/operator")
+async def runs_the_box(
+    named: str, id: str, said: Running, orgs: OrgsDep, members: MembersDep
+) -> dict[str, Any]:
+    """This person runs this box, or stops. 404 when no member of the org answers to the id."""
+    org = await an_org(named, orgs)
+    changed = await members.make_operator(org.id, id, said.operator)
+    if changed is None:
+        raise HTTPException(404, NO_SUCH_MEMBER.format(id=id))
+    return member_as_json(changed)
 
 
 @operator.get("/orgs/{named}/members")

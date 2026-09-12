@@ -12,15 +12,20 @@ from pinecall.types import DeclarationRefused
 # would only slow every handshake.
 _HASHER = PasswordHasher()
 
-# Length is the one rule, because it is the one that matters against a guess: twelve characters of
-# anything. Nothing about digits or symbols, which people meet with `Password1!`.
-SHORTEST_PASSWORD = 12
+# How short a password may be is the OPERATOR's to decide and not this runtime's: it is their box,
+# their people, and their judgement about who is on it. So there is no number here — the door hands
+# one in, off `PINECALL_MIN_PASSWORD` (_settings.py, where the default lives with the setting), and
+# zero is a real answer meaning no rule at all. Length rather than digits or symbols, which people
+# meet with `Password1!`; and what actually stops a guess is not the floor but the two things
+# around it: argon2id at rest, so a dumped table is not a dumped password, and five tries a minute
+# per name (auth/throttle.py), so an online guess gets nowhere.
+TOO_SHORT = "a password is at least {shortest} characters"
 
 
-def hashed(password: str) -> str:
+def hashed(password: str, at_least: int) -> str:
     """The password as the table keeps it: an argon2id string carrying its own salt and cost."""
-    if len(password) < SHORTEST_PASSWORD:
-        raise DeclarationRefused(f"a password is at least {SHORTEST_PASSWORD} characters")
+    if len(password) < at_least:
+        raise DeclarationRefused(TOO_SHORT.format(shortest=at_least))
     return _HASHER.hash(password)
 
 

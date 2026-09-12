@@ -9,6 +9,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
+from pinecall.auth.invitations import INVITATION_TTL_S, Invited, a_token
 from pinecall.auth.keys import fingerprint
 from pinecall.log.store import Pool
 from pinecall.types import Member, MemberStatus, Role, a_role
@@ -16,22 +17,6 @@ from pinecall.types import Member, MemberStatus, Role, a_role
 # The row's own name, not a secret: it is what a key's `subject` carries and what a seat says.
 MEMBER_ID_PREFIX = "m_"
 MEMBER_ID_BYTES = 6
-
-# An invitation is a one-use token in a link, so it looks like one: a prefix nobody else uses
-# and 192 bits after it. Like a key it is shown once and stored as its sha256; unlike a key it
-# dies on its own in a week, because a link in an inbox is a link somebody will forward.
-INVITATION_PREFIX = "inv_"
-INVITATION_BYTES = 24
-INVITATION_TTL_S = 7 * 24 * 3600.0
-
-
-@dataclass(frozen=True)
-class Invited:
-    """A member just invited, and the token at the one moment it exists in the clear."""
-
-    member: Member
-    token: str
-    expires_at: str
 
 
 @dataclass(frozen=True)
@@ -87,6 +72,13 @@ class Members(Protocol):
     ) -> Member | None:
         """The member with these fields replaced; a field left None keeps what it had. None when
         no member of this org answers to the id."""
+        ...
+
+    # Not part of `update`, on purpose: everything there is the ORG's to change, on a key with
+    # `team`. This one is the BOX's, on the ops key, and putting it in the same call would be one
+    # body away from an org promoting its own admin to run the machine it is a tenant on.
+    async def make_operator(self, org: str, id: str, operator: bool) -> Member | None:
+        """This person runs the box, or stops. None when no member of this org answers to the id."""
         ...
 
 
@@ -199,6 +191,15 @@ class MemoryMembers:
         self._rows[id] = replace(self._rows[id], member=member)
         return member
 
+    async def make_operator(self, org: str, id: str, operator: bool) -> Member | None:
+        """The same one column, over a dict."""
+        found = await self.find(org, id)
+        if found is None:
+            return None
+        member = replace(found, operator=operator)
+        self._rows[id] = replace(self._rows[id], member=member)
+        return member
+
 
 # (org, email) is UNIQUE, so a second invite of an accepted member is the conflict this INSERT
 # steps around: the row is read first and the decision made in Python, where the sentence is.
@@ -208,7 +209,7 @@ VALUES ($1, $2, $3, $4, $5, $6, 'invited')
 """
 
 _LISTED = """
-SELECT id, org, email, name, role, agents, status, password_hash, created_at
+SELECT id, org, email, name, role, agents, status, operator, password_hash, created_at
   FROM members
  WHERE org = $1
  ORDER BY created_at, id
@@ -219,13 +220,13 @@ SELECT id, org, email, name, role, agents, status, password_hash, created_at
 _SEATED = "SELECT count(*) AS seated FROM members WHERE org = $1 AND status <> 'disabled'"
 
 _FIND = """
-SELECT id, org, email, name, role, agents, status, password_hash, created_at
+SELECT id, org, email, name, role, agents, status, operator, password_hash, created_at
   FROM members
  WHERE org = $1 AND id = $2
 """
 
 _BY_EMAIL = """
-SELECT id, org, email, name, role, agents, status, password_hash, created_at
+SELECT id, org, email, name, role, agents, status, operator, password_hash, created_at
   FROM members
  WHERE org = $1 AND email = $2
 """
@@ -235,12 +236,19 @@ _UPDATE = """
 UPDATE members
    SET role = COALESCE($3, role), agents = COALESCE($4, agents), status = COALESCE($5, status)
  WHERE org = $1 AND id = $2
-RETURNING id, org, email, name, role, agents, status, password_hash, created_at
+RETURNING id, org, email, name, role, agents, status, operator, password_hash, created_at
 """
 
 _ACTIVATE = """
 UPDATE members SET status = 'active', password_hash = $2 WHERE id = $1
-RETURNING id, org, email, name, role, agents, status, password_hash, created_at
+RETURNING id, org, email, name, role, agents, status, operator, password_hash, created_at
+"""
+
+# The box's own write, and the only one that is not the org's: fenced by the org like every other
+# read, so an id from one tenant cannot name a member of another.
+_MAKE_OPERATOR = """
+UPDATE members SET operator = $3 WHERE org = $1 AND id = $2
+RETURNING id, org, email, name, role, agents, status, operator, password_hash, created_at
 """
 
 _INVITE = "INSERT INTO invitations (token_hash, member, expires_at) VALUES ($1, $2, $3)"
@@ -332,15 +340,15 @@ class PostgresMembers:
         )
         return None if row is None else _a_member(row)
 
+    async def make_operator(self, org: str, id: str, operator: bool) -> Member | None:
+        """One column, fenced by the org. The row is the truth about who runs this box."""
+        row = await self._pool.fetchrow(_MAKE_OPERATOR, org, id, operator)
+        return None if row is None else _a_member(row)
+
 
 def a_member_id() -> str:
     """A name for the row. It is what a person's key carries as `subject`."""
     return f"{MEMBER_ID_PREFIX}{secrets.token_hex(MEMBER_ID_BYTES)}"
-
-
-def a_token() -> str:
-    """An invitation nobody has held before. It is in the answer once and hashed everywhere else."""
-    return f"{INVITATION_PREFIX}{secrets.token_urlsafe(INVITATION_BYTES)}"
 
 
 def members_for(pool: Pool | None) -> Members:
@@ -368,6 +376,7 @@ def _a_member(row: Any) -> Member:
         role=a_role(str(row["role"])),
         agents=frozenset(str(agent) for agent in row["agents"]),
         status=_a_status(str(row["status"])),
+        operator=bool(row["operator"]),
     )
 
 

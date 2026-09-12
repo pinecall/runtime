@@ -11,8 +11,8 @@ from pinecall.cli.columns import as_columns
 from pinecall.cli.operator import Operator, against_the_gateway
 from pinecall.types import QUOTAS, ROLES, VENDORS
 
-PURPOSE: str = "the tenants: list | add | invite | rm | quota | provider-key"
-VERBS: tuple[str, ...] = ("list", "add", "invite", "rm", "quota", "provider-key")
+PURPOSE: str = "the tenants: list | add | invite | operator | rm | quota | provider-key"
+VERBS: tuple[str, ...] = ("list", "add", "invite", "operator", "rm", "quota", "provider-key")
 
 # The door every verb here knocks at, on PINECALL_OPS_KEY.
 OPS_ORGS = "/v1/ops/orgs"
@@ -27,6 +27,10 @@ ON_THE_BOX = "this org runs every vendor on the keys of this box"
 # pasted as an argument is a key in the shell history of whoever typed it. Nothing prints it back.
 READ_THE_KEY = "paste the {vendor} key and press enter: "
 NO_KEY_ON_STDIN = "nothing came in on stdin: pipe the key, or paste it and press enter"
+
+# Nobody of that org answers to the email: the sentence names both, because a typo in either is
+# the same mistake and the person reading has to know which one to fix.
+NO_SUCH_MEMBER = "no member of {org} answers to {email}"
 
 
 def configure(parser: argparse.ArgumentParser) -> None:
@@ -54,6 +58,14 @@ def configure(parser: argparse.ArgumentParser) -> None:
         help="what their keys will open (default admin: the first person owns the org)",
     )
     inviting.set_defaults(run=run_invite)
+
+    running = verbs.add_parser("operator", help="a person of an org runs this box, or stops")
+    running.add_argument("org", metavar="<org>", help="by id or slug")
+    running.add_argument("email", metavar="<email>", help="a member of that org")
+    running.add_argument(
+        "--revoke", action="store_true", help="take it back; their org's doors are untouched"
+    )
+    running.set_defaults(run=run_operator)
 
     removing = verbs.add_parser("rm", help="forget an org; refused while it has keys or routes")
     removing.add_argument("org", metavar="<org>", help="by id or slug")
@@ -108,6 +120,13 @@ def run_invite(arguments: argparse.Namespace) -> int:
     """One person into one org, the token on this terminal and nowhere else."""
     return against_the_gateway(
         partial(invite, arguments.org, arguments.email, arguments.name, arguments.role)
+    )
+
+
+def run_operator(arguments: argparse.Namespace) -> int:
+    """One person of one org made — or unmade — an operator of this box."""
+    return against_the_gateway(
+        partial(make_operator, arguments.org, arguments.email, not arguments.revoke)
     )
 
 
@@ -176,6 +195,29 @@ async def invite(
     print(f"{member['id']}  {member['email']}  {member['role']}  {member['status']}", file=out)
     print(f"  {operator.base}/invitations/{said['token']}", file=out)
     print(f"  {TOKEN_PRINTED_ONCE}", file=out)
+    return 0
+
+
+# What an operator IS, said where somebody granting it will read it: their own key opens every
+# /v1/ops door of this box, on top of their org's own. No role gives it and no org can grant it.
+RUNS_THE_BOX = "their own key now opens this box's operator doors, as well as their org's"
+RUNS_NO_MORE = "their key opens their org's doors and this box's no longer"
+
+
+async def make_operator(
+    org: str, email: str, running: bool, operator: Operator, out: TextIO = sys.stdout
+) -> int:
+    """The member with that email, made an operator of this box or unmade. Their org stands."""
+    people = await operator.get(f"{OPS_ORGS}/{org}/members")
+    found = next((one for one in people["members"] if one["email"] == email), None)
+    if found is None:
+        print(NO_SUCH_MEMBER.format(email=email, org=org), file=sys.stderr)
+        return 1
+    changed = await operator.put(
+        f"{OPS_ORGS}/{org}/members/{found['id']}/operator", {"operator": running}
+    )
+    print(f"{changed['id']}  {changed['email']}  {changed['role']}", file=out)
+    print(f"  {RUNS_THE_BOX if running else RUNS_NO_MORE}", file=out)
     return 0
 
 

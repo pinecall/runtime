@@ -22,10 +22,20 @@ class Discovered(WireModel):
     # of its own may want sign-ups and a cloud may close them: the console draws the way in off
     # THIS, never off `cloud`.
     signup: bool = False
+    # How short a password this box accepts (PINECALL_MIN_PASSWORD). A page asking somebody to
+    # choose one has to say the rule BEFORE they type, and it holds no key when it asks — so the
+    # number rides here rather than being copied into the page, where it would drift the day an
+    # operator moved it. 0 means there is no rule.
+    min_password: int = 0
 
 
 # No key at this door: it is how a client learns whether to offer a sign-up before anybody has one.
 @router.get("/.well-known/pinecall")
 async def discovered(settings: SettingsDep) -> Discovered:
-    """Which runtime answers here, whether it is the cloud, and whether a stranger may sign up."""
-    return Discovered(version=__version__, cloud=settings.cloud, signup=settings.signup)
+    """Which runtime, whether it is the cloud, whether a stranger may sign up, and the floor."""
+    return Discovered(
+        version=__version__,
+        cloud=settings.cloud,
+        signup=settings.signup,
+        min_password=settings.min_password,
+    )

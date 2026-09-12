@@ -8,7 +8,8 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import TypeAdapter
 
-from pinecall.api._deps import AppKeyDep, CallsKeyDep, FleetDep, LogsDep, StoreDep, an_operator
+from pinecall.api._deps import AppKeyDep, CallsKeyDep, FleetDep, LogsDep, StoreDep
+from pinecall.api._operator import an_operator
 from pinecall.fleet import STALE_AFTER_S, Heartbeat, Seat, Standing, Totals
 from pinecall.log.store import DEFAULT_LIMIT
 from pinecall.types import DEFAULT_ORG, Channel
