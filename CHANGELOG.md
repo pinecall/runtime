@@ -7,6 +7,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **The gateway serves the console.** `GET /` and every path that is not a door's answer the
+  built page from `src/pinecall/gateway/console/` — package data `scripts/console` builds from
+  the agents repo and copies in, git-ignored, carried by the wheel and by `make deploy`, which
+  now runs it first. `/v1/*` and `/.well-known/*` paths nobody declared are still JSON 404s, and
+  a gateway nobody built the console into says so in a sentence. `GET /.well-known/pinecall`
+  answers `{version, cloud}`; `PINECALL_CLOUD` says whether this is Pinecall's hosted gateway.
 - **The console's directory verbs go over the app socket.** `POST /v1/agents/{slug}/dev/{family}/{verb}`
   relays a console's ask — a written call to the class, the personas and a simulation, the goldens
   and a suite, the knowledge folder, the memory goldens, a promoted candidate, drift, a

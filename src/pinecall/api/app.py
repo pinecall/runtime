@@ -12,7 +12,9 @@ from fastapi import FastAPI
 
 from pinecall._settings import Settings, load_settings
 from pinecall.api import (
+    console,
     contacts,
+    discovery,
     extraction,
     fleet,
     knowledge,
@@ -229,8 +231,13 @@ for door in (
     members.router,
     login.router,
     whoami.router,
+    discovery.router,
 ):
     app.include_router(door)
+
+# The console, LAST and alone: its one route is the gateway's only catch-all, and it must come
+# after every door above so that no /v1 path is ever answered with a page. api/console.py.
+app.include_router(console.router)
 
 # What every door above answers when the embedder refuses or the rows were written by another
 # model: a status and the refusal's own sentence, in one table (api/_refusals.py).

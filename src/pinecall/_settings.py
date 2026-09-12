@@ -277,8 +277,8 @@ class Settings(BaseSettings):
         default=None,
         description="The key /v1/ops/* is authenticated by. Unset, the operator API is closed.",
     )
-    # The org's own key, as `pinecall-runtime keys issue` printed it: what the worker and the
-    # tenant's app knock at the gateway with on a box that has a database.
+    cloud: bool = Field(default=False, description="Pinecall's hosted gateway: a sign-up, a plan.")
+    # The org's own key, as `keys issue` printed it: what the worker and the app knock with.
     api_key: str | None = Field(
         default=None,
         description="The org's own API key, as `pinecall-runtime keys issue` printed it.",
