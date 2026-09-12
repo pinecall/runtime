@@ -12,17 +12,20 @@ router = APIRouter()
 
 
 class Discovered(WireModel):
-    """The two facts a CLI or a page needs before it holds a key: which runtime, and whose."""
+    """What a CLI or a page needs before it holds a key: which runtime, and what it does."""
 
     version: str
-    # True on Pinecall's own hosted gateway, where a stranger may sign up and a plan is billed;
-    # False on a box somebody runs themselves, where nothing of that exists and the console shows
-    # none of it. A setting, not a guess: PINECALL_CLOUD.
+    # True on Pinecall's own hosted gateway, where a plan is billed; False on a box somebody runs
+    # themselves, where nothing of that exists. A setting, not a guess: PINECALL_CLOUD.
     cloud: bool
+    # Whether `POST /v1/signup` answers here at all (PINECALL_SIGNUP). Its own fact, because a box
+    # of its own may want sign-ups and a cloud may close them: the console draws the way in off
+    # THIS, never off `cloud`.
+    signup: bool = False
 
 
 # No key at this door: it is how a client learns whether to offer a sign-up before anybody has one.
 @router.get("/.well-known/pinecall")
 async def discovered(settings: SettingsDep) -> Discovered:
-    """Which runtime answers here, and whether it is Pinecall's cloud or a box of its own."""
-    return Discovered(version=__version__, cloud=settings.cloud)
+    """Which runtime answers here, whether it is the cloud, and whether a stranger may sign up."""
+    return Discovered(version=__version__, cloud=settings.cloud, signup=settings.signup)

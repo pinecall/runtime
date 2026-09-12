@@ -1,7 +1,8 @@
-# People — members, login, and the sign-up on the cloud
+# People — members, login, and the sign-up a gateway may open
 
 Section 8 of [gateway-api.md](gateway-api.md), on its own page: the org's people as rows, the
-key a person logs in for, the code a browser spends, and the one door a stranger may knock at.
+key a person logs in for, the code a browser spends, and the one door a stranger may knock at
+where its gateway opens one.
 
 An org's people are rows, not shared keys. A key holder invites one — `POST /v1/members` with
 `{email, name, role, agents?}` answers `201` with the member and a one-use `token`, shown once and
@@ -21,16 +22,22 @@ whatever the password. Or it takes `{code, device?}`: a key holder minted the co
 /v1/login/codes` (five minutes, one use), which is how `pinecall run` prints
 `?login=<code>` and a browser ends up holding a key of its own, never the org's.
 
-A browser on ANOTHER origin — the landing page — is refused by the same-origin rule unless the
-gateway welcomes it, so `PINECALL_SITE` names the origins that may knock, comma separated
-(`https://pinecall.io, https://www.pinecall.io`). A box that names none adds no CORS at all and
-answers no preflight. Nothing there carries a cookie: the key is a Bearer the page holds.
+## The sign-up, where its gateway opens one
 
-**On Pinecall's cloud alone** (`/.well-known/pinecall` says `cloud: true`), a stranger makes an org:
+**Only where `PINECALL_SIGNUP` is set**, and it is **off unless the person who runs the gateway
+turns it on** — a box somebody runs for their own agents wants no stranger making an org, and is
+never asked to close a door. It is its own flag and not `cloud`: a box of its own may want sign-ups,
+and a cloud may close them. `GET /.well-known/pinecall` answers `{version, cloud, signup}` with no
+key, which is how a page or a CLI knows whether to offer one at all.
+
 `POST /v1/signup {org, name?, email, person, password, device?}` — no key — answers `201` with the
 same key shape plus `slug`, the `member` (an `admin`, `active`, password kept) and a one-use `code`
-the landing page hands the console as `/?login=<code>`. The org is on the **free trial**, the one
-set of quotas `api/signup.py` spells (forty-five minutes, two agents, one bought number …), replaced
-whole by a plan later. Refusals: `403` on a box of its own, `409` a slug taken, `400` a bad slug,
+good for `/?login=<code>`. The org is on the **free trial**, the one set of quotas `api/signup.py`
+spells (forty-five minutes, two agents, one bought number …), replaced whole by a plan later.
+Refusals: `403` where sign-ups are shut, naming the setting; `409` a slug taken; `400` a bad slug,
 email or a short password — nothing half-made — and `429` the sixth sign-up from one place in a
 minute.
+
+The console is served by this gateway, so it is the same origin as every door it uses, and the
+sign-up is **its** screen (`/signup`): a site somewhere else links to it rather than posting here.
+That is why this runtime sends no CORS header at all — there is no legitimate cross-origin caller.

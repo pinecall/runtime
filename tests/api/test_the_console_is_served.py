@@ -112,7 +112,7 @@ def test_the_well_known_door_says_which_runtime_and_whose(gateway: TestClient) -
     status, content_type, body = fetched(gateway, "/.well-known/pinecall")
     assert status == 200 and content_type.startswith("application/json")
     said = json.loads(body)
-    assert said == {"version": said["version"], "cloud": False}
+    assert said == {"version": said["version"], "cloud": False, "signup": False}
     assert isinstance(said["version"], str)
 
 

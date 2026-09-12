@@ -110,12 +110,6 @@ class Settings(BaseSettings):
         default=None,
         description="The box's public name: where a carrier sends a call. Unset, nothing imports.",
     )
-    # The console is served HERE and is same-origin, so it needs none of this; a LANDING page is
-    # somewhere else, and the door it knocks at from a browser is the sign-up (api/app.py).
-    site: str = Field(
-        default="",
-        description="Origins a browser may knock from: the landing page's, comma separated.",
-    )
 
     # ── The services the doctor asks after: Postgres, and the embedder ─────────
     # Every default is what infra/compose/dev.yml serves, so a fresh clone runs the doctor with
@@ -291,7 +285,15 @@ class Settings(BaseSettings):
         default=None,
         description="The key /v1/ops/* is authenticated by. Unset, the operator API is closed.",
     )
-    cloud: bool = Field(default=False, description="Pinecall's hosted gateway: a sign-up, a plan.")
+    cloud: bool = Field(default=False, description="Pinecall's hosted gateway: a plan, billed.")
+    # Whether a stranger may make an org here. Its own flag and not `cloud`, because they are two
+    # facts: a box somebody runs for their own agents wants no sign-up at all — which is why this
+    # is OFF unless the person who runs the gateway turns it on — and a cloud may close sign-ups
+    # without ceasing to be one. The console draws the way in only where this says so.
+    signup: bool = Field(
+        default=False,
+        description="Whether a stranger may make an org at this gateway. Off unless you say.",
+    )
     # The org's own key, as `keys issue` printed it: what the worker and the app knock with.
     api_key: str | None = Field(
         default=None,
@@ -379,11 +381,6 @@ class Settings(BaseSettings):
             return init_settings, env_settings, dotenv_settings, file_secret_settings
         walked = DotEnvSettingsSource(settings_cls, env_file=env_files_read())
         return init_settings, env_settings, walked, file_secret_settings
-
-
-def origins_of(settings: Settings) -> tuple[str, ...]:
-    """The origins `site` names, as a list. Empty is a box with no page in front of it."""
-    return tuple(one.strip() for one in settings.site.split(",") if one.strip())
 
 
 def load_settings() -> Settings:
