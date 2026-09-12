@@ -143,11 +143,14 @@ async def test_no_llm_is_ever_spent_guessing_keyterms_the_agent_did_not_declare(
     assert _stt_context(spoken)["keyterm_detection"]["enabled"] is False
 
 
-async def test_an_agent_cut_off_by_a_cough_picks_its_sentence_back_up() -> None:
-    """Resuming is livekit's default (turn.py:195) and stays it; the wait is ours, because two
-    seconds of silence on a phone line is a caller wondering whether the call dropped."""
+async def test_a_sentence_that_was_cut_off_stays_cut_off() -> None:
+    """Resuming is livekit's default (turn.py:195) and this turns it OFF, because a read-back is
+    what does the cutting here: a tool's `confirm` is said with `say()` the moment its output
+    lands, over a reply preemptive generation already started, and the reply was then played
+    again — a booking's goodbye heard four times, same speech_id, same metrics to the
+    millisecond. The wait stays ours and short, for the case where nothing resumes anyway."""
     interruption = _turns(a_call_on(CLARA, _a_kit(), "phone"))["interruption"]
-    assert interruption["resume_false_interruption"] is True
+    assert interruption["resume_false_interruption"] is False
     assert interruption["false_interruption_timeout"] == 1.0
 
 
