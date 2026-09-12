@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from typing import Protocol
 
 from pinecall.knowledge.store import Base
-from pinecall.types import Chunk, KnowledgeFile
+from pinecall.types import Chunk, Env, KnowledgeFile
 from pinecall.types.knowledge import DEFAULT_CHUNKS_PER_TURN
 
 
@@ -15,22 +15,27 @@ from pinecall.types.knowledge import DEFAULT_CHUNKS_PER_TURN
 class Knowledge(Protocol):
     """The knowledge base as a turn and a push see it: put, bases, drop, search."""
 
-    async def put(self, org: str, base: str, files: Sequence[KnowledgeFile]) -> int:
+    # A base is one WORLD's, as the agent that answers from it is: a push with a laptop's key
+    # replaces the laptop's base and never the one the telephone answers from. Promoting is the
+    # same push made with the key the box runs on. 0018 is where the column went in.
+    async def put(self, org: str, env: Env, base: str, files: Sequence[KnowledgeFile]) -> int:
         """Replace the base with these files, chunked and embedded; how many chunks it became."""
         ...
 
-    async def bases(self, org: str) -> list[Base]:
-        """Every base this org pushed, by name."""
+    async def bases(self, org: str, env: Env) -> list[Base]:
+        """Every base this org pushed in this world, by name."""
         ...
 
-    async def drop(self, org: str, base: str) -> bool:
+    async def drop(self, org: str, env: Env, base: str) -> bool:
         """Forget the base and its chunks. False when the org never pushed one by that name."""
         ...
 
-    # What the knowledge_chunks quota is measured against. `besides` is the base a push is about
-    # to replace whole: its chunks are freed by that push, so they are not what the org will keep.
-    async def kept(self, org: str, besides: str | None = None) -> int:
-        """How many chunks this org holds across its bases, not counting the one named."""
+    # What the knowledge_chunks quota is measured against, and the one read of both worlds at
+    # once: a chunk a laptop pushed is a row on the same disk as one the box pushed, and a plan
+    # that capped only production would cap nothing. What a push about to replace a base frees is
+    # the door's arithmetic — it is holding that base's row already.
+    async def kept(self, org: str) -> int:
+        """How many chunks this org holds across its bases, in both worlds."""
         ...
 
     # The other half of the same question, and the only one that can be asked before a row is
@@ -42,6 +47,7 @@ class Knowledge(Protocol):
     async def search(
         self,
         org: str,
+        env: Env,
         base: str,
         query: str,
         *,

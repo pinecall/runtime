@@ -123,7 +123,14 @@ back to. Production is namespaced by nobody, because there is one holder there b
 a person's key does not open `app` in production at all (see below), so what holds a deployed
 slug is a key issued for a machine. The exception is a **dialled** door: a number exists once in
 a world, so the development number is the org's and the newest `pinecall run` answers it — web
-and chat are each developer's own, the telephone is shared. `agent.registered` and `call.started` carry `env`, so a console and a session
+and chat are each developer's own, the telephone is shared.
+
+**And so does the data.** A contact's facts and a knowledge base carry the world of the key that
+pushed or the call that taught them (`0018`): a test call on a laptop never writes into the memory
+a production call reads under the same number, and a `knowledge push` from that laptop replaces
+the laptop's base and never the telephone's. Promoting knowledge is the same push made with the
+box's key. The counts behind `memory_facts` and `knowledge_chunks` read both worlds, because a
+row a laptop wrote is a row on the same disk. `agent.registered` and `call.started` carry `env`, so a console and a session
 list can say which world they are reading. A dev key opens development — a laptop is where things
 are written — and every key issued before the field existed is production's.
 

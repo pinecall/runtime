@@ -53,7 +53,13 @@ async def test_recall_on_a_phone_call_answers_facts_with_their_source_and_since(
         "facts": [{"text": "prefiere turnos por la mañana", "source": None, "since": "2026-09-01"}]
     }
     [asked] = served.memory.recalled
-    assert asked == {"org": ORG, "contact": THE_NUMBER, "query": "quiero un turno", "k": 6}
+    assert asked == {
+        "org": ORG,
+        "env": "production",
+        "contact": THE_NUMBER,
+        "query": "quiero un turno",
+        "k": 6,
+    }
     [ops] = await served.written("memory.ops")
     assert ops["speech_id"] == "sp_2"
     [op] = ops["ops"]

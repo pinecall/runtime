@@ -9,6 +9,7 @@ import pytest
 
 from pinecall.knowledge import PgKnowledge
 from pinecall.providers.embedder import DIMENSIONS
+from pinecall.types import PRODUCTION
 from tests.knowledge.files import CLINICA, TARIFAS
 
 pytestmark = pytest.mark.unit
@@ -58,7 +59,9 @@ async def test_a_file_is_one_document_so_a_chunk_is_embedded_seeing_its_neighbou
     """The whole point of the contextual model: the chunks of one file go out together."""
     embedder = RecordingEmbedder()
     pool = RecordingPool()
-    assert await PgKnowledge(pool, embedder).put("org", "clinica", [CLINICA, TARIFAS]) == 4
+    assert (
+        await PgKnowledge(pool, embedder).put("org", PRODUCTION, "clinica", [CLINICA, TARIFAS]) == 4
+    )
     assert [len(document) for document in embedder.documents] == [2, 2]
     assert embedder.documents[0][0].startswith("Clínica Norte › Horarios")
     assert embedder.documents[1][0].startswith("Tarifas › Revisión")
@@ -68,8 +71,8 @@ async def test_the_vectors_are_written_back_flat_in_the_order_the_files_were_cut
     """One list per document out, one row per chunk in: a reordering here loses every vector."""
     embedder = RecordingEmbedder()
     pool = RecordingPool()
-    await PgKnowledge(pool, embedder).put("org", "clinica", [CLINICA, TARIFAS])
-    paths, _headings, _ordinals, texts, vectors = pool.arguments[5:]
+    await PgKnowledge(pool, embedder).put("org", PRODUCTION, "clinica", [CLINICA, TARIFAS])
+    paths, _headings, _ordinals, texts, vectors = pool.arguments[6:]
     assert paths == ["clinica.md", "clinica.md", "tarifas.md", "tarifas.md"]
     assert [vector.split(",")[0].lstrip("[") for vector in vectors] == [
         str(float(len(text))) for text in texts
@@ -78,5 +81,5 @@ async def test_the_vectors_are_written_back_flat_in_the_order_the_files_were_cut
 
 async def test_the_bases_row_keeps_the_model_that_answered_and_its_width() -> None:
     pool = RecordingPool()
-    await PgKnowledge(pool, RecordingEmbedder()).put("org", "clinica", [CLINICA])
-    assert pool.arguments[2:5] == ("pplx-embed-context-v1-0.6b", DIMENSIONS, 2)
+    await PgKnowledge(pool, RecordingEmbedder()).put("org", PRODUCTION, "clinica", [CLINICA])
+    assert pool.arguments[3:6] == ("pplx-embed-context-v1-0.6b", DIMENSIONS, 2)

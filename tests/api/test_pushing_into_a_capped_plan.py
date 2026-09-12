@@ -11,7 +11,7 @@ from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.knowledge import PgKnowledge
 from pinecall.log.store import open_pool
 from pinecall.orgs.table import MemoryOrgs
-from pinecall.types import KnowledgeFile, Org, Quotas
+from pinecall.types import PRODUCTION, KnowledgeFile, Org, Quotas
 from tests.api.conftest import A_KEY
 from tests.knowledge.files import CLINICA, TARIFAS
 from tests.postgres import Dev
@@ -82,7 +82,9 @@ async def test_a_push_past_the_cap_answers_the_sentence_and_leaves_the_table_as_
     assert refused.json()["detail"] == (
         f"org {org} has used 6 of its 4 knowledge_chunks: credits.exhausted"
     )
-    assert [(one.base, one.chunks) for one in await knowledge.bases(org)] == [("clinica", 4)]
+    assert [(one.base, one.chunks) for one in await knowledge.bases(org, PRODUCTION)] == [
+        ("clinica", 4)
+    ]
     assert await knowledge.kept(org) == CHUNKS_OF_BOTH
 
 
@@ -107,5 +109,5 @@ async def test_a_plan_that_keeps_no_chunks_never_writes_a_base_row_at_all(
     assert refused.json()["detail"] == (
         f"org {org} has used 2 of its 0 knowledge_chunks: credits.exhausted"
     )
-    assert await knowledge.bases(org) == []
+    assert await knowledge.bases(org, PRODUCTION) == []
     assert await knowledge.kept(org) == 0

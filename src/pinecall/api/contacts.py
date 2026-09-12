@@ -11,7 +11,7 @@ from fastapi import APIRouter
 from pinecall.api._deps import EmbedderDep, KeptMemoryDep, MemoryKeyDep
 from pinecall.memory import DEFAULT_FACTS_PER_TURN, Memory
 from pinecall.memory.scoring import Answered, Question, Score, scored
-from pinecall.types import Fact
+from pinecall.types import Env, Fact
 from pinecall_protocol.rest import (
     ContactFact,
     ContactMemory,
@@ -31,7 +31,7 @@ router = APIRouter()
 @router.get("/v1/contacts/{contact}/memory")
 async def history(contact: str, key: MemoryKeyDep, memory: KeptMemoryDep) -> ContactMemory:
     """Everything memory ever kept about one contact of this org, current facts first."""
-    facts = await memory.history(key.org, contact)
+    facts = await memory.history(key.org, key.env, contact)
     return ContactMemory(facts=[_on_the_wire(fact) for fact in facts])
 
 
@@ -40,7 +40,7 @@ async def history(contact: str, key: MemoryKeyDep, memory: KeptMemoryDep) -> Con
 @router.delete("/v1/contacts/{contact}/memory")
 async def forget(contact: str, key: MemoryKeyDep, memory: KeptMemoryDep) -> Forgotten:
     """Every fact of the contact, gone; how many went. Zero is a fine answer, not a 404."""
-    return Forgotten(forgotten=await memory.forget(key.org, contact))
+    return Forgotten(forgotten=await memory.forget(key.org, key.env, contact))
 
 
 # A golden is the only thing that can say memory returned the WRONG facts: the judge that runs on
@@ -61,9 +61,11 @@ async def evaluate(
     scratch = f"golden-{uuid4().hex}"
     started = time.perf_counter()
     try:
-        answered = [await _asked(memory, key.org, scratch, one, k=k) for one in said.questions]
+        answered = [
+            await _asked(memory, key.org, key.env, scratch, one, k=k) for one in said.questions
+        ]
     finally:
-        await memory.forget(key.org, scratch)
+        await memory.forget(key.org, key.env, scratch)
     took_ms = (time.perf_counter() - started) * 1000
     return _as_a_score(await embedder.model(), scored(answered, k), took_ms)
 
@@ -73,12 +75,12 @@ async def evaluate(
 # moment, so the recency weighing treats them alike and what a golden measures is the words and
 # the meaning — a golden that carried dates would be asking a different question.
 async def _asked(
-    memory: Memory, org: str, scratch: str, question: MemoryQuestion, *, k: int
+    memory: Memory, org: str, env: Env, scratch: str, question: MemoryQuestion, *, k: int
 ) -> Answered:
     """One question's facts written, recalled and cleared; what came back, best first."""
-    await memory.hold(org, scratch, question.holds, at=datetime.now(UTC))
-    facts = await memory.recall(org, scratch, question.asks, k=k)
-    await memory.forget(org, scratch)
+    await memory.hold(org, env, scratch, question.holds, at=datetime.now(UTC))
+    facts = await memory.recall(org, env, scratch, question.asks, k=k)
+    await memory.forget(org, env, scratch)
     return Answered(
         question=Question(holds=question.holds, asks=question.asks, expects=question.expects),
         facts=facts,

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Protocol
 
-from pinecall.types import Channel, Fact, MemoryPolicy, Model, ProviderKeys, ToolSpec
+from pinecall.types import Channel, Env, Fact, MemoryPolicy, Model, ProviderKeys, ToolSpec
 from pinecall_protocol.defs import MemoryOp
 
 # How many facts one recall hands the model: six, which reads as what it knows about a person
@@ -28,9 +28,14 @@ class Spoken:
 class Memory(Protocol):
     """The contact's facts: recalled under a turn's budget, written at hang-up, erased on ask."""
 
+    # A contact's facts are one WORLD's, as the call that taught them was: what a test call on a
+    # laptop learns about a number never reaches the memory a production call reads under that
+    # same number, and the other way round. Every read and write says which; `kept` alone reads
+    # both, because a quota is about rows on a disk. 0018 is where the column went in.
     async def recall(
         self,
         org: str,
+        env: Env,
         contact: str,
         query: str,
         *,
@@ -45,6 +50,7 @@ class Memory(Protocol):
     async def remember(
         self,
         org: str,
+        env: Env,
         contact: str,
         turns: Sequence[Spoken],
         *,
@@ -63,20 +69,22 @@ class Memory(Protocol):
     # given, not extracted. A golden is what asks for it — it brings the facts a question's contact
     # holds and needs no such contact to exist — and the write is a real one, so what a golden then
     # measures is the ranking a call would get and not an arithmetic of its own.
-    async def hold(self, org: str, contact: str, facts: Sequence[str], *, at: datetime) -> None:
+    async def hold(
+        self, org: str, env: Env, contact: str, facts: Sequence[str], *, at: datetime
+    ) -> None:
         """These sentences as the contact's facts, embedded and written; no model is asked."""
         ...
 
-    async def forget(self, org: str, contact: str) -> int:
+    async def forget(self, org: str, env: Env, contact: str) -> int:
         """Every row of the contact, gone — the right to be forgotten. How many went."""
         ...
 
     # What the memory_facts quota is measured against. A count of rows and never a counter
     # column: the rows are the truth and a number kept beside them is a second one that drifts.
     async def kept(self, org: str) -> int:
-        """How many facts this org holds right now, across every contact it has ever met."""
+        """How many facts this org holds right now, every contact and both worlds together."""
         ...
 
-    async def history(self, org: str, contact: str) -> list[Fact]:
+    async def history(self, org: str, env: Env, contact: str) -> list[Fact]:
         """Every fact ever held about the contact: the current ones first, then the superseded."""
         ...
