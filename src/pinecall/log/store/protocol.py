@@ -57,6 +57,10 @@ class Store(Protocol):
         """Close a call's log for good: every later append is refused with LogSealed."""
         ...
 
+    async def calls_of(self, org: str, limit: int) -> list[str]:
+        """The org's newest calls across every agent it holds, newest first, at most `limit`."""
+        ...
+
     async def list_calls(self, agent: str) -> list[str]:
         """The id of every call the agent handled, oldest first."""
         ...

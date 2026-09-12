@@ -8,6 +8,8 @@ is for. The prose, the shapes and the refusals are on that page and in the pages
 | `WS` | `/v1/apps` | the app socket: hold an agent, answer its tools |
 | `WS` | `/v1/chat?agent=` | one text caller |
 | `WS` | `/v1/attach?call=&token=` | a seat's live log, and the verbs back |
+| `GET` | `/v1/sessions?limit=` | the org's newest calls across every agent, the same rows as an agent's |
+| `GET` | `/v1/events` | SSE, live only: the org's floor changing — an agent held, a call ringing, up, over |
 | `GET` | `/v1/members` · `POST` | the org's people; invite one, the token once |
 | `PATCH` | `/v1/members/{id}` | role, agents, standing; disabled revokes their keys |
 | `POST` | `/v1/invitations/{token}` | accept with a password: active, and the first key |

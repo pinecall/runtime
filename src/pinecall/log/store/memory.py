@@ -73,6 +73,11 @@ class MemoryStore:
         """Every call this agent wrote to, in the order it first did."""
         return list(self._calls_of.get(agent, []))
 
+    async def calls_of(self, org: str, limit: int) -> list[str]:
+        """The org's calls newest first: a dict keeps the order the logs were opened in."""
+        mine = [call for call, log in self._calls.items() if log.org == org]
+        return list(reversed(mine))[:limit]
+
     async def latest_seq(self, call: str) -> int:
         """How many entries the call has, which is its highest seq; 0 when it has none."""
         log = self._calls.get(call)

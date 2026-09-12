@@ -17,6 +17,7 @@ from pinecall.api import (
     discovery,
     extraction,
     fleet,
+    floor,
     knowledge,
     listen,
     login,
@@ -230,6 +231,7 @@ for door in (
     extraction.router,
     members.router,
     login.router,
+    floor.router,
     whoami.router,
     discovery.router,
 ):

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 from pinecall.log import replay
 from pinecall.log.entry import Entry, ephemeral_by_default
@@ -12,6 +12,11 @@ from pinecall.log.pii import Masker
 from pinecall.log.store.protocol import DEFAULT_LIMIT, Store
 from pinecall.types.json import JsonObject
 from pinecall_protocol.registry import TERMINAL_EVENT
+
+# A second listener on a log's appends, beside the fanout: what Logs uses to feed an org's own
+# stream with the few entries that are about the org and not about one call. Async, because
+# whose log it is lives on the store's head row.
+type Tap = Callable[[Entry], Awaitable[None]]
 
 
 class CallLog:
@@ -25,12 +30,14 @@ class CallLog:
         *,
         masker: Masker | None = None,
         fanout: Fanout | None = None,
+        tap: Tap | None = None,
     ) -> None:
         self._store = store
         self._agent = agent
         self._call = call
         self._masker = masker or Masker()
         self._fanout = fanout or Fanout()
+        self._tap = tap
         self._sealed = False
 
     @property
@@ -53,6 +60,8 @@ class CallLog:
         # never see an entry the store does not have, which is what makes the cursor a promise.
         entry = await self._store.append(self._call, self._agent, type, payload, forgettable)
         self._fanout.publish(entry)
+        if self._tap is not None:
+            await self._tap(entry)
         if type == TERMINAL_EVENT:
             await self.seal()
         return entry
@@ -87,10 +96,13 @@ class CallLog:
 class AgentLog:
     """The agent's own log: registered, configured, an error outside a call. It never seals."""
 
-    def __init__(self, store: Store, agent: str, *, fanout: Fanout | None = None) -> None:
+    def __init__(
+        self, store: Store, agent: str, *, fanout: Fanout | None = None, tap: Tap | None = None
+    ) -> None:
         self._store = store
         self._agent = agent
         self._fanout = fanout or Fanout()
+        self._tap = tap
 
     @property
     def agent(self) -> str:
@@ -104,6 +116,8 @@ class AgentLog:
         forgettable = ephemeral_by_default(type) if ephemeral is None else ephemeral
         entry = await self._store.append(None, self._agent, type, data or {}, forgettable)
         self._fanout.publish(entry)
+        if self._tap is not None:
+            await self._tap(entry)
         return entry
 
     async def since(self, after: int = 0, limit: int = DEFAULT_LIMIT) -> list[Entry]:

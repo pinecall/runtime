@@ -58,8 +58,14 @@ async def sessions(
     for call in newest:
         snapshot = await snapshots.of(call)
         if snapshot is not None:
-            lines.append(_line(call, snapshot, _said(snapshot, reader, registry)))
+            lines.append(a_line(call, snapshot, reader, registry))
     return SessionList(calls=lines)
+
+
+# One row, however it was listed: the agent's door and the org's (api/floor.py) draw the same line.
+def a_line(call: str, snapshot: Snapshot, reader: Reader, registry: Registry) -> SessionLine:
+    """The call as this reader may see it, cut to the row a list draws."""
+    return _line(call, snapshot, _said(snapshot, reader, registry))
 
 
 # The projection is applied to the whole state and the row is cut out of what comes back, so a

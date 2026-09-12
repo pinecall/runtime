@@ -165,3 +165,21 @@ async def test_across_pages_the_metered_types_of_every_log_by_position(
     resumed = await store.across(("call.summary",), after=rows[0].position)
     assert [row.entry.call for row in resumed if row.entry.call in mine] == [other]
     assert await store.across(("call.summary",), after=rows[1].position) == []
+
+
+async def test_an_orgs_calls_are_listed_newest_first_across_its_agents_and_nobody_elses(
+    store: Store, agent: str, call: str
+) -> None:
+    """What the org's Sessions screen lists before anybody picks an agent."""
+    org, other = f"org-{call}", f"other-{call}"
+    second_agent, second, theirs = f"{agent}-b", f"{call}-b", f"{call}-theirs"
+    await store.append(call, agent, "call.ringing", {})
+    await store.owned(call, agent, org)
+    await store.append(second, second_agent, "call.ringing", {})
+    await store.owned(second, second_agent, org)
+    await store.append(theirs, agent, "call.ringing", {})
+    await store.owned(theirs, agent, other)
+    assert await store.calls_of(org, 10) == [second, call]
+    assert await store.calls_of(org, 1) == [second]
+    assert await store.calls_of(other, 10) == [theirs]
+    assert await store.calls_of(f"nobody-{call}", 10) == []

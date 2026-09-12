@@ -353,6 +353,16 @@ hang-up's one model call) and are documented with the log, not here.
 
 ---
 
+## 7b. The org's floor
+
+Before anybody picks an agent: `GET /v1/sessions?limit=` is every agent's newest calls in one
+list, the rows `GET /v1/agents/{slug}/sessions` draws, newest first across the org (`agent` on each
+row says whose). `GET /v1/events` is the floor changing, as SSE from now on and nothing before:
+`agent.registered` when a process holds an agent, `call.ringing` · `call.dialing` ·
+`call.started` · `call.ended` as calls arrive and go — each the very entry of its own log, tapped
+as it is written, so what to resume from is that log and its `seq`. A turn is never on it. Both
+take a key with `calls`; a room token reads its one call and neither of these.
+
 ## 8. People: members and login
 
 An org's people are rows, not shared keys. A key holder invites one — `POST /v1/members` with
