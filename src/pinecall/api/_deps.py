@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from hmac import compare_digest
 from typing import Annotated, Any, cast
 
@@ -11,7 +12,7 @@ from starlette.requests import HTTPConnection
 from pinecall._settings import Settings
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.codes import LoginCodes
-from pinecall.auth.keys import KeyRecord, Keys
+from pinecall.auth.keys import KeyRecord, Keys, not_opening
 from pinecall.auth.members import Members
 from pinecall.auth.throttle import Throttle
 from pinecall.evals.runs import Runs
@@ -30,7 +31,7 @@ from pinecall.providers.models import Models
 from pinecall.providers.overrides import Overrides
 from pinecall.routes.table import Routes
 from pinecall.tokens.ledger import Tokens
-from pinecall.types import Org
+from pinecall.types import KeyScope, Org
 from pinecall.whatsapp.graph import Graph
 
 
@@ -112,7 +113,40 @@ SettingsDep = Annotated[Settings, Depends(a_settings)]
 StoreDep = Annotated[Store, Depends(a_store)]
 KeysDep = Annotated[Keys, Depends(the_keys)]
 LlmsDep = Annotated[Models, Depends(the_llms)]
+# The bare key: a door that takes it asks nothing of its scopes. Two do — whoami, and minting a
+# login code for oneself — and the test over the routes names them. Every other tenant door
+# takes one of the scoped deps below.
 KeyDep = Annotated[KeyRecord, Depends(a_key)]
+
+
+# One dependency per scope, and the door says which by the dep it takes: the key is verified as
+# every door verifies it, then asked whether it opens THIS. 403 in the one sentence, naming what
+# the key does open. The scope rides the function as an attribute so a test can walk the app's
+# routes and prove every tenant door declares exactly one.
+def opening(scope: KeyScope) -> Callable[..., Awaitable[KeyRecord]]:
+    """A dependency that hands back the key when it opens this scope, and refuses when not."""
+
+    async def a_key_opening(key: KeyDep) -> KeyRecord:
+        if (closed := not_opening(key, scope)) is not None:
+            raise HTTPException(403, closed)
+        return key
+
+    a_key_opening.__dict__[SCOPE_OF_THE_DOOR] = scope
+    return a_key_opening
+
+
+SCOPE_OF_THE_DOOR = "pinecall_scope"
+
+AppKeyDep = Annotated[KeyRecord, Depends(opening("app"))]
+CallsKeyDep = Annotated[KeyRecord, Depends(opening("calls"))]
+TalkKeyDep = Annotated[KeyRecord, Depends(opening("talk"))]
+SuperviseKeyDep = Annotated[KeyRecord, Depends(opening("supervise"))]
+PipelineKeyDep = Annotated[KeyRecord, Depends(opening("pipeline"))]
+KnowledgeKeyDep = Annotated[KeyRecord, Depends(opening("knowledge"))]
+MemoryKeyDep = Annotated[KeyRecord, Depends(opening("memory"))]
+EvalsKeyDep = Annotated[KeyRecord, Depends(opening("evals"))]
+ProviderKeysKeyDep = Annotated[KeyRecord, Depends(opening("keys"))]
+TeamKeyDep = Annotated[KeyRecord, Depends(opening("team"))]
 
 
 # ── the tables the lifespan opened, each behind one name ────────────────────────

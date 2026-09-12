@@ -12,6 +12,7 @@ from pinecall._settings import Settings
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.scopes import a_room_token, secret_for
 from pinecall.log.snapshots import Snapshots
+from pinecall.types.token import NAME_ATTRIBUTE, SUBJECT_ATTRIBUTE
 
 # The identity a human takes in the room, whether they came to listen or to speak, so the room's
 # own facts (session/voice/room/facts.py) and a later verb name the same seat. The prefix is
@@ -39,11 +40,23 @@ async def a_seat_in(
     if not snapshot.live:
         raise HTTPException(409, NOT_LIVE.format(call=call))
     identity = f"{A_SEAT}{secrets.token_hex(SEAT_BYTES)}"
-    token = a_room_token(call, scope, time.time() + A_SEAT_LASTS_S, secret_for(settings), identity)
+    # A person's key names the person, and the seat carries them: the member's id and name ride
+    # the token as attributes, so the verb the desk sends from it is written down as theirs and
+    # the room's own facts show a name beside the seat. An org's machine key names nobody.
+    who = {
+        attribute: value
+        for attribute, value in ((SUBJECT_ATTRIBUTE, key.subject), (NAME_ATTRIBUTE, key.name))
+        if value
+    }
+    token = a_room_token(
+        call, scope, time.time() + A_SEAT_LASTS_S, secret_for(settings), identity, attributes=who
+    )
     return {
         "server_url": settings.livekit_public_url or settings.livekit_url,
         "participant_token": token,
         "call": call,
         "identity": identity,
         "org": key.org,
+        "subject": key.subject,
+        "name": key.name,
     }

@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import KeyDep, KeysDep, MembersDep
+from pinecall.api._deps import KeysDep, MembersDep, TeamKeyDep
 from pinecall.auth import passwords
 from pinecall.auth.keys import Keys
 from pinecall.types import PRODUCTION, DeclarationRefused, Member, a_role, an_env
@@ -62,13 +62,13 @@ class Accepting(WireModel):
 
 
 @router.get("/v1/members")
-async def listed(key: KeyDep, members: MembersDep) -> dict[str, Any]:
+async def listed(key: TeamKeyDep, members: MembersDep) -> dict[str, Any]:
     """Every member of the key's org, oldest first, disabled ones included."""
     return {"members": [_as_json(member) for member in await members.listed(key.org)]}
 
 
 @router.post("/v1/members", status_code=INVITED)
-async def invite(said: WantedMember, key: KeyDep, members: MembersDep) -> dict[str, Any]:
+async def invite(said: WantedMember, key: TeamKeyDep, members: MembersDep) -> dict[str, Any]:
     """One more person, invited: the row, and the one-use token that makes them a member."""
     try:
         role = a_role(said.role)
@@ -88,7 +88,7 @@ async def invite(said: WantedMember, key: KeyDep, members: MembersDep) -> dict[s
 
 @router.patch("/v1/members/{id}")
 async def change(
-    id: str, said: Changed, key: KeyDep, members: MembersDep, keys: KeysDep
+    id: str, said: Changed, key: TeamKeyDep, members: MembersDep, keys: KeysDep
 ) -> dict[str, Any]:
     """Replace the role, the agents or the standing. Disabling revokes every key of theirs."""
     found = await members.find(key.org, id)

@@ -13,6 +13,12 @@ SCOPES: frozenset[str] = frozenset(get_args(Scope.__value__))
 # so a worker reads a participant's scope off the media plane without a second lookup.
 SCOPE_ATTRIBUTE = "pinecall.scope"
 
+# Who sat down, when the seat was minted from a person's key: the member's id and their name, as
+# attributes of the same token, so a verb sent from that seat is written down as theirs. A body
+# may not set anything under `pinecall.` (api/tokens.py), so neither can be forged by a browser.
+SUBJECT_ATTRIBUTE = "pinecall.subject"
+NAME_ATTRIBUTE = "pinecall.name"
+
 # A talk or chat token is minted by the tenant's server for one visit: it opens one session, once,
 # and is dead in a minute whether used or not. The browser never mints one. Ten minutes is the most
 # a tenant may ask for: a token that lives longer is a door left open on a page nobody is on.

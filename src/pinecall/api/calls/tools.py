@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import KeyDep, LogsDep
+from pinecall.api._deps import AppKeyDep, LogsDep
 from pinecall.api._live import LiveDep
 from pinecall.api.agents.handlers import Socket, asked, handles
 from pinecall.api.agents.registry import RegistryDep
@@ -37,7 +37,7 @@ async def run_a_tool(
     call: str,
     agent: str,
     wanted: ToolCall,
-    key: KeyDep,
+    key: AppKeyDep,
     registry: RegistryDep,
     logs: LogsDep,
     live: LiveDep,

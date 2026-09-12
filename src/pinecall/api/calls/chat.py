@@ -31,7 +31,8 @@ from pinecall.api.agents.registry import (
     SocketId,
 )
 from pinecall.api.calls.opening import a_text_call
-from pinecall.auth.bearer import POLICY_VIOLATION
+from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
+from pinecall.auth.keys import not_opening
 from pinecall.auth.scopes import a_visitor
 from pinecall.log.entry import Entry
 from pinecall.log.writers import Logs
@@ -59,14 +60,8 @@ ANOTHER_ORGS = "agent {slug} is another org's: this key opens none of its calls"
 # A close frame carries at most 123 bytes of reason (RFC 6455 §5.5), and a longer one is not
 # truncated by the library: it raises, the connection dies with no close frame at all, and the
 # caller reports "the gateway refused the chat socket:" with nothing after it — the very sentence
-# this door exists to avoid. Found by running one refusal whose text was three words too long.
-CLOSE_REASON_BYTES = 123
-
-
-def _as_a_close_reason(said: str) -> str:
-    """The refusal as a close frame may carry it: cut to 123 bytes rather than lost whole."""
-    # errors="ignore" drops the half character the cut may leave; nothing here ever reaches it.
-    return said.encode()[:CLOSE_REASON_BYTES].decode(errors="ignore")
+# this door exists to avoid. Found by running one refusal whose text was three words too long;
+# the cut is auth/bearer.py's, so the app socket refuses the same way.
 
 
 # A chat token exists (POST /v1/tokens, scope=chat) and is a LiveKit room token; this socket is
@@ -92,6 +87,11 @@ async def chat(
     if key is None:
         await websocket.close(code=POLICY_VIOLATION)
         return
+    # A real key of the right org that may not talk: told so, in the one sentence every door says.
+    if (closed := not_opening(key, "talk")) is not None:
+        await websocket.accept()
+        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(closed))
+        return
     slug = websocket.query_params.get("agent", "")
     # `?app=` is how `pinecall chat` is served by its OWN process, where the tenant's breakpoints
     # are: without it a call takes whichever socket registered last. See docs/decisions/dispatch.md.
@@ -103,7 +103,7 @@ async def chat(
         why = ANOTHER_ORGS if held is not None else _why_not(registry, key.env, slug, app)
         await websocket.accept()
         await websocket.close(
-            code=POLICY_VIOLATION, reason=_as_a_close_reason(why.format(slug=slug))
+            code=POLICY_VIOLATION, reason=as_a_close_reason(why.format(slug=slug))
         )
         return
     # Everything a text call needs before its first word, in the one order both text doors take
@@ -124,11 +124,11 @@ async def chat(
         )
     except NoProvider as missing:
         logger.warning("chat refused for %s: %s", slug, missing)
-        await websocket.close(code=POLICY_VIOLATION, reason=_as_a_close_reason(str(missing)))
+        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(str(missing)))
         return
     except QuotaExhausted as refused:
         await websocket.accept()
-        await websocket.close(code=POLICY_VIOLATION, reason=_as_a_close_reason(str(refused)))
+        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(str(refused)))
         return
     await websocket.accept()
     session = opened.session

@@ -17,7 +17,7 @@ from starlette.responses import StreamingResponse
 
 from pinecall.api._deps import (
     AdmissionDep,
-    KeyDep,
+    AppKeyDep,
     KeysDep,
     LogsDep,
     OverridesDep,
@@ -43,9 +43,9 @@ from pinecall.api.calls.sink import (
     sse,
     wants_sse,
 )
-from pinecall.api.supervise.aiming import QueueingDep, VerbRefused, aimed, as_a_verb
-from pinecall.auth.bearer import POLICY_VIOLATION
-from pinecall.auth.keys import KeyRecord
+from pinecall.api.supervise.aiming import STEERS, QueueingDep, VerbRefused, aimed, as_a_verb
+from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
+from pinecall.auth.keys import KeyRecord, not_opening
 from pinecall.auth.scopes import Reader
 from pinecall.log.entry import Entry, unstored
 from pinecall.log.filters import EVERYTHING
@@ -187,6 +187,11 @@ async def attach(
         await websocket.close(code=POLICY_VIOLATION)
         return
     await websocket.accept()
+    # A key on this socket reads the call and steers it, so it is asked for the second: a person
+    # who may only watch is told so in the one sentence, and the socket closes.
+    if reader.key is not None and (closed := not_opening(reader.key, STEERS)) is not None:
+        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(closed))
+        return
     tail = asyncio.ensure_future(_tail(websocket, logs, project, reader, call, after))
     try:
         # receive(), not receive_json(): a frame that is not JSON at all is answered by name here
@@ -281,7 +286,7 @@ class Appending(WireModel):
 @router.post("/v1/calls", status_code=NOTHING_MORE)
 async def opened(
     said: Opening,
-    key: KeyDep,
+    key: AppKeyDep,
     logs: LogsDep,
     registry: RegistryDep,
     live: ServingDep,
@@ -334,7 +339,9 @@ async def opened(
 
 
 @router.post("/v1/calls/{call}/events", status_code=NOTHING_MORE)
-async def append(call: str, said: Appending, key: KeyDep, logs: LogsDep, live: ServingDep) -> None:
+async def append(
+    call: str, said: Appending, key: AppKeyDep, logs: LogsDep, live: ServingDep
+) -> None:
     """One entry of a call this gateway opened, with the seq the store stamps on it."""
     if said.type not in EVENTS:
         raise HTTPException(status_code=400, detail=UNKNOWN_EVENT.format(type=said.type))
@@ -343,7 +350,7 @@ async def append(call: str, said: Appending, key: KeyDep, logs: LogsDep, live: S
 
 
 @router.post("/v1/calls/{call}/sealed", status_code=NOTHING_MORE)
-async def sealed(call: str, key: KeyDep, logs: LogsDep, live: ServingDep) -> None:
+async def sealed(call: str, key: AppKeyDep, logs: LogsDep, live: ServingDep) -> None:
     """The call is over: every reader finishes, and nothing more can be appended to it."""
     _refuse_another_orgs_call(live, key, call)
     await _the_open_log(logs, call).seal()

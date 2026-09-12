@@ -6,7 +6,7 @@ import time
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import KeyDep, LookupsDep
+from pinecall.api._deps import AppKeyDep, LookupsDep
 from pinecall.api._live import Live, LiveDep
 from pinecall.api.calls.events import NOT_OPEN
 from pinecall_protocol.rest import LookupRequest, LookupResult, Remembered
@@ -20,7 +20,7 @@ router = APIRouter()
 # log itself; the worker holds no database and learns no seq. docs/decisions/memory.md.
 @router.post("/v1/calls/{call}/lookup")
 async def lookup(
-    call: str, said: LookupRequest, key: KeyDep, live: LiveDep, lookups: LookupsDep
+    call: str, said: LookupRequest, key: AppKeyDep, live: LiveDep, lookups: LookupsDep
 ) -> LookupResult:
     """One run of recall or search for a call this gateway serves: what it found, as an object."""
     _the_orgs_open_call(live, key.org, call)
@@ -30,7 +30,7 @@ async def lookup(
 
 
 @router.post("/v1/calls/{call}/remember")
-async def remember(call: str, key: KeyDep, live: LiveDep, lookups: LookupsDep) -> Remembered:
+async def remember(call: str, key: AppKeyDep, live: LiveDep, lookups: LookupsDep) -> Remembered:
     """The call's turns off its own log through memory, and memory.ops written; how many ops."""
     _the_orgs_open_call(live, key.org, call)
     started = time.perf_counter()

@@ -8,8 +8,7 @@ from livekit.agents.llm import CompletionUsage
 from starlette.testclient import TestClient, WebSocketTestSession
 from starlette.websockets import WebSocketDisconnect
 
-from pinecall.api.calls.chat import CLOSE_REASON_BYTES
-from pinecall.auth.bearer import POLICY_VIOLATION
+from pinecall.auth.bearer import CLOSE_REASON_BYTES, POLICY_VIOLATION
 from pinecall_protocol import decode_entry, event_of
 from pinecall_protocol.events import CallSummary
 from pinecall_protocol.metrics import LLMMetrics

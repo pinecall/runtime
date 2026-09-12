@@ -7,7 +7,7 @@ from typing import Any, cast
 from fastapi import APIRouter, HTTPException
 from pydantic import TypeAdapter
 
-from pinecall.api._deps import KeyDep, OverridesDep
+from pinecall.api._deps import AppKeyDep, CallsKeyDep, OverridesDep
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.types import AgentConfig
 from pinecall_protocol.rest import AgentList, HeldAgent
@@ -21,7 +21,7 @@ CONFIG: TypeAdapter[AgentConfig] = TypeAdapter(AgentConfig)
 
 @router.get("/v1/agents/{slug}/config")
 async def config(
-    slug: str, key: KeyDep, registry: RegistryDep, overrides: OverridesDep
+    slug: str, key: AppKeyDep, registry: RegistryDep, overrides: OverridesDep
 ) -> dict[str, Any]:
     """What the app declared about this agent, resolved: the session is built from it."""
     held = registry.of(key.env, slug)
@@ -38,7 +38,7 @@ async def config(
 # durable history of one is its own log, which the console already reads by slug. The envelope is
 # the protocol's (protocol/schema/rest.json), so the console parses it with a generated schema.
 @router.get("/v1/agents")
-async def agents(key: KeyDep, registry: RegistryDep) -> AgentList:
+async def agents(key: CallsKeyDep, registry: RegistryDep) -> AgentList:
     """The org's agents in the key's world, by slug, in the order their sockets claimed them."""
     return AgentList(
         agents=[

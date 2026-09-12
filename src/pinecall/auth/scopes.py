@@ -16,7 +16,14 @@ from livekit.protocol.room import RoomConfiguration
 
 from pinecall._settings import Settings
 from pinecall.auth.keys import KeyRecord, Keys
-from pinecall.types.token import BOUND_TO_ONE_CALL, GRANTS, SCOPE_ATTRIBUTE, grant_for
+from pinecall.types.token import (
+    BOUND_TO_ONE_CALL,
+    GRANTS,
+    NAME_ATTRIBUTE,
+    SCOPE_ATTRIBUTE,
+    SUBJECT_ATTRIBUTE,
+    grant_for,
+)
 from pinecall_protocol.defs import Projection
 
 # The only other place besides log/projection.py that spells the two projections: what a caller may
@@ -75,6 +82,9 @@ class CallToken:
     scope: str
     expires_at: float
     identity: str | None = None
+    # The person the seat was minted for, when a person's key minted it: the member's id, name.
+    subject: str | None = None
+    name: str | None = None
 
 
 def is_a_jwt(bearer: str) -> bool:
@@ -110,14 +120,20 @@ def a_call_token(token: str, secret: LivekitKeys) -> CallToken | None:
     except Exception:
         return None
     room = claims.video.room if claims.video is not None else ""
-    scope = (claims.attributes or {}).get(SCOPE_ATTRIBUTE, "")
+    attributes = claims.attributes or {}
+    scope = attributes.get(SCOPE_ATTRIBUTE, "")
     # The scope is checked, not assumed: a perfectly valid LiveKit token minted for some other
     # purpose against the same pair opens a room; it does not open this tenant's log. An `observe`
     # token is not on that list either: a listener hears the room and reads nothing.
     if not room or scope not in BOUND_TO_ONE_CALL:
         return None
     return CallToken(
-        call=room, scope=scope, expires_at=expires_at, identity=claims.identity or None
+        call=room,
+        scope=scope,
+        expires_at=expires_at,
+        identity=claims.identity or None,
+        subject=attributes.get(SUBJECT_ATTRIBUTE) or None,
+        name=attributes.get(NAME_ATTRIBUTE) or None,
     )
 
 
@@ -136,6 +152,10 @@ class Reader:
     # the same string the widget joins the LiveKit room under — so a guest sees the outside facts
     # it caused and nobody else's.
     viewer: str | None = None
+    # Who this reader is when the token or the key was a person's: what a supervise verb is
+    # written down as. None for an org's own key and for a visitor.
+    subject: str | None = None
+    name: str | None = None
 
 
 async def a_reader(bearer: str, keys: Keys, secret: LivekitKeys | None) -> Reader | None:
@@ -145,10 +165,16 @@ async def a_reader(bearer: str, keys: Keys, secret: LivekitKeys | None) -> Reade
         if granted is None:
             return None
         return Reader(
-            projection=PROJECTION_OF[granted.scope], call=granted.call, viewer=granted.identity
+            projection=PROJECTION_OF[granted.scope],
+            call=granted.call,
+            viewer=granted.identity,
+            subject=granted.subject,
+            name=granted.name,
         )
     record = await keys.verify(bearer)
-    return None if record is None else Reader(projection=KEY_PROJECTION, key=record)
+    if record is None:
+        return None
+    return Reader(projection=KEY_PROJECTION, key=record, subject=record.subject, name=record.name)
 
 
 # The one minter. The grants are the scope's own row in types/token.py and nothing else: a talk

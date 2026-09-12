@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import Field
 
-from pinecall.api._deps import KeyDep, LlmsDep, SettingsDep, StoreDep, VaultDep
+from pinecall.api._deps import EvalsKeyDep, LlmsDep, SettingsDep, StoreDep, VaultDep
 from pinecall.api.evals.listening import until_the_answer_lands
 from pinecall.evals.caller import (
     NO_MODEL,
@@ -57,7 +57,7 @@ class Called(WireModel):
 @router.post("/v1/evals/voice")
 async def a_voice_call(
     said: Calling,
-    key: KeyDep,
+    key: EvalsKeyDep,
     llms: LlmsDep,
     store: StoreDep,
     settings: SettingsDep,

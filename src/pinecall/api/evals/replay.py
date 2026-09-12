@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import Field
 
-from pinecall.api._deps import KeyDep, StoreDep
+from pinecall.api._deps import EvalsKeyDep, StoreDep
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.calls.sink import NOT_YOUR_ORGS, declared_by
 from pinecall.evals.checks import replayed as replay
@@ -39,7 +39,7 @@ class Case(WireModel):
 @router.post("/v1/evals/replay/{call}")
 async def replay_call(
     call: str,
-    key: KeyDep,
+    key: EvalsKeyDep,
     store: StoreDep,
     registry: RegistryDep,
     said: Case | None = None,

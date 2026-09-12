@@ -9,7 +9,7 @@ from collections.abc import AsyncIterator
 from fastapi import APIRouter, HTTPException
 from starlette.responses import StreamingResponse
 
-from pinecall.api._deps import KeyDep
+from pinecall.api._deps import AppKeyDep
 from pinecall.api._live import LiveDep
 from pinecall.api.calls.sink import PING_SECONDS, SSE, SSE_HEADERS, paced
 from pinecall_protocol import Command, encode
@@ -26,7 +26,7 @@ NOT_SERVED = "this gateway serves no call {call!r}: open it with POST /v1/calls 
 # tells the worker's call what to do. Both travel through the app socket this process holds, and
 # neither is a new vocabulary — the frames are the protocol's own command envelope.
 @router.get("/v1/calls/{call}/commands")
-async def commands(call: str, key: KeyDep, live: LiveDep) -> StreamingResponse:  # noqa: ARG001
+async def commands(call: str, key: AppKeyDep, live: LiveDep) -> StreamingResponse:  # noqa: ARG001
     """Every command the app sends for this call, in order, until the call is sealed."""
     waiting = live.commands(call)
     if waiting is None:

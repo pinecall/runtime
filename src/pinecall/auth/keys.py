@@ -86,6 +86,19 @@ class ListedKey:
     name: str | None = None
 
 
+# What a door says when the key is real, the org is right, and the key still may not do this. It
+# names what the key DOES open, so a person reading it on their terminal knows which role to ask
+# for. One sentence for every door and both sockets: the doors read scopes and reason no further.
+NOT_OPENED = "this key does not open {scope}: it opens {opens}"
+
+
+def not_opening(record: KeyRecord, scope: str) -> str | None:
+    """The refusal when this key lacks the scope, or None when it holds it."""
+    if scope in record.scopes:
+        return None
+    return NOT_OPENED.format(scope=scope, opens=" · ".join(sorted(record.scopes)) or "nothing")
+
+
 # A Pinecall key is 256 bits from a CSPRNG, not a password somebody chose. There is nothing to
 # guess and nothing to look up: no dictionary covers 2^256, so a per-key salt would only make two
 # identical keys hash differently, which is not a property anybody needs. What a handshake does

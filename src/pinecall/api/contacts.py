@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter
 
-from pinecall.api._deps import EmbedderDep, KeptMemoryDep, KeyDep
+from pinecall.api._deps import EmbedderDep, KeptMemoryDep, MemoryKeyDep
 from pinecall.memory import DEFAULT_FACTS_PER_TURN, Memory
 from pinecall.memory.scoring import Answered, Question, Score, scored
 from pinecall.types import Fact
@@ -29,7 +29,7 @@ router = APIRouter()
 # ones first, then what they superseded — with the two dates that bound each. What a turn reads
 # is the `recall` tool; this is what a person reads when the contact asks what is known.
 @router.get("/v1/contacts/{contact}/memory")
-async def history(contact: str, key: KeyDep, memory: KeptMemoryDep) -> ContactMemory:
+async def history(contact: str, key: MemoryKeyDep, memory: KeptMemoryDep) -> ContactMemory:
     """Everything memory ever kept about one contact of this org, current facts first."""
     facts = await memory.history(key.org, contact)
     return ContactMemory(facts=[_on_the_wire(fact) for fact in facts])
@@ -38,7 +38,7 @@ async def history(contact: str, key: KeyDep, memory: KeptMemoryDep) -> ContactMe
 # The one DELETE memory has: every row of the contact at once, superseded ones included, because
 # the right to be forgotten is not the right to have the current version forgotten.
 @router.delete("/v1/contacts/{contact}/memory")
-async def forget(contact: str, key: KeyDep, memory: KeptMemoryDep) -> Forgotten:
+async def forget(contact: str, key: MemoryKeyDep, memory: KeptMemoryDep) -> Forgotten:
     """Every fact of the contact, gone; how many went. Zero is a fine answer, not a 404."""
     return Forgotten(forgotten=await memory.forget(key.org, contact))
 
@@ -52,7 +52,7 @@ async def forget(contact: str, key: KeyDep, memory: KeptMemoryDep) -> Forgotten:
 # docs/retrieval/spec.md.
 @router.post("/v1/contacts/memory/eval")
 async def evaluate(
-    said: MemoryGolden, key: KeyDep, memory: KeptMemoryDep, embedder: EmbedderDep
+    said: MemoryGolden, key: MemoryKeyDep, memory: KeptMemoryDep, embedder: EmbedderDep
 ) -> MemoryScore:
     """Every question of the golden asked of memory, and how well it ranked the facts."""
     k = said.k or DEFAULT_FACTS_PER_TURN

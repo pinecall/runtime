@@ -7,6 +7,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **The doors enforce scopes, and the seat is named.** Every tenant door asks the key for exactly
+  one scope — `app`, `calls`, `talk`, `supervise`, `pipeline`, `knowledge`, `memory`, `evals`,
+  `keys`, `team` — and refuses with `403 this key does not open X: it opens …`; both sockets
+  close with the same sentence. A test walks the app and fails on a door that declares none or
+  two. A supervisor's seat minted from a person's key carries the member's id and name, so
+  `supervisor.*` entries say who; `GET /v1/whoami` and the seat's answer carry `subject` and
+  `name`.
 - **Members and login.** An org's people are rows: `POST /v1/members` invites one with a one-use
   token that dies in a week, `POST /v1/invitations/{token}` accepts it with a password (argon2id at
   rest) and answers the person's first key, `POST /v1/login` mints a key for a person and a device

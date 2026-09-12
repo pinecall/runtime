@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import KeyDep, VaultDep
+from pinecall.api._deps import AppKeyDep, VaultDep
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.orgs.vault import keys_brought_by
 from pinecall.types import ProviderKeys
@@ -18,7 +18,7 @@ router = APIRouter()
 # key and to nobody else. Everything under docs/decisions/provider-keys.md hangs on this one door.
 @router.get("/v1/agents/{slug}/provider-keys")
 async def provider_keys(
-    slug: str, key: KeyDep, registry: RegistryDep, vault: VaultDep
+    slug: str, key: AppKeyDep, registry: RegistryDep, vault: VaultDep
 ) -> dict[str, ProviderKeys]:
     """The keys this org brought of its own. Empty is the common case: the box's env keys run."""
     held = registry.of(key.env, slug)

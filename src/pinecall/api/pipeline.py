@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import KeyDep, OverridesDep, SettingsDep, StoreDep
+from pinecall.api._deps import OverridesDep, PipelineKeyDep, SettingsDep, StoreDep
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.api.pipeline_report import Report, report
 from pinecall.auth.keys import KeyRecord
@@ -17,7 +17,7 @@ router = APIRouter()
 @router.get("/v1/agents/{slug}/pipeline")
 async def pipeline(
     slug: str,
-    key: KeyDep,
+    key: PipelineKeyDep,
     registry: RegistryDep,
     overrides: OverridesDep,
     store: StoreDep,
@@ -33,7 +33,7 @@ async def pipeline(
 async def turn(
     slug: str,
     turned: Overridden,
-    key: KeyDep,
+    key: PipelineKeyDep,
     registry: RegistryDep,
     overrides: OverridesDep,
     store: StoreDep,

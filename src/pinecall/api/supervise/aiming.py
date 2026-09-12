@@ -31,6 +31,10 @@ NO_LIVE_CALL = "no live call {call!r} on this gateway"
 # operator debug a permission as if it were a routing bug.
 NOT_YOUR_CALL = "that call's agent belongs to another org"
 
+# The scope a key steers a call with. A supervise TOKEN was minted at a door that already asked
+# it, so the token's grant is the whole of its right; a key is asked here, at both verb doors.
+STEERS = "supervise"
+
 # The call is over, so there is nobody to say it to. 409, the same answer /listen gives.
 CALL_IS_OVER = "call {call} is over: read its log or its recording instead"
 
@@ -126,8 +130,18 @@ async def aimed(
 
 # Authority is the token or the key and never a field in the body: `by` is filled in HERE, from
 # what the door verified, and a body that carries one is refused by the schema before it arrives.
+# A person's key, or a seat minted from one, names the person: the member's id, and their name
+# beside it. An org's own key names the org, as it did before people had keys; a seat minted from
+# a machine key names the seat.
 def _who(reader: Reader) -> Supervisor:
     """The supervisor this verb is from, as the thing that let them in names them."""
+    if reader.subject is not None:
+        return _named(reader.subject, reader.name)
     if reader.key is not None:
         return Supervisor(id=A_KEY.format(org=reader.key.org))
     return Supervisor(id=reader.viewer or "")
+
+
+def _named(id: str, name: str | None) -> Supervisor:
+    """A supervisor with a name when there is one: encode() drops what nobody set, never a null."""
+    return Supervisor(id=id) if name is None else Supervisor(id=id, name=name)

@@ -7,7 +7,7 @@ from typing import Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import TypeAdapter
 
-from pinecall.api._deps import KeyDep, OrgsDep, RoutesDep, an_operator, an_org
+from pinecall.api._deps import AppKeyDep, OrgsDep, RoutesDep, an_operator, an_org
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.routes import answering
 from pinecall.types import PRODUCTION, Channel, DeclarationRefused, Env, Route
@@ -58,7 +58,7 @@ class Wanted(WireModel):
 # key it holds, and a key that could ask for another org's routes would be a key that could route
 # a call into somebody else's agent.
 @router.get("/v1/routes")
-async def routes(key: KeyDep, registry: RegistryDep, table: RoutesDep) -> list[dict[str, Any]]:
+async def routes(key: AppKeyDep, registry: RegistryDep, table: RoutesDep) -> list[dict[str, Any]]:
     """Every door the org answers in the key's world, so a job is resolved without asking again."""
     answered = await answering.answered(key.org, key.env, registry, table)
     return list(ROUTES.dump_python(tuple(door.route for door in answered), mode="json"))
