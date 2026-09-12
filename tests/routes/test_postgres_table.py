@@ -60,3 +60,18 @@ async def test_another_fleets_routes_are_not_this_fleets(table: PostgresRoutes, 
     """The org is the first half of the key: two boxes on one database never see each other."""
     await table.put(a_route(org, "clinica-norte"))
     assert await table.of_org(f"{org}-somebody-else", PRODUCTION) == ()
+
+
+async def test_the_numbers_the_box_bought_are_counted_and_the_flag_round_trips(
+    table: PostgresRoutes, org: str
+) -> None:
+    """The `numbers` quota is measured on the managed rows alone: an imported one counts nothing."""
+    await table.put(a_route(org, "clinica-norte"))
+    await table.put(
+        Route(org=org, agent="clinica-norte", channel="phone", number="+14175550100", managed=True)
+    )
+    assert await table.managed_by(org) == 1
+    stored = {route.number: route.managed for route in await table.of_org(org, PRODUCTION)}
+    assert stored == {NUMBER: False, "+14175550100": True}
+    assert await table.remove(org, "+14175550100")
+    assert await table.managed_by(org) == 0

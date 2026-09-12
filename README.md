@@ -145,7 +145,7 @@ they arrive as systemd credentials — and need a LiveKit server, a Postgres 17 
 | `box secrets` | every secret a box makes for itself, once; run twice rotates nothing |
 | `box secret <NAME>` | one secret you bring, from stdin, replaced in place |
 | `fleet list · cordon · uncordon · loop` | the workers as the hub hears them, the graceful shrink, and the loop that keeps `busy` at the target over any cloud |
-| `orgs list · add · rm · quota · provider-key` | the tenants, their quotas (`--minutes --messages --agents --concurrent-calls --memory-facts --knowledge-chunks`, the whole set at once; a flag left out is no limit and `0` refuses everything), the vendor keys an org brings |
+| `orgs list · add · rm · quota · provider-key` | the tenants, their quotas (`--minutes --messages --agents --concurrent-calls --memory-facts --knowledge-chunks --numbers`, the whole set at once; a flag left out is no limit and `0` refuses everything), the vendor keys an org brings |
 | `keys issue · list · revoke` | an org's API keys: printed once, listed by fingerprint, revoked by UPDATE. `issue --env production\|development --scope … --subject … --name …`: which world the key opens, what it may do there, whose it is |
 | `routes list · add · rm · seed` | which agent answers a number, from the next call; `--env` says in which world |
 

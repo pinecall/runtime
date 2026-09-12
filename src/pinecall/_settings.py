@@ -96,6 +96,24 @@ class Settings(BaseSettings):
     )
     # The box's own public name — what Caddy answers to, and where a carrier sends the INVITE for
     # a number a tenant imports (sip:<domain>:5060). The box already has it in box.env.
+    # The box's own carrier account, for the numbers it buys FOR a tenant (POST /v1/numbers/buy):
+    # the same three names infra/tools/twilio_trunk.py reads. Unset, the door says so; a tenant's
+    # own account is a row of the carriers table and never these.
+    twilio_account_sid: str | None = Field(
+        default=None,
+        validation_alias="TWILIO_ACCOUNT_SID",
+        description="The box's Twilio account, for the numbers it buys for a tenant.",
+    )
+    twilio_api_key: str | None = Field(
+        default=None,
+        validation_alias="TWILIO_API_KEY",
+        description="An API key SID on that account, revocable on its own; else the account SID.",
+    )
+    twilio_api_secret: str | None = Field(
+        default=None,
+        validation_alias="TWILIO_API_SECRET",
+        description="The API key's secret, or the account's auth token when no key is set.",
+    )
     domain: str | None = Field(
         default=None,
         description="The box's public name: where a carrier sends a call. Unset, nothing imports.",

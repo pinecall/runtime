@@ -31,6 +31,8 @@ class FakeTwilio:
     on_trunk: dict[str, set[str]] = field(default_factory=dict[str, set[str]])
     opens: bool = True
     made: list[str] = field(default_factory=list[str])
+    # What Twilio would sell, by country and area code: the box's account shops here.
+    shelf: dict[str, list[str]] = field(default_factory=dict[str, list[str]])
 
     async def verified(self) -> str | None:
         return "Clínica Norte" if self.opens else None
@@ -60,6 +62,19 @@ class FakeTwilio:
         number = next(one.number for one in self.owned if one.sid == number_sid)
         self.on_trunk.setdefault(trunk_sid, set()).add(number)
         self.made.append(f"attach {number}")
+
+    async def for_sale(self, country: str, area_code: str | None) -> str | None:
+        on_the_shelf = self.shelf.get(f"{country} {area_code or ''}".strip(), [])
+        return on_the_shelf[0] if on_the_shelf else None
+
+    async def bought(self, number: str) -> TwilioNumber:
+        for on_the_shelf in self.shelf.values():
+            if number in on_the_shelf:
+                on_the_shelf.remove(number)
+        one = TwilioNumber(sid=f"PN_{len(self.owned) + 1}", number=number, name=number)
+        self.owned.append(one)
+        self.made.append(f"buy {number}")
+        return one
 
 
 @pytest.fixture

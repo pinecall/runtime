@@ -42,6 +42,9 @@ ImportCredential=ELEVEN_API_KEY
 ImportCredential=PERPLEXITY_API_KEY
 ImportCredential=OPENROUTER_API_KEY
 ImportCredential=WHATSAPP_ACCESS_TOKEN
+ImportCredential=TWILIO_ACCOUNT_SID
+ImportCredential=TWILIO_API_KEY
+ImportCredential=TWILIO_API_SECRET
 # Postgres up, then the schema, then the doors: `podman healthcheck run` answers non-zero until
 # the database takes a connection, and a failed pre-start is retried by Restart= below.
 ExecStartPre=+/usr/bin/podman healthcheck run pinecall-postgres

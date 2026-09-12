@@ -108,14 +108,14 @@ with the reason for a slug that is not one.
 
 ### `GET /v1/ops/orgs/{org}`
 
-One org, with the quotas set on it and what it is holding against the two that are stocks. `null`
+One org, with the quotas set on it and what it is holding against the ones that are stocks. `null`
 is no limit.
 
 ```json
 { "id": "org_3f2a9c1b8d0e", "slug": "clinica-norte", "name": "Clínica Norte",
   "quotas": { "minutes": 1000, "messages": null, "agents": 5, "concurrent_calls": 10,
               "memory_facts": 5000, "knowledge_chunks": 2000 },
-  "holding": { "memory_facts": 412, "knowledge_chunks": 1860 } }
+  "holding": { "memory_facts": 412, "knowledge_chunks": 1860, "numbers": 1 } }
 ```
 
 `holding` is a count taken now, one indexed query over the rows themselves (`0` on a runtime with
@@ -139,7 +139,7 @@ The whole set, replaced: a limit left out is no limit. Zero is a real limit and 
 
 ```json
 { "minutes": 1000, "agents": 5, "concurrent_calls": 10,
-  "memory_facts": 5000, "knowledge_chunks": 2000 }
+  "memory_facts": 5000, "knowledge_chunks": 2000, "numbers": 1 }
 ```
 
 Four of them are **flows** — what the org has consumed, or holds open right now. `minutes` is
@@ -176,6 +176,12 @@ a feature is not a failure and must not read as one.
   the cap bites the NEXT hang-up.
 - **A contact's memory is read and erased at every quota, `0` included**: erasing is a right, not a
   feature. And a cap is about what is KEPT, so an org at its cap still recalls all of it.
+
+A third stock is **`numbers`**: how many phone numbers the box may BUY for the org on its own
+carrier account (`POST /v1/numbers/buy`, [numbers](numbers.md)), counted on the routes it bought
+(`managed`). A number the tenant imports from its own carrier is its own and counts against
+nothing. `0` is a plan that buys none; the refusal is the same `429` sentence, written before the
+carrier is asked and with no `credits.exhausted` entry, since a purchase opens no call.
 
 ## Keys
 

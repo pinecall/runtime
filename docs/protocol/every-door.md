@@ -13,6 +13,7 @@ is for. The prose, the shapes and the refusals are on that page and in the pages
 | `PUT` · `GET` · `DELETE` | `/v1/carrier` | the org's carrier: a Twilio account or a SIP peer, sealed under the vault key, named never secret |
 | `GET` | `/v1/numbers/available` | what the carrier account owns, and which of it is imported |
 | `POST` | `/v1/numbers` · `?dry_run=true` | import one number: the carrier's trunk pointed here, the SFU's trunk admitting it, the route — or the plan alone |
+| `POST` | `/v1/numbers/buy` · `?dry_run=true` | buy one number on the box's own Twilio into the org, wired as an import, capped by the `numbers` quota — or the plan alone |
 | `DELETE` | `/v1/numbers/{number}` | let a number go: the route and the admission; the carrier untouched |
 | `POST` | `/v1/login/env` | the same person's key for the other world |
 | `GET` | `/v1/sessions?limit=` | the org's newest calls across every agent, the same rows as an agent's |
