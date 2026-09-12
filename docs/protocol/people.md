@@ -31,6 +31,12 @@ lost it). What holds a slug in production is a key issued for a machine — `POS
 `{label, scopes: ["app"]}` — and it names nobody. Two people's development keys are two people's:
 the registry holds a development slug per person, so nobody takes another's agent.
 
+**How short a password may be is the OPERATOR's, not this runtime's.** `PINECALL_MIN_PASSWORD`
+(default 8, `0` for no rule at all) is the floor, and it is carried on `GET /.well-known/pinecall`
+as `min_password` so a card can say the rule this gateway actually enforces rather than a number
+copied into a page that drifts the day somebody moves it. Every door that takes a new password —
+the invitation, the sign-up — is held to the same one.
+
 `POST /v1/login` takes `{org, email, password, env?, device?}` and answers a key for that person and
 that device. Every wrong thing — the org, the email, the password, an invitation not yet accepted —
 is one `401` sentence; a disabled member is `403`; the sixth try in a minute for one name is `429`

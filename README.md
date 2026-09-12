@@ -140,7 +140,7 @@ they arrive as systemd credentials — and need a LiveKit server, a Postgres 17 
 
 | verb | what |
 |---|---|
-| `migrate up [--post]` · `migrate status` · `migrate plan` | the schema, numbered SQL, applied in order |
+| `migrate up [--post]` · `migrate status` · `migrate plan` | the schema, numbered SQL, applied in order. `up` says which database first, takes an advisory lock, and holds every migration to 5 s; a `.post.sql` is named and never run at startup, so `--post` is how an index on a big table gets built. `status` asks the database, `plan` touches nothing |
 | `doctor` | keys present · keys answer · livekit · postgres · embedder · lk — one line each, and what is down first |
 | `box secrets` | every secret a box makes for itself, once; run twice rotates nothing |
 | `box secret <NAME>` | one secret you bring, from stdin, replaced in place |
