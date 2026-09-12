@@ -32,6 +32,7 @@ class Doors:
     def __init__(self) -> None:
         self._at: dict[Door, Agent] = {}
         self._line: dict[Agent, str | None] = {}
+        self._calling: dict[tuple[Env, str], str] = {}
 
     # ── the public side ─────────────────────────────────────────────────────────
 
@@ -90,6 +91,44 @@ class Doors:
             return False
         del self._line[agent]
         return True
+
+    # ── whose phone dialled ─────────────────────────────────────────────────────
+
+    # The line answers "and if nobody knows who this is". THIS answers the question before it:
+    # a developer says which number they call FROM, and every call they make to a development
+    # door lands in their own corner — no claim, no coordination, and three of them testing at
+    # once. Kept here beside the live table and not in a row, because it is only ever meaningful
+    # alongside a socket: a developer who is running nothing has no corner to route a call into.
+    def whose_call(self, env: Env, caller: str) -> str | None:
+        """The corner that said it calls from this number, or None when nobody did."""
+        return self._calling.get((env, caller))
+
+    def calls_from(self, env: Env, caller: str, holder: str) -> None:
+        """This corner answers what it dials itself. A number is one person's: the last wins."""
+        self._calling[(env, caller)] = holder
+
+    def forget_calls_from(self, env: Env, holder: str) -> tuple[str, ...]:
+        """Every number this corner had claimed, forgotten. What it was holding, for the answer."""
+        gone = tuple(
+            number
+            for (world, number), whose in self._calling.items()
+            if world == env and whose == holder
+        )
+        for number in gone:
+            del self._calling[(env, number)]
+        return gone
+
+    def calling(self, env: Env, holder: str | None) -> tuple[str, ...]:
+        """The numbers whose calls reach this corner, sorted. Empty for a corner that named none."""
+        if holder is None:
+            return ()
+        return tuple(
+            sorted(
+                number
+                for (world, number), whose in self._calling.items()
+                if world == env and whose == holder
+            )
+        )
 
 
 def said(route: Route) -> str:

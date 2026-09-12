@@ -284,7 +284,7 @@ Four more doors read a call without its log:
 | `GET /v1/agents/{slug}/sessions?limit=` | one line per finished call: when, how long, why it ended, the cost, the outcome |
 | `GET /v1/calls/{call}/recording` | the audio, with byte ranges so a player can seek |
 | `GET /v1/agents/{slug}/config` | what the agent declared, with the operator's overrides applied. `app` or `calls`: the worker and the console both read it |
-| `GET/POST/DELETE /v1/agents/{slug}/line` | **the line**: whose terminal a RING lands in (`calls`), the claim that takes it and the release that hands it on (`app`). An org shares one development number and a number rings in one place: the first corner to hold an agent takes its line, a second developer claims it, and it is handed on when that terminal closes — instead of the newest `pinecall run` silently answering in a colleague's scrollback. Production has one corner and the box holds it. `TheLine` in `rest.json` |
+| `PUT/DELETE /v1/line/from` · `GET/POST/DELETE /v1/agents/{slug}/line` | **where a RING lands**, in two steps. First whose phone dialled: a developer says which number they call FROM (`app`, development, a key naming a person) and every call they make lands in their own corner — no coordination, three of them testing at once. Then, for a number nobody claimed, the agent's **line**: reading it takes `calls`, claiming and releasing take `app`; the first corner to hold an agent takes it and it is handed on when that terminal closes, instead of the newest `pinecall run` silently answering in a colleague's scrollback. Neither is a row — both are only meaningful next to a socket, and `pinecall run` re-says the phone on every connect. Production has one corner and the box holds it. `TheLine` in `rest.json` |
 
 ---
 

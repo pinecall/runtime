@@ -141,11 +141,13 @@ back to. Production is namespaced by nobody, because there is one holder there b
 a person's key does not open `app` in production at all (see below), so what holds a deployed
 slug is a key issued for a machine. The exception is a **dialled** door: a number exists once in
 a world, so the development number is the org's and a call at it rings in one terminal — web and
-chat are each developer's own, the telephone is shared. WHICH terminal is the agent's **line**
-(`api/agents/doors.py`): the first corner to hold the agent takes it, a second developer claims it
-at `POST /v1/agents/{slug}/line`, and it is handed on when the terminal holding it closes. Before
-it, the newest `pinecall run` silently took the others' calls. Production needs none of it: one
-corner, and its line is nobody's.
+chat are each developer's own, the telephone is shared. WHICH terminal is asked in two steps
+(`api/agents/doors.py`). First, **whose phone dialled**: a developer says which number they call
+from (`PUT /v1/line/from`) and every call they make lands in their own corner — three of them can
+test at once, and that is the answer for almost every ring. Then, for a number nobody claimed, the
+agent's **line**: the first corner to hold it takes it, a second developer claims it, and it is
+handed on when that terminal closes. Before either, the newest `pinecall run` silently took the
+others' calls. Production needs none of it: one corner, and its line is nobody's.
 
 **And so does the data.** A contact's facts and a knowledge base carry the world of the key that
 pushed or the call that taught them (`0018`): a test call on a laptop never writes into the memory

@@ -27,6 +27,11 @@ CARLA = "m_carla"
 A_DEV_NUMBER = "+59829001199"
 A_PROD_NUMBER = "+59829001122"
 
+# The phones the two of them call FROM. Saying so once is what makes the claim unnecessary.
+BERNAS_PHONE = "+59899111111"
+CARLAS_PHONE = "+59899222222"
+A_STRANGERS_PHONE = "+59899333333"
+
 
 def a_door(channel: Channel, number: str | None = None) -> defs.Route:
     return defs.Route(channel=channel, number=number)
@@ -97,6 +102,87 @@ async def test_the_development_number_is_the_orgs_and_starting_later_does_not_ta
     taking = registry.taking(DEVELOPMENT, AGENT)
     assert taking is not None and taking.owner == BERNAS_SOCKET
     assert registry.line_for(DEVELOPMENT, AGENT) == BERNA
+
+
+async def test_a_developer_calling_from_their_own_phone_reaches_their_own_agent() -> None:
+    """The point of it: no claim, no coordination, and three of them testing at once."""
+    registry = a_registry()
+    await registry.register(
+        BERNAS_SOCKET, ORG, DEVELOPMENT, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=BERNA
+    )
+    await registry.register(
+        CARLAS_SOCKET, ORG, DEVELOPMENT, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=CARLA
+    )
+    registry.calls_from(DEVELOPMENT, BERNAS_PHONE, BERNA)
+    registry.calls_from(DEVELOPMENT, CARLAS_PHONE, CARLA)
+
+    bernas = registry.taking(DEVELOPMENT, AGENT, BERNAS_PHONE)
+    carlas = registry.taking(DEVELOPMENT, AGENT, CARLAS_PHONE)
+
+    assert bernas is not None and bernas.owner == BERNAS_SOCKET
+    assert carlas is not None and carlas.owner == CARLAS_SOCKET
+
+
+async def test_a_number_nobody_claimed_falls_back_to_the_line() -> None:
+    """A customer, a colleague's phone, a test from somewhere else: somebody still has to answer."""
+    registry = a_registry()
+    await registry.register(
+        BERNAS_SOCKET, ORG, DEVELOPMENT, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=BERNA
+    )
+    await registry.register(
+        CARLAS_SOCKET, ORG, DEVELOPMENT, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=CARLA
+    )
+    registry.calls_from(DEVELOPMENT, CARLAS_PHONE, CARLA)
+
+    taking = registry.taking(DEVELOPMENT, AGENT, A_STRANGERS_PHONE)
+
+    assert taking is not None and taking.owner == BERNAS_SOCKET, "Berna holds the line"
+
+
+async def test_a_registered_number_whose_developer_is_not_running_this_agent_falls_back() -> None:
+    """A setting made last week must not send a call to nobody: Carla is registered and away."""
+    registry = a_registry()
+    await registry.register(
+        BERNAS_SOCKET, ORG, DEVELOPMENT, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=BERNA
+    )
+    registry.calls_from(DEVELOPMENT, CARLAS_PHONE, CARLA)
+
+    taking = registry.taking(DEVELOPMENT, AGENT, CARLAS_PHONE)
+
+    assert taking is not None and taking.owner == BERNAS_SOCKET
+
+
+async def test_a_number_reaches_whatever_agent_that_developer_is_holding() -> None:
+    """A phone is a person's, not an agent's: they say it once and it works on every agent."""
+    registry = a_registry()
+    await registry.register(
+        CARLAS_SOCKET, ORG, DEVELOPMENT, "otra-tienda", [a_door("web")], holder=CARLA
+    )
+    registry.calls_from(DEVELOPMENT, CARLAS_PHONE, CARLA)
+
+    taking = registry.taking(DEVELOPMENT, "otra-tienda", CARLAS_PHONE)
+
+    assert taking is not None and taking.owner == CARLAS_SOCKET
+
+
+async def test_a_developer_stops_answering_their_own_calls_and_is_told_which_they_were() -> None:
+    registry = a_registry()
+    await registry.register(BERNAS_SOCKET, ORG, DEVELOPMENT, AGENT, [a_door("web")], holder=BERNA)
+    registry.calls_from(DEVELOPMENT, BERNAS_PHONE, BERNA)
+
+    forgot = registry.forget_calls_from(DEVELOPMENT, BERNA)
+
+    assert forgot == (BERNAS_PHONE,)
+    assert registry.calling(DEVELOPMENT, BERNA) == ()
+
+
+async def test_production_routes_by_nobodys_phone_because_it_has_one_corner() -> None:
+    registry = a_registry()
+    await registry.register(THE_BOX, ORG, PRODUCTION, AGENT, [a_door("phone", A_PROD_NUMBER)])
+
+    taking = registry.taking(PRODUCTION, AGENT, BERNAS_PHONE)
+
+    assert taking is not None and taking.owner == THE_BOX
 
 
 async def test_the_second_developer_claims_the_line_and_then_it_is_theirs() -> None:

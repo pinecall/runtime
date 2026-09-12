@@ -55,7 +55,7 @@ from pinecall.types.org import DEFAULT_ORG, QUOTAS, Counting, Org, QuotaName, Qu
 from pinecall.types.prompt import DEFAULT_LAYOUT, KNOWLEDGE, Blocks, PromptBlock, PromptRegion
 from pinecall.types.provider_keys import NO_ORG_KEYS, VENDORS, ProviderKeys
 from pinecall.types.refused import DeclarationRefused
-from pinecall.types.route import Route
+from pinecall.types.route import Route, an_e164, dialable
 from pinecall.types.token import GRANTS, Grant, Scope, grant_for
 from pinecall.types.tool import SideEffect, ToolSpec
 
@@ -132,8 +132,10 @@ __all__ = [
     "a_carrier_kind",
     "a_role",
     "a_slug",
+    "an_e164",
     "an_env",
     "consent_of",
+    "dialable",
     "for_a_person",
     "grant_for",
     "key_scopes",

@@ -5,16 +5,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from pinecall._settings import Budgets
-from pinecall.api.agents.holding import Registration
+from pinecall.api.agents.holding import Registration, SocketId
+from pinecall.api.agents.registry import Registry
 from pinecall.evals import a_score
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.vault import Vault, keys_brought_by
+from pinecall.providers.declaration import rang
 from pinecall.providers.models import Models
 from pinecall.providers.overrides import Overrides
 from pinecall.session.text.session import TextSession
-from pinecall.types import CallContext, ProviderKeys
+from pinecall.types import CallContext, Env, ProviderKeys
 
 
 # The keys travel back out because a channel may need one of its own: WhatsApp sends its answer
@@ -72,3 +74,25 @@ async def a_text_call(
         budgets=budgets,
     )
     return TextCall(session=session, keys=brought)
+
+
+# Which corner serves a call, by how the call ARRIVED.
+#
+# A call a key holder opened — the web widget, `pinecall chat`, a dev verb — lands in that key
+# holder's corner, as it always has. A call that RANG is the org's door: the worker that dialled
+# it holds a key naming nobody, so the corner is asked of the registry, which answers whose phone
+# dialled and then whose line it is. `declaration.rang()` is the one place the two are told apart.
+def who_serves(
+    registry: Registry,
+    env: Env,
+    agent: str,
+    app: SocketId | None,
+    context: CallContext,
+    holder: str | None,
+) -> Registration | None:
+    """The socket this call is handed to, or None when nobody would take it."""
+    if app is not None:
+        return registry.on(env, agent, app)
+    if rang(context.route):
+        return registry.taking(env, agent, context.caller)
+    return registry.serving(env, agent, None, holder)
