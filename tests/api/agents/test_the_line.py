@@ -38,10 +38,18 @@ def a_member(id: str, email: str) -> Member:
     return Member(id=id, org=A_RECORD.org, email=email, name=email, role="developer")
 
 
+# CI's: a development key that names nobody, which is what holds the org's own corner.
+CI_KEY = "pk_test_the_ci_job"
+
+
 @pytest.fixture
 def keys() -> MemoryKeys:
     return MemoryKeys(
-        {BERNAS_KEY: a_laptop("k_berna", BERNA), CARLAS_KEY: a_laptop("k_carla", CARLA)}
+        {
+            BERNAS_KEY: a_laptop("k_berna", BERNA),
+            CARLAS_KEY: a_laptop("k_carla", CARLA),
+            CI_KEY: KeyRecord(key_id="k_ci", org=A_RECORD.org, env=DEVELOPMENT, label="ci"),
+        }
     )
 
 
@@ -155,3 +163,56 @@ async def test_nobody_answers_a_ring_at_an_agent_no_terminal_is_running(
     assert said["held"] is False
     assert said["holding"] is None
     assert said["waiting"] == []
+
+
+# ── whose phone dialled ─────────────────────────────────────────────────────────
+
+A_PHONE = "/v1/line/from"
+BERNAS_PHONE = "+59899111111"
+
+
+async def test_a_developer_says_which_phone_is_theirs_and_the_door_says_it_back(
+    bernas: httpx.AsyncClient, registry: Registry
+) -> None:
+    await running(registry, BERNAS_SOCKET, BERNA)
+
+    said = await bernas.put(A_PHONE, json={"number": BERNAS_PHONE})
+
+    assert said.status_code == 200
+    assert said.json()["calling"] == [BERNAS_PHONE]
+    assert (await bernas.get(LINE)).json()["calling"] == [BERNAS_PHONE]
+
+
+async def test_a_number_that_is_not_a_number_is_refused_with_the_shape_in_the_sentence(
+    bernas: httpx.AsyncClient, registry: Registry
+) -> None:
+    await running(registry, BERNAS_SOCKET, BERNA)
+
+    refused = await bernas.put(A_PHONE, json={"number": "099 111 111"})
+
+    assert refused.status_code == 400
+    assert "E.164" in refused.json()["detail"]
+
+
+async def test_an_orgs_own_key_has_no_corner_to_route_a_call_into(wired: None) -> None:  # noqa: ARG001
+    """CI's key names nobody, so there is no `their own agent` for a number to reach."""
+    ci = over_the_asgi_app(f"Bearer {CI_KEY}")
+    try:
+        refused = await ci.put(A_PHONE, json={"number": BERNAS_PHONE})
+    finally:
+        await ci.aclose()
+
+    assert refused.status_code == 403
+    assert "names no person" in refused.json()["detail"]
+
+
+async def test_forgetting_says_which_numbers_were_forgotten(
+    bernas: httpx.AsyncClient, registry: Registry
+) -> None:
+    await running(registry, BERNAS_SOCKET, BERNA)
+    await bernas.put(A_PHONE, json={"number": BERNAS_PHONE})
+
+    forgot = await bernas.delete(A_PHONE)
+
+    assert forgot.json()["forgot"] == [BERNAS_PHONE]
+    assert (await bernas.get(LINE)).json()["calling"] == []

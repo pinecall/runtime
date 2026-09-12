@@ -7,20 +7,21 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
-- **`GET /v1/whoami` carries the org's `slug`** beside its id: `org` is what doors take
-  (`org_98889a61509c`), `slug` is the word its people read. `login` was printing the id at them.
+- **`GET /v1/whoami` carries the org's `slug`** beside its id: `org` is what doors take, `slug` is
+  the word its people read, and `pinecall login` was printing the id at them.
 - **A terminal is signed in from a browser.** `pinecall login` holds no key and the person at it
   has none to paste, so the two meet at a word: four doors under `/v1/login/pairings` — the
-  terminal mints one and polls, the browser reads what it is approving and approves it. That mints
-  the TERMINAL's own key: same person, development, labelled as that machine, revoked on its own.
-  A password is typed into a page and never into a shell, which is why SSO changes none of it.
-  `auth/pairing.py`, `api/pairing.py`; the dance is `docs/protocol/people.md`.
-- **The line: which terminal a development number rings in.** An org shares one development
-  number, so three developers on one agent meant the newest `pinecall run` silently took the
-  others' calls — answered in a colleague's scrollback with nothing saying so. The ring now lands
-  on the agent's **line**: the first corner to hold it takes it, a second claims it, and it is
-  handed on when that terminal closes. `GET/POST/DELETE /v1/agents/{slug}/line`; production has
-  one corner and the box holds it. `api/agents/doors.py`.
+  terminal mints one and polls, the browser reads and approves. That mints the TERMINAL's own key
+  — same person, development, labelled as that machine — and a password is typed into a page and
+  never into a shell. `docs/protocol/people.md`.
+- **Where a ring lands in development, in two steps.** An org shares one development number, so
+  three developers on one agent meant the newest `pinecall run` silently took the others' calls,
+  answered in a colleague's scrollback with nothing saying so. Now a developer says which number
+  they call FROM (`PUT /v1/line/from`) and every call they make lands in their own corner — three
+  of them test at once with no coordination — and a number nobody claimed falls back to the
+  agent's **line** (`GET/POST/DELETE /v1/agents/{slug}/line`), which the first corner to hold it
+  takes and which is handed on when that terminal closes. Neither is a row: both are only
+  meaningful next to a socket. Production has one corner. `api/agents/doors.py`.
 - **The operator invites an org's first person.** `POST /v1/ops/orgs/{named}/members` and
   `pinecall-runtime orgs invite <org> <email> --name … [--role]`: how a tenant exists at all on a
   gateway that takes no sign-up — the box makes the org and invites its admin, and prints a
@@ -244,8 +245,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `/remember` (worker-only), for every spoken one. `recall` reads the contact from
   `CallContext.remembered_as`, never from what the model wrote in the tool's input; `search` uses
   the agent's declared `k`/`min_score`; both are written on the call's log with its `speech_id`.
-- The knowledge base's doors on the tenant's key — `PUT`/`GET`/`DELETE /v1/knowledge[/{base}]`,
-  the base replaced whole — and a contact's `GET`/`DELETE /v1/contacts/{contact}/memory`.
+- The knowledge base's doors on the tenant's key (`PUT`/`GET`/`DELETE /v1/knowledge[/{base}]`,
+  the base replaced whole) and a contact's (`GET`/`DELETE /v1/contacts/{contact}/memory`).
 - The licence where an operator meets it: the copyright line filled, a License section in
   `README.md`, and `license-files` putting the text in the wheel and the sdist.
 
@@ -337,12 +338,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   FILE, so a chunk is embedded while the model sees its neighbours instead of alone.
   `providers/embed/perplexity.py` is one client for both of Perplexity's models: a name carrying
   `-context-` goes to `POST /contextualizedembeddings` (a document at a time, in windows of
-  24 000 estimated tokens against the endpoint's 32 768, which it counts over the whole window),
-  anything else to `POST /embeddings`. The encoding is named in every request and belongs to the
-  vendor, measured against both: Perplexity takes `base64_int8` and refuses `float`, OpenRouter's
-  mirror of the same model answers floats. All three replies are unnormalised, so every vector is
-  stored at unit length. OpenRouter is the same class with another base URL, key, model and
-  encoding — it serves no contextual door.
+  24 000 estimated tokens against the endpoint's 32 768), anything else to `POST /embeddings`. The
+  encoding is named in every request and belongs to the vendor: Perplexity takes `base64_int8` and
+  refuses `float`, OpenRouter's mirror answers floats. All three replies are unnormalised, so every
+  vector is stored at unit length. OpenRouter is the same class with another base URL and model.
   `EMBED_PROVIDER` (`tei` · `perplexity` · `openrouter`, default `tei`), `EMBED_MODEL`,
   `EMBED_BASE_URL` and `PERPLEXITY_API_KEY` / `OPENROUTER_API_KEY`; `embedder_for(settings, http)`
   is the one place a provider name is switched on, and the doctor's `embedder` line says which

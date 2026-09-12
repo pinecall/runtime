@@ -80,11 +80,36 @@ class Registry:
         )
 
     # What a door that RANG reaches. No key says whose corner, because a number is the ORG's: the
-    # worker that dialled it holds a key naming nobody. So the corner is the LINE — nobody's in
-    # production, where there is one; in development the developer who claimed it.
-    def taking(self, env: Env, slug: str) -> Registration | None:
-        """Who takes a call that arrived at a door: the corner holding the line. None when none."""
-        return self.serving(env, slug, None, self.line_for(env, slug))
+    # worker that dialled it holds a key naming nobody. Two questions, in this order — WHOSE phone
+    # dialled, which a developer answers once and never thinks about again, and then the LINE,
+    # which is what a number nobody claimed falls back to. In production the first never answers
+    # and the second is the only corner there is.
+    def taking(self, env: Env, slug: str, caller: str | None = None) -> Registration | None:
+        """Who takes a call that arrived at a door. None when nobody would answer it."""
+        theirs = self._the_callers_own(env, slug, caller)
+        return theirs or self.serving(env, slug, None, self.line_for(env, slug))
+
+    # A corner that registered the number but is not holding THIS agent falls through to the line
+    # rather than refusing: the developer is not running it, and a call that reaches nobody because
+    # of a setting they made last week is the worst answer available.
+    def _the_callers_own(self, env: Env, slug: str, caller: str | None) -> Registration | None:
+        """The corner whose own phone dialled, when it is holding this agent. None otherwise."""
+        if caller is None:
+            return None
+        whose = self._doors.whose_call(env, caller)
+        return None if whose is None else self._takes_unclaimed((env, whose, slug))
+
+    def calls_from(self, env: Env, caller: str, holder: str) -> None:
+        """Calls this number makes reach this corner, in whatever agent the corner is holding."""
+        self._doors.calls_from(env, caller, holder)
+
+    def forget_calls_from(self, env: Env, holder: str) -> tuple[str, ...]:
+        """This corner stops answering its own calls. The numbers it had, for the answer."""
+        return self._doors.forget_calls_from(env, holder)
+
+    def calling(self, env: Env, holder: str | None) -> tuple[str, ...]:
+        """The numbers whose calls reach this corner: what a terminal prints back at a person."""
+        return self._doors.calling(env, holder)
 
     def line_for(self, env: Env, slug: str) -> str | None:
         """Whose corner the ring goes to. Nobody's corner is None too: ask `has_a_line` first."""

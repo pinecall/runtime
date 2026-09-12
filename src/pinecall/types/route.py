@@ -11,6 +11,21 @@ from pinecall.types.refused import DeclarationRefused
 _E164 = re.compile(r"^\+[1-9]\d{1,14}$")
 
 
+def dialable(number: str) -> bool:
+    """Whether this is a number in E.164 form. The one place the shape is spelled."""
+    return _E164.match(number) is not None
+
+
+def an_e164(number: str) -> str:
+    """The number, trimmed, or a refusal naming the shape. For a door that takes one typed."""
+    said = number.strip()
+    if not dialable(said):
+        raise DeclarationRefused(
+            f"a number is written in E.164 form, like +59829001199, not {said!r}"
+        )
+    return said
+
+
 @dataclass(frozen=True)
 class Route:
     """Which agent answers at this door, and whose agent it is. The gateway's table holds many."""
@@ -39,7 +54,7 @@ class Route:
                 f"a route is a door: one of {sorted(CHANNELS)}, not {self.channel!r}"
             )
         if self.channel in CHANNELS_WITH_A_NUMBER:
-            if self.number is None or not _E164.match(self.number):
+            if self.number is None or not dialable(self.number):
                 raise DeclarationRefused(
                     f"a {self.channel} route answers at a number in E.164 form, not {self.number!r}"
                 )

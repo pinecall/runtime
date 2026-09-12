@@ -11,7 +11,8 @@ from pinecall.api._deps import AppKeyDep, CallsKeyDep, DeclarationKeyDep, Member
 from pinecall.api.agents.registry import NO_AGENT, Registry, RegistryDep
 from pinecall.auth.keys import KeyRecord, held_by
 from pinecall.auth.members import Members
-from pinecall.types import AgentConfig, DeclarationRefused
+from pinecall.types import DEVELOPMENT, AgentConfig, DeclarationRefused, an_e164
+from pinecall_protocol import WireModel
 from pinecall_protocol.rest import AgentList, HeldAgent, LineHolder, TheLine
 
 router = APIRouter()
@@ -89,6 +90,47 @@ async def drop_the_line(
     return await _said(slug, key, registry, members)
 
 
+# A number is one PERSON's phone, so only a key that names one may say so. An org's own key —
+# CI's, the box's — names nobody, and production has no corners to route between: there is one,
+# and every ring lands in it.
+NOBODY_TO_ROUTE_TO = "a number reaches a person's own corner, and this key names no person"
+NOT_IN_PRODUCTION = "production has one corner and the box holds it: there is nothing to route"
+
+
+class Calling(WireModel):
+    """The phone a developer calls from, so their own calls reach their own agent."""
+
+    number: str
+
+
+@router.put("/v1/line/from")
+async def calls_from(said: Calling, key: AppKeyDep, registry: RegistryDep) -> dict[str, list[str]]:
+    """Every call this number makes reaches this key's corner, in whatever agent it is holding."""
+    whose = _a_person(key)
+    try:
+        number = an_e164(said.number)
+    except DeclarationRefused as refused:
+        raise HTTPException(400, str(refused)) from refused
+    registry.calls_from(key.env, number, whose)
+    return {"calling": list(registry.calling(key.env, whose))}
+
+
+@router.delete("/v1/line/from")
+async def forget_calls_from(key: AppKeyDep, registry: RegistryDep) -> dict[str, list[str]]:
+    """This corner stops answering its own calls; they fall back to whoever holds the line."""
+    return {"forgot": list(registry.forget_calls_from(key.env, _a_person(key)))}
+
+
+def _a_person(key: KeyRecord) -> str:
+    """Whose corner this key opens, refusing the two keys that have none to route a call into."""
+    if key.env != DEVELOPMENT:
+        raise HTTPException(409, NOT_IN_PRODUCTION)
+    whose = held_by(key)
+    if whose is None:
+        raise HTTPException(403, NOBODY_TO_ROUTE_TO)
+    return whose
+
+
 async def _said(slug: str, key: KeyRecord, registry: Registry, members: Members) -> TheLine:
     """The line as a person reads it: whose it is by name, and every corner that could claim it."""
     whose = held_by(key)
@@ -102,6 +144,7 @@ async def _said(slug: str, key: KeyRecord, registry: Registry, members: Members)
         holding=await _named(key.org, holder, members) if held else None,
         yours=held and holder == whose,
         waiting=[await _named(key.org, one.holder, members) for one in waiting],
+        calling=list(registry.calling(key.env, whose)),
     )
 
 
