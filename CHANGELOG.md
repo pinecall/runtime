@@ -7,6 +7,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **The console's directory verbs go over the app socket.** `POST /v1/agents/{slug}/dev/{family}/{verb}`
+  relays a console's ask — a written call to the class, the personas and a simulation, the goldens
+  and a suite, the knowledge folder, the memory goldens, a promoted candidate, drift, a
+  reproduction — as an ephemeral `dev.request` down the socket of the `pinecall run` holding the
+  agent, and answers with the `dev.answer`'s result or refusal verbatim. What `pinecall ui` served
+  from its own process under `/ui/*` now comes through the gateway. `docs/protocol/dev-verbs.md`.
 - **The doors enforce scopes, and the seat is named.** Every tenant door asks the key for exactly
   one scope — `app`, `calls`, `talk`, `supervise`, `pipeline`, `knowledge`, `memory`, `evals`,
   `keys`, `team` — and refuses with `403 this key does not open X: it opens …`; both sockets

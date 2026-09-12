@@ -22,13 +22,16 @@ def ephemeral_by_default(type: str) -> bool:
 
 # Two doors build one: the app socket, for a frame that named no agent, and /v1/attach, for the
 # verbs it cannot run yet. Both are answering a caller about a log neither could write to.
-def unstored(type: str, event: WireModel) -> Entry:
-    """An entry a socket hears and no log keeps, because no log could be told which one."""
+def unstored(type: str, event: WireModel, agent: str = "") -> Entry:
+    """An entry a socket hears and no log keeps: no log could be told which one, or none should.
+
+    The agent is named when the socket has to route it — a dev.request is for one agent's process
+    — and left empty for a frame that belonged to no agent at all."""
     return Entry(
         seq=UNSTORED,
         ts=time.time(),
         call=None,
-        agent="",
+        agent=agent,
         type=type,
         ephemeral=True,
         data=encode(event),

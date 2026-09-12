@@ -13,6 +13,7 @@ from pinecall.log.entry import Entry
 from pinecall.orgs.admission import Admission
 from pinecall.types import Env
 from pinecall_protocol import Command, ProtocolError, WireModel, command_of
+from pinecall_protocol.commands import DevAnswer
 from pinecall_protocol.defs import ToolResult
 
 
@@ -41,6 +42,10 @@ class Live(Protocol):
 
     def commanded(self, call: str | None, agent: str, command: Command) -> bool:
         """Hold a command for the worker running this call. False when no such call is served."""
+        ...
+
+    def dev_answered(self, answer: DevAnswer) -> bool:
+        """The app answered a console's dev.request; False when no door is waiting on that id."""
         ...
 
 

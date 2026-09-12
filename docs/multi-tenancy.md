@@ -178,7 +178,7 @@ pinecall keys add elevenlabs        # reads the key from stdin, never from a fla
 
 The rows are encrypted with `PINECALL_VAULT_KEY`, which lives in the box's environment and never in
 the database. A runtime without one cannot keep somebody else's secret and says so with a 503 —
-[the gateway API §6](protocol/gateway-api.md#6-provider-keys-and-the-vault).
+[the gateway API §6](protocol/provider-keys.md).
 
 ## Quotas
 
