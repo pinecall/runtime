@@ -85,6 +85,15 @@ order by started_at nulls last, log
 
 LATEST_SEQ = "select seq from call_log_head where log = $1"
 
+# The org's calls across every agent, newest first: what the console's Sessions screen lists at
+# the org level. The head row carries the org (0006) and the clock the entries have (started_at).
+CALLS_OF = """
+select call from call_log_head
+where org = $1 and call is not null
+order by started_at desc nulls last, log desc
+limit $2
+"""
+
 # The head row is where a log's owner lives, and the first claim stands: a log is opened under one
 # key and never moves. The row may not exist yet — a claim can land before the first entry — so
 # it is inserted with a seq of 0, which is what APPEND's own insert would have written.
@@ -243,6 +252,11 @@ class PostgresStore:
     async def list_calls(self, agent: str) -> list[str]:
         """Every call this agent opened a log for, oldest first, read off the head rows."""
         rows: Sequence[Any] = await self._pool.fetch(LIST_CALLS, agent)
+        return [str(row["call"]) for row in rows]
+
+    async def calls_of(self, org: str, limit: int) -> list[str]:
+        """The org's newest calls, off the head rows, across its agents."""
+        rows: Sequence[Any] = await self._pool.fetch(CALLS_OF, org, limit)
         return [str(row["call"]) for row in rows]
 
     async def latest_seq(self, call: str) -> int:

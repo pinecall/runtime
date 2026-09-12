@@ -7,6 +7,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **The org's floor.** `GET /v1/sessions?limit=` lists the org's newest calls across every agent,
+  the same rows as an agent's own list; `GET /v1/events` streams the floor changing — an agent
+  registered, a call ringing, dialing, started, ended — as SSE, live only, each frame the entry
+  of its own log. Both on a key with `calls`.
 - **The gateway serves the console.** `GET /` and every path that is not a door's answer the
   built page from `src/pinecall/gateway/console/` — package data `scripts/console` builds from
   the agents repo and copies in, git-ignored, carried by the wheel and by `make deploy`, which

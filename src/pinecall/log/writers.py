@@ -4,9 +4,17 @@ from __future__ import annotations
 
 from collections.abc import Collection
 
+from pinecall.log.entry import Entry
 from pinecall.log.fanout import Fanout
 from pinecall.log.logs import AgentLog, CallLog
 from pinecall.log.store import Store
+
+# What an org's own stream carries: the moments a floor changes shape, and nothing said on a
+# call. An agent held or let go, a call arriving, up, and over — each already an entry of some
+# log; the feed is those same entries, tapped as they are written, never a second record.
+ORG_EVENTS: frozenset[str] = frozenset(
+    {"agent.registered", "call.ringing", "call.dialing", "call.started", "call.ended"}
+)
 
 
 # What is shared between a writer and its readers is the FANOUT, never the log object: a reader
@@ -21,13 +29,16 @@ class Logs:
         self._calls: dict[str, CallLog] = {}
         self._call_fanouts: dict[str, Fanout] = {}
         self._agent_fanouts: dict[str, Fanout] = {}
+        self._feeds: dict[str, Fanout] = {}
 
     def writing(self, call: str, agent: str) -> CallLog:
         """The log a session appends to: kept, so `sealed` is one fact and readers hear it live."""
         log = self._calls.get(call)
         if log is None:
             fanout = _fanout_of(self._call_fanouts, call)
-            log = self._calls[call] = CallLog(self._store, agent, call, fanout=fanout)
+            log = self._calls[call] = CallLog(
+                self._store, agent, call, fanout=fanout, tap=self._fed
+            )
         return log
 
     def opened(self, call: str) -> CallLog | None:
@@ -41,7 +52,9 @@ class Logs:
 
     def writing_agent(self, slug: str) -> AgentLog:
         """The agent's own log, on the fanout every reader of that agent is already holding."""
-        return AgentLog(self._store, slug, fanout=_fanout_of(self._agent_fanouts, slug))
+        return AgentLog(
+            self._store, slug, fanout=_fanout_of(self._agent_fanouts, slug), tap=self._fed
+        )
 
     def reading_agent(self, slug: str) -> AgentLog:
         """The same log from the reader's side: one fanout per slug, whichever side asked first."""
@@ -62,6 +75,24 @@ class Logs:
         """Drop a sealed call: its readers have finished and nothing more will be appended."""
         self._calls.pop(call, None)
         self._call_fanouts.pop(call, None)
+
+    # ── the org's own stream ────────────────────────────────────────────────────
+
+    def feed(self, org: str) -> Fanout:
+        """What the org's readers subscribe to: every ORG_EVENTS entry of every log the org owns."""
+        self._prune(self._feeds)
+        return _fanout_of(self._feeds, org)
+
+    # Whose log it is lives on the head row: asked per tapped entry, which is rare — a floor
+    # changes shape a few times a minute, a call says a hundred things.
+    async def _fed(self, entry: Entry) -> None:
+        """Publish an entry about the org onto the org's feed, when somebody is reading it."""
+        if entry.type not in ORG_EVENTS:
+            return
+        org = await self._store.owner(entry.call, entry.agent)
+        feed = None if org is None else self._feeds.get(org)
+        if feed is not None:
+            feed.publish(entry)
 
     # A reader must never be able to grow the tables without bound: an id nobody writes and nobody
     # reads any more is dropped the next time a reader asks for anything, so a scan of made-up ids
