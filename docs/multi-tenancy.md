@@ -28,7 +28,7 @@ So "clínica-norte does not have a key" is not a gap. It never had one, and it n
 
 | | what it is | who mints it | where it lives | opens |
 |---|---|---|---|---|
-| **org API key** | `pk_` + 256 bits. The tenant's own | the operator, once per org, as often as needed | the tenant's `~/.pinecall/credentials`, or `PINECALL_API_KEY` in their container | every `/v1/…` door, for that org's rows only |
+| **org API key** | `pk_` + 256 bits. The tenant's own | **the tenant itself**, `POST /v1/keys` or `pinecall keys issue` (the `keys` scope) — or the operator, `keys issue --org` | the tenant's `~/.pinecall/credentials`, or `PINECALL_API_KEY` in their container | every `/v1/…` door, for that org's rows only |
 | **dev key** | `PINECALL_DEV_KEY`, one string in the gateway's own environment | whoever runs the gateway | the gateway's `.env`, and `~/.pinecall/dev` for the CLI beside it | everything, as org `default`, with or without a database |
 | **ops key** | `PINECALL_OPS_KEY`, the box's own | the box, once (`box secrets`) | a systemd credential on the box | `/v1/ops/*` and nothing else. It is a gate, not an identity: it belongs to no org |
 | **room token** | a LiveKit JWT bound to ONE call | the gateway, from an org key, per visit | a browser tab, for a minute | that call's room and that call's log. See [protocol/tokens.md](protocol/tokens.md) |
@@ -36,6 +36,11 @@ So "clínica-norte does not have a key" is not a gap. It never had one, and it n
 A key is stored as its **sha256** and nothing else. `keys issue` prints the plaintext once — there
 is no verb, here or anywhere, that reads one back — and `keys list` prints fingerprints, labels and
 dates. Revoking keeps the row, so the log entries that name that key stay readable.
+
+An org issues its own without the operator: `POST /v1/keys {label?, env?, scopes?}` on a key that
+opens `keys`, which mints one for a **machine** — `app` and production when nothing is said, and
+naming nobody, because people get keys by logging in. A key may not issue a scope it does not
+itself open, and a fingerprint that is not the org's is the 404 a stranger's is.
 
 ## Why the laptop never ran `pinecall login`
 
@@ -105,7 +110,7 @@ A tenant writes an agent on a laptop and runs the same agent on the box, and the
 see each other: a laptop's `pinecall run` must not take the clinic's number, and the clinic's
 sessions must not fill with a developer's test calls. So **the key knows where.** It is issued into
 `production` or `development`, and the gateway namespaces its registry and its routes by that
-word: the same slug is held once in each world, by different sockets; `GET /v1/agents`, `GET
+word: the same slug is held in each world by different sockets; `GET /v1/agents`, `GET
 /v1/routes` and every door that names an agent answer the world the key opens; a dialled number
 is one agent's in one world, and a development key claiming a production number is refused with
 the world named.
@@ -183,8 +188,8 @@ its own, and then every call of that org runs on its account from the next one:
 printf %s "$KEY" | pinecall-runtime orgs provider-key set clinica elevenlabs
 pinecall-runtime orgs provider-key list clinica
 
-# or the tenant themselves, with their own org key
-pinecall keys add elevenlabs        # reads the key from stdin, never from a flag
+# or the tenant themselves, with their own org key (the `providers` scope)
+pinecall providers add elevenlabs   # reads the key from stdin, never from a flag
 ```
 
 The rows are encrypted with `PINECALL_VAULT_KEY`, which lives in the box's environment and never in
