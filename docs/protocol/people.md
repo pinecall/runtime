@@ -15,6 +15,15 @@ their role: `qa` · `supervisor` · `manager` · `admin` · `developer` (`types/
 revokes every key of theirs and refuses their login, `active` re-enables one who had a password and
 never activates one still invited.
 
+**A person's key does not hold `app` in production.** Holding an agent is a deployment, and a
+deployment is a process somebody put on a box — never a laptop that happens to be logged in. So
+every key minted for a person carries their role's preset in development and that preset less
+`app` in production: at login, at `POST /v1/invitations/{token}`, at sign-up and at `POST
+/v1/login/env`, which reads the role and not the key that asked (a production key has already
+lost it). What holds a slug in production is a key issued for a machine — `POST /v1/keys` with
+`{label, scopes: ["app"]}` — and it names nobody. Two people's development keys are two people's:
+the registry holds a development slug per person, so nobody takes another's agent.
+
 `POST /v1/login` takes `{org, email, password, env?, device?}` and answers a key for that person and
 that device. Every wrong thing — the org, the email, the password, an invitation not yet accepted —
 is one `401` sentence; a disabled member is `403`; the sixth try in a minute for one name is `429`

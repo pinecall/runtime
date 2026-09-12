@@ -37,11 +37,12 @@ the knowledge it may push and the provider keys it may bring are that org's. Ano
 tenant's business.
 
 **A key opens what its scopes say.** Every tenant door asks for exactly one and refuses without it
-as `403 this key does not open knowledge: it opens calls · evals`. A machine key holds every scope;
-a person's holds their role's (§8). `app`: the app socket and the worker's doors. `calls`: `GET
-/v1/agents` and every read of a log. `talk`: `POST /v1/tokens`, `WS /v1/chat`. `supervise`: listen,
-the seat, the verbs by key. `pipeline` · `knowledge` · `memory` · `evals` · `keys` · `team`: the
-doors of that name. `GET /v1/whoami` and `POST /v1/login/codes` ask for none.
+as `403 this key does not open knowledge: it opens calls · evals`. A machine key holds what it was
+issued; a person's holds their role's, less `app` in production (§8). `app`: the app socket and the
+worker's doors. `calls`: `GET /v1/agents` and every read of a log. `talk`: `POST /v1/tokens`, `WS
+/v1/chat`. `supervise`: listen, the seat, the verbs by key. `pipeline` · `knowledge` · `memory` ·
+`evals` · `numbers` · `usage` · `team`: the doors of that name. `keys`: the org's own API keys.
+`providers`: the vendor keys it brought. `GET /v1/whoami` and `POST /v1/login/codes` ask for none.
 
 **The one exception to the header** is `?token=` on the two log doors, because an `EventSource` in
 a browser cannot set a header. Only a short-lived room token is accepted there (see Tokens), never
@@ -367,8 +368,13 @@ take a key with `calls`; a room token reads its one call and neither of these. B
 `GET /v1/usage?after=&limit=` is the org's own metered rows, totals and cursor (`usage`), the
 tenant's read of what the operator's `/v1/ops/usage` pages; and `GET /v1/numbers` is every door
 the org answers in the key's world, each saying whether an operator typed it or an app declared
-it (`numbers`). A person holds one key per world: `POST /v1/login/env {env}` with their key mints
-the same person's key, same scopes, in the other — how the console's toggle looks the other way.
+it (`numbers`). `GET /v1/keys` is the org's own API keys by fingerprint, never a key; `POST
+/v1/keys {label?, env?, scopes?}` mints one for a machine — `app` and production when nothing is
+said, naming nobody — and answers it in the clear the once; `POST /v1/keys/{fingerprint}/revoke`
+stops one, and a fingerprint that is not the org's is `404` like one that is nobody's. A key may
+not issue a scope it does not itself open (`keys`). A person holds one key per world: `POST
+/v1/login/env {env}` with their key mints the same person's key, with what their role opens
+there, in the other — how the console's toggle looks the other way.
 A tenant's own carrier and its numbers imported — Twilio or SIP, the carrier's trunk pointed at the
 box, the SFU's trunk admitting the number, the route — are [numbers.md](numbers.md).
 

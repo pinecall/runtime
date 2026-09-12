@@ -30,7 +30,8 @@ ENVS: frozenset[str] = frozenset(get_args(Env.__value__))
 #   memory      a contact's facts: read, forget, the two goldens
 #   evals       the suites, the replays, the runs
 #   numbers     which number reaches which agent
-#   keys        the provider keys an org brought of its own
+#   keys        the org's own API keys: issue one for a machine, list them, revoke one
+#   providers   the provider keys an org brought of its own
 #   team        the org's members and their invitations
 #   usage       what the org consumed
 type KeyScope = Literal[
@@ -44,10 +45,24 @@ type KeyScope = Literal[
     "evals",
     "numbers",
     "keys",
+    "providers",
     "team",
     "usage",
 ]
 KEY_SCOPES: frozenset[str] = frozenset(get_args(KeyScope.__value__))
+
+
+# Holding an agent is a deployment, and a deployment is a process somebody put on a box — never a
+# laptop that happens to be logged in. So a person's key opens `app` in development, where what
+# they run is their own, and never in production, where a slug is held by a key issued for a
+# machine (`keys issue --label "prod server" --scope app`). The rule lives at the MINTING and not
+# at the door: a door that refused later would have handed out a key promising what it will not do.
+HOLDING: KeyScope = "app"
+
+
+def for_a_person(scopes: frozenset[str], env: Env) -> frozenset[str]:
+    """What a person may do in this world: their role's preset, less `app` in production."""
+    return scopes - {HOLDING} if env == PRODUCTION else scopes
 
 
 def an_env(word: str) -> Env:

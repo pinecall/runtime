@@ -21,7 +21,7 @@ ROLE_SCOPES: dict[str, frozenset[str]] = {
     "supervisor": frozenset({"calls", "evals", "supervise", "talk"}),
     # The floor and the org's numbers, keys and consumption — never the agent's own declaration.
     "manager": frozenset(
-        {"calls", "evals", "supervise", "talk", "numbers", "keys", "usage", "team"}
+        {"calls", "evals", "supervise", "talk", "numbers", "keys", "providers", "usage", "team"}
     ),
     # Every door there is.
     "admin": KEY_SCOPES,

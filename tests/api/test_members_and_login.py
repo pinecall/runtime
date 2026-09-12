@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
@@ -41,14 +40,6 @@ async def accepted(stranger: httpx.AsyncClient, token: str, **said: Any) -> dict
     )
     assert answer.status_code == 200, answer.text
     return answer.json()
-
-
-@pytest.fixture
-async def stranger(wired: None) -> AsyncIterator[httpx.AsyncClient]:  # noqa: ARG001
-    """Somebody with no key at all: the person holding an invitation link, or logging in."""
-    http = over_the_asgi_app("")
-    yield http
-    await http.aclose()
 
 
 async def test_an_invite_answers_the_row_and_the_token_once_and_the_listing_never_shows_it(

@@ -100,9 +100,16 @@ class _Invitation:
 class MemoryMembers:
     """The members of a process with no database: a dev clone invites, and forgets when it exits."""
 
-    def __init__(self, clock: Callable[[], float] = time.time) -> None:
+    # Rows to start with, as MemoryKeys takes records: a clone seeded from a fixture, and a test
+    # about a key whose subject must name somebody. They have no password and so cannot log in;
+    # a member who can is one who accepted an invitation, here as in Postgres.
+    def __init__(
+        self, rows: Iterable[Member] = (), *, clock: Callable[[], float] = time.time
+    ) -> None:
         self._clock = clock
-        self._rows: dict[str, _Row] = {}
+        self._rows: dict[str, _Row] = {
+            member.id: _Row(member, None, _at(clock())) for member in rows
+        }
         self._invitations: dict[str, _Invitation] = {}
 
     async def invite(

@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from pinecall.api._deps import KeyDep, KeysDep, LoginCodesDep, MembersDep, OrgsDep, ThrottleDep
 from pinecall.auth import passwords
-from pinecall.types import PRODUCTION, DeclarationRefused, an_env
+from pinecall.types import PRODUCTION, DeclarationRefused, an_env, for_a_person
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -35,10 +35,16 @@ ONE_OR_THE_OTHER = "log in with org, email and password, or with a code — one 
 LOGGED_IN = "login"
 A_BROWSER = "console"
 
-# A key opens one world. A person's key may mint the same person's key in the other world — same
-# scopes, same subject, same label — because the console's toggle is that person looking the
-# other way, not a new right. An org's machine key names nobody and gets nothing here.
+# A key opens one world. A person's key may mint the same person's key in the other world —
+# same person, same label, the scopes their role presets there — because the console's toggle is
+# that person looking the other way, not a new right. An org's machine key names nobody and gets
+# nothing here.
 ONE_WORLD_EACH = "an org's own key opens one world: issue another with `keys issue --env`"
+
+# The key names a member the table no longer has an active row for: they were removed, or
+# disabled while holding a key. Their key still opens its own world until it is revoked; it does
+# not open a second one.
+NOT_A_MEMBER = "the person this key was minted for is no longer an active member of this org"
 
 
 class OtherWorld(WireModel):
@@ -92,17 +98,30 @@ async def a_code(key: KeyDep, codes: LoginCodesDep) -> dict[str, Any]:
     return {"code": minted.code, "expires_at": minted.expires_at}
 
 
+# The scopes come off the MEMBER and not off the key that asked: a person's production key does
+# not hold `app`, and reading its scopes would carry that absence into development, where what
+# they run is their own. The role is the source, here as at login.
 @router.post("/v1/login/env")
-async def the_other_world(said: OtherWorld, key: KeyDep, keys: KeysDep) -> dict[str, Any]:
-    """A key for the same person, with the same scopes, in the world named."""
+async def the_other_world(
+    said: OtherWorld, key: KeyDep, keys: KeysDep, members: MembersDep
+) -> dict[str, Any]:
+    """A key for the same person, with what their role opens there, in the world named."""
     if key.subject is None:
         raise HTTPException(403, ONE_WORLD_EACH)
     try:
         env = an_env(said.env)
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused
+    member = await members.find(key.org, key.subject)
+    if member is None or member.status != "active":
+        raise HTTPException(403, NOT_A_MEMBER)
     issued = await keys.issue(
-        org=key.org, label=key.label, env=env, scopes=key.scopes, subject=key.subject, name=key.name
+        org=key.org,
+        label=key.label,
+        env=env,
+        scopes=for_a_person(member.scopes, env),
+        subject=key.subject,
+        name=key.name,
     )
     return issued.as_json
 
@@ -139,7 +158,7 @@ async def _with_a_password(
         org=member.org,
         label=said.device or LOGGED_IN,
         env=env,
-        scopes=member.scopes,
+        scopes=for_a_person(member.scopes, env),
         subject=member.id,
         name=member.name,
     )
