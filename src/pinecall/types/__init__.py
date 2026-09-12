@@ -11,6 +11,14 @@ from pinecall.types.agent import (
     Voice,
 )
 from pinecall.types.call import CallContext, Contact, a_call_id
+from pinecall.types.carrier import (
+    CARRIER_KINDS,
+    Carrier,
+    CarrierKind,
+    SipPeer,
+    TwilioAccount,
+    a_carrier_kind,
+)
 from pinecall.types.channel import THE_WIDGET, Channel, Direction
 from pinecall.types.consent import (
     CONFIRMATIONS,
@@ -51,6 +59,7 @@ from pinecall.types.tool import SideEffect, ToolSpec
 
 __all__ = [
     "CANDIDATES_PER_BRANCH",
+    "CARRIER_KINDS",
     "CONFIRMATIONS",
     "DEFAULT_LAYOUT",
     "DEFAULT_ORG",
@@ -73,6 +82,8 @@ __all__ = [
     "AgentConfig",
     "Blocks",
     "CallContext",
+    "Carrier",
+    "CarrierKind",
     "Channel",
     "Chunk",
     "ConsentOutcome",
@@ -108,11 +119,14 @@ __all__ = [
     "Route",
     "Scope",
     "SideEffect",
+    "SipPeer",
     "ToolSpec",
     "Turn",
+    "TwilioAccount",
     "Visibility",
     "Voice",
     "a_call_id",
+    "a_carrier_kind",
     "a_role",
     "a_slug",
     "an_env",
