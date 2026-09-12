@@ -85,11 +85,15 @@ Forget the number. `204` when a row went; `404` when no row answered to it — a
 must never read as done. Whatever a running app declares for that number answers again from the
 next call.
 
-`GET /v1/ops/orgs/{named}/members` is the org's people as the operator reads them —
-`{members: [...], seated}` — and it is the only door here that touches a tenant's people. It is
-**read only**: who works at a tenant is the tenant's to decide, and a box that could edit a member
-could put itself in somebody's org. Inviting, changing a role and disabling are the tenant's own
-`/v1/members` ([people.md](people.md)).
+Two doors touch a tenant's people, and they are the only two. `GET /v1/ops/orgs/{named}/members`
+is the org's people as the operator reads them — `{members: [...], seated}`. `POST
+/v1/ops/orgs/{named}/members {email, name, role, agents?}` **invites** one — the org's first admin
+where sign-ups are shut, or one more — and answers `201` with the row and a one-use `token`,
+exactly as the tenant's own invite does; it takes none of the org's seats, because a plan caps
+what an org seats by itself. There is no door here that changes or disables a member: an
+invitation is inert until the person it names accepts it with a password of their own, so the box
+can seat somebody and never be them, while a role changed from here would be the box editing a
+tenant's team. Changing and disabling are the tenant's own `/v1/members` ([people.md](people.md)).
 
 ## Orgs
 

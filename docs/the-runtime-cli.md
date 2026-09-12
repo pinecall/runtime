@@ -96,6 +96,7 @@ id it follows the newest live one. `recording` says where that call's audio was 
 ```
 pinecall-runtime orgs list
 pinecall-runtime orgs add <slug> [--name "…"]
+pinecall-runtime orgs invite <org> <email> --name "…" [--role admin|manager|developer|supervisor|qa]
 pinecall-runtime orgs rm <org>
 pinecall-runtime orgs quota <org> [--minutes n] [--messages n] [--agents n]
                                   [--concurrent-calls n] [--memory-facts n] [--knowledge-chunks n]
@@ -106,7 +107,10 @@ pinecall-runtime orgs provider-key list <org>
 ```
 
 The tenants. `<org>` is an id or a slug — every door takes either. `add` makes the row people will
-type; `rm` is refused while the org still has keys or routes, so a tenant is never half-deleted.
+type; `invite` is how a tenant gets its first person on a gateway that takes no sign-up — it prints
+the row and a **link**, once, that opens the console's password card (the operator holds a token
+and never a password, and the invitation takes none of the org's seats); `rm` is refused while the
+org still has keys or routes, so a tenant is never half-deleted.
 
 `quota` replaces **the whole set**: a limit left out is no limit. The meter is a fold over the log,
 so there is no counter to drift, and the gate runs before a call opens, before an agent registers,

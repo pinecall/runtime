@@ -7,6 +7,17 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **The operator invites an org's first person.** `POST /v1/ops/orgs/{named}/members` and
+  `pinecall-runtime orgs invite <org> <email> --name … [--role]`: how a tenant exists at all on a
+  gateway that takes no sign-up — the box makes the org and invites its admin, and prints a
+  **link** once that opens the console's password card. The operator holds a token and never a
+  password, the invitation takes none of the org's seats, and there is no door that changes or
+  disables a member from the box: an invitation is inert until the person it names accepts it.
+- **The operator's page, served at `/admin`.** `api/console.py` becomes `api/pages.py` with a
+  `Page` each, `/admin` declared before the catch-all so it is the box's page and never a screen
+  of the tenant's console. `GET /v1/ops/whoami` (`{operator, version, domain}`) is what the page
+  proves its key at; `GET /v1/ops/fleet` carries `stale_after_s`, the hub's own threshold. The
+  page is the agents repo's `src/cli/ui/admin/`; `scripts/console` builds and copies both.
 - **`seats`, the seventh quota.** How many people an org may hold: invited and active together,
   because an invitation sent is a seat taken, and a `disabled` member keeps their row and holds
   none — which is what frees one. `POST /v1/members` counts before it writes and answers the
@@ -31,17 +42,15 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   made. The runtime's own answer is no limit and no row. The free-trial numbers that lived in
   `api/signup.py` are gone: a trial is a plan, and a plan is the charging package's to spell. The
   cut is sentry's and getsentry's; ARCHITECTURE §12 says how.
-- **`PINECALL_SIGNUP`.** Whether a stranger may make an org at this gateway, and it is **off
-  unless set**: a box somebody runs for their own agents is never asked to close a door. Its own
-  flag and not `cloud`, because those are two facts — a box of its own may want sign-ups, and a
-  cloud may close them. `GET /.well-known/pinecall` now answers `{version, cloud, signup}`, which
-  is what the console reads to decide whether to draw a way in. The gateway sends no CORS header
-  at all: the console it serves is the same origin, and a site elsewhere links rather than posts.
-- **A sign-up door.** `POST /v1/signup {org, name?, email, person, password}` — only where
-  `PINECALL_SIGNUP` is on — makes the org allowed whatever `extensions.admitted` answers, its
-  first `admin` active with that password, and answers their first key with a one-use login code
-  for the console. Throttled five a minute per client; a gateway that takes none refuses `403`
-  naming the setting.
+- **`PINECALL_SIGNUP`, and the door it opens.** `POST /v1/signup {org, name?, email, person,
+  password}` makes an org allowed whatever `extensions.admitted` answers, its first `admin` active
+  with that password, and answers their first key with a one-use login code for the console —
+  throttled five a minute per client. Only where the setting is on, and it is **off unless set**: a
+  box somebody runs for their own agents is never asked to close a door, and a gateway that takes
+  none refuses `403` naming the setting. Its own flag and not `cloud` — a box of its own may want
+  sign-ups, and a cloud may close them. `GET /.well-known/pinecall` answers `{version, cloud,
+  signup}`, which is what the console reads to decide whether to draw a way in. The gateway sends
+  no CORS header at all: the console it serves is the same origin, and a site elsewhere links.
 - **Numbers the box buys for a tenant.** `POST /v1/numbers/buy {country, area_code?, agent}` finds
   one local voice number on the box's own Twilio (`TWILIO_ACCOUNT_SID`, `TWILIO_API_KEY`,
   `TWILIO_API_SECRET`, the names `twilio_trunk.py` already reads; the gateway unit imports them),

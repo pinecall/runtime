@@ -62,6 +62,13 @@ class Operator:
         """A CLI that leaves a connection open is a CLI that hangs on exit."""
         await self._http.aclose()
 
+    # The console is served by the same gateway at its root, so the gateway's own address is the
+    # console's: what a verb prints when it hands a person a link to open in a browser.
+    @property
+    def base(self) -> str:
+        """The gateway this client knocks at, with no trailing slash."""
+        return str(self._http.base_url).rstrip("/")
+
     async def get(self, path: str, **params: str) -> Any:
         """A listing. Every door here names its org, so the parameters are always spelled out."""
         return self._read(await self._http.get(path, params=params))

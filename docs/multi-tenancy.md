@@ -81,30 +81,45 @@ minutes with this repo are a database installation. The rule that keeps it safe 
 A gateway with **neither** a dev key nor a database refuses to start at all: it could verify
 nothing.
 
-## Giving a tenant a key
+## Giving a tenant its first person
 
-The operator verbs speak the gateway's `/v1/ops/*` over HTTP with `PINECALL_OPS_KEY` — they are not
-database scripts, so the gateway must be up. On the box, in order:
+A gateway that takes no sign-up — every box of its own, and a cloud that shut them — gets its
+tenants from the operator: the org is made, and its first admin is **invited**. The operator verbs
+speak the gateway's `/v1/ops/*` over HTTP with `PINECALL_OPS_KEY` — they are not database scripts,
+so the gateway must be up. On the box, in order:
 
 ```bash
 pinecall-runtime migrate up                       # the schema, and the `default` org
-pinecall-runtime orgs add clinica --name "Clínica Norte"
-pinecall-runtime keys issue --org clinica --label "berna's laptop"
-#   pk_…  copy it now: the table keeps the fingerprint, and the key is never shown again
-pinecall-runtime orgs quota clinica --minutes 2000 --agents 5 --concurrent-calls 10
-pinecall-runtime routes add +34910000000 clinica-norte --org clinica --channel phone
+pinecall-runtime orgs add pinecall --name "Pinecall"
+pinecall-runtime orgs invite pinecall bernardo@pinecall.io --name "Bernardo"   # --role admin
+#   m_…  bernardo@pinecall.io  admin  invited
+#     https://box.pinecall.io/invitations/inv_…
+#     send them this; it opens the console's password screen once, within a week
+pinecall-runtime orgs quota pinecall --seats 10 --agents 25
 ```
 
-Then, on the tenant's machine, once:
+The link opens the console's own card: the person chooses a password, the token is spent, and
+they hold their first key — an admin's, every door of the org in production and, from the
+console's toggle, development too. The operator held a **token** and never a password: an
+invitation is inert until the person it names accepts it, so the box can seat somebody and never
+be them. From there the admin invites the rest from the Team screen, and issues the key the org's
+server runs on from the Keys screen (or `pinecall keys issue`) — the operator is out of the loop.
+The whole of it from the developer's side is the agents repo's `docs/worlds-and-teams.md`.
+
+## Giving a machine a key
+
+A process is not a person and has no password: a worker, a CI job, a box the tenant deploys to.
+The tenant issues those itself (`POST /v1/keys`); the operator can too, for a tenant who asked:
 
 ```bash
-pinecall login https://box.pinecall.io          # asks for the key, proves it at /v1/whoami
-pinecall whoami                                 # gateway · key from credentials · org clinica
-cd clinica-norte && pinecall run                # the agent is now that org's
+pinecall-runtime keys issue --org pinecall --label "prod server"   # --scope app, production
+#   pk_…  copy it now: the table keeps the fingerprint, and the key is never shown again
+pinecall-runtime routes add +34910000000 tienda-sur --org pinecall --channel phone
 ```
 
-In a container there is no login: `PINECALL_API_KEY` in the environment is the same key, and
-`PINECALL_URL` says which gateway. That is the whole of a tenant's authentication.
+In a container there is no login: `PINECALL_API_KEY` in the environment is that key, and
+`PINECALL_URL` says which gateway. On a laptop, `pinecall login https://box.pinecall.io` keeps a
+key typed once. That is the whole of a tenant's authentication.
 
 ## Two worlds on one gateway
 

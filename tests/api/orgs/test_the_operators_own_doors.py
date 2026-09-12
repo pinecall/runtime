@@ -6,6 +6,8 @@ import httpx
 import pytest
 
 from pinecall._version import __version__
+from pinecall.orgs.table import MemoryOrgs
+from pinecall.types import Quotas
 from tests.api.conftest import AN_ORG
 
 pytestmark = pytest.mark.unit
@@ -65,3 +67,43 @@ async def test_an_org_nobody_made_is_a_404_and_not_an_empty_list(
     ops_http: httpx.AsyncClient,
 ) -> None:
     assert (await ops_http.get("/v1/ops/orgs/nobody/members")).status_code == 404
+
+
+async def test_the_operator_invites_an_orgs_first_admin_and_hands_the_token_over_once(
+    ops_http: httpx.AsyncClient, stranger: httpx.AsyncClient
+) -> None:
+    """How a tenant exists at all where sign-ups are shut: the box makes the org and invites."""
+    invited = await ops_http.post(MEMBERS, json={**A_PERSON, "role": "admin"})
+    assert invited.status_code == 201, invited.text
+    said = invited.json()
+    assert (said["member"]["role"], said["member"]["status"]) == ("admin", "invited")
+    assert said["token"].startswith("inv_")
+    # The person accepts with a password of their own, and it is theirs alone from then on: the
+    # operator held a token that is now spent and never a password.
+    accepted = await stranger.post(
+        f"/v1/invitations/{said['token']}", json={"password": "correct horse battery staple"}
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["member"]["status"] == "active"
+    assert accepted.json()["scopes"], "their first key, with what an admin opens in production"
+    again = await stranger.post(
+        f"/v1/invitations/{said['token']}", json={"password": "correct horse battery staple"}
+    )
+    assert again.status_code == 404, "a token is one use"
+
+
+async def test_the_operators_invitation_takes_none_of_the_orgs_seats(
+    ops_http: httpx.AsyncClient, orgs: MemoryOrgs
+) -> None:
+    """A plan caps what an org seats by itself; whoever runs the box is not a seat it spent."""
+    await orgs.set_quotas(AN_ORG.id, Quotas(seats=0))
+    invited = await ops_http.post(MEMBERS, json=A_PERSON)
+    assert invited.status_code == 201, invited.text
+
+
+async def test_a_bad_role_or_email_is_refused_before_any_row(ops_http: httpx.AsyncClient) -> None:
+    bad_role = await ops_http.post(MEMBERS, json={**A_PERSON, "role": "owner"})
+    assert bad_role.status_code == 400 and "role" in bad_role.json()["detail"]
+    bad_email = await ops_http.post(MEMBERS, json={**A_PERSON, "email": "nobody"})
+    assert bad_email.status_code == 400
+    assert (await ops_http.get(MEMBERS)).json() == {"members": [], "seated": 0}
