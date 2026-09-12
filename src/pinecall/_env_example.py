@@ -4,7 +4,8 @@ from pathlib import Path
 
 from pydantic.fields import FieldInfo
 
-from pinecall._settings import ENV_FILES, Settings, variable_of
+from pinecall._env_files import ENV_FILES
+from pinecall._settings import Settings, variable_of
 
 HEADER = f"""\
 # The only .env ever committed, and it is GENERATED: `scripts/generate-env-example` renders it

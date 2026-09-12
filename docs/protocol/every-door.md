@@ -10,6 +10,10 @@ is for. The prose, the shapes and the refusals are on that page and in the pages
 | `WS` | `/v1/attach?call=&token=` | a seat's live log, and the verbs back |
 | `GET` | `/v1/usage?after=&limit=` | the org's metered rows, totals and cursor — `usage` |
 | `GET` | `/v1/numbers` | the org's doors in the key's world, each with its source — `numbers` |
+| `PUT` · `GET` · `DELETE` | `/v1/carrier` | the org's carrier: a Twilio account or a SIP peer, sealed under the vault key, named never secret |
+| `GET` | `/v1/numbers/available` | what the carrier account owns, and which of it is imported |
+| `POST` | `/v1/numbers` · `?dry_run=true` | import one number: the carrier's trunk pointed here, the SFU's trunk admitting it, the route — or the plan alone |
+| `DELETE` | `/v1/numbers/{number}` | let a number go: the route and the admission; the carrier untouched |
 | `POST` | `/v1/login/env` | the same person's key for the other world |
 | `GET` | `/v1/sessions?limit=` | the org's newest calls across every agent, the same rows as an agent's |
 | `GET` | `/v1/events` | SSE, live only: the org's floor changing — an agent held, a call ringing, up, over |

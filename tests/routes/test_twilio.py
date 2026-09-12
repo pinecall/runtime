@@ -1,0 +1,127 @@
+"""Twilio over httpx, answered by a transport that is a dict; the fence agrees on the networks."""
+
+import json
+from pathlib import Path
+from typing import Any
+from urllib.parse import parse_qs
+
+import httpx
+import pytest
+
+from pinecall.routes.twilio import (
+    TRUNKING_API,
+    TWILIO_SIGNALLING,
+    HttpTwilio,
+    Trunk,
+    TwilioRefused,
+    origination_uri,
+)
+from pinecall.types import TwilioAccount
+
+pytestmark = pytest.mark.unit
+
+A_SID = "AC" + "0" * 32
+ACCOUNT = TwilioAccount(A_SID, A_SID, "the-auth-token")
+FENCE = Path(__file__).resolve().parents[2] / "infra" / "box" / "nftables.conf"
+
+
+class _Twilio:
+    """Twilio's REST API as a dict: what it owns, and every write it was sent."""
+
+    def __init__(self) -> None:
+        self.writes: list[tuple[str, dict[str, str]]] = []
+        self.origination: list[dict[str, str]] = []
+        self.opens = True
+
+    def handle(self, request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if not self.opens:
+            return httpx.Response(401, json={"message": "Authenticate"})
+        if request.method == "POST":
+            form = {k: v[0] for k, v in parse_qs(request.content.decode()).items()}
+            self.writes.append((url, form))
+            if url.endswith("/Trunks"):
+                return httpx.Response(
+                    201, json={"sid": "TK_1", "friendly_name": form["FriendlyName"]}
+                )
+            if "/OriginationUrls" in url:
+                self.origination = [{"sid": "OU_1", "sip_url": form["SipUrl"]}]
+                return httpx.Response(201, json={"sid": "OU_1", "sip_url": form["SipUrl"]})
+            return httpx.Response(201, json={"sid": "PN_1"})
+        if url.endswith(f"/Accounts/{A_SID}.json"):
+            return httpx.Response(200, json={"friendly_name": "Clínica Norte"})
+        if "IncomingPhoneNumbers" in url:
+            return httpx.Response(
+                200,
+                json={
+                    "incoming_phone_numbers": [
+                        {"sid": "PN_1", "phone_number": "+14176743169", "friendly_name": "abai"}
+                    ]
+                },
+            )
+        if url.endswith("/Trunks?PageSize=50"):
+            return httpx.Response(
+                200, json={"trunks": [{"sid": "TK_1", "friendly_name": "pinecall-clinica"}]}
+            )
+        if "/OriginationUrls" in url:
+            return httpx.Response(200, json={"origination_urls": self.origination})
+        if "/PhoneNumbers" in url:
+            return httpx.Response(200, json={"phone_numbers": [{"phone_number": "+14176743169"}]})
+        return httpx.Response(404, json={"message": f"nothing at {url}"})
+
+
+def a_client(fake: _Twilio) -> httpx.AsyncClient:
+    return httpx.AsyncClient(transport=httpx.MockTransport(fake.handle))
+
+
+async def test_the_account_is_verified_and_its_numbers_and_trunk_are_read() -> None:
+    fake = _Twilio()
+    twilio = HttpTwilio(a_client(fake), ACCOUNT)
+    assert await twilio.verified() == "Clínica Norte"
+    (number,) = await twilio.numbers()
+    assert (number.sid, number.number, number.name) == ("PN_1", "+14176743169", "abai")
+    trunk = await twilio.trunk_named("pinecall-clinica")
+    assert trunk == Trunk(sid="TK_1", name="pinecall-clinica", origination=())
+    assert await twilio.trunk_named("nobody") is None
+    assert await twilio.numbers_on("TK_1") == ("+14176743169",)
+
+
+async def test_pointing_creates_the_one_origination_uri_then_replaces_it_in_place() -> None:
+    fake = _Twilio()
+    twilio = HttpTwilio(a_client(fake), ACCOUNT)
+    trunk = Trunk(sid="TK_1", name="pinecall-clinica", origination=())
+    await twilio.pointed_at(trunk, origination_uri("box.pinecall.io"))
+    assert fake.writes[-1][0] == f"{TRUNKING_API}/Trunks/TK_1/OriginationUrls"
+    assert fake.writes[-1][1]["SipUrl"] == "sip:box.pinecall.io:5060;transport=udp"
+    await twilio.pointed_at(trunk, origination_uri("other.pinecall.io"))
+    assert fake.writes[-1][0].endswith("/OriginationUrls/OU_1"), "replaced, never doubled"
+    fake.origination = [{"sid": "a", "sip_url": "x"}, {"sid": "b", "sip_url": "y"}]
+    with pytest.raises(TwilioRefused, match="2 origination URIs"):
+        await twilio.pointed_at(trunk, "sip:z")
+
+
+async def test_wrong_credentials_verify_as_none_and_every_other_read_is_a_refusal() -> None:
+    fake = _Twilio()
+    fake.opens = False
+    twilio = HttpTwilio(a_client(fake), ACCOUNT)
+    assert await twilio.verified() is None
+    with pytest.raises(TwilioRefused, match="twilio 401"):
+        await twilio.numbers()
+
+
+async def test_a_number_is_attached_by_its_sid() -> None:
+    fake = _Twilio()
+    await HttpTwilio(a_client(fake), ACCOUNT).attached("TK_1", "PN_1")
+    assert fake.writes[-1] == (
+        f"{TRUNKING_API}/Trunks/TK_1/PhoneNumbers",
+        {"PhoneNumberSid": "PN_1"},
+    )
+
+
+def test_the_networks_the_trunk_admits_are_the_ones_the_fence_opens() -> None:
+    """One list in two places would be a call the fence drops; this holds them to be one."""
+    fence = FENCE.read_text(encoding="utf-8")
+    inside = fence.split("set carrier_signalling", 1)[1].split("}", 1)[0]
+    listed: Any = [line.strip().rstrip(",") for line in inside.splitlines() if "/" in line]
+    assert sorted(listed) == sorted(TWILIO_SIGNALLING)
+    assert json.dumps(TWILIO_SIGNALLING)  # the tuple is plain data, as the trunk wants it

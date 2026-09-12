@@ -24,12 +24,15 @@ from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.memory import Memory
 from pinecall.orgs.admission import Admission
+from pinecall.orgs.carriers import Carriers
 from pinecall.orgs.table import Orgs
 from pinecall.orgs.vault import NO_VAULT_KEY, Vault
 from pinecall.providers.embedder import Embedder
 from pinecall.providers.models import Models
 from pinecall.providers.overrides import Overrides
 from pinecall.routes.table import Routes
+from pinecall.routes.trunks import Trunks
+from pinecall.routes.twilio import TwilioFor
 from pinecall.tokens.ledger import Tokens
 from pinecall.types import KeyScope, Org
 from pinecall.whatsapp.graph import Graph
@@ -220,6 +223,23 @@ def the_vault(connection: HTTPConnection) -> Vault | None:
     return vault
 
 
+def the_carriers(connection: HTTPConnection) -> Carriers | None:
+    """The org carriers, or None when this runtime was given no vault key to seal them under."""
+    carriers: Carriers | None = getattr(connection.app.state, "carriers", None)
+    return carriers
+
+
+def the_trunks(connection: HTTPConnection) -> Trunks | None:
+    """The SFU's SIP trunks, or None when this process has no LiveKit pair to reach them with."""
+    trunks: Trunks | None = getattr(connection.app.state, "trunks", None)
+    return trunks
+
+
+def twilio_for(connection: HTTPConnection) -> TwilioFor:
+    """How a tenant's Twilio account is reached: a client per set of credentials."""
+    return held(connection, "twilio")
+
+
 def the_fleet(connection: HTTPConnection) -> Roster:
     """Every worker that has knocked at this gateway lately, and what it holds."""
     return held(connection, "fleet", Roster)
@@ -267,6 +287,9 @@ GraphDep = Annotated[Graph, Depends(the_graph)]
 VaultDep = Annotated["Vault | None", Depends(the_vault)]
 LookupsDep = Annotated[Lookups, Depends(the_lookups)]
 FleetDep = Annotated[Roster, Depends(the_fleet)]
+CarriersDep = Annotated["Carriers | None", Depends(the_carriers)]
+TrunksDep = Annotated["Trunks | None", Depends(the_trunks)]
+TwilioDep = Annotated[TwilioFor, Depends(twilio_for)]
 EmbedderDep = Annotated[Embedder, Depends(the_embedder)]
 MemoryDep = Annotated["Memory | None", Depends(the_memory)]
 KnowledgeDep = Annotated["Knowledge | None", Depends(the_knowledge)]
@@ -284,6 +307,18 @@ async def an_unlocked_vault(vault: VaultDep) -> Vault:
 
 
 UnlockedVaultDep = Annotated[Vault, Depends(an_unlocked_vault)]
+
+
+# A carrier's credentials are a secret exactly as a provider key is, sealed under the same vault
+# key; a runtime with none cannot keep them, and says so in the vault's own sentence.
+async def kept_carriers(carriers: CarriersDep) -> Carriers:
+    """The carriers table, or 503: this box has no vault key."""
+    if carriers is None:
+        raise HTTPException(503, NO_VAULT_KEY)
+    return carriers
+
+
+KeptCarriersDep = Annotated[Carriers, Depends(kept_carriers)]
 
 # Memory and the knowledge base are tables, and a gateway whose DATABASE_URL did not answer has
 # none: the request was right and this gateway cannot honour it. 503, in a sentence that names the

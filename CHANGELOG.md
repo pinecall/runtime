@@ -7,6 +7,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **A tenant's own numbers.** `PUT /v1/carrier` brings the org's Twilio account (verified once) or a
+  SIP peer, sealed under the vault key; `GET /v1/numbers/available` lists what the account owns;
+  `POST /v1/numbers {number, agent}` imports one — the carrier's trunk `pinecall-<org>` pointed at
+  `sip:<PINECALL_DOMAIN>:5060`, the number attached, the org's LiveKit inbound trunk admitting it
+  from the carrier's networks, the route — each write looked up before it is made, and
+  `?dry_run=true` answers the plan alone. `DELETE /v1/numbers/{number}` lets one go. Migration
+  `0015`; `PINECALL_DOMAIN` is now read by the gateway. `docs/protocol/numbers.md`.
 - **The org's floor.** `GET /v1/sessions?limit=` lists the org's newest calls across every agent,
   the same rows as an agent's own list, each now naming its `agent`; `GET /v1/events` streams the
   floor changing — an agent registered or detached, a call ringing, dialing, started, ended — as

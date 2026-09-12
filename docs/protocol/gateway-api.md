@@ -369,6 +369,8 @@ tenant's read of what the operator's `/v1/ops/usage` pages; and `GET /v1/numbers
 the org answers in the key's world, each saying whether an operator typed it or an app declared
 it (`numbers`). A person holds one key per world: `POST /v1/login/env {env}` with their key mints
 the same person's key, same scopes, in the other — how the console's toggle looks the other way.
+A tenant's own carrier and its numbers imported — Twilio or SIP, the carrier's trunk pointed at the
+box, the SFU's trunk admitting the number, the route — are [numbers.md](numbers.md).
 
 ## 8. People: members and login
 

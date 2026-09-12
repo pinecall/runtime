@@ -49,12 +49,15 @@ from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.memory import Memory
 from pinecall.orgs.admission import Admission
+from pinecall.orgs.carriers import MemoryCarriers
 from pinecall.orgs.meter import Meter
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.orgs.vault import MemoryVault, Vault, keys_brought_by
 from pinecall.providers.models import Chat, Models
 from pinecall.providers.overrides import Overrides
 from pinecall.routes.table import MemoryRoutes
+from pinecall.routes.trunks import MemoryTrunks
+from pinecall.routes.twilio import TwilioFor
 from pinecall.tokens.ledger import MemoryTokens
 from pinecall.types import Model, Org, ProviderKeys
 from pinecall.worker.client import Gateway
@@ -294,6 +297,9 @@ def wired(
     members: MemoryMembers,
     login_codes: LoginCodes,
     throttle: Throttle,
+    carriers: MemoryCarriers,
+    trunks: MemoryTrunks,
+    twilio: TwilioFor,
 ) -> Iterator[None]:
     """The real app, its deps overridden for the length of one test."""
     app.dependency_overrides[deps.a_settings] = lambda: settings
@@ -320,6 +326,9 @@ def wired(
     app.dependency_overrides[the_members] = lambda: members
     app.dependency_overrides[the_login_codes] = lambda: login_codes
     app.dependency_overrides[the_throttle] = lambda: throttle
+    app.dependency_overrides[deps.the_carriers] = lambda: carriers
+    app.dependency_overrides[deps.the_trunks] = lambda: trunks
+    app.dependency_overrides[deps.twilio_for] = lambda: twilio
     yield
     app.dependency_overrides.clear()
 

@@ -22,6 +22,7 @@ from pinecall.api import (
     listen,
     login,
     members,
+    numbers,
     orgs,
     pipeline,
     provider_keys,
@@ -56,6 +57,7 @@ from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.memory import PgvectorMemory
 from pinecall.orgs.admission import Admission
+from pinecall.orgs.carriers import carriers_for
 from pinecall.orgs.meter import Meter
 from pinecall.orgs.table import orgs_for
 from pinecall.orgs.turned import turned_for
@@ -64,6 +66,8 @@ from pinecall.providers.embed import embedder_for
 from pinecall.providers.models import models_for
 from pinecall.providers.overrides import Overrides
 from pinecall.routes.table import routes_for
+from pinecall.routes.trunks import trunks_for
+from pinecall.routes.twilio import HttpTwilio
 from pinecall.tokens.ledger import tokens_for
 from pinecall.whatsapp.graph import HttpGraph
 
@@ -99,6 +103,11 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # no PINECALL_VAULT_KEY, which is every install that runs on its own vendor keys — the
     # default, and the whole of a laptop. docs/decisions/provider-keys.md.
     gateway.state.vault = vault_for(settings, pool)
+    # Whose numbers reach the org's agents: the carrier a tenant brought, sealed under the same
+    # vault key; the SFU's trunks the gateway admits numbers on; and how a Twilio account is
+    # reached, over the process's one httpx client (opened below).
+    gateway.state.carriers = carriers_for(settings, pool)
+    gateway.state.trunks = trunks_for(settings)
     # Which number reaches which agent, durably. A clone with no database routes in memory: it
     # can still be told, and it forgets when the process does.
     gateway.state.routes = routes_for(pool)
@@ -133,6 +142,7 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # conversations open right now ride beside it; none of it is durable and none of it should be.
     http = httpx.AsyncClient()
     gateway.state.graph = HttpGraph(http)
+    gateway.state.twilio = partial(HttpTwilio, http)
     gateway.state.threads = Threads()
     # Memory and the knowledge base are tables, so a gateway with no pool keeps neither and says
     # so at the doors (api/_deps.py). The embedder is lazy: nothing is asked of it until a lookup
@@ -233,6 +243,7 @@ for door in (
     members.router,
     login.router,
     floor.router,
+    numbers.router,
     whoami.router,
     discovery.router,
 ):

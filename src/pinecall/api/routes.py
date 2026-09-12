@@ -7,7 +7,7 @@ from typing import Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import TypeAdapter
 
-from pinecall.api._deps import AppKeyDep, NumbersKeyDep, OrgsDep, RoutesDep, an_operator, an_org
+from pinecall.api._deps import AppKeyDep, OrgsDep, RoutesDep, an_operator, an_org
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.routes import answering
 from pinecall.types import PRODUCTION, Channel, DeclarationRefused, Env, Route
@@ -62,21 +62,6 @@ async def routes(key: AppKeyDep, registry: RegistryDep, table: RoutesDep) -> lis
     """Every door the org answers in the key's world, so a job is resolved without asking again."""
     answered = await answering.answered(key.org, key.env, registry, table)
     return list(ROUTES.dump_python(tuple(door.route for door in answered), mode="json"))
-
-
-# The console's Numbers screen: the same doors the worker is given, each saying which table put
-# it there, in the key's world — read with `numbers` and not with the worker's `app`, because a
-# person who manages the org's numbers is not the process that answers them.
-@router.get("/v1/numbers")
-async def numbers(
-    key: NumbersKeyDep, registry: RegistryDep, table: RoutesDep
-) -> list[dict[str, Any]]:
-    """Every door the org answers in the key's world, and whether an operator typed it."""
-    return list(
-        ANSWERING.dump_python(
-            await answering.answered(key.org, key.env, registry, table), mode="json"
-        )
-    )
 
 
 @operator.get("/routes")

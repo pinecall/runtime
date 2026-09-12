@@ -123,7 +123,7 @@ def vault_for(settings: Settings, pool: Pool | None) -> Vault | None:
     """Postgres when the process opened one, memory on a dev key, none when no key was set."""
     if not settings.vault_key:
         return None
-    cipher = _the_cipher(settings.vault_key)
+    cipher = a_cipher(settings.vault_key)
     return MemoryVault(cipher) if pool is None else PostgresVault(pool, cipher)
 
 
@@ -135,7 +135,8 @@ async def keys_brought_by(vault: Vault | None, org: str) -> ProviderKeys:
     return NO_ORG_KEYS if vault is None else await vault.keys_of(org)
 
 
-def _the_cipher(vault_key: str) -> Fernet:
+# Shared with the carriers table (orgs/carriers.py): one vault key seals every tenant secret.
+def a_cipher(vault_key: str) -> Fernet:
     """The box's Fernet, or a refusal that names the variable an operator has to fix."""
     try:
         return Fernet(vault_key.encode())

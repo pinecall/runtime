@@ -1,0 +1,295 @@
+"""The org's numbers: its carrier, what that account owns, one number imported, one let go."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from fastapi import APIRouter, HTTPException, Query
+
+from pinecall.api._deps import (
+    KeptCarriersDep,
+    NumbersKeyDep,
+    RoutesDep,
+    SettingsDep,
+    TrunksDep,
+    TwilioDep,
+)
+from pinecall.api.agents.registry import RegistryDep
+from pinecall.auth.keys import KeyRecord
+from pinecall.routes import answering
+from pinecall.routes.trunks import NO_LIVEKIT, Trunks
+from pinecall.routes.twilio import TWILIO_SIGNALLING, TwilioApi, TwilioRefused, origination_uri
+from pinecall.types import (
+    Carrier,
+    DeclarationRefused,
+    Route,
+    SipPeer,
+    TwilioAccount,
+    a_carrier_kind,
+)
+from pinecall.types.channel import CHANNELS_WITH_A_NUMBER, Channel
+from pinecall_protocol import WireModel
+
+router = APIRouter()
+
+NO_BODY = 204
+
+# The name of the org's trunk on ITS Twilio account: made once and found after, never doubled.
+CARRIER_TRUNK = "pinecall-{org}"
+
+NO_CARRIER = (
+    "this org has no carrier yet: PUT /v1/carrier with a Twilio account or a SIP peer first"
+)
+NO_DOMAIN = "this gateway has no PINECALL_DOMAIN: a carrier cannot be pointed at a box with no name"
+NOT_ON_ACCOUNT = "{number} is not a number of Twilio account {account}"
+NOT_A_NUMBER_CHANNEL = "a number answers on phone or whatsapp, not {channel}"
+NOT_VERIFIED = (
+    "Twilio refused these credentials: the account SID, the key and the secret are checked"
+)
+NO_SUCH_NUMBER = "no number {number} in this org's world: nothing to let go"
+
+# `?dry_run=true` is the plan and no writes: the very steps, in the very words, with the ids that
+# stand today — what a person reads before letting the gateway touch a carrier account.
+DRY_RUN = Query(False, description="print the plan and write nothing")
+
+
+class WantedCarrier(WireModel):
+    """What PUT /v1/carrier takes: which kind, and the credentials of that kind."""
+
+    kind: str
+    # Twilio: the account, and an API key pair or the auth token (`user` = the account SID then).
+    account_sid: str | None = None
+    user: str | None = None
+    secret: str | None = None
+    # SIP: what the peer registers with, and the networks its calls come from.
+    username: str | None = None
+    password: str | None = None
+    addresses: list[str] = []
+
+
+class WantedNumber(WireModel):
+    """What POST /v1/numbers takes: which number, which agent answers it, on which channel."""
+
+    number: str
+    agent: str
+    channel: str = "phone"
+
+
+# ── the carrier ─────────────────────────────────────────────────────────────────
+
+
+@router.put("/v1/carrier", status_code=NO_BODY)
+async def bring(
+    said: WantedCarrier, key: NumbersKeyDep, carriers: KeptCarriersDep, twilio: TwilioDep
+) -> None:
+    """This org's carrier, replacing whatever it had. A Twilio account is opened once to check."""
+    carrier = _a_carrier(key.org, said)
+    if isinstance(carrier.account, TwilioAccount):
+        if await twilio(carrier.account).verified() is None:
+            raise HTTPException(400, NOT_VERIFIED)
+    await carriers.put(carrier)
+
+
+@router.get("/v1/carrier")
+async def brought(key: NumbersKeyDep, carriers: KeptCarriersDep) -> dict[str, Any]:
+    """Which carrier the org brought, by kind and account — never a secret."""
+    carrier = await carriers.of(key.org)
+    if carrier is None:
+        raise HTTPException(404, NO_CARRIER)
+    return {"kind": carrier.kind, "account": carrier.named}
+
+
+@router.delete("/v1/carrier", status_code=NO_BODY)
+async def take_back(key: NumbersKeyDep, carriers: KeptCarriersDep) -> None:
+    """Forget the carrier. Its numbers stay routed until each is let go."""
+    if not await carriers.drop(key.org):
+        raise HTTPException(404, NO_CARRIER)
+
+
+# ── the numbers ─────────────────────────────────────────────────────────────────
+
+
+# The same doors the worker is given, each saying which table put it there, in the key's world —
+# read with `numbers` and not with the worker's `app`, because a person who manages the org's
+# numbers is not the process that answers them.
+@router.get("/v1/numbers")
+async def numbers(
+    key: NumbersKeyDep, registry: RegistryDep, table: RoutesDep
+) -> list[dict[str, Any]]:
+    """Every door the org answers in the key's world, and whether an operator typed it."""
+    answered = await answering.answered(key.org, key.env, registry, table)
+    return [{"route": _as_json(door.route), "source": door.source} for door in answered]
+
+
+@router.get("/v1/numbers/available")
+async def available(
+    key: NumbersKeyDep, carriers: KeptCarriersDep, twilio: TwilioDep, table: RoutesDep
+) -> dict[str, Any]:
+    """What the carrier account owns that this org has not imported yet, by number and name."""
+    carrier = await carriers.of(key.org)
+    if carrier is None:
+        raise HTTPException(404, NO_CARRIER)
+    if not isinstance(carrier.account, TwilioAccount):
+        # A SIP peer owns what it owns; nobody here can list it. The import takes the number typed.
+        return {"kind": "sip", "numbers": []}
+    imported = {route.number for route in await table.of_org(key.org, key.env)}
+    owned = await twilio(carrier.account).numbers()
+    return {
+        "kind": "twilio",
+        "numbers": [
+            {"number": one.number, "name": one.name, "imported": one.number in imported}
+            for one in owned
+        ],
+    }
+
+
+@router.post("/v1/numbers")
+async def imported(
+    said: WantedNumber,
+    key: NumbersKeyDep,
+    carriers: KeptCarriersDep,
+    twilio: TwilioDep,
+    trunks: TrunksDep,
+    table: RoutesDep,
+    settings: SettingsDep,
+    dry_run: bool = DRY_RUN,
+) -> dict[str, Any]:
+    """One number into this org's world: the carrier's trunk, the SFU's trunk, the route."""
+    route = _a_route(key, said)
+    carrier = await carriers.of(key.org)
+    if carrier is None:
+        raise HTTPException(404, NO_CARRIER)
+    if not settings.domain:
+        raise HTTPException(503, NO_DOMAIN)
+    if trunks is None:
+        raise HTTPException(503, NO_LIVEKIT)
+    steps: list[str] = []
+    try:
+        if isinstance(carrier.account, TwilioAccount):
+            await _on_twilio(
+                twilio(carrier.account), carrier, route, settings.domain, steps, dry_run
+            )
+        await _on_the_sfu(trunks, carrier, route, steps, dry_run)
+    except TwilioRefused as refused:
+        raise HTTPException(502, str(refused)) from refused
+    steps.append(f"route    {route.number} {route.channel} → {route.agent} in {route.env}")
+    if not dry_run:
+        await table.put(route)
+    return {"route": _as_json(route), "steps": steps, "dry_run": dry_run}
+
+
+@router.delete("/v1/numbers/{number}", status_code=NO_BODY)
+async def let_go(number: str, key: NumbersKeyDep, trunks: TrunksDep, table: RoutesDep) -> None:
+    """The route gone and the number off the org's SFU trunk. The carrier account is not touched."""
+    if not await table.remove(key.org, number):
+        raise HTTPException(404, NO_SUCH_NUMBER.format(number=number))
+    if trunks is not None:
+        await trunks.released(key.org, number)
+
+
+# ── the steps ───────────────────────────────────────────────────────────────────
+
+
+# Each step is looked up before it is written, and the plan says which it found standing: a
+# second run of an import that was interrupted must create nothing twice. Nothing is deleted.
+async def _on_twilio(
+    api: TwilioApi, carrier: Carrier, route: Route, domain: str, steps: list[str], dry: bool
+) -> None:
+    """The org's trunk on its account, pointed at the box, with the number attached."""
+    account = carrier.account
+    assert isinstance(account, TwilioAccount)
+    owned = {one.number: one for one in await api.numbers()}
+    if route.number not in owned:
+        raise HTTPException(
+            404, NOT_ON_ACCOUNT.format(number=route.number, account=account.account_sid)
+        )
+    name = CARRIER_TRUNK.format(org=carrier.org)
+    trunk = await api.trunk_named(name)
+    if trunk is None:
+        steps.append(f"trunk    {name} — created on account {account.account_sid}")
+        if not dry:
+            trunk = await api.create_trunk(name)
+    else:
+        steps.append(f"trunk    {trunk.sid} {name} — standing")
+    uri = origination_uri(domain)
+    if trunk is None or uri not in trunk.origination:
+        steps.append(f"origin   {uri} — set")
+        if not dry and trunk is not None:
+            await api.pointed_at(trunk, uri)
+    else:
+        steps.append(f"origin   {uri} — standing")
+    on_it = () if trunk is None else await api.numbers_on(trunk.sid)
+    if route.number in on_it:
+        steps.append(f"number   {route.number} — on the trunk already")
+    else:
+        steps.append(f"number   {route.number} — attached to the trunk")
+        if not dry and trunk is not None:
+            await api.attached(trunk.sid, owned[route.number].sid)
+
+
+async def _on_the_sfu(
+    trunks: Trunks, carrier: Carrier, route: Route, steps: list[str], dry: bool
+) -> None:
+    """The org's inbound trunk on LiveKit with the number admitted, and its rule."""
+    if isinstance(carrier.account, TwilioAccount):
+        allowed, auth = TWILIO_SIGNALLING, None
+    else:
+        peer = carrier.account
+        allowed, auth = peer.addresses, (peer.username, peer.password)
+    steps.append(
+        f"livekit  inbound trunk pinecall-{carrier.org}: +{route.number}, from {len(allowed)} "
+        f"networks{' with SIP auth' if auth else ''}; one room per caller"
+    )
+    # A dialled route always has one: _a_route refused a channel without a number already.
+    if not dry and route.number is not None:
+        await trunks.admitted(carrier.org, route.number, allowed, auth)
+
+
+def _a_carrier(org: str, said: WantedCarrier) -> Carrier:
+    """The domain's Carrier out of the body, or a 400 in the domain's words."""
+    try:
+        if a_carrier_kind(said.kind) == "twilio":
+            account_sid = said.account_sid or ""
+            return Carrier(
+                org=org,
+                account=TwilioAccount(
+                    account_sid=account_sid,
+                    user=said.user or account_sid,
+                    secret=said.secret or "",
+                ),
+            )
+        return Carrier(
+            org=org,
+            account=SipPeer(
+                username=said.username or "",
+                password=said.password or "",
+                addresses=tuple(said.addresses),
+            ),
+        )
+    except DeclarationRefused as refused:
+        raise HTTPException(400, str(refused)) from refused
+
+
+def _a_route(key: KeyRecord, said: WantedNumber) -> Route:
+    """The route the import ends in, refused before any account is touched when it is not one."""
+    if said.channel not in CHANNELS_WITH_A_NUMBER:
+        raise HTTPException(400, NOT_A_NUMBER_CHANNEL.format(channel=said.channel))
+    channel: Channel = "phone" if said.channel == "phone" else "whatsapp"
+    try:
+        return Route(
+            org=key.org, agent=said.agent, channel=channel, number=said.number, env=key.env
+        )
+    except DeclarationRefused as refused:
+        raise HTTPException(400, str(refused)) from refused
+
+
+def _as_json(route: Route) -> dict[str, Any]:
+    """One route as the wire says it: every field of the domain's own Route."""
+    return {
+        "org": route.org,
+        "agent": route.agent,
+        "channel": route.channel,
+        "number": route.number,
+        "label": route.label,
+        "env": route.env,
+    }

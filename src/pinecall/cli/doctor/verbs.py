@@ -5,7 +5,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from urllib.parse import urlsplit, urlunsplit
 
-from pinecall._settings import Role, Settings, env_files_read, load_settings, variable_of
+from pinecall._env_files import env_files_read
+from pinecall._settings import Role, Settings, load_settings, variable_of
 from pinecall.cli.doctor.probes import Probes, live_probes
 from pinecall.providers.embed import base_url_of, key_field_of, model_of
 from pinecall.providers.knocks import KNOCKS

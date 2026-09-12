@@ -1,9 +1,7 @@
 """Every environment variable the runtime reads, declared once, for both processes."""
 
 import os
-from collections.abc import Iterator
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Literal, override
 
 from pydantic import Field
@@ -14,16 +12,11 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
+from pinecall._env_files import ENV_FILES, env_files_read
+
 # Our own knobs carry this prefix; a vendor key keeps the vendor's own name (the alias on the
 # field), so the SDK that reads ANTHROPIC_API_KEY by itself and this class agree.
 ENV_PREFIX = "PINECALL_"
-
-# The two names a .env is looked for under: in the directory the process started in, then in
-# each parent up to the repository root. `uv run pinecall-runtime …` starts in the runtime
-# directory, where the first name is the file; an app started from a checkout's root, or from an
-# example directory deeper in it, finds the same file under the second. Where the walk stops with
-# both names present, the later wins — pydantic-settings' own order for a list of files.
-ENV_FILES: tuple[str, ...] = (".env", "runtime/.env")
 
 
 type Role = Literal["all", "hub", "worker"]
@@ -100,6 +93,12 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="LIVEKIT_PUBLIC_URL",
         description="The LiveKit URL a browser is told to join. Unset, it hears LIVEKIT_URL.",
+    )
+    # The box's own public name — what Caddy answers to, and where a carrier sends the INVITE for
+    # a number a tenant imports (sip:<domain>:5060). The box already has it in box.env.
+    domain: str | None = Field(
+        default=None,
+        description="The box's public name: where a carrier sends a call. Unset, nothing imports.",
     )
 
     # ── The services the doctor asks after: Postgres, and the embedder ─────────
@@ -372,26 +371,6 @@ class Settings(BaseSettings):
 def load_settings() -> Settings:
     """Read the environment now. Cheap, and no hidden global: hold the result where it is needed."""
     return Settings()
-
-
-def env_files_read() -> list[Path]:
-    """The .env files a Settings built here reads, in the order pydantic reads them."""
-    for folder in _folders_up_to_the_repository_root(Path.cwd()):
-        found = [folder / name for name in ENV_FILES if (folder / name).is_file()]
-        if found:
-            return found
-    return []
-
-
-# The walk is BOUNDED on purpose: a stray .env in a directory above the project would be the wrong
-# keys, silently, which is a worse failure than finding none. docs/decisions/settings.md says why.
-def _folders_up_to_the_repository_root(start: Path) -> Iterator[Path]:
-    """`start`, then each parent, stopping at the first one holding a `.git` — never above it."""
-    folder = start.resolve()
-    for candidate in (folder, *folder.parents):
-        yield candidate
-        if (candidate / ".git").exists():
-            return
 
 
 def variable_of(field: str) -> str:
