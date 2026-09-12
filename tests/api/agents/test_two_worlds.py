@@ -70,7 +70,7 @@ async def test_a_socket_leaving_one_world_frees_nothing_in_the_other() -> None:
     registry = Registry(Logs(MemoryStore()))
     await registry.register(A_SOCKET, "madrid", PRODUCTION, "clinica-norte", [a_door("web")])
     await registry.register(ANOTHER_SOCKET, "madrid", DEVELOPMENT, "clinica-norte", [a_door("web")])
-    assert registry.release(ANOTHER_SOCKET) == frozenset({"clinica-norte"})
+    assert (await registry.release(ANOTHER_SOCKET)) == frozenset({"clinica-norte"})
     assert registry.of(DEVELOPMENT, "clinica-norte") is None
     assert registry.of(PRODUCTION, "clinica-norte") is not None
 
@@ -101,3 +101,22 @@ async def test_the_declaration_a_slug_alone_names_is_productions_when_it_is_held
     deployed = registry.declared("clinica-norte")
     assert deployed is not None and deployed.language is None
     assert registry.declared("nobody") is None
+
+
+async def test_a_socket_leaving_writes_agent_detached_saying_whether_anybody_is_left() -> None:
+    """The other half of register: which socket, which world, whether the agent is still held."""
+    store = MemoryStore()
+    registry = Registry(Logs(store))
+    await registry.register(A_SOCKET, "madrid", PRODUCTION, "clinica-norte", [a_door("web")])
+    await registry.register(ANOTHER_SOCKET, "madrid", PRODUCTION, "clinica-norte", [a_door("web")])
+    await registry.release(ANOTHER_SOCKET)
+    await registry.release(A_SOCKET)
+    written = [
+        entry
+        for entry in await store.agent_since("clinica-norte")
+        if entry.type == "agent.detached"
+    ]
+    assert [(entry.data["app"], entry.data["env"], entry.data["left"]) for entry in written] == [
+        (ANOTHER_SOCKET, PRODUCTION, False),
+        (A_SOCKET, PRODUCTION, True),
+    ]

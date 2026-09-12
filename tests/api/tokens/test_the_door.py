@@ -243,5 +243,7 @@ def test_a_full_fleet_refuses_the_token_with_a_503_and_writes_fleet_full(
     assert status == 503
     assert "3 calls on 1 workers" in said["detail"] and "/v1/callbacks" in said["detail"]
     written = asyncio.run(store.agent_since(AGENT))
-    assert written[-1].type == "fleet.full"
-    assert written[-1].data == {"channel": "web", "workers": 1, "active": 3}
+    # The socket closed after the refusal, so the log ends on agent.detached; fleet.full is the
+    # entry before it, written before the 503 went out.
+    assert [entry.type for entry in written[-2:]] == ["fleet.full", "agent.detached"]
+    assert written[-2].data == {"channel": "web", "workers": 1, "active": 3}

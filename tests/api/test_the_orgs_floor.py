@@ -68,6 +68,7 @@ def test_the_feed_carries_the_floor_and_nothing_said_on_a_call() -> None:
     """The closed set: an agent held, a call arriving, up, over. A turn is the call's alone."""
     assert ORG_EVENTS == {
         "agent.registered",
+        "agent.detached",
         "call.ringing",
         "call.dialing",
         "call.started",

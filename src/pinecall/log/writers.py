@@ -13,7 +13,14 @@ from pinecall.log.store import Store
 # call. An agent held or let go, a call arriving, up, and over — each already an entry of some
 # log; the feed is those same entries, tapped as they are written, never a second record.
 ORG_EVENTS: frozenset[str] = frozenset(
-    {"agent.registered", "call.ringing", "call.dialing", "call.started", "call.ended"}
+    {
+        "agent.registered",
+        "agent.detached",
+        "call.ringing",
+        "call.dialing",
+        "call.started",
+        "call.ended",
+    }
 )
 
 

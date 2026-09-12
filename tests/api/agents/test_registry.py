@@ -58,7 +58,7 @@ async def test_a_disconnect_frees_the_door_for_whoever_asks_next() -> None:
     await registry.register(
         A_SOCKET, "madrid", PRODUCTION, "clinica-norte", [a_door("phone", A_NUMBER)]
     )
-    assert registry.release(A_SOCKET) == frozenset({"clinica-norte"})
+    assert (await registry.release(A_SOCKET)) == frozenset({"clinica-norte"})
     assert registry.at("phone", A_NUMBER) is None
     await registry.register(
         ANOTHER_SOCKET, "madrid", PRODUCTION, "clinica-sur", [a_door("phone", A_NUMBER)]
@@ -234,7 +234,7 @@ async def test_the_agent_stands_while_one_of_its_two_sockets_leaves() -> None:
     registry = Registry(Logs(MemoryStore()))
     await registry.register(A_SOCKET, "madrid", PRODUCTION, "clinica-norte", [a_door("web")])
     await registry.register(ANOTHER_SOCKET, "madrid", PRODUCTION, "clinica-norte", [a_door("web")])
-    assert registry.release(ANOTHER_SOCKET) == frozenset({"clinica-norte"})
+    assert (await registry.release(ANOTHER_SOCKET)) == frozenset({"clinica-norte"})
     held = registry.of(PRODUCTION, "clinica-norte")
     assert held is not None
     assert held.owner == A_SOCKET
@@ -250,7 +250,7 @@ async def test_the_doors_an_agent_answers_are_its_newest_sockets() -> None:
     await registry.register(ANOTHER_SOCKET, "madrid", PRODUCTION, "clinica-norte", [a_door("web")])
     assert registry.at("phone", A_NUMBER) is None
     assert [route.channel for route in registry.routes("madrid", PRODUCTION)] == ["web"]
-    registry.release(ANOTHER_SOCKET)
+    await registry.release(ANOTHER_SOCKET)
     assert registry.at("phone", A_NUMBER) is not None
 
 

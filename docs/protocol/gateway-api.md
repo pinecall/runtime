@@ -96,6 +96,8 @@ otherwise to the newest socket that takes unclaimed calls.
 is held in that world alone: the same slug on a box's key and on a laptop's is two agents, and
 neither sees the other's calls, doors or declaration. `agent.registered` and `call.started` carry
 `env`; a number claimed in one world is refused to a key of the other, naming the world that holds it.
+When a socket that held the agent goes, the gateway writes `agent.detached` to the agent's log —
+which socket, which world, and `left: true` when nobody holds the agent there any more.
 
 ### A call, from the app's side
 
