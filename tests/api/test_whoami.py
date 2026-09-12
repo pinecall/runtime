@@ -3,8 +3,9 @@
 import pytest
 from starlette.testclient import TestClient
 
+from pinecall.orgs.table import MemoryOrgs
 from pinecall.types import KEY_SCOPES
-from tests.api.conftest import A_KEY
+from tests.api.conftest import A_KEY, AN_ORG
 from tests.api.talking import got
 
 pytestmark = pytest.mark.unit
@@ -18,6 +19,7 @@ def test_the_door_names_the_org_the_key_belongs_to(gateway: TestClient) -> None:
     assert status == 200
     assert body == {
         "org": "clinica",
+        "slug": "clinica",
         "key_id": "k_1",
         "label": "ring 0",
         "env": "production",
@@ -45,3 +47,17 @@ def test_a_key_this_gateway_never_issued_is_told_nothing_about_why(gateway: Test
     status, _ = got(gateway, WHOAMI, bearer="pk_a_key_nobody_ever_issued")
 
     assert status == 401
+
+
+async def test_an_org_whose_row_is_gone_says_no_slug_rather_than_inventing_one(
+    gateway: TestClient, orgs: MemoryOrgs
+) -> None:
+    """On this suite's org the id and the slug are the same word; on one the box made the id is
+    `org_…`, and a line printing THAT at a person prints them nothing. With no row at all the door
+    still says whose the key was, with the id it has and no word it does not have."""
+    await orgs.remove(AN_ORG.id)
+
+    _, body = got(gateway, WHOAMI)
+
+    assert body["org"] == "clinica"
+    assert body["slug"] is None
