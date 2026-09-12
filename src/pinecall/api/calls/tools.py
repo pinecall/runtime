@@ -10,6 +10,7 @@ from pinecall.api._deps import AppKeyDep, LogsDep
 from pinecall.api._live import LiveDep
 from pinecall.api.agents.handlers import Socket, asked, handles
 from pinecall.api.agents.registry import RegistryDep
+from pinecall.auth.keys import held_by
 from pinecall.session.declaring import ToolUse
 from pinecall_protocol import Command, WireModel, defs, encode
 from pinecall_protocol.events import ToolCall
@@ -43,7 +44,7 @@ async def run_a_tool(
     live: LiveDep,
 ) -> dict[str, Any]:
     """A worker's tool call through the app's own process and back, with both entries logged."""
-    held = registry.of(key.env, agent)
+    held = registry.of(key.env, agent, held_by(key))
     if held is None or held.org != key.org:
         raise HTTPException(status_code=409, detail=NO_APP.format(agent=agent))
     log = logs.writing(call, agent)

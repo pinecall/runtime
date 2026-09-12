@@ -32,7 +32,7 @@ from pinecall.api.agents.registry import (
 )
 from pinecall.api.calls.opening import a_text_call
 from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
-from pinecall.auth.keys import not_opening
+from pinecall.auth.keys import KeyRecord, held_by, not_opening
 from pinecall.auth.scopes import a_visitor
 from pinecall.log.entry import Entry
 from pinecall.log.writers import Logs
@@ -96,11 +96,11 @@ async def chat(
     # `?app=` is how `pinecall chat` is served by its OWN process, where the tenant's breakpoints
     # are: without it a call takes whichever socket registered last. See docs/decisions/dispatch.md.
     app = websocket.query_params.get("app")
-    held = registry.serving(key.env, slug, app)
+    held = registry.serving(key.env, slug, app, held_by(key))
     # An API key IS its org, on this socket as on every door: another org's agent is refused in a
     # sentence that names the agent and not the org that holds it.
     if held is None or held.org != key.org:
-        why = ANOTHER_ORGS if held is not None else _why_not(registry, key.env, slug, app)
+        why = ANOTHER_ORGS if held is not None else _why_not(registry, key, slug, app)
         await websocket.accept()
         await websocket.close(
             code=POLICY_VIOLATION, reason=as_a_close_reason(why.format(slug=slug))
@@ -139,11 +139,11 @@ async def chat(
 # Three reasons a chat cannot open, and they are three different things to do about it: the caller
 # named an app that is not there, nobody at all is holding the agent, or the only apps holding it
 # are consoles serving their own calls. A single sentence for all three would name none of them.
-def _why_not(registry: Registry, env: Env, slug: str, app: SocketId | None) -> str:
+def _why_not(registry: Registry, key: KeyRecord, slug: str, app: SocketId | None) -> str:
     """Why this caller gets no call, in words the person who ran the command can act on."""
     if app is not None:
         return NOT_THAT_APP.format(app=app, slug=slug)
-    if registry.of(env, slug) is not None:
+    if registry.of(key.env, slug, held_by(key)) is not None:
         return NO_UNCLAIMED.format(slug=slug)
     return _NOBODY_SERVING.format(slug=slug)
 

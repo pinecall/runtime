@@ -45,7 +45,7 @@ from pinecall.api.calls.sink import (
 )
 from pinecall.api.supervise.aiming import STEERS, QueueingDep, VerbRefused, aimed, as_a_verb
 from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
-from pinecall.auth.keys import KeyRecord, not_opening
+from pinecall.auth.keys import KeyRecord, held_by, not_opening
 from pinecall.auth.scopes import Reader
 from pinecall.log.entry import Entry, unstored
 from pinecall.log.filters import EVERYTHING
@@ -313,14 +313,14 @@ async def opened(
         raise HTTPException(429, str(refused)) from refused
     # Which process serves this call is asked here exactly as the chat door asks it, of the same
     # function: an app id that names no holder of this agent is refused, never quietly ignored.
-    serving = registry.serving(key.env, said.agent, said.app)
+    serving = registry.serving(key.env, said.agent, said.app, held_by(key))
     if said.app is not None and serving is None:
         raise HTTPException(409, NOT_THAT_APP.format(app=said.app, slug=said.agent))
     # Held, but by consoles only: this is the phone call the flag exists to keep out of somebody's
     # terminal. Refused here, where the caller has not been greeted yet, rather than run with no app
     # socket on it — a conversation whose every tool goes out to nobody is worse than a line that
     # drops. A call whose app disconnected mid-setup is the other case, and it still goes through.
-    if serving is None and registry.of(key.env, said.agent) is not None:
+    if serving is None and registry.of(key.env, said.agent, held_by(key)) is not None:
         raise HTTPException(409, NO_UNCLAIMED.format(slug=said.agent))
     # Whose call this is, on the head row, before the first entry: every reader of it will ask.
     await logs.owned(context.call, said.agent, key.org)
@@ -331,7 +331,7 @@ async def opened(
     # What this call's agent declared, resolved the way the worker read it a moment ago through
     # the config door — so a lookup searches the base the worker's session was built to expect. An
     # agent nobody holds any more declared nothing this gateway can name, and nothing is found.
-    held = serving or registry.of(key.env, said.agent)
+    held = serving or registry.of(key.env, said.agent, held_by(key))
     config = overrides.config_for(said.agent, held.config) if held else AgentConfig(slug=said.agent)
     live.serve(context.call, said.agent, key.org, log, app, context=context, config=config)
     type, event = arrived(context, context.route.number or said.agent)

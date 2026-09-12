@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 
 from pinecall.api._deps import AppKeyDep, VaultDep
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
+from pinecall.auth.keys import held_by
 from pinecall.orgs.vault import keys_brought_by
 from pinecall.types import ProviderKeys
 
@@ -21,7 +22,7 @@ async def provider_keys(
     slug: str, key: AppKeyDep, registry: RegistryDep, vault: VaultDep
 ) -> dict[str, ProviderKeys]:
     """The keys this org brought of its own. Empty is the common case: the box's env keys run."""
-    held = registry.of(key.env, slug)
+    held = registry.of(key.env, slug, held_by(key))
     if held is None or held.org != key.org:
         raise HTTPException(status_code=404, detail=NO_AGENT.format(slug=slug))
     return {"keys": dict(await keys_brought_by(vault, key.org))}

@@ -108,7 +108,17 @@ sessions must not fill with a developer's test calls. So **the key knows where.*
 word: the same slug is held once in each world, by different sockets; `GET /v1/agents`, `GET
 /v1/routes` and every door that names an agent answer the world the key opens; a dialled number
 is one agent's in one world, and a development key claiming a production number is refused with
-the world named. `agent.registered` and `call.started` carry `env`, so a console and a session
+the world named.
+
+**And the key knows whose.** Development is namespaced a second time, by the member the key was
+minted for, because a tenant is a team: Berna and Carla both run `tienda-sur` on their own
+laptops, each reaches their own, and neither takes the other's. A development key that names
+nobody — CI's, a machine's — holds the org's own, which is what a developer holding none falls
+back to. Production is namespaced by nobody, because there is one holder there by construction:
+a person's key does not open `app` in production at all (see below), so what holds a deployed
+slug is a key issued for a machine. The exception is a **dialled** door: a number exists once in
+a world, so the development number is the org's and the newest `pinecall run` answers it — web
+and chat are each developer's own, the telephone is shared. `agent.registered` and `call.started` carry `env`, so a console and a session
 list can say which world they are reading. A dev key opens development — a laptop is where things
 are written — and every key issued before the field existed is production's.
 

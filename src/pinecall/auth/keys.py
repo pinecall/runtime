@@ -92,6 +92,16 @@ class ListedKey:
 NOT_OPENED = "this key does not open {scope}: it opens {opens}"
 
 
+# Whose corner of a world a key works in. In production nobody's: what is deployed is the org's,
+# held by the key its box runs on. In development the member the key was minted for, so two
+# developers of one tenant each hold, reach and see their own agent; a development key that names
+# nobody — CI's — works in the org's own corner, which is what everybody falls back to.
+# api/agents/registry.py is where the corners are, and `Held` there says the same thing.
+def held_by(record: KeyRecord) -> str | None:
+    """The corner of its world this key holds and reads in: nobody's, or a developer's own."""
+    return record.subject if record.env == DEVELOPMENT else None
+
+
 def not_opening(record: KeyRecord, scope: str) -> str | None:
     """The refusal when this key lacks the scope, or None when it holds it."""
     if scope in record.scopes:

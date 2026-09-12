@@ -93,6 +93,15 @@ did not name one. `pinecall chat`, `pinecall test` and the console all register 
 Several sockets may hold the same agent at once. A call goes to the one it names (`?app=`), and
 otherwise to the newest socket that takes unclaimed calls.
 
+**In development an agent is held per person.** The registry namespaces development by the member
+the key was minted for, so two developers of one tenant each run `tienda-sur` on their own laptop
+and neither takes the other's: what each of them reaches — `GET /v1/agents`, `WS /v1/chat`, the
+config door, a suite — is the socket in their own corner. A development key that names nobody
+(CI's, a machine's) holds the org's own, and a person holding none falls back to it. Production is
+namespaced by nobody, because a person's key does not open `app` there: what holds a deployed slug
+is a key issued for a machine (§7). A **dialled** door is the exception — a number exists once in a
+world, so the development number is the org's and the newest `pinecall run` answers it.
+
 **Which world.** A key opens `production` or `development`, and the agent this socket registers
 is held in that world alone: the same slug on a box's key and on a laptop's is two agents, and
 neither sees the other's calls, doors or declaration. `agent.registered` and `call.started` carry
