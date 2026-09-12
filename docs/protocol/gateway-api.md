@@ -363,7 +363,12 @@ row says whose). `GET /v1/events` is the floor changing, as SSE from now on and 
 `agent.registered` when a process holds an agent, `call.ringing` · `call.dialing` ·
 `call.started` · `call.ended` as calls arrive and go — each the very entry of its own log, tapped
 as it is written, so what to resume from is that log and its `seq`. A turn is never on it. Both
-take a key with `calls`; a room token reads its one call and neither of these.
+take a key with `calls`; a room token reads its one call and neither of these. Beside them,
+`GET /v1/usage?after=&limit=` is the org's own metered rows, totals and cursor (`usage`), the
+tenant's read of what the operator's `/v1/ops/usage` pages; and `GET /v1/numbers` is every door
+the org answers in the key's world, each saying whether an operator typed it or an app declared
+it (`numbers`). A person holds one key per world: `POST /v1/login/env {env}` with their key mints
+the same person's key, same scopes, in the other — how the console's toggle looks the other way.
 
 ## 8. People: members and login
 

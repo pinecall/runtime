@@ -106,6 +106,7 @@ ASKS_NOTHING_OR_ASKS_INSIDE: dict[str, str] = {
     "GET /v1/whoami": "any key may ask whose it is",
     "POST /v1/login": "takes no key: it mints one",
     "POST /v1/login/codes": "any key may mint a code for its own record",
+    "POST /v1/login/env": "a person's key may mint the same person's key in the other world",
     "POST /v1/invitations/{token}": "takes no key: the token is the right",
     "GET /v1/whatsapp/webhook": "Meta's handshake, signed",
     "POST /v1/whatsapp/webhook": "Meta's delivery, signed",

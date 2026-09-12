@@ -147,6 +147,8 @@ MemoryKeyDep = Annotated[KeyRecord, Depends(opening("memory"))]
 EvalsKeyDep = Annotated[KeyRecord, Depends(opening("evals"))]
 ProviderKeysKeyDep = Annotated[KeyRecord, Depends(opening("keys"))]
 TeamKeyDep = Annotated[KeyRecord, Depends(opening("team"))]
+UsageKeyDep = Annotated[KeyRecord, Depends(opening("usage"))]
+NumbersKeyDep = Annotated[KeyRecord, Depends(opening("numbers"))]
 
 
 # ── the tables the lifespan opened, each behind one name ────────────────────────
