@@ -138,16 +138,6 @@ limit 1
 # driver so no CLI has to import one.
 INSTALLED_EXTENSIONS = "select extname from pg_extension"
 
-APPLIED_MIGRATIONS = "select name from schema_migrations"
-
-RECORD_MIGRATION = "insert into schema_migrations (name) values ($1)"
-
-MIGRATIONS_TABLE = """
-create table if not exists schema_migrations (
-    name       text primary key,
-    applied_at timestamptz not null default now()
-)
-"""
 
 # asyncpg ships no py.typed, so a strict checker reads every call into it as Unknown. Two casts at
 # the door keep the rest of this file typed, and nothing untyped leaves a method.
@@ -155,7 +145,7 @@ _create_pool = cast(
     "Callable[..., Awaitable[Any]]",
     asyncpg.create_pool,  # pyright: ignore[reportUnknownMemberType]
 )
-_connect = cast(
+connect = cast(
     "Callable[..., Awaitable[Any]]",
     asyncpg.connect,  # pyright: ignore[reportUnknownMemberType]
 )
@@ -321,7 +311,7 @@ def entry_of_row(row: Any) -> Entry:
 
 async def installed_extensions(dsn: str, *, timeout: float | None = None) -> set[str]:
     """Which extensions this database has. One connection, one query, closed either way."""
-    connection: Any = await _connect(dsn, timeout=timeout)
+    connection: Any = await connect(dsn, timeout=timeout)
     try:
         rows: Sequence[Any] = await connection.fetch(INSTALLED_EXTENSIONS)
     finally:
@@ -342,33 +332,6 @@ async def create_pool(dsn: str, *, schema: str = DEFAULT_SCHEMA) -> Any:
         raise StoreUnreachable(f"{dsn}: {refused}") from refused
 
 
-async def apply_migrations(dsn: str, *, schema: str = DEFAULT_SCHEMA) -> list[str]:
-    """Run every .sql this database has not run yet, in name order. Returns what it applied."""
-    name = _a_schema_name(schema)
-    connection: Any = await _connect(dsn)
-    try:
-        if name != DEFAULT_SCHEMA:
-            await connection.execute(f"create schema if not exists {name}")
-        await connection.execute(f"set search_path to {search_path_of(name)}")
-        await connection.execute(MIGRATIONS_TABLE)
-        done = {str(row["name"]) for row in await connection.fetch(APPLIED_MIGRATIONS)}
-        return [
-            await _apply_one(connection, path)
-            for path in sorted(MIGRATIONS.glob("*.sql"))
-            if path.name not in done
-        ]
-    finally:
-        await connection.close()
-
-
-async def _apply_one(connection: Any, path: Path) -> str:
-    """One migration and its record in one transaction: half a migration is never recorded."""
-    async with connection.transaction():
-        await connection.execute(path.read_text(encoding="utf-8"))
-        await connection.execute(RECORD_MIGRATION, path.name)
-    return path.name
-
-
 async def _teach_the_connection_json(connection: Any) -> None:
     """jsonb comes back as a dict and goes out as one; the store never sees a JSON string."""
     await connection.set_type_codec(
@@ -383,11 +346,11 @@ async def _teach_the_connection_json(connection: Any) -> None:
 # public itself and needs no second entry.
 def search_path_of(schema: str) -> str:
     """The search path a schema is worked in: itself, then public, where the extensions are."""
-    name = _a_schema_name(schema)
+    name = a_schema_name(schema)
     return name if name == DEFAULT_SCHEMA else f"{name}, {DEFAULT_SCHEMA}"
 
 
-def _a_schema_name(schema: str) -> str:
+def a_schema_name(schema: str) -> str:
     """A schema is an identifier and cannot be a parameter, so it is checked before it is SQL."""
     if not _A_SCHEMA_NAME.match(schema):
         raise SchemaRefused(f"a schema name is a lowercase word, not {schema!r}")

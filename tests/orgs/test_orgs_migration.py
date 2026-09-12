@@ -10,12 +10,8 @@ import pytest
 
 from pinecall.auth.keys import PostgresKeys, fingerprint
 from pinecall.log.store import open_pool
-from pinecall.log.store.postgres import (
-    MIGRATIONS,
-    MIGRATIONS_TABLE,
-    RECORD_MIGRATION,
-    apply_migrations,
-)
+from pinecall.log.store.migrating import MIGRATIONS_TABLE, RECORD_MIGRATION, apply_migrations
+from pinecall.log.store.postgres import MIGRATIONS
 from tests.postgres import Dev
 
 pytestmark = pytest.mark.postgres

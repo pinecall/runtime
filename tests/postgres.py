@@ -14,7 +14,8 @@ import pytest
 
 from pinecall._settings import load_settings
 from pinecall.log.store import MemoryStore, PostgresStore, Store
-from pinecall.log.store.postgres import apply_migrations, search_path_of
+from pinecall.log.store.migrating import apply_migrations
+from pinecall.log.store.postgres import search_path_of
 
 # Long enough for a container on the same laptop, short enough that a whole suite does not hang
 # waiting for a database nobody started.

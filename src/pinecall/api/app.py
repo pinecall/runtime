@@ -56,7 +56,15 @@ from pinecall.extensions import extensions_from
 from pinecall.fleet import Roster
 from pinecall.knowledge import PgKnowledge
 from pinecall.log.snapshots import Snapshots
-from pinecall.log.store import MemoryStore, Pool, PostgresStore, Store, StoreUnreachable, open_pool
+from pinecall.log.store import (
+    MemoryStore,
+    Pool,
+    PostgresStore,
+    Store,
+    StoreUnreachable,
+    migrations_behind,
+    open_pool,
+)
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.memory import PgvectorMemory
@@ -84,6 +92,26 @@ NO_DATABASE = (
     "entries in memory. Start the dev stack and run `pinecall-runtime migrate up`."
 )
 
+# A database that answered but is BEHIND. It is worse than one that did not answer: the process
+# starts, every door that touches an untouched column 500s, and what a person sees is a socket
+# closing with 1006 and a driver's stack trace in the log. So it is said here, once, loudly, and
+# with the one command that fixes it. A box cannot meet this — its unit runs `migrate up` before
+# every start — and a laptop meets it every time a migration lands, because nothing runs it there.
+SCHEMA_BEHIND = (
+    "this database is %d migration(s) behind (%s): the gateway will fail on any door that reads "
+    "what they add. Run `pinecall-runtime migrate up` and start it again."
+)
+
+
+# Read and never applied: a process that migrated its own database on the way up would be a
+# process that migrates it from three replicas at once. The box's unit does it before the start,
+# `migrate up` does it on a laptop, and this only ever says so.
+async def _say_if_the_schema_is_behind(pool: Pool) -> None:
+    """One warning naming how many and which, or nothing at all when the schema is level."""
+    behind = await migrations_behind(pool)
+    if behind:
+        logger.warning(SCHEMA_BEHIND, len(behind), ", ".join(behind))
+
 
 @asynccontextmanager
 async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
@@ -92,6 +120,8 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # First, so a box told to load a policy that is not there never answers a single request.
     gateway.state.extensions = extensions_from(settings)
     pool = await _a_pool(settings)
+    if pool is not None:
+        await _say_if_the_schema_is_behind(pool)
     store = await _a_store(settings)
     gateway.state.settings = settings
     gateway.state.store = store
