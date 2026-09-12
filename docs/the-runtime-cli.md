@@ -99,7 +99,7 @@ pinecall-runtime orgs add <slug> [--name "…"]
 pinecall-runtime orgs rm <org>
 pinecall-runtime orgs quota <org> [--minutes n] [--messages n] [--agents n]
                                   [--concurrent-calls n] [--memory-facts n] [--knowledge-chunks n]
-                                  [--numbers n]
+                                  [--numbers n] [--seats n]
 pinecall-runtime orgs provider-key set <org> <vendor>     # the key on stdin
 pinecall-runtime orgs provider-key rm  <org> <vendor>
 pinecall-runtime orgs provider-key list <org>
@@ -109,8 +109,10 @@ The tenants. `<org>` is an id or a slug — every door takes either. `add` makes
 type; `rm` is refused while the org still has keys or routes, so a tenant is never half-deleted.
 
 `quota` replaces **the whole set**: a limit left out is no limit. The meter is a fold over the log,
-so there is no counter to drift, and the gate runs before a call opens, before an agent registers
-and before memory keeps a fact — never in the middle of a call.
+so there is no counter to drift, and the gate runs before a call opens, before an agent registers,
+before memory keeps a fact and before an invitation makes a row — never in the middle of a call.
+`--seats` is what a plan sells a team by: everybody the org has not disabled, invited and active
+together, because an invitation sent is a seat taken.
 
 `provider-key set` reads the key from **stdin**, never from a flag, for the reason every verb in
 this repo that touches a secret does: argv is visible in `ps` to every user on the box. The row is

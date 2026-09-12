@@ -114,8 +114,8 @@ is no limit.
 ```json
 { "id": "org_3f2a9c1b8d0e", "slug": "clinica-norte", "name": "Clínica Norte",
   "quotas": { "minutes": 1000, "messages": null, "agents": 5, "concurrent_calls": 10,
-              "memory_facts": 5000, "knowledge_chunks": 2000 },
-  "holding": { "memory_facts": 412, "knowledge_chunks": 1860, "numbers": 1 } }
+              "memory_facts": 5000, "knowledge_chunks": 2000, "seats": 10 },
+  "holding": { "memory_facts": 412, "knowledge_chunks": 1860, "numbers": 1, "seats": 4 } }
 ```
 
 `holding` is a count taken now, one indexed query over the rows themselves (`0` on a runtime with
@@ -139,7 +139,7 @@ The whole set, replaced: a limit left out is no limit. Zero is a real limit and 
 
 ```json
 { "minutes": 1000, "agents": 5, "concurrent_calls": 10,
-  "memory_facts": 5000, "knowledge_chunks": 2000, "numbers": 1 }
+  "memory_facts": 5000, "knowledge_chunks": 2000, "numbers": 1, "seats": 10 }
 ```
 
 Four of them are **flows** — what the org has consumed, or holds open right now. `minutes` is
@@ -156,10 +156,12 @@ org clinica-norte has used 1000 of its 1000 minutes: credits.exhausted
 — on `POST /v1/calls`, on `POST /v1/tokens` (before the browser joins), on the chat socket (as the
 close reason) and on `agent.register` (as the `error` frame that follows the entry).
 
-Two are **stocks** — how much of a table the org may keep standing: `memory_facts`, the facts
-memory holds about its contacts, all together (a superseded one is history and is not counted), and
-`knowledge_chunks`, the chunks its bases hold, all together. Same mechanism, and it is what a plan
-switches memory and retrieval off with: `null` is no limit, a number is a cap, and **`0` is how a
+Four are **stocks** — how much of a table the org may keep standing: `memory_facts`, the facts
+memory holds about its contacts, all together (a superseded one is history and is not counted);
+`knowledge_chunks`, the chunks its bases hold, all together; `numbers`, the ones the box bought for
+it on its own carrier account; and `seats`, the people it holds — invited and active together,
+because an invitation sent is a seat taken, and a `disabled` member keeps their row and holds none.
+Same mechanism, and it is what a plan switches memory and retrieval off with: `null` is no limit, a number is a cap, and **`0` is how a
 plan that does not include the feature is expressed** — a `0` org keeps neither, and its `recall`
 and `search` tools find nothing, embed nothing and write no entry at all: a plan without
 a feature is not a failure and must not read as one.
@@ -170,6 +172,11 @@ a feature is not a failure and must not read as one.
   knowledge_chunks: credits.exhausted`. It is the one refusal here that writes **no**
   `credits.exhausted` entry — a push names no agent and opens no call, so the org has no log for
   it, and the tenant is reading the 429. The list and the drop are refused by no quota.
+- **`POST /v1/members`** counts the people the org already seats and answers `429` in the same
+  shape — `org clinica-norte has used 3 of its 3 seats: credits.exhausted` — writing no entry, for
+  the same reason a push writes none. A seat is charged only where a ROW will be made: an email
+  the org already holds is a member who accepted (refused `409`) or one still invited, whose seat
+  was taken by the first invitation, so re-sending a link is never the thing a full org cannot do.
 - **`remember` at hang-up** reads the cap before asking a model, so an org that may keep no more
   facts pays for no extraction: nothing is written, `memory.ops` carries an op that kept nothing,
   and `credits.exhausted` goes into the agent's own log as every quota refusal does. Like minutes,

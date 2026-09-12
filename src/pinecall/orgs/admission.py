@@ -95,10 +95,18 @@ class Admission:
         await self._written(org, agent, "memory_facts", used=kept, limit=limit)
         return False
 
-    # The one refusal in this module that writes NO entry: a push names no agent and opens no
-    # call, so there is no log of the org's to write it into, and an org-level log is the third
+    # Neither of the two below writes an entry: a push and an invitation name no agent and open
+    # no call, so there is no log of the org's to write into, and an org-level log is the third
     # kind of log orgs.md declined to invent. The tenant is standing at the door reading the 429,
     # which is the difference — a call refused here never rings and has to be found afterwards.
+    async def a_seat(self, org: str, seated: int) -> None:
+        """May this org seat one more person, with `seated` of them holding a seat already."""
+        quotas = await self._orgs.quotas_of(org)
+        limit = quotas.reached("seats", seated)
+        if limit is None:
+            return
+        raise QuotaExhausted(Exhausted(org=org, quota="seats", used=seated, limit=limit))
+
     async def a_push(self, org: str, keeping: int) -> None:
         """May this org keep this many chunks across its bases once the push has replaced one."""
         quotas = await self._orgs.quotas_of(org)

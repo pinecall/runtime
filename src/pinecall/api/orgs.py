@@ -10,6 +10,7 @@ from pydantic import TypeAdapter
 from pinecall.api._deps import (
     KeysDep,
     KnowledgeDep,
+    MembersDep,
     MemoryDep,
     OrgsDep,
     RoutesDep,
@@ -85,6 +86,7 @@ class WantedQuotas(WireModel):
     memory_facts: int | None = None
     knowledge_chunks: int | None = None
     numbers: int | None = None
+    seats: int | None = None
 
 
 # ── the orgs ────────────────────────────────────────────────────────────────────
@@ -116,7 +118,12 @@ async def add(said: WantedOrg, orgs: OrgsDep) -> dict[str, Any]:
 # a table. On a gateway with no Postgres there is nowhere for the first two to be, so both are zero.
 @operator.get("/orgs/{named}")
 async def one(
-    named: str, orgs: OrgsDep, memory: MemoryDep, knowledge: KnowledgeDep, table: RoutesDep
+    named: str,
+    orgs: OrgsDep,
+    memory: MemoryDep,
+    knowledge: KnowledgeDep,
+    table: RoutesDep,
+    members: MembersDep,
 ) -> dict[str, Any]:
     """One org: the quotas set on it, and what it is holding against the ones that are stocks."""
     org = await an_org(named, orgs)
@@ -127,6 +134,7 @@ async def one(
             "memory_facts": 0 if memory is None else await memory.kept(org.id),
             "knowledge_chunks": 0 if knowledge is None else await knowledge.kept(org.id),
             "numbers": await table.managed_by(org.id),
+            "seats": await members.seated(org.id),
         },
     }
 
@@ -159,6 +167,7 @@ async def set_quotas(named: str, said: WantedQuotas, orgs: OrgsDep) -> dict[str,
             memory_facts=said.memory_facts,
             knowledge_chunks=said.knowledge_chunks,
             numbers=said.numbers,
+            seats=said.seats,
         )
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused

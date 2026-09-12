@@ -102,7 +102,7 @@ _FIND = "SELECT id, slug, name FROM orgs WHERE id = $1 OR slug = $1 LIMIT 1"
 _REMOVE = "DELETE FROM orgs WHERE id = $1"
 
 _QUOTAS = """
-SELECT minutes, messages, agents, concurrent_calls, memory_facts, knowledge_chunks, numbers
+SELECT minutes, messages, agents, concurrent_calls, memory_facts, knowledge_chunks, numbers, seats
 FROM quotas WHERE org = $1
 """
 
@@ -110,12 +110,13 @@ FROM quotas WHERE org = $1
 _SET_QUOTAS = """
 INSERT INTO quotas
     (org, minutes, messages, agents, concurrent_calls, memory_facts, knowledge_chunks, numbers,
-     set_at)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+     seats, set_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
     ON CONFLICT (org) DO UPDATE
     SET minutes = excluded.minutes, messages = excluded.messages, agents = excluded.agents,
         concurrent_calls = excluded.concurrent_calls, memory_facts = excluded.memory_facts,
-        knowledge_chunks = excluded.knowledge_chunks, numbers = excluded.numbers, set_at = now()
+        knowledge_chunks = excluded.knowledge_chunks, numbers = excluded.numbers,
+        seats = excluded.seats, set_at = now()
 """
 
 # What asyncpg answers a DELETE with when the WHERE matched nothing: the command tag, verbatim.
@@ -164,6 +165,7 @@ class PostgresOrgs:
             quotas.memory_facts,
             quotas.knowledge_chunks,
             quotas.numbers,
+            quotas.seats,
         )
 
 
@@ -187,6 +189,7 @@ def _quotas(row: Any) -> Quotas:
         memory_facts=row["memory_facts"],
         knowledge_chunks=row["knowledge_chunks"],
         numbers=row["numbers"],
+        seats=row["seats"],
     )
 
 

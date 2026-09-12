@@ -61,6 +61,13 @@ class Members(Protocol):
         """Every member of the org, oldest first, disabled ones included."""
         ...
 
+    # What the `seats` quota is measured against. Invited counts: an invitation sent is a seat
+    # taken, or an org at its limit could invite forever and seat them all the moment they
+    # accepted. A disabled member keeps their row and holds none, which is what frees one.
+    async def seated(self, org: str) -> int:
+        """How many people of this org hold a seat: invited and active, never disabled."""
+        ...
+
     async def find(self, org: str, id: str) -> Member | None:
         """One member of this org by id, or None."""
         ...
@@ -154,6 +161,10 @@ class MemoryMembers:
         """In the order they were invited, which for a dict is the order they were inserted."""
         return tuple(row.member for row in self._rows.values() if row.member.org == org)
 
+    async def seated(self, org: str) -> int:
+        """The same count the WHERE below makes, over a dict: everybody but the disabled."""
+        return sum(1 for row in await self.listed(org) if row.status != "disabled")
+
     async def find(self, org: str, id: str) -> Member | None:
         """By id, and only within the org: another org's member is nobody here."""
         row = self._rows.get(id)
@@ -202,6 +213,10 @@ SELECT id, org, email, name, role, agents, status, password_hash, created_at
  WHERE org = $1
  ORDER BY created_at, id
 """
+
+# A seat is held by everybody the org has not disabled. The count is a query over the rows and
+# never a counter column: the rows are the truth and a number kept beside them drifts from it.
+_SEATED = "SELECT count(*) AS seated FROM members WHERE org = $1 AND status <> 'disabled'"
 
 _FIND = """
 SELECT id, org, email, name, role, agents, status, password_hash, created_at
@@ -286,6 +301,11 @@ class PostgresMembers:
     async def listed(self, org: str) -> tuple[Member, ...]:
         """Oldest first, disabled ones included: the row stays because the log names them."""
         return tuple(_a_member(row) for row in await self._pool.fetch(_LISTED, org))
+
+    async def seated(self, org: str) -> int:
+        """One count over the org's rows: everybody it has not disabled."""
+        row = await self._pool.fetchrow(_SEATED, org)
+        return 0 if row is None else int(row["seated"])
 
     async def find(self, org: str, id: str) -> Member | None:
         """One read on the primary key, fenced by the org."""
