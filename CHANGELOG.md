@@ -7,6 +7,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **`seats`, the seventh quota.** How many people an org may hold: invited and active together,
+  because an invitation sent is a seat taken, and a `disabled` member keeps their row and holds
+  none — which is what frees one. `POST /v1/members` counts before it writes and answers the
+  quota's own `429`, writing no `credits.exhausted` entry for the reason a push writes none: an
+  invitation names no agent, and an agent's log is the only log an org has. A seat is charged only
+  where a row will be made, so re-sending a link to somebody still invited is never the thing a
+  full org cannot do. `0019`; `--seats` on `orgs quota` came free of `QUOTAS`.
 - **An org issues its own keys.** `GET /v1/keys`, `POST /v1/keys` and
   `POST /v1/keys/{fingerprint}/revoke` on the org's own key (`keys`): the key a tenant's server
   runs on no longer has to come from the box's operator. A POST mints a key for a MACHINE —

@@ -6,9 +6,10 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import KeysDep, MembersDep, TeamKeyDep
+from pinecall.api._deps import AdmissionDep, KeysDep, MembersDep, TeamKeyDep
 from pinecall.auth import passwords
 from pinecall.auth.keys import Keys
+from pinecall.orgs.admission import QuotaExhausted
 from pinecall.types import PRODUCTION, DeclarationRefused, Member, a_role, an_env, for_a_person
 from pinecall.types.member import STATUSES, MemberStatus
 from pinecall_protocol import WireModel
@@ -68,7 +69,9 @@ async def listed(key: TeamKeyDep, members: MembersDep) -> dict[str, Any]:
 
 
 @router.post("/v1/members", status_code=INVITED)
-async def invite(said: WantedMember, key: TeamKeyDep, members: MembersDep) -> dict[str, Any]:
+async def invite(
+    said: WantedMember, key: TeamKeyDep, members: MembersDep, admission: AdmissionDep
+) -> dict[str, Any]:
     """One more person, invited: the row, and the one-use token that makes them a member."""
     try:
         role = a_role(said.role)
@@ -76,6 +79,16 @@ async def invite(said: WantedMember, key: TeamKeyDep, members: MembersDep) -> di
         Member(id="m_wanted", org=key.org, email=said.email, name=said.name, role=role)
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused
+    # A seat is charged only where a ROW will be made. An email the org already holds is either a
+    # member who accepted — refused below — or one still invited, whose seat was taken when the
+    # first invitation went out: re-sending their link must not be the thing an org at its limit
+    # cannot do. Judged before the row, because a seat is a stock; 429 and the quota's own
+    # sentence, as every other door answers one.
+    if await members.by_email(key.org, said.email) is None:
+        try:
+            await admission.a_seat(key.org, await members.seated(key.org))
+        except QuotaExhausted as refused:
+            raise HTTPException(429, str(refused)) from refused
     invited = await members.invite(key.org, said.email, said.name, role, said.agents)
     if invited is None:
         raise HTTPException(409, ALREADY_A_MEMBER.format(email=said.email))

@@ -183,7 +183,7 @@ async def test_the_chunks_an_org_keeps_are_summed_over_its_bases_in_both_worlds(
 async def test_a_base_is_one_worlds_and_a_laptops_push_never_touches_the_boxs(
     knowledge: PgKnowledge, org: str
 ) -> None:
-    """The whole point of 0018: the same name in both worlds is two bases, and a search reads one."""
+    """The point of 0018: one name in both worlds is two bases, and a search reads one of them."""
     await knowledge.put(org, PRODUCTION, THE_BASE, [CLINICA])
     await knowledge.put(org, DEVELOPMENT, THE_BASE, [TARIFAS])
     deployed = {chunk.path for chunk in await knowledge.search(org, PRODUCTION, THE_BASE, "turnos")}

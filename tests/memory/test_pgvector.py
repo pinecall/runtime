@@ -320,7 +320,7 @@ async def test_the_facts_a_golden_held_carry_this_embedder_and_go_with_one_forge
 async def test_a_contacts_facts_are_one_worlds_and_a_test_call_never_reaches_the_real_ones(
     memory: PgvectorMemory, org: str, contact: str
 ) -> None:
-    """The whole point of 0018: the same contact under a laptop's key is another contact to memory."""
+    """The point of 0018: that contact under a laptop's key is another contact to memory."""
     await memory.hold(org, PRODUCTION, contact, ["prefiere que la llamen a la tarde"], at=HUNG_UP)
     await memory.hold(org, DEVELOPMENT, contact, ["test: dice que su pedido no llegó"], at=HUNG_UP)
     deployed = await memory.recall(org, PRODUCTION, contact, "pedido")

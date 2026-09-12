@@ -208,12 +208,13 @@ the database. A runtime without one cannot keep somebody else's secret and says 
 ```bash
 pinecall-runtime orgs quota clinica --minutes 2000 --messages 5000 --agents 5 \
                                     --concurrent-calls 10 --memory-facts 50000 \
-                                    --knowledge-chunks 20000 --numbers 1
+                                    --knowledge-chunks 20000 --numbers 1 --seats 10
 ```
 
 The whole set is replaced at once, and a limit left out is **no limit**. The meter is a fold over
 the log — there is no counter table to drift — and the gate runs before a call opens, before an
-agent registers, and before memory writes a fact. A tenant over one is refused with a sentence and
+agent registers, before memory writes a fact, and before an invitation makes a row: `seats` is
+what a plan sells a team by, counted as everybody the org has not disabled. A tenant over one is refused with a sentence and
 `credits.exhausted` in their own log; nothing is cut mid-call.
 
 ## Where each thing is written

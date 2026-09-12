@@ -16,9 +16,10 @@ DEFAULT_ORG = "default"
 _A_SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 
 # What a quota is about. The names are the columns and the wire's, spelled once. The first four
-# are a FLOW — what the org consumed since it existed, or holds open right now. The last two are a
+# are a FLOW — what the org consumed since it existed, or holds open right now. The rest are a
 # STOCK — how much of a table the org may keep standing — which is how a plan switches memory and
-# retrieval off without the runtime learning what a plan is. docs/decisions/orgs.md.
+# retrieval off, caps the numbers it is sold and the people it seats, without the runtime learning
+# what a plan is. docs/decisions/orgs.md.
 type QuotaName = Literal[
     "minutes",
     "messages",
@@ -27,6 +28,7 @@ type QuotaName = Literal[
     "memory_facts",
     "knowledge_chunks",
     "numbers",
+    "seats",
 ]
 QUOTAS: tuple[QuotaName, ...] = (
     "minutes",
@@ -38,6 +40,9 @@ QUOTAS: tuple[QuotaName, ...] = (
     # The numbers bought for the org on the box's own carrier account, a STOCK: the ones a tenant
     # imports from its own account are its own and count against nothing here.
     "numbers",
+    # The people the org may seat: invited and active together, because an invitation sent is a
+    # seat taken. A disabled member keeps their row and holds none.
+    "seats",
 )
 
 
@@ -62,7 +67,7 @@ class Org:
 # whoever charges for minutes sets the numbers. Zero is a real limit, and it refuses everything.
 @dataclass(frozen=True)
 class Quotas:
-    """What an org may consume and keep: minutes, messages, agents, calls at once, facts, chunks."""
+    """What an org may consume and keep: minutes, messages, agents, calls, facts, chunks, people."""
 
     minutes: int | None = None
     messages: int | None = None
@@ -71,6 +76,7 @@ class Quotas:
     memory_facts: int | None = None
     knowledge_chunks: int | None = None
     numbers: int | None = None
+    seats: int | None = None
 
     def __post_init__(self) -> None:
         for name in QUOTAS:

@@ -15,6 +15,12 @@ their role: `qa` · `supervisor` · `manager` · `admin` · `developer` (`types/
 revokes every key of theirs and refuses their login, `active` re-enables one who had a password and
 never activates one still invited.
 
+An invitation takes a **seat**, and where the org's plan caps them the door answers `429` with the
+quota's own sentence and makes no row. A seat is held by everybody the org has not disabled —
+invited counts, or an org at its limit could invite forever and seat them all the moment they
+accepted — so disabling somebody is what frees one, and their row stays because the log names
+them. Re-inviting an email the org already holds takes no second seat.
+
 **A person's key does not hold `app` in production.** Holding an agent is a deployment, and a
 deployment is a process somebody put on a box — never a laptop that happens to be logged in. So
 every key minted for a person carries their role's preset in development and that preset less
