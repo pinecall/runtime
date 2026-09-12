@@ -9,6 +9,7 @@ from pydantic import TypeAdapter
 
 from pinecall.api._deps import AppKeyDep, OrgsDep, RoutesDep, an_operator, an_org
 from pinecall.api.agents.registry import RegistryDep
+from pinecall.auth.keys import held_by
 from pinecall.routes import answering
 from pinecall.types import PRODUCTION, Channel, DeclarationRefused, Env, Route
 from pinecall_protocol import WireModel
@@ -60,7 +61,7 @@ class Wanted(WireModel):
 @router.get("/v1/routes")
 async def routes(key: AppKeyDep, registry: RegistryDep, table: RoutesDep) -> list[dict[str, Any]]:
     """Every door the org answers in the key's world, so a job is resolved without asking again."""
-    answered = await answering.answered(key.org, key.env, registry, table)
+    answered = await answering.answered(key.org, key.env, registry, table, held_by(key))
     return list(ROUTES.dump_python(tuple(door.route for door in answered), mode="json"))
 
 

@@ -9,10 +9,12 @@ import pytest
 from starlette.testclient import TestClient, WebSocketTestSession
 
 from pinecall.auth.keys import KeyRecord, MemoryKeys
-from pinecall.types import DEVELOPMENT, PRODUCTION, Route
+from pinecall.orgs.table import MemoryOrgs
+from pinecall.types import DEVELOPMENT, PRODUCTION, Quotas, Route
 from pinecall.worker.client import CONTEXT
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS, CHAT, over_the_asgi_app
 from tests.api.talking import a_context, a_door, a_register, entry_until, got, hung_up_by_the_app
+from tests.api.tokens.test_the_door import minted
 
 pytestmark = pytest.mark.unit
 
@@ -184,3 +186,35 @@ class TestATeamInOneWorld:
             holding(carlas)
             assert agents_seen_by(gateway, BERNAS_KEY) == [], "nobody holds it in Berna's corner"
             assert agents_seen_by(gateway, CARLAS_KEY) == [AGENT]
+
+    def test_a_developer_is_minted_a_token_for_the_agent_in_their_own_corner(
+        self, gateway: TestClient
+    ) -> None:
+        """The web door their own `pinecall run` declared is theirs to talk through."""
+        with an_app_on(gateway, BERNAS_KEY) as bernas:
+            holding(bernas)
+            status, said = minted(gateway, {"agent": AGENT}, bearer=BERNAS_KEY)
+            assert status == 201, said
+            # And not Carla's: nobody holds it in her corner, and the org's own is empty too.
+            status, said = minted(gateway, {"agent": AGENT}, bearer=CARLAS_KEY)
+            assert status == 404, said
+
+    def test_a_developer_reads_the_routes_their_own_run_declared(self, gateway: TestClient) -> None:
+        with an_app_on(gateway, BERNAS_KEY) as bernas:
+            holding(bernas, a_door("phone", A_NUMBER))
+            handle: Any = gateway
+            doors: Any = handle.get("/v1/routes", headers={"Authorization": f"Bearer {BERNAS_KEY}"})
+            assert [door["number"] for door in doors.json()] == [A_NUMBER]
+
+    async def test_the_agent_quota_is_the_orgs_across_every_corner(
+        self, gateway: TestClient, orgs: MemoryOrgs
+    ) -> None:
+        """Two developers each holding a different agent are two agents against the plan."""
+        await orgs.set_quotas(A_RECORD.org, Quotas(agents=1))
+        with an_app_on(gateway, BERNAS_KEY) as bernas, an_app_on(gateway, CARLAS_KEY) as carlas:
+            holding(bernas)
+            carlas.send_json(a_register("otra-clinica", a_door("web")))
+            refused = entry_until(carlas, "error")
+            assert "1 of its 1 agents" in refused["data"]["message"]
+            # The same agent in Carla's corner is not one more: a slug is counted once.
+            assert holding(carlas)["type"] == "agent.registered"

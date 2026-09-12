@@ -39,7 +39,7 @@ tenant's business.
 **A key opens what its scopes say.** Every tenant door asks for exactly one and refuses without it
 as `403 this key does not open knowledge: it opens calls · evals`. A machine key holds what it was
 issued; a person's holds their role's, less `app` in production (§8). `app`: the app socket and the
-worker's doors. `calls`: `GET /v1/agents` and every read of a log. `talk`: `POST /v1/tokens`, `WS
+worker's doors. `calls`: `GET /v1/agents`, every read of a log, and — beside `app` — the one door that opens to either, `GET /v1/agents/{slug}/config`: a declaration is read by the worker holding the agent and by the console drawing its state. `talk`: `POST /v1/tokens`, `WS
 /v1/chat`. `supervise`: listen, the seat, the verbs by key. `pipeline` · `knowledge` · `memory` ·
 `evals` · `numbers` · `usage` · `team`: the doors of that name. `keys`: the org's own API keys.
 `providers`: the vendor keys it brought. `GET /v1/whoami` and `POST /v1/login/codes` ask for none.
@@ -283,7 +283,7 @@ Four more doors read a call without its log:
 | `GET /v1/calls/{call}/state` | the call reduced: who, where, the agent's state, the prompt, the room |
 | `GET /v1/agents/{slug}/sessions?limit=` | one line per finished call: when, how long, why it ended, the cost, the outcome |
 | `GET /v1/calls/{call}/recording` | the audio, with byte ranges so a player can seek |
-| `GET /v1/agents/{slug}/config` | what the agent declared, with the operator's overrides applied |
+| `GET /v1/agents/{slug}/config` | what the agent declared, with the operator's overrides applied. `app` or `calls`: the worker and the console both read it |
 
 ---
 

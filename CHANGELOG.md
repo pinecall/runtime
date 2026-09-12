@@ -357,6 +357,15 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   import them, and a tie in a fused order is settled by id on both.
 
 ### Fixed
+- **Four things the two-worlds cut got wrong, caught on review.** The agent quota counted only
+  the slugs one developer could reach, so two developers each holding a different agent slipped
+  past a plan of one: it counts the org's slugs across every world and corner now (`slugs`, which
+  had been written and never wired). `POST /v1/tokens` and `GET /v1/routes` read the org's corner
+  only, so a developer was refused a token for the agent their own `pinecall run` held: both read
+  the key's corner. And `GET /v1/agents/{slug}/config` asked for `app` alone, which a person no
+  longer holds in production, so the console's state panel fell back to the default in silence:
+  the door opens to `app` or `calls`, the one door that does, named by path in the test that pins
+  every other door to exactly one.
 - **`simulate --voice` no longer talks over the agent.** The persona slept six fixed seconds
   between its lines while the golden runner waited for `agent.state: listening`; a turn that runs a
   tool takes thirteen, and the recordings had the caller speaking over the answer. The one wait is

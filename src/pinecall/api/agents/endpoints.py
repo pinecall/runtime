@@ -1,4 +1,4 @@
-"""What a worker asks the registry about one agent: the config the app declared, resolved."""
+"""What a worker — and a console — asks the registry about one agent: what the app declared."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Any, cast
 from fastapi import APIRouter, HTTPException
 from pydantic import TypeAdapter
 
-from pinecall.api._deps import AppKeyDep, CallsKeyDep, OverridesDep
+from pinecall.api._deps import CallsKeyDep, DeclarationKeyDep, OverridesDep
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.auth.keys import held_by
 from pinecall.types import AgentConfig
@@ -22,9 +22,10 @@ CONFIG: TypeAdapter[AgentConfig] = TypeAdapter(AgentConfig)
 
 @router.get("/v1/agents/{slug}/config")
 async def config(
-    slug: str, key: AppKeyDep, registry: RegistryDep, overrides: OverridesDep
+    slug: str, key: DeclarationKeyDep, registry: RegistryDep, overrides: OverridesDep
 ) -> dict[str, Any]:
-    """What the app declared about this agent, resolved: the session is built from it."""
+    """What the app declared about this agent, resolved: the session is built from it, and the
+    console draws the state by it."""
     held = registry.of(key.env, slug, held_by(key))
     if held is None or held.org != key.org:
         raise HTTPException(status_code=404, detail=NO_AGENT.format(slug=slug))

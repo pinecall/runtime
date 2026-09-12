@@ -125,24 +125,30 @@ KeyDep = Annotated[KeyRecord, Depends(a_key)]
 
 # One dependency per scope, and the door says which by the dep it takes: the key is verified as
 # every door verifies it, then asked whether it opens THIS. 403 in the one sentence, naming what
-# the key does open. The scope rides the function as an attribute so a test can walk the app's
-# routes and prove every tenant door declares exactly one.
-def opening(scope: KeyScope) -> Callable[..., Awaitable[KeyRecord]]:
-    """A dependency that hands back the key when it opens this scope, and refuses when not."""
+# the key does open. The scopes ride the function as an attribute so a test can walk the app's
+# routes and prove every tenant door declares exactly one — save the one door below that opens to
+# two, which that test names by path so a second such door cannot arrive unnoticed.
+def opening(*scopes: KeyScope) -> Callable[..., Awaitable[KeyRecord]]:
+    """A dependency that hands back the key when it opens one of these scopes, else refuses."""
 
     async def a_key_opening(key: KeyDep) -> KeyRecord:
-        if (closed := not_opening(key, scope)) is not None:
+        if (closed := not_opening(key, *scopes)) is not None:
             raise HTTPException(403, closed)
         return key
 
-    a_key_opening.__dict__[SCOPE_OF_THE_DOOR] = scope
+    a_key_opening.__dict__[SCOPE_OF_THE_DOOR] = frozenset(scopes)
     return a_key_opening
 
 
-SCOPE_OF_THE_DOOR = "pinecall_scope"
+SCOPE_OF_THE_DOOR = "pinecall_scopes"
 
 AppKeyDep = Annotated[KeyRecord, Depends(opening("app"))]
 CallsKeyDep = Annotated[KeyRecord, Depends(opening("calls"))]
+# What an agent DECLARED is read by two kinds of key: the worker holding it, which builds the
+# session from it, and a reader watching its calls, which draws the state by the visibility the
+# declaration gave each field. A person's key holds no `app` in production, so a door that asked
+# for `app` alone left every console panel at the default. The one door that opens to either.
+DeclarationKeyDep = Annotated[KeyRecord, Depends(opening("app", "calls"))]
 TalkKeyDep = Annotated[KeyRecord, Depends(opening("talk"))]
 SuperviseKeyDep = Annotated[KeyRecord, Depends(opening("supervise"))]
 PipelineKeyDep = Annotated[KeyRecord, Depends(opening("pipeline"))]

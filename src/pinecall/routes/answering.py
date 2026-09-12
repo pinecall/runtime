@@ -39,8 +39,9 @@ class Declaration(Protocol):
 class Declaring(Protocol):
     """What the connected apps declared: every door of an org, and who answers at one door."""
 
-    def routes(self, org: str, env: Env) -> tuple[Route, ...]:
-        """Every door this org answers in this world right now, as its agents claimed them."""
+    def routes(self, org: str, env: Env, holder: str | None = None) -> tuple[Route, ...]:
+        """Every door this org answers in this world right now, as its agents claimed them: the
+        org's own corner, and this holder's when one is named."""
         ...
 
     def at(self, channel: str, number: str | None) -> Declaration | None:
@@ -58,9 +59,13 @@ class Answering:
 
 # The one question both doors that need an org's routes ask — the worker's GET /v1/routes and the
 # token door, which mints only for an agent the org answers on the web — so it is asked here.
-async def answered(org: str, env: Env, registry: Declaring, table: Routes) -> tuple[Answering, ...]:
+# `holder` is whose corner of the world the declared half is read from: a developer's key in
+# development sees the doors their own `pinecall run` declared, and everybody sees the org's.
+async def answered(
+    org: str, env: Env, registry: Declaring, table: Routes, holder: str | None = None
+) -> tuple[Answering, ...]:
     """Both tables of one org in one world: what is typed, and what is declared and still free."""
-    return doors(await table.of_org(org, env), registry.routes(org, env))
+    return doors(await table.of_org(org, env), registry.routes(org, env, holder))
 
 
 def doors(stored: Sequence[Route], declared: Sequence[Route]) -> tuple[Answering, ...]:
