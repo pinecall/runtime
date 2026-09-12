@@ -161,3 +161,23 @@ def test_every_migration_is_numbered_and_named() -> None:
         assert number.isdigit() and len(number) == 4, path.name
         assert rest, f"{path.name} says a number and nothing about what it does"
     assert [path.name for path in seen] == sorted(path.name for path in MIGRATIONS.glob("*.sql"))
+
+
+async def test_a_database_whose_table_predates_the_hashes_gets_the_column(postgres: Dev) -> None:
+    """`create table if not exists` is a no-op on a database that already has one, so the column
+    would never arrive and the first read of it would be an UndefinedColumnError mid-deploy."""
+    schema = f"pinecall_old_table_{uuid4().hex[:12]}"
+    connection = await connect(postgres.dsn)
+    try:
+        await connection.execute(f"create schema {schema}")
+        await connection.execute(f"set search_path to {schema}")
+        # The table exactly as it was before this commit.
+        await connection.execute(
+            "create table schema_migrations (name text primary key, applied_at timestamptz)"
+        )
+    finally:
+        await connection.close()
+
+    ran = await apply_migrations(postgres.dsn, schema=schema)
+
+    assert ran.applied, "and every migration ran on top of it"

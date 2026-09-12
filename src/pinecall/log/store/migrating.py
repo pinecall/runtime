@@ -48,6 +48,12 @@ create table if not exists schema_migrations (
 )
 """
 
+# The table above is `if not exists`, which on every database that already HAS one is a no-op —
+# so the column would never arrive and the first read of it would be an UndefinedColumnError on
+# a box mid-deploy. This is the one statement that cannot live in a numbered migration: the
+# migration runner has to be able to read its own bookkeeping before it runs anything.
+MIGRATIONS_TABLE_HAS_HASHES = "alter table schema_migrations add column if not exists sha256 text"
+
 # 0021 and everything before it were recorded before the column existed. A row with no hash is not
 # a mismatch — it is a row nobody could have checked — so it is filled in on the next run and
 # checked from then on. What this must never do is silently accept a CHANGED file, which is why
@@ -106,6 +112,7 @@ async def apply_migrations(
             await connection.execute(f"create schema if not exists {name}")
         await connection.execute(f"set search_path to {search_path_of(name)}")
         await connection.execute(MIGRATIONS_TABLE)
+        await connection.execute(MIGRATIONS_TABLE_HAS_HASHES)
         done = await _what_was_applied(connection)
         ran = [
             await _apply_one(connection, path)
