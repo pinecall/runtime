@@ -51,6 +51,7 @@ from pinecall.auth.keys import keys_for
 from pinecall.auth.members import members_for
 from pinecall.auth.throttle import Throttle
 from pinecall.evals.runs import runs_for
+from pinecall.extensions import extensions_from
 from pinecall.fleet import Roster
 from pinecall.knowledge import PgKnowledge
 from pinecall.log.snapshots import Snapshots
@@ -87,6 +88,8 @@ NO_DATABASE = (
 async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     """Open what the process needs once, hand it to the deps on app.state, and close it after."""
     settings = load_settings()
+    # First, so a box told to load a policy that is not there never answers a single request.
+    gateway.state.extensions = extensions_from(settings)
     pool = await _a_pool(settings)
     store = await _a_store(settings)
     gateway.state.settings = settings

@@ -41,6 +41,7 @@ from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members import MemoryMembers
 from pinecall.auth.scopes import KEY_PROJECTION, LivekitKeys, Reader
 from pinecall.auth.throttle import Throttle
+from pinecall.extensions import Extensions
 from pinecall.fleet import Roster
 from pinecall.knowledge import Knowledge
 from pinecall.log.snapshots import Snapshots
@@ -300,6 +301,7 @@ def wired(
     carriers: MemoryCarriers,
     trunks: MemoryTrunks,
     twilio: TwilioFor,
+    extensions: Extensions,
 ) -> Iterator[None]:
     """The real app, its deps overridden for the length of one test."""
     app.dependency_overrides[deps.a_settings] = lambda: settings
@@ -326,6 +328,7 @@ def wired(
     app.dependency_overrides[the_members] = lambda: members
     app.dependency_overrides[the_login_codes] = lambda: login_codes
     app.dependency_overrides[the_throttle] = lambda: throttle
+    app.dependency_overrides[deps.the_extensions] = lambda: extensions
     app.dependency_overrides[deps.the_carriers] = lambda: carriers
     app.dependency_overrides[deps.the_trunks] = lambda: trunks
     app.dependency_overrides[deps.twilio_for] = lambda: twilio
@@ -333,10 +336,9 @@ def wired(
     app.dependency_overrides.clear()
 
 
-# The client IS entered, because two sockets of one test must share one event loop: without the
-# context manager starlette gives every websocket_connect a portal of its own, and a store or a
-# session shared across two loops deadlocks. Entering runs the lifespan, so the dev key is set
-# first: with one, the gateway opens no Postgres pool at all, and every dep is overridden anyway.
+# The client IS entered: two sockets of one test must share one event loop, and without the
+# context manager starlette gives every websocket_connect a portal of its own, which deadlocks a
+# shared store. Entering runs the lifespan, so the dev key is set first and no pool is opened.
 @pytest.fixture
 def gateway(wired: None, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:  # noqa: ARG001
     """A TestClient over the real ASGI app, with every dependency answered from this test."""
@@ -346,8 +348,8 @@ def gateway(wired: None, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient
 
 
 # The worker's door, driven by the worker's own client: httpx's ASGI transport runs the real app
-# in the test's loop, with no portal thread between, which is what lets a test answer a tool
-# from the app's side while the worker's request is still waiting on it.
+# in the test's loop with no portal thread between, so a test answers a tool from the app's side
+# while the worker's request is still waiting on it.
 @pytest.fixture
 async def worker_gateway(wired: None) -> AsyncIterator[Gateway]:  # noqa: ARG001
     """worker/client.py over the real ASGI app, knocking with the org's key."""

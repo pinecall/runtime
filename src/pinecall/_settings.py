@@ -294,6 +294,12 @@ class Settings(BaseSettings):
         default=False,
         description="Whether a stranger may make an org at this gateway. Off unless you say.",
     )
+    # Packages installed beside the runtime that plug a policy into its named points: how a box
+    # that charges says the numbers without the runtime learning what a plan is. extensions/.
+    extensions: str = Field(
+        default="",
+        description="Packages that plug a policy into the runtime's points, comma separated.",
+    )
     # The org's own key, as `keys issue` printed it: what the worker and the app knock with.
     api_key: str | None = Field(
         default=None,

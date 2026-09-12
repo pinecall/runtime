@@ -1,4 +1,4 @@
-"""POST /v1/signup: a new org on Pinecall's cloud — its first admin, a free trial, the way in."""
+"""POST /v1/signup: a new org made by a stranger — its first admin, what it may do, the way in."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 
 from pinecall.api._deps import (
+    ExtensionsDep,
     KeysDep,
     LoginCodesDep,
     MembersDep,
@@ -33,19 +34,6 @@ NOT_HERE = (
 )
 TAKEN = "{slug} is taken: pick another name for the org"
 TOO_MANY = "too many sign-ups from here: try again in a minute"
-
-# What a new org on the cloud may do before anybody pays: the landing page's promise — forty-five
-# minutes on us, no card — spelled once, here. A plan later replaces the whole set at
-# PUT /v1/ops/orgs/{org}/quotas; the runtime knows no plan, only these numbers.
-FREE_TRIAL = Quotas(
-    minutes=45,
-    messages=500,
-    agents=2,
-    concurrent_calls=2,
-    memory_facts=500,
-    knowledge_chunks=2000,
-    numbers=1,
-)
 
 # The label of the first key and the seat it names: the door it came through.
 SIGNED_UP = "signup"
@@ -77,8 +65,9 @@ async def signup(
     keys: KeysDep,
     codes: LoginCodesDep,
     throttle: ThrottleDep,
+    extensions: ExtensionsDep,
 ) -> dict[str, Any]:
-    """The org on the free trial, its admin active, their first key, a code for a browser."""
+    """The org made, allowed what its gateway's policy says, its admin active, their first key."""
     if not settings.signup:
         raise HTTPException(403, NOT_HERE)
     if not throttle.allowed(f"{the_client(request)} signup"):
@@ -94,7 +83,11 @@ async def signup(
     org = await orgs.create(slug, said.name or said.org)
     if org is None:
         raise HTTPException(409, TAKEN.format(slug=slug))
-    await orgs.set_quotas(org.id, FREE_TRIAL)
+    # What this org may do is whoever charges for it's to say, through the point a package plugged
+    # into (extensions/points.py); the runtime's own answer is no limit, and no limit is no row.
+    allowed = extensions.admitted(org, said.email)
+    if allowed != Quotas():
+        await orgs.set_quotas(org.id, allowed)
     # The org is new, so nobody holds the email yet: the invitation is minted and spent in one
     # breath, the very path a person invited later walks, and the member ends `active`.
     invited = await members.invite(org.id, said.email, said.person, "admin", ())

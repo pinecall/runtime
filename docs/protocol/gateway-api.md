@@ -376,8 +376,8 @@ box, the SFU's trunk admitting the number, the route — are [numbers.md](number
 
 An org's people are rows, not shared keys: invited with a one-use token, active with a password
 of their own, each key minted for one person and one device (`subject`, `name`), a code a browser
-spends for a key of its own — and, where `PINECALL_SIGNUP` is on, `POST /v1/signup` makes an org on
-the free trial. The doors, the shapes and every refusal: [people.md](people.md).
+spends for a key of its own — and, where `PINECALL_SIGNUP` is on, `POST /v1/signup` makes an org,
+allowed what that gateway's policy says. The doors, the shapes and every refusal: [people.md](people.md).
 
 ---
 

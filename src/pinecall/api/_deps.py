@@ -16,6 +16,7 @@ from pinecall.auth.keys import KeyRecord, Keys, not_opening
 from pinecall.auth.members import Members
 from pinecall.auth.throttle import Throttle
 from pinecall.evals.runs import Runs
+from pinecall.extensions import Extensions
 from pinecall.fleet import Roster
 from pinecall.knowledge import Knowledge
 from pinecall.log.snapshots import Snapshots
@@ -157,6 +158,11 @@ NumbersKeyDep = Annotated[KeyRecord, Depends(opening("numbers"))]
 # ── the tables the lifespan opened, each behind one name ────────────────────────
 
 
+def the_extensions(connection: HTTPConnection) -> Extensions:
+    """The points a policy was plugged into at startup, or the runtime's own answers."""
+    return held(connection, "extensions", Extensions)
+
+
 def the_orgs(connection: HTTPConnection) -> Orgs:
     """The tenants this process serves. A Protocol, so isinstance says nothing here."""
     return held(connection, "orgs")
@@ -272,6 +278,7 @@ def the_knowledge(connection: HTTPConnection) -> Knowledge | None:
     return knowledge
 
 
+ExtensionsDep = Annotated[Extensions, Depends(the_extensions)]
 OrgsDep = Annotated[Orgs, Depends(the_orgs)]
 MembersDep = Annotated[Members, Depends(the_members)]
 LoginCodesDep = Annotated[LoginCodes, Depends(the_login_codes)]
