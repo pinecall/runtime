@@ -7,8 +7,9 @@ where its gateway opens one.
 An org's people are rows, not shared keys. A key holder invites one — `POST /v1/members` with
 `{email, name, role, agents?}` answers `201` with the member and a one-use `token`, shown once and
 dead in a week — and the person accepts at `POST /v1/invitations/{token}` with `{password, env?,
-device?}` (no key at that door; twelve characters at least, argon2id at rest), which makes them
-`active` and answers their **first key**, in the one shape a key travels in: `{key, key_id, org,
+device?}` (no key at that door; twelve characters at least, argon2id at rest) — which is what the
+console's own card at `/invitations/{token}` does when the link is opened in a browser — and that
+makes them `active` and answers their **first key**, in the one shape a key travels in: `{key, key_id, org,
 label, env, scopes, subject, name, member}`. `subject` is the member's id and `scopes` the preset of
 their role: `qa` · `supervisor` · `manager` · `admin` · `developer` (`types/member.py`). `GET
 /v1/members` lists them; `PATCH /v1/members/{id}` replaces `role`, `agents` or `status` — `disabled`

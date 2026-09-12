@@ -9,10 +9,10 @@ from typing import Any, TextIO
 
 from pinecall.cli.columns import as_columns
 from pinecall.cli.operator import Operator, against_the_gateway
-from pinecall.types import QUOTAS, VENDORS
+from pinecall.types import QUOTAS, ROLES, VENDORS
 
-PURPOSE: str = "the tenants: list | add | rm | quota | provider-key"
-VERBS: tuple[str, ...] = ("list", "add", "rm", "quota", "provider-key")
+PURPOSE: str = "the tenants: list | add | invite | rm | quota | provider-key"
+VERBS: tuple[str, ...] = ("list", "add", "invite", "rm", "quota", "provider-key")
 
 # The door every verb here knocks at, on PINECALL_OPS_KEY.
 OPS_ORGS = "/v1/ops/orgs"
@@ -42,6 +42,18 @@ def configure(parser: argparse.ArgumentParser) -> None:
     adding.add_argument("slug", metavar="<slug>", help="lowercase, digits and dashes")
     adding.add_argument("--name", default=None, help="what to call it (default: the slug)")
     adding.set_defaults(run=run_add)
+
+    inviting = verbs.add_parser("invite", help="an org's first admin, or one more person")
+    inviting.add_argument("org", metavar="<org>", help="by id or slug")
+    inviting.add_argument("email", metavar="<email>", help="where the person will be reached")
+    inviting.add_argument("--name", required=True, help="their name, as a seat will say it")
+    inviting.add_argument(
+        "--role",
+        default="admin",
+        choices=sorted(ROLES),
+        help="what their keys will open (default admin: the first person owns the org)",
+    )
+    inviting.set_defaults(run=run_invite)
 
     removing = verbs.add_parser("rm", help="forget an org; refused while it has keys or routes")
     removing.add_argument("org", metavar="<org>", help="by id or slug")
@@ -92,6 +104,13 @@ def run_add(arguments: argparse.Namespace) -> int:
     return against_the_gateway(partial(add_org, arguments.slug, arguments.name))
 
 
+def run_invite(arguments: argparse.Namespace) -> int:
+    """One person into one org, the token on this terminal and nowhere else."""
+    return against_the_gateway(
+        partial(invite, arguments.org, arguments.email, arguments.name, arguments.role)
+    )
+
+
 def run_remove(arguments: argparse.Namespace) -> int:
     """One tenant less, once nothing of theirs is live."""
     return against_the_gateway(partial(remove_org, arguments.org))
@@ -137,6 +156,26 @@ async def add_org(slug: str, name: str | None, operator: Operator, out: TextIO =
     """A new org, and its minted id on the screen: that id is what every row of theirs names."""
     org = await operator.post(OPS_ORGS, {"slug": slug, "name": name})
     print(f"{org['id']}  {org['slug']}  {org['name']}", file=out)
+    return 0
+
+
+# The token is the person's way in and is shown exactly once, as a key is: the table keeps its
+# sha256, it dies in a week, and no verb reads one back. The operator hands the LINK over — the
+# console's own screen spends it for a password — never a key, and never a password of theirs.
+TOKEN_PRINTED_ONCE = "send them this; it opens the console's password screen once, within a week"
+
+
+async def invite(
+    org: str, email: str, name: str, role: str, operator: Operator, out: TextIO = sys.stdout
+) -> int:
+    """The person's row made, and the link that makes them a member printed once."""
+    said = await operator.post(
+        f"{OPS_ORGS}/{org}/members", {"email": email, "name": name, "role": role}
+    )
+    member = said["member"]
+    print(f"{member['id']}  {member['email']}  {member['role']}  {member['status']}", file=out)
+    print(f"  {operator.base}/invitations/{said['token']}", file=out)
+    print(f"  {TOKEN_PRINTED_ONCE}", file=out)
     return 0
 
 

@@ -17,16 +17,28 @@ from pinecall.api._deps import (
 )
 from pinecall.auth import passwords
 from pinecall.auth.keys import Keys
+from pinecall.auth.members import Members
 from pinecall.orgs.admission import QuotaExhausted
-from pinecall.types import PRODUCTION, DeclarationRefused, Member, a_role, an_env, for_a_person
+from pinecall.types import (
+    PRODUCTION,
+    DeclarationRefused,
+    Member,
+    Role,
+    a_role,
+    an_env,
+    for_a_person,
+)
 from pinecall.types.member import STATUSES, MemberStatus
 from pinecall_protocol import WireModel
 
 router = APIRouter()
 
-# The same gate every /v1/ops door takes. The operator READS an org's people and never changes
-# them: who works at a tenant is the tenant's to decide, and a box that could edit a member could
-# put itself in somebody's org. Inviting and disabling stay on the tenant's own door above.
+# The same gate every /v1/ops door takes. The operator may READ an org's people and INVITE one,
+# and may change nobody: an invitation is inert until the person it names accepts it with a
+# password of their own, so the box can seat somebody and never be them — while a role changed
+# or a member disabled from here would be the box editing a tenant's team. Inviting is here
+# because it is how a tenant exists at all on a gateway that takes no sign-up: the operator makes
+# the org and invites its first admin (api/signup.py, NOT_HERE).
 operator = APIRouter(prefix="/v1/ops", dependencies=[Depends(an_operator)])
 
 # The invitation is handed back once: the token is in this answer and hashed everywhere else.
@@ -86,12 +98,7 @@ async def invite(
     said: WantedMember, key: TeamKeyDep, members: MembersDep, admission: AdmissionDep
 ) -> dict[str, Any]:
     """One more person, invited: the row, and the one-use token that makes them a member."""
-    try:
-        role = a_role(said.role)
-        # The shape refuses a bad email or an empty name before any row is made.
-        Member(id="m_wanted", org=key.org, email=said.email, name=said.name, role=role)
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    role = _a_wanted_member(said, key.org)
     # A seat is charged only where a ROW will be made. An email the org already holds is either a
     # member who accepted — refused below — or one still invited, whose seat was taken when the
     # first invitation went out: re-sending their link must not be the thing an org at its limit
@@ -102,7 +109,36 @@ async def invite(
             await admission.a_seat(key.org, await members.seated(key.org))
         except QuotaExhausted as refused:
             raise HTTPException(429, str(refused)) from refused
-    invited = await members.invite(key.org, said.email, said.name, role, said.agents)
+    return await _invited(members, key.org, said, role)
+
+
+# The operator's invitation takes no seat: a plan caps what an org may seat by ITSELF, and the
+# person who runs the box is not somebody the tenant chose to spend a seat on. It is the one door
+# through which an org with sign-ups shut gets its first admin.
+@operator.post("/orgs/{named}/members", status_code=INVITED)
+async def invite_to(
+    named: str, said: WantedMember, orgs: OrgsDep, members: MembersDep
+) -> dict[str, Any]:
+    """The org's first person, or one more: the row, and the one-use token — printed once."""
+    org = await an_org(named, orgs)
+    role = _a_wanted_member(said, org.id)
+    return await _invited(members, org.id, said, role)
+
+
+def _a_wanted_member(said: WantedMember, org: str) -> Role:
+    """The role the body names, once the shape has refused a bad email or an empty name."""
+    try:
+        role = a_role(said.role)
+        # The shape refuses a bad email or an empty name before any row is made.
+        Member(id="m_wanted", org=org, email=said.email, name=said.name, role=role)
+    except DeclarationRefused as refused:
+        raise HTTPException(400, str(refused)) from refused
+    return role
+
+
+async def _invited(members: Members, org: str, said: WantedMember, role: Role) -> dict[str, Any]:
+    """The row and the token, the once; 409 for an email that already accepted."""
+    invited = await members.invite(org, said.email, said.name, role, said.agents)
     if invited is None:
         raise HTTPException(409, ALREADY_A_MEMBER.format(email=said.email))
     return {

@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import TypeAdapter
 
 from pinecall.api._deps import AppKeyDep, CallsKeyDep, FleetDep, LogsDep, StoreDep, an_operator
-from pinecall.fleet import Heartbeat, Seat, Standing, Totals
+from pinecall.fleet import STALE_AFTER_S, Heartbeat, Seat, Standing, Totals
 from pinecall.log.store import DEFAULT_LIMIT
 from pinecall.types import DEFAULT_ORG, Channel
 from pinecall_protocol import WireModel, encode
@@ -121,6 +121,9 @@ async def listed(fleet: FleetDep) -> dict[str, Any]:
     now = time.time()
     return {
         "now": now,
+        # The hub's own threshold, in the answer: a page that dims a worker nobody has heard from
+        # reads it here rather than keeping a second copy that drifts from fleet/roster.py.
+        "stale_after_s": STALE_AFTER_S,
         "workers": list(SEATS.dump_python(fleet.seats(now))),
         "totals": _totals(fleet.totals(now)),
     }

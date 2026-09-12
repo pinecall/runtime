@@ -28,7 +28,7 @@ is for. The prose, the shapes and the refusals are on that page and in the pages
 | `POST` | `/v1/signup` | where `PINECALL_SIGNUP` is on, off by default: a new org allowed what its gateway's policy says, its admin active, their first key and a login code |
 | `GET` | `/v1/whoami` | the org, the key's id, its label, the world it opens (`env`), its `scopes`, and whose it is (`subject`, `name`) |
 | `GET` | `/v1/ops/whoami` | **the box's own**: that this key is the operator's, the version, the domain — what the `/admin` page proves its key at |
-| `GET` | `/v1/ops/orgs/{org}/members` | **the box's own**: an org's people and how many hold a seat. Read only |
+| `GET` · `POST` | `/v1/ops/orgs/{org}/members` | **the box's own**: an org's people and how many hold a seat; invite one — the first admin, where sign-ups are shut — the token once. Never a change |
 | `GET` | `/v1/agents` | the agents this gateway is holding for your org |
 | `GET` | `/v1/agents/{slug}/config` | what it declared, overrides applied — `app` or `calls` |
 | `GET` | `/v1/agents/{slug}/pipeline` · `PUT …/pipeline/overrides` | what it runs on, and the five knobs |
