@@ -4,7 +4,8 @@ import argparse
 import asyncio
 
 from pinecall._settings import load_settings
-from pinecall.log.store.postgres import DEFAULT_SCHEMA, MIGRATIONS, apply_migrations
+from pinecall.log.store.migrating import apply_migrations
+from pinecall.log.store.postgres import DEFAULT_SCHEMA, MIGRATIONS
 
 PURPOSE: str = "the database schema: up | status"
 VERBS: tuple[str, ...] = ("up", "status")

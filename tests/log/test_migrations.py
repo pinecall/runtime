@@ -14,7 +14,7 @@ DDL = re.compile(r"\b(create|alter|drop)\s+table\b", re.IGNORECASE)
 
 # The one exception, named here so nobody has to guess whether it was an accident: the runner's own
 # bookkeeping table cannot be a migration, because it is what records that a migration ran.
-THE_RUNNERS_OWN_TABLE = (PACKAGE_ROOT / "log" / "store" / "postgres.py").relative_to(ROOT)
+THE_RUNNERS_OWN_TABLE = (PACKAGE_ROOT / "log" / "store" / "migrating.py").relative_to(ROOT)
 
 
 def test_every_migration_is_numbered_so_the_order_they_apply_in_is_the_order_they_read_in() -> None:

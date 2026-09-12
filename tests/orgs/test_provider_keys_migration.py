@@ -8,12 +8,8 @@ from uuid import uuid4
 import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
 import pytest
 
-from pinecall.log.store.postgres import (
-    MIGRATIONS,
-    MIGRATIONS_TABLE,
-    RECORD_MIGRATION,
-    apply_migrations,
-)
+from pinecall.log.store.migrating import MIGRATIONS_TABLE, RECORD_MIGRATION, apply_migrations
+from pinecall.log.store.postgres import MIGRATIONS
 from tests.postgres import Dev
 
 pytestmark = pytest.mark.postgres

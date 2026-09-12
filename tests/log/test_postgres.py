@@ -7,8 +7,8 @@ import pytest
 
 from pinecall.log.reduce import reduce
 from pinecall.log.store import PostgresStore
+from pinecall.log.store.migrating import apply_migrations
 from pinecall.log.store.postgres import PostgresStore as Store
-from pinecall.log.store.postgres import apply_migrations
 from pinecall_protocol import decode_entries, encode
 from pinecall_protocol.fixtures import GOLDEN_LOG, GOLDEN_STATE
 from tests.postgres import Dev
