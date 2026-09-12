@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 
 from pinecall.api._deps import LlmsDep, MemoryKeyDep, OverridesDep, VaultDep
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
-from pinecall.auth.keys import KeyRecord
+from pinecall.auth.keys import KeyRecord, held_by
 from pinecall.memory.extraction import answered
 from pinecall.memory.goldens import facts_of, judged, turns_of, undeclared
 from pinecall.orgs.vault import keys_brought_by
@@ -77,7 +77,7 @@ def _the_agent(
     slug: str, key: KeyRecord, registry: RegistryDep, overrides: OverridesDep
 ) -> AgentConfig:
     """The declaration this run is judged against, with the operator's knobs already turned."""
-    held = registry.of(key.env, slug)
+    held = registry.of(key.env, slug, held_by(key))
     if held is None or held.org != key.org:
         raise HTTPException(status_code=404, detail=NO_AGENT.format(slug=slug))
     return overrides.config_for(slug, held.config)

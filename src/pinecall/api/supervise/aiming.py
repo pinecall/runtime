@@ -9,6 +9,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from pinecall.api._deps import SnapshotsDep, what_is_live
 from pinecall.api.agents.registry import RegistryDep
+from pinecall.auth.keys import held_by
 from pinecall.auth.scopes import Reader
 from pinecall.session.text.session import TextSession
 from pinecall.session.text.supervising import applied
@@ -101,7 +102,7 @@ async def aimed(
     # A token was minted for ONE call and carries no org; the key carries an org and no call.
     # Each is checked against what it has, and neither reaches a call the other's holder owns.
     if reader.key is not None:
-        held = registry.of(reader.key.env, agent)
+        held = registry.of(reader.key.env, agent, held_by(reader.key))
         if held is None or held.org != reader.key.org:
             raise VerbRefused(403, NOT_YOUR_CALL)
     elif reader.call != call:

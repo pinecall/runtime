@@ -27,6 +27,7 @@ from pinecall.api.evals.runner import (
     Wanted,
     a_run,
 )
+from pinecall.auth.keys import held_by
 from pinecall.evals.runs import DEFAULT_LIMIT
 from pinecall.log.store import Store
 from pinecall.providers.models import NoProvider
@@ -69,6 +70,7 @@ async def run_the_goldens(
         store=store,
         runs=runs,
         env=key.env,
+        holder=held_by(key),
         vault=vault,
         lookups=lookups,
         budgets=settings.budgets,

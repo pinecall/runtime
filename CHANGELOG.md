@@ -30,11 +30,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   cloud may close them. `GET /.well-known/pinecall` now answers `{version, cloud, signup}`, which
   is what the console reads to decide whether to draw a way in. The gateway sends no CORS header
   at all: the console it serves is the same origin, and a site elsewhere links rather than posts.
-- **Sign-up on the cloud.** `POST /v1/signup {org, name?, email, person, password}` — only where
-  `PINECALL_CLOUD` is set — makes the org on the free trial (the quotas `api/signup.py` spells:
-  45 minutes, 500 messages, 2 agents, 2 calls at once, 1 bought number, memory and knowledge
-  capped), its first `admin` active with that password, and answers their first key with a
-  one-use login code for the console. Throttled five a minute per client; a box refuses `403`.
+- **A sign-up door.** `POST /v1/signup {org, name?, email, person, password}` — only where
+  `PINECALL_SIGNUP` is on — makes the org allowed whatever `extensions.admitted` answers, its
+  first `admin` active with that password, and answers their first key with a one-use login code
+  for the console. Throttled five a minute per client; a gateway that takes none refuses `403`
+  naming the setting.
 - **Numbers the box buys for a tenant.** `POST /v1/numbers/buy {country, area_code?, agent}` finds
   one local voice number on the box's own Twilio (`TWILIO_ACCOUNT_SID`, `TWILIO_API_KEY`,
   `TWILIO_API_SECRET`, the names `twilio_trunk.py` already reads; the gateway unit imports them),
@@ -231,6 +231,16 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   itself in the wheel and the sdist, so an install carries its licence.
 
 ### Changed
+- **An agent is held per person in development.** The registry's name for a holding is
+  `(env, holder, slug)`: nobody's corner in production, where what is deployed is the org's, and
+  the member the key was minted for in development. Two developers of one tenant now each run the
+  same agent on their own laptop and neither takes the other's — before this the second
+  `pinecall run` replaced the first, and every `pinecall chat`, every suite and every config read
+  followed whoever had started last. A development key that names nobody (CI's) holds the org's
+  own, which is what a developer holding none falls back to. A **dialled** door is namespaced by
+  neither: a number exists once in a world, so the shared development number is answered by the
+  newest run, and `GET /v1/agents` lists what the reader can actually reach — never another
+  developer's socket.
 - **A person's key does not hold `app` in production.** Holding an agent is a deployment, and a
   deployment is a process on a box, not a laptop that happens to be logged in — so two developers
   can no longer take production's agent from each other by running it. Every key minted for a

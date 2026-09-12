@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pinecall.api._deps import OverridesDep, PipelineKeyDep, SettingsDep, StoreDep
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.api.pipeline_report import Report, report
-from pinecall.auth.keys import KeyRecord
+from pinecall.auth.keys import KeyRecord, held_by
 from pinecall.providers.overrides import Overridden
 from pinecall.types import AgentConfig, DeclarationRefused
 
@@ -50,7 +50,7 @@ async def turn(
 
 def _declared(slug: str, key: KeyRecord, registry: RegistryDep) -> AgentConfig:
     """What the app says about this agent right now. Nothing is turned on an agent nobody holds."""
-    held = registry.of(key.env, slug)
+    held = registry.of(key.env, slug, held_by(key))
     if held is None or held.org != key.org:
         raise HTTPException(404, NO_AGENT.format(slug=slug))
     return held.config

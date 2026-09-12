@@ -132,3 +132,55 @@ def test_a_route_is_one_worlds_and_a_call_context_reads_it_off_the_door() -> Non
     route = Route(org="clinica", agent=AGENT, channel="web", env=DEVELOPMENT)
     assert a_context("call_1").env == PRODUCTION, "a route that says nothing is production's"
     assert route.env == DEVELOPMENT
+
+
+# ── two developers, one world ───────────────────────────────────────────────────
+
+# Two people of the same org, each with a development key of their own. A person's key does not
+# open `app` in production at all, so this is the only world where either of them holds anything.
+BERNAS_KEY = "pk_test_bernas_dev_key"
+BERNA = KeyRecord(
+    key_id="k_berna",
+    org=A_RECORD.org,
+    label="cli",
+    env=DEVELOPMENT,
+    subject="m_berna",
+    name="Berna",
+)
+CARLAS_KEY = "pk_test_carlas_dev_key"
+CARLA = KeyRecord(
+    key_id="k_carla",
+    org=A_RECORD.org,
+    label="cli",
+    env=DEVELOPMENT,
+    subject="m_carla",
+    name="Carla",
+)
+
+
+class TestATeamInOneWorld:
+    """Two laptops running the same agent: before this, the second took it from the first."""
+
+    @pytest.fixture
+    def keys(self) -> MemoryKeys:
+        return MemoryKeys({A_KEY: A_RECORD, BERNAS_KEY: BERNA, CARLAS_KEY: CARLA})
+
+    def test_both_hold_it_at_once_and_each_is_answered_their_own_socket(
+        self, gateway: TestClient
+    ) -> None:
+        with an_app_on(gateway, BERNAS_KEY) as bernas, an_app_on(gateway, CARLAS_KEY) as carlas:
+            first = holding(bernas)["data"]["app"]
+            second = holding(carlas)["data"]["app"]
+            assert first != second, "neither register took the agent from the other"
+            assert agents_seen_by(gateway, BERNAS_KEY) == [AGENT]
+            assert agents_seen_by(gateway, CARLAS_KEY) == [AGENT]
+
+    def test_one_of_them_leaving_leaves_the_other_holding_their_own(
+        self, gateway: TestClient
+    ) -> None:
+        with an_app_on(gateway, CARLAS_KEY) as carlas:
+            with an_app_on(gateway, BERNAS_KEY) as bernas:
+                holding(bernas)
+            holding(carlas)
+            assert agents_seen_by(gateway, BERNAS_KEY) == [], "nobody holds it in Berna's corner"
+            assert agents_seen_by(gateway, CARLAS_KEY) == [AGENT]

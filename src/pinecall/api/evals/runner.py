@@ -102,9 +102,11 @@ class Process:
     live: Live
     store: Store
     runs: Runs
-    # The world the key that asked opens: the run is put to the app holding the agent THERE, so a
-    # laptop's suite never drives the box's agent and the box's never drives a laptop's.
+    # The world the key that asked opens, and whose corner of it: the run is put to the app
+    # holding the agent THERE, so a laptop's suite never drives the box's agent, the box's never
+    # drives a laptop's, and one developer's never drives another's.
     env: Env
+    holder: str | None
     # Where the org's own provider keys are kept, or None on a runtime that keeps nobody's.
     vault: Vault | None
     # What runs a golden's lookups and remembers its hang-up, and how long a turn waits.
@@ -144,7 +146,7 @@ class Runner:
 
 async def a_run(wanted: Wanted, runner: Runner, process: Process) -> EvalRun:
     """Every golden under every model, scored, stored, and answered as one finished run."""
-    serving = process.registry.serving(process.env, wanted.agent, wanted.app)
+    serving = process.registry.serving(process.env, wanted.agent, wanted.app, process.holder)
     if serving is None:
         raise NobodyServing(NO_AGENT.format(slug=wanted.agent))
     if wanted.voice:
@@ -191,7 +193,7 @@ async def _every_conversation(
     keys: ProviderKeys,
 ) -> EvalRun:
     """The run as it stands after every call has been made and judged."""
-    app = Attachment(process.registry, serving.held_as, serving.owner)
+    app = Attachment(process.registry, serving.agent, serving.owner)
     models = _the_models(wanted)
     total = len(models) * len(wanted.goldens)
     judged = 0

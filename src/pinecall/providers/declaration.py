@@ -24,8 +24,9 @@ from pinecall.types import (
     Voice,
 )
 from pinecall.types.agent import EventSource, Visibility
-from pinecall.types.channel import Channel
+from pinecall.types.channel import CHANNELS_WITH_A_NUMBER, Channel
 from pinecall_protocol import defs
+from pinecall_protocol.events import AgentRegistered
 
 # The wire leaves timeout_s absent when the app did not say; the domain's default is the number
 # the platform promises, and it is written down once, in the contract.
@@ -187,3 +188,28 @@ def _senders(specs: Sequence[defs.EventSpec]) -> dict[str, frozenset[EventSource
 def _channels(routes: Sequence[Route]) -> set[Channel]:
     """An agent's channels are the channels of its doors; it never declares them twice."""
     return {route.channel for route in routes}
+
+
+# What the gateway says back when it accepts a claim, built here because this module is where a
+# route crosses between the wire's shape and the domain's, in both directions. encode() drops what
+# nobody set, so an optional field is left out rather than sent as null: the schema says `label` is
+# a string when it is there, and null is not a string.
+def registered(app: str, routes: Sequence[Route], sdk: str | None, env: Env) -> AgentRegistered:
+    """The agent.registered payload: the socket's id, the doors as the wire says them, the SDK."""
+    said: dict[str, Any] = {"app": app, "routes": [a_door(route) for route in routes], "env": env}
+    if sdk is not None:
+        said["sdk"] = sdk
+    return AgentRegistered(**said)
+
+
+def a_door(route: Route) -> defs.Route:
+    """The domain's route as the wire says it back: the door, without the org that owns it."""
+    door: dict[str, Any] = {"channel": route.channel, "number": route.number}
+    if route.label is not None:
+        door["label"] = route.label
+    return defs.Route(**door)
+
+
+def dialled(routes: Sequence[Route]) -> tuple[Route, ...]:
+    """The routes somebody dials. A web route names no door: what identifies it is its agent."""
+    return tuple(route for route in routes if route.channel in CHANNELS_WITH_A_NUMBER)

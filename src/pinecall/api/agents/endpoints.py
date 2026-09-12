@@ -9,6 +9,7 @@ from pydantic import TypeAdapter
 
 from pinecall.api._deps import AppKeyDep, CallsKeyDep, OverridesDep
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
+from pinecall.auth.keys import held_by
 from pinecall.types import AgentConfig
 from pinecall_protocol.rest import AgentList, HeldAgent
 
@@ -24,7 +25,7 @@ async def config(
     slug: str, key: AppKeyDep, registry: RegistryDep, overrides: OverridesDep
 ) -> dict[str, Any]:
     """What the app declared about this agent, resolved: the session is built from it."""
-    held = registry.of(key.env, slug)
+    held = registry.of(key.env, slug, held_by(key))
     if held is None or held.org != key.org:
         raise HTTPException(status_code=404, detail=NO_AGENT.format(slug=slug))
     # The turned knobs are laid on through config_for(), the one applying function every door
@@ -43,6 +44,6 @@ async def agents(key: CallsKeyDep, registry: RegistryDep) -> AgentList:
     return AgentList(
         agents=[
             HeldAgent(slug=held.slug, channels=sorted(held.config.channels))
-            for held in registry.holding(key.org, key.env)
+            for held in registry.holding(key.org, key.env, held_by(key))
         ]
     )

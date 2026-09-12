@@ -71,6 +71,11 @@ class Socket(Protocol):
         """The world the key opens: where every agent on this socket is held."""
         ...
 
+    @property
+    def holder(self) -> str | None:
+        """Whose corner of that world: a developer's own in development, nobody's in production."""
+        ...
+
     async def send(self, entry: Entry) -> None:
         """One log entry down the wire, exactly as the store keeps it."""
         ...

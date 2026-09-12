@@ -12,7 +12,7 @@ from pinecall.api._deps import AdmissionDep, KeysDep, LogsDep, a_key_on_a_socket
 from pinecall.api.agents.handlers import HANDLERS, Live, LiveDep, Socket, asked, handles
 from pinecall.api.agents.registry import Registry, RegistryDep, SocketId, a_socket_id
 from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
-from pinecall.auth.keys import KeyRecord, not_opening
+from pinecall.auth.keys import KeyRecord, held_by, not_opening
 from pinecall.log import REFUSED
 from pinecall.log.entry import Entry, unstored
 from pinecall.log.writers import Logs
@@ -93,6 +93,11 @@ class AppSocket:
     def env(self) -> Env:
         """The world the key opens: where every agent on this socket is held."""
         return self.key.env
+
+    @property
+    def holder(self) -> str | None:
+        """Whose corner of that world: a developer's own in development, nobody's in production."""
+        return held_by(self.key)
 
     async def serve(self) -> None:
         """Read frames until the app goes away. Every frame is answered, none of them raises out."""
@@ -183,12 +188,15 @@ async def register(socket: Socket, command: Command) -> None:
     # One more agent for this org, unless it already holds this one: a socket correcting its own
     # doors, or a second process of the same agent, is not a new agent — and neither is the same
     # slug held in the other world, so the count is of slugs across both.
-    others = {held.slug for held in socket.registry.holding(socket.org)} - {command.agent}
+    others = {held.slug for held in socket.registry.holding(socket.org, holder=socket.holder)} - {
+        command.agent
+    }
     await socket.admission.an_agent(socket.org, command.agent, len(others))
     entry = await socket.registry.register(
         owner=socket.id,
         org=socket.org,
         env=socket.env,
+        holder=socket.holder,
         slug=command.agent,
         routes=wanted.routes,
         sdk=wanted.sdk,
