@@ -9,7 +9,7 @@ from typing import Annotated
 from fastapi import Depends
 
 from pinecall.api._deps import what_is_live
-from pinecall.api.agents.registry import Send, SocketId
+from pinecall.api.agents.holding import Send, SocketId
 from pinecall.log.entry import Entry
 from pinecall.log.fanout import Subscription
 from pinecall.log.logs import CallLog

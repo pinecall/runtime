@@ -79,8 +79,12 @@ async def test_production_has_one_corner_and_a_laptop_is_not_in_it() -> None:
     assert registry.at("phone", A_PROD_NUMBER) == deployed
 
 
-async def test_the_development_number_is_the_orgs_and_the_newest_run_answers_it() -> None:
-    """Web and chat are each developer's; a number is one door in the world, and it is shared."""
+async def test_the_development_number_is_the_orgs_and_starting_later_does_not_take_it() -> None:
+    """Web and chat are each developer's; the number is shared, and it rings where it was claimed.
+
+    Before the line, the second `pinecall run` silently took the first one's calls: Berna would
+    dial the development number to test and it would answer in Carla's scrollback.
+    """
     registry = a_registry()
     await registry.register(
         BERNAS_SOCKET, ORG, DEVELOPMENT, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=BERNA
@@ -90,10 +94,105 @@ async def test_the_development_number_is_the_orgs_and_the_newest_run_answers_it(
         CARLAS_SOCKET, ORG, DEVELOPMENT, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=CARLA
     )
 
-    answering = registry.at("phone", A_DEV_NUMBER)
-    assert answering is not None and answering.owner == CARLAS_SOCKET
+    taking = registry.taking(DEVELOPMENT, AGENT)
+    assert taking is not None and taking.owner == BERNAS_SOCKET
+    assert registry.line_for(DEVELOPMENT, AGENT) == BERNA
+
+
+async def test_the_second_developer_claims_the_line_and_then_it_is_theirs() -> None:
+    registry = a_registry()
+    await registry.register(
+        BERNAS_SOCKET, ORG, DEVELOPMENT, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=BERNA
+    )
+    await registry.register(
+        CARLAS_SOCKET, ORG, DEVELOPMENT, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=CARLA
+    )
+
+    took = registry.take_the_line(DEVELOPMENT, AGENT, CARLA)
+
+    assert took.owner == CARLAS_SOCKET
     taking = registry.taking(DEVELOPMENT, AGENT)
     assert taking is not None and taking.owner == CARLAS_SOCKET
+
+
+async def test_a_line_is_refused_to_somebody_holding_no_app_that_would_answer_it() -> None:
+    """A ring lands on the line: handing it to a corner with no app in it would drop the call."""
+    registry = a_registry()
+    await registry.register(
+        BERNAS_SOCKET, ORG, DEVELOPMENT, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=BERNA
+    )
+
+    with pytest.raises(Exception, match="is not held in development"):
+        registry.take_the_line(DEVELOPMENT, AGENT, CARLA)
+    assert registry.line_for(DEVELOPMENT, AGENT) == BERNA
+
+
+async def test_a_console_is_never_handed_a_line_it_would_not_pick_up() -> None:
+    """`pinecall chat` holds the agent and takes no call it did not open, so it claims nothing."""
+    registry = a_registry()
+    await registry.register(
+        CARLAS_SOCKET,
+        ORG,
+        DEVELOPMENT,
+        AGENT,
+        [a_door("phone", A_DEV_NUMBER)],
+        holder=CARLA,
+        takes_unclaimed=False,
+    )
+
+    assert registry.has_a_line(DEVELOPMENT, AGENT) is False
+    assert registry.taking(DEVELOPMENT, AGENT) is None
+
+
+async def test_the_line_is_handed_on_when_the_terminal_holding_it_closes() -> None:
+    """Not "the newest wins": it happens only when the corner that HAD the line went away."""
+    registry = a_registry()
+    await registry.register(
+        BERNAS_SOCKET, ORG, DEVELOPMENT, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=BERNA
+    )
+    await registry.register(
+        CARLAS_SOCKET, ORG, DEVELOPMENT, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=CARLA
+    )
+
+    await registry.release(BERNAS_SOCKET)
+
+    assert registry.line_for(DEVELOPMENT, AGENT) == CARLA
+    taking = registry.taking(DEVELOPMENT, AGENT)
+    assert taking is not None and taking.owner == CARLAS_SOCKET
+
+
+async def test_nobody_holds_the_line_once_the_last_terminal_closes() -> None:
+    registry = a_registry()
+    await registry.register(
+        BERNAS_SOCKET, ORG, DEVELOPMENT, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=BERNA
+    )
+
+    await registry.release(BERNAS_SOCKET)
+
+    assert registry.has_a_line(DEVELOPMENT, AGENT) is False
+    assert registry.taking(DEVELOPMENT, AGENT) is None
+
+
+async def test_who_else_could_take_it_is_every_other_corner_newest_first() -> None:
+    """What the second developer's terminal prints, so a claim is a thing you can see to make."""
+    registry = a_registry()
+    await registry.register(BERNAS_SOCKET, ORG, DEVELOPMENT, AGENT, [a_door("web")], holder=BERNA)
+    await registry.register(CARLAS_SOCKET, ORG, DEVELOPMENT, AGENT, [a_door("web")], holder=CARLA)
+
+    waiting = registry.waiting_for_the_line(DEVELOPMENT, AGENT)
+
+    assert [held.holder for held in waiting] == [CARLA, BERNA]
+
+
+async def test_production_has_one_corner_and_it_is_the_line() -> None:
+    """The concept costs production nothing: the box holds the only corner there is."""
+    registry = a_registry()
+    await registry.register(THE_BOX, ORG, PRODUCTION, AGENT, [a_door("phone", A_PROD_NUMBER)])
+
+    assert registry.line_for(PRODUCTION, AGENT) is None
+    assert registry.has_a_line(PRODUCTION, AGENT) is True
+    taking = registry.taking(PRODUCTION, AGENT)
+    assert taking is not None and taking.owner == THE_BOX
 
 
 async def test_a_door_another_agent_holds_is_still_refused() -> None:

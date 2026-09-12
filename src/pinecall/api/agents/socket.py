@@ -10,7 +10,8 @@ from pydantic import ValidationError
 
 from pinecall.api._deps import AdmissionDep, KeysDep, LogsDep, a_key_on_a_socket
 from pinecall.api.agents.handlers import HANDLERS, Live, LiveDep, Socket, asked, handles
-from pinecall.api.agents.registry import Registry, RegistryDep, SocketId, a_socket_id
+from pinecall.api.agents.holding import SocketId, a_socket_id
+from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
 from pinecall.auth.keys import KeyRecord, held_by, not_opening
 from pinecall.log import REFUSED

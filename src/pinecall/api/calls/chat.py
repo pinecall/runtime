@@ -22,14 +22,8 @@ from pinecall.api._deps import (
 )
 from pinecall.api._live import Live, LiveDep
 from pinecall.api.agents import on_a_call as commands
-from pinecall.api.agents.registry import (
-    NO_AGENT,
-    NO_UNCLAIMED,
-    NOT_THAT_APP,
-    Registry,
-    RegistryDep,
-    SocketId,
-)
+from pinecall.api.agents.holding import SocketId
+from pinecall.api.agents.registry import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, Registry, RegistryDep
 from pinecall.api.calls.opening import a_text_call
 from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
 from pinecall.auth.keys import KeyRecord, held_by, not_opening

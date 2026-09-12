@@ -284,6 +284,7 @@ Four more doors read a call without its log:
 | `GET /v1/agents/{slug}/sessions?limit=` | one line per finished call: when, how long, why it ended, the cost, the outcome |
 | `GET /v1/calls/{call}/recording` | the audio, with byte ranges so a player can seek |
 | `GET /v1/agents/{slug}/config` | what the agent declared, with the operator's overrides applied. `app` or `calls`: the worker and the console both read it |
+| `GET/POST/DELETE /v1/agents/{slug}/line` | **the line**: whose terminal a RING lands in (`calls`), the claim that takes it and the release that hands it on (`app`). An org shares one development number and a number rings in one place: the first corner to hold an agent takes its line, a second developer claims it, and it is handed on when that terminal closes — instead of the newest `pinecall run` silently answering in a colleague's scrollback. Production has one corner and the box holds it. `TheLine` in `rest.json` |
 
 ---
 

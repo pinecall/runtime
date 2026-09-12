@@ -18,7 +18,8 @@ from pinecall._exceptions import PinecallError
 from pinecall._settings import Budgets, Settings
 from pinecall.api._deps import held
 from pinecall.api._live import Live
-from pinecall.api.agents.registry import NO_AGENT, Registration, Registry
+from pinecall.api.agents.holding import Registration
+from pinecall.api.agents.registry import NO_AGENT, Registry
 from pinecall.api.evals.attachment import AppDetached, Attachment
 from pinecall.api.evals.conversation import a_conversation
 from pinecall.api.evals.scoring import Judging

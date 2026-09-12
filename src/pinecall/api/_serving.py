@@ -7,7 +7,7 @@ from typing import Annotated, Protocol
 from fastapi import Depends
 
 from pinecall.api._deps import what_is_live
-from pinecall.api.agents.registry import SocketId
+from pinecall.api.agents.holding import SocketId
 from pinecall.log.logs import CallLog
 from pinecall.types import AgentConfig, CallContext
 
