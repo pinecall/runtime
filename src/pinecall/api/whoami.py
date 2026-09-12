@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Request
 
 from pinecall._version import __version__
-from pinecall.api._deps import KeyDep, KeysDep, SettingsDep
+from pinecall.api._deps import KeyDep, KeysDep, OrgsDep, SettingsDep
 from pinecall.api._operator import an_operator
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.keys import KeyRecord
@@ -23,6 +23,11 @@ class Whose(WireModel):
     """Who a key belongs to, as a terminal is allowed to read it: never the key, never its hash."""
 
     org: str
+    # The word the person types and reads — `clinica`, `pinecall` — as against `org`, which is the
+    # id every other door takes. A line that says "org org_98889a61509c" to somebody is a line
+    # that says nothing: the id is the machine's name for the tenant, never theirs. None only for
+    # an org whose row is gone, where the id is all there is left to say.
+    slug: str | None = None
     key_id: str
     label: str | None = None
     # The world this key opens, and what it may do there: what a console gates its sections by.
@@ -36,10 +41,12 @@ class Whose(WireModel):
 # The door `pinecall login` proves a key at and `pinecall whoami` asks every day: it takes the key
 # every other tenant door takes, and answers the words a person can check against their own.
 @router.get("/v1/whoami")
-async def whoami(key: KeyDep) -> Whose:
+async def whoami(key: KeyDep, orgs: OrgsDep) -> Whose:
     """Whose key opened this door, where it opens, and what it may do."""
+    org = await orgs.find(key.org)
     return Whose(
         org=key.org,
+        slug=None if org is None else org.slug,
         key_id=key.key_id,
         label=key.label,
         env=key.env,
