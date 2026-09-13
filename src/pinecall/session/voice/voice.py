@@ -28,6 +28,7 @@ from pinecall.session.voice.events import Events
 from pinecall.session.voice.hanging_up import HOW_IT_ENDED, a_way_to_hang_up
 from pinecall.session.voice.metrics import Meters
 from pinecall.session.voice.platform import Platform
+from pinecall.session.voice.reading_back import read_back
 from pinecall.session.voice.room import DataChannel, Facts, Holding
 from pinecall.session.voice.supervising import Supervising
 from pinecall.session.voice.tools import Tools
@@ -338,9 +339,9 @@ class VoiceBridge:
     def _tools_executed(self, event: FunctionToolsExecutedEvent) -> None:
         """The read-back of every confirm-declared tool that just ran, spoken as the agent's own."""
         for output in event.function_call_outputs:
-            read_back = self.tools.read_backs.pop(output.call_id, None)
-            if read_back and not output.is_error and self._live is not None:
-                self._live.say(read_back)
+            read_back_text = self.tools.read_backs.pop(output.call_id, None)
+            if read_back_text and not output.is_error and self._live is not None:
+                read_back(self._live, read_back_text)
 
     def _session_closed(self, event: object) -> None:
         """Why livekit closed the session, kept for call.ended."""
