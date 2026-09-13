@@ -114,20 +114,6 @@ INTERRUPTION_MODE: Literal["vad"] = "vad"
 # caller wondering whether the call dropped. See docs/decisions/worker.md.
 FALSE_INTERRUPTION_TIMEOUT_S = 1.0
 
-# And what happens when that second is up: livekit's default is to REPLAY the sentence it was
-# cut off in. On a line that is one thing; here it is another, because a read-back does the
-# cutting. A tool with a `confirm` template is spoken by the bridge with `say()` the moment its
-# output lands (voice.py, _tools_executed), and with preemptive generation on, the model's own
-# reply is usually already playing — so the read-back cuts it, nothing real follows in a second,
-# and the reply is played again. And again: a booking's goodbye said four times, the same
-# `speech_id` and the same metrics to the millisecond, which is what a REPLAY looks like next to
-# a regeneration. The caller hears it every time.
-#
-# So: a cut sentence stays cut. The cost is a cough that stops the agent leaving it silent
-# instead of picking the sentence back up, and silence a caller can talk into is better than a
-# goodbye they hear four times.
-DO_NOT_SAY_IT_AGAIN = False
-
 
 # Endpointing is absent on purpose: `Turn.endpointing_ms` is already the ASR's own endpointing,
 # which providers/ hands to the STT, and setting livekit's delay from the same number would make
@@ -143,7 +129,6 @@ def spoken_turns(config: AgentConfig) -> TurnHandlingOptions:
         "min_words": min_words,
         "mode": INTERRUPTION_MODE,
         "false_interruption_timeout": FALSE_INTERRUPTION_TIMEOUT_S,
-        "resume_false_interruption": DO_NOT_SAY_IT_AGAIN,
     }
     return {
         "turn_detection": inference.TurnDetector(version=LOCAL_TURN_VERSION),

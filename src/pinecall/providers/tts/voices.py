@@ -24,9 +24,15 @@ class CuratedVoice:
 # Every id here is a `premade` ElevenLabs voice, checked with GET /v1/voices/<id>. A `professional`
 # or a cloned voice exists only inside the workspace that added it, so putting one here would ship
 # every other self-hoster the same 1008 this table was written to end. See decisions/providers.md.
+# The language is the VOICE's, asked of the vendor and not chosen here. Two of these said `es`
+# and were an American reading Spanish: `carolina` is ElevenLabs' Sarah (accent `american`,
+# language `en`) and `mateo` is Eric (the same), which is what a caller hears as a foreigner
+# pronouncing their language. Every one of ElevenLabs' 21 premade voices is English — there is no
+# Spanish premade to put here — so a Spanish-speaking agent declares a voice id of its own, from a
+# workspace that has one, and `language_of` stops promising what these cannot deliver.
 VOICES: dict[str, CuratedVoice] = {
-    "carolina": CuratedVoice("elevenlabs", "EXAVITQu4vr4xnSDxMaL", "es"),
-    "mateo": CuratedVoice("elevenlabs", "cjVigY5qzO86Huf0OWal", "es"),
+    "carolina": CuratedVoice("elevenlabs", "EXAVITQu4vr4xnSDxMaL", "en"),
+    "mateo": CuratedVoice("elevenlabs", "cjVigY5qzO86Huf0OWal", "en"),
     "charlie": CuratedVoice("elevenlabs", "IKne3meq5aSn9XLyUdCD", "en"),
 }
 
