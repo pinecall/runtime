@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Sequence
 
 from pinecall.evals.polling import until
@@ -20,6 +21,11 @@ from pinecall_protocol.registry import EventType
 # thirteen seconds on 2026-09-11.
 AN_ANSWER_MAY_TAKE_S = 30.0
 
+# How long the line is watched before a quiet agent is believed. Longer than the gap between
+# a state changing and its line reaching the log, short enough to sit inside a caller's own
+# pause between two sentences.
+A_BEAT_S = 0.75
+
 # What livekit publishes about itself, and the one of its five words that means "I have finished
 # and it is your turn". Both typed by the protocol, so a misspelling is a type error and not a
 # run that never hangs up.
@@ -34,6 +40,15 @@ async def until_the_answer_lands(store: Store, call: str, said: int) -> None:
     """Hold the line until the agent has answered the last line, or until it plainly will not."""
 
     async def landed() -> bool:
+        if not the_answer_has_landed(await whole(store, call), said):
+            return False
+        # Asked twice, a beat apart, because `agent.state` reaches the log a moment after the
+        # agent changed and the log is all this can see. Once was not enough: on 2026-09-13 the
+        # persona spoke over `Muy bien. Voy` — the agent had been `speaking` since seq 330 and the
+        # line went out anyway, and the reply that was announcing a registration died mid-word.
+        # A single reading cannot tell a call that is over from one whose last state has not
+        # landed yet; two, a pause apart, can. The cost is that pause, once per turn.
+        await asyncio.sleep(A_BEAT_S)
         return the_answer_has_landed(await whole(store, call), said)
 
     await until(landed, within_s=AN_ANSWER_MAY_TAKE_S)
