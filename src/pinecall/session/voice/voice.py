@@ -28,7 +28,6 @@ from pinecall.session.voice.events import Events
 from pinecall.session.voice.hanging_up import HOW_IT_ENDED, a_way_to_hang_up
 from pinecall.session.voice.metrics import Meters
 from pinecall.session.voice.platform import Platform
-from pinecall.session.voice.reading_back import read_back
 from pinecall.session.voice.room import DataChannel, Facts, Holding
 from pinecall.session.voice.supervising import Supervising
 from pinecall.session.voice.tools import Tools
@@ -333,15 +332,14 @@ class VoiceBridge:
         self._ended = ("error", "platform")
         self._shut_down(cause)
 
-    # The outputs are about to enter the history (agent_activity.py:3721), so a read-back said now
-    # lands behind them and before the caller's next words. Only a tool that did what the sentence
-    # says is read back: a failure is the model's to explain in its own turn.
+    # Nothing to speak here any more: a read-back is said inside the tool that earned it
+    # (tools.py), which is where livekit documents speaking around a tool and the only point at
+    # which the model has not yet written its account of the result. Kept as the place that
+    # forgets a read-back the model never got to hear, so a failed tool leaves nothing behind.
     def _tools_executed(self, event: FunctionToolsExecutedEvent) -> None:
-        """The read-back of every confirm-declared tool that just ran, spoken as the agent's own."""
+        """Whatever a tool left unsaid — it failed, or the turn died — is dropped here."""
         for output in event.function_call_outputs:
-            read_back_text = self.tools.read_backs.pop(output.call_id, None)
-            if read_back_text and not output.is_error and self._live is not None:
-                read_back(self._live, read_back_text)
+            self.tools.read_backs.pop(output.call_id, None)
 
     def _session_closed(self, event: object) -> None:
         """Why livekit closed the session, kept for call.ended."""

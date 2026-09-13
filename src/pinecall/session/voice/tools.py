@@ -14,6 +14,7 @@ from pinecall.log import as_text
 from pinecall.session.pending import Emit
 from pinecall.session.visibility import Visibility
 from pinecall.session.voice.platform import Platform, PlatformRefused
+from pinecall.session.voice.reading_back import read_back
 from pinecall.types import AgentConfig, ToolSpec
 from pinecall_protocol import defs
 from pinecall_protocol.events import ToolCall
@@ -44,9 +45,13 @@ class Tools:
         return [self._a_tool(spec) for spec in self._config.tools]
 
     # The confirmation gate is deferred (docs/decisions/confirm.md): a tool with a confirm
-    # template runs like every other tool, and the sentence it declared is read back afterwards,
-    # once the app has answered and the output is entering the model's history. What speaks it is
-    # the bridge, on the session event that says the outputs are in — voice.py, _tools_executed.
+    # template runs like every other tool, and the sentence it declared is read back INSIDE this
+    # call, which is where livekit documents speaking around a tool — "use session.say() inside
+    # the tool" (docs/agents/logic/tools/design). Said here it reaches the line before the model
+    # has written a word about the result, because the model is still waiting for this to return.
+    # Said afterwards it arrived last instead: by then the model had generated and queued the
+    # whole reply, ending in "¿Alguna cosa más?", and the receipt spoke after the agent had
+    # handed the turn back (2026-09-13, heard on a real call).
     async def ran(self, spec: ToolSpec, use: ToolCall) -> str:
         """One tool through the app and back: the text the model reads, or an error it can say."""
         await self.visibility.admitted(use.name, self._emit)
@@ -70,15 +75,17 @@ class Tools:
         """One ToolSpec as livekit's raw-schema tool: our parameters, and our own body."""
 
         async def call(raw_arguments: dict[str, Any], context: RunContext[Any]) -> str:
-            return await self.ran(
-                spec,
-                ToolCall(
-                    call_id=context.function_call.call_id,
-                    name=spec.name,
-                    arguments=dict(raw_arguments),
-                    speech_id=context.speech_handle.id,
-                ),
+            use = ToolCall(
+                call_id=context.function_call.call_id,
+                name=spec.name,
+                arguments=dict(raw_arguments),
+                speech_id=context.speech_handle.id,
             )
+            text = await self.ran(spec, use)
+            said = self.read_backs.pop(use.call_id, None)
+            if said is not None:
+                read_back(context.session, said)
+            return text
 
         schema: dict[str, Any] = {
             "name": spec.name,
