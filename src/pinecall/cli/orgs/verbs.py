@@ -12,8 +12,17 @@ from pinecall.cli.operator import Operator, against_the_gateway
 from pinecall.providers.catalog import vendors_with_a_key
 from pinecall.types import QUOTAS, ROLES
 
-PURPOSE: str = "the tenants: list | add | invite | operator | rm | quota | provider-key"
-VERBS: tuple[str, ...] = ("list", "add", "invite", "operator", "rm", "quota", "provider-key")
+PURPOSE: str = "the tenants: list | add | invite | operator | move | rm | quota | provider-key"
+VERBS: tuple[str, ...] = (
+    "list",
+    "add",
+    "invite",
+    "operator",
+    "move",
+    "rm",
+    "quota",
+    "provider-key",
+)
 
 # The door every verb here knocks at, on PINECALL_OPS_KEY.
 OPS_ORGS = "/v1/ops/orgs"
@@ -60,6 +69,11 @@ def configure(parser: argparse.ArgumentParser) -> None:
     )
     inviting.set_defaults(run=run_invite)
 
+    moving = verbs.add_parser("move", help=MOVE_HELP)
+    moving.add_argument("agent", metavar="<agent>", help="the slug, as the class declares it")
+    moving.add_argument("org", metavar="<org>", help="where it lands, by id or slug")
+    moving.set_defaults(run=run_move)
+
     running = verbs.add_parser("operator", help="a person of an org runs this box, or stops")
     running.add_argument("org", metavar="<org>", help="by id or slug")
     running.add_argument("email", metavar="<email>", help="a member of that org")
@@ -87,6 +101,14 @@ def configure(parser: argparse.ArgumentParser) -> None:
 # Forty-odd names is not a help line, so the sentence names the door that prints them all with
 # what each one does. argparse still refuses a word that is not one of them, and lists them then.
 A_VENDOR = "any vendor this build runs — `pinecall-runtime providers` lists every one"
+
+
+# The one verb that undoes what a first install gets wrong. A slug belongs to the org that first
+# registered it, for as long as its log exists — and a box issues its own worker and operator keys
+# into `default`, so the first agent anybody runs on a fresh box lands there and stays. Every call
+# it has taken moves with it; a slug nobody has ever run is a 404, and one somebody is holding
+# right now is refused until they stop it.
+MOVE_HELP = "an agent, and every call it has taken, into another org"
 
 
 # A group of its own, because a provider key has three verbs of its own and hanging them off
@@ -145,6 +167,10 @@ def run_quota(arguments: argparse.Namespace) -> int:
     """The org's limits, replaced whole: a flag left out is no limit."""
     limits: dict[str, int | None] = {name: getattr(arguments, name) for name in QUOTAS}
     return against_the_gateway(partial(set_quota, arguments.org, limits))
+
+
+def run_move(arguments: argparse.Namespace) -> int:
+    return against_the_gateway(partial(move_agent, arguments.agent, arguments.org))
 
 
 def run_provider_key_set(arguments: argparse.Namespace) -> int:
@@ -231,6 +257,13 @@ async def remove_org(org: str, operator: Operator, out: TextIO = sys.stdout) -> 
     """The row goes. The door refuses while a live key or a route still names it."""
     await operator.delete(f"{OPS_ORGS}/{org}")
     print(f"org {org} removed", file=out)
+    return 0
+
+
+async def move_agent(agent: str, org: str, operator: Operator, out: TextIO = sys.stdout) -> int:
+    """The agent and every call of it, into another org. Says how many logs went with it."""
+    said = await operator.put(f"{OPS_ORGS}/{org}/agents", {"agent": agent})
+    print(f"{said['agent']} → org {said['org']} · {said['logs']} logs", file=out)
     return 0
 
 

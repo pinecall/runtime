@@ -14,9 +14,11 @@ from pinecall.api._deps import (
     MemoryDep,
     OrgsDep,
     RoutesDep,
+    StoreDep,
     an_org,
 )
 from pinecall.api._operator import an_operator
+from pinecall.api.agents.registry import RegistryDep
 from pinecall.auth.keys import ListedKey
 from pinecall.types import (
     DEVELOPMENT,
@@ -149,6 +151,40 @@ async def remove(named: str, orgs: OrgsDep, keys: KeysDep, table: RoutesDep) -> 
         if await table.of_org(org.id, env):
             raise HTTPException(409, STILL_IN_USE.format(org=org.slug, what="routes"))
     await orgs.remove(org.id)
+
+
+# ── an agent that ended up in the wrong org ─────────────────────────────────────
+
+# A slug is one org's for as long as its log exists, and until this door there was no way back:
+# an agent registered from a terminal pointed at the wrong key belonged to that org for good, with
+# every call it had ever taken. It happens on a first install more than anywhere else — a box's
+# own worker and operator keys are issued into `default`, so the first agent anybody runs there
+# lands in `default` too, and the org the tenant meant to use is left empty beside it.
+#
+# The box operator's, and nobody else's: an org that could pull a slug would be an org that could
+# take another's agent, which is the very rule this undoes.
+NOT_HELD = "agent {slug} is held right now: stop it, move it, and start it again"
+NO_SUCH_AGENT = "no agent named {slug} has ever written a log here"
+
+
+class WantedMove(WireModel):
+    """Which agent is being moved. The org it lands in is the one in the path."""
+
+    agent: str
+
+
+@operator.put("/orgs/{named}/agents")
+async def move(
+    named: str, said: WantedMove, orgs: OrgsDep, store: StoreDep, registry: RegistryDep
+) -> dict[str, Any]:
+    """Put this agent — its own log and every call of it — into this org. `orgs move`."""
+    org = await an_org(named, orgs)
+    if registry.held_anywhere(said.agent):
+        raise HTTPException(409, NOT_HELD.format(slug=said.agent))
+    moved = await store.moved(said.agent, org.id)
+    if moved == 0:
+        raise HTTPException(404, NO_SUCH_AGENT.format(slug=said.agent))
+    return {"agent": said.agent, "org": org.slug, "logs": moved}
 
 
 # ── its quotas ──────────────────────────────────────────────────────────────────

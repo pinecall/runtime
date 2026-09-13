@@ -75,6 +75,14 @@ class Store(Protocol):
         """This log is the org's. Said at open or at register; a later claim changes nothing."""
         ...
 
+    # The one thing that undoes `owned`, and the reason it exists: a slug is one org's for as long
+    # as its log is, so an agent registered from a laptop that was pointed at the wrong key stayed
+    # in that org for good — with every call it had taken. There was no way back. It is the box
+    # operator's verb and nobody else's: `orgs move`.
+    async def moved(self, agent: str, org: str) -> int:
+        """Put this agent's own log and every call of it in another org. How many rows moved."""
+        ...
+
     async def owner(self, call: str | None, agent: str) -> str | None:
         """Whose log this is, or None when no org has claimed it."""
         ...

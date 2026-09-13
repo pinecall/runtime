@@ -90,6 +90,17 @@ class MemoryStore:
             if log.org is None:
                 log.org = org
 
+    async def moved(self, agent: str, org: str) -> int:
+        """The agent's own log and every call of it, into another org. As many as there were."""
+        async with self._lock:
+            logs = [self._agents[agent]] if agent in self._agents else []
+            logs += [
+                self._calls[call] for call in self._calls_of.get(agent, ()) if call in self._calls
+            ]
+            for log in logs:
+                log.org = org
+            return len(logs)
+
     async def owner(self, call: str | None, agent: str) -> str | None:
         """Whose log this is, without creating one to ask."""
         log = self._agents.get(agent) if call is None else self._calls.get(call)

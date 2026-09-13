@@ -7,8 +7,9 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import TypeAdapter
 
-from pinecall.api._deps import ApiKeysKeyDep, KeysDep
+from pinecall.api._deps import ApiKeysKeyDep, KeysDep, MembersDep
 from pinecall.auth.keys import KeyRecord, ListedKey
+from pinecall.auth.members import Members
 from pinecall.types import HOLDING, PRODUCTION, DeclarationRefused, an_env, key_scopes
 from pinecall_protocol import WireModel
 
@@ -19,10 +20,24 @@ router = APIRouter()
 
 LISTED: TypeAdapter[tuple[ListedKey, ...]] = TypeAdapter(tuple[ListedKey, ...])
 
-# A key may not hand out what it does not itself hold, or the smallest role in an org would be a
+# A key may not hand out what its HOLDER does not hold, or the smallest role in an org would be a
 # way to mint the largest. The sentence names what is missing, so the person reading it knows
-# which of their own scopes ran out rather than guessing at the whole set.
-NOT_YOURS_TO_GIVE = "this key cannot issue {missing}: it does not open {missing} itself"
+# which of their own rights ran out rather than guessing at the whole set.
+NOT_YOURS_TO_GIVE = "this key cannot issue {missing}: {whose} does not open {missing}"
+
+# What a key is measured against, and it is NOT the key's own scopes when a person holds it.
+#
+# A person's key in production does not carry `app`: holding an agent there is a deployment, and a
+# deployment is a machine (types/key.py). Measuring against the key made that absence contagious —
+# an admin could not mint the key their own server runs on, in EITHER world, and the only key in
+# the building that could was the box operator's. A tenant could not deploy at all.
+#
+# The right bound is the person's ROLE: what their org trusts them with. An admin's role opens
+# `app`; what they may not do is hold an agent themselves in production, which is a rule about
+# their own key and not about the machines they are trusted to set up. A key that names nobody is
+# a machine's, and a machine is bounded by what it itself holds, exactly as before.
+A_PERSON = "your role"
+THIS_KEY = "this key"
 
 # Nothing of THIS org answers to that fingerprint. The same 404 whether the row belongs to
 # another org, was already revoked, or never existed: a tenant learns nothing about the table.
@@ -50,17 +65,33 @@ async def listed(key: ApiKeysKeyDep, keys: KeysDep) -> list[dict[str, Any]]:
 # The one response of the tenant API that carries a key in the clear. It is read once by whoever
 # asked and stored by nobody: the table keeps the sha256 and no door reads one back.
 @router.post("/v1/keys")
-async def issue(said: WantedKey, key: ApiKeysKeyDep, keys: KeysDep) -> dict[str, Any]:
+async def issue(
+    said: WantedKey, key: ApiKeysKeyDep, keys: KeysDep, members: MembersDep
+) -> dict[str, Any]:
     """A key for a machine of this org, answered once. It names nobody: people log in."""
     try:
         env = an_env(said.env)
         wanted = frozenset({HOLDING}) if said.scopes is None else key_scopes(said.scopes)
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused
-    if missing := wanted - key.scopes:
-        raise HTTPException(403, NOT_YOURS_TO_GIVE.format(missing=" · ".join(sorted(missing))))
+    allowed, whose = await _what_the_asker_may_give(key, members)
+    if missing := wanted - allowed:
+        said_missing = " · ".join(sorted(missing))
+        raise HTTPException(403, NOT_YOURS_TO_GIVE.format(missing=said_missing, whose=whose))
     issued = await keys.issue(org=key.org, label=said.label, env=env, scopes=wanted)
     return issued.as_json
+
+
+async def _what_the_asker_may_give(key: KeyRecord, members: Members) -> tuple[frozenset[str], str]:
+    """The bound on what this key may mint, and the word the refusal calls it by. See A_PERSON."""
+    if key.subject is None:
+        return key.scopes, THIS_KEY
+    member = await members.find(key.org, key.subject)
+    # A key naming somebody the table no longer has an active row for is bounded by itself: they
+    # were removed or disabled, and a removed person's key must not keep their role's reach.
+    if member is None or member.status != "active":
+        return key.scopes, THIS_KEY
+    return member.scopes, A_PERSON
 
 
 # A POST and not a DELETE, because nothing is deleted: the row stays and grows a timestamp, so the
