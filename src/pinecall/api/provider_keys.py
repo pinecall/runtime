@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pinecall.api._deps import OrgsDep, ProviderKeysKeyDep, UnlockedVaultDep, an_org
 from pinecall.api._operator import an_operator
 from pinecall.api.orgs import NO_BODY
-from pinecall.types import VENDORS
+from pinecall.providers.catalog import canonical, vendors_with_a_key
 from pinecall_protocol import WireModel
 
 # The tenant's own three doors, on the org's API key, exactly as every other tenant door. They
@@ -87,9 +87,13 @@ async def brought(key: ProviderKeysKeyDep, vault: UnlockedVaultDep) -> dict[str,
     return {"vendors": list(await vault.vendors_of(key.org))}
 
 
+# An alias is resolved before the key is stored, so `11labs` and `elevenlabs` are one row and not
+# two — a tenant who brought a key under one spelling and read it back under the other used to be
+# told they had brought none. providers/catalog.py holds every word each vendor answers to.
 def _a_known_vendor(vendor: str) -> str:
     """The vendor as this build spells it, or 400 with every name it does have."""
-    if vendor not in VENDORS:
-        known = ", ".join(VENDORS)
-        raise HTTPException(400, NO_SUCH_VENDOR.format(vendor=vendor, known=known))
-    return vendor
+    known = vendors_with_a_key()
+    named = canonical(vendor)
+    if named not in known:
+        raise HTTPException(400, NO_SUCH_VENDOR.format(vendor=vendor, known=", ".join(known)))
+    return named

@@ -6,6 +6,7 @@ import dataclasses
 from collections.abc import Sequence
 from typing import Any
 
+from pinecall.providers.catalog import canonical
 from pinecall.providers.tts import voices
 from pinecall.types import (
     DEFAULT_LAYOUT,
@@ -132,8 +133,13 @@ def _a_voice(wire: defs.VoiceConfig | None) -> Voice | None:
     return dataclasses.replace(speaking, model=wire.model)
 
 
+# The vendor is spelled ONE way inside the runtime, whatever the app wrote: `11labs`, `claude` and
+# `gemini` are words people type, and a config that kept them would look up a key under a name no
+# settings field has and refuse a vendor this build plainly runs. providers/catalog.py holds every
+# word each vendor answers to; an unknown one is returned as typed and refused when it is built,
+# with the whole list in the sentence.
 def _a_model(wire: defs.ModelConfig | None) -> Model | None:
-    return None if wire is None else Model(wire.provider, wire.model, wire.temperature)
+    return None if wire is None else Model(canonical(wire.provider), wire.model, wire.temperature)
 
 
 def _a_turn(wire: defs.TurnConfig | None) -> Turn | None:

@@ -8,8 +8,11 @@ from urllib.parse import urlsplit, urlunsplit
 from pinecall._env_files import env_files_read
 from pinecall._settings import Role, Settings, load_settings, variable_of
 from pinecall.cli.doctor.probes import Probes, live_probes
+from pinecall.providers import catalog
 from pinecall.providers.embed import base_url_of, key_field_of, model_of
 from pinecall.providers.knocks import KNOCKS
+from pinecall.providers.models import DEFAULT_VENDOR
+from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS
 
 PURPOSE: str = "keys present · keys answer · livekit · postgres · embedder · lk"
 
@@ -17,12 +20,38 @@ PURPOSE: str = "keys present · keys answer · livekit · postgres · embedder �
 # `pg_textsearch`. Both come from the Postgres image infra/compose/dev.yml runs.
 REQUIRED_EXTENSIONS: tuple[str, ...] = ("vector", "pg_textsearch")
 
-# A call needs one key of each role. The doctor prints a variable's name and never, ever a value.
-PROVIDER_KEYS: dict[str, tuple[str, ...]] = {
-    "llm": ("anthropic_api_key", "openai_api_key"),
-    "stt": ("soniox_api_key", "deepgram_api_key"),
-    "tts": ("eleven_api_key",),
+
+# A call needs one key of each role, and the roles are read off the catalog: every vendor that can
+# do that job and has a single-string credential. So a box running on Cartesia reads green without
+# anybody adding a row here. The doctor prints a variable's name and never, ever a value.
+def provider_keys() -> dict[catalog.Modality, tuple[str, ...]]:
+    """Which settings field could answer for each role: every catalogued vendor that does it."""
+    return {
+        modality: tuple(
+            field
+            for row in catalog.doing(modality)
+            if (field := catalog.settings_field_of(row.name)) is not None
+        )
+        for modality in catalog.MODALITIES
+    }
+
+
+# What the line says to set when a role has nothing at all. ONE vendor per role — the one this
+# runtime runs that role on when an agent declares none — because forty names is not advice, and
+# the operator reading this line has no key at all yet. `providers` prints the other forty-four.
+OURS: dict[catalog.Modality, str] = {
+    "llm": DEFAULT_VENDOR,
+    "stt": DEFAULT_STT,
+    "tts": DEFAULT_TTS,
 }
+
+
+def the_vendor_worth_naming(modality: catalog.Modality) -> str:
+    """The settings field of the vendor this runtime runs that role on when nobody chose one."""
+    field = catalog.settings_field_of(OURS[modality])
+    assert field is not None, f"providers/catalog.py: {OURS[modality]} has no key to ask for"
+    return field
+
 
 # What a refused key reads in the report, and where the live one goes: the credstore on a box
 # (`make secret NAME=… < the key`, from the checkout), the .env on a laptop.
@@ -155,13 +184,12 @@ def check_provider_keys(settings: Settings, _probes: Probes) -> Result:
     """Presence by role, under the vendor's own variable name. A value is never read or printed."""
     present: list[str] = []
     missing: list[str] = []
-    for role, fields in PROVIDER_KEYS.items():
+    for role, fields in provider_keys().items():
         set_here = [variable_of(field) for field in fields if getattr(settings, field)]
         if set_here:
             present.append(f"{role} {', '.join(set_here)}")
         else:
-            wanted = " or ".join(variable_of(field) for field in fields)
-            missing.append(f"{role} (set {wanted})")
+            missing.append(f"{role} (set {variable_of(the_vendor_worth_naming(role))})")
     if missing:
         return Result("provider keys", False, "nothing for " + " · ".join(missing))
     return Result("provider keys", True, " · ".join(present))

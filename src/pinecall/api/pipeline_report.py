@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from pinecall._settings import Settings
+from pinecall.api.providers import ProviderRow, rows
 from pinecall.log.entry import Entry
 from pinecall.log.latencies import medians
 from pinecall.log.store import Store
+from pinecall.providers.catalog import settings_field_of
 from pinecall.providers.models import DEFAULT_VENDOR
 from pinecall.providers.overrides import Overridden
 from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS, vendor_running
-from pinecall.providers.registry import KEY_OF, NO_KEY
+from pinecall.providers.registry import NO_KEY
 from pinecall.providers.tts.voices import voice_names
 from pinecall.types import AgentConfig, Greeting, Model, Voice
 from pinecall_protocol import WireModel, defs
@@ -51,6 +53,10 @@ class Report(WireModel):
     # The names the voice knob may be turned to, read off the one table: a screen that offered a
     # free text box let an operator paste an id no vendor knows, which ends a line and not a form.
     voices: list[str]
+    # Every vendor each stage could be turned onto, with whether this box can run it — the same
+    # rows GET /v1/providers answers, built by the same function (api/providers.py). The screen
+    # that changes a stage is where a person needs to see that Cartesia exists and wants a key.
+    providers: list[ProviderRow]
     calls: int
     medians: list[Measured]
     unavailable_reasons: dict[str, str]
@@ -80,6 +86,7 @@ async def report(
         greeting=_on_the_wire(config.greeting),
         overrides=turned,
         voices=list(voice_names()),
+        providers=rows(settings),
         calls=len(calls),
         medians=[
             Measured(name=row.name, seconds=row.seconds, turns=row.turns)
@@ -146,15 +153,16 @@ def _entries_of(calls: list[list[Entry]]) -> list[Entry]:
     return [entry for call in calls for entry in call]
 
 
-# KEY_OF and the sentence are providers/registry.py's, because that is where a call reads a key
-# and refuses without one. Said here BEFORE the call, so a screen shows a missing key as a state
-# and not as a dead line — and an org's own key, which this screen never sees, is not read here:
-# what it answers is what the BOX has, which is the question an operator is asking.
+# The sentence is providers/registry.py's, because that is where a call reads a key and refuses
+# without one, and which field holds it is providers/catalog.py's one rule. Said here BEFORE the
+# call, so a screen shows a missing key as a state and not as a dead line — and an org's own key,
+# which this screen never sees, is not read here: what it answers is what the BOX has, which is the
+# question an operator is asking.
 def _unavailable(stages: dict[str, Stage], settings: Settings) -> dict[str, str]:
     """The stages that cannot run today, each with the reason: a vendor key nobody set."""
     missing: dict[str, str] = {}
     for where, stage in stages.items():
-        setting = KEY_OF.get(stage.vendor)
+        setting = settings_field_of(stage.vendor)
         if setting is not None and not getattr(settings, setting, None):
             missing[where] = NO_KEY.format(vendor=stage.vendor)
     return missing

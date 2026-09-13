@@ -1,20 +1,12 @@
-"""Whose key a call runs on: the vendors an org may bring its own key for, and what a set is."""
+"""Whose key a call runs on: what one org's own set of provider keys is, and what none is."""
+
+# WHICH vendors an org may bring a key for is not here and cannot be: that is read off
+# providers/catalog.py, and types/ imports nothing of ours (tests/test_isolation.py). The door that
+# refuses an unknown vendor asks the catalog — api/provider_keys.py, cli/orgs/verbs.py — so the list
+# in the refusal is the same forty-odd names the pipeline can actually be built out of.
 
 from collections.abc import Mapping
 from types import MappingProxyType
-
-# The vendors an org may bring a key for: the model vendors, one file each under providers/, and
-# the WhatsApp Cloud API token a message goes back out with. A door refuses any other word with
-# this list in the sentence, so an operator who typed `11labs` is told what to type instead of
-# storing a key nobody reads.
-VENDORS: tuple[str, ...] = (
-    "anthropic",
-    "deepgram",
-    "elevenlabs",
-    "openai",
-    "soniox",
-    "whatsapp",
-)
 
 # One org's own keys, vendor by vendor. Empty is the common case: the box's env keys are used.
 type ProviderKeys = Mapping[str, str]

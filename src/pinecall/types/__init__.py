@@ -55,7 +55,7 @@ from pinecall.types.lookup import PLATFORM_TOOLS, PlatformTool, platform_tools
 from pinecall.types.member import ROLE_SCOPES, ROLES, STATUSES, Member, MemberStatus, Role, a_role
 from pinecall.types.org import DEFAULT_ORG, QUOTAS, Counting, Org, QuotaName, Quotas, a_slug
 from pinecall.types.prompt import DEFAULT_LAYOUT, KNOWLEDGE, Blocks, PromptBlock, PromptRegion
-from pinecall.types.provider_keys import NO_ORG_KEYS, VENDORS, ProviderKeys
+from pinecall.types.provider_keys import NO_ORG_KEYS, ProviderKeys
 from pinecall.types.refused import DeclarationRefused
 from pinecall.types.route import Route, an_e164, dialable
 from pinecall.types.token import GRANTS, Grant, Scope, grant_for
@@ -84,7 +84,6 @@ __all__ = [
     "STATUSES",
     "THE_ORGS_OWN",
     "THE_WIDGET",
-    "VENDORS",
     "AgentConfig",
     "Blocks",
     "CallContext",

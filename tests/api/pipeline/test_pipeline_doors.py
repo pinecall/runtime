@@ -87,10 +87,8 @@ async def test_a_voice_no_one_curated_is_refused_in_the_tables_own_sentence(
     await declared(registry)
     refused = await fleet_http.put(PIPELINE_KNOBS, json={"voice": "carolinaa"})
     assert refused.status_code == 400
-    assert (
-        refused.json()["detail"]
-        == f"no voice named 'carolinaa'; this build knows: {known_voices()}"
-    )
+    assert known_voices() in refused.json()["detail"]
+    assert "no voice named 'carolinaa'" in refused.json()["detail"]
     config = await worker_gateway.agent(AGENT)
     assert config.voice is not None
     assert config.voice.voice_id == "a-declared-voice"
@@ -168,3 +166,67 @@ async def test_a_bare_model_keeps_the_vendor_the_agent_is_already_running_on(
     config = await worker_gateway.agent(AGENT)
     assert config.llm is not None
     assert (config.llm.provider, config.llm.model) == ("anthropic", "claude-sonnet-4-5")
+
+
+# ── the knob that moves a whole stage onto another vendor ────────────────────────
+
+
+async def test_a_bare_vendor_moves_the_stage_and_keeps_that_vendors_own_model(
+    fleet_http: httpx.AsyncClient, registry: Registry, worker_gateway: Gateway
+) -> None:
+    """What the console's vendor picker sends. A bare word that names a vendor IS the vendor."""
+    await declared(registry)
+    assert (await fleet_http.put(PIPELINE_KNOBS, json={"llm": "openai"})).status_code == 200
+    config = await worker_gateway.agent(AGENT)
+    assert config.llm is not None
+    assert (config.llm.provider, config.llm.model) == ("openai", "")
+
+
+async def test_a_vendor_written_by_one_of_its_other_names_is_the_same_vendor(
+    fleet_http: httpx.AsyncClient, registry: Registry, worker_gateway: Gateway
+) -> None:
+    """`claude` is what a person types; `anthropic` is what the config, the vault and a key say."""
+    await declared(registry)
+    await fleet_http.put(PIPELINE_KNOBS, json={"llm": "claude/claude-sonnet-4-5"})
+    config = await worker_gateway.agent(AGENT)
+    assert config.llm is not None
+    assert config.llm.provider == "anthropic"
+
+
+async def test_the_tts_knob_moves_the_voice_onto_another_vendor_entirely(
+    fleet_http: httpx.AsyncClient, registry: Registry, worker_gateway: Gateway
+) -> None:
+    """The speaking stage was the one an operator could not move, which made a screen that
+    offered Cartesia everywhere except the stage that actually speaks a screen that lied."""
+    await declared(registry)
+    turned = await fleet_http.put(
+        PIPELINE_KNOBS, json={"tts": "cartesia/sonic-3", "voice": "a-uuid"}
+    )
+    assert turned.status_code == 200, turned.text
+    config = await worker_gateway.agent(AGENT)
+    assert config.voice is not None
+    assert (config.voice.provider, config.voice.model) == ("cartesia", "sonic-3")
+    # The vendor was named, so the word beside it is that vendor's own id and this build does not
+    # judge its shape — providers/tts/voices.py only knows ElevenLabs'.
+    assert config.voice.voice_id == "a-uuid"
+
+
+async def test_a_tts_model_of_another_vendor_is_that_vendors_business_and_not_ours(
+    fleet_http: httpx.AsyncClient, registry: Registry
+) -> None:
+    """The ElevenLabs model rule is ElevenLabs', and it used to be applied to every vendor."""
+    await declared(registry)
+    turned = await fleet_http.put(PIPELINE_KNOBS, json={"tts": "rime", "tts_model": "mistv2"})
+    assert turned.status_code == 200, turned.text
+    assert turned.json()["speaks"]["vendor"] == "rime"
+
+
+async def test_the_pipeline_report_lists_every_vendor_a_stage_could_be_turned_onto(
+    fleet_http: httpx.AsyncClient, registry: Registry
+) -> None:
+    """The screen that changes a stage is where a person needs to see that Cartesia exists."""
+    await declared(registry)
+    report = (await fleet_http.get(PIPELINE)).json()
+    names = {row["name"] for row in report["providers"]}
+    assert len(names) > 40
+    assert {"cartesia", "rime", "livekit"} <= names

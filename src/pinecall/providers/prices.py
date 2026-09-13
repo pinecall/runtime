@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, cast
 
+from pinecall.providers.published import published
 from pinecall_protocol.defs import Cost, CostRate, CostRow, UnpricedRow
 from pinecall_protocol.metrics import LLMModelUsage, ModelUsage, STTModelUsage, TTSModelUsage
 
@@ -96,14 +97,46 @@ MEDIA_PRICES: dict[str, MediaPrice] = {
 }
 
 
+# Two tables, and the order between them is the whole of the rule: OURS first. The rows above were
+# read off each vendor's own page on a stated date, in the units a livekit usage row carries, and
+# where they disagree with the published list they disagree knowingly — Soniox bills a realtime
+# hour and the published list prices it by token, which an audio-seconds row cannot feed at all.
+# Behind them, providers/published.py prices the other forty vendors, which is the difference
+# between a Cartesia call reading `unpriced` and reading its bill. See that module's header.
 def price_of(model: str) -> Price | None:
     """The token price for a model id, by the longest listed prefix. None: unpriced."""
-    return _by_longest_prefix(PRICES, model)
+    ours = _by_longest_prefix(PRICES, model)
+    return ours if ours is not None else _a_published_price(model)
 
 
 def media_price_of(model: str) -> MediaPrice | None:
     """The per-character or per-second price for a voice model id. None: unpriced."""
-    return _by_longest_prefix(MEDIA_PRICES, model)
+    ours = _by_longest_prefix(MEDIA_PRICES, model)
+    return ours if ours is not None else _a_published_media_price(model)
+
+
+# A published row is kept only when it carries both halves of a token bill; a cache rate it does
+# not name is None, which _rows_of already reads as "this model is not billed for that".
+def _a_published_price(model: str) -> Price | None:
+    """One published token row as a Price, or None when nobody published that model."""
+    row = _by_longest_prefix(published().tokens, model)
+    if row is None:
+        return None
+    return Price(
+        input=row["input"],
+        output=row["output"],
+        cached_input=row.get("cached_input", row["input"]),
+        cache_creation=row.get("cache_creation"),
+    )
+
+
+def _a_published_media_price(model: str) -> MediaPrice | None:
+    """One published voice row as a MediaPrice. The unit is theirs; the arithmetic is ours."""
+    row = _by_longest_prefix(published().media, model)
+    if row is None:
+        return None
+    unit, usd = row
+    return MediaPrice(cast("MediaUnit", unit), usd)
 
 
 # Interruption and end-of-turn rows are livekit's own models, run on this box (inference/): there is

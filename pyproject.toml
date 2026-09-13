@@ -47,6 +47,18 @@ runtime = [
   # livekit-plugins-anthropic 1.x still builds the 0.x anthropic client.
   "anthropic<1",
 ]
+# Every other vendor livekit-agents ships a plugin for: the forty rows of
+# providers/catalog.py this box has no file of its own for. They are thin HTTP clients — the
+# catalog is real without them, and a vendor whose plugin is missing is refused by name with the
+# extra that installs it, so this extra is what turns "install" into "ready" on a box.
+providers = [
+  "livekit-agents[assemblyai,asyncai,baseten,bland,cambai,cartesia,cerebras,clova,fal,fireworksai,fishaudio,gladia,gnani,gradium,groq,hume,inworld,lmnt,minimax,mistralai,murf,neuphonic,nvidia,palabra,perplexity,resemble,respeecher,rime,rtzr,sarvam,simplismart,slng,smallestai,speechify,spitch,upliftai,vakyam,xai]>=1.8,<2",
+]
+# The four that bring a whole SDK with them and are therefore a decision, not a default: boto3,
+# azure-cognitiveservices-speech, the google-cloud clients, and speechmatics — whose `smart`
+# extra installs onnxruntime and transformers, a hundred megabytes for one vendor's endpointing.
+# A box that runs one of these installs this extra on purpose; nothing else changes.
+providers-big = ["livekit-agents[aws,azure,google,speechmatics]>=1.8,<2"]
 # Graphiti is the optional memory graph; pgvector is the default and needs no extra.
 memory-graph = ["graphiti-core>=0.30,<1"]
 
@@ -148,6 +160,8 @@ unfixable = ["T201"]
 [tool.ruff.lint.per-file-ignores]
 # The CLI is the one place that speaks to a terminal.
 "src/pinecall/cli/**" = ["T201"]
+# And a maintainer's script, which is run by hand and has nowhere else to say what it wrote.
+"scripts/*.py" = ["T201"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["pinecall", "pinecall_protocol", "tests"]

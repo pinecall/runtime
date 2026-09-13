@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# mahimailabs/voice-prices -> src/pinecall/providers/published_prices.json. Idempotent apart from
+# the prices themselves: a run that finds nothing changed leaves the file alone, and a run that
+# finds a new number shows it as a diff a reviewer can read against the vendor's own page.
+#
+# What it keeps: the models of the vendors providers/catalog.py catalogues, in the units this
+# runtime's usage rows actually carry. What it drops is in the file's own header.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+uv run python scripts/refresh_prices.py "$@"

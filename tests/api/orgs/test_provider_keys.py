@@ -13,7 +13,8 @@ from pinecall._settings import Settings
 from pinecall.auth.keys import MemoryKeys
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.orgs.vault import NO_VAULT_KEY, Vault
-from pinecall.types import VENDORS, ProviderKeys
+from pinecall.providers.catalog import vendors_with_a_key
+from pinecall.types import ProviderKeys
 from tests.api.conftest import (
     A_DEV_KEY,
     A_KEY,
@@ -99,10 +100,22 @@ async def test_a_vendor_this_build_does_not_run_is_400_with_the_ones_it_does(
     ops_http: httpx.AsyncClient,
 ) -> None:
     """400 and not 422: the body was right and the word in the path is not one of ours."""
-    refused = await ops_http.put(f"{OPS}/11labs", json={"key": THE_ORGS_KEY})
+    refused = await ops_http.put(f"{OPS}/zenith", json={"key": THE_ORGS_KEY})
     assert refused.status_code == 400
-    assert all(vendor in refused.json()["detail"] for vendor in VENDORS)
+    assert all(vendor in refused.json()["detail"] for vendor in vendors_with_a_key())
     assert THE_ORGS_KEY not in refused.text
+
+
+# `11labs` was the word in the sentence this door's refusal was written around, and for a year it
+# WAS a refusal. It is an alias now (providers/catalog.py), and the point of resolving one here is
+# that a tenant who brought a key under one spelling reads it back under the other: two spellings
+# and one row, or the vault answers "you brought none" to somebody who plainly did.
+async def test_a_vendor_brought_under_an_alias_is_one_row_under_its_own_name(
+    ops_http: httpx.AsyncClient,
+) -> None:
+    assert (await ops_http.put(f"{OPS}/11labs", json={"key": THE_ORGS_KEY})).status_code == 204
+    assert (await ops_http.get(OPS)).json()["vendors"] == ["elevenlabs"]
+    assert (await ops_http.delete(f"{OPS}/elevenlabs")).status_code == 204
 
 
 async def test_an_org_nobody_typed_is_404_on_every_provider_key_door(
@@ -177,11 +190,11 @@ async def test_a_vendor_this_build_does_not_run_is_refused_by_name_at_the_tenant
     tenant_http: httpx.AsyncClient,
 ) -> None:
     """One `_a_known_vendor`, so the tenant is told what to type in the operator's own words."""
-    refused = await tenant_http.put(f"{TENANT}/11labs", json={"key": THE_ORGS_KEY})
+    refused = await tenant_http.put(f"{TENANT}/zenith", json={"key": THE_ORGS_KEY})
     assert refused.status_code == 400
-    assert all(vendor in refused.json()["detail"] for vendor in VENDORS)
+    assert all(vendor in refused.json()["detail"] for vendor in vendors_with_a_key())
     assert THE_ORGS_KEY not in refused.text
-    assert (await tenant_http.delete(f"{TENANT}/11labs")).status_code == 400
+    assert (await tenant_http.delete(f"{TENANT}/zenith")).status_code == 400
 
 
 def test_the_tenants_doors_take_an_api_key_and_the_boxs_ops_key_is_not_one(

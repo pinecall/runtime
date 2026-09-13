@@ -96,11 +96,32 @@ def test_the_ears_are_priced_by_the_seconds_they_heard_at_the_pages_price_per_ho
     assert cost.eur == pytest.approx(90 / 3600 * 0.12 * prices.USD_TO_EUR, rel=1e-6)
 
 
-def test_a_voice_nobody_listed_is_unpriced_like_any_other_model() -> None:
+# Cartesia used to be the example here, because nobody had read its pricing page. The published
+# list has, so the example is now a model nobody anywhere has listed — which is what `unpriced`
+# was always for: a bill this build cannot state, said out loud rather than counted as zero.
+def test_a_voice_nobody_listed_anywhere_is_unpriced_and_never_free() -> None:
     cost = prices.cost_of(
-        [TTSModelUsage(type="tts_usage", provider="Cartesia", model="sonic-3", characters_count=10)]
+        [TTSModelUsage(type="tts_usage", provider="Acme", model="acme-1", characters_count=10)]
     )
-    assert cost.rows == [] and cost.unpriced[0].model == "sonic-3"
+    assert cost.rows == [] and cost.unpriced[0].model == "acme-1"
+
+
+# The published list is what makes the other forty vendors cost something: a call spoken by
+# Cartesia read `unpriced` until it was there, and an unpriced call is a bill nobody can see.
+def test_a_vendor_this_build_read_no_page_for_is_priced_off_the_published_list() -> None:
+    spoken = TTSModelUsage(
+        type="tts_usage", provider="Cartesia", model="sonic-3", characters_count=1_000
+    )
+    (row,) = prices.cost_of([spoken]).rows
+    assert (row.unit, row.quantity) == ("characters", 1_000)
+    assert row.eur == pytest.approx(1_000 * 5e-05 * prices.USD_TO_EUR, rel=1e-6)
+
+
+# Ours first, and this is the row that says why: the published list prices Soniox by the token,
+# which an audio-seconds usage row cannot feed, so the hand-read hourly rate has to win.
+def test_the_hand_read_table_wins_over_the_published_one_where_they_disagree() -> None:
+    assert prices.media_price_of("stt-rt-v5") == prices.MEDIA_PRICES["stt-rt"]
+    assert prices.media_price_of("flux-general-multi") == prices.MEDIA_PRICES["flux-general"]
 
 
 def test_livekits_own_turn_models_owe_nothing_and_are_neither_a_line_nor_unpriced() -> None:

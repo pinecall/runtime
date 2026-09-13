@@ -19,12 +19,27 @@ A_KEY = "sk-nobody-will-ever-deploy-this"
 THE_ORGS_OWN = "sk-the-clinics-own-account"
 
 
+# Long enough that PyJWT does not warn about the HMAC key, because the suite turns a warning into
+# an error and a LiveKit secret really is signed with (livekit/api/access_token.py, to_jwt).
+A_LIVEKIT_SECRET = "dead-sentinel-dead-sentinel-dead-sentinel"
+
+
 def settings() -> Settings:
-    """A process that read a key for both vendors of the table."""
-    return Settings(anthropic_api_key=A_KEY, openai_api_key=A_KEY)
+    """A box with a key for both tuned vendors of the table, and a LiveKit project of its own."""
+    return Settings(
+        anthropic_api_key=A_KEY,
+        openai_api_key=A_KEY,
+        livekit_api_key=A_KEY,
+        livekit_api_secret=A_LIVEKIT_SECRET,
+    )
 
 
-@pytest.mark.parametrize("vendor", VENDORS.names)
+def a_box_with_no_livekit_project() -> Settings:
+    """A box that has vendor keys and no LiveKit pair: Inference is the one vendor it cannot run."""
+    return Settings(anthropic_api_key=A_KEY, livekit_api_key=None, livekit_api_secret=None)
+
+
+@pytest.mark.parametrize("vendor", VENDORS.tuned)
 def test_every_file_of_the_modality_builds_a_livekit_llm(vendor: str) -> None:
     """Criterion 1: the plugin IS the adapter, so a vendor hands back the library's own class."""
     built = VENDORS.build(vendor, Asked(settings=settings(), model="a-model"))
@@ -51,9 +66,25 @@ def test_no_model_at_all_is_the_one_default_this_build_states() -> None:
     assert built.model == DEFAULT_MODEL
 
 
-def test_a_provider_with_no_file_is_refused_by_name() -> None:
-    with pytest.raises(NoProvider, match="no llm vendor named 'mistral'"):
-        models_for(settings())(Model(provider="mistral", model="whatever"), NO_ORG_KEYS)
+def test_a_word_nobody_catalogues_is_refused_by_name() -> None:
+    with pytest.raises(NoProvider, match="no llm vendor named 'zenith'"):
+        models_for(settings())(Model(provider="zenith", model="whatever"), NO_ORG_KEYS)
+
+
+# The catalogued half of the table: a vendor with no file here is not a vendor this build refuses,
+# it is one it has no plugin installed for — and the refusal says which extra installs it.
+def test_a_catalogued_vendor_with_no_plugin_names_the_extra_that_installs_it() -> None:
+    """Google is catalogued and is in the `providers-big` extra, which a light box does not hold."""
+    with pytest.raises(NoProvider, match=r"livekit-agents\[google\]"):
+        models_for(settings())(Model(provider="gemini", model="gemini-3-flash"), NO_ORG_KEYS)
+
+
+# The alias table, at the one door a declaration comes through: providers/declaration.py writes the
+# canonical name into the config, and the registry resolves one again for anything that skipped it.
+def test_a_vendor_asked_for_by_an_alias_is_the_same_vendor() -> None:
+    built = models_for(settings())(Model(provider="claude", model=DEFAULT_MODEL), NO_ORG_KEYS)
+    assert isinstance(built, anthropic.LLM)
+    assert vendor_of(built) == "anthropic"
 
 
 # Criterion 1 at the seam every door goes through: managed is the absence of a row, BYOK is one
@@ -88,9 +119,26 @@ def test_the_vendor_a_price_row_uses_is_the_plugin_not_the_host() -> None:
     assert vendor_of(built) == "anthropic"
 
 
-@pytest.mark.parametrize("vendor", VENDORS.names)
+@pytest.mark.parametrize("vendor", [name for name in VENDORS.tuned if name != "livekit"])
 def test_every_installed_plugin_names_its_vendor_in_its_label(vendor: str) -> None:
     """The vendor is read off the plugin's own public label, one file at a time."""
     built = VENDORS.build(vendor, Asked(settings=settings(), model="a-model"))
     assert built.label == f"livekit.plugins.{vendor}.llm.LLM"
     assert vendor_of(built) == vendor
+
+
+# Inference is the one vendor whose label carries no vendor of its own — it is livekit's gateway,
+# and the vendor is written inside the model name. Reading the label by position is what keeps it
+# from answering `livekit` for every plugin, since every plugin's label begins with that word.
+def test_livekit_inference_is_its_own_vendor_and_steals_nobody_elses_label() -> None:
+    inference = VENDORS.build("livekit", Asked(settings=settings()))
+    assert inference.label == "livekit.agents.inference.llm.LLM"
+    assert vendor_of(inference) == "livekit"
+    plugin = VENDORS.build("openai", Asked(settings=settings(), model="a-model"))
+    assert vendor_of(plugin) == "openai"
+
+
+def test_livekit_inference_is_refused_without_the_boxes_own_pair() -> None:
+    """It bills the box's LiveKit project, so the project's key and secret are its key."""
+    with pytest.raises(NoProvider, match="LIVEKIT_API_KEY"):
+        VENDORS.build("livekit", Asked(settings=a_box_with_no_livekit_project()))
