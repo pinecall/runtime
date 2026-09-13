@@ -149,6 +149,30 @@ async def test_the_read_back_lands_after_the_output_and_before_the_callers_next_
 
 
 @pytest.mark.parametrize(
+    "llm_script",
+    [
+        (
+            Scripted(chunks=("Voy. ",), calls=(a_call("bk_1", "book", {"at": "10:15"}),)),
+            Scripted(chunks=("Listo.",)),
+        )
+    ],
+)
+async def test_the_receipt_does_not_make_the_model_answer_itself(talking: Talking) -> None:
+    """A tool round is two generations: the one that asks for the tool, and the one that tells the
+    caller what came back. A receipt that reaches the model's history while it is still writing is
+    an assistant message it did not write, and it answers that too — four goodbyes in a row on
+    2026-09-13, word for word, with no caller turn between them."""
+    recording, bridge, live = talking
+    await live.generate_reply(user_input="reservame el de las 10:15")
+    await _settled(live)
+    await bridge.closed("the test hung up")
+    said = [turn.data["text"] for turn in recording.of("turn.agent")]
+    # The preamble, the receipt, and the one reply that tells the caller what came back.
+    assert len(said) == 3, f"one tool round said {len(said)} things, not three: {said}"
+    assert len(said) == len(set(said)), f"the agent said the same thing twice: {said}"
+
+
+@pytest.mark.parametrize(
     ("closed_for", "ended"),
     [
         (CloseReason.JOB_SHUTDOWN, ("drained", "platform")),
