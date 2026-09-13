@@ -12,6 +12,7 @@ from typing import Protocol
 
 from livekit import api, rtc
 from livekit.protocol.agent_dispatch import CreateAgentDispatchRequest
+from livekit.protocol.room import DeleteRoomRequest
 
 from pinecall._settings import Settings
 from pinecall.auth.scopes import a_room_token, secret_for
@@ -106,7 +107,14 @@ async def a_simulated_call(
             # the caller speaks. The line is held open until the run says the answer has landed.
             mouth = await _Mouth.on(room, line)
             await _until_the_agent_is_here(room, call)
-            return await every_turn(mouth, turns, next_line, settled)
+            spoken = await every_turn(mouth, turns, next_line, settled)
+            # Held once more before the hangup, which ENDS the job: a caller that said it was
+            # leaving broke out of `every_turn` without waiting, and the agent's answer to that
+            # last line would be cut mid-word — and cut out of the recording with it. `settled`
+            # answers at once when the agent is already listening, so a call that is over pays
+            # nothing, and it gives up on its own deadline rather than raising (polling.py).
+            await settled(spoken)
+            return spoken
         finally:
             await room.disconnect()
 
@@ -164,8 +172,21 @@ class _Dispatch:
             said[APP_KEY] = self._app
         return said
 
+    # A caller leaving is not a hangup. The agent is still seated and its job still running, so
+    # `add_shutdown_callback` never fires — and that callback is where the log is SEALED and the
+    # recording's path is stated (worker/entry.py:95,191). The pointer lives in `call.summary` and
+    # nowhere else (api/calls/recording.py:17), so every simulated call left its audio on disk and
+    # out of reach: 1.6 MB of ogg on the box, answered with "has no call.summary yet". A phone call
+    # ends itself when the leg hangs up and livekit closes the room; a simulation has to hang up.
     async def __aexit__(self, *_closed: object) -> None:
-        if self._api is not None:
+        if self._api is None:
+            return
+        try:
+            await self._api.room.delete_room(DeleteRoomRequest(room=self._call))
+        except api.TwirpError:
+            # Already gone: the agent hung up first, which seals the call by the same door.
+            logger.debug("room %s was closed before the caller hung up", self._call)
+        finally:
             await self._api.aclose()
 
 
