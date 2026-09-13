@@ -21,9 +21,20 @@ from livekit.agents.voice.speech_handle import SpeechHandle
 # somebody. There is no timeout and none is wanted — a read-back says what was DONE, and a caller
 # who books an appointment is told so whenever the line is free, not dropped because they talked.
 def read_back(live: Any, text: str) -> None:
-    """Say it in the first gap. Recurses because the gap it waited for can already be gone."""
-    playing: SpeechHandle | None = live.current_speech
-    if playing is None or playing.done():
-        live.say(text)
-        return
-    playing.add_done_callback(lambda _finished: read_back(live, text))
+    """Say it in the first gap, once. Waits again because the gap it waited for can be gone."""
+    spoken = False
+
+    def when_the_line_is_free(_finished: object = None) -> None:
+        # Once, whatever wakes it. Nothing here should fire a handle's callbacks twice, and a
+        # read-back heard twice is the bug this whole file is about: the guard costs a boolean.
+        nonlocal spoken
+        if spoken:
+            return
+        playing: SpeechHandle | None = live.current_speech
+        if playing is None or playing.done():
+            spoken = True
+            live.say(text)
+            return
+        playing.add_done_callback(when_the_line_is_free)
+
+    when_the_line_is_free()
