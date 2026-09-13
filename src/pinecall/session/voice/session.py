@@ -114,6 +114,23 @@ INTERRUPTION_MODE: Literal["vad"] = "vad"
 # caller wondering whether the call dropped. See docs/decisions/worker.md.
 FALSE_INTERRUPTION_TIMEOUT_S = 1.0
 
+# And what livekit does when that second is up: it plays the cut sentence AGAIN, from the start.
+# Off, and this is a decision and not a workaround.
+#
+# It was read as one once — the read-back was cutting the reply, and fixing that (reading_back.py)
+# looked like it would be enough. It was not. With the read-back waiting its turn and landing
+# last, a booking's reply was still heard twice: same speech_id, same metrics to the millisecond,
+# seq 688 and seq 768 of one call. A read-back is one thing that cuts a sentence; a caller
+# breathing into a telephone is another, and there is no end to that list.
+#
+# The behaviour is wrong for what we build regardless of who does the cutting. Resuming means
+# replaying the WHOLE utterance — livekit offers no "carry on from where it stopped" — so a
+# thirty-word goodbye that got clipped is a thirty-word goodbye said twice. On a line, a caller
+# hearing the same sentence twice is the agent sounding broken. The cost of turning it off is
+# that a cough leaves the agent silent instead of starting over, and silence is a thing a caller
+# talks into.
+DO_NOT_SAY_IT_TWICE = False
+
 
 # Endpointing is absent on purpose: `Turn.endpointing_ms` is already the ASR's own endpointing,
 # which providers/ hands to the STT, and setting livekit's delay from the same number would make
@@ -129,6 +146,7 @@ def spoken_turns(config: AgentConfig) -> TurnHandlingOptions:
         "min_words": min_words,
         "mode": INTERRUPTION_MODE,
         "false_interruption_timeout": FALSE_INTERRUPTION_TIMEOUT_S,
+        "resume_false_interruption": DO_NOT_SAY_IT_TWICE,
     }
     return {
         "turn_detection": inference.TurnDetector(version=LOCAL_TURN_VERSION),

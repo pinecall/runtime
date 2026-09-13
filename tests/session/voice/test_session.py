@@ -143,16 +143,14 @@ async def test_no_llm_is_ever_spent_guessing_keyterms_the_agent_did_not_declare(
     assert _stt_context(spoken)["keyterm_detection"]["enabled"] is False
 
 
-async def test_an_agent_cut_off_by_a_cough_picks_its_sentence_back_up() -> None:
-    """Resuming is livekit's default (turn.py:195) and stays it; the wait is ours, because two
-    seconds of silence on a phone line is a caller wondering whether the call dropped.
-
-    It stayed the default through the bug that looked like its fault: a booking's goodbye heard
-    four times. What was cutting the sentence was our own read-back, and that is what got fixed
-    (voice.py, `_read_back`). A cough is still a cough, and the agent still finishes what it was
-    saying."""
+async def test_a_sentence_that_was_cut_off_is_never_said_twice() -> None:
+    """Resuming REPLAYS the whole utterance — livekit offers no carrying on from where it stopped
+    — so a thirty-word goodbye that got clipped is one said twice, and a caller hearing that hears
+    a broken agent. Fixing the read-back that cut it was not enough: with the read-back waiting
+    its turn, a booking's reply still arrived twice, same speech_id and same metrics, at seq 688
+    and 768 of one call. Anything can cut a sentence; this is about what happens next."""
     interruption = _turns(a_call_on(CLARA, _a_kit(), "phone"))["interruption"]
-    assert interruption["resume_false_interruption"] is True, "livekit's default, left alone"
+    assert interruption["resume_false_interruption"] is False
     assert interruption["false_interruption_timeout"] == 1.0
 
 
