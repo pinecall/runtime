@@ -71,8 +71,23 @@ def the_answer_has_landed(entries: Sequence[Entry], said: int) -> bool:
     heard = [at for at, entry in enumerate(entries) if entry.type == "turn.user"]
     if len(heard) < said:
         return False
+    if _a_tool_is_still_running(entries):
+        return False
     states = [(at, entry) for at, entry in enumerate(entries) if entry.type == AGENT_STATE]
     if not states:
         return False
     at, last = states[-1]
     return at > heard[-1] and AgentStateChanged.model_validate(last.data).state == IT_IS_LISTENING
+
+
+# `listening` is not the same as finished. An agent that says "Perfecto, la doy de alta" and calls
+# a tool in the same response goes quiet WHILE the tool runs, and livekit publishes that quiet as
+# `listening` — there is nothing else it could say about it. Both interruptions on 2026-09-13 were
+# exactly that: `Perfecto, la doy` cut while registerPatient ran, `Entendido. Voy` cut while
+# freeSlots ran. A caller who hears a preamble waits for what it was a preamble TO, and a tool
+# that was asked for and not yet answered is the one thing that says the turn is not over.
+def _a_tool_is_still_running(entries: Sequence[Entry]) -> bool:
+    """Whether a tool was asked for and has not answered: the agent is mid-turn, however quiet."""
+    asked = {entry.data.get("call_id") for entry in entries if entry.type == "tool.call"}
+    answered = {entry.data.get("call_id") for entry in entries if entry.type == "tool.result"}
+    return bool(asked - answered)
