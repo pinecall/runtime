@@ -1,4 +1,4 @@
-"""The table a modality keeps: a vendor is one file, and the file registers itself in one line."""
+"""The table a modality keeps: a tuned vendor is one file, and every other one is the catalog."""
 
 from __future__ import annotations
 
@@ -12,6 +12,14 @@ from livekit.agents import llm, stt, tts
 
 from pinecall._exceptions import PinecallError
 from pinecall._settings import Settings
+from pinecall.providers import catalog
+from pinecall.providers.catalog import Modality, Provider
+from pinecall.providers.plugin import (
+    NOT_INSTALLED,
+    PluginProblem,
+    built_by_a_plugin,
+    installed,
+)
 from pinecall.types import NO_ORG_KEYS, ProviderKeys
 
 # livekit's LLM, STT and TTS are each generic over the extra events a plugin may emit; nothing here
@@ -22,25 +30,20 @@ type Speech = tts.TTS[Any]
 
 
 class NoProvider(PinecallError):
-    """The agent asked for a vendor this build has no file for, or no key to reach it."""
+    """The agent asked for a vendor nobody catalogues, or one this build has no key to reach."""
 
-
-# Which settings field a vendor reads its key from when the org brought none. The vendor files
-# each read exactly one, and elevenlabs is the one whose variable is not its own name — so the
-# pairs are written here, once, and no vendor file knows a settings field exists.
-KEY_OF: dict[str, str] = {
-    "anthropic": "anthropic_api_key",
-    "deepgram": "deepgram_api_key",
-    "elevenlabs": "eleven_api_key",
-    "openai": "openai_api_key",
-    "soniox": "soniox_api_key",
-    "whatsapp": "whatsapp_access_token",
-}
 
 # A vendor with no key is a refusal at the start of the call, and never a 401 in the middle of a
 # caller's turn. The gateway's pipeline screen says the same sentence before the call, so a person
 # sees the missing key as a state (api/pipeline_report.py).
 NO_KEY = "{vendor} has no API key in this process"
+
+# What a word nobody catalogues reads as. The list is long now — forty-five vendors — so the
+# sentence names the door that prints the whole of it instead of printing it into a log line.
+NO_VENDOR = (
+    "no {modality} vendor named {vendor!r}; this build catalogues {count} of them "
+    "(GET /v1/providers lists every one, with its aliases)"
+)
 
 
 # Every modality asks the same question in different words, so one shape carries all of them and
@@ -64,15 +67,15 @@ type Build[Made] = Callable[[Asked], Made]
 
 
 class Vendors[Made]:
-    """One modality's vendors, found by importing its package: name in, livekit object out."""
+    """One modality's vendors: the tuned files, and behind them the whole catalog."""
 
-    def __init__(self, modality: str, package: str) -> None:
-        self._modality = modality
+    def __init__(self, modality: Modality, package: str) -> None:
+        self._modality: Modality = modality
         self._package = package
         self._rows: dict[str, Build[Made]] = {}
         self._read = False
 
-    # The one line a new vendor file writes above its build function. Nothing else changes: the
+    # The one line a tuned vendor file writes above its build function. Nothing else changes: the
     # package is read whole, so the file being there IS the registration.
     def registers(self, vendor: str) -> Callable[[Build[Made]], Build[Made]]:
         """Claim a vendor name for the function underneath: the whole of a file's bookkeeping."""
@@ -85,7 +88,14 @@ class Vendors[Made]:
 
     @property
     def names(self) -> tuple[str, ...]:
-        """Every vendor this build reaches for this modality, in the order a refusal lists them."""
+        """Every vendor this modality reaches: the tuned files and the catalogued rest, sorted."""
+        self.read()
+        catalogued = {row.name for row in catalog.doing(self._modality)}
+        return tuple(sorted(catalogued | set(self._rows)))
+
+    @property
+    def tuned(self) -> tuple[str, ...]:
+        """The vendors with a file of their own here: the ones this runtime has an opinion about."""
         self.read()
         return tuple(sorted(self._rows))
 
@@ -94,13 +104,43 @@ class Vendors[Made]:
         self._read_the_package()
 
     def build(self, vendor: str, asked: Asked) -> Made:
-        """The object that vendor makes, or a refusal naming every vendor this build does have."""
+        """The object that vendor makes: its tuned file, its plugin, or a refusal naming neither."""
         self._read_the_package()
-        row = self._rows.get(vendor)
-        if row is None:
-            known = ", ".join(sorted(self._rows)) or "no vendor at all"
-            raise NoProvider(f"no {self._modality} vendor named {vendor!r}; this build has {known}")
-        return row(asked)
+        row = self._rows.get(catalog.canonical(vendor))
+        if row is not None:
+            return row(asked)
+        return cast("Made", self._out_of_the_catalog(vendor, asked))
+
+    # The catalogued path. It reaches every vendor livekit ships a plugin for, with no file here
+    # and no edit when livekit adds one — providers/plugin.py reads the plugin's own signature.
+    def _out_of_the_catalog(self, vendor: str, asked: Asked) -> Any:
+        """One vendor out of its plugin, or the refusal that names what this build does have."""
+        provider = catalog.named(vendor)
+        if provider is None or self._modality not in provider.does:
+            raise NoProvider(
+                NO_VENDOR.format(
+                    modality=self._modality,
+                    vendor=vendor,
+                    count=len(catalog.doing(self._modality)),
+                )
+            )
+        # Before the key and not after it: a vendor this build has no plugin for would otherwise be
+        # refused for a missing key, and the operator would go and fetch one that changes nothing.
+        if not installed(provider):
+            raise NoProvider(NOT_INSTALLED.format(vendor=provider.name, extra=provider.extra))
+        try:
+            return built_by_a_plugin(
+                self._modality,
+                provider,
+                key=_a_key_if_it_has_one(provider, asked),
+                model=asked.model,
+                voice_id=asked.voice_id,
+                language=asked.language,
+            )
+        except PluginProblem as problem:
+            # One class of refusal above this line, whichever half of the plugin path said no: a
+            # door renders NoProvider, and nothing above providers/ knows there are two.
+            raise NoProvider(str(problem)) from problem
 
     # The table is filled once, by import, and only read afterwards — a constant that happens to be
     # assembled rather than typed out. Nothing mutates it while a call is running.
@@ -115,7 +155,7 @@ class Vendors[Made]:
     # importlib, so a second reader waits or finds the module cached, and either way it registers
     # the same rows.
     def _read_the_package(self) -> None:
-        """Import every file of the modality's package, so a new vendor needs no other edit."""
+        """Import every tuned file of the modality's package, so one needs no other edit."""
         if self._read:
             return
         package = import_module(self._package)
@@ -135,7 +175,19 @@ def a_key(vendor: str, asked: Asked) -> str:
     return key
 
 
+# Two vendors have no one key to ask for. AWS authenticates off its own credential chain and
+# Google's speech pair off a service account file, so there is no string an org could bring and
+# none this function could refuse the absence of: the plugin reads its own environment and either
+# the box set that up or the vendor says so. Every other vendor goes through a_key and is refused
+# before the call rather than mid-turn.
+def _a_key_if_it_has_one(provider: Provider, asked: Asked) -> str | None:
+    """The key the plugin is handed, or None for a vendor whose credentials are its own affair."""
+    return None if provider.env is None else a_key(provider.name, asked)
+
+
+# The field is the vendor's own variable name, lowercased — providers/catalog.py holds the rule and
+# _vendor_keys.py is written to keep it true, so adding a vendor adds no row to any table here.
 def _the_boxes_key(vendor: str, settings: Settings) -> str | None:
     """What the environment holds for the vendor, under the vendor's own variable name."""
-    field_name = KEY_OF.get(vendor)
-    return None if field_name is None else cast("str | None", getattr(settings, field_name))
+    field_name = catalog.settings_field_of(vendor)
+    return None if field_name is None else cast("str | None", getattr(settings, field_name, None))

@@ -10,8 +10,17 @@ pytestmark = pytest.mark.unit
 
 LINE_CEILING = 400
 
-# The ceiling judges what a person writes and another person reads; a lockfile is a resolver's.
-FILES_THE_CEILING_SKIPS = frozenset({Path("uv.lock")})
+# The ceiling judges what a person writes and another person reads. A lockfile is a resolver's;
+# a price table is a script's (scripts/refresh-prices, a thousand models off an open source); and
+# a changelog is a LEDGER — it does not become two files, it becomes one file with history missing,
+# and "trim the oldest entries to fit" is the one thing a changelog must never do.
+FILES_THE_CEILING_SKIPS = frozenset(
+    {
+        Path("uv.lock"),
+        Path("CHANGELOG.md"),
+        Path("src/pinecall/providers/published_prices.json"),
+    }
+)
 # The design corpus is imported whole and read as a book, not as code.
 DIRECTORIES_THE_CEILING_SKIPS = (Path("docs/design"),)
 

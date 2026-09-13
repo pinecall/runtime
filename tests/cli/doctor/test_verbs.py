@@ -174,15 +174,29 @@ def test_a_provider_key_is_reported_by_its_variable_and_never_by_its_value() -> 
     assert "sk-ant-dead-sentinel" not in keys.detail
 
 
+# A role is empty only when NO catalogued vendor of that role has a key, which is forty-odd
+# variables now — so the test empties the ones ring 0 sets rather than the one it used to. What
+# the line then says is the ONE vendor worth naming to somebody who has no key at all
+# (doctor/verbs.py, OURS), not the whole catalog: the operator reading it is starting from zero.
 def test_a_role_with_no_key_at_all_names_the_role_and_what_to_set(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv("ELEVEN_API_KEY")
+    for speaking in ("ELEVEN_API_KEY", "SONIOX_API_KEY", "DEEPGRAM_API_KEY", "OPENAI_API_KEY"):
+        monkeypatch.delenv(speaking)
     down = doctor.first_failure(doctor.run_checks(load_settings(), probes_that_answer()))
     assert down is not None
     assert down.name == "provider keys"
     assert "tts" in down.detail
     assert "ELEVEN_API_KEY" in down.detail
+
+
+def test_a_role_one_catalogued_vendor_can_answer_for_is_not_a_role_that_is_down(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Forty-five vendors speak: a box with no ElevenLabs key and a Soniox one is not silent."""
+    monkeypatch.delenv("ELEVEN_API_KEY")
+    down = doctor.first_failure(doctor.run_checks(load_settings(), probes_that_answer()))
+    assert down is None
 
 
 def test_the_doctor_exits_zero_with_everything_up(

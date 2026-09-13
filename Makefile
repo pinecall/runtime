@@ -39,8 +39,14 @@ RSYNC = rsync -az --delete -e "ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=y
 
 # The environment is built as the service user, exactly to uv.lock, with the extras both units
 # run on. The units themselves never call uv: they run the virtualenv's own entrypoint.
+#
+# `providers` is the other forty vendors livekit ships a plugin for (providers/catalog.py). They
+# are thin HTTP clients and the box installs them all, because the alternative is a console that
+# offers Cartesia and a call that answers "no plugin in this build" — and a redeploy is not a thing
+# a tenant can do. `providers-big` is NOT here: boto3, the Azure speech SDK, the google-cloud
+# clients and speechmatics' onnxruntime are a decision a box makes on purpose.
 UV_SYNC = sudo -u pinecall env UV_PROJECT_ENVIRONMENT=/opt/pinecall/venv UV_CACHE_DIR=/opt/pinecall/.cache/uv \
-          /opt/pinecall/bin/uv sync -q --frozen --project $(REMOTE)/runtime --extra runtime
+          /opt/pinecall/bin/uv sync -q --frozen --project $(REMOTE)/runtime --extra runtime --extra providers
 
 .PHONY: deploy console sync install restart restart-all restart-hub restart-worker health doctor secret status logs ssh require-box
 
@@ -140,7 +146,15 @@ ssh: require-box
 #   make worker-secrets WORKER=deploy@203.0.113.9
 #
 WORKER_CREDENTIALS = LIVEKIT_API_KEY LIVEKIT_API_SECRET PINECALL_API_KEY \
-                     ANTHROPIC_API_KEY OPENAI_API_KEY SONIOX_API_KEY DEEPGRAM_API_KEY ELEVEN_API_KEY
+                     ANTHROPIC_API_KEY ASSEMBLYAI_API_KEY ASYNCAI_API_KEY AZURE_SPEECH_KEY BASETEN_API_KEY \
+                     BLAND_API_KEY CAMB_API_KEY CARTESIA_API_KEY CEREBRAS_API_KEY CLOVA_STT_SECRET_KEY \
+                     DEEPGRAM_API_KEY ELEVEN_API_KEY FAL_KEY FIREWORKS_API_KEY FISH_API_KEY GLADIA_API_KEY \
+                     GNANI_API_KEY GOOGLE_API_KEY GRADIUM_API_KEY GROQ_API_KEY HUME_API_KEY INWORLD_API_KEY \
+                     LMNT_API_KEY MINIMAX_API_KEY MISTRAL_API_KEY MURF_API_KEY NEUPHONIC_API_KEY NVIDIA_API_KEY \
+                     OPENAI_API_KEY PALABRA_API_KEY RESEMBLE_API_KEY RESPEECHER_API_KEY RIME_API_KEY \
+                     SARVAM_API_KEY SIMPLISMART_API_KEY SLNG_API_KEY SMALLEST_API_KEY SONIOX_API_KEY \
+                     SPEECHIFY_API_KEY SPEECHMATICS_API_KEY SPITCH_API_KEY UPLIFTAI_API_KEY VAKYAM_API_KEY \
+                     XAI_API_KEY
 WSSH = ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=yes -o ConnectTimeout=20 $(WORKER)
 
 .PHONY: worker-secrets

@@ -7,11 +7,11 @@ from typing import Any
 
 from pinecall.log.store import Pool
 
-# The five the pipeline door takes, in the order the table declares them. This module stores
+# The six the pipeline door takes, in the order the table declares them. This module stores
 # columns and never a meaning: what a knob is allowed to be, and what an empty one would do, is
 # providers/overrides.py's, which is the one place that knows a vendor. The two meet structurally
 # — `Keeps` there is satisfied by the classes here — because neither package may import the other.
-KNOBS = ("stt", "llm", "voice", "tts_model", "greeting")
+KNOBS = ("stt", "llm", "voice", "tts_model", "greeting", "tts")
 
 # One agent's whole set as it is stored: every knob, and None for one nobody turned.
 type Knobs = Mapping[str, str | None]

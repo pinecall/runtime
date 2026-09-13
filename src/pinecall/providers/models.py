@@ -39,10 +39,21 @@ def models_for(settings: Settings) -> Models:
 # plugin came from, and the plugin names itself in `LLM.label`: livekit builds it as
 # "<module>.<class>", so an anthropic model answers "livekit.plugins.anthropic.llm.LLM". That
 # public label is what is read here — never the private __module__, and never the URL.
+#
+# Read by POSITION and not by "which catalogued name appears somewhere in the label". That
+# shortcut worked while no vendor was called `livekit`, and the day one was — LiveKit Inference,
+# which is a vendor of ours now — EVERY label answered `livekit`, because every label begins with
+# it. A plugin puts its vendor in the third segment; Inference has no vendor of its own there
+# because it is the gateway itself, and the model name is where its vendor is written.
+PLUGINS = ("livekit", "plugins")
+INFERENCE = ("livekit", "agents", "inference")
+
+
 def vendor_of(model: Chat) -> str:
     """The name prices and usage rows know a model by: its plugin's vendor, not its host."""
-    named = model.label.split(".")
-    for vendor in llm.VENDORS.names:
-        if vendor in named:
-            return vendor
+    named = tuple(model.label.split("."))
+    if named[:2] == PLUGINS and len(named) > 2:
+        return named[2]
+    if named[:3] == INFERENCE:
+        return "livekit"
     return model.provider

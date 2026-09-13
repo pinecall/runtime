@@ -20,6 +20,12 @@ class Knock:
 # Keyed by the settings field, so the doctor names the variable and never the vendor. Each door
 # is the cheapest one the vendor has: a listing, or the account itself — nothing is generated,
 # transcribed or spoken, and a dead key is a 401 here instead of a silent agent on a live call.
+#
+# There are forty-five vendors in providers/catalog.py and five rows here, and that is on purpose.
+# A knock is a URL somebody OPENED with a live key and watched answer 200; a guessed one answers
+# 404 for a perfectly good key and makes `make deploy` refuse a box that was fine. So a vendor
+# with no row is not knocked at all — the doctor says its variable is set and stops there, which
+# is exactly as much as this runtime actually knows. Adding a row is one vendor's afternoon.
 KNOCKS: dict[str, Knock] = {
     "anthropic_api_key": Knock(
         "https://api.anthropic.com/v1/models",

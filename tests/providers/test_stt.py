@@ -22,8 +22,11 @@ def an_ask(**asked: object) -> Asked:
     return Asked(settings=settings, **asked)  # pyright: ignore[reportArgumentType]
 
 
-def test_both_vendors_are_found_by_their_file_names() -> None:
-    assert VENDORS.names == ("deepgram", "soniox")
+def test_the_tuned_vendors_are_found_by_their_file_names() -> None:
+    """`tuned` is the files under providers/stt/; `names` is those plus the whole catalog."""
+    assert VENDORS.tuned == ("deepgram", "livekit", "soniox")
+    assert set(VENDORS.tuned) < set(VENDORS.names)
+    assert "cartesia" in VENDORS.names
 
 
 def test_soniox_states_every_option_the_plugin_does_not_already_get_right() -> None:

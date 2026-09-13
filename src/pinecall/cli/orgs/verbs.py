@@ -9,7 +9,8 @@ from typing import Any, TextIO
 
 from pinecall.cli.columns import as_columns
 from pinecall.cli.operator import Operator, against_the_gateway
-from pinecall.types import QUOTAS, ROLES, VENDORS
+from pinecall.providers.catalog import vendors_with_a_key
+from pinecall.types import QUOTAS, ROLES
 
 PURPOSE: str = "the tenants: list | add | invite | operator | rm | quota | provider-key"
 VERBS: tuple[str, ...] = ("list", "add", "invite", "operator", "rm", "quota", "provider-key")
@@ -83,6 +84,11 @@ def configure(parser: argparse.ArgumentParser) -> None:
     parser.set_defaults(run=partial(_print_the_verbs, parser))
 
 
+# Forty-odd names is not a help line, so the sentence names the door that prints them all with
+# what each one does. argparse still refuses a word that is not one of them, and lists them then.
+A_VENDOR = "any vendor this build runs — `pinecall-runtime providers` lists every one"
+
+
 # A group of its own, because a provider key has three verbs of its own and hanging them off
 # `orgs` directly would read as five unrelated words. `orgs provider-key set clinica elevenlabs`.
 def _configure_provider_keys(parser: argparse.ArgumentParser) -> None:
@@ -91,12 +97,12 @@ def _configure_provider_keys(parser: argparse.ArgumentParser) -> None:
 
     setting = verbs.add_parser("set", help="the org's own key for a vendor, read from stdin")
     setting.add_argument("org", metavar="<org>", help="by id or slug")
-    setting.add_argument("vendor", metavar="<vendor>", choices=VENDORS, help=" | ".join(VENDORS))
+    setting.add_argument("vendor", metavar="<vendor>", choices=vendors_with_a_key(), help=A_VENDOR)
     setting.set_defaults(run=run_provider_key_set)
 
     removing = verbs.add_parser("rm", help="back to this box's own key for that vendor")
     removing.add_argument("org", metavar="<org>", help="by id or slug")
-    removing.add_argument("vendor", metavar="<vendor>", choices=VENDORS, help=" | ".join(VENDORS))
+    removing.add_argument("vendor", metavar="<vendor>", choices=vendors_with_a_key(), help=A_VENDOR)
     removing.set_defaults(run=run_provider_key_remove)
 
     listing = verbs.add_parser("list", help="which vendors this org brought a key for")

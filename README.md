@@ -112,10 +112,16 @@ number — is [infra/box/README.md](infra/box/README.md).
 run processes (Kubernetes, Nomad, Ansible) and wants ours out of the picture:
 
 ```
-pip install pinecall              the gateway
-pip install pinecall[runtime]     the gateway and the worker (livekit-agents and its plugins)
-pinecall-runtime migrate up       then gateway, and worker start, as two long-running processes
+pip install pinecall                       the gateway
+pip install pinecall[runtime]              the gateway and the worker, on the five tuned vendors
+pip install pinecall[runtime,providers]    and the other forty livekit ships a plugin for
+pinecall-runtime migrate up                then gateway, and worker start, two long-running processes
 ```
+
+`providers` is thin HTTP clients and is what a box installs; `providers-big` is the four that
+bring a whole SDK with them — AWS, Azure Speech, Google Cloud, Speechmatics — and is a decision,
+never a default. `pinecall-runtime providers` prints the whole table with what each vendor still
+wants; a vendor whose plugin is missing is refused by name, with the one command that installs it.
 
 The two processes read the environment `.env.example` documents — the same names on a box, where
 they arrive as systemd credentials — and need a LiveKit server, a Postgres 17 with pgvector and
@@ -145,6 +151,7 @@ they arrive as systemd credentials — and need a LiveKit server, a Postgres 17 
 | `box secrets` | every secret a box makes for itself, once; run twice rotates nothing |
 | `box secret <NAME>` | one secret you bring, from stdin, replaced in place |
 | `fleet list · cordon · uncordon · loop` | the workers as the hub hears them, the graceful shrink, and the loop that keeps `busy` at the target over any cloud |
+| `providers [--does llm\|stt\|tts]` | every vendor this build runs — forty-five — as a table: what each does, whether this box has its plugin and its key, the variable a key goes under, and every other word the vendor answers to. Reads the catalog and this process's settings; asks nothing of anybody, so it answers on a box that is down. Never a key |
 | `orgs list · add · rm · quota · provider-key` | the tenants, their quotas (`--minutes --messages --agents --concurrent-calls --memory-facts --knowledge-chunks --numbers`, the whole set at once; a flag left out is no limit and `0` refuses everything), the vendor keys an org brings |
 | `keys issue · list · revoke` | an org's API keys: printed once, listed by fingerprint, revoked by UPDATE. `issue --env production\|development --scope … --subject … --name …`: which world the key opens, what it may do there, whose it is |
 | `routes list · add · rm · seed` | which agent answers a number, from the next call; `--env` says in which world |

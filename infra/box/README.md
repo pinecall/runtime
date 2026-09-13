@@ -80,25 +80,26 @@ ssh <the box> sudo systemd-creds decrypt --name=PINECALL_OPERATOR_KEY /etc/creds
 pinecall login https://<the domain>     # on the laptop, and the key is kept in ~/.pinecall/credentials
 ```
 
-And the vendors' keys, which the box cannot draw for itself — each one from stdin, on the box,
-kept encrypted under its name:
+And the vendors' keys, which the box cannot draw for itself — from stdin, kept encrypted under
+their names; then a restart, because a unit reads its credentials at start:
 
 ```bash
 printf '%s' 'sk-ant-…' | sudo /opt/pinecall/venv/bin/pinecall-runtime box secret ANTHROPIC_API_KEY
-printf '%s' '…'        | sudo /opt/pinecall/venv/bin/pinecall-runtime box secret ELEVEN_API_KEY
-sudo systemctl restart pinecall-gateway pinecall-worker    # they read their credentials at start
+sudo systemctl restart pinecall-gateway pinecall-worker
 ```
 
-The names are the environment's own — `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SONIOX_API_KEY`,
-`DEEPGRAM_API_KEY`, `ELEVEN_API_KEY`, `WHATSAPP_ACCESS_TOKEN`, and `PERPLEXITY_API_KEY` or
-`OPENROUTER_API_KEY` on a box that embeds at a vendor ("The embedder" below) — and each unit
-lists, by name, which of them it may see. The embedder's two are the gateway's alone.
+The names are the environment's own and each unit lists which it may see (the embedder's
+`PERPLEXITY_API_KEY` or `OPENROUTER_API_KEY` is the gateway's alone). The box installs a plugin for
+**every vendor LiveKit ships one for** — forty-five — each reading its key under its own variable,
+all named in both units; one not in the credstore is simply absent, so the other forty cost nothing
+until `make secret NAME=CARTESIA_API_KEY` puts one there. The whole table, with what each still
+wants, is `pinecall-runtime providers` on the box.
 
 **The box holds no credential for the repository.** It cannot clone and it cannot fetch; the code
-is pushed to it by a person at a checkout, with `make deploy` — rsync, ssh, make and curl, and
-no tool that does not come with a Unix. Its one build step runs on the laptop: `scripts/console`
-bundles the agents repo's console into `src/pinecall/gateway/console/`, the rsync carries it, the
-gateway serves it at `/`. The rest is Python. `../../docs/decisions/box.md` argues both.
+is pushed to it by a person at a checkout, with `make deploy` — rsync, ssh, make and curl, and no
+tool that does not come with a Unix. Its one build step runs on the laptop: `scripts/console` bundles
+the console into `src/pinecall/gateway/console/`, the rsync carries it, the gateway serves it at `/`.
+The rest is Python. `../../docs/decisions/box.md` argues both.
 
 ## Roles, and a second box
 
@@ -214,9 +215,8 @@ environment file. There is no `.env` on the box, and a stolen disk is not a stol
 
 `box secrets` run twice rotates nothing: a credential that is there is kept, and the two key units
 carry a `ConditionPathExists=!` on the file they would make. Rotating one of THOSE is deleting its
-file and restarting — `keys revoke` the old one, which is an UPDATE and never a DELETE, so the log
-entries that name it stay readable. A vendor's key you brought is replaced in place, from the
-checkout, the value on stdin and on no screen:
+file and restarting — `keys revoke` the old one, an UPDATE and never a DELETE, so the log entries
+that name it stay readable. A vendor's key is replaced in place, from the checkout, on stdin:
 
 ```bash
 printf '%s' "$ELEVENLABS_API_KEY" | make secret NAME=ELEVEN_API_KEY   # then: make restart
