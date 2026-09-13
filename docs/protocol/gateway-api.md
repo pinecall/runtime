@@ -172,7 +172,7 @@ const FREE_SLOTS = {
   parameters: { type: "object", properties: { day: { type: "string" } }, required: ["day"] },
 };
 const ws = new WebSocket(`${process.env.PINECALL_URL.replace("http", "ws")}/v1/apps`, {
-  headers: { authorization: `Bearer ${process.env.PINECALL_API_KEY}` },
+  headers: { authorization: `Bearer ${process.env.PINECALL_WORKER_KEY}` },
 });
 const send = (type, data, call = null) =>
   ws.send(JSON.stringify({ type, agent: AGENT, call, id: String(Date.now()), data }));

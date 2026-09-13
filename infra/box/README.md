@@ -121,7 +121,7 @@ PINECALL_MAX_JOBS=5                        # measured on THIS machine type — s
 ```
 
 And its own credentials, and no others: the LiveKit keypair and the vendors' keys copied from
-the hub (`box secret`, from stdin, over ssh), and a `PINECALL_API_KEY` issued there with
+the hub (`box secret`, from stdin, over ssh), and a `PINECALL_WORKER_KEY` issued there with
 `keys issue`. Never `DATABASE_URL`, never the ops key, never the vault key, and never an
 embedder's: a worker has no database, guards nothing, and embeds nothing.
 
@@ -207,7 +207,7 @@ environment file. There is no `.env` on the box, and a stolen disk is not a stol
 | credential | who reads it | made by |
 |---|---|---|
 | `LIVEKIT_API_KEY` `LIVEKIT_API_SECRET` `POSTGRES_PASSWORD` `DATABASE_URL` `PINECALL_OPS_KEY` `PINECALL_VAULT_KEY` `media.env` | the units and the containers, each what it names | `pinecall-secrets.service`, once: `pinecall-runtime box secrets` |
-| `PINECALL_API_KEY` — the org's key the worker knocks with | the worker | `pinecall-worker-key.service`, once |
+| `PINECALL_WORKER_KEY` — the org's key the worker knocks with | the worker | `pinecall-worker-key.service`, once |
 | `PINECALL_OPERATOR_KEY` — yours | you, once, with `systemd-creds decrypt` | `pinecall-operator-key.service`, once |
 | the vendors' keys | the gateway and the worker | you: `pinecall-runtime box secret <NAME>` |
 | `TWILIO_ACCOUNT_SID` `TWILIO_API_KEY` `TWILIO_API_SECRET` — the box's own Twilio, for the numbers it buys for a tenant | the gateway | you, the same way; unset, `POST /v1/numbers/buy` says so |
@@ -280,7 +280,7 @@ Three, and none of them opens another's door. `../../docs/decisions/keys.md` arg
 | key | who holds it | made by |
 |---|---|---|
 | `PINECALL_OPS_KEY` | the box — `/v1/ops/*` and nothing else | `pinecall-secrets.service`, once |
-| `PINECALL_API_KEY` | the worker unit — `/v1/routes`, the app socket, the log | `pinecall-worker-key.service`, once: `keys issue --org default`, stdout straight into `systemd-creds encrypt` |
+| `PINECALL_WORKER_KEY` | the worker unit — `/v1/routes`, the app socket, the log | `pinecall-worker-key.service`, once: `keys issue --org default`, stdout straight into `systemd-creds encrypt` |
 | `PINECALL_DEV_KEY` | a laptop, never a box | set by hand, in development |
 
 `migrate up` mints nothing: it runs before every start of the gateway, and a verb that runs there
@@ -314,7 +314,7 @@ uv run python ../tools/twilio_trunk.py \
 # 3. who answers. A ROW, never a field on the tenant's class — ../../docs/decisions/routes.md.
 export PINECALL_GATEWAY_URL=https://box.pinecall.io
 export PINECALL_OPS_KEY=$(ssh <the box> sudo systemd-creds decrypt --name=PINECALL_OPS_KEY /etc/credstore.encrypted/PINECALL_OPS_KEY -)
-unset PINECALL_API_KEY                       # v1 exports one, and this gateway has never heard of it
+unset PINECALL_WORKER_KEY                       # v1 exports one, and this gateway has never heard of it
 uv run pinecall-runtime routes add +1… clinica-norte
 uv run pinecall-runtime routes list
 ```
@@ -393,8 +393,8 @@ It only gets through if this machine's own **public** address is admitted in **t
 the length of the run, and both were missing from this paragraph until a real number was wired:
 the inbound trunk's `allowed_addresses`, and the `carrier_signalling` set of the fence. The probe
 speaks UDP, so an ssh tunnel is not a way around either. Put the address in both, run the probe,
-take it out again — a deploy restores the fence to exactly the eight networks in the file, which
-is why taking it out is one command and not a memory. That inconvenience is the fence working.
+take it out again — a deploy restores the fence to exactly the eight networks in the file, so
+taking it out is one command and not a memory. That inconvenience is the fence working.
 
 `_the_address_that_reaches` reports the address on this machine's own interface, which behind
 NAT is not the address the box sees: read the public one (`curl -s ifconfig.me`) and admit that.

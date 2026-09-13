@@ -40,20 +40,22 @@ async def job(ctx: JobContext) -> None:
 # answered from the same fact: a gateway running on a dev key leaves its door in ~/.pinecall/dev,
 # and that gateway honours its own key and no other — it opens no database, so there is no
 # api_keys row for an org key to match. A worker about to knock at THAT url therefore sends the
-# dev key it left, and says so when an org key was exported beside it: PINECALL_API_KEY in the
+# dev key it left, and says so when an org key was exported beside it: PINECALL_WORKER_KEY in the
 # shell, a gateway on a dev key, and every job of a spoken suite died on `GET /v1/routes: 401`
 # until the run timed out (2026-09-11). Any other gateway keeps the old order — the org key, then
 # a dev key exported by hand for a gateway that has no file of its own.
-IGNORING_THE_API_KEY = "ignoring PINECALL_API_KEY: the local gateway at %s honours its dev key only"
+IGNORING_THE_WORKER_KEY = (
+    "ignoring PINECALL_WORKER_KEY: the local gateway at %s honours its dev key only"
+)
 
 
 def the_key_for(settings: Settings, door: dev_file.Door | None) -> str:
     """What this worker knocks at its gateway with: the door's own key when the door is that one."""
     if door is not None and door.is_at(settings.gateway_url):
-        if settings.api_key:
-            log.warning(IGNORING_THE_API_KEY, settings.gateway_url)
+        if settings.worker_key:
+            log.warning(IGNORING_THE_WORKER_KEY, settings.gateway_url)
         return door.key
-    return settings.api_key or settings.dev_key or ""
+    return settings.worker_key or settings.dev_key or ""
 
 
 def a_worker(settings: Settings) -> Worker:

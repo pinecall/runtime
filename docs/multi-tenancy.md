@@ -30,7 +30,7 @@ So "clínica-norte does not have a key" is not a gap. It never had one, and it n
 
 | | what it is | who mints it | where it lives | opens |
 |---|---|---|---|---|
-| **org API key** | `pk_` + 256 bits. The tenant's own | **the tenant itself**, `POST /v1/keys` or `pinecall keys issue` (the `keys` scope) — or the operator, `keys issue --org` | the tenant's `~/.pinecall/credentials`, or `PINECALL_API_KEY` in their container | every `/v1/…` door, for that org's rows only |
+| **org API key** | `pk_` + 256 bits. The tenant's own | **the tenant itself**, `POST /v1/keys` or `pinecall keys issue` (the `keys` scope) — or the operator, `keys issue --org` | the tenant's `~/.pinecall/credentials`, or `PINECALL_WORKER_KEY` in their container | every `/v1/…` door, for that org's rows only |
 | **dev key** | `PINECALL_DEV_KEY`, one string in the gateway's own environment | whoever runs the gateway | the gateway's `.env`, and `~/.pinecall/dev` for the CLI beside it | everything, as org `default`, with or without a database |
 | **ops key** | `PINECALL_OPS_KEY`, the box's own | the box, once (`box secrets`) | a systemd credential on the box | `/v1/ops/*` and nothing else. It is a gate, not an identity: it belongs to no org |
 | **room token** | a LiveKit JWT bound to ONE call | the gateway, from an org key, per visit | a browser tab, for a minute | that call's room and that call's log. See [protocol/tokens.md](protocol/tokens.md) |
@@ -67,7 +67,7 @@ the tables are there. Without it, everything that is a table is absent or in mem
 | the log | durable | in memory, and the gateway says so on its first line |
 | which keys open the doors | **the dev key alone**, whatever `api_keys` holds | the dev key alone |
 
-An exported `PINECALL_API_KEY` is ignored out loud, by the CLI and by the box alike: a gateway on a
+An exported `PINECALL_WORKER_KEY` is ignored out loud, by the CLI and by the box alike: a gateway on a
 dev key honours that key and no other.
 
 **Should the runtime allow this? Yes — and only here.** The alternative is that the first five
@@ -117,7 +117,7 @@ pinecall-runtime keys issue --org pinecall --label "prod server"   # --scope app
 pinecall-runtime routes add +34910000000 tienda-sur --org pinecall --channel phone
 ```
 
-In a container there is no login: `PINECALL_API_KEY` in the environment is that key, and
+In a container there is no login: `PINECALL_WORKER_KEY` in the environment is that key, and
 `PINECALL_URL` says which gateway. On a laptop, `pinecall login` keeps a key **nobody typed** —
 it prints a link, the person signs in on that page, and the page mints the terminal a key of its
 own (see below). That is the whole of a tenant's authentication.
