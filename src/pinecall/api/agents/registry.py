@@ -198,6 +198,13 @@ class Registry:
             slug for (_, _, slug), holding in self._agents.items() if holding[-1].org == org
         )
 
+    # Asked before an agent is moved between orgs: a socket that is holding it right now believes
+    # what it registered with, and moving the log under it would leave the process and the table
+    # disagreeing about whose agent this is until somebody restarts. `orgs move` refuses instead.
+    def held_anywhere(self, slug: str) -> bool:
+        """Whether any corner of any world is holding this slug at this instant."""
+        return any(held == slug for (_, _, held) in self._agents)
+
     def routes(self, org: str, env: Env, holder: str | None = None) -> tuple[Route, ...]:
         """Every door this org answers in this world right now, as its agents claimed them."""
         return tuple(route for held in self.holding(org, env, holder) for route in held.routes)

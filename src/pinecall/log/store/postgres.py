@@ -102,6 +102,16 @@ insert into call_log_head as head (log, agent, call, org) values ($1, $2, $3, $4
 on conflict (log) do update set org = coalesce(head.org, excluded.org)
 """
 
+# Every head row this agent has: its own, and one per call it took. `call_log_head_by_agent`
+# indexes exactly this column, so the move is one statement and one index scan however long the
+# agent has been running.
+MOVED = "update call_log_head set org = $2 where agent = $1"
+
+# What `UPDATE n` says when it moved nothing. The tag is the only thing that tells an agent
+# nobody has ever registered from one that moved: a verb that answered yes to a typo would send
+# an operator looking for the change in the wrong org.
+MOVED_NOTHING = "UPDATE 0"
+
 OWNER = "select org from call_log_head where log = $1"
 
 # The one read that spans every log: the metered types, by position, each with its log's owner.
@@ -257,6 +267,12 @@ class PostgresStore:
     async def owned(self, call: str | None, agent: str, org: str) -> None:
         """Write the owner on the head row, creating it when the claim comes before any entry."""
         await self._pool.execute(OWNED, log_name(call, agent), agent, call, org)
+
+    async def moved(self, agent: str, org: str) -> int:
+        """Every head row of this agent, into another org. The count comes off the command tag."""
+        tag = await self._pool.execute(MOVED, agent, org)
+        said = tag.strip()
+        return 0 if said == MOVED_NOTHING else int(said.rsplit(" ", 1)[-1])
 
     async def owner(self, call: str | None, agent: str) -> str | None:
         """Whose log this is; None for a log with no head row, or one nobody claimed."""

@@ -7,9 +7,10 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.api.keys import NO_SUCH_KEY, NOT_YOURS_TO_GIVE
+from pinecall.api.keys import A_PERSON, NO_SUCH_KEY, NOT_YOURS_TO_GIVE, THIS_KEY
 from pinecall.auth.keys import KeyRecord, MemoryKeys, fingerprint
-from pinecall.types import DEVELOPMENT, PRODUCTION
+from pinecall.auth.members import MemoryMembers
+from pinecall.types import DEVELOPMENT, HOLDING, PRODUCTION, Member, for_a_person
 from tests.api.conftest import A_KEY, A_RECORD, Json
 from tests.api.talking import got
 
@@ -31,10 +32,66 @@ DIEGO = KeyRecord(
 ANOTHERS_KEY = "pk_test_another_tenant"
 ANOTHER = KeyRecord(key_id="k_other", org="tienda-sur", label="their box")
 
+# Ana owns the org, and her production key is shaped the way every person's is there: her role's
+# preset LESS `app`, because a person does not hold an agent in production. She is the whole
+# reason the bound below is her role and not her key — see api/keys.py, A_PERSON.
+ANA = Member(
+    id="m_ana",
+    org=A_RECORD.org,
+    email="ana@clinica.test",
+    name="Ana",
+    role="admin",
+    status="active",
+)
+ANAS_KEY = "pk_test_anas_laptop"
+ANAS_PRODUCTION_KEY = KeyRecord(
+    key_id="k_ana",
+    org=A_RECORD.org,
+    label="laptop",
+    scopes=for_a_person(ANA.scopes, PRODUCTION),
+    subject=ANA.id,
+    name=ANA.name,
+)
+
+# Quim runs the floor: his role opens `keys`, so he reaches this door — and it opens no `app`,
+# so the rule that stopped a smaller role minting a larger one still stands. A `qa` would not do
+# here: their role does not open `keys` at all and they are refused by the door itself.
+QUIM = Member(
+    id="m_quim",
+    org=A_RECORD.org,
+    email="quim@clinica.test",
+    name="Quim",
+    role="manager",
+    status="active",
+)
+QUIMS_KEY = "pk_test_quims_laptop"
+QUIMS_PRODUCTION_KEY = KeyRecord(
+    key_id="k_quim",
+    org=A_RECORD.org,
+    label="laptop",
+    scopes=for_a_person(QUIM.scopes, PRODUCTION),
+    subject=QUIM.id,
+    name=QUIM.name,
+)
+
 
 @pytest.fixture
 def keys() -> MemoryKeys:
-    return MemoryKeys({A_KEY: A_RECORD, DIEGOS_KEY: DIEGO, ANOTHERS_KEY: ANOTHER})
+    return MemoryKeys(
+        {
+            A_KEY: A_RECORD,
+            DIEGOS_KEY: DIEGO,
+            ANOTHERS_KEY: ANOTHER,
+            ANAS_KEY: ANAS_PRODUCTION_KEY,
+            QUIMS_KEY: QUIMS_PRODUCTION_KEY,
+        }
+    )
+
+
+@pytest.fixture
+def members() -> MemoryMembers:
+    """Ana and Quim are rows; Diego deliberately is not, so his key falls back to itself."""
+    return MemoryMembers([ANA, QUIM])
 
 
 def posted(gateway: TestClient, path: str, body: object, bearer: str) -> tuple[int, Json]:
@@ -74,8 +131,27 @@ def test_a_key_cannot_hand_out_what_it_does_not_open_itself(gateway: TestClient)
     """Or the smallest role in an org would be a way to mint the largest."""
     status, said = posted(gateway, "/v1/keys", {"scopes": ["app", "team"]}, DIEGOS_KEY)
     assert status == 403
-    assert said["detail"] == NOT_YOURS_TO_GIVE.format(missing="app · team")
+    assert said["detail"] == NOT_YOURS_TO_GIVE.format(missing="app · team", whose=THIS_KEY)
     assert listed(gateway, DIEGOS_KEY)[1] == listed(gateway, A_KEY)[1], "and nothing was minted"
+
+
+# The door was shut on the one thing a tenant most needs it for: an admin's production key does
+# not carry `app`, so measuring the ask against the KEY meant nobody in the org could mint the key
+# their own server runs on — in either world — and only the box operator could. A tenant could not
+# deploy at all. The bound is the person's role, which is what their org trusts them with.
+def test_an_admin_mints_the_key_their_server_runs_on(gateway: TestClient) -> None:
+    assert HOLDING not in ANAS_PRODUCTION_KEY.scopes, "her own key does not hold an agent"
+    status, said = posted(gateway, "/v1/keys", {"label": "el server"}, ANAS_KEY)
+    assert status == 200, said
+    assert (said["scopes"], said["env"], said["subject"]) == (["app"], PRODUCTION, None)
+
+
+def test_a_role_that_does_not_open_a_door_still_cannot_hand_it_out(gateway: TestClient) -> None:
+    """The rule stands; what changed is which of the asker's two sets it is measured against."""
+    assert HOLDING not in QUIM.scopes
+    status, said = posted(gateway, "/v1/keys", {"scopes": ["app"]}, QUIMS_KEY)
+    assert status == 403
+    assert said["detail"] == NOT_YOURS_TO_GIVE.format(missing="app", whose=A_PERSON)
 
 
 def test_the_listing_is_fingerprints_and_never_a_key(gateway: TestClient) -> None:
