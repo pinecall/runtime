@@ -93,7 +93,7 @@ The names are the environment's own and each unit lists which it may see (the em
 **every vendor LiveKit ships one for** — forty-five — each reading its key under its own variable,
 all named in both units; one not in the credstore is simply absent, so the other forty cost nothing
 until `make secret NAME=CARTESIA_API_KEY` puts one there. The whole table, with what each still
-wants, is `pinecall-runtime providers` on the box.
+wants, is `make providers` from the checkout.
 
 **The box holds no credential for the repository.** It cannot clone and it cannot fetch; the code
 is pushed to it by a person at a checkout, with `make deploy` — rsync, ssh, make and curl, and no

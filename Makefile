@@ -48,7 +48,7 @@ RSYNC = rsync -az --delete -e "ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=y
 UV_SYNC = sudo -u pinecall env UV_PROJECT_ENVIRONMENT=/opt/pinecall/venv UV_CACHE_DIR=/opt/pinecall/.cache/uv \
           /opt/pinecall/bin/uv sync -q --frozen --project $(REMOTE)/runtime --extra runtime --extra providers
 
-.PHONY: deploy console sync install restart restart-all restart-hub restart-worker health doctor secret status logs ssh require-box
+.PHONY: deploy console sync install restart restart-all restart-hub restart-worker health doctor providers secret status logs ssh require-box
 
 deploy: console sync install restart doctor
 
@@ -116,6 +116,12 @@ health: require-box
 # first caller. A worker box is asked after what a worker has; the hub after everything.
 doctor: require-box
 	$(SSH) sudo make -s -C $(REMOTE)/runtime/infra/box doctor
+
+# Every vendor this build runs and what each one still wants on the box — a plugin, a key, or
+# nothing. `make providers DOES=tts` narrows it. It reads the catalog and the box's own
+# credentials, and never a key: the column says present or absent and no more.
+providers: require-box
+	$(SSH) sudo make -s -C $(REMOTE)/runtime/infra/box providers DOES=$(DOES)
 
 # One secret you bring, replaced in place, the value on stdin and on no command line, no screen
 # and no file in the clear; the same verb on a worker box with BOX= its address. A credential is

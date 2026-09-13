@@ -27,25 +27,37 @@ async def test_a_row_says_what_the_vendor_does_and_what_it_is_also_called(
     assert rows["anthropic"]["extra"] == "anthropic"
 
 
-# The two states a screen draws a vendor in: ready, or wanting something. Ring 0 holds a dead
-# sentinel for the five tuned vendors and nothing for the rest, which is exactly the shape of a
-# fresh box — so this asserts the difference is visible, never that a particular key is set.
+# One word for what a vendor is waiting for, decided in one place. Ring 0 holds a dead sentinel for
+# the five tuned vendors and nothing for the rest, which is exactly the shape of a fresh box — so
+# this asserts the difference is visible, never that a particular key is set.
 async def test_a_vendor_the_box_has_no_key_for_says_so_without_saying_the_key(
     tenant_http: httpx.AsyncClient,
 ) -> None:
     answered = await tenant_http.get("/v1/providers")
     rows = {row["name"]: row for row in answered.json()["providers"]}
-    assert rows["anthropic"]["keyed"] is True
-    assert rows["rime"]["keyed"] is False
+    assert (rows["anthropic"]["standing"], rows["anthropic"]["ready"]) == ("ready", True)
+    assert (rows["rime"]["standing"], rows["rime"]["ready"]) == ("no key", False)
     assert "dead-sentinel" not in answered.text
 
 
-async def test_a_vendor_that_needs_no_key_of_ours_is_never_shown_wanting_one(
+async def test_a_vendor_whose_credentials_are_its_own_is_neither_ready_nor_wanting_a_key(
     tenant_http: httpx.AsyncClient,
 ) -> None:
-    """AWS runs on its own credential chain: a screen must not send anybody looking for a key."""
-    rows = {
-        row["name"]: row for row in (await tenant_http.get("/v1/providers")).json()["providers"]
-    }
-    assert rows["aws"]["env"] is None
-    assert rows["aws"]["keyed"] is True
+    """AWS's chain and RTZR's client pair are not one string: a screen must send nobody looking
+    for a key that does not exist, and must not call them ready either."""
+    said = (await tenant_http.get("/v1/providers")).json()["providers"]
+    rows = {row["name"]: row for row in said}
+    for vendor in ("aws", "rtzr"):
+        assert rows[vendor]["env"] is None
+        assert rows[vendor]["ready"] is False
+    assert rows["rtzr"]["standing"] == "its own"
+
+
+async def test_a_vendor_with_no_plugin_says_that_and_not_that_it_wants_a_key(
+    tenant_http: httpx.AsyncClient,
+) -> None:
+    """`providers-big` is not installed in the suite, so Azure is the one with no plugin here."""
+    said = (await tenant_http.get("/v1/providers")).json()["providers"]
+    rows = {row["name"]: row for row in said}
+    assert rows["azure"]["standing"] == "no plugin"
+    assert rows["azure"]["extra"] == "azure"
