@@ -1,27 +1,40 @@
-"""A tool's read-back: the receipt, said before the agent's own account of what it did."""
+"""A tool's read-back, said in the first gap and never over a sentence somebody is still hearing."""
 
 from __future__ import annotations
 
 from typing import Any
 
+from livekit.agents.voice.speech_handle import SpeechHandle
 
-# WHEN it is said is the whole design, and waiting for a gap was the wrong answer.
+
+# `say()` has one behaviour and it is to CUT whatever is playing — there is no parameter that asks
+# it to wait. And something usually is playing: preemptive generation starts the model's reply
+# before the tool's output has settled, so by the time a tool returns, the reply is on the line.
+# Saying the read-back then cut it, and a cut sentence that nothing follows is a FALSE
+# interruption, which livekit answers by playing the sentence again. Bernardo booked an
+# appointment and heard the goodbye four times: the same speech_id and the same metrics to the
+# millisecond, which is a replay and not a model repeating itself.
 #
-# A read-back is queued the moment the tool answers, which is while the agent is still speaking the
-# preamble it wrote alongside the tool call ("Perfecto, le confirmo el lunes a las cinco"). The
-# model has not yet written its account of the result — it cannot have, it does not know the result
-# yet — so a receipt queued now lands between the two: preamble, receipt, reply.
-#
-# Waiting for the line to go quiet put it last instead. By the time the gap arrived the model had
-# already generated and queued the whole reply, ending in "¿Alguna cosa más?" — and the receipt
-# spoke after the agent had handed the turn back. On 2026-09-13 a caller heard exactly that: asked
-# if he needed anything else, and then told "Reservado: con la doctora Vidal" — a different doctor
-# from the one he had just been promised. Two faults in one sentence, and the ordering made the
-# real one look like the agent talking to itself.
-#
-# livekit's queue is a heap ordered by priority and then arrival (agent_activity.py:1826), and
-# `say` and a model's reply both enter it at SPEECH_PRIORITY_NORMAL. So queueing cuts nothing off:
-# it takes the place the arrival time earns, which here is exactly the place a receipt belongs.
+# So the read-back waits for its gap instead of making one. `add_done_callback` fires when the
+# speech ends however it ended, and asking again from inside it is what handles the case where the
+# caller has already started the next turn: it lands at the first silence, and never on top of
+# somebody. There is no timeout and none is wanted — a read-back says what was DONE, and a caller
+# who books an appointment is told so whenever the line is free, not dropped because they talked.
 def read_back(live: Any, text: str) -> None:
-    """Queue the receipt now: after the sentence being spoken, before the reply not yet written."""
-    live.say(text)
+    """Say it in the first gap, once. Waits again because the gap it waited for can be gone."""
+    spoken = False
+
+    def when_the_line_is_free(_finished: object = None) -> None:
+        # Once, whatever wakes it. Nothing here should fire a handle's callbacks twice, and a
+        # read-back heard twice is the bug this whole file is about: the guard costs a boolean.
+        nonlocal spoken
+        if spoken:
+            return
+        playing: SpeechHandle | None = live.current_speech
+        if playing is None or playing.done():
+            spoken = True
+            live.say(text)
+            return
+        playing.add_done_callback(when_the_line_is_free)
+
+    when_the_line_is_free()
