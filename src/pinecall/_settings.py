@@ -261,10 +261,16 @@ class Settings(VendorKeys):
         default="",
         description="Packages that plug a policy into the runtime's points, comma separated.",
     )
-    # The org's own key, as `keys issue` printed it: what the worker and the app knock with.
-    api_key: str | None = Field(
+    # The org's own key, as `keys issue` printed it: what the WORKER knocks at its gateway with,
+    # minted once by pinecall-worker-key.service and kept in the credstore.
+    #
+    # It was PINECALL_API_KEY, and that name was three different things at once: this credential,
+    # a key source in the v2 CLI, and the variable v1's SDK exports — so a laptop with v1's export
+    # still live silently registered agents into whatever org THAT key named. The runtime's half
+    # of the collision is gone by having a name of its own; the CLI's half goes with the profiles.
+    worker_key: str | None = Field(
         default=None,
-        description="The org's own API key, as `pinecall-runtime keys issue` printed it.",
+        description="The org key the worker knocks its gateway with, as `keys issue` printed it.",
     )
     # One API key that needs no database, so a clone runs the gateway before Postgres exists —
     # and uses the database when it is there, tables and all. Set it and it is the ONLY key the

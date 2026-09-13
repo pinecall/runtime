@@ -7,6 +7,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **`orgs move <agent> <org>`.** A slug belongs to the org that first registered it for as long as
+  its log exists, and nothing could move it — so an agent registered from a terminal pointed at
+  the wrong key belonged to that org for good, with every call it went on to take. A box walks
+  into it by construction: its own worker and operator keys are issued into `default`, so the
+  first agent anybody runs there lands in `default` too. The verb moves the agent's own log and
+  one head row per call; it is refused while somebody holds the slug, and 404s one nobody ran.
 - **Every vendor LiveKit reaches, not five.** `providers/catalog.py` is one table of the
   forty-five vendors livekit-agents 1.8 ships a plugin for, and `providers/plugin.py` builds any
   of them out of the plugin's own constructor signature — so `stt: cartesia`, `tts: rime`,
@@ -282,6 +288,17 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `README.md`, and `license-files` putting the text in the wheel and the sdist.
 
 ### Changed
+- **A tenant can deploy.** `POST /v1/keys` measured the ask against the asking key's scopes, and a
+  person's key in production does not carry `app` — so an admin asking for the key their own
+  server runs on was refused, in both worlds, and only the box operator could mint one. The bound
+  is now the person's ROLE. A key naming nobody is bounded by itself, as before.
+- **`PINECALL_API_KEY` is `PINECALL_WORKER_KEY`.** One name was three things: the worker's
+  credential, a key source in the v2 CLI, and the variable v1's SDK exports — so a laptop with
+  v1's export still live registered agents into whatever org that key named, silently. The
+  runtime's half of the collision is gone. A box that ran before the rename mints a fresh worker
+  key on the next deploy and leaves the old credential behind; infra/box/README.md says what to
+  remove.
+
 - **A voice id belongs to whoever was named.** A declaration that names its TTS provider has its
   voice passed through as that vendor's own id: Cartesia writes a uuid, Rime a word, Hume a
   sentence, and this build knows only ElevenLabs' shape. A declaration that names NO vendor is

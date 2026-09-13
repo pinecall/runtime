@@ -19,7 +19,7 @@ Environment=LIVEKIT_URL=ws://127.0.0.1:7880
 Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
 Environment=PINECALL_RECORDINGS=/var/lib/pinecall/recordings
 EnvironmentFile=/etc/pinecall/box.env
-# The worker knocks at the gateway with the org's own key (PINECALL_API_KEY, minted once by
+# The worker knocks at the gateway with the org's own key (PINECALL_WORKER_KEY, minted once by
 # pinecall-worker-key.service), and answers calls on the box's vendor keys.
 ImportCredential=LIVEKIT_API_KEY
 ImportCredential=LIVEKIT_API_SECRET

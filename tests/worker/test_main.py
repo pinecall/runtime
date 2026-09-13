@@ -169,11 +169,11 @@ def test_a_worker_on_a_box_claims_no_app_socket_and_takes_the_newest_holder() ->
     assert main.a_worker(load_settings()).app is None
 
 
-# The box's posture: PINECALL_API_KEY holds the key `pinecall-runtime keys issue` printed, and
+# The box's posture: PINECALL_WORKER_KEY holds the key `pinecall-runtime keys issue` printed, and
 # there is no dev key, because a gateway that reads one opens no database at all. Before this, the
 # worker knocked with the dev key alone and a deployed one therefore sent `Bearer ""`.
 def test_the_worker_knocks_with_the_fleets_own_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PINECALL_API_KEY", A_FLEETS_KEY)
+    monkeypatch.setenv("PINECALL_WORKER_KEY", A_FLEETS_KEY)
     monkeypatch.delenv("PINECALL_DEV_KEY", raising=False)
     assert _the_bearer_of(main.a_worker(load_settings())) == f"Bearer {A_FLEETS_KEY}"
 
@@ -188,7 +188,7 @@ def test_a_laptop_knocks_at_the_gateway_that_left_its_door_with_that_doors_key(
 ) -> None:
     """A dev-key gateway honours one key. The exported org key is provably not it."""
     dev_file.written(A_DEV_KEY, 8080)
-    monkeypatch.setenv("PINECALL_API_KEY", A_FLEETS_KEY)
+    monkeypatch.setenv("PINECALL_WORKER_KEY", A_FLEETS_KEY)
     monkeypatch.setenv("PINECALL_GATEWAY_URL", "http://127.0.0.1:8080")
     assert _the_bearer_of(main.a_worker(load_settings())) == f"Bearer {A_DEV_KEY}"
 
@@ -198,7 +198,7 @@ def test_a_laptop_with_both_keys_knocks_at_a_BOX_with_the_key_it_was_issued(
 ) -> None:
     """A box runs on issued keys and never on a dev key: a door on this machine is not about it."""
     dev_file.written(A_DEV_KEY, 8080)
-    monkeypatch.setenv("PINECALL_API_KEY", A_FLEETS_KEY)
+    monkeypatch.setenv("PINECALL_WORKER_KEY", A_FLEETS_KEY)
     monkeypatch.setenv("PINECALL_GATEWAY_URL", "https://gateway.example.com")
     assert _the_bearer_of(main.a_worker(load_settings())) == f"Bearer {A_FLEETS_KEY}"
 
@@ -207,7 +207,7 @@ def test_a_laptop_with_only_a_dev_key_exported_still_knocks_with_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A clone runs the gateway before Postgres exists, and its worker has to reach that gateway."""
-    monkeypatch.delenv("PINECALL_API_KEY", raising=False)
+    monkeypatch.delenv("PINECALL_WORKER_KEY", raising=False)
     monkeypatch.setenv("PINECALL_DEV_KEY", "the-dev-key")
     assert _the_bearer_of(main.a_worker(load_settings())) == "Bearer the-dev-key"
 

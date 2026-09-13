@@ -4,7 +4,7 @@
 # encrypts that file into the credstore and shreds it. The condition is the idempotence.
 [Unit]
 Description=Pinecall: the worker's key, minted once
-ConditionPathExists=!/etc/credstore.encrypted/PINECALL_API_KEY
+ConditionPathExists=!/etc/credstore.encrypted/PINECALL_WORKER_KEY
 Requires=pinecall-gateway.service
 After=pinecall-gateway.service
 
@@ -23,7 +23,7 @@ UMask=0077
 StandardOutput=file:/run/pinecall-worker.key
 StandardError=journal
 ExecStart=/opt/pinecall/venv/bin/pinecall-runtime keys issue --org default --label the-worker-on-this-box
-ExecStartPost=+/usr/bin/systemd-creds encrypt --with-key=auto --name=PINECALL_API_KEY /run/pinecall-worker.key /etc/credstore.encrypted/PINECALL_API_KEY
+ExecStartPost=+/usr/bin/systemd-creds encrypt --with-key=auto --name=PINECALL_WORKER_KEY /run/pinecall-worker.key /etc/credstore.encrypted/PINECALL_WORKER_KEY
 ExecStartPost=+/usr/bin/shred -u /run/pinecall-worker.key
 # The gateway's socket is open a moment after its process is; a first knock that lands early is
 # knocked again.
