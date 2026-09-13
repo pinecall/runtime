@@ -11,22 +11,14 @@ import argparse
 from pinecall._settings import Settings, load_settings, variable_of
 from pinecall.cli.columns import as_columns
 from pinecall.providers import catalog
-from pinecall.providers._inference import VENDOR as INFERENCE
-from pinecall.providers._inference import the_project_is_there
 from pinecall.providers.catalog import MODALITIES, Provider
 from pinecall.providers.models import DEFAULT_VENDOR
 from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS
-from pinecall.providers.plugin import installed
+from pinecall.providers.standing import standing
 
 PURPOSE: str = "every llm, stt and tts vendor this build runs, and what each one wants"
 
-HEADINGS = ("vendor", "does", "plugin", "key", "variable", "also known as")
-
-# One word per state, so a column scans. `ready` is the only one that means a call can be built.
-READY = "ready"
-NO_PLUGIN = "install"
-NO_KEY = "no key"
-ITS_OWN = "its own"
+HEADINGS = ("vendor", "does", "standing", "variable", "also known as")
 
 # Which vendor runs a stage when an agent declares none, marked in the table so the three that
 # actually run today are findable among forty-five.
@@ -63,18 +55,7 @@ def _a_row(row: Provider, settings: Settings) -> tuple[str, ...]:
     return (
         row.name + ours,
         does,
-        READY if installed(row) else NO_PLUGIN,
-        _the_key(row, settings),
+        standing(row, settings),
         variable_of(field) if (field := catalog.settings_field_of(row.name)) else "",
         " ".join(row.aliases),
     )
-
-
-def _the_key(row: Provider, settings: Settings) -> str:
-    """Present, absent, or a vendor whose credentials are its own affair. Never the key itself."""
-    if row.name == INFERENCE:
-        return READY if the_project_is_there(settings) else NO_KEY
-    field = catalog.settings_field_of(row.name)
-    if field is None:
-        return ITS_OWN
-    return READY if getattr(settings, field, None) else NO_KEY

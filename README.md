@@ -89,6 +89,7 @@ holds** — a dead one fails the deploy with its name on the screen, never a cal
 printf '%s' "$ELEVENLABS_API_KEY" | make secret NAME=ELEVEN_API_KEY     one secret, on stdin
 make restart                                                            a credential is read at start
 make doctor                                                             what the deploy runs last
+make providers [DOES=tts]                                               every vendor, and what each wants
 make status · make logs UNIT=worker · make ssh
 ```
 

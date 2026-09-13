@@ -16,12 +16,10 @@ from fastapi import APIRouter
 from pinecall._settings import Settings
 from pinecall.api._deps import ProviderKeysKeyDep, SettingsDep
 from pinecall.providers import catalog
-from pinecall.providers._inference import VENDOR as INFERENCE
-from pinecall.providers._inference import the_project_is_there
 from pinecall.providers.catalog import MODALITIES, Provider
 from pinecall.providers.models import DEFAULT_VENDOR
 from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS
-from pinecall.providers.plugin import installed
+from pinecall.providers.standing import READY, Standing, standing
 from pinecall.providers.tts.voices import voice_names
 from pinecall_protocol import WireModel
 
@@ -35,12 +33,13 @@ class ProviderRow(WireModel):
     does: list[str]
     aliases: list[str]
     note: str
-    # Whether this process could import the plugin. A worker is where a call is actually built, so
-    # on a split box this answers for the gateway — which is the machine an operator is looking at.
-    installed: bool
-    # Whether the BOX holds a key. An org's own key is never read here: this door answers the
-    # question an operator is asking, which is what the machine in front of them has.
-    keyed: bool
+    # What this vendor is waiting for on THIS box, in one word, decided by providers/standing.py so
+    # that no screen has to combine booleans of its own and get RTZR wrong. A worker is where a
+    # call is actually built, so on a split box the plugin half answers for the gateway — which is
+    # the machine an operator is looking at. An org's own key is never read here: this door answers
+    # the question an operator is asking, which is what the machine in front of them has.
+    standing: Standing
+    ready: bool
     # The variable a key for this vendor goes under, so a screen can print the one word to set.
     # None: this vendor brings its own credentials and there is nothing to bring.
     env: str | None
@@ -83,24 +82,14 @@ def rows(settings: Settings) -> list[ProviderRow]:
 
 
 def _a_row(row: Provider, settings: Settings) -> ProviderRow:
+    where = standing(row, settings)
     return ProviderRow(
         name=row.name,
         does=[modality for modality in MODALITIES if modality in row.does],
         aliases=list(row.aliases),
         note=row.note,
-        installed=installed(row),
-        keyed=_the_box_holds_one(row, settings),
+        standing=where,
+        ready=where == READY,
         env=row.env,
         extra=row.extra,
     )
-
-
-# A vendor that needs no key of ours is keyed: LiveKit Inference runs on the box's own project and
-# AWS on its own credential chain, and a screen that showed those two as "no key" would be sending
-# an operator to look for a key that does not exist.
-def _the_box_holds_one(row: Provider, settings: Settings) -> bool:
-    """Whether this box can pay this vendor: a key under its variable, or nothing to hold."""
-    if row.name == INFERENCE:
-        return the_project_is_there(settings)
-    field = catalog.settings_field_of(row.name)
-    return True if field is None else bool(getattr(settings, field, None))

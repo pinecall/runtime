@@ -25,7 +25,7 @@ CONTAINERS = $(filter-out $(TEI),$(wildcard containers/*))
 # espeak-ng is the voice a simulated caller speaks with (`pinecall simulate --voice`).
 PACKAGES = podman caddy nftables make curl espeak-ng
 
-.PHONY: install packages doctor
+.PHONY: install packages doctor providers
 install: packages
 	install -D -m 644 -t /etc/sysusers.d sysusers.d/pinecall.conf
 	install -D -m 644 -t /etc/tmpfiles.d tmpfiles.d/pinecall.conf
@@ -53,19 +53,30 @@ packages:
 	if [ -n "$$missing" ]; then echo "installing$$missing"; \
 	  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends $$missing >/dev/null; fi
 
-# The doctor, as the units see the box: their user, their environment file, and every credential
-# the credstore holds, in a transient unit systemd tears down on exit. The three localhost URLs are
-# the ones each .service sets, and box.env overrides them on a worker as it does for the worker.
-# Every key that is set is knocked at its own vendor: a dead one fails the deploy here, and not
-# a caller's first call.
-doctor:
-	systemd-run --quiet --pipe --wait --collect \
+# As the units see the box: their user, their environment file, and every credential the credstore
+# holds, in a transient unit systemd tears down on exit. The three localhost URLs are the ones each
+# .service sets, and box.env overrides them on a worker as it does for the worker.
+#
+# A verb run any other way on a box reads a box that does not exist: the credentials are systemd's
+# and are NOT in anybody's environment, so `providers` would say "no key" for every key the box
+# holds — and a screen that says that is the bug this whole table was written against.
+AS_THE_UNITS_SEE_IT = systemd-run --quiet --pipe --wait --collect \
 	  -p User=pinecall -p WorkingDirectory=/opt/pinecall/app \
 	  -E LIVEKIT_URL=ws://127.0.0.1:7880 -E PINECALL_GATEWAY_URL=http://127.0.0.1:8080 \
 	  -E TEI_URL=http://127.0.0.1:8081 \
 	  -p EnvironmentFile=/etc/pinecall/box.env \
-	  $(foreach credential,$(notdir $(wildcard $(CREDSTORE)/*)),-p ImportCredential=$(credential)) \
-	  $(RUNTIME) doctor
+	  $(foreach credential,$(notdir $(wildcard $(CREDSTORE)/*)),-p ImportCredential=$(credential))
+
+# Every key that is set is knocked at its own vendor: a dead one fails the deploy here, and not
+# a caller's first call.
+doctor:
+	$(AS_THE_UNITS_SEE_IT) $(RUNTIME) doctor
+
+# Every vendor this build runs, and what each one still wants ON THIS BOX — a plugin, a key, or
+# nothing. `make providers DOES=tts` narrows it. Reads the catalog and the credentials and asks
+# nothing of anybody, so it answers while the gateway is down.
+providers:
+	$(AS_THE_UNITS_SEE_IT) $(RUNTIME) providers $(if $(DOES),--does $(DOES))
 
 # What a box runs is its ROLE, read from /etc/pinecall/box.env: `all` is one machine with
 # everything (the default), `hub` is the control plane and the media plane with no worker, and
