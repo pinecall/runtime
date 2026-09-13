@@ -1,4 +1,4 @@
-"""A tool's read-back is queued at once, so it lands before the reply the model has yet to write."""
+"""A tool's read-back waits for its gap: it never cuts a sentence somebody is still hearing."""
 
 from __future__ import annotations
 
@@ -11,12 +11,10 @@ from pinecall.session.voice.reading_back import read_back
 pytestmark = pytest.mark.unit
 
 IT_IS_DONE = "Reservado: el lunes a las nueve con el doctor Sáez."
-THE_PREAMBLE = "Perfecto, le confirmo el lunes a las nueve."
-THE_REPLY = "Su cita está confirmada. ¿Alguna cosa más?"
 
 
 class FakeSpeech:
-    """A speech handle as a session hands one out: whether it is over, and who to tell then."""
+    """A speech handle as `read_back` uses one: whether it is over, and who to tell when it is."""
 
     def __init__(self, over: bool = False) -> None:
         self._over = over
@@ -36,7 +34,7 @@ class FakeSpeech:
 
 
 class FakeSession:
-    """A session that remembers what it was asked to say, in the order it was asked."""
+    """A session that remembers what it was asked to say, and what was playing when."""
 
     def __init__(self, playing: FakeSpeech | None = None) -> None:
         self.current_speech = playing
@@ -54,41 +52,60 @@ def test_with_nothing_playing_it_is_said_at_once() -> None:
     assert live.said == [IT_IS_DONE]
 
 
-def test_it_is_queued_while_the_preamble_is_still_being_spoken() -> None:
-    """The bug this file is about: waiting for the gap put the receipt after the whole reply."""
-    live = FakeSession(playing=FakeSpeech(over=False))
+def test_a_handle_that_is_already_over_is_not_waited_for() -> None:
+    live = FakeSession(playing=FakeSpeech(over=True))
 
     read_back(live, IT_IS_DONE)
 
-    assert live.said == [IT_IS_DONE], "a receipt that waits for a gap is a receipt said too late"
+    assert live.said == [IT_IS_DONE]
 
 
-def test_it_lands_before_the_reply_the_model_had_not_written_yet() -> None:
-    """Preamble, receipt, reply: the model's account of the result is queued after this one."""
-    playing = FakeSpeech(over=False)
-    live = FakeSession(playing=playing)
-
-    read_back(live, IT_IS_DONE)
-    live.say(THE_REPLY)  # the model, once it has seen the tool's answer
-
-    assert live.said == [IT_IS_DONE, THE_REPLY]
-
-
-def test_it_is_said_once_per_tool() -> None:
-    """One receipt per tool that ran. A read-back heard twice was its own bug, once."""
-    live = FakeSession(playing=FakeSpeech(over=False))
+def test_it_says_nothing_while_a_sentence_is_still_playing() -> None:
+    """The whole point: `say()` can only CUT, so the read-back has to wait to be said at all."""
+    playing = FakeSpeech()
+    live = FakeSession(playing)
 
     read_back(live, IT_IS_DONE)
 
-    assert live.said.count(IT_IS_DONE) == 1
+    assert live.said == [], "a caller is mid-sentence and hears no second voice over it"
 
 
-def test_a_speech_that_ends_afterwards_says_nothing_more() -> None:
-    """Nothing is left subscribed to the line: the receipt is spent when it is queued."""
-    playing = FakeSpeech(over=False)
-    live = FakeSession(playing=playing)
-
+def test_and_says_it_the_moment_that_sentence_ends() -> None:
+    playing = FakeSpeech()
+    live = FakeSession(playing)
     read_back(live, IT_IS_DONE)
+
+    live.current_speech = None
     playing.ends()
+
+    assert live.said == [IT_IS_DONE]
+
+
+def test_a_gap_that_closed_before_it_got_there_is_waited_out_again() -> None:
+    """The caller started the next turn while it waited. It lands at the first real silence, and
+    on top of nobody — which is what the recursion inside the callback is for."""
+    first, second = FakeSpeech(), FakeSpeech()
+    live = FakeSession(first)
+    read_back(live, IT_IS_DONE)
+
+    live.current_speech = second
+    first.ends()
+    assert live.said == [], "the next sentence had already started"
+
+    live.current_speech = None
+    second.ends()
+    assert live.said == [IT_IS_DONE]
+
+
+def test_it_is_said_once_and_not_once_per_sentence_it_waited_through() -> None:
+    first, second = FakeSpeech(), FakeSpeech()
+    live = FakeSession(first)
+    read_back(live, IT_IS_DONE)
+
+    live.current_speech = second
+    first.ends()
+    live.current_speech = None
+    second.ends()
+    second.ends()
 
     assert live.said == [IT_IS_DONE]
