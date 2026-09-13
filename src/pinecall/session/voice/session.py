@@ -54,6 +54,20 @@ ALIGNED_TRANSCRIPT = True
 # vad= is left to the session on a spoken call: undeclared, it builds livekit's own native
 # inference.VAD at min_silence 0.25 (agent_session.py:606-607, inference/vad.py:64), which is the
 # number we would have asked for. A written call passes None so that none is built at all.
+# How many times the model may be asked again after a tool answers, before it must give the turn
+# back. livekit's default is 3, and its own guidance is to "decrease it for agents whose tools
+# should rarely fire more than once per turn" (docs/agents/logic/tools/design) — which is every
+# agent on a phone line: a caller says one thing, a tool runs, the agent answers.
+#
+# At 3 the agent kept talking after it had finished. A booking on 2026-09-13 ended with "Muchas
+# gracias por llamar a Clínica Norte, ¡que vaya bien!" and then said the appointment back AGAIN,
+# unprompted, because two more generations were still owed to it. On a line that is the agent
+# carrying on after goodbye, and a caller has no way to know the call is over.
+#
+# One is the whole round: the tool answers, the model says what came back, the caller speaks next.
+ONE_ANSWER_PER_TOOL = 1
+
+
 def a_session(
     config: AgentConfig, kit: Kit, channel: Channel, keys: ProviderKeys
 ) -> AgentSession[None]:
@@ -61,7 +75,10 @@ def a_session(
     built = kit(config, keys)
     if channel not in CHANNELS_THAT_LISTEN:
         written: AgentSession[None] = AgentSession(
-            llm=built.llm, vad=None, turn_handling=WRITTEN_TURNS
+            llm=built.llm,
+            vad=None,
+            turn_handling=WRITTEN_TURNS,
+            max_tool_steps=ONE_ANSWER_PER_TOOL,
         )
         return written
     spoken: AgentSession[None] = AgentSession(
@@ -72,6 +89,7 @@ def a_session(
         use_tts_aligned_transcript=ALIGNED_TRANSCRIPT,
         tts_text_transforms=how_it_says_things(config),
         stt_context_options=what_it_listens_for(config, built.stt),
+        max_tool_steps=ONE_ANSWER_PER_TOOL,
     )
     return spoken
 
