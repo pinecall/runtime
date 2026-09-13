@@ -119,6 +119,16 @@ def _from_a_score(row: UsageRow, data: Mapping[str, Any]) -> UsageRow:
     """How many questions the judges asked a model, and what the log says they cost."""
     return replace(
         row,
-        judge_calls=int(data.get("judge_calls", 0)),
-        cost_eur=float(data.get("judge_cost_eur", 0.0)),
+        judge_calls=int(_measured(data, "judge_calls")),
+        cost_eur=_measured(data, "judge_cost_eur"),
     )
+
+
+# A key that is PRESENT and null is not a key that is missing, and `.get(name, 0)` only answers the
+# second one. `CallScore.judge_cost_eur` is `float | None` on purpose — a call nobody judged cost
+# nothing to judge — and it serialises as null, not as absent. So every score of an unjudged call,
+# which is most of them, reached `float(None)` and took the whole Usage page down with a 500.
+def _measured(data: Mapping[str, Any], name: str) -> float:
+    """The number the log recorded under that name; nothing recorded and nothing measured are 0."""
+    value = data.get(name)
+    return 0.0 if value is None else float(value)

@@ -29,6 +29,17 @@ A_SUMMARY: JsonObject = {
 }
 A_SCORE: JsonObject = {"passed": True, "judges": [], "judge_calls": 2, "judge_cost_eur": 0.001}
 
+# What a call nobody judged writes: `CallScore.judge_cost_eur` is `float | None`, so it serialises
+# as null and not as absent — which is a different thing from a key that is missing.
+A_SCORE_NOBODY_JUDGED: JsonObject = {
+    "passed": None,
+    "not_judged": "no judge was asked",
+    "judges": [],
+    "panel": None,
+    "judge_calls": 0,
+    "judge_cost_eur": None,
+}
+
 
 def metered(
     position: int, org: str | None, type: str, data: JsonObject, call: str = "CA_1"
@@ -88,3 +99,27 @@ def test_totals_sum_per_org_and_count_a_call_once_for_its_summary() -> None:
 def test_the_metered_types_are_the_summary_and_the_score_and_nothing_else() -> None:
     """Every other entry is the conversation; these two are what it consumed."""
     assert METERED_TYPES == ("call.summary", "call.score")
+
+
+def test_a_score_nobody_judged_costs_nothing_instead_of_raising() -> None:
+    """The 500 this fixes: `float(None)` on a key that is present and null. Most calls end this
+    way — nobody judged them — so one of these rows took the whole Usage page down with it."""
+    row = a_usage_row(metered(1, "acme", "call.score", A_SCORE_NOBODY_JUDGED))
+
+    assert row.judge_calls == 0
+    assert row.cost_eur == 0.0
+
+
+def test_a_page_of_rows_survives_one_unjudged_score_among_them() -> None:
+    """It is a page, and one row that cannot be folded is a page nobody can read."""
+    rows = [
+        a_usage_row(metered(1, "acme", "call.summary", A_SUMMARY)),
+        a_usage_row(metered(2, "acme", "call.score", A_SCORE_NOBODY_JUDGED)),
+        a_usage_row(metered(3, "acme", "call.score", A_SCORE)),
+    ]
+
+    totals = totals_by_org(rows)["acme"]
+
+    assert totals.calls == 1
+    assert totals.judge_calls == 2
+    assert totals.cost_eur == pytest.approx(0.013)
