@@ -36,9 +36,9 @@ pinecall-runtime gateway [--host 0.0.0.0] [--port 8080] [--reload]
 
 The control plane: HTTP and WebSocket, one process, the whole API of
 [protocol/gateway-api.md](protocol/gateway-api.md). It needs, at the least, one key of each
-provider role and either `PINECALL_DEV_KEY` (a laptop) or `DATABASE_URL` with the schema applied (a
-box) — and it uses the database whenever it answers, dev key or not. With a dev key it writes
-`~/.pinecall/dev` (0600) so the tenant CLI on the same machine finds it with nothing exported.
+provider role and `DATABASE_URL` with the schema applied — a laptop as much as a box, because a key
+is verified against the `api_keys` table and there is nowhere else it could be. With no database
+the gateway says so at startup and answers every keyed door 503 with the same sentence.
 
 `--reload` restarts on a source change; it is for writing the runtime, not for running it.
 
@@ -237,8 +237,7 @@ run after a deploy.
 $ pinecall-runtime doctor
 env: /Users/berna/pinecall-v2/runtime/.env
 
-! api keys              PINECALL_DEV_KEY — one key, org default, the api_keys table not read; the
-                        tables are Postgres's when it answers below. A box unsets it and issues org keys
+✓ api keys              the api_keys table — `pinecall-runtime keys issue --org <slug>` mints one
 ✓ provider keys         llm ANTHROPIC_API_KEY, OPENAI_API_KEY · stt SONIOX_API_KEY, … · tts ELEVEN_API_KEY
 ✓ provider keys answer  ANTHROPIC_API_KEY · OPENAI_API_KEY · SONIOX_API_KEY · …
 ✓ livekit               http://127.0.0.1:7880/ — HTTP 200
@@ -253,10 +252,9 @@ all up
 `✓` is answered, `!` is advice — something degraded that stops no call — and `✗` is broken. What it
 asks after depends on `PINECALL_ROLE`: `all`, `hub` (no worker) or `worker`.
 
-The first line is the one that reads differently on a laptop and on a box. A dev key is advice
-here and **the first thing down** on a box, because it is the only key such a gateway honours:
-every call would be org `default` and every tenant invisible — a silence no other check would
-notice.
+The first line used to read differently on a laptop and on a box, because a laptop could run on
+`PINECALL_DEV_KEY` — one key, org `default`, the table not read. That was a second runtime, and it
+is gone: there is one table everywhere, and the line names the verb that puts a key in it.
 
 ## `box`
 
@@ -290,7 +288,6 @@ own name, so the SDK that reads `ANTHROPIC_API_KEY` by itself and this runtime a
 | `DATABASE_URL` | Postgres 17 with pgvector and pg_textsearch: the one stateful service |
 | `TEI_URL` · `EMBED_PROVIDER` · `EMBED_MODEL` · `EMBED_BASE_URL` | who embeds, and where |
 | `ANTHROPIC_API_KEY` · `OPENAI_API_KEY` · `SONIOX_API_KEY` · `DEEPGRAM_API_KEY` · `ELEVEN_API_KEY` | a call needs one key of each role: llm, stt, tts |
-| `PINECALL_DEV_KEY` | one key, org `default`, the only one honoured; needs no database, uses one when it answers. The sandbox only |
 | `PINECALL_WORKER_KEY` | an org's key, for a worker or an app that runs here |
 | `PINECALL_OPS_KEY` | what `/v1/ops/*` is authenticated by. Unset, the operator API is closed |
 | `PINECALL_VAULT_KEY` | the Fernet key a tenant's own provider keys are encrypted under |
@@ -312,18 +309,23 @@ own name, so the SDK that reads `ANTHROPIC_API_KEY` by itself and this runtime a
 docker compose -f infra/compose/dev.yml up -d      # livekit · sip · redis · postgres · tei
 cd runtime && uv sync --extra runtime --group dev
 cp .env.example .env                               # and fill in the provider keys
+pinecall-runtime migrate up                        # the schema, on the compose Postgres
 pinecall-runtime doctor                            # every line green before anything else
-pinecall-runtime gateway                           # writes ~/.pinecall/dev; the CLI finds it
+pinecall-runtime init --org clinica \
+  --email berna@clinica.test --person "Berna"      # the first org, and a link to set a password
+pinecall-runtime gateway
 pinecall-runtime worker dev                        # in another terminal, for spoken calls
+pinecall login http://localhost:8080               # in the agent's directory, as a person
 ```
 
-That gateway runs on a dev key: one key, org `default`, and no `pinecall login` anywhere. Give it
-a database of its own if the same Postgres also holds a real org — `create database pinecall_dev`,
-the two extensions, `migrate up` against it — because a dev key IS org `default`, and an agent
-another org registered in the shared database is one the dev key is told it cannot read. With the
-compose Postgres answering it has every table a box has — the knowledge base, contact memory, the
-vault (given a `PINECALL_VAULT_KEY`), durable routes — and without it, it still runs, keeps its
-log in memory and says so on its first line. On an M-series Mac, TEI needs the arm64 tag
+**This is the same runtime a box runs, and there is no other.** A laptop used to have one of its
+own — `PINECALL_DEV_KEY`, one key that needed no database, org `default`, no login anywhere — and
+what it bought in the first five minutes it charged back in every hour after: two sets of keys,
+two orgs, two behaviours, and no way to see which you were on. So: the same Postgres, the same
+migrations, the same issued keys, and `init` in place of the magic key.
+
+It has every table a box has — the knowledge base, contact memory, the vault (given a
+`PINECALL_VAULT_KEY`), durable routes. On an M-series Mac, TEI needs the arm64 tag
 `infra/README.md` names in `TEI_IMAGE`; without an embedder a push answers 503 and a lookup is
 skipped and said in the call's log.
 
@@ -339,6 +341,5 @@ pinecall-runtime keys issue --org clinica --label "berna's laptop"
 pinecall-runtime routes add +34910000000 clinica-norte --org clinica
 ```
 
-`PINECALL_DEV_KEY` is never set on a box: it opens no database, and a box IS its database.
-[multi-tenancy.md](multi-tenancy.md) says what follows from that, and what the tenant does with the
-key that came out of `keys issue`.
+[multi-tenancy.md](multi-tenancy.md) says what a key IS, and what the tenant does with the one that
+came out of `keys issue`.

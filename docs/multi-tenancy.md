@@ -26,12 +26,11 @@ org off that key — off the `KeyRecord`, never off anything the app sent — an
 
 So "clínica-norte does not have a key" is not a gap. It never had one, and it never will.
 
-## The four credentials
+## The three credentials
 
 | | what it is | who mints it | where it lives | opens |
 |---|---|---|---|---|
 | **org API key** | `pk_` + 256 bits. The tenant's own | **the tenant itself**, `POST /v1/keys` or `pinecall keys issue` (the `keys` scope) — or the operator, `keys issue --org` | the tenant's `~/.pinecall/credentials`, or `PINECALL_WORKER_KEY` in their container | every `/v1/…` door, for that org's rows only |
-| **dev key** | `PINECALL_DEV_KEY`, one string in the gateway's own environment | whoever runs the gateway | the gateway's `.env`, and `~/.pinecall/dev` for the CLI beside it | everything, as org `default`, with or without a database |
 | **ops key** | `PINECALL_OPS_KEY`, the box's own | the box, once (`box secrets`) | a systemd credential on the box | `/v1/ops/*` and nothing else. It is a gate, not an identity: it belongs to no org |
 | **room token** | a LiveKit JWT bound to ONE call | the gateway, from an org key, per visit | a browser tab, for a minute | that call's room and that call's log. See [protocol/tokens.md](protocol/tokens.md) |
 
@@ -44,42 +43,34 @@ opens `keys`, which mints one for a **machine** — `app` and production when no
 naming nobody, because people get keys by logging in. A key may not issue a scope it does not
 itself open, and a fingerprint that is not the org's is the 404 a stranger's is.
 
-## Why the laptop never ran `pinecall login`
+## A laptop is a box with one tenant
 
-Because the gateway on it runs on **a dev key**, and a dev key is deliberately a different shape of
-thing:
+There was a fourth credential here: `PINECALL_DEV_KEY`, one string in the gateway's own
+environment that needed no database and, when it was set, was the **only** key the gateway
+honoured — every call org `default`, the `api_keys` table not read, and a `~/.pinecall/dev` file
+the CLI beside it picked up so nobody had to log in. It bought five minutes at the start and cost
+a second runtime: a laptop and a box had different keys, different orgs, different worlds and
+different bugs, and the one you were on was decided by an environment variable you could not see.
+It is gone.
+
+**One runtime for everything.** A laptop runs the same Postgres, the same migrations and the same
+issued keys a box does:
 
 ```
-PINECALL_DEV_KEY=…            # in runtime/.env
-pinecall-runtime gateway      # writes ~/.pinecall/dev (0600): its URL and its key
+docker compose -f infra/compose/dev.yml up -d
+pinecall-runtime migrate up
+pinecall-runtime init --org clinica --email berna@clinica.test --person "Berna"
+pinecall-runtime gateway
+pinecall login http://localhost:8080
 ```
 
-The tenant CLI beside it reads that file and needs no login — that is the whole point: `git clone`,
-`pnpm i`, `pinecall run`, and an agent answers. A dev key **needs** no database and **uses** one
-when `DATABASE_URL` answers, exactly as the log does: with the dev stack up, the same laptop has
-the knowledge base, a contact's memory, durable routes and the vault, because those are tables and
-the tables are there. Without it, everything that is a table is absent or in memory:
+`init` is the one command that replaces the magic key: it makes the first org, invites its first
+admin — who is also made an **operator** of this box, because somebody has to be able to make the
+second org — and prints the link that opens the password screen. After it, a laptop is signed in
+the way a customer's machine is, with a key of that person's own.
 
-| on a dev key | with Postgres | without |
-|---|---|---|
-| the knowledge base, a contact's memory, a tenant's own provider keys | on | absent: the doors say so with a 503 that names the database |
-| the orgs, the routes, the minted tokens, the pipeline overrides, the eval runs | durable | in memory, forgotten when the process exits |
-| the log | durable | in memory, and the gateway says so on its first line |
-| which keys open the doors | **the dev key alone**, whatever `api_keys` holds | the dev key alone |
-
-An exported `PINECALL_WORKER_KEY` is ignored out loud, by the CLI and by the box alike: a gateway on a
-dev key honours that key and no other.
-
-**Should the runtime allow this? Yes — and only here.** The alternative is that the first five
-minutes with this repo are a database installation. The rule that keeps it safe is short:
-
-> **A box never sets `PINECALL_DEV_KEY`.** A box has tenants, and a gateway with a dev key honours
-> that one key and reads no `api_keys` at all. Setting one on a box would make every call org
-> `default` and every real tenant invisible — not a leak, but a silence. The doctor's first line
-> is that silence, said out loud.
-
-A gateway with **neither** a dev key nor a database refuses to start at all: it could verify
-nothing.
+A gateway with **no database refuses to verify anything**, says so on its first line at startup,
+and answers every keyed door `503` with the same sentence. It does not come up looking healthy.
 
 ## Giving a tenant its first person
 
@@ -166,7 +157,7 @@ empty knowledge base. A push and a drop never fall back — they are about one c
 drop must not take the telephone's base. A contact's facts are what a CALL learned, and there is
 no org-wide sandbox call to inherit from: they are the corner's, or nothing. The counts behind `memory_facts` and `knowledge_chunks` read both worlds, because a
 row a laptop wrote is a row on the same disk. `agent.registered` and `call.started` carry `env`, so a console and a session
-list can say which world they are reading. A dev key opens the sandbox — a laptop is where things
+list can say which world they are reading. A login keeps a sandbox key — a laptop is where things
 are written — and every key issued before the field existed is production's.
 
 ```bash

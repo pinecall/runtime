@@ -83,18 +83,10 @@ BRING_A_LIVE_KEY = "put a live key in with `make secret NAME={variable}`, from t
 # and whichever status it answers a keyless GET with is an answer.
 TEI_INFO = "/info"
 
-# Which keys this gateway would honour, and the one combination nothing else catches. A dev key is
-# the ONLY key a gateway honours — the api_keys table is not read — so a BOX that sets one answers
-# every call as org `default` and every real tenant becomes invisible: not a leak, a silence, and a
-# silence no other check here would notice. On a laptop it is the whole point, and the line says so.
-DEV_KEY_ON_A_BOX = (
-    "PINECALL_DEV_KEY is set on a box: it is the only key honoured, so every call is org default "
-    "and every tenant is invisible. Unset it and start the gateway on the api_keys table"
-)
-A_DEV_KEY = (
-    "PINECALL_DEV_KEY — one key, org default, the api_keys table not read; the tables are "
-    "Postgres's when it answers below. A box unsets it and issues org keys instead"
-)
+# Which keys this gateway would honour. There used to be a second answer — PINECALL_DEV_KEY, one
+# key that needed no database and, when set, the ONLY key honoured — and a box that set one by
+# accident answered every call as org `default` with every real tenant invisible. It is gone, and
+# so is the check: there is one table, and this line names the verb that puts a key in it.
 THE_KEYS_TABLE = "the api_keys table — `pinecall-runtime keys issue --org <slug>` mints one"
 
 # The LiveKit CLI is how a person reads current documentation and manages trunks and dispatch
@@ -298,14 +290,9 @@ def check_the_livekit_cli_is_installed(_settings: Settings, probes: Probes) -> R
     return Result(LIVEKIT_CLI, True, f"{found} — {WHAT_LIVEKIT_CLI_IS_FOR}")
 
 
-def check_which_keys_are_honoured(settings: Settings, _probes: Probes) -> Result:
-    """Which keys open this gateway's doors — the table, or the one dev key that replaces it."""
-    if not settings.dev_key:
-        return Result("api keys", True, THE_KEYS_TABLE)
-    # A box is a box by what it was told to be, or by having opened the operator API at all.
-    if settings.role != "all" or settings.ops_key:
-        return Result("api keys", False, DEV_KEY_ON_A_BOX)
-    return Result("api keys", False, A_DEV_KEY, advisory=True)
+def check_which_keys_are_honoured(_settings: Settings, _probes: Probes) -> Result:
+    """Which keys open this gateway's doors. One table, and this names the verb that fills it."""
+    return Result("api keys", True, THE_KEYS_TABLE)
 
 
 # The order the report reads, and the first ✗ in it is the one the verdict names. `lk` is last

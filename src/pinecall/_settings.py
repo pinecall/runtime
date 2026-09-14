@@ -272,16 +272,6 @@ class Settings(VendorKeys):
         default=None,
         description="The org key the worker knocks its gateway with, as `keys issue` printed it.",
     )
-    # One API key that needs no database, so a clone runs the gateway before Postgres exists —
-    # and uses the database when it is there, tables and all. Set it and it is the ONLY key the
-    # gateway honours, whatever the api_keys table says: a box, which has tenants, never sets it.
-    dev_key: str | None = Field(
-        default=None,
-        description=(
-            "One API key that needs no database, and uses one when it answers. Set it and it is "
-            "the only key honoured. Dev only."
-        ),
-    )
     # The one secret that guards other people's secrets: a Fernet key, generated once on the box,
     # under which every tenant's own provider key is encrypted at rest — here and never in the
     # database, so a stolen dump is not a stolen tenant. Unset, every call runs on the box's keys.

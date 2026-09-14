@@ -11,7 +11,6 @@ import pytest
 from livekit.agents import JobContext, JobExecutorType, JobProcess
 
 from pinecall._settings import load_settings
-from pinecall.auth import dev_file
 from pinecall.evals import a_score
 from pinecall.providers import llm, stt, tts
 from pinecall.session.voice import VoiceBridge, a_bridge
@@ -21,7 +20,6 @@ from pinecall.worker.load import MachineLoad, SlotLoad, reports_no_load
 
 pytestmark = pytest.mark.unit
 
-A_DEV_KEY = "a-dev-key-left-over-in-this-shell"
 A_FLEETS_KEY = "pk_a_fleets_key_nobody_will_ever_deploy"
 
 
@@ -169,47 +167,34 @@ def test_a_worker_on_a_box_claims_no_app_socket_and_takes_the_newest_holder() ->
     assert main.a_worker(load_settings()).app is None
 
 
-# The box's posture: PINECALL_WORKER_KEY holds the key `pinecall-runtime keys issue` printed, and
-# there is no dev key, because a gateway that reads one opens no database at all. Before this, the
-# worker knocked with the dev key alone and a deployed one therefore sent `Bearer ""`.
+# One key, wherever this worker runs: PINECALL_WORKER_KEY holds what `keys issue --scope app`
+# printed. It used to be three — this, a dev key exported by hand, and the one a local gateway
+# had left in ~/.pinecall/dev, which beat both — and the order was invisible and wrong in each
+# direction: a worker on a box once sent `Bearer ""`, and a laptop's spoken suite died on
+# `GET /v1/routes: 401` for fifteen minutes because the exported key was the one NOT honoured.
 def test_the_worker_knocks_with_the_fleets_own_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PINECALL_WORKER_KEY", A_FLEETS_KEY)
-    monkeypatch.delenv("PINECALL_DEV_KEY", raising=False)
     assert _the_bearer_of(main.a_worker(load_settings())) == f"Bearer {A_FLEETS_KEY}"
 
 
-# A gateway on a dev key opens no database, so there are no api_keys rows for an issued key to
-# match and it is refused with a bare 401. On 2026-09-11 a whole spoken suite died that way: every
-# job answered `GET /v1/routes: 401 this door takes an API key` and the run sat until its
-# fifteen-minute deadline. What tells the two cases apart is not the url's shape but the gateway's
-# own word: the door it left in ~/.pinecall/dev, which the tenant's CLI reads the same way.
-def test_a_laptop_knocks_at_the_gateway_that_left_its_door_with_that_doors_key(
+def test_a_worker_nobody_issued_a_key_for_knocks_with_nothing_rather_than_guessing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A dev-key gateway honours one key. The exported org key is provably not it."""
-    dev_file.written(A_DEV_KEY, 8080)
+    monkeypatch.delenv("PINECALL_WORKER_KEY", raising=False)
+    assert main.the_key_for(load_settings()) == ""
+
+
+# The same key whichever gateway it is pointed at. A local gateway used to answer only the key it
+# had left on disk, so which of the two won depended on the url — and a laptop and a box were two
+# runtimes with two rules. One runtime now: a laptop runs the same Postgres and the same issued key.
+def test_the_url_the_gateway_is_at_does_not_change_which_key_is_sent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("PINECALL_WORKER_KEY", A_FLEETS_KEY)
     monkeypatch.setenv("PINECALL_GATEWAY_URL", "http://127.0.0.1:8080")
-    assert _the_bearer_of(main.a_worker(load_settings())) == f"Bearer {A_DEV_KEY}"
-
-
-def test_a_laptop_with_both_keys_knocks_at_a_BOX_with_the_key_it_was_issued(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A box runs on issued keys and never on a dev key: a door on this machine is not about it."""
-    dev_file.written(A_DEV_KEY, 8080)
-    monkeypatch.setenv("PINECALL_WORKER_KEY", A_FLEETS_KEY)
+    assert _the_bearer_of(main.a_worker(load_settings())) == f"Bearer {A_FLEETS_KEY}"
     monkeypatch.setenv("PINECALL_GATEWAY_URL", "https://gateway.example.com")
     assert _the_bearer_of(main.a_worker(load_settings())) == f"Bearer {A_FLEETS_KEY}"
-
-
-def test_a_laptop_with_only_a_dev_key_exported_still_knocks_with_it(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A clone runs the gateway before Postgres exists, and its worker has to reach that gateway."""
-    monkeypatch.delenv("PINECALL_WORKER_KEY", raising=False)
-    monkeypatch.setenv("PINECALL_DEV_KEY", "the-dev-key")
-    assert _the_bearer_of(main.a_worker(load_settings())) == "Bearer the-dev-key"
 
 
 def _the_bearer_of(built: Worker) -> str | None:

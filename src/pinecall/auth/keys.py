@@ -12,10 +12,8 @@ from typing import Any, Protocol
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
 from pinecall.types import (
-    DEFAULT_ORG,
     KEY_SCOPES,
     PRODUCTION,
-    SANDBOX,
     THE_TEAM,
     Env,
     an_env,
@@ -306,20 +304,20 @@ class PostgresKeys:
         return tag.strip() != CHANGED_NOTHING
 
 
-# A laptop is one tenant, and it is the default org: the logs a dev clone writes against a
-# database that has been migrated are the default org's, and the dev key must read them back.
-# And a laptop is where things are written, so the one key it runs on opens the sandbox: what
-# `pinecall run` registers there is a sandbox agent, and its calls say so.
-DEV_KEY_RECORD = KeyRecord(key_id="dev", org=DEFAULT_ORG, label="PINECALL_DEV_KEY", env=SANDBOX)
+# There was a second answer here: PINECALL_DEV_KEY, one key that needed no database, which made a
+# clone a gateway of its own with one org, one world and no tenants — a second runtime nobody
+# asked for, whose behaviour a box never had. One runtime for everything now, so a gateway reads
+# the keys a person issued, and a laptop runs the same Postgres the box does.
+#
+# With no database there is nowhere to check a key, and None is that said out loud: the lifespan
+# logs this line at startup and every door that takes a key answers 503 with it, rather than a
+# gateway that comes up looking healthy and refuses each request as though the key were wrong.
+NO_KEYS_TABLE = "no database: a key is verified against the api_keys table, and there is none here"
 
 
-def keys_for(settings: Settings, pool: Pool | None) -> Keys:
-    """The dev key wins when it is set: that is what makes a clone run with no Postgres at all."""
-    if settings.dev_key:
-        return MemoryKeys({settings.dev_key: DEV_KEY_RECORD})
-    if pool is None:
-        raise RuntimeError("no PINECALL_DEV_KEY and no database: the gateway can verify nothing")
-    return PostgresKeys(pool)
+def keys_for(settings: Settings, pool: Pool | None) -> Keys | None:  # noqa: ARG001
+    """The keys table, which is the only place a key is ever checked. None with no database."""
+    return None if pool is None else PostgresKeys(pool)
 
 
 def _a_key_id() -> str:

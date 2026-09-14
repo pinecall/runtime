@@ -22,7 +22,7 @@ from pinecall.routes.trunks import MemoryTrunks
 from pinecall.routes.twilio import TWILIO_SIGNALLING
 from pinecall.types import PRODUCTION, SANDBOX
 from tests.api.carriers import A_KEY_SID, A_SID, FakeTwilio
-from tests.api.conftest import A_DEV_KEY, A_LIVEKIT, A_RECORD, A_VAULT_KEY, AGENT, AN_OPS_KEY
+from tests.api.conftest import A_LIVEKIT, A_RECORD, A_VAULT_KEY, AGENT, AN_OPS_KEY
 
 pytestmark = pytest.mark.unit
 
@@ -35,7 +35,6 @@ SIP_BODY = {"kind": "sip", "username": "pbx", "password": "pw", "addresses": ["2
 def settings() -> Settings:
     """A box with a name: what a carrier's trunk is pointed at."""
     return Settings(
-        dev_key=A_DEV_KEY,
         ops_key=AN_OPS_KEY,
         vault_key=A_VAULT_KEY,
         livekit_api_key=A_LIVEKIT.api_key,

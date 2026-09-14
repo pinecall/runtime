@@ -7,10 +7,10 @@ from typing import NoReturn, Protocol, override
 
 from pinecall.cli import (
     box,
-    chat,
     doctor,
     fleet,
     gateway,
+    init,
     keys,
     migrate,
     orgs,
@@ -33,10 +33,10 @@ class Group(Protocol):
 
 # A new group is one import and one line here; this order is the order the help prints.
 GROUP_MODULES: dict[str, Group] = {
+    "init": init,
     "gateway": gateway,
     "worker": worker,
     "sessions": sessions,
-    "chat": chat,
     "orgs": orgs,
     "routes": routes,
     "keys": keys,

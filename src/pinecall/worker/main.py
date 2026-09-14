@@ -9,7 +9,6 @@ from functools import partial
 from livekit.agents import AgentServer, JobContext, JobProcess
 
 from pinecall._settings import Settings, load_settings, variable_of
-from pinecall.auth import dev_file
 from pinecall.evals import a_score
 from pinecall.providers.pipeline import warm_the_vendor_tables
 from pinecall.session.voice import a_bridge
@@ -36,31 +35,20 @@ async def job(ctx: JobContext) -> None:
     await answer(ctx, a_worker(load_settings()))
 
 
-# Which key a worker knocks with is the question the tenant's CLI answers in `cli/env.ts:doorFrom`,
-# answered from the same fact: a gateway running on a dev key leaves its door in ~/.pinecall/dev,
-# and that gateway honours its own key and no other — it opens no database, so there is no
-# api_keys row for an org key to match. A worker about to knock at THAT url therefore sends the
-# dev key it left, and says so when an org key was exported beside it: PINECALL_WORKER_KEY in the
-# shell, a gateway on a dev key, and every job of a spoken suite died on `GET /v1/routes: 401`
-# until the run timed out (2026-09-11). Any other gateway keeps the old order — the org key, then
-# a dev key exported by hand for a gateway that has no file of its own.
-IGNORING_THE_WORKER_KEY = (
-    "ignoring PINECALL_WORKER_KEY: the local gateway at %s honours its dev key only"
-)
-
-
-def the_key_for(settings: Settings, door: dev_file.Door | None) -> str:
-    """What this worker knocks at its gateway with: the door's own key when the door is that one."""
-    if door is not None and door.is_at(settings.gateway_url):
-        if settings.worker_key:
-            log.warning(IGNORING_THE_WORKER_KEY, settings.gateway_url)
-        return door.key
-    return settings.worker_key or settings.dev_key or ""
+# One key, issued by a person, wherever this worker runs. It used to be three: the org key, a dev
+# key exported by hand, and — winning over both — whatever a local gateway had left in
+# ~/.pinecall/dev, because a gateway on a dev key honoured that key and no other. The order was
+# invisible and got it wrong both ways: PINECALL_WORKER_KEY in the shell against a gateway on a dev
+# key killed every job of a spoken suite on `GET /v1/routes: 401` until the run timed out
+# (2026-09-11). There is one runtime now and one key: `keys issue --scope app`.
+def the_key_for(settings: Settings) -> str:
+    """What this worker knocks at its gateway with. Empty is a worker nobody issued a key for."""
+    return settings.worker_key or ""
 
 
 def a_worker(settings: Settings) -> Worker:
     """What every job of a process shares: the gateway, the vendors, the bridge, the recordings."""
-    gateway = reaching(settings.gateway_url, the_key_for(settings, dev_file.found()))
+    gateway = reaching(settings.gateway_url, the_key_for(settings))
     return Worker(
         gateway=gateway,
         kit=kit_for(settings),

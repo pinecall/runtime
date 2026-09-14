@@ -8,7 +8,6 @@ import pytest
 
 from pinecall._settings import Settings
 from pinecall.auth.keys import (
-    DEV_KEY_RECORD,
     KEY_PREFIX,
     KeyRecord,
     MemoryKeys,
@@ -194,29 +193,15 @@ def test_the_migration_checks_the_very_worlds_the_runtime_knows() -> None:
     assert all(sorted(re.findall(r"'([a-z]+)'", one)) == sorted(ENVS) for one in worlds)
 
 
-def test_the_dev_key_opens_development() -> None:
-    """A laptop is where things are written: what `pinecall run` registers there is not deployed."""
-    assert DEV_KEY_RECORD.env == SANDBOX
-    assert DEV_KEY_RECORD.scopes == KEY_SCOPES
-
-
 async def test_a_key_no_row_answers_to_is_none_and_not_an_error() -> None:
     assert await PostgresKeys(_APoolOfOneRow(None)).verify(A_KEY) is None
 
 
-def test_the_dev_key_is_the_only_key_when_it_is_set() -> None:
-    keys = keys_for(Settings(dev_key="the-dev-key"), pool=None)
-    assert isinstance(keys, MemoryKeys)
-
-
-async def test_the_dev_key_carries_its_own_org() -> None:
-    keys = keys_for(Settings(dev_key="the-dev-key"), pool=None)
-    assert await keys.verify("the-dev-key") == DEV_KEY_RECORD
-
-
-def test_a_gateway_with_no_dev_key_and_no_database_says_it_can_verify_nothing() -> None:
-    with pytest.raises(RuntimeError, match="verify nothing"):
-        keys_for(Settings(dev_key=None), pool=None)
+# PINECALL_DEV_KEY was the second answer: one key that needed no database and, when it was set,
+# the ONLY key the gateway honoured — one org, one world, no tenants, which is a second runtime
+# with behaviour a box never had. There is one now, and it reads the table a person writes.
+def test_a_gateway_with_no_database_has_nowhere_to_verify_a_key_and_says_so() -> None:
+    assert keys_for(Settings(), pool=None) is None
 
 
 def _a_row(

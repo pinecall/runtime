@@ -143,7 +143,7 @@ def test_a_token_is_told_from_a_key_by_its_shape_alone() -> None:
     assert not is_a_jwt("empty..parts")
 
 
-async def test_the_dev_key_path_is_untouched_by_any_of_this() -> None:
+async def test_an_api_key_is_untouched_by_any_of_this() -> None:
     """A key is still a key: it reads the tenant's projection and names no call."""
     record = KeyRecord(key_id="k_1", org="clinica")
     reader = await a_reader(A_KEY, MemoryKeys({A_KEY: record}), THE_PAIR)

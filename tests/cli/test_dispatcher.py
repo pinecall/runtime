@@ -86,10 +86,10 @@ def test_the_doctor_group_is_wired_to_the_doctor_module() -> None:
 
 def test_every_group_says_in_one_line_what_it_is() -> None:
     assert set(GROUPS) == {
+        "init",
         "gateway",
         "worker",
         "sessions",
-        "chat",
         "orgs",
         "routes",
         "keys",

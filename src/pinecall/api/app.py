@@ -50,7 +50,7 @@ from pinecall.api.supervise import verbs
 from pinecall.api.whatsapp import webhook
 from pinecall.api.whatsapp.threads import Threads
 from pinecall.auth.codes import LoginCodes
-from pinecall.auth.keys import keys_for
+from pinecall.auth.keys import NO_KEYS_TABLE, keys_for
 from pinecall.auth.members import members_for
 from pinecall.auth.pairing import Pairings
 from pinecall.auth.throttle import Throttle
@@ -128,7 +128,11 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     store = await _a_store(settings)
     gateway.state.settings = settings
     gateway.state.store = store
+    # None with no database, which is a gateway that can verify nothing: said here so it is read
+    # at startup and not discovered by the first request. auth/keys.py.
     gateway.state.keys = keys_for(settings, pool)
+    if gateway.state.keys is None:
+        logger.error(NO_KEYS_TABLE)
     # Who the tenants are and what each may consume. A clone with no database has the default
     # org in memory and no limits, which is what a laptop with nothing up yet means.
     gateway.state.orgs = orgs_for(pool)

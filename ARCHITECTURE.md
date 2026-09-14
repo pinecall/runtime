@@ -163,9 +163,9 @@ durable and none of it should be: "it is a fact about which sockets are open rig
 fact about the world. The world is the log." `docs/decisions/api.md`, `dispatch.md`,
 `supervise.md`, `whatsapp.md`, `eval-runner.md`.
 
-A gateway on a dev key opens no Postgres pool, so it holds no memory and no knowledge: a lookup
-finds nothing and refuses nobody, and the knowledge and contact doors say so
-in one sentence each (`this gateway keeps no knowledge: it runs on a dev key`, 503).
+A gateway that opens no Postgres pool holds no memory and no knowledge: a lookup finds nothing and
+refuses nobody, and the knowledge and contact doors say so in one sentence each (503). It cannot
+verify a key either, which it says at startup and at every keyed door — one runtime, one table.
 
 ## 5. The worker, process 2
 
@@ -301,8 +301,9 @@ clock. **Compact the view, never the log.** `docs/decisions/log.md`.
 hold one more agent, keep one more fact, push these chunks — one refusal vocabulary,
 `credits.exhausted` in the agent's own log and the same sentence at the door), `meter.py` (every org's consumption, folded from the log as it grows, one
 cursor per process), `vault.py` (a tenant's own provider keys, Fernet at rest, written at two
-doors — the tenant's own and the operator's — and read back by exactly one, the worker's). `auth/keys.py` (sha256, no salt; a **dev key** that needs no database, is
-then the only key honoured, and opens `sandbox`), `auth/bearer.py` (one parser of the header, one close code),
+doors — the tenant's own and the operator's — and read back by exactly one, the worker's). `auth/keys.py` (sha256, no salt; the `api_keys` table and nothing beside it — `PINECALL_DEV_KEY`,
+one key that needed no database and was then the ONLY key honoured, is gone, and with it the
+second runtime a laptop used to be), `auth/bearer.py` (one parser of the header, one close code),
 `auth/scopes.py` (which projection, and the room token that carries one call, one scope),
 `auth/members.py` (the org's people and their invitations), `auth/passwords.py` (argon2id, the one
 slow hash in the tree, for the one secret a person invents), `auth/codes.py` (one-use login codes,

@@ -27,8 +27,8 @@ Then, from an example in the agents repository, `pinecall run` registers the age
 `pinecall chat` talks to it. `pinecall knowledge push ./knowledge/docs --base clinica-norte`
 puts the agent's files where its `search` tool reads from, and `pinecall memory
 <contact>` prints what a caller's calls taught the agent (`memory forget` erases it). Both are
-tables in Postgres, and the vectors are whichever embedder `EMBED_PROVIDER` names — on a dev key,
-with no database, a lookup finds nothing and the push says so.
+tables in Postgres, and the vectors are whichever embedder `EMBED_PROVIDER` names — with no
+embedder answering, a lookup finds nothing and the push says so.
 
 ```
 EMBED_PROVIDER=tei                       who embeds: tei · perplexity · openrouter
@@ -179,7 +179,7 @@ agents repository's, and speak to this gateway with the org's key.
 | `docs/scaling.md` | one server to a fleet: the three planes, seats not CPU, the heartbeats, cordon, the loop, overflow at the door |
 | `docs/the-fleet.html` | the same fleet on one page for a reader: every way to run it, every verb and door, what was measured, what is left and why |
 | `docs/the-runtime-cli.md` | every `pinecall-runtime` verb: what it takes, what it speaks to, and the two walkthroughs |
-| `docs/multi-tenancy.md` | orgs, keys and tenants: what a key IS, what a dev key deliberately cannot do, and how a tenant is given one |
+| `docs/multi-tenancy.md` | orgs, keys and tenants: what a key IS, why a laptop runs the same runtime a box does, and how a tenant is given one |
 | `docs/protocol/gateway-api.md` | every door a tenant's own code may knock at, with an app in thirty lines |
 | `docs/decisions/` | why each module is the way it is, one page per module |
 | `docs/protocol/` | the operator API and the token door, as public contracts |

@@ -20,7 +20,7 @@ from pinecall.fleet import Heartbeat, Roster
 from pinecall.log.store import MemoryStore
 from pinecall.tokens.ledger import MemoryTokens
 from pinecall.types.dispatch import AGENT_KEY, CALLER_KEY, METADATA_KEY, SCOPE_KEY, WORKER_NAME
-from tests.api.conftest import A_DEV_KEY, A_KEY, A_LIVEKIT, AGENT, AN_OPS_KEY
+from tests.api.conftest import A_KEY, A_LIVEKIT, AGENT, AN_OPS_KEY
 from tests.api.talking import a_door, a_register, an_app
 
 pytestmark = pytest.mark.unit
@@ -207,7 +207,6 @@ def test_the_ttl_is_a_minute_by_default_and_ten_at_most(gateway: TestClient) -> 
 def test_the_browser_is_told_the_public_url_when_the_box_has_one(gateway: TestClient) -> None:
     """A box reaches LiveKit on localhost; a browser cannot, so server_url is the public one."""
     public = Settings(
-        dev_key=A_DEV_KEY,
         ops_key=AN_OPS_KEY,
         livekit_api_key=A_LIVEKIT.api_key,
         livekit_api_secret=A_LIVEKIT.api_secret,

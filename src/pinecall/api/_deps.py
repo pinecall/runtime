@@ -11,7 +11,7 @@ from starlette.requests import HTTPConnection
 from pinecall._settings import Settings
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.codes import LoginCodes
-from pinecall.auth.keys import KeyRecord, Keys, not_opening
+from pinecall.auth.keys import NO_KEYS_TABLE, KeyRecord, Keys, not_opening
 from pinecall.auth.members import Members
 from pinecall.auth.pairing import Pairings
 from pinecall.auth.throttle import Throttle
@@ -74,8 +74,11 @@ def what_is_live(connection: HTTPConnection) -> Any:
 
 
 def the_keys(connection: HTTPConnection) -> Keys:
-    """Where an API key is verified."""
-    return held(connection, "keys")
+    """Where an API key is verified. A gateway with no database verifies nothing, and says which."""
+    keys: Keys | None = getattr(connection.app.state, "keys", None)
+    if keys is None:
+        raise HTTPException(503, NO_KEYS_TABLE)
+    return keys
 
 
 def the_llms(connection: HTTPConnection) -> Models:
