@@ -12,6 +12,16 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   database made for it, with the real output under each, including the refusals. It found two
   things on the way: `keys revoke` could not take the fingerprint `keys list` printed, and `orgs
   move` left an agent's numbers behind.
+- **`make deploy` can rebuild a box that has only its operating system.** Three things it assumed
+  cloud-init had done and never did itself, each found by wiping a real box and putting it back:
+  `/opt/pinecall/app` is root's to make, so a deploy into a box that lost it died on a bare
+  `Permission denied`; `pinecall-secrets` is `WantedBy=multi-user.target`, so the box's own
+  keypair, ops key and vault key were made at BOOT and nowhere else — a box that lost them sat
+  there with a postgres that could not read `media.env` until somebody rebooted it; and the media
+  plane is four Quadlets that come up from their own `[Install]`, so on a box that had not
+  rebooted since the units were written, LiveKit was simply down and the doctor said so. The
+  deploy now makes the directory, starts the secrets, and starts — never restarts — the media
+  plane.
 - **`docs/the-runtime-cli.md` documents every group there is.** It had a section for
   `pinecall-runtime chat`, a verb deleted with the dev key it existed to spend, and none at all
   for `init` or `providers`. `migrate --post` was missing too — the escape hatch for a migration

@@ -60,7 +60,12 @@ console:
 # Two directories and no more: this repository, and the wire it is generated against. The wire is
 # an editable path dependency (`../protocol/python`), so the checkout beside this one is what the
 # lockfile resolves, on a laptop and on the box alike.
+# `/opt/pinecall` is root's, so a plain mkdir by the deploy account fails with a Permission denied
+# that says nothing about why. cloud-init makes $(REMOTE) at birth and hands it to that account —
+# but a box that LOST it could then never be redeployed, which is exactly the state somebody
+# reinstalling from zero is in. One idempotent line, the same ownership cloud-init gives it.
 sync: require-box
+	$(SSH) 'sudo install -d -o $$(id -un) -g $$(id -gn) -m 755 $(REMOTE)'
 	$(SSH) mkdir -p $(REMOTE)/runtime $(REMOTE)/protocol/python
 	$(RSYNC) ./ $(BOX):$(REMOTE)/runtime/
 	$(RSYNC) ../protocol/python/ $(BOX):$(REMOTE)/protocol/python/
@@ -93,6 +98,17 @@ restart-all: require-box restart-hub
 # whose box.env names a cloud — the manifest enables it and enabling starts nothing, so the first
 # deploy that names a cloud STARTS it here, and every later one restarts it.
 restart-hub: require-box
+	# The box's own secrets first. `pinecall-secrets` is WantedBy=multi-user.target, so it runs at
+	# BOOT and nowhere else — which is right on a machine cloud-init just made, and wrong on every
+	# redeploy after: a box that has lost them sits there with a postgres that cannot read
+	# `media.env` until somebody reboots it. Its condition makes this free when they are all there.
+	$(SSH) sudo systemctl start pinecall-secrets
+	# And the media plane, STARTED and never restarted: a Quadlet comes up from its own
+	# [Install] at boot, so on a box that has not rebooted since the units were written it is
+	# simply down — postgres answers only because the gateway requires it. `start` on something
+	# already running is a no-op, which is what keeps this clear of the rule that a container is
+	# never restarted under a call.
+	$(SSH) 'sudo systemctl start pinecall-redis pinecall-livekit pinecall-sip pinecall-postgres 2>/dev/null || true'
 	$(SSH) 'sudo systemctl restart pinecall-gateway pinecall-overflow && { systemctl is-enabled -q pinecall-fleet && sudo systemctl restart pinecall-fleet || true; }'
 	$(MAKE) --no-print-directory health
 
