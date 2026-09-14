@@ -14,7 +14,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   with one row per CORNER instead of one per slug, and every row carries `holder`, the member
   whose copy it is — absent for the org's own, which is what a machine key holds. Which rows a
   reader gets is the key's own answer (`sees_every_corner`, `auth/keys.py`): whoever may see who
-  the team IS may see what the team is RUNNING.
+  the team IS may see what the team is RUNNING. `holder` is the same `{holder, name}` the line
+  door answers with, because the id alone names nobody a page can show.
 - **`orgs move <agent> <org>`.** A slug belongs to the org that first registered it for as long as
   its log exists, and nothing could move it — so an agent registered from a terminal pointed at
   the wrong key belonged to that org for good, with every call it went on to take. A box walks

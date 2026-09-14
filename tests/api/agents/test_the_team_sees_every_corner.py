@@ -8,13 +8,15 @@ import pytest
 from starlette.testclient import TestClient, WebSocketTestSession
 
 from pinecall.auth.keys import KeyRecord, MemoryKeys
-from pinecall.types import ROLE_SCOPES, SANDBOX
+from pinecall.auth.members import MemoryMembers
+from pinecall.types import ROLE_SCOPES, SANDBOX, Member
 from tests.api.conftest import A_RECORD, AGENT, APPS
 from tests.api.talking import a_door, a_register, got
 
 pytestmark = pytest.mark.unit
 
 BERNA, CARLA = "m_berna", "m_carla"
+BERNAS_ADDRESS, CARLAS_ADDRESS = "berna@clinica.test", "carla@clinica.test"
 
 # One org, three keys into the SAME world. The two laptops are people; the third is the admin's
 # browser, which holds no agent of its own and is the one that has to see both.
@@ -40,6 +42,18 @@ def keys() -> MemoryKeys:
     )
 
 
+@pytest.fixture
+def members() -> MemoryMembers:
+    """The two developers, so a row can say whose corner it is in words a person reads."""
+    return MemoryMembers(
+        [_a_person_row(BERNA, BERNAS_ADDRESS), _a_person_row(CARLA, CARLAS_ADDRESS)]
+    )
+
+
+def _a_person_row(id: str, email: str) -> Member:
+    return Member(id=id, org=A_RECORD.org, email=email, name=email, role="developer")
+
+
 def _an_app_on(gateway: TestClient, key: str) -> WebSocketTestSession:
     return gateway.websocket_connect(APPS, headers={"Authorization": f"Bearer {key}"})
 
@@ -59,15 +73,27 @@ def test_a_developer_sees_their_own_corner_and_not_a_colleagues(gateway: TestCli
         carlas.receive_json()
 
         assert _listed(gateway, BERNAS_KEY) == [
-            {"slug": AGENT, "channels": ["web"], "holder": BERNA}
+            {
+                "slug": AGENT,
+                "channels": ["web"],
+                "holder": {"holder": BERNA, "name": BERNAS_ADDRESS},
+            }
         ]
         assert _listed(gateway, CARLAS_KEY) == [
-            {"slug": AGENT, "channels": ["web"], "holder": CARLA}
+            {
+                "slug": AGENT,
+                "channels": ["web"],
+                "holder": {"holder": CARLA, "name": CARLAS_ADDRESS},
+            }
         ]
 
 
 def test_an_admin_sees_every_corner_and_each_row_says_whose(gateway: TestClient) -> None:
-    """Nobody could see this: a tenant's admin had no way to tell what the team was running."""
+    """Nobody could see this: a tenant's admin had no way to tell what the team was running.
+
+    And the id alone would not have helped: `m_berna` names nobody, so the row carries the same
+    `{holder, name}` the line door answers with.
+    """
     with _an_app_on(gateway, BERNAS_KEY) as bernas, _an_app_on(gateway, CARLAS_KEY) as carlas:
         bernas.send_json(a_register(AGENT, a_door("web")))
         bernas.receive_json()
@@ -76,5 +102,6 @@ def test_an_admin_sees_every_corner_and_each_row_says_whose(gateway: TestClient)
 
         seen = _listed(gateway, AN_ADMINS_KEY)
 
-        assert sorted(str(held["holder"]) for held in seen) == [BERNA, CARLA]
+        whose = sorted(str(dict(held["holder"])["name"]) for held in seen)  # type: ignore[arg-type]
+        assert whose == [BERNAS_ADDRESS, CARLAS_ADDRESS]
         assert {str(held["slug"]) for held in seen} == {AGENT}

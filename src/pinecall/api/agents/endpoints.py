@@ -42,17 +42,20 @@ async def config(
 # durable history of one is its own log, which the console already reads by slug. The envelope is
 # the protocol's (protocol/schema/rest.json), so the console parses it with a generated schema.
 @router.get("/v1/agents")
-async def agents(key: CallsKeyDep, registry: RegistryDep) -> AgentList:
+async def agents(key: CallsKeyDep, registry: RegistryDep, members: MembersDep) -> AgentList:
     """The org's agents in the key's world, by slug, in the order their sockets claimed them."""
     # Whose copies are listed is the key's own answer: a key that opens `team` — an admin's, the
     # operator's — sees every member's sandbox corner, and every row says whose it is. A developer
     # sees their corner and the org's, which is what they can open anyway.
+    held = registry.holding(key.org, key.env, held_by(key), every_corner=sees_every_corner(key))
     return AgentList(
         agents=[
-            HeldAgent(slug=held.slug, channels=sorted(held.config.channels), holder=held.holder)
-            for held in registry.holding(
-                key.org, key.env, held_by(key), every_corner=sees_every_corner(key)
+            HeldAgent(
+                slug=one.slug,
+                channels=sorted(one.config.channels),
+                holder=None if one.holder is None else await _named(key.org, one.holder, members),
             )
+            for one in held
         ]
     )
 
