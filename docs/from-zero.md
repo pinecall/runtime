@@ -6,7 +6,18 @@ edit: the run was on port 8099, beside a gateway already using 8080, and the por
 as the default 8080. Where something refused, the refusal is here too — that is the half you will
 actually meet.
 
-Three repositories, side by side:
+Three repositories, side by side. The names matter: `runtime` resolves the wire through
+`../protocol/python` and `agents` through `../protocol/typescript`, so a directory renamed on the
+way in is an install that cannot find it.
+
+```console
+$ mkdir pinecall-v2 && cd pinecall-v2
+$ git clone https://github.com/pinecall/runtime.git
+$ git clone https://github.com/pinecall/agents.git
+$ git clone https://github.com/pinecall/protocol.git
+$ ls
+agents  protocol  runtime
+```
 
 ```
 ~/pinecall-v2/
@@ -14,6 +25,12 @@ Three repositories, side by side:
   agents/      the framework you write an agent in, its CLI, and the console
   protocol/    the wire, generated into all three languages
 ```
+
+Nothing here is installed from a registry: every command below runs out of these three checkouts,
+which is also how you change one and see it immediately.
+
+What the machine needs beforehand: **Docker**, **[uv](https://docs.astral.sh/uv/)**, **Node 24**
+and **pnpm**, and one API key of each role (`llm`, `stt`, `tts`) — §1 says which.
 
 [the-runtime-cli.md](the-runtime-cli.md) and the agents repo's `docs/the-cli.md` are the reference
 pages for every verb and flag. This page is the order you meet them in.
