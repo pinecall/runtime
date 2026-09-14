@@ -49,8 +49,22 @@ uv sync --extra runtime --group dev
 cp .env.example .env                              # then fill in the provider keys
 ```
 
-A call needs one key of each role — `llm`, `stt`, `tts`. `.env.example` is the list, and
-`pinecall-runtime doctor` knocks at every one of them with the key you put there.
+A spoken call needs one key of each role — `llm`, `stt`, `tts`. **Everything up to
+[Spoken calls](#spoken-calls) needs only the first one:** the text session builds no ears and no
+voice, so an `ANTHROPIC_API_KEY` alone carries you through most of this page.
+
+| role | default | variable | needed for |
+|---|---|---|---|
+| `llm` | Anthropic, `claude-haiku-4-5` | `ANTHROPIC_API_KEY` | everything — this one alone is enough to start |
+| `stt` | Soniox | `SONIOX_API_KEY` | a spoken call |
+| `tts` | ElevenLabs, `eleven_flash_v2_5` | `ELEVEN_API_KEY` | a spoken call |
+| embeddings | the `tei` container | — | `knowledge push` and lookups; see the note below |
+
+Those are the defaults, not the only choice: `.env.example` lists every vendor the runtime knows
+and each keeps the vendor's own variable name, and `pinecall pipeline set --llm …` points a role
+at another one. Two that cost an afternoon: your shell may already export `ELEVENLABS_API_KEY`, and
+this runtime reads `ELEVEN_API_KEY`; and `pinecall-runtime doctor` knocks at every key you put in
+`.env`, so it — not a failed call — is where you find out one of them is dead.
 
 > **On an M-series Mac the `tei` container cannot start** — its CPU image has no arm64 build. Set
 > `EMBED_PROVIDER=perplexity` with a `PERPLEXITY_API_KEY` and lookups embed over HTTP with no
@@ -59,6 +73,10 @@ A call needs one key of each role — `llm`, `stt`, `tts`. `.env.example` is the
 > log — no call fails for it.
 
 ## 2. The schema
+
+> **`role "pinecall" does not exist` is not your database talking.** A Postgres installed natively
+> on the machine answers `127.0.0.1:5432` before the container does, and it has no such role. Point
+> the URL at the container by name: `DATABASE_URL=postgresql://pinecall:pinecall@[::1]:5432/pinecall`.
 
 ```console
 $ pinecall-runtime migrate up
@@ -71,7 +89,30 @@ org default has no key yet — `pinecall-runtime keys issue --org default` mints
 The migration seeds one org, **`default`**, and that is the org this walkthrough uses. A second
 tenant is further down the page.
 
-## 3. The first person
+## 3. The gateway
+
+The two browser pages — the console and the operator admin — are built from the agents checkout
+next door and copied in as package data. A fresh clone has never run that, so run it once:
+
+```console
+$ scripts/console
+console → src/pinecall/gateway/console (4 files)
+admin → src/pinecall/gateway/admin (3 files)
+```
+
+Skip it and the gateway still comes up, and answers every page with a sentence telling you to run
+it. That is the right refusal, but it is a step, not a surprise.
+
+```bash
+pinecall-runtime gateway
+```
+
+It needs `DATABASE_URL` with the schema applied. **A gateway with no database verifies nothing**,
+says so at startup and answers every keyed door `503` — it does not come up looking healthy. There
+is no second mode: a laptop runs the same Postgres, the same migrations and the same issued keys a
+server does.
+
+## 4. The first person
 
 ```console
 $ export PINECALL_OPS_KEY=$(openssl rand -hex 32)
@@ -92,16 +133,11 @@ nobody else. Run it twice and it carries on to the person rather than stopping a
 
 `PINECALL_OPS_KEY` opens `/v1/ops/*` and nothing else. It belongs to no org and is not a login.
 
-## 4. The gateway
-
-```bash
-pinecall-runtime gateway
-```
-
-It needs `DATABASE_URL` with the schema applied. **A gateway with no database verifies nothing**,
-says so at startup and answers every keyed door `503` — it does not come up looking healthy. There
-is no second mode: a laptop runs the same Postgres, the same migrations and the same issued keys a
-server does.
+**`init` is an HTTP call, which is why the gateway comes first.** It knocks at
+`PINECALL_GATEWAY_URL` — `http://127.0.0.1:8080` unless `.env` says otherwise — so with nothing
+listening there it cannot reach anything, and with *somebody else's* gateway listening there it
+answers `401: this door is the box's`. That 401 is worth reading twice: it means the key was
+refused, not that the command is wrong.
 
 Open the invitation link and set a password. That browser now holds a key of its own, in
 **production**, which is the world a console is for.
@@ -151,7 +187,11 @@ line     rings in this terminal
 ```
 
 One line, and it says the four things that decide where you are: the agent, **whose org**, **which
-world**, and where the key came from. It binds no port — the gateway serves the console — and the
+world**, and where the key came from. Follow that printed URL and the browser lands in the same
+world the terminal is in. Reach the console the other way — signing in with the password from §4 —
+and it opens in **production**, where the agent your laptop is holding is not: the page says `no
+agent called clinica-norte is held here — this org, in this world`, and the fix is the
+production/sandbox toggle in the header, not a second `pinecall run`. It binds no port — the gateway serves the console — and the
 URL carries a one-use code that signs the browser in.
 
 ## 7. Talk to it

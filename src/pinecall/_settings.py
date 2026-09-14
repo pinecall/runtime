@@ -2,9 +2,9 @@
 
 import os
 from dataclasses import dataclass
-from typing import Literal, override
+from typing import Literal, cast, override
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import (
     BaseSettings,
     DotEnvSettingsSource,
@@ -41,6 +41,15 @@ class Budgets:
     remember_s: float = 8.0
 
 
+def _names(cls: type[BaseSettings], key: str) -> str:
+    """The field an environment name belongs to: its alias, its prefixed name, or itself."""
+    for name, field in cls.model_fields.items():
+        alias = field.validation_alias or f"{ENV_PREFIX}{name}"
+        if key.upper() in {str(alias).upper(), f"{ENV_PREFIX}{name}".upper(), name.upper()}:
+            return name
+    return key
+
+
 class Settings(VendorKeys):
     """The environment, typed and frozen. One per process, built by load_settings()."""
 
@@ -61,6 +70,27 @@ class Settings(VendorKeys):
         extra="ignore",
         frozen=True,
     )
+
+    # `.env.example` writes every optional knob as a bare `NAME=`, which is how a person reads
+    # "not set". For a string that is already true; for `PINECALL_MAX_JOBS=` it was not, and a
+    # laptop that did nothing but `cp .env.example .env` — the first step of docs/from-zero.md —
+    # could not start ANY process: `max_jobs · Input should be a valid integer`. An empty value
+    # is an absent one, for every optional field, so the next `int | None` knob cannot repeat it.
+    @model_validator(mode="before")
+    @classmethod
+    def _an_empty_value_is_no_value(cls, given: object) -> object:
+        if not isinstance(given, dict):
+            return given
+        values = cast(dict[str, object], given)
+        optional = {
+            name
+            for name, field in cls.model_fields.items()
+            if not field.is_required() and field.default is None
+        }
+        return {
+            key: None if value == "" and _names(cls, key) in optional else value
+            for key, value in values.items()
+        }
 
     # ── LiveKit: the media plane both processes talk to ─────────────────────────
     livekit_url: str = Field(

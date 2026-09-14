@@ -7,6 +7,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **`docs/from-zero.md` was walked from zero, on a clone nobody had touched, and three steps did
+  not work.** The page now opens at three `git clone` lines; the gateway comes BEFORE the first
+  person, because `init` is an HTTP call to it and on an empty machine it had nothing to knock at;
+  `scripts/console` is a step, because a clone has never built the two browser pages and the
+  invitation link answered with the sentence saying so. It also says which key you actually need:
+  the text session builds no ears and no voice, so `ANTHROPIC_API_KEY` alone carries you to
+  §Spoken calls — verified by running the whole page with an `.env` of three lines.
 - **A release is a tag, and the tag has a guard in front of it.** `release.yml` fires on `v*`:
   `guard` refuses unless the tag and `_version.py` say the same number, `gates` runs the same
   `ci.yml` every push runs — a tag is not a branch, so without that the release path had no gate
@@ -510,6 +517,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   import them, and a tie in a fused order is settled by id on both.
 
 ### Fixed
+- **`cp .env.example .env` left the runtime unable to start any process.** The example writes every
+  optional knob as a bare `NAME=`, and `PINECALL_MAX_JOBS=` is the one that is an integer:
+  pydantic answered `max_jobs · Input should be a valid integer` on every verb, from the file the
+  walkthrough tells a reader to make. An empty value is now an absent one for every optional
+  setting, so the next `int | None` knob cannot repeat it.
 - **Four things the two-worlds cut got wrong, caught on review.** The agent quota counted only
   the slugs one developer could reach, so two developers each holding a different agent slipped
   past a plan of one: it counts the org's slugs across every world and corner now (`slugs`, which
