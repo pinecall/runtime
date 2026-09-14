@@ -18,6 +18,9 @@ Three repositories, side by side:
 [the-runtime-cli.md](the-runtime-cli.md) and the agents repo's `docs/the-cli.md` are the reference
 pages for every verb and flag. This page is the order you meet them in.
 
+A machine with a domain on it, that answers telephones, is
+[a-box-in-production.md](a-box-in-production.md).
+
 ---
 
 ## 1. The services

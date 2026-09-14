@@ -7,6 +7,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **`docs/a-box-in-production.md`: one machine with a domain, from an operating system.** Written
+  the only way such a page is worth anything — by deleting a working box's units, app, containers
+  and own secrets, and putting it all back with `make deploy` while writing down what actually
+  came out. cloud-init, the deploy's five steps, the doctor, the vendor keys by fingerprint,
+  `init`, Clínica Norte answering a written call against it, and a number. It found the three
+  deploy gaps above, and its last table is every refusal met on the way.
 - **`docs/from-zero.md`: the walkthrough, run end to end.** A runtime on a machine with nothing on
   it, through to the clinic answering a written call — every command actually run against a
   database made for it, with the real output under each, including the refusals. It found two
