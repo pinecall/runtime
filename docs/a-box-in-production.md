@@ -252,6 +252,141 @@ is the door and its refusals.
 
 ---
 
+---
+
+# La consola, pantalla por pantalla
+
+Todo lo que sigue son capturas de esta box, tomadas con Playwright contra
+`https://box.pinecall.io` con la instalación de más arriba recién hecha. Nada está maquetado: es
+la página leyendo sus propias puertas.
+
+La consola vive en `/` y la sirve el gateway. Un tab guarda **la key de una persona**, en
+`sessionStorage`, y muere con el tab: nunca la del org, nunca en una URL. Se entra de dos maneras —
+abriendo `https://<tu dominio>` y poniendo contraseña, o por el link con código de un solo uso que
+`pinecall run` imprime.
+
+Arriba a la derecha, en cada pantalla: el org, la key que ese tab sostiene y quién está mirando.
+Es la pregunta que contesta `pinecall whoami`, sobre la pantalla.
+
+## La flota — lo que la box sostiene ahora
+
+![Agents](images/agents.png)
+
+La portada. **Qué agentes hay sostenidos en este momento**, con las puertas que cada uno declaró —
+`phone · web · whatsapp` son las tres de Clínica Norte. Es la tabla viva del gateway y no el
+registro: un agente que ningún proceso sostiene no contesta ninguna llamada, y por eso no está.
+
+El interruptor `production | sandbox` de arriba cambia de mundo acuñando la key del otro para la
+misma persona. Una key abre un mundo y sólo uno.
+
+![Live](images/live.png)
+
+**El suelo**: cada llamada que está abierta ahora mismo, del agente que sea. Llega por un stream,
+así que se llena sola mientras mirás.
+
+![Sessions](images/sessions.png)
+
+**Las terminadas**, de toda la org, la más nueva arriba: cuándo, cuánto duró, de dónde vino y con
+qué frase terminó. El id de cada una abre su log entero — el mismo que leen `pinecall sessions` y
+la API, byte por byte.
+
+## Un agente
+
+Elegido uno en el selector de arriba, las pantallas pasan a ser suyas.
+
+![Talk](images/talk.png)
+
+**Talk**: hablarle desde el navegador, con micrófono, contra la misma sala de LiveKit que usaría un
+teléfono. La consola pide un token de una llamada, no la key.
+
+![Chat](images/chat.png)
+
+**Chat**: la misma conversación escrita, con el log de esa llamada al lado. Lo que tipeás sale como
+un turno; lo que vuelve es el log de la llamada, tal cual quedó escrito.
+
+![Calls](images/calls.png)
+
+**Calls**: las llamadas de este agente según van pasando, y una de ellas entera — los turnos, las
+herramientas que corrió, las métricas de cada una.
+
+![Pipeline](images/pipeline.png)
+
+**Pipeline**: qué oye, con qué decide y con qué habla, y las perillas encima. Cambiar una acá es lo
+mismo que `pinecall pipeline set`: vale desde la próxima llamada, sin desplegar nada.
+
+![Knowledge](images/knowledge.png)
+
+**Knowledge**: la base de la que contesta, por trozos, con cuándo se subió. Es la del mundo de tu
+key — un push con la key del sandbox no toca la que contesta el teléfono.
+
+![Memory](images/memory.png)
+
+**Memory**: lo que el agente aprendió de un contacto a lo largo de sus llamadas, y el botón para
+olvidarlo. Los hechos son de una persona y de un mundo.
+
+![Evals](images/evals.png)
+
+**Evals**: los goldens y sus corridas. Correr una suite desde acá se la pide al proceso que sostiene
+el agente — los goldens son archivos de su directorio, así que sólo ese proceso puede abrirla.
+
+## Lo que es de la org y no de un agente
+
+![Numbers](images/numbers.png)
+
+**Numbers**: qué número llega a qué agente, y quién lo puso — un operador o la propia clase. Desde
+acá se trae el carrier y se importa un número.
+
+![Keys](images/keys.png)
+
+**Keys**: las keys de la org por huella, nunca por valor. Qué mundo abre cada una, para qué es y de
+quién: una key de persona lleva su nombre, una de máquina dice `a machine`. Revocar deja la fila,
+así que las llamadas que esa key escribió se siguen leyendo.
+
+![Providers](images/providers.png)
+
+**Providers**: cada vendor que esta build alcanza y cómo está — `ready`, `no key`, `no plugin`. Y
+las que el tenant trajo propias, que viajan cifradas y no se leen de vuelta desde ninguna puerta.
+
+![Team](images/team.png)
+
+**Team**: la gente de la org, su rol y su estado. Invitar imprime un link de un solo uso que abre la
+pantalla de contraseña; el operador entrega el link y nunca una contraseña. Un rol es un preset de
+scopes y nada más.
+
+![Usage](images/usage.png)
+
+**Usage**: lo que la org consumió, doblado del log según crece — minutos, mensajes, tokens, coste.
+No hay contador que se desincronice: es una suma sobre lo que ya está escrito.
+
+---
+
+# El admin, que es del operador
+
+Vive en `/admin`, toma **la ops key** y no la de ninguna persona. No hay `?login=` acá y no lo va a
+haber: un código en una URL es cómo se le entrega una key a un navegador, y la de esta página abre
+toda la box.
+
+![Orgs](images/admin-orgs.png)
+
+**Orgs**: cada tenant que esta box sirve. El id es por el que lo nombran sus filas y no cambia; el
+slug es lo que una persona escribe. Desde acá se crea uno.
+
+![Routes](images/admin-routes.png)
+
+**Routes**: los números desde el lado del operador — qué org, qué agente, qué mundo.
+
+![Fleet](images/admin-fleet.png)
+
+**Fleet**: los workers que golpearon a este gateway, con cuántas llamadas aguanta cada uno y cuándo
+latió por última vez. Desde acá se corta uno sin matarlo: deja de tomar llamadas nuevas y termina
+las que tiene.
+
+![Usage](images/admin-usage.png)
+
+**Usage**: el consumo de cada org, que es lo que se factura.
+
+---
+
 ## What the box actually is
 
 ```
