@@ -26,8 +26,18 @@ agents  protocol  runtime
   protocol/    the wire, generated into all three languages
 ```
 
-Nothing here is installed from a registry: every command below runs out of these three checkouts,
-which is also how you change one and see it immediately.
+**Both halves are published, and this page still clones them.** That is deliberate, not an
+oversight: the walkthrough runs the example agent and the dev stack's `docker-compose` file, and
+neither of those travels in a package. What a package is for is the day you write your own agent
+in an empty directory —
+
+```bash
+pip install pinecall     # pinecall-runtime: the gateway, the worker, migrate, doctor
+npm i -g pinecall        # pinecall: the CLI, and the console it serves
+```
+
+— and for a server, where `pip install pinecall` is the whole install. Everything below runs out
+of the three checkouts, which is also how you change one and see it immediately.
 
 What the machine needs beforehand: **Docker**, **[uv](https://docs.astral.sh/uv/)**, **Node 24**
 and **pnpm**, and one API key of each role (`llm`, `stt`, `tts`) — §1 says which.
