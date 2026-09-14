@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# La versión que este repo declara, y la única condición que no se puede arreglar después de
+# publicar: `pinecall-protocol` tiene que venir con un rango. En el árbol de trabajo es una ruta
+# (`[tool.uv.sources]`), que uv resuelve al repo de al lado y el wheel NO lleva — así que un
+# publish con la línea pelada sale a PyPI pidiendo "cualquier pinecall-protocol", y un protocol
+# incompatible de mañana rompe una versión que ya no se puede tocar. Imprime la versión, o el motivo.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/pinecall/_version.py)
+
+if ! grep -qE '^\s*"pinecall-protocol(==|>=|~=|<)' pyproject.toml; then
+  echo "pinecall-protocol viaja sin rango de versión en [project.dependencies]:" >&2
+  grep -n 'pinecall-protocol' pyproject.toml >&2
+  echo "un wheel publicado así acepta cualquier protocol. Poné el rango antes de taggear." >&2
+  exit 1
+fi
+echo "$version"

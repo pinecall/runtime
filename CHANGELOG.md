@@ -7,6 +7,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **A release is a tag, and the tag has a guard in front of it.** `release.yml` fires on `v*`:
+  `guard` refuses unless the tag and `_version.py` say the same number, `gates` runs the same
+  `ci.yml` every push runs — a tag is not a branch, so without that the release path had no gate
+  at all — and only then does `publish-pypi` touch the registry, over OIDC with no token stored
+  anywhere. `scripts/the-version` is the second half of the guard: it refuses while
+  `pinecall-protocol` travels without a version range, because the path in `[tool.uv.sources]`
+  resolves the repo next door on a laptop and does not travel in the wheel. Protocol publishes
+  first, always.
 - **`docs/a-box-in-production.md`: one machine with a domain, from an operating system.** Now
   with a screenshot of **every screen of both pages, in both themes** — thirty-eight, taken with
   Playwright against that same box right after the install, each with a paragraph saying what it
