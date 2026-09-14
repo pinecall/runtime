@@ -7,6 +7,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **`PUT /v1/numbers/{number}/env`: a number moves between the worlds.** An org buys ONE number,
+  so a team wanting to try a new agent on the real line had nowhere to try it — a second number is
+  a second bill, and a third world would be a third of everything. The move is one row
+  (`routes.env`), so it answers from the next call on, and the carrier account and both trunks are
+  untouched: a call arrives at this box whichever world answers it. The one numbers door that does
+  not work in the key's world alone, because crossing the two is what it is for.
 - **An admin and the box operator see every sandbox corner.** A sandbox agent is held per person,
   which is what stops two developers taking each other's `pinecall run` — and it also meant nobody
   could see anybody else's: a tenant's admin had no way to tell what their team was running, and
