@@ -28,8 +28,13 @@ jobs:
       version: ${{ steps.declared.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+      # En dos líneas y no en una: `echo "version=$(scripts/the-version)"` se come el exit code
+      # del script — echo sale 0 — y el paso queda VERDE con la versión vacía, que es exactamente
+      # lo que un guard no puede hacer. Una asignación sí propaga el estado bajo `bash -e`.
       - id: declared
-        run: echo "version=$(scripts/the-version)" >> "$GITHUB_OUTPUT"
+        run: |
+          version=$(scripts/the-version)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: el tag y la versión declarada son el mismo número
         if: github.ref_type == 'tag'
         run: |
