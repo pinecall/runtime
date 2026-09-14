@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Mapping
 from functools import partial
 from typing import Any, TextIO
 
@@ -108,7 +109,7 @@ A_VENDOR = "any vendor this build runs — `pinecall-runtime providers` lists ev
 # into `default`, so the first agent anybody runs on a fresh box lands there and stays. Every call
 # it has taken moves with it; a slug nobody has ever run is a 404, and one somebody is holding
 # right now is refused until they stop it.
-MOVE_HELP = "an agent, and every call it has taken, into another org"
+MOVE_HELP = "an agent, every call it has taken and its numbers, into another org"
 
 
 # A group of its own, because a provider key has three verbs of its own and hanging them off
@@ -261,10 +262,22 @@ async def remove_org(org: str, operator: Operator, out: TextIO = sys.stdout) -> 
 
 
 async def move_agent(agent: str, org: str, operator: Operator, out: TextIO = sys.stdout) -> int:
-    """The agent and every call of it, into another org. Says how many logs went with it."""
+    """The agent, every call of it and its doors, into another org. Says what went with it."""
     said = await operator.put(f"{OPS_ORGS}/{org}/agents", {"agent": agent})
-    print(f"{said['agent']} → org {said['org']} · {said['logs']} logs", file=out)
+    numbers = _said_numbers(said, "numbers")
+    moved = f"{said['agent']} → org {said['org']} · {said['logs']} logs"
+    print(f"{moved} · {len(numbers)} numbers" if numbers else moved, file=out)
+    # A number the other org already answers at is left where it was: which of two rows takes a
+    # call is not this verb's to decide, and silence about it is a door somebody thinks moved.
+    for number in _said_numbers(said, "stayed"):
+        print(f"  {number} stayed: org {said['org']} already answers at it", file=out)
     return 0
+
+
+def _said_numbers(said: Mapping[str, Any], field: str) -> tuple[str, ...]:
+    """A list of numbers off an answer, as strings. A gateway too old for the field says none."""
+    found: list[Any] | None = said.get(field)
+    return () if found is None else tuple(str(one) for one in found)
 
 
 async def set_quota(

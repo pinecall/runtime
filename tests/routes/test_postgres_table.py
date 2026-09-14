@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 
 from pinecall.routes.table import PostgresRoutes
-from pinecall.types import PRODUCTION, Channel, Route
+from pinecall.types import PRODUCTION, SANDBOX, Channel, Route
 
 pytestmark = pytest.mark.postgres
 
@@ -75,3 +75,35 @@ async def test_the_numbers_the_box_bought_are_counted_and_the_flag_round_trips(
     assert stored == {NUMBER: False, "+14175550100": True}
     assert await table.remove(org, "+14175550100")
     assert await table.managed_by(org) == 0
+
+
+async def test_an_agents_doors_move_to_another_org_and_a_taken_number_stays(
+    table: PostgresRoutes, org: str
+) -> None:
+    """What `orgs move` does to the numbers: one UPDATE, and the row it could not take is named."""
+    theirs = f"org-{uuid4().hex[:12]}"
+    another = "+59829000001"
+    await table.put(a_route(org, "clinica-norte"))
+    await table.put(a_route(org, "clinica-norte", another))
+    await table.put(a_route(theirs, "otra", NUMBER))
+
+    moved = await table.moved("clinica-norte", theirs)
+
+    assert (moved.numbers, moved.stayed) == ((another,), (NUMBER,))
+    assert [route.number for route in await table.of_org(org, PRODUCTION)] == [NUMBER]
+    landed = {(route.number, route.agent) for route in await table.of_org(theirs, PRODUCTION)}
+    assert landed == {(NUMBER, "otra"), (another, "clinica-norte")}
+
+
+async def test_one_number_of_one_org_is_read_whatever_world_it_is_in(
+    table: PostgresRoutes, org: str
+) -> None:
+    """The read a move between the worlds needs: a key opens one, and the org owns both."""
+    await table.put(a_route(org, "clinica-norte"))
+    assert (await table.of_number(org, NUMBER)) is not None
+    await table.put(
+        Route(org=org, agent="clinica-norte", channel="phone", number=NUMBER, env=SANDBOX)
+    )
+    found = await table.of_number(org, NUMBER)
+    assert found is not None and found.env == SANDBOX
+    assert await table.of_number(org, "+59829009999") is None

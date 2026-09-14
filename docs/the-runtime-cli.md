@@ -97,6 +97,7 @@ id it follows the newest live one. `recording` says where that call's audio was 
 pinecall-runtime orgs list
 pinecall-runtime orgs add <slug> [--name "…"]
 pinecall-runtime orgs invite <org> <email> --name "…" [--role admin|manager|developer|supervisor|qa]
+pinecall-runtime orgs move <agent> <org>
 pinecall-runtime orgs rm <org>
 pinecall-runtime orgs quota <org> [--minutes n] [--messages n] [--agents n]
                                   [--concurrent-calls n] [--memory-facts n] [--knowledge-chunks n]
@@ -111,6 +112,13 @@ type; `invite` is how a tenant gets its first person on a gateway that takes no 
 the row and a **link**, once, that opens the console's password card (the operator holds a token
 and never a password, and the invitation takes none of the org's seats); `rm` is refused while the
 org still has keys or routes, so a tenant is never half-deleted.
+
+`move` undoes the one thing a slug could not undo: it belongs to the org that first registered it
+for as long as its log exists, and a box walks into the wrong one by construction — its own worker
+and operator keys are issued into `default`, so the first agent anybody runs there lands in
+`default` too. The agent's own log, one head row per call it has taken, and its numbers all go
+with it; it is refused while somebody is holding the slug, and a number the destination org
+already answers at stays where it is and is named.
 
 `quota` replaces **the whole set**: a limit left out is no limit. The meter is a fold over the log,
 so there is no counter to drift, and the gate runs before a call opens, before an agent registers,

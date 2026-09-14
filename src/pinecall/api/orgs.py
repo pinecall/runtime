@@ -175,16 +175,30 @@ class WantedMove(WireModel):
 
 @operator.put("/orgs/{named}/agents")
 async def move(
-    named: str, said: WantedMove, orgs: OrgsDep, store: StoreDep, registry: RegistryDep
+    named: str,
+    said: WantedMove,
+    orgs: OrgsDep,
+    store: StoreDep,
+    registry: RegistryDep,
+    table: RoutesDep,
 ) -> dict[str, Any]:
-    """Put this agent — its own log and every call of it — into this org. `orgs move`."""
+    """This agent — its log, every call of it, and its doors — into this org. `orgs move`."""
     org = await an_org(named, orgs)
     if registry.held_anywhere(said.agent):
         raise HTTPException(409, NOT_HELD.format(slug=said.agent))
     moved = await store.moved(said.agent, org.id)
     if moved == 0:
         raise HTTPException(404, NO_SUCH_AGENT.format(slug=said.agent))
-    return {"agent": said.agent, "org": org.slug, "logs": moved}
+    # The doors go with it. Left behind, the number kept answering for an org that no longer holds
+    # the slug, which is a number that reaches nobody — and nothing said so until somebody called.
+    doors = await table.moved(said.agent, org.id)
+    return {
+        "agent": said.agent,
+        "org": org.slug,
+        "logs": moved,
+        "numbers": list(doors.numbers),
+        "stayed": list(doors.stayed),
+    }
 
 
 # ── its quotas ──────────────────────────────────────────────────────────────────
