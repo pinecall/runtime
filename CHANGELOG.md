@@ -7,12 +7,18 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **`docs/from-zero.md`: the walkthrough, run end to end.** A runtime on a machine with nothing on
+  it, through to the clinic answering a written call — every command actually run against a
+  database made for it, with the real output under each, including the refusals. It found two
+  things on the way: `keys revoke` could not take the fingerprint `keys list` printed, and `orgs
+  move` left an agent's numbers behind.
 - **`pinecall-runtime init`: the first org and the first person, in one command.** What replaces
   the magic key on a fresh runtime — it makes the org, invites its first admin, makes them an
   operator of this box (somebody has to be able to make the second org), and prints the link that
-  opens the password screen and the two lines to type next. Running it twice carries on to the
-  person rather than stopping at the org, because it is the verb somebody runs twice while reading
-  the README.
+  opens the password screen and the two lines to type next. `--org` defaults to `default`, the org
+  the schema seeds, so a runtime that has just been migrated needs nothing but a person. Running
+  it twice carries on to the person rather than stopping at the org, because it is the verb
+  somebody runs twice while reading the README.
 - **`PUT /v1/numbers/{number}/env`: a number moves between the worlds.** An org buys ONE number,
   so a team wanting to try a new agent on the real line had nowhere to try it — a second number is
   a second bill, and a third world would be a third of everything. The move is one row

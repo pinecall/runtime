@@ -8,7 +8,7 @@ from functools import partial
 from typing import Any, TextIO
 
 from pinecall.cli.operator import Operator, OperatorRefused, against_the_gateway
-from pinecall.types import ROLES
+from pinecall.types import DEFAULT_ORG, ROLES
 
 PURPOSE: str = "the first org and the first person on a runtime nobody has used yet"
 
@@ -34,7 +34,14 @@ WHAT_TO_DO_NEXT = """
 
 def configure(parser: argparse.ArgumentParser) -> None:
     """No verbs: `init` does one thing, and its flags are who the first person is."""
-    parser.add_argument("--org", required=True, metavar="<slug>", help="lowercase, digits, dashes")
+    # `default` is the org migration 0006 seeds, so a runtime that has just been migrated already
+    # has one and `init` needs nothing but a person. A second tenant is `orgs add` + `orgs invite`.
+    parser.add_argument(
+        "--org",
+        default=DEFAULT_ORG,
+        metavar="<slug>",
+        help=f"lowercase, digits, dashes (default {DEFAULT_ORG}, which the schema seeds)",
+    )
     parser.add_argument("--email", required=True, help="the first person's address")
     parser.add_argument("--person", required=True, metavar="<name>", help="what to call them")
     parser.add_argument("--name", default=None, help="what to call the org (default: the slug)")
