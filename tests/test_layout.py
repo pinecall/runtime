@@ -19,10 +19,9 @@ FILES_THE_CEILING_SKIPS = frozenset(
         Path("uv.lock"),
         Path("CHANGELOG.md"),
         Path("src/pinecall/providers/published_prices.json"),
-        # A walkthrough whose content IS the terminal output of every step, in order. Cutting it
-        # to fit would mean cutting steps, and a walkthrough with a step missing is worse than
-        # none — a person following it stops at a command that does not work. The production one
-        # carries a screenshot of every screen of both pages besides.
+        # Two walkthroughs whose content IS the terminal output of every step, in order. Cutting
+        # one to fit would mean cutting steps, and a walkthrough with a step missing is worse
+        # than none — a person following it stops at a command that does not work.
         Path("docs/from-zero.md"),
         Path("docs/a-box-in-production.md"),
     }
@@ -75,8 +74,21 @@ def test_no_two_modules_in_one_directory_differ_by_one_letter() -> None:
     assert not twins, f"names one letter apart: {twins}"
 
 
+# A line ceiling is about what a person reads, and a PNG has no lines: counting its bytes for
+# newlines said `docs/images/evals.png: 994` and failed the suite over a screenshot. Anything with
+# a NUL byte in the first few kilobytes is not text — the same rule `grep` and `git` use.
+def _is_text(path: Path) -> bool:
+    """Whether this file is something a person reads in lines."""
+    try:
+        return b"\0" not in (ROOT / path).read_bytes()[:8192]
+    except OSError:
+        return False
+
+
 def _the_ceiling_judges(path: Path) -> bool:
     """Whether the 400-line rule speaks about this file at all."""
+    if not _is_text(path):
+        return False
     if path in FILES_THE_CEILING_SKIPS:
         return False
     return not any(directory in path.parents for directory in DIRECTORIES_THE_CEILING_SKIPS)
