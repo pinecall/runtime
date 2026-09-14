@@ -99,8 +99,8 @@ nobody (CI's) holds the org's own, which a person holding none falls back to. Pr
 corner, because a person's key does not open `app` there (§7). A **dialled** door is the exception:
 a number exists once in a world, and the newest `pinecall run` answers the shared one. **And
 somebody sees all of them**: `GET /v1/agents` answers a key that opens `team` — an admin's, the
-operator's — one row per corner rather than one per slug, each carrying `holder`, the member whose
-copy it is (absent for the org's own). Whoever may see who the team IS may see what it is RUNNING.
+operator's — one row per corner rather than one per slug, each carrying `holder` — the member whose
+copy it is, by id and address, absent for the org's own. Whoever may see who the team IS may see what it is RUNNING.
 
 **Which world.** A key opens `production` or `sandbox`, and the agent this socket registers
 is held in that world alone: the same slug on a box's key and on a laptop's is two agents, and
