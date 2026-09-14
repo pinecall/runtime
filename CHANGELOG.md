@@ -12,6 +12,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   database made for it, with the real output under each, including the refusals. It found two
   things on the way: `keys revoke` could not take the fingerprint `keys list` printed, and `orgs
   move` left an agent's numbers behind.
+- **`docs/the-runtime-cli.md` documents every group there is.** It had a section for
+  `pinecall-runtime chat`, a verb deleted with the dev key it existed to spend, and none at all
+  for `init` or `providers`. `migrate --post` was missing too — the escape hatch for a migration
+  too slow for the five seconds a unit gives it at startup, which is exactly the flag somebody
+  reaches for under pressure. Checked by walking every group's own `--help` against the page.
 - **`pinecall-runtime init`: the first org and the first person, in one command.** What replaces
   the magic key on a fresh runtime — it makes the org, invites its first admin, makes them an
   operator of this box (somebody has to be able to make the second org), and prints the link that
