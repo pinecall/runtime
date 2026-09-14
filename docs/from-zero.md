@@ -53,12 +53,17 @@ A spoken call needs one key of each role — `llm`, `stt`, `tts`. **Everything u
 [Spoken calls](#spoken-calls) needs only the first one:** the text session builds no ears and no
 voice, so an `ANTHROPIC_API_KEY` alone carries you through most of this page.
 
-| role | default | variable | needed for |
-|---|---|---|---|
-| `llm` | Anthropic, `claude-haiku-4-5` | `ANTHROPIC_API_KEY` | everything — this one alone is enough to start |
-| `stt` | Soniox | `SONIOX_API_KEY` | a spoken call |
-| `tts` | ElevenLabs, `eleven_flash_v2_5` | `ELEVEN_API_KEY` | a spoken call |
-| embeddings | the `tei` container | — | `knowledge push` and lookups; see the note below |
+| role | default | variable | where the key comes from | needed for |
+|---|---|---|---|---|
+| `llm` | Anthropic, `claude-haiku-4-5` | `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com/settings/keys) | everything — this one alone is enough to start |
+| `stt` | Soniox | `SONIOX_API_KEY` | [console.soniox.com](https://console.soniox.com) | a spoken call |
+| `tts` | ElevenLabs, `eleven_flash_v2_5` | `ELEVEN_API_KEY` | [elevenlabs.io](https://elevenlabs.io/app/settings/api-keys) | a spoken call |
+| embeddings | the `tei` container | — | nothing to buy — it runs locally | `knowledge push` and lookups; see the note below |
+
+**They are yours, and each one is an account of your own.** Nobody hands you a key for this: a
+walkthrough that ran on somebody else's key bills them for your reading and leaves their secret in
+your shell history. The first row is the only one you need to get started, and the walkthrough
+below ran on nothing else.
 
 Those are the defaults, not the only choice: `.env.example` lists every vendor the runtime knows
 and each keeps the vendor's own variable name, and `pinecall pipeline set --llm …` points a role
