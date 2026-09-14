@@ -15,7 +15,7 @@ from pinecall.auth.throttle import TRIES_PER_WINDOW
 from pinecall.extensions import Extensions
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.types import HOLDING, KEY_SCOPES, Quotas
-from tests.api.conftest import A_DEV_KEY, A_LIVEKIT, A_VAULT_KEY, AN_OPS_KEY, over_the_asgi_app
+from tests.api.conftest import A_LIVEKIT, A_VAULT_KEY, AN_OPS_KEY, over_the_asgi_app
 
 pytestmark = pytest.mark.unit
 
@@ -35,7 +35,6 @@ TIENDA = {
 def settings() -> Settings:
     """A gateway whose operator opened sign-ups. Off is the default, and the test below is that."""
     return Settings(
-        dev_key=A_DEV_KEY,
         ops_key=AN_OPS_KEY,
         livekit_api_key=A_LIVEKIT.api_key,
         livekit_api_secret=A_LIVEKIT.api_secret,
@@ -119,7 +118,7 @@ async def test_a_gateway_nobody_opened_sign_ups_on_takes_none_and_that_is_the_de
     from pinecall.api import _deps
     from pinecall.api.app import app
 
-    assert Settings(dev_key=A_DEV_KEY, ops_key=AN_OPS_KEY).signup is False
+    assert Settings(ops_key=AN_OPS_KEY).signup is False
     shut = settings.model_copy(update={"signup": False})
     app.dependency_overrides[_deps.a_settings] = lambda: shut
     answer = await signed_up(stranger)

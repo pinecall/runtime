@@ -7,11 +7,7 @@ import pytest
 from starlette.testclient import TestClient, WebSocketTestSession
 from starlette.websockets import WebSocketDisconnect
 
-from pinecall._settings import Settings
-from pinecall.api import _deps as deps
 from pinecall.api.agents.socket import POLICY_VIOLATION
-from pinecall.api.app import app
-from pinecall.auth.keys import keys_for
 from pinecall.log.entry import Entry
 from pinecall.log.store import MemoryStore
 from tests.api.conftest import A_KEY
@@ -42,17 +38,6 @@ def test_a_socket_with_no_authorization_header_never_opens(gateway: TestClient) 
         with gateway.websocket_connect(APPS):
             pass
     assert refused.value.code == POLICY_VIOLATION
-
-
-def test_the_dev_key_from_the_environment_opens_a_socket_with_no_database(
-    gateway: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The dev key is the whole no-Postgres path: a clone runs the gateway on it alone."""
-    monkeypatch.setenv("PINECALL_DEV_KEY", "the-dev-key")
-    app.dependency_overrides[deps.the_keys] = lambda: keys_for(Settings(), pool=None)
-    with open_socket(gateway, key="the-dev-key") as socket:
-        socket.send_json(a_frame("ping", "clinica-norte"))
-        assert socket.receive_json()["type"] == "pong"
 
 
 # ── register ────────────────────────────────────────────────────────────────────

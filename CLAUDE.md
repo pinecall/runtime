@@ -87,8 +87,10 @@ as sentences.
 
 ## Traps — each one cost an afternoon
 
-- A gateway on a dev key honours that key and no other, and `PINECALL_API_KEY` in the shell is
-  then ignored, out loud. A bare `403` from any door: `env | grep PINECALL`, then `unset`.
+- **One runtime.** A laptop runs the same Postgres, migrations and issued keys a box does:
+  `docker compose … up -d`, `migrate up`, `pinecall-runtime init --org … --email … --person …`,
+  then `pinecall login`. `PINECALL_DEV_KEY` and `~/.pinecall/dev` are gone; a gateway with no
+  database verifies nothing, says so at startup, and answers every keyed door 503.
 - A native Postgres shadows the container on `127.0.0.1`: run the Postgres ring with
   `DATABASE_URL=postgresql://pinecall:pinecall@[::1]:5432/pinecall` on such a machine.
 - **Nothing fixed by hand on a server counts.** A package goes in `PACKAGES`, a secret through

@@ -71,7 +71,6 @@ from tests.vectors import HashEmbedder
 A_KEY = "pk_test_a_key_nobody_will_ever_deploy"
 
 # The gateway's dev key: what a clone runs on, and what the settings of this suite carry.
-A_DEV_KEY = "a-dev-key-nobody-will-ever-deploy"
 # The box's own key, which every /v1/ops door takes and nothing else does.
 AN_OPS_KEY = "an-ops-key-nobody-will-ever-deploy"
 A_RECORD = KeyRecord(key_id="k_1", org="clinica", label="ring 0")
@@ -124,7 +123,6 @@ def admission(orgs: MemoryOrgs, store: MemoryStore, logs: Logs) -> Admission:
 def settings() -> Settings:
     """The environment this gateway read: the dev key the chat door takes, and LiveKit's pair."""
     return Settings(
-        dev_key=A_DEV_KEY,
         ops_key=AN_OPS_KEY,
         vault_key=A_VAULT_KEY,
         livekit_api_key=A_LIVEKIT.api_key,
@@ -342,11 +340,11 @@ def wired(
 
 # The client IS entered: two sockets of one test must share one event loop, and without the
 # context manager starlette gives every websocket_connect a portal of its own, which deadlocks a
-# shared store. Entering runs the lifespan, so the dev key is set first and no pool is opened.
+# shared store. Entering runs the lifespan, which opens no pool here — so it sets no `keys`, and
+# every table this gateway answers from is the one `wired` overrode.
 @pytest.fixture
-def gateway(wired: None, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:  # noqa: ARG001
+def gateway(wired: None) -> Iterator[TestClient]:  # noqa: ARG001
     """A TestClient over the real ASGI app, with every dependency answered from this test."""
-    monkeypatch.setenv("PINECALL_DEV_KEY", A_DEV_KEY)
     with TestClient(app) as client:
         yield client
 

@@ -7,6 +7,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **`pinecall-runtime init`: the first org and the first person, in one command.** What replaces
+  the magic key on a fresh runtime — it makes the org, invites its first admin, makes them an
+  operator of this box (somebody has to be able to make the second org), and prints the link that
+  opens the password screen and the two lines to type next. Running it twice carries on to the
+  person rather than stopping at the org, because it is the verb somebody runs twice while reading
+  the README.
 - **`PUT /v1/numbers/{number}/env`: a number moves between the worlds.** An org buys ONE number,
   so a team wanting to try a new agent on the real line had nowhere to try it — a second number is
   a second bill, and a third world would be a third of everything. The move is one row
@@ -303,6 +309,18 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `README.md`, and `license-files` putting the text in the wheel and the sdist.
 
 ### Changed
+- **`PINECALL_DEV_KEY` is gone, and with it the second runtime a laptop was.** One string in the
+  gateway's own environment that needed no database and, when set, was the ONLY key the gateway
+  honoured: every call org `default`, the `api_keys` table not read, `~/.pinecall/dev` written at
+  every start so the CLI beside it needed no login, a LiveKit pair derived from it that signed
+  tokens opening no room, and a worker that took that file's key over the one it was issued. It
+  bought five minutes at the start and charged them back in every hour after — two sets of keys,
+  two orgs, two behaviours, and no way to see which you were on. A worker that died for fifteen
+  minutes on `GET /v1/routes: 401` (2026-09-11) was that, and so was a deployed one sending
+  `Bearer ""`. A laptop now runs the same Postgres, the same migrations and the same issued keys a
+  box does; `pinecall-runtime init` is the way in, and `pinecall-runtime chat` — which existed
+  only to spend that key — is gone with it. A gateway with no database verifies nothing, says so
+  at startup, and answers every keyed door `503` rather than coming up looking healthy.
 - **The world things are written in is `sandbox`, not `development`** (`0023`). The word was doing
   two jobs — naming a world, and naming "mine" — so a team that wanted a shared staging deployment
   had nowhere to put it, and a person reading `env: development` could not tell a laptop from a

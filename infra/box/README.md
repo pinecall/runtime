@@ -221,8 +221,7 @@ that name it stay readable. A vendor's key is replaced in place, from the checko
 ```bash
 printf '%s' "$ELEVENLABS_API_KEY" | make secret NAME=ELEVEN_API_KEY   # then: make restart
 make worker-secrets WORKER=deploy@<the worker>                         # a worker takes the hub's copy
-``` **Never put `PINECALL_DEV_KEY` on a box**: it is not a weaker key, it
-is a mode in which the gateway opens no Postgres pool at all.
+```
 
 ## What the deploy does, and does not
 
@@ -281,7 +280,6 @@ Three, and none of them opens another's door. `../../docs/decisions/keys.md` arg
 |---|---|---|
 | `PINECALL_OPS_KEY` | the box — `/v1/ops/*` and nothing else | `pinecall-secrets.service`, once |
 | `PINECALL_WORKER_KEY` | the worker unit — `/v1/routes`, the app socket, the log | `pinecall-worker-key.service`, once: `keys issue --org default`, stdout straight into `systemd-creds encrypt` |
-| `PINECALL_DEV_KEY` | a laptop, never a box | set by hand, in development |
 
 `migrate up` mints nothing: it runs before every start of the gateway, and a verb that runs there
 must print no secret into a journal. `keys issue` is the one place a key exists in the clear — on

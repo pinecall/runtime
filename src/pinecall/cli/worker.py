@@ -8,7 +8,6 @@ from livekit.agents import AgentServer
 from livekit.agents.cli import run_app
 
 from pinecall._settings import Settings, load_settings
-from pinecall.auth import dev_file
 from pinecall.providers.pipeline import warm_the_vendor_tables
 from pinecall.worker import overflow, recordings
 from pinecall.worker.client import reaching
@@ -119,7 +118,7 @@ def hand_over(verb: str, flags: list[str], settings: Settings) -> int:
     if verb in THREADED_VERBS:
         warm_the_vendor_tables()
     sys.argv = [f"pinecall-runtime worker {verb}", LIVEKIT_VERBS[verb], *flags]
-    gateway = reaching(settings.gateway_url, the_key_for(settings, dev_file.found()))
+    gateway = reaching(settings.gateway_url, the_key_for(settings))
     if verb == THE_OVERFLOW:
         return _ran(overflow.a_server(settings, gateway))
     server = a_server(settings, gated_by_machine_load=verb in GATED_BY_MACHINE_LOAD)

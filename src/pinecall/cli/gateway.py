@@ -5,7 +5,6 @@ import argparse
 import uvicorn
 
 from pinecall._settings import load_settings
-from pinecall.auth import dev_file
 
 PURPOSE: str = "the control plane: HTTP and WebSocket, one process"
 
@@ -27,9 +26,6 @@ def configure(parser: argparse.ArgumentParser) -> None:
 def run(arguments: argparse.Namespace) -> int:
     """Hand the process to uvicorn. It returns when the server stops, which is the exit code."""
     settings = load_settings()
-    # A gateway on a dev key leaves its door where the tenant's CLI looks, so a terminal on this
-    # machine needs nothing exported at all. A box has no dev key and writes nothing.
-    dev_file.written(settings.dev_key, arguments.port)
     uvicorn.run(
         APP,
         host=arguments.host,

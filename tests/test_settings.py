@@ -149,7 +149,7 @@ def test_no_env_file_at_all_leaves_the_settings_to_the_environment(
 
 def test_a_field_with_no_alias_reads_its_name_under_the_prefix() -> None:
     assert variable_of("eleven_api_key") == "ELEVEN_API_KEY"
-    assert variable_of("dev_key") == "PINECALL_DEV_KEY"
+    assert variable_of("worker_key") == "PINECALL_WORKER_KEY"
 
 
 # The other half of the rule the file above states: Settings READS the environment, and nothing

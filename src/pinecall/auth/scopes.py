@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import secrets
 import time
 from collections.abc import Mapping
@@ -227,20 +226,15 @@ def a_visitor() -> str:
     return f"{A_VISITOR}{secrets.token_hex(VISITOR_BYTES)}"
 
 
-# In production the pair is LiveKit's own, because the token IS a LiveKit token: the same string
-# opens the room. In development a clone runs with a PINECALL_DEV_KEY and nothing else, so the pair
-# is derived from it — enough to sign and verify our own reads, and a room it cannot open until
-# LIVEKIT_API_KEY and LIVEKIT_API_SECRET are set, which is exactly what dev means.
+# The pair is LiveKit's own, because the token IS a LiveKit token: the same string opens the room.
+# A second pair used to be derived from PINECALL_DEV_KEY, which signed tokens that opened no room —
+# a gateway that looked like it worked and could not carry a call. The dev stack brings LiveKit up
+# beside Postgres, so there is one pair and it is the real one.
+NO_LIVEKIT_PAIR = "no LIVEKIT_API_KEY/LIVEKIT_API_SECRET: nothing can sign or verify a call token"
+
+
 def secret_for(settings: Settings) -> LivekitKeys:
     """The LiveKit pair call tokens are signed with, or a refusal when there is none."""
     if settings.livekit_api_key and settings.livekit_api_secret:
         return LivekitKeys(settings.livekit_api_key, settings.livekit_api_secret)
-    if settings.dev_key:
-        return LivekitKeys(
-            api_key="devkey",
-            api_secret=hashlib.sha256(f"participate:{settings.dev_key}".encode()).hexdigest(),
-        )
-    raise RuntimeError(
-        "no LIVEKIT_API_KEY/LIVEKIT_API_SECRET and no PINECALL_DEV_KEY: "
-        "nothing can verify a call token"
-    )
+    raise RuntimeError(NO_LIVEKIT_PAIR)
