@@ -24,6 +24,10 @@ jobs:
     runs-on: ubuntu-latest
     # Most of these minutes are the Postgres image: pgvector and pg_textsearch are compiled from
     # source, because the image with both is this repository's own and is built, not published.
+    #
+    # `max_connections=300` on that container: pytest-xdist opens a worker per core and each one
+    # of them a pool, and a runner has more cores than a laptop — the default hundred ran out and
+    # answered `sorry, too many clients already`.
     timeout-minutes: 30
 
     env:
@@ -54,7 +58,7 @@ jobs:
           docker build -q -t pinecall/postgres:ci runtime/infra/compose/postgres
           docker run -d --name postgres -p 5432:5432 \
             -e POSTGRES_USER=pinecall -e POSTGRES_PASSWORD=pinecall -e POSTGRES_DB=pinecall \
-            pinecall/postgres:ci
+            pinecall/postgres:ci -c max_connections=300
           for _ in $(seq 1 60); do
             docker exec postgres pg_isready -U pinecall -d pinecall && break
             sleep 1
@@ -75,6 +79,15 @@ jobs:
 
       # ruff, pyright, mypy, then squawk over the migrations that have not landed.
       - run: scripts/lint
+        working-directory: runtime
+
+      # `public`, migrated, which is what a dev box has and what the app's own pool reads. The
+      # Postgres ring gives itself a schema per worker and migrates that; the API tests do not —
+      # they build the real app, whose lifespan opens a pool the moment DATABASE_URL answers, and
+      # a database that answers with no tables in it is `relation "pipeline_overrides" does not
+      # exist` a hundred and sixty times. On a laptop this is invisible: `public` was migrated
+      # months ago, or nothing answers at all.
+      - run: uv run pinecall-runtime migrate up
         working-directory: runtime
 
       # Ring 0 and the Postgres ring: no key, no model, no network. A test that needs a real
