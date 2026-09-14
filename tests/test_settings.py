@@ -162,3 +162,29 @@ def test_nothing_in_the_runtime_writes_into_the_environment() -> None:
         if any(written in path.read_text(encoding="utf-8") for written in THE_WAYS_TO_WRITE_ONE)
     ]
     assert not offenders, f"these modules write an environment variable: {offenders}"
+
+
+# `cp .env.example .env` is the first step of docs/from-zero.md, and .env.example writes every
+# optional knob as a bare `NAME=`. For a string that already meant "unset"; for the one `int | None`
+# it meant the process would not start at all — `max_jobs · Input should be a valid integer`, on
+# EVERY verb, from a file the walkthrough told the reader to make.
+@pytest.mark.usefixtures("the_env_file_is_read")
+def test_a_bare_name_in_the_file_means_the_knob_is_unset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_env_file(tmp_path / ".env", "PINECALL_MAX_JOBS=\nPINECALL_WORKER_NAME=\n")
+    monkeypatch.chdir(tmp_path)
+    settings = load_settings()
+    assert settings.max_jobs is None
+    assert settings.worker_name is None
+
+
+@pytest.mark.usefixtures("the_env_file_is_read")
+def test_the_example_file_copied_verbatim_builds_settings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`cp .env.example .env` and nothing else: the exact state a reader is told to be in."""
+    example = (PACKAGE_ROOT.parent.parent / ".env.example").read_text(encoding="utf-8")
+    write_env_file(tmp_path / ".env", example)
+    monkeypatch.chdir(tmp_path)
+    assert load_settings().max_jobs is None
