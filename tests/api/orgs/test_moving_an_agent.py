@@ -9,7 +9,8 @@ from pinecall.api.agents.registry import Registry
 from pinecall.api.orgs import NO_SUCH_AGENT, NOT_HELD
 from pinecall.log.store import MemoryStore
 from pinecall.orgs.table import MemoryOrgs
-from pinecall.types import PRODUCTION
+from pinecall.routes.table import MemoryRoutes
+from pinecall.types import PRODUCTION, Route
 from pinecall_protocol import defs
 from tests.api.conftest import A_RECORD, AGENT, AN_ORG
 from tests.api.orgs.test_two_orgs_never_cross import ANOTHER_ORG
@@ -51,7 +52,13 @@ async def test_an_agent_and_every_call_of_it_land_in_the_other_org(
     moved = await ops_http.put(MOVE, json={"agent": AGENT})
 
     assert moved.status_code == 200, moved.text
-    assert moved.json() == {"agent": AGENT, "org": ANOTHER_ORG.slug, "logs": 3}
+    assert moved.json() == {
+        "agent": AGENT,
+        "org": ANOTHER_ORG.slug,
+        "logs": 3,
+        "numbers": [],
+        "stayed": [],
+    }
     assert await store.owner(None, AGENT) == ANOTHER_ORG.id
     assert await store.owner("call_one", AGENT) == ANOTHER_ORG.id
     assert await store.owner("call_two", AGENT) == ANOTHER_ORG.id
@@ -93,3 +100,41 @@ async def test_an_agent_nobody_has_ever_run_is_a_404_and_not_a_quiet_yes(
 async def test_the_door_is_the_boxs_and_not_a_tenants(tenant_http: httpx.AsyncClient) -> None:
     """An org that could pull a slug would be an org that could take another's agent."""
     assert (await tenant_http.put(MOVE, json={"agent": AGENT})).status_code in (401, 403, 404)
+
+
+# The doors go with it. Left behind, the number kept answering for an org that no longer holds the
+# slug — a number that reaches nobody, and nothing said so until somebody called it. Found on the
+# box: `clinica-norte` had moved to `pinecall` and its `+1417…` was still `default`'s.
+A_NUMBER = "+14176743169"
+ANOTHER_NUMBER = "+34910000000"
+
+
+async def test_the_agents_numbers_move_with_it(
+    ops_http: httpx.AsyncClient, store: MemoryStore, routes: MemoryRoutes
+) -> None:
+    await written(store)
+    await routes.put(Route(org=AN_ORG.id, agent=AGENT, channel="phone", number=A_NUMBER))
+
+    moved = await ops_http.put(MOVE, json={"agent": AGENT})
+
+    assert moved.json()["numbers"] == [A_NUMBER]
+    assert await routes.of_org(AN_ORG.id, PRODUCTION) == ()
+    landed = await routes.of_org(ANOTHER_ORG.id, PRODUCTION)
+    assert [route.number for route in landed] == [A_NUMBER]
+
+
+async def test_a_number_the_other_org_already_answers_at_stays_and_is_named(
+    ops_http: httpx.AsyncClient, store: MemoryStore, routes: MemoryRoutes
+) -> None:
+    """Two orgs typing one number is a thing the schema allows; which row answers is not this
+    verb's to decide, so it says what it left rather than choosing."""
+    await written(store)
+    await routes.put(Route(org=AN_ORG.id, agent=AGENT, channel="phone", number=A_NUMBER))
+    await routes.put(Route(org=AN_ORG.id, agent=AGENT, channel="phone", number=ANOTHER_NUMBER))
+    await routes.put(Route(org=ANOTHER_ORG.id, agent="otra", channel="phone", number=A_NUMBER))
+
+    moved = (await ops_http.put(MOVE, json={"agent": AGENT})).json()
+
+    assert (moved["numbers"], moved["stayed"]) == ([ANOTHER_NUMBER], [A_NUMBER])
+    theirs = await routes.of_org(ANOTHER_ORG.id, PRODUCTION)
+    assert sorted(str(route.agent) for route in theirs) == [AGENT, "otra"]

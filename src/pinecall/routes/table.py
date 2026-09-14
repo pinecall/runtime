@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from dataclasses import dataclass, replace
 from typing import Any, Protocol, cast
 
 from pinecall.log.store import Pool
@@ -53,10 +54,34 @@ SELECT org, number, agent, channel, env, managed
  WHERE org = $1 AND number = $2
 """
 
+# An agent that changes org takes its doors with it. Without this the number kept answering for
+# the org that no longer holds the slug, which is a number that reaches nobody: `orgs move` moved
+# the log and left the route behind. A number the destination ALREADY answers at is left where it
+# is and named — two orgs typing one number is a thing the schema allows and nobody should resolve
+# silently (see TWO_ORGS below).
+OF_AGENT = "SELECT number FROM routes WHERE agent = $1 AND org <> $2"
+
+MOVE_TO_ORG = """
+UPDATE routes SET org = $2
+ WHERE agent = $1 AND org <> $2
+   AND NOT EXISTS (SELECT 1 FROM routes taken WHERE taken.org = $2 AND taken.number = routes.number)
+RETURNING number
+"""
+
 REMOVE = "DELETE FROM routes WHERE org = $1 AND number = $2"
 
 # What asyncpg answers a DELETE with when the WHERE matched nothing: the command tag, verbatim.
 DELETED_NOTHING = "DELETE 0"
+
+
+@dataclass(frozen=True)
+class Moved:
+    """What `orgs move` did to an agent's doors: the numbers that went, and any that could not."""
+
+    numbers: tuple[str, ...] = ()
+    # Left where they were because the destination org already answers at that very number. Named
+    # rather than resolved: which of two rows a call takes is not this verb's to decide.
+    stayed: tuple[str, ...] = ()
 
 
 class Routes(Protocol):
@@ -80,6 +105,10 @@ class Routes(Protocol):
 
     async def remove(self, org: str, number: str) -> bool:
         """Forget the number. False when no row answered to it, so a typo is never silence."""
+        ...
+
+    async def moved(self, agent: str, org: str) -> Moved:
+        """This agent's doors into that org: what went, and what the org already answered at."""
         ...
 
     async def managed_by(self, org: str) -> int:
@@ -116,6 +145,23 @@ class MemoryRoutes:
     async def remove(self, org: str, number: str) -> bool:
         """Whether there was a row to forget."""
         return self._rows.pop((org, number), None) is not None
+
+    async def moved(self, agent: str, org: str) -> Moved:
+        """Re-keyed under the new org, one row at a time, leaving a number it already answers at."""
+        taken = {route.number for route in self._rows.values() if route.org == org}
+        went: list[str] = []
+        stayed: list[str] = []
+        for route in list(self._rows.values()):
+            if route.agent != agent or route.org == org or route.number is None:
+                continue
+            if route.number in taken:
+                stayed.append(route.number)
+                continue
+            del self._rows[door_of(route)]
+            moved_to = replace(route, org=org)
+            self._rows[door_of(moved_to)] = moved_to
+            went.append(route.number)
+        return Moved(tuple(went), tuple(stayed))
 
     async def managed_by(self, org: str) -> int:
         """A count of the rows the box bought, across both worlds."""
@@ -154,6 +200,12 @@ class PostgresRoutes:
         """The command tag says whether a row went, so a number nobody typed is told apart."""
         tag = await self._pool.execute(REMOVE, org, number)
         return tag.strip() != DELETED_NOTHING
+
+    async def moved(self, agent: str, org: str) -> Moved:
+        """One UPDATE, and the rows it could not take are the difference against what was there."""
+        had = {str(row["number"]) for row in await self._pool.fetch(OF_AGENT, agent, org)}
+        went = tuple(str(row["number"]) for row in await self._pool.fetch(MOVE_TO_ORG, agent, org))
+        return Moved(went, tuple(sorted(had - set(went))))
 
     async def managed_by(self, org: str) -> int:
         """One count over the rows the box bought."""
