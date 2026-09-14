@@ -11,6 +11,9 @@ on:
     branches: ["**"]
   pull_request:
   workflow_dispatch:
+  # release.yml corre ESTE archivo como su gate, en vez de repetir los pasos: el gate del release
+  # y el de cada push son el mismo, o uno de los dos miente.
+  workflow_call:
 
 permissions:
   contents: read
@@ -42,9 +45,6 @@ jobs:
         with:
           repository: pinecall/protocol
           path: protocol
-          # A read-only deploy key of the sibling repository, while both are private: its private
-          # half is a secret of THIS repository and opens nothing but that one clone.
-          ssh-key: ${{ secrets.PROTOCOL_DEPLOY_KEY }}
 
       # What a person does with `docker compose -f infra/compose/dev.yml up -d`, in one step.
       #

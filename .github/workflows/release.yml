@@ -1,0 +1,75 @@
+# El tag ES la publicación. `git push origin vX.Y.Z` y esto publica `pinecall` en PyPI solo.
+#
+# Este repo depende del de al lado: hasta que `pinecall-protocol` esté publicado con un rango,
+# `scripts/the-version` no deja pasar un tag. El orden es protocol primero, siempre.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  # Para ensayar el camino sin quemar un número: corre guard + gates, y publish queda skipped
+  # porque no es un tag.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Una versión de PyPI es permanente: un artefacto cuyo nombre miente no se deshace. Dos
+  # preguntas antes de tocar el registro — si el tag y el árbol dicen el mismo número, y si las
+  # dependencias que el wheel va a declarar son publicables.
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.declared.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: declared
+        run: echo "version=$(scripts/the-version)" >> "$GITHUB_OUTPUT"
+      - name: el tag y la versión declarada son el mismo número
+        if: github.ref_type == 'tag'
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          declared="${{ steps.declared.outputs.version }}"
+          if [ "$tag" != "$declared" ]; then
+            echo "el tag dice $tag y el árbol declara $declared — uno de los dos está mal" >&2
+            exit 1
+          fi
+          echo "v$declared"
+
+  # El gate de verdad, el mismo que corre en cada push: lint y los dos rings contra Postgres. Un
+  # push de tag NO matchea `push: branches` de ci.yml — un tag no es una rama — así que sin esta
+  # línea el camino del release no tendría gate ninguno.
+  gates:
+    uses: ./.github/workflows/ci.yml
+
+  # Trusted Publishing NO funciona dentro de un workflow reusable: lo reusable son los tests, el
+  # publish se queda acá arriba.
+  publish-pypi:
+    needs: [guard, gates]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # OIDC, sin token guardado en ningún lado
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: runtime
+      # El repo de al lado, por si `[tool.uv.sources]` todavía nombra la ruta: hatchling no
+      # resuelve dependencias para armar el wheel, pero uv sí lee esa tabla.
+      - uses: actions/checkout@v4
+        with:
+          repository: pinecall/protocol
+          path: protocol
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build
+        working-directory: runtime
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: runtime/dist
+          skip-existing: true   # idempotente: relanzar el workflow no es un error
