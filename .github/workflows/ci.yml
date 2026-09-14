@@ -1,0 +1,83 @@
+# The gate: lint, then both test rings, on every push and every pull request. One job, because the
+# whole check is a few minutes and a matrix would only make a failure harder to read.
+#
+# Two repositories, laid out the way a laptop has them: `pyproject.toml` names
+# `../protocol/python` as an editable path dependency, so the second checkout is what makes the
+# wire resolvable — until pinecall-protocol is published and the line becomes a version range.
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    # Most of these minutes are the Postgres image: pgvector and pg_textsearch are compiled from
+    # source, because the image with both is this repository's own and is built, not published.
+    timeout-minutes: 30
+
+    env:
+      DATABASE_URL: postgresql://pinecall:pinecall@127.0.0.1:5432/pinecall
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: runtime
+
+      - uses: actions/checkout@v4
+        with:
+          repository: pinecall/protocol
+          path: protocol
+          # A read-only deploy key of the sibling repository, while both are private: its private
+          # half is a secret of THIS repository and opens nothing but that one clone.
+          ssh-key: ${{ secrets.PROTOCOL_DEPLOY_KEY }}
+
+      # What a person does with `docker compose -f infra/compose/dev.yml up -d`, in one step.
+      #
+      # The schema needs BOTH extensions — `halfvec` in 0008 and 0009, a `bm25` index in 0009 —
+      # so the stock image cannot run a migration at all: it stops at `type "halfvec" does not
+      # exist`. It is started as a STEP and not as a service, because a `services:` block starts
+      # before any step runs and so cannot wait for a build. The two CREATE EXTENSIONs are here
+      # because no migration creates one — the same two a person types once by hand.
+      - name: postgres with the two extensions the schema needs
+        run: |
+          docker build -q -t pinecall/postgres:ci runtime/infra/compose/postgres
+          docker run -d --name postgres -p 5432:5432 \
+            -e POSTGRES_USER=pinecall -e POSTGRES_PASSWORD=pinecall -e POSTGRES_DB=pinecall \
+            pinecall/postgres:ci
+          for _ in $(seq 1 60); do
+            docker exec postgres pg_isready -U pinecall -d pinecall && break
+            sleep 1
+          done
+          docker exec postgres psql -U pinecall -d pinecall \
+            -c "CREATE EXTENSION IF NOT EXISTS vector" \
+            -c "CREATE EXTENSION IF NOT EXISTS pg_textsearch"
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: runtime/uv.lock
+
+      # `--extra runtime` carries livekit-agents and its plugins; `--extra providers` the vendor
+      # SDKs the provider tables construct. The dev group holds the checkers and squawk.
+      - run: uv sync --locked --extra runtime --extra providers --group dev
+        working-directory: runtime
+
+      # ruff, pyright, mypy, then squawk over the migrations that have not landed.
+      - run: scripts/lint
+        working-directory: runtime
+
+      # Ring 0 and the Postgres ring: no key, no model, no network. A test that needs a real
+      # ANTHROPIC_API_KEY skips itself by name rather than failing.
+      - run: scripts/test
+        working-directory: runtime
