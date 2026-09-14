@@ -45,6 +45,14 @@ SELECT org, number, agent, channel, env, managed
  ORDER BY added_at
 """
 
+# One number of one org, in whichever world it is in. The one read that asks for no world: moving
+# a number between them is the point of it, and a key opens one world while the org owns both.
+OF_NUMBER = """
+SELECT org, number, agent, channel, env, managed
+  FROM routes
+ WHERE org = $1 AND number = $2
+"""
+
 REMOVE = "DELETE FROM routes WHERE org = $1 AND number = $2"
 
 # What asyncpg answers a DELETE with when the WHERE matched nothing: the command tag, verbatim.
@@ -60,6 +68,10 @@ class Routes(Protocol):
 
     async def at(self, channel: Channel, number: str) -> Route | None:
         """Which agent an inbound call at this door reaches, in whichever org and world typed it."""
+        ...
+
+    async def of_number(self, org: str, number: str) -> Route | None:
+        """This org's row for this number, in whichever world it is in. None when it has none."""
         ...
 
     async def put(self, route: Route) -> None:
@@ -93,6 +105,10 @@ class MemoryRoutes:
             [route for route in self._rows.values() if route.door == (channel, number)]
         )
 
+    async def of_number(self, org: str, number: str) -> Route | None:
+        """The row itself: the dict is keyed by exactly this pair."""
+        return self._rows.get((org, number))
+
     async def put(self, route: Route) -> None:
         """One row per number, replaced whole: the agent and the channel are both the new ones."""
         self._rows[door_of(route)] = route
@@ -121,6 +137,11 @@ class PostgresRoutes:
         """One indexed read on the door. No cache: a route added a minute ago answers this call."""
         rows = await self._pool.fetch(AT, channel, number)
         return _the_first_of([route_of_row(row) for row in rows])
+
+    async def of_number(self, org: str, number: str) -> Route | None:
+        """One indexed read on the primary key, whole. The world is a column and not asked for."""
+        rows = await self._pool.fetch(OF_NUMBER, org, number)
+        return None if not rows else route_of_row(rows[0])
 
     async def put(self, route: Route) -> None:
         """Insert, or move the number: the conflict target is the door, so nothing is duplicated."""

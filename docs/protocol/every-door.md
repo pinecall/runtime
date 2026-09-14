@@ -14,6 +14,7 @@ is for. The prose, the shapes and the refusals are on that page and in the pages
 | `GET` | `/v1/numbers/available` | what the carrier account owns, and which of it is imported |
 | `POST` | `/v1/numbers` · `?dry_run=true` | import one number: the carrier's trunk pointed here, the SFU's trunk admitting it, the route — or the plan alone |
 | `POST` | `/v1/numbers/buy` · `?dry_run=true` | buy one number on the box's own Twilio into the org, wired as an import, capped by the `numbers` quota — or the plan alone |
+| `PUT` | `/v1/numbers/{number}/env` | move a number to the other world — one row, the carrier untouched. What makes a staging run cost nothing — `numbers` |
 | `DELETE` | `/v1/numbers/{number}` | let a number go: the route and the admission; the carrier untouched |
 | `GET` | `/v1/keys` · `POST` | the org's own API keys by fingerprint; mint one for a machine, answered once — `keys` |
 | `POST` | `/v1/keys/{fingerprint}/revoke` | stop one of the org's keys; the row and its history stay |

@@ -46,6 +46,20 @@ person reads before letting the gateway touch a carrier account. Refusals: `404`
 a number the account does not own; `400` a channel with no number, a number that is not E.164;
 `503` no `PINECALL_DOMAIN`, or no LiveKit pair on this gateway; `502` Twilio's own sentence.
 
+## Moving one between the worlds — `PUT /v1/numbers/{number}/env {env}`
+
+An org buys ONE number, so a team wanting to try a new agent on the real line has nowhere to try
+it: a second number is a second bill. This points the org's own number at the other world and
+back. It is one row — `routes.env` — so it takes effect on the next call, and the carrier account
+and both trunks are untouched, because a call arrives at this box whichever world answers it.
+
+It is the one numbers door that does not work in the key's world alone: crossing the two is the
+point of it, and the number is the org's either way. Answers `{route, moved, from}`; a move to
+where the number already is writes nothing and answers `{route, moved: false, said}`. `404` for a
+number this org does not have at all, `400` for a word that is neither world.
+
+Whose corner a ring lands in, once a world is answering it, is the **line** — `gateway-api.md` §5.
+
 ## Letting one go — `DELETE /v1/numbers/{number}`
 
 The route removed and the number off the org's SFU trunk. The carrier account is not touched: the
