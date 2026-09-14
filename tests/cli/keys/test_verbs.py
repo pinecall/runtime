@@ -60,7 +60,7 @@ async def test_issue_takes_the_world_the_scopes_and_the_person_and_the_listing_s
             "berna's laptop",
             operator,
             out,
-            env="development",
+            env="sandbox",
             scopes=["talk", "calls"],
             subject="m_1",
             name="Berna",
@@ -68,11 +68,11 @@ async def test_issue_takes_the_world_the_scopes_and_the_person_and_the_listing_s
         == 0
     )
     said = capsys.readouterr().err.splitlines()
-    assert "development" in said[0]
+    assert "sandbox" in said[0]
     assert said[1].strip() == "scopes calls · talk"
     listing = printed()
     await list_keys(ORG, operator, listing)
-    assert "development" in listing.getvalue()
+    assert "sandbox" in listing.getvalue()
     assert "Berna" in listing.getvalue()
 
 

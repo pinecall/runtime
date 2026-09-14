@@ -36,7 +36,7 @@ class OpenCall:
     org: str
     context: CallContext
     config: AgentConfig
-    # Whose corner of the world this call is being served in: the developer in development, and
+    # Whose corner of the world this call is being served in: the developer in the sandbox, and
     # nobody in production. What it recalls and what it searches are that corner's, so a test call
     # on one laptop never reads the facts another laptop's test call planted. See 0021.
     holder: str | None = None

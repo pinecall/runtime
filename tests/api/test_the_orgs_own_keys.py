@@ -10,7 +10,7 @@ from starlette.testclient import TestClient
 from pinecall.api.keys import A_PERSON, NO_SUCH_KEY, NOT_YOURS_TO_GIVE, THIS_KEY
 from pinecall.auth.keys import KeyRecord, MemoryKeys, fingerprint
 from pinecall.auth.members import MemoryMembers
-from pinecall.types import DEVELOPMENT, HOLDING, PRODUCTION, Member, for_a_person
+from pinecall.types import HOLDING, PRODUCTION, SANDBOX, Member, for_a_person
 from tests.api.conftest import A_KEY, A_RECORD, Json
 from tests.api.talking import got
 
@@ -122,9 +122,9 @@ def test_the_key_a_server_runs_on_holds_an_agent_names_nobody_and_opens_producti
 
 
 def test_a_key_for_ci_opens_development_when_the_org_says_so(gateway: TestClient) -> None:
-    body = {"label": "ci", "env": DEVELOPMENT, "scopes": ["app", "knowledge"]}
+    body = {"label": "ci", "env": SANDBOX, "scopes": ["app", "knowledge"]}
     status, said = posted(gateway, "/v1/keys", body, A_KEY)
-    assert (status, said["env"], said["scopes"]) == (200, DEVELOPMENT, ["app", "knowledge"])
+    assert (status, said["env"], said["scopes"]) == (200, SANDBOX, ["app", "knowledge"])
 
 
 def test_a_key_cannot_hand_out_what_it_does_not_open_itself(gateway: TestClient) -> None:

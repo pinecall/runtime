@@ -74,7 +74,7 @@ class Socket(Protocol):
 
     @property
     def holder(self) -> str | None:
-        """Whose corner of that world: a developer's own in development, nobody's in production."""
+        """Whose corner of that world: a developer's own in the sandbox, nobody's in production."""
         ...
 
     async def send(self, entry: Entry) -> None:

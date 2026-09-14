@@ -11,7 +11,16 @@ from typing import Any, Protocol
 
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.types import DEFAULT_ORG, DEVELOPMENT, KEY_SCOPES, PRODUCTION, Env, an_env
+from pinecall.types import (
+    DEFAULT_ORG,
+    KEY_SCOPES,
+    PRODUCTION,
+    SANDBOX,
+    THE_TEAM,
+    Env,
+    an_env,
+    is_a_deployment,
+)
 
 # What a key looks like when it is read out loud: a prefix nobody else uses, so a key pasted into
 # an issue or a log line is recognised for what it is, and 256 bits of CSPRNG after it.
@@ -94,13 +103,22 @@ NOT_OPENED = "this key does not open {scope}: it opens {opens}"
 
 
 # Whose corner of a world a key works in. In production nobody's: what is deployed is the org's,
-# held by the key its box runs on. In development the member the key was minted for, so two
-# developers of one tenant each hold, reach and see their own agent; a development key that names
+# held by the key its box runs on. In the sandbox the member the key was minted for, so two
+# developers of one tenant each hold, reach and see their own agent; a sandbox key that names
 # nobody — CI's — works in the org's own corner, which is what everybody falls back to.
 # api/agents/registry.py is where the corners are, and `Held` there says the same thing.
 def held_by(record: KeyRecord) -> str | None:
     """The corner of its world this key holds and reads in: nobody's, or a developer's own."""
-    return record.subject if record.env == DEVELOPMENT else None
+    return None if is_a_deployment(record.env) else record.subject
+
+
+# The other half of the same question. `held_by` says which corner this key WORKS in; this says
+# whether it may look into everybody else's. Nobody could, which meant a tenant's admin had no way
+# to tell what their developers were running and the box operator had none either — and a corner
+# nobody can see is a corner nobody can help with.
+def sees_every_corner(record: KeyRecord) -> bool:
+    """Whether this key is the org's eyes — an admin's, the operator's — and not one person's."""
+    return THE_TEAM in record.scopes
 
 
 def not_opening(record: KeyRecord, *scopes: str) -> str | None:
@@ -155,7 +173,7 @@ class Keys(Protocol):
 
 
 class MemoryKeys:
-    """Keys in a dict: the dev key in development, whatever a test or a dev clone issues."""
+    """Keys in a dict: the dev key in the sandbox, whatever a test or a dev clone issues."""
 
     def __init__(self, records: Mapping[str, KeyRecord] | None = None) -> None:
         self._records: dict[str, KeyRecord] = dict(records or {})
@@ -290,9 +308,9 @@ class PostgresKeys:
 
 # A laptop is one tenant, and it is the default org: the logs a dev clone writes against a
 # database that has been migrated are the default org's, and the dev key must read them back.
-# And a laptop is where things are written, so the one key it runs on opens development: what
-# `pinecall run` registers there is a development agent, and its calls say so.
-DEV_KEY_RECORD = KeyRecord(key_id="dev", org=DEFAULT_ORG, label="PINECALL_DEV_KEY", env=DEVELOPMENT)
+# And a laptop is where things are written, so the one key it runs on opens the sandbox: what
+# `pinecall run` registers there is a sandbox agent, and its calls say so.
+DEV_KEY_RECORD = KeyRecord(key_id="dev", org=DEFAULT_ORG, label="PINECALL_DEV_KEY", env=SANDBOX)
 
 
 def keys_for(settings: Settings, pool: Pool | None) -> Keys:

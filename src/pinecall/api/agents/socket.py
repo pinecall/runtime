@@ -97,7 +97,7 @@ class AppSocket:
 
     @property
     def holder(self) -> str | None:
-        """Whose corner of that world: a developer's own in development, nobody's in production."""
+        """Whose corner of that world: a developer's own in the sandbox, nobody's in production."""
         return held_by(self.key)
 
     async def serve(self) -> None:

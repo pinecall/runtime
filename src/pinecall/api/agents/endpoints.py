@@ -9,9 +9,9 @@ from pydantic import TypeAdapter
 
 from pinecall.api._deps import AppKeyDep, CallsKeyDep, DeclarationKeyDep, MembersDep, OverridesDep
 from pinecall.api.agents.registry import NO_AGENT, Registry, RegistryDep
-from pinecall.auth.keys import KeyRecord, held_by
+from pinecall.auth.keys import KeyRecord, held_by, sees_every_corner
 from pinecall.auth.members import Members
-from pinecall.types import DEVELOPMENT, AgentConfig, DeclarationRefused, an_e164
+from pinecall.types import SANDBOX, AgentConfig, DeclarationRefused, an_e164
 from pinecall_protocol import WireModel
 from pinecall_protocol.rest import AgentList, HeldAgent, LineHolder, TheLine
 
@@ -44,17 +44,22 @@ async def config(
 @router.get("/v1/agents")
 async def agents(key: CallsKeyDep, registry: RegistryDep) -> AgentList:
     """The org's agents in the key's world, by slug, in the order their sockets claimed them."""
+    # Whose copies are listed is the key's own answer: a key that opens `team` — an admin's, the
+    # operator's — sees every member's sandbox corner, and every row says whose it is. A developer
+    # sees their corner and the org's, which is what they can open anyway.
     return AgentList(
         agents=[
-            HeldAgent(slug=held.slug, channels=sorted(held.config.channels))
-            for held in registry.holding(key.org, key.env, held_by(key))
+            HeldAgent(slug=held.slug, channels=sorted(held.config.channels), holder=held.holder)
+            for held in registry.holding(
+                key.org, key.env, held_by(key), every_corner=sees_every_corner(key)
+            )
         ]
     )
 
 
 # ── the line ────────────────────────────────────────────────────────────────────
 
-# An org shares ONE development number, so a call at it rings in one terminal. Which one is
+# An org shares ONE sandbox number, so a call at it rings in one terminal. Which one is
 # claimed and said out loud — before the line, the second `pinecall run` silently took the first
 # one's calls and a developer dialling to test was answered in a colleague's scrollback. Alone,
 # nobody claims anything: the first corner to hold an agent answers its ring. See
@@ -123,7 +128,7 @@ async def forget_calls_from(key: AppKeyDep, registry: RegistryDep) -> dict[str, 
 
 def _a_person(key: KeyRecord) -> str:
     """Whose corner this key opens, refusing the two keys that have none to route a call into."""
-    if key.env != DEVELOPMENT:
+    if key.env != SANDBOX:
         raise HTTPException(409, NOT_IN_PRODUCTION)
     whose = held_by(key)
     if whose is None:

@@ -5,7 +5,7 @@ from datetime import date
 import pytest
 
 from pinecall.session.first_entries import arrived, started
-from pinecall.types import DEVELOPMENT, PRODUCTION, CallContext, Env, Route
+from pinecall.types import PRODUCTION, SANDBOX, CallContext, Env, Route
 
 pytestmark = pytest.mark.unit
 
@@ -28,8 +28,8 @@ def a_context(env: Env, direction: str = "inbound") -> CallContext:
 
 def test_call_started_says_which_world_the_call_ran_in() -> None:
     """The world is the door's, so a call opened on a development route is filed under it."""
-    written = started(a_context(DEVELOPMENT), A_NUMBER, 1.5)
-    assert written.env == DEVELOPMENT
+    written = started(a_context(SANDBOX), A_NUMBER, 1.5)
+    assert written.env == SANDBOX
     assert (written.channel, written.direction, written.from_, written.to) == (
         "phone",
         "inbound",

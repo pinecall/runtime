@@ -7,7 +7,7 @@ from pinecall.auth.keys import KeyRecord
 
 pytestmark = pytest.mark.unit
 
-A_RECORD = KeyRecord(key_id="k_1", org="clinica", env="development", subject="m_1", name="Berna")
+A_RECORD = KeyRecord(key_id="k_1", org="clinica", env="sandbox", subject="m_1", name="Berna")
 
 
 class _Clock:

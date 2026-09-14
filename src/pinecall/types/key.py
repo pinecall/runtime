@@ -7,13 +7,22 @@ from pinecall.types.refused import DeclarationRefused
 
 # Two worlds and no third. A key is issued into one; the agents registered on it, the doors it
 # claims and every call it takes are that world's, and a gateway holds both at once without one
-# seeing the other's agents or taking its numbers. What is deployed answers in production; what
-# is being written answers in development. A staging world would be a third table nobody asked
-# for: the thing that tells a deploy from a laptop is the key, and a key has one of these.
-type Env = Literal["production", "development"]
+# seeing the other's agents or taking its numbers. What is deployed answers in production; what is
+# being written answers in the sandbox.
+#
+# A third world was very nearly added for `staging`, and it was not needed: whether a sandbox agent
+# is ONE PERSON's copy or the team's shared one is not this field, it is whether the key that
+# registered it names a person (api/agents/holding.py). A machine key in the sandbox is held by
+# nobody's corner, which every member of the org sees — that IS staging, and it already worked.
+# Two worlds, three behaviours, and the holder does the third.
+#
+# The word was `development`, and it was doing two jobs: naming a world, and naming "mine". A team
+# that wanted a shared development deployment had nowhere to put it, and a person reading
+# `env: development` could not tell a laptop from a box. `sandbox` is what Stripe calls this too.
+type Env = Literal["production", "sandbox"]
 
 PRODUCTION: Env = "production"
-DEVELOPMENT: Env = "development"
+SANDBOX: Env = "sandbox"
 ENVS: frozenset[str] = frozenset(get_args(Env.__value__))
 
 # What a key may do, as the doors are grouped. Every door of the gateway is under exactly one of
@@ -53,23 +62,39 @@ KEY_SCOPES: frozenset[str] = frozenset(get_args(KeyScope.__value__))
 
 
 # Holding an agent is a deployment, and a deployment is a process somebody put on a box — never a
-# laptop that happens to be logged in. So a person's key opens `app` in development, where what
+# laptop that happens to be logged in. So a person's key opens `app` in the sandbox, where what
 # they run is their own, and never in production, where a slug is held by a key issued for a
 # machine (`keys issue --label "prod server" --scope app`). The rule lives at the MINTING and not
 # at the door: a door that refused later would have handed out a key promising what it will not do.
 HOLDING: KeyScope = "app"
 
+# The members door, which an admin's key and the operator's open and a developer's does not. It is
+# what separates "show me the org" from "show me my corner": whoever may see who the team IS may
+# also see what the team is RUNNING, so the agent listing asks this one question to decide whose
+# sandbox copies a reader is shown. See api/agents/endpoints.py.
+THE_TEAM: KeyScope = "team"
+
+
+# The one question all three of these ask, in the one place it is asked. A deployment is the ORG's:
+# a machine holds it, nobody's corner, and every member sees it. The sandbox is a person's: their
+# own corner, their own copy. Written as "is it a deployment" rather than "is it production"
+# because that is the question — and because the day there are two deployments, this is the line
+# that already means the right thing.
+def is_a_deployment(env: Env) -> bool:
+    """Whether this world is the org's — a machine holds it — rather than one person's sandbox."""
+    return env != SANDBOX
+
 
 def for_a_person(scopes: frozenset[str], env: Env) -> frozenset[str]:
-    """What a person may do in this world: their role's preset, less `app` in production."""
-    return scopes - {HOLDING} if env == PRODUCTION else scopes
+    """What a person may do in this world: their role's preset, less `app` in a deployment."""
+    return scopes - {HOLDING} if is_a_deployment(env) else scopes
 
 
 def an_env(word: str) -> Env:
     """The world this word names, or a refusal that lists the two there are."""
     if word not in ENVS:
         raise DeclarationRefused(f"a key opens one of {sorted(ENVS)}, not {word!r}")
-    return "production" if word == PRODUCTION else "development"
+    return "production" if word == PRODUCTION else "sandbox"
 
 
 def key_scopes(words: Iterable[str]) -> frozenset[str]:
@@ -85,7 +110,7 @@ def key_scopes(words: Iterable[str]) -> frozenset[str]:
 
 # The org's own corner, as the tables that are namespaced by one spell it. Not NULL: it is part of
 # a primary key, and a NULL in one matches nothing. A production row is always the org's — a
-# person's key opens no `app` there — and so is anything a development key naming nobody wrote,
+# person's key opens no `app` there — and so is anything a sandbox key naming nobody wrote,
 # which is CI's. See 0021, and api/agents/registry.py for the same idea in the live table.
 THE_ORGS_OWN = ""
 

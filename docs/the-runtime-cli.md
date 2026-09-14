@@ -125,16 +125,16 @@ encrypted under `PINECALL_VAULT_KEY`; without one this verb is refused with a se
 ## `keys`
 
 ```
-pinecall-runtime keys issue [--org <org>] [--label "…"] [--env production|development]
+pinecall-runtime keys issue [--org <org>] [--label "…"] [--env production|sandbox]
                             [--scope <scope>]… [--subject <member>] [--name "…"]
 pinecall-runtime keys list  [--org <org>]
 pinecall-runtime keys revoke <fingerprint>
 ```
 
 ```console
-$ pinecall-runtime keys issue --org clinica --label "berna's laptop" --env development
+$ pinecall-runtime keys issue --org clinica --label "berna's laptop" --env sandbox
 pk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  org clinica · development · berna's laptop
+  org clinica · sandbox · berna's laptop
   every scope
   copy it now: the table keeps the fingerprint, and the key is never shown again
 ```
@@ -146,9 +146,9 @@ stay, so log entries that name it remain readable. Issue one key per place — a
 deployment — with a label, because a key you can revoke on its own is a key you will revoke.
 
 `--env` is **the key knowing where**: the agents registered on it, the doors they claim and every
-call they take are that world's, and the gateway keeps production and development apart — the same
+call they take are that world's, and the gateway keeps production and the sandbox apart — the same
 slug held once in each, a number in one refused to the other. A box's worker and app run on a
-production key, which is the default; a laptop gets a development one. `--scope`, repeatable, is
+production key, which is the default; a laptop gets a sandbox one. `--scope`, repeatable, is
 what the key may do (`app` · `calls` · `talk` · `supervise` · `pipeline` · `knowledge` · `memory` ·
 `evals` · `numbers` · `keys` — the org's own API keys — · `providers` — the vendor keys it brought
 — · `team` · `usage`); left out is every scope. An org issues its own machine keys without the
@@ -158,7 +158,7 @@ say whose the key is when it is a person's, so a seat minted from it says who sa
 ## `routes`
 
 ```
-pinecall-runtime routes list [--org <org>] [--env production|development]
+pinecall-runtime routes list [--org <org>] [--env production|sandbox]
 pinecall-runtime routes add <number> <agent> [--channel phone|whatsapp] [--org <org>] [--env …]
 pinecall-runtime routes rm  <number> [--org <org>]
 pinecall-runtime routes seed [--file infra/seed/routes.json]
@@ -282,7 +282,7 @@ own name, so the SDK that reads `ANTHROPIC_API_KEY` by itself and this runtime a
 | `DATABASE_URL` | Postgres 17 with pgvector and pg_textsearch: the one stateful service |
 | `TEI_URL` · `EMBED_PROVIDER` · `EMBED_MODEL` · `EMBED_BASE_URL` | who embeds, and where |
 | `ANTHROPIC_API_KEY` · `OPENAI_API_KEY` · `SONIOX_API_KEY` · `DEEPGRAM_API_KEY` · `ELEVEN_API_KEY` | a call needs one key of each role: llm, stt, tts |
-| `PINECALL_DEV_KEY` | one key, org `default`, the only one honoured; needs no database, uses one when it answers. Development only |
+| `PINECALL_DEV_KEY` | one key, org `default`, the only one honoured; needs no database, uses one when it answers. The sandbox only |
 | `PINECALL_WORKER_KEY` | an org's key, for a worker or an app that runs here |
 | `PINECALL_OPS_KEY` | what `/v1/ops/*` is authenticated by. Unset, the operator API is closed |
 | `PINECALL_VAULT_KEY` | the Fernet key a tenant's own provider keys are encrypted under |

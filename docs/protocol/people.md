@@ -24,12 +24,12 @@ them. Re-inviting an email the org already holds takes no second seat.
 
 **A person's key does not hold `app` in production.** Holding an agent is a deployment, and a
 deployment is a process somebody put on a box — never a laptop that happens to be logged in. So
-every key minted for a person carries their role's preset in development and that preset less
+every key minted for a person carries their role's preset in the sandbox and that preset less
 `app` in production: at login, at `POST /v1/invitations/{token}`, at sign-up and at `POST
 /v1/login/env`, which reads the role and not the key that asked (a production key has already
 lost it). What holds a slug in production is a key issued for a machine — `POST /v1/keys` with
-`{label, scopes: ["app"]}` — and it names nobody. Two people's development keys are two people's:
-the registry holds a development slug per person, so nobody takes another's agent.
+`{label, scopes: ["app"]}` — and it names nobody. Two people's sandbox keys are two people's:
+the registry holds a sandbox slug per person, so nobody takes another's agent.
 
 **How short a password may be is the OPERATOR's, not this runtime's.** `PINECALL_MIN_PASSWORD`
 (default 8, `0` for no rule at all) is the floor, and it is carried on `GET /.well-known/pinecall`
@@ -79,7 +79,7 @@ That door is `202` with an empty body while nobody has approved, `200 {key}` onc
 The browser, holding the person's key, reads `GET /v1/login/pairings/{code}` — `{device,
 expires_at, answered}`, and never a key — so the card can say **what** it is about to sign in, and
 then `POST /v1/login/pairings/{code}` approves it. What that mints is the TERMINAL's own key: a
-fresh one for the same person, in **development**, labelled as that machine, so it is revoked on
+fresh one for the same person, in the **sandbox**, labelled as that machine, so it is revoked on
 its own from the Keys screen. The browser's key never travels to the terminal, and the terminal's
 never travels through the browser.
 

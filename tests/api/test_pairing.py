@@ -10,7 +10,7 @@ import pytest
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members import MemoryMembers
 from pinecall.auth.pairing import CODE_TTL_S, Pairings
-from pinecall.types import DEVELOPMENT, PRODUCTION, Member
+from pinecall.types import PRODUCTION, SANDBOX, Member
 from tests.api.conftest import A_KEY, A_RECORD, over_the_asgi_app
 
 pytestmark = pytest.mark.unit
@@ -100,7 +100,7 @@ async def test_the_key_the_terminal_gets_is_its_own_and_never_the_browsers(
     record = await keys.verify(key)
     assert record is not None
     assert record.subject == ANA, "the same person"
-    assert record.env == DEVELOPMENT, "a terminal is a laptop, and a laptop writes in development"
+    assert record.env == SANDBOX, "a terminal is a laptop, and a laptop writes in development"
     assert record.label == A_LAPTOP, "labelled as the terminal, so a revoker knows which"
 
 

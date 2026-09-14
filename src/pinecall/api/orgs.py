@@ -21,9 +21,9 @@ from pinecall.api._operator import an_operator
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.auth.keys import ListedKey
 from pinecall.types import (
-    DEVELOPMENT,
     KEY_SCOPES,
     PRODUCTION,
+    SANDBOX,
     DeclarationRefused,
     Org,
     Quotas,
@@ -69,7 +69,7 @@ class WantedKey(WireModel):
 
     label: str | None = None
     # Production unless the operator says: the key a box's worker and app run on is the deployed
-    # world's, and a development key is the deliberate act of issuing one for a laptop.
+    # world's, and a sandbox key is the deliberate act of issuing one for a laptop.
     env: str = PRODUCTION
     # Every scope when left out, which is what an org's own machine key holds. A person's key is
     # issued with the scopes their role presets.
@@ -147,7 +147,7 @@ async def remove(named: str, orgs: OrgsDep, keys: KeysDep, table: RoutesDep) -> 
     org = await an_org(named, orgs)
     if any(key.revoked_at is None for key in await keys.listed(org.id)):
         raise HTTPException(409, STILL_IN_USE.format(org=org.slug, what="live keys"))
-    for env in (PRODUCTION, DEVELOPMENT):
+    for env in (PRODUCTION, SANDBOX):
         if await table.of_org(org.id, env):
             raise HTTPException(409, STILL_IN_USE.format(org=org.slug, what="routes"))
     await orgs.remove(org.id)

@@ -100,7 +100,7 @@ pinecall-runtime orgs quota pinecall --seats 10 --agents 25
 
 The link opens the console's own card: the person chooses a password, the token is spent, and
 they hold their first key — an admin's, every door of the org in production and, from the
-console's toggle, development too. The operator held a **token** and never a password: an
+console's toggle, the sandbox too. The operator held a **token** and never a password: an
 invitation is inert until the person it names accepts it, so the box can seat somebody and never
 be them. From there the admin invites the rest from the Team screen, and issues the key the org's
 server runs on from the Keys screen (or `pinecall keys issue`) — the operator is out of the loop.
@@ -127,20 +127,20 @@ own (see below). That is the whole of a tenant's authentication.
 A tenant writes an agent on a laptop and runs the same agent on the box, and the two must never
 see each other: a laptop's `pinecall run` must not take the clinic's number, and the clinic's
 sessions must not fill with a developer's test calls. So **the key knows where.** It is issued into
-`production` or `development`, and the gateway namespaces its registry and its routes by that
+`production` or `sandbox`, and the gateway namespaces its registry and its routes by that
 word: the same slug is held in each world by different sockets; `GET /v1/agents`, `GET
 /v1/routes` and every door that names an agent answer the world the key opens; a dialled number
-is one agent's in one world, and a development key claiming a production number is refused with
+is one agent's in one world, and a sandbox key claiming a production number is refused with
 the world named.
 
-**And the key knows whose.** Development is namespaced a second time, by the member the key was
+**And the key knows whose.** The sandbox is namespaced a second time, by the member the key was
 minted for, because a tenant is a team: Berna and Carla both run `tienda-sur` on their own
-laptops, each reaches their own, and neither takes the other's. A development key that names
+laptops, each reaches their own, and neither takes the other's. A sandbox key that names
 nobody — CI's, a machine's — holds the org's own, which is what a developer holding none falls
 back to. Production is namespaced by nobody, because there is one holder there by construction:
 a person's key does not open `app` in production at all (see below), so what holds a deployed
 slug is a key issued for a machine. The exception is a **dialled** door: a number exists once in
-a world, so the development number is the org's and a call at it rings in one terminal — web and
+a world, so the sandbox number is the org's and a call at it rings in one terminal — web and
 chat are each developer's own, the telephone is shared. WHICH terminal is asked in two steps
 (`api/agents/doors.py`). First, **whose phone dialled**: a developer says which number they call
 from (`PUT /v1/line/from`) and every call they make lands in their own corner — three of them can
@@ -154,23 +154,23 @@ key that pushed or the call that taught them (`0018`): a test call on a laptop n
 the memory a production call reads under the same number, and a `knowledge push` from that laptop
 replaces the laptop's base and never the telephone's. Promoting knowledge is the same push made
 with the box's key. And they carry WHOSE corner, exactly as the registry does (`0021`): before it,
-development was one pile shared by the team, so one developer's push replaced what the other two
+the sandbox was one pile shared by the team, so one developer's push replaced what the other two
 were testing against and one test call's extracted fact arrived in another's. The org's own corner
 is the empty string and not NULL, because it is part of a key and a NULL in one matches nothing —
-production is always the org's, and so is anything a development key naming nobody wrote.
+production is always the org's, and so is anything a sandbox key naming nobody wrote.
 
 Knowledge **falls back** and memory does not, and the difference is what each one is. A base is
 something somebody wrote down for the agent to read, so a developer who has pushed none still
 reads the org's, the way `Registry.of()` falls back to the org's corner: nobody joins a team to an
 empty knowledge base. A push and a drop never fall back — they are about one copy, and a laptop's
 drop must not take the telephone's base. A contact's facts are what a CALL learned, and there is
-no org-wide development call to inherit from: they are the corner's, or nothing. The counts behind `memory_facts` and `knowledge_chunks` read both worlds, because a
+no org-wide sandbox call to inherit from: they are the corner's, or nothing. The counts behind `memory_facts` and `knowledge_chunks` read both worlds, because a
 row a laptop wrote is a row on the same disk. `agent.registered` and `call.started` carry `env`, so a console and a session
-list can say which world they are reading. A dev key opens development — a laptop is where things
+list can say which world they are reading. A dev key opens the sandbox — a laptop is where things
 are written — and every key issued before the field existed is production's.
 
 ```bash
-pinecall-runtime keys issue --org clinica --label "berna's laptop" --env development
+pinecall-runtime keys issue --org clinica --label "berna's laptop" --env sandbox
 pinecall-runtime routes add +34910000000 clinica-norte --org clinica   # production, the default
 ```
 

@@ -8,7 +8,7 @@ import pytest
 from pinecall.knowledge import Base, PgKnowledge
 from pinecall.log.store import open_pool
 from pinecall.providers.embedder import DIMENSIONS, WrongModel
-from pinecall.types import DEVELOPMENT, PRODUCTION
+from pinecall.types import PRODUCTION, SANDBOX
 from tests.knowledge.files import CLINICA, TARIFAS, an_org
 from tests.postgres import Dev
 from tests.vectors import HASH_MODEL, HashEmbedder
@@ -175,9 +175,9 @@ async def test_the_chunks_an_org_keeps_are_summed_over_its_bases_in_both_worlds(
     a laptop's base is rows on the same disk as the box's, so both worlds are in the sum."""
     assert await knowledge.kept(org) == 0
     await knowledge.put(org, PRODUCTION, None, THE_BASE, [CLINICA, TARIFAS])
-    await knowledge.put(org, DEVELOPMENT, None, THE_BASE, [TARIFAS])
+    await knowledge.put(org, SANDBOX, None, THE_BASE, [TARIFAS])
     assert await knowledge.kept(org) == 6
-    await knowledge.drop(org, DEVELOPMENT, None, THE_BASE)
+    await knowledge.drop(org, SANDBOX, None, THE_BASE)
     assert await knowledge.kept(org) == 4
 
 
@@ -186,20 +186,20 @@ async def test_a_base_is_one_worlds_and_a_laptops_push_never_touches_the_boxs(
 ) -> None:
     """The point of 0018: one name in both worlds is two bases, and a search reads one of them."""
     await knowledge.put(org, PRODUCTION, None, THE_BASE, [CLINICA])
-    await knowledge.put(org, DEVELOPMENT, None, THE_BASE, [TARIFAS])
+    await knowledge.put(org, SANDBOX, None, THE_BASE, [TARIFAS])
     deployed = {
         chunk.path for chunk in await knowledge.search(org, PRODUCTION, None, THE_BASE, "turnos")
     }
     written = {
-        chunk.path for chunk in await knowledge.search(org, DEVELOPMENT, None, THE_BASE, "turnos")
+        chunk.path for chunk in await knowledge.search(org, SANDBOX, None, THE_BASE, "turnos")
     }
     assert deployed == {CLINICA.path}
     assert written == {TARIFAS.path}
     assert [one.chunks for one in await knowledge.bases(org, PRODUCTION)] == [2]
-    assert [one.chunks for one in await knowledge.bases(org, DEVELOPMENT)] == [2]
+    assert [one.chunks for one in await knowledge.bases(org, SANDBOX)] == [2]
     # Dropping the laptop's leaves the telephone's answering exactly as before.
-    assert await knowledge.drop(org, DEVELOPMENT, None, THE_BASE) is True
-    assert await knowledge.search(org, DEVELOPMENT, None, THE_BASE, "turnos") == []
+    assert await knowledge.drop(org, SANDBOX, None, THE_BASE) is True
+    assert await knowledge.search(org, SANDBOX, None, THE_BASE, "turnos") == []
     assert len(await knowledge.search(org, PRODUCTION, None, THE_BASE, "turnos")) == 2
 
 
@@ -222,11 +222,11 @@ async def test_two_developers_push_their_own_and_neither_replaces_the_others(
     knowledge: PgKnowledge, org: str
 ) -> None:
     """The point of 0021: before it, the second push replaced what the first was testing against."""
-    await knowledge.put(org, DEVELOPMENT, ANA, THE_BASE, [CLINICA])
-    await knowledge.put(org, DEVELOPMENT, BETO, THE_BASE, [TARIFAS])
+    await knowledge.put(org, SANDBOX, ANA, THE_BASE, [CLINICA])
+    await knowledge.put(org, SANDBOX, BETO, THE_BASE, [TARIFAS])
 
-    anas = await knowledge.search(org, DEVELOPMENT, ANA, THE_BASE, "turnos")
-    betos = await knowledge.search(org, DEVELOPMENT, BETO, THE_BASE, "turnos")
+    anas = await knowledge.search(org, SANDBOX, ANA, THE_BASE, "turnos")
+    betos = await knowledge.search(org, SANDBOX, BETO, THE_BASE, "turnos")
 
     assert {chunk.path for chunk in anas} == {CLINICA.path}
     assert {chunk.path for chunk in betos} == {TARIFAS.path}
@@ -236,54 +236,54 @@ async def test_a_developer_who_has_pushed_nothing_reads_the_orgs_own(
     knowledge: PgKnowledge, org: str
 ) -> None:
     """Nobody joins a team to an empty knowledge base: a READ falls back the way `of()` does."""
-    await knowledge.put(org, DEVELOPMENT, None, THE_BASE, [CLINICA])
+    await knowledge.put(org, SANDBOX, None, THE_BASE, [CLINICA])
 
-    found = await knowledge.search(org, DEVELOPMENT, ANA, THE_BASE, "turnos")
+    found = await knowledge.search(org, SANDBOX, ANA, THE_BASE, "turnos")
 
     assert {chunk.path for chunk in found} == {CLINICA.path}
-    assert [one.base for one in await knowledge.bases(org, DEVELOPMENT, ANA)] == [THE_BASE]
+    assert [one.base for one in await knowledge.bases(org, SANDBOX, ANA)] == [THE_BASE]
 
 
 async def test_their_own_wins_over_the_orgs_own_once_they_have_pushed(
     knowledge: PgKnowledge, org: str
 ) -> None:
-    await knowledge.put(org, DEVELOPMENT, None, THE_BASE, [CLINICA])
-    await knowledge.put(org, DEVELOPMENT, ANA, THE_BASE, [TARIFAS])
+    await knowledge.put(org, SANDBOX, None, THE_BASE, [CLINICA])
+    await knowledge.put(org, SANDBOX, ANA, THE_BASE, [TARIFAS])
 
-    found = await knowledge.search(org, DEVELOPMENT, ANA, THE_BASE, "turnos")
+    found = await knowledge.search(org, SANDBOX, ANA, THE_BASE, "turnos")
 
     assert {chunk.path for chunk in found} == {TARIFAS.path}
-    assert [one.chunks for one in await knowledge.bases(org, DEVELOPMENT, ANA)] == [2]
+    assert [one.chunks for one in await knowledge.bases(org, SANDBOX, ANA)] == [2]
 
 
 async def test_a_drop_takes_your_own_copy_and_never_the_orgs(
     knowledge: PgKnowledge, org: str
 ) -> None:
     """A `knowledge drop` on a laptop must not take the base the team — or the telephone — reads."""
-    await knowledge.put(org, DEVELOPMENT, None, THE_BASE, [CLINICA])
-    await knowledge.put(org, DEVELOPMENT, ANA, THE_BASE, [TARIFAS])
+    await knowledge.put(org, SANDBOX, None, THE_BASE, [CLINICA])
+    await knowledge.put(org, SANDBOX, ANA, THE_BASE, [TARIFAS])
 
-    assert await knowledge.drop(org, DEVELOPMENT, ANA, THE_BASE) is True
+    assert await knowledge.drop(org, SANDBOX, ANA, THE_BASE) is True
 
     # Hers is gone, and she reads the org's again rather than nothing.
-    found = await knowledge.search(org, DEVELOPMENT, ANA, THE_BASE, "turnos")
+    found = await knowledge.search(org, SANDBOX, ANA, THE_BASE, "turnos")
     assert {chunk.path for chunk in found} == {CLINICA.path}
 
 
 async def test_dropping_a_name_you_never_pushed_says_so_even_where_the_org_has_one(
     knowledge: PgKnowledge, org: str
 ) -> None:
-    await knowledge.put(org, DEVELOPMENT, None, THE_BASE, [CLINICA])
+    await knowledge.put(org, SANDBOX, None, THE_BASE, [CLINICA])
 
-    assert await knowledge.drop(org, DEVELOPMENT, ANA, THE_BASE) is False
-    assert len(await knowledge.search(org, DEVELOPMENT, None, THE_BASE, "turnos")) == 2
+    assert await knowledge.drop(org, SANDBOX, ANA, THE_BASE) is False
+    assert len(await knowledge.search(org, SANDBOX, None, THE_BASE, "turnos")) == 2
 
 
 async def test_the_quota_counts_every_corner_because_the_rows_are_the_orgs(
     knowledge: PgKnowledge, org: str
 ) -> None:
     """Two developers each holding a base is two bases against the plan: one disk, one bill."""
-    await knowledge.put(org, DEVELOPMENT, ANA, THE_BASE, [CLINICA])
-    await knowledge.put(org, DEVELOPMENT, BETO, THE_BASE, [TARIFAS])
+    await knowledge.put(org, SANDBOX, ANA, THE_BASE, [CLINICA])
+    await knowledge.put(org, SANDBOX, BETO, THE_BASE, [TARIFAS])
 
     assert await knowledge.kept(org) == 4

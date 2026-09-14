@@ -60,7 +60,7 @@ class Answering:
 # The one question both doors that need an org's routes ask — the worker's GET /v1/routes and the
 # token door, which mints only for an agent the org answers on the web — so it is asked here.
 # `holder` is whose corner of the world the declared half is read from: a developer's key in
-# development sees the doors their own `pinecall run` declared, and everybody sees the org's.
+# the sandbox sees the doors their own `pinecall run` declared, and everybody sees the org's.
 async def answered(
     org: str, env: Env, registry: Declaring, table: Routes, holder: str | None = None
 ) -> tuple[Answering, ...]:

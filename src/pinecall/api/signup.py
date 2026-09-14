@@ -96,7 +96,7 @@ async def signup(
     assert member is not None
     # Production, and so without `app`: what an admin holds here is every door of the org and not
     # the right to hold an agent from a laptop. `pinecall signup` asks /v1/login/env for the
-    # development key next, which is the world its `run` answers in.
+    # sandbox key next, which is the world its `run` answers in.
     issued = await keys.issue(
         org=org.id,
         label=said.device or SIGNED_UP,

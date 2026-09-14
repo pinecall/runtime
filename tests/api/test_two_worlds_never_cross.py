@@ -1,4 +1,4 @@
-"""Two worlds on one gateway: a production key and a development key of ONE org never cross."""
+"""Two worlds on one gateway: a production key and a sandbox key of ONE org never cross."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from starlette.testclient import TestClient, WebSocketTestSession
 
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.orgs.table import MemoryOrgs
-from pinecall.types import DEVELOPMENT, PRODUCTION, Quotas, Route
+from pinecall.types import PRODUCTION, ROLE_SCOPES, SANDBOX, Quotas, Route
 from pinecall.worker.client import CONTEXT
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS, CHAT, over_the_asgi_app
 from tests.api.talking import a_context, a_door, a_register, entry_until, got, hung_up_by_the_app
@@ -20,13 +20,13 @@ pytestmark = pytest.mark.unit
 
 # The same org, issued a second key for the laptop where the agent is being written.
 A_DEV_KEY = "pk_test_bernas_laptop"
-A_DEV_RECORD = KeyRecord(key_id="k_dev", org=A_RECORD.org, label="berna's laptop", env=DEVELOPMENT)
+A_DEV_RECORD = KeyRecord(key_id="k_dev", org=A_RECORD.org, label="berna's laptop", env=SANDBOX)
 A_NUMBER = "+34910000000"
 
 
 @pytest.fixture
 def keys() -> MemoryKeys:
-    """One org, two keys: the box's, in production, and the laptop's, in development."""
+    """One org, two keys: the box's, in production, and the laptop's, in sandbox."""
     return MemoryKeys({A_KEY: A_RECORD, A_DEV_KEY: A_DEV_RECORD})
 
 
@@ -56,14 +56,14 @@ def test_each_key_sees_the_agent_held_in_its_own_world_and_the_register_says_whi
     """The same slug, held by the box and by the laptop at once: two agents to the gateway."""
     with an_app_on(gateway, A_KEY) as deployed, an_app_on(gateway, A_DEV_KEY) as written:
         assert holding(deployed)["data"]["env"] == PRODUCTION
-        assert agents_seen_by(gateway, A_DEV_KEY) == [], "nothing is held in development yet"
-        assert holding(written)["data"]["env"] == DEVELOPMENT
+        assert agents_seen_by(gateway, A_DEV_KEY) == [], "nothing is held in sandbox yet"
+        assert holding(written)["data"]["env"] == SANDBOX
         assert agents_seen_by(gateway, A_KEY) == [AGENT]
         assert agents_seen_by(gateway, A_DEV_KEY) == [AGENT]
     assert agents_seen_by(gateway, A_KEY) == []
 
 
-def test_the_development_key_is_refused_the_number_the_box_answers(gateway: TestClient) -> None:
+def test_the_sandbox_key_is_refused_the_number_the_box_answers(gateway: TestClient) -> None:
     """A number rings in one place, and the refusal names the world that holds it."""
     with an_app_on(gateway, A_KEY) as deployed, an_app_on(gateway, A_DEV_KEY) as written:
         assert holding(deployed, a_door("phone", A_NUMBER))["type"] == "agent.registered"
@@ -75,7 +75,7 @@ def test_the_development_key_is_refused_the_number_the_box_answers(gateway: Test
 def test_whoami_says_which_world_the_key_opens(gateway: TestClient) -> None:
     _, deployed = got(gateway, "/v1/whoami", A_KEY)
     _, written = got(gateway, "/v1/whoami", A_DEV_KEY)
-    assert (deployed["env"], written["env"]) == (PRODUCTION, DEVELOPMENT)
+    assert (deployed["env"], written["env"]) == (PRODUCTION, SANDBOX)
     assert written["label"] == "berna's laptop"
 
 
@@ -90,7 +90,7 @@ async def test_the_worker_reads_the_doors_of_its_own_world_and_no_other(
             answered = (await laptop.get("/v1/routes")).json()
         async with over_the_asgi_app(f"Bearer {A_KEY}") as box:
             deployed_doors = (await box.get("/v1/routes")).json()
-    assert [(route["channel"], route["env"]) for route in answered] == [("web", DEVELOPMENT)]
+    assert [(route["channel"], route["env"]) for route in answered] == [("web", SANDBOX)]
     assert [(route["channel"], route["env"]) for route in deployed_doors] == [("phone", PRODUCTION)]
 
 
@@ -109,14 +109,14 @@ async def test_a_worker_on_one_key_cannot_open_a_call_on_the_other_worlds_route(
             )
     assert refused.status_code == httpx.codes.FORBIDDEN
     assert refused.json()["detail"] == (
-        "this key opens development, and that call's route answers in production"
+        "this key opens sandbox, and that call's route answers in production"
     )
 
 
-def test_a_chat_on_the_development_key_is_served_by_the_laptop_and_says_so_on_call_started(
+def test_a_chat_on_the_sandbox_key_is_served_by_the_laptop_and_says_so_on_call_started(
     gateway: TestClient,
 ) -> None:
-    """The box's socket hears nothing of it, and the log files the call under development."""
+    """The box's socket hears nothing of it, and the log files the call under sandbox."""
     with an_app_on(gateway, A_KEY) as deployed, an_app_on(gateway, A_DEV_KEY) as written:
         holding(deployed)
         holding(written)
@@ -125,27 +125,30 @@ def test_a_chat_on_the_development_key_is_served_by_the_laptop_and_says_so_on_ca
         ):
             started = entry_until(written, "call.started")
             hung_up_by_the_app(written, started["call"])
-        assert started["data"]["env"] == DEVELOPMENT
+        assert started["data"]["env"] == SANDBOX
         deployed.send_json({"type": "ping", "agent": AGENT, "call": None, "data": {}})
         assert deployed.receive_json()["type"] == "pong", "the box's socket heard the laptop's call"
 
 
 def test_a_route_is_one_worlds_and_a_call_context_reads_it_off_the_door() -> None:
-    route = Route(org="clinica", agent=AGENT, channel="web", env=DEVELOPMENT)
+    route = Route(org="clinica", agent=AGENT, channel="web", env=SANDBOX)
     assert a_context("call_1").env == PRODUCTION, "a route that says nothing is production's"
-    assert route.env == DEVELOPMENT
+    assert route.env == SANDBOX
 
 
 # ── two developers, one world ───────────────────────────────────────────────────
 
-# Two people of the same org, each with a development key of their own. A person's key does not
+# Two people of the same org, each with a sandbox key of their own. A person's key does not
 # open `app` in production at all, so this is the only world where either of them holds anything.
+# The developer's preset and not every scope: `team` is what makes a key the org's EYES, and one
+# of these two holding it by accident would make every assertion below about a corner vacuous.
 BERNAS_KEY = "pk_test_bernas_dev_key"
 BERNA = KeyRecord(
     key_id="k_berna",
     org=A_RECORD.org,
     label="cli",
-    env=DEVELOPMENT,
+    env=SANDBOX,
+    scopes=ROLE_SCOPES["developer"],
     subject="m_berna",
     name="Berna",
 )
@@ -154,7 +157,8 @@ CARLA = KeyRecord(
     key_id="k_carla",
     org=A_RECORD.org,
     label="cli",
-    env=DEVELOPMENT,
+    env=SANDBOX,
+    scopes=ROLE_SCOPES["developer"],
     subject="m_carla",
     name="Carla",
 )

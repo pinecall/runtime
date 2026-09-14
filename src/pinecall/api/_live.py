@@ -39,7 +39,7 @@ class Served:
     context: CallContext
     config: AgentConfig
     # Whose corner of the world serves it, as the door that opened the call resolved it: the
-    # developer in development, nobody in production. What this call recalls and searches is that
+    # developer in the sandbox, nobody in production. What this call recalls and searches is that
     # corner's, so a test call on one laptop never reads what another laptop's test call wrote.
     holder: str | None = None
 

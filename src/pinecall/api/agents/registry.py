@@ -14,7 +14,7 @@ from pinecall.api.agents.doors import Agent, Doors
 from pinecall.api.agents.holding import Held, Registration, SocketId
 from pinecall.log.entry import Entry
 from pinecall.providers import declaration
-from pinecall.types import PRODUCTION, AgentConfig, DeclarationRefused, Env, Route
+from pinecall.types import PRODUCTION, AgentConfig, DeclarationRefused, Env, Route, is_a_deployment
 from pinecall_protocol import WireModel, defs, encode
 from pinecall_protocol.events import AgentConfigured, AgentDetached
 
@@ -176,18 +176,31 @@ class Registry:
     # What this reader may REACH, once per (world, slug): their own corner and the org's own, the
     # two `of` falls through. Another developer's is left out: a row a click could not open would
     # be the 403 the rail exists to avoid.
+    # Two readings of one table. A developer asks "what can I open", and the answer is their own
+    # corner with the org's underneath, one row per slug: two copies of `tienda-sur` are one entry
+    # for them and the one they are running wins. An admin and the box operator ask "what is the
+    # team running", and collapsing would hide the very thing they opened the page for — so they
+    # get one row per CORNER, each saying whose it is. api/agents/endpoints.py decides which.
     def holding(
-        self, org: str, env: Env | None = None, holder: str | None = None
+        self,
+        org: str,
+        env: Env | None = None,
+        holder: str | None = None,
+        *,
+        every_corner: bool = False,
     ) -> tuple[Registration, ...]:
-        """Every agent this org holds in that world — or in both, when none is named — once each."""
-        seen: dict[Agent, Registration] = {}
-        for (world, whose, slug), holding in self._agents.items():
+        """Every agent this org holds in that world — or in both, when none is named — once each,
+        or once per corner for a reader who sees the whole team."""
+        seen: dict[Held | Agent, Registration] = {}
+        for name, holding in self._agents.items():
+            world, whose, slug = name
             if holding[-1].org != org or (env is not None and world != env):
                 continue
-            if whose is not None and whose != holder:
+            if not every_corner and whose is not None and whose != holder:
                 continue
-            if (world, slug) not in seen or whose == holder:
-                seen[(world, slug)] = holding[-1]
+            under: Held | Agent = name if every_corner else (world, slug)
+            if under not in seen or whose == holder:
+                seen[under] = holding[-1]
         return tuple(seen.values())
 
     # Every corner, because a quota is the ORG's: two developers holding two different agents are
@@ -264,7 +277,7 @@ class Registry:
             )
         )
         said = declaration.registered(owner, doors, sdk, env)
-        return await self._append(slug, "agent.registered", said)
+        return await self._append(slug, "agent.registered", said, env)
 
     async def configure(
         self, owner: SocketId, env: Env, slug: str, wire: defs.AgentConfig
@@ -299,7 +312,7 @@ class Registry:
             if self._doors.release((env, slug), holder):
                 self._the_next_corner_answers(env, slug)
             detached = AgentDetached(app=owner, env=env, left=not left)
-            await self._append(slug, "agent.detached", detached)
+            await self._append(slug, "agent.detached", detached, env)
         return frozenset(slug for _, _, slug in released)
 
     # ── the rules ───────────────────────────────────────────────────────────────
@@ -362,9 +375,17 @@ class Registry:
 
     # Through the process's live log, not the store: a console holding the agent's SSE stream open
     # hears a register the moment it is accepted, instead of on its next reconnect.
-    async def _append(self, slug: str, type: str, event: WireModel) -> Entry:
+    # Who is holding an agent RIGHT NOW is live state, not history — and in a sandbox it is a
+    # laptop, restarted every few minutes, by as many people as work on the agent. One agent log
+    # per slug for every world, so a hundred developers wrote a hundred registrations a day into
+    # the same log production's deploys are recorded in, until it could not be read. A deployment
+    # still writes its own: when a slug started answering the telephone IS worth keeping.
+    async def _append(
+        self, slug: str, type: str, event: WireModel, env: Env | None = None
+    ) -> Entry:
         """The claim is not accepted until the agent's own log says so; call is None, always."""
-        return await self._logs.writing_agent(slug).append(type, encode(event))
+        forgettable = None if env is None or is_a_deployment(env) else True
+        return await self._logs.writing_agent(slug).append(type, encode(event), forgettable)
 
 
 # ── how a route asks for it ─────────────────────────────────────────────────────

@@ -59,11 +59,11 @@ async def test_accepting_makes_the_member_active_and_hands_them_their_first_key(
     tenant_http: httpx.AsyncClient, stranger: httpx.AsyncClient, keys: MemoryKeys
 ) -> None:
     said = await invited(tenant_http)
-    signed = await accepted(stranger, said["token"], env="development")
+    signed = await accepted(stranger, said["token"], env="sandbox")
     assert signed["member"]["status"] == "active"
     assert (signed["org"], signed["env"], signed["label"]) == (
         A_RECORD.org,
-        "development",
+        "sandbox",
         "laptop",
     )
     assert (signed["subject"], signed["name"]) == (said["member"]["id"], "Berna")
@@ -74,7 +74,7 @@ async def test_accepting_makes_the_member_active_and_hands_them_their_first_key(
     # The new key opens the tenant's doors as the person: whoami says who.
     async with over_the_asgi_app(f"Bearer {signed['key']}") as berna:
         who = (await berna.get("/v1/whoami")).json()
-    assert (who["name"], who["env"]) == ("Berna", "development")
+    assert (who["name"], who["env"]) == ("Berna", "sandbox")
 
 
 async def test_a_spent_expired_or_invented_token_is_one_404_and_a_short_password_is_400(
