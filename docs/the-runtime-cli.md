@@ -28,6 +28,35 @@ So `keys issue` on a box whose gateway is down is refused by the client, not by 
 
 ---
 
+## `init`
+
+```
+pinecall-runtime init [--org <slug>] --email <address> --person "<name>" [--name "…"] [--role admin]
+```
+
+The first org and the first person, on a runtime nobody has used yet — the one command between a
+migrated database and a terminal that can sign in. It makes the org (`--org` defaults to
+`default`, which the schema seeds), invites its first **admin**, makes that person an **operator**
+of this box — somebody has to be able to make the second org, and on a fresh runtime there is
+nobody else — and prints the invitation link and the two lines to type next.
+
+```console
+$ pinecall-runtime init --email you@example.com --person "Your Name"
+org default is already there
+m_b3796f3579fc  you@example.com  admin  runs this box
+  http://127.0.0.1:8080/invitations/inv_…
+
+  Open the link above to set a password. Then, in the directory of an agent:
+
+    pinecall login http://127.0.0.1:8080
+    pinecall run
+```
+
+Run it twice and it carries on to the person rather than stopping at the org: it is the verb
+somebody runs twice while reading the README. A second tenant afterwards is [`orgs`](#orgs).
+
+The whole path, with every output under it, is [from-zero.md](from-zero.md).
+
 ## `gateway`
 
 ```
@@ -66,16 +95,6 @@ takes no new call, finishes the ones it holds, and exits **3**; the unit's
 LiveKit until the gateway says every real worker is, and then answers the call nobody else can
 — one sentence (`PINECALL_OVERFLOW_SAYS`), the caller's number onto the agent's log as
 `callback.requested`, and it hangs up. No STT, no model.
-
-## `chat`
-
-```
-pinecall-runtime chat --agent <slug> [--url http://localhost:8080] [--caller <id>]
-```
-
-A text call from this terminal against an agent some app is holding: one line per turn, the log as
-it happens. It is the runtime's own twin of `pinecall chat` and needs no tenant checkout — useful
-for asking "does this box answer at all" without a Node toolchain on it.
 
 ## `sessions`
 
@@ -214,14 +233,20 @@ verdict and touches nothing.
 ## `migrate`
 
 ```
-pinecall-runtime migrate up [--schema public]
+pinecall-runtime migrate up [--schema public] [--post]
 pinecall-runtime migrate status
+pinecall-runtime migrate plan
 ```
 
 The `.sql` files under `pinecall/migrations`, applied in order, straight over `DATABASE_URL`. It is
 what a unit runs before every start, so it prints no secret: the `default` org is seeded here and
-its first key is `keys issue`, never this verb. `--schema` applies into a schema of its own, which
-is how a test run owns its copy.
+its first key is `keys issue`, never this verb. `status` says which have run and `plan` which would
+run next. `--schema` applies into a schema of its own, which is how a test run owns its copy.
+
+**`--post` is the other half, and it is never run at startup.** A migration is held to five seconds
+there — the unit runs `migrate up` before the gateway opens its socket — so anything slower is
+written as a `.post.sql`, applied by a person, after the deploy, with this flag. An index over a
+big table is always one of those.
 
 ## `doctor`
 
@@ -255,6 +280,27 @@ asks after depends on `PINECALL_ROLE`: `all`, `hub` (no worker) or `worker`.
 The first line used to read differently on a laptop and on a box, because a laptop could run on
 `PINECALL_DEV_KEY` — one key, org `default`, the table not read. That was a second runtime, and it
 is gone: there is one table everywhere, and the line names the verb that puts a key in it.
+
+## `providers`
+
+```
+pinecall-runtime providers [--does llm|stt|tts]
+```
+
+Every vendor this build can reach, what each one does, and whether it has a key here: `ready` ·
+`no key` · `no plugin` · `its own`. It is the same table `pinecall providers` prints for a tenant,
+read from the box's side — the answer to "can this box speak Spanish with ElevenLabs" before a
+call proves it cannot.
+
+```console
+$ pinecall-runtime providers
+vendor        does         standing   variable              also known as
+livekit       llm,stt,tts  ready                            inference lk
+anthropic     llm          ready      ANTHROPIC_API_KEY     claude
+assemblyai    stt          no key     ASSEMBLYAI_API_KEY    assembly
+```
+
+A vendor an org brought of its own is `orgs provider-key`, above; this table is the box's.
 
 ## `box`
 
