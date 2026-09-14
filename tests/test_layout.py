@@ -19,6 +19,10 @@ FILES_THE_CEILING_SKIPS = frozenset(
         Path("uv.lock"),
         Path("CHANGELOG.md"),
         Path("src/pinecall/providers/published_prices.json"),
+        # A walkthrough whose content IS the terminal output of every step, in order. Cutting it
+        # to fit would mean cutting steps, and a walkthrough with a step missing is worse than
+        # none — a person following it stops at a command that does not work.
+        Path("docs/from-zero.md"),
     }
 )
 # The design corpus is imported whole and read as a book, not as code.

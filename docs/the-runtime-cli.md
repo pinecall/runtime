@@ -318,6 +318,8 @@ pinecall-runtime worker dev                        # in another terminal, for sp
 pinecall login http://localhost:8080               # in the agent's directory, as a person
 ```
 
+[from-zero.md](from-zero.md) is this same path with every output under it, through to a call.
+
 **This is the same runtime a box runs, and there is no other.** A laptop used to have one of its
 own — `PINECALL_DEV_KEY`, one key that needed no database, org `default`, no login anywhere — and
 what it bought in the first five minutes it charged back in every hour after: two sets of keys,
