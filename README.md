@@ -11,6 +11,17 @@ the `pinecall` framework, in the agents repository; this runtime holds the log, 
 tenants, the sessions and the judges, and never the conversation. How the pieces fit — and
 exactly where LiveKit ends and this begins — is [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Install
+
+```bash
+pip install pinecall          # or: uv add pinecall
+```
+
+That is the whole install on a server: the wheel carries the gateway, the worker, the migrations
+and both browser pages. A laptop that wants to read the code, run the example agent or bring up
+the dev stack clones instead — [docs/from-zero.md](docs/from-zero.md) is that walkthrough, every
+command in it run in order with the output it returned.
+
 ## Five minutes, on a laptop
 
 ```
