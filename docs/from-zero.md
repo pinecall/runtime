@@ -58,7 +58,7 @@ $ export PINECALL_OPS_KEY=$(openssl rand -hex 32)
 $ pinecall-runtime init --email berna@clinica.test --person "Berna"
 org default is already there
 m_b3796f3579fc  berna@clinica.test  admin  runs this box
-  http://127.0.0.1:8080/invitations/inv_z72mrPPZ9YKD3Wvg4yq4V7Q2rVBRn3pw
+  http://127.0.0.1:8080/invitations/inv_…
 
   Open the link above to set a password. Then, in the directory of an agent:
 
@@ -93,7 +93,7 @@ $ cd ../agents/examples/clinica-norte && pnpm install
 $ pinecall login http://127.0.0.1:8080
 
 open this to sign in:
-http://127.0.0.1:8080/cli?c=cli_j-VHWdIlx4eo99Smpy5upViArx9fLJ1m
+http://127.0.0.1:8080/cli?c=cli_…
 
 waiting…
 ▸ local · http://127.0.0.1:8080 · org default · sandbox
@@ -112,7 +112,7 @@ $ pinecall config
 ▸ local  http://127.0.0.1:8080  default · sandbox
 $ pinecall whoami
 gateway http://127.0.0.1:8080 · key from profile
-org default · key k_29c915320fcf07ee · sandbox · berna-air
+org default · key k_29c915320fcf · sandbox · berna-air
 ```
 
 `pinecall use <name>` switches; `--profile <name>` goes to one for a single command. No
@@ -126,7 +126,7 @@ the same profile from a key `pinecall keys issue` minted.
 ```console
 $ pinecall run
 clinica-norte · default · sandbox · connected to http://127.0.0.1:8080 · key from profile · tools 5 · doors phone +34910000000, whatsapp +34910000000, web
-console  http://127.0.0.1:8080/a/clinica-norte?login=lc__58918wKDBztGEiL6_5yihxm0jPSDV2Q   (opens within five minutes, once)
+console  http://127.0.0.1:8080/a/clinica-norte?login=lc_…   (opens within five minutes, once)
 line     rings in this terminal
 ```
 
@@ -368,7 +368,7 @@ The second person is the console's Team screen, or:
 ```console
 $ pinecall-runtime orgs invite default carla@clinica.test --name "Carla" --role developer
 m_8d5b70019dd4  carla@clinica.test  developer  invited
-  http://127.0.0.1:8080/invitations/inv__qH2j0KGl06SuaxHsExjEsPAMDvDZu_t
+  http://127.0.0.1:8080/invitations/inv_…
   send them this; it opens the console's password screen once, within a week
 ```
 
