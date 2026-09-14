@@ -258,7 +258,8 @@ is the door and its refusals.
 
 Todo lo que sigue son capturas de esta box, tomadas con Playwright contra
 `https://box.pinecall.io` con la instalación de más arriba recién hecha. Nada está maquetado: es
-la página leyendo sus propias puertas.
+la página leyendo sus propias puertas. **Cada una está en los dos temas** y vas a ver la de tu
+propia máquina: la consola sigue `prefers-color-scheme` y se estampa el tema sola.
 
 La consola vive en `/` y la sirve el gateway. Un tab guarda **la key de una persona**, en
 `sessionStorage`, y muere con el tab: nunca la del org, nunca en una URL. Se entra de dos maneras —
@@ -270,7 +271,10 @@ Es la pregunta que contesta `pinecall whoami`, sobre la pantalla.
 
 ## La flota — lo que la box sostiene ahora
 
-![Agents](images/agents.png)
+<picture>
+  <source srcset="images/dark/agents.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/agents.png" alt="Agents">
+</picture>
 
 La portada. **Qué agentes hay sostenidos en este momento**, con las puertas que cada uno declaró —
 `phone · web · whatsapp` son las tres de Clínica Norte. Es la tabla viva del gateway y no el
@@ -279,12 +283,18 @@ registro: un agente que ningún proceso sostiene no contesta ninguna llamada, y 
 El interruptor `production | sandbox` de arriba cambia de mundo acuñando la key del otro para la
 misma persona. Una key abre un mundo y sólo uno.
 
-![Live](images/live.png)
+<picture>
+  <source srcset="images/dark/live.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/live.png" alt="Live">
+</picture>
 
 **El suelo**: cada llamada que está abierta ahora mismo, del agente que sea. Llega por un stream,
 así que se llena sola mientras mirás.
 
-![Sessions](images/sessions.png)
+<picture>
+  <source srcset="images/dark/sessions.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/sessions.png" alt="Sessions">
+</picture>
 
 **Las terminadas**, de toda la org, la más nueva arriba: cuándo, cuánto duró, de dónde vino y con
 qué frase terminó. El id de cada una abre su log entero — el mismo que leen `pinecall sessions` y
@@ -294,66 +304,102 @@ la API, byte por byte.
 
 Elegido uno en el selector de arriba, las pantallas pasan a ser suyas.
 
-![Talk](images/talk.png)
+<picture>
+  <source srcset="images/dark/talk.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/talk.png" alt="Talk">
+</picture>
 
 **Talk**: hablarle desde el navegador, con micrófono, contra la misma sala de LiveKit que usaría un
 teléfono. La consola pide un token de una llamada, no la key.
 
-![Chat](images/chat.png)
+<picture>
+  <source srcset="images/dark/chat.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/chat.png" alt="Chat">
+</picture>
 
 **Chat**: la misma conversación escrita, con el log de esa llamada al lado. Lo que tipeás sale como
 un turno; lo que vuelve es el log de la llamada, tal cual quedó escrito.
 
-![Calls](images/calls.png)
+<picture>
+  <source srcset="images/dark/calls.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/calls.png" alt="Calls">
+</picture>
 
 **Calls**: las llamadas de este agente según van pasando, y una de ellas entera — los turnos, las
 herramientas que corrió, las métricas de cada una.
 
-![Pipeline](images/pipeline.png)
+<picture>
+  <source srcset="images/dark/pipeline.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/pipeline.png" alt="Pipeline">
+</picture>
 
 **Pipeline**: qué oye, con qué decide y con qué habla, y las perillas encima. Cambiar una acá es lo
 mismo que `pinecall pipeline set`: vale desde la próxima llamada, sin desplegar nada.
 
-![Knowledge](images/knowledge.png)
+<picture>
+  <source srcset="images/dark/knowledge.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/knowledge.png" alt="Knowledge">
+</picture>
 
 **Knowledge**: la base de la que contesta, por trozos, con cuándo se subió. Es la del mundo de tu
 key — un push con la key del sandbox no toca la que contesta el teléfono.
 
-![Memory](images/memory.png)
+<picture>
+  <source srcset="images/dark/memory.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/memory.png" alt="Memory">
+</picture>
 
 **Memory**: lo que el agente aprendió de un contacto a lo largo de sus llamadas, y el botón para
 olvidarlo. Los hechos son de una persona y de un mundo.
 
-![Evals](images/evals.png)
+<picture>
+  <source srcset="images/dark/evals.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/evals.png" alt="Evals">
+</picture>
 
 **Evals**: los goldens y sus corridas. Correr una suite desde acá se la pide al proceso que sostiene
 el agente — los goldens son archivos de su directorio, así que sólo ese proceso puede abrirla.
 
 ## Lo que es de la org y no de un agente
 
-![Numbers](images/numbers.png)
+<picture>
+  <source srcset="images/dark/numbers.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/numbers.png" alt="Numbers">
+</picture>
 
 **Numbers**: qué número llega a qué agente, y quién lo puso — un operador o la propia clase. Desde
 acá se trae el carrier y se importa un número.
 
-![Keys](images/keys.png)
+<picture>
+  <source srcset="images/dark/keys.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/keys.png" alt="Keys">
+</picture>
 
 **Keys**: las keys de la org por huella, nunca por valor. Qué mundo abre cada una, para qué es y de
 quién: una key de persona lleva su nombre, una de máquina dice `a machine`. Revocar deja la fila,
 así que las llamadas que esa key escribió se siguen leyendo.
 
-![Providers](images/providers.png)
+<picture>
+  <source srcset="images/dark/providers.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/providers.png" alt="Providers">
+</picture>
 
 **Providers**: cada vendor que esta build alcanza y cómo está — `ready`, `no key`, `no plugin`. Y
 las que el tenant trajo propias, que viajan cifradas y no se leen de vuelta desde ninguna puerta.
 
-![Team](images/team.png)
+<picture>
+  <source srcset="images/dark/team.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/team.png" alt="Team">
+</picture>
 
 **Team**: la gente de la org, su rol y su estado. Invitar imprime un link de un solo uso que abre la
 pantalla de contraseña; el operador entrega el link y nunca una contraseña. Un rol es un preset de
 scopes y nada más.
 
-![Usage](images/usage.png)
+<picture>
+  <source srcset="images/dark/usage.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/usage.png" alt="Usage">
+</picture>
 
 **Usage**: lo que la org consumió, doblado del log según crece — minutos, mensajes, tokens, coste.
 No hay contador que se desincronice: es una suma sobre lo que ya está escrito.
@@ -366,22 +412,34 @@ Vive en `/admin`, toma **la ops key** y no la de ninguna persona. No hay `?login
 haber: un código en una URL es cómo se le entrega una key a un navegador, y la de esta página abre
 toda la box.
 
-![Orgs](images/admin-orgs.png)
+<picture>
+  <source srcset="images/dark/admin-orgs.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/admin-orgs.png" alt="Orgs">
+</picture>
 
 **Orgs**: cada tenant que esta box sirve. El id es por el que lo nombran sus filas y no cambia; el
 slug es lo que una persona escribe. Desde acá se crea uno.
 
-![Routes](images/admin-routes.png)
+<picture>
+  <source srcset="images/dark/admin-routes.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/admin-routes.png" alt="Routes">
+</picture>
 
 **Routes**: los números desde el lado del operador — qué org, qué agente, qué mundo.
 
-![Fleet](images/admin-fleet.png)
+<picture>
+  <source srcset="images/dark/admin-fleet.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/admin-fleet.png" alt="Fleet">
+</picture>
 
 **Fleet**: los workers que golpearon a este gateway, con cuántas llamadas aguanta cada uno y cuándo
 latió por última vez. Desde acá se corta uno sin matarlo: deja de tomar llamadas nuevas y termina
 las que tiene.
 
-![Usage](images/admin-usage.png)
+<picture>
+  <source srcset="images/dark/admin-usage.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/admin-usage.png" alt="Usage">
+</picture>
 
 **Usage**: el consumo de cada org, que es lo que se factura.
 
