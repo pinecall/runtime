@@ -71,7 +71,28 @@ jobs:
         with:
           repository: pinecall/protocol
           path: protocol
+      # The two browser pages live in the agents repository and are built into this package.
+      - uses: actions/checkout@v4
+        with:
+          repository: pinecall/agents
+          path: agents
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.2.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - uses: astral-sh/setup-uv@v5
+      # The console and the admin are gitignored build output, and `uv build` packs whatever is in
+      # the tree — so a wheel built straight after a checkout carries NO pages, and a
+      # `pip install pinecall` gateway answers every screen with "run scripts/console", which the
+      # person who installed a package cannot do. They are built here, from the agents checkout,
+      # before anything is packed.
+      - run: pnpm install --frozen-lockfile
+        working-directory: agents
+      - run: scripts/console   # its default ../agents is exactly this layout
+        working-directory: runtime
+      - run: test -f runtime/src/pinecall/gateway/console/index.html
       - run: uv build
         working-directory: runtime
       - uses: pypa/gh-action-pypi-publish@release/v1

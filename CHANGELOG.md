@@ -7,6 +7,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **0.1.0, and `pinecall-protocol` travels as a range.** The wheel PyPI serves now declares
+  `pinecall-protocol>=0.1,<0.2`; the path in `[tool.uv.sources]` stays, because it is a checkout's
+  convenience and never reached the wheel. `release.yml` also builds the console before packing:
+  the two browser pages are gitignored build output, so a wheel built straight after a checkout
+  carried none of them and a `pip install pinecall` gateway answered every screen with "run
+  `scripts/console`" — which is the one thing a person who installed a package cannot do.
 - **`docs/from-zero.md` was walked from zero, on a clone nobody had touched, and three steps did
   not work.** The page now opens at three `git clone` lines; the gateway comes BEFORE the first
   person, because `init` is an HTTP call to it and on an empty machine it had nothing to knock at;
