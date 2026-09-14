@@ -7,6 +7,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **An admin and the box operator see every sandbox corner.** A sandbox agent is held per person,
+  which is what stops two developers taking each other's `pinecall run` — and it also meant nobody
+  could see anybody else's: a tenant's admin had no way to tell what their team was running, and
+  the operator of the box had none either. `GET /v1/agents` now answers a key that opens `team`
+  with one row per CORNER instead of one per slug, and every row carries `holder`, the member
+  whose copy it is — absent for the org's own, which is what a machine key holds. Which rows a
+  reader gets is the key's own answer (`sees_every_corner`, `auth/keys.py`): whoever may see who
+  the team IS may see what the team is RUNNING.
 - **`orgs move <agent> <org>`.** A slug belongs to the org that first registered it for as long as
   its log exists, and nothing could move it — so an agent registered from a terminal pointed at
   the wrong key belonged to that org for good, with every call it went on to take. A box walks
@@ -53,16 +61,16 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **A terminal is signed in from a browser.** `pinecall login` holds no key and the person at it
   has none to paste, so the two meet at a word: four doors under `/v1/login/pairings` — the
   terminal mints one and polls, the browser reads and approves. That mints the TERMINAL's own key
-  — same person, development, labelled as that machine — and a password is typed into a page and
+  — same person, sandbox, labelled as that machine — and a password is typed into a page and
   never into a shell. `docs/protocol/people.md`.
-- **In development, a contact's facts and a knowledge base are one DEVELOPER's** (`0021`). 0018
-  gave both tables the world they were written in; development was still one pile shared by the
+- **In the sandbox, a contact's facts and a knowledge base are one DEVELOPER's** (`0021`). 0018
+  gave both tables the world they were written in; the sandbox was still one pile shared by the
   team, so one developer's `knowledge push` replaced what the other two were testing against and
   one test call's extracted fact arrived in another's. Both now carry whose corner wrote them.
   Knowledge **falls back** — a developer who has pushed nothing reads the org's, because nobody
   joins a team to an empty base — while a push, a drop, and memory never do. The quotas still
   count every corner: the rows are the org's.
-- **Where a ring lands in development, in two steps.** An org shares one development number, so
+- **Where a ring lands in the sandbox, in two steps.** An org shares one sandbox number, so
   three developers on one agent meant the newest `pinecall run` silently took the others' calls,
   answered in a colleague's scrollback with nothing saying so. Now a developer says which number
   they call FROM (`PUT /v1/line/from`) and every call they make lands in their own corner — three
@@ -135,7 +143,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **The org's tables on the tenant's key.** `GET /v1/usage` (the org's metered rows and totals,
   scope `usage`), `GET /v1/numbers` (its doors in the key's world with their source, scope
   `numbers`), and `POST /v1/login/env {env}` — a person's key mints the same person's key in the
-  other world, which is how the console's Production/Development toggle works.
+  other world, which is how the console's Production/Sandbox toggle works.
 - **`agent.detached`.** A socket that held an agent and went is written to the agent's own log:
   which socket, which world, and whether anybody still holds the agent there.
 - **The gateway serves the console.** `GET /` and every path that is not a door's answer the
@@ -166,14 +174,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `developer`. Disabling a member revokes their keys. Migration `0014`; `argon2-cffi` joins the
   dependencies.
 - **The key knows where and who.** An API key is issued into one of two worlds — `production` or
-  `development` (`keys issue --env`) — and the gateway namespaces its registry and its routes by
+  `sandbox` (`keys issue --env`) — and the gateway namespaces its registry and its routes by
   it: the same slug is held once in each, `GET /v1/agents` and `GET /v1/routes` answer the key's
-  world, a call opened on the other world's route is `403`, and a development key claiming a number
+  world, a call opened on the other world's route is `403`, and a sandbox key claiming a number
   production holds is refused with the world named. `agent.registered` and `call.started` carry
   `env`. The key also carries `scopes` (the doors as they are grouped; `--scope`, repeatable, every
   scope when left out), and `subject` and `name` for a person's key; `GET /v1/whoami` answers all
   of them. `routes add --env` types a number into a world. Migration `0013` leaves every existing
-  key production's with every scope. The dev key opens development. The worker's tools door now
+  key production's with every scope. The dev key opens the sandbox. The worker's tools door now
   takes the org's key like every other worker door.
 - **A call's first entry names the run that opened it.** `call.ringing`, `call.dialing` and
   `call.started` carry `run`: the eval run's id, or null for a person. It replaces a caller id
@@ -288,6 +296,18 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `README.md`, and `license-files` putting the text in the wheel and the sdist.
 
 ### Changed
+- **The world things are written in is `sandbox`, not `development`** (`0023`). The word was doing
+  two jobs — naming a world, and naming "mine" — so a team that wanted a shared staging deployment
+  had nowhere to put it, and a person reading `env: development` could not tell a laptop from a
+  box. The migration rewrites the five tables that carry the column and their CHECKs; `--env
+  development` is gone from `keys issue` and `routes list`, and `is_a_deployment(env)` is now the
+  one question the three places that used to compare against `production` ask, so the day a second
+  shared world exists they already mean the right thing. A shared staging needs no third world: a
+  machine key in the sandbox names nobody's corner, and that is exactly what every member sees.
+- **A sandbox registration is ephemeral.** `agent.registered` and `agent.detached` were appended to
+  the agent's log in both worlds, and an agent's log is one log for all of them — so a laptop
+  reconnecting all afternoon buried the deployed agent's history in its own noise. In the sandbox
+  the entry is marked ephemeral; production is unchanged.
 - **A tenant can deploy.** `POST /v1/keys` measured the ask against the asking key's scopes, and a
   person's key in production does not carry `app` — so an admin asking for the key their own
   server runs on was refused, in both worlds, and only the box operator could mint one. The bound
@@ -315,23 +335,23 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `knowledge_bases` and `knowledge_chunks` carry `env` (`0018`, everything already written is
   production's), and every read and write says which: a test call on a laptop no longer writes
   facts into the memory a production call reads under the same number, and a `knowledge push`
-  with a development key replaces the development base and never the telephone's — promoting is
+  with a sandbox key replaces the sandbox base and never the telephone's — promoting is
   the same push made with the box's key. The `kept` counts the quotas read take both worlds,
   because a row a laptop wrote is a row on the same disk.
-- **An agent is held per person in development.** The registry's name for a holding is
+- **An agent is held per person in the sandbox.** The registry's name for a holding is
   `(env, holder, slug)`: nobody's corner in production, where what is deployed is the org's, and
-  the member the key was minted for in development. Two developers of one tenant now each run the
+  the member the key was minted for in the sandbox. Two developers of one tenant now each run the
   same agent on their own laptop and neither takes the other's — before this the second
   `pinecall run` replaced the first, and every `pinecall chat`, every suite and every config read
-  followed whoever had started last. A development key that names nobody (CI's) holds the org's
+  followed whoever had started last. A sandbox key that names nobody (CI's) holds the org's
   own, which is what a developer holding none falls back to. A **dialled** door is namespaced by
-  neither: a number exists once in a world, so the shared development number is answered by the
+  neither: a number exists once in a world, so the shared sandbox number is answered by the
   newest run, and `GET /v1/agents` lists what the reader can actually reach — never another
   developer's socket.
 - **A person's key does not hold `app` in production.** Holding an agent is a deployment, and a
   deployment is a process on a box, not a laptop that happens to be logged in — so two developers
   can no longer take production's agent from each other by running it. Every key minted for a
-  person carries their role's preset in development and that preset less `app` in production: at
+  person carries their role's preset in the sandbox and that preset less `app` in production: at
   login, at an accepted invitation, at sign-up, and at `POST /v1/login/env`, which now reads the
   member's role rather than the scopes of the key that asked, and refuses a key whose member is
   gone or disabled. What holds a deployed slug is a key issued for a machine.

@@ -170,7 +170,7 @@ def _row_of(door: dict[str, Any]) -> tuple[str, ...]:
 
 
 # A number somebody bought rings the deployed agent, so production is the default; typing one
-# into development is the deliberate act, and the flag is the same word `keys issue` takes.
+# into the sandbox is the deliberate act, and the flag is the same word `keys issue` takes.
 def _in_a_world(parser: argparse.ArgumentParser) -> None:
     """Which world's doors this verb speaks about."""
     parser.add_argument(

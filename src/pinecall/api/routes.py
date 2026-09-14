@@ -42,8 +42,8 @@ NO_SUCH_ROUTE = "no route for {number} in org {org}"
 ORG = Query(description="whose routes: the org the agents register under, by id or slug")
 
 # Which world's doors. Production unless the operator says: a number somebody bought rings the
-# deployed agent, and typing one into development is the deliberate act.
-ENV = Query(PRODUCTION, description="which world's doors: production (default) or development")
+# deployed agent, and typing one into the sandbox is the deliberate act.
+ENV = Query(PRODUCTION, description="which world's doors: production (default) or sandbox")
 
 
 class Wanted(WireModel):

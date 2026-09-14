@@ -65,7 +65,7 @@ async def test_a_developer_holds_agents_on_their_laptop_and_none_in_production(
     """The same person, the same role, the two worlds: `app` is development's and only there."""
     await a_member(tenant_http, stranger)
     assert (await logged_in(stranger, "production"))["scopes"] == ON_A_LAPTOP_ONLY
-    assert (await logged_in(stranger, "development"))["scopes"] == DEVELOPER
+    assert (await logged_in(stranger, "sandbox"))["scopes"] == DEVELOPER
 
 
 async def test_the_key_the_invitation_hands_over_follows_the_same_rule(
@@ -85,7 +85,7 @@ async def test_looking_the_other_way_reads_the_role_and_not_the_key_that_asked(
     await a_member(tenant_http, stranger)
     key = str((await logged_in(stranger, "production"))["key"])
     answer = await stranger.post(
-        THE_OTHER_WORLD, json={"env": "development"}, headers={"Authorization": f"Bearer {key}"}
+        THE_OTHER_WORLD, json={"env": "sandbox"}, headers={"Authorization": f"Bearer {key}"}
     )
     assert answer.status_code == 200, answer.text
     assert answer.json()["scopes"] == DEVELOPER
@@ -100,7 +100,7 @@ async def test_a_disabled_person_does_not_mint_themselves_a_second_world(
     disabled = await tenant_http.patch(f"{MEMBERS}/{member}", json={"status": "disabled"})
     assert disabled.status_code == 200, disabled.text
     answer = await stranger.post(
-        THE_OTHER_WORLD, json={"env": "development"}, headers={"Authorization": f"Bearer {key}"}
+        THE_OTHER_WORLD, json={"env": "sandbox"}, headers={"Authorization": f"Bearer {key}"}
     )
     assert answer.status_code == 401, "their keys were revoked with them"
 
@@ -111,7 +111,7 @@ async def test_a_key_whose_person_the_table_no_longer_has_mints_no_second_world(
     """An operator may issue a key naming anybody; the world-changing door checks the row."""
     answer = await stranger.post(
         THE_OTHER_WORLD,
-        json={"env": "development"},
+        json={"env": "sandbox"},
         headers={"Authorization": f"Bearer {A_GHOSTS_KEY}"},
     )
     assert (answer.status_code, answer.json()["detail"]) == (403, NOT_A_MEMBER)

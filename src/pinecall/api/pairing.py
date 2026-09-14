@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Response
 
 from pinecall.api._deps import KeyDep, KeysDep, MembersDep, PairingsDep
 from pinecall.api.login import for_the_same_person
-from pinecall.types import DEVELOPMENT
+from pinecall.types import SANDBOX
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -59,7 +59,7 @@ async def asking(code: str, pairings: PairingsDep) -> dict[str, Any]:
 async def approve(
     code: str, key: KeyDep, keys: KeysDep, members: MembersDep, pairings: PairingsDep
 ) -> dict[str, Any]:
-    """Sign that terminal in as the person this browser is: a development key of its own."""
+    """Sign that terminal in as the person this browser is: a sandbox key of its own."""
     if key.subject is None:
         raise HTTPException(403, NOT_A_PERSON)
     asked = pairings.asking(code)
@@ -68,9 +68,9 @@ async def approve(
     if asked.answered:
         raise HTTPException(409, ANSWERED)
     # A terminal is a laptop and a laptop is where things are written, so the key it is handed
-    # opens DEVELOPMENT: `pinecall run` and `pinecall chat` answer in a world of the person's own
+    # opens SANDBOX: `pinecall run` and `pinecall chat` answer in a world of the person's own
     # and never in the one their customers call. docs/worlds-and-teams.md.
-    issued = await for_the_same_person(key, DEVELOPMENT, asked.device, keys, members)
+    issued = await for_the_same_person(key, SANDBOX, asked.device, keys, members)
     if not pairings.fill(code, str(issued["key"]), key.org):
         raise HTTPException(409, ANSWERED)
     return {"device": asked.device, "org": key.org}

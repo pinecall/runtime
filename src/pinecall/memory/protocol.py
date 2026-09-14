@@ -37,7 +37,7 @@ class Memory(Protocol):
     # before this the fact one of them planted arrived in another's call. `holder` is the member
     # the key names, or None for the org's own — production's always, and CI's. Unlike a knowledge
     # base there is NO fallback: a base is something somebody wrote down for the agent to read,
-    # and a fact is what a CALL learned. There is no org-wide development call to inherit from.
+    # and a fact is what a CALL learned. There is no org-wide sandbox call to inherit from.
     async def recall(
         self,
         org: str,

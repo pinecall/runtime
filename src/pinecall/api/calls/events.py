@@ -86,7 +86,7 @@ UNKNOWN_EVENT = "no event is called {type!r}: the log takes the protocol's own v
 NOT_THIS_ORG = "that call's route belongs to another org"
 
 # The worker's key opens one world and the route it resolved is the other's: a key issued into
-# development cannot open a production call, whatever number rang.
+# the sandbox cannot open a production call, whatever number rang.
 NOT_THIS_ENV = "this key opens {key}, and that call's route answers in {route}"
 
 # Nothing was ever opened under this id here. 404, not 409: from the writer's side the call does
@@ -316,7 +316,7 @@ async def opened(
     # function: an app id that names no holder of this agent is refused, never quietly ignored.
     # Whose corner, though, depends on how the call ARRIVED. A number is the org's door and the
     # worker that dialled it holds a key naming nobody, so a ring lands on the LINE — nobody's
-    # corner in production, and in development the developer who claimed it. Everything else was
+    # corner in production, and in the sandbox the developer who claimed it. Everything else was
     # opened BY a key holder, and lands in theirs. See api/agents/doors.py.
     serving = who_serves(registry, key.env, said.agent, said.app, context, held_by(key))
     if said.app is not None and serving is None:

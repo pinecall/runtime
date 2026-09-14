@@ -49,7 +49,7 @@ class WantedKey(WireModel):
 
     label: str | None = None
     # Production unless asked otherwise: a key issued here is a machine's, and a machine is a
-    # deployment. A development one is for CI, and is the deliberate act of saying so.
+    # deployment. A sandbox one is for CI, and is the deliberate act of saying so.
     env: str = PRODUCTION
     # Holding an agent, and nothing else, when nobody said: that is what a server does, and it is
     # the one thing a person's key may no longer do in production (types/key.py).

@@ -28,9 +28,9 @@ type Send = Callable[[Entry], Awaitable[None]]
 
 # The name an agent is held under: its world, whose corner of that world, and its slug. Nobody's
 # corner in production — what is deployed is the ORG's, held by the key its box runs on, and a
-# person's key does not open `app` there at all (types/key.py). In development the member the key
+# person's key does not open `app` there at all (types/key.py). In the sandbox the member the key
 # was minted for, so two developers of one tenant each hold their own `tienda-sur` and neither
-# takes the other's; a development key that names nobody — CI's — holds the org's own, which is
+# takes the other's; a sandbox key that names nobody — CI's — holds the org's own, which is
 # what a developer holding nothing falls back to. A dialled door is namespaced by none of it:
 # api/agents/doors.py, and docs/decisions/dispatch.md.
 type Held = tuple[Env, str | None, str]
@@ -48,8 +48,8 @@ class Registration:
     owner: SocketId
     routes: tuple[Route, ...]
     config: AgentConfig
-    # Whose corner of `env` this is: the member in development, nobody in production and nobody
-    # for a development key that names none. See `Held` above. Last with the defaulted fields
+    # Whose corner of `env` this is: the member in the sandbox, nobody in production and nobody
+    # for a sandbox key that names none. See `Held` above. Last with the defaulted fields
     # rather than beside `env`, because nobody's corner is what almost every registration has.
     holder: str | None = None
     sdk: str | None = None

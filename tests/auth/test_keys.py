@@ -18,7 +18,7 @@ from pinecall.auth.keys import (
     mint,
 )
 from pinecall.log.store.postgres import MIGRATIONS
-from pinecall.types import DEVELOPMENT, ENVS, KEY_SCOPES, PRODUCTION
+from pinecall.types import ENVS, KEY_SCOPES, PRODUCTION, SANDBOX
 
 pytestmark = pytest.mark.unit
 
@@ -117,18 +117,18 @@ async def test_a_key_is_issued_into_one_world_with_the_scopes_and_the_person_it_
     issued = await keys.issue(
         org="clinica",
         label="berna's laptop",
-        env=DEVELOPMENT,
+        env=SANDBOX,
         scopes=frozenset({"calls", "talk"}),
         subject="m_1",
         name="Berna",
     )
     assert await keys.verify(issued.key) == issued.record
-    assert issued.record.env == DEVELOPMENT
+    assert issued.record.env == SANDBOX
     assert issued.record.scopes == frozenset({"calls", "talk"})
     assert (issued.record.subject, issued.record.name) == ("m_1", "Berna")
     (listed,) = await keys.listed("clinica")
     assert (listed.env, listed.scopes, listed.subject, listed.name) == (
-        DEVELOPMENT,
+        SANDBOX,
         ("calls", "talk"),
         "m_1",
         "Berna",
@@ -139,14 +139,14 @@ async def test_postgres_issue_writes_the_world_the_scopes_sorted_and_the_person(
     """The columns travel in the INSERT's order; the scopes sorted, so two rows compare."""
     pool = _APoolOfOneRow(None)
     issued = await PostgresKeys(pool).issue(
-        org="clinica", env=DEVELOPMENT, scopes=frozenset({"talk", "calls"}), subject="m_1", name="B"
+        org="clinica", env=SANDBOX, scopes=frozenset({"talk", "calls"}), subject="m_1", name="B"
     )
     assert pool.asked == [
         issued.record.key_id,
         fingerprint(issued.key),
         "clinica",
         None,
-        DEVELOPMENT,
+        SANDBOX,
         ["calls", "talk"],
         "m_1",
         "B",
@@ -154,12 +154,12 @@ async def test_postgres_issue_writes_the_world_the_scopes_sorted_and_the_person(
 
 
 async def test_postgres_reads_the_world_and_the_scopes_back_off_the_row() -> None:
-    row = _a_row("k_2", "madrid", env=DEVELOPMENT, scopes=["talk"], subject="m_1", name="Berna")
+    row = _a_row("k_2", "madrid", env=SANDBOX, scopes=["talk"], subject="m_1", name="Berna")
     record = await PostgresKeys(_APoolOfOneRow(row)).verify(A_KEY)
     assert record == KeyRecord(
         key_id="k_2",
         org="madrid",
-        env=DEVELOPMENT,
+        env=SANDBOX,
         scopes=frozenset({"talk"}),
         subject="m_1",
         name="Berna",
@@ -181,16 +181,22 @@ def test_the_migrations_hand_over_the_very_scopes_the_runtime_knows() -> None:
     assert set(re.findall(r"'([a-z]+)'", array.group(1))) | handed == KEY_SCOPES
 
 
+# The LAST migration that writes the CHECK, not a named one: an applied migration is never
+# edited, so the file that holds today's worlds is whichever one most recently said them. It was
+# 0013 until the world things are written in stopped being called `development`.
 def test_the_migration_checks_the_very_worlds_the_runtime_knows() -> None:
-    said = (MIGRATIONS / "0013_environments.sql").read_text(encoding="utf-8")
-    worlds = re.findall(r"CHECK \(env IN \((.*?)\)\)", said)
-    assert worlds, "the env column is checked against the two worlds"
+    wrote = [
+        file for file in sorted(MIGRATIONS.glob("0*.sql")) if "CHECK (env IN" in file.read_text()
+    ]
+    assert wrote, "some migration checks the env column against the worlds"
+    worlds = re.findall(r"CHECK \(env IN \((.*?)\)\)", wrote[-1].read_text(encoding="utf-8"))
+    assert worlds, "and it names them"
     assert all(sorted(re.findall(r"'([a-z]+)'", one)) == sorted(ENVS) for one in worlds)
 
 
 def test_the_dev_key_opens_development() -> None:
     """A laptop is where things are written: what `pinecall run` registers there is not deployed."""
-    assert DEV_KEY_RECORD.env == DEVELOPMENT
+    assert DEV_KEY_RECORD.env == SANDBOX
     assert DEV_KEY_RECORD.scopes == KEY_SCOPES
 
 

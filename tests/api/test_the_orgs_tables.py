@@ -12,7 +12,7 @@ from pinecall.api.login import ONE_WORLD_EACH
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
 from pinecall.auth.members import MemoryMembers
 from pinecall.log.store import MemoryStore
-from pinecall.types import DEVELOPMENT, PRODUCTION, Member
+from pinecall.types import PRODUCTION, SANDBOX, Member
 from pinecall_protocol import defs
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, Json
 from tests.api.talking import got
@@ -108,23 +108,23 @@ def test_the_tables_ask_their_own_scope(gateway: TestClient) -> None:
 def test_a_person_looks_the_other_way_and_holds_a_key_for_that_world_too(
     gateway: TestClient,
 ) -> None:
-    status, said = posted(gateway, "/v1/login/env", {"env": DEVELOPMENT}, ANAS_KEY)
+    status, said = posted(gateway, "/v1/login/env", {"env": SANDBOX}, ANAS_KEY)
     assert status == 200, said
     assert (said["env"], said["subject"], said["name"], said["label"]) == (
-        DEVELOPMENT,
+        SANDBOX,
         "m_ana",
         "Ana",
         "laptop",
     )
     assert said["scopes"] == sorted(A_MEMBER.scopes), "her role, in that world"
     _, who = got(gateway, "/v1/whoami", str(said["key"]))
-    assert (who["env"], who["subject"]) == (DEVELOPMENT, "m_ana")
+    assert (who["env"], who["subject"]) == (SANDBOX, "m_ana")
 
 
 def test_an_orgs_machine_key_is_one_worlds_and_a_world_that_is_none_is_refused(
     gateway: TestClient,
 ) -> None:
-    status, said = posted(gateway, "/v1/login/env", {"env": DEVELOPMENT}, A_KEY)
+    status, said = posted(gateway, "/v1/login/env", {"env": SANDBOX}, A_KEY)
     assert (status, said["detail"]) == (403, ONE_WORLD_EACH)
     status, said = posted(gateway, "/v1/login/env", {"env": "staging"}, ANAS_KEY)
     assert status == 400 and "staging" in str(said["detail"])

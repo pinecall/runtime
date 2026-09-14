@@ -22,7 +22,7 @@ class Doors:
     slug and by nobody's corner.
 
     `_line` is who picks up. Nobody's corner in production, where what is deployed is the only
-    holder there is. In development the developer who has the LINE: an org shares one development
+    holder there is. In the sandbox the developer who has the LINE: an org shares one sandbox
     number, a shared number rings in one terminal, and which terminal is claimed out loud instead
     of being whoever restarted last — a call landing in a colleague's scrollback is a call nobody
     notices they took. One developer alone claims nothing: the first to hold an agent gets its
@@ -95,7 +95,7 @@ class Doors:
     # ── whose phone dialled ─────────────────────────────────────────────────────
 
     # The line answers "and if nobody knows who this is". THIS answers the question before it:
-    # a developer says which number they call FROM, and every call they make to a development
+    # a developer says which number they call FROM, and every call they make to a sandbox
     # door lands in their own corner — no claim, no coordination, and three of them testing at
     # once. Kept here beside the live table and not in a row, because it is only ever meaningful
     # alongside a socket: a developer who is running nothing has no corner to route a call into.

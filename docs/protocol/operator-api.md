@@ -212,9 +212,9 @@ An API key is what a worker and a tenant's app knock at the runtime's own doors 
 none takes one from a parameter. It is **not** the ops key: the ops key is the box's and opens only
 `/v1/ops/*`; an API key is the tenant's and opens none of them. See `docs/decisions/keys.md`.
 
-And it knows **where and who**. `env` is the world it opens, `production` or `development`: the
+And it knows **where and who**. `env` is the world it opens, `production` or `sandbox`: the
 agents registered on it, the doors they claim and every call they take are that world's, the
-registry and the routes are namespaced by it — and the registry again, in development, by the
+registry and the routes are namespaced by it — and the registry again, in the sandbox, by the
 member the key names, so two developers of one tenant hold their own — and a number claimed in one
 world is refused to a key of the other, naming the world that holds it. `scopes` is what it may do there, as the doors are
 grouped (`app` · `calls` · `talk` · `supervise` · `pipeline` · `knowledge` · `memory` · `evals` ·
@@ -233,7 +233,7 @@ every field is optional — `env` defaults to `production`, `scopes` left out is
 rest to `null` — and a world or a scope nobody declared is `400` with the reason in `detail`:
 
 ```json
-{ "label": "berna's laptop", "env": "development",
+{ "label": "berna's laptop", "env": "sandbox",
   "scopes": ["calls", "talk"], "subject": "m_1", "name": "Berna" }
 ```
 
@@ -241,7 +241,7 @@ The answer carries the key, once, with the record it was written under:
 
 ```json
 { "key": "pk_yT3…", "key_id": "k_9f2c4a1b8d0e6f37", "org": "org_3f2a9c1b8d0e",
-  "label": "berna's laptop", "env": "development", "scopes": ["calls", "talk"],
+  "label": "berna's laptop", "env": "sandbox", "scopes": ["calls", "talk"],
   "subject": "m_1", "name": "Berna" }
 ```
 

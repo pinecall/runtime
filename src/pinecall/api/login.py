@@ -114,7 +114,7 @@ async def the_other_world(
 # The one place a key is minted FROM another key: the console's world toggle above, and the card
 # that signs a terminal in (api/pairing.py). The scopes come off the MEMBER and not off the key
 # that asked — a person's production key does not hold `app`, and reading its scopes would carry
-# that absence into development, where what they run is their own. The role is the source.
+# that absence into the sandbox, where what they run is their own. The role is the source.
 async def for_the_same_person(
     key: KeyRecord, env: Env, label: str | None, keys: KeysDep, members: MembersDep
 ) -> dict[str, Any]:

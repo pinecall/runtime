@@ -4,7 +4,7 @@ import pytest
 
 from pinecall.log.store import Pool
 from pinecall.memory import PgvectorMemory, Spoken
-from pinecall.types import DEVELOPMENT, PRODUCTION, MemoryPolicy
+from pinecall.types import PRODUCTION, SANDBOX, MemoryPolicy
 from tests.memory.conftest import HUNG_UP, LEARNED, ScriptedModels, a_row
 from tests.vectors import HASH_MODEL
 
@@ -331,14 +331,14 @@ async def test_a_contacts_facts_are_one_worlds_and_a_test_call_never_reaches_the
         org, PRODUCTION, None, contact, ["prefiere que la llamen a la tarde"], at=HUNG_UP
     )
     await memory.hold(
-        org, DEVELOPMENT, None, contact, ["test: dice que su pedido no llegó"], at=HUNG_UP
+        org, SANDBOX, None, contact, ["test: dice que su pedido no llegó"], at=HUNG_UP
     )
     deployed = await memory.recall(org, PRODUCTION, None, contact, "pedido")
-    written = await memory.recall(org, DEVELOPMENT, None, contact, "pedido")
+    written = await memory.recall(org, SANDBOX, None, contact, "pedido")
     assert [fact.text for fact in deployed] == ["prefiere que la llamen a la tarde"]
     assert [fact.text for fact in written] == ["test: dice que su pedido no llegó"]
     # Forgetting the laptop's contact leaves the real one's facts standing; the quota saw both.
     assert await memory.kept(org) == 2
-    assert await memory.forget(org, DEVELOPMENT, None, contact) == 1
+    assert await memory.forget(org, SANDBOX, None, contact) == 1
     assert len(await memory.history(org, PRODUCTION, None, contact)) == 1
     assert await memory.kept(org) == 1

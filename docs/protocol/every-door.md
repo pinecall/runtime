@@ -38,7 +38,7 @@ is for. The prose, the shapes and the refusals are on that page and in the pages
 | `GET` | `/v1/agents/{slug}/line` | whose terminal a RING lands in, and who else could take it — `calls` |
 | `POST` | `/v1/agents/{slug}/line` | claim it for this key's corner — `app`; 409 with no app of yours running |
 | `DELETE` | `/v1/agents/{slug}/line` | release it; whoever is still holding the agent picks it up — `app` |
-| `PUT` | `/v1/line/from` | this phone's calls reach this key's corner, in whatever agent it holds — `app`, development only |
+| `PUT` | `/v1/line/from` | this phone's calls reach this key's corner, in whatever agent it holds — `app`, the sandbox only |
 | `DELETE` | `/v1/line/from` | stop answering your own calls; they fall back to the line — `app` |
 | `GET` | `/v1/agents/{slug}/pipeline` · `PUT …/pipeline/overrides` | what it runs on, and the five knobs |
 | `GET` | `/v1/agents/{slug}/provider-keys` | the org's own vendor keys, **in the clear**: the worker's door, see §6 |

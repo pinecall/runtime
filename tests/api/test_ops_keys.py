@@ -111,7 +111,7 @@ async def test_a_key_is_issued_into_development_with_the_scopes_and_the_person_a
         ORGS_KEYS,
         json={
             "label": "berna's laptop",
-            "env": "development",
+            "env": "sandbox",
             "scopes": ["talk", "calls"],
             "subject": "m_1",
             "name": "Berna",
@@ -119,13 +119,13 @@ async def test_a_key_is_issued_into_development_with_the_scopes_and_the_person_a
     )
     assert answer.status_code == 200, answer.text
     issued = answer.json()
-    assert issued["env"] == "development"
+    assert issued["env"] == "sandbox"
     assert issued["scopes"] == ["calls", "talk"]
     assert (issued["subject"], issued["name"]) == ("m_1", "Berna")
     record = await keys.verify(str(issued["key"]))
     assert record is not None
     assert (record.env, record.scopes, record.subject, record.name) == (
-        "development",
+        "sandbox",
         frozenset({"calls", "talk"}),
         "m_1",
         "Berna",
@@ -133,7 +133,7 @@ async def test_a_key_is_issued_into_development_with_the_scopes_and_the_person_a
     rows = (await ops_http.get(ORGS_KEYS)).json()
     mine = next(row for row in rows if row["fingerprint"] == fingerprint(str(issued["key"])))
     assert (mine["env"], mine["scopes"], mine["name"]) == (
-        "development",
+        "sandbox",
         ["calls", "talk"],
         "Berna",
     )

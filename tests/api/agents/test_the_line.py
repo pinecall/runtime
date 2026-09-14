@@ -10,7 +10,7 @@ import pytest
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members import MemoryMembers
-from pinecall.types import DEVELOPMENT, Member
+from pinecall.types import SANDBOX, Member
 from pinecall_protocol import defs
 from tests.api.conftest import A_RECORD, AGENT, over_the_asgi_app
 
@@ -30,15 +30,15 @@ A_DEV_NUMBER = "+59829001199"
 
 
 def a_laptop(key_id: str, subject: str) -> KeyRecord:
-    """A person's development key: their corner is the member it was minted for."""
-    return KeyRecord(key_id=key_id, org=A_RECORD.org, env=DEVELOPMENT, subject=subject)
+    """A person's sandbox key: their corner is the member it was minted for."""
+    return KeyRecord(key_id=key_id, org=A_RECORD.org, env=SANDBOX, subject=subject)
 
 
 def a_member(id: str, email: str) -> Member:
     return Member(id=id, org=A_RECORD.org, email=email, name=email, role="developer")
 
 
-# CI's: a development key that names nobody, which is what holds the org's own corner.
+# CI's: a sandbox key that names nobody, which is what holds the org's own corner.
 CI_KEY = "pk_test_the_ci_job"
 
 
@@ -48,7 +48,7 @@ def keys() -> MemoryKeys:
         {
             BERNAS_KEY: a_laptop("k_berna", BERNA),
             CARLAS_KEY: a_laptop("k_carla", CARLA),
-            CI_KEY: KeyRecord(key_id="k_ci", org=A_RECORD.org, env=DEVELOPMENT, label="ci"),
+            CI_KEY: KeyRecord(key_id="k_ci", org=A_RECORD.org, env=SANDBOX, label="ci"),
         }
     )
 
@@ -61,11 +61,11 @@ def members() -> MemoryMembers:
 
 
 async def running(registry: Registry, socket: str, holder: str) -> None:
-    """One developer's `pinecall run`, holding the agent and the shared development number."""
+    """One developer's `pinecall run`, holding the agent and the shared sandbox number."""
     await registry.register(
         socket,
         A_RECORD.org,
-        DEVELOPMENT,
+        SANDBOX,
         AGENT,
         [defs.Route(channel="phone", number=A_DEV_NUMBER)],
         holder=holder,
@@ -74,7 +74,7 @@ async def running(registry: Registry, socket: str, holder: str) -> None:
 
 @pytest.fixture
 async def bernas(wired: None) -> AsyncIterator[httpx.AsyncClient]:  # noqa: ARG001
-    """Berna's terminal, holding her own development key."""
+    """Berna's terminal, holding her own sandbox key."""
     http = over_the_asgi_app(f"Bearer {BERNAS_KEY}")
     yield http
     await http.aclose()
@@ -126,7 +126,7 @@ async def test_a_claim_takes_it_and_the_other_terminal_sees_it_go(
     assert claimed.status_code == 200
     assert claimed.json()["yours"] is True
     assert (await bernas.get(LINE)).json()["yours"] is False
-    taking = registry.taking(DEVELOPMENT, AGENT)
+    taking = registry.taking(SANDBOX, AGENT)
     assert taking is not None and taking.owner == CARLAS_SOCKET
 
 
@@ -139,7 +139,7 @@ async def test_a_claim_on_an_agent_this_terminal_is_not_running_is_refused(
     refused = await carlas.post(LINE)
 
     assert refused.status_code == 409
-    assert "is not held in development" in refused.json()["detail"]
+    assert "is not held in sandbox" in refused.json()["detail"]
     assert (await bernas.get(LINE)).json()["yours"] is True
 
 
