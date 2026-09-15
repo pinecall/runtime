@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Protocol
@@ -9,7 +10,7 @@ from typing import Protocol
 from livekit import api
 
 from pinecall._settings import Settings
-from pinecall.types.dispatch import WORKER_NAME
+from pinecall.types.dispatch import ORG_KEY, WORKER_NAME
 
 # One inbound trunk per org and one rule on it, named so a person reading the SFU's lists knows
 # whose they are. The trunk's `numbers` is the allow-list: an INVITE for a number no trunk declares
@@ -130,8 +131,11 @@ async def _trunk_named(livekit: api.LiveKitAPI, name: str) -> api.SIPInboundTrun
     return next((trunk for trunk in standing.items if trunk.name == name), None)
 
 
-# The rule names the fleet's worker and never a tenant: which agent answers a number is one row in
-# the routes table, and moving a number is not a LiveKit change at all.
+# The rule names the fleet's worker and never a tenant's agent: which agent answers a number is
+# one row in the routes table, and moving a number is not a LiveKit change at all. It does name
+# the ORG, because a tenant's trunk is one org's: the worker reads it off the dispatch and asks
+# for that org's doors, the way a web token's dispatch names its org (tokens/room.py). The box's
+# own trunk (infra/tools/twilio_trunk.py) names none, and a call on it is resolved by number.
 async def _a_rule(livekit: api.LiveKitAPI, org: str, trunk_id: str) -> None:
     """One room per caller on this trunk, with the worker dispatched into it, made once."""
     standing = await livekit.sip.list_dispatch_rule(api.ListSIPDispatchRuleRequest())
@@ -145,7 +149,11 @@ async def _a_rule(livekit: api.LiveKitAPI, org: str, trunk_id: str) -> None:
                 dispatch_rule_individual=api.SIPDispatchRuleIndividual(room_prefix=ROOM_PREFIX)
             ),
             room_config=api.RoomConfiguration(
-                agents=[api.RoomAgentDispatch(agent_name=WORKER_NAME)]
+                agents=[
+                    api.RoomAgentDispatch(
+                        agent_name=WORKER_NAME, metadata=json.dumps({ORG_KEY: org})
+                    )
+                ]
             ),
         )
     )

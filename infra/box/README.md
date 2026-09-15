@@ -207,11 +207,13 @@ environment file. There is no `.env` on the box, and a stolen disk is not a stol
 | credential | who reads it | made by |
 |---|---|---|
 | `LIVEKIT_API_KEY` `LIVEKIT_API_SECRET` `POSTGRES_PASSWORD` `DATABASE_URL` `PINECALL_OPS_KEY` `PINECALL_VAULT_KEY` `media.env` | the units and the containers, each what it names | `pinecall-secrets.service`, once: `pinecall-runtime box secrets` |
-| `PINECALL_WORKER_KEY` — the org's key the worker knocks with | the worker | `pinecall-worker-key.service`, once |
+| `PINECALL_WORKER_KEY` — the fleet's key the worker knocks with: org default, the `fleet` scope | the worker | `pinecall-worker-key.service`, once |
 | `PINECALL_OPERATOR_KEY` — yours | you, once, with `systemd-creds decrypt` | `pinecall-operator-key.service`, once |
 | the vendors' keys | the gateway and the worker | you: `pinecall-runtime box secret <NAME>` |
 | `TWILIO_ACCOUNT_SID` `TWILIO_API_KEY` `TWILIO_API_SECRET` — the box's own Twilio, for the numbers it buys for a tenant | the gateway | you, the same way; unset, `POST /v1/numbers/buy` says so |
 | `PINECALL_SIGNUP` — whether a stranger may make an org here, off unless set; `PINECALL_CLOUD` — whether a plan is billed | the gateway | you: a line each in `/etc/pinecall/box.env` |
+
+A box born before the `fleet` scope re-mints its worker key once (`docs/a-box-in-production.md`, "The worker's key"), or every other org's call dies with `NoRoute`.
 
 `box secrets` run twice rotates nothing: a credential that is there is kept, and the two key units
 carry a `ConditionPathExists=!` on the file they would make. Rotating one of THOSE is deleting its
@@ -279,7 +281,7 @@ Three, and none of them opens another's door. `../../docs/decisions/keys.md` arg
 | key | who holds it | made by |
 |---|---|---|
 | `PINECALL_OPS_KEY` | the box — `/v1/ops/*` and nothing else | `pinecall-secrets.service`, once |
-| `PINECALL_WORKER_KEY` | the worker unit — `/v1/routes`, the app socket, the log | `pinecall-worker-key.service`, once: `keys issue --org default`, stdout straight into `systemd-creds encrypt` |
+| `PINECALL_WORKER_KEY` | the worker unit — `/v1/routes`, the app socket, the log, for EVERY org's calls | `pinecall-worker-key.service`, once: `keys issue --org default --scope fleet --scope app --scope calls`, stdout straight into `systemd-creds encrypt` |
 
 `migrate up` mints nothing: it runs before every start of the gateway, and a verb that runs there
 must print no secret into a journal. `keys issue` is the one place a key exists in the clear — on

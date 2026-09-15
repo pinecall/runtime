@@ -12,8 +12,17 @@ from livekit.protocol import agent as jobs
 
 from pinecall._exceptions import PinecallError
 from pinecall.session.voice import sip
-from pinecall.types import THE_WIDGET, Channel, Direction, Route
-from pinecall.types.dispatch import AGENT_KEY, APP_KEY, CALLER_KEY, DIRECTION_KEY, RUN_KEY
+from pinecall.types import ENVS, THE_WIDGET, Channel, Direction, Env, Route
+from pinecall.types.dispatch import (
+    AGENT_KEY,
+    APP_KEY,
+    CALLER_KEY,
+    DIRECTION_KEY,
+    ENV_KEY,
+    HOLDER_KEY,
+    ORG_KEY,
+    RUN_KEY,
+)
 
 # A dispatch has already named the agent, so its seat is read only if somebody is on it already.
 NOT_WAITED_FOR = 0.0
@@ -21,6 +30,19 @@ NOT_WAITED_FOR = 0.0
 
 class NoRoute(PinecallError):
     """Nothing in the job says which agent this call is for, and the process has no default."""
+
+
+# Whose call a dispatch says it is. The worker holds one key for every org, so this — and not the
+# key — is what it asks the gateway's doors with: that org's routes, that org's declaration, that
+# corner's copy in the sandbox. A dispatch that says nothing is the box's own trunk, or a room
+# somebody made by hand, and the number dialled answers the question instead.
+@dataclass(frozen=True)
+class Whose:
+    """The org, the world and the corner a dispatch named, each None when it did not."""
+
+    org: str | None = None
+    env: Env | None = None
+    holder: str | None = None
 
 
 @dataclass(frozen=True)
@@ -37,6 +59,22 @@ class Arrival:
     # Which eval run opened this call, when one did. A spoken golden's call starts mid-conversation.
     run: str | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict[str, Any])
+    whose: Whose = field(default_factory=Whose)
+
+
+# Read off the job alone, before the room is joined: the routes are asked for with these while the
+# connect is still in flight, which is what keeps the caller from sitting through one more round
+# trip (worker/entry.py). A world the dispatch spelled wrong is a dispatch nobody of ours wrote,
+# and it reads as none rather than as a refusal — the number dialled, or the default, still stands.
+def whose(job: jobs.Job) -> Whose:
+    """Whose call this job is, as far as its dispatch metadata says."""
+    said = _metadata(job.metadata)
+    env = _text(said.get(ENV_KEY))
+    return Whose(
+        org=_text(said.get(ORG_KEY)),
+        env=cast(Env, env) if env in ENVS else None,
+        holder=_text(said.get(HOLDER_KEY)),
+    )
 
 
 # The two sources, in the order of certainty, and this is the only place they meet. The metadata
@@ -59,6 +97,7 @@ async def arrival_of(job: jobs.Job, room: rtc.Room) -> Arrival:
         app=_text(said.get(APP_KEY)) or None,
         run=_text(said.get(RUN_KEY)) or None,
         metadata=said,
+        whose=whose(job),
     )
 
 
@@ -83,7 +122,11 @@ def _of_agent(agent: str, channel: Channel, routes: Sequence[Route]) -> Route:
     for route in routes:
         if route.agent == agent and route.channel == channel:
             return route
-    raise NoRoute(f"agent {agent!r} answers no {channel} door this worker knows")
+    looked_in = sorted({f"{route.org}/{route.env}" for route in routes}) or ["no org at all"]
+    raise NoRoute(
+        f"agent {agent!r} answers no {channel} door this worker knows: it looked in "
+        f"{', '.join(looked_in)}"
+    )
 
 
 def _at_door(channel: Channel, number: str, routes: Sequence[Route]) -> Route:

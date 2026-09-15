@@ -34,6 +34,15 @@ So "clínica-norte does not have a key" is not a gap. It never had one, and it n
 | **ops key** | `PINECALL_OPS_KEY`, the box's own | the box, once (`box secrets`) | a systemd credential on the box | `/v1/ops/*` and nothing else. It is a gate, not an identity: it belongs to no org |
 | **room token** | a LiveKit JWT bound to ONE call | the gateway, from an org key, per visit | a browser tab, for a minute | that call's room and that call's log. See [protocol/tokens.md](protocol/tokens.md) |
 
+**And the box's worker holds a fourth kind: an org key with the `fleet` scope.** One worker
+answers every org's spoken calls, so its key cannot be one tenant's. `pinecall-worker-key.service`
+mints it into org `default` with `--scope fleet --scope app --scope calls`, and at every door the
+worker knocks — routes, an agent's config, its provider keys, opening and writing a call — that
+scope means the corner is **the call's**: the org, the world and the holder the dispatch named
+(`?org=&env=&holder=`), never the key's own. The scope is in no role's preset and no login mints
+it; a tenant's key that names another corner is refused 403. So "a key IS an org" keeps its one
+exception where it has to: the machine that serves them all.
+
 A key is stored as its **sha256** and nothing else. `keys issue` prints the plaintext once — there
 is no verb, here or anywhere, that reads one back — and `keys list` prints fingerprints, labels and
 dates. Revoking keeps the row, so the log entries that name that key stay readable.

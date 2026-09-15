@@ -11,7 +11,15 @@ from pydantic import TypeAdapter
 
 from pinecall.fleet import Heartbeat, Standing
 from pinecall.session.voice.platform import PlatformRefused
-from pinecall.types import AgentConfig, CallContext, Channel, PlatformTool, ProviderKeys, Route
+from pinecall.types import (
+    AgentConfig,
+    CallContext,
+    Channel,
+    Env,
+    PlatformTool,
+    ProviderKeys,
+    Route,
+)
 from pinecall.types.json import JsonObject
 from pinecall_protocol import Command
 from pinecall_protocol.defs import ToolResult
@@ -52,20 +60,56 @@ class Gateway:
     def __init__(self, http: httpx.AsyncClient) -> None:
         self._http = http
 
-    async def routes(self) -> tuple[Route, ...]:
-        """Every door the fleet answers, so a call can be resolved without asking again."""
-        return ROUTES.validate_python(await self._read("GET", "/v1/routes"))
+    # The three doors that name WHOSE: the worker holds one key for every org, so each is asked
+    # with the corner the dispatch named — the org, the world, the holder — and the gateway answers
+    # that org's. Nothing named is the key's own corner, which is what a laptop worker on a
+    # tenant's key still gets. A phone call on the box's own trunk names no org: the number and
+    # the channel are asked instead, and the gateway finds the one door across every org.
+    async def routes(
+        self,
+        *,
+        org: str | None = None,
+        env: Env | None = None,
+        holder: str | None = None,
+        number: str | None = None,
+        channel: Channel | None = None,
+    ) -> tuple[Route, ...]:
+        """The doors of one corner, or the one door a number rings, as the domain holds them."""
+        asked = _whose(org, env, holder)
+        if number is not None:
+            asked["number"] = number
+        if channel is not None:
+            asked["channel"] = channel
+        return ROUTES.validate_python(await self._read("GET", "/v1/routes", params=asked))
 
-    async def agent(self, slug: str) -> AgentConfig:
+    async def agent(
+        self,
+        slug: str,
+        *,
+        org: str | None = None,
+        env: Env | None = None,
+        holder: str | None = None,
+    ) -> AgentConfig:
         """What the app declared about this agent, resolved: the session is built from it."""
-        return CONFIG.validate_python(await self._read("GET", f"/v1/agents/{slug}/config"))
+        said = await self._read("GET", f"/v1/agents/{slug}/config", params=_whose(org, env, holder))
+        return CONFIG.validate_python(said)
 
     # The one answer in the runtime that carries a provider key, and it comes back only to the
-    # worker holding this org's own API key. Empty for every org that brought none of its own,
-    # which is what a managed install is. docs/decisions/provider-keys.md.
-    async def provider_keys(self, slug: str) -> ProviderKeys:
+    # worker holding this org's own API key — or the fleet's, asking for the org the call is for.
+    # Empty for every org that brought none of its own, which is what a managed install is.
+    # docs/decisions/provider-keys.md.
+    async def provider_keys(
+        self,
+        slug: str,
+        *,
+        org: str | None = None,
+        env: Env | None = None,
+        holder: str | None = None,
+    ) -> ProviderKeys:
         """The keys of the org this agent belongs to, for the pipeline this call is built with."""
-        said = await self._read("GET", f"/v1/agents/{slug}/provider-keys")
+        said = await self._read(
+            "GET", f"/v1/agents/{slug}/provider-keys", params=_whose(org, env, holder)
+        )
         return KEYS.validate_python(said["keys"])
 
     async def opened(self, context: CallContext, agent: str, app: str | None = None) -> None:
@@ -193,17 +237,33 @@ class Gateway:
         await self._http.aclose()
 
     async def _read(
-        self, method: str, path: str, said: Any = None, timeout: float | httpx.Timeout | None = None
+        self,
+        method: str,
+        path: str,
+        said: Any = None,
+        timeout: float | httpx.Timeout | None = None,
+        params: Mapping[str, str] | None = None,
     ) -> Any:
         """One request, and the body of the answer. Anything but a 2xx is a refusal by name."""
         waiting = TIMEOUT_S if timeout is None else timeout
         try:
-            answer = await self._http.request(method, path, json=said, timeout=waiting)
+            answer = await self._http.request(
+                method, path, json=said, timeout=waiting, params=params or None
+            )
         except httpx.HTTPError as unreachable:
             raise GatewayRefused(f"{method} {path}: {unreachable}") from unreachable
         if answer.status_code >= httpx.codes.BAD_REQUEST:
             raise GatewayRefused(f"{method} {path}: {answer.status_code} {answer.text}")
         return answer.json() if answer.content else None
+
+
+def _whose(org: str | None, env: Env | None, holder: str | None) -> dict[str, str]:
+    """The corner as the doors take it on the query string: only the coordinates that were named."""
+    return {
+        name: value
+        for name, value in (("org", org), ("env", env), ("holder", holder))
+        if value is not None
+    }
 
 
 # The reader the gateway's sink writes for: `id:` is the seq, `event:` the type, and `data:` the

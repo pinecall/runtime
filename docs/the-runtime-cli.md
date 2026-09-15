@@ -334,7 +334,7 @@ own name, so the SDK that reads `ANTHROPIC_API_KEY` by itself and this runtime a
 | `DATABASE_URL` | Postgres 17 with pgvector and pg_textsearch: the one stateful service |
 | `TEI_URL` · `EMBED_PROVIDER` · `EMBED_MODEL` · `EMBED_BASE_URL` | who embeds, and where |
 | `ANTHROPIC_API_KEY` · `OPENAI_API_KEY` · `SONIOX_API_KEY` · `DEEPGRAM_API_KEY` · `ELEVEN_API_KEY` | a call needs one key of each role: llm, stt, tts |
-| `PINECALL_WORKER_KEY` | an org's key, for a worker or an app that runs here |
+| `PINECALL_WORKER_KEY` | the key the worker knocks with. On a box the fleet's: `keys issue --org default --scope fleet --scope app --scope calls`, which is what lets one worker answer every org's calls. On a laptop an org's own key, and the worker serves that org |
 | `PINECALL_OPS_KEY` | what `/v1/ops/*` is authenticated by. Unset, the operator API is closed |
 | `PINECALL_VAULT_KEY` | the Fernet key a tenant's own provider keys are encrypted under |
 | `PINECALL_ROLE` | what this box runs: `all` · `hub` · `worker` |

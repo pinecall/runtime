@@ -42,7 +42,7 @@ issued; a person's holds their role's, less `app` in production (§8). `app`: th
 worker's doors. `calls`: `GET /v1/agents`, every read of a log, and — beside `app` — the one door that opens to either, `GET /v1/agents/{slug}/config`: a declaration is read by the worker holding the agent and by the console drawing its state. `talk`: `POST /v1/tokens`, `WS
 /v1/chat`. `supervise`: listen, the seat, the verbs by key. `pipeline` · `knowledge` · `memory` ·
 `evals` · `numbers` · `usage` · `team`: the doors of that name. `keys`: the org's own API keys.
-`providers`: the vendor keys it brought. `GET /v1/whoami` and `POST /v1/login/codes` ask for none.
+`providers`: the vendor keys it brought. `GET /v1/whoami` and `POST /v1/login/codes` ask for none. **`fleet` is the box's own worker's, and only its**: one worker answers every org's spoken calls, so at the worker's doors — `GET /v1/routes`, `/agents/{slug}/config`, `/provider-keys`, `POST /v1/calls` and the call's doors — a key holding it resolves by the corner the request names, `?org=&env=&holder=`, which is the corner the call's dispatch named; `GET /v1/routes?number=&channel=` is its question for a phone call whose dispatch named no org. Any other key naming a corner but its own is `403 this key works in its own org and world: only the fleet's key names another`.
 
 **The one exception to the header** is `?token=` on the two log doors, because an `EventSource` in
 a browser cannot set a header. Only a short-lived room token is accepted there (see Tokens), never

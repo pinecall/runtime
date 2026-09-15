@@ -15,7 +15,7 @@ from pinecall._settings import Settings
 from pinecall.api._deps import SCOPE_OF_THE_DOOR, KeysDep, SettingsDep
 from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.auth.bearer import bearer_of
-from pinecall.auth.keys import Keys, not_opening
+from pinecall.auth.keys import Keys, is_the_fleets, not_opening
 from pinecall.auth.scopes import LivekitKeys, Reader, a_reader, secret_for
 from pinecall.log.entry import Entry
 from pinecall.log.filters import Filter, FilterRefused
@@ -76,13 +76,14 @@ def refuse_another_call(reader: Reader, call: str | None) -> None:
 # A key reading another org's log is 403 in these words and never 404 — whether that call exists
 # is not another tenant's business. A log nobody has claimed yet — an agent that never registered,
 # a call nobody opened — is empty, and reading empty leaks nothing. Every door that reads a log
-# by a key asks this, so there is one rule.
+# by a key asks this, so there is one rule — and one exception, the fleet's key: the box's worker
+# reads back the very calls it writes, whoever's they are, to put them on the room's DataChannel.
 NOT_YOUR_ORGS = "this key does not read that org's log"
 
 
 async def refuse_another_org(reader: Reader, store: Store, call: str | None, agent: str) -> None:
     """Refuse a key whose org does not own the log it asked for. A token has its own gate."""
-    if reader.key is None:
+    if reader.key is None or is_the_fleets(reader.key):
         return
     owner = await store.owner(call, agent)
     if owner is not None and owner != reader.key.org:

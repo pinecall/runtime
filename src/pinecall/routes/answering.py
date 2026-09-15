@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Literal, Protocol
 
 from pinecall.routes.table import Routes
-from pinecall.types import Env, Route
+from pinecall.types import Channel, Env, Route
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +66,22 @@ async def answered(
 ) -> tuple[Answering, ...]:
     """Both tables of one org in one world: what is typed, and what is declared and still free."""
     return doors(await table.of_org(org, env), registry.routes(org, env, holder))
+
+
+# The other question, asked from the other side: a phone call arrived at a number and nobody has
+# said whose it is. A number is one org's door in one world, so the one worker every org shares
+# asks for it across every org — the operator's row first, as it wins everywhere, then whatever a
+# connected app declared. This is the worker's question alone: a tenant's key never asks it.
+async def at(channel: Channel, number: str, registry: Declaring, table: Routes) -> Answering | None:
+    """The one door that answers this number on this channel, whichever org typed or declared it."""
+    row = await table.at(channel, number)
+    if row is not None:
+        return Answering(row, "operator")
+    declared = registry.at(channel, number)
+    if declared is None:
+        return None
+    route = next((one for one in declared.routes if one.door == (channel, number)), None)
+    return None if route is None else Answering(route, "app")
 
 
 def doors(stored: Sequence[Route], declared: Sequence[Route]) -> tuple[Answering, ...]:

@@ -10,8 +10,17 @@ from google.protobuf.json_format import ParseDict, ParseError
 from livekit.protocol.agent_dispatch import RoomAgentDispatch
 from livekit.protocol.room import RoomConfiguration
 
-from pinecall.types import DeclarationRefused
-from pinecall.types.dispatch import AGENT_KEY, CALLER_KEY, METADATA_KEY, SCOPE_KEY, WORKER_NAME
+from pinecall.types import DeclarationRefused, Env
+from pinecall.types.dispatch import (
+    AGENT_KEY,
+    CALLER_KEY,
+    ENV_KEY,
+    HOLDER_KEY,
+    METADATA_KEY,
+    ORG_KEY,
+    SCOPE_KEY,
+    WORKER_NAME,
+)
 
 # A room_config that is not one, in the parser's own words: the door answers 400 with them.
 NOT_A_ROOM_CONFIG = "room_config is not a LiveKit RoomConfiguration: {reason}"
@@ -20,12 +29,30 @@ NOT_A_ROOM_CONFIG = "room_config is not a LiveKit RoomConfiguration: {reason}"
 # The room config rides inside the JWT (`roomConfig`), signed with the rest, and livekit creates
 # the dispatch from it when the participant's join creates the room (agent-dispatch docs, "Dispatch
 # via token"). So the agent, the scope, the visitor and the sealed JSON reach the worker's router
-# through the one field a dispatch already has, and a browser can alter none of them.
+# through the one field a dispatch already has, and a browser can alter none of them. Whose the
+# call is rides the same way: the org and the world the minting key opens, and the corner it
+# holds — so the one worker every org shares resolves the agent, the keys and the log of THIS
+# org, and a sandbox visit lands in the developer's own corner and not the org's.
 def a_dispatch(
-    agent: str, scope: str, caller: str, metadata: Mapping[str, Any]
+    agent: str,
+    scope: str,
+    caller: str,
+    metadata: Mapping[str, Any],
+    org: str,
+    env: Env,
+    holder: str | None = None,
 ) -> RoomConfiguration:
     """The room config the token carries: one dispatch, to our workers, naming this agent."""
-    said = {AGENT_KEY: agent, SCOPE_KEY: scope, CALLER_KEY: caller, METADATA_KEY: dict(metadata)}
+    said: dict[str, Any] = {
+        AGENT_KEY: agent,
+        SCOPE_KEY: scope,
+        CALLER_KEY: caller,
+        METADATA_KEY: dict(metadata),
+        ORG_KEY: org,
+        ENV_KEY: env,
+    }
+    if holder is not None:
+        said[HOLDER_KEY] = holder
     dispatch = RoomAgentDispatch(
         agent_name=WORKER_NAME, metadata=json.dumps(said, separators=(",", ":"))
     )

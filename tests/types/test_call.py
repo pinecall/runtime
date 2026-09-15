@@ -47,6 +47,13 @@ def test_a_web_visitor_may_be_nobody_yet() -> None:
     assert Contact(phone="+34600000001").is_known
 
 
+def test_the_corner_is_the_dispatchs_and_defaults_to_the_orgs_own() -> None:
+    """The org and the world are the route's; the holder is the third coordinate, or nobody."""
+    assert a_call().holder is None
+    assert a_call(holder="m_carla").holder == "m_carla"
+    assert a_call().env == MAIN_LINE.env
+
+
 def test_the_metadata_is_the_apps_and_defaults_to_nothing() -> None:
     assert a_call().metadata == {}
     assert a_call(metadata={"campaign": "otoño"}).metadata == {"campaign": "otoño"}

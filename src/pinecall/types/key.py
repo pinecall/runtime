@@ -43,6 +43,9 @@ ENVS: frozenset[str] = frozenset(get_args(Env.__value__))
 #   providers   the provider keys an org brought of its own
 #   team        the org's members and their invitations
 #   usage       what the org consumed
+#   fleet       the box's own worker: the fleet's doors, and the worker's doors resolved by the
+#               CALL it serves — whose org, which world, whose corner — instead of by this key's
+#               org. In no role's preset; only `keys issue --scope fleet` mints it, for a machine
 type KeyScope = Literal[
     "app",
     "calls",
@@ -57,8 +60,24 @@ type KeyScope = Literal[
     "providers",
     "team",
     "usage",
+    "fleet",
 ]
-KEY_SCOPES: frozenset[str] = frozenset(get_args(KeyScope.__value__))
+# Every word a key may carry, for the verb that checks one; the two sets below are what a key
+# is GIVEN, and neither is this whole.
+EVERY_SCOPE: frozenset[str] = frozenset(get_args(KeyScope.__value__))
+
+# The worker is the box's, not a tenant's: one process answers every org's calls, so its key names
+# no single org's doors. What this scope opens is the call's own corner — the org, the world and
+# the holder a dispatch named — at every door the worker knocks; a tenant's key never names
+# another's, which is the sentence docs/decisions/keys.md is built on. See auth/keys.py:corner_of.
+# It is what `keys issue --scope fleet` mints and NOTHING else: not a role's preset, and not the
+# every-scope key below — a key issued with nothing said is a tenant's, and a tenant's key that
+# could name another org's corner is the one thing the whole model refuses.
+THE_FLEET: KeyScope = "fleet"
+
+# What a key issued with nothing said holds, and what a key issued before the field existed
+# holds: every door of its OWN org. Everything but the fleet's.
+KEY_SCOPES: frozenset[str] = EVERY_SCOPE - {THE_FLEET}
 
 
 # Holding an agent is a deployment, and a deployment is a process somebody put on a box — never a
@@ -101,9 +120,9 @@ def key_scopes(words: Iterable[str]) -> frozenset[str]:
     """The scopes these words name, or a refusal naming the first word that is not one."""
     wanted = frozenset(words)
     for word in sorted(wanted):
-        if word not in KEY_SCOPES:
+        if word not in EVERY_SCOPE:
             raise DeclarationRefused(
-                f"{word!r} is not a key scope; the scopes are {sorted(KEY_SCOPES)}"
+                f"{word!r} is not a key scope; the scopes are {sorted(EVERY_SCOPE)}"
             )
     return wanted
 

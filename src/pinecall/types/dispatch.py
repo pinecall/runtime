@@ -20,6 +20,15 @@ RUN_KEY = "run"
 # eval run does, because the goldens and their seeded state live in the terminal that asked for
 # the run, and that socket takes no unclaimed calls. Absent, the gateway picks as it always has.
 APP_KEY = "app"
+# Whose call this is: the org, the world and the corner the dispatch was made for. The token door
+# writes all three from the key that minted the token (a sandbox person's key names their corner);
+# a tenant's SIP rule writes the org, because a trunk is one org's. The worker holds ONE key for
+# every org, so these are how its doors learn whose agent, whose keys and whose log a call is —
+# never its own key's org. A dispatch that carries none is the box's own trunk, and the number
+# dialled says whose it is instead.
+ORG_KEY = "org"
+ENV_KEY = "env"
+HOLDER_KEY = "holder"
 
 # Ours, beside livekit's three: which scope minted the token that opened this call, and the JSON
 # the tenant's backend sealed into it. A dispatch that carries a scope was minted by POST

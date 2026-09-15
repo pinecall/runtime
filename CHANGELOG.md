@@ -7,6 +7,19 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **One worker serves every org's voice: the worker is the box's, not a tenant's.** The box's
+  worker held ONE org key (org `default`) and every door it knocked — `GET /v1/routes`, the config
+  and provider-key doors, `POST /v1/calls`, the heartbeat — resolved by that key's org and world,
+  so a spoken call reached org `default` in production and nobody else: `POST /v1/tokens` minted
+  for any org, the job arrived, and the worker died with `NoRoute` (box.pinecall.io, 2026-09-15).
+  Now the worker holds a key with the new **`fleet` scope** (`keys issue --scope fleet`, what
+  `pinecall-worker-key.service` mints; in no role's preset), the **dispatch names whose call it
+  is** — `org`, `env` and, in the sandbox, the `holder` — written by the token door from the
+  minting key and by a tenant's SIP rule, and the worker's doors resolve by the call: the fleet
+  asks `?org=&env=&holder=`, or `?number=&channel=` for a call on the box's own trunk, and the
+  gateway answers that org's. A tenant's key opens exactly what it did: naming another corner is
+  403 in keys.md's words. **A box born before this re-mints its worker key** — see
+  `infra/box/README.md`, "Where the keys come from".
 - **0.1.0, and `pinecall-protocol` travels as a range.** The wheel PyPI serves now declares
   `pinecall-protocol>=0.1,<0.2`; the path in `[tool.uv.sources]` stays, because it is a checkout's
   convenience and never reached the wheel. `release.yml` also builds the console before packing:

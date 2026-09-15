@@ -147,6 +147,23 @@ b50420886f22
 `e3b0c44298fc` is the sha256 of the empty string: a credential written from a variable that was
 not set.
 
+### The worker's key
+
+The worker knocks at the gateway with a key of its own, minted once on first start by
+`pinecall-worker-key.service`: org `default`, with the **`fleet`** scope. That scope is what lets
+one worker answer every org's calls — its doors resolve by the call the dispatch named, never by
+the key's org — and nothing but that unit mints it. A box born before the scope existed still
+holds a worker key without it, and every org's call but `default`'s dies with `NoRoute`. Once:
+
+```console
+$ pinecall-runtime keys list --org default          # from the checkout: the old key's fingerprint
+$ ssh $BOX
+$ sudo /opt/pinecall/venv/bin/pinecall-runtime keys revoke <that fingerprint>
+$ sudo rm /etc/credstore.encrypted/PINECALL_WORKER_KEY
+$ sudo systemctl start pinecall-worker-key           # mints the new one, fleet scope and all
+$ sudo systemctl restart pinecall-worker pinecall-overflow
+```
+
 ## 6. The first org and the first person
 
 The schema seeds one org, `default`. One command turns a migrated database into a box somebody can
