@@ -109,3 +109,9 @@ def test_the_quota_verb_has_one_flag_per_quota_and_the_flags_are_the_wires_names
     )
     assert (parsed.memory_facts, parsed.knowledge_chunks) == (0, 5000)
     assert all(hasattr(parsed, name) for name in QUOTAS)
+
+
+def test_keys_issue_takes_the_fleet_scope_the_worker_key_unit_types() -> None:
+    """`--scope fleet` is minted here and nowhere else: infra/box/pinecall-worker-key.service."""
+    typed = ["keys", "issue", "--org", "default", "--scope", "fleet", "--scope", "app"]
+    assert build_parser().parse_args(typed).scope == ["fleet", "app"]

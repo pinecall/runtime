@@ -10,7 +10,7 @@ from typing import Any, TextIO
 from pinecall.auth.keys import Issued, KeyRecord
 from pinecall.cli.columns import as_columns
 from pinecall.cli.operator import Operator, against_the_gateway, with_an_org
-from pinecall.types import ENVS, KEY_SCOPES, PRODUCTION, an_env
+from pinecall.types import ENVS, EVERY_SCOPE, KEY_SCOPES, PRODUCTION, an_env
 
 PURPOSE: str = "the org's API keys: issue | list | revoke"
 VERBS: tuple[str, ...] = ("issue", "list", "revoke")
@@ -50,9 +50,11 @@ def configure(parser: argparse.ArgumentParser) -> None:
         "--scope",
         action="append",
         default=None,
-        choices=sorted(KEY_SCOPES),
+        # EVERY scope and not a tenant's set: this verb is the one place `fleet` is minted —
+        # infra/box/pinecall-worker-key.service types it — and the ops door validates the words.
+        choices=sorted(EVERY_SCOPE),
         metavar="<scope>",
-        help="what the key may do; repeat for several, leave out for every scope",
+        help="what the key may do; repeat for several, leave out for every scope but fleet",
     )
     issuing.add_argument("--subject", default=None, help="whose key it is: the member's id")
     issuing.add_argument("--name", default=None, help="their name, so a seat says who sat down")

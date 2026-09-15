@@ -38,6 +38,7 @@ from pinecall.types.fusion import (
 from pinecall.types.json import JsonObject
 from pinecall.types.key import (
     ENVS,
+    EVERY_SCOPE,
     HOLDING,
     KEY_SCOPES,
     PRODUCTION,
@@ -71,6 +72,7 @@ __all__ = [
     "DEFAULT_LAYOUT",
     "DEFAULT_ORG",
     "ENVS",
+    "EVERY_SCOPE",
     "GATE_DEFERRED_ON",
     "GRANTS",
     "HOLDING",
