@@ -74,17 +74,30 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     # Every livekit log line of this process from here on names the call it belongs to; a box
     # running forty at once has no other way to read its own log (basic_agent.py:73-76).
     ctx.log_context_fields = {"room": ctx.job.room.name}
-    # The room comes first: a phone call is a room job, so the number that was dialled is on the
-    # caller's SIP seat in the room and there is nothing to route by until we are in it. The
-    # routes table is not: it belongs to the fleet, not to this call, so it is asked for WHILE
-    # the room is being joined instead of after — see docs/decisions/worker.md.
-    _, routes = await asyncio.gather(ctx.connect(), worker.gateway.routes())
+    # Whose call this is comes off the dispatch alone, so the doors of THAT org — the worker holds
+    # one key for every org — are asked for WHILE the room is being joined: a phone call is a room
+    # job, and the number dialled is on the caller's SIP seat, so there is nothing else to route
+    # by until we are in it. See docs/decisions/worker.md.
+    whose = router.whose(ctx.job)
+    _, routes = await asyncio.gather(
+        ctx.connect(),
+        worker.gateway.routes(org=whose.org, env=whose.env, holder=whose.holder),
+    )
     arrival = await router.arrival_of(ctx.job, ctx.room)
+    # A call on the box's own trunk names no org: the number dialled is one org's door in one
+    # world, and the gateway finds it across every org. One more round trip, on that path alone.
+    if arrival.number is not None and whose.org is None:
+        routes = await worker.gateway.routes(number=arrival.number, channel=arrival.channel)
     route = router.resolve(arrival, routes, worker.default_agent)
     # Two doors, one wait: whose keys this call runs on is a second question about the same agent,
     # and asking it in parallel with the config costs the caller nothing. See providers/registry.py.
+    # Both are asked for the route's org and world — the one the call is for — and the corner the
+    # dispatch named, so a sandbox call is built from the developer's own declaration.
     config, keys = await asyncio.gather(
-        worker.gateway.agent(route.agent), worker.gateway.provider_keys(route.agent)
+        worker.gateway.agent(route.agent, org=route.org, env=route.env, holder=whose.holder),
+        worker.gateway.provider_keys(
+            route.agent, org=route.org, env=route.env, holder=whose.holder
+        ),
     )
     context = a_call(ctx.room.name or ctx.job.id, arrival, route)
     # What the dispatch named wins over the flag this process was started with: a spoken eval
@@ -176,6 +189,7 @@ def a_call(call: str, arrival: router.Arrival, route: Route) -> CallContext:
         today=date.today(),
         metadata=arrival.metadata,
         run=arrival.run,
+        holder=arrival.whose.holder,
     )
 
 

@@ -11,7 +11,7 @@ from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import MemoryKeys
 from pinecall.fleet import Heartbeat
 from pinecall.log.store import MemoryStore
-from pinecall.types import DEFAULT_ORG, PRODUCTION
+from pinecall.types import DEFAULT_ORG, PRODUCTION, THE_FLEET
 from pinecall.worker.client import Gateway, GatewayRefused
 from pinecall_protocol import defs
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, over_the_asgi_app
@@ -22,15 +22,31 @@ OPS_FLEET = "/v1/ops/fleet"
 CALLBACKS = "/v1/callbacks"
 
 
-# The fleet knocks with the default org's key — what pinecall-worker-key.service mints — and that
-# is not the tenant's key the rest of this suite holds, so one is issued here.
+# The fleet knocks with the key pinecall-worker-key.service mints — org default, the `fleet`
+# scope — and that is not the tenant's key the rest of this suite holds, so one is issued here.
 @pytest.fixture
 async def fleet_gateway(wired: None, keys: MemoryKeys) -> AsyncIterator[Gateway]:  # noqa: ARG001
     """worker/client.py over the real app, knocking with the fleet's own key."""
-    issued = await keys.issue(DEFAULT_ORG, "the worker on this box")
+    issued = await keys.issue(
+        DEFAULT_ORG, "the worker on this box", scopes=frozenset({THE_FLEET, "app", "calls"})
+    )
     http = over_the_asgi_app(f"Bearer {issued.key}")
     yield Gateway(http)
     await http.aclose()
+
+
+async def test_a_default_org_key_without_the_fleet_scope_opens_no_fleet_door(
+    wired: None,  # noqa: ARG001
+    keys: MemoryKeys,
+) -> None:
+    """Org default is where the box's own keys land; being there is not being the worker."""
+    issued = await keys.issue(DEFAULT_ORG, "somebody's laptop", scopes=frozenset({"app"}))
+    http = over_the_asgi_app(f"Bearer {issued.key}")
+    try:
+        with pytest.raises(GatewayRefused, match="fleet scope"):
+            await Gateway(http).heartbeat(beat("liar"))
+    finally:
+        await http.aclose()
 
 
 def beat(worker: str, active: int = 0, max_jobs: int | None = 4) -> Heartbeat:

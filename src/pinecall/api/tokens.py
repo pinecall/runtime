@@ -125,7 +125,9 @@ async def mint(
         visitor,
         metadata=said.contact or "",
         attributes=said.participant_attributes,
-        room_config=a_dispatch(agent, said.scope, visitor, said.metadata),
+        room_config=a_dispatch(
+            agent, said.scope, visitor, said.metadata, key.org, key.env, held_by(key)
+        ),
     )
     await tokens.minted(
         TokenRecord(

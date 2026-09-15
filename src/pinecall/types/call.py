@@ -50,6 +50,11 @@ class CallContext:
     metadata: Mapping[str, Any] = field(default_factory=dict[str, Any])
     # The eval run that opened this call, or None for a person. A run's call opens mid-conversation.
     run: str | None = None
+    # Whose corner of the world the call is for, as the dispatch that opened it said: a developer
+    # in the sandbox, nobody's — the org's own — in production or when nothing said. The org and
+    # the world are the route's; this is the third coordinate, and the worker carries it to the
+    # door that opens the log so a sandbox call lands in the corner that minted its token.
+    holder: str | None = None
 
     def __post_init__(self) -> None:
         if not self.call:

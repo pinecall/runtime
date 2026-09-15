@@ -99,6 +99,22 @@ async def test_a_dial_says_outbound_in_its_metadata_and_everything_else_is_inbou
     assert (await _arrival(dialled, _a_seat())).direction == "inbound"
 
 
+def test_a_dispatch_says_whose_the_call_is_before_the_room_is_joined() -> None:
+    """The org, the world and the corner ride the metadata; a dispatch that says nothing is
+    the box's own trunk, and a world it spelled wrong reads as none rather than as a refusal."""
+    named = a_job(
+        metadata={"agent": "tienda-sur", "org": "tienda", "env": "sandbox", "holder": "m_1"}
+    )
+    assert router.whose(named) == router.Whose(org="tienda", env="sandbox", holder="m_1")
+    assert router.whose(a_job(metadata={"agent": "tienda-sur"})) == router.Whose()
+    assert router.whose(a_job(metadata={"org": "tienda", "env": "staging"})).env is None
+
+
+async def test_an_arrival_carries_whose_it_is() -> None:
+    arrival = await _arrival(a_job(metadata={"agent": "tienda-sur", "org": "tienda"}), _a_seat())
+    assert arrival.whose.org == "tienda"
+
+
 async def test_metadata_that_is_not_a_dispatch_is_not_an_error() -> None:
     """A room somebody created by hand carries whatever they typed; the call still resolves."""
     for said in ("not json at all", "[1, 2, 3]", ""):

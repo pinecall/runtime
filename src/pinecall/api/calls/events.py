@@ -46,7 +46,7 @@ from pinecall.api.calls.sink import (
 )
 from pinecall.api.supervise.aiming import STEERS, QueueingDep, VerbRefused, aimed, as_a_verb
 from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
-from pinecall.auth.keys import KeyRecord, held_by, not_opening
+from pinecall.auth.keys import KeyRecord, held_by, is_the_fleets, not_opening
 from pinecall.auth.scopes import Reader
 from pinecall.log.entry import Entry, unstored
 from pinecall.log.filters import EVERYTHING
@@ -297,19 +297,23 @@ async def opened(
 ) -> None:
     """A call started: open its log, put it on the app's socket, and write how it arrived."""
     context = said.context
-    if context.route.org != key.org:
+    # A tenant's worker opens its own org's calls; the fleet's opens every org's, by the call.
+    fleet = is_the_fleets(key)
+    if not fleet and context.route.org != key.org:
         raise HTTPException(status_code=403, detail=NOT_THIS_ORG)
-    if context.env != key.env:
+    if not fleet and context.env != key.env:
         raise HTTPException(
             status_code=403, detail=NOT_THIS_ENV.format(key=key.env, route=context.env)
         )
+    org, env = context.route.org, context.env
+    holder = context.holder if fleet else held_by(key)
     # A call a token opened is opened once: the second dispatch with the same token is refused
     # here, before a log exists for it, with the reason in the agent's own log.
     await spent(context, said.agent, tokens, logs)
     # The org's quotas, against the calls open here and what its log says it has consumed. The
     # refusal is in the agent's log before the worker hears the 429, and the sentence is the same.
     try:
-        await admission.a_call(key.org, said.agent, live.running(key.org))
+        await admission.a_call(org, said.agent, live.running(org))
     except QuotaExhausted as refused:
         raise HTTPException(429, str(refused)) from refused
     # Which process serves this call is asked here exactly as the chat door asks it, of the same
@@ -318,17 +322,17 @@ async def opened(
     # worker that dialled it holds a key naming nobody, so a ring lands on the LINE — nobody's
     # corner in production, and in the sandbox the developer who claimed it. Everything else was
     # opened BY a key holder, and lands in theirs. See api/agents/doors.py.
-    serving = who_serves(registry, key.env, said.agent, said.app, context, held_by(key))
+    serving = who_serves(registry, env, said.agent, said.app, context, holder)
     if said.app is not None and serving is None:
         raise HTTPException(409, NOT_THAT_APP.format(app=said.app, slug=said.agent))
     # Held, but by consoles only: this is the phone call the flag exists to keep out of somebody's
     # terminal. Refused here, where the caller has not been greeted yet, rather than run with no app
     # socket on it — a conversation whose every tool goes out to nobody is worse than a line that
     # drops. A call whose app disconnected mid-setup is the other case, and it still goes through.
-    if serving is None and registry.of(key.env, said.agent, held_by(key)) is not None:
+    if serving is None and registry.of(env, said.agent, holder) is not None:
         raise HTTPException(409, NO_UNCLAIMED.format(slug=said.agent))
     # Whose call this is, on the head row, before the first entry: every reader of it will ask.
-    await logs.owned(context.call, said.agent, key.org)
+    await logs.owned(context.call, said.agent, org)
     log = logs.writing(context.call, said.agent)
     # Served before the first entry is written, so the app hears the call arrive: this is the very
     # same registration a text call gets, and it is what the call's tools travel down.
@@ -336,14 +340,14 @@ async def opened(
     # What this call's agent declared, resolved the way the worker read it a moment ago through
     # the config door — so a lookup searches the base the worker's session was built to expect. An
     # agent nobody holds any more declared nothing this gateway can name, and nothing is found.
-    held = serving or registry.of(key.env, said.agent, held_by(key))
+    held = serving or registry.of(env, said.agent, holder)
     config = overrides.config_for(said.agent, held.config) if held else AgentConfig(slug=said.agent)
     # Whose corner serves it, from the registration the door just resolved: what this call recalls
     # and searches is that corner's, and a call nobody is holding belongs to the org's own.
     live.serve(
         context.call,
         said.agent,
-        key.org,
+        org,
         log,
         app,
         context=context,
@@ -374,11 +378,12 @@ async def sealed(call: str, key: AppKeyDep, logs: LogsDep, live: ServingDep) -> 
     live.close(call)
 
 
-# The org was said once, at the door that opened the call, and the process kept it: so the check
-# costs nothing on the hot path, and a worker of one org cannot write a line into another's log
-# by knowing a call id. A call nobody serves here falls through to _the_open_log's 404.
+# The org was said once, at the door that opened the call, and the process kept it: the check
+# costs nothing, and a worker of one org cannot write into another's log by knowing a call id.
 def _refuse_another_orgs_call(live: Serving, key: KeyRecord, call: str) -> None:
     """403 when this call was opened under some other org than the key's."""
+    if is_the_fleets(key):
+        return
     org = live.org_of(call)
     if org is not None and org != key.org:
         raise HTTPException(status_code=403, detail=NOT_THIS_ORG)

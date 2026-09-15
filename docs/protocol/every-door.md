@@ -60,7 +60,7 @@ is for. The prose, the shapes and the refusals are on that page and in the pages
 | `POST` | `/v1/evals/run` · `GET /v1/evals/runs[/{id}]` · `POST /v1/evals/replay/{call}` | the suites and ring 3 |
 | `POST` | `/v1/evals/caller` · `/v1/evals/voice` | the improvising caller, and a spoken eval |
 | `POST` | `/v1/calls` · `/v1/calls/{call}/events` · `/sealed` · `/tools` · `/lookup` · `/remember` · `GET /commands` | the worker's own doors |
-| `POST`·`GET` | `/v1/fleet/heartbeat` · `/v1/fleet/standing` | the fleet's: what a worker holds, and whether all are full. The default org's key only |
+| `POST`·`GET` | `/v1/fleet/heartbeat` · `/v1/fleet/standing` | the fleet's: what a worker holds, and whether all are full. A key holding the `fleet` scope only |
 | `GET`·`POST` | `/v1/whatsapp/webhook` | Meta's |
 | | `/v1/ops/*` | the operator's, with the ops key — [operator-api.md](operator-api.md) |
 

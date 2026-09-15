@@ -19,8 +19,16 @@ from pinecall.auth.scopes import SCOPE_ATTRIBUTE, THE_MICROPHONE
 from pinecall.fleet import Heartbeat, Roster
 from pinecall.log.store import MemoryStore
 from pinecall.tokens.ledger import MemoryTokens
-from pinecall.types.dispatch import AGENT_KEY, CALLER_KEY, METADATA_KEY, SCOPE_KEY, WORKER_NAME
-from tests.api.conftest import A_KEY, A_LIVEKIT, AGENT, AN_OPS_KEY
+from pinecall.types.dispatch import (
+    AGENT_KEY,
+    CALLER_KEY,
+    ENV_KEY,
+    METADATA_KEY,
+    ORG_KEY,
+    SCOPE_KEY,
+    WORKER_NAME,
+)
+from tests.api.conftest import A_KEY, A_LIVEKIT, A_RECORD, AGENT, AN_OPS_KEY
 from tests.api.talking import a_door, a_register, an_app
 
 pytestmark = pytest.mark.unit
@@ -96,11 +104,15 @@ async def test_the_answer_is_livekits_shape_and_livekits_own_verifier_reads_the_
     assert claims.identity == "web_the_visitor"
     assert claims.metadata == A_CONTACT
     assert (claims.attributes or {})[SCOPE_ATTRIBUTE] == "talk"
+    # Whose call it is rides the dispatch too — the minting key's org and world — so the one
+    # worker every org shares asks for THIS org's doors. Production names no holder.
     assert the_dispatch_of(said["participant_token"]) == {
         AGENT_KEY: AGENT,
         SCOPE_KEY: "talk",
         CALLER_KEY: "web_the_visitor",
         METADATA_KEY: {"order": "o_77"},
+        ORG_KEY: A_RECORD.org,
+        ENV_KEY: "production",
     }
     # The ledger holds it, unspent: the dispatch will spend it once.
     assert await tokens.spend(str(said["call"])) == "spent"

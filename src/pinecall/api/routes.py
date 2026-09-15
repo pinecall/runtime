@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import TypeAdapter
 
+from pinecall.api._corner import CornerDep
 from pinecall.api._deps import AppKeyDep, OrgsDep, RoutesDep, an_org
 from pinecall.api._operator import an_operator
 from pinecall.api.agents.registry import RegistryDep
-from pinecall.auth.keys import held_by
+from pinecall.auth.corner import NOT_YOUR_CORNER
+from pinecall.auth.keys import is_the_fleets
 from pinecall.routes import answering
 from pinecall.types import PRODUCTION, Channel, DeclarationRefused, Env, Route
 from pinecall_protocol import WireModel
@@ -56,13 +58,28 @@ class Wanted(WireModel):
     env: Env = PRODUCTION
 
 
-# The org is the key's here, never a query parameter: a worker reads the doors of the org whose
-# key it holds, and a key that could ask for another org's routes would be a key that could route
-# a call into somebody else's agent.
+# A tenant's key reads the doors of its own org and its own world, and is refused any other: a key
+# that could ask for another org's routes would be a key that could route a call into somebody
+# else's agent. The FLEET's key is the one exception, because the box's one worker answers every
+# org's calls: it asks for the corner the dispatch named (`?org=&env=&holder=`), or — for a call
+# on the box's own trunk, which names no org — for the one door that answers the number dialled
+# (`?number=&channel=`), which the gateway finds across every org.
 @router.get("/v1/routes")
-async def routes(key: AppKeyDep, registry: RegistryDep, table: RoutesDep) -> list[dict[str, Any]]:
-    """Every door the org answers in the key's world, so a job is resolved without asking again."""
-    answered = await answering.answered(key.org, key.env, registry, table, held_by(key))
+async def routes(
+    key: AppKeyDep,
+    corner: CornerDep,
+    registry: RegistryDep,
+    table: RoutesDep,
+    number: Annotated[str | None, Query(description="the fleet's: the number dialled")] = None,
+    channel: Annotated[Channel | None, Query(description="the fleet's: its channel")] = None,
+) -> list[dict[str, Any]]:
+    """The doors of one corner, or the one door a number rings, so a job is resolved at once."""
+    if number is not None or channel is not None:
+        if not is_the_fleets(key) or number is None or channel is None:
+            raise HTTPException(403, NOT_YOUR_CORNER)
+        door = await answering.at(channel, number, registry, table)
+        return [] if door is None else [_as_json(door.route)]
+    answered = await answering.answered(corner.org, corner.env, registry, table, corner.holder)
     return list(ROUTES.dump_python(tuple(door.route for door in answered), mode="json"))
 
 

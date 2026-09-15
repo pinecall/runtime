@@ -10,9 +10,10 @@ from pydantic import TypeAdapter
 
 from pinecall.api._deps import AppKeyDep, CallsKeyDep, FleetDep, LogsDep, StoreDep
 from pinecall.api._operator import an_operator
+from pinecall.auth.keys import KeyRecord, is_the_fleets
 from pinecall.fleet import STALE_AFTER_S, Heartbeat, Seat, Standing, Totals
 from pinecall.log.store import DEFAULT_LIMIT
-from pinecall.types import DEFAULT_ORG, Channel
+from pinecall.types import Channel
 from pinecall_protocol import WireModel, encode
 from pinecall_protocol.events import CallbackRequested
 
@@ -24,10 +25,13 @@ STANDING: TypeAdapter[Standing] = TypeAdapter(Standing)
 SEATS: TypeAdapter[tuple[Seat, ...]] = TypeAdapter(tuple[Seat, ...])
 TOTALS: TypeAdapter[Totals] = TypeAdapter(Totals)
 
-# The fleet knocks with the box's own org key — the one pinecall-worker-key.service mints for
-# `default`, or the dev key, which IS org default. A tenant's key opens every door of its own
-# org and none of the fleet's: a heartbeat it could post would be a seat it could invent.
-NOT_THE_FLEETS_KEY = "the fleet's doors take the default org's key, which a worker holds"
+# The fleet knocks with the key pinecall-worker-key.service mints for the box's worker — issued
+# into org default with the `fleet` scope. A tenant's key opens every door of its own org and
+# none of the fleet's: a heartbeat it could post would be a seat it could invent. And a default
+# org key WITHOUT the scope is a person's or a machine's of that org, not the box's worker.
+NOT_THE_FLEETS_KEY = (
+    "the fleet's doors take a key holding the fleet scope, which the box mints for its worker"
+)
 
 # `fleet cordon` on a name nobody has knocked with. 404 and not 200: a typo must never read as done.
 NO_SUCH_WORKER = "no worker named {worker} has knocked at this gateway"
@@ -61,7 +65,7 @@ class WantedCallback(WireModel):
 @router.post("/v1/fleet/heartbeat")
 async def heartbeat(said: Heartbeat, key: AppKeyDep, fleet: FleetDep) -> dict[str, Any]:
     """A worker says what it holds; the hub says whether it was cordoned and whether all is full."""
-    _the_fleets_key(key.org)
+    _the_fleets_key(key)
     standing = fleet.report(said, time.time())
     dumped: dict[str, Any] = STANDING.dump_python(standing)
     return dumped
@@ -70,7 +74,7 @@ async def heartbeat(said: Heartbeat, key: AppKeyDep, fleet: FleetDep) -> dict[st
 @router.get("/v1/fleet/standing")
 async def standing(key: AppKeyDep, fleet: FleetDep) -> dict[str, Any]:
     """The fleet's numbers as the overflow agent reads them: full, or not."""
-    _the_fleets_key(key.org)
+    _the_fleets_key(key)
     return _totals(fleet.totals(time.time()))
 
 
@@ -82,7 +86,10 @@ async def callback_requested(
     said: WantedCallback, key: AppKeyDep, store: StoreDep, logs: LogsDep
 ) -> None:
     """A number to call back, onto the agent's log: the widget before a room, or the overflow."""
-    if await store.owner(None, said.agent) != key.org:
+    # The overflow agent answers every org's callers on the fleet's key, so it may name any
+    # agent that exists; a tenant's widget backend may only name its own.
+    owner = await store.owner(None, said.agent)
+    if owner is None or (owner != key.org and not is_the_fleets(key)):
         raise HTTPException(404, NOT_THIS_ORGS_AGENT.format(agent=said.agent))
     event = CallbackRequested(
         channel=said.channel, number=said.number, via=said.via, call=said.call, contact=None
@@ -151,7 +158,7 @@ def _totals(totals: Totals) -> dict[str, Any]:
     return {**TOTALS.dump_python(totals), "full": totals.full, "busy": totals.busy}
 
 
-def _the_fleets_key(org: str) -> None:
-    """403 for any org but the box's own: only the fleet writes the fleet's table."""
-    if org != DEFAULT_ORG:
+def _the_fleets_key(key: KeyRecord) -> None:
+    """403 for any key but the box's worker's: only the fleet writes the fleet's table."""
+    if not is_the_fleets(key):
         raise HTTPException(403, NOT_THE_FLEETS_KEY)

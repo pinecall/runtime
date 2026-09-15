@@ -14,6 +14,7 @@ from pinecall.log.store import Pool
 from pinecall.types import (
     KEY_SCOPES,
     PRODUCTION,
+    THE_FLEET,
     THE_TEAM,
     Env,
     an_env,
@@ -117,6 +118,14 @@ def held_by(record: KeyRecord) -> str | None:
 def sees_every_corner(record: KeyRecord) -> bool:
     """Whether this key is the org's eyes — an admin's, the operator's — and not one person's."""
     return THE_TEAM in record.scopes
+
+
+# The third question, and the one the worker asks. A tenant's key works in one corner and no door
+# lets it name another; the box's worker serves every org's calls with ONE key, so at its doors
+# the corner is the call's — what the dispatch said — and never the key's (auth/corner.py).
+def is_the_fleets(record: KeyRecord) -> bool:
+    """Whether this key is the box's worker's, and may resolve a door by the call it serves."""
+    return THE_FLEET in record.scopes
 
 
 def not_opening(record: KeyRecord, *scopes: str) -> str | None:

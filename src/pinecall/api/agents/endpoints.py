@@ -7,6 +7,7 @@ from typing import Any, cast
 from fastapi import APIRouter, HTTPException
 from pydantic import TypeAdapter
 
+from pinecall.api._corner import CornerDep
 from pinecall.api._deps import AppKeyDep, CallsKeyDep, DeclarationKeyDep, MembersDep, OverridesDep
 from pinecall.api.agents.registry import NO_AGENT, Registry, RegistryDep
 from pinecall.auth.keys import KeyRecord, held_by, sees_every_corner
@@ -22,14 +23,22 @@ router = APIRouter()
 CONFIG: TypeAdapter[AgentConfig] = TypeAdapter(AgentConfig)
 
 
+# Whose declaration is the corner's: the key's own for a tenant, and for the fleet's key the
+# corner of the call it is building a session for — the org, the world and the holder the
+# dispatch named — which is how one worker serves a developer's sandbox copy and the org's
+# production one from the same process. A slug that org does not hold is a 404 either way.
 @router.get("/v1/agents/{slug}/config")
 async def config(
-    slug: str, key: DeclarationKeyDep, registry: RegistryDep, overrides: OverridesDep
+    slug: str,
+    key: DeclarationKeyDep,  # noqa: ARG001 — the scope is asked here; the corner says where
+    corner: CornerDep,
+    registry: RegistryDep,
+    overrides: OverridesDep,
 ) -> dict[str, Any]:
     """What the app declared about this agent, resolved: the session is built from it, and the
     console draws the state by it."""
-    held = registry.of(key.env, slug, held_by(key))
-    if held is None or held.org != key.org:
+    held = registry.of(corner.env, slug, corner.holder)
+    if held is None or held.org != corner.org:
         raise HTTPException(status_code=404, detail=NO_AGENT.format(slug=slug))
     # The turned knobs are laid on through config_for(), the one applying function every door
     # that builds a session calls, so an override arrives by the path a declaration already travels.

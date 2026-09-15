@@ -40,6 +40,27 @@ async def test_the_routes_come_back_as_the_domain_holds_them() -> None:
     assert [(one.method, one.path) for one in seen] == [("GET", "/v1/routes")]
 
 
+async def test_the_three_whose_doors_are_asked_with_the_corner_the_dispatch_named() -> None:
+    """The worker holds one key for every org: the query string says whose doors it wants."""
+    asked: list[tuple[str, dict[str, str]]] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        asked.append((request.url.path, dict(request.url.params)))
+        return httpx.Response(200, json=[] if request.url.path == "/v1/routes" else {"keys": {}})
+
+    gateway = Gateway(httpx.AsyncClient(transport=httpx.MockTransport(answer), base_url="http://g"))
+    await gateway.routes(org="tienda", env="sandbox", holder="m_1")
+    await gateway.routes(number="+34910000099", channel="phone")
+    await gateway.routes()
+    await gateway.provider_keys("tienda-sur", org="tienda", env="production")
+    assert asked == [
+        ("/v1/routes", {"org": "tienda", "env": "sandbox", "holder": "m_1"}),
+        ("/v1/routes", {"number": "+34910000099", "channel": "phone"}),
+        ("/v1/routes", {}),
+        ("/v1/agents/tienda-sur/provider-keys", {"org": "tienda", "env": "production"}),
+    ]
+
+
 async def test_an_agents_declaration_survives_the_hop_whole() -> None:
     """The two processes exchange the class they both hold: no second wire-to-domain conversion."""
     gateway = a_gateway({"/v1/agents/clinica-norte/config": CONFIG.dump_python(CLARA, mode="json")})
