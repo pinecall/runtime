@@ -1,4 +1,4 @@
-"""The two pages the gateway serves: the tenant's console at `/`, the operator's at `/admin`."""
+"""The pages the gateway serves: the console at `/`, the operator's page at `/admin`, the widget at `/widget`."""
 
 from __future__ import annotations
 
@@ -41,6 +41,20 @@ class Page:
 
 CONSOLE = Page(name="console", directory=BUILT / "console")
 ADMIN = Page(name="admin", directory=BUILT / "admin")
+# Not a page: one script, `<pinecall-widget>`, for any site to load from this gateway as from a
+# CDN. A module script from another origin is fetched with CORS, so the header is on every answer.
+WIDGET = BUILT / "widget"
+WIDGET_HEADERS = {"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=300"}
+NO_WIDGET = "no widget is built into this gateway: run `scripts/console` in the runtime checkout"
+
+
+@router.get("/widget/{file}", include_in_schema=False)
+async def widget(file: str) -> FileResponse:
+    """The widget's one file, or a 404: nothing under /widget falls back to a page."""
+    asked = (WIDGET / file).resolve()
+    if WIDGET.resolve() not in asked.parents or not asked.is_file():
+        raise HTTPException(404, NO_WIDGET if not WIDGET.is_dir() else "Not Found")
+    return FileResponse(asked, headers=WIDGET_HEADERS)
 
 
 # The operator's page, declared BEFORE the catch-all so `/admin` and everything under it is this
