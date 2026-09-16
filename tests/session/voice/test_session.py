@@ -154,6 +154,14 @@ async def test_a_sentence_that_was_cut_off_is_never_said_twice() -> None:
     assert interruption["false_interruption_timeout"] == 1.0
 
 
+async def test_a_written_visit_on_a_listening_channel_gets_no_ears_and_no_voice() -> None:
+    """A `chat` token on the web: the model's words reach the page as written, never as speech."""
+    written = a_session(CLARA, _a_kit(), "web", {}, spoken=False)
+    assert (written.stt, written.tts) == (None, None)
+    spoken = a_session(CLARA, _a_kit(), "web", {})
+    assert spoken.tts is not None
+
+
 async def test_the_orgs_own_keys_are_handed_to_the_kit_and_go_nowhere_else() -> None:
     """The one thing this file says about provider keys: the session passes them straight on."""
     kit = _a_kit()

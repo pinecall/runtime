@@ -20,6 +20,7 @@ from pinecall.session.voice import session
 from pinecall.session.voice.kit import Kit
 from pinecall.session.voice.platform import Platform
 from pinecall.types import AgentConfig, CallContext, Route
+from pinecall.types.dispatch import SCOPE_KEY, WRITTEN_SCOPE
 from pinecall.worker import commanding, recordings, router, seat
 from pinecall.worker.client import Gateway
 from pinecall.worker.recordings import Keeping
@@ -107,7 +108,10 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     bridge = worker.bridging(context, config, worker.gateway, recording)
     # Registered before anything can fail: a call that dies mid-setup still seals its own log.
     ctx.add_shutdown_callback(sealing(worker.gateway, bridge, context.call))
-    live = session.a_session(config, worker.kit, route.channel, keys)
+    # A `chat` visit is written: the session has no ears and no voice, and the room carries no
+    # audio either way, so the words reach the page at the pace the model writes them.
+    typed = arrival.metadata.get(SCOPE_KEY) == WRITTEN_SCOPE
+    live = session.a_session(config, worker.kit, route.channel, keys, spoken=not typed)
     await clock.seeded(bridge.agent, context.today)
     await bridge.opened(live)
     # The one voice this session answers, decided before it subscribes to anything: a listener and,
@@ -119,7 +123,11 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     await live.start(  # pyright: ignore[reportUnknownMemberType]
         bridge.agent,
         room=ctx.room,
-        room_options=RoomOptions(participant_identity=pinned or NOT_GIVEN),
+        room_options=RoomOptions(
+            participant_identity=pinned or NOT_GIVEN,
+            audio_input=False if typed else NOT_GIVEN,
+            audio_output=False if typed else NOT_GIVEN,
+        ),
         record=recordings.AUDIO_ONLY if recording is not None else False,
     )
     logger.info("the pipeline is live %.2fs after the job arrived", time.monotonic() - began)
