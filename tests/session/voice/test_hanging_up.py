@@ -8,10 +8,16 @@ import pytest
 from livekit.agents import llm as agents
 from livekit.agents.beta.tools import EndCallTool
 from livekit.agents.llm import FunctionTool, ToolFlag
-from livekit.agents.llm.tool_context import FunctionToolInfo
+from livekit.agents.llm.tool_context import FunctionToolInfo, StopResponse
 from livekit.agents.voice.events import CloseReason
 
-from pinecall.session.voice.hanging_up import HOW_IT_ENDED, a_way_to_hang_up, the_reason_first
+from pinecall.session.voice.hanging_up import (
+    HOW_IT_ENDED,
+    SAY_GOODBYE_FIRST,
+    a_way_to_hang_up,
+    silence_after,
+    the_reason_first,
+)
 from pinecall.types import AgentConfig, Hangup
 
 pytestmark = pytest.mark.unit
@@ -54,6 +60,19 @@ def test_the_tenants_own_words_reach_the_description_the_model_reads() -> None:
     given = a_way_to_hang_up(AgentConfig(slug=A_CLINIC, hangup=Hangup(when=said)), Wrote())
 
     assert said in (what_the_model_reads(given).description or "")
+
+
+def test_the_model_is_told_to_say_goodbye_in_the_turn_it_hangs_up_in() -> None:
+    given = a_way_to_hang_up(AgentConfig(slug=A_CLINIC, hangup=Hangup()), Wrote())
+
+    assert SAY_GOODBYE_FIRST in (what_the_model_reads(given).description or "")
+
+
+async def test_nothing_is_generated_after_end_call() -> None:
+    """livekit's own tool would answer "say goodbye to the user" and let the model speak once
+    more to a caller already wished goodbye; ours asks for silence, livekit's own way."""
+    with pytest.raises(StopResponse):
+        await silence_after(None)  # pyright: ignore[reportArgumentType]
 
 
 def test_the_tool_is_hidden_while_the_agent_is_greeting() -> None:

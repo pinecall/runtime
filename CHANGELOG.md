@@ -7,6 +7,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **Nothing is said after `end_call`.** livekit's tool answers the model "say goodbye to the
+  user" and lets it generate one more reply once the call is already ending — Haiku, told that,
+  said "I understand. I'm ready to help the next caller" to a caller it had just thanked and
+  wished goodbye (box, 2026-09-16, a Talk from the console), and the log showed two agent turns in
+  one speech. The tool now tells the model to say its goodbye in the turn it hangs up in, and asks
+  for silence after it (`StopResponse`, livekit's own way); the session closes when that turn's
+  speech is played out.
 - **One worker serves every org's voice: the worker is the box's, not a tenant's.** The box's
   worker held ONE org key (org `default`) and every door it knocked — `GET /v1/routes`, the config
   and provider-key doors, `POST /v1/calls`, the heartbeat — resolved by that key's org and world,
