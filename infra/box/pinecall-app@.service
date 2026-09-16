@@ -11,6 +11,8 @@
 #                                              machine's, `keys issue --scope app …`
 #   /etc/credstore.encrypted/pinecall-app-<name>.env   the app's own secrets, dotenv lines,
 #                                              exported into its environment by the shell below
+#                                              — PINECALL_AGENT among them names the file to
+#                                              run when the repo holds several (agents/<a>/agent.tsx)
 #
 # The CLI reads its key from a profile and never from the environment (the agents repo's
 # src/cli/env.ts says why), so the first thing an instance does is what a server of the tenant's
@@ -40,7 +42,7 @@ Environment=PINECALL_HOME=/var/lib/pinecall/apps/%i
 LoadCredentialEncrypted=pinecall-app-%i.key:/etc/credstore.encrypted/pinecall-app-%i.key
 LoadCredentialEncrypted=pinecall-app-%i.env:/etc/credstore.encrypted/pinecall-app-%i.env
 ExecStartPre=/bin/sh -c 'exec node_modules/.bin/pinecall login http://127.0.0.1:8080 --key-stdin --as box < "$CREDENTIALS_DIRECTORY/pinecall-app-%i.key"'
-ExecStart=/bin/sh -c 'set -a; . "$CREDENTIALS_DIRECTORY/pinecall-app-%i.env"; set +a; exec node_modules/.bin/pinecall run --env production'
+ExecStart=/bin/sh -c 'set -a; . "$CREDENTIALS_DIRECTORY/pinecall-app-%i.env"; set +a; exec node_modules/.bin/pinecall run --env production $${PINECALL_AGENT:-}'
 Restart=always
 RestartSec=3
 
