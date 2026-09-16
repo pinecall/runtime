@@ -34,13 +34,31 @@ def what_the_model_reads(given: list[agents.Toolset]) -> FunctionToolInfo:
 
 
 class Wrote:
-    """A bridge that only remembers whether it was told the model ended the call."""
+    """A bridge that remembers being told the model ended the call, and what it logged for it."""
 
     def __init__(self) -> None:
         self.ended = False
+        self.entries: list[tuple[str, Any]] = []
 
     def ended_by_the_model(self) -> None:
         self.ended = True
+
+    async def a_platform_tool_ran(self, called: Any, result: Any) -> None:
+        self.entries.append(("tool.call", called))
+        self.entries.append(("tool.result", result))
+
+
+class AnEndCall:
+    """The event livekit hands on_tool_called: the run context, with the call and the speech."""
+
+    class _Ctx:
+        class function_call:  # noqa: N801 — livekit's own attribute names
+            call_id = "fc_1"
+
+        class speech_handle:  # noqa: N801
+            id = "speech_9"
+
+    ctx = _Ctx()
 
 
 def test_a_class_that_declares_no_hangup_gets_no_tool() -> None:
@@ -85,9 +103,20 @@ async def test_the_reason_is_written_down_before_livekit_closes_the_session() ->
     bridge = Wrote()
     a_way_to_hang_up(AgentConfig(slug=A_CLINIC, hangup=Hangup()), bridge)
 
-    await the_reason_first(bridge)(None)  # pyright: ignore[reportArgumentType]
+    await the_reason_first(bridge)(AnEndCall())  # pyright: ignore[reportArgumentType]
 
     assert bridge.ended is True
+
+
+async def test_end_call_is_in_the_log_like_any_other_tool() -> None:
+    """A log without it showed the agent speaking twice in a row with nothing in between."""
+    bridge = Wrote()
+
+    await the_reason_first(bridge)(AnEndCall())  # pyright: ignore[reportArgumentType]
+
+    assert [kind for kind, _ in bridge.entries] == ["tool.call", "tool.result"]
+    called = bridge.entries[0][1]
+    assert (called.name, called.call_id, called.speech_id) == ("end_call", "fc_1", "speech_9")
 
 
 # The whole reason the callback exists: livekit ends the call with `session.shutdown()`, which

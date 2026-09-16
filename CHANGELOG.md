@@ -7,6 +7,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **`end_call` is in the log like any other tool.** The app's tools are written as `tool.call`
+  and `tool.result` on their way through the gateway; livekit's own `end_call` never passes there,
+  and a log without it showed the agent speaking twice in a row with nothing in between — "it
+  talked to itself" (box, 2026-09-16, a Talk from the console). The hang-up callback writes the
+  pair now, with the call id and the speech it ran in.
 - **Nothing is said after `end_call`.** livekit's tool answers the model "say goodbye to the
   user" and lets it generate one more reply once the call is already ending — Haiku, told that,
   said "I understand. I'm ready to help the next caller" to a caller it had just thanked and
