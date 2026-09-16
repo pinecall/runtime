@@ -6,6 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 AGENTS="${PINECALL_AGENTS:-../agents}"
+WIDGET="${PINECALL_WIDGET:-../widget}"
 SHIPPED="src/pinecall/gateway"
 
 [ -d "$AGENTS" ] || { echo "no agents checkout at $AGENTS: set PINECALL_AGENTS" >&2; exit 2; }
@@ -21,3 +22,10 @@ for page in console admin; do
   cp -R "$built" "$SHIPPED/$page"
   echo "$page → $SHIPPED/$page ($(find "$SHIPPED/$page" -type f | wc -l | tr -d ' ') files)"
 done
+
+# And the widget, one file, served at /widget/pinecall-widget.js for any page on the internet to
+# load — the gateway is the CDN. api/pages.py serves it with the CORS header a module needs.
+[ -f "$WIDGET/pinecall-widget.js" ] || { echo "no widget checkout at $WIDGET: set PINECALL_WIDGET" >&2; exit 2; }
+mkdir -p "$SHIPPED/widget"
+cp "$WIDGET/pinecall-widget.js" "$SHIPPED/widget/pinecall-widget.js"
+echo "widget → $SHIPPED/widget/pinecall-widget.js"

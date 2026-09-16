@@ -190,3 +190,19 @@ def fetched(gateway: TestClient, path: str) -> tuple[int, str, str]:
         str(got.headers["content-type"]),  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
         str(got.text),  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
     )
+
+
+def test_the_widget_is_served_from_the_gateway_with_cors_for_any_site(
+    gateway: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The gateway is the widget's CDN: one module, fetched cross-origin by a site's page."""
+    (tmp_path / "widget").mkdir()
+    (tmp_path / "widget" / "pinecall-widget.js").write_text(AN_ASSET)
+    monkeypatch.setattr(pages, "WIDGET", tmp_path / "widget")
+    answer = gateway.get("/widget/pinecall-widget.js")
+    assert answer.status_code == 200
+    assert "javascript" in answer.headers["content-type"]
+    assert answer.headers["access-control-allow-origin"] == "*"
+    assert answer.text == AN_ASSET
+    # Nothing else under /widget is a page: a wrong name is a 404 and never index.html.
+    assert gateway.get("/widget/nope.js").status_code == 404
