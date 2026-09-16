@@ -69,11 +69,16 @@ ONE_ANSWER_PER_TOOL = 1
 
 
 def a_session(
-    config: AgentConfig, kit: Kit, channel: Channel, keys: ProviderKeys
+    config: AgentConfig, kit: Kit, channel: Channel, keys: ProviderKeys, *, spoken: bool = True
 ) -> AgentSession[None]:
     """The session livekit runs for this call: the vendors the agent asked for, and its turns."""
     built = kit(config, keys)
-    if channel not in CHANNELS_THAT_LISTEN:
+    # A written call is one nobody speaks on: a channel that never listens, or a web visit whose
+    # token said `chat`. The spoken session ran for those too, and the page read the agent's words
+    # at the pace a voice nobody heard was saying them, two seconds behind and billed as speech
+    # (2026-09-16, the first chat from a tenant's page). No ears and no voice: the model's text
+    # reaches the room as it is written.
+    if channel not in CHANNELS_THAT_LISTEN or not spoken:
         written: AgentSession[None] = AgentSession(
             llm=built.llm,
             vad=None,
@@ -81,7 +86,7 @@ def a_session(
             max_tool_steps=ONE_ANSWER_PER_TOOL,
         )
         return written
-    spoken: AgentSession[None] = AgentSession(
+    voiced: AgentSession[None] = AgentSession(
         llm=built.llm,
         stt=built.stt,
         tts=built.tts,
@@ -91,7 +96,7 @@ def a_session(
         stt_context_options=what_it_listens_for(config, built.stt),
         max_tool_steps=ONE_ANSWER_PER_TOOL,
     )
-    return spoken
+    return voiced
 
 
 # livekit already filters markdown and emoji out of every reply it speaks (agent_session.py:351),

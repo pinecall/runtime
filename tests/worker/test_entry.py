@@ -217,7 +217,7 @@ async def _the_session_started_in(monkeypatch: pytest.MonkeyPatch, room: rtc.Roo
     recorder = _RecordsTheStart()
     built = cast(AgentSession[None], recorder)
 
-    def a_session(*_asked: object) -> AgentSession[None]:
+    def a_session(*_asked: object, **_how: object) -> AgentSession[None]:
         """`session.a_session` for this job: the recorder, whatever it was asked to build."""
         return built
 

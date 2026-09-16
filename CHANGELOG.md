@@ -7,6 +7,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **A `chat` visit is a written call.** The worker ignored the scope the token door wrote into
+  the dispatch and ran the spoken session for every web visit: a chat page read the agent's words
+  at the pace a voice nobody heard was saying them, two seconds behind and billed as speech, and
+  the greeting waited on a synthesis nobody heard (box, 2026-09-16, the first chat from a tenant's
+  page). A `chat` scope now gets the written session — no ears, no voice — and a room with audio
+  off both ways; the words reach the page as the model writes them.
 - **A chat token hears the room.** It was minted audio off both ways, and LiveKit hands text
   streams to subscribers only: a page typed into the room on `lk.chat`, the agent answered — the
   call's log had the turn — and the page never saw a word (box, 2026-09-16). `chat` publishes

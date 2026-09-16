@@ -35,3 +35,8 @@ HOLDER_KEY = "holder"
 # /v1/tokens and is spent once; a phone call and a console carry none and are never checked.
 SCOPE_KEY = "scope"
 METADATA_KEY = "metadata"
+
+# The scope a visit token carried, as POST /v1/tokens wrote it into the dispatch (SCOPE_KEY). The
+# one value the worker reads: a `chat` visit is a written call — no ears, no voice, no audio in
+# the room — and every other scope is spoken. The word is types/token.py's own row.
+WRITTEN_SCOPE = "chat"
