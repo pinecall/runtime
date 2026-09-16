@@ -226,9 +226,17 @@ async def invite(
     )
     member = said["member"]
     print(f"{member['id']}  {member['email']}  {member['role']}  {member['status']}", file=out)
+    if said.get("token") is None:
+        print(f"  {ALREADY_A_PERSON}", file=out)
+        return 0
     print(f"  {operator.base}/invitations/{said['token']}", file=out)
     print(f"  {TOKEN_PRINTED_ONCE}", file=out)
     return 0
+
+
+# No link for somebody who already has a password on this box: they are seated at once, and
+# the org appears in their console's org switch. A link would buy them a second password.
+ALREADY_A_PERSON = "already a person on this box: seated, they sign in with the password they have"
 
 
 # What an operator IS, said where somebody granting it will read it: their own key opens every

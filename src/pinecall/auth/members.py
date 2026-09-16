@@ -30,16 +30,36 @@ class Kept:
 class Members(Protocol):
     """Where the org's doors invite, list and change its people, and where login finds one."""
 
+    # A PERSON is their email, on this box, and has one password. An org is a row of theirs; a
+    # second org is a second row with the same hash, and the hash changes everywhere at once.
+    # No migration carried this: 0014's schema already holds a hash per row, and the rule is
+    # kept here, in the four verbs that read and write it (2026-09-16).
     async def invite(
         self, org: str, email: str, name: str, role: Role, agents: Iterable[str]
     ) -> Invited | None:
-        """A new member with a one-use token, or a fresh token for one still invited. None when
-        the email already belongs to a member who accepted: they log in, they are not re-invited."""
+        """A new member with a one-use token, or a fresh token for one still invited. An email
+        that already has a password on this box is seated ACTIVE with it, and no token is made.
+        None when the email already belongs to a member of THIS org who accepted."""
         ...
 
     async def accept(self, token: str, password_hash: str) -> Member | None:
-        """The invitation spent and the member active with this password. None when no open,
-        unexpired invitation answers to the token."""
+        """The invitation spent and the member active with this password, which becomes the
+        person's password in every org of theirs. None when no open, unexpired invitation
+        answers to the token."""
+        ...
+
+    async def a_persons_password(self, email: str) -> str | None:
+        """The hash this person's password left, whichever org it was chosen in; None when the
+        email has never accepted anywhere."""
+        ...
+
+    async def orgs_of(self, email: str) -> tuple[Member, ...]:
+        """Every row of this email across the orgs, oldest first: the person's memberships."""
+        ...
+
+    async def join(self, org: str, id: str, password_hash: str) -> Member | None:
+        """A member still invited seated active with the person's password: a row made before
+        the person existed, caught up at their login. None when no invited member answers."""
         ...
 
     async def listed(self, org: str) -> tuple[Member, ...]:
@@ -127,6 +147,11 @@ class MemoryMembers:
                 role=role,
                 agents=frozenset(agents),
             )
+            known = await self.a_persons_password(email)
+            if known is not None:
+                member = replace(member, status="active")
+                self._rows[member.id] = _Row(member, known, _at(self._clock()))
+                return Invited(member=member, token=None, expires_at=None)
             self._rows[member.id] = _Row(member, None, _at(self._clock()))
         else:
             member = kept.member
@@ -138,7 +163,7 @@ class MemoryMembers:
         return Invited(member=member, token=token, expires_at=_at(expires_at))
 
     async def accept(self, token: str, password_hash: str) -> Member | None:
-        """Spend the token, then make the member active with this password."""
+        """Spend the token, then make the member active with this password, everywhere."""
         hashed = fingerprint(token)
         invitation = self._invitations.get(hashed)
         if invitation is None or invitation.spent or invitation.expires_at <= self._clock():
@@ -147,7 +172,35 @@ class MemoryMembers:
         row = self._rows[invitation.member]
         member = replace(row.member, status="active")
         self._rows[member.id] = replace(row, member=member, password_hash=password_hash)
+        self._password_everywhere(member.email, password_hash)
         return member
+
+    async def a_persons_password(self, email: str) -> str | None:
+        """The newest hash any row of this email holds."""
+        rows = [row for row in self._rows.values() if row.member.email == email]
+        for row in sorted(rows, key=lambda row: row.created_at, reverse=True):
+            if row.password_hash is not None:
+                return row.password_hash
+        return None
+
+    async def orgs_of(self, email: str) -> tuple[Member, ...]:
+        """Every row of this email, in the order they were made."""
+        return tuple(row.member for row in self._rows.values() if row.member.email == email)
+
+    async def join(self, org: str, id: str, password_hash: str) -> Member | None:
+        """The invited row seated active with the password the person already has."""
+        found = await self.find(org, id)
+        if found is None or found.status != "invited":
+            return None
+        member = replace(found, status="active")
+        self._rows[id] = replace(self._rows[id], member=member, password_hash=password_hash)
+        return member
+
+    def _password_everywhere(self, email: str, password_hash: str) -> None:
+        """One person, one password: every row of theirs takes the hash just chosen."""
+        for id, row in self._rows.items():
+            if row.member.email == email and row.password_hash is not None:
+                self._rows[id] = replace(row, password_hash=password_hash)
 
     async def listed(self, org: str) -> tuple[Member, ...]:
         """In the order they were invited, which for a dict is the order they were inserted."""
@@ -244,6 +297,43 @@ UPDATE members SET status = 'active', password_hash = $2 WHERE id = $1
 RETURNING id, org, email, name, role, agents, status, operator, password_hash, created_at
 """
 
+# A person who already exists on this box joins a second org seated: the row is active from the
+# start and carries the hash they already have, so there is no link and no second password.
+_INSERT_SEATED = """
+INSERT INTO members (id, org, email, name, role, agents, status, password_hash)
+VALUES ($1, $2, $3, $4, $5, $6, 'active', $7)
+"""
+
+# The newest hash any row of this email holds: the person's password, whichever org chose it.
+_A_PERSONS_PASSWORD = """
+SELECT password_hash
+  FROM members
+ WHERE email = $1 AND password_hash IS NOT NULL
+ ORDER BY created_at DESC
+ LIMIT 1
+"""
+
+_ORGS_OF = """
+SELECT id, org, email, name, role, agents, status, operator, password_hash, created_at
+  FROM members
+ WHERE email = $1
+ ORDER BY created_at, id
+"""
+
+# One person, one password: a password chosen at an invitation lands on every row of theirs
+# that has one. The rows still invited keep NULL — they are seated at login (`_JOIN`).
+_PASSWORD_EVERYWHERE = """
+UPDATE members SET password_hash = $2 WHERE email = $1 AND password_hash IS NOT NULL
+"""
+
+# A row invited before the person existed, seated at their first login to this org with the
+# password they already have: fenced by the org and by the standing, so it seats nobody twice.
+_JOIN = """
+UPDATE members SET status = 'active', password_hash = $3
+ WHERE org = $1 AND id = $2 AND status = 'invited'
+RETURNING id, org, email, name, role, agents, status, operator, password_hash, created_at
+"""
+
 # The box's own write, and the only one that is not the org's: fenced by the org like every other
 # read, so an id from one tenant cannot name a member of another.
 _MAKE_OPERATOR = """
@@ -287,6 +377,13 @@ class PostgresMembers:
                 role=role,
                 agents=frozenset(agents),
             )
+            known = await self.a_persons_password(email)
+            if known is not None:
+                member = replace(member, status="active")
+                await self._pool.execute(
+                    _INSERT_SEATED, member.id, org, email, name, role, sorted(member.agents), known
+                )
+                return Invited(member=member, token=None, expires_at=None)
             await self._pool.execute(
                 _INSERT, member.id, org, email, name, role, sorted(member.agents)
             )
@@ -299,11 +396,30 @@ class PostgresMembers:
         return Invited(member=member, token=token, expires_at=expires_at.isoformat())
 
     async def accept(self, token: str, password_hash: str) -> Member | None:
-        """One UPDATE spends the token and names the member; a second makes them active."""
+        """One UPDATE spends the token and names the member; a second makes them active; a
+        third carries the password to every other org of theirs."""
         spent = await self._pool.fetchrow(_SPEND, fingerprint(token))
         if spent is None:
             return None
         row = await self._pool.fetchrow(_ACTIVATE, str(spent["member"]), password_hash)
+        if row is None:
+            return None
+        member = _a_member(row)
+        await self._pool.execute(_PASSWORD_EVERYWHERE, member.email, password_hash)
+        return member
+
+    async def a_persons_password(self, email: str) -> str | None:
+        """One read across the orgs, newest hash first."""
+        row = await self._pool.fetchrow(_A_PERSONS_PASSWORD, email)
+        return None if row is None else _text(row["password_hash"])
+
+    async def orgs_of(self, email: str) -> tuple[Member, ...]:
+        """Every row of this email, oldest first: what the console's org switch lists."""
+        return tuple(_a_member(row) for row in await self._pool.fetch(_ORGS_OF, email))
+
+    async def join(self, org: str, id: str, password_hash: str) -> Member | None:
+        """One UPDATE, fenced by the org and by the standing."""
+        row = await self._pool.fetchrow(_JOIN, org, id, password_hash)
         return None if row is None else _a_member(row)
 
     async def listed(self, org: str) -> tuple[Member, ...]:

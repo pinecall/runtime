@@ -138,7 +138,12 @@ def _a_wanted_member(said: WantedMember, org: str) -> Role:
 
 
 async def _invited(members: Members, org: str, said: WantedMember, role: Role) -> dict[str, Any]:
-    """The row and the token, the once; 409 for an email that already accepted."""
+    """The row and the token, the once; 409 for an email that already accepted here.
+
+    A person who already exists on this box — an email with a password in another org — is
+    seated active at once and the answer carries no token: they sign in with the password
+    they have, and the console's org switch lists the new org beside the others.
+    """
     invited = await members.invite(org, said.email, said.name, role, said.agents)
     if invited is None:
         raise HTTPException(409, ALREADY_A_MEMBER.format(email=said.email))
