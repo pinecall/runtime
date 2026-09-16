@@ -18,11 +18,15 @@ INVITATION_TTL_S = 7 * 24 * 3600.0
 
 @dataclass(frozen=True)
 class Invited:
-    """A member just invited, and the token at the one moment it exists in the clear."""
+    """A member just invited, and the token at the one moment it exists in the clear.
+
+    No token at all when the email already belongs to a person on this box: they are seated
+    active with the password they have, and there is nothing for a link to buy.
+    """
 
     member: Member
-    token: str
-    expires_at: str
+    token: str | None
+    expires_at: str | None
 
 
 def a_token() -> str:
