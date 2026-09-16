@@ -17,6 +17,11 @@
 # would: `pinecall login --key-stdin`, off the credential, into a PINECALL_HOME of its own under
 # /var/lib. The gateway it signs in to is this box's, on loopback: the app opens one outbound
 # socket and serves nothing.
+#
+# Each credential is loaded under its own filename and no shorter ID: systemd decrypts one only
+# if the name sealed inside it — `systemd-creds encrypt --name=`, which is the filename — is the
+# ID the unit asks for, and refuses otherwise ("does not match filename 'env', refusing", measured
+# 2026-09-16; cli/box/verbs.py met the same rule the other way round).
 [Unit]
 Description=Pinecall app %i (a tenant's agent, held on this box)
 Wants=network-online.target pinecall-gateway.service
@@ -28,10 +33,10 @@ Group=pinecall
 WorkingDirectory=/opt/pinecall/apps/%i
 StateDirectory=pinecall/apps/%i
 Environment=PINECALL_HOME=/var/lib/pinecall/apps/%i
-LoadCredentialEncrypted=key:/etc/credstore.encrypted/pinecall-app-%i.key
-LoadCredentialEncrypted=env:/etc/credstore.encrypted/pinecall-app-%i.env
-EnvironmentFile=%d/env
-ExecStartPre=/bin/sh -c 'exec node_modules/.bin/pinecall login http://127.0.0.1:8080 --key-stdin --as box < "$CREDENTIALS_DIRECTORY/key"'
+LoadCredentialEncrypted=pinecall-app-%i.key:/etc/credstore.encrypted/pinecall-app-%i.key
+LoadCredentialEncrypted=pinecall-app-%i.env:/etc/credstore.encrypted/pinecall-app-%i.env
+EnvironmentFile=%d/pinecall-app-%i.env
+ExecStartPre=/bin/sh -c 'exec node_modules/.bin/pinecall login http://127.0.0.1:8080 --key-stdin --as box < "$CREDENTIALS_DIRECTORY/pinecall-app-%i.key"'
 ExecStart=/opt/pinecall/apps/%i/node_modules/.bin/pinecall run --env production
 Restart=always
 RestartSec=3
