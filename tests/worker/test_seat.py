@@ -38,6 +38,15 @@ async def test_a_web_call_is_heard_on_the_browser_holding_the_talk_token() -> No
     assert await seat.the_callers_seat(as_a_room(room), "web") == "web_ab12cd34ef56"
 
 
+async def test_a_written_visit_waits_for_no_seat_at_all() -> None:
+    """A chat token publishes no voice: waiting for its talk seat could only time out, and did —
+    five seconds of silence before every greeting on the web chat (2026-09-16)."""
+    room = a_connected_room(_listening("ear"))
+    began = asyncio.get_running_loop().time()
+    assert await seat.the_callers_seat(as_a_room(room), "web", spoken=False) is None
+    assert asyncio.get_running_loop().time() - began < A_MOMENT_S
+
+
 async def test_a_supervisor_who_speaks_into_the_room_is_never_the_seat() -> None:
     """The whole point: ms-8 puts a human on a microphone in this room, and the agent ignores it."""
     room = a_connected_room(_supervising("ana"))
