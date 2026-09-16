@@ -7,6 +7,7 @@ from typing import Protocol
 
 from livekit.agents import llm as agents
 from livekit.agents.beta.tools import EndCallTool
+from livekit.agents.llm.tool_context import StopResponse
 from livekit.agents.voice.events import CloseReason
 
 from pinecall.types import AgentConfig
@@ -23,6 +24,17 @@ WHILE_GREETING_IT_IS_HIDDEN = True
 # person on the line listening to nothing. livekit's default, kept, and named here because the
 # other value is what a WARM transfer would want and we do not do warm transfers.
 THE_ROOM_GOES_WITH_IT = True
+
+# livekit's tool answers the model "say goodbye to the user" and lets it generate one more reply
+# after the call is already ending — and Haiku, told that, said "I understand. I'm ready to help
+# the next caller" to a caller who had just been thanked and wished goodbye (box, 2026-09-16, a
+# Talk from the console). So the goodbye is the model's own, in the turn that reaches for the
+# tool, and the tool asks for silence after it: `StopResponse` is livekit's word for a tool
+# whose output wants no reply, and the session shuts down when that turn's speech is played out.
+SAY_GOODBYE_FIRST = (
+    "Say your goodbye in the same reply in which you call this, before the call: nothing you "
+    "say after it is heard, and nothing is generated for you."
+)
 
 
 # How livekit's own reason for closing the session reads on our wire. JOB_SHUTDOWN is the platform
@@ -58,12 +70,19 @@ def a_way_to_hang_up(config: AgentConfig, ending: Ends) -> list[agents.Toolset]:
 
     return [
         EndCallTool(
-            extra_description=declared.when,
+            extra_description=f"{declared.when or ''}\n{SAY_GOODBYE_FIRST}".strip(),
             ignore_on_enter=WHILE_GREETING_IT_IS_HIDDEN,
             delete_room=THE_ROOM_GOES_WITH_IT,
+            end_instructions=None,
             on_tool_called=the_reason_first(ending),
+            on_tool_completed=silence_after,
         )
     ]
+
+
+async def silence_after(_: EndCallTool.ToolCompletedEvent) -> None:
+    """No reply is generated after end_call: the goodbye was the model's own, a moment ago."""
+    raise StopResponse()
 
 
 def the_reason_first(ending: Ends) -> Callable[[EndCallTool.ToolCalledEvent], Awaitable[None]]:
