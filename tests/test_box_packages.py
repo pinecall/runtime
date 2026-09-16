@@ -13,6 +13,7 @@ pytestmark = pytest.mark.unit
 BOX = ROOT / "infra" / "box"
 CLOUD_INIT = BOX / "cloud-init.yaml"
 MANIFEST = BOX / "Makefile"
+FENCE = BOX / "nftables.conf"
 EMBEDDER = BOX / "containers" / "pinecall-tei.container"
 GATEWAY = BOX / "pinecall-gateway.service"
 WORKER = BOX / "pinecall-worker.service"
@@ -79,6 +80,15 @@ def test_a_tenants_app_can_be_held_on_the_box() -> None:
     assert 'set -a; . "$CREDENTIALS_DIRECTORY/pinecall-app-%i.env"' in template
     # The manager reads environment files before the credentials exist: measured, 2026-09-16.
     assert not re.search(r"^EnvironmentFile=", template, re.M)
+
+
+def test_the_fence_lets_the_sip_containers_own_answers_out() -> None:
+    """livekit-sip answers from the bridge, to the carrier's 5060: the fence must see that before
+    it drops 5060 from anyone but the carrier, or every call rings for ever (2026-09-16)."""
+    fence = FENCE.read_text()
+    bridge = fence.index('iifname "podman*" meta l4proto { tcp, udp } th dport 5060 accept')
+    drop = fence.index('th dport 5060 counter drop comment "5060 from anyone but the carrier"')
+    assert bridge < drop
 
 
 def test_the_speech_tool_a_simulated_caller_speaks_with_is_on_the_list() -> None:
