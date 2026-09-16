@@ -191,3 +191,13 @@ def a_call_on(config: AgentConfig, kit: FakeKit, channel: Channel) -> AgentSessi
 def _a_kit(*, keyterms: bool = False) -> FakeKit:
     """A kit with no vendor behind it, so the session is built and nothing is ever dialled."""
     return FakeKit(FakeLLM(), keyterms=keyterms)
+
+
+async def test_a_recogniser_with_its_own_end_of_turn_decides_it() -> None:
+    """Deepgram Flux ends the turn itself; livekit's "stt" mode commits on that event instead of
+    waiting the local detector's whole delay on a caller who paused mid-sentence."""
+    from pinecall.types import Model
+
+    flux = replace(CLARA, stt=Model(provider="deepgram", model=""))
+    assert a_call_on(flux, _a_kit(), "phone").turn_detection == "stt"
+    assert isinstance(a_call_on(CLARA, _a_kit(), "phone").turn_detection, inference.TurnDetector)

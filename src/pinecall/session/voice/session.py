@@ -12,6 +12,7 @@ from livekit.agents.voice.transcription.text_transforms import TextTransforms
 from livekit.agents.voice.turn import (
     InterruptionOptions,
     PreemptiveGenerationOptions,
+    TurnDetectionMode,
     TurnHandlingOptions,
 )
 
@@ -172,7 +173,21 @@ def spoken_turns(config: AgentConfig) -> TurnHandlingOptions:
         "resume_false_interruption": DO_NOT_SAY_IT_TWICE,
     }
     return {
-        "turn_detection": inference.TurnDetector(version=LOCAL_TURN_VERSION),
+        "turn_detection": the_turn_detector(config),
         "preemptive_generation": SPOKEN_PREEMPTION,
         "interruption": interruption,
     }
+
+
+# A recogniser that decides the end of the turn itself (Deepgram Flux) is asked, not second-guessed:
+# livekit's "stt" mode commits the turn on the recogniser's own end-of-turn event, where the local
+# detector on top of it waited its whole max delay on a caller who paused mid-sentence — 2.5 s of
+# silence after "My toilet won't flush." on 2026-09-16, against 0.3 s on every other turn.
+STT_DECIDES: frozenset[str] = frozenset({"deepgram"})
+
+
+def the_turn_detector(config: AgentConfig) -> TurnDetectionMode:
+    """The recogniser's own end of turn when it has one, livekit's local model otherwise."""
+    if config.stt is not None and config.stt.provider in STT_DECIDES:
+        return "stt"
+    return inference.TurnDetector(version=LOCAL_TURN_VERSION)
