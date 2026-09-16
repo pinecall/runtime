@@ -220,6 +220,9 @@ async def _every_conversation(
                         agent=wanted.agent,
                         store=process.store,
                         settings=process.settings,
+                        org=serving.org,
+                        env=serving.env,
+                        holder=serving.holder,
                         line=Line(
                             interferer_db=wanted.interferer_db, packet_loss=wanted.packet_loss
                         ),

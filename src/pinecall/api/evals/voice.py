@@ -7,6 +7,7 @@ from pydantic import Field
 
 from pinecall.api._deps import EvalsKeyDep, LlmsDep, SettingsDep, StoreDep, VaultDep
 from pinecall.api.evals.listening import until_the_answer_lands
+from pinecall.auth.keys import held_by
 from pinecall.evals.caller import (
     NO_MODEL,
     Asking,
@@ -94,6 +95,9 @@ async def a_voice_call(
             # The persona speaks again when the agent is listening again, never on a clock: the
             # same wait the golden runner makes, so a turn that runs a tool is not talked over.
             settled=lambda so_far: until_the_answer_lands(store, said.call, so_far),
+            org=key.org,
+            env=key.env,
+            holder=held_by(key),
         )
     except (TimeoutError, RuntimeError) as broke:
         raise HTTPException(503, NO_LINE.format(broke=broke)) from broke

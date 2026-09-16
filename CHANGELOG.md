@@ -20,6 +20,15 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   gateway answers that org's. A tenant's key opens exactly what it did: naming another corner is
   403 in keys.md's words. **A box born before this re-mints its worker key** — see
   `infra/box/README.md`, "Where the keys come from".
+- **A simulated call says whose it is.** `pinecall simulate --voice` and every spoken golden
+  dispatched the worker naming only the agent, so the worker looked for its routes in its own
+  org — the box's, which holds nobody's agents — and every spoken call outside org `default` died
+  with `NoRoute` before a word was said. The dispatch carries `org`, `env` and the sandbox
+  `holder` now, the same three `POST /v1/tokens` writes, taken from the key that asked for the
+  call and from the registration the run is against.
+- **`keys issue --scope fleet` mints the scope the box's own unit types.** `--scope` chose from
+  the scopes a tenant's key holds, which by design exclude `fleet`, so the one verb meant to mint
+  it refused it and a box that rotated its worker key came back with no worker key at all.
 - **0.1.0, and `pinecall-protocol` travels as a range.** The wheel PyPI serves now declares
   `pinecall-protocol>=0.1,<0.2`; the path in `[tool.uv.sources]` stays, because it is a checkout's
   convenience and never reached the wheel. `release.yml` also builds the console before packing:

@@ -19,7 +19,17 @@ from pinecall.auth.scopes import a_room_token, secret_for
 from pinecall.evals import line as degrading
 from pinecall.evals import speech
 from pinecall.evals.polling import until
-from pinecall.types.dispatch import AGENT_KEY, APP_KEY, CALLER_KEY, RUN_KEY, WORKER_NAME
+from pinecall.types import PRODUCTION, Env
+from pinecall.types.dispatch import (
+    AGENT_KEY,
+    APP_KEY,
+    CALLER_KEY,
+    ENV_KEY,
+    HOLDER_KEY,
+    ORG_KEY,
+    RUN_KEY,
+    WORKER_NAME,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +102,9 @@ async def a_simulated_call(
     settings: Settings,
     fleet: str = WORKER_NAME,
     settled: Settled,
+    org: str,
+    env: Env,
+    holder: str | None = None,
     caller: str | None = None,
     run: str | None = None,
     app: str | None = None,
@@ -99,7 +112,7 @@ async def a_simulated_call(
     """Open the room, dispatch the agent into it, say the turns out loud, and hang up."""
     if line.interferer_db is not None and not line.interferer:
         line.interferer = await speech.spoken(speech.A_TELEVISION)
-    async with _dispatch(call, agent, fleet, settings, caller, run, app):
+    async with _dispatch(call, agent, fleet, settings, caller, run, app, org, env, holder):
         room = rtc.Room()
         await room.connect(settings.livekit_url, _a_token(call, settings))
         try:
@@ -131,6 +144,9 @@ class _Dispatch:
         caller: str | None,
         run: str | None,
         app: str | None,
+        org: str,
+        env: Env,
+        holder: str | None,
     ) -> None:
         self._call = call
         self._agent = agent
@@ -139,6 +155,7 @@ class _Dispatch:
         self._caller = caller
         self._run = run
         self._app = app
+        self._whose = (org, env, holder)
         self._api: api.LiveKitAPI | None = None
 
     # The dispatch is what puts the agent in the room: a room job whose metadata names the agent,
@@ -163,7 +180,15 @@ class _Dispatch:
     # state seeded. A plain simulate names neither, and the router falls back to the room.
     def _metadata(self) -> dict[str, str]:
         """What the dispatch tells the worker: the agent, the caller, and which run opened it."""
-        said = {AGENT_KEY: self._agent}
+        # Whose call it is, the same three words `POST /v1/tokens` writes: the one worker every
+        # org shares resolves the agent, the org's provider keys and the log in THIS corner. A
+        # dispatch that named only the agent sent the worker looking in its own org — the box's,
+        # which holds nobody's agents — and every simulated call but org `default`'s died with
+        # NoRoute (2026-09-16, the first spoken call of another org's agent).
+        org, env, holder = self._whose
+        said = {AGENT_KEY: self._agent, ORG_KEY: org, ENV_KEY: env}
+        if holder is not None:
+            said[HOLDER_KEY] = holder
         if self._caller is not None:
             said[CALLER_KEY] = self._caller
         if self._run is not None:
@@ -198,9 +223,12 @@ def _dispatch(
     caller: str | None = None,
     run: str | None = None,
     app: str | None = None,
+    org: str = "",
+    env: Env = PRODUCTION,
+    holder: str | None = None,
 ) -> _Dispatch:
     """The agent asked into this room for the length of the call."""
-    return _Dispatch(call, agent, fleet, settings, caller, run, app)
+    return _Dispatch(call, agent, fleet, settings, caller, run, app, org, env, holder)
 
 
 class _Mouth:
