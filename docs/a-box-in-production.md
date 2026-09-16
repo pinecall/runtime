@@ -254,8 +254,8 @@ $ make deploy     # rsync to /opt/pinecall/apps/<name>, `pnpm install --frozen-l
 ```
 
 The instance signs in with `pinecall login --key-stdin` off its credential into a `PINECALL_HOME`
-of its own under `/var/lib/pinecall/apps/<name>`, reads its `.env` credential as its environment
-(`EnvironmentFile=%d/pinecall-app-<name>.env`), and runs `pinecall run --env production` against the gateway on
+of its own under `/var/lib/pinecall/apps/<name>`, sources its `.env` credential into its environment
+(`set -a` in the unit's own shell: `EnvironmentFile=` is read before a credential exists), and runs `pinecall run --env production` against the gateway on
 loopback. Its journal is the app's stdout: `journalctl -u pinecall-app@<name> -f`. It is the
 org's production holder, so nothing else — no laptop — should hold that slug in production.
 
