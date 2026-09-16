@@ -76,7 +76,7 @@ def test_a_tenants_app_can_be_held_on_the_box() -> None:
     template = (BOX / "pinecall-app@.service").read_text()
     assert "pinecall login http://127.0.0.1:8080 --key-stdin" in template
     assert "pinecall run --env production" in template
-    assert "EnvironmentFile=%d/env" in template
+    assert "EnvironmentFile=%d/pinecall-app-%i.env" in template
 
 
 def test_the_speech_tool_a_simulated_caller_speaks_with_is_on_the_list() -> None:
