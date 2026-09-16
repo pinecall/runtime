@@ -1,4 +1,4 @@
-"""The pages the gateway serves: the console at `/`, the operator's page at `/admin`, the widget at `/widget`."""
+"""The pages the gateway serves — the console, the operator's page — and the widget at `/widget`."""
 
 from __future__ import annotations
 
