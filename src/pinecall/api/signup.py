@@ -92,7 +92,11 @@ async def signup(
     # breath, the very path a person invited later walks, and the member ends `active`.
     invited = await members.invite(org.id, said.email, said.person, "admin", ())
     assert invited is not None
-    member = await members.accept(invited.token, hashed)
+    # A person who already has a password on this box is seated at once and keeps it: one person,
+    # one password (auth/members.py). Anybody else spends the invitation here.
+    member = (
+        invited.member if invited.token is None else await members.accept(invited.token, hashed)
+    )
     assert member is not None
     # Production, and so without `app`: what an admin holds here is every door of the org and not
     # the right to hold an agent from a laptop. `pinecall signup` asks /v1/login/env for the

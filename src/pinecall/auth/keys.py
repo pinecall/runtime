@@ -52,6 +52,10 @@ class KeyRecord:
     # nobody, and the label says what it is for.
     subject: str | None = None
     name: str | None = None
+    # Whose sandbox corner THIS request looks into, when a key that sees every corner asked for a
+    # colleague's (api/_deps.py, the `pinecall-corner` header). Never stored: one request's, and
+    # None on every key the table hands back.
+    looking_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -108,7 +112,22 @@ NOT_OPENED = "this key does not open {scope}: it opens {opens}"
 # api/agents/registry.py is where the corners are, and `Held` there says the same thing.
 def held_by(record: KeyRecord) -> str | None:
     """The corner of its world this key holds and reads in: nobody's, or a developer's own."""
-    return None if is_a_deployment(record.env) else record.subject
+    if is_a_deployment(record.env):
+        return None
+    return record.looking_at or record.subject
+
+
+# An admin opening a developer's copy from the console: the same doors, in that developer's
+# corner. Only a key that sees every corner may, only in the sandbox — production has no corners
+# — and only into a member of its own org. Said in one sentence for every refusal.
+CANNOT_LOOK_THERE = "only a key that sees every corner opens a colleague's, and only in the sandbox"
+
+
+def looking_into(record: KeyRecord, holder: str) -> KeyRecord:
+    """The same key, resolving this request in the corner named. Raises on a key that may not."""
+    if is_a_deployment(record.env) or not sees_every_corner(record):
+        raise PermissionError(CANNOT_LOOK_THERE)
+    return replace(record, looking_at=holder)
 
 
 # The other half of the same question. `held_by` says which corner this key WORKS in; this says

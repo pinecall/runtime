@@ -7,7 +7,8 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient, WebSocketTestSession
 
-from pinecall.auth.keys import KeyRecord, MemoryKeys
+from pinecall.api._deps import NOT_A_COLLEAGUE
+from pinecall.auth.keys import CANNOT_LOOK_THERE, KeyRecord, MemoryKeys, held_by, looking_into
 from pinecall.auth.members import MemoryMembers
 from pinecall.types import ROLE_SCOPES, SANDBOX, Member
 from tests.api.conftest import A_RECORD, AGENT, APPS
@@ -51,7 +52,9 @@ def members() -> MemoryMembers:
 
 
 def _a_person_row(id: str, email: str) -> Member:
-    return Member(id=id, org=A_RECORD.org, email=email, name=email, role="developer")
+    return Member(
+        id=id, org=A_RECORD.org, email=email, name=email, role="developer", status="active"
+    )
 
 
 def _an_app_on(gateway: TestClient, key: str) -> WebSocketTestSession:
@@ -105,3 +108,49 @@ def test_an_admin_sees_every_corner_and_each_row_says_whose(gateway: TestClient)
         whose = sorted(str(dict(held["holder"])["name"]) for held in seen)  # type: ignore[arg-type]
         assert whose == [BERNAS_ADDRESS, CARLAS_ADDRESS]
         assert {str(held["slug"]) for held in seen} == {AGENT}
+
+
+def _the_line(gateway: TestClient, key: str, corner: str | None) -> tuple[int, Any]:
+    headers = {"Authorization": f"Bearer {key}"}
+    if corner is not None:
+        headers["pinecall-corner"] = corner
+    answer = gateway.get(f"/v1/agents/{AGENT}/line", headers=headers)
+    return answer.status_code, answer.json()
+
+
+def test_an_admin_opens_a_developers_copy_and_every_door_answers_in_that_corner(
+    gateway: TestClient,
+) -> None:
+    """The console's agent panel: an admin picks Carla's copy, and the doors are Carla's."""
+    with _an_app_on(gateway, BERNAS_KEY) as bernas, _an_app_on(gateway, CARLAS_KEY) as carlas:
+        bernas.send_json(a_register(AGENT, a_door("web")))
+        bernas.receive_json()
+        carlas.send_json(a_register(AGENT, a_door("web")))
+        carlas.receive_json()
+
+        _, own = _the_line(gateway, AN_ADMINS_KEY, None)
+        _, as_berna = _the_line(gateway, AN_ADMINS_KEY, BERNA)
+        _, as_carla = _the_line(gateway, AN_ADMINS_KEY, CARLA)
+
+    # Berna rang first and holds the line: it is hers when the admin looks from her corner only.
+    assert (own["yours"], as_berna["yours"], as_carla["yours"]) == (False, True, False)
+
+
+def test_a_developer_cannot_open_a_colleagues_copy(gateway: TestClient) -> None:
+    status, body = _the_line(gateway, BERNAS_KEY, CARLA)
+    assert (status, body["detail"]) == (403, CANNOT_LOOK_THERE)
+
+
+def test_an_admin_names_only_a_member_of_the_org(gateway: TestClient) -> None:
+    status, body = _the_line(gateway, AN_ADMINS_KEY, "m_nobody")
+    assert (status, body["detail"]) == (403, NOT_A_COLLEAGUE)
+
+
+def test_production_has_no_corner_to_open() -> None:
+    admin = KeyRecord(key_id="k", org=A_RECORD.org, env="production", scopes=ROLE_SCOPES["admin"])
+    with pytest.raises(PermissionError):
+        looking_into(admin, CARLA)
+    sandbox = KeyRecord(
+        key_id="k", org=A_RECORD.org, env=SANDBOX, subject="m_ana", scopes=ROLE_SCOPES["admin"]
+    )
+    assert held_by(looking_into(sandbox, CARLA)) == CARLA
