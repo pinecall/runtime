@@ -11,7 +11,8 @@ from starlette.requests import HTTPConnection
 from pinecall._settings import Settings
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.codes import LoginCodes
-from pinecall.auth.keys import NO_KEYS_TABLE, KeyRecord, Keys, looking_into, not_opening
+from pinecall.auth.corner import in_the_corner_asked
+from pinecall.auth.keys import NO_KEYS_TABLE, KeyRecord, Keys, not_opening
 from pinecall.auth.members import Members
 from pinecall.auth.pairing import Pairings
 from pinecall.auth.throttle import Throttle
@@ -86,12 +87,6 @@ def the_llms(connection: HTTPConnection) -> Models:
     return held(connection, "llms")
 
 
-# The header the console sends when an admin opens a developer's copy: that member's id. Read by
-# the one dependency every door verifies its key through, so each door answers in that corner.
-CORNER_HEADER = "pinecall-corner"
-NOT_A_COLLEAGUE = "no active member of this org answers to that corner"
-
-
 # The worker's doors take an API key and nothing else: no participate token reaches them, because
 # nothing a browser holds may open a call's log for writing. One parser, auth/bearer.py, as every
 # other door uses.
@@ -101,17 +96,11 @@ async def a_key(connection: HTTPConnection, keys: KeysDep, members: MembersDep) 
     record = None if bearer is None else await keys.verify(bearer)
     if record is None:
         raise HTTPException(401, "this door takes an API key", {"WWW-Authenticate": "Bearer"})
-    corner = connection.headers.get(CORNER_HEADER)
-    if not corner or corner == record.subject:
-        return record
+    # An admin reading a colleague's sandbox copy: the header names the corner (auth/corner.py).
     try:
-        looking = looking_into(record, corner)
+        return await in_the_corner_asked(record, connection.headers, members)
     except PermissionError as refused:
         raise HTTPException(403, str(refused)) from refused
-    seated = await members.find(record.org, corner)
-    if seated is None or seated.status != "active":
-        raise HTTPException(403, NOT_A_COLLEAGUE)
-    return looking
 
 
 # A socket has no 401 to answer with, so its door asks this as a question and closes with the

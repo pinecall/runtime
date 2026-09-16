@@ -10,7 +10,7 @@ from starlette.testclient import TestClient
 from pinecall.api.agents.registry import Registry
 from pinecall.api.login import ONE_WORLD_EACH
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
-from pinecall.auth.members import MemoryMembers
+from pinecall.auth.members_memory import MemoryMembers
 from pinecall.log.store import MemoryStore
 from pinecall.types import PRODUCTION, SANDBOX, Member
 from pinecall_protocol import defs

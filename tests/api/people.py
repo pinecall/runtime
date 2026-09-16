@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from pinecall.auth.codes import LoginCodes
-from pinecall.auth.members import MemoryMembers
+from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.pairing import Pairings
 from pinecall.auth.throttle import Throttle
 from tests.api.conftest import over_the_asgi_app

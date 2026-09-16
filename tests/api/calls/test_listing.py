@@ -5,7 +5,7 @@ from starlette.testclient import TestClient
 
 from pinecall.auth.scopes import a_room_token
 from pinecall.log.store import MemoryStore
-from tests.api.conftest import A_LIVEKIT
+from tests.api.conftest import A_LIVEKIT, A_RECORD
 from tests.api.talking import got
 
 pytestmark = pytest.mark.unit
@@ -25,6 +25,7 @@ def sessions_of(agent: str = THE_AGENT) -> str:
 
 
 async def a_call(store: MemoryStore, call: str, *, ended: bool = False) -> None:
+    await store.owned(call, THE_AGENT, A_RECORD.org)
     """One call in the log as a worker writes it: how it arrived, and how it went if it is over."""
     await store.append(call, THE_AGENT, "call.ringing", dict(RINGING))
     await store.append(call, THE_AGENT, "call.started", dict(UP))

@@ -14,6 +14,22 @@ import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingT
 from pinecall._exceptions import PinecallError
 from pinecall.log.entry import Entry
 from pinecall.log.store.protocol import DEFAULT_LIMIT, LogSealed, Metered
+from pinecall.log.store.statements import (
+    ACROSS,
+    APPEND,
+    CALLS_NEWEST_FIRST,
+    CALLS_OF,
+    INSTALLED_EXTENSIONS,
+    LATEST_SEQ,
+    LIST_CALLS,
+    MOVED,
+    MOVED_NOTHING,
+    NEWEST_LIVE_CALL,
+    OWNED,
+    OWNER,
+    PAGE,
+    SEAL,
+)
 from pinecall.types.json import JsonObject
 
 # The .sql files, numbered, applied in name order. A migration is added, never edited. They are the
@@ -33,120 +49,6 @@ DEFAULT_SCHEMA = "public"
 # An agent's own log is a log like any other, under a name no call id can wear (see the CHECK
 # constraint in 0001). The database computes the same string for every row it stores.
 AGENT_LOG_PREFIX = "@"
-
-# ── the statements ──────────────────────────────────────────────────────────────
-
-# One statement, one seq. The head row is inserted or bumped under its own row lock, so two
-# appends racing queue up instead of reading one number twice; the entry is written in the same
-# statement from the number that came out. A sealed log matches no WHERE, returns no row, and
-# that empty result is the refusal — the store never asks "is it sealed?" separately and then acts.
-APPEND = """
-with numbered as (
-    insert into call_log_head as head (log, agent, call, seq, started_at)
-    values ($1, $2, $3, 1, $4::double precision)
-    on conflict (log) do update
-        set seq        = head.seq + 1,
-            agent      = coalesce(head.agent, excluded.agent),
-            call       = coalesce(head.call, excluded.call),
-            started_at = coalesce(head.started_at, excluded.started_at)
-        where not head.sealed
-    returning seq
-), written as (
-    insert into call_log (call, seq, ts, agent, type, ephemeral, data)
-    select $3, numbered.seq, $4::double precision, $2, $5, $6::boolean, $7::jsonb
-    from numbered
-    where not $6::boolean
-)
-select seq from numbered
-"""
-
-# The one thing a reader ever asks for: what is above my cursor, in order, at most this many.
-PAGE = """
-select call, seq, ts, agent, type, ephemeral, data
-from call_log
-where log = $1 and seq > $2
-order by seq
-limit $3
-"""
-
-# Sealing a log nobody wrote to is legal: a recovery path can reach the end before the beginning.
-SEAL = """
-insert into call_log_head (log, call, sealed) values ($1, $1, true)
-on conflict (log) do update set sealed = true
-"""
-
-# The head row knows the call's whole life, so a call whose every entry was ephemeral is still
-# listed. started_at is the appending process's clock, which is the only clock the entries have.
-LIST_CALLS = """
-select call from call_log_head
-where agent = $1 and call is not null
-order by started_at nulls last, log
-"""
-
-LATEST_SEQ = "select seq from call_log_head where log = $1"
-
-# The org's calls across every agent, newest first: what the console's Sessions screen lists at
-# the org level. The head row carries the org (0006) and the clock the entries have (started_at).
-CALLS_OF = """
-select call from call_log_head
-where org = $1 and call is not null
-order by started_at desc nulls last, log desc
-limit $2
-"""
-
-# The head row is where a log's owner lives, and the first claim stands: a log is opened under one
-# key and never moves. The row may not exist yet — a claim can land before the first entry — so
-# it is inserted with a seq of 0, which is what APPEND's own insert would have written.
-OWNED = """
-insert into call_log_head as head (log, agent, call, org) values ($1, $2, $3, $4)
-on conflict (log) do update set org = coalesce(head.org, excluded.org)
-"""
-
-# Every head row this agent has: its own, and one per call it took. `call_log_head_by_agent`
-# indexes exactly this column, so the move is one statement and one index scan however long the
-# agent has been running.
-MOVED = "update call_log_head set org = $2 where agent = $1"
-
-# What `UPDATE n` says when it moved nothing. The tag is the only thing that tells an agent
-# nobody has ever registered from one that moved: a verb that answered yes to a typo would send
-# an operator looking for the change in the wrong org.
-MOVED_NOTHING = "UPDATE 0"
-
-OWNER = "select org from call_log_head where log = $1"
-
-# The one read that spans every log: the metered types, by position, each with its log's owner.
-# The partial index in 0006 is exactly this WHERE and ORDER BY.
-ACROSS = """
-select entry.position, head.org, entry.call, entry.seq, entry.ts, entry.agent, entry.type,
-       entry.ephemeral, entry.data
-from call_log entry
-join call_log_head head on head.log = entry.log
-where entry.type = any($1::text[]) and entry.position > $2
-order by entry.position
-limit $3
-"""
-
-# The two questions that span every log instead of asking about one. The Store protocol answers
-# about ONE log, which is what keeps it portable, so these live on the Postgres store alone: only
-# an operator asks them, and the CLI that does already holds this pool.
-CALLS_NEWEST_FIRST = """
-select call from call_log_head
-where call is not null and ($2::text is null or agent = $2)
-order by started_at desc nulls last, log desc
-limit $1
-"""
-
-# Live means the log was never sealed: the call ended when somebody wrote its last entry.
-NEWEST_LIVE_CALL = """
-select call from call_log_head
-where call is not null and not sealed
-order by started_at desc nulls last, log desc
-limit 1
-"""
-
-# The one health fact the doctor prints about a database, asked from the module that holds the
-# driver so no CLI has to import one.
-INSTALLED_EXTENSIONS = "select extname from pg_extension"
 
 
 # asyncpg ships no py.typed, so a strict checker reads every call into it as Unknown. Two casts at
@@ -254,9 +156,16 @@ class PostgresStore:
         rows: Sequence[Any] = await self._pool.fetch(LIST_CALLS, agent)
         return [str(row["call"]) for row in rows]
 
-    async def calls_of(self, org: str, limit: int) -> list[str]:
-        """The org's newest calls, off the head rows, across its agents."""
-        rows: Sequence[Any] = await self._pool.fetch(CALLS_OF, org, limit)
+    async def calls_of(
+        self,
+        org: str,
+        limit: int,
+        env: str | None = None,
+        holder: str | None = None,
+        agent: str | None = None,
+    ) -> list[str]:
+        """The org's newest calls, off the head rows, cut to a world, a corner or an agent."""
+        rows: Sequence[Any] = await self._pool.fetch(CALLS_OF, org, limit, env, holder, agent)
         return [str(row["call"]) for row in rows]
 
     async def latest_seq(self, call: str) -> int:
@@ -264,9 +173,26 @@ class PostgresStore:
         seq: int | None = await self._pool.fetchval(LATEST_SEQ, call)
         return int(seq or 0)
 
-    async def owned(self, call: str | None, agent: str, org: str) -> None:
-        """Write the owner on the head row, creating it when the claim comes before any entry."""
-        await self._pool.execute(OWNED, log_name(call, agent), agent, call, org)
+    async def owned(
+        self,
+        call: str | None,
+        agent: str,
+        org: str,
+        env: str | None = None,
+        holder: str | None = None,
+    ) -> None:
+        """Write the owner, and a call's corner, on the head row, creating it when the claim comes
+        before any entry. An agent's own log has no corner: one log per slug, whatever the world."""
+        corner = None if call is None or env is None else (env, holder or "")
+        await self._pool.execute(
+            OWNED,
+            log_name(call, agent),
+            agent,
+            call,
+            org,
+            None if corner is None else corner[0],
+            None if corner is None else corner[1],
+        )
 
     async def moved(self, agent: str, org: str) -> int:
         """Every head row of this agent, into another org. The count comes off the command tag."""

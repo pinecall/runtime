@@ -11,6 +11,7 @@ from pinecall.api._deps import LogsDep, SnapshotsDep, StoreDep
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.calls.listing import A_SCREENFUL, a_line
 from pinecall.api.calls.sink import ProjectDep, ReaderDep, sse
+from pinecall.auth.corner import corner_of
 from pinecall_protocol.rest import SessionLine, SessionList
 
 router = APIRouter()
@@ -33,7 +34,8 @@ async def sessions(
     if reader.key is None:
         raise HTTPException(403, A_KEY_READS_THE_ORG)
     lines: list[SessionLine] = []
-    for call in await store.calls_of(reader.key.org, limit):
+    whose = corner_of(reader.key)
+    for call in await store.calls_of(whose.org, limit, whose.env, whose.holder or ""):
         snapshot = await snapshots.of(call)
         if snapshot is not None:
             lines.append(a_line(call, snapshot, reader, registry))

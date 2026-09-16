@@ -73,9 +73,25 @@ class MemoryStore:
         """Every call this agent wrote to, in the order it first did."""
         return list(self._calls_of.get(agent, []))
 
-    async def calls_of(self, org: str, limit: int) -> list[str]:
+    async def calls_of(
+        self,
+        org: str,
+        limit: int,
+        env: str | None = None,
+        holder: str | None = None,
+        agent: str | None = None,
+    ) -> list[str]:
         """The org's calls newest first: a dict keeps the order the logs were opened in."""
-        mine = [call for call, log in self._calls.items() if log.org == org]
+        mine = [
+            call
+            for call, log in self._calls.items()
+            if log.org == org
+            # A call owned with no corner reads as production's, the org's own: what 0024 says
+            # of every row from before it, and what the postgres store answers for them.
+            and (env is None or (log.env or "production") == env)
+            and (holder is None or (log.holder or "") == holder)
+            and (agent is None or call in self._calls_of.get(agent, ()))
+        ]
         return list(reversed(mine))[:limit]
 
     async def latest_seq(self, call: str) -> int:
@@ -83,12 +99,22 @@ class MemoryStore:
         log = self._calls.get(call)
         return len(log.entries) if log else 0
 
-    async def owned(self, call: str | None, agent: str, org: str) -> None:
-        """The first org to claim a log keeps it, exactly as the head row's coalesce does."""
+    async def owned(
+        self,
+        call: str | None,
+        agent: str,
+        org: str,
+        env: str | None = None,
+        holder: str | None = None,
+    ) -> None:
+        """The first claim keeps a log, exactly as the head row's coalesce does."""
         async with self._lock:
             log = self._log_of(call, agent)
             if log.org is None:
                 log.org = org
+            if call is not None and log.env is None and env is not None:
+                log.env = env
+                log.holder = holder or ""
 
     async def moved(self, agent: str, org: str) -> int:
         """The agent's own log and every call of it, into another org. As many as there were."""
@@ -135,6 +161,9 @@ class _Log:
     entries: list[Entry] = field(default_factory=list[Entry])
     sealed: bool = False
     org: str | None = None
+    # A call's corner, as the head row keeps it: None until a claim said which world.
+    env: str | None = None
+    holder: str | None = None
 
 
 def _page(log: _Log | None, after: int, limit: int) -> list[Entry]:

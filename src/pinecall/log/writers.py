@@ -70,9 +70,17 @@ class Logs:
 
     # Whose a log is lives on the store's head row, and the two doors that decide it — a call
     # opening under a key, a slug registering under one — reach the store through this table.
-    async def owned(self, call: str | None, agent: str, org: str) -> None:
-        """This log is the org's: the call a key opened, or the agent a key registered."""
-        await self._store.owned(call, agent, org)
+    async def owned(
+        self,
+        call: str | None,
+        agent: str,
+        org: str,
+        env: str | None = None,
+        holder: str | None = None,
+    ) -> None:
+        """This log is the org's — and a call's, one corner's: the world it was opened in and
+        whose. The agent a key registered has no corner: one log per slug, whatever the world."""
+        await self._store.owned(call, agent, org, env, holder)
 
     async def owner(self, call: str | None, agent: str) -> str | None:
         """Whose log this is, or None when no org has claimed it."""

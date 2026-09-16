@@ -126,7 +126,7 @@ async def chat(
         return
     await websocket.accept()
     session = opened.session
-    await logs.owned(session.call, slug, held.org)
+    await logs.owned(session.call, slug, held.org, held.env, held.holder)
     await _talk(websocket, session, live, logs, held.owner, held.org, held.holder)
 
 

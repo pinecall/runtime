@@ -9,7 +9,7 @@ from starlette.testclient import TestClient
 
 from pinecall.api.keys import A_PERSON, NO_SUCH_KEY, NOT_YOURS_TO_GIVE, THIS_KEY
 from pinecall.auth.keys import KeyRecord, MemoryKeys, fingerprint
-from pinecall.auth.members import MemoryMembers
+from pinecall.auth.members_memory import MemoryMembers
 from pinecall.types import HOLDING, PRODUCTION, SANDBOX, Member, for_a_person
 from tests.api.conftest import A_KEY, A_RECORD, Json
 from tests.api.talking import got

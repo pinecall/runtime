@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator, Callable
+from dataclasses import replace
 from typing import Annotated, Any
 
 from fastapi import Depends, Header, HTTPException, Query
@@ -12,9 +13,10 @@ from starlette.requests import HTTPConnection
 from starlette.responses import StreamingResponse
 
 from pinecall._settings import Settings
-from pinecall.api._deps import SCOPE_OF_THE_DOOR, KeysDep, SettingsDep
+from pinecall.api._deps import SCOPE_OF_THE_DOOR, KeysDep, MembersDep, SettingsDep
 from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.auth.bearer import bearer_of
+from pinecall.auth.corner import in_the_corner_asked
 from pinecall.auth.keys import Keys, is_the_fleets, not_opening
 from pinecall.auth.scopes import LivekitKeys, Reader, a_reader, secret_for
 from pinecall.log.entry import Entry
@@ -94,12 +96,21 @@ async def the_reader(
     connection: HTTPConnection,
     keys: KeysDep,
     settings: SettingsDep,
+    members: MembersDep,
     token: Annotated[str | None, Query()] = None,
 ) -> Reader:
     """The reader, or 401. An unknown key is told nothing about why it is unknown."""
     reader = await reading(connection, keys, settings, token)
     if reader is None:
         raise HTTPException(401, "a log is read with a key", {"WWW-Authenticate": "Bearer"})
+    # A key reads in its own corner, or in the colleague's an admin named (auth/corner.py).
+    if reader.key is not None:
+        try:
+            looking = await in_the_corner_asked(reader.key, connection.headers, members)
+        except PermissionError as refused:
+            raise HTTPException(403, str(refused)) from refused
+        if looking is not reader.key:
+            reader = replace(reader, key=looking)
     # A token's grant already says what it reads; a key reads a call with the `calls` scope.
     if reader.key is not None and (closed := not_opening(reader.key, READS)) is not None:
         raise HTTPException(403, closed)

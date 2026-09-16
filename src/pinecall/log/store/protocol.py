@@ -57,8 +57,20 @@ class Store(Protocol):
         """Close a call's log for good: every later append is refused with LogSealed."""
         ...
 
-    async def calls_of(self, org: str, limit: int) -> list[str]:
-        """The org's newest calls across every agent it holds, newest first, at most `limit`."""
+    # A call is listed by its corner and not by its org alone: the org's Sessions screen used to
+    # show a developer's sandbox test calls beside the telephone's, and one developer's beside
+    # another's (2026-09-16). `env` and `holder` narrow to a corner — the org's own is holder ""
+    # — and None on either means every one, which is what the box operator's view is.
+    async def calls_of(
+        self,
+        org: str,
+        limit: int,
+        env: str | None = None,
+        holder: str | None = None,
+        agent: str | None = None,
+    ) -> list[str]:
+        """The org's newest calls, newest first, at most `limit`: every agent's or one agent's,
+        every corner's or the one named."""
         ...
 
     async def list_calls(self, agent: str) -> list[str]:
@@ -71,8 +83,16 @@ class Store(Protocol):
 
     # Whose a log is, is a fact about the log and lives on its head row: the org whose key opened
     # the call, the org that registered the slug. The first claim stands; nothing moves a log.
-    async def owned(self, call: str | None, agent: str, org: str) -> None:
-        """This log is the org's. Said at open or at register; a later claim changes nothing."""
+    async def owned(
+        self,
+        call: str | None,
+        agent: str,
+        org: str,
+        env: str | None = None,
+        holder: str | None = None,
+    ) -> None:
+        """This log is the org's, and a call's is one corner's — the world it was opened in and
+        whose (the org's own is ""). Said at open or at register; a later claim changes nothing."""
         ...
 
     # The one thing that undoes `owned`, and the reason it exists: a slug is one org's for as long
