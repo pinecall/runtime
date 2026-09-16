@@ -171,3 +171,18 @@ async def test_a_password_chosen_at_an_invitation_is_the_persons_password_everyw
         LOGIN, json={"org": "cloudacio", "email": JP["email"], "password": A_PASSWORD}
     )
     assert old.status_code == 200, old.text
+
+
+async def test_an_email_typed_in_capitals_or_with_a_space_is_the_same_person(
+    tenant_http: httpx.AsyncClient,
+    stranger: httpx.AsyncClient,
+) -> None:
+    first = await invited_here(tenant_http, email="JP@Cloudacio.com")
+    await accepted(stranger, first["token"])
+
+    signed = await stranger.post(
+        LOGIN, json={"email": " jp@CLOUDACIO.com ", "password": A_PASSWORD}
+    )
+
+    assert signed.status_code == 200, signed.text
+    assert first["member"]["email"] == JP["email"]

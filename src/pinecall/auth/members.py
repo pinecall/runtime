@@ -19,6 +19,13 @@ MEMBER_ID_PREFIX = "m_"
 MEMBER_ID_BYTES = 6
 
 
+# An address is one person however it is typed: `JP@Cloudacio.com ` and `jp@cloudacio.com` are the
+# same login. Every row is written and read through this, so the column only ever holds the one.
+def an_address(email: str) -> str:
+    """The email as rows keep it: trimmed and lower-cased."""
+    return email.strip().lower()
+
+
 @dataclass(frozen=True)
 class Kept:
     """What the login door reads about a person: who they are, and the hash their password left."""
@@ -135,6 +142,7 @@ class MemoryMembers:
         self, org: str, email: str, name: str, role: Role, agents: Iterable[str]
     ) -> Invited | None:
         """One row per (org, email); a second invite of one still invited replaces the token."""
+        email = an_address(email)
         kept = await self.by_email(org, email)
         if kept is not None and kept.member.status != "invited":
             return None
@@ -177,6 +185,7 @@ class MemoryMembers:
 
     async def a_persons_password(self, email: str) -> str | None:
         """The newest hash any row of this email holds."""
+        email = an_address(email)
         rows = [row for row in self._rows.values() if row.member.email == email]
         for row in sorted(rows, key=lambda row: row.created_at, reverse=True):
             if row.password_hash is not None:
@@ -185,6 +194,7 @@ class MemoryMembers:
 
     async def orgs_of(self, email: str) -> tuple[Member, ...]:
         """Every row of this email, in the order they were made."""
+        email = an_address(email)
         return tuple(row.member for row in self._rows.values() if row.member.email == email)
 
     async def join(self, org: str, id: str, password_hash: str) -> Member | None:
@@ -217,6 +227,7 @@ class MemoryMembers:
 
     async def by_email(self, org: str, email: str) -> Kept | None:
         """The one row of this org with this email, as login reads it."""
+        email = an_address(email)
         for row in self._rows.values():
             if row.member.org == org and row.member.email == email:
                 return Kept(row.member, row.password_hash)
@@ -365,6 +376,7 @@ class PostgresMembers:
         self, org: str, email: str, name: str, role: Role, agents: Iterable[str]
     ) -> Invited | None:
         """The row when there is none yet, then the token; a still-invited member gets a new one."""
+        email = an_address(email)
         kept = await self.by_email(org, email)
         if kept is not None and kept.member.status != "invited":
             return None
@@ -410,11 +422,13 @@ class PostgresMembers:
 
     async def a_persons_password(self, email: str) -> str | None:
         """One read across the orgs, newest hash first."""
+        email = an_address(email)
         row = await self._pool.fetchrow(_A_PERSONS_PASSWORD, email)
         return None if row is None else _text(row["password_hash"])
 
     async def orgs_of(self, email: str) -> tuple[Member, ...]:
         """Every row of this email, oldest first: what the console's org switch lists."""
+        email = an_address(email)
         return tuple(_a_member(row) for row in await self._pool.fetch(_ORGS_OF, email))
 
     async def join(self, org: str, id: str, password_hash: str) -> Member | None:
@@ -438,6 +452,7 @@ class PostgresMembers:
 
     async def by_email(self, org: str, email: str) -> Kept | None:
         """One read on the UNIQUE pair, with the hash login checks against."""
+        email = an_address(email)
         row = await self._pool.fetchrow(_BY_EMAIL, org, email)
         return None if row is None else Kept(_a_member(row), _text(row["password_hash"]))
 
