@@ -1,0 +1,40 @@
+# One tenant's app, held on this box: `pinecall-app@<name>`, the process a tenant would otherwise
+# run on a server of their own (docs/a-box-in-production.md, "Run Clínica Norte against it").
+# A template, so the manifest installs it once and a tenant's deploy enables an instance:
+#
+#   systemctl enable --now pinecall-app@bidfire
+#
+# What an instance needs, and where it looks for it:
+#   /opt/pinecall/apps/<name>/                 the app: agent.tsx, its node_modules, rsynced there
+#                                              by the tenant's deploy, as the deploy account
+#   /etc/credstore.encrypted/pinecall-app-<name>.key   the org's key the app knocks with — a
+#                                              machine's, `keys issue --scope app …`
+#   /etc/credstore.encrypted/pinecall-app-<name>.env   the app's own secrets, dotenv lines,
+#                                              read straight into its environment
+#
+# The CLI reads its key from a profile and never from the environment (the agents repo's
+# src/cli/env.ts says why), so the first thing an instance does is what a server of the tenant's
+# would: `pinecall login --key-stdin`, off the credential, into a PINECALL_HOME of its own under
+# /var/lib. The gateway it signs in to is this box's, on loopback: the app opens one outbound
+# socket and serves nothing.
+[Unit]
+Description=Pinecall app %i (a tenant's agent, held on this box)
+Wants=network-online.target pinecall-gateway.service
+After=network-online.target pinecall-gateway.service
+
+[Service]
+User=pinecall
+Group=pinecall
+WorkingDirectory=/opt/pinecall/apps/%i
+StateDirectory=pinecall/apps/%i
+Environment=PINECALL_HOME=/var/lib/pinecall/apps/%i
+LoadCredentialEncrypted=key:/etc/credstore.encrypted/pinecall-app-%i.key
+LoadCredentialEncrypted=env:/etc/credstore.encrypted/pinecall-app-%i.env
+EnvironmentFile=%d/env
+ExecStartPre=/bin/sh -c 'exec node_modules/.bin/pinecall login http://127.0.0.1:8080 --key-stdin --as box < "$CREDENTIALS_DIRECTORY/key"'
+ExecStart=/opt/pinecall/apps/%i/node_modules/.bin/pinecall run --env production
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

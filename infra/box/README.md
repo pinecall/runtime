@@ -23,6 +23,7 @@ infra/box/
 ├── pinecall-postgres-image.service   our Postgres image, built once per tag
 ├── pinecall-gateway.service · pinecall-worker.service        the two processes we write
 ├── pinecall-worker-key.service · pinecall-operator-key.service   two keys, minted once each
+├── pinecall-app@.service      a tenant's app held here, one instance per app (docs/a-box-in-production.md §7)
 └── caddy/                     the Caddyfile, and the drop-in that hands Caddy its domain
 ```
 
@@ -59,11 +60,10 @@ Three steps, and the machine does the rest.
 
 ```bash
 # 1. A machine. Any Linux with systemd ≥ 254 and podman ≥ 4.9; Ubuntu 24.04 is what we run.
-#    Hand your provider cloud-init.yaml as the instance's user-data, with the three
-#    YOURS lines filled: your ssh public key, the domain, the SFU's public URL. It installs
-#    podman, caddy, nftables and make, creates the account the deploy logs in as, makes
-#    /opt/pinecall/app for it, installs uv, and raises the fence.
-#    A machine without cloud-init: do those four things by hand, they are the whole file.
+#    Hand your provider cloud-init.yaml as the instance's user-data, with the three YOURS lines
+#    filled: your ssh public key, the domain, the SFU's public URL. It installs the packages,
+#    makes the deploy account and its /opt/pinecall/app, installs uv, and raises the fence — a
+#    machine without cloud-init does those four things by hand; they are the whole file.
 
 # 2. The deploy. From this checkout, as the account cloud-init made. Which box is yours and
 #    not the repository's: BOX and DOMAIN in deploy.local.mk beside the root Makefile, git-ignored.
@@ -90,10 +90,9 @@ sudo systemctl restart pinecall-gateway pinecall-worker
 
 The names are the environment's own and each unit lists which it may see (the embedder's
 `PERPLEXITY_API_KEY` or `OPENROUTER_API_KEY` is the gateway's alone). The box installs a plugin for
-**every vendor LiveKit ships one for** — forty-five — each reading its key under its own variable,
-all named in both units; one not in the credstore is simply absent, so the other forty cost nothing
-until `make secret NAME=CARTESIA_API_KEY` puts one there. The whole table, with what each still
-wants, is `make providers` from the checkout.
+**every vendor LiveKit ships one for** — forty-five — each reading its key under its own variable;
+one not in the credstore is simply absent and costs nothing until `make secret NAME=CARTESIA_API_KEY`
+puts it there. The whole table, with what each still wants, is `make providers` from the checkout.
 
 **The box holds no credential for the repository.** It cannot clone and it cannot fetch; the code
 is pushed to it by a person at a checkout, with `make deploy` — rsync, ssh, make and curl, and no
@@ -209,6 +208,7 @@ environment file. There is no `.env` on the box, and a stolen disk is not a stol
 | `LIVEKIT_API_KEY` `LIVEKIT_API_SECRET` `POSTGRES_PASSWORD` `DATABASE_URL` `PINECALL_OPS_KEY` `PINECALL_VAULT_KEY` `media.env` | the units and the containers, each what it names | `pinecall-secrets.service`, once: `pinecall-runtime box secrets` |
 | `PINECALL_WORKER_KEY` — the fleet's key the worker knocks with: org default, the `fleet` scope | the worker | `pinecall-worker-key.service`, once |
 | `PINECALL_OPERATOR_KEY` — yours | you, once, with `systemd-creds decrypt` | `pinecall-operator-key.service`, once |
+| `pinecall-app-<name>.key` `pinecall-app-<name>.env` — an app held here: the org's key it knocks with, and its own secrets as dotenv lines | `pinecall-app@<name>` | that app's deploy, from its checkout |
 | the vendors' keys | the gateway and the worker | you: `pinecall-runtime box secret <NAME>` |
 | `TWILIO_ACCOUNT_SID` `TWILIO_API_KEY` `TWILIO_API_SECRET` — the box's own Twilio, for the numbers it buys for a tenant | the gateway | you, the same way; unset, `POST /v1/numbers/buy` says so |
 | `PINECALL_SIGNUP` — whether a stranger may make an org here, off unless set; `PINECALL_CLOUD` — whether a plan is billed | the gateway | you: a line each in `/etc/pinecall/box.env` |

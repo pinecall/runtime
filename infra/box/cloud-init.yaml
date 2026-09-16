@@ -18,6 +18,12 @@ packages:
   - make
   - curl
   - espeak-ng   # the voice a simulated caller speaks with (`pinecall simulate --voice`); the gateway refuses the call without one
+  - nodejs      # what a tenant's app runs on (pinecall-app@.service): NodeSource's, put in by bootcmd below
+
+# Before the packages: NodeSource's repository, so `nodejs` above is their 24 and not Ubuntu's 18
+# (the framework says `>=24`). The same three lines infra/box/Makefile `node-repo` converges on.
+bootcmd:
+  - [sh, -c, "test -f /etc/apt/sources.list.d/nodesource.list || { install -d -m 755 /etc/apt/keyrings && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && echo 'deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main' > /etc/apt/sources.list.d/nodesource.list; }"]
 
 users:
   # The account `make deploy` arrives as (BOX in deploy.local.mk). It owns the code and can
@@ -54,6 +60,9 @@ runcmd:
   # writes; the service user only reads it. Everything under /opt/pinecall that the service
   # user writes is declared in tmpfiles.d/pinecall.conf and made on the first deploy.
   - [install, -d, -o, deploy, -g, deploy, /opt/pinecall/app]
+  # Where a tenant's app lands when it is held on this box (pinecall-app@.service): the same
+  # account's, for the same reason. Each app's own directory is made by that app's deploy.
+  - [install, -d, -o, deploy, -g, deploy, /opt/pinecall/apps]
   # uv, for the deploy's post-sync alone: the units run the virtualenv's own entrypoint.
   - [sh, -c, "curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/opt/pinecall/bin UV_NO_MODIFY_PATH=1 sh -s -- -q"]
   # The fence is up before any door is: the deploy's own nftables.conf replaces the stock one.
