@@ -20,6 +20,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   gateway answers that org's. A tenant's key opens exactly what it did: naming another corner is
   403 in keys.md's words. **A box born before this re-mints its worker key** — see
   `infra/box/README.md`, "Where the keys come from".
+- **A tenant's app can be held on the box: `pinecall-app@<name>.service`.** The docs said an app
+  runs on a server of the tenant's, and a tenant with none ran it on a laptop — which is what
+  answered the phone until the laptop slept. The manifest now installs a template unit, one
+  instance per app, that signs in with `pinecall login --key-stdin` off a credential of its own
+  (`pinecall-app-<name>.key`), reads the app's `.env` from another (`pinecall-app-<name>.env`,
+  `EnvironmentFile=%d/env`) and runs `pinecall run --env production` against the gateway on
+  loopback. The box installs NodeSource's Node 24 and pnpm for it, from cloud-init and from the
+  manifest alike. docs/a-box-in-production.md §7 has the three `make` targets an app's deploy has.
 - **A simulated call says whose it is.** `pinecall simulate --voice` and every spoken golden
   dispatched the worker naming only the agent, so the worker looked for its routes in its own
   org — the box's, which holds nobody's agents — and every spoken call outside org `default` died

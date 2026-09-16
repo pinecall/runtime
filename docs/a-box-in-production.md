@@ -240,6 +240,25 @@ believe you hold, and the verb stops when the key disagrees. A person's key does
 production at all — what holds a deployed slug is a key issued for a server, never a laptop that
 logged in.
 
+### Or on the box itself
+
+A tenant with no server of their own can be held on the box: `pinecall-app@<name>.service` is
+those same three lines as a unit, one instance per app. The manifest installs the template and
+Node; the app's own deploy, from its checkout, does the rest — three targets in the tenant's
+own Makefile, and what a `pinecall deploy` verb will do one day:
+
+```console
+$ make key        # `keys issue --org <org> --scope app …` on the box, straight into the credstore as pinecall-app-<name>.key
+$ make secrets    # the app's .env, as dotenv lines, into the credstore as pinecall-app-<name>.env
+$ make deploy     # rsync to /opt/pinecall/apps/<name>, `pnpm install --frozen-lockfile`, enable and restart the instance
+```
+
+The instance signs in with `pinecall login --key-stdin` off its credential into a `PINECALL_HOME`
+of its own under `/var/lib/pinecall/apps/<name>`, reads its `.env` credential as its environment
+(`EnvironmentFile=%d/env`), and runs `pinecall run --env production` against the gateway on
+loopback. Its journal is the app's stdout: `journalctl -u pinecall-app@<name> -f`. It is the
+org's production holder, so nothing else — no laptop — should hold that slug in production.
+
 Every verb, with its own outputs: [from-zero.md](from-zero.md) and the agents repo's
 `docs/the-cli.md`.
 

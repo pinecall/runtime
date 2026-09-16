@@ -22,11 +22,13 @@ CONTAINERS = $(filter-out $(TEI),$(wildcard containers/*))
 
 # The packages a box runs on, the same list cloud-init.yaml installs at first boot — a test pins
 # the two equal — so a box born before a package was added converges on the next deploy.
-# espeak-ng is the voice a simulated caller speaks with (`pinecall simulate --voice`).
-PACKAGES = podman caddy nftables make curl espeak-ng
+# espeak-ng is the voice a simulated caller speaks with (`pinecall simulate --voice`). nodejs is
+# what a tenant's app runs on (pinecall-app@.service): NodeSource's 24, because the framework
+# says `>=24` and Ubuntu's own is 18 — `node-repo` below puts the vendor's repository in first.
+PACKAGES = podman caddy nftables make curl espeak-ng nodejs
 
-.PHONY: install packages doctor providers
-install: packages
+.PHONY: install packages node-repo pnpm doctor providers
+install: packages pnpm
 	install -D -m 644 -t /etc/sysusers.d sysusers.d/pinecall.conf
 	install -D -m 644 -t /etc/tmpfiles.d tmpfiles.d/pinecall.conf
 	systemd-sysusers
@@ -47,11 +49,31 @@ install: packages
 	$(MAKE) --no-print-directory enable-$(ROLE)
 
 # Only what is missing is installed, so a deploy on a box that has everything asks apt nothing.
-packages:
+packages: node-repo
 	@missing=""; for package in $(PACKAGES); do \
 	  dpkg -s $$package >/dev/null 2>&1 || missing="$$missing $$package"; done; \
 	if [ -n "$$missing" ]; then echo "installing$$missing"; \
 	  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends $$missing >/dev/null; fi
+
+# NodeSource's repository, the documented way and not its setup script: the keyring, the one
+# line, and an apt update only the first time. cloud-init.yaml does the same at birth, in bootcmd,
+# so `nodejs` in PACKAGES means the same version on a box born today and a box born before.
+NODE_MAJOR   = 24
+NODE_KEYRING = /etc/apt/keyrings/nodesource.gpg
+NODE_LIST    = /etc/apt/sources.list.d/nodesource.list
+node-repo:
+	@if [ ! -f $(NODE_LIST) ]; then \
+	  install -d -m 755 /etc/apt/keyrings; \
+	  curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o $(NODE_KEYRING); \
+	  echo "deb [signed-by=$(NODE_KEYRING)] https://deb.nodesource.com/node_$(NODE_MAJOR).x nodistro main" > $(NODE_LIST); \
+	  apt-get update -qq >/dev/null; fi
+
+# The package manager a tenant's lockfile is written by. Global, from npm, pinned to the major
+# the lockfile format belongs to; a box that has it asks for nothing.
+PNPM_MAJOR = 11
+pnpm:
+	@command -v pnpm >/dev/null && [ "$$(pnpm --version | cut -d. -f1)" = "$(PNPM_MAJOR)" ] \
+	  || npm install -g -q pnpm@$(PNPM_MAJOR) >/dev/null
 
 # As the units see the box: their user, their environment file, and every credential the credstore
 # holds, in a transient unit systemd tears down on exit. The three localhost URLs are the ones each

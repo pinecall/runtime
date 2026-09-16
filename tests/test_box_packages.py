@@ -66,6 +66,19 @@ def test_the_manifest_installs_exactly_what_cloud_init_installs() -> None:
     assert packages_the_manifest_converges() == packages_cloud_init_installs()
 
 
+def test_a_tenants_app_can_be_held_on_the_box() -> None:
+    """The template unit is installed with the rest, and the Node it runs on converges."""
+    plan = what_a_box_installs(role="all")
+    assert "pinecall-app@.service" in plan
+    assert "nodejs" in packages_cloud_init_installs()
+    assert "nodesource" in plan, "NodeSource's repository goes in before apt is asked for nodejs"
+    assert "pnpm@" in plan
+    template = (BOX / "pinecall-app@.service").read_text()
+    assert "pinecall login http://127.0.0.1:8080 --key-stdin" in template
+    assert "pinecall run --env production" in template
+    assert "EnvironmentFile=%d/env" in template
+
+
 def test_the_speech_tool_a_simulated_caller_speaks_with_is_on_the_list() -> None:
     """Without it the gateway refuses `pinecall simulate --voice` with a 503, on any box."""
     assert "espeak-ng" in packages_cloud_init_installs()
