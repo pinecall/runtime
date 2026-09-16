@@ -76,7 +76,7 @@ LiveKit's body, plus ours. Every field is optional but the agent, which may be n
 | field | whose | meaning |
 |---|---|---|
 | `agent` | ours | the agent's slug. Or `room_config.agents[0].agent_name` — what a stock client's `agentName` becomes on the wire, either spelling |
-| `scope` | ours | `talk` (default): publish the microphone, hear the agent. `chat`: the same room with **audio off both ways** — data only. Any other scope is `400`: `observe` and `supervise` take the API key |
+| `scope` | ours | `talk` (default): publish the microphone, hear the agent. `chat`: the same room with **no microphone** — typed text goes out on `lk.chat`, and the token subscribes, because LiveKit hands the agent's text streams (`lk.transcription`) to subscribers only; the page attaches no audio. Any other scope is `400`: `observe` and `supervise` take the API key |
 | `contact` | ours | the org's opaque id for the person. Becomes `participant_metadata`. Never a phone number, never a name |
 | `metadata` | ours | JSON the backend seals into the call. It rides the signed dispatch and reaches the worker as the call's metadata |
 | `ttl_s` | ours | how long the token lives: 60 by default, 600 at most (`422` past it). One dispatch opens one call whatever the TTL; a join into that call while it is live is bounded by the TTL alone (addition 3) — so a minute, unless the page has a reason |
@@ -107,7 +107,7 @@ Read back with LiveKit's own `TokenVerifier`:
 |---|---|
 | `sub` | the identity |
 | `video.room`, `room_join` | the call id; join it |
-| `video.can_publish`, `can_subscribe`, `can_publish_sources` | `talk`: true, true, `["microphone"]`. `chat`: false, false, none |
+| `video.can_publish`, `can_subscribe`, `can_publish_sources` | `talk`: true, true, `["microphone"]`. `chat`: false, true, none |
 | `video.can_publish_data` | true for both: the DataChannel is how a widget speaks to the call |
 | `metadata` | the contact id, or absent |
 | `attributes["pinecall.scope"]` | `talk` or `chat` — and the other attributes the body sent |

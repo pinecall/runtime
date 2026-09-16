@@ -7,6 +7,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **A chat token hears the room.** It was minted audio off both ways, and LiveKit hands text
+  streams to subscribers only: a page typed into the room on `lk.chat`, the agent answered — the
+  call's log had the turn — and the page never saw a word (box, 2026-09-16). `chat` publishes
+  nothing and subscribes now; the page is where no audio is attached.
 - **`end_call` is in the log like any other tool.** The app's tools are written as `tool.call`
   and `tool.result` on their way through the gateway; livekit's own `end_call` never passes there,
   and a log without it showed the agent speaking twice in a row with nothing in between — "it

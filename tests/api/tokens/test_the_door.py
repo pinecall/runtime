@@ -187,7 +187,8 @@ def test_the_body_may_not_set_what_is_minted_here(gateway: TestClient) -> None:
         assert field.split("_")[0] in why["detail"] or "pinecall." in why["detail"], field
 
 
-def test_a_chat_token_is_audio_off_both_ways(gateway: TestClient) -> None:
+def test_a_chat_token_has_no_microphone_and_hears_the_room(gateway: TestClient) -> None:
+    """Hearing is how the agent's text streams reach the page; the page attaches no audio."""
     with an_app(gateway) as app_socket:
         app_socket.send_json(a_register(AGENT, a_door("web")))
         app_socket.receive_json()
@@ -197,7 +198,7 @@ def test_a_chat_token_is_audio_off_both_ways(gateway: TestClient) -> None:
         said["participant_token"]
     )
     assert claims.video is not None
-    assert (claims.video.can_publish, claims.video.can_subscribe) == (False, False)
+    assert (claims.video.can_publish, claims.video.can_subscribe) == (False, True)
     assert claims.video.can_publish_data
     assert the_dispatch_of(said["participant_token"])[SCOPE_KEY] == "chat"
 
