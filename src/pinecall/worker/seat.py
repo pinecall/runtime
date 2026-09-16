@@ -37,9 +37,15 @@ WAIT_FOR_THE_CALLER_S = 5.0
 # room. Left to itself livekit links the first seat of an accepted kind (room_io.py:385-403), which
 # is the caller by luck alone. See docs/decisions/voice-bridge.md.
 async def the_callers_seat(
-    room: rtc.Room, channel: Channel, wait: float = WAIT_FOR_THE_CALLER_S
+    room: rtc.Room, channel: Channel, wait: float = WAIT_FOR_THE_CALLER_S, *, spoken: bool = True
 ) -> str | None:
     """The identity the session hears on this call, or None when nobody is seated yet."""
+    # A written visit — a `chat` token — publishes no voice and its seat carries no talk scope, so
+    # the wait below could only time out: five seconds of silence before the greeting, and the
+    # first thing typed dropped on a callback not yet attached (2026-09-16, `seat: 5.0` on the
+    # live line). Nothing to pin, as with WhatsApp.
+    if not spoken:
+        return None
     if channel == sip.THE_PHONE:
         leg = await sip.the_sip_leg(room, channel)
         return leg.identity if leg is not None else None

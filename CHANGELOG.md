@@ -7,6 +7,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **A `chat` visit waits for no seat.** The worker waited five seconds for a browser holding a
+  `talk` token before every greeting, and a chat token is not one: measured on the live line as
+  `seat: 5.0` with every other step of the start-up inside half a second. The wait is skipped for
+  a written visit, as it is for WhatsApp, and the live line now carries the breakdown of every step.
 - **A `chat` visit is a written call.** The worker ignored the scope the token door wrote into
   the dispatch and ran the spoken session for every web visit: a chat page read the agent's words
   at the pace a voice nobody heard was saying them, two seconds behind and billed as speech, and

@@ -134,7 +134,7 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     # The one voice this session answers, decided before it subscribes to anything: a listener and,
     # a supervisor sit in the same room and the agent must never transcribe either.
     # Nobody seated yet leaves the identity unset, which is livekit's own first-comer rule.
-    pinned = await seat.the_callers_seat(ctx.room, route.channel)
+    pinned = await seat.the_callers_seat(ctx.room, route.channel, spoken=not typed)
     took("seat")
     # Said out loud either way: the default defers to the server, and it is only safe today because
     # a self-hosted LiveKit is not a cloud host — see docs/decisions/livekit-session.md §7.
