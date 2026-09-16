@@ -72,6 +72,17 @@ class Worker:
 async def answer(ctx: JobContext, worker: Worker) -> None:
     """One job: join the room, resolve who it is for, run the session, and seal its log after."""
     began = time.monotonic()
+    # The start-up, step by step: a caller hears nothing until the pipeline is live, and a line
+    # that said only "5.59s" left the seconds nowhere to be found (2026-09-16). Each awaited step
+    # is timed under its own name and the live line carries the breakdown.
+    steps: dict[str, float] = {}
+    last = [began]
+
+    def took(name: str) -> None:
+        now = time.monotonic()
+        steps[name] = round(now - last[0], 2)
+        last[0] = now
+
     # Every livekit log line of this process from here on names the call it belongs to; a box
     # running forty at once has no other way to read its own log (basic_agent.py:73-76).
     ctx.log_context_fields = {"room": ctx.job.room.name}
@@ -84,7 +95,9 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
         ctx.connect(),
         worker.gateway.routes(org=whose.org, env=whose.env, holder=whose.holder),
     )
+    took("room+routes")
     arrival = await router.arrival_of(ctx.job, ctx.room)
+    took("arrival")
     # A call on the box's own trunk names no org: the number dialled is one org's door in one
     # world, and the gateway finds it across every org. One more round trip, on that path alone.
     if arrival.number is not None and whose.org is None:
@@ -100,10 +113,12 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
             route.agent, org=route.org, env=route.env, holder=whose.holder
         ),
     )
+    took("config+keys")
     context = a_call(ctx.room.name or ctx.job.id, arrival, route)
     # What the dispatch named wins over the flag this process was started with: a spoken eval
     # run has to reach the terminal holding its goldens, and that socket takes no unclaimed call.
     await worker.gateway.opened(context, route.agent, arrival.app or worker.app)
+    took("opened")
     recording = where_the_audio_goes(ctx, context.call, worker.keeping)
     bridge = worker.bridging(context, config, worker.gateway, recording)
     # Registered before anything can fail: a call that dies mid-setup still seals its own log.
@@ -112,12 +127,15 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     # audio either way, so the words reach the page at the pace the model writes them.
     typed = arrival.metadata.get(SCOPE_KEY) == WRITTEN_SCOPE
     live = session.a_session(config, worker.kit, route.channel, keys, spoken=not typed)
+    took("session")
     await clock.seeded(bridge.agent, context.today)
     await bridge.opened(live)
+    took("bridge")
     # The one voice this session answers, decided before it subscribes to anything: a listener and,
     # a supervisor sit in the same room and the agent must never transcribe either.
     # Nobody seated yet leaves the identity unset, which is livekit's own first-comer rule.
     pinned = await seat.the_callers_seat(ctx.room, route.channel)
+    took("seat")
     # Said out loud either way: the default defers to the server, and it is only safe today because
     # a self-hosted LiveKit is not a cloud host — see docs/decisions/livekit-session.md §7.
     await live.start(  # pyright: ignore[reportUnknownMemberType]
@@ -130,7 +148,12 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
         ),
         record=recordings.AUDIO_ONLY if recording is not None else False,
     )
-    logger.info("the pipeline is live %.2fs after the job arrived", time.monotonic() - began)
+    took("start")
+    logger.info(
+        "the pipeline is live %.2fs after the job arrived",
+        time.monotonic() - began,
+        extra={"steps": steps},
+    )
     # The opening, before the queue is served, because it is the FIRST thing said: a class that
     # declared a greeting speaks now, and whatever the app sent while the room was being joined
     # arrives after it. Its turn is a turn.agent like any other; nothing here is special-cased.
