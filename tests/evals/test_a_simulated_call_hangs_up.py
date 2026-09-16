@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
@@ -96,3 +97,24 @@ async def test_the_client_is_closed_even_when_the_hangup_fails() -> None:
         FakeLiveKit.made[0].delete_room = refused  # pyright: ignore[reportAttributeAccessIssue]
 
     assert FakeLiveKit.made[0].closed
+
+
+async def test_the_dispatch_names_the_corner_the_call_is_in() -> None:
+    """One worker answers every org, so a simulated call says whose it is or dies with NoRoute."""
+    async with calling._dispatch(  # pyright: ignore[reportPrivateUsage]
+        THE_CALL, THE_AGENT, THE_FLEET, A_BOX, org="clinica", env="sandbox", holder="m_carla"
+    ):
+        pass
+
+    said = json.loads(FakeLiveKit.made[0].dispatched[0].metadata)
+    assert said == {"agent": THE_AGENT, "org": "clinica", "env": "sandbox", "holder": "m_carla"}
+
+
+async def test_a_dispatch_in_nobodys_corner_leaves_the_holder_out() -> None:
+    """Production is the org's own: the field is absent rather than an empty string."""
+    async with calling._dispatch(  # pyright: ignore[reportPrivateUsage]
+        THE_CALL, THE_AGENT, THE_FLEET, A_BOX, org="clinica", env="production"
+    ):
+        pass
+
+    assert "holder" not in json.loads(FakeLiveKit.made[0].dispatched[0].metadata)

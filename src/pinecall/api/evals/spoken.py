@@ -14,6 +14,7 @@ from pinecall.evals.polling import until
 from pinecall.log.entry import Entry
 from pinecall.log.replay import whole
 from pinecall.log.store import Store
+from pinecall.types import Env
 from pinecall_protocol.registry import TERMINAL_EVENT
 
 # The worker seals the log after the caller's leg goes: `call.summary` and `call.score` are
@@ -37,6 +38,9 @@ async def a_spoken_conversation(
     agent: str,
     store: Store,
     settings: Settings,
+    org: str,
+    env: Env,
+    holder: str | None = None,
     line: Line | None = None,
     app: str | None = None,
 ) -> Conversation:
@@ -50,6 +54,9 @@ async def a_spoken_conversation(
         next_line=spoken.next_line,
         line=line or Line(interferer_db=None, packet_loss=0.0),
         settings=settings,
+        org=org,
+        env=env,
+        holder=holder,
         caller=a_visitor(),
         run=run,
         app=app,
