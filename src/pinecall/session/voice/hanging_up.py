@@ -12,6 +12,7 @@ from livekit.agents.voice.events import CloseReason
 
 from pinecall.types import AgentConfig
 from pinecall_protocol import defs
+from pinecall_protocol.events import ToolCall
 
 # The tool is hidden while the agent is greeting. A model that may hang up on its very first turn
 # eventually does — the first real call of this project had Haiku reach for a `transfer` tool
@@ -56,6 +57,9 @@ class Ends(Protocol):
     def ended_by_the_model(self) -> None:
         """The next call.ended says the agent hung up, whatever reason the session closes with."""
 
+    async def a_platform_tool_ran(self, called: ToolCall, result: defs.ToolResult) -> None:
+        """tool.call and tool.result for a tool the platform ran itself, so the log has them."""
+
 
 # The seam the whole adoption turns on. livekit's tool ends the call with `session.shutdown()`,
 # which closes as CloseReason.USER_INITIATED; our HOW_IT_ENDED reads that as `drained` by the
@@ -85,10 +89,24 @@ async def silence_after(_: EndCallTool.ToolCompletedEvent) -> None:
     raise StopResponse()
 
 
+# The app's tools are written as tool.call and tool.result on their way through pending.py; this
+# one never passes there, it is livekit's own, and a log without it showed the agent speaking
+# twice in a row with nothing in between — "it talked to itself" (box, 2026-09-16, a Talk from
+# the console). The tool that ran between the two turns is written down here, as the others are.
 def the_reason_first(ending: Ends) -> Callable[[EndCallTool.ToolCalledEvent], Awaitable[None]]:
     """What runs the moment the model calls end_call, before livekit closes anything."""
 
-    async def before_it_closes(_: EndCallTool.ToolCalledEvent) -> None:
+    async def before_it_closes(event: EndCallTool.ToolCalledEvent) -> None:
         ending.ended_by_the_model()
+        call_id = event.ctx.function_call.call_id
+        await ending.a_platform_tool_ran(
+            ToolCall(
+                call_id=call_id, name=END_CALL, arguments={}, speech_id=event.ctx.speech_handle.id
+            ),
+            defs.ToolResult(call_id=call_id, name=END_CALL, output=None),
+        )
 
     return before_it_closes
+
+
+END_CALL = "end_call"

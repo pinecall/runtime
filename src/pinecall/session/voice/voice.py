@@ -43,6 +43,7 @@ from pinecall_protocol.events import (
     ErrorEvent,
     PromptChanged,
     StateChanged,
+    ToolCall,
     ToolsChanged,
 )
 from pinecall_protocol.room import EventReceived
@@ -292,6 +293,11 @@ class VoiceBridge:
     def ended_by_the_model(self) -> None:
         """The model called end_call: this call ended because the agent decided it had."""
         self._ended = ("agent_hung_up", "agent")
+
+    async def a_platform_tool_ran(self, called: ToolCall, result: defs.ToolResult) -> None:
+        """The log has every tool the model reached for, livekit's own end_call included."""
+        await self.writing.emit("tool.call", called)
+        await self.writing.emit("tool.result", result)
 
     # `by` is the agent unless somebody says otherwise: a supervisor's `end` verb is the one
     # caller of this that did not come from the agent's own turn, and call.ended must say so.
