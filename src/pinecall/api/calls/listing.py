@@ -14,6 +14,7 @@ from pinecall.api.calls.sink import (
     refuse_another_call,
     refuse_another_org,
 )
+from pinecall.auth.corner import corner_of
 from pinecall.auth.scopes import Reader
 from pinecall.log.projection import project_state
 from pinecall.log.snapshots import Snapshot
@@ -53,7 +54,11 @@ async def sessions(
     """This agent's newest calls, each folded to the row a list draws, projected at this sink."""
     refuse_another_call(reader, None)
     await refuse_another_org(reader, store, None, slug)
-    newest = list(reversed(await store.list_calls(slug)))[:limit]
+    assert reader.key is not None  # refuse_another_call: a token reads one call, never a list
+    # This corner's calls and nobody else's: a developer's sandbox test calls are theirs, the
+    # telephone's are production's, and an admin reading a colleague's copy reads that corner.
+    whose = corner_of(reader.key)
+    newest = await store.calls_of(whose.org, limit, whose.env, whose.holder or "", slug)
     lines: list[SessionLine] = []
     for call in newest:
         snapshot = await snapshots.of(call)

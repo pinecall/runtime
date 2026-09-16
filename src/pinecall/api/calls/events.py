@@ -332,7 +332,7 @@ async def opened(
     if serving is None and registry.of(env, said.agent, holder) is not None:
         raise HTTPException(409, NO_UNCLAIMED.format(slug=said.agent))
     # Whose call this is, on the head row, before the first entry: every reader of it will ask.
-    await logs.owned(context.call, said.agent, org)
+    await logs.owned(context.call, said.agent, org, env, holder)
     log = logs.writing(context.call, said.agent)
     # Served before the first entry is written, so the app hears the call arrive: this is the very
     # same registration a text call gets, and it is what the call's tools travel down.

@@ -7,10 +7,12 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient, WebSocketTestSession
 
-from pinecall.api._deps import NOT_A_COLLEAGUE
-from pinecall.auth.keys import CANNOT_LOOK_THERE, KeyRecord, MemoryKeys, held_by, looking_into
-from pinecall.auth.members import MemoryMembers
+from pinecall.auth.corner import CANNOT_LOOK_THERE, NOT_A_COLLEAGUE, looking_into
+from pinecall.auth.keys import KeyRecord, MemoryKeys, held_by
+from pinecall.auth.members_memory import MemoryMembers
+from pinecall.log.store import MemoryStore
 from pinecall.types import ROLE_SCOPES, SANDBOX, Member
+from tests.api.calls.test_listing import RINGING, UP
 from tests.api.conftest import A_RECORD, AGENT, APPS
 from tests.api.talking import a_door, a_register, got
 
@@ -154,3 +156,41 @@ def test_production_has_no_corner_to_open() -> None:
         key_id="k", org=A_RECORD.org, env=SANDBOX, subject="m_ana", scopes=ROLE_SCOPES["admin"]
     )
     assert held_by(looking_into(sandbox, CARLA)) == CARLA
+
+
+async def _a_call_in(store: MemoryStore, call: str, env: str, holder: str | None) -> None:
+    """One call as a worker writes it, opened in this corner."""
+    await store.owned(call, AGENT, A_RECORD.org, env, holder)
+    await store.append(call, AGENT, "call.ringing", dict(RINGING))
+    await store.append(call, AGENT, "call.started", dict(UP))
+
+
+def _sessions(gateway: TestClient, key: str, corner: str | None = None) -> list[str]:
+    headers = {"Authorization": f"Bearer {key}"}
+    if corner is not None:
+        headers["pinecall-corner"] = corner
+    answer = gateway.get(f"/v1/agents/{AGENT}/sessions", headers=headers)
+    assert answer.status_code == 200, answer.text
+    return [str(line["call"]) for line in answer.json()["calls"]]
+
+
+async def test_each_developer_lists_their_own_calls_and_the_telephones_are_productions(
+    gateway: TestClient, store: MemoryStore
+) -> None:
+    """One Sessions screen listed every world's and every developer's calls as one pile
+    (2026-09-16): Berna's chat beside Carla's beside the telephone's."""
+    with _an_app_on(gateway, BERNAS_KEY) as bernas:
+        bernas.send_json(a_register(AGENT, a_door("web")))
+        bernas.receive_json()
+        await _a_call_in(store, "CA_phone", "production", None)
+        await _a_call_in(store, "CA_berna", SANDBOX, BERNA)
+        await _a_call_in(store, "CA_carla", SANDBOX, CARLA)
+
+        assert _sessions(gateway, BERNAS_KEY) == ["CA_berna"]
+        assert _sessions(gateway, CARLAS_KEY) == ["CA_carla"]
+        # The admin's sandbox key reads its own corner, empty, and a colleague's when it names one.
+        assert _sessions(gateway, AN_ADMINS_KEY) == []
+        assert _sessions(gateway, AN_ADMINS_KEY, CARLA) == ["CA_carla"]
+        # The org's floor door cuts the same way.
+        status, floor = got(gateway, "/v1/sessions", BERNAS_KEY)
+        assert (status, [line["call"] for line in floor["calls"]]) == (200, ["CA_berna"])

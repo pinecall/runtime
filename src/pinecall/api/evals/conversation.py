@@ -65,7 +65,7 @@ async def a_conversation(
         golden, call, run, config, org, env, logs, llm, lookups, budgets, asking=asked
     )
     settling = Settling(session)
-    await logs.owned(session.call, session.agent, org)
+    await logs.owned(session.call, session.agent, org, env, app.holder)
     live.serve(
         session.call,
         session.agent,

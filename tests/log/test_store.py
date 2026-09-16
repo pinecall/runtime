@@ -183,3 +183,27 @@ async def test_an_orgs_calls_are_listed_newest_first_across_its_agents_and_nobod
     assert await store.calls_of(org, 1) == [second]
     assert await store.calls_of(other, 10) == [theirs]
     assert await store.calls_of(f"nobody-{call}", 10) == []
+
+
+async def test_a_call_is_listed_by_its_corner_and_the_first_claim_stands(
+    store: Store, agent: str, call: str
+) -> None:
+    """Two developers' sandbox calls and the telephone's, one org: three lists, not one."""
+    org = f"org-{call}"
+    bernas, carlas, phones = f"{call}-berna", f"{call}-carla", f"{call}-phone"
+    for one, env, holder in (
+        (bernas, "sandbox", "m_berna"),
+        (carlas, "sandbox", "m_carla"),
+        (phones, "production", None),
+    ):
+        await store.append(one, agent, "call.ringing", {})
+        await store.owned(one, agent, org, env, holder)
+    # A later claim of another corner changes nothing: the row says where the call was opened.
+    await store.owned(bernas, agent, org, "production", None)
+
+    assert await store.calls_of(org, 10) == [phones, carlas, bernas]
+    assert await store.calls_of(org, 10, "sandbox", "m_berna") == [bernas]
+    assert await store.calls_of(org, 10, "sandbox", "m_carla", agent) == [carlas]
+    assert await store.calls_of(org, 10, "production", "") == [phones]
+    assert await store.calls_of(org, 10, "sandbox", "") == []
+    assert await store.calls_of(org, 10, "sandbox", "m_berna", f"{agent}-other") == []

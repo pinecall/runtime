@@ -8,7 +8,7 @@ import httpx
 import pytest
 
 from pinecall.auth.keys import KeyRecord, MemoryKeys
-from pinecall.auth.members import MemoryMembers
+from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.pairing import CODE_TTL_S, Pairings
 from pinecall.types import PRODUCTION, SANDBOX, Member
 from tests.api.conftest import A_KEY, A_RECORD, over_the_asgi_app

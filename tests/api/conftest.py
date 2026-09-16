@@ -39,7 +39,7 @@ from pinecall.api.whatsapp import threads as whatsapp_threads
 from pinecall.api.whatsapp.threads import Threads
 from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import KeyRecord, MemoryKeys
-from pinecall.auth.members import MemoryMembers
+from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.pairing import Pairings
 from pinecall.auth.scopes import KEY_PROJECTION, LivekitKeys, Reader
 from pinecall.auth.throttle import Throttle

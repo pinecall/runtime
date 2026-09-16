@@ -117,19 +117,6 @@ def held_by(record: KeyRecord) -> str | None:
     return record.looking_at or record.subject
 
 
-# An admin opening a developer's copy from the console: the same doors, in that developer's
-# corner. Only a key that sees every corner may, only in the sandbox — production has no corners
-# — and only into a member of its own org. Said in one sentence for every refusal.
-CANNOT_LOOK_THERE = "only a key that sees every corner opens a colleague's, and only in the sandbox"
-
-
-def looking_into(record: KeyRecord, holder: str) -> KeyRecord:
-    """The same key, resolving this request in the corner named. Raises on a key that may not."""
-    if is_a_deployment(record.env) or not sees_every_corner(record):
-        raise PermissionError(CANNOT_LOOK_THERE)
-    return replace(record, looking_at=holder)
-
-
 # The other half of the same question. `held_by` says which corner this key WORKS in; this says
 # whether it may look into everybody else's. Nobody could, which meant a tenant's admin had no way
 # to tell what their developers were running and the box operator had none either — and a corner

@@ -173,7 +173,7 @@ class Threads:
             logger.warning(NOT_ANSWERED, route.agent, inbound.number, refused)
             return None
         session = opened.session
-        await doors.logs.owned(session.call, route.agent, held.org)
+        await doors.logs.owned(session.call, route.agent, held.org, held.env, held.holder)
         doors.live.serve(
             session.call,
             session.agent,

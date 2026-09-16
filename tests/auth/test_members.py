@@ -2,8 +2,8 @@
 
 import pytest
 
-from pinecall.auth.invitations import INVITATION_PREFIX
-from pinecall.auth.members import INVITATION_TTL_S, MemoryMembers
+from pinecall.auth.invitations import INVITATION_PREFIX, INVITATION_TTL_S
+from pinecall.auth.members_memory import MemoryMembers
 
 pytestmark = pytest.mark.unit
 

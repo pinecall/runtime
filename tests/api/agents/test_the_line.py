@@ -9,7 +9,7 @@ import pytest
 
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import KeyRecord, MemoryKeys
-from pinecall.auth.members import MemoryMembers
+from pinecall.auth.members_memory import MemoryMembers
 from pinecall.types import SANDBOX, Member
 from pinecall_protocol import defs
 from tests.api.conftest import A_RECORD, AGENT, over_the_asgi_app

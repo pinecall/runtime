@@ -1,5 +1,4 @@
-"""A person is their email: one password across the orgs, seated at once into a second org, and
-the console's org switch. Over the real app, as tests/api/test_members_and_login.py runs."""
+"""A person is their email: one password across the orgs, a seat at once in a second, a switch."""
 
 from __future__ import annotations
 

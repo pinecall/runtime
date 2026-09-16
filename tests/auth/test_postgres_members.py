@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from pinecall.auth.members import PostgresMembers
+from pinecall.auth.members_postgres import PostgresMembers
 from pinecall.log.store import Pool, open_pool
 from pinecall.orgs.table import PostgresOrgs
 from tests.postgres import Dev
