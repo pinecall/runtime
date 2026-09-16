@@ -120,8 +120,8 @@ def test_livekits_own_verifier_accepts_what_we_mint_and_reads_the_scope() -> Non
     assert (claims.attributes or {})[SCOPE_ATTRIBUTE] == "talk"
 
 
-def test_talk_publishes_the_microphone_and_chat_is_audio_off_both_ways() -> None:
-    """The grants are the scope's own row: a chat token neither speaks nor hears, and sends data."""
+def test_talk_publishes_the_microphone_and_chat_publishes_none() -> None:
+    """The scope's own row: a chat token publishes nothing, subscribes, and sends data."""
     talk = grants_of("talk", A_CALL)
     assert (talk.room, talk.room_join, talk.can_publish, talk.can_subscribe) == (
         A_CALL,
@@ -131,7 +131,7 @@ def test_talk_publishes_the_microphone_and_chat_is_audio_off_both_ways() -> None
     )
     assert talk.can_publish_sources == [THE_MICROPHONE]
     chat = grants_of("chat", A_CALL)
-    assert (chat.can_publish, chat.can_subscribe, chat.can_publish_sources) == (False, False, None)
+    assert (chat.can_publish, chat.can_subscribe, chat.can_publish_sources) == (False, True, None)
     assert talk.can_publish_data and chat.can_publish_data
 
 

@@ -42,8 +42,9 @@ def test_talk_reads_the_one_call_it_opens_so_a_browser_needs_one_token() -> None
     assert MINTED_FOR_A_VISIT == {"talk", "chat"}
 
 
-def test_chat_is_talk_with_the_audio_off() -> None:
-    assert grant_for("chat") == replace(grant_for("talk"), scope="chat", audio=False)
+def test_chat_is_talk_with_no_microphone_and_it_hears() -> None:
+    """It hears because LiveKit delivers text streams to subscribers only: the reply rides them."""
+    assert grant_for("chat") == replace(grant_for("talk"), scope="chat", audio=False, hears=True)
 
 
 def test_observe_reads_the_log_and_does_nothing_else() -> None:

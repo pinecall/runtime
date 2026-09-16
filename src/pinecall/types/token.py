@@ -57,10 +57,16 @@ GRANTS: dict[str, Grant] = {
         single_use=True,
         ttl_s=ONE_VISIT_TTL_S,
     ),
+    # A chat token speaks with no microphone, and it HEARS: LiveKit hands text streams — the
+    # agent's words on `lk.transcription` — to subscribers only, so a token that could not
+    # subscribe typed into the room and never saw the reply (box, 2026-09-16: the call's log had
+    # the agent answering, the page had nothing). What it hears is the room; the page attaches
+    # no audio, and that is where "audio off" lives now, not in the grant.
     "chat": Grant(
         "chat",
         connects=True,
         audio=False,
+        hears=True,
         reads_log=True,
         sends_verbs=False,
         own_call_only=True,
