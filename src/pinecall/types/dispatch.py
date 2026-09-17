@@ -40,3 +40,8 @@ METADATA_KEY = "metadata"
 # one value the worker reads: a `chat` visit is a written call — no ears, no voice, no audio in
 # the room — and every other scope is spoken. The word is types/token.py's own row.
 WRITTEN_SCOPE = "chat"
+
+# Written on a production phone call the worker handed to a developer's sandbox copy, because the
+# developer said the phone dialling is theirs (`pinecall line from`). The world it rang in: the
+# log of the call says it was the real number, not a sandbox one.
+DIVERTED_KEY = "diverted_from"

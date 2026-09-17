@@ -103,6 +103,13 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     if arrival.number is not None and whose.org is None:
         routes = await worker.gateway.routes(number=arrival.number, channel=arrival.channel)
     route = router.resolve(arrival, routes, worker.default_agent)
+    # A developer testing on the real number: their own phone, dialling a production door while
+    # they hold the agent in the sandbox, is built in their copy. Everybody else is unchanged.
+    if router.may_be_a_developers(arrival, route):
+        developer = await _a_developers(worker.gateway, route, arrival.caller)
+        arrival, route = router.diverted(arrival, route, developer)
+        whose = arrival.whose
+        took("developer")
     # Two doors, one wait: whose keys this call runs on is a second question about the same agent,
     # and asking it in parallel with the config costs the caller nothing. See providers/registry.py.
     # Both are asked for the route's org and world — the one the call is for — and the corner the
@@ -243,3 +250,24 @@ def sealing(
         await gateway.sealed(call)
 
     return seal
+
+
+# Never in the way of a real call: a gateway that cannot answer this, or answers it wrongly, leaves
+# the call in production, where it would have been without the question.
+async def _a_developers(gateway: Gateway, route: Route, caller: str) -> str | None:
+    """The developer whose sandbox copy takes this production ring, or None."""
+    try:
+        developer = await gateway.rings_for(route.agent, org=route.org, caller=caller)
+    except Exception:  # noqa: BLE001 — any refusal is production's answer
+        logger.warning(
+            "could not ask whose phone is dialling %s; the call stays in production", route.agent
+        )
+        return None
+    if developer is not None:
+        logger.info(
+            "a production call to %s from ···%s rings in %s's sandbox copy",
+            route.agent,
+            caller[-3:],
+            developer,
+        )
+    return developer

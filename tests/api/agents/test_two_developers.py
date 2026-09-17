@@ -2,6 +2,7 @@
 
 import pytest
 
+from pinecall.api.agents.endpoints import a_developers_own
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import KeyRecord, held_by, sees_every_corner
 from pinecall.log.store import MemoryStore
@@ -350,3 +351,37 @@ def test_who_sees_every_corner_is_whoever_may_see_who_the_team_is() -> None:
     seen = (sees_every_corner(admin), sees_every_corner(manager), sees_every_corner(developer))
 
     assert seen == (True, True, False)
+
+
+async def test_a_developers_phone_dialling_the_production_number_reaches_their_copy() -> None:
+    """Testing on the line customers use: Berna's phone reaches Berna's laptop, everybody else
+    reaches the box — the same number, dialled from two phones."""
+    registry = a_registry()
+    await registry.register(THE_BOX, ORG, PRODUCTION, AGENT, [a_door("phone", A_PROD_NUMBER)])
+    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("web")], holder=BERNA)
+    registry.calls_from(SANDBOX, BERNAS_PHONE, BERNA)
+
+    assert a_developers_own(registry, ORG, AGENT, BERNAS_PHONE) == BERNA
+    assert a_developers_own(registry, ORG, AGENT, A_STRANGERS_PHONE) is None
+
+
+async def test_a_developer_not_holding_the_agent_leaves_their_own_calls_in_production() -> None:
+    """A phone said to be theirs last week, and nothing running today: production answers."""
+    registry = a_registry()
+    await registry.register(THE_BOX, ORG, PRODUCTION, AGENT, [a_door("phone", A_PROD_NUMBER)])
+    await registry.register(
+        BERNAS_SOCKET, ORG, SANDBOX, "otro-agente", [a_door("web")], holder=BERNA
+    )
+    registry.calls_from(SANDBOX, BERNAS_PHONE, BERNA)
+
+    assert a_developers_own(registry, ORG, AGENT, BERNAS_PHONE) is None
+
+
+async def test_a_developer_of_another_org_never_takes_this_orgs_production_calls() -> None:
+    registry = a_registry()
+    await registry.register(
+        BERNAS_SOCKET, "otra-org", SANDBOX, AGENT, [a_door("web")], holder=BERNA
+    )
+    registry.calls_from(SANDBOX, BERNAS_PHONE, BERNA)
+
+    assert a_developers_own(registry, ORG, AGENT, BERNAS_PHONE) is None

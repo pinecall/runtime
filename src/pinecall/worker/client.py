@@ -112,6 +112,14 @@ class Gateway:
         )
         return KEYS.validate_python(said["keys"])
 
+    async def rings_for(self, slug: str, *, org: str, caller: str) -> str | None:
+        """The developer whose sandbox copy takes this production ring, or None: production's."""
+        said = await self._read(
+            "GET", f"/v1/agents/{slug}/rings-for", params={"org": org, "caller": caller}
+        )
+        holder = said.get("holder") if isinstance(said, dict) else None
+        return holder if isinstance(holder, str) and holder else None
+
     async def opened(self, context: CallContext, agent: str, app: str | None = None) -> None:
         """A call started: the gateway opens its log and every reader of it is subscribed."""
         said: JsonObject = {"agent": agent, "context": CONTEXT.dump_python(context, mode="json")}

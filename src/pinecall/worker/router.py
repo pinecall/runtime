@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, cast
 
 from livekit import rtc
@@ -12,12 +12,13 @@ from livekit.protocol import agent as jobs
 
 from pinecall._exceptions import PinecallError
 from pinecall.session.voice import sip
-from pinecall.types import ENVS, THE_WIDGET, Channel, Direction, Env, Route
+from pinecall.types import ENVS, PRODUCTION, SANDBOX, THE_WIDGET, Channel, Direction, Env, Route
 from pinecall.types.dispatch import (
     AGENT_KEY,
     APP_KEY,
     CALLER_KEY,
     DIRECTION_KEY,
+    DIVERTED_KEY,
     ENV_KEY,
     HOLDER_KEY,
     ORG_KEY,
@@ -152,3 +153,26 @@ def _metadata(said: str) -> Mapping[str, Any]:
 def _text(value: Any) -> str | None:
     """A metadata field the platform wrote, only when whoever wrote it wrote a string."""
     return value if isinstance(value, str) and value else None
+
+
+# A phone call to a production number that no dispatch aimed anywhere: the one kind of call a
+# developer's own phone can take off production (`pinecall line from`). A widget visit, an eval
+# run, an outbound call and a sandbox number are already where they were sent.
+def may_be_a_developers(arrival: Arrival, route: Route) -> bool:
+    """Whether this call is a production ring the gateway should be asked about."""
+    return (
+        arrival.number is not None
+        and arrival.agent is None
+        and arrival.direction == "inbound"
+        and route.channel == "phone"
+        and route.env == PRODUCTION
+    )
+
+
+def diverted(arrival: Arrival, route: Route, developer: str | None) -> tuple[Arrival, Route]:
+    """The call as it is built: in that developer's sandbox corner, or unchanged when nobody's."""
+    if developer is None:
+        return arrival, route
+    whose = Whose(org=route.org, env=SANDBOX, holder=developer)
+    marked = {**arrival.metadata, DIVERTED_KEY: PRODUCTION}
+    return replace(arrival, whose=whose, metadata=marked), replace(route, env=SANDBOX)
