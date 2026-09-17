@@ -86,19 +86,6 @@ the gateway; a spoken one is judged in the worker, which asks `GET /v1/calls/{ca
 the worker's own door, the call's org) before its judges run — a gateway it cannot reach is a call
 judged as before, still under the ceiling. Such a call can be judged later: §6.
 
-## 6. Judging a call later
-
-`POST /v1/evals/judge/{call}` (`evals`) runs the hang-up's judges over a finished call — one its org
-had judging off for, one whose judge broke, or one a person wants a second opinion on — writes the
-`call.score` onto the call's own log and answers it. That log is sealed, and a verdict is the one
-entry a sealed log takes (`Store.rescored`): the list, the day and `usage` read it like the first.
-
-| answer | when |
-|---|---|
-| `200` `CallScore` | judged, under the box's ceiling exactly as at hang-up |
-| `404` | no such call in the key's org, world and corner — another org's call is told the same |
-| `409` | the call has not ended; or its last `call.score` already carries a verdict and `?again=true` was not said |
-
 ## 4. Threads: the inbox by contact
 
 A **contact** is who a call is filed under: the id the app resolved (`caller.id`), else the number
@@ -147,6 +134,19 @@ contact's history (`GET /v1/contacts/{contact}/memory`) still shows it, supersed
 (already forgotten included), `422` for an id that is not a UUID. Erasing a person whole is still
 `DELETE /v1/contacts/{contact}/memory`.
 
+## 6. Judging a call later
+
+`POST /v1/evals/judge/{call}` (`evals`) runs the hang-up's judges over a finished call — one its org
+had judging off for, one whose judge broke, or one a person wants a second opinion on — writes the
+`call.score` onto the call's own log and answers it. That log is sealed, and a verdict is the one
+entry a sealed log takes (`Store.rescored`): the list, the day and `usage` read it like the first.
+
+| answer | when |
+|---|---|
+| `200` `CallScore` | judged, under the box's ceiling exactly as at hang-up |
+| `404` | no such call in the key's org, world and corner — another org's call is told the same |
+| `409` | the call has not ended; or its last `call.score` already carries a verdict and `?again=true` was not said |
+
 ## 7. The widget's settings
 
 `GET /v1/agents/{slug}/widget` (`talk`) and `PUT /v1/agents/{slug}/widget` (`pipeline`) read and
@@ -160,3 +160,10 @@ a CSS colour — `#cd58b2`, `rebeccapurple`, `rgb(205 88 178)` — since the wid
 variable. The gateway keeps them and does not inject them: a console writes them into the snippet
 it copies, as attributes (`name` ← `title`, `--pc-accent` ← `accent`), and the widget's README says
 what `greeting` and `autostart` do.
+
+## 8. Signing in, and a forgotten password
+
+`POST /v1/login/orgs {email, password}` — which orgs a person may sign in to, before any key is
+minted — and `POST /v1/members/{id}/reset` (`team`) — the one-use link an admin hands back for a
+forgotten password, since this box sends no email — are people's doors, and
+[people.md](people.md) is their page.
