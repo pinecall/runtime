@@ -332,7 +332,13 @@ NO_KEYS_TABLE = "no database: a key is verified against the api_keys table, and 
 
 def keys_for(settings: Settings, pool: Pool | None) -> Keys | None:  # noqa: ARG001
     """The keys table, which is the only place a key is ever checked. None with no database."""
-    return None if pool is None else PostgresKeys(pool)
+    if pool is None:
+        return None
+    # Imported here: auth/visiting.py imports this module for the protocol it wraps.
+    from pinecall.auth.members import members_for
+    from pinecall.auth.visiting import StandingKeys
+
+    return StandingKeys(PostgresKeys(pool), members_for(pool))
 
 
 def _a_key_id() -> str:

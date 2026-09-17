@@ -7,7 +7,8 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.api.login import NOBODY_ANYWHERE, NOT_THERE, ONE_ORG_EACH
+from pinecall.api.login import NOBODY_ANYWHERE
+from pinecall.api.login_orgs import NOT_THERE, ONE_ORG_EACH
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.types import ROLE_SCOPES, for_a_person
 from tests.api.conftest import A_RECORD, over_the_asgi_app

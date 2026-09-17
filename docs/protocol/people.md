@@ -79,6 +79,34 @@ or a slug, answers a key for the same person in that org — the same world and 
 asked, with what their role there opens in that world — or `403 you are not an active member of
 <org>`. A machine's key names nobody and opens one org: both doors refuse it `403`.
 
+**An operator of the box is shown every org.** Each row of `GET /v1/login/orgs` also says
+`member`: `true` for the person's own orgs, which come first, oldest first, exactly as before. For
+somebody the box made an operator (`PUT /v1/ops/orgs/{org}/members/{id}/operator`) the rest of
+the box follows, oldest first, with `member: false`, `role: "operator"` and `status: "active"`.
+`POST /v1/login/org {org}` lets them into any of those: a member there gets the member's key as
+above; an operator who is none gets a **visitor's key** —
+
+```json
+{"key": "pk_…", "key_id": "k_…", "org": "org_4ad9…", "env": "production",
+ "label": "operator · bernardo@pinecall.io", "scopes": ["calls", "evals", "…", "team", "usage"],
+ "subject": "operator:bernardo@pinecall.io", "name": "Bernardo"}
+```
+
+— `production` whatever world the asking key opened, the `admin` role's scopes less `app` as any
+person's key, and **no member row**: no seat is taken and the org's Team screen gains nobody.
+`subject` is `operator:<their address>` and not a member id, so the org's Keys screen says whose
+key it is (and may revoke it), and everything that writes a subject down — a dial's `asked_by`, a
+supervise verb, a seat — attributes what they did to a person by address, in the tenant's own
+log. A row of theirs the tenant **disabled** is not the way in: they walk in as the operator,
+said in so many words, never as the member the org stopped. `GET /v1/whoami` says `operator:
+true` for such a person in every org and `visiting: true` inside one they are no member of, with
+`name` still theirs; both switch doors work from inside, which is how they get home. A visitor's
+key opens no sandbox and signs no terminal in — `POST /v1/login/env` and the pairing answer `403
+an operator visits an org in production, from the console: …` — because a sandbox is a member's
+corner. **It stops the moment they stop running the box**: the flag is read on every verify
+(`auth/visiting.py`), so `orgs operator --revoke`, disabling them or removing them is one write
+and the next request with that key is `401`, with nothing to remember to revoke.
+
 **Before signing in**, a sign-in page asks `POST /v1/login/orgs {email, password}` — no key, and it
 mints none — which orgs those open: `{orgs: [{org, slug, name, role}]}`, oldest first, disabled rows
 left out. It shares `/v1/login`'s throttle and its one sentence: a wrong password and an email

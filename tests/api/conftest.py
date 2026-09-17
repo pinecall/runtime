@@ -39,7 +39,7 @@ from pinecall.api.whatsapp import threads as whatsapp_threads
 from pinecall.api.whatsapp.threads import Threads
 from pinecall.api.widget import the_widgets
 from pinecall.auth.codes import LoginCodes
-from pinecall.auth.keys import KeyRecord, MemoryKeys
+from pinecall.auth.keys import KeyRecord, Keys, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.pairing import Pairings
 from pinecall.auth.scopes import KEY_PROJECTION, LivekitKeys, Reader
@@ -279,7 +279,7 @@ def wired(
     settings: Settings,
     snapshots: Snapshots,
     store: MemoryStore,
-    keys: MemoryKeys,
+    standing: Keys,
     registry: Registry,
     routes: MemoryRoutes,
     tokens: MemoryTokens,
@@ -310,7 +310,7 @@ def wired(
     app.dependency_overrides[deps.a_settings] = lambda: settings
     app.dependency_overrides[deps.the_snapshots] = lambda: snapshots
     app.dependency_overrides[deps.a_store] = lambda: store
-    app.dependency_overrides[deps.the_keys] = lambda: keys
+    app.dependency_overrides[deps.the_keys] = lambda: standing
     app.dependency_overrides[registry_dep.the_registry] = lambda: registry
     app.dependency_overrides[routes_table.the_routes] = lambda: routes
     app.dependency_overrides[tokens_ledger.the_tokens] = lambda: tokens

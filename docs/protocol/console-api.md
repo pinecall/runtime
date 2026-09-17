@@ -224,6 +224,12 @@ what `greeting` and `autostart` do.
 
 ## 8. Signing in, and a forgotten password
 
+**The org switch for an operator**: `GET /v1/login/orgs` rows carry `member`, and an operator's
+list is every org of the box — draw the `member: false` ones apart, they are entered as the
+operator; `GET /v1/whoami` gains `operator` and `visiting`, and a page inside a visited org should
+say so, because `visiting: true` means no sandbox, no terminal pairing and an org that is not
+theirs ([people.md](people.md)).
+
 `POST /v1/login/orgs {email, password}` — which orgs a person may sign in to, before any key is
 minted — `DELETE /v1/members/{id}` (`team`), a person removed for good: `204`, or `409` with
 the sentence to show for yourself and for the org's last active admin — `POST
