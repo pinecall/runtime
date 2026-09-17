@@ -80,3 +80,32 @@ Pinecall everywhere a letter said it (`You're invited to <org> on <name>`, `Rese
 password`, `Sent by <org> through <name>`), and the accent is the button. The logo is the **one**
 outside resource a letter may ever carry, at the address the operator typed themselves; with none
 set a letter still fetches nothing at all.
+
+## Continue with Google — `GET /v1/ops/signin`, `PUT`·`DELETE /v1/ops/signin/google`
+
+A sign-in every org's people may use, beside the password and beside an org's own provider
+([people.md](people.md#signing-in-with-google-box-wide)). The operator registers **one OAuth
+client at Google** for this gateway — a web client whose authorised redirect URI is the
+`redirect_uri` below — and brings its id and secret here. The secret is sealed under the vault
+key; the issuer is Google's own (`https://accounts.google.com`) and is not a field.
+
+`GET /v1/ops/signin` — every provider this box can offer, wired or not, one key each:
+
+```json
+{"google": {"configured": true, "client_id": "12345.apps.googleusercontent.com",
+            "redirect_uri": "https://box.example.com/v1/login/google/callback"}}
+```
+
+`configured` is whether it is **usable**: wired, and its secret openable with this box's vault
+key. `client_id` is read off the row even when it is not, so a page shows what was typed.
+
+`PUT /v1/ops/signin/google {client_id, client_secret}` — replaced whole, the secret write-only.
+Google's discovery document is fetched before anything is kept, so a box that cannot reach
+`accounts.google.com` learns it here: `400 … — nothing was kept`. `400` for an empty id or
+secret; `503 no PINECALL_VAULT_KEY: …` on a box that cannot seal one. Answers the provider's
+row above. `DELETE /v1/ops/signin/google` — `204`; `404` when none was wired.
+
+`GET /.well-known/pinecall` says `google: true` while it is usable, which is what the sign-in
+page draws the button off. Internally a provider is one row of `box_settings` (`signin.google`)
+and one entry of a table (`orgs/signin.py`): a second box-wide provider is a row, not a rewrite;
+only Google is exposed today.

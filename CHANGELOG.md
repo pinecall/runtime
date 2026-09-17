@@ -7,6 +7,16 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **"Continue with Google", box-wide, configured by the operator.** `GET /v1/ops/signin` lists
+  every box-wide provider (`{google: {configured, client_id, redirect_uri}}`);
+  `PUT /v1/ops/signin/google {client_id, client_secret}` keeps one OAuth client at Google for
+  every org's people, its secret under the vault key, Google's discovery checked before anything
+  is kept; `DELETE` forgets it. `GET /v1/login/google` sends a person to Google
+  (`openid email profile`, PKCE, state, nonce — the SSO's own code) and the callback matches the
+  **verified** address against every org's members: an active member lands in the oldest org of
+  theirs a password would open, a member still invited is seated by it, nobody is sent back
+  with `/?refused=<why>`. An org whose own SSO is `required` is not entered this way.
+  `GET /.well-known/pinecall` gains `google`. A second box-wide provider is a row.
 - **The box's mail and the letters' brand, configured by the operator** (migration 0035,
   `box_settings`: one row a setting, its secret under the vault key). `GET`/`PUT`/`DELETE
   /v1/ops/mail` and `POST /v1/ops/mail/test` store the mail server the box posts through, the

@@ -176,9 +176,9 @@ link an admin handed over an hour ago. What the person opens is the invitation c
 turns it on** — a box somebody runs for their own agents wants no stranger making an org, and is
 never asked to close a door. It is its own flag and not `cloud`: a box of its own may want sign-ups,
 and a cloud may close them. `GET /.well-known/pinecall` answers `{version, cloud, signup,
-min_password, mail, brand}` with no key, which is how a page or a CLI knows whether to offer one at
+min_password, mail, brand, google}` with no key, which is how a page or a CLI knows whether to offer one at
 all — with `mail`, whether "Forgot your password?" may promise an email, and with `brand`
-(`{name, logo_url, accent}`, [the-box.md](the-box.md)) what to call the box and paint it with.
+(`{name, logo_url, accent}`, [the-box.md](the-box.md)) what to call the box and paint it with — and with `google`, whether to draw "Continue with Google" (below).
 
 `POST /v1/signup {org, name?, email, person, password, device?}` — no key — answers `201` with the
 same key shape plus `slug`, the `member` (an `admin`, `active`, password kept — or, for an email
@@ -291,6 +291,36 @@ is the person locked out. So `GET /v1/ops/orgs/{org}/sso` reads what one org is 
 operator who could would be an operator deciding how a tenant's people sign in. Losing the vault
 key has the same effect by itself — no secret can be read, so no org signs in with a provider and
 a password opens every one of them again.
+
+## Signing in with Google, box-wide
+
+**"Continue with Google"** is the operator's, for every org at once ([the-box.md](the-box.md)):
+`GET /v1/login/google[?pairing=]` answers `302` to Google — `openid email profile`, issuer
+`https://accounts.google.com`, authorization code with PKCE, state and nonce, exactly as an org's
+own provider is asked (above); `404 this box signs in with no Google: …` while nobody wired one,
+and the fifth sign-in a minute from one address waits like the SSO's. Google sends the person to
+`GET /v1/login/google/callback?code=&state=`, where the id_token is checked and the address it
+carries — **`email_verified` required**, then trimmed and lower-cased — is matched against the
+**members of every org**: a person is their email on this box, and Google vouching for the
+address is what the link in an invitation would have proved. So:
+
+- an **active** member lands, as a password login with no org does, in the **oldest** org of
+  theirs that is not disabled and does not sign in with its own required provider — `302
+  /?login=lc_…`, the one-use code the console spends for a key of the browser's own, and the org
+  switch does the rest (`?pairing=` sends them to `/cli` instead, for a terminal waiting);
+- a member still **invited** is seated `active` by it, in every org of theirs that a Google
+  sign-in may enter — they keep no password, as with an org's own provider, and may still open
+  the invitation link to choose one;
+- **nobody** — no row anywhere — is `302 /?refused=<email> is not a member of any org on this
+  box: an admin of your org has to invite that address before Google can sign it in`; disabled
+  in every org, `…is disabled in every org of theirs here`; only in orgs whose own provider is
+  `required`, `…belongs to an org that signs in with its own identity provider: open
+  /v1/login/sso?org=… instead`. An unverified address and a refusal at Google are `?refused=` too.
+
+Every refusal past the handshake is a redirect and not a body, because a person in a browser
+between two redirects reads the sign-in page and not JSON; a state nobody minted, or an org's
+own SSO state, is the one `400`. An org whose SSO is `required` is never entered this way, and
+nothing here makes a member: an address nobody invited is refused, whatever Google says.
 
 ### Registering this gateway at the provider
 
