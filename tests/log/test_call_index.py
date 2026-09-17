@@ -226,8 +226,17 @@ async def test_the_backfill_folds_an_old_call_to_the_very_facts_append_folds(
     assert await postgres_store.facts_of([spoken, written]) == folded
 
 
-async def test_a_call_nobody_folded_has_no_facts(store: Indexing) -> None:
+async def test_a_call_nobody_folded_has_no_facts_and_no_corner(store: Indexing) -> None:
     assert await store.facts_of(["CA_nobody"]) == {}
+    assert await store.corner_of_call("CA_nobody") is None
+
+
+async def test_a_call_says_which_corner_it_was_opened_in(
+    store: Indexing, org: str, agent: str
+) -> None:
+    call = await a_call(store, org, agent, env="sandbox", holder="m_dev")
+    corner = await store.corner_of_call(call)
+    assert corner is not None and corner.is_in(org, "sandbox", "m_dev") and corner.agent == agent
 
 
 def test_a_verdict_nobody_settled_is_no_score() -> None:

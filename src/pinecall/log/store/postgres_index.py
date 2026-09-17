@@ -9,6 +9,7 @@ from pinecall.log.facts import CallFacts, Change
 from pinecall.log.store.index import (
     A_DAY_S,
     AgentDay,
+    CallCorner,
     Day,
     Found,
     ThreadRow,
@@ -21,6 +22,7 @@ from pinecall.log.store.index import (
 )
 from pinecall.log.store.index_statements import (
     CALLS_WITH,
+    CORNER_OF_CALL,
     DAY,
     DAY_BY_AGENT,
     DAY_MEDIAN_E2E,
@@ -70,6 +72,13 @@ class PostgresIndex:
             change.last_at,
             change.last_in,
         )
+
+    async def corner_of_call(self, call: str) -> CallCorner | None:
+        """One read of the head row."""
+        row = await self._pool.fetchrow(CORNER_OF_CALL, call)
+        if row is None:
+            return None
+        return CallCorner(row["org"], str(row["env"]), str(row["holder"]), str(row["agent"] or ""))
 
     async def facts_of(self, calls: Sequence[str]) -> dict[str, CallFacts]:
         """The facts of each of these calls that has a row."""

@@ -14,6 +14,20 @@ A_DAY_S = 24 * 60 * 60
 
 
 @dataclass(frozen=True)
+class CallCorner:
+    """Where one call lives: its org, its world, whose corner ("" for the org's own), its agent."""
+
+    org: str | None
+    env: str
+    holder: str
+    agent: str
+
+    def is_in(self, org: str, env: str, holder: str) -> bool:
+        """Whether this call is in that corner."""
+        return (self.org, self.env, self.holder) == (org, env, holder)
+
+
+@dataclass(frozen=True)
 class Wanted:
     """Which calls a list asks for: one agent's, one channel's, some words, below a cursor."""
 
@@ -86,6 +100,13 @@ class Threads:
 # what the org spends, which is the org's across both worlds because a budget is.
 class CallIndex(Protocol):
     """The questions across an org's calls that a list, a day and an inbox ask."""
+
+    # A call's corner is its head row's (0024), and a door that acts on ONE call by its id — a
+    # judge, a message — asks it here before it acts: another org's call and another world's are
+    # the same refusal.
+    async def corner_of_call(self, call: str) -> CallCorner | None:
+        """The org, the world and whose corner this call was opened in; None for no such call."""
+        ...
 
     async def facts_of(self, calls: Sequence[str]) -> dict[str, CallFacts]:
         """The facts of each of these calls that has any."""
