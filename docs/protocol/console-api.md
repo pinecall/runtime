@@ -98,3 +98,19 @@ entry a sealed log takes (`Store.rescored`): the list, the day and `usage` read 
 | `200` `CallScore` | judged, under the box's ceiling exactly as at hang-up |
 | `404` | no such call in the key's org, world and corner — another org's call is told the same |
 | `409` | the call has not ended; or its last `call.score` already carries a verdict and `?again=true` was not said |
+
+## 5. Memory across callers
+
+`GET /v1/agents/{slug}/memory?after=&q=&limit=` (`memory`) is `{facts: [{id, contact, text, category,
+written_at}], next}`: the **current** facts the agent's calls taught, across every contact, newest
+first, in the key's world and corner. A fact is the agent's through the call that taught it (its
+`source_call`, whose head row names the agent), so a fact a memory golden held came from no call and
+is in no agent's list. `q` matches the text, the contact and the category, case-insensitively;
+`after` is the `next` of the page before; `limit` is 1–200, 50 unsaid.
+
+`DELETE /v1/memory/facts/{id}` (`memory`) ends **one** fact the way a later call would have: the
+row stays with `invalidated_at` set to now, recall stops reading it from that moment, and the
+contact's history (`GET /v1/contacts/{contact}/memory`) still shows it, superseded. It answers
+`{"forgotten": 1}`; `404` when no current fact of the key's org, world and corner answers the id
+(already forgotten included), `422` for an id that is not a UUID. Erasing a person whole is still
+`DELETE /v1/contacts/{contact}/memory`.

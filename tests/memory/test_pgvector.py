@@ -342,3 +342,37 @@ async def test_a_contacts_facts_are_one_worlds_and_a_test_call_never_reaches_the
     assert await memory.forget(org, SANDBOX, None, contact) == 1
     assert len(await memory.history(org, PRODUCTION, None, contact)) == 1
     assert await memory.kept(org) == 1
+
+
+async def test_an_agents_facts_are_the_current_ones_its_calls_taught_newest_first(
+    memory: PgvectorMemory, pool: Pool, org: str, contact: str
+) -> None:
+    """Across contacts, by the call that taught each; a golden's fact belongs to no agent."""
+    agent, call, other_call = f"agent-{org}", f"CA_{org}", f"CA_other_{org}"
+    await pool.execute(
+        "insert into call_log_head (log, agent, call, org) "
+        "values ($1, $2, $1, $3), ($4, $5, $4, $3)",
+        call,
+        agent,
+        org,
+        other_call,
+        "another-agent",
+    )
+    old = await a_row(pool, org, contact, "prefiere la tarde", source=call, learned=LEARNED)
+    new = await a_row(pool, org, "+34611", "tiene un perro", source=call, learned=HUNG_UP)
+    await a_row(pool, org, contact, "otro agente lo sabe", source=other_call)
+    await a_row(pool, org, contact, "ya no vale", source=call, invalidated=HUNG_UP)
+    await a_row(pool, org, contact, "un golden lo trajo")
+    first = await memory.taught_by(org, PRODUCTION, None, agent, words=None, after=None, limit=1)
+    assert [fact.id for fact in first.facts] == [new]
+    rest = await memory.taught_by(
+        org, PRODUCTION, None, agent, words=None, after=first.next, limit=5
+    )
+    assert ([fact.id for fact in rest.facts], rest.next) == ([old], None)
+    found = await memory.taught_by(org, PRODUCTION, None, agent, words="PERRO", after=None, limit=5)
+    assert [fact.id for fact in found.facts] == [new]
+    assert await memory.invalidated(org, PRODUCTION, None, new, HUNG_UP) is True
+    assert await memory.invalidated(org, PRODUCTION, None, new, HUNG_UP) is False
+    assert await memory.invalidated(org, SANDBOX, None, old, HUNG_UP) is False, "another world"
+    history = await memory.history(org, PRODUCTION, None, "+34611")
+    assert history[0].invalidated_at == HUNG_UP, "the row stays, with when it stopped holding"
