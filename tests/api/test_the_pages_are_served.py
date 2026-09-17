@@ -177,6 +177,8 @@ def test_the_well_known_door_says_which_runtime_and_whose(gateway: TestClient) -
         # Whether the BOX can post a letter, so a sign-in page knows whether "Forgot your
         # password?" may promise an email. This suite's settings name no mail server.
         "mail": False,
+        # And what the box is called, so the same page draws the operator's name before a key.
+        "brand": {"name": "Pinecall", "logo_url": None, "accent": "#5b3df5"},
     }
     assert isinstance(said["version"], str)
 

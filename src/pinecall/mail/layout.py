@@ -4,15 +4,22 @@ from __future__ import annotations
 
 from html import escape
 
-# The brand, and nothing beside it. A letter is read in a client that supports a tenth of CSS, so
-# every one of these ends up inline on the element it paints: there is no stylesheet to load, no
-# image to fetch and no pixel to count. A letter that renders with the network off is the point.
+from pinecall.mail.brand import Brand
+
+# The frame's own palette; the ACCENT and the name are the operator's (mail/brand.py). A letter
+# is read in a client that supports a tenth of CSS, so every one of these ends up inline on the
+# element it paints: there is no stylesheet to load and no pixel to count. Unless the operator
+# gave the box a logo, there is no image to fetch either, and the letter renders with the
+# network off.
 WASH = "#f7f6fa"
 CARD = "#ffffff"
 INK = "#101014"
 MUTED = "#6b6975"
 HAIRLINE = "#eeedf2"
-ACCENT = "#5b3df5"
+
+# How tall the logo is drawn, whatever it is: a fixed height and a free width, so a wide wordmark
+# and a square mark both sit on the line the name used to.
+LOGO_HEIGHT = 28
 
 # Inter where the reader has it, and the system's own everywhere else: a webfont in a letter is a
 # remote request, which is exactly what this frame does not make.
@@ -47,12 +54,12 @@ def small(text: str) -> str:
     )
 
 
-def button(label: str, href: str) -> str:
+def button(label: str, href: str, accent: str) -> str:
     """The one thing to press. A table, because Outlook lays an inline-block out as it pleases."""
     return (
         '<table role="presentation" cellpadding="0" cellspacing="0" '
         'style="margin:6px 0 18px;"><tr><td>'
-        f'<a href="{escape(href, quote=True)}" style="display:inline-block;background:{ACCENT};'
+        f'<a href="{escape(href, quote=True)}" style="display:inline-block;background:{accent};'
         f"color:#ffffff;font-family:{FONT};font-size:15px;font-weight:600;text-decoration:none;"
         f'padding:12px 22px;line-height:18px;border-radius:9px;">{escape(label)}</a>'
         "</td></tr></table>"
@@ -67,10 +74,28 @@ def fallback(href: str) -> str:
     )
 
 
-# The wordmark is a WORD. A logo would be an image, an image would be a URL, and a URL in a letter
-# is a request that says when it was opened and from where — which is the tracking pixel this
-# frame exists without.
-def a_letter(preheader: str, content: str, footer: str) -> str:
+# The wordmark is a WORD unless the operator said otherwise. A logo is an image, an image is a
+# URL, and a URL in a letter is a request that says when it was opened and from where — so the
+# only one this frame ever makes is to the address the operator of this box typed themselves,
+# and with none set it makes none. `alt` is the name: a client that blocks images, which is most
+# of them until the reader says otherwise, shows the word the letter would have carried anyway.
+def wordmark(brand: Brand) -> str:
+    """The top of every letter: the operator's logo at a fixed height, else the name as text."""
+    if brand.logo_url is not None:
+        return (
+            f'<img src="{escape(brand.logo_url, quote=True)}" '
+            f'alt="{escape(brand.name, quote=True)}" '
+            f'height="{LOGO_HEIGHT}" style="display:block;height:{LOGO_HEIGHT}px;width:auto;'
+            f"border:0;outline:none;text-decoration:none;font-family:{FONT};font-size:16px;"
+            f'font-weight:650;color:{INK};">'
+        )
+    return (
+        f'<span style="font-family:{FONT};font-size:16px;font-weight:650;letter-spacing:-0.02em;'
+        f'color:{INK};">{escape(brand.name)}</span>'
+    )
+
+
+def a_letter(preheader: str, content: str, footer: str, brand: Brand) -> str:
     """One letter, framed: the wordmark, the white card and the quiet line underneath."""
     return (
         "<!DOCTYPE html>\n"
@@ -85,9 +110,7 @@ def a_letter(preheader: str, content: str, footer: str) -> str:
         f'style="background:{WASH};padding:36px 14px;"><tr><td align="center">'
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
         f'style="max-width:{WIDTH}px;">'
-        '<tr><td style="padding:0 6px 16px;">'
-        f'<span style="font-family:{FONT};font-size:16px;font-weight:650;letter-spacing:-0.02em;'
-        f'color:{INK};">pinecall</span></td></tr>'
+        f'<tr><td style="padding:0 6px 16px;">{wordmark(brand)}</td></tr>'
         f'<tr><td style="background:{CARD};border:1px solid {HAIRLINE};border-radius:14px;'
         f'padding:30px 30px 24px;">{content}</td></tr>'
         f'<tr><td style="padding:18px 6px 0;font-family:{FONT};font-size:12px;line-height:1.6;'

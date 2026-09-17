@@ -7,6 +7,16 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **The box's mail and the letters' brand, configured by the operator** (migration 0035,
+  `box_settings`: one row a setting, its secret under the vault key). `GET`/`PUT`/`DELETE
+  /v1/ops/mail` and `POST /v1/ops/mail/test` store the mail server the box posts through, the
+  same body as an org's and the password sealed the same way; a stored mailbox wins over
+  `PINECALL_SMTP_URL`, an org's own still wins over both, and the envelope says `source`. The
+  doctor's mail line says which one it read. `GET`/`PUT /v1/ops/brand` is `{name, logo_url,
+  accent}` — Pinecall, no logo, `#5b3df5` until set; a field left out keeps, an empty one
+  resets — and the letters carry it: the logo at 28px where the wordmark stood (the one outside
+  resource a letter may ever fetch), the name and the accent everywhere they said Pinecall.
+  `GET /.well-known/pinecall` gains `brand`. `docs/protocol/the-box.md`.
 - **An operator of the box sees every org from the console's switch.** `GET /v1/login/orgs` rows
   gain `member`; for a person the box made an operator the list is every org there is, `member:
   false` and `role: "operator"` where they are none. `POST /v1/login/org` lets them into any org

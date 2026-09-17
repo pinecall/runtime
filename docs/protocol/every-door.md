@@ -53,6 +53,9 @@ sandbox, answered in that colleague's corner.
 | `POST` | `/v1/signup` | where `PINECALL_SIGNUP` is on, off by default: a new org allowed what its gateway's policy says, its admin active, their first key and a login code |
 | `GET` | `/v1/whoami` | the org as an id AND as the `slug` its people type, the key's id, its label, the world it opens (`env`), its `scopes`, whose it is (`subject`, `name`), whether that person runs the box (`operator`) and whether they are inside an org they are no member of (`visiting`) |
 | `GET` | `/v1/ops/whoami` | **the box's own**: that this key is the operator's, the version, the domain — what the `/admin` page proves its key at |
+| `GET` · `PUT` · `DELETE` | `/v1/ops/mail` | **the box's own**: the mail server the box posts through, stored here over the environment's — `source` says which; never the password. [the-box.md](the-box.md) |
+| `POST` | `/v1/ops/mail/test` | **the box's own**: one letter through the box's mailbox, waited for — `{sent, error}` |
+| `GET` · `PUT` | `/v1/ops/brand` | **the box's own**: what the letters and the sign-in page are called and painted with — `{name, logo_url, accent}` |
 | `GET` | `/v1/ops/orgs/{org}/sso` | **the box's own**: which provider one org signs in with, never its secret |
 | `PUT` | `/v1/ops/orgs/{org}/sso/required` | **the box's own**: the break-glass — a password opens that org again while its provider is down. Never the other way |
 | `GET` · `POST` | `/v1/ops/orgs/{org}/members` | **the box's own**: an org's people and how many hold a seat; invite one — the first admin, where sign-ups are shut — the token once. Never a change |

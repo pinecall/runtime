@@ -1,4 +1,4 @@
-"""The three letters: what they say, what they look like, and what they never reach out for."""
+"""The letters: what they say, what they look like, and what they never reach out for."""
 
 from __future__ import annotations
 
@@ -7,13 +7,16 @@ import re
 import pytest
 
 from pinecall.mail import (
+    Brand,
     Letter,
     a_forgotten_password,
     a_reset,
+    a_test_message,
     an_invitation,
     where_the_card_is,
 )
-from pinecall.mail.layout import ACCENT, WASH, WIDTH
+from pinecall.mail.brand import ACCENT
+from pinecall.mail.layout import LOGO_HEIGHT, WASH, WIDTH
 from pinecall.mail.letters import NOBODY_ASKED
 
 pytestmark = pytest.mark.unit
@@ -30,8 +33,12 @@ LETTERS: list[Letter] = [
 ]
 
 # Anything a client would have to fetch: an image, a stylesheet, a font, a pixel that says the
-# letter was opened. The ONE URL in these letters is the card the person is meant to press.
+# letter was opened. The ONE URL in these letters is the card the person is meant to press —
+# and the one image a letter may ever carry is the logo the OPERATOR of the box gave it.
 AN_OUTSIDE_URL = re.compile(r"(?:src|background)\s*=|url\(|@import|<img\b|<link\b", re.IGNORECASE)
+
+A_LOGO = "https://cdn.example.com/brand/mark.png"
+THEIRS = Brand(name="Acme Voice", logo_url=A_LOGO, accent="#ff6600")
 
 
 @pytest.mark.parametrize("letter", LETTERS)
@@ -44,10 +51,40 @@ def test_every_letter_names_the_org_and_carries_the_link_in_both_halves(letter: 
 
 
 @pytest.mark.parametrize("letter", LETTERS)
-def test_no_letter_fetches_anything_from_anywhere(letter: Letter) -> None:
-    """No image, no webfont, no stylesheet, and above all no pixel that says it was opened."""
+def test_no_letter_fetches_anything_from_anywhere_but_the_operators_own_logo(
+    letter: Letter,
+) -> None:
+    """No image, no webfont, no stylesheet, and above all no pixel that says it was opened.
+    The one exception is the logo the operator set, at the address they typed themselves."""
     assert not AN_OUTSIDE_URL.search(letter.html)
     assert letter.html.count("http") == letter.html.count(LINK) == 2
+    branded = an_invitation(TO, ORG, "Ana Vidal", LINK, DIES, THEIRS)
+    fetched = AN_OUTSIDE_URL.findall(branded.html)
+    assert fetched == ["<img", "src="], "the logo, once, and nothing else"
+    assert branded.html.count("http") == 3 and branded.html.count(A_LOGO) == 1
+
+
+def test_the_operators_brand_is_the_name_the_accent_and_the_logo_everywhere_pinecall_was() -> None:
+    """A box that is somebody else's product says so in every letter, in both halves."""
+    letter = a_reset(TO, ORG, "Ana Vidal", LINK, DIES, THEIRS)
+    assert letter.subject == "Reset your Acme Voice password"
+    assert "Pinecall" not in letter.text and "Pinecall" not in letter.html
+    assert f"Sent by {ORG} through Acme Voice" in letter.text
+    assert "background:#ff6600" in letter.html and ACCENT not in letter.html
+    assert (
+        f'<img src="{A_LOGO}" alt="Acme Voice" height="{LOGO_HEIGHT}" '
+        f'style="display:block;height:{LOGO_HEIGHT}px;width:auto;' in letter.html
+    )
+    assert ">Acme Voice</span>" not in letter.html, "the logo stands where the name stood"
+    named = a_reset(TO, ORG, "Ana", LINK, DIES, Brand(name="Acme Voice"))
+    assert ">Acme Voice</span>" in named.html and "<img" not in named.html
+
+
+def test_the_test_message_is_the_one_frame_too_and_asks_nothing() -> None:
+    letter = a_test_message(TO, THEIRS)
+    assert letter.subject == "Acme Voice test message" and letter.to == TO
+    assert "took it" in letter.text and "href=" not in letter.html and A_LOGO in letter.html
+    assert a_test_message(TO).subject == "Pinecall test message"
 
 
 @pytest.mark.parametrize("letter", LETTERS)
@@ -56,7 +93,7 @@ def test_every_letter_is_the_one_frame_the_brand_draws(letter: Letter) -> None:
     assert letter.html.startswith("<!DOCTYPE html>")
     assert f"background:{WASH}" in letter.html and f"max-width:{WIDTH}px" in letter.html
     assert f"background:{ACCENT}" in letter.html and "border-radius:9px" in letter.html
-    assert ">pinecall</span>" in letter.html
+    assert ">Pinecall</span>" in letter.html
     assert 'role="presentation"' in letter.html
 
 

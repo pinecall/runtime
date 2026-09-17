@@ -176,8 +176,9 @@ link an admin handed over an hour ago. What the person opens is the invitation c
 turns it on** — a box somebody runs for their own agents wants no stranger making an org, and is
 never asked to close a door. It is its own flag and not `cloud`: a box of its own may want sign-ups,
 and a cloud may close them. `GET /.well-known/pinecall` answers `{version, cloud, signup,
-min_password, mail}` with no key, which is how a page or a CLI knows whether to offer one at all —
-and, with `mail`, whether "Forgot your password?" may promise an email.
+min_password, mail, brand}` with no key, which is how a page or a CLI knows whether to offer one at
+all — with `mail`, whether "Forgot your password?" may promise an email, and with `brand`
+(`{name, logo_url, accent}`, [the-box.md](the-box.md)) what to call the box and paint it with.
 
 `POST /v1/signup {org, name?, email, person, password, device?}` — no key — answers `201` with the
 same key shape plus `slug`, the `member` (an `admin`, `active`, password kept — or, for an email

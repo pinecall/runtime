@@ -174,7 +174,9 @@ A box that can post a letter mails every invitation and every admin's reset to t
 about, and lets a person who forgot their password ask for a link themselves (`POST
 /v1/login/reset`). A box that cannot still works exactly as before: the link is in the answer, and
 an admin passes it on. The transport is **generic SMTP** — Amazon SES, Postmark, Mailgun or a mail
-server of your own — and it is two settings:
+server of your own — and it is two settings, **or one screen**: the operator stores a mailbox at
+`PUT /v1/ops/mail` from the admin page ([the-box.md](protocol/the-box.md)), which wins over the two
+variables below and needs no restart:
 
 | | | |
 |---|---|---|
