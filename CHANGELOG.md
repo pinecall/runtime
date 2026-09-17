@@ -7,6 +7,16 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **An operator of the box sees every org from the console's switch.** `GET /v1/login/orgs` rows
+  gain `member`; for a person the box made an operator the list is every org there is, `member:
+  false` and `role: "operator"` where they are none. `POST /v1/login/org` lets them into any org
+  on a production key with the admin role's scopes, labelled `operator · <email>`, whose
+  `subject` is `operator:<email>` — no member row, no seat, attributable by address wherever a
+  subject is written down. `GET /v1/whoami` gains `operator` and `visiting`. Such a key is asked
+  about on every verify, so revoking the flag, disabling or removing the person stops it on the
+  next request; it opens no sandbox and pairs no terminal. **Changed with it:** the operator
+  flag is the PERSON's — a key of theirs in any org of theirs opens `/v1/ops/*`, not only the
+  key of the org whose row carries the flag.
 - **A member can be removed for good.** `DELETE /v1/members/{id}` (`team`) answers `204`: every
   key of theirs is revoked first, then the row goes with its open invitation and reset links, and
   the seat is free. `409` in a sentence for removing yourself and for the org's last active
