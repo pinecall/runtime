@@ -1,4 +1,4 @@
-"""`pinecall-runtime orgs`: the tenants of this runtime — list, add, rm, quota, provider-key."""
+"""`pinecall-runtime orgs`: the tenants — list, add, rm, quota, provider-key, sso."""
 
 from __future__ import annotations
 
@@ -10,13 +10,16 @@ from typing import Any, TextIO
 
 from pinecall.cli.columns import as_columns
 from pinecall.cli.operator import Operator, against_the_gateway
+from pinecall.cli.orgs.sso import BREAK_GLASS, OPS_ORGS, sso
 from pinecall.providers.catalog import vendors_with_a_key
 from pinecall.types import QUOTAS, ROLES
 
 # The one limit set with the quotas that is not one of them: nothing is refused over it.
 BUDGET = "budget_eur"
 
-PURPOSE: str = "the tenants: list | add | invite | operator | move | rm | quota | provider-key"
+PURPOSE: str = (
+    "the tenants: list | add | invite | operator | move | rm | quota | provider-key | sso"
+)
 VERBS: tuple[str, ...] = (
     "list",
     "add",
@@ -26,10 +29,8 @@ VERBS: tuple[str, ...] = (
     "rm",
     "quota",
     "provider-key",
+    "sso",
 )
-
-# The door every verb here knocks at, on PINECALL_OPS_KEY.
-OPS_ORGS = "/v1/ops/orgs"
 
 # What a quota reads as when nobody set it. The column is still a column.
 NO_LIMIT = "—"
@@ -104,6 +105,11 @@ def configure(parser: argparse.ArgumentParser) -> None:
     limiting.set_defaults(run=run_quota)
 
     _configure_provider_keys(verbs.add_parser("provider-key", help="an org's own vendor keys"))
+
+    signing_in = verbs.add_parser("sso", help="which identity provider an org signs in with")
+    signing_in.add_argument("org", metavar="<org>", help="by id or slug")
+    signing_in.add_argument("--off", action="store_true", help=BREAK_GLASS)
+    signing_in.set_defaults(run=run_sso)
 
     parser.set_defaults(run=partial(_print_the_verbs, parser))
 
@@ -181,6 +187,11 @@ def run_quota(arguments: argparse.Namespace) -> int:
 
 def run_move(arguments: argparse.Namespace) -> int:
     return against_the_gateway(partial(move_agent, arguments.agent, arguments.org))
+
+
+def run_sso(arguments: argparse.Namespace) -> int:
+    """Which provider the org signs in with, and — with --off — a password again beside it."""
+    return against_the_gateway(partial(sso, arguments.org, arguments.off))
 
 
 def run_provider_key_set(arguments: argparse.Namespace) -> int:

@@ -6,9 +6,12 @@ from uuid import uuid4
 import pytest
 
 from pinecall.log.store import Pool, open_pool
+from pinecall.orgs.sso import PostgresSso
 from pinecall.orgs.table import PostgresOrgs
+from pinecall.orgs.vault import a_cipher
 from pinecall.orgs.widgets import PostgresWidgets, Widget
-from pinecall.types import QUOTAS, Quotas
+from pinecall.types import QUOTAS, OrgSso, Quotas
+from tests.api.conftest import A_VAULT_KEY
 from tests.postgres import Dev
 
 pytestmark = pytest.mark.postgres
@@ -107,3 +110,34 @@ async def test_a_widget_round_trips_per_world(pool: Pool, org: str) -> None:
     await widgets.put(org, "production", "clinica", kept)
     assert await widgets.of(org, "production", "clinica") == kept
     assert await widgets.of(org, "sandbox", "clinica") == Widget()
+
+
+# The box's own Fernet is the suite's one word for it (tests/api/conftest.py), as the carriers'
+# own fixtures already borrow it: a key generated per run would seal a row no assertion can name.
+A_SECRET = "a-client-secret-nobody-will-ever-deploy"
+
+
+async def test_an_orgs_provider_round_trips_and_the_secret_is_not_in_the_row(
+    pool: Pool, org: str
+) -> None:
+    """One row per org, replaced whole, and the client secret a Fernet token in the column."""
+    sso = PostgresSso(pool, a_cipher(A_VAULT_KEY))
+    assert await sso.of(org) is None
+    wired = OrgSso(
+        org=org,
+        issuer="https://idp.test",
+        client_id="the-gateway-at-the-idp",
+        client_secret=A_SECRET,
+        domains=("tiendasur.uy", "clinica.test"),
+        role="developer",
+    )
+    await sso.put(wired)
+    await sso.put(wired)
+    assert await sso.of(org) == wired
+    kept = await pool.fetchrow("SELECT ciphertext FROM org_sso WHERE org = $1", org)
+    assert kept is not None and A_SECRET not in str(kept["ciphertext"])
+    # The one read that spans orgs: what a sign-in page's discovery asks.
+    assert [one.org for one in await sso.with_domain("tiendasur.uy")] == [org]
+    assert await sso.with_domain("elsewhere.test") == ()
+    assert await sso.drop(org) is True
+    assert await sso.drop(org) is False

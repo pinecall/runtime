@@ -7,9 +7,12 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 
 from pinecall.api._deps import KeyDep, KeysDep, LoginCodesDep, MembersDep, OrgsDep, ThrottleDep
+from pinecall.api.sso import SsoDep
 from pinecall.auth import passwords
 from pinecall.auth.keys import KeyRecord
-from pinecall.auth.members import Kept
+from pinecall.auth.members import Kept, Members
+from pinecall.orgs.sso import Sso
+from pinecall.orgs.table import Orgs
 from pinecall.types import PRODUCTION, DeclarationRefused, Env, Member, an_env, for_a_person
 from pinecall_protocol import WireModel
 
@@ -35,6 +38,15 @@ DISABLED = "{email} is disabled in {org}"
 
 # The throttle's own sentence. It counts every try, right or wrong: see auth/throttle.py.
 TOO_MANY = "too many attempts for {email}: try again in a minute"
+
+# The org wired an identity provider and said a password opens it no longer. It is said ONLY
+# once the password has matched and the row has been found — a wrong password is the one 401 it
+# always was, so this sentence tells a stranger nothing about who is a member of what. Somebody
+# who holds the right password already holds the right password; what they learn here is where
+# to go instead, which is the whole point of saying it.
+WITH_THE_PROVIDER = (
+    "{org} signs in with its identity provider: open /v1/login/sso?org={org} instead of a password"
+)
 
 # A code is spent on first use and dies in five minutes: the same answer for every way it is gone.
 NO_CODE = "no code answers to that: it was used, it expired, or it never existed"
@@ -101,6 +113,7 @@ async def login(
     keys: KeysDep,
     codes: LoginCodesDep,
     throttle: ThrottleDep,
+    sso: SsoDep,
 ) -> dict[str, Any]:
     """A key for this person and this device, or a refusal that says the least it can."""
     if said.code is not None:
@@ -109,7 +122,7 @@ async def login(
         return await _with_a_code(said, keys, codes)
     if said.email is None or said.password is None:
         raise HTTPException(400, ONE_OR_THE_OTHER)
-    return await _with_a_password(said, the_client(request), orgs, members, keys, throttle)
+    return await _with_a_password(said, the_client(request), orgs, members, keys, throttle, sso)
 
 
 # A person is their email on this box, and may belong to several orgs: this lists them for the
@@ -247,6 +260,7 @@ async def _with_a_password(
     members: MembersDep,
     keys: KeysDep,
     throttle: ThrottleDep,
+    sso: Sso | None,
 ) -> dict[str, Any]:
     """The member this email and password name, in the org named or in the oldest of theirs, and
     a key minted for them."""
@@ -263,10 +277,16 @@ async def _with_a_password(
     known = await members.a_persons_password(said.email)
     if known is None or not passwords.matches(said.password, known):
         raise HTTPException(401, nobody)
-    kept = await _the_row_for(said, orgs, members)
+    kept = await _the_row_for(said, orgs, members, sso)
     if kept is None:
         raise HTTPException(401, nobody)
     member = kept.member
+    # Said after the password matched, and about the org the row is in: a person with two orgs
+    # lands in the one a password still opens (below), and only somebody whose every org signs in
+    # with a provider is sent to one.
+    if await _only_with_the_provider(sso, member.org):
+        org = await orgs.find(member.org)
+        raise HTTPException(401, WITH_THE_PROVIDER.format(org=org.slug if org else member.org))
     if member.status == "disabled":
         raise HTTPException(403, DISABLED.format(email=member.email, org=member.org))
     if member.status == "invited":
@@ -285,17 +305,34 @@ async def _with_a_password(
     return issued.as_json
 
 
-async def _the_row_for(said: Login, orgs: OrgsDep, members: MembersDep) -> Kept | None:
+async def _the_row_for(said: Login, orgs: Orgs, members: Members, sso: Sso | None) -> Kept | None:
     """The person's row in the org named; with none named, their oldest row that is not disabled."""
     assert said.email is not None
     if said.org is not None:
         org = await orgs.find(said.org)
         return None if org is None else await members.by_email(org.id, said.email)
     rows = await members.orgs_of(said.email)
+    # An org that signs in with its provider is passed over here rather than refused: a person of
+    # two orgs, one of them on SSO, types no org and lands in the one their password opens. When
+    # every org of theirs is on a provider the loop finds none and the fallback below says so.
+    for row in rows:
+        if row.status != "disabled" and not await _only_with_the_provider(sso, row.org):
+            return await members.by_email(row.org, said.email)
     for row in rows:
         if row.status != "disabled":
             return await members.by_email(row.org, said.email)
     return None if not rows else await members.by_email(rows[0].org, said.email)
+
+
+# None is a box with no vault key: it can read no client secret, so no org signs in with a
+# provider there and every one of them is opened by a password. That is also the way back for a
+# box whose vault key was lost, and it is deliberate — see orgs/sso.py.
+async def _only_with_the_provider(sso: Sso | None, org: str) -> bool:
+    """Whether this org has said a password opens it no longer."""
+    if sso is None:
+        return False
+    wired = await sso.of(org)
+    return wired is not None and wired.required
 
 
 async def _with_a_code(said: Login, keys: KeysDep, codes: LoginCodesDep) -> dict[str, Any]:
