@@ -13,7 +13,7 @@ from pinecall.auth.bearer import POLICY_VIOLATION
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.worker.client import CONTEXT
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS, CHAT
-from tests.api.talking import a_caller, a_door, a_frame, a_register, an_app
+from tests.api.talking import a_caller, a_door, a_frame, a_register, an_app, entry_until
 from tests.api.test_worker_doors import CALL, a_context
 
 pytestmark = pytest.mark.unit
@@ -255,3 +255,17 @@ def posted(client: TestClient, path: str, said: Any) -> tuple[int, dict[str, Any
     status: int = answer.status_code
     body: dict[str, Any] = {} if status == 204 else answer.json()
     return status, body
+
+
+def test_a_dial_over_the_app_socket_is_sent_to_the_door_that_places_calls(
+    gateway: TestClient,
+) -> None:
+    """call.dial is agent-scoped, so it lands on this socket; placing a call is not this socket's.
+    Before the door existed it was refused as `no_session`, which named the wrong problem."""
+    with an_app(gateway) as app_socket:
+        app_socket.send_json(a_register(AGENT))
+        app_socket.receive_json()
+        app_socket.send_json(a_frame("call.dial", AGENT, {"to": "+34600123456"}))
+        refused = entry_until(app_socket, "error")
+        assert refused["data"]["code"] == "no_handler"
+        assert "POST /v1/agents/{slug}/dial" in refused["data"]["message"]

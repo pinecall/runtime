@@ -15,7 +15,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   label and a credential list minted once on the tenant's account, or the SIP peer the tenant
   declared with the new optional `outbound_host`, `outbound_transport`, `outbound_username` and
   `outbound_password` on `PUT /v1/carrier` — and then one LiveKit outbound trunk per org.
-  Migrations 0033–0035.
+  Migrations 0033–0035. The protocol's `call.dial` command stays unanswered on the app socket and
+  now says so by name rather than as `no_session`: placing a call is `talk`'s door, not `app`'s.
 - **What an org may dial, and only an operator sets it.** `PUT /v1/ops/orgs/{org}/dialling`
   (`pinecall-runtime orgs dialling`) replaces the whole set — `dial_anywhere` off, six dials a
   minute, two hundred a day, ten minutes a call, and a country fence that defaults to the calling
