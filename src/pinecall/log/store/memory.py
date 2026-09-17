@@ -8,6 +8,10 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
 from pinecall.log.entry import Entry
+from pinecall.log.facts import CallFacts, change_of
+from pinecall.log.store import memory_index
+from pinecall.log.store.index import Day, Found, Threads, Wanted
+from pinecall.log.store.memory_index import Indexed
 from pinecall.log.store.protocol import DEFAULT_LIMIT, LogSealed, Metered
 from pinecall.types.json import JsonObject
 
@@ -23,6 +27,8 @@ class MemoryStore:
         self._calls_of: dict[str, list[str]] = {}
         # Every durable entry in the order it was written, whatever its log: what across() pages.
         self._journal: list[tuple[_Log, Entry]] = []
+        # Who has read which inbox thread up to when: (org, env, holder, agent, reader, contact).
+        self._read: dict[tuple[str, str, str, str, str, str], float] = {}
         # The seq and the write must happen with no await between them: that gap is the seq race,
         # two appends reading one counter. One lock makes the guarantee structural, not a habit.
         self._lock = asyncio.Lock()
@@ -40,19 +46,45 @@ class MemoryStore:
             log = self._log_of(call, agent)
             if log.sealed:
                 raise LogSealed(f"call {call} has ended: {type} cannot be appended")
-            entry = Entry(
-                seq=len(log.entries) + 1,
-                ts=self._clock(),
-                call=call,
-                agent=agent,
-                type=type,
-                ephemeral=ephemeral,
-                data=data,
-            )
-            log.entries.append(entry)
-            if not ephemeral:
-                self._journal.append((log, entry))
+            return self._written(log, call, agent, type, data, ephemeral)
+
+    async def rescored(self, call: str, agent: str, data: JsonObject) -> Entry:
+        """A verdict onto a call whose log already sealed: the one entry a sealed log takes."""
+        async with self._lock:
+            return self._written(self._log_of(call, agent), call, agent, RESCORED, data, False)
+
+    def _written(
+        self,
+        log: _Log,
+        call: str | None,
+        agent: str,
+        type: str,
+        data: JsonObject,
+        ephemeral: bool,
+    ) -> Entry:
+        """One entry onto one log, journalled, and folded into its call's facts."""
+        entry = Entry(
+            seq=len(log.entries) + 1,
+            ts=self._clock(),
+            call=call,
+            agent=agent,
+            type=type,
+            ephemeral=ephemeral,
+            data=data,
+        )
+        log.entries.append(entry)
+        if not ephemeral:
+            self._journal.append((log, entry))
+        if call is None:
             return entry
+        # The head row's started_at is the first append's clock, and so is this; the facts are
+        # what every entry since said, folded by the one rule the postgres upsert also follows.
+        if log.started_at is None:
+            log.started_at = entry.ts
+        facts = log.facts or CallFacts(call=call, agent=agent)
+        change = change_of(entry)
+        log.facts = facts if change is None else facts.changed(change)
+        return entry
 
     async def since(self, call: str, after: int = 0, limit: int = DEFAULT_LIMIT) -> list[Entry]:
         """Entries above the cursor. Seq is position plus one here, so the cursor is a slice."""
@@ -144,6 +176,78 @@ class MemoryStore:
             if entry.type in wanted
         ][:limit]
 
+    # ── the call index (log/store/index.py), answered by memory_index.py over these logs ──────
+
+    async def facts_of(self, calls: Sequence[str]) -> dict[str, CallFacts]:
+        """The facts of each call that has any."""
+        kept = {call: self._calls[call].facts for call in calls if call in self._calls}
+        return {call: facts for call, facts in kept.items() if facts is not None}
+
+    async def found(self, org: str, env: str, holder: str, wanted: Wanted, limit: int) -> Found:
+        """The corner's calls that match, a page of them, newest first."""
+        return memory_index.found(self._indexed(org, env, holder), wanted, limit)
+
+    async def a_day(self, org: str, env: str, holder: str, start: float) -> Day:
+        """The corner's day, counted."""
+        return memory_index.a_day(self._indexed(org, env, holder), start)
+
+    async def spent_since(self, org: str, since: float) -> float:
+        """What the org's calls since then cost, every world and corner."""
+        return sum(
+            one.facts.cost_eur or 0.0
+            for one in self._indexed(org)
+            if one.started_at is not None and one.started_at >= since
+        )
+
+    async def threads(
+        self,
+        org: str,
+        env: str,
+        holder: str,
+        agent: str,
+        reader: str,
+        after: str | None,
+        limit: int,
+    ) -> Threads:
+        """The agent's inbox, as this reader has read it."""
+        mine = [one for one in self._indexed(org, env, holder) if one.facts.agent == agent]
+        read = {
+            contact: at
+            for (o, e, h, a, r, contact), at in self._read.items()
+            if (o, e, h, a, r) == (org, env, holder, agent, reader)
+        }
+        return memory_index.threads(mine, read, after, limit)
+
+    async def calls_with(
+        self, org: str, env: str, holder: str, agent: str, contact: str, limit: int
+    ) -> list[str]:
+        """This contact's newest calls with the agent."""
+        mine = [
+            one
+            for one in self._indexed(org, env, holder)
+            if one.facts.agent == agent and one.facts.contact == contact
+        ]
+        mine.sort(key=lambda one: (one.at, one.facts.call), reverse=True)
+        return [one.facts.call for one in mine[:limit]]
+
+    async def read(
+        self, org: str, env: str, holder: str, agent: str, reader: str, contact: str, at: float
+    ) -> None:
+        """The reader's cursor on this thread, moved forward and never back."""
+        where = (org, env, holder, agent, reader, contact)
+        self._read[where] = max(at, self._read.get(where, 0.0))
+
+    def _indexed(
+        self, org: str, env: str | None = None, holder: str | None = None
+    ) -> list[Indexed]:
+        """Every call of the org with facts, in that world and corner when they are named."""
+        rows = [
+            Indexed(log.org, log.env, log.holder, log.started_at, not log.sealed, log.facts)
+            for log in self._calls.values()
+            if log.facts is not None
+        ]
+        return [one for one in rows if one.of(org, env, holder)]
+
     def _log_of(self, call: str | None, agent: str) -> _Log:
         """The agent's own log when there is no call; otherwise the call's, filed by agent."""
         if call is None:
@@ -164,6 +268,13 @@ class _Log:
     # A call's corner, as the head row keeps it: None until a claim said which world.
     env: str | None = None
     holder: str | None = None
+    # When the call's first entry landed, as the head row's started_at, and what its entries said.
+    started_at: float | None = None
+    facts: CallFacts | None = None
+
+
+# The one entry a sealed log takes: a verdict reached after the call was over (api/evals/judge.py).
+RESCORED = "call.score"
 
 
 def _page(log: _Log | None, after: int, limit: int) -> list[Entry]:
