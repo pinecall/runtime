@@ -91,3 +91,20 @@ async def test_a_reset_link_sets_an_active_members_password_and_never_revives_a_
     assert await members.accept(third.token, "again") is None
     found = await members.find(org, invited.member.id)
     assert found is not None and found.status == "disabled"
+
+
+async def test_removing_deletes_the_row_and_cascades_to_its_links_within_the_org(
+    pool: Pool, org: str
+) -> None:
+    members = PostgresMembers(pool)
+    invited = await members.invite(org, f"ana-{uuid4().hex[:8]}@clinica.uy", "Ana", "qa", [])
+    assert invited is not None and invited.token is not None
+    assert await members.remove("org_nobody", invited.member.id) is False
+    assert await members.remove(org, invited.member.id) is True
+    assert await members.remove(org, invited.member.id) is False, "gone is gone"
+    assert await members.listed(org) == () and await members.seated(org) == 0
+    assert await members.accept(invited.token, A_HASH) is None, "the link went with the row"
+    left = await pool.fetchrow(
+        "SELECT count(*) AS links FROM invitations WHERE member = $1", invited.member.id
+    )
+    assert left is not None and int(left["links"]) == 0

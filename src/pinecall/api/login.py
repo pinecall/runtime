@@ -11,9 +11,10 @@ from pinecall.api.sso import SsoDep
 from pinecall.auth import passwords
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Kept, Members
+from pinecall.auth.visiting import visiting
 from pinecall.orgs.sso import Sso
 from pinecall.orgs.table import Orgs
-from pinecall.types import PRODUCTION, DeclarationRefused, Env, Member, an_env, for_a_person
+from pinecall.types import PRODUCTION, DeclarationRefused, Env, an_env, for_a_person
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -24,12 +25,6 @@ NOBODY = "no member of {org} answers to that email and password"
 # The same sentence when no org was named: a person is their email on this box, and a login
 # with no org lands in the oldest org they belong to.
 NOBODY_ANYWHERE = "nobody answers to that email and password"
-
-# A machine key names no person, so it belongs to one org and has no other to switch to.
-ONE_ORG_EACH = "an org's own key names nobody: it opens one org"
-
-# The person is not a member of the org they asked to switch to. Said only to a person.
-NOT_THERE = "you are not an active member of {org}"
 
 # The two standings that are not `active`, each with what to do about it. Said only once the
 # password matched: a stranger who guessed an email learns nothing about it.
@@ -69,17 +64,19 @@ ONE_WORLD_EACH = "an org's own key opens one world: issue another with `keys iss
 # not open a second one.
 NOT_A_MEMBER = "the person this key was minted for is no longer an active member of this org"
 
+# An operator inside an org they are no member of (auth/visiting.py) looks at what that org's
+# customers reach, from the console. The sandbox is a PERSON's corner of an org, and they are
+# nobody's colleague there: there is no corner of theirs to open, and no terminal to sign in.
+VISITS_PRODUCTION = (
+    "an operator visits an org in production, from the console: the sandbox and a terminal are "
+    "a member's — switch back to an org you belong to"
+)
+
 
 class OtherWorld(WireModel):
     """Which world the person wants a key for now."""
 
     env: str
-
-
-class OtherOrg(WireModel):
-    """Which of the person's orgs they want a key for now."""
-
-    org: str
 
 
 class Credentials(WireModel):
@@ -123,62 +120,6 @@ async def login(
     if said.email is None or said.password is None:
         raise HTTPException(400, ONE_OR_THE_OTHER)
     return await _with_a_password(said, the_client(request), orgs, members, keys, throttle, sso)
-
-
-# A person is their email on this box, and may belong to several orgs: this lists them for the
-# console's org switch, and the door below mints the same person's key in the one they pick.
-@router.get("/v1/login/orgs")
-async def the_persons_orgs(key: KeyDep, orgs: OrgsDep, members: MembersDep) -> dict[str, Any]:
-    """Every org this key's person belongs to, oldest first, and which one this key opens."""
-    person = await _the_person(key, members)
-    listed: list[dict[str, Any]] = []
-    for row in await members.orgs_of(person.email):
-        if row.status == "disabled":
-            continue
-        org = await orgs.find(row.org)
-        listed.append(
-            {
-                "org": row.org,
-                "slug": None if org is None else org.slug,
-                "name": None if org is None else org.name,
-                "role": row.role,
-                "status": row.status,
-                "here": row.org == key.org,
-            }
-        )
-    return {"orgs": listed}
-
-
-@router.post("/v1/login/org")
-async def the_other_org(
-    said: OtherOrg, key: KeyDep, orgs: OrgsDep, members: MembersDep, keys: KeysDep
-) -> dict[str, Any]:
-    """A key for the same person, in the org named, in this key's world, with what their role
-    opens there. 403 when the org is not one of theirs."""
-    person = await _the_person(key, members)
-    org = await orgs.find(said.org)
-    there = None if org is None else await members.by_email(org.id, person.email)
-    if org is None or there is None or there.member.status != "active":
-        raise HTTPException(403, NOT_THERE.format(org=said.org))
-    issued = await keys.issue(
-        org=org.id,
-        label=key.label,
-        env=key.env,
-        scopes=for_a_person(there.member.scopes, key.env),
-        subject=there.member.id,
-        name=there.member.name,
-    )
-    return issued.as_json
-
-
-async def _the_person(key: KeyRecord, members: MembersDep) -> Member:
-    """The active member this key was minted for; 403 for a machine key or a member gone."""
-    if key.subject is None:
-        raise HTTPException(403, ONE_ORG_EACH)
-    member = await members.find(key.org, key.subject)
-    if member is None or member.status != "active":
-        raise HTTPException(403, NOT_A_MEMBER)
-    return member
 
 
 # Before a person picks an org at the console's sign-in: which orgs this email and password open,
@@ -239,6 +180,8 @@ async def for_the_same_person(
     """A key for the person this one names, in the world named, with what their role opens there."""
     if key.subject is None:
         raise HTTPException(403, ONE_WORLD_EACH)
+    if visiting(key.subject) is not None:
+        raise HTTPException(403, VISITS_PRODUCTION)
     member = await members.find(key.org, key.subject)
     if member is None or member.status != "active":
         raise HTTPException(403, NOT_A_MEMBER)

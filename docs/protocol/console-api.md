@@ -224,7 +224,20 @@ what `greeting` and `autostart` do.
 
 ## 8. Signing in, and a forgotten password
 
+**The sign-in page**: `GET /.well-known/pinecall` now carries `brand` (draw the operator's name,
+logo and accent) and `google` (draw "Continue with Google", a link to `GET /v1/login/google`,
+`?pairing=` on the `/cli` card); the callback lands on `/?login=lc_…` as SSO does, or on
+`/?refused=<sentence>` — show that sentence on the page ([people.md](people.md)).
+
+**The org switch for an operator**: `GET /v1/login/orgs` rows carry `member`, and an operator's
+list is every org of the box — draw the `member: false` ones apart, they are entered as the
+operator; `GET /v1/whoami` gains `operator` and `visiting`, and a page inside a visited org should
+say so, because `visiting: true` means no sandbox, no terminal pairing and an org that is not
+theirs ([people.md](people.md)).
+
 `POST /v1/login/orgs {email, password}` — which orgs a person may sign in to, before any key is
-minted — `POST /v1/members/{id}/reset` (`team`) — the one-use link an admin hands back for a
+minted — `DELETE /v1/members/{id}` (`team`), a person removed for good: `204`, or `409` with
+the sentence to show for yourself and for the org's last active admin — `POST
+/v1/members/{id}/reset` (`team`) — the one-use link an admin hands back for a
 forgotten password, mailed where the box or the org can send — and `POST /v1/login/reset`, where a
 person asks for their own, are people's doors, and [people.md](people.md) is their page.

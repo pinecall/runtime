@@ -9,6 +9,9 @@ from pinecall._settings import load_settings
 from pinecall.cli import main
 from pinecall.cli.doctor import verbs as doctor
 from pinecall.cli.doctor.probes import Probes
+from pinecall.mail import BoxMail
+from pinecall.orgs.mail import KeptMail
+from pinecall.types import Mailbox
 from tests.cli.doctor.reading import a_box_that_posts_mail, named, probes_that_answer
 
 pytestmark = pytest.mark.unit
@@ -232,7 +235,19 @@ def test_the_mail_line_names_where_a_letter_goes_and_never_the_password(
     monkeypatch.setenv("PINECALL_MAIL_FROM", "Pinecall <no-reply@box.test>")
     line = named("mail", doctor.run_checks(load_settings(), probes_that_answer()))
     assert line.ok and "relay.test:587" in line.detail and "starttls" in line.detail
-    assert "s3cret" not in line.detail
+    assert "from the environment" in line.detail and "s3cret" not in line.detail
+
+
+def test_the_mail_line_says_when_the_mailbox_is_the_one_the_operator_stored() -> None:
+    """The same line, off the table: an operator who set one from /admin reads that it took."""
+    stored = BoxMail(
+        KeptMail(Mailbox("relay.acme.test", 465, "tls", "acme", "s3cret", "no-reply@acme.test")),
+        "stored",
+    )
+    probes = probes_that_answer(the_boxs_mail=lambda _settings: stored)
+    line = named("mail", doctor.run_checks(load_settings(), probes))
+    assert line.ok and "relay.acme.test:465" in line.detail
+    assert "stored by the operator" in line.detail and "s3cret" not in line.detail
 
 
 def test_the_doctor_exits_one_naming_the_first_thing_down(

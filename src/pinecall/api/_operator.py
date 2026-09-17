@@ -9,8 +9,9 @@ from starlette.requests import HTTPConnection
 
 from pinecall.api._deps import KeysDep, MembersDep, SettingsDep
 from pinecall.auth.bearer import bearer_of
-from pinecall.auth.keys import Keys
+from pinecall.auth.keys import KeyRecord, Keys
 from pinecall.auth.members import Members
+from pinecall.auth.visiting import the_operator, visiting
 
 # Two things open /v1/ops, and neither is an org's admin. The BOX's key — `PINECALL_OPS_KEY`, out
 # of the environment, belonging to no org, carrying no name — and a PERSON somebody holding that
@@ -38,13 +39,26 @@ async def an_operator(
     raise HTTPException(401, NOT_THE_OPERATORS, {"WWW-Authenticate": "Bearer"})
 
 
-# The key is verified exactly as every tenant door verifies one, then the MEMBER it was minted for
-# is read: the flag is on the row and never on the key, so taking it back is one write and does not
-# wait for a key to expire. A machine key names nobody and is nobody, whatever it may open.
+# The key is verified exactly as every tenant door verifies one, then the PERSON it names is
+# read: the flag is on a row and never on the key, so taking it back is one write and does not
+# wait for a key to expire. A person is their email on this box (auth/members.py), so the key may
+# be the one they hold in any org of theirs — or a visitor's, inside an org that is not
+# (auth/visiting.py) — and the question is the same: does an active row of that address carry
+# the flag today. A machine key names nobody and is nobody, whatever it may open.
 async def _a_person_who_runs_the_box(bearer: str, keys: Keys, members: Members) -> bool:
     """Whether this key is a person's, and that person was made an operator of this box."""
     record = await keys.verify(bearer)
-    if record is None or record.subject is None:
+    return record is not None and await runs_the_box(record, members)
+
+
+async def runs_the_box(record: KeyRecord, members: Members) -> bool:
+    """Whether the person this key names — a member here, or a visitor — runs the box today."""
+    if record.subject is None:
         return False
-    member = await members.find(record.org, record.subject)
-    return member is not None and member.operator and member.status == "active"
+    email = visiting(record.subject)
+    if email is None:
+        member = await members.find(record.org, record.subject)
+        if member is None or member.status != "active":
+            return False
+        email = member.email
+    return await the_operator(members, email) is not None

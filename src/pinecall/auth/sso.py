@@ -38,6 +38,9 @@ class Handshake:
     # so the browser lands back on that card and approves the terminal as it always did.
     pairing: str | None
     expires_at: float
+    # Which BOX-WIDE provider this sign-in went out to (orgs/signin.py), when it is not an org's
+    # own: `org` is then nobody's, and only that provider's callback may spend the state.
+    provider: str | None = None
 
 
 # This process's memory, exactly as the login codes and the pairings are: a sign-in is one person
@@ -51,7 +54,13 @@ class Handshakes:
         self._clock = clock
         self._open: dict[str, Handshake] = {}
 
-    def open(self, org: str, redirect_uri: str, pairing: str | None = None) -> Handshake:
+    def open(
+        self,
+        org: str,
+        redirect_uri: str,
+        pairing: str | None = None,
+        provider: str | None = None,
+    ) -> Handshake:
         """A state, a nonce and a verifier for one sign-in, good for ten minutes."""
         self._forget_the_dead()
         handshake = Handshake(
@@ -62,6 +71,7 @@ class Handshakes:
             redirect_uri=redirect_uri,
             pairing=pairing,
             expires_at=self._clock() + STATE_TTL_S,
+            provider=provider,
         )
         self._open[handshake.state] = handshake
         return handshake

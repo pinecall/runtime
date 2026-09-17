@@ -16,6 +16,7 @@ from pinecall.auth.keys import (
     keys_for,
     mint,
 )
+from pinecall.auth.visiting import StandingKeys
 from pinecall.log.store.postgres import MIGRATIONS
 from pinecall.types import ENVS, KEY_SCOPES, PRODUCTION, SANDBOX
 
@@ -202,6 +203,12 @@ async def test_a_key_no_row_answers_to_is_none_and_not_an_error() -> None:
 # with behaviour a box never had. There is one now, and it reads the table a person writes.
 def test_a_gateway_with_no_database_has_nowhere_to_verify_a_key_and_says_so() -> None:
     assert keys_for(Settings(), pool=None) is None
+
+
+# With one, what the gateway holds is the table behind the one check no door makes for itself:
+# a visitor's key is asked, each time it knocks, whether its person still runs the box.
+def test_a_gateway_with_a_database_asks_about_a_visitors_standing_on_every_verify() -> None:
+    assert isinstance(keys_for(Settings(), _APoolOfOneRow(None)), StandingKeys)
 
 
 def _a_row(

@@ -5,10 +5,11 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Request
 
 from pinecall._version import __version__
-from pinecall.api._deps import KeyDep, KeysDep, OrgsDep, SettingsDep
-from pinecall.api._operator import an_operator
+from pinecall.api._deps import KeyDep, KeysDep, MembersDep, OrgsDep, SettingsDep
+from pinecall.api._operator import an_operator, runs_the_box
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.keys import KeyRecord
+from pinecall.auth.visiting import visiting
 from pinecall.types import Env
 from pinecall_protocol import WireModel
 
@@ -36,12 +37,19 @@ class Whose(WireModel):
     # The person the key was minted for, when it is a person's; an org's own key names nobody.
     subject: str | None = None
     name: str | None = None
+    # Whether this person runs the BOX: their key opens /v1/ops as well, and the console's org
+    # switch lists every org there is. False for a machine's key, which is nobody.
+    operator: bool = False
+    # True when they are inside an org they are no member of, as the operator (auth/visiting.py):
+    # `subject` is then `operator:<their address>` and `name` still says who. A console reads it
+    # to say so on the page, because what they do here is done in somebody else's org.
+    visiting: bool = False
 
 
 # The door `pinecall login` proves a key at and `pinecall whoami` asks every day: it takes the key
 # every other tenant door takes, and answers the words a person can check against their own.
 @router.get("/v1/whoami")
-async def whoami(key: KeyDep, orgs: OrgsDep) -> Whose:
+async def whoami(key: KeyDep, orgs: OrgsDep, members: MembersDep) -> Whose:
     """Whose key opened this door, where it opens, and what it may do."""
     org = await orgs.find(key.org)
     return Whose(
@@ -53,6 +61,8 @@ async def whoami(key: KeyDep, orgs: OrgsDep) -> Whose:
         scopes=sorted(key.scopes),
         subject=key.subject,
         name=key.name,
+        operator=await runs_the_box(key, members),
+        visiting=visiting(key.subject) is not None,
     )
 
 
