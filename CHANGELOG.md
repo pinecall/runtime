@@ -7,6 +7,16 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **Single sign-on, one OpenID Connect provider per org** (migration 0031). An admin wires it at
+  `GET`/`PUT`/`DELETE /v1/org/sso` (`team`): the issuer, the client, the email domains it admits,
+  the role an address nobody invited is seated with — none by default — and whether a password
+  opens the org at all. The client secret is sealed under `PINECALL_VAULT_KEY` as a provider key
+  is, and no door reads one back. A person signs in at `GET /v1/login/sso?org=…` (authorization
+  code, PKCE, state and nonce, one use and ten minutes) and lands on `/?login=<code>`, the login
+  code the console already spends, so no key is ever in a URL; `POST /v1/login/sso/discover`
+  tells a sign-in page which orgs a domain signs in with, saying nothing about who exists. The
+  terminal pairing is untouched. The break-glass is the box's: `pinecall-runtime orgs sso <org>
+  --off`, over `PUT /v1/ops/orgs/{org}/sso/required`.
 - **The widget's settings, kept by the gateway.** `GET`/`PUT /v1/agents/{slug}/widget` reads and
   replaces `{title, tagline, greeting, accent, autostart}` per org, world and agent (migration
   0029): what a console sets and writes into the snippet it copies. Read with `talk`, set with

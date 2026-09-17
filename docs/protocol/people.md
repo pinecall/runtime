@@ -126,3 +126,92 @@ never travels through the browser.
 **The password is typed into a page and never into a shell.** That is the point, and it is also why
 the day an org signs in with Google or SAML none of this changes: the terminal's half of the dance
 knows nothing about how the person proved who they are.
+
+## Signing in at the org's own identity provider
+
+An org whose people already exist in Google Workspace, Okta or Entra does not want a second
+password on this box. It wires **one OpenID Connect provider of its own** and its people sign in
+there; nothing else about a member changes — the row, the role, the seat, the key and every door
+are the ones above. The terminal's dance does not change either: the person signs in to the
+console with their provider and then approves the terminal exactly as they always did.
+
+**What an admin wires**, on a key with `team` — the scope that already invites a person and
+changes their role, because this is saying who the org's people are:
+
+`GET /v1/org/sso` answers `{configured, issuer, client_id, domains, role, required,
+redirect_uri}` — one shape either way, an org that wired nothing answering the empty value of
+each rather than leaving them out, so a page parses one envelope. **`redirect_uri` is what an
+operator registers at the provider** — `https://<gateway>/v1/login/sso/callback` — and it is in
+the answer rather than in a page, because a page would drift the day the box was reached by
+another name. `PUT /v1/org/sso {issuer, client_id, client_secret, domains, role?, required?}`
+replaces the whole configuration and answers the same shape; the issuer is fetched
+(`/.well-known/openid-configuration`) before anything is kept, so a typo is `400` with nothing
+written. `DELETE /v1/org/sso` is `204`, and `404` for an org that wired nothing — a typo must
+never read as done. **The client secret goes in and never comes out**: it is a Fernet token under
+the box's `PINECALL_VAULT_KEY`, exactly as a provider key is, and no door of this runtime answers
+with one. A runtime given no vault key keeps none and answers these doors `503 no
+PINECALL_VAULT_KEY: this runtime cannot keep a tenant's key`.
+
+`domains` are the email domains the org signs in with, folded — an address outside them is refused
+at the callback even when the provider vouched for it, because a tenant at Entra can hold guests
+from anywhere. `role` is what an address **nobody invited** becomes: left out, nobody is
+auto-provisioned and a stranger is refused. `required` is the org saying a password opens it no
+longer.
+
+**The flow**, authorization code with PKCE, and no key at any of its three doors:
+
+`GET /v1/login/sso?org=<id or slug>[&pairing=<cli code>]` answers `302` to the provider's
+authorization endpoint with `state`, `nonce` and an S256 `code_challenge`; the state, the nonce
+and the verifier stay on the gateway, one use and ten minutes, beside the terminal pairings and
+for the same reason. `404` when the org wired nobody, `502` when the provider does not answer, and
+`429` on the sixth sign-in in a minute from one place — the rate a sign-up is held to, because
+nobody has typed an address here for the throttle to count by name.
+
+`GET /v1/login/sso/callback?code=&state=` spends the state, exchanges the code, and checks the
+id_token against the issuer's JWKS — signature, `iss`, `aud`, `exp`, and the `nonce` this sign-in
+minted. The address must be one the provider says it **verified**, and in one of the org's
+domains. Then the member: `active` signs in; `invited` is seated active by signing in (they keep
+no password — the provider is how they get in); `disabled` is `403`; an address nobody invited is
+`403` unless `role` says otherwise, and auto-provisioning takes a **seat** and is `429` in the
+quota's own sentence when the plan has none left. What the person lands on is `302` to
+`/?login=<code>` — the very one-use login code `pinecall run` prints, spent at `POST /v1/login
+{code}` for a key of the browser's own, labelled `console`, in production, with what their role
+opens there. **No key is ever in a URL.** With `pairing`, the landing is `/cli?c=<code>&login=…`
+instead: the card that signs the terminal in, reached holding a key.
+
+`POST /v1/login/sso/discover {email}` answers `{orgs: [{org, slug, name}]}` — the orgs whose
+domains match that address's and that wired a provider. It says nothing about whether anybody
+answers to the address, shares `/v1/login`'s throttle, and answers `{orgs: []}` on a box that
+keeps no provider at all.
+
+**What a password does then.** Wiring a provider is not requiring one: both ways in until the org
+sets `required`. With it, `POST /v1/login` answers `401 <org> signs in with its identity provider:
+open /v1/login/sso?org=<org> instead of a password` — and **only once the password has matched**
+and the row has been found, so a wrong password is the one `401` it always was and a stranger
+learns nothing about who is a member of what. A person who belongs to two orgs and names none
+lands in the one their password still opens; the sentence is for somebody every org of whose signs
+in with a provider.
+
+**The break-glass is the box's.** An org that lost its provider — a tenant renamed, a secret
+rotated on a Friday — has nobody inside who can turn `required` off, because the admin who would
+is the person locked out. So `GET /v1/ops/orgs/{org}/sso` reads what one org is wired to and
+`PUT /v1/ops/orgs/{org}/sso/required {required}` turns it off, on the box's own ops key
+(`pinecall-runtime orgs sso <org> --off`). Turning it back **on** is the org's own door: an
+operator who could would be an operator deciding how a tenant's people sign in. Losing the vault
+key has the same effect by itself — no secret can be read, so no org signs in with a provider and
+a password opens every one of them again.
+
+### Registering this gateway at the provider
+
+One redirect URI, `https://<gateway>/v1/login/sso/callback`, and one client per org. What each
+vendor calls its parts:
+
+| | issuer | where the client is made |
+|---|---|---|
+| Google Workspace | `https://accounts.google.com` | Cloud console → APIs & Services → Credentials → OAuth client ID, type **Web application**; the URI goes in *Authorized redirect URIs* |
+| Okta | `https://<tenant>.okta.com` (or the custom authorization server's own) | Applications → Create App Integration → OIDC → **Web Application**; *Sign-in redirect URIs* |
+| Microsoft Entra ID | `https://login.microsoftonline.com/<tenant-id>/v2.0` | App registrations → New registration → Redirect URI, platform **Web**; the secret is under *Certificates & secrets* |
+
+The client must be a **confidential** one — this gateway holds a secret and exchanges the code
+server to server — and it needs the `openid`, `email` and `profile` scopes, which is what the
+sign-in asks for. Nothing else has to be turned on: no directory read, no group claim, no SAML.
