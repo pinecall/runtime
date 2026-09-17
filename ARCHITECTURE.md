@@ -293,12 +293,10 @@ Every door ends the same way: `call.summary` (livekit's usage rows, the cost fro
 `providers/prices.py`), then the judges, then `call.score`, then the seal. `docs/decisions/tokens.md`,
 `dispatch.md`, `whatsapp.md`.
 
-**An outbound call is the one that runs backwards**, and the two ends swap with it. The gateway
-mints the call id, passes the guards, writes the head row and `call.dialing` — both numbers and the
-name of whoever asked, which is where a bill is read backwards from — and dispatches a worker;
-`from` is the org's own number and `to` is the far end, the opposite of a ring, and the far end is
-the **contact**, because it is who the call is with and what memory files it under. The leg is
-placed by the job that will answer on it (`worker/dialling.py`, before the session is built): `wait_until_answered` is the only way busy and no_answer are knowable at all, so a call nobody picked up writes `call.ended` with the protocol's own word for it and seals, with nothing said into a room the far end never entered and no bridge to unwind. The dispatch carries the trunk, the number, the one to show and the ceiling — only the gateway writes a dispatch, so the worker asks no door and invents no limit — and the channel is what the dispatch says and not what the SIP seat says, since there is no seat yet: this job is what creates it.
+**An outbound call runs backwards**: the gateway mints the call id, passes the guards, writes the
+head row and `call.dialing` (both numbers, and who asked) and dispatches a worker; `from` is the
+org's number, `to` the far end — the **contact**, what memory files the call under. The job that
+will answer places the leg (`worker/dialling.py`, before the session is built): `wait_until_answered` is the only way busy and no_answer are knowable at all, so a call nobody picked up writes `call.ended` with the protocol's own word for it and seals, with nothing said into a room the far end never entered and no bridge to unwind. The dispatch carries the trunk, the number, the one to show and the ceiling — only the gateway writes a dispatch, so the worker asks no door and invents no limit — and the channel is what the dispatch says and not what the SIP seat says, since there is no seat yet: this job is what creates it.
 
 ## 8. The log
 
@@ -316,16 +314,9 @@ and an inbox ask across calls, `call_facts` in Postgres, 0025). The `seq` is bor
 database in the same INSERT; ephemerals spend a seq and leave no row; `ts` is the runtime's
 clock. **Compact the view, never the log.** `docs/decisions/log.md`.
 
-A log is sealed by whoever ran the call: the worker at the end of a spoken one, the session
-itself at the end of a written one. A worker that is **killed** runs no shutdown callback and
-seals nothing, so the gateway keeps a **reaper** (`api/reaping.py`, started by the lifespan):
-every minute it asks the store which spoken calls are unsealed and have been quiet for five
-minutes (`store/index.py` `unsealed_spoken`), asks the SFU which of their rooms still exist
-(`routes/rooms.py` — livekit deletes an empty room after a minute), and finishes the rest from
-wherever their worker stopped: `call.ended` as `drained` by the platform, `call.summary`, and the
-`call.score` that seals it. It is idempotent, and two gateways racing seal a call once. The
-worker's own half of that failure — how long a stop may take and which processes systemd's
-SIGTERM reaches — is `worker/main.py` and `infra/box/pinecall-worker.service`.
+A log is sealed by whoever ran the call, and a worker that is **killed** seals nothing: the
+gateway's **reaper** (`api/reaping.py`; `docs/protocol/console-api.md` §2) finishes, as `drained`,
+every spoken call quiet for five minutes whose room the SFU no longer has (`routes/rooms.py`).
 
 ## 9. The tenants
 
@@ -397,15 +388,13 @@ One machine (`PINECALL_ROLE=all`), or a **hub** — gateway, SFU, SIP, Redis, Po
 cloud-init, systemd units, Quadlet containers, nftables, encrypted systemd credentials, a
 Makefile that is the manifest, on any provider. `infra/box/README.md`, `docs/decisions/box.md`.
 
-Everything the product does is here, open: orgs, keys, quotas, usage, routes, the log, the
-vault, the operator API, the sign-up as a mechanism, the box. **Nothing that charges is**: no
-plan, no price, no trial, no card. Where the two meet is `extensions/` — named points the
-runtime answers itself until a package installed beside it registers another (`points.py`,
-`loading.py`, `PINECALL_EXTENSIONS`). Today there is one point, what a new org may do, and it
-speaks `Quotas`, never a plan. This is how `sentry` and `getsentry` are cut: the open package
-holds every mechanism, the private one imports it and plugs policy in, and the door never learns
-who answered. `pinecall/cloud`, private, is that package for our box — the trial, the plans,
-Stripe fed from the meter — and it never ships to a customer, whose box names nothing in
-`PINECALL_EXTENSIONS` and runs the very same code with the runtime's own answers. What spans many
-boxes — a fleet dashboard, an admin over every tenant — is a service apart that talks to each
-runtime through the operator API.
+Everything the product does is here, open: orgs, keys, quotas, usage, routes, the log, the vault,
+the operator API, the sign-up as a mechanism, the box. **Nothing that charges is**: no plan, no
+price, no trial, no card. The two meet at `extensions/` — named points the runtime answers itself
+until a package installed beside it registers another (`points.py`, `loading.py`,
+`PINECALL_EXTENSIONS`); today one point, what a new org may do, and it speaks `Quotas`, never a
+plan. It is how `sentry` and `getsentry` are cut: the open package holds every mechanism, the
+private one plugs policy in, and the door never learns who answered. `pinecall/cloud`, private, is
+that package for our box — the trial, the plans, Stripe fed from the meter — and never ships to a
+customer, whose box runs the same code with the runtime's own answers. What spans many boxes — a
+fleet dashboard, an admin over every tenant — is a service apart, over the operator API.
