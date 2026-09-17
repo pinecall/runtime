@@ -10,7 +10,8 @@ import pytest
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
-from pinecall.types import SANDBOX, Member
+from pinecall.routes.table import MemoryRoutes
+from pinecall.types import PRODUCTION, SANDBOX, Member, Route
 from pinecall_protocol import defs
 from tests.api.conftest import A_RECORD, AGENT, over_the_asgi_app
 
@@ -216,3 +217,27 @@ async def test_forgetting_says_which_numbers_were_forgotten(
 
     assert forgot.json()["forgot"] == [BERNAS_PHONE]
     assert (await bernas.get(LINE)).json()["calling"] == []
+
+
+# ── the numbers a developer's phone dials ───────────────────────────────────────
+
+TO_CALL = "/v1/line/numbers"
+THE_REAL_NUMBER = "+14176743169"
+
+
+async def test_a_developer_reads_the_production_numbers_their_phone_can_dial(
+    bernas: httpx.AsyncClient, routes: MemoryRoutes
+) -> None:
+    await routes.put(Route(A_RECORD.org, AGENT, "phone", THE_REAL_NUMBER, env=PRODUCTION))
+    await routes.put(Route(A_RECORD.org, AGENT, "phone", A_DEV_NUMBER, env=SANDBOX))
+    await routes.put(Route("somebody-else", AGENT, "phone", "+15550000000", env=PRODUCTION))
+
+    said = await bernas.get(TO_CALL)
+
+    assert said.status_code == 200
+    assert said.json() == {"numbers": [{"number": THE_REAL_NUMBER, "agent": AGENT}]}
+
+
+async def test_a_key_that_names_nobody_has_no_phone_to_dial_from(wired: None) -> None:  # noqa: ARG001
+    async with over_the_asgi_app(f"Bearer {CI_KEY}") as ci:
+        assert (await ci.get(TO_CALL)).status_code == 403

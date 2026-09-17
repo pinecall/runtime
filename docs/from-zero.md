@@ -206,17 +206,18 @@ the same profile from a key `pinecall keys issue` minted.
 ```console
 $ pinecall run
 clinica-norte · default · sandbox · connected to http://127.0.0.1:8080 · key from profile · tools 5 · doors phone +34910000000, whatsapp +34910000000, web
-console  http://127.0.0.1:8080/a/clinica-norte?login=lc_…   (opens within five minutes, once)
+console  `pinecall serve` opens it on this machine (or `pinecall run --serve`)
 line     rings in this terminal
 ```
 
 One line, and it says the four things that decide where you are: the agent, **whose org**, **which
-world**, and where the key came from. Follow that printed URL and the browser lands in the same
-world the terminal is in. Reach the console the other way — signing in with the password from §4 —
-and it opens in **production**, where the agent your laptop is holding is not: the page says `no
-agent called clinica-norte is held here — this org, in this world`, and the fix is the
-production/sandbox toggle in the header, not a second `pinecall run`. It binds no port — the gateway serves the console — and the
-URL carries a one-use code that signs the browser in.
+world**, and where the key came from. `pinecall run` binds no port. What it holds is in the
+sandbox, and the sandbox is watched on your own machine: `pinecall serve` — or `pinecall run
+--serve`, both in one terminal — puts the console on `http://localhost:4100`, forwarding every
+request to this gateway with the terminal's key, so there is nothing to sign in to. The gateway's
+own console, the one you sign in to with the password from §4, shows **production** and only
+production: there the page says `no agent called clinica-norte is held here`, which is true. A
+production `pinecall run`, on a machine key, prints that console's URL with a one-use code.
 
 ## 7. Talk to it
 
@@ -255,8 +256,8 @@ $ pinecall run --env production
 
 `--env` **asserts**; it never selects. Nothing said means the sandbox, so a deployment types
 `--env production` out loud — the deliberate act it should be. An agent that lands in production
-because of whichever key happened to be active is the accident this exists to prevent. The console
-has the same two words as a toggle, minting the other world's key for the same person.
+because of whichever key happened to be active is the accident this exists to prevent. A console
+has no such choice either: the gateway's shows production, and a machine's own the sandbox.
 
 ## Whose corner is whose
 
