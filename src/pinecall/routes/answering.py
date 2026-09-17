@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Literal, Protocol
 
 from pinecall.routes.table import Routes
-from pinecall.types import Channel, Env, Route
+from pinecall.types import PRODUCTION, SANDBOX, Channel, Env, Route
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 # take it back on the app's next restart would make the verb a lie, so the app loses the door —
 # and is told, by name, every time the two tables are read together. It stops when it is fixed.
 TAKEN = "%s answers for agent %s: the operator's route outranks agent %s, which declared it too"
+
+# Production first, so the number a tenant would name is the first one a plan or a fence shows.
+ENVS_IN_ORDER: tuple[Env, ...] = (PRODUCTION, SANDBOX)
 
 # Which of the two tables put a door in the answer. An operator reads this; the worker never does.
 type Source = Literal["operator", "app"]
@@ -103,3 +106,17 @@ def overridden(
     return tuple(
         (row, at[row.door]) for row in stored if row.door in at and at[row.door].agent != row.agent
     )
+
+
+# A number is the org's in either world — a route moves between them and the carrier never
+# notices — so the trunk that may show one, and the country fence worked out from them, read
+# both. It is here rather than beside either door because two of them ask: the outbound trunk's
+# `numbers`, and the guards that fence a dial by the countries the org already answers in.
+async def own_numbers(table: Routes, org: str) -> tuple[str, ...]:
+    """Every phone number this org answers at, both worlds, in the order the table holds them."""
+    found: list[str] = []
+    for env in ENVS_IN_ORDER:
+        for route in await table.of_org(org, env):
+            if route.channel == "phone" and route.number is not None and route.number not in found:
+                found.append(route.number)
+    return tuple(found)

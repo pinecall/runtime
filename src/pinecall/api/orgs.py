@@ -18,6 +18,7 @@ from pinecall.api._deps import (
     an_org,
 )
 from pinecall.api._operator import an_operator
+from pinecall.api._placing import DialPoliciesDep
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.auth.keys import ListedKey
 from pinecall.types import (
@@ -25,6 +26,7 @@ from pinecall.types import (
     PRODUCTION,
     SANDBOX,
     DeclarationRefused,
+    DialPolicy,
     Org,
     Quotas,
     a_slug,
@@ -40,6 +42,7 @@ operator = APIRouter(prefix="/v1/ops", dependencies=[Depends(an_operator)])
 ORGS: TypeAdapter[tuple[Org, ...]] = TypeAdapter(tuple[Org, ...])
 LISTED: TypeAdapter[tuple[ListedKey, ...]] = TypeAdapter(tuple[ListedKey, ...])
 QUOTAS: TypeAdapter[Quotas] = TypeAdapter(Quotas)
+DIALLING: TypeAdapter[DialPolicy] = TypeAdapter(DialPolicy)
 
 # A removed org has nothing to say back.
 NO_BODY = 204
@@ -76,6 +79,16 @@ class WantedKey(WireModel):
     scopes: list[str] | None = None
     subject: str | None = None
     name: str | None = None
+
+
+class WantedDialling(WireModel):
+    """What `orgs dialling` sends: the whole set. A guard left out is the code's own default."""
+
+    dial_anywhere: bool | None = None
+    per_minute: int | None = None
+    per_day: int | None = None
+    countries: list[str] | None = None
+    max_duration_s: int | None = None
 
 
 class WantedQuotas(WireModel):
@@ -127,12 +140,14 @@ async def one(
     knowledge: KnowledgeDep,
     table: RoutesDep,
     members: MembersDep,
+    policies: DialPoliciesDep,
 ) -> dict[str, Any]:
-    """One org: the quotas set on it, and what it is holding against the ones that are stocks."""
+    """One org: its quotas, its dial guards, and what it holds against the ones that are stocks."""
     org = await an_org(named, orgs)
     return {
         **_as_json(org),
         "quotas": QUOTAS.dump_python(await orgs.quotas_of(org.id)),
+        "dialling": DIALLING.dump_python(await policies.of(org.id)),
         "holding": {
             "memory_facts": 0 if memory is None else await memory.kept(org.id),
             "knowledge_chunks": 0 if knowledge is None else await knowledge.kept(org.id),
@@ -225,6 +240,38 @@ async def set_quotas(named: str, said: WantedQuotas, orgs: OrgsDep) -> dict[str,
         raise HTTPException(400, str(refused)) from refused
     await orgs.set_quotas(org.id, quotas)
     dumped: dict[str, Any] = QUOTAS.dump_python(quotas)
+    return dumped
+
+
+# ── what it may dial ────────────────────────────────────────────────────────────
+
+
+# Operator-only, and deliberately not beside `PUT /v1/org/judging`, which a tenant turns for
+# itself: an org that could lift its own dialling fence has none. Replaced whole, as the quotas
+# are, so a guard left out of the body goes back to the code's default rather than staying put.
+@operator.put("/orgs/{named}/dialling")
+async def set_dialling(
+    named: str, said: WantedDialling, orgs: OrgsDep, policies: DialPoliciesDep
+) -> dict[str, Any]:
+    """Replace the org's outbound guards, whole. They bite the next dial."""
+    org = await an_org(named, orgs)
+    standing = DialPolicy()
+    try:
+        policy = DialPolicy(
+            dial_anywhere=standing.dial_anywhere
+            if said.dial_anywhere is None
+            else said.dial_anywhere,
+            per_minute=standing.per_minute if said.per_minute is None else said.per_minute,
+            per_day=standing.per_day if said.per_day is None else said.per_day,
+            countries=() if said.countries is None else tuple(said.countries),
+            max_duration_s=standing.max_duration_s
+            if said.max_duration_s is None
+            else said.max_duration_s,
+        )
+    except DeclarationRefused as refused:
+        raise HTTPException(400, str(refused)) from refused
+    await policies.put(org.id, policy)
+    dumped: dict[str, Any] = DIALLING.dump_python(policy)
     return dumped
 
 

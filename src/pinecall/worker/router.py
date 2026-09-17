@@ -87,12 +87,16 @@ async def arrival_of(job: jobs.Job, room: rtc.Room) -> Arrival:
     """What this job says about the call: the dispatch metadata, and the SIP seat in the room."""
     said = _metadata(job.metadata)
     agent = _text(said.get(AGENT_KEY))
+    outbound = said.get(DIRECTION_KEY) == "outbound"
     leg = await sip.the_sip_leg(room, wait=NOT_WAITED_FOR if agent else sip.WAIT_FOR_THE_LEG_S)
     numbers = sip.the_numbers(leg.attributes if leg is not None else {})
     return Arrival(
         caller=numbers.caller or _text(said.get(CALLER_KEY)) or job.room.name,
-        channel="phone" if numbers.dialled else THE_WIDGET,
-        direction="outbound" if said.get(DIRECTION_KEY) == "outbound" else "inbound",
+        # A dialled call has no SIP seat to read yet — this job is what will place it — so the
+        # channel is what the dispatch says it is. Reading it off the room would have made every
+        # outbound call a web call, and then `_of_agent` would refuse an agent with no widget.
+        channel="phone" if (outbound or numbers.dialled) else THE_WIDGET,
+        direction="outbound" if outbound else "inbound",
         agent=agent,
         number=numbers.dialled,
         app=_text(said.get(APP_KEY)) or None,

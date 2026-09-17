@@ -1,14 +1,20 @@
-"""The fixtures about numbers: the carriers table, the SFU's trunks, and a Twilio that is a dict."""
+"""The fixtures about numbers: the two trunks, a Twilio that is a dict, and what a dial passes."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 
 import pytest
 from cryptography.fernet import Fernet
 
+from pinecall.api import _placing as placing
+from pinecall.api.app import app
 from pinecall.orgs.carriers import MemoryCarriers
+from pinecall.orgs.dialling import MemoryDialling
+from pinecall.orgs.outbound import MemoryOutboundTrunks
+from pinecall.routes.dispatching import MemoryDispatches
+from pinecall.routes.outbound import MemoryOutbound
 from pinecall.routes.trunks import MemoryTrunks
 from pinecall.routes.twilio import Trunk, TwilioNumber, TwilioRefused
 from pinecall.types import TwilioAccount
@@ -105,3 +111,58 @@ def carriers() -> MemoryCarriers:
 def trunks() -> MemoryTrunks:
     """The SFU's trunks as a dict: what an import would have admitted."""
     return MemoryTrunks()
+
+
+@pytest.fixture
+def outbound_trunks() -> MemoryOutboundTrunks:
+    """The outbound trunks table, sealed under the suite's vault key, empty at the start."""
+    return MemoryOutboundTrunks(Fernet(A_VAULT_KEY.encode()))
+
+
+@pytest.fixture
+def outbound() -> MemoryOutbound:
+    """The SFU's outbound side as a dict: what a provisioning would have made."""
+    return MemoryOutbound()
+
+
+@pytest.fixture
+def dispatches() -> MemoryDispatches:
+    """Every job this gateway would have started, in order: what a dial actually dispatched."""
+    return MemoryDispatches()
+
+
+@pytest.fixture
+def dialling() -> MemoryDialling:
+    """The policy table and the ledger, one object: what each org may dial and what it has."""
+    return MemoryDialling()
+
+
+# Autouse, and it answers only the tests that build the app: `wired` in tests/api/conftest.py is
+# one line under the file's 400-line ceiling, so the five deps the dial doors take are overridden
+# from here instead. It asks for `wired` first, so these land on top of the overrides it set, and
+# its own teardown clears every one of them.
+#
+# `dead_sentinel_keys` is named for its ORDER and not for anything read here. A plugin's autouse
+# fixture runs before a conftest's, so building the app from this one would have built it from the
+# real environment — a `Settings()` with the box's own LiveKit URL in it, four tests deep in the
+# suite and nowhere near this file. Asking for it puts it first, where it always was.
+@pytest.fixture(autouse=True)
+def the_placing_deps(
+    request: pytest.FixtureRequest,
+    dead_sentinel_keys: None,  # noqa: ARG001 — requested for its ordering, not its value
+) -> Iterator[None]:
+    """The dial doors' dependencies, answered from this test, for a test that has an app."""
+    if "wired" not in request.fixturenames:
+        yield
+        return
+    request.getfixturevalue("wired")
+    trunks: MemoryOutboundTrunks = request.getfixturevalue("outbound_trunks")
+    sfu: MemoryOutbound = request.getfixturevalue("outbound")
+    jobs: MemoryDispatches = request.getfixturevalue("dispatches")
+    both: MemoryDialling = request.getfixturevalue("dialling")
+    app.dependency_overrides[placing.the_outbound_trunks] = lambda: trunks
+    app.dependency_overrides[placing.the_outbound] = lambda: sfu
+    app.dependency_overrides[placing.the_dispatches] = lambda: jobs
+    app.dependency_overrides[placing.the_dial_policies] = lambda: both
+    app.dependency_overrides[placing.the_dials] = lambda: both
+    yield
