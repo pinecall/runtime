@@ -26,6 +26,7 @@ from pinecall.log.store.index_statements import (
     DAY,
     DAY_BY_AGENT,
     DAY_MEDIAN_E2E,
+    EVER_REACHED,
     FACTS_CHANGED,
     FACTS_OF,
     FOUND_COUNT,
@@ -175,6 +176,11 @@ class PostgresIndex:
             CALLS_WITH, org, env, holder, agent, contact, limit
         )
         return [str(row["call"]) for row in rows]
+
+    async def ever_reached(self, org: str, contact: str) -> bool:
+        """Whether this contact has ever reached the org: one indexed EXISTS, any world."""
+        row = await self._pool.fetchrow(EVER_REACHED, org, contact)
+        return bool(row is not None and row["reached"])
 
     async def read(
         self, org: str, env: str, holder: str, agent: str, reader: str, contact: str, at: float
