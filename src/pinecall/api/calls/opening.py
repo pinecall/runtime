@@ -8,6 +8,7 @@ from pinecall._settings import Budgets
 from pinecall.api.agents.holding import Registration, SocketId
 from pinecall.api.agents.registry import Registry
 from pinecall.evals.score import JudgedWhen
+from pinecall.log.logs import CallLog
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
@@ -15,8 +16,10 @@ from pinecall.orgs.vault import Vault, keys_brought_by
 from pinecall.providers.declaration import rang
 from pinecall.providers.models import Models
 from pinecall.providers.overrides import Overrides
+from pinecall.session.first_entries import arrived
 from pinecall.session.text.session import TextSession
 from pinecall.types import CallContext, Env, ProviderKeys
+from pinecall_protocol import encode
 
 
 # The keys travel back out because a channel may need one of its own: WhatsApp sends its answer
@@ -74,6 +77,21 @@ async def a_text_call(
         budgets=budgets,
     )
     return TextCall(session=session, keys=brought)
+
+
+# The call's first entry, unless another door already wrote it.
+#
+# An outbound call's was written where the call was ASKED for: the dial door knew both numbers and
+# the name of whoever asked before any job existed, and its 202 handed back a call id a console
+# starts reading at once. The worker opens that same log and adds nothing to the top of it — a
+# second call.dialing would be the one that had forgotten who asked. Only that door ever opens a
+# call with direction outbound, so this is the whole of the rule.
+async def how_it_arrived(log: CallLog, context: CallContext, agent: str) -> None:
+    """call.ringing on a call that rang. Nothing on one this gateway placed itself."""
+    if context.direction == "outbound":
+        return
+    type, event = arrived(context, context.route.number or agent)
+    await log.append(type, encode(event))
 
 
 # Which corner serves a call, by how the call ARRIVED.

@@ -295,6 +295,79 @@ pinecall numbers move +34910000000 --env production   # and back
 One row, in effect on the next call, carrier untouched. [protocol/numbers.md](protocol/numbers.md)
 is the door and its refusals.
 
+## 9. Before the first call the box places
+
+Answering a number and placing a call are two different wirings, and only one of them is done.
+This is what the operator checks before the box dials anybody for the first time.
+
+### The firewall does not change
+
+**Outbound calling opens no new inbound port.** Read `infra/box/nftables.conf` again: `input` has
+`policy drop` with `ct state established,related accept` above everything else, so a call the box
+PLACES goes out through `output` — which accepts — and every packet that comes back belongs to a
+connection this box opened and is accepted on that one established rule. Nothing has to be let in,
+because nothing new rings.
+
+The `prerouting` chain's 5060 fence is a different question: it is about who may RING this box, and
+it is untouched. The carrier's signalling networks are still the only addresses whose INVITE gets
+through, and the drop counter under it still reads what it read.
+
+So: **nothing in `infra/box/nftables.conf` or `infra/box/sip.yaml` needs editing.** If you find
+yourself opening a port to make dialling work, the problem is at the far end's ACL and not here.
+
+### On Twilio, the box provisions the trunk
+
+Nothing is done by hand for the trunk itself. `POST /v1/carrier/outbound` sets the termination
+label on the org's own trunk — the one the import already made — mints a credential list named
+`pinecall-<org>` on the tenant's account, attaches it to the trunk, and makes the SFU's outbound
+trunk pointed at `pinecall-<org>.pstn.twilio.com`. Two things are the operator's:
+
+- **The org's Twilio credentials, brought with `PUT /v1/carrier`**, and with permission to write
+  trunking — this is the same account the import used, so if a number was imported it is already
+  right. A key that may read but not write answers `502` with Twilio's own sentence.
+- **Read the plan first.** `?dry_run=true` prints every step with the ids that stand today and
+  writes nothing, exactly as the import's dry run does. It is what you read before letting the
+  gateway touch a carrier account.
+
+One dead end the code refuses by name, and it is worth knowing before you meet it: a credential
+list already called `pinecall-<org>` on the account, **whose password this box no longer holds** —
+a box rebuilt without its vault, or an org whose carrier row was replaced. Twilio shows a
+credential's password exactly once and reads it back to nobody, and a second list would leave two
+logins nobody can tell apart, so the door stops with `409` and says what to do: delete that
+credential list in Twilio's console, and run the provisioning again.
+
+### On a SIP peer, the carrier provisions it
+
+This box creates nothing on somebody else's switch. Get from the carrier the host and port it
+accepts INVITEs at, the transport it wants, and the credentials it expects — which for most
+carriers is the same pair the peer already registers with — and put them on `PUT /v1/carrier` as
+`outbound_host`, `outbound_transport`, `outbound_username` and `outbound_password`. Then the peer
+has to admit **this box's public address** as a source of INVITEs: that is the carrier's own ACL,
+written in the carrier's own portal, and not this box's firewall. A peer that declares no
+`outbound_host` is refused by name rather than dialled at an address it merely sends calls from,
+which is how a box ends up ringing a stranger.
+
+### The guards, before the first dial and not after
+
+Every dial asked for is written to the `dials` ledger — taken **or** refused, with the guard's one
+word and the name of whoever asked — because a burst of refusals is the shape of somebody working
+out what a stolen key can reach. An org that has never been set one runs under the code's own
+defaults: `dial_anywhere` off, six dials a minute, two hundred a day, ten minutes the longest a
+placed call may run, and a country fence that is the calling codes of the org's own numbers.
+
+```bash
+pinecall-runtime orgs dialling clinica-norte --per-minute 6 --per-day 200 --countries 34
+pinecall-runtime orgs clinica-norte          # dialling, read back beside the quotas
+```
+
+Replaced whole, and a guard left out goes back to the default and never to "no limit". **The one
+that matters is `dial_anywhere`**: off, the box only calls back somebody who already called or
+wrote to one of the org's agents, which is what makes an outbound trunk safe to leave standing.
+On, the box can dial anybody — a telemarketer, and a decision somebody makes with their name on
+it. It is the operator's switch and no tenant's, because an org that could lift its own fence has
+none. [protocol/operator-api.md](protocol/operator-api.md) is the door,
+[protocol/console-api.md](protocol/console-api.md) §4 the one that places the call.
+
 ---
 
 ---

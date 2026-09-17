@@ -17,6 +17,23 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   tells a sign-in page which orgs a domain signs in with, saying nothing about who exists. The
   terminal pairing is untouched. The break-glass is the box's: `pinecall-runtime orgs sso <org>
   --off`, over `PUT /v1/ops/orgs/{org}/sso/required`.
+- **Calling somebody back.** `POST /v1/agents/{slug}/dial {to, from?}` (`talk`) answers `202` with
+  the call it became: the guards, then `call.dialing` carrying both numbers and who asked, then a
+  worker dispatched into a room named by the call, which places the leg itself and writes `busy`,
+  `no_answer` or `dial_failed` when the far end never picked up. `GET`/`POST /v1/carrier/outbound`
+  (`numbers`, `?dry_run=true` for the plan) is the trunk it dials THROUGH — Twilio's termination
+  label and a credential list minted once on the tenant's account, or the SIP peer the tenant
+  declared with the new optional `outbound_host`, `outbound_transport`, `outbound_username` and
+  `outbound_password` on `PUT /v1/carrier` — and then one LiveKit outbound trunk per org.
+  Migrations 0031–0033. The protocol's `call.dial` command stays unanswered on the app socket and
+  now says so by name rather than as `no_session`: placing a call is `talk`'s door, not `app`'s.
+- **What an org may dial, and only an operator sets it.** `PUT /v1/ops/orgs/{org}/dialling`
+  (`pinecall-runtime orgs dialling`) replaces the whole set — `dial_anywhere` off, six dials a
+  minute, two hundred a day, ten minutes a call, and a country fence that defaults to the calling
+  codes of the org's own numbers — and a guard left out goes back to the code's default and never
+  to "no limit". Every dial asked for is written to the `dials` ledger, taken **or** refused with
+  the guard's one word, because a burst of refusals is the shape of an attack. Satellite and
+  global-service ranges are never dialled at all. `dialling` rides on `GET /v1/ops/orgs/{org}`.
 - **The widget's settings, kept by the gateway.** `GET`/`PUT /v1/agents/{slug}/widget` reads and
   replaces `{title, tagline, greeting, accent, autostart}` per org, world and agent (migration
   0029): what a console sets and writes into the snippet it copies. Read with `talk`, set with

@@ -28,7 +28,7 @@ from pinecall.api._deps import (
 )
 from pinecall.api._serving import Serving, ServingDep
 from pinecall.api.agents.registry import NO_UNCLAIMED, NOT_THAT_APP, RegistryDep
-from pinecall.api.calls.opening import who_serves
+from pinecall.api.calls.opening import how_it_arrived, who_serves
 from pinecall.api.calls.sink import (
     AcceptDep,
     CursorDep,
@@ -54,7 +54,6 @@ from pinecall.log.logs import CallLog
 from pinecall.log.store import DEFAULT_LIMIT, Store
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import QuotaExhausted
-from pinecall.session.first_entries import arrived
 from pinecall.tokens.spending import spent
 from pinecall.types import AgentConfig, CallContext
 from pinecall_protocol import ProtocolError, WireModel, encode
@@ -354,8 +353,7 @@ async def opened(
         config=config,
         holder=None if serving is None else serving.holder,
     )
-    type, event = arrived(context, context.route.number or said.agent)
-    await log.append(type, encode(event))
+    await how_it_arrived(log, context, said.agent)
 
 
 @router.post("/v1/calls/{call}/events", status_code=NOTHING_MORE)
