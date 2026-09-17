@@ -10,8 +10,8 @@ from dataclasses import dataclass, field
 from pinecall.log.entry import Entry
 from pinecall.log.facts import CallFacts, change_of
 from pinecall.log.store import memory_index
-from pinecall.log.store.index import CallCorner, Day, Found, Threads, Wanted
-from pinecall.log.store.memory_index import Indexed
+from pinecall.log.store.index import CallCorner, Day, Found, Threads, Unsealed, Wanted
+from pinecall.log.store.memory_index import Indexed, StillOpen
 from pinecall.log.store.protocol import DEFAULT_LIMIT, LogSealed, Metered
 from pinecall.types.json import JsonObject
 
@@ -192,6 +192,10 @@ class MemoryStore:
         kept = {call: self._calls[call].facts for call in calls if call in self._calls}
         return {call: facts for call, facts in kept.items() if facts is not None}
 
+    async def unsealed_spoken(self, quiet_since: float, limit: int) -> list[Unsealed]:
+        """Every org's spoken calls still open and quiet since then, the quietest first."""
+        return memory_index.unsealed_spoken(self._still_open(), quiet_since, limit)
+
     async def found(self, org: str, env: str, holder: str, wanted: Wanted, limit: int) -> Found:
         """The corner's calls that match, a page of them, newest first."""
         return memory_index.found(self._indexed(org, env, holder), wanted, limit)
@@ -245,6 +249,23 @@ class MemoryStore:
         """The reader's cursor on this thread, moved forward and never back."""
         where = (org, env, holder, agent, reader, contact)
         self._read[where] = max(at, self._read.get(where, 0.0))
+
+    # The postgres statement reads `max(entry.ts)` off the log's own rows; here the entries are
+    # the list, so the last one's ts is the same fact — ephemerals included, as the statement
+    # counts them, because a call that is still saying something is still a call.
+    def _still_open(self) -> list[StillOpen]:
+        """Every call with a head row that has not sealed, whatever org it is in."""
+        return [
+            StillOpen(
+                call=call,
+                agent=log.facts.agent,
+                started_at=log.started_at or 0.0,
+                last_at=log.entries[-1].ts if log.entries else (log.started_at or 0.0),
+                spoken=log.facts.spoken,
+            )
+            for call, log in self._calls.items()
+            if not log.sealed and log.facts is not None
+        ]
 
     def _indexed(
         self, org: str, env: str | None = None, holder: str | None = None

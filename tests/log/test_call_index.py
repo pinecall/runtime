@@ -242,3 +242,33 @@ async def test_a_call_says_which_corner_it_was_opened_in(
 def test_a_verdict_nobody_settled_is_no_score() -> None:
     skipped = CallFacts(call="CA_1", judged=0, held=0, passed=None)
     assert (skipped.score_row, skipped.flags) == (None, [])
+
+
+# The reaper's one question (api/reaping.py): which spoken calls this store never finished writing.
+# It is asked of every org at once, so a test says which of the answer is its own — the postgres
+# schema is one pytest process's and holds whatever the tests before it left open.
+async def test_the_open_spoken_calls_that_have_been_quiet(
+    store: Indexing, org: str, agent: str
+) -> None:
+    quiet = await a_call(store, org, agent, ended=False)
+    written = await a_call(store, org, agent, channel="whatsapp", ended=False)
+    finished = await a_call(store, org, agent)
+    # Every entry of this suite's clock is before 1000.0, so every open call is quiet by then.
+    open_now = {one.call: one for one in await store.unsealed_spoken(1000.0, 500)}
+    assert quiet in open_now, "spoken, and not sealed"
+    assert written not in open_now, "a written call idles out where it runs"
+    assert finished not in open_now, "its log is sealed"
+    assert open_now[quiet].agent == agent
+    assert open_now[quiet].started_at <= open_now[quiet].last_at
+    assert quiet not in {one.call for one in await store.unsealed_spoken(0.0, 500)}
+
+
+async def test_the_quiet_calls_come_oldest_first_and_no_more_than_asked(
+    store: Indexing, org: str, agent: str
+) -> None:
+    first = await a_call(store, org, agent, ended=False)
+    second = await a_call(store, org, agent, ended=False)
+    answer = await store.unsealed_spoken(1000.0, 500)
+    assert [one.last_at for one in answer] == sorted(one.last_at for one in answer)
+    assert [one.call for one in answer if one.call in {first, second}] == [first, second]
+    assert len(await store.unsealed_spoken(1000.0, 1)) == 1, "no more than asked for"

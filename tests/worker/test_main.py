@@ -206,3 +206,17 @@ def _the_bearer_of(built: Worker) -> str | None:
 async def _never_called(ctx: JobContext) -> None:
     """A second entrypoint, only ever offered to livekit so that it can refuse it."""
     raise AssertionError(ctx)
+
+
+# The stop of 2026-09-16: systemd's SIGTERM reached the job processes, they died within 100 ms, and
+# livekit's drain — which had just begun — found no running job. Three web calls stayed `live` for
+# thirty hours with no call.ended. The unit's `KillMode=mixed` is the other half of this.
+def test_a_stop_gives_the_calls_time_and_the_seals_time_after_them() -> None:
+    """Both clocks are livekit's, both defaults are wrong for the unit's fifteen minutes."""
+    server = main.a_server(load_settings())
+    assert server._drain_timeout == main.DRAIN_S  # pyright: ignore[reportPrivateUsage]
+    assert server._shutdown_process_timeout == main.SEALING_S  # pyright: ignore[reportPrivateUsage]
+    # A job that is told to shut down runs the seal: call.ended, the hang-up's memory extraction,
+    # call.summary, the judges, call.score. livekit's own ten seconds does not cover it.
+    assert main.SEALING_S > load_settings().budgets.remember_s
+    assert main.DRAIN_S + main.SEALING_S < 900, "the unit's TimeoutStopSec"

@@ -49,6 +49,18 @@ class Found:
     next: str | None
 
 
+# A spoken call whose log never ended. Every other question here is asked of one corner; this one
+# is asked of the whole store, because the reaper is the process's and not a reader's.
+@dataclass(frozen=True)
+class Unsealed:
+    """One call still open: whose agent, when it opened, and when it last said anything."""
+
+    call: str
+    agent: str
+    started_at: float
+    last_at: float
+
+
 @dataclass(frozen=True)
 class AgentDay:
     """One agent's day: the calls it started, and the share of judges that held, on average."""
@@ -110,6 +122,14 @@ class CallIndex(Protocol):
 
     async def facts_of(self, calls: Sequence[str]) -> dict[str, CallFacts]:
         """The facts of each of these calls that has any."""
+        ...
+
+    # Every org's, because nothing is being read for anybody: this is the gateway asking its own
+    # store which calls it never finished writing. Spoken only — a written one idles out in the
+    # process that runs it (api/whatsapp/threads.py) — and quiet only, which is what makes the
+    # answer short whatever the store holds.
+    async def unsealed_spoken(self, quiet_since: float, limit: int) -> list[Unsealed]:
+        """Every spoken call whose log is unsealed and has said nothing since `quiet_since`."""
         ...
 
     async def found(self, org: str, env: str, holder: str, wanted: Wanted, limit: int) -> Found:

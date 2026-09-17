@@ -22,6 +22,20 @@ from pinecall.worker.load import MachineLoad, SlotLoad, reports_no_load
 # What livekit needs to register a worker at all: the media plane, and the pair that signs.
 LIVEKIT_FIELDS: tuple[str, ...] = ("livekit_url", "livekit_api_key", "livekit_api_secret")
 
+# How long a stop waits for the calls this worker holds to end by themselves. livekit's own default
+# is an HOUR, and the unit's TimeoutStopSec is fifteen minutes, so the drain could never finish and
+# systemd's SIGKILL was the only thing that ever ended it — every call it still held dying with no
+# call.ended. Ten minutes leaves five of the unit's fifteen for what follows: past it livekit shuts
+# each remaining job down, and a job that is shut down seals its own log as `drained`.
+DRAIN_S = 10 * 60
+
+# And what ONE job gets, once it is told to shut down, to run its shutdown callbacks. Ours is the
+# seal (worker/entry.py `sealing`): call.ended, the hang-up's one memory extraction (the `remember`
+# budget, 8 s), call.summary, the judges, call.score. livekit's default of ten seconds cuts that in
+# half and kills the process mid-seal, which is a log with a call.ended and no end. Sixty seconds
+# covers it, and DRAIN_S + this still sits inside the unit's TimeoutStopSec.
+SEALING_S = 60.0
+
 log = logging.getLogger(__name__)
 
 
@@ -101,6 +115,10 @@ def a_server(
         api_secret=settings.livekit_api_secret,
         load_fnc=_the_gate(settings, gated_by_machine_load),
         setup_fnc=warmed,
+        # The two clocks a stop runs on, both of them livekit's and both of them wrong for a box
+        # by default: how long the drain waits, and how long one job's seal may take.
+        drain_timeout=DRAIN_S,
+        shutdown_process_timeout=SEALING_S,
         # Loopback and a port of its own: livekit's default is 8081, which is TEI's, and a full box
         # runs both. Nothing outside the machine reads this server, so it never leaves loopback.
         host="127.0.0.1",

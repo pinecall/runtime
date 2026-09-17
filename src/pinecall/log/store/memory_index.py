@@ -14,6 +14,7 @@ from pinecall.log.store.index import (
     Found,
     ThreadRow,
     Threads,
+    Unsealed,
     Wanted,
     after_the_cursor,
     digits_of,
@@ -47,6 +48,31 @@ class Indexed:
     def at(self) -> float:
         """The clock a list orders by: a call nobody stamped sorts last."""
         return -1.0 if self.started_at is None else self.started_at
+
+
+# What the store hands the reaper's question about each of its open logs. `Indexed` cannot answer
+# it: it carries the facts and the corner, and this one is about the log's own clock.
+@dataclass(frozen=True)
+class StillOpen:
+    """One call whose head row has not sealed: when it opened, when it last said anything."""
+
+    call: str
+    agent: str
+    started_at: float
+    last_at: float
+    spoken: bool
+
+
+def unsealed_spoken(calls: Iterable[StillOpen], quiet_since: float, limit: int) -> list[Unsealed]:
+    """The spoken ones that have said nothing since then, quietest first — as the statement does."""
+    quiet = sorted(
+        (one for one in calls if one.spoken and one.last_at < quiet_since),
+        key=lambda one: (one.last_at, one.call),
+    )
+    return [
+        Unsealed(call=one.call, agent=one.agent, started_at=one.started_at, last_at=one.last_at)
+        for one in quiet[:limit]
+    ]
 
 
 def found(calls: Iterable[Indexed], wanted: Wanted, limit: int) -> Found:

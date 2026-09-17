@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from functools import partial
 
 import httpx
@@ -51,6 +52,7 @@ from pinecall.api.agents.registry import Registry
 from pinecall.api.calls import chat, commands, events, listing, lookup, recording, state, tools
 from pinecall.api.evals import caller, judge, replay, runs, voice
 from pinecall.api.evals.runner import Runner
+from pinecall.api.reaping import Reaper, reaping
 from pinecall.api.supervise import verbs
 from pinecall.api.whatsapp import webhook
 from pinecall.api.whatsapp.threads import Threads
@@ -86,6 +88,7 @@ from pinecall.orgs.widgets import widgets_for
 from pinecall.providers.embed import embedder_for
 from pinecall.providers.models import models_for
 from pinecall.providers.overrides import Overrides
+from pinecall.routes.rooms import rooms_for
 from pinecall.routes.table import routes_for
 from pinecall.routes.trunks import trunks_for
 from pinecall.routes.twilio import HttpTwilio
@@ -216,14 +219,45 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
         gateway.state.orgs.quotas_of,
         gateway.state.admission.may_remember,
     )
+    # The one thing this process does with nobody asking. A spoken call is ended by the worker
+    # holding it, so a worker that is killed leaves a log that nothing on earth would ever close:
+    # api/reaping.py. It needs the SFU to tell a dead call from a quiet one, so a gateway with no
+    # LiveKit pair runs none — and one with no pair has no spoken call to reap either.
+    reaper = _a_reaper(settings, gateway)
     try:
         yield
     finally:
+        if reaper is not None:
+            await _cancelled(reaper)
         await http.aclose()
         if isinstance(store, PostgresStore):
             await store.aclose()
         if pool is not None:
             await pool.close()
+
+
+NO_REAPER = (
+    "no LIVEKIT_API_KEY and LIVEKIT_API_SECRET: this gateway cannot ask the SFU which calls are "
+    "still running, so a spoken call whose worker dies will stay open until somebody seals it"
+)
+
+
+# The store IS the call index (api/_deps.py), which is why one object answers both here.
+def _a_reaper(settings: Settings, gateway: FastAPI) -> asyncio.Task[None] | None:
+    """The reaper's loop, started; None and one line when this process has no SFU to ask."""
+    rooms = rooms_for(settings)
+    if rooms is None:
+        logger.warning(NO_REAPER)
+        return None
+    reaper = Reaper(gateway.state.store, gateway.state.logs, rooms, gateway.state.live)
+    return asyncio.ensure_future(reaping(reaper))
+
+
+async def _cancelled(task: asyncio.Task[None]) -> None:
+    """Stop the loop and wait for it: a pass half-written is a log half-ended."""
+    task.cancel()
+    with suppress(asyncio.CancelledError):
+        await task
 
 
 # The pool follows the URL exactly as the store does, dev key or not. A dev key means one key and no

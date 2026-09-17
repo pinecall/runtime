@@ -75,10 +75,19 @@ ImportCredential=XAI_API_KEY
 # so every caller would pay the cold start of a Python process before hearing a word.
 ExecStart=/opt/pinecall/venv/bin/pinecall-runtime worker start
 # A stop is a drain: on SIGTERM the worker tells livekit it is full and finishes the calls it
-# holds, up to livekit-agents' own hour. systemd's default of 90 s would cut a call mid-sentence
-# on every deploy; livekit asks for ten minutes or more of grace, and fifteen is what a long
-# conversation gets here.
+# holds, up to the ten minutes worker/main.py gives the drain. systemd's default of 90 s would cut
+# a call mid-sentence on every deploy; livekit asks for ten minutes or more of grace, and fifteen
+# is what a long conversation gets here — the drain's ten, and five for the seals after it.
 TimeoutStopSec=900
+# SIGTERM to the MAIN process alone, which is the whole of the drain working. systemd's default is
+# `control-group`: SIGTERM to EVERY process of the unit — livekit's forkserver and each job process
+# with it. They died within 100 ms of the stop, so the drain that had just begun found no running
+# job, the worker was down a second later, and three web calls of 2026-09-16 were left `live` for
+# thirty hours with no call.ended, because a job that is killed runs no shutdown callback. With
+# `mixed` the jobs are livekit's to end: it drains them, each seals its own log, and only a stop
+# that outruns TimeoutStopSec ever reaches them with a signal. The gateway's reaper
+# (api/reaping.py) is the net under that last case.
+KillMode=mixed
 Restart=always
 RestartSec=3
 # A cordon is a stop on purpose: the hub told this worker to drain and leave (`fleet cordon`, or
