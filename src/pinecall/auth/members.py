@@ -115,6 +115,13 @@ class Members(Protocol):
         """This person runs the box, or stops. None when no member of this org answers to the id."""
         ...
 
+    # The one DELETE of this table. Disabling keeps the row because the log names it; removing is
+    # for the person who should never have been here, and the log still reads: every entry names
+    # a member by id as text and none of them references this row. Their open links go with it.
+    async def remove(self, org: str, id: str) -> bool:
+        """The row and every link of theirs, gone. False when no member of this org answered."""
+        ...
+
 
 def a_member_id() -> str:
     """A name for the row. It is what a person's key carries as `subject`."""

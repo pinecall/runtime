@@ -1,4 +1,4 @@
-"""`pinecall-runtime orgs`: the tenants — list, add, rm, quota, provider-key, sso."""
+"""`pinecall-runtime orgs`: the tenants — list, add, rm, quota, provider-key, sso, their people."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from typing import Any, TextIO
 
 from pinecall.cli.columns import as_columns
 from pinecall.cli.operator import Operator, against_the_gateway
+from pinecall.cli.orgs.members import invite, make_operator, remove_member
 from pinecall.cli.orgs.provider_keys import (
     a_key_from,
     list_provider_keys,
@@ -24,13 +25,15 @@ from pinecall.types import QUOTAS, ROLES
 BUDGET = "budget_eur"
 
 PURPOSE: str = (
-    "the tenants: list | add | invite | operator | move | rm | quota | provider-key | sso"
+    "the tenants: list | add | invite | operator | remove-member | move | rm | quota | "
+    "provider-key | sso"
 )
 VERBS: tuple[str, ...] = (
     "list",
     "add",
     "invite",
     "operator",
+    "remove-member",
     "move",
     "rm",
     "quota",
@@ -53,10 +56,6 @@ OWN_NUMBERS = "its own numbers'"
 # The key is read from stdin and NEVER from a flag: argv is in `ps` on a shared box, and a key
 # pasted as an argument is a key in the shell history of whoever typed it. Nothing prints it back.
 NO_KEY_ON_STDIN = "nothing came in on stdin: pipe the key, or paste it and press enter"
-
-# Nobody of that org answers to the email: the sentence names both, because a typo in either is
-# the same mistake and the person reading has to know which one to fix.
-NO_SUCH_MEMBER = "no member of {org} answers to {email}"
 
 
 def configure(parser: argparse.ArgumentParser) -> None:
@@ -97,6 +96,11 @@ def configure(parser: argparse.ArgumentParser) -> None:
         "--revoke", action="store_true", help="take it back; their org's doors are untouched"
     )
     running.set_defaults(run=run_operator)
+
+    unseating = verbs.add_parser("remove-member", help="a person out of an org, for good")
+    unseating.add_argument("org", metavar="<org>", help="by id or slug")
+    unseating.add_argument("email", metavar="<email>", help="a member of that org")
+    unseating.set_defaults(run=run_remove_member)
 
     removing = verbs.add_parser("rm", help="forget an org; refused while it has keys or routes")
     removing.add_argument("org", metavar="<org>", help="by id or slug")
@@ -198,6 +202,11 @@ def run_operator(arguments: argparse.Namespace) -> int:
     )
 
 
+def run_remove_member(arguments: argparse.Namespace) -> int:
+    """One person out of one org for good: their keys stopped, their row and links gone."""
+    return against_the_gateway(partial(remove_member, arguments.org, arguments.email))
+
+
 def run_remove(arguments: argparse.Namespace) -> int:
     """One tenant less, once nothing of theirs is live."""
     return against_the_gateway(partial(remove_org, arguments.org))
@@ -262,57 +271,6 @@ async def add_org(slug: str, name: str | None, operator: Operator, out: TextIO =
     """A new org, and its minted id on the screen: that id is what every row of theirs names."""
     org = await operator.post(OPS_ORGS, {"slug": slug, "name": name})
     print(f"{org['id']}  {org['slug']}  {org['name']}", file=out)
-    return 0
-
-
-# The token is the person's way in and is shown exactly once, as a key is: the table keeps its
-# sha256, it dies in a week, and no verb reads one back. The operator hands the LINK over — the
-# console's own screen spends it for a password — never a key, and never a password of theirs.
-TOKEN_PRINTED_ONCE = "send them this; it opens the console's password screen once, within a week"
-
-
-async def invite(
-    org: str, email: str, name: str, role: str, operator: Operator, out: TextIO = sys.stdout
-) -> int:
-    """The person's row made, and the link that makes them a member printed once."""
-    said = await operator.post(
-        f"{OPS_ORGS}/{org}/members", {"email": email, "name": name, "role": role}
-    )
-    member = said["member"]
-    print(f"{member['id']}  {member['email']}  {member['role']}  {member['status']}", file=out)
-    if said.get("token") is None:
-        print(f"  {ALREADY_A_PERSON}", file=out)
-        return 0
-    print(f"  {operator.base}/invitations/{said['token']}", file=out)
-    print(f"  {TOKEN_PRINTED_ONCE}", file=out)
-    return 0
-
-
-# No link for somebody who already has a password on this box: they are seated at once, and
-# the org appears in their console's org switch. A link would buy them a second password.
-ALREADY_A_PERSON = "already a person on this box: seated, they sign in with the password they have"
-
-
-# What an operator IS, said where somebody granting it will read it: their own key opens every
-# /v1/ops door of this box, on top of their org's own. No role gives it and no org can grant it.
-RUNS_THE_BOX = "their own key now opens this box's operator doors, as well as their org's"
-RUNS_NO_MORE = "their key opens their org's doors and this box's no longer"
-
-
-async def make_operator(
-    org: str, email: str, running: bool, operator: Operator, out: TextIO = sys.stdout
-) -> int:
-    """The member with that email, made an operator of this box or unmade. Their org stands."""
-    people = await operator.get(f"{OPS_ORGS}/{org}/members")
-    found = next((one for one in people["members"] if one["email"] == email.strip().lower()), None)
-    if found is None:
-        print(NO_SUCH_MEMBER.format(email=email, org=org), file=sys.stderr)
-        return 1
-    changed = await operator.put(
-        f"{OPS_ORGS}/{org}/members/{found['id']}/operator", {"operator": running}
-    )
-    print(f"{changed['id']}  {changed['email']}  {changed['role']}", file=out)
-    print(f"  {RUNS_THE_BOX if running else RUNS_NO_MORE}", file=out)
     return 0
 
 

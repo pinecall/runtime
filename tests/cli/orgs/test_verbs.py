@@ -9,7 +9,6 @@ from pinecall.cli.operator import Operator, OperatorRefused
 from pinecall.cli.orgs.verbs import (
     a_key_from,
     add_org,
-    invite,
     list_orgs,
     list_provider_keys,
     remove_org,
@@ -123,17 +122,3 @@ def test_the_key_is_read_from_stdin_and_a_blank_line_is_nothing() -> None:
     assert a_key_from(io.StringIO(f"{A_TENANTS_KEY}\n"), "elevenlabs") == A_TENANTS_KEY
     assert a_key_from(io.StringIO("\n"), "elevenlabs") is None
     assert a_key_from(io.StringIO(""), "elevenlabs") is None
-
-
-async def test_invite_prints_the_row_and_the_link_once_and_never_a_key(operator: Operator) -> None:
-    """The operator hands a person a LINK: the console's card spends it for a password of theirs."""
-    await add_org("tienda-sur", "Tienda Sur", operator, printed())
-    out = printed()
-    assert await invite("tienda-sur", "nico@tiendasur.uy", "Nico", "admin", operator, out) == 0
-    row, link, sentence = out.getvalue().splitlines()
-    assert (
-        row.startswith("m_") and "nico@tiendasur.uy" in row and "admin" in row and "invited" in row
-    )
-    assert "/invitations/inv_" in link
-    assert "once" in sentence and "week" in sentence
-    assert "pk_" not in out.getvalue(), "an invitation is not a key and the verb prints none"
