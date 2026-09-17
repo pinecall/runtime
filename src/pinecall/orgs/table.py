@@ -43,6 +43,17 @@ class Orgs(Protocol):
         """Replace the org's limits, whole: a limit left out is no limit."""
         ...
 
+    # The one setting a tenant turns about its own org rather than about an agent: whether its
+    # calls are judged at hang-up. On unless somebody turned it off — an org nobody asked about is
+    # judged, as every org was before the setting existed.
+    async def judges(self, id: str) -> bool:
+        """Whether this org's calls are judged at hang-up."""
+        ...
+
+    async def set_judging(self, id: str, on: bool) -> None:
+        """Judge this org's calls at hang-up, or stop."""
+        ...
+
 
 class MemoryOrgs:
     """The tenants of a process with no database: a dev clone has the default org and forgets."""
@@ -53,6 +64,7 @@ class MemoryOrgs:
         self._rows: dict[str, Org] = {DEFAULT_ORG: Org(DEFAULT_ORG, DEFAULT_ORG, DEFAULT_ORG)}
         self._rows.update({org.id: org for org in rows})
         self._quotas: dict[str, Quotas] = {}
+        self._not_judged: set[str] = set()
 
     async def create(self, slug: str, name: str) -> Org | None:
         """One org per slug, as the table's UNIQUE would insist."""
@@ -86,6 +98,17 @@ class MemoryOrgs:
         """Replaced whole, as the row is."""
         self._quotas[id] = quotas
 
+    async def judges(self, id: str) -> bool:
+        """On unless it was turned off."""
+        return id not in self._not_judged
+
+    async def set_judging(self, id: str, on: bool) -> None:
+        """Remembered as the orgs that said no."""
+        if on:
+            self._not_judged.discard(id)
+        else:
+            self._not_judged.add(id)
+
 
 # A slug taken is the one refusal: the conflict target says so and RETURNING comes back empty.
 _CREATE = """
@@ -102,7 +125,8 @@ _FIND = "SELECT id, slug, name FROM orgs WHERE id = $1 OR slug = $1 LIMIT 1"
 _REMOVE = "DELETE FROM orgs WHERE id = $1"
 
 _QUOTAS = """
-SELECT minutes, messages, agents, concurrent_calls, memory_facts, knowledge_chunks, numbers, seats
+SELECT minutes, messages, agents, concurrent_calls, memory_facts, knowledge_chunks, numbers, seats,
+       budget_eur
 FROM quotas WHERE org = $1
 """
 
@@ -110,14 +134,19 @@ FROM quotas WHERE org = $1
 _SET_QUOTAS = """
 INSERT INTO quotas
     (org, minutes, messages, agents, concurrent_calls, memory_facts, knowledge_chunks, numbers,
-     seats, set_at)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+     seats, budget_eur, set_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
     ON CONFLICT (org) DO UPDATE
     SET minutes = excluded.minutes, messages = excluded.messages, agents = excluded.agents,
         concurrent_calls = excluded.concurrent_calls, memory_facts = excluded.memory_facts,
         knowledge_chunks = excluded.knowledge_chunks, numbers = excluded.numbers,
-        seats = excluded.seats, set_at = now()
+        seats = excluded.seats, budget_eur = excluded.budget_eur, set_at = now()
 """
+
+# NULL is on: every org from before 0027, and every org nobody turned it off for.
+_JUDGES = "SELECT judging IS NOT FALSE AS judges FROM orgs WHERE id = $1"
+
+_SET_JUDGING = "UPDATE orgs SET judging = $2 WHERE id = $1"
 
 # What asyncpg answers a DELETE with when the WHERE matched nothing: the command tag, verbatim.
 DELETED_NOTHING = "DELETE 0"
@@ -166,7 +195,17 @@ class PostgresOrgs:
             quotas.knowledge_chunks,
             quotas.numbers,
             quotas.seats,
+            quotas.budget_eur,
         )
+
+    async def judges(self, id: str) -> bool:
+        """One read; an org with no row is judged, as the default says."""
+        row = await self._pool.fetchrow(_JUDGES, id)
+        return True if row is None else bool(row["judges"])
+
+    async def set_judging(self, id: str, on: bool) -> None:
+        """One write on the org's own row."""
+        await self._pool.execute(_SET_JUDGING, id, on)
 
 
 def an_org_id() -> str:
@@ -190,6 +229,7 @@ def _quotas(row: Any) -> Quotas:
         knowledge_chunks=row["knowledge_chunks"],
         numbers=row["numbers"],
         seats=row["seats"],
+        budget_eur=row["budget_eur"],
     )
 
 

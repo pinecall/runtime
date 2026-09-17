@@ -77,12 +77,19 @@ class Quotas:
     knowledge_chunks: int | None = None
     numbers: int | None = None
     seats: int | None = None
+    # What the org's calls may cost in a calendar month, in whole euros, every world together: a
+    # number a console shows beside what was spent. It is set with the quotas and is not one of
+    # QUOTAS, because nothing is refused over it — no call, no push, no credits.exhausted; whoever
+    # charges decides what reaching it means.
+    budget_eur: int | None = None
 
     def __post_init__(self) -> None:
         for name in QUOTAS:
             limit: int | None = getattr(self, name)
             if limit is not None and limit < 0:
                 raise DeclarationRefused(f"a quota is a count, and {name} cannot be {limit}")
+        if self.budget_eur is not None and self.budget_eur < 0:
+            raise DeclarationRefused(f"a budget is euros, and cannot be {self.budget_eur}")
 
     # The three questions anybody asks a quota, so the NULL rule is written once and every door,
     # every gate and every lookup reads it off the same three lines.

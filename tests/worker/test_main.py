@@ -11,7 +11,7 @@ import pytest
 from livekit.agents import JobContext, JobExecutorType, JobProcess
 
 from pinecall._settings import load_settings
-from pinecall.evals import a_score
+from pinecall.evals.score import JudgedWhen
 from pinecall.providers import llm, stt, tts
 from pinecall.session.voice import VoiceBridge, a_bridge
 from pinecall.worker import main
@@ -141,7 +141,7 @@ def test_the_worker_is_built_from_the_environment_the_job_process_inherited(
     bridging = cast("partial[VoiceBridge]", built.bridging)
     assert bridging.func is a_bridge
     assert bridging.keywords == {
-        "score": a_score,
+        "score": JudgedWhen(built.gateway.judging),
         "lookup": built.gateway,
         "rememberer": built.gateway,
         "budgets": load_settings().budgets,

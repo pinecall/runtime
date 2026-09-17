@@ -9,7 +9,7 @@ from functools import partial
 from livekit.agents import AgentServer, JobContext, JobProcess
 
 from pinecall._settings import Settings, load_settings, variable_of
-from pinecall.evals import a_score
+from pinecall.evals.score import JudgedWhen
 from pinecall.providers.pipeline import warm_the_vendor_tables
 from pinecall.session.voice import a_bridge
 from pinecall.session.voice.kit import kit_for
@@ -54,10 +54,11 @@ def a_worker(settings: Settings) -> Worker:
         kit=kit_for(settings),
         # The worker is who hands a spoken call its judge: the session judges nothing itself. And
         # its memory: a job process has no database, so the gateway is the session's Lookup and
-        # Rememberer too — the same object, three protocols — under the budgets the box set.
+        # Rememberer too — the same object, three protocols — under the budgets the box set. The
+        # judge asks the gateway first whether the call's org judges its calls at all.
         bridging=partial(
             a_bridge,
-            score=a_score,
+            score=JudgedWhen(gateway.judging),
             lookup=gateway,
             rememberer=gateway,
             budgets=settings.budgets,
