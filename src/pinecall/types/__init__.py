@@ -71,6 +71,7 @@ from pinecall.types.key import (
 )
 from pinecall.types.knowledge import Chunk, Docs, Fact, KnowledgeFile, MemoryPolicy
 from pinecall.types.lookup import PLATFORM_TOOLS, PlatformTool, platform_tools
+from pinecall.types.mail import Mailbox, Security, a_mailbox_at, a_security, an_address
 from pinecall.types.member import ROLE_SCOPES, ROLES, STATUSES, Member, MemberStatus, Role, a_role
 from pinecall.types.org import DEFAULT_ORG, QUOTAS, Counting, Org, QuotaName, Quotas, a_slug
 from pinecall.types.prompt import DEFAULT_LAYOUT, KNOWLEDGE, Blocks, PromptBlock, PromptRegion
@@ -140,6 +141,7 @@ __all__ = [
     "JsonObject",
     "KeyScope",
     "KnowledgeFile",
+    "Mailbox",
     "Member",
     "MemberStatus",
     "MemoryPolicy",
@@ -156,6 +158,7 @@ __all__ = [
     "Role",
     "Route",
     "Scope",
+    "Security",
     "SideEffect",
     "SipPeer",
     "SipTransport",
@@ -168,9 +171,12 @@ __all__ = [
     "a_carrier_kind",
     "a_destination",
     "a_domain",
+    "a_mailbox_at",
     "a_role",
+    "a_security",
     "a_sip_transport",
     "a_slug",
+    "an_address",
     "an_e164",
     "an_env",
     "calling_code",

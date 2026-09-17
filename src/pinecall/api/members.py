@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from pinecall.api._deps import (
     AdmissionDep,
@@ -15,15 +15,19 @@ from pinecall.api._deps import (
     TeamKeyDep,
     an_org,
 )
+from pinecall.api._gateway import where_this_gateway_answers
 from pinecall.api._operator import an_operator
+from pinecall.api.org_mail import OutboxDep
 from pinecall.auth import passwords
-from pinecall.auth.keys import Keys
+from pinecall.auth.keys import KeyRecord, Keys
 from pinecall.auth.members import Members
+from pinecall.mail import Letter, Outbox, a_reset, an_invitation, where_the_card_is
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.types import (
     PRODUCTION,
     DeclarationRefused,
     Member,
+    Org,
     Role,
     a_role,
     an_env,
@@ -65,6 +69,10 @@ NOT_ACTIVE = (
 # update may re-enable a disabled member — they have one — and may not activate an invited one.
 NOT_BY_HAND = "{email} has not accepted their invitation: they become active by accepting it"
 
+# Who a letter says invited somebody, when the key that asked names nobody — the box's own, or a
+# machine's. The org's name is in the letter beside it, so this reads as what it is.
+AN_ADMIN = "An admin"
+
 
 class WantedMember(WireModel):
     """What an invite says: who, what they will be allowed, and on which agents."""
@@ -101,9 +109,16 @@ async def listed(key: TeamKeyDep, members: MembersDep) -> dict[str, Any]:
 
 @router.post("/v1/members", status_code=INVITED)
 async def invite(
-    said: WantedMember, key: TeamKeyDep, members: MembersDep, admission: AdmissionDep
+    said: WantedMember,
+    key: TeamKeyDep,
+    members: MembersDep,
+    admission: AdmissionDep,
+    orgs: OrgsDep,
+    outbox: OutboxDep,
+    settings: SettingsDep,
+    request: Request,
 ) -> dict[str, Any]:
-    """One more person, invited: the row, and the one-use token that makes them a member."""
+    """One more person, invited: the row, the one-use token, and the link posted to them."""
     role = _a_wanted_member(said, key.org)
     # A seat is charged only where a ROW will be made. An email the org already holds is either a
     # member who accepted — refused below — or one still invited, whose seat was taken when the
@@ -115,7 +130,10 @@ async def invite(
             await admission.a_seat(key.org, await members.seated(key.org))
         except QuotaExhausted as refused:
             raise HTTPException(429, str(refused)) from refused
-    return await _invited(members, key.org, said, role)
+    org = await an_org(key.org, orgs)
+    return await _invited(
+        members, org, said, role, _by(key), where_this_gateway_answers(settings, request), outbox
+    )
 
 
 # The operator's invitation takes no seat: a plan caps what an org may seat by ITSELF, and the
@@ -123,12 +141,19 @@ async def invite(
 # through which an org with sign-ups shut gets its first admin.
 @operator.post("/orgs/{named}/members", status_code=INVITED)
 async def invite_to(
-    named: str, said: WantedMember, orgs: OrgsDep, members: MembersDep
+    named: str,
+    said: WantedMember,
+    orgs: OrgsDep,
+    members: MembersDep,
+    outbox: OutboxDep,
+    settings: SettingsDep,
+    request: Request,
 ) -> dict[str, Any]:
     """The org's first person, or one more: the row, and the one-use token — printed once."""
     org = await an_org(named, orgs)
     role = _a_wanted_member(said, org.id)
-    return await _invited(members, org.id, said, role)
+    base = where_this_gateway_answers(settings, request)
+    return await _invited(members, org, said, role, AN_ADMIN, base, outbox)
 
 
 def _a_wanted_member(said: WantedMember, org: str) -> Role:
@@ -142,20 +167,42 @@ def _a_wanted_member(said: WantedMember, org: str) -> Role:
     return role
 
 
-async def _invited(members: Members, org: str, said: WantedMember, role: Role) -> dict[str, Any]:
-    """The row and the token, the once; 409 for an email that already accepted here.
+async def _invited(
+    members: Members,
+    org: Org,
+    said: WantedMember,
+    role: Role,
+    inviter: str,
+    base: str,
+    outbox: Outbox,
+) -> dict[str, Any]:
+    """The row, the token the once, and whether a letter carrying it was posted; 409 for an
+    email that already accepted here.
 
     A person who already exists on this box — an email with a password in another org — is
     seated active at once and the answer carries no token: they sign in with the password
-    they have, and the console's org switch lists the new org beside the others.
+    they have, and the console's org switch lists the new org beside the others. There is
+    nothing for a letter to carry, so nothing is posted and `mailed` is false.
     """
-    invited = await members.invite(org, said.email, said.name, role, said.agents)
+    invited = await members.invite(org.id, said.email, said.name, role, said.agents)
     if invited is None:
         raise HTTPException(409, ALREADY_A_MEMBER.format(email=said.email))
+    letter = (
+        None
+        if invited.token is None
+        else an_invitation(
+            invited.member.email,
+            org.name,
+            inviter,
+            where_the_card_is(base, invited.token),
+            invited.expires_at,
+        )
+    )
     return {
         "member": member_as_json(invited.member),
         "token": invited.token,
         "expires_at": invited.expires_at,
+        "mailed": await _posted(outbox, org.id, letter),
     }
 
 
@@ -184,12 +231,21 @@ async def change(
     return member_as_json(changed)
 
 
-# The box sends no email, so a forgotten password is the admin's to hand back: a one-use link, the
-# token once in this answer, that the person opens to choose a new password at the very door an
-# invitation is accepted at (below). Only an active member is reset — an invited one has their
-# invitation, a disabled one is enabled first — and the new link spends every older one.
+# A forgotten password handed back by the admin: a one-use link, the token once in this answer and
+# mailed to the person where a letter can go, that they open to choose a new password at the very
+# door an invitation is accepted at (below). Only an active member is reset — an invited one has
+# their invitation, a disabled one is enabled first — and the new link spends every older one.
+# The person may also ask for one themselves, where mail can carry it: api/forgot.py.
 @router.post("/v1/members/{id}/reset", status_code=INVITED)
-async def reset(id: str, key: TeamKeyDep, members: MembersDep) -> dict[str, Any]:
+async def reset(
+    id: str,
+    key: TeamKeyDep,
+    members: MembersDep,
+    orgs: OrgsDep,
+    outbox: OutboxDep,
+    settings: SettingsDep,
+    request: Request,
+) -> dict[str, Any]:
     """A one-use link that sets this member's password; 409 for a member who is not active."""
     found = await members.find(key.org, id)
     if found is None:
@@ -197,10 +253,18 @@ async def reset(id: str, key: TeamKeyDep, members: MembersDep) -> dict[str, Any]
     issued = await members.reset(key.org, id)
     if issued is None:
         raise HTTPException(409, NOT_ACTIVE.format(email=found.email, status=found.status))
+    org = await an_org(key.org, orgs)
+    link = where_the_card_is(where_this_gateway_answers(settings, request), issued.token or "")
+    letter = (
+        None
+        if issued.token is None
+        else a_reset(found.email, org.name, _by(key), link, issued.expires_at)
+    )
     return {
         "member": member_as_json(issued.member),
         "token": issued.token,
         "expires_at": issued.expires_at,
+        "mailed": await _posted(outbox, key.org, letter),
     }
 
 
@@ -229,6 +293,20 @@ async def accept(
         name=member.name,
     )
     return {**issued.as_json, "member": member_as_json(member)}
+
+
+# `mailed` says a letter was HANDED OVER to a mail server, never that it arrived: the send runs
+# after this door has answered (mail/outbox.py), because a door blocked on somebody else's relay
+# is a door. False is the honest answer for a box and an org that both send no mail at all, and
+# it is what every answer carried before this existed.
+async def _posted(outbox: Outbox, org: str, letter: Letter | None) -> bool:
+    """Whether there was a letter to post and somebody to post it through."""
+    return False if letter is None else await outbox.post(org, letter)
+
+
+def _by(key: KeyRecord) -> str:
+    """Whose name a letter says invited or reset somebody: the person, or a machine's `An admin`."""
+    return key.name or AN_ADMIN
 
 
 async def _revoked_every_key_of(keys: Keys, org: str, member: str) -> None:

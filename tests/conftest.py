@@ -39,6 +39,7 @@ pytest_plugins = [
     "tests.postgres",
     "tests.api.people",
     "tests.api.signing_in",
+    "tests.api.mailing",
     "tests.api.carriers",
     "tests.api.policy",
 ]

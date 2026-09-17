@@ -9,7 +9,7 @@ from pinecall._settings import load_settings
 from pinecall.cli import main
 from pinecall.cli.doctor import verbs as doctor
 from pinecall.cli.doctor.probes import Probes
-from tests.cli.doctor.reading import named, probes_that_answer
+from tests.cli.doctor.reading import a_box_that_posts_mail, named, probes_that_answer
 
 pytestmark = pytest.mark.unit
 
@@ -29,7 +29,10 @@ def tei_that_serves_nothing(url: str) -> int:
     return 404 if url.endswith("/info") else 200
 
 
-def test_a_stack_that_is_all_up_reports_all_up_and_nothing_down() -> None:
+def test_a_stack_that_is_all_up_reports_all_up_and_nothing_down(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    a_box_that_posts_mail(monkeypatch)
     results = doctor.run_checks(load_settings(), probes_that_answer())
     assert all(result.ok for result in results)
     assert doctor.first_failure(results) is None
@@ -203,11 +206,33 @@ def test_the_doctor_exits_zero_with_everything_up(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    a_box_that_posts_mail(monkeypatch)
     monkeypatch.setattr(doctor, "live_probes", probes_that_answer)
     assert main(["doctor"]) == 0
     printed = capsys.readouterr().out
     assert printed.count("✓") == len(doctor.CHECKS)
     assert "all up" in printed
+
+
+def test_a_box_told_nothing_about_mail_reads_as_advice_and_never_as_the_verdict(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Every door behaves as it did before mail existed, so a box without it is not a box down."""
+    monkeypatch.setattr(doctor, "live_probes", probes_that_answer)
+    assert main(["doctor"]) == 0
+    printed = capsys.readouterr().out
+    assert "! mail" in printed and "PINECALL_SMTP_URL" in printed and "all up" in printed
+
+
+def test_the_mail_line_names_where_a_letter_goes_and_never_the_password(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A report is read out loud and pasted into issues; the credential never travels with it."""
+    monkeypatch.setenv("PINECALL_SMTP_URL", "smtp://AKIA:s3cret@relay.test:587")
+    monkeypatch.setenv("PINECALL_MAIL_FROM", "Pinecall <no-reply@box.test>")
+    line = named("mail", doctor.run_checks(load_settings(), probes_that_answer()))
+    assert line.ok and "relay.test:587" in line.detail and "starttls" in line.detail
+    assert "s3cret" not in line.detail
 
 
 def test_the_doctor_exits_one_naming_the_first_thing_down(

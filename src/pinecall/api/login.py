@@ -284,7 +284,7 @@ async def _with_a_password(
     # Said after the password matched, and about the org the row is in: a person with two orgs
     # lands in the one a password still opens (below), and only somebody whose every org signs in
     # with a provider is sent to one.
-    if await _only_with_the_provider(sso, member.org):
+    if await only_with_the_provider(sso, member.org):
         org = await orgs.find(member.org)
         raise HTTPException(401, WITH_THE_PROVIDER.format(org=org.slug if org else member.org))
     if member.status == "disabled":
@@ -316,7 +316,7 @@ async def _the_row_for(said: Login, orgs: Orgs, members: Members, sso: Sso | Non
     # two orgs, one of them on SSO, types no org and lands in the one their password opens. When
     # every org of theirs is on a provider the loop finds none and the fallback below says so.
     for row in rows:
-        if row.status != "disabled" and not await _only_with_the_provider(sso, row.org):
+        if row.status != "disabled" and not await only_with_the_provider(sso, row.org):
             return await members.by_email(row.org, said.email)
     for row in rows:
         if row.status != "disabled":
@@ -327,7 +327,7 @@ async def _the_row_for(said: Login, orgs: Orgs, members: Members, sso: Sso | Non
 # None is a box with no vault key: it can read no client secret, so no org signs in with a
 # provider there and every one of them is opened by a password. That is also the way back for a
 # box whose vault key was lost, and it is deliberate — see orgs/sso.py.
-async def _only_with_the_provider(sso: Sso | None, org: str) -> bool:
+async def only_with_the_provider(sso: Sso | None, org: str) -> bool:
     """Whether this org has said a password opens it no longer."""
     if sso is None:
         return False

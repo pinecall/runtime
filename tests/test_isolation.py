@@ -18,6 +18,8 @@ MAY_IMPORT: dict[str, frozenset[str]] = {
     "log": frozenset({"types"}),
     "providers": frozenset({"types"}),
     "orgs": frozenset({"types", "log"}),
+    # The outbox reads the mailbox an org wired and records what came of the letter on its row.
+    "mail": frozenset({"types", "orgs"}),
     "routes": frozenset({"types", "log"}),
     "tokens": frozenset({"types", "log", "auth"}),
     "session": frozenset({"types", "log", "providers"}),
@@ -43,6 +45,7 @@ MAY_IMPORT: dict[str, frozenset[str]] = {
             "lookups",
             "fleet",
             "extensions",
+            "mail",
         }
     ),
     "fleet": frozenset({"types"}),

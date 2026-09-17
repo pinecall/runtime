@@ -99,10 +99,11 @@ class Members(Protocol):
         no member of this org answers to the id."""
         ...
 
-    # A forgotten password, where the box sends no email: the admin is handed a one-use link the
-    # way an invitation is handed, and the person opening it chooses a new password through the
-    # very door an invitation is accepted at. Only an ACTIVE member is reset; the newest link is
-    # the only link, and a member disabled after it was issued is not re-activated by it.
+    # A forgotten password: a one-use link, minted the way an invitation is — for the admin who
+    # hands it back, or for the person who asked at POST /v1/login/reset — and the person opening
+    # it chooses a new password through the very door an invitation is accepted at. Only an
+    # ACTIVE member is reset; the newest link is the only link, and a member disabled after it was
+    # issued is not re-activated by it.
     async def reset(self, org: str, id: str) -> Invited | None:
         """A one-use link that sets this active member's password. None when not active here."""
         ...

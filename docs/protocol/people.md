@@ -5,8 +5,8 @@ key a person logs in for, the code a browser spends, and the one door a stranger
 where its gateway opens one.
 
 An org's people are rows, not shared keys. A key holder invites one — `POST /v1/members` with
-`{email, name, role, agents?}` answers `201` with the member and a one-use `token`, shown once and
-dead in a week — and the person accepts at `POST /v1/invitations/{token}` with `{password, env?,
+`{email, name, role, agents?}` answers `201` with the member, a one-use `token`, shown once and
+dead in a week, and `mailed` (below: whether the link was also posted to them) — and the person accepts at `POST /v1/invitations/{token}` with `{password, env?,
 device?}` (no key at that door; twelve characters at least, argon2id at rest) — which is what the
 console's own card at `/invitations/{token}` does when the link is opened in a browser — and that
 makes them `active` and answers their **first key**, in the one shape a key travels in: `{key, key_id, org,
@@ -72,22 +72,71 @@ left out. It shares `/v1/login`'s throttle and its one sentence: a wrong passwor
 nobody has are the same `401 nobody answers to that email and password`, and the sixth try in a
 minute is `429`.
 
-**A forgotten password is the admin's to hand back**, because this box sends no email.
-`POST /v1/members/{id}/reset` (`team`) answers `201 {member, token, expires_at}`: a one-use link
-like an invitation, shown once, dead in a week, that spends every older link of that member. The
-person opens it and chooses a password at the very door an invitation is accepted at,
+**A forgotten password is handed back by a one-use link**, which an admin issues or the person
+asks for. `POST /v1/members/{id}/reset` (`team`) answers `201 {member, token, expires_at, mailed}`:
+a link like an invitation, shown once, dead in a week, that spends every older link of that
+member. The person opens it and chooses a password at the very door an invitation is accepted at,
 `POST /v1/invitations/{token} {password}`, and the password is theirs in every org, as always.
 Only an **active** member is reset — `409` for one still invited (their invitation is the link) or
-disabled — and a link issued before somebody was disabled opens nothing. The console's "Forgot your
-password?" says: ask an admin of your org.
+disabled — and a link issued before somebody was disabled opens nothing. Where the box can send
+mail, the person asks for their own at `POST /v1/login/reset` (below); where it cannot, the
+console's "Forgot your password?" says: ask an admin of your org.
+
+## Mail: the letters a box sends
+
+**Three letters, and only where somebody said where to post them.** An invitation (`POST
+/v1/members`, and the operator's `POST /v1/ops/orgs/{org}/members`), an admin's reset (`POST
+/v1/members/{id}/reset`) and a forgotten password asked for by the person who forgot it. Each is
+plain text and the same words as simple HTML, in English, naming the org and — for the first two
+— the person who sent it, and carrying the one link: `https://<gateway>/invitations/<token>`, the
+console's own card, built from the box's `PINECALL_DOMAIN` exactly as the identity provider's
+redirect URI is (the request's own host on a laptop with none). A person already seated at once
+— an email that has a password somewhere on this box — has no link to be sent and gets no letter.
+
+**Where they go out.** The transport is generic SMTP, so Amazon SES, Postmark, Mailgun or a mail
+server of one's own: `PINECALL_SMTP_URL` (`smtp://user:pass@host:587` for STARTTLS,
+`smtps://user:pass@host:465` for implicit TLS, the password percent-encoded) and
+`PINECALL_MAIL_FROM` (`Pinecall <no-reply@example.com>`) are **the box's**, a systemd credential
+like every other secret. An org may wire **its own** account, which wins over the box's for its
+letters; with neither, nothing is sent and every door answers exactly as it did before mail existed.
+
+**`mailed` says a letter was handed over, never that it arrived.** The row is written and the door
+answers; the letter leaves in the background, with a ten-second limit, after the answer is gone.
+What came of it is written where somebody can read it: on the org's own mail row when the letter
+went through it (below), in the box's log when it went through the box's. The token stays in the
+answer as it always was, so a letter that never arrives costs an admin nothing they did not have.
+
+`GET /v1/org/mail` (`team`) answers `{configured, host, port, security, username, from,
+verified_at, last_error}` — one shape either way, the empty value of each when nothing is wired —
+and **never the password**. `verified_at` is the last time that server took a letter; `last_error`
+is the sentence it refused the last one with, host and port included and credentials never. `PUT
+/v1/org/mail {host, port, security?, username?, password?, from}` (`security` one of `starttls` —
+the default — `tls`, `none`) replaces the whole account, resets the standing, and sends nothing:
+a door is never blocked on somebody else's relay. `POST /v1/org/mail/test {to}` is the one door
+that waits for a mail server, because a person is watching it: `200 {sent, error}`, recorded on the
+row exactly as a real letter is, and `409` when neither the org nor the box has a server at all.
+`DELETE /v1/org/mail` is `204`, and `404` for an org that wired none. The password is a Fernet
+token under `PINECALL_VAULT_KEY`, as a provider key is; a runtime with no vault key answers these
+doors `503` in the vault's own sentence — and still posts the box's own letters, which need none.
+
+**A forgotten password, asked for.** `POST /v1/login/reset {email}` — no key — answers **`202 {}`
+whoever asks**: not whether anybody answers to the address, not whether their org can send mail,
+not whether it signs in with a provider. It shares `/v1/login`'s throttle (`429` on the sixth try
+in a minute for one name). Behind the one answer: the oldest org of that person's where they are
+`active`, whose org has not set SSO `required`, and whose letters have somewhere to go, is issued
+the same one-use link an admin's reset is, and it is posted to them — one letter, never one per org.
+A token is minted **only** where a letter will carry it, because a reset spends every older link
+of that member: a door that minted one for nothing would let anybody who knows an address kill the
+link an admin handed over an hour ago. What the person opens is the invitation card, as above.
 
 ## The sign-up, where its gateway opens one
 
 **Only where `PINECALL_SIGNUP` is set**, and it is **off unless the person who runs the gateway
 turns it on** — a box somebody runs for their own agents wants no stranger making an org, and is
 never asked to close a door. It is its own flag and not `cloud`: a box of its own may want sign-ups,
-and a cloud may close them. `GET /.well-known/pinecall` answers `{version, cloud, signup}` with no
-key, which is how a page or a CLI knows whether to offer one at all.
+and a cloud may close them. `GET /.well-known/pinecall` answers `{version, cloud, signup,
+min_password, mail}` with no key, which is how a page or a CLI knows whether to offer one at all —
+and, with `mail`, whether "Forgot your password?" may promise an email.
 
 `POST /v1/signup {org, name?, email, person, password, device?}` — no key — answers `201` with the
 same key shape plus `slug`, the `member` (an `admin`, `active`, password kept — or, for an email
