@@ -7,6 +7,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **The call index.** Every append folds what it says into one row per call (`call_facts`,
+  migration 0025): the door, both numbers, the contact, how it ended and what it cost, how the
+  judges answered, whether a person took part, every turn's e2e_latency. The console's list, its
+  day and its inbox read that row instead of reducing every log. Calls from before the migration
+  are folded by `pinecall-runtime migrate up --post` (0026), which also builds the corner index.
 - **A `chat` visit waits for no seat.** The worker waited five seconds for a browser holding a
   `talk` token before every greeting, and a chat token is not one: measured on the live line as
   `seat: 5.0` with every other step of the start-up inside half a second. The wait is skipped for

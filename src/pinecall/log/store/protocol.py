@@ -57,6 +57,13 @@ class Store(Protocol):
         """Close a call's log for good: every later append is refused with LogSealed."""
         ...
 
+    # The one exception to the seal, and only for a verdict: a call nobody judged at hang-up — its
+    # org had judging off, or the judge broke — is judged later on somebody's ask, and what the
+    # judges said is still a fact about that call, in its own log. api/evals/judge.py.
+    async def rescored(self, call: str, agent: str, data: JsonObject) -> Entry:
+        """A call.score onto a log that already sealed, with the next seq."""
+        ...
+
     # A call is listed by its corner and not by its org alone: the org's Sessions screen used to
     # show a developer's sandbox test calls beside the telephone's, and one developer's beside
     # another's (2026-09-16). `env` and `holder` narrow to a corner — the org's own is holder ""

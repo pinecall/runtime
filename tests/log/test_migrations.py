@@ -20,7 +20,9 @@ THE_RUNNERS_OWN_TABLE = (PACKAGE_ROOT / "log" / "store" / "migrating.py").relati
 def test_every_migration_is_numbered_so_the_order_they_apply_in_is_the_order_they_read_in() -> None:
     """A migration is added, never edited, and name order is the only order there is."""
     names = sorted(path.name for path in MIGRATIONS.glob("*.sql"))
-    assert names == [name for name in names if re.match(r"^\d{4}_[a-z_]+\.sql$", name)]
+    # A post-deployment file says so in its name (log/store/migrating.py, POST_DEPLOY), and is
+    # numbered in the same sequence as the rest.
+    assert names == [name for name in names if re.match(r"^\d{4}_[a-z_]+(\.post)?\.sql$", name)]
     assert [name[:4] for name in names] == [f"{n:04d}" for n in range(1, len(names) + 1)]
 
 

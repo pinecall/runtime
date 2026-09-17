@@ -295,7 +295,10 @@ queues — a slow reader is dropped, an append never waits), `replay.py` (backlo
 `snapshots.py` (one reduction per call per seq, for the whole process), `projection.py` and
 `pii.py` (§3), `filters.py` (what a reader asked for), `latencies.py` (livekit's names off the
 two entries a turn lands as), `usage.py` (what an org consumed, folded from `call.summary` and
-`call.score`), `writers.py` (which logs this process is writing). The `seq` is born under the
+`call.score`), `writers.py` (which logs this process is writing), `facts.py` (one row per call —
+door, numbers, contact, end, cost, verdict, whether a person took part, e2e, last words — folded
+by the store in the append that writes each entry; `store/index.py` the questions a list, a day
+and an inbox ask across calls, `call_facts` in Postgres, 0025). The `seq` is born under the
 database in the same INSERT; ephemerals spend a seq and leave no row; `ts` is the runtime's
 clock. **Compact the view, never the log.** `docs/decisions/log.md`.
 

@@ -13,6 +13,9 @@ import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingT
 
 from pinecall._exceptions import PinecallError
 from pinecall.log.entry import Entry
+from pinecall.log.facts import change_of
+from pinecall.log.store.index_statements import RESCORED
+from pinecall.log.store.postgres_index import PostgresIndex
 from pinecall.log.store.protocol import DEFAULT_LIMIT, LogSealed, Metered
 from pinecall.log.store.statements import (
     ACROSS,
@@ -73,7 +76,7 @@ class StoreUnreachable(PinecallError):
     """The database did not answer, or answered that this is not a database we can use."""
 
 
-class PostgresStore:
+class PostgresStore(PostgresIndex):
     """A Store on one pool. Seq and ts are born in append(); ephemerals get a seq and no row."""
 
     def __init__(
@@ -133,9 +136,37 @@ class PostgresStore:
         )
         if seq is None:
             raise LogSealed(f"call {call} has ended: {type} cannot be appended")
-        return Entry(
-            seq=seq, ts=ts, call=call, agent=agent, type=type, ephemeral=ephemeral, data=data
+        return await self._indexed(
+            Entry(seq=seq, ts=ts, call=call, agent=agent, type=type, ephemeral=ephemeral, data=data)
         )
+
+    async def rescored(self, call: str, agent: str, data: JsonObject) -> Entry:
+        """A verdict onto a call whose log already sealed: the one entry a sealed log takes."""
+        ts = self._clock()
+        seq: int | None = await self._pool.fetchval(RESCORED, call, agent, ts, data)
+        if seq is None:
+            raise LogSealed(f"call {call} has no log to judge")
+        return await self._indexed(
+            Entry(
+                seq=seq,
+                ts=ts,
+                call=call,
+                agent=agent,
+                type="call.score",
+                ephemeral=False,
+                data=data,
+            )
+        )
+
+    # The fold runs AFTER the entry is written and never instead of it: a row that failed to
+    # change is a list that says less, while an entry that failed to write is a call that lost a
+    # fact. So the log's statement stands alone, and the index is the second.
+    async def _indexed(self, entry: Entry) -> Entry:
+        """The entry, once its call's facts have what it said."""
+        change = change_of(entry)
+        if entry.call is not None and change is not None:
+            await self._fold(entry.call, change)
+        return entry
 
     async def since(self, call: str, after: int = 0, limit: int = DEFAULT_LIMIT) -> list[Entry]:
         """The call's durable entries above the cursor. Ephemerals were never written: holes."""
