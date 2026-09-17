@@ -146,3 +146,17 @@ contact's history (`GET /v1/contacts/{contact}/memory`) still shows it, supersed
 `{"forgotten": 1}`; `404` when no current fact of the key's org, world and corner answers the id
 (already forgotten included), `422` for an id that is not a UUID. Erasing a person whole is still
 `DELETE /v1/contacts/{contact}/memory`.
+
+## 7. The widget's settings
+
+`GET /v1/agents/{slug}/widget` (`talk`) and `PUT /v1/agents/{slug}/widget` (`pipeline`) read and
+replace `{title, tagline, greeting, accent, autostart}` — how `<pinecall-widget>` presents the agent,
+kept per org, **world** and agent (0029), so a sandbox copy is tried with other words than the site
+shows. Reading takes `talk` because whoever mints the widget's token may read what it shows;
+writing takes `pipeline`, the scope that already turns what a caller meets first — the greeting, the
+voice. `PUT` is the whole set: a `null` is the widget's own default, and `autostart` false. `400`
+when a field is too long (`title` 80, `tagline` 160, `greeting` 500, `accent` 40) or `accent` is not
+a CSS colour — `#cd58b2`, `rebeccapurple`, `rgb(205 88 178)` — since the widget sets it as a CSS
+variable. The gateway keeps them and does not inject them: a console writes them into the snippet
+it copies, as attributes (`name` ← `title`, `--pc-accent` ← `accent`), and the widget's README says
+what `greeting` and `autostart` do.

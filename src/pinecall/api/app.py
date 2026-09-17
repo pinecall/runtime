@@ -40,6 +40,7 @@ from pinecall.api import (
     tokens,
     usage,
     whoami,
+    widget,
 )
 from pinecall.api._live import Live
 from pinecall.api._refusals import refusals_answered_by
@@ -81,6 +82,7 @@ from pinecall.orgs.meter import Meter
 from pinecall.orgs.table import orgs_for
 from pinecall.orgs.turned import turned_for
 from pinecall.orgs.vault import keys_brought_by, vault_for
+from pinecall.orgs.widgets import widgets_for
 from pinecall.providers.embed import embedder_for
 from pinecall.providers.models import models_for
 from pinecall.providers.overrides import Overrides
@@ -160,6 +162,8 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # Which number reaches which agent, durably. A clone with no database routes in memory: it
     # can still be told, and it forgets when the process does.
     gateway.state.routes = routes_for(pool)
+    # How the widget presents each agent: what the console sets and the snippet it copies reads.
+    gateway.state.widgets = widgets_for(pool)
     # Which call tokens were minted and which were spent: the one semantics LiveKit's token has
     # no word for. A clone with no database keeps it in memory, like the routes.
     gateway.state.tokens = tokens_for(pool)
@@ -287,6 +291,7 @@ for door in (
     fleet.router,
     fleet.operator,
     pipeline.router,
+    widget.router,
     tokens.router,
     listen.router,
     supervise_seat.router,

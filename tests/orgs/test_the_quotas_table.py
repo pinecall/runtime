@@ -7,6 +7,7 @@ import pytest
 
 from pinecall.log.store import Pool, open_pool
 from pinecall.orgs.table import PostgresOrgs
+from pinecall.orgs.widgets import PostgresWidgets, Widget
 from pinecall.types import QUOTAS, Quotas
 from tests.postgres import Dev
 
@@ -96,3 +97,13 @@ async def test_an_org_is_judged_until_somebody_turns_it_off(pool: Pool, org: str
     assert await orgs.judges(org) is False
     await orgs.set_judging(org, True)
     assert await orgs.judges(org) is True
+
+
+async def test_a_widget_round_trips_per_world(pool: Pool, org: str) -> None:
+    widgets = PostgresWidgets(pool)
+    assert await widgets.of(org, "production", "clinica") == Widget()
+    kept = Widget(title="Clínica", greeting="Hola", accent="#cd58b2", autostart=True)
+    await widgets.put(org, "production", "clinica", kept)
+    await widgets.put(org, "production", "clinica", kept)
+    assert await widgets.of(org, "production", "clinica") == kept
+    assert await widgets.of(org, "sandbox", "clinica") == Widget()

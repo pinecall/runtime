@@ -37,6 +37,7 @@ from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
 from pinecall.api.whatsapp import threads as whatsapp_threads
 from pinecall.api.whatsapp.threads import Threads
+from pinecall.api.widget import the_widgets
 from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
@@ -56,6 +57,7 @@ from pinecall.orgs.carriers import MemoryCarriers
 from pinecall.orgs.meter import Meter
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.orgs.vault import MemoryVault, Vault, keys_brought_by
+from pinecall.orgs.widgets import MemoryWidgets
 from pinecall.providers.models import Chat, Models
 from pinecall.providers.overrides import Overrides
 from pinecall.routes.table import MemoryRoutes
@@ -316,6 +318,8 @@ def wired(
     app.dependency_overrides[gateway_connected.what_is_live] = lambda: live
     app.dependency_overrides[deps.the_llms] = lambda: llms
     app.dependency_overrides[the_overrides] = lambda: overrides
+    widgets = MemoryWidgets()
+    app.dependency_overrides[the_widgets] = lambda: widgets
     app.dependency_overrides[the_orgs] = lambda: orgs
     app.dependency_overrides[the_vault] = lambda: vault
     app.dependency_overrides[the_admission] = lambda: admission

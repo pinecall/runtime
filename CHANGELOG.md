@@ -7,6 +7,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **The widget's settings, kept by the gateway.** `GET`/`PUT /v1/agents/{slug}/widget` reads and
+  replaces `{title, tagline, greeting, accent, autostart}` per org, world and agent (migration
+  0029): what a console sets and writes into the snippet it copies. Read with `talk`, set with
+  `pipeline`.
 - **Signing in, before a key.** `POST /v1/login/orgs {email, password}` says which orgs a person
   may sign in to and mints nothing, throttled like the login. A forgotten password is handed back
   by an admin: `POST /v1/members/{id}/reset` (`team`) answers a one-use link that sets a new one
