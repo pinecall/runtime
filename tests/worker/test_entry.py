@@ -19,6 +19,7 @@ from livekit.protocol import agent as jobs
 from pinecall.auth.scopes import SCOPE_ATTRIBUTE
 from pinecall.session.voice.platform import Platform
 from pinecall.types import AgentConfig, CallContext, Route
+from pinecall.types.dispatch import SCOPE_KEY, WRITTEN_SCOPE
 from pinecall.worker import entry, recordings, router
 from tests.session.fake_llm import FakeLLM
 from tests.session.voice.room.fakes import (
@@ -73,6 +74,31 @@ def test_a_box_that_keeps_audio_points_the_job_at_the_calls_directory(tmp_path: 
 
 class _FarEnough(Exception):
     """The bridge refusing to open: everything this test is about has already happened."""
+
+
+async def test_a_written_call_keeps_no_recording_even_on_a_box_that_keeps_audio(
+    tmp_path: Path,
+) -> None:
+    """A `chat` visit carries no audio, so no audio.ogg is ever written: a summary that pointed
+    at one was a session screen saying the file was on another box."""
+    handed: list[Path | None] = []
+
+    def a_bridge_that_notes(
+        context: CallContext,
+        config: AgentConfig,
+        platform: Platform,
+        recording: Path | None,
+    ) -> entry.Bridge:
+        handed.append(recording)
+        return _a_bridge_that_refuses(context, config, platform, recording)
+
+    worker = dataclasses.replace(
+        _a_worker(bridging=a_bridge_that_notes), keeping=lambda _: tmp_path
+    )
+    job = _a_job_that_records([], scope=WRITTEN_SCOPE)
+    with pytest.raises(_FarEnough):
+        await entry.answer(cast(JobContext, job), worker)
+    assert handed == [None]
 
 
 async def test_every_livekit_line_of_the_call_names_the_room_it_belongs_to() -> None:
@@ -169,10 +195,13 @@ class _RefusesToOpen(CountingBridge):
 class _AJobThatRecords:
     """The five lines of JobContext one job touches, with a room already seated and a slow join."""
 
-    def __init__(self, order: list[str], room: rtc.Room | None = None) -> None:
+    def __init__(
+        self, order: list[str], room: rtc.Room | None = None, scope: str | None = None
+    ) -> None:
         self.log_context_fields: dict[str, str] = {}
         self._order = order
-        self._job = a_job(room="call_room_1", metadata={"agent": "clinica-norte"})
+        said = {"agent": "clinica-norte"} | ({SCOPE_KEY: scope} if scope is not None else {})
+        self._job = a_job(room="call_room_1", metadata=said)
         self._room = room or as_a_room(a_connected_room(a_caller("+59897777", dialled="+59891111")))
 
     @property
@@ -192,8 +221,10 @@ class _AJobThatRecords:
         """livekit keeps these; nothing in this test ever runs one."""
 
 
-def _a_job_that_records(order: list[str], room: rtc.Room | None = None) -> _AJobThatRecords:
-    return _AJobThatRecords(order, room)
+def _a_job_that_records(
+    order: list[str], room: rtc.Room | None = None, scope: str | None = None
+) -> _AJobThatRecords:
+    return _AJobThatRecords(order, room, scope)
 
 
 def _a_job_nobody_may_touch() -> JobContext:

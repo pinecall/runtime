@@ -133,13 +133,15 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     # here, on its own log, and this job is over. See docs/protocol/numbers.md.
     if not await _the_far_end_answered(ctx, worker, context, arrival):
         return
-    recording = where_the_audio_goes(ctx, context.call, worker.keeping)
-    bridge = worker.bridging(context, config, worker.gateway, recording)
-    # Registered before anything can fail: a call that dies mid-setup still seals its own log.
-    ctx.add_shutdown_callback(sealing(worker.gateway, bridge, context.call))
     # A `chat` visit is written: the session has no ears and no voice, and the room carries no
     # audio either way, so the words reach the page at the pace the model writes them.
     typed = arrival.metadata.get(SCOPE_KEY) == WRITTEN_SCOPE
+    # So a written call keeps no recording, and its summary points at none: a pointer to an
+    # audio.ogg nobody wrote was a session screen that said the file was on another box.
+    recording = None if typed else where_the_audio_goes(ctx, context.call, worker.keeping)
+    bridge = worker.bridging(context, config, worker.gateway, recording)
+    # Registered before anything can fail: a call that dies mid-setup still seals its own log.
+    ctx.add_shutdown_callback(sealing(worker.gateway, bridge, context.call))
     live = session.a_session(config, worker.kit, route.channel, keys, spoken=not typed)
     took("session")
     await clock.seeded(bridge.agent, context.today)
