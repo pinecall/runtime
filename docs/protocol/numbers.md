@@ -10,7 +10,9 @@ the org's key with the `numbers` scope.
 
 ```json
 { "kind": "twilio", "account_sid": "AC…", "user": "SK…", "secret": "…" }
-{ "kind": "sip", "username": "pbx", "password": "…", "addresses": ["203.0.113.0/24"] }
+{ "kind": "sip", "username": "pbx", "password": "…", "addresses": ["203.0.113.0/24"],
+  "outbound_host": "sip.carrier.example:5060", "outbound_transport": "tls",
+  "outbound_username": "pinecall-out", "outbound_password": "…" }
 ```
 
 One per org, replaced whole, sealed under `PINECALL_VAULT_KEY` exactly as a provider key is (a
@@ -18,6 +20,16 @@ runtime with no vault key answers `503` in the vault's sentence). A Twilio accou
 to check — `400 Twilio refused these credentials` otherwise; `user` is an API key SID or the account
 SID again with the auth token. `GET /v1/carrier` answers `{kind, account}` and never a secret;
 `DELETE` forgets it, and the numbers already imported stay routed until each is let go.
+
+The four `outbound_*` fields on a SIP peer are optional and answer the OTHER direction — where the
+box places an INVITE, rather than where one arrives from. `addresses` is the fence the box opens
+for calls the peer SENDS; an address a carrier sends from is not one it accepts a call at, so a
+peer that declares no `outbound_host` can be called FROM and never dialled THROUGH, and the
+outbound doors say that by name rather than guessing. `outbound_transport` is `auto` (the default,
+letting the SFU choose), `udp`, `tcp` or `tls`. `outbound_username` and `outbound_password` are what
+the box authenticates as when it calls the peer; unsaid, they are the pair the peer already
+registers with, because one account in both directions is what most carriers sell. A username
+given without a password is refused `400`.
 
 ## What the account owns — `GET /v1/numbers/available`
 
@@ -106,7 +118,64 @@ credits.exhausted` before Twilio is asked, `0` meaning the plan includes none. L
 number go (`DELETE /v1/numbers/{number}`) makes room again; the number itself stays on the box's
 account, the operator's to release there.
 
+## The other trunk — `GET` · `POST /v1/carrier/outbound`
+
+Everything above is the trunk a call ARRIVES on. Placing one takes a second, different object:
+**origination** is where the carrier sends a call that arrives at this box, **termination** is
+where the box sends one it places. A Twilio trunk carries both, which is why the provisioning
+below looks up the very trunk the import made; a SIP peer's two directions are two addresses, and
+the box only ever knows the one the tenant declared.
+
+`GET /v1/carrier/outbound` is whether this org can dial at all:
+
+```json
+{ "ready": true, "kind": "twilio", "from_numbers": ["+34910000000"], "steps_missing": [],
+  "guards": { "dial_anywhere": false, "per_minute": 6, "per_day": 200,
+              "countries": [], "max_duration_s": 600 } }
+```
+
+`steps_missing` is one sentence per thing still to do, in the order somebody would do them — no
+carrier, a SIP peer with no outbound host, no number imported (a call back is shown as one of the
+org's own numbers, so there has to be one), no LiveKit pair on this gateway, no trunk provisioned
+yet, or a trunk provisioned for a carrier the org no longer has. `ready` is `steps_missing` being
+empty and nothing else. `guards` is the org's standing [dial policy](operator-api.md) read back,
+which only an operator sets.
+
+`POST /v1/carrier/outbound` provisions it, each write looked up before it is made and named in the
+answer's `steps`, exactly as an import's are; `?dry_run=true` answers the same `steps` with the ids
+that stand today and writes nothing. **On Twilio**, four:
+
+1. **the carrier's trunk**: `pinecall-<org>` on the tenant's account — the one the import already
+   made, found by name, created here only when there is none.
+2. **the termination label**: the trunk's `domain_name` set to `pinecall-<org>`, so the box dials
+   `pinecall-<org>.pstn.twilio.com`.
+3. **the credential list**: one named `pinecall-<org>`, its username the same and its password
+   minted here, kept sealed under the vault key and never read back — **Twilio shows a
+   credential's password exactly once**, which is why the box remembers rather than asks. A box
+   behind a changing address would stop dialling the day its IP moved if it authenticated by ACL.
+4. **the SFU's outbound trunk**: one LiveKit outbound trunk per org, `pinecall-<org>-out`, pointed
+   at that termination host with those credentials and carrying the org's own numbers as the ones
+   it may show.
+
+**On a SIP peer** there is one step and no provisioning: this box creates nothing on somebody
+else's switch. It dials `outbound_host` over `outbound_transport`, authenticating with
+`outbound_username` and `outbound_password` — or the pair the peer registers with — and then makes
+the SFU's outbound trunk as above. The peer's own ACL has to admit this box's public address;
+that is the carrier's fence and not this one's.
+
+The answer is `{steps, dry_run: false, ready: true, trunk, address}`, or `{steps, dry_run: true,
+ready: false}` for a plan. Refusals: `404` no carrier yet; `409` the org has imported no number, or
+a SIP peer that declares no `outbound_host`; `409` also a credential list named `pinecall-<org>`
+standing on the account whose password this box no longer holds — a second list would leave two
+logins nobody can tell apart, so it stops and says to delete that one in Twilio's console and run
+again; `503` no LiveKit pair on this gateway, or no `PINECALL_VAULT_KEY`; `502` Twilio's own
+sentence.
+
+Placing a call through it is `POST /v1/agents/{slug}/dial` — [console-api.md](console-api.md) §4,
+where the guards and their refusals are.
+
 ## What this does not do
 
 Release a bought number from the box's Twilio account: that is money and a decision, and it is
-made in Twilio's console by the operator.
+made in Twilio's console by the operator. Provision anything on a SIP peer: an address, a
+credential and an ACL entry on somebody else's switch are theirs to write.
