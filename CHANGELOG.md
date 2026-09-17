@@ -7,6 +7,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **`GET /v1/insights?day=`: a day at a glance.** Conversations today and yesterday, the share of
+  finished calls no person took part in, the median e2e_latency, the spend, the three doors, every
+  call and the live ones, each agent's day and held-rate, and the month's budget beside what was
+  spent — three reads of the call index, the day cut in UTC. `calls`.
 - **An org may turn judging off.** `GET /v1/org/judging` (`calls`) says whether the org's calls
   are judged at hang-up and the box's ceiling; `PUT /v1/org/judging {on}` (`usage`) turns it. Off,
   a call seals with a `call.score` that carries no verdict and says why; the worker asks

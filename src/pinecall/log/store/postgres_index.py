@@ -29,7 +29,7 @@ from pinecall.log.store.index_statements import (
     FOUND_COUNT,
     FOUND_PAGE,
     READ,
-    SPENT_SINCE,
+    SPENT_BETWEEN,
     THREADS,
 )
 
@@ -117,9 +117,9 @@ class PostgresIndex:
             live=int(counted["live"]),
         )
 
-    async def spent_since(self, org: str, since: float) -> float:
-        """One sum over the org's calls since then."""
-        return float(await self._pool.fetchval(SPENT_SINCE, org, since) or 0.0)
+    async def spent_between(self, org: str, start: float, end: float) -> float:
+        """One sum over the org's calls in that span."""
+        return float(await self._pool.fetchval(SPENT_BETWEEN, org, start, end) or 0.0)
 
     async def threads(
         self,
