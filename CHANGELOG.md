@@ -7,6 +7,22 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **Outbound email over generic SMTP** (migration 0034). A box posts letters through
+  `PINECALL_SMTP_URL` (`smtp://user:pass@host:587` STARTTLS, `smtps://…:465` implicit TLS — SES,
+  Postmark, Mailgun or a server of one's own; a systemd credential) as `PINECALL_MAIL_FROM`. An
+  invitation (`POST /v1/members`, and the operator's) and an admin's reset
+  (`POST /v1/members/{id}/reset`) are mailed to the person; both answers keep the token and gain
+  `mailed`, which says a letter was handed over, never that it arrived. **A forgotten password
+  is self-service**: `POST /v1/login/reset {email}` answers `202` whoever asks, shares the
+  login's throttle, and mints a one-use link only where a letter can carry it and the org does
+  not sign in with its provider. An org may wire its own account at `GET`/`PUT`/`DELETE
+  /v1/org/mail` (`team`), its password sealed under the vault key, which wins over the box's;
+  `POST /v1/org/mail/test` sends one and waits. Every send happens after the door answered, and
+  what came of it is on the org's row (`verified_at`, `last_error`) or in the box's log. With no
+  mail anywhere every door answers exactly as before. `GET /.well-known/pinecall` gains `mail`;
+  `pinecall-runtime doctor` gains a mail line and `--mail-to <address>` (`make doctor MAIL_TO=…`).
+  The letters are one branded, table-based, inline-styled frame with a plain-text twin, and
+  fetch nothing: no image, no webfont, no pixel.
 - **Single sign-on, one OpenID Connect provider per org** (migration 0030). An admin wires it at
   `GET`/`PUT`/`DELETE /v1/org/sso` (`team`): the issuer, the client, the email domains it admits,
   the role an address nobody invited is seated with — none by default — and whether a password

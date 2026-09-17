@@ -312,6 +312,19 @@ class Settings(VendorKeys):
             "own provider keys are encrypted under it. Unset, the provider-key doors answer 503."
         ),
     )
+    # The box's own mail, which is how an invitation, a password reset and a forgotten one reach
+    # the person they are about instead of being copied out of an answer by hand. Generic SMTP,
+    # so SES, Postmark, Mailgun or a server of one's own all fit; a credential like every other
+    # secret on a box, so it is a systemd credential and never argv. An org that wired its own
+    # (orgs/mail.py) is used instead; with neither, nothing is sent and every door reads as before.
+    smtp_url: str | None = Field(
+        default=None,
+        description="smtp://user:pass@host:587, or smtps://…:465 — what this box posts mail with.",
+    )
+    mail_from: str | None = Field(
+        default=None,
+        description='Who the box\'s letters are from: "Pinecall <no-reply@example.com>".',
+    )
     log_level: str = Field(
         default="INFO",
         description="How much both processes say: DEBUG, INFO, WARNING or ERROR.",

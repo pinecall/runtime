@@ -11,6 +11,7 @@ from starlette.requests import HTTPConnection
 
 from pinecall._settings import Settings
 from pinecall.api._deps import OrgsDep, SettingsDep, TeamKeyDep, an_org, held
+from pinecall.api._gateway import where_this_gateway_answers
 from pinecall.api._operator import an_operator
 from pinecall.api.orgs import NO_BODY
 from pinecall.auth.openid import OpenIdRefused, configuration
@@ -171,15 +172,12 @@ async def still_required(
     return _standing(changed, where_the_idp_answers(settings, request))
 
 
-# The box's public name when it has one — a carrier already needs it, and it is what Caddy
-# answers to — and what this request arrived at when it has not, which is a laptop on 8080. Never
-# a header a caller sent: the redirect URI is compared byte for byte at the provider, and one a
-# stranger could move would be a sign-in they could redirect to themselves.
+# The one string this gateway is known by at the provider, off the name it is reached by
+# (api/_gateway.py) — never a header a caller sent, which would be a sign-in a stranger could
+# redirect to themselves.
 def where_the_idp_answers(settings: Settings, request: Request) -> str:
     """The redirect URI this gateway is known by, as it is registered at the provider."""
-    if settings.domain:
-        return f"https://{settings.domain}{CALLBACK}"
-    return f"{str(request.base_url).rstrip('/')}{CALLBACK}"
+    return f"{where_this_gateway_answers(settings, request)}{CALLBACK}"
 
 
 def _a_configuration(said: WantedSso, org: str) -> OrgSso:

@@ -7,6 +7,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from pinecall._env_files import env_files_read
 from pinecall._settings import Role, Settings, load_settings, variable_of
+from pinecall.cli.doctor.mail import send_one_to, the_mail_line
 from pinecall.cli.doctor.probes import Probes, live_probes
 from pinecall.providers import catalog
 from pinecall.providers.embed import base_url_of, key_field_of, model_of
@@ -14,7 +15,7 @@ from pinecall.providers.knocks import KNOCKS
 from pinecall.providers.models import DEFAULT_VENDOR
 from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS
 
-PURPOSE: str = "keys present · keys answer · livekit · postgres · embedder · lk"
+PURPOSE: str = "keys present · keys answer · livekit · postgres · embedder · mail · lk"
 
 # pgvector installs under the name `vector`; the BM25 half of the search stack installs under
 # `pg_textsearch`. Both come from the Postgres image infra/compose/dev.yml runs.
@@ -114,16 +115,27 @@ type Check = Callable[[Settings, Probes], Result]
 
 
 def configure(parser: argparse.ArgumentParser) -> None:
-    """No flags and no verbs: the doctor reports."""
+    """One flag: the address a test letter goes to. The report itself asks for nothing."""
+    parser.add_argument(
+        "--mail-to",
+        metavar="<address>",
+        help="after the report, post one test letter there through this box's own mail",
+    )
     parser.set_defaults(run=run)
 
 
-def run(arguments: argparse.Namespace) -> int:  # noqa: ARG001 — every verb takes the namespace
+def run(arguments: argparse.Namespace) -> int:
     """Name the env file first, then walk the checks, print the report, answer with the verdict."""
     print(render_env_source())
     print()
-    results = run_checks(load_settings(), live_probes())
+    settings = load_settings()
+    results = run_checks(settings, live_probes())
     print(render_report(results))
+    # A letter is the one thing here that leaves the machine, so it happens only when somebody
+    # typed an address — and its own verdict stands beside the report's, never instead of it.
+    if arguments.mail_to:
+        print()
+        return send_one_to(settings, arguments.mail_to) or (1 if first_failure(results) else 0)
     return 1 if first_failure(results) else 0
 
 
@@ -290,6 +302,14 @@ def check_the_livekit_cli_is_installed(_settings: Settings, probes: Probes) -> R
     return Result(LIVEKIT_CLI, True, f"{found} — {WHAT_LIVEKIT_CLI_IS_FOR}")
 
 
+# Advice and never the verdict: a box that posts no mail carries every call it always did, and an
+# admin hands an invitation over by copying the link out of the answer, as they did before mail.
+def check_the_mail_is_configured(settings: Settings, _probes: Probes) -> Result:
+    """Whether this box can post an invitation and a password reset, and what it posts them with."""
+    configured, detail = the_mail_line(settings)
+    return Result("mail", configured, detail, advisory=not configured)
+
+
 def check_which_keys_are_honoured(_settings: Settings, _probes: Probes) -> Result:
     """Which keys open this gateway's doors. One table, and this names the verb that fills it."""
     return Result("api keys", True, THE_KEYS_TABLE)
@@ -304,9 +324,12 @@ CHECKS: tuple[Check, ...] = (
     check_livekit_is_reachable,
     check_postgres_is_ready,
     check_the_embedder_answers,
+    check_the_mail_is_configured,
     check_the_livekit_cli_is_installed,
 )
-ONLY_ON_A_HUB: frozenset[Check] = frozenset({check_postgres_is_ready, check_the_embedder_answers})
+ONLY_ON_A_HUB: frozenset[Check] = frozenset(
+    {check_postgres_is_ready, check_the_embedder_answers, check_the_mail_is_configured}
+)
 
 
 def _http_url_of(livekit_url: str) -> str:

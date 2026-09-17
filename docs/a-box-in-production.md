@@ -115,6 +115,7 @@ $ make doctor
 ✓ livekit               http://127.0.0.1:7880/ — HTTP 200
 ✓ postgres              postgresql://pinecall@127.0.0.1:5432/pinecall — vector, pg_textsearch
 ✓ embedder              tei · BAAI/bge-m3 — http://127.0.0.1:8081/info — HTTP 200
+! mail                  not configured — set PINECALL_SMTP_URL and PINECALL_MAIL_FROM to mail invitations and password resets; …
 ! lk                    not installed — brew install livekit-cli
 
 all up
@@ -166,6 +167,65 @@ $ sudo rm /etc/credstore.encrypted/PINECALL_WORKER_KEY
 $ sudo systemctl start pinecall-worker-key           # mints the new one, fleet scope and all
 $ sudo systemctl restart pinecall-worker pinecall-overflow
 ```
+
+### The box's mail
+
+A box that can post a letter mails every invitation and every admin's reset to the person they are
+about, and lets a person who forgot their password ask for a link themselves (`POST
+/v1/login/reset`). A box that cannot still works exactly as before: the link is in the answer, and
+an admin passes it on. The transport is **generic SMTP** — Amazon SES, Postmark, Mailgun or a mail
+server of your own — and it is two settings:
+
+| | | |
+|---|---|---|
+| `PINECALL_SMTP_URL` | **a secret**: `make secret` | `smtp://<user>:<password>@<host>:587` (STARTTLS) or `smtps://…:465` (implicit TLS) |
+| `PINECALL_MAIL_FROM` | not a secret: `/etc/pinecall/box.env` | `Pinecall <noreply@example.com>`, an address the relay lets you send from |
+
+The unit already imports every `PINECALL_*` credential, so there is nothing to change in it. A
+password with `/` or `+` in it may be pasted raw or percent-encoded; either reads the same.
+
+**On Amazon SES**, which is what `box.pinecall.io` sends through:
+
+1. **Verify the domain** in the SES console of the region you send from (`us-east-1` here):
+   *Identities → Create identity → Domain*, with **Easy DKIM**. SES answers three `CNAME` records;
+   put them in the domain's DNS — Route 53 for ours — and wait for *Verified*. Add the SPF include
+   (`v=spf1 include:amazonses.com ~all`) where the domain has an SPF record, and a DMARC record if
+   it has none. A custom MAIL FROM domain is optional and makes SPF align.
+2. **Make SMTP credentials**: *SMTP settings → Create SMTP credentials*. It makes an IAM user
+   allowed `ses:SendRawEmail` and shows **its access key id — the SMTP user — and an SMTP password
+   that is not the secret access key**: it is derived from that key and the region (HMAC-SHA256,
+   version byte `0x04`, base64), so it is region-specific and a secret key pasted in its place is
+   a `535`. The derivation is AWS's own page, *Obtaining Amazon SES SMTP credentials*
+   (docs.aws.amazon.com/ses/latest/dg/smtp-credentials.html); the console does it for you, and
+   the password is shown once.
+3. **Leave the sandbox**: a new SES account sends only to addresses it has verified, two hundred a
+   day. *Account dashboard → Request production access*. Until it is granted, a letter to anybody
+   else is refused with `554 Message rejected: Email address is not verified`, and that sentence is
+   exactly what the doctor and `last_error` show.
+4. **Keep it on the box**, from your checkout, the password never in argv or in your history:
+
+```bash
+read -rs SES_SMTP_PASSWORD                             # paste it; nothing echoes
+printf 'smtp://%s:%s@email-smtp.us-east-1.amazonaws.com:587' "$SES_SMTP_USER" "$SES_SMTP_PASSWORD" \
+  | make secret NAME=PINECALL_SMTP_URL
+unset SES_SMTP_PASSWORD
+ssh $BOX "echo 'PINECALL_MAIL_FROM=Pinecall <noreply@pinecall.io>' | sudo tee -a /etc/pinecall/box.env"   # once
+make restart
+make doctor MAIL_TO=you@example.com
+```
+
+```console
+✓ mail                  Pinecall <noreply@pinecall.io> through email-smtp.us-east-1.amazonaws.com:587 (starttls) — `doctor --mail-to you@example.com` posts one
+…
+mail sent  you@example.com — taken by email-smtp.us-east-1.amazonaws.com:587
+```
+
+`! mail  not configured` is advice and never the verdict. `GET /.well-known/pinecall` answers
+`"mail": true` from the next start, which is how the console's sign-in page knows it may offer
+"Forgot your password?". **An org that wants its letters to come from its own domain** wires its
+own account at `PUT /v1/org/mail` (its password sealed under `PINECALL_VAULT_KEY`), which wins
+over the box's for that org; `POST /v1/org/mail/test` sends one and says what the server said —
+[people.md](protocol/people.md).
 
 ## 6. The first org and the first person
 
