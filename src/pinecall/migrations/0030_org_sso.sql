@@ -1,4 +1,4 @@
--- 0031: where an org's people prove who they are — one identity provider per org.
+-- 0030: where an org's people prove who they are — one identity provider per org.
 --
 -- Until here a person was their email and their password, chosen on this box and argon2id at
 -- rest (0014). An org whose people already exist in Google Workspace, Okta or Entra does not

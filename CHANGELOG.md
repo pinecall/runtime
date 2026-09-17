@@ -7,7 +7,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
-- **Single sign-on, one OpenID Connect provider per org** (migration 0031). An admin wires it at
+- **Single sign-on, one OpenID Connect provider per org** (migration 0030). An admin wires it at
   `GET`/`PUT`/`DELETE /v1/org/sso` (`team`): the issuer, the client, the email domains it admits,
   the role an address nobody invited is seated with — none by default — and whether a password
   opens the org at all. The client secret is sealed under `PINECALL_VAULT_KEY` as a provider key
