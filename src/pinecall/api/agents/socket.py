@@ -161,6 +161,9 @@ class AppSocket:
     # session, and sessions arrive with the text session card.
     async def _nobody_to_take(self, command: Command) -> None:
         """An unknown type, or a known one that only a live session could have answered."""
+        if command.type == DIAL:
+            await self.refuse(command.agent, "no_handler", NOT_THIS_SOCKET, command.model_dump())
+            return
         if command.type in COMMANDS:
             await self.refuse(
                 command.agent,
@@ -175,6 +178,19 @@ class AppSocket:
             f"the protocol has no command called {command.type!r}",
             command.model_dump(),
         )
+
+
+# `call.dial` is agent-scoped, so it lands here rather than on a session — and this socket does not
+# answer it. Placing a call is a door of its own, `POST /v1/agents/{slug}/dial`, because it opens a
+# log and passes the outbound guards before any call exists, and because it is the `talk` scope's
+# and not `app`'s: what holds an agent and what may ring a stranger's phone are two rights, and an
+# app socket holds the first. Refused by name, so an app is not told it has no session when the
+# reason is that it knocked in the wrong place. docs/protocol/console-api.md §4.
+DIAL = "call.dial"
+NOT_THIS_SOCKET = (
+    "call.dial is not answered on the app socket: POST /v1/agents/{slug}/dial places a call, with"
+    " the `talk` scope and the org's outbound guards"
+)
 
 
 # ── what this socket answers itself ─────────────────────────────────────────────

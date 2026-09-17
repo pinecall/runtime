@@ -151,6 +151,12 @@ are set per org by the operator alone — [operator-api.md](operator-api.md) —
 could lift its own fence has none. The ceiling rides in the dispatch and is enforced by the media
 plane, so a worker that crashed leaves no call running on somebody's bill.
 
+The protocol's `call.dial` command is **not** answered on the app socket, and never was. It is
+agent-scoped, so it arrives there, and the socket refuses it by name with `no_handler` and the
+door's path: placing a call opens a log and passes the outbound guards before any call exists, and
+it is the `talk` scope's rather than `app`'s — what holds an agent and what may ring a stranger's
+phone are two different rights, and an app socket holds the first.
+
 Four more refusals are about the box rather than the number: `404` when the agent answers no phone
 number in that world (a call back is shown as one of the org's own numbers, so there has to be
 one), and `400` for a `from` that is not one of them; `409` when the org has no outbound trunk —
