@@ -68,6 +68,12 @@ class Admission:
         await self._refuse_past(org, agent, quotas, "minutes", totals.minutes)
         await self._refuse_past(org, agent, quotas, "messages", totals.messages)
 
+    # A hang-up is judged only where the org has not turned judging off: the judges may cost a
+    # model's tokens, and that is the org's to decline (api/judging.py).
+    async def judges(self, org: str) -> bool:
+        """Whether this org's calls are judged when they hang up."""
+        return await self._orgs.judges(org)
+
     async def an_agent(self, org: str, agent: str, holding: int) -> None:
         """May this org hold one more agent, with `holding` other agents held already."""
         quotas = await self._orgs.quotas_of(org)

@@ -13,6 +13,9 @@ from pinecall.cli.operator import Operator, against_the_gateway
 from pinecall.providers.catalog import vendors_with_a_key
 from pinecall.types import QUOTAS, ROLES
 
+# The one limit set with the quotas that is not one of them: nothing is refused over it.
+BUDGET = "budget_eur"
+
 PURPOSE: str = "the tenants: list | add | invite | operator | move | rm | quota | provider-key"
 VERBS: tuple[str, ...] = (
     "list",
@@ -92,6 +95,12 @@ def configure(parser: argparse.ArgumentParser) -> None:
     for name in QUOTAS:
         flag = f"--{name.replace('_', '-')}"
         limiting.add_argument(flag, type=int, default=None, help=f"{name}; left out is no limit")
+    limiting.add_argument(
+        f"--{BUDGET.replace('_', '-')}",
+        type=int,
+        default=None,
+        help="euros a calendar month, shown beside what was spent and never refused; out is none",
+    )
     limiting.set_defaults(run=run_quota)
 
     _configure_provider_keys(verbs.add_parser("provider-key", help="an org's own vendor keys"))
@@ -166,7 +175,7 @@ def run_remove(arguments: argparse.Namespace) -> int:
 
 def run_quota(arguments: argparse.Namespace) -> int:
     """The org's limits, replaced whole: a flag left out is no limit."""
-    limits: dict[str, int | None] = {name: getattr(arguments, name) for name in QUOTAS}
+    limits: dict[str, int | None] = {name: getattr(arguments, name) for name in (*QUOTAS, BUDGET)}
     return against_the_gateway(partial(set_quota, arguments.org, limits))
 
 
@@ -293,7 +302,7 @@ async def set_quota(
 ) -> int:
     """The limits as the door kept them, one per line, `—` for the ones left open."""
     kept = await operator.put(f"{OPS_ORGS}/{org}/quotas", limits)
-    for name in QUOTAS:
+    for name in (*QUOTAS, BUDGET):
         limit = kept.get(name)
         print(f"  {name:<17} {NO_LIMIT if limit is None else limit}", file=out)
     return 0

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from livekit.agents.evals import Evaluator, JudgeGroup, JudgmentResult
@@ -22,6 +23,7 @@ from pinecall.evals.verdicts import a_judgment, nobody_asked
 from pinecall.log.entry import Entry
 from pinecall.providers import prices
 from pinecall.providers.usage import as_wire_rows
+from pinecall.session.scoring import Scorer
 from pinecall.types import AgentConfig
 from pinecall_protocol.events import CallScore, Judgment
 
@@ -32,6 +34,8 @@ JUDGING_BROKE = "judging this call failed: {broke}"
 NOTHING_ANSWERED = "every judge run over this call failed and not one of them answered"
 
 OVER_THE_CEILING = "judging this call may spend {ceiling} EUR on a model and was given none"
+
+JUDGING_OFF = "this org's calls are not judged at hang-up: POST /v1/evals/judge/{call} judges one"
 
 
 async def a_score(
@@ -72,6 +76,24 @@ async def _judged(entries: Sequence[Entry], config: AgentConfig, settings: Setti
     judged = [a_judgment(name, one, entries) for name, one in result.judgments.items()]
     cost = prices.eur_of(as_wire_rows(spent.flatten()))
     return _an_entry(judged, declared, counted.calls, cost)
+
+
+# Whoever opens a call hands the session its judge, and knows whose call it is: the gateway for a
+# written call reads the org's setting in-process, the worker for a spoken one asks the gateway.
+# Asked at hang-up and not when the call opened, so a setting turned mid-call is the one that holds.
+# A value and not a closure, so what a door handed a session can be read back and compared.
+@dataclass(frozen=True)
+class JudgedWhen:
+    """A scorer that asks first whether this call's org judges its calls, and judges if it does."""
+
+    judges: Callable[[str], Awaitable[bool]]
+    score: Scorer = a_score
+
+    async def __call__(self, entries: Sequence[Entry], config: AgentConfig) -> CallScore:
+        """No verdict and the reason when the org declined judging; the judges otherwise."""
+        if not await self.judges(_call_of(entries)):
+            return _nobody_judged(JUDGING_OFF)
+        return await self.score(entries, config)
 
 
 # The policies are the tenant's rules, and a live call carries its own evidence for these two.

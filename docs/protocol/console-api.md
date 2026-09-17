@@ -44,3 +44,17 @@ person reviewing calls looks at first:
 sentences that could commit, in Spanish and in English, and a call with none holds for free; when
 there are some, the judge model is asked once with every tool call of the call as evidence, under
 the same per-call ceiling as every judge. With no model to ask, it is `skipped`, and no flag rises.
+
+## 3. Judging: on, off, and the ceiling
+
+`GET /v1/org/judging` (`calls`) answers `{on, ceiling_eur}`; `PUT /v1/org/judging {on}` (`usage`:
+what an org spends is its manager's and admin's to decide) turns it for every call that hangs up
+from then on. It is the **org's**, both worlds: the judges are the platform's measurement and their
+cost is the org's bill. `ceiling_eur` is the box's `PINECALL_JUDGE_CEILING_EUR` — what judging one
+call may spend on a model — which a tenant reads and does not set.
+
+Off, a hang-up asks no judge at all and seals the call with a `call.score` carrying no verdict and
+`not_judged: "this org's calls are not judged at hang-up: …"`. A written call reads the setting in
+the gateway; a spoken one is judged in the worker, which asks `GET /v1/calls/{call}/judging` (`app`,
+the worker's own door, the call's org) before its judges run — a gateway it cannot reach is a call
+judged as before, still under the ceiling. Such a call can be judged later: §6.

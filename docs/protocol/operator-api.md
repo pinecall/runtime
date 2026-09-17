@@ -159,10 +159,11 @@ The whole set, replaced: a limit left out is no limit. Zero is a real limit and 
 
 ```json
 { "minutes": 1000, "agents": 5, "concurrent_calls": 10,
-  "memory_facts": 5000, "knowledge_chunks": 2000, "numbers": 1, "seats": 10 }
+  "memory_facts": 5000, "knowledge_chunks": 2000, "numbers": 1, "seats": 10, "budget_eur": 300 }
 ```
 
-Four of them are **flows** — what the org has consumed, or holds open right now. `minutes` is
+`budget_eur` rides the same body and is not a quota: whole euros a calendar month, both worlds,
+shown beside what was spent (`GET /v1/insights`, [console-api.md](console-api.md)); nothing is refused over it. Four of them are **flows** — what the org has consumed, or holds open right now. `minutes` is
 minutes of call, summed from every `call.summary` in the org's logs; `messages` is turns, both
 sides, the same way; `agents` is how many agents the org's sockets may hold at once;
 `concurrent_calls` is how many of its calls may be open on this gateway at once. The answer is the

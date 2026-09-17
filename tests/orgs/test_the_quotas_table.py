@@ -78,3 +78,21 @@ async def test_removing_the_org_takes_its_quotas_with_it(pool: Pool, org: str) -
     assert await orgs.remove(org) is True
     row = await pool.fetchrow("select org from quotas where org = $1", org)
     assert row is None
+
+
+async def test_the_budget_round_trips_beside_the_quotas_it_is_not_one_of(
+    pool: Pool, org: str
+) -> None:
+    orgs = PostgresOrgs(pool)
+    await orgs.set_quotas(org, Quotas(seats=4, budget_eur=250))
+    assert await orgs.quotas_of(org) == Quotas(seats=4, budget_eur=250)
+    assert "budget_eur" not in QUOTAS, "nothing is refused over a budget"
+
+
+async def test_an_org_is_judged_until_somebody_turns_it_off(pool: Pool, org: str) -> None:
+    orgs = PostgresOrgs(pool)
+    assert await orgs.judges(org) is True
+    await orgs.set_judging(org, False)
+    assert await orgs.judges(org) is False
+    await orgs.set_judging(org, True)
+    assert await orgs.judges(org) is True

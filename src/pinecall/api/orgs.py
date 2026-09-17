@@ -89,6 +89,7 @@ class WantedQuotas(WireModel):
     knowledge_chunks: int | None = None
     numbers: int | None = None
     seats: int | None = None
+    budget_eur: int | None = None
 
 
 # ── the orgs ────────────────────────────────────────────────────────────────────
@@ -218,6 +219,7 @@ async def set_quotas(named: str, said: WantedQuotas, orgs: OrgsDep) -> dict[str,
             knowledge_chunks=said.knowledge_chunks,
             numbers=said.numbers,
             seats=said.seats,
+            budget_eur=said.budget_eur,
         )
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused

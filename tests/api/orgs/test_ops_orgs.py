@@ -33,6 +33,7 @@ async def test_a_new_org_gets_a_minted_id_and_is_found_by_id_and_by_slug(
     by_slug = (await ops_http.get(f"{ORGS}/tienda-sur")).json()
     assert by_id == by_slug
     assert by_id["quotas"] == {
+        "budget_eur": None,
         "minutes": None,
         "messages": None,
         "agents": None,
@@ -83,6 +84,7 @@ async def test_quotas_are_replaced_whole_and_a_limit_left_out_is_no_limit(
         f"{ORGS}/{AN_ORG.slug}/quotas", json={"minutes": 100, "agents": 3}
     )
     assert set_once.json() == {
+        "budget_eur": None,
         "minutes": 100,
         "messages": None,
         "agents": 3,
@@ -96,6 +98,7 @@ async def test_quotas_are_replaced_whole_and_a_limit_left_out_is_no_limit(
         f"{ORGS}/{AN_ORG.slug}/quotas", json={"messages": 5, "memory_facts": 0}
     )
     assert set_again.json() == {
+        "budget_eur": None,
         "minutes": None,
         "messages": 5,
         "agents": None,

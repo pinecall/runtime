@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pinecall._settings import Budgets
 from pinecall.api.agents.holding import Registration, SocketId
 from pinecall.api.agents.registry import Registry
-from pinecall.evals import a_score
+from pinecall.evals.score import JudgedWhen
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
@@ -68,7 +68,7 @@ async def a_text_call(
         config,
         logs.writing(context.call, held.slug),
         llm,
-        score=a_score,
+        score=JudgedWhen(lambda _call: admission.judges(held.org)),
         lookup=lookups,
         rememberer=lookups,
         budgets=budgets,

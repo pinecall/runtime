@@ -7,6 +7,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **An org may turn judging off.** `GET /v1/org/judging` (`calls`) says whether the org's calls
+  are judged at hang-up and the box's ceiling; `PUT /v1/org/judging {on}` (`usage`) turns it. Off,
+  a call seals with a `call.score` that carries no verdict and says why; the worker asks
+  `GET /v1/calls/{call}/judging` before it judges a spoken call. Migration 0027.
+- **A monthly budget beside the quotas.** `budget_eur` (whole euros, both worlds) is set with
+  `PUT /v1/ops/orgs/{org}/quotas` and `orgs quota --budget-eur`; nothing is refused over it.
+  Migration 0028.
 - **The session lists filter, count and page, and each row says how it was judged.** `GET
   /v1/sessions` and `GET /v1/agents/{slug}/sessions` take `q` (call id, a number's digits, the
   caller's name, the outcome), `agent`, `channel` and `before`, and answer `total` and `next`

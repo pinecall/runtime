@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator, Mapping
 from typing import Any, cast
 
 import httpx
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
 from pinecall.fleet import Heartbeat, Standing
 from pinecall.session.voice.platform import PlatformRefused
@@ -24,6 +24,7 @@ from pinecall.types.json import JsonObject
 from pinecall_protocol import Command
 from pinecall_protocol.defs import ToolResult
 from pinecall_protocol.events import ToolCall
+from pinecall_protocol.rest import Judging
 
 # A call is not worth waiting on a control plane for: the caller is on the line.
 TIMEOUT_S = 5.0
@@ -48,6 +49,7 @@ RESULT: TypeAdapter[ToolResult] = TypeAdapter(ToolResult)
 COMMAND: TypeAdapter[Command] = TypeAdapter(Command)
 BEAT: TypeAdapter[Heartbeat] = TypeAdapter(Heartbeat)
 STANDING: TypeAdapter[Standing] = TypeAdapter(Standing)
+JUDGING: TypeAdapter[Judging] = TypeAdapter(Judging)
 
 
 class GatewayRefused(PlatformRefused):
@@ -188,6 +190,16 @@ class Gateway:
             said["speech_id"] = speech_id
         answer = await self._read("POST", f"/v1/calls/{call}/lookup", said)
         return dict(answer["output"])
+
+    # Asked at hang-up, before a judge may spend on a model. A gateway that cannot be asked is a
+    # call judged as every call was before the setting existed: the ceiling still bounds it.
+    async def judging(self, call: str) -> bool:
+        """Whether the org this call belongs to judges its calls at hang-up."""
+        try:
+            said = JUDGING.validate_python(await self._read("GET", f"/v1/calls/{call}/judging"))
+        except (GatewayRefused, ValidationError):
+            return True
+        return said.on
 
     async def remember(self, call: str) -> int:
         """The gateway reads the call's turns off its log and writes what memory keeps."""

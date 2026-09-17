@@ -8,6 +8,7 @@ from pinecall._settings import Budgets
 from pinecall.api.agents.holding import Registration
 from pinecall.api.calls.opening import a_text_call
 from pinecall.evals import a_score
+from pinecall.evals.score import JudgedWhen
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
@@ -58,5 +59,6 @@ async def test_a_text_call_is_opened_with_the_judge_and_not_with_the_default(
         _held(), _context(), overrides, None, llms, admission, logs, 0, lookups, Budgets()
     )
 
-    assert opened.session._score is a_score  # pyright: ignore[reportPrivateUsage]
+    judge = opened.session._score  # pyright: ignore[reportPrivateUsage]
+    assert isinstance(judge, JudgedWhen) and judge.score is a_score
     assert opened.session._score is not unjudged  # pyright: ignore[reportPrivateUsage]
