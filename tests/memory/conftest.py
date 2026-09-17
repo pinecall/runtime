@@ -28,8 +28,8 @@ _create_pool = cast("Any", asyncpg.create_pool)  # pyright: ignore[reportUnknown
 _A_ROW = """
 INSERT INTO contact_memories
     (org, env, holder, contact, text, category, embedding, valid_from, invalidated_at,
-     confidence, model)
-VALUES ($1, 'production', '', $2, $3, $4, $5::text::halfvec, $6, $7, $8, $9)
+     confidence, model, source_call)
+VALUES ($1, 'production', '', $2, $3, $4, $5::text::halfvec, $6, $7, $8, $9, $10)
 RETURNING id
 """
 
@@ -105,11 +105,22 @@ async def a_row(
     invalidated: datetime | None = None,
     confidence: float = 1.0,
     model: str = HASH_MODEL,
+    source: str | None = None,
 ) -> str:
     """One fact in the table; its id. `model` is whose vectors these are: the suite's."""
     vector = HalfVector(a_vector(like if like is not None else text)).to_text()
     row = await pool.fetchrow(
-        _A_ROW, org, contact, text, category, vector, learned, invalidated, confidence, model
+        _A_ROW,
+        org,
+        contact,
+        text,
+        category,
+        vector,
+        learned,
+        invalidated,
+        confidence,
+        model,
+        source,
     )
     assert row is not None
     return str(row["id"])

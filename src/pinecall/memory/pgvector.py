@@ -7,10 +7,12 @@ import time
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
 from pinecall.log.store import Pool
+from pinecall.log.store.index import like_escaped
 from pinecall.memory.extraction import OPS_THAT_WRITE, Op, extracted
-from pinecall.memory.protocol import DEFAULT_FACTS_PER_TURN, Spoken
+from pinecall.memory.protocol import DEFAULT_FACTS_PER_TURN, FactsPage, Spoken
 from pinecall.memory.ranking import Candidate, ranked
 from pinecall.providers.embedder import Embedder, as_halfvec
 from pinecall.providers.models import Models
@@ -73,6 +75,26 @@ _EVERY_ROW = f"""
 SELECT {_COLUMNS} FROM contact_memories
 WHERE org = $1 AND env = $2 AND holder = $3 AND contact = $4
 ORDER BY (invalidated_at IS NULL) DESC, valid_from DESC, id
+"""
+
+# What an agent's calls taught, across its contacts: the fact's own source call is a head row, and
+# that row says which agent took it. Current facts only, newest first; `$5` is the words as a LIKE
+# pattern, `$6`/`$7` the cursor — the last fact of the page before.
+_TAUGHT_BY = f"""
+SELECT {_COLUMNS} FROM contact_memories memory
+JOIN call_log_head head ON head.log = memory.source_call
+WHERE memory.org = $1 AND memory.env = $2 AND memory.holder = $3 AND head.agent = $4
+  AND memory.invalidated_at IS NULL
+  AND ($5::text IS NULL OR memory.text ILIKE '%' || $5 || '%'
+       OR memory.contact ILIKE '%' || $5 || '%' OR memory.category ILIKE '%' || $5 || '%')
+  AND ($6::timestamptz IS NULL OR (memory.valid_from, memory.id) < ($6, $7::uuid))
+ORDER BY memory.valid_from DESC, memory.id DESC
+LIMIT $8
+"""
+
+_ENDED = """
+UPDATE contact_memories SET invalidated_at = $5
+WHERE id = $4::uuid AND org = $1 AND env = $2 AND holder = $3 AND invalidated_at IS NULL
 """
 
 _FORGET = (
@@ -226,6 +248,41 @@ class PgvectorMemory:
             for row in await self._pool.fetch(_EVERY_ROW, org, env, whose(holder), contact)
         ]
 
+    async def taught_by(
+        self,
+        org: str,
+        env: Env,
+        holder: str | None,
+        agent: str,
+        *,
+        words: str | None,
+        after: str | None,
+        limit: int,
+    ) -> FactsPage:
+        """One page and one row past it, to know whether there is another."""
+        cursor = a_cursor(after)
+        rows = await self._pool.fetch(
+            _TAUGHT_BY,
+            org,
+            env,
+            whose(holder),
+            agent,
+            None if not words else like_escaped(words),
+            None if cursor is None else cursor[0],
+            None if cursor is None else cursor[1],
+            limit + 1,
+        )
+        facts = [_a_fact(row) for row in rows]
+        page = facts[:limit]
+        return FactsPage(facts=page, next=cursor_of(page[-1]) if len(facts) > limit else None)
+
+    async def invalidated(
+        self, org: str, env: Env, holder: str | None, id: str, at: datetime
+    ) -> bool:
+        """One UPDATE; the command tag says whether a current fact answered."""
+        tag = await self._pool.execute(_ENDED, org, env, whose(holder), id, at)
+        return tag.strip() != "UPDATE 0"
+
     async def kept(self, org: str) -> int:
         """One count over the partial index: the facts that hold right now, across the org."""
         row = await self._pool.fetchrow(_KEPT, org)
@@ -298,6 +355,22 @@ class PgvectorMemory:
         if not listed:
             return []
         return [as_halfvec(vector) for vector in await self._embedder.embed(listed)]
+
+
+def cursor_of(fact: Fact) -> str:
+    """Where the page after this fact starts: when it was written, then which, since two may tie."""
+    return f"{fact.valid_from.isoformat()}|{fact.id}"
+
+
+def a_cursor(after: str | None) -> tuple[datetime, UUID] | None:
+    """The moment and the id a cursor names, or None for a first page or a word that is not one."""
+    if not after or "|" not in after:
+        return None
+    moment, id = after.split("|", 1)
+    try:
+        return datetime.fromisoformat(moment), UUID(id)
+    except ValueError:
+        return None
 
 
 def _a_fact(row: Mapping[str, Any]) -> Fact:

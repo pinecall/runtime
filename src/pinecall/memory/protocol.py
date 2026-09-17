@@ -103,3 +103,36 @@ class Memory(Protocol):
     async def history(self, org: str, env: Env, holder: str | None, contact: str) -> list[Fact]:
         """Every fact ever held about the contact: the current ones first, then the superseded."""
         ...
+
+    # A fact carries the call that taught it, and that call the agent that took it: so what an
+    # agent's calls taught, across every contact, is a read and not a column. A fact a golden held
+    # came from no call and belongs to no agent's list.
+    async def taught_by(
+        self,
+        org: str,
+        env: Env,
+        holder: str | None,
+        agent: str,
+        *,
+        words: str | None,
+        after: str | None,
+        limit: int,
+    ) -> FactsPage:
+        """The current facts this agent's calls taught, newest first, a page after the cursor."""
+        ...
+
+    # Forgetting ONE fact is the bi-temporal end a later call would have written: the row stays,
+    # with the moment it stopped holding, and recall stops reading it from that moment.
+    async def invalidated(
+        self, org: str, env: Env, holder: str | None, id: str, at: datetime
+    ) -> bool:
+        """This current fact holds no more from `at`. False when no current fact answers the id."""
+        ...
+
+
+@dataclass(frozen=True)
+class FactsPage:
+    """One page of facts and the cursor the next one starts after, or None on the last."""
+
+    facts: list[Fact]
+    next: str | None

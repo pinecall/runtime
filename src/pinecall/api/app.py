@@ -12,6 +12,7 @@ from fastapi import FastAPI
 
 from pinecall._settings import Settings, load_settings
 from pinecall.api import (
+    agent_memory,
     contacts,
     discovery,
     extraction,
@@ -291,6 +292,7 @@ for door in (
     webhook.router,
     knowledge.router,
     contacts.router,
+    agent_memory.router,
     extraction.router,
     members.router,
     members.operator,

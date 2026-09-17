@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from functools import partial
 from typing import Any
@@ -14,6 +14,7 @@ from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups, MayRemember, OpenCall, QuotasOf
 from pinecall.memory import Spoken
+from pinecall.memory.protocol import FactsPage
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.meter import Meter
 from pinecall.orgs.table import MemoryOrgs
@@ -161,6 +162,43 @@ class ScriptedMemory:
     async def kept(self, org: str) -> int:  # noqa: ARG002
         """What this org holds: the facts this fake was given, as a real table would count them."""
         return len(self.answers)
+
+    async def taught_by(
+        self,
+        org: str,  # noqa: ARG002 — the Protocol's shape
+        env: Env,  # noqa: ARG002 — the Protocol's shape
+        holder: str | None,  # noqa: ARG002 — the Protocol's shape
+        agent: str,  # noqa: ARG002 — the Protocol's shape
+        *,
+        words: str | None,
+        after: str | None,
+        limit: int,
+    ) -> FactsPage:
+        """The facts given that hold and say the words, from after the id the cursor names."""
+        held = [
+            fact
+            for fact in self.answers
+            if fact.invalidated_at is None and (not words or words in fact.text)
+        ]
+        start = next((n + 1 for n, fact in enumerate(held) if fact.id == after), 0)
+        page = held[start : start + limit]
+        more = len(held) > start + limit
+        return FactsPage(facts=page, next=page[-1].id if more and page else None)
+
+    async def invalidated(
+        self,
+        org: str,  # noqa: ARG002 — the Protocol's shape
+        env: Env,  # noqa: ARG002 — the Protocol's shape
+        holder: str | None,  # noqa: ARG002 — the Protocol's shape
+        id: str,
+        at: datetime,
+    ) -> bool:
+        """The fact given under that id, ended at that moment, when it still held."""
+        for n, fact in enumerate(self.answers):
+            if fact.id == id and fact.invalidated_at is None:
+                self.answers[n] = replace(fact, invalidated_at=at)
+                return True
+        return False
 
 
 @dataclass
