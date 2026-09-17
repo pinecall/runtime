@@ -70,6 +70,13 @@ class OtherOrg(WireModel):
     org: str
 
 
+class Credentials(WireModel):
+    """An email and a password, and nothing else: what the org picker asks with."""
+
+    email: str
+    password: str
+
+
 class Login(WireModel):
     """A person's email and password, in one of their orgs; or a code somebody's key minted."""
 
@@ -159,6 +166,31 @@ async def _the_person(key: KeyRecord, members: MembersDep) -> Member:
     if member is None or member.status != "active":
         raise HTTPException(403, NOT_A_MEMBER)
     return member
+
+
+# Before a person picks an org at the console's sign-in: which orgs this email and password open,
+# minting nothing. The same throttle and the same one sentence as the login itself, so a wrong
+# password says nothing about whether the email exists anywhere.
+@router.post("/v1/login/orgs")
+async def orgs_to_sign_in_to(
+    said: Credentials,
+    request: Request,
+    orgs: OrgsDep,
+    members: MembersDep,
+    throttle: ThrottleDep,
+) -> dict[str, Any]:
+    """The orgs this person may sign in to, oldest first; 401 for a wrong email or password."""
+    if not throttle.allowed(f"{the_client(request)} */{said.email}"):
+        raise HTTPException(429, TOO_MANY.format(email=said.email))
+    known = await members.a_persons_password(said.email)
+    if known is None or not passwords.matches(said.password, known):
+        raise HTTPException(401, NOBODY_ANYWHERE)
+    listed: list[dict[str, Any]] = []
+    for row in await members.orgs_of(said.email):
+        org = None if row.status == "disabled" else await orgs.find(row.org)
+        if org is not None:
+            listed.append({"org": org.id, "slug": org.slug, "name": org.name, "role": row.role})
+    return {"orgs": listed}
 
 
 # A key holder — `pinecall run`, a person already in — mints a word a browser can carry in a URL

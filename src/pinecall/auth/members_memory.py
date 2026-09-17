@@ -81,6 +81,8 @@ class MemoryMembers:
             return None
         self._invitations[hashed] = replace(invitation, spent=True)
         row = self._rows[invitation.member]
+        if row.member.status == "disabled":
+            return None
         member = replace(row.member, status="active")
         self._rows[member.id] = replace(row, member=member, password_hash=password_hash)
         self._password_everywhere(member.email, password_hash)
@@ -157,6 +159,18 @@ class MemoryMembers:
         )
         self._rows[id] = replace(self._rows[id], member=member)
         return member
+
+    async def reset(self, org: str, id: str) -> Invited | None:
+        """Every open link of theirs spent, and a new one, for a member who is active."""
+        found = await self.find(org, id)
+        if found is None or found.status != "active":
+            return None
+        for hashed, invitation in self._invitations.items():
+            if invitation.member == id and not invitation.spent:
+                self._invitations[hashed] = replace(invitation, spent=True)
+        token, expires_at = a_token(), self._clock() + INVITATION_TTL_S
+        self._invitations[fingerprint(token)] = _Invitation(id, expires_at)
+        return Invited(member=found, token=token, expires_at=an_instant(expires_at))
 
     async def make_operator(self, org: str, id: str, operator: bool) -> Member | None:
         """The same one column, over a dict."""

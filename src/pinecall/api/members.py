@@ -56,6 +56,11 @@ NO_INVITATION = (
 
 NO_SUCH_MEMBER = "no member {id} in this org"
 
+NOT_ACTIVE = (
+    "{email} is {status}, not active: an invited member uses their invitation, and a disabled one "
+    "is enabled before their password is reset"
+)
+
 # `active` is what accepting an invitation makes a person, with a password of their own. An
 # update may re-enable a disabled member — they have one — and may not activate an invited one.
 NOT_BY_HAND = "{email} has not accepted their invitation: they become active by accepting it"
@@ -177,6 +182,26 @@ async def change(
     if status == "disabled":
         await _revoked_every_key_of(keys, key.org, id)
     return member_as_json(changed)
+
+
+# The box sends no email, so a forgotten password is the admin's to hand back: a one-use link, the
+# token once in this answer, that the person opens to choose a new password at the very door an
+# invitation is accepted at (below). Only an active member is reset — an invited one has their
+# invitation, a disabled one is enabled first — and the new link spends every older one.
+@router.post("/v1/members/{id}/reset", status_code=INVITED)
+async def reset(id: str, key: TeamKeyDep, members: MembersDep) -> dict[str, Any]:
+    """A one-use link that sets this member's password; 409 for a member who is not active."""
+    found = await members.find(key.org, id)
+    if found is None:
+        raise HTTPException(404, NO_SUCH_MEMBER.format(id=id))
+    issued = await members.reset(key.org, id)
+    if issued is None:
+        raise HTTPException(409, NOT_ACTIVE.format(email=found.email, status=found.status))
+    return {
+        "member": member_as_json(issued.member),
+        "token": issued.token,
+        "expires_at": issued.expires_at,
+    }
 
 
 # No key at this door: the person holding the link has none yet. What lets them in is the token,

@@ -67,3 +67,26 @@ async def test_a_re_invite_spends_the_older_token_and_an_update_coalesces(
     assert changed is not None and (changed.role, changed.status) == ("supervisor", "invited")
     assert await members.update(org, "m_nobody", role="qa") is None
     assert await members.find("org_nobody", first.member.id) is None
+
+
+async def test_a_reset_link_sets_an_active_members_password_and_never_revives_a_disabled_one(
+    pool: Pool, org: str
+) -> None:
+    members = PostgresMembers(pool)
+    invited = await members.invite(org, "ana@clinica.uy", "Ana", "qa", [])
+    assert invited is not None and invited.token is not None
+    assert await members.reset(org, invited.member.id) is None, "invited is not active"
+    await members.accept(invited.token, A_HASH)
+    first = await members.reset(org, invited.member.id)
+    second = await members.reset(org, invited.member.id)
+    assert first is not None and first.token is not None
+    assert second is not None and second.token is not None
+    assert await members.accept(first.token, "new") is None, "the newest link is the only link"
+    assert await members.accept(second.token, "$argon2id$new") is not None
+    assert await members.a_persons_password("ana@clinica.uy") == "$argon2id$new"
+    third = await members.reset(org, invited.member.id)
+    assert third is not None and third.token is not None
+    await members.update(org, invited.member.id, status="disabled")
+    assert await members.accept(third.token, "again") is None
+    found = await members.find(org, invited.member.id)
+    assert found is not None and found.status == "disabled"

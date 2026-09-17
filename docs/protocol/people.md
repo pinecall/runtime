@@ -66,6 +66,21 @@ or a slug, answers a key for the same person in that org — the same world and 
 asked, with what their role there opens in that world — or `403 you are not an active member of
 <org>`. A machine's key names nobody and opens one org: both doors refuse it `403`.
 
+**Before signing in**, a sign-in page asks `POST /v1/login/orgs {email, password}` — no key, and it
+mints none — which orgs those open: `{orgs: [{org, slug, name, role}]}`, oldest first, disabled rows
+left out. It shares `/v1/login`'s throttle and its one sentence: a wrong password and an email
+nobody has are the same `401 nobody answers to that email and password`, and the sixth try in a
+minute is `429`.
+
+**A forgotten password is the admin's to hand back**, because this box sends no email.
+`POST /v1/members/{id}/reset` (`team`) answers `201 {member, token, expires_at}`: a one-use link
+like an invitation, shown once, dead in a week, that spends every older link of that member. The
+person opens it and chooses a password at the very door an invitation is accepted at,
+`POST /v1/invitations/{token} {password}`, and the password is theirs in every org, as always.
+Only an **active** member is reset — `409` for one still invited (their invitation is the link) or
+disabled — and a link issued before somebody was disabled opens nothing. The console's "Forgot your
+password?" says: ask an admin of your org.
+
 ## The sign-up, where its gateway opens one
 
 **Only where `PINECALL_SIGNUP` is set**, and it is **off unless the person who runs the gateway

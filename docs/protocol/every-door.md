@@ -28,8 +28,10 @@ sandbox, answered in that colleague's corner.
 | `GET` | `/v1/events` | SSE, live only: the org's floor changing — an agent held, a call ringing, up, over |
 | `GET` | `/v1/members` · `POST` | the org's people; invite one, the token once — or none, for a person who already has a password here: seated at once |
 | `PATCH` | `/v1/members/{id}` | role, agents, standing; disabled revokes their keys |
+| `POST` | `/v1/members/{id}/reset` | a one-use link that sets an active member's password, the token once — `team`; the box sends no email |
 | `POST` | `/v1/invitations/{token}` | accept with a password: active, and the first key |
 | `POST` | `/v1/login` | a key for a person and a device: email, password, the org when they have several — or a code |
+| `POST` | `/v1/login/orgs` | which orgs an email and password sign in to, minting nothing — no key, throttled like the login |
 | `GET` | `/v1/login/orgs` | every org this key's person belongs to, and which one the key opens — a person's key |
 | `POST` | `/v1/login/org` | the same person's key in another org of theirs, in the same world — a person's key |
 | `POST` | `/v1/login/codes` | a one-use code a key holder mints for a browser |
