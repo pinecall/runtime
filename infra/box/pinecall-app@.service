@@ -12,7 +12,7 @@
 #   /etc/credstore.encrypted/pinecall-app-<name>.env   the app's own secrets, dotenv lines,
 #                                              exported into its environment by the shell below
 #                                              — PINECALL_AGENT among them names the file to
-#                                              run when the repo holds several (agents/<a>/agent.tsx)
+#                                              run when the repo holds several (agents/<name>.tsx)
 #
 # The CLI reads its key from a profile and never from the environment (the agents repo's
 # src/cli/env.ts says why), so the first thing an instance does is what a server of the tenant's

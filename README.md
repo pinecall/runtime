@@ -18,7 +18,9 @@ pip install pinecall          # or: uv add pinecall
 ```
 
 That is the whole install on a server: the wheel carries the gateway, the worker, the migrations
-and both browser pages. A laptop that wants to read the code, run the example agent or bring up
+and both browser pages. The widget the gateway serves at `/widget/pinecall-widget.js` is not in it
+yet: `scripts/console` copies it into a checkout, and a gateway without it answers that path `404`
+with the sentence that says so. A laptop that wants to read the code, run the example agent or bring up
 the dev stack clones instead — [docs/from-zero.md](docs/from-zero.md) is that walkthrough, every
 command in it run in order with the output it returned.
 
@@ -82,8 +84,9 @@ credential for the repository and is never told which cloud it is on.
                      BOX     = deploy@203.0.113.7
                      DOMAIN  = box.example.com
                      SSH_KEY = ~/.ssh/id_ed25519       # optional
-3. make deploy     from this directory. `scripts/console` (the agents repo's console bundled and
-                   copied in as package data; needs pnpm and ../agents) · rsync the checkout · `make -C infra/box install` (the
+3. make deploy     from this directory. `scripts/console` (the agents repo's console and admin
+                   bundled and copied in as package data, and the widget beside them; needs pnpm,
+                   ../agents and ../widget) · rsync the checkout · `make -C infra/box install` (the
                    packages, every unit and container file, the fence, the role) · `uv sync
                    --frozen` as the service user · restart, gateway first and the worker once
                    the gateway answers through Caddy · the doctor, last
@@ -142,7 +145,7 @@ they arrive as systemd credentials — and need a LiveKit server, a Postgres 17 
 
 ## The CLI
 
-`pinecall-runtime <group> <verb>`. Eleven groups; every verb answers `--help`.
+`pinecall-runtime <group> <verb>`. Twelve groups; every verb answers `--help`.
 
 **The two processes**
 
@@ -158,14 +161,15 @@ they arrive as systemd credentials — and need a LiveKit server, a Postgres 17 
 
 | verb | what |
 |---|---|
+| `init --email --person [--org]` | the first org and its first admin, made an operator of this box, on a runtime nobody has used yet |
 | `migrate up [--post]` · `migrate status` · `migrate plan` | the schema, numbered SQL, applied in order. `up` says which database first, takes an advisory lock, and holds every migration to 5 s; a `.post.sql` is named and never run at startup, so `--post` is how an index on a big table gets built. `status` asks the database, `plan` touches nothing |
 | `doctor` | keys present · keys answer · livekit · postgres · embedder · lk — one line each, and what is down first |
 | `box secrets` | every secret a box makes for itself, once; run twice rotates nothing |
 | `box secret <NAME>` | one secret you bring, from stdin, replaced in place |
 | `fleet list · cordon · uncordon · loop` | the workers as the hub hears them, the graceful shrink, and the loop that keeps `busy` at the target over any cloud |
 | `providers [--does llm\|stt\|tts]` | every vendor this build runs — forty-five — as a table: what each does, whether this box has its plugin and its key, the variable a key goes under, and every other word the vendor answers to. Reads the catalog and this process's settings; asks nothing of anybody, so it answers on a box that is down. Never a key |
-| `orgs list · add · rm · quota · provider-key` | the tenants, their quotas (`--minutes --messages --agents --concurrent-calls --memory-facts --knowledge-chunks --numbers`, the whole set at once; a flag left out is no limit and `0` refuses everything), the vendor keys an org brings |
-| `keys issue · list · revoke` | an org's API keys: printed once, listed by fingerprint, revoked by UPDATE. `issue --env production\|sandbox --scope … --subject … --name …`: which world the key opens, what it may do there, whose it is |
+| `orgs list · add · invite · operator · move · rm · quota · provider-key` | the tenants: a person invited (no link for somebody who already has a password on this box: they are seated at once), a person made an operator of the box, an agent moved to the org it belongs to, their quotas (`--minutes --messages --agents --concurrent-calls --memory-facts --knowledge-chunks --numbers --seats`, the whole set at once; a flag left out is no limit and `0` refuses everything), the vendor keys an org brings |
+| `keys issue · list · revoke` | an org's API keys: printed once, listed by fingerprint, revoked by UPDATE. `issue --env production\|sandbox --scope … --subject … --name …`: which world the key opens, what it may do there (left out, every scope but `fleet`), whose it is |
 | `routes list · add · rm · seed` | which agent answers a number, from the next call; `--env` says in which world |
 
 **Reading a call**
@@ -176,11 +180,11 @@ they arrive as systemd credentials — and need a LiveKit server, a Postgres 17 
 | `sessions show <call>` | one call, entry by entry, every metric whole |
 | `sessions tail <call>` | follow a call as it happens |
 | `sessions recording <call>` | where its audio was written |
-| `chat --agent <slug> [--url] [--caller]` | a text call from the terminal, one line per turn |
 
 `sessions` reads Postgres, not HTTP: it is the operator's door, and works with the gateway down.
-The tenant's own commands — `pinecall run`, `chat`, `test`, `simulate`, `eval`, `ui` — are the
-agents repository's, and speak to this gateway with the org's key.
+A text call from a terminal is the tenant's `pinecall chat`: the tenant's own commands — `pinecall
+run`, `chat`, `test`, `simulate`, `eval`, `ui` — are the agents repository's, and speak to this
+gateway with the org's key.
 
 ## Where the rest is
 

@@ -72,7 +72,9 @@ make deploy
 ```
 
 `make deploy` is five steps, and it says each one as it runs it: **console** builds the browser
-pages from the agents checkout beside this one · **sync** rsyncs two directories · **install**
+pages from the agents checkout beside this one and copies the widget from the widget checkout
+beside it (`scripts/console`; `PINECALL_AGENTS` and `PINECALL_WIDGET` point elsewhere), all three
+served by the gateway · **sync** rsyncs two directories · **install**
 puts every file of `infra/box/` where systemd reads it, installs the packages the box is missing,
 enables the units this role owns and disables the others, and runs `uv sync` as the service user ·
 **restart** makes the box's secrets, starts the media plane, restarts the gateway, and waits for
@@ -83,6 +85,7 @@ $ make deploy
 scripts/console
 console → src/pinecall/gateway/console (4 files)
 admin → src/pinecall/gateway/admin (3 files)
+widget → src/pinecall/gateway/widget/pinecall-widget.js
 …
 sudo make -s -C /opt/pinecall/app/runtime/infra/box install
 sudo systemctl start pinecall-secrets
@@ -249,14 +252,17 @@ own Makefile, and what a `pinecall deploy` verb will do one day:
 
 ```console
 $ make key        # `keys issue --org <org> --scope app …` on the box, straight into the credstore as pinecall-app-<name>.key
-$ make secrets    # the app's .env, as dotenv lines, into the credstore as pinecall-app-<name>.env
+$ make secrets    # the app's .env, as dotenv lines, into the credstore as pinecall-app-<name>.env — PINECALL_AGENT among them when the repo holds several agents
 $ make deploy     # rsync to /opt/pinecall/apps/<name>, `pnpm install --frozen-lockfile`, enable and restart the instance
 ```
 
 The instance signs in with `pinecall login --key-stdin` off its credential into a `PINECALL_HOME`
 of its own under `/var/lib/pinecall/apps/<name>`, sources its `.env` credential into its environment
-(`set -a` in the unit's own shell: `EnvironmentFile=` is read before a credential exists), and runs `pinecall run --env production` against the gateway on
-loopback. Its journal is the app's stdout: `journalctl -u pinecall-app@<name> -f`. It is the
+(`set -a` in the unit's own shell: `EnvironmentFile=` is read before a credential exists), and runs
+`pinecall run --env production ${PINECALL_AGENT:-}` against the gateway on loopback: a
+`PINECALL_AGENT` in that `.env` names the agent file to run when the app's repo holds several, and
+with none `pinecall run` runs what the directory holds — its `agent.tsx`, or at a project's root
+every agent of the project. Its journal is the app's stdout: `journalctl -u pinecall-app@<name> -f`. It is the
 org's production holder, so nothing else — no laptop — should hold that slug in production.
 
 Every verb, with its own outputs: [from-zero.md](from-zero.md) and the agents repo's
@@ -332,8 +338,9 @@ así que se llena sola mientras mirás.
   <img src="images/light/sessions.png" alt="Sessions">
 </picture>
 
-**Las terminadas**, de toda la org, la más nueva arriba: cuándo, cuánto duró, de dónde vino y con
-qué frase terminó. El id de cada una abre su log entero — el mismo que leen `pinecall sessions` y
+**Las terminadas**, del rincón de tu key, la más nueva arriba: cuándo, cuánto duró, de dónde vino y
+con qué frase terminó. En producción son las del teléfono; en el sandbox, las que hiciste vos —
+las de prueba de otro developer son suyas, y un admin las ve abriendo su copia. El id de cada una abre su log entero — el mismo que leen `pinecall sessions` y
 la API, byte por byte.
 
 ## Un agente
@@ -429,8 +436,9 @@ las que el tenant trajo propias, que viajan cifradas y no se leen de vuelta desd
 </picture>
 
 **Team**: la gente de la org, su rol y su estado. Invitar imprime un link de un solo uso que abre la
-pantalla de contraseña; el operador entrega el link y nunca una contraseña. Un rol es un preset de
-scopes y nada más.
+pantalla de contraseña; el operador entrega el link y nunca una contraseña. Si el email ya tiene
+contraseña en esta box, no hay link: queda `active` en el acto, entra con la contraseña que ya
+tiene, y la org nueva aparece en su selector de orgs. Un rol es un preset de scopes y nada más.
 
 <picture>
   <source srcset="images/dark/usage.png" media="(prefers-color-scheme: dark)">
@@ -486,7 +494,7 @@ las que tiene.
 ```
                  ┌─ caddy ────────── TLS, :80 :443, the only thing the internet reaches
 internet ──────► │
-                 └─ pinecall-gateway ── the API and the two pages, :8080 on loopback
+                 └─ pinecall-gateway ── the API, the two pages and the widget, :8080 on loopback
                         │
                         ├── pinecall-postgres   the log, the orgs, the keys, the routes
                         ├── pinecall-livekit    the media plane, :7880 on loopback

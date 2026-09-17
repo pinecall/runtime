@@ -58,7 +58,17 @@ point of it, and the number is the org's either way. Answers `{route, moved, fro
 where the number already is writes nothing and answers `{route, moved: false, said}`. `404` for a
 number this org does not have at all, `400` for a word that is neither world.
 
-Whose corner a ring lands in, once a world is answering it, is the **line** — `gateway-api.md` §5.
+Whose corner a ring lands in, once a world is answering it, is the caller's phone and then the
+**line** — [gateway-api.md](gateway-api.md) §3.
+
+**A number in production still reaches a developer's own phone's sandbox copy.** Moving the number
+is for a team trying an agent on the real line for an afternoon; one developer testing needs no
+move. A phone call to a production number that no dispatch aimed is asked about first (`GET
+/v1/agents/{slug}/rings-for?caller=`, the worker's question): when the phone dialling is one a
+developer registered with `pinecall line from` (`PUT /v1/line/from`) and they are holding that
+agent in the sandbox, in this org, the call is built in their sandbox corner and its log says
+`diverted_from: production`. Every other caller reaches production, and so does that phone the
+moment the developer stops holding the agent — or whenever the gateway cannot be asked.
 
 ## Letting one go — `DELETE /v1/numbers/{number}`
 

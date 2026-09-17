@@ -6,17 +6,20 @@ edit: the run was on port 8099, beside a gateway already using 8080, and the por
 as the default 8080. Where something refused, the refusal is here too — that is the half you will
 actually meet.
 
-Three repositories, side by side. The names matter: `runtime` resolves the wire through
+Four repositories, side by side. The names matter: `runtime` resolves the wire through
 `../protocol/python` and `agents` through `../protocol/typescript`, so a directory renamed on the
-way in is an install that cannot find it.
+way in is an install that cannot find it; and `scripts/console` copies the browser pages from
+`../agents` and the widget from `../widget` (`PINECALL_AGENTS` and `PINECALL_WIDGET` point
+elsewhere).
 
 ```console
 $ mkdir pinecall-v2 && cd pinecall-v2
 $ git clone https://github.com/pinecall/runtime.git
 $ git clone https://github.com/pinecall/agents.git
 $ git clone https://github.com/pinecall/protocol.git
+$ git clone https://github.com/pinecall/widget.git
 $ ls
-agents  protocol  runtime
+agents  protocol  runtime  widget
 ```
 
 ```
@@ -24,6 +27,7 @@ agents  protocol  runtime
   runtime/     the gateway and the worker — this repo
   agents/      the framework you write an agent in, its CLI, and the console
   protocol/    the wire, generated into all three languages
+  widget/      <pinecall-widget>, one script, which the gateway serves to any site
 ```
 
 **Both halves are published, and this page still clones them.** That is deliberate, not an
@@ -97,7 +101,7 @@ this runtime reads `ELEVEN_API_KEY`; and `pinecall-runtime doctor` knocks at eve
 $ pinecall-runtime migrate up
 applied 0001_call_log.sql
 …
-applied 0023_sandbox.sql
+applied 0024_a_calls_corner.sql
 org default has no key yet — `pinecall-runtime keys issue --org default` mints one
 ```
 
@@ -107,16 +111,21 @@ tenant is further down the page.
 ## 3. The gateway
 
 The two browser pages — the console and the operator admin — are built from the agents checkout
-next door and copied in as package data. A fresh clone has never run that, so run it once:
+next door and copied in as package data, and the widget is copied beside them from the widget
+checkout. A fresh clone has never run that, so run it once:
 
 ```console
 $ scripts/console
 console → src/pinecall/gateway/console (4 files)
 admin → src/pinecall/gateway/admin (3 files)
+widget → src/pinecall/gateway/widget/pinecall-widget.js
 ```
 
 Skip it and the gateway still comes up, and answers every page with a sentence telling you to run
-it. That is the right refusal, but it is a step, not a surprise.
+it. That is the right refusal, but it is a step, not a surprise. The widget is then served at
+`/widget/pinecall-widget.js` with `Access-Control-Allow-Origin: *`: a site anywhere loads
+`<pinecall-widget>` from this gateway, as from a CDN. With no widget checkout the script stops at
+`no widget checkout at ../widget: set PINECALL_WIDGET`, after the two pages are already copied.
 
 ```bash
 pinecall-runtime gateway
@@ -266,6 +275,18 @@ That admin holds no agent of their own and can see what the team is running. The
 page draws the same thing with a **whose** column and a filter — *everything · mine · the team's*.
 A developer sees none of it: there is one corner and nothing to filter.
 
+And the admin can open one. In the sandbox, the header `pinecall-corner: <member id>` answers any
+HTTP door in that member's corner — the console sends it when an admin opens a developer's copy —
+so the agent, its line and its calls are Carla's:
+
+```bash
+curl -H "Authorization: Bearer $ADMINS_SANDBOX_KEY" -H "pinecall-corner: m_6bb3ec66bf2b" \
+     localhost:8080/v1/agents/clinica-norte/sessions
+```
+
+A key without `team`, a production key, or an id that is no active member of the org is refused
+`403`.
+
 ## Reading calls
 
 ```console
@@ -281,6 +302,9 @@ $ pinecall sessions call_55b9bcf1065d4576a151fa97ac08fc57
   cost      €0.0021
   score     not judged: no judge was given to this session
 ```
+
+The list is **your corner's** calls: the world your key opens, and whose. On a sandbox key that is
+the calls you made; a colleague's test calls are theirs, and the telephone's are production's.
 
 ## The pipeline, and its knobs
 
@@ -387,9 +411,18 @@ $ pinecall line from +34600123456
 calls from +34600123456 reach this terminal
 ```
 
-An org shares **one** sandbox number, so a call at it rings in one place and which one is said out
+A number exists once in a world, so a call at it rings in one place and which one is said out
 loud. With nobody running it: `nobody is answering clinica-norte: start \`pinecall run\``.
 `line claim` takes it, `line release` hands it on.
+
+`line from` is your own phone, and it reaches your terminal at **both** numbers. At a sandbox
+number, every call it makes lands in your corner whoever holds the line, as long as you are
+holding that agent. At the **production**
+number — the one the customers dial — the worker asks the gateway before it builds the call, and
+while you hold the agent in the sandbox your phone rings in your copy: your declaration, your
+tools, a sandbox log that says `diverted_from: production`. Every other caller reaches production.
+Stop `pinecall run` and your phone reaches production too; a gateway that cannot be asked leaves the
+call there as well.
 
 ## Numbers, and staging for nothing
 
@@ -446,6 +479,12 @@ m_8d5b70019dd4  carla@clinica.test  developer  invited
   http://127.0.0.1:8080/invitations/inv_…
   send them this; it opens the console's password screen once, within a week
 ```
+
+A person is their email on the box — trimmed and lower-cased — with one password across every org.
+Invite somebody who already has one, from another org on this box, and there is no link to send:
+the row prints `active`, and under it `already a person on this box: seated, they sign in with the
+password they have`. A login that names no org lands in the oldest of theirs; the console's org
+switch moves between them.
 
 **A role is a preset of scopes and nothing more.** A developer opens `app · calls · evals ·
 knowledge · memory · pipeline · supervise · talk`; `numbers`, `keys`, `providers`, `team` and

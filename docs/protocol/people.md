@@ -16,6 +16,17 @@ their role: `qa` · `supervisor` · `manager` · `admin` · `developer` (`types/
 revokes every key of theirs and refuses their login, `active` re-enables one who had a password and
 never activates one still invited.
 
+**A person is their email, on this box, and has one password.** An address is kept and compared
+trimmed and lower-cased — `JP@Cloudacio.com ` and `jp@cloudacio.com` are one login — and an org is
+a row of theirs: `members` holds one per (org, email), and a second org is a second row carrying the
+same hash (`auth/members.py`). So inviting an email that already has a password anywhere on this
+box does not send a link: the row is made **`active`** at once, with the password they have, and
+`201` answers the member with `token` and `expires_at` null — they sign in as they always do, and
+the new org appears in their org switch. An email that has accepted nowhere is invited as above, and
+an email already accepted in THIS org is `409`. Accepting an invitation sets the password on every
+row of that email that has one, so a password chosen in one org is the password in all of them; a
+row still invited when the person already has a password is seated at their first login to it.
+
 An invitation takes a **seat**, and where the org's plan caps them the door answers `429` with the
 quota's own sentence and makes no row. A seat is held by everybody the org has not disabled —
 invited counts, or an org at its limit could invite forever and seat them all the moment they
@@ -37,12 +48,23 @@ as `min_password` so a card can say the rule this gateway actually enforces rath
 copied into a page that drifts the day somebody moves it. Every door that takes a new password —
 the invitation, the sign-up — is held to the same one.
 
-`POST /v1/login` takes `{org, email, password, env?, device?}` and answers a key for that person and
-that device. Every wrong thing — the org, the email, the password, an invitation not yet accepted —
-is one `401` sentence; a disabled member is `403`; the sixth try in a minute for one name is `429`
-whatever the password. Or it takes `{code, device?}`: a key holder minted the code at `POST
-/v1/login/codes` (five minutes, one use), which is how `pinecall run` prints
-`?login=<code>` and a browser ends up holding a key of its own, never the org's.
+`POST /v1/login` takes `{org?, email, password, env?, device?}` and answers a key for that person
+and that device. The password is checked as the person's, whichever org it was chosen in; then
+the row is the one in the org named, or — **with no org** — the oldest row of theirs that is not
+disabled, so a person with one org never types it. Every wrong thing — the org, the email, the
+password, an email that has accepted nowhere — is one `401` sentence (`no member of <org> answers
+to that email and password`, or `nobody answers to that email and password` when no org was named);
+a disabled member is `403`; the sixth try in a minute for one name is `429` whatever the password.
+Or it takes `{code, device?}`: a key holder minted the code at `POST /v1/login/codes` (five minutes,
+one use), which is how `pinecall run` prints `?login=<code>` and a browser ends up holding a key of
+its own, never the org's.
+
+**Switching orgs** is two doors on a person's key, no scope asked: `GET /v1/login/orgs` answers
+`{orgs: [{org, slug, name, role, status, here}]}`, every org the person belongs to, oldest first,
+disabled rows left out and `here` marking the one this key opens; `POST /v1/login/org {org}`, an id
+or a slug, answers a key for the same person in that org — the same world and label as the key that
+asked, with what their role there opens in that world — or `403 you are not an active member of
+<org>`. A machine's key names nobody and opens one org: both doors refuse it `403`.
 
 ## The sign-up, where its gateway opens one
 
@@ -53,7 +75,8 @@ and a cloud may close them. `GET /.well-known/pinecall` answers `{version, cloud
 key, which is how a page or a CLI knows whether to offer one at all.
 
 `POST /v1/signup {org, name?, email, person, password, device?}` — no key — answers `201` with the
-same key shape plus `slug`, the `member` (an `admin`, `active`, password kept) and a one-use `code`
+same key shape plus `slug`, the `member` (an `admin`, `active`, password kept — or, for an email
+that already has a password on this box, seated with that one) and a one-use `code`
 good for `/?login=<code>`. **What the org may do is not this runtime's to say**: it asks the one
 point a package beside it may have plugged a policy into (`extensions.admitted`, given the org and
 the email, answering `Quotas`) and writes the answer in the same breath the org is made. With no
@@ -64,7 +87,9 @@ minute.
 
 The console is served by this gateway, so it is the same origin as every door it uses, and the
 sign-up is **its** screen (`/signup`): a site somewhere else links to it rather than posting here.
-That is why this runtime sends no CORS header at all — there is no legitimate cross-origin caller.
+That is why no door of this runtime sends a CORS header — there is no legitimate cross-origin
+caller. The one answer that carries one is not a door: the widget script at
+`/widget/pinecall-widget.js`, which any site loads from the gateway.
 
 ## Signing a terminal in
 
