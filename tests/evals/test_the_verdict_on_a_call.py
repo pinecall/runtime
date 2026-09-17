@@ -122,8 +122,10 @@ async def test_a_judge_that_raises_is_in_the_panel_and_never_among_the_judges(
     """A dropped judge answers nothing, so only the panel says it was ever run over the call."""
     monkeypatch.setattr(score, "GroundedJudge", _raises_instead("grounded"))
     scored = await a_score(golden, THE_GOLDENS_AGENT, NO_BUDGET)
-    assert scored.panel == ["consent", "grounded"], "both were run, whatever either answered"
-    assert [row.name for row in scored.judges] == ["consent"], "the one that raised is dropped"
+    assert scored.panel == ["consent", "grounded", "promises"], "all were run, whatever answered"
+    assert [row.name for row in scored.judges] == ["consent", "promises"], (
+        "the one that raised is not"
+    )
     assert scored.passed is False, "read off the survivors, and the panel names the one missing"
 
 

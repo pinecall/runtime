@@ -17,6 +17,7 @@ from pinecall.evals.judges.consent import ConsentJudge
 from pinecall.evals.judges.grounded import EXTRACTORS, GroundedJudge, evidence_of
 from pinecall.evals.judges.model import Counted, a_judge
 from pinecall.evals.judges.policy import PolicyJudge
+from pinecall.evals.judges.promises import promises_of
 from pinecall.evals.verdicts import a_judgment, nobody_asked
 from pinecall.log.entry import Entry
 from pinecall.providers import prices
@@ -79,7 +80,11 @@ async def _judged(entries: Sequence[Entry], config: AgentConfig, settings: Setti
 # Inventing it would judge a rule nobody wrote down.
 def _the_judges_of(case: Case) -> list[Evaluator]:
     """Every judge a live call carries its own evidence for, in the order they are declared."""
-    return [ConsentJudge(case.gate), GroundedJudge(EXTRACTORS, evidence_of(case))]
+    return [
+        ConsentJudge(case.gate),
+        GroundedJudge(EXTRACTORS, evidence_of(case)),
+        promises_of(case),
+    ]
 
 
 # The tally of the questions actually put to a model, and livekit's own collector behind it fed by

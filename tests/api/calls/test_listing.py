@@ -56,7 +56,7 @@ async def test_another_agents_calls_are_not_this_agents(
     gateway: TestClient, store: MemoryStore
 ) -> None:
     await a_call(store, "CA_first")
-    assert got(gateway, sessions_of("tienda-sur")) == (200, {"calls": []})
+    assert got(gateway, sessions_of("tienda-sur")) == (200, {"calls": [], "total": 0, "next": None})
 
 
 async def test_the_limit_cuts_the_list_at_the_newest(

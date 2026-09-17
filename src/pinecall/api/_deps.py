@@ -22,6 +22,7 @@ from pinecall.fleet import Roster
 from pinecall.knowledge import Knowledge
 from pinecall.log.snapshots import Snapshots
 from pinecall.log.store import Store
+from pinecall.log.store.index import CallIndex
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.memory import Memory
@@ -68,6 +69,13 @@ def a_store(connection: HTTPConnection) -> Store:
 # Typed as Any because the two sides that ask for it want different types of the same object: the
 # app socket sees a Protocol of the calls it makes (api/agents/handlers.py), the text channel
 # sees the class itself. One callable, so overriding it in a test answers both.
+# The store folds every call's facts as it appends, so the store IS the index: one object, two
+# protocols, and a test that overrides the store has overridden the index with it.
+def the_call_index(store: Annotated[Store, Depends(a_store)]) -> CallIndex:
+    """The questions across calls, answered off the rows the store folds (log/store/index.py)."""
+    return cast(CallIndex, store)
+
+
 def what_is_live(connection: HTTPConnection) -> Any:
     """The process's live memory: the app sockets open here and the calls running on them."""
     live: Any = held(connection, "live", object)
@@ -113,6 +121,7 @@ async def a_key_on_a_socket(websocket: HTTPConnection, keys: Keys) -> KeyRecord 
 
 SettingsDep = Annotated[Settings, Depends(a_settings)]
 StoreDep = Annotated[Store, Depends(a_store)]
+CallIndexDep = Annotated[CallIndex, Depends(the_call_index)]
 KeysDep = Annotated[Keys, Depends(the_keys)]
 LlmsDep = Annotated[Models, Depends(the_llms)]
 # The bare key: a door that takes it asks nothing of its scopes. Two do — whoami, and minting a
