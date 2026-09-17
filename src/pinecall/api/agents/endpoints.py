@@ -150,11 +150,15 @@ async def forget_calls_from(key: AppKeyDep, registry: RegistryDep) -> dict[str, 
 # `numbers`, and theirs opens neither. This one answers production's phone numbers to whoever could
 # be diverted from them, and nothing else about a route.
 @router.get("/v1/line/numbers")
-async def numbers_to_call(key: AppKeyDep, table: RoutesDep) -> dict[str, list[dict[str, str]]]:
-    """The org's production numbers, and the agent each reaches: what a developer's phone dials."""
-    _a_person(key)
+async def numbers_to_call(
+    key: AppKeyDep, registry: RegistryDep, table: RoutesDep
+) -> dict[str, list[Any]]:
+    """The org's production numbers and the agent each reaches, and the phones this person dials
+    from: what a developer's phone dials, and whether the gateway knows that phone is theirs."""
+    whose = _a_person(key)
     typed = await table.of_org(key.org, PRODUCTION)
     return {
+        "calling": list(registry.calling(key.env, whose)),
         "numbers": [
             {"number": route.number, "agent": route.agent}
             for route in typed

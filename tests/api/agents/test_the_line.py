@@ -232,10 +232,15 @@ async def test_a_developer_reads_the_production_numbers_their_phone_can_dial(
     await routes.put(Route(A_RECORD.org, AGENT, "phone", A_DEV_NUMBER, env=SANDBOX))
     await routes.put(Route("somebody-else", AGENT, "phone", "+15550000000", env=PRODUCTION))
 
+    await bernas.put(A_PHONE, json={"number": BERNAS_PHONE})
+
     said = await bernas.get(TO_CALL)
 
     assert said.status_code == 200
-    assert said.json() == {"numbers": [{"number": THE_REAL_NUMBER, "agent": AGENT}]}
+    assert said.json() == {
+        "calling": [BERNAS_PHONE],
+        "numbers": [{"number": THE_REAL_NUMBER, "agent": AGENT}],
+    }
 
 
 async def test_a_key_that_names_nobody_has_no_phone_to_dial_from(wired: None) -> None:  # noqa: ARG001
