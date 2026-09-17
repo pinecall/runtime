@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter
 
 from pinecall._version import __version__
+from pinecall.api._box import BoxSettingsDep
 from pinecall.api._deps import SettingsDep
 from pinecall.api.org_mail import OutboxDep
+from pinecall.orgs.signin import GOOGLE, BoxSignIn
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -34,11 +38,18 @@ class Discovered(WireModel):
     # here. An org that wired its own mail can send where the box cannot; this says nothing
     # about that, because a page at the sign-in has not been told which org it is about yet.
     mail: bool = False
+    # What this box is called and painted with (`GET /v1/ops/brand`): a sign-in page draws the
+    # operator's name, logo and accent before anybody holds a key, so it rides here.
+    brand: dict[str, Any] = {}
+    # Whether the sign-in page may offer "Continue with Google": the operator wired a client at
+    # `PUT /v1/ops/signin/google` and this box can open its secret. The button goes to
+    # `GET /v1/login/google`.
+    google: bool = False
 
 
 # No key at this door: it is how a client learns whether to offer a sign-up before anybody has one.
 @router.get("/.well-known/pinecall")
-async def discovered(settings: SettingsDep, outbox: OutboxDep) -> Discovered:
+async def discovered(settings: SettingsDep, outbox: OutboxDep, box: BoxSettingsDep) -> Discovered:
     """Which runtime, whether it is the cloud, whether a stranger may sign up, the floor, mail."""
     return Discovered(
         version=__version__,
@@ -46,5 +57,7 @@ async def discovered(settings: SettingsDep, outbox: OutboxDep) -> Discovered:
         signup=settings.signup,
         min_password=settings.min_password,
         # Off the outbox the process built once, so a malformed URL is said at startup, not here.
-        mail=outbox.the_box_can_send,
+        mail=await outbox.the_box_can_send(),
+        brand=(await outbox.brand()).as_json,
+        google=await BoxSignIn(box).of(GOOGLE) is not None,
     )

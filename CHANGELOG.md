@@ -7,6 +7,42 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **"Continue with Google", box-wide, configured by the operator.** `GET /v1/ops/signin` lists
+  every box-wide provider (`{google: {configured, client_id, redirect_uri}}`);
+  `PUT /v1/ops/signin/google {client_id, client_secret}` keeps one OAuth client at Google for
+  every org's people, its secret under the vault key, Google's discovery checked before anything
+  is kept; `DELETE` forgets it. `GET /v1/login/google` sends a person to Google
+  (`openid email profile`, PKCE, state, nonce — the SSO's own code) and the callback matches the
+  **verified** address against every org's members: an active member lands in the oldest org of
+  theirs a password would open, a member still invited is seated by it, nobody is sent back
+  with `/?refused=<why>`. An org whose own SSO is `required` is not entered this way.
+  `GET /.well-known/pinecall` gains `google`. A second box-wide provider is a row.
+- **The box's mail and the letters' brand, configured by the operator** (migration 0035,
+  `box_settings`: one row a setting, its secret under the vault key). `GET`/`PUT`/`DELETE
+  /v1/ops/mail` and `POST /v1/ops/mail/test` store the mail server the box posts through, the
+  same body as an org's and the password sealed the same way; a stored mailbox wins over
+  `PINECALL_SMTP_URL`, an org's own still wins over both, and the envelope says `source`. The
+  doctor's mail line says which one it read. `GET`/`PUT /v1/ops/brand` is `{name, logo_url,
+  accent}` — Pinecall, no logo, `#5b3df5` until set; a field left out keeps, an empty one
+  resets — and the letters carry it: the logo at 28px where the wordmark stood (the one outside
+  resource a letter may ever fetch), the name and the accent everywhere they said Pinecall.
+  `GET /.well-known/pinecall` gains `brand`. `docs/protocol/the-box.md`.
+- **An operator of the box sees every org from the console's switch.** `GET /v1/login/orgs` rows
+  gain `member`; for a person the box made an operator the list is every org there is, `member:
+  false` and `role: "operator"` where they are none. `POST /v1/login/org` lets them into any org
+  on a production key with the admin role's scopes, labelled `operator · <email>`, whose
+  `subject` is `operator:<email>` — no member row, no seat, attributable by address wherever a
+  subject is written down. `GET /v1/whoami` gains `operator` and `visiting`. Such a key is asked
+  about on every verify, so revoking the flag, disabling or removing the person stops it on the
+  next request; it opens no sandbox and pairs no terminal. **Changed with it:** the operator
+  flag is the PERSON's — a key of theirs in any org of theirs opens `/v1/ops/*`, not only the
+  key of the org whose row carries the flag.
+- **A member can be removed for good.** `DELETE /v1/members/{id}` (`team`) answers `204`: every
+  key of theirs is revoked first, then the row goes with its open invitation and reset links, and
+  the seat is free. `409` in a sentence for removing yourself and for the org's last active
+  admin; `404` for an id that is not this org's. The log keeps naming the id as text. The
+  operator's twin is `DELETE /v1/ops/orgs/{org}/members/{id}` (the same rules less "yourself")
+  and `pinecall-runtime orgs remove-member <org> <email>`.
 - **Outbound email over generic SMTP** (migration 0034). A box posts letters through
   `PINECALL_SMTP_URL` (`smtp://user:pass@host:587` STARTTLS, `smtps://…:465` implicit TLS — SES,
   Postmark, Mailgun or a server of one's own; a systemd credential) as `PINECALL_MAIL_FROM`. An

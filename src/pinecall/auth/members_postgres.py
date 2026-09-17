@@ -101,6 +101,11 @@ UPDATE members SET operator = $3 WHERE org = $1 AND id = $2
 RETURNING id, org, email, name, role, agents, status, operator, password_hash, created_at
 """
 
+# Fenced by the org like every other statement here. The invitations go with the row by their own
+# ON DELETE CASCADE (0014); nothing else references a member, and what names one as text — a
+# key's subject, a dial's asked_by, a log entry — keeps the id and simply names nobody.
+_REMOVE = "DELETE FROM members WHERE org = $1 AND id = $2 RETURNING id"
+
 _INVITE = "INSERT INTO invitations (token_hash, member, expires_at) VALUES ($1, $2, $3)"
 
 # A re-invite spends every token still open for the member: the newest link is the only link.
@@ -237,3 +242,7 @@ class PostgresMembers:
         """One column, fenced by the org. The row is the truth about who runs this box."""
         row = await self._pool.fetchrow(_MAKE_OPERATOR, org, id, operator)
         return None if row is None else a_member_of_row(row)
+
+    async def remove(self, org: str, id: str) -> bool:
+        """One DELETE, fenced by the org; the row it returns says whether one went."""
+        return await self._pool.fetchrow(_REMOVE, org, id) is not None

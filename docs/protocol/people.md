@@ -16,6 +16,19 @@ their role: `qa` · `supervisor` · `manager` · `admin` · `developer` (`types/
 revokes every key of theirs and refuses their login, `active` re-enables one who had a password and
 never activates one still invited.
 
+**Removing is for good, where disabling is for now.** `DELETE /v1/members/{id}` (`team`) answers
+`204`: every key of theirs is revoked FIRST, so there is no moment a removed person's key opens a
+door; then the row goes, its open invitation and reset links with it, and the seat is free — the
+same address can be invited again and is a new row with a new id. What the log wrote about them
+stays readable: a key's `subject`, a dial's `asked_by` and every log entry name the id as text,
+and the id simply names nobody now. Two removals are refused `409`, in a sentence: **yourself**
+(`you cannot remove yourself: another admin of this org removes you`) and **the last active admin**
+(`<email> is the last active admin of this org: make somebody else an admin first, …`) — an admin
+still invited does not count, because an org whose only admin has no password is an org nobody
+can sign in to. `404 no member <id> in this org` for an id that is not this org's. The operator's
+twin is `DELETE /v1/ops/orgs/{org}/members/{id}`, under the same rules less "yourself", and
+`pinecall-runtime orgs remove-member <org> <email>` is that door from a terminal.
+
 **A person is their email, on this box, and has one password.** An address is kept and compared
 trimmed and lower-cased — `JP@Cloudacio.com ` and `jp@cloudacio.com` are one login — and an org is
 a row of theirs: `members` holds one per (org, email), and a second org is a second row carrying the
@@ -65,6 +78,34 @@ disabled rows left out and `here` marking the one this key opens; `POST /v1/logi
 or a slug, answers a key for the same person in that org — the same world and label as the key that
 asked, with what their role there opens in that world — or `403 you are not an active member of
 <org>`. A machine's key names nobody and opens one org: both doors refuse it `403`.
+
+**An operator of the box is shown every org.** Each row of `GET /v1/login/orgs` also says
+`member`: `true` for the person's own orgs, which come first, oldest first, exactly as before. For
+somebody the box made an operator (`PUT /v1/ops/orgs/{org}/members/{id}/operator`) the rest of
+the box follows, oldest first, with `member: false`, `role: "operator"` and `status: "active"`.
+`POST /v1/login/org {org}` lets them into any of those: a member there gets the member's key as
+above; an operator who is none gets a **visitor's key** —
+
+```json
+{"key": "pk_…", "key_id": "k_…", "org": "org_4ad9…", "env": "production",
+ "label": "operator · bernardo@pinecall.io", "scopes": ["calls", "evals", "…", "team", "usage"],
+ "subject": "operator:bernardo@pinecall.io", "name": "Bernardo"}
+```
+
+— `production` whatever world the asking key opened, the `admin` role's scopes less `app` as any
+person's key, and **no member row**: no seat is taken and the org's Team screen gains nobody.
+`subject` is `operator:<their address>` and not a member id, so the org's Keys screen says whose
+key it is (and may revoke it), and everything that writes a subject down — a dial's `asked_by`, a
+supervise verb, a seat — attributes what they did to a person by address, in the tenant's own
+log. A row of theirs the tenant **disabled** is not the way in: they walk in as the operator,
+said in so many words, never as the member the org stopped. `GET /v1/whoami` says `operator:
+true` for such a person in every org and `visiting: true` inside one they are no member of, with
+`name` still theirs; both switch doors work from inside, which is how they get home. A visitor's
+key opens no sandbox and signs no terminal in — `POST /v1/login/env` and the pairing answer `403
+an operator visits an org in production, from the console: …` — because a sandbox is a member's
+corner. **It stops the moment they stop running the box**: the flag is read on every verify
+(`auth/visiting.py`), so `orgs operator --revoke`, disabling them or removing them is one write
+and the next request with that key is `401`, with nothing to remember to revoke.
 
 **Before signing in**, a sign-in page asks `POST /v1/login/orgs {email, password}` — no key, and it
 mints none — which orgs those open: `{orgs: [{org, slug, name, role}]}`, oldest first, disabled rows
@@ -135,8 +176,9 @@ link an admin handed over an hour ago. What the person opens is the invitation c
 turns it on** — a box somebody runs for their own agents wants no stranger making an org, and is
 never asked to close a door. It is its own flag and not `cloud`: a box of its own may want sign-ups,
 and a cloud may close them. `GET /.well-known/pinecall` answers `{version, cloud, signup,
-min_password, mail}` with no key, which is how a page or a CLI knows whether to offer one at all —
-and, with `mail`, whether "Forgot your password?" may promise an email.
+min_password, mail, brand, google}` with no key, which is how a page or a CLI knows whether to offer one at
+all — with `mail`, whether "Forgot your password?" may promise an email, and with `brand`
+(`{name, logo_url, accent}`, [the-box.md](the-box.md)) what to call the box and paint it with — and with `google`, whether to draw "Continue with Google" (below).
 
 `POST /v1/signup {org, name?, email, person, password, device?}` — no key — answers `201` with the
 same key shape plus `slug`, the `member` (an `admin`, `active`, password kept — or, for an email
@@ -249,6 +291,36 @@ is the person locked out. So `GET /v1/ops/orgs/{org}/sso` reads what one org is 
 operator who could would be an operator deciding how a tenant's people sign in. Losing the vault
 key has the same effect by itself — no secret can be read, so no org signs in with a provider and
 a password opens every one of them again.
+
+## Signing in with Google, box-wide
+
+**"Continue with Google"** is the operator's, for every org at once ([the-box.md](the-box.md)):
+`GET /v1/login/google[?pairing=]` answers `302` to Google — `openid email profile`, issuer
+`https://accounts.google.com`, authorization code with PKCE, state and nonce, exactly as an org's
+own provider is asked (above); `404 this box signs in with no Google: …` while nobody wired one,
+and the fifth sign-in a minute from one address waits like the SSO's. Google sends the person to
+`GET /v1/login/google/callback?code=&state=`, where the id_token is checked and the address it
+carries — **`email_verified` required**, then trimmed and lower-cased — is matched against the
+**members of every org**: a person is their email on this box, and Google vouching for the
+address is what the link in an invitation would have proved. So:
+
+- an **active** member lands, as a password login with no org does, in the **oldest** org of
+  theirs that is not disabled and does not sign in with its own required provider — `302
+  /?login=lc_…`, the one-use code the console spends for a key of the browser's own, and the org
+  switch does the rest (`?pairing=` sends them to `/cli` instead, for a terminal waiting);
+- a member still **invited** is seated `active` by it, in every org of theirs that a Google
+  sign-in may enter — they keep no password, as with an org's own provider, and may still open
+  the invitation link to choose one;
+- **nobody** — no row anywhere — is `302 /?refused=<email> is not a member of any org on this
+  box: an admin of your org has to invite that address before Google can sign it in`; disabled
+  in every org, `…is disabled in every org of theirs here`; only in orgs whose own provider is
+  `required`, `…belongs to an org that signs in with its own identity provider: open
+  /v1/login/sso?org=… instead`. An unverified address and a refusal at Google are `?refused=` too.
+
+Every refusal past the handshake is a redirect and not a body, because a person in a browser
+between two redirects reads the sign-in page and not JSON; a state nobody minted, or an org's
+own SSO state, is the one `400`. An org whose SSO is `required` is never entered this way, and
+nothing here makes a member: an address nobody invited is refused, whatever Google says.
 
 ### Registering this gateway at the provider
 

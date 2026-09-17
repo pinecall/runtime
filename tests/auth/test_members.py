@@ -92,3 +92,14 @@ async def test_an_update_replaces_only_what_was_named_and_stays_within_the_org()
     assert await members.update("tienda", invited.member.id, role="qa") is None
     assert await members.find("tienda", invited.member.id) is None
     assert await members.find(ORG, invited.member.id) == disabled
+
+
+async def test_removing_takes_the_row_and_its_links_and_stays_within_the_org() -> None:
+    members = MemoryMembers()
+    invited = await members.invite(ORG, "ana@clinica.uy", "Ana", "qa", [])
+    assert invited is not None and invited.token is not None
+    assert await members.remove("another-org", invited.member.id) is False
+    assert await members.remove(ORG, invited.member.id) is True
+    assert await members.remove(ORG, invited.member.id) is False, "gone is gone"
+    assert await members.listed(ORG) == () and await members.seated(ORG) == 0
+    assert await members.accept(invited.token, A_HASH) is None, "the link went with the row"

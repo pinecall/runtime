@@ -12,55 +12,13 @@ import httpx
 from fastapi import FastAPI
 
 from pinecall._settings import Settings, load_settings
-from pinecall.api import (
-    agent_memory,
-    contacts,
-    dialling,
-    discovery,
-    extraction,
-    fleet,
-    floor,
-    forgot,
-    insights,
-    judging,
-    keys,
-    knowledge,
-    listen,
-    login,
-    login_sso,
-    managed,
-    members,
-    numbers,
-    org_mail,
-    orgs,
-    outbound,
-    pages,
-    pairing,
-    pipeline,
-    provider_keys,
-    providers,
-    routes,
-    signup,
-    sso,
-    supervise_seat,
-    threads,
-    tokens,
-    usage,
-    whoami,
-    widget,
-)
+from pinecall.api import pages
+from pinecall.api._doors import DOORS
 from pinecall.api._live import Live
 from pinecall.api._refusals import refusals_answered_by
-from pinecall.api.agents import dev, socket
-from pinecall.api.agents import endpoints as agents
-from pinecall.api.agents import provider_keys as agents_provider_keys
 from pinecall.api.agents.registry import Registry
-from pinecall.api.calls import chat, commands, events, listing, lookup, recording, state, tools
-from pinecall.api.evals import caller, judge, replay, runs, voice
 from pinecall.api.evals.runner import Runner
 from pinecall.api.reaping import Reaper, reaping
-from pinecall.api.supervise import verbs
-from pinecall.api.whatsapp import webhook
 from pinecall.api.whatsapp.threads import Threads
 from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import NO_KEYS_TABLE, keys_for
@@ -87,6 +45,7 @@ from pinecall.lookups import Lookups
 from pinecall.mail import outbox_for
 from pinecall.memory import PgvectorMemory
 from pinecall.orgs.admission import Admission
+from pinecall.orgs.box import box_settings_for
 from pinecall.orgs.carriers import carriers_for
 from pinecall.orgs.dialling import dialling_for
 from pinecall.orgs.mail import mail_for
@@ -181,7 +140,13 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     gateway.state.sso = sso_for(settings, pool)
     # The one place a letter leaves by: the account an org wired of its own, sealed under the same
     # vault key (orgs/mail.py); the box's PINECALL_SMTP_URL when it wired none; nobody with neither.
-    gateway.state.outbox = outbox_for(settings, mail_for(settings, pool))
+    # What the operator configured for the box itself from /admin — its brand, its own mail, a
+    # box-wide "Continue with Google" — one row a setting, secrets under the same vault key
+    # (orgs/box.py). It exists without one: the brand is no secret.
+    gateway.state.box_settings = box_settings_for(settings, pool)
+    gateway.state.outbox = outbox_for(
+        settings, mail_for(settings, pool), gateway.state.box_settings
+    )
     # Whose numbers reach the org's agents: the carrier a tenant brought, sealed under the same
     # vault key; the SFU's trunks the gateway admits numbers on; and how a Twilio account is
     # reached, over the process's one httpx client (opened below).
@@ -324,71 +289,8 @@ async def _a_store(settings: Settings) -> Store:
 app = FastAPI(title="Pinecall gateway", lifespan=lifespan)
 
 
-# One door per line, in the order a reader meets them: the app's socket and the calls it answers,
-# the desk and the suites, the tenant's own tables, the operator's under /v1/ops, and last the
-# org's people — who they are, how they sign in, and whose key just knocked.
-for door in (
-    socket.router,
-    agents.router,
-    agents_provider_keys.router,
-    dev.router,
-    events.router,
-    state.router,
-    listing.router,
-    recording.router,
-    chat.router,
-    tools.router,
-    commands.router,
-    lookup.router,
-    verbs.router,
-    replay.router,
-    judge.router,
-    runs.router,
-    caller.router,
-    voice.router,
-    routes.router,
-    routes.operator,
-    keys.router,
-    provider_keys.router,
-    providers.router,
-    orgs.operator,
-    provider_keys.operator,
-    usage.operator,
-    usage.router,
-    fleet.router,
-    fleet.operator,
-    pipeline.router,
-    widget.router,
-    tokens.router,
-    listen.router,
-    supervise_seat.router,
-    webhook.router,
-    knowledge.router,
-    contacts.router,
-    agent_memory.router,
-    extraction.router,
-    members.router,
-    members.operator,
-    login.router,
-    forgot.router,
-    login_sso.router,
-    sso.router,
-    sso.operator,
-    org_mail.router,
-    pairing.router,
-    floor.router,
-    threads.router,
-    insights.router,
-    judging.router,
-    numbers.router,
-    managed.router,
-    outbound.router,
-    dialling.router,
-    signup.router,
-    whoami.router,
-    whoami.operator,
-    discovery.router,
-):
+# Every door, in the order a reader meets them: api/_doors.py is the list.
+for door in DOORS:
     app.include_router(door)
 
 # The two pages, LAST and alone: the console's route is the gateway's only catch-all, and it must

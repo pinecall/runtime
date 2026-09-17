@@ -31,13 +31,14 @@ sandbox, answered in that colleague's corner.
 | `GET` | `/v1/events` | SSE, live only: the org's floor changing — an agent held, a call ringing, up, over |
 | `GET` | `/v1/members` · `POST` | the org's people; invite one, the token once and `mailed` — or none, for a person who already has a password here: seated at once |
 | `PATCH` | `/v1/members/{id}` | role, agents, standing; disabled revokes their keys |
+| `DELETE` | `/v1/members/{id}` | out of the org for good: keys revoked, row and links gone, the seat free — `team`; `409` for yourself and for the last active admin |
 | `POST` | `/v1/members/{id}/reset` | a one-use link that sets an active member's password, the token once, and `mailed` — `team` |
 | `POST` | `/v1/invitations/{token}` | accept with a password: active, and the first key |
 | `POST` | `/v1/login` | a key for a person and a device: email, password, the org when they have several — or a code |
 | `POST` | `/v1/login/orgs` | which orgs an email and password sign in to, minting nothing — no key, throttled like the login |
 | `POST` | `/v1/login/reset` | a forgotten password: `202` whoever asks, and a one-use link mailed where one can be — no key, throttled like the login |
-| `GET` | `/v1/login/orgs` | every org this key's person belongs to, and which one the key opens — a person's key |
-| `POST` | `/v1/login/org` | the same person's key in another org of theirs, in the same world — a person's key |
+| `GET` | `/v1/login/orgs` | every org this key's person belongs to, and which one the key opens; for an operator of the box, every org there is, `member: false` and `role: "operator"` where they are none — a person's key |
+| `POST` | `/v1/login/org` | the same person's key in another org of theirs, in the same world; an operator is let into ANY org on a production key with an admin's scopes, `subject` `operator:<email>`, no member row and no seat — a person's key |
 | `POST` | `/v1/login/codes` | a one-use code a key holder mints for a browser |
 | `POST` | `/v1/login/pairings` | a word a terminal prints, so a person signs it in from a browser — no key |
 | `GET` | `/v1/login/pairings/{code}` | what the card is about to approve: which terminal, and whether it is answered — no key |
@@ -48,13 +49,21 @@ sandbox, answered in that colleague's corner.
 | `POST` | `/v1/org/mail/test` | one test letter, waited for: `{sent, error}` — `team`; 409 when nothing can send |
 | `GET` | `/v1/login/sso?org=&pairing=` | 302 to that org's provider, with state, nonce and a PKCE challenge — no key |
 | `GET` | `/v1/login/sso/callback?code=&state=` | the code exchanged and the id_token checked; 302 to `/?login=<code>`, so no key is ever in a URL — no key |
+| `GET` | `/v1/login/google[?pairing=]` | box-wide "Continue with Google": 302 to Google — no key, throttled like the SSO; 404 while nobody wired one |
+| `GET` | `/v1/login/google/callback?code=&state=` | the address matched against every org's members: 302 `/?login=<code>` for a member, `/?refused=<why>` for nobody — no key |
 | `POST` | `/v1/login/sso/discover` | which orgs an address's domain signs in to with a provider; says nothing about who exists — no key, throttled like the login |
 | `POST` | `/v1/signup` | where `PINECALL_SIGNUP` is on, off by default: a new org allowed what its gateway's policy says, its admin active, their first key and a login code |
-| `GET` | `/v1/whoami` | the org as an id AND as the `slug` its people type, the key's id, its label, the world it opens (`env`), its `scopes`, and whose it is (`subject`, `name`) |
+| `GET` | `/v1/whoami` | the org as an id AND as the `slug` its people type, the key's id, its label, the world it opens (`env`), its `scopes`, whose it is (`subject`, `name`), whether that person runs the box (`operator`) and whether they are inside an org they are no member of (`visiting`) |
 | `GET` | `/v1/ops/whoami` | **the box's own**: that this key is the operator's, the version, the domain — what the `/admin` page proves its key at |
+| `GET` · `PUT` · `DELETE` | `/v1/ops/mail` | **the box's own**: the mail server the box posts through, stored here over the environment's — `source` says which; never the password. [the-box.md](the-box.md) |
+| `POST` | `/v1/ops/mail/test` | **the box's own**: one letter through the box's mailbox, waited for — `{sent, error}` |
+| `GET` | `/v1/ops/signin` | **the box's own**: every box-wide provider — `{google: {configured, client_id, redirect_uri}}` |
+| `PUT` · `DELETE` | `/v1/ops/signin/google` | **the box's own**: the OAuth client at Google, its secret sealed; Google's discovery checked before anything is kept |
+| `GET` · `PUT` | `/v1/ops/brand` | **the box's own**: what the letters and the sign-in page are called and painted with — `{name, logo_url, accent}` |
 | `GET` | `/v1/ops/orgs/{org}/sso` | **the box's own**: which provider one org signs in with, never its secret |
 | `PUT` | `/v1/ops/orgs/{org}/sso/required` | **the box's own**: the break-glass — a password opens that org again while its provider is down. Never the other way |
 | `GET` · `POST` | `/v1/ops/orgs/{org}/members` | **the box's own**: an org's people and how many hold a seat; invite one — the first admin, where sign-ups are shut — the token once. Never a change |
+| `DELETE` | `/v1/ops/orgs/{org}/members/{id}` | **the box's own**: that person out of the org for good, under the tenant door's rules less "yourself" — `409` for its last active admin |
 | `GET` | `/v1/agents` | the agents this gateway is holding for your org |
 | `GET` | `/v1/agents/{slug}/config` | what it declared, overrides applied — `app` or `calls` |
 | `GET` | `/v1/agents/{slug}/line` | whose terminal a RING lands in, and who else could take it — `calls` |
