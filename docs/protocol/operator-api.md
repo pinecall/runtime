@@ -325,7 +325,10 @@ Which vendors the org brought a key for. **Names only** — never a value, and n
 ```
 
 Nothing in this API, and nothing anywhere else in the runtime but the worker's own
-`GET /v1/agents/{slug}/provider-keys`, reads a stored provider key back.
+`GET /v1/agents/{slug}/provider-keys`, reads a stored provider key back. An org's OpenID client
+secret is sealed under the same vault key and read back by nothing at all; the box's two doors
+over it — `GET /v1/ops/orgs/{org}/sso`, and the break-glass `PUT …/sso/required {required}` that
+lets a password open that org again — are in [people.md](people.md).
 
 ## Usage
 

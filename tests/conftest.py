@@ -35,7 +35,13 @@ MARKS_THAT_KEEP_THE_REAL_ENVIRONMENT = ("needs_llm", "voice")
 # routes, tokens, evals. A conftest under one of them would be invisible to the others. The
 # fixtures about people are the same shape of thing: one module, wanted by the api harness and by
 # the CLI suites that drive it, and a conftest at the ceiling could not hold them.
-pytest_plugins = ["tests.postgres", "tests.api.people", "tests.api.carriers", "tests.api.policy"]
+pytest_plugins = [
+    "tests.postgres",
+    "tests.api.people",
+    "tests.api.signing_in",
+    "tests.api.carriers",
+    "tests.api.policy",
+]
 
 
 def pytest_configure() -> None:

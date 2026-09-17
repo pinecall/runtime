@@ -24,6 +24,7 @@ from pinecall.api import (
     knowledge,
     listen,
     login,
+    login_sso,
     managed,
     members,
     numbers,
@@ -35,6 +36,7 @@ from pinecall.api import (
     providers,
     routes,
     signup,
+    sso,
     supervise_seat,
     threads,
     tokens,
@@ -58,6 +60,7 @@ from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import NO_KEYS_TABLE, keys_for
 from pinecall.auth.members import members_for
 from pinecall.auth.pairing import Pairings
+from pinecall.auth.sso import Handshakes
 from pinecall.auth.throttle import Throttle
 from pinecall.evals.runs import runs_for
 from pinecall.extensions import extensions_from
@@ -79,6 +82,7 @@ from pinecall.memory import PgvectorMemory
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.carriers import carriers_for
 from pinecall.orgs.meter import Meter
+from pinecall.orgs.sso import sso_for
 from pinecall.orgs.table import orgs_for
 from pinecall.orgs.turned import turned_for
 from pinecall.orgs.vault import keys_brought_by, vault_for
@@ -150,10 +154,18 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # The words `pinecall login` prints, until a browser leaves a key in one. See api/pairing.py.
     gateway.state.pairings = Pairings()
     gateway.state.throttle = Throttle()
+    # The sign-ins out at an identity provider right now: a state, a nonce and a PKCE verifier
+    # per person between the redirect and the callback. This process's memory, like the two
+    # above, and for the same reason: a ten-minute word does not need a table (auth/sso.py).
+    gateway.state.handshakes = Handshakes()
     # Where a tenant that brought its own provider keys keeps them. None when the box was given
     # no PINECALL_VAULT_KEY, which is every install that runs on its own vendor keys — the
     # default, and the whole of a laptop. docs/decisions/provider-keys.md.
     gateway.state.vault = vault_for(settings, pool)
+    # Where an org's people prove who they are, when it is not this box: the OpenID client it is
+    # at its own IdP, its secret sealed under the same vault key — and so None, and the doors
+    # 503, on a box that was given none. orgs/sso.py.
+    gateway.state.sso = sso_for(settings, pool)
     # Whose numbers reach the org's agents: the carrier a tenant brought, sealed under the same
     # vault key; the SFU's trunks the gateway admits numbers on; and how a Twilio account is
     # reached, over the process's one httpx client (opened below).
@@ -194,6 +206,9 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # over HTTP: Meta's Graph API, and whichever embedder EMBED_PROVIDER names. The WhatsApp
     # conversations open right now ride beside it; none of it is durable and none of it should be.
     http = httpx.AsyncClient()
+    # Named on the state as well, because a third caller rides it now: the sign-in that asks an
+    # org's identity provider for its configuration, its keys and one token (api/login_sso.py).
+    gateway.state.http = http
     gateway.state.graph = HttpGraph(http)
     gateway.state.twilio = partial(HttpTwilio, http)
     gateway.state.threads = Threads()
@@ -303,6 +318,9 @@ for door in (
     members.router,
     members.operator,
     login.router,
+    login_sso.router,
+    sso.router,
+    sso.operator,
     pairing.router,
     floor.router,
     threads.router,
