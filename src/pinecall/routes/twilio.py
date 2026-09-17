@@ -243,7 +243,11 @@ class HttpTwilio:
 
     async def terminating(self, trunk_sid: str, domain: str) -> None:
         """One POST on the trunk itself: the label is the whole of Twilio's termination setup."""
-        await self._post(f"{TRUNKING_API}/Trunks/{trunk_sid}", {"DomainName": domain})
+        # Twilio takes the whole host here and refuses a bare label (21245, "must end with
+        # twilio.com"), and answers the whole host back: the label is ours, the suffix the wire's.
+        await self._post(
+            f"{TRUNKING_API}/Trunks/{trunk_sid}", {"DomainName": termination_host(domain)}
+        )
 
     async def credential_list_named(self, name: str) -> str | None:
         """By friendly name, over one page: an account with fifty of these is not a tenant."""
@@ -283,7 +287,7 @@ class HttpTwilio:
             sid=str(row["sid"]),
             name=str(row["friendly_name"]),
             origination=tuple(str(url["sip_url"]) for url in said.get("origination_urls", [])),
-            domain=str(row.get("domain_name") or ""),
+            domain=str(row.get("domain_name") or "").removesuffix(TERMINATION_SUFFIX),
         )
 
     async def _get(self, url: str) -> dict[str, Any]:

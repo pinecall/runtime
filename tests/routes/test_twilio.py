@@ -139,6 +139,15 @@ async def test_shopping_asks_for_one_local_voice_number_and_buying_is_one_post()
     )
 
 
+async def test_the_termination_is_sent_as_the_whole_host_twilio_demands() -> None:
+    # Twilio refuses a bare label (21245: "the hostname must end with twilio.com").
+    fake = _Twilio()
+    await HttpTwilio(a_client(fake), ACCOUNT).terminating("TK_1", "pinecall-clinica")
+    assert fake.writes == [
+        (f"{TRUNKING_API}/Trunks/TK_1", {"DomainName": "pinecall-clinica.pstn.twilio.com"})
+    ]
+
+
 def test_the_networks_the_trunk_admits_are_the_ones_the_fence_opens() -> None:
     """One list in two places would be a call the fence drops; this holds them to be one."""
     fence = FENCE.read_text(encoding="utf-8")
