@@ -74,29 +74,30 @@ def fallback(href: str) -> str:
     )
 
 
-# The wordmark is a WORD unless the operator said otherwise. A logo is an image, an image is a
-# URL, and a URL in a letter is a request that says when it was opened and from where — so the
+# The top of a letter is the operator's LOGO or nothing. A box told nothing used to write its name
+# there as a word, which put "Pinecall" in plain type over every letter of a box nobody had
+# branded — a header that says less than the footer already does. A logo is an image, an image is
+# a URL, and a URL in a letter is a request that says when it was opened and from where — so the
 # only one this frame ever makes is to the address the operator of this box typed themselves,
 # and with none set it makes none. `alt` is the name: a client that blocks images, which is most
-# of them until the reader says otherwise, shows the word the letter would have carried anyway.
+# of them until the reader says otherwise, shows the word in the logo's place.
 def wordmark(brand: Brand) -> str:
-    """The top of every letter: the operator's logo at a fixed height, else the name as text."""
-    if brand.logo_url is not None:
-        return (
-            f'<img src="{escape(brand.logo_url, quote=True)}" '
-            f'alt="{escape(brand.name, quote=True)}" '
-            f'height="{LOGO_HEIGHT}" style="display:block;height:{LOGO_HEIGHT}px;width:auto;'
-            f"border:0;outline:none;text-decoration:none;font-family:{FONT};font-size:16px;"
-            f'font-weight:650;color:{INK};">'
-        )
+    """The row above the card: the operator's logo at a fixed height, or no row at all."""
+    if brand.logo_url is None:
+        return ""
     return (
-        f'<span style="font-family:{FONT};font-size:16px;font-weight:650;letter-spacing:-0.02em;'
-        f'color:{INK};">{escape(brand.name)}</span>'
+        '<tr><td style="padding:0 6px 16px;">'
+        f'<img src="{escape(brand.logo_url, quote=True)}" '
+        f'alt="{escape(brand.name, quote=True)}" '
+        f'height="{LOGO_HEIGHT}" style="display:block;height:{LOGO_HEIGHT}px;width:auto;'
+        f"border:0;outline:none;text-decoration:none;font-family:{FONT};font-size:16px;"
+        f'font-weight:650;color:{INK};">'
+        "</td></tr>"
     )
 
 
 def a_letter(preheader: str, content: str, footer: str, brand: Brand) -> str:
-    """One letter, framed: the wordmark, the white card and the quiet line underneath."""
+    """One letter, framed: the logo when there is one, the white card, the quiet line underneath."""
     return (
         "<!DOCTYPE html>\n"
         '<html lang="en"><head><meta charset="utf-8">'
@@ -110,7 +111,7 @@ def a_letter(preheader: str, content: str, footer: str, brand: Brand) -> str:
         f'style="background:{WASH};padding:36px 14px;"><tr><td align="center">'
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
         f'style="max-width:{WIDTH}px;">'
-        f'<tr><td style="padding:0 6px 16px;">{wordmark(brand)}</td></tr>'
+        f"{wordmark(brand)}"
         f'<tr><td style="background:{CARD};border:1px solid {HAIRLINE};border-radius:14px;'
         f'padding:30px 30px 24px;">{content}</td></tr>'
         f'<tr><td style="padding:18px 6px 0;font-family:{FONT};font-size:12px;line-height:1.6;'
