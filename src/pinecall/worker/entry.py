@@ -20,11 +20,12 @@ from pinecall.session.voice import session
 from pinecall.session.voice.kit import Kit
 from pinecall.session.voice.platform import Platform
 from pinecall.types import AgentConfig, CallContext, Route
-from pinecall.types.dispatch import SCOPE_KEY, WRITTEN_SCOPE
-from pinecall.worker import commanding, recordings, router, seat
+from pinecall.types.dispatch import DIAL_KEY, SCOPE_KEY, WRITTEN_SCOPE
+from pinecall.worker import commanding, dialling, recordings, router, seat
 from pinecall.worker.client import Gateway
 from pinecall.worker.recordings import Keeping
-from pinecall_protocol import Command
+from pinecall_protocol import Command, defs, encode
+from pinecall_protocol.events import CallEnded
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,12 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     # run has to reach the terminal holding its goldens, and that socket takes no unclaimed call.
     await worker.gateway.opened(context, route.agent, arrival.app or worker.app)
     took("opened")
+    # A call this box PLACED is dialled here, by the job that will answer on it, and before there
+    # is a session to say anything into an empty room. It waits for the far end to pick up, which
+    # is the only way busy and no-answer are knowable at all; a call nobody answered ends right
+    # here, on its own log, and this job is over. See docs/protocol/numbers.md.
+    if not await _the_far_end_answered(ctx, worker, context, arrival):
+        return
     recording = where_the_audio_goes(ctx, context.call, worker.keeping)
     bridge = worker.bridging(context, config, worker.gateway, recording)
     # Registered before anything can fail: a call that dies mid-setup still seals its own log.
@@ -229,6 +236,34 @@ def a_call(call: str, arrival: router.Arrival, route: Route) -> CallContext:
         run=arrival.run,
         holder=arrival.whose.holder,
     )
+
+
+# True when there is somebody on the line to talk to: an inbound call always, and an outbound one
+# once the far end picked up. The log's own ending is written here rather than by the bridge,
+# because there is no bridge yet — nothing has been built for a call that never happened, and
+# nothing is waiting to be unwound.
+async def _the_far_end_answered(
+    ctx: JobContext, worker: Worker, context: CallContext, arrival: router.Arrival
+) -> bool:
+    """Place the leg a dispatch asked for, and say whether there is a call to run."""
+    if arrival.direction != "outbound":
+        return True
+    wanted = dialling.asked_of(arrival.metadata.get(DIAL_KEY))
+    if wanted is None:
+        await _never_answered(worker.gateway, context.call, "dial_failed")
+        return False
+    reason = await dialling.placed(ctx.api, ctx.room.name, wanted)
+    if reason is None:
+        return True
+    await _never_answered(worker.gateway, context.call, reason)
+    return False
+
+
+async def _never_answered(gateway: Gateway, call: str, reason: defs.EndReason) -> None:
+    """call.ended in the protocol's own word for it, and the log sealed. Nothing followed it."""
+    ended = CallEnded(reason=reason, ended_by="platform", ended_at=time.time(), duration_s=0.0)
+    await gateway.append(call, "call.ended", encode(ended))
+    await gateway.sealed(call)
 
 
 def letting_go(reading: asyncio.Task[None]) -> Callable[[str], Coroutine[None, None, None]]:

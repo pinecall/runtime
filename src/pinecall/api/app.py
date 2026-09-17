@@ -14,6 +14,7 @@ from pinecall._settings import Settings, load_settings
 from pinecall.api import (
     agent_memory,
     contacts,
+    dialling,
     discovery,
     extraction,
     fleet,
@@ -28,6 +29,7 @@ from pinecall.api import (
     members,
     numbers,
     orgs,
+    outbound,
     pages,
     pairing,
     pipeline,
@@ -78,7 +80,9 @@ from pinecall.lookups import Lookups
 from pinecall.memory import PgvectorMemory
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.carriers import carriers_for
+from pinecall.orgs.dialling import dialling_for
 from pinecall.orgs.meter import Meter
+from pinecall.orgs.outbound import outbound_trunks_for
 from pinecall.orgs.table import orgs_for
 from pinecall.orgs.turned import turned_for
 from pinecall.orgs.vault import keys_brought_by, vault_for
@@ -86,6 +90,8 @@ from pinecall.orgs.widgets import widgets_for
 from pinecall.providers.embed import embedder_for
 from pinecall.providers.models import models_for
 from pinecall.providers.overrides import Overrides
+from pinecall.routes.dispatching import dispatches_for
+from pinecall.routes.outbound import outbound_for
 from pinecall.routes.table import routes_for
 from pinecall.routes.trunks import trunks_for
 from pinecall.routes.twilio import HttpTwilio
@@ -159,6 +165,14 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # reached, over the process's one httpx client (opened below).
     gateway.state.carriers = carriers_for(settings, pool)
     gateway.state.trunks = trunks_for(settings)
+    # And the other direction: the trunk the org places a call THROUGH, sealed under the same key
+    # because the password on it is one this box minted and can read back from nowhere else; the
+    # SFU's outbound side; and how a job is started on a call nobody rang.
+    gateway.state.outbound_trunks = outbound_trunks_for(settings, pool)
+    gateway.state.outbound = outbound_for(settings)
+    gateway.state.dispatches = dispatches_for(settings)
+    # What each org may dial and what it has dialled: the guards, and the ledger they count from.
+    gateway.state.dial_policies, gateway.state.dials = dialling_for(pool)
     # Which number reaches which agent, durably. A clone with no database routes in memory: it
     # can still be told, and it forgets when the process does.
     gateway.state.routes = routes_for(pool)
@@ -310,6 +324,8 @@ for door in (
     judging.router,
     numbers.router,
     managed.router,
+    outbound.router,
+    dialling.router,
     signup.router,
     whoami.router,
     whoami.operator,
