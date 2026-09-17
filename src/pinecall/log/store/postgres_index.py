@@ -14,6 +14,7 @@ from pinecall.log.store.index import (
     Found,
     ThreadRow,
     Threads,
+    Unsealed,
     Wanted,
     after_the_cursor,
     digits_of,
@@ -33,6 +34,7 @@ from pinecall.log.store.index_statements import (
     READ,
     SPENT_BETWEEN,
     THREADS,
+    UNSEALED_SPOKEN,
 )
 
 
@@ -84,6 +86,19 @@ class PostgresIndex:
         """The facts of each of these calls that has a row."""
         rows: Sequence[Any] = await self._pool.fetch(FACTS_OF, list(calls))
         return {str(row["call"]): facts_of_row(row) for row in rows}
+
+    async def unsealed_spoken(self, quiet_since: float, limit: int) -> list[Unsealed]:
+        """One pass over the head rows that are still open, oldest silence first."""
+        rows: Sequence[Any] = await self._pool.fetch(UNSEALED_SPOKEN, quiet_since, limit)
+        return [
+            Unsealed(
+                call=str(row["call"]),
+                agent=str(row["agent"] or ""),
+                started_at=float(row["started_at"]),
+                last_at=float(row["last_at"]),
+            )
+            for row in rows
+        ]
 
     async def found(self, org: str, env: str, holder: str, wanted: Wanted, limit: int) -> Found:
         """The count and one page, off the same WHERE."""

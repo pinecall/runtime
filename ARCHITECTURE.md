@@ -119,7 +119,8 @@ names the agent declared. A **scope** picks the projection a bearer reads throug
 
 `api/app.py` is one FastAPI process: a lifespan that opens the Postgres pool, the key table,
 the routes, the vault and the meter, the embedder `EMBED_PROVIDER` names, memory, the knowledge base and the one `Lookups`
-over them, then thirty routers, one door each. By resource:
+over them, then thirty routers, one door each — and the one loop that answers to nobody, the
+**reaper** (`api/reaping.py`, §8). By resource:
 
 | door | what |
 |---|---|
@@ -302,6 +303,17 @@ by the store in the append that writes each entry; `store/index.py` the question
 and an inbox ask across calls, `call_facts` in Postgres, 0025). The `seq` is born under the
 database in the same INSERT; ephemerals spend a seq and leave no row; `ts` is the runtime's
 clock. **Compact the view, never the log.** `docs/decisions/log.md`.
+
+A log is sealed by whoever ran the call: the worker at the end of a spoken one, the session
+itself at the end of a written one. A worker that is **killed** runs no shutdown callback and
+seals nothing, so the gateway keeps a **reaper** (`api/reaping.py`, started by the lifespan):
+every minute it asks the store which spoken calls are unsealed and have been quiet for five
+minutes (`store/index.py` `unsealed_spoken`), asks the SFU which of their rooms still exist
+(`routes/rooms.py` — livekit deletes an empty room after a minute), and finishes the rest from
+wherever their worker stopped: `call.ended` as `drained` by the platform, `call.summary`, and the
+`call.score` that seals it. It is idempotent, and two gateways racing seal a call once. The
+worker's own half of that failure — how long a stop may take and which processes systemd's
+SIGTERM reaches — is `worker/main.py` and `infra/box/pinecall-worker.service`.
 
 ## 9. The tenants
 

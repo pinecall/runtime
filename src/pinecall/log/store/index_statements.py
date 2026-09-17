@@ -52,6 +52,24 @@ from call_facts f join call_log_head head on head.log = f.call
 where f.call = any($1::text[])
 """
 
+# Every spoken call whose head row never sealed and whose newest entry is older than `$1`. The
+# scan is over the head rows that are still open, which is the live floor plus whatever a dead
+# worker left behind — tens of rows on a busy box — and `max(entry.ts)` reads one call's entries
+# through the log's own (call, seq) index. Oldest first, so a backlog is worked from the far end.
+UNSEALED_SPOKEN = """
+select head.log as call, head.agent,
+       coalesce(head.started_at, 0) as started_at,
+       coalesce(max(entry.ts), head.started_at, 0) as last_at
+from call_log_head head
+join call_facts f on f.call = head.log
+left join call_log entry on entry.call = head.log
+where head.call is not null and not head.sealed and f.spoken
+group by head.log, head.agent, head.started_at
+having coalesce(max(entry.ts), head.started_at, 0) < $1
+order by last_at
+limit $2
+"""
+
 # The corner's calls that match, the same WHERE twice: once counted, once paged. A NULL parameter
 # is "any"; `$6` is the words as a LIKE pattern already escaped, `$7` their digits. Rows with no
 # facts yet are listed when nothing but the agent is asked, as the plain list always listed them.

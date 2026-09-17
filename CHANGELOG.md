@@ -622,6 +622,19 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   import them, and a tie in a fused order is settled by id on both.
 
 ### Fixed
+- **Three web calls were `live` for thirty hours.** `call.ended` is written by the worker holding
+  a spoken call, from a shutdown callback, and the unit's default `KillMode` sent systemd's
+  SIGTERM to every process of the worker — livekit's forkserver and each job process with it. They
+  died within 100 ms of `systemctl stop`, so the drain that had just begun found no running job,
+  the stop finished in a second, and nothing on earth ever closed those logs (box, 2026-09-16).
+  Three fixes, one per layer: the unit is `KillMode=mixed`, so only the main process is signalled
+  and the jobs are livekit's to drain; `worker/main.py` gives the drain ten minutes and each job's
+  seal sixty seconds, instead of livekit's hour and ten seconds, both of which the unit's
+  `TimeoutStopSec` cut; and the gateway runs a **reaper** (`api/reaping.py`) that ends a spoken
+  call whose room the SFU no longer has and which has said nothing for five minutes — `call.ended`
+  as `drained` by the platform, `call.summary`, `call.score` with `not_judged`. It runs at start
+  and every minute, it never touches a quiet call whose room is alive, and it is safe from several
+  gateways at once. A gateway with no `LIVEKIT_API_KEY` pair runs none and says so once.
 - **`cp .env.example .env` left the runtime unable to start any process.** The example writes every
   optional knob as a bare `NAME=`, and `PINECALL_MAX_JOBS=` is the one that is an integer:
   pydantic answered `max_jobs · Input should be a valid integer` on every verb, from the file the
