@@ -45,6 +45,33 @@ sentences that could commit, in Spanish and in English, and a call with none hol
 there are some, the judge model is asked once with every tool call of the call as evidence, under
 the same per-call ceiling as every judge. With no model to ask, it is `skipped`, and no flag rises.
 
+## 2. Insights: a day at a glance
+
+`GET /v1/insights?day=YYYY-MM-DD` (`calls`) — today when `day` is left out. **The day is cut in
+UTC**: an org carries no timezone, and the answer says `"timezone": "UTC"`. Every count is of calls
+whose log **opened** in the day, in the reader's corner; `budget` is the org's, both worlds.
+
+```json
+{ "day": "2026-09-17", "timezone": "UTC",
+  "conversations": { "today": 42, "yesterday": 37 },
+  "resolved_rate": 0.93, "median_e2e_s": 1.21, "spend_eur": 3.84,
+  "channels": { "phone": 30, "web": 9, "whatsapp": 3 },
+  "sessions_total": 5120, "live": 2,
+  "agents": [ { "slug": "bidfire-dispatch", "today": 40, "score": 0.97 } ],
+  "budget": { "limit_eur": 300, "spent_eur_month": 88.2 } }
+```
+
+| field | how it is counted |
+|---|---|
+| `resolved_rate` | of the day's calls that **ended**, the share no person took part in — no `escalated` flag (§1). `null` when none ended |
+| `median_e2e_s` | the median `e2e_latency` over every agent turn of the day's calls. `null` when no turn measured one |
+| `spend_eur` | `call.summary`'s `cost.eur`, summed over the day's calls |
+| `sessions_total` · `live` | every call the corner ever held; the ones whose log is not sealed yet |
+| `agents[].score` | the share of judges that held (`held / judged`, 0..1), averaged over the agent's judged calls of the day; `null` when none was judged |
+| `budget` | `limit_eur` is the operator's `budget_eur` ([operator-api.md](operator-api.md)), `null` for none; `spent_eur_month` is what the org's calls that opened in the day's calendar month cost, every world and corner. A budget is shown and never enforced |
+
+Three indexed reads of the call index and one of the quotas, whatever the day.
+
 ## 3. Judging: on, off, and the ceiling
 
 `GET /v1/org/judging` (`calls`) answers `{on, ceiling_eur}`; `PUT /v1/org/judging {on}` (`usage`:

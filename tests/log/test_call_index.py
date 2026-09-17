@@ -184,7 +184,8 @@ async def test_a_day_is_counted_in_its_corner(store: Indexing, org: str, agent: 
     assert [(one.slug, one.calls, one.score) for one in day.agents] == [(agent, 3, 0.5)]
     tomorrow = await store.a_day(org, "production", "", THE_DAY + 24 * 60 * 60)
     assert (tomorrow.calls, tomorrow.yesterday) == (0, 3)
-    assert await store.spent_since(org, THE_DAY) == 4.75, "a budget spans both worlds"
+    assert await store.spent_between(org, THE_DAY, 60.0) == 4.75, "a budget spans both worlds"
+    assert await store.spent_between(org, 60.0, 120.0) == 0.0
 
 
 async def test_an_inbox_is_a_line_per_contact_and_counts_what_the_reader_has_not_read(

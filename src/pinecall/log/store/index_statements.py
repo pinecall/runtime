@@ -123,10 +123,10 @@ order by calls desc, slug
 """
 
 # A budget is the org's, so every world and corner is summed.
-SPENT_SINCE = """
+SPENT_BETWEEN = """
 select coalesce(sum(f.cost_eur), 0) as spent
 from call_log_head head join call_facts f on f.call = head.log
-where head.org = $1 and head.call is not null and head.started_at >= $2
+where head.org = $1 and head.call is not null and head.started_at >= $2 and head.started_at < $3
 """
 
 # The inbox: an agent's calls in one corner grouped by contact. `newest` is each contact's call that

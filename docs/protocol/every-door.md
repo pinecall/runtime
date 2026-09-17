@@ -22,6 +22,7 @@ sandbox, answered in that colleague's corner.
 | `POST` | `/v1/keys/{fingerprint}/revoke` | stop one of the org's keys; the row and its history stay |
 | `POST` | `/v1/login/env` | the same person's key for the other world, with what their role opens there |
 | `GET` | `/v1/sessions?limit=&q=&agent=&channel=&before=` | the newest calls across every agent, in the reader's corner, filtered and paged, each with its verdict and flags — [console-api.md](console-api.md) |
+| `GET` | `/v1/insights?day=` | one day of the reader's corner — calls, resolved rate, median e2e, spend, doors, agents — and the month's budget, UTC — `calls` |
 | `GET` · `PUT` | `/v1/org/judging` | whether the org's calls are judged at hang-up, and the box's ceiling; turned with `usage` |
 | `GET` | `/v1/calls/{call}/judging` | the worker's, at hang-up: whether that call's org judges — `app` |
 | `GET` | `/v1/events` | SSE, live only: the org's floor changing — an agent held, a call ringing, up, over |

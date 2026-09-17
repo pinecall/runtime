@@ -99,8 +99,8 @@ class CallIndex(Protocol):
         """The corner's calls that started in the day that opens at `start`, counted."""
         ...
 
-    async def spent_since(self, org: str, since: float) -> float:
-        """What every call of the org that started since then cost, every world and corner."""
+    async def spent_between(self, org: str, start: float, end: float) -> float:
+        """What every call of the org that started in [start, end) cost, every world and corner."""
         ...
 
     async def threads(

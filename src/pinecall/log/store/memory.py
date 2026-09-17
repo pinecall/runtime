@@ -191,12 +191,12 @@ class MemoryStore:
         """The corner's day, counted."""
         return memory_index.a_day(self._indexed(org, env, holder), start)
 
-    async def spent_since(self, org: str, since: float) -> float:
-        """What the org's calls since then cost, every world and corner."""
+    async def spent_between(self, org: str, start: float, end: float) -> float:
+        """What the org's calls in that span cost, every world and corner."""
         return sum(
             one.facts.cost_eur or 0.0
             for one in self._indexed(org)
-            if one.started_at is not None and one.started_at >= since
+            if one.started_at is not None and start <= one.started_at < end
         )
 
     async def threads(
