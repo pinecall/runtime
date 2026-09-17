@@ -164,7 +164,8 @@ answers `401: this door is the box's`. That 401 is worth reading twice: it means
 refused, not that the command is wrong.
 
 Open the invitation link and set a password. That browser now holds a key of its own, in
-**production**, which is the world a console is for.
+**production**, which is the world this gateway's console shows — and the only one. What a laptop
+runs is in the sandbox, and is watched on that laptop: `pinecall serve` (§6).
 
 ## 5. Sign a terminal in
 
@@ -262,8 +263,8 @@ has no such choice either: the gateway's shows production, and a machine's own t
 ## Whose corner is whose
 
 The sandbox holds **one agent per person**: two developers each run `clinica-norte` and neither
-takes the other's. What each reaches — the console, `chat`, the config door, a suite — is their own
-socket. A key that opens `team` (an admin's, the box operator's) is answered every member's corner,
+takes the other's. What each reaches — their own `pinecall serve`, `chat`, the config door, a suite
+— is their own socket. A key that opens `team` (an admin's, the box operator's) is answered every member's corner,
 each row saying whose:
 
 ```console
@@ -272,12 +273,13 @@ $ curl -H "Authorization: Bearer $ADMINS_KEY" localhost:8080/v1/agents
              "holder": {"holder": "m_6bb3ec66bf2b", "name": "carla@clinica.test"}}]}
 ```
 
-That admin holds no agent of their own and can see what the team is running. The console's front
+That admin holds no agent of their own and can see what the team is running. Their local console's front
 page draws the same thing with a **whose** column and a filter — *everything · mine · the team's*.
 A developer sees none of it: there is one corner and nothing to filter.
 
 And the admin can open one. In the sandbox, the header `pinecall-corner: <member id>` answers any
-HTTP door in that member's corner — the console sends it when an admin opens a developer's copy —
+HTTP door in that member's corner — an admin's own `pinecall serve` sends it, forwarded as the
+page set it, when they open a developer's copy —
 so the agent, its line and its calls are Carla's:
 
 ```bash

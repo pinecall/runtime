@@ -70,6 +70,12 @@ agent in the sandbox, in this org, the call is built in their sandbox corner and
 `diverted_from: production`. Every other caller reaches production, and so does that phone the
 moment the developer stops holding the agent — or whenever the gateway cannot be asked.
 
+Which numbers those are, a developer's key cannot read off `GET /v1/numbers`: that door answers the
+key's own world, to a key that opens `numbers`. `GET /v1/line/numbers` (`app`, a key naming a
+person, the sandbox) answers `{calling, numbers}` — the phones this person said are theirs, and
+the org's production phone numbers with the agent each reaches — and nothing else about a route.
+It is what the local console's Phone testing screen reads (`pinecall serve`).
+
 ## Letting one go — `DELETE /v1/numbers/{number}`
 
 The route removed and the number off the org's SFU trunk. The carrier account is not touched: the

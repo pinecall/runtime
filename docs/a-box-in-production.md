@@ -215,12 +215,15 @@ waiting…
 
 $ pinecall run
 clinica-norte · pinecall · sandbox · connected to https://box.example.com · key from profile · tools 5 · doors phone +34910000000, whatsapp +34910000000, web
-console  https://box.example.com/a/clinica-norte?login=lc_…   (opens within five minutes, once)
+console  `pinecall serve` opens it on this machine (or `pinecall run --serve`)
 line     rings in this terminal
 ```
 
 One line, and it says the four things that decide where you are: the agent, **whose org**, **which
-world**, and where the key came from. Then, in another terminal:
+world**, and where the key came from. A laptop's run is in the sandbox, and the sandbox is watched
+on that laptop: `pinecall serve` puts the console on `http://localhost:4100`, signed by the
+terminal's key. The page this box serves at `/` shows production, and only production. Then, in
+another terminal:
 
 ```console
 $ pinecall chat
