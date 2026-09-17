@@ -36,6 +36,7 @@ from pinecall.types import (
     SipPeer,
     TwilioAccount,
     a_carrier_kind,
+    a_sip_transport,
     an_env,
 )
 from pinecall.types.channel import CHANNELS_WITH_A_NUMBER, Channel
@@ -85,6 +86,13 @@ class WantedCarrier(WireModel):
     username: str | None = None
     password: str | None = None
     addresses: list[str] = []
+    # SIP, the other direction, every one of them optional: where the box places the INVITE, over
+    # what, and what it authenticates as — the last two falling back to the pair above. A peer
+    # that declares no outbound_host can be called FROM and never dialled THROUGH.
+    outbound_host: str | None = None
+    outbound_transport: str = "auto"
+    outbound_username: str | None = None
+    outbound_password: str | None = None
 
 
 class WantedNumber(WireModel):
@@ -328,6 +336,10 @@ def _a_carrier(org: str, said: WantedCarrier) -> Carrier:
                 username=said.username or "",
                 password=said.password or "",
                 addresses=tuple(said.addresses),
+                outbound_host=said.outbound_host,
+                outbound_transport=a_sip_transport(said.outbound_transport),
+                outbound_username=said.outbound_username,
+                outbound_password=said.outbound_password,
             ),
         )
     except DeclarationRefused as refused:

@@ -193,6 +193,16 @@ order by coalesce(head.started_at, -1) desc, head.log desc
 limit $6
 """
 
+# The dial guard's one question, and it is a point lookup: call_facts_by_contact (0025) finds the
+# contact's calls and the join narrows them to the org. No corner and no agent — a number that
+# reached this org at all is a number this org may call back.
+EVER_REACHED = """
+select exists (
+    select 1 from call_log_head head join call_facts f on f.call = head.log
+    where head.org = $1 and head.call is not null and f.contact = $2
+) as reached
+"""
+
 # A cursor only moves forward: two tabs marking one thread read never move it back.
 READ = """
 insert into thread_reads as seen (org, env, holder, agent, reader, contact, read_at)

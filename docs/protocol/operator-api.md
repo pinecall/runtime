@@ -85,20 +85,7 @@ Forget the number. `204` when a row went; `404` when no row answered to it — a
 must never read as done. Whatever a running app declares for that number answers again from the
 next call.
 
-Three doors touch a tenant's people, and they are the only three. `GET /v1/ops/orgs/{named}/members`
-is the org's people as the operator reads them — `{members: [...], seated}`. `POST
-/v1/ops/orgs/{named}/members {email, name, role, agents?}` **invites** one — the org's first admin
-where sign-ups are shut, or one more — and answers `201` with the row and a one-use `token`,
-exactly as the tenant's own invite does; it takes none of the org's seats, because a plan caps
-what an org seats by itself. An email that already has a password on this box — a person of
-another org — gets no token: the row is `active` from the start, with that password, and `token`
-and `expires_at` are null ([people.md](people.md)). `PUT /v1/ops/orgs/{named}/members/{id}/operator
-{operator}` makes that member an operator of the box, or stops: their own key opens `/v1/ops/*` as
-well as their org's doors, and nothing about their org changes; `404` for an id no member of the
-org answers to. There is no door here that changes a member's role or standing: an
-invitation is inert until the person it names accepts it with a password of their own, so the box
-can seat somebody and never be them, while a role changed from here would be the box editing a
-tenant's team. Changing and disabling are the tenant's own `/v1/members` ([people.md](people.md)).
+Three doors touch a tenant's people, and they are the only three. `GET /v1/ops/orgs/{named}/members` is the org's people as the operator reads them — `{members: [...], seated}`. `POST /v1/ops/orgs/{named}/members {email, name, role, agents?}` **invites** one — the org's first admin where sign-ups are shut, or one more — and answers `201` with the row and a one-use `token`, exactly as the tenant's own invite does; it takes none of the org's seats, because a plan caps what an org seats by itself. An email that already has a password on this box — a person of another org — gets no token: the row is `active` from the start, with that password, and `token` and `expires_at` are null ([people.md](people.md)). `PUT /v1/ops/orgs/{named}/members/{id}/operator {operator}` makes that member an operator of the box, or stops: their own key opens `/v1/ops/*` as well as their org's doors, and nothing about their org changes; `404` for an id no member of the org answers to. There is no door here that changes a member's role or standing: an invitation is inert until the person it names accepts it with a password of their own, so the box can seat somebody and never be them, while a role changed from here would be the box editing a tenant's team. Changing and disabling are the tenant's own `/v1/members` ([people.md](people.md)).
 
 ## Orgs
 
@@ -135,11 +122,14 @@ is no limit.
 { "id": "org_3f2a9c1b8d0e", "slug": "clinica-norte", "name": "Clínica Norte",
   "quotas": { "minutes": 1000, "messages": null, "agents": 5, "concurrent_calls": 10,
               "memory_facts": 5000, "knowledge_chunks": 2000, "seats": 10 },
+  "dialling": { "dial_anywhere": false, "per_minute": 6, "per_day": 200,
+                "countries": [], "max_duration_s": 600 },
   "holding": { "memory_facts": 412, "knowledge_chunks": 1860, "numbers": 1, "seats": 4 } }
 ```
 
-`holding` is a count taken now, one indexed query over the rows themselves (`0` on a runtime with
-no database). It is here and not on `/v1/ops/usage`, which folds the log: a row there is an event
+`dialling` is what the org may dial out, below — the code's own defaults for an org nobody has set
+one for. `holding` is a count taken now, one indexed query over the rows themselves (`0` on a
+runtime with no database). It is here and not on `/v1/ops/usage`, which folds the log: a row there is an event
 at a cursor, and a stock has no cursor.
 
 ### `DELETE /v1/ops/orgs/{org}`
@@ -177,15 +167,7 @@ org clinica-norte has used 1000 of its 1000 minutes: credits.exhausted
 — on `POST /v1/calls`, on `POST /v1/tokens` (before the browser joins), on the chat socket (as the
 close reason) and on `agent.register` (as the `error` frame that follows the entry).
 
-Four are **stocks** — how much of a table the org may keep standing: `memory_facts`, the facts
-memory holds about its contacts, all together (a superseded one is history and is not counted);
-`knowledge_chunks`, the chunks its bases hold, all together; `numbers`, the ones the box bought for
-it on its own carrier account; and `seats`, the people it holds — invited and active together,
-because an invitation sent is a seat taken, and a `disabled` member keeps their row and holds none.
-Same mechanism, and it is what a plan switches memory and retrieval off with: `null` is no limit, a number is a cap, and **`0` is how a
-plan that does not include the feature is expressed** — a `0` org keeps neither, and its `recall`
-and `search` tools find nothing, embed nothing and write no entry at all: a plan without
-a feature is not a failure and must not read as one.
+Four are **stocks** — how much of a table the org may keep standing: `memory_facts`, the facts memory holds about its contacts, all together (a superseded one is history and is not counted); `knowledge_chunks`, the chunks its bases hold, all together; `numbers`, the ones the box bought for it on its own carrier account; and `seats`, the people it holds — invited and active together, because an invitation sent is a seat taken, and a `disabled` member keeps their row and holds none. Same mechanism, and it is what a plan switches memory and retrieval off with: `null` is no limit, a number is a cap, and **`0` is how a plan that does not include the feature is expressed** — a `0` org keeps neither, and its `recall` and `search` tools find nothing, embed nothing and write no entry at all: a plan without a feature is not a failure and must not read as one.
 
 - **`PUT /v1/knowledge/{base}`** counts what the push would become — the org's other bases plus the
   chunks these files cut into, the base being replaced counted as freed — and answers `429` before
@@ -210,6 +192,25 @@ carrier account (`POST /v1/numbers/buy`, [numbers](numbers.md)), counted on the 
 (`managed`). A number the tenant imports from its own carrier is its own and counts against
 nothing. `0` is a plan that buys none; the refusal is the same `429` sentence, written before the
 carrier is asked and with no `credits.exhausted` entry, since a purchase opens no call.
+
+## What an org may dial
+
+### `PUT /v1/ops/orgs/{org}/dialling`
+
+The org's outbound guards, replaced whole — but a guard left out goes back to the code's own
+**default** and never to "no limit": there is no such thing as an org that may dial without a
+fence, which is the one way this differs from the quotas above. It is the operator's and not the
+tenant's, deliberately and unlike `PUT /v1/org/judging`, which an org turns for itself: an org that
+could lift its own dialling fence has none.
+
+```json
+{ "dial_anywhere": false, "per_minute": 6, "per_day": 200, "countries": ["34", "1"],
+  "max_duration_s": 600 }
+```
+
+What each guard refuses, and its status, is [console-api.md](console-api.md) §4, beside the door that places a call. Three are worth naming here. `dial_anywhere` is the one switch that turns a call-back box into one that can dial strangers — off, a destination must already have called or written to one of the org's agents, and "call back" means back. `countries` empty is not anywhere: it is the calling codes of the org's **own** numbers, worked out per dial, which is the fence a tenant never has to configure. `max_duration_s` rides in the dispatch and is enforced by the media plane, so a worker that crashed leaves no call running on somebody's bill.
+
+A count below zero, or a code E.164 assigns to nobody, is `400` with the reason. The answer is the policy as kept, and it bites the next dial. The CLI over this door is `pinecall-runtime orgs dialling <org> [--dial-anywhere/--no-dial-anywhere] [--per-minute N] [--per-day N] [--countries 34,1] [--max-duration-s N]`.
 
 ## Keys
 

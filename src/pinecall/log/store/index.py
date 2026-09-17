@@ -163,6 +163,14 @@ class CallIndex(Protocol):
         """This contact's newest calls with the agent, newest first."""
         ...
 
+    # The org's and not one corner's, the way what an org spends is: "have we ever spoken to this
+    # number" is the question the dial guard asks before calling somebody back, and a caller who
+    # reached a developer's sandbox copy last week still reached this org. The number is matched
+    # as the fold wrote it — E.164 with its plus — because that is what `contact` holds.
+    async def ever_reached(self, org: str, contact: str) -> bool:
+        """Whether this contact has ever called or written to any agent of the org, any world."""
+        ...
+
     async def read(
         self, org: str, env: str, holder: str, agent: str, reader: str, contact: str, at: float
     ) -> None:

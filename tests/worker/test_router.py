@@ -99,6 +99,25 @@ async def test_a_dial_says_outbound_in_its_metadata_and_everything_else_is_inbou
     assert (await _arrival(dialled, _a_seat())).direction == "inbound"
 
 
+# The sharpest thing about an outbound arrival: there is no SIP seat to read, because this job is
+# what will create one. Reading the room would make every call we place a web call, and then the
+# agent would be refused for having no widget.
+async def test_a_dialled_call_is_a_phone_call_before_anybody_is_on_the_line() -> None:
+    placed = a_job(metadata={"agent": "tienda-sur", "direction": "outbound"})
+    arrival = await _arrival(placed, a_connected_room())
+    assert (arrival.channel, arrival.direction, arrival.number) == ("phone", "outbound", None)
+    assert router.resolve(arrival, ROUTES).channel == "phone"
+
+
+# The far end is the contact on a call we placed: it is who the call is with, and what memory
+# files it under. Without it the caller would be the room's name, which is the call id.
+async def test_the_caller_of_a_dialled_call_is_the_number_the_dispatch_named() -> None:
+    placed = a_job(
+        metadata={"agent": "tienda-sur", "direction": "outbound", "caller": "+59899111111"}
+    )
+    assert (await _arrival(placed, a_connected_room())).caller == "+59899111111"
+
+
 def test_a_dispatch_says_whose_the_call_is_before_the_room_is_joined() -> None:
     """The org, the world and the corner ride the metadata; a dispatch that says nothing is
     the box's own trunk, and a world it spelled wrong reads as none rather than as a refusal."""

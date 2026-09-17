@@ -35,6 +35,13 @@ VERBS: tuple[str, ...] = (
 # What a quota reads as when nobody set it. The column is still a column.
 NO_LIMIT = "—"
 
+# The five an operator turns per org, in the order the door and the table declare them.
+DIAL_GUARDS = ("dial_anywhere", "per_minute", "per_day", "countries", "max_duration_s")
+
+# An empty country list is not "nowhere": it is the codes of the org's own numbers, worked out at
+# each dial, so the listing says that rather than printing a pair of brackets.
+OWN_NUMBERS = "its own numbers'"
+
 # What an org with no row of its own runs on, said in the one line `provider-key list` prints.
 ON_THE_BOX = "this org runs every vendor on the keys of this box"
 
@@ -103,6 +110,19 @@ def configure(parser: argparse.ArgumentParser) -> None:
         help="euros a calendar month, shown beside what was spent and never refused; out is none",
     )
     limiting.set_defaults(run=run_quota)
+
+    dialling = verbs.add_parser("dialling", help="set what an org may dial out, the whole set")
+    dialling.add_argument("org", metavar="<org>", help="by id or slug")
+    # The one guard that turns a call-back box into one that can dial strangers. Off unless said.
+    dialling.add_argument(
+        "--dial-anywhere", action=argparse.BooleanOptionalAction, default=None,
+        help="let it dial a number that never called it",
+    )  # fmt: skip
+    dialling.add_argument("--per-minute", type=int, default=None, help="dials a minute; out is 6")
+    dialling.add_argument("--per-day", type=int, default=None, help="dials a day; out is 200")
+    dialling.add_argument("--countries", default=None, help="calling codes, comma separated: 34,1")
+    dialling.add_argument("--max-duration-s", type=int, default=None, help="seconds; out is 600")
+    dialling.set_defaults(run=run_dialling)
 
     _configure_provider_keys(verbs.add_parser("provider-key", help="an org's own vendor keys"))
 
@@ -183,6 +203,16 @@ def run_quota(arguments: argparse.Namespace) -> int:
     """The org's limits, replaced whole: a flag left out is no limit."""
     limits: dict[str, int | None] = {name: getattr(arguments, name) for name in (*QUOTAS, BUDGET)}
     return against_the_gateway(partial(set_quota, arguments.org, limits))
+
+
+# Replaced whole, as the quotas are — but a guard left out goes back to the code's own default and
+# not to no limit: there is no such thing as an org that may dial with no fence at all.
+def run_dialling(arguments: argparse.Namespace) -> int:
+    """The org's outbound guards, replaced whole."""
+    said: dict[str, Any] = {name: getattr(arguments, name) for name in DIAL_GUARDS}
+    codes: str | None = arguments.countries
+    said["countries"] = None if codes is None else [one for one in codes.split(",") if one.strip()]
+    return against_the_gateway(partial(set_dialling, arguments.org, said))
 
 
 def run_move(arguments: argparse.Namespace) -> int:
@@ -316,6 +346,17 @@ async def set_quota(
     for name in (*QUOTAS, BUDGET):
         limit = kept.get(name)
         print(f"  {name:<17} {NO_LIMIT if limit is None else limit}", file=out)
+    return 0
+
+
+async def set_dialling(
+    org: str, said: dict[str, Any], operator: Operator, out: TextIO = sys.stdout
+) -> int:
+    """The guards as the door kept them, one per line: what the next dial of this org passes."""
+    kept = await operator.put(f"{OPS_ORGS}/{org}/dialling", said)
+    for name in DIAL_GUARDS:
+        guard = kept.get(name)
+        print(f"  {name:<17} {OWN_NUMBERS if guard == [] else guard}", file=out)
     return 0
 
 

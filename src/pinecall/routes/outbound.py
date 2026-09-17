@@ -1,0 +1,129 @@
+"""LiveKit's SIP side, the other direction: one outbound trunk per org, the calls it may place."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Protocol
+
+from livekit import api
+
+from pinecall._settings import Settings
+from pinecall.types import SipTransport
+
+# One outbound trunk per org, named beside its inbound twin so a person reading the SFU's two
+# lists sees one pair per tenant. `pinecall-<org>` is the inbound one (trunks.py).
+TRUNK_NAME = "pinecall-{org}-out"
+
+NO_LIVEKIT = (
+    "this gateway has no LIVEKIT_API_KEY and LIVEKIT_API_SECRET: it cannot place a call on the"
+    " media plane"
+)
+
+# The word the tenant writes, in the SFU's own enum. `auto` lets livekit-sip choose, which is what
+# a Twilio termination and most peers want.
+TRANSPORTS: dict[SipTransport, api.SIPTransport] = {
+    "auto": api.SIPTransport.SIP_TRANSPORT_AUTO,
+    "udp": api.SIPTransport.SIP_TRANSPORT_UDP,
+    "tcp": api.SIPTransport.SIP_TRANSPORT_TCP,
+    "tls": api.SIPTransport.SIP_TRANSPORT_TLS,
+}
+
+
+@dataclass(frozen=True)
+class Placing:
+    """What an outbound trunk is made of: where it dials, as whom, and which numbers it may show."""
+
+    address: str
+    numbers: tuple[str, ...]
+    transport: SipTransport = "auto"
+    auth: tuple[str, str] | None = None
+
+
+class Outbound(Protocol):
+    """What the outbound door does on the media plane: keep one trunk per org, and find it again."""
+
+    async def standing(self, org: str) -> str | None:
+        """The org's outbound trunk id, or None when the SFU holds none by that name."""
+        ...
+
+    async def provisioned(self, org: str, placing: Placing) -> str:
+        """The org's outbound trunk, made once and updated after; its id."""
+        ...
+
+
+@dataclass
+class _Placed:
+    trunk_id: str
+    placing: Placing
+
+
+class MemoryOutbound:
+    """The media plane of a clone with no LiveKit pair, and of every test: what would be there."""
+
+    def __init__(self) -> None:
+        self.trunks: dict[str, _Placed] = {}
+
+    async def standing(self, org: str) -> str | None:
+        placed = self.trunks.get(org)
+        return None if placed is None else placed.trunk_id
+
+    async def provisioned(self, org: str, placing: Placing) -> str:
+        placed = self.trunks.get(org)
+        trunk_id = f"ST_{org}_out" if placed is None else placed.trunk_id
+        self.trunks[org] = _Placed(trunk_id=trunk_id, placing=placing)
+        return trunk_id
+
+
+class LivekitOutbound:
+    """The real SFU, over livekit-api: looked up by name before anything is made, never doubled."""
+
+    def __init__(self, url: str, api_key: str, api_secret: str) -> None:
+        self._url = url
+        self._key = api_key
+        self._secret = api_secret
+
+    async def standing(self, org: str) -> str | None:
+        """One list, matched by the name this runtime gives the org's trunk."""
+        async with api.LiveKitAPI(self._url, self._key, self._secret) as livekit:
+            trunk = await _trunk_named(livekit, TRUNK_NAME.format(org=org))
+            return None if trunk is None else trunk.sip_trunk_id
+
+    async def provisioned(self, org: str, placing: Placing) -> str:
+        """Create the trunk when there is none; replace it whole when there is."""
+        async with api.LiveKitAPI(self._url, self._key, self._secret) as livekit:
+            info = _a_trunk_info(org, placing)
+            trunk = await _trunk_named(livekit, TRUNK_NAME.format(org=org))
+            if trunk is None:
+                made = await livekit.sip.create_outbound_trunk(
+                    api.CreateSIPOutboundTrunkRequest(trunk=info)
+                )
+                return made.sip_trunk_id
+            await livekit.sip.update_outbound_trunk(trunk.sip_trunk_id, info)
+            return trunk.sip_trunk_id
+
+
+def _a_trunk_info(org: str, placing: Placing) -> api.SIPOutboundTrunkInfo:
+    """The trunk as LiveKit keeps it: the org's name, where it dials, and what it dials as."""
+    info = api.SIPOutboundTrunkInfo(
+        name=TRUNK_NAME.format(org=org),
+        address=placing.address,
+        transport=TRANSPORTS[placing.transport],
+        numbers=list(placing.numbers),
+    )
+    if placing.auth is not None:
+        info.auth_username, info.auth_password = placing.auth
+    return info
+
+
+async def _trunk_named(livekit: api.LiveKitAPI, name: str) -> api.SIPOutboundTrunkInfo | None:
+    standing = await livekit.sip.list_outbound_trunk(api.ListSIPOutboundTrunkRequest())
+    return next((trunk for trunk in standing.items if trunk.name == name), None)
+
+
+def outbound_for(settings: Settings) -> Outbound | None:
+    """The SFU when the process has the LiveKit pair; None when it has none: the door says so."""
+    if settings.livekit_api_key and settings.livekit_api_secret:
+        return LivekitOutbound(
+            settings.livekit_url, settings.livekit_api_key, settings.livekit_api_secret
+        )
+    return None
