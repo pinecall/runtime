@@ -62,6 +62,7 @@ from pinecall.types.prompt import DEFAULT_LAYOUT, KNOWLEDGE, Blocks, PromptBlock
 from pinecall.types.provider_keys import NO_ORG_KEYS, ProviderKeys
 from pinecall.types.refused import DeclarationRefused
 from pinecall.types.route import Route, an_e164, dialable
+from pinecall.types.sso import OrgSso, a_domain
 from pinecall.types.token import GRANTS, Grant, Scope, grant_for
 from pinecall.types.tool import SideEffect, ToolSpec
 
@@ -121,6 +122,7 @@ __all__ = [
     "MemoryPolicy",
     "Model",
     "Org",
+    "OrgSso",
     "PlatformTool",
     "PromptBlock",
     "PromptRegion",
@@ -139,6 +141,7 @@ __all__ = [
     "Voice",
     "a_call_id",
     "a_carrier_kind",
+    "a_domain",
     "a_role",
     "a_slug",
     "an_e164",
