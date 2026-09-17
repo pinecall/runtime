@@ -39,6 +39,7 @@ async def test_invite_accept_and_login_read_round_trip_through_the_two_tables(
     members = PostgresMembers(pool)
     invited = await members.invite(org, "berna@clinica.uy", "Berna", "developer", ["clinica-norte"])
     assert invited is not None
+    assert invited.token is not None
     assert [m.status for m in await members.listed(org)] == ["invited"]
     accepted = await members.accept(invited.token, A_HASH)
     assert accepted is not None
@@ -60,6 +61,7 @@ async def test_a_re_invite_spends_the_older_token_and_an_update_coalesces(
     first = await members.invite(org, "ana@clinica.uy", "Ana", "qa", [])
     second = await members.invite(org, "ana@clinica.uy", "Ana", "qa", [])
     assert first is not None and second is not None
+    assert first.token is not None and second.token is not None
     assert await members.accept(first.token, A_HASH) is None
     changed = await members.update(org, first.member.id, role="supervisor")
     assert changed is not None and (changed.role, changed.status) == ("supervisor", "invited")

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Protocol
+from typing import Any, Protocol, cast
 
 from livekit.agents import llm as agents
 from livekit.agents.beta.tools import EndCallTool
@@ -98,11 +98,11 @@ def the_reason_first(ending: Ends) -> Callable[[EndCallTool.ToolCalledEvent], Aw
 
     async def before_it_closes(event: EndCallTool.ToolCalledEvent) -> None:
         ending.ended_by_the_model()
-        call_id = event.ctx.function_call.call_id
+        # The context is generic over the session's userdata, which this tool never reads.
+        ctx = cast(Any, event.ctx)  # pyright: ignore[reportUnknownMemberType]
+        call_id: str = ctx.function_call.call_id
         await ending.a_platform_tool_ran(
-            ToolCall(
-                call_id=call_id, name=END_CALL, arguments={}, speech_id=event.ctx.speech_handle.id
-            ),
+            ToolCall(call_id=call_id, name=END_CALL, arguments={}, speech_id=ctx.speech_handle.id),
             defs.ToolResult(call_id=call_id, name=END_CALL, output=None),
         )
 

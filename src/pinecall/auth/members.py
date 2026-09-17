@@ -122,17 +122,17 @@ def members_for(pool: Pool | None) -> Members:
     return MemoryMembers() if pool is None else PostgresMembers(pool)
 
 
-def _at(seconds: float) -> str:
+def an_instant(seconds: float) -> str:
     """A moment as Postgres hands its timestamps back: ISO 8601, UTC."""
     return datetime.fromtimestamp(seconds, UTC).isoformat()
 
 
-def _text(column: Any) -> str | None:
+def text_or_none(column: Any) -> str | None:
     """A nullable text column: the string, or None when the row has none."""
     return None if column is None else str(column)
 
 
-def _a_member(row: Any) -> Member:
+def a_member_of_row(row: Any) -> Member:
     """One row back into the domain's own Member. The columns are its fields, name for name."""
     return Member(
         id=str(row["id"]),

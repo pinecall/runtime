@@ -192,6 +192,17 @@ def fetched(gateway: TestClient, path: str) -> tuple[int, str, str]:
     )
 
 
+def allowed_origin(gateway: TestClient, path: str) -> str | None:
+    """The CORS header one GET at the gateway answers with, or None."""
+    got: Any = gateway.get(  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        path
+    )
+    said = got.headers.get(  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        "access-control-allow-origin"
+    )
+    return None if said is None else str(said)  # pyright: ignore[reportUnknownArgumentType]
+
+
 def test_the_widget_is_served_from_the_gateway_with_cors_for_any_site(
     gateway: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -199,10 +210,10 @@ def test_the_widget_is_served_from_the_gateway_with_cors_for_any_site(
     (tmp_path / "widget").mkdir()
     (tmp_path / "widget" / "pinecall-widget.js").write_text(AN_ASSET)
     monkeypatch.setattr(pages, "WIDGET", tmp_path / "widget")
-    answer = gateway.get("/widget/pinecall-widget.js")
-    assert answer.status_code == 200
-    assert "javascript" in answer.headers["content-type"]
-    assert answer.headers["access-control-allow-origin"] == "*"
-    assert answer.text == AN_ASSET
+    status, kind, body = fetched(gateway, "/widget/pinecall-widget.js")
+    assert status == 200
+    assert "javascript" in kind
+    assert allowed_origin(gateway, "/widget/pinecall-widget.js") == "*"
+    assert body == AN_ASSET
     # Nothing else under /widget is a page: a wrong name is a 404 and never index.html.
-    assert gateway.get("/widget/nope.js").status_code == 404
+    assert fetched(gateway, "/widget/nope.js")[0] == 404
