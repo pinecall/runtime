@@ -72,7 +72,7 @@ async def test(said: TestTo, outbox: OutboxDep) -> dict[str, Any]:
     return {"sent": said_back is None, "error": said_back}
 
 
-# The org's envelope (protocol/schema/rest.json, OrgMail) plus `source`: a page that draws the
+# The org's envelope plus `source` (protocol/schema/rest.json, BoxMail): a page that draws the
 # one draws the other, and `source` is the one thing the box's has to say that an org's does
 # not — whether what it reads came from /admin or from a file on the machine.
 def _standing(boxs: BoxMail | None) -> dict[str, Any]:
