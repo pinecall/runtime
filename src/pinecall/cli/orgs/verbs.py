@@ -10,6 +10,12 @@ from typing import Any, TextIO
 
 from pinecall.cli.columns import as_columns
 from pinecall.cli.operator import Operator, against_the_gateway
+from pinecall.cli.orgs.provider_keys import (
+    a_key_from,
+    list_provider_keys,
+    remove_provider_key,
+    set_provider_key,
+)
 from pinecall.cli.orgs.sso import BREAK_GLASS, OPS_ORGS, sso
 from pinecall.providers.catalog import vendors_with_a_key
 from pinecall.types import QUOTAS, ROLES
@@ -43,11 +49,9 @@ DIAL_GUARDS = ("dial_anywhere", "per_minute", "per_day", "countries", "max_durat
 OWN_NUMBERS = "its own numbers'"
 
 # What an org with no row of its own runs on, said in the one line `provider-key list` prints.
-ON_THE_BOX = "this org runs every vendor on the keys of this box"
 
 # The key is read from stdin and NEVER from a flag: argv is in `ps` on a shared box, and a key
 # pasted as an argument is a key in the shell history of whoever typed it. Nothing prints it back.
-READ_THE_KEY = "paste the {vendor} key and press enter: "
 NO_KEY_ON_STDIN = "nothing came in on stdin: pipe the key, or paste it and press enter"
 
 # Nobody of that org answers to the email: the sentence names both, because a typo in either is
@@ -358,44 +362,6 @@ async def set_dialling(
         guard = kept.get(name)
         print(f"  {name:<17} {OWN_NUMBERS if guard == [] else guard}", file=out)
     return 0
-
-
-async def set_provider_key(
-    org: str, vendor: str, key: str, operator: Operator, out: TextIO = sys.stdout
-) -> int:
-    """The org's own key for one vendor, from its next call on. Nothing of it is printed back."""
-    await operator.put(f"{OPS_ORGS}/{org}/provider-keys/{vendor}", {"key": key})
-    print(f"org {org} now runs {vendor} on its own key", file=out)
-    return 0
-
-
-async def remove_provider_key(
-    org: str, vendor: str, operator: Operator, out: TextIO = sys.stdout
-) -> int:
-    """Forget it. The door refuses with 404 when the org had no key for that vendor."""
-    await operator.delete(f"{OPS_ORGS}/{org}/provider-keys/{vendor}")
-    print(f"org {org} is back on this box's {vendor} key", file=out)
-    return 0
-
-
-async def list_provider_keys(org: str, operator: Operator, out: TextIO = sys.stdout) -> int:
-    """One line per vendor the org brought a key for, and one sentence when it brought none."""
-    said = await operator.get(f"{OPS_ORGS}/{org}/provider-keys")
-    vendors: list[str] = list(said["vendors"])
-    for vendor in vendors:
-        print(f"  {vendor}", file=out)
-    if not vendors:
-        print(f"  {ON_THE_BOX}", file=out)
-    return 0
-
-
-# stdin and not argv, and one line: a key is a secret, `ps` shows an argument to every user on the
-# box, and a shell keeps it in its history. A pasted key with a trailing newline is the normal case.
-def a_key_from(stdin: TextIO, vendor: str) -> str | None:
-    """The one line the operator pasted, or None when nothing came in."""
-    if stdin.isatty():
-        print(READ_THE_KEY.format(vendor=vendor), end="", file=sys.stderr)
-    return stdin.readline().strip() or None
 
 
 def _row_of(org: dict[str, Any]) -> tuple[str, ...]:
