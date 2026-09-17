@@ -171,19 +171,20 @@ def dialling() -> MemoryDialling:
 # from here instead. It asks for `wired` first, so these land on top of the overrides it set, and
 # its own teardown clears every one of them.
 #
-# `dead_sentinel_keys` is named for its ORDER and not for anything read here. A plugin's autouse
+# `dead_sentinel_keys` is asked for its ORDER and not for anything read here. A plugin's autouse
 # fixture runs before a conftest's, so building the app from this one would have built it from the
 # real environment — a `Settings()` with the box's own LiveKit URL in it, four tests deep in the
 # suite and nowhere near this file. Asking for it puts it first, where it always was.
 @pytest.fixture(autouse=True)
-def the_placing_deps(
-    request: pytest.FixtureRequest,
-    dead_sentinel_keys: None,  # noqa: ARG001 — requested for its ordering, not its value
-) -> Iterator[None]:
+def the_placing_deps(request: pytest.FixtureRequest) -> Iterator[None]:
     """The dial doors' dependencies, answered from this test, for a test that has an app."""
+    # A plugin is registered for every root pytest is given, `infra/tools/tests` among them, and
+    # nothing there has an app or the suite's own fixtures. So this asks whether there is one
+    # BEFORE it asks for anything, and a test without `wired` is left exactly as it was.
     if "wired" not in request.fixturenames:
         yield
         return
+    request.getfixturevalue("dead_sentinel_keys")
     request.getfixturevalue("wired")
     trunks: MemoryOutboundTrunks = request.getfixturevalue("outbound_trunks")
     sfu: MemoryOutbound = request.getfixturevalue("outbound")
