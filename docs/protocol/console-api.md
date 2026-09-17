@@ -111,12 +111,55 @@ the contact's last message: only a template may be sent then, and this door send
 the conversation already idled out and sealed (after two hours of silence): a sealed log takes no
 turn, and the contact's next message opens the conversation a message is said on.
 
-**Dialling out is not a door.** `POST /v1/calls {agent, to}` was asked for and is not built: that
-path is already the worker's own door (a call opened, its log created), no runtime handler exists
-for the protocol's `call.dial`, and a call placed from this box needs an outbound SIP trunk per org
-that nothing provisions — the only outbound leg today is `room.invite` inside a call that is
-already up, through a trunk no org configures. A door that minted a room and dispatched a worker
-toward a number with no trunk behind it would ring nothing and bill a room.
+### Calling somebody back — `POST /v1/agents/{slug}/dial`
+
+`talk`, body `{to, from?}`. `to` is the number to call, E.164. `from` is which of the agent's own
+numbers in the key's world the far end sees; unsaid, the first door it answers at.
+
+```json
+{ "call": "call_9f2c…", "agent": "clinica-norte", "to": "+34600000001",
+  "from": "+34910000000", "env": "production" }
+```
+
+`202`, and the far end has not heard anything ring yet: the id is one a console starts reading at
+once. The log opens here and not in the worker, because this is where both numbers and the name of
+whoever asked are known — `call.dialing` carries `channel`, `from` (the number shown), `to` (the
+destination) and **`asked_by`**, the key's subject or its id. That is the one entry that says who
+asked, and a bill for four hundred calls overnight is read backwards from it. Then a worker is
+dispatched into a room named by the call, and the worker places the leg: busy and no-answer are
+knowable only from `wait_until_answered`, so a call nobody picked up writes `call.ended` with
+`busy`, `no_answer` or `dial_failed` and seals, with nothing said into a room the far end never
+entered.
+
+Every dial asked for is written to the org's `dials` ledger before it is placed — taken **or**
+refused, with the guard's one word — because a burst of refusals is the shape of somebody working
+out what a stolen key can reach, and a fence that counted only the attacks that got through would
+measure the wrong thing. The guards are asked in the order that refuses the cheapest thing first,
+so a scanner throwing satellite numbers at the door never touches Postgres:
+
+| refused | status | what lifts it |
+|---|---|---|
+| `to` is not E.164, starts with no country calling code E.164 assigns, is a satellite or global-service range (`+870`, `+878`, `+881`, `+882`, `+883`, `+888`, `+979` — where international revenue-share fraud is dialled, and never a number that called us), or has fewer than five digits after its calling code | `400` | a number somebody could answer |
+| the country: the org dials the codes its policy names, and with none named the codes of its **own** numbers | `403` | an operator's `countries` |
+| the destination has never called or written to this org — a call back goes back to somebody | `403` | an operator's `dial_anywhere` |
+| more dials this minute than the org's `per_minute`, refusals counted | `429` | a wait |
+| more dials today than its `per_day` | `429` | a wait |
+
+The defaults an org runs under with nobody setting one: `dial_anywhere` off, **6** a minute, **200**
+a day, **600 s** the longest a placed call may run, and the country fence its own numbers'. They
+are set per org by the operator alone — [operator-api.md](operator-api.md) — because an org that
+could lift its own fence has none. The ceiling rides in the dispatch and is enforced by the media
+plane, so a worker that crashed leaves no call running on somebody's bill.
+
+Four more refusals are about the box rather than the number: `404` when the agent answers no phone
+number in that world (a call back is shown as one of the org's own numbers, so there has to be
+one), and `400` for a `from` that is not one of them; `409` when the org has no outbound trunk —
+`POST /v1/carrier/outbound` provisions one, [numbers.md](numbers.md) — and `409` when nobody is
+holding the agent in that world, since a stranger's phone ringing for a conversation that cannot
+happen is not a call to place; `429` when the org's `concurrent_calls` or `minutes` quota is spent;
+`503` with no LiveKit pair on this gateway or no `PINECALL_VAULT_KEY`; and `502` when the media
+plane refused the call, which writes `call.ended` with `dial_failed` and seals the log rather than
+leaving one open on a call that never was.
 
 ## 5. Memory across callers
 
