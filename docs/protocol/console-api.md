@@ -225,6 +225,6 @@ what `greeting` and `autostart` do.
 ## 8. Signing in, and a forgotten password
 
 `POST /v1/login/orgs {email, password}` — which orgs a person may sign in to, before any key is
-minted — and `POST /v1/members/{id}/reset` (`team`) — the one-use link an admin hands back for a
-forgotten password, since this box sends no email — are people's doors, and
-[people.md](people.md) is their page.
+minted — `POST /v1/members/{id}/reset` (`team`) — the one-use link an admin hands back for a
+forgotten password, mailed where the box or the org can send — and `POST /v1/login/reset`, where a
+person asks for their own, are people's doors, and [people.md](people.md) is their page.

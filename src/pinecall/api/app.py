@@ -20,6 +20,7 @@ from pinecall.api import (
     extraction,
     fleet,
     floor,
+    forgot,
     insights,
     judging,
     keys,
@@ -30,6 +31,7 @@ from pinecall.api import (
     managed,
     members,
     numbers,
+    org_mail,
     orgs,
     outbound,
     pages,
@@ -82,10 +84,12 @@ from pinecall.log.store import (
 )
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
+from pinecall.mail import outbox_for
 from pinecall.memory import PgvectorMemory
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.carriers import carriers_for
 from pinecall.orgs.dialling import dialling_for
+from pinecall.orgs.mail import mail_for
 from pinecall.orgs.meter import Meter
 from pinecall.orgs.outbound import outbound_trunks_for
 from pinecall.orgs.sso import sso_for
@@ -175,6 +179,9 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # at its own IdP, its secret sealed under the same vault key — and so None, and the doors
     # 503, on a box that was given none. orgs/sso.py.
     gateway.state.sso = sso_for(settings, pool)
+    # The one place a letter leaves by: the account an org wired of its own, sealed under the same
+    # vault key (orgs/mail.py); the box's PINECALL_SMTP_URL when it wired none; nobody with neither.
+    gateway.state.outbox = outbox_for(settings, mail_for(settings, pool))
     # Whose numbers reach the org's agents: the carrier a tenant brought, sealed under the same
     # vault key; the SFU's trunks the gateway admits numbers on; and how a Twilio account is
     # reached, over the process's one httpx client (opened below).
@@ -317,12 +324,9 @@ async def _a_store(settings: Settings) -> Store:
 app = FastAPI(title="Pinecall gateway", lifespan=lifespan)
 
 
-# One door per line, in the order a reader meets them: the app's socket and what it holds, the
-# calls it answers, the desk, the suites, the tenant's routes, the API keys its machines run on
-# and the provider keys it brought of its own, the operator's tables under /v1/ops, the fleet's
-# heartbeats and the operator's view of them,
-# the tokens, Meta's webhook, the knowledge base, a contact's memory and the goldens the write
-# side is held to, the org's people and the door they log in at, and whose key knocked.
+# One door per line, in the order a reader meets them: the app's socket and the calls it answers,
+# the desk and the suites, the tenant's own tables, the operator's under /v1/ops, and last the
+# org's people — who they are, how they sign in, and whose key just knocked.
 for door in (
     socket.router,
     agents.router,
@@ -366,9 +370,11 @@ for door in (
     members.router,
     members.operator,
     login.router,
+    forgot.router,
     login_sso.router,
     sso.router,
     sso.operator,
+    org_mail.router,
     pairing.router,
     floor.router,
     threads.router,

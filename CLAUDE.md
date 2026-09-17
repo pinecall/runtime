@@ -22,7 +22,7 @@ make deploy                                     # this checkout onto your box (d
 
 ## Structure
 
-- `src/pinecall/` — eighteen packages, none of them a process; ARCHITECTURE.md §11 is the import
+- `src/pinecall/` — nineteen packages, none of them a process; ARCHITECTURE.md §11 is the import
   table and `tests/test_isolation.py` enforces it
   - `types/` the shapes, no IO · `log/` the truth, no framework · `providers/` the only vendor names
   - `extensions/` the points a package beside the runtime plugs policy into — what a new org may
@@ -31,6 +31,7 @@ make deploy                                     # this checkout onto your box (d
   - `memory/` the contact's facts · `knowledge/` the knowledge base · `lookups/` the gateway
     running `recall` and `search` — the three the gateway owns and the worker reaches over HTTP
   - `api/` the gateway's doors · `worker/` the job · `cli/` the verbs · `migrations/` numbered SQL
+  - `mail/` the letters and the generic SMTP they leave by: the org's own account, else the box's
   - `_settings.py` every variable, once · `_version.py` `0.0.0` until a person says otherwise
 - `tests/` mirrors `src/pinecall/` one to one; `test_isolation.py`, `test_layout.py`,
   `test_the_public_surface.py`, `test_env_example.py`, `test_box_packages.py` are the tree's own rules

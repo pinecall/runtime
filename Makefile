@@ -131,7 +131,7 @@ health: require-box
 # fails the deploy here with its NAME on the screen — never its value — instead of failing the
 # first caller. A worker box is asked after what a worker has; the hub after everything.
 doctor: require-box
-	$(SSH) sudo make -s -C $(REMOTE)/runtime/infra/box doctor
+	$(SSH) sudo make -s -C $(REMOTE)/runtime/infra/box doctor MAIL_TO=$(MAIL_TO)
 
 # Every vendor this build runs and what each one still wants on the box — a plugin, a key, or
 # nothing. `make providers DOES=tts` narrows it. It reads the catalog and the box's own

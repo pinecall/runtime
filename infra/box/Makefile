@@ -91,8 +91,9 @@ AS_THE_UNITS_SEE_IT = systemd-run --quiet --pipe --wait --collect \
 
 # Every key that is set is knocked at its own vendor: a dead one fails the deploy here, and not
 # a caller's first call.
+# `make doctor MAIL_TO=you@example.com` also posts one test letter through the box's own mail.
 doctor:
-	$(AS_THE_UNITS_SEE_IT) $(RUNTIME) doctor
+	$(AS_THE_UNITS_SEE_IT) $(RUNTIME) doctor $(if $(MAIL_TO),--mail-to $(MAIL_TO))
 
 # Every vendor this build runs, and what each one still wants ON THIS BOX — a plugin, a key, or
 # nothing. `make providers DOES=tts` narrows it. Reads the catalog and the credentials and asks

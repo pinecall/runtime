@@ -174,6 +174,9 @@ def test_the_well_known_door_says_which_runtime_and_whose(gateway: TestClient) -
         "cloud": False,
         "signup": False,
         "min_password": Settings().min_password,
+        # Whether the BOX can post a letter, so a sign-in page knows whether "Forgot your
+        # password?" may promise an email. This suite's settings name no mail server.
+        "mail": False,
     }
     assert isinstance(said["version"], str)
 
