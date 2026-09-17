@@ -116,7 +116,7 @@ id it follows the newest live one. `recording` says where that call's audio was 
 pinecall-runtime orgs list
 pinecall-runtime orgs add <slug> [--name "…"]
 pinecall-runtime orgs invite <org> <email> --name "…" [--role admin|manager|developer|supervisor|qa]
-pinecall-runtime orgs operator <org> <email> [--revoke]
+pinecall-runtime orgs operator <org> <email> [--revoke]  ·  orgs remove-member <org> <email>
 pinecall-runtime orgs move <agent> <org>
 pinecall-runtime orgs rm <org>
 pinecall-runtime orgs quota <org> [--minutes n] [--messages n] [--agents n]
@@ -136,7 +136,7 @@ org still has keys or routes, so a tenant is never half-deleted.
 A person is their email, with one password across every org: `invite` of an address that already
 has one prints no link and seats them `active` (`already a person on this box: seated, they sign in
 with the password they have`). `operator` makes a member, by email, an operator of this box — their
-key then opens every `/v1/ops` door, as `init` does for the first person; `--revoke` takes it back.
+key then opens every `/v1/ops` door, as `init` does for the first person; `--revoke` takes it back. `remove-member` takes a person out of an org **for good** — keys revoked, row and links gone, the seat free — and carries the door's refusal for the org's last active admin.
 
 `move` undoes the one thing a slug could not undo: it belongs to the org that first registered it
 for as long as its log exists, and a box walks into the wrong one by construction — its own worker

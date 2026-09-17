@@ -31,6 +31,7 @@ sandbox, answered in that colleague's corner.
 | `GET` | `/v1/events` | SSE, live only: the org's floor changing — an agent held, a call ringing, up, over |
 | `GET` | `/v1/members` · `POST` | the org's people; invite one, the token once and `mailed` — or none, for a person who already has a password here: seated at once |
 | `PATCH` | `/v1/members/{id}` | role, agents, standing; disabled revokes their keys |
+| `DELETE` | `/v1/members/{id}` | out of the org for good: keys revoked, row and links gone, the seat free — `team`; `409` for yourself and for the last active admin |
 | `POST` | `/v1/members/{id}/reset` | a one-use link that sets an active member's password, the token once, and `mailed` — `team` |
 | `POST` | `/v1/invitations/{token}` | accept with a password: active, and the first key |
 | `POST` | `/v1/login` | a key for a person and a device: email, password, the org when they have several — or a code |
@@ -55,6 +56,7 @@ sandbox, answered in that colleague's corner.
 | `GET` | `/v1/ops/orgs/{org}/sso` | **the box's own**: which provider one org signs in with, never its secret |
 | `PUT` | `/v1/ops/orgs/{org}/sso/required` | **the box's own**: the break-glass — a password opens that org again while its provider is down. Never the other way |
 | `GET` · `POST` | `/v1/ops/orgs/{org}/members` | **the box's own**: an org's people and how many hold a seat; invite one — the first admin, where sign-ups are shut — the token once. Never a change |
+| `DELETE` | `/v1/ops/orgs/{org}/members/{id}` | **the box's own**: that person out of the org for good, under the tenant door's rules less "yourself" — `409` for its last active admin |
 | `GET` | `/v1/agents` | the agents this gateway is holding for your org |
 | `GET` | `/v1/agents/{slug}/config` | what it declared, overrides applied — `app` or `calls` |
 | `GET` | `/v1/agents/{slug}/line` | whose terminal a RING lands in, and who else could take it — `calls` |

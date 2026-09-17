@@ -180,3 +180,15 @@ class MemoryMembers:
         member = replace(found, operator=operator)
         self._rows[id] = replace(self._rows[id], member=member)
         return member
+
+    async def remove(self, org: str, id: str) -> bool:
+        """The row out of the dict, and every link that named it: what the CASCADE does below."""
+        if await self.find(org, id) is None:
+            return False
+        del self._rows[id]
+        self._invitations = {
+            hashed: invitation
+            for hashed, invitation in self._invitations.items()
+            if invitation.member != id
+        }
+        return True

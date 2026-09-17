@@ -7,6 +7,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **A member can be removed for good.** `DELETE /v1/members/{id}` (`team`) answers `204`: every
+  key of theirs is revoked first, then the row goes with its open invitation and reset links, and
+  the seat is free. `409` in a sentence for removing yourself and for the org's last active
+  admin; `404` for an id that is not this org's. The log keeps naming the id as text. The
+  operator's twin is `DELETE /v1/ops/orgs/{org}/members/{id}` (the same rules less "yourself")
+  and `pinecall-runtime orgs remove-member <org> <email>`.
 - **Outbound email over generic SMTP** (migration 0034). A box posts letters through
   `PINECALL_SMTP_URL` (`smtp://user:pass@host:587` STARTTLS, `smtps://…:465` implicit TLS — SES,
   Postmark, Mailgun or a server of one's own; a systemd credential) as `PINECALL_MAIL_FROM`. An

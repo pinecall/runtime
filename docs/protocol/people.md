@@ -16,6 +16,19 @@ their role: `qa` · `supervisor` · `manager` · `admin` · `developer` (`types/
 revokes every key of theirs and refuses their login, `active` re-enables one who had a password and
 never activates one still invited.
 
+**Removing is for good, where disabling is for now.** `DELETE /v1/members/{id}` (`team`) answers
+`204`: every key of theirs is revoked FIRST, so there is no moment a removed person's key opens a
+door; then the row goes, its open invitation and reset links with it, and the seat is free — the
+same address can be invited again and is a new row with a new id. What the log wrote about them
+stays readable: a key's `subject`, a dial's `asked_by` and every log entry name the id as text,
+and the id simply names nobody now. Two removals are refused `409`, in a sentence: **yourself**
+(`you cannot remove yourself: another admin of this org removes you`) and **the last active admin**
+(`<email> is the last active admin of this org: make somebody else an admin first, …`) — an admin
+still invited does not count, because an org whose only admin has no password is an org nobody
+can sign in to. `404 no member <id> in this org` for an id that is not this org's. The operator's
+twin is `DELETE /v1/ops/orgs/{org}/members/{id}`, under the same rules less "yourself", and
+`pinecall-runtime orgs remove-member <org> <email>` is that door from a terminal.
+
 **A person is their email, on this box, and has one password.** An address is kept and compared
 trimmed and lower-cased — `JP@Cloudacio.com ` and `jp@cloudacio.com` are one login — and an org is
 a row of theirs: `members` holds one per (org, email), and a second org is a second row carrying the
