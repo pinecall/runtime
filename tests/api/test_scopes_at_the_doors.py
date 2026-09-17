@@ -120,6 +120,8 @@ ASKS_NOTHING_OR_ASKS_INSIDE: dict[str, str] = {
     "GET /v1/login/sso": "takes no key: a person about to sign in at their provider has none",
     "GET /v1/login/sso/callback": "takes no key: what it takes is the state it minted itself",
     "POST /v1/login/sso/discover": "takes no key: which orgs a domain signs in with, throttled",
+    "GET /v1/login/google": "takes no key: a person about to sign in with Google has none",
+    "GET /v1/login/google/callback": "takes no key: what it takes is the state it minted itself",
     "GET /v1/whatsapp/webhook": "Meta's handshake, signed",
     "POST /v1/whatsapp/webhook": "Meta's delivery, signed",
     "POST /v1/calls/{call}/verbs": "a key or a supervise token: the reader is asked inside",
