@@ -65,6 +65,8 @@ sandbox, answered in that colleague's corner.
 | `PUT`·`DELETE`·`GET` | `/v1/provider-keys[/{vendor}]` | the org's own vendor accounts — `providers` |
 | `PUT`·`GET`·`DELETE` | `/v1/knowledge[/{base}]` · `POST …/eval` | the base the agent answers from, in the key's world |
 | `GET`·`DELETE` | `/v1/contacts/{contact}/memory` · `POST /v1/contacts/memory/eval` | what it keeps about a person, in the key's world |
+| `GET` | `/v1/agents/{slug}/threads?after=` · `/threads/{contact}` | the inbox: an agent's calls by contact, what this person has not read, and one thread merged — `calls` |
+| `POST` | `/v1/agents/{slug}/threads/{contact}/read` · `/messages` | mark a thread read — `calls`; say something on the open WhatsApp conversation — `talk` |
 | `GET` | `/v1/agents/{slug}/memory?after=&q=` | the current facts the agent's calls taught, across contacts — `memory` |
 | `DELETE` | `/v1/memory/facts/{id}` | end one fact, bi-temporally: the row stays, superseded — `memory` |
 | `POST` | `/v1/agents/{slug}/memory/extraction` | what a hang-up makes of a call |
