@@ -7,6 +7,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **The inbox: threads by contact.** `GET /v1/agents/{slug}/threads` lists an agent's contacts with
+  their last message and what the reader has not read; `…/threads/{contact}` merges a contact's
+  calls into one thread; `…/read` moves the person's own read cursor; `…/messages` says something
+  as the agent on the contact's open WhatsApp conversation, within Meta's 24-hour window.
 - **Memory across callers.** `GET /v1/agents/{slug}/memory` lists the current facts an agent's
   calls taught, every contact, newest first, filtered and paged; `DELETE /v1/memory/facts/{id}`
   ends one wrong fact the bi-temporal way — the row stays, superseded from now. `memory`.

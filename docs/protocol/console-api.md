@@ -99,6 +99,38 @@ entry a sealed log takes (`Store.rescored`): the list, the day and `usage` read 
 | `404` | no such call in the key's org, world and corner — another org's call is told the same |
 | `409` | the call has not ended; or its last `call.score` already carries a verdict and `?again=true` was not said |
 
+## 4. Threads: the inbox by contact
+
+A **contact** is who a call is filed under: the id the app resolved (`caller.id`), else the number
+or visitor id the call came from. Every door below is one agent's, in the reader's corner.
+
+| door | scope | |
+|---|---|---|
+| `GET /v1/agents/{slug}/threads?after=&limit=` | `calls` | `{threads: [{contact, name, channel_last, last: {text, at, kind}, unread, calls}], next}`, the thread that moved last first. `kind` is `in`, `out`, or `call` for a spoken call, whose `text` is its outcome. `after` is the `next` of the page before; `limit` 1–200, 30 unsaid |
+| `GET /v1/agents/{slug}/threads/{contact}` | `calls` | `{contact, name, messages: [{kind, text, at, call, channel, duration_s?, answered?}]}`, oldest first, merged from the contact's 20 newest calls: a written call is its turns, a spoken one is one pill with its length and whether it came up. `404` when the contact has no call with the agent here |
+| `POST /v1/agents/{slug}/threads/{contact}/read` | `calls` | `204`: this reader has read the thread up to now |
+| `POST /v1/agents/{slug}/threads/{contact}/messages {text}` | `talk` | `202 {contact, call}`: said as the agent on the contact's open WhatsApp conversation |
+
+`unread` is per **person** (the key's member, or the key itself for a machine key): what arrived
+after they last marked the thread read — each message the contact wrote, and each spoken call.
+`name` is the caller's name when a call recorded one; nothing writes one today but an app's
+`caller`, so it is usually `null`.
+
+A message is said through the path a supervisor's `say` takes: `supervisor.said` and `turn.agent`
+land on the conversation's own log, the thread sends `turn.agent` to the contact, and the call is
+flagged `escalated` — a person spoke in it. It is refused with `409` and the reason when the
+contact's newest call is not WhatsApp, when WhatsApp's customer-service window closed (24 h after
+the contact's last message: only a template may be sent then, and this door sends none), and when
+the conversation already idled out and sealed (after two hours of silence): a sealed log takes no
+turn, and the contact's next message opens the conversation a message is said on.
+
+**Dialling out is not a door.** `POST /v1/calls {agent, to}` was asked for and is not built: that
+path is already the worker's own door (a call opened, its log created), no runtime handler exists
+for the protocol's `call.dial`, and a call placed from this box needs an outbound SIP trunk per org
+that nothing provisions — the only outbound leg today is `room.invite` inside a call that is
+already up, through a trunk no org configures. A door that minted a room and dispatched a worker
+toward a number with no trunk behind it would ring nothing and bill a room.
+
 ## 5. Memory across callers
 
 `GET /v1/agents/{slug}/memory?after=&q=&limit=` (`memory`) is `{facts: [{id, contact, text, category,
