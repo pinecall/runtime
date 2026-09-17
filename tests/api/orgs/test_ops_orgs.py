@@ -8,8 +8,9 @@ import httpx
 import pytest
 
 from pinecall.auth.keys import fingerprint
+from pinecall.orgs.dialling import MemoryDialling
 from pinecall.routes.table import MemoryRoutes
-from pinecall.types import Route
+from pinecall.types import DialPolicy, Route
 from tests.api.conftest import AN_ORG
 
 pytestmark = pytest.mark.unit
@@ -143,3 +144,39 @@ async def test_a_key_is_issued_under_its_org_and_listed_there_and_nowhere_else(
     assert [row["label"] for row in theirs] == ["the shop"]
     ours = (await ops_http.get(f"{ORGS}/{AN_ORG.slug}/keys")).json()
     assert "the shop" not in [row["label"] for row in ours]
+
+
+async def test_the_dial_guards_are_the_operators_and_are_replaced_whole(
+    ops_http: httpx.AsyncClient, dialling: MemoryDialling
+) -> None:
+    """An org that could lift its own dialling fence has none, so this door is /v1/ops and not a
+    tenant's. A guard left out goes back to the code's default and never to no limit at all."""
+    made = (await ops_http.post(ORGS, json={"slug": "tienda-sur"})).json()
+    turned = await ops_http.put(
+        f"{ORGS}/tienda-sur/dialling",
+        json={"dial_anywhere": True, "per_minute": 30, "countries": ["34", "598"]},
+    )
+    assert turned.status_code == 200, turned.text
+    assert turned.json() == {
+        "dial_anywhere": True,
+        "per_minute": 30,
+        "per_day": DialPolicy().per_day,
+        "countries": ["34", "598"],
+        "max_duration_s": DialPolicy().max_duration_s,
+    }
+    assert await dialling.of(made["id"]) == DialPolicy(
+        dial_anywhere=True, per_minute=30, countries=("34", "598")
+    )
+    # Replaced whole: the next PUT says nothing about dial_anywhere, and the fence comes back up.
+    back = await ops_http.put(f"{ORGS}/tienda-sur/dialling", json={"per_day": 10})
+    assert back.json()["dial_anywhere"] is False
+    assert (await ops_http.get(f"{ORGS}/tienda-sur")).json()["dialling"]["per_day"] == 10
+
+
+async def test_a_country_nobody_assigns_is_refused_in_the_domains_words(
+    ops_http: httpx.AsyncClient,
+) -> None:
+    await ops_http.post(ORGS, json={"slug": "tienda-sur"})
+    answer = await ops_http.put(f"{ORGS}/tienda-sur/dialling", json={"countries": ["999"]})
+    assert answer.status_code == 400
+    assert "no country calling code" in answer.json()["detail"]

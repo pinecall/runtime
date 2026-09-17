@@ -11,7 +11,7 @@ from pinecall._settings import Settings
 from pinecall.log.store import Pool
 from pinecall.orgs.table import DELETED_NOTHING
 from pinecall.orgs.vault import NO_VAULT_KEY, NoVaultKey, a_cipher
-from pinecall.types import Carrier, SipPeer, TwilioAccount, a_carrier_kind
+from pinecall.types import Carrier, SipPeer, TwilioAccount, a_carrier_kind, a_sip_transport
 
 
 class Carriers(Protocol):
@@ -107,6 +107,10 @@ def _sealed(cipher: Fernet, carrier: Carrier) -> str:
             "username": account.username,
             "password": account.password,
             "addresses": list(account.addresses),
+            "outbound_host": account.outbound_host,
+            "outbound_transport": account.outbound_transport,
+            "outbound_username": account.outbound_username,
+            "outbound_password": account.outbound_password,
         }
     )
     return cipher.encrypt(json.dumps(said).encode()).decode()
@@ -124,12 +128,18 @@ def _opened(cipher: Fernet, org: str, kind: str, ciphertext: str) -> Carrier:
                 secret=str(said["secret"]),
             ),
         )
+    # Read with `.get`: a row written before the outbound half existed has four fewer keys, and
+    # it opens as a peer that can be called from and not dialled through, which is what it is.
     return Carrier(
         org=org,
         account=SipPeer(
             username=str(said["username"]),
             password=str(said["password"]),
             addresses=tuple(str(network) for network in said["addresses"]),
+            outbound_host=said.get("outbound_host"),
+            outbound_transport=a_sip_transport(said.get("outbound_transport")),
+            outbound_username=said.get("outbound_username"),
+            outbound_password=said.get("outbound_password"),
         ),
     )
 
