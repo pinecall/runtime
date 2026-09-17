@@ -239,6 +239,10 @@ class MemoryStore:
         mine.sort(key=lambda one: (one.at, one.facts.call), reverse=True)
         return [one.facts.call for one in mine[:limit]]
 
+    async def ever_reached(self, org: str, contact: str) -> bool:
+        """Whether this contact has ever reached the org, any world and any agent of it."""
+        return any(one.facts.contact == contact for one in self._indexed(org))
+
     async def read(
         self, org: str, env: str, holder: str, agent: str, reader: str, contact: str, at: float
     ) -> None:

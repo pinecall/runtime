@@ -41,6 +41,11 @@ METADATA_KEY = "metadata"
 # the room — and every other scope is spoken. The word is types/token.py's own row.
 WRITTEN_SCOPE = "chat"
 
+# What the box is to DIAL, on a call the gateway placed: the outbound trunk, the number, the one
+# to show as the caller, and how long the call may run. Only the gateway writes a dispatch, so
+# this is the worker's whole instruction — it asks no door for a trunk and invents no ceiling.
+DIAL_KEY = "dial"
+
 # Written on a production phone call the worker handed to a developer's sandbox copy, because the
 # developer said the phone dialling is theirs (`pinecall line from`). The world it rang in: the
 # log of the call says it was the real number, not a sandbox one.

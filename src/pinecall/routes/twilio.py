@@ -42,6 +42,11 @@ ORIGINATION_NAME = "pinecall-box"
 # account is `pinecall-<org>` (api/numbers.py); this one is the box's, and there is one.
 BOX_TRUNK = "pinecall"
 
+# What Twilio appends to a trunk's termination label to make the host the box dials. The label is
+# unique across every Twilio account there is, which is why it carries the org and why a name
+# somebody else already took comes back as Twilio's own refusal and not as a retry.
+TERMINATION_SUFFIX = ".pstn.twilio.com"
+
 # Twilio names an ISO country by two letters and looks for a local number a page at a time; one
 # is what a plan buys, so one is what is asked for.
 A_COUNTRY = 2
@@ -62,11 +67,16 @@ class TwilioNumber:
 
 @dataclass(frozen=True)
 class Trunk:
-    """One SIP trunk on the account: its id, its name, and where it sends a call."""
+    """One SIP trunk on the account: its id, its name, and where calls go in either direction."""
 
     sid: str
     name: str
+    # Where Twilio sends a call that ARRIVES at one of the trunk's numbers: the box.
     origination: tuple[str, ...]
+    # The label of the trunk's Termination URI, `<domain>.pstn.twilio.com`, where the box sends a
+    # call it PLACES. Empty until somebody sets one; Twilio holds the label unique across every
+    # account it has, so a name already taken is refused in Twilio's own words.
+    domain: str = ""
 
 
 class TwilioApi(Protocol):
@@ -106,6 +116,30 @@ class TwilioApi(Protocol):
 
     async def bought(self, number: str) -> TwilioNumber:
         """The number bought onto the account: this is the write that costs money."""
+        ...
+
+    # The four below are the OUTBOUND half of a trunk: where the box sends a call it places, and
+    # what it authenticates as. Twilio takes either an IP access list or a credential list there;
+    # this box brings credentials, because a box behind a changing address would otherwise stop
+    # dialling the day its IP moved, silently.
+    async def terminating(self, trunk_sid: str, domain: str) -> None:
+        """The trunk's Termination URI label set, so <domain>.pstn.twilio.com takes our INVITE."""
+        ...
+
+    async def credential_list_named(self, name: str) -> str | None:
+        """The credential list by that friendly name, or None: ours is made once and found after."""
+        ...
+
+    async def create_credential_list(self, name: str, username: str, password: str) -> str:
+        """A credential list holding one credential. Twilio never shows the password again."""
+        ...
+
+    async def credential_lists_on(self, trunk_sid: str) -> tuple[str, ...]:
+        """The credential lists already on the trunk, so ours is attached once."""
+        ...
+
+    async def with_credentials(self, trunk_sid: str, credential_list_sid: str) -> None:
+        """The list onto the trunk: from here Twilio asks the box to authenticate as it."""
         ...
 
 
@@ -207,12 +241,49 @@ class HttpTwilio:
             name=str(row.get("friendly_name") or row["phone_number"]),
         )
 
+    async def terminating(self, trunk_sid: str, domain: str) -> None:
+        """One POST on the trunk itself: the label is the whole of Twilio's termination setup."""
+        await self._post(f"{TRUNKING_API}/Trunks/{trunk_sid}", {"DomainName": domain})
+
+    async def credential_list_named(self, name: str) -> str | None:
+        """By friendly name, over one page: an account with fifty of these is not a tenant."""
+        path = f"{ACCOUNTS_API}/Accounts/{self._account.account_sid}/SIP/CredentialLists.json"
+        said = await self._get(f"{path}?PageSize=50")
+        for row in said.get("credential_lists", []):
+            if row.get("friendly_name") == name:
+                return str(row["sid"])
+        return None
+
+    async def create_credential_list(self, name: str, username: str, password: str) -> str:
+        """Two POSTs: the list, then the one credential in it. The password is never read back."""
+        account = f"{ACCOUNTS_API}/Accounts/{self._account.account_sid}"
+        row = await self._post(f"{account}/SIP/CredentialLists.json", {"FriendlyName": name})
+        sid = str(row["sid"])
+        await self._post(
+            f"{account}/SIP/CredentialLists/{sid}/Credentials.json",
+            {"Username": username, "Password": password},
+        )
+        return sid
+
+    async def credential_lists_on(self, trunk_sid: str) -> tuple[str, ...]:
+        """What the trunk already authenticates against, so ours is attached once."""
+        said = await self._get(f"{TRUNKING_API}/Trunks/{trunk_sid}/CredentialLists")
+        return tuple(str(row["sid"]) for row in said.get("credential_lists", []))
+
+    async def with_credentials(self, trunk_sid: str, credential_list_sid: str) -> None:
+        """The list onto the trunk. Twilio refuses a second one, and says so in its own words."""
+        await self._post(
+            f"{TRUNKING_API}/Trunks/{trunk_sid}/CredentialLists",
+            {"CredentialListSid": credential_list_sid},
+        )
+
     async def _a_trunk(self, row: dict[str, Any]) -> Trunk:
         said = await self._get(f"{TRUNKING_API}/Trunks/{row['sid']}/OriginationUrls")
         return Trunk(
             sid=str(row["sid"]),
             name=str(row["friendly_name"]),
             origination=tuple(str(url["sip_url"]) for url in said.get("origination_urls", [])),
+            domain=str(row.get("domain_name") or ""),
         )
 
     async def _get(self, url: str) -> dict[str, Any]:
@@ -234,3 +305,14 @@ class HttpTwilio:
 def origination_uri(domain: str) -> str:
     """Where a tenant's trunk sends the INVITE: the box's own name, its SIP port, UDP."""
     return f"sip:{domain}:{SIP_PORT};transport=udp"
+
+
+def termination_label(org: str) -> str:
+    """The trunk's termination label for this org, in the only alphabet Twilio takes for one."""
+    tidied = "".join(letter if letter.isalnum() else "-" for letter in org.lower())
+    return f"{BOX_TRUNK}-{tidied.strip('-')}"
+
+
+def termination_host(label: str) -> str:
+    """Where the box sends a call it places through a Twilio trunk carrying that label."""
+    return f"{label}{TERMINATION_SUFFIX}"
