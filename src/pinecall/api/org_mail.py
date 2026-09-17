@@ -10,7 +10,7 @@ from starlette.requests import HTTPConnection
 
 from pinecall.api._deps import TeamKeyDep, held
 from pinecall.api.orgs import NO_BODY
-from pinecall.mail import Letter, Outbox
+from pinecall.mail import Outbox, a_test_message
 from pinecall.orgs.mail import KeptMail, Mail
 from pinecall.orgs.vault import NO_VAULT_KEY
 from pinecall.types import DeclarationRefused, Mailbox, a_security, an_address
@@ -30,14 +30,6 @@ NO_MAIL = "this org sends its letters through the box's own mail"
 NOTHING_TO_TEST = (
     "neither this org nor this box has a mail server: wire one at PUT /v1/org/mail, or set "
     "PINECALL_SMTP_URL on the box"
-)
-
-# What a test letter says. It is the shortest thing that proves the whole path: the address the
-# letters come from, the server they went through, and nothing anybody has to act on.
-TEST_SUBJECT = "Pinecall test message"
-TEST_BODY = (
-    "This is a test message from Pinecall. Your mail server took it, so the letters this "
-    "gateway sends will reach you."
 )
 
 
@@ -102,7 +94,7 @@ async def wired(key: TeamKeyDep, mail: KeptMailDep) -> Any:
 async def wire(said: WantedMail, key: TeamKeyDep, mail: KeptMailDep) -> Any:
     """Wire this org's own mail, replacing what it had. Nothing is sent to find out it works:
     the send is `POST /v1/org/mail/test`, so a door is never blocked on somebody's relay."""
-    await mail.put(key.org, _a_mailbox(said))
+    await mail.put(key.org, a_mailbox(said))
     return _standing(await mail.of(key.org))
 
 
@@ -125,12 +117,12 @@ async def test(said: TestTo, key: TeamKeyDep, outbox: OutboxDep) -> dict[str, An
         raise HTTPException(400, str(refused)) from refused
     if await outbox.mailbox_for(key.org) is None:
         raise HTTPException(409, NOTHING_TO_TEST)
-    letter = Letter(to=to, subject=TEST_SUBJECT, text=TEST_BODY, html=f"<p>{TEST_BODY}</p>")
-    said_back = await outbox.sent(key.org, letter)
+    said_back = await outbox.sent(key.org, a_test_message(to, await outbox.brand()))
     return {"sent": said_back is None, "error": said_back}
 
 
-def _a_mailbox(said: WantedMail) -> Mailbox:
+# Shared with the box's own doors (api/box_mail.py): one body, one refusal, for either mailbox.
+def a_mailbox(said: WantedMail) -> Mailbox:
     """The body as the domain's own shape, or 400 in the refusal's own words."""
     try:
         return Mailbox(

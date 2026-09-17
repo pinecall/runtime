@@ -129,13 +129,15 @@ def run(arguments: argparse.Namespace) -> int:
     print(render_env_source())
     print()
     settings = load_settings()
-    results = run_checks(settings, live_probes())
+    probes = live_probes()
+    results = run_checks(settings, probes)
     print(render_report(results))
     # A letter is the one thing here that leaves the machine, so it happens only when somebody
     # typed an address — and its own verdict stands beside the report's, never instead of it.
     if arguments.mail_to:
         print()
-        return send_one_to(settings, arguments.mail_to) or (1 if first_failure(results) else 0)
+        sent = send_one_to(probes.the_boxs_mail(settings), arguments.mail_to)
+        return sent or (1 if first_failure(results) else 0)
     return 1 if first_failure(results) else 0
 
 
@@ -304,9 +306,9 @@ def check_the_livekit_cli_is_installed(_settings: Settings, probes: Probes) -> R
 
 # Advice and never the verdict: a box that posts no mail carries every call it always did, and an
 # admin hands an invitation over by copying the link out of the answer, as they did before mail.
-def check_the_mail_is_configured(settings: Settings, _probes: Probes) -> Result:
+def check_the_mail_is_configured(settings: Settings, probes: Probes) -> Result:
     """Whether this box can post an invitation and a password reset, and what it posts them with."""
-    configured, detail = the_mail_line(settings)
+    configured, detail = the_mail_line(probes.the_boxs_mail(settings))
     return Result("mail", configured, detail, advisory=not configured)
 
 

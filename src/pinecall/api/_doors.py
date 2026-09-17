@@ -6,6 +6,8 @@ from fastapi import APIRouter
 
 from pinecall.api import (
     agent_memory,
+    box_brand,
+    box_mail,
     contacts,
     dialling,
     discovery,
@@ -102,6 +104,8 @@ DOORS: tuple[APIRouter, ...] = (
     sso.router,
     sso.operator,
     org_mail.router,
+    box_mail.operator,
+    box_brand.operator,
     pairing.router,
     floor.router,
     threads.router,

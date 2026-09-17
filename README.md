@@ -164,7 +164,7 @@ they arrive as systemd credentials — and need a LiveKit server, a Postgres 17 
 |---|---|
 | `init --email --person [--org]` | the first org and its first admin, made an operator of this box, on a runtime nobody has used yet |
 | `migrate up [--post]` · `migrate status` · `migrate plan` | the schema, numbered SQL, applied in order. `up` says which database first, takes an advisory lock, and holds every migration to 5 s; a `.post.sql` is named and never run at startup, so `--post` is how an index on a big table gets built. `status` asks the database, `plan` touches nothing |
-| `doctor [--mail-to <address>]` | keys present · keys answer · livekit · postgres · embedder · mail · lk — one line each, and what is down first; `--mail-to` posts one test letter through `PINECALL_SMTP_URL` and says what the server said |
+| `doctor [--mail-to <address>]` | keys present · keys answer · livekit · postgres · embedder · mail · lk — one line each, and what is down first; the mail line says which mailbox — stored by the operator at `PUT /v1/ops/mail`, or the environment's; `--mail-to` posts one test letter through `PINECALL_SMTP_URL` and says what the server said |
 | `box secrets` | every secret a box makes for itself, once; run twice rotates nothing |
 | `box secret <NAME>` | one secret you bring, from stdin, replaced in place |
 | `fleet list · cordon · uncordon · loop` | the workers as the hub hears them, the graceful shrink, and the loop that keeps `busy` at the target over any cloud |

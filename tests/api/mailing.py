@@ -5,9 +5,11 @@ from collections.abc import AsyncIterator, Iterator
 import pytest
 from cryptography.fernet import Fernet
 
+from pinecall.api._box import the_box_settings
 from pinecall.api.app import app
 from pinecall.api.org_mail import the_mail, the_outbox
 from pinecall.mail import Outbox
+from pinecall.orgs.box import BoxSettings, MemoryBoxSettings
 from pinecall.orgs.mail import Mail, MemoryMail
 from pinecall.types import Mailbox
 from tests.api.conftest import A_VAULT_KEY
@@ -50,12 +52,22 @@ def mail() -> Mail | None:
     return MemoryMail(Fernet(A_VAULT_KEY.encode()))
 
 
+@pytest.fixture
+def box_settings() -> BoxSettings:
+    """What the operator configured for the box itself — nothing, at the start of every test."""
+    return MemoryBoxSettings(Fernet(A_VAULT_KEY.encode()))
+
+
 @pytest.fixture(autouse=True)
-def outbox(the_boxs_mail: Mailbox | None, mail: Mail | None) -> Iterator[Outbox]:
-    """The one place a letter leaves by, over this test's own box mail and its own table."""
-    posting = Outbox(the_boxs_mail, mail)
+def outbox(
+    the_boxs_mail: Mailbox | None, mail: Mail | None, box_settings: BoxSettings
+) -> Iterator[Outbox]:
+    """The one place a letter leaves by, over this test's environment, its tables and its box."""
+    posting = Outbox(the_boxs_mail, mail, box_settings)
     app.dependency_overrides[the_outbox] = lambda: posting
     app.dependency_overrides[the_mail] = lambda: mail
+    app.dependency_overrides[the_box_settings] = lambda: box_settings
     yield posting
     app.dependency_overrides.pop(the_outbox, None)
     app.dependency_overrides.pop(the_mail, None)
+    app.dependency_overrides.pop(the_box_settings, None)

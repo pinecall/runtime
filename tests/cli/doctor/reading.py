@@ -1,11 +1,14 @@
 """How a doctor test asks: a stack where everything answers, and one line of the report by name."""
 
+import asyncio
 from collections.abc import Callable, Mapping
 
 import pytest
 
+from pinecall._settings import Settings
 from pinecall.cli.doctor import verbs as doctor
 from pinecall.cli.doctor.probes import Probes
+from pinecall.mail import BoxMail, TheBoxsMail, the_environments_mailbox
 
 
 def probes_that_answer(
@@ -14,13 +17,18 @@ def probes_that_answer(
     knock: Callable[[str, Mapping[str, str]], int] = lambda _url, _headers: 200,
     postgres_extensions: Callable[[str], set[str]] = lambda _dsn: set(doctor.REQUIRED_EXTENSIONS),
     executable_path: Callable[[str], str | None] = lambda program: f"/opt/homebrew/bin/{program}",
+    the_boxs_mail: Callable[[Settings], BoxMail | None] = lambda settings: asyncio.run(
+        TheBoxsMail(the_environments_mailbox(settings), None).of()
+    ),
 ) -> Probes:
-    """A stack where everything is up, with one answer swapped for the check under test."""
+    """A stack where everything is up, with one answer swapped for the check under test. The
+    mail is read off the environment alone: a box that stored none, which ring 0 is."""
     return Probes(
         http_status=http_status,
         knock=knock,
         postgres_extensions=postgres_extensions,
         executable_path=executable_path,
+        the_boxs_mail=the_boxs_mail,
     )
 
 

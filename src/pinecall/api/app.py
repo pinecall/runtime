@@ -45,6 +45,7 @@ from pinecall.lookups import Lookups
 from pinecall.mail import outbox_for
 from pinecall.memory import PgvectorMemory
 from pinecall.orgs.admission import Admission
+from pinecall.orgs.box import box_settings_for
 from pinecall.orgs.carriers import carriers_for
 from pinecall.orgs.dialling import dialling_for
 from pinecall.orgs.mail import mail_for
@@ -139,7 +140,13 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     gateway.state.sso = sso_for(settings, pool)
     # The one place a letter leaves by: the account an org wired of its own, sealed under the same
     # vault key (orgs/mail.py); the box's PINECALL_SMTP_URL when it wired none; nobody with neither.
-    gateway.state.outbox = outbox_for(settings, mail_for(settings, pool))
+    # What the operator configured for the box itself from /admin — its brand, its own mail, a
+    # box-wide "Continue with Google" — one row a setting, secrets under the same vault key
+    # (orgs/box.py). It exists without one: the brand is no secret.
+    gateway.state.box_settings = box_settings_for(settings, pool)
+    gateway.state.outbox = outbox_for(
+        settings, mail_for(settings, pool), gateway.state.box_settings
+    )
     # Whose numbers reach the org's agents: the carrier a tenant brought, sealed under the same
     # vault key; the SFU's trunks the gateway admits numbers on; and how a Twilio account is
     # reached, over the process's one httpx client (opened below).

@@ -6,7 +6,7 @@ self-host is in this repo; everything needed to charge for it lives outside, in 
 and that half only ever reaches a runtime through this API. Nothing here prices anything, and
 nothing here is private.
 The model underneath — what an org is, what a key IS, how a tenant is given one — is
-[../multi-tenancy.md](../multi-tenancy.md), and the verbs are [../the-runtime-cli.md](../the-runtime-cli.md).
+[../multi-tenancy.md](../multi-tenancy.md), and the verbs are [../the-runtime-cli.md](../the-runtime-cli.md). What the operator configures about the **box itself** — its mail, its brand, a box-wide "Continue with Google" — is [the-box.md](the-box.md).
 
 ## Authentication
 
