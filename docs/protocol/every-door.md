@@ -52,6 +52,7 @@ sandbox, answered in that colleague's corner.
 | `GET` | `/v1/line/numbers` | the org's production phone numbers and the agent each reaches: what a developer's own phone dials to reach their copy — `app`, a key naming a person, from the sandbox |
 | `DELETE` | `/v1/line/from` | stop answering your own calls; they fall back to the line — `app` |
 | `GET` | `/v1/agents/{slug}/pipeline` · `PUT …/pipeline/overrides` | what it runs on, and the five knobs |
+| `GET` · `PUT` | `/v1/agents/{slug}/widget` | how the widget presents the agent — title, tagline, greeting, accent, autostart — per world; read with `talk`, set with `pipeline` |
 | `GET` | `/v1/agents/{slug}/provider-keys` | the org's own vendor keys, **in the clear**: the worker's door, see §6 |
 | `GET` | `/v1/agents/{slug}/rings-for?caller=` | whose sandbox copy a production ring from this phone belongs to, or null: production's — the worker's, `app` |
 | `GET` | `/v1/agents/{slug}/sessions` | one line per call, in the reader's corner — the same filters |
