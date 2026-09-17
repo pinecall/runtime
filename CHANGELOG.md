@@ -7,6 +7,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **Signing in, before a key.** `POST /v1/login/orgs {email, password}` says which orgs a person
+  may sign in to and mints nothing, throttled like the login. A forgotten password is handed back
+  by an admin: `POST /v1/members/{id}/reset` (`team`) answers a one-use link that sets a new one
+  at `POST /v1/invitations/{token}`. The box sends no email. A link never re-activates a member
+  who was disabled after it was issued.
 - **The inbox: threads by contact.** `GET /v1/agents/{slug}/threads` lists an agent's contacts with
   their last message and what the reader has not read; `…/threads/{contact}` merges a contact's
   calls into one thread; `…/read` moves the person's own read cursor; `…/messages` says something

@@ -109,6 +109,7 @@ ASKS_NOTHING_OR_ASKS_INSIDE: dict[str, str] = {
     "POST /v1/login/codes": "any key may mint a code for its own record",
     "POST /v1/login/env": "a person's key may mint the same person's key in the other world",
     "GET /v1/login/orgs": "a person's key may list the orgs that same person belongs to",
+    "POST /v1/login/orgs": "takes no key: an email and a password, throttled, mint nothing",
     "POST /v1/login/org": "a person's key may mint the same person's key in another of their orgs",
     "POST /v1/login/pairings": "takes no key: a terminal asking to be signed in has none yet",
     "GET /v1/login/pairings/{code}": "takes no key: what the card approves, no key in it",

@@ -51,8 +51,9 @@ UPDATE members
 RETURNING id, org, email, name, role, agents, status, operator, password_hash, created_at
 """
 
+# A disabled member stays disabled: a link issued before they were is spent and opens nothing.
 _ACTIVATE = """
-UPDATE members SET status = 'active', password_hash = $2 WHERE id = $1
+UPDATE members SET status = 'active', password_hash = $2 WHERE id = $1 AND status <> 'disabled'
 RETURNING id, org, email, name, role, agents, status, operator, password_hash, created_at
 """
 
@@ -154,6 +155,17 @@ class PostgresMembers:
         expires_at = datetime.fromtimestamp(time.time() + INVITATION_TTL_S, UTC)
         await self._pool.execute(_INVITE, fingerprint(token), member.id, expires_at)
         return Invited(member=member, token=token, expires_at=expires_at.isoformat())
+
+    async def reset(self, org: str, id: str) -> Invited | None:
+        """The member read, every open link of theirs spent, and a new one written."""
+        found = await self.find(org, id)
+        if found is None or found.status != "active":
+            return None
+        await self._pool.execute(_SPEND_OPEN, id)
+        token = a_token()
+        expires_at = datetime.fromtimestamp(time.time() + INVITATION_TTL_S, UTC)
+        await self._pool.execute(_INVITE, fingerprint(token), id, expires_at)
+        return Invited(member=found, token=token, expires_at=expires_at.isoformat())
 
     async def accept(self, token: str, password_hash: str) -> Member | None:
         """One UPDATE spends the token and names the member; a second makes them active; a
