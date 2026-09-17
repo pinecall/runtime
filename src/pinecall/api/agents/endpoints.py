@@ -8,11 +8,18 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import TypeAdapter
 
 from pinecall.api._corner import CornerDep
-from pinecall.api._deps import AppKeyDep, CallsKeyDep, DeclarationKeyDep, MembersDep, OverridesDep
+from pinecall.api._deps import (
+    AppKeyDep,
+    CallsKeyDep,
+    DeclarationKeyDep,
+    MembersDep,
+    OverridesDep,
+    RoutesDep,
+)
 from pinecall.api.agents.registry import NO_AGENT, Registry, RegistryDep
 from pinecall.auth.keys import KeyRecord, held_by, sees_every_corner
 from pinecall.auth.members import Members
-from pinecall.types import SANDBOX, AgentConfig, DeclarationRefused, an_e164
+from pinecall.types import PRODUCTION, SANDBOX, AgentConfig, DeclarationRefused, an_e164
 from pinecall_protocol import WireModel
 from pinecall_protocol.rest import AgentList, HeldAgent, LineHolder, TheLine
 
@@ -136,6 +143,24 @@ async def calls_from(said: Calling, key: AppKeyDep, registry: RegistryDep) -> di
 async def forget_calls_from(key: AppKeyDep, registry: RegistryDep) -> dict[str, list[str]]:
     """This corner stops answering its own calls; they fall back to whoever holds the line."""
     return {"forgot": list(registry.forget_calls_from(key.env, _a_person(key)))}
+
+
+# A developer tests on the numbers the customers call, so a developer has to be able to read them
+# — and the numbers door will not tell them: it answers the key's own world, to a key that opens
+# `numbers`, and theirs opens neither. This one answers production's phone numbers to whoever could
+# be diverted from them, and nothing else about a route.
+@router.get("/v1/line/numbers")
+async def numbers_to_call(key: AppKeyDep, table: RoutesDep) -> dict[str, list[dict[str, str]]]:
+    """The org's production numbers, and the agent each reaches: what a developer's phone dials."""
+    _a_person(key)
+    typed = await table.of_org(key.org, PRODUCTION)
+    return {
+        "numbers": [
+            {"number": route.number, "agent": route.agent}
+            for route in typed
+            if route.number is not None and route.channel == "phone"
+        ]
+    }
 
 
 def _a_person(key: KeyRecord) -> str:

@@ -14,7 +14,7 @@ named below is generated from the schema into the **protocol** repo's `docs/` (`
 
 A gateway is an API at `/v1`, and beside it serves the console at `/`, the operator's page at
 `/admin`, and the widget at `/widget/pinecall-widget.js` — the one answer carrying
-`Access-Control-Allow-Origin: *` (`api/pages.py`). The console holds a person's scoped key (§8).
+`Access-Control-Allow-Origin: *` (`api/pages.py`). That console holds a person's scoped key (§8) and shows production; the sandbox's is the same page served by `pinecall serve` on a developer's machine.
 Three kinds of connection, and only three:
 
 | | what it is | who opens it |
@@ -283,7 +283,7 @@ agent, one stream. Six more doors read a call without its log, or say where one 
 | `GET /v1/agents/{slug}/sessions?limit=` | one line per finished call: when, how long, why it ended, the cost, the outcome. **The reader's corner's calls only** — the world and the holder the call was opened in, which its head row keeps (`0024`): a developer's sandbox key lists their own test calls, a production key the telephone's, and an admin with `pinecall-corner` the colleague's. A call from before `0024` reads as production's, the org's own |
 | `GET /v1/calls/{call}/recording` | the audio, with byte ranges so a player can seek |
 | `GET /v1/agents/{slug}/config` | what the agent declared, with the operator's overrides applied. `app` or `calls`: the worker and the console both read it |
-| `PUT/DELETE /v1/line/from` · `GET/POST/DELETE /v1/agents/{slug}/line` | **where a RING lands**, in two steps. First whose phone dialled: a developer says which number they call FROM (`app`, the sandbox, a key naming a person) and every call they make lands in their own corner — no coordination, three of them testing at once. Then, for a number nobody claimed, the agent's **line**: reading it takes `calls`, claiming and releasing take `app`; the first corner to hold an agent takes it and it is handed on when that terminal closes, instead of the newest `pinecall run` silently answering in a colleague's scrollback. Neither is a row — both are only meaningful next to a socket, and `pinecall run` re-says the phone on every connect. Production has one corner and the box holds it — with one exception, the next row. `TheLine` in `rest.json` |
+| `PUT/DELETE /v1/line/from` · `GET /v1/line/numbers` · `GET/POST/DELETE /v1/agents/{slug}/line` | **where a RING lands**, in two steps. (`/v1/line/numbers`, `app`: the org's production phone numbers and the agent each reaches — what a developer's phone dials, which the numbers door would not tell a sandbox key.) First whose phone dialled: a developer says which number they call FROM (`app`, the sandbox, a key naming a person) and every call they make lands in their own corner — no coordination, three of them testing at once. Then, for a number nobody claimed, the agent's **line**: reading it takes `calls`, claiming and releasing take `app`; the first corner to hold an agent takes it and it is handed on when that terminal closes, instead of the newest `pinecall run` silently answering in a colleague's scrollback. Neither is a row — both are only meaningful next to a socket, and `pinecall run` re-says the phone on every connect. Production has one corner and the box holds it — with one exception, the next row. `TheLine` in `rest.json` |
 | `GET /v1/agents/{slug}/rings-for?caller=` | **a production ring from a developer's own phone.** The worker asks it on every phone call to a production number that no dispatch aimed (`app`; the fleet's key adds `&org=`): is the phone dialling one a developer registered with `PUT /v1/line/from`, and are they holding this agent in the sandbox, in this org? `{holder}` names that developer, and the worker builds the call in their sandbox corner — the declaration and the provider keys asked for their corner, their app socket, a sandbox log whose context metadata carries `diverted_from: production`. `{holder: null}` is production's, and so is any failure to ask: the call stays where it rang. Every other caller of the real number reaches production |
 
 ---
@@ -386,7 +386,7 @@ it (`numbers`). `GET /v1/keys` is the org's own API keys by fingerprint, never a
 said, naming nobody — answered in the clear the once; `POST /v1/keys/{fingerprint}/revoke` stops
 one, and another org's fingerprint is `404` like nobody's. A key may not issue a scope it does not
 itself open (`keys`). A person holds one key per world: `POST /v1/login/env {env}` mints the same
-person's key, with what their role opens there, in the other — the console's toggle — and `POST /v1/login/org {org}` in another of their orgs (§8). A tenant's own
+person's key, with what their role opens there, in the other — how `pinecall login` gets its sandbox key — and `POST /v1/login/org {org}` in another of their orgs (§8). A tenant's own
 carrier and its numbers imported — Twilio or SIP, the carrier's trunk pointed at the box, the SFU's
 trunk admitting the number, the route — are [numbers.md](numbers.md).
 
