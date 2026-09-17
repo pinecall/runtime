@@ -7,6 +7,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **The session lists filter, count and page, and each row says how it was judged.** `GET
+  /v1/sessions` and `GET /v1/agents/{slug}/sessions` take `q` (call id, a number's digits, the
+  caller's name, the outcome), `agent`, `channel` and `before`, and answer `total` and `next`
+  beside the rows; every row carries `score` and `flags` (`escalated`, `low_score`, `promise`).
+  `docs/protocol/console-api.md`.
+- **A `promises` judge.** A call where the agent committed the business to a call back, a visit,
+  a price or a follow-up that no tool call records answers `broken`. Code finds the phrases; the
+  judge model is asked only when there are some, under the same ceiling as every judge.
 - **The call index.** Every append folds what it says into one row per call (`call_facts`,
   migration 0025): the door, both numbers, the contact, how it ended and what it cost, how the
   judges answered, whether a person took part, every turn's e2e_latency. The console's list, its

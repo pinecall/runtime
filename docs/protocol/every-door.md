@@ -21,7 +21,7 @@ sandbox, answered in that colleague's corner.
 | `GET` | `/v1/keys` · `POST` | the org's own API keys by fingerprint; mint one for a machine, answered once — `keys` |
 | `POST` | `/v1/keys/{fingerprint}/revoke` | stop one of the org's keys; the row and its history stay |
 | `POST` | `/v1/login/env` | the same person's key for the other world, with what their role opens there |
-| `GET` | `/v1/sessions?limit=` | the newest calls across every agent, in the reader's corner — the same rows as an agent's |
+| `GET` | `/v1/sessions?limit=&q=&agent=&channel=&before=` | the newest calls across every agent, in the reader's corner, filtered and paged, each with its verdict and flags — [console-api.md](console-api.md) |
 | `GET` | `/v1/events` | SSE, live only: the org's floor changing — an agent held, a call ringing, up, over |
 | `GET` | `/v1/members` · `POST` | the org's people; invite one, the token once — or none, for a person who already has a password here: seated at once |
 | `PATCH` | `/v1/members/{id}` | role, agents, standing; disabled revokes their keys |
@@ -49,7 +49,7 @@ sandbox, answered in that colleague's corner.
 | `GET` | `/v1/agents/{slug}/pipeline` · `PUT …/pipeline/overrides` | what it runs on, and the five knobs |
 | `GET` | `/v1/agents/{slug}/provider-keys` | the org's own vendor keys, **in the clear**: the worker's door, see §6 |
 | `GET` | `/v1/agents/{slug}/rings-for?caller=` | whose sandbox copy a production ring from this phone belongs to, or null: production's — the worker's, `app` |
-| `GET` | `/v1/agents/{slug}/sessions` | one line per finished call, in the reader's corner |
+| `GET` | `/v1/agents/{slug}/sessions` | one line per call, in the reader's corner — the same filters |
 | `GET` | `/v1/agents/{slug}/calls` | every call of the agent, as a log |
 | `GET` | `/v1/calls/{call}/events` | one call's log: a page, or SSE |
 | `GET` | `/v1/calls/{call}/state` | the call reduced |

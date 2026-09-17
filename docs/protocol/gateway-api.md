@@ -280,7 +280,7 @@ agent, one stream. Six more doors read a call without its log, or say where one 
 | | |
 |---|---|
 | `GET /v1/calls/{call}/state` | the call reduced: who, where, the agent's state, the prompt, the room |
-| `GET /v1/agents/{slug}/sessions?limit=` | one line per finished call: when, how long, why it ended, the cost, the outcome. **The reader's corner's calls only** — the world and the holder the call was opened in, which its head row keeps (`0024`): a developer's sandbox key lists their own test calls, a production key the telephone's, and an admin with `pinecall-corner` the colleague's. A call from before `0024` reads as production's, the org's own |
+| `GET /v1/agents/{slug}/sessions?limit=&q=&channel=&before=` | one line per call: when, how long, why it ended, the cost, the outcome, the verdict and the flags — filtered, counted and paged as [console-api.md](console-api.md) §1 says. **The reader's corner's calls only** — the world and the holder the call was opened in, which its head row keeps (`0024`): a developer's sandbox key lists their own test calls, a production key the telephone's, and an admin with `pinecall-corner` the colleague's. A call from before `0024` reads as production's, the org's own |
 | `GET /v1/calls/{call}/recording` | the audio, with byte ranges so a player can seek |
 | `GET /v1/agents/{slug}/config` | what the agent declared, with the operator's overrides applied. `app` or `calls`: the worker and the console both read it |
 | `PUT/DELETE /v1/line/from` · `GET /v1/line/numbers` · `GET/POST/DELETE /v1/agents/{slug}/line` | **where a RING lands**, in two steps. (`/v1/line/numbers`, `app`: the phones this person said are theirs, the org's production phone numbers and the agent each reaches — what a developer's phone dials, which the numbers door would not tell a sandbox key.) First whose phone dialled: a developer says which number they call FROM (`app`, the sandbox, a key naming a person) and every call they make lands in their own corner — no coordination, three of them testing at once. Then, for a number nobody claimed, the agent's **line**: reading it takes `calls`, claiming and releasing take `app`; the first corner to hold an agent takes it and it is handed on when that terminal closes, instead of the newest `pinecall run` silently answering in a colleague's scrollback. Neither is a row — both are only meaningful next to a socket, and `pinecall run` re-says the phone on every connect. Production has one corner and the box holds it — with one exception, the next row. `TheLine` in `rest.json` |
@@ -371,7 +371,7 @@ hang-up's one model call) and are documented with the log, not here.
 
 ## 7b. The org's floor
 
-Before anybody picks an agent: `GET /v1/sessions?limit=` is every agent's newest calls in one
+Before anybody picks an agent: `GET /v1/sessions?limit=&q=&agent=&channel=&before=` is every agent's newest calls in one
 list, the rows `GET /v1/agents/{slug}/sessions` draws, newest first across the org (`agent` on each
 row says whose) — and, like that door, the reader's corner's alone. `GET /v1/events` is the floor changing, as SSE from now on and nothing before:
 `agent.registered` when a process holds an agent, `call.ringing` · `call.dialing` ·

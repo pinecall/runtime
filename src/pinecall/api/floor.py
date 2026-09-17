@@ -4,15 +4,16 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from pinecall.api._deps import LogsDep, SnapshotsDep, StoreDep
+from pinecall.api._deps import CallIndexDep, LogsDep, SnapshotsDep
 from pinecall.api.agents.registry import RegistryDep
-from pinecall.api.calls.listing import A_SCREENFUL, a_line
+from pinecall.api.calls.listing import A_SCREENFUL, BEFORE, LIMIT, WORDS, a_page
 from pinecall.api.calls.sink import ProjectDep, ReaderDep, sse
-from pinecall.auth.corner import corner_of
-from pinecall_protocol.rest import SessionLine, SessionList
+from pinecall.log.store.index import Wanted
+from pinecall.types import Channel
+from pinecall_protocol.rest import SessionList
 
 router = APIRouter()
 
@@ -21,25 +22,25 @@ A_KEY_READS_THE_ORG = "an org's events are read with a key"
 
 
 # The same rows GET /v1/agents/{slug}/sessions draws, across every agent the org holds: what a
-# floor's Sessions screen lists before anybody picks an agent. Newest first, off the head rows.
+# floor's Sessions screen lists before anybody picks an agent, filtered and paged by the same
+# words as the agent's own door, off the call index.
 @router.get("/v1/sessions")
 async def sessions(
     reader: ReaderDep,
     registry: RegistryDep,
-    store: StoreDep,
+    index: CallIndexDep,
     snapshots: SnapshotsDep,
-    limit: Annotated[int, Query(ge=1, le=200)] = A_SCREENFUL,
+    limit: Annotated[int, LIMIT] = A_SCREENFUL,
+    q: Annotated[str | None, WORDS] = None,
+    agent: str | None = None,
+    channel: Channel | None = None,
+    before: Annotated[str | None, BEFORE] = None,
 ) -> SessionList:
-    """The org's newest calls, each folded to the row a list draws, projected at this sink."""
+    """The org's newest calls that match, each folded to the row a list draws."""
     if reader.key is None:
         raise HTTPException(403, A_KEY_READS_THE_ORG)
-    lines: list[SessionLine] = []
-    whose = corner_of(reader.key)
-    for call in await store.calls_of(whose.org, limit, whose.env, whose.holder or ""):
-        snapshot = await snapshots.of(call)
-        if snapshot is not None:
-            lines.append(a_line(call, snapshot, reader, registry))
-    return SessionList(calls=lines)
+    wanted = Wanted(agent=agent or None, channel=channel, q=q or None, before=before)
+    return await a_page(reader, registry, index, snapshots, wanted, limit)
 
 
 # Live only, and no cursor: the feed is the moments a floor changes shape — an agent held or let
