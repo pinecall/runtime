@@ -75,9 +75,12 @@ def test_the_operators_brand_is_the_name_the_accent_and_the_logo_everywhere_pine
         f'<img src="{A_LOGO}" alt="Acme Voice" height="{LOGO_HEIGHT}" '
         f'style="display:block;height:{LOGO_HEIGHT}px;width:auto;' in letter.html
     )
-    assert ">Acme Voice</span>" not in letter.html, "the logo stands where the name stood"
+    assert ">Acme Voice</span>" not in letter.html, "a name is never typeset over the card"
     named = a_reset(TO, ORG, "Ana", LINK, DIES, Brand(name="Acme Voice"))
-    assert ">Acme Voice</span>" in named.html and "<img" not in named.html
+    assert ">Acme Voice</span>" not in named.html and "<img" not in named.html, (
+        "a brand with no logo has no row above the card: the name is in the words and the footer"
+    )
+    assert "Acme Voice" in named.html
 
 
 def test_the_test_message_is_the_one_frame_too_and_asks_nothing() -> None:
@@ -93,7 +96,7 @@ def test_every_letter_is_the_one_frame_the_brand_draws(letter: Letter) -> None:
     assert letter.html.startswith("<!DOCTYPE html>")
     assert f"background:{WASH}" in letter.html and f"max-width:{WIDTH}px" in letter.html
     assert f"background:{ACCENT}" in letter.html and "border-radius:9px" in letter.html
-    assert ">Pinecall</span>" in letter.html
+    assert ">Pinecall</span>" not in letter.html, "no logo, so nothing is drawn above the card"
     assert 'role="presentation"' in letter.html
 
 
