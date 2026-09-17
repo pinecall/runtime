@@ -1,7 +1,7 @@
 """What an org may dial out: a destination, the country it reaches, and the policy it runs under."""
 
 from dataclasses import dataclass
-from typing import Literal, get_args
+from typing import Literal, cast, get_args
 
 from pinecall.types.refused import DeclarationRefused
 from pinecall.types.route import an_e164
@@ -143,3 +143,14 @@ class DialPolicy:
         """Whether the org may reach that country; with none named, its own numbers' are."""
         allowed = self.countries or own
         return destination.code in allowed
+
+
+def a_sip_transport(word: str | None) -> SipTransport:
+    """The transport this word names, or a refusal that lists the four. Unsaid is `auto`."""
+    if word is None or word == "":
+        return "auto"
+    if word not in SIP_TRANSPORTS:
+        raise DeclarationRefused(
+            f"a SIP peer is dialled over one of {sorted(SIP_TRANSPORTS)}, not {word!r}"
+        )
+    return cast("SipTransport", word)

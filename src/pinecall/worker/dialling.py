@@ -76,13 +76,13 @@ async def placed(livekit: api.LiveKitAPI, room: str, dialling: Dialling) -> defs
     try:
         await livekit.sip.create_sip_participant(request)
     except Exception as refused:  # noqa: BLE001 — the SIP status is what tells them apart, below
-        reason = _how_it_failed(refused)
+        reason = how_it_failed(refused)
         logger.info("the call to %s was not answered (%s): %s", dialling.to, reason, refused)
         return reason
     return None
 
 
-def _how_it_failed(refused: Exception) -> defs.EndReason:
+def how_it_failed(refused: Exception) -> defs.EndReason:
     """The SIP response the carrier gave, in the protocol's own three words for it."""
     code = getattr(refused, "sip_status_code", None)
     if code in (BUSY, DECLINED):

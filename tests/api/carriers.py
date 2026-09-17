@@ -39,6 +39,9 @@ class FakeTwilio:
     made: list[str] = field(default_factory=list[str])
     # What Twilio would sell, by country and area code: the box's account shops here.
     shelf: dict[str, list[str]] = field(default_factory=dict[str, list[str]])
+    # The outbound half: the credential lists on the account, and which trunk carries each.
+    logins: dict[str, str] = field(default_factory=dict[str, str])
+    on_the_trunk: dict[str, set[str]] = field(default_factory=dict[str, set[str]])
 
     async def verified(self) -> str | None:
         return "Clínica Norte" if self.opens else None
@@ -68,6 +71,32 @@ class FakeTwilio:
         number = next(one.number for one in self.owned if one.sid == number_sid)
         self.on_trunk.setdefault(trunk_sid, set()).add(number)
         self.made.append(f"attach {number}")
+
+    async def terminating(self, trunk_sid: str, domain: str) -> None:
+        trunk = self.trunks[trunk_sid]
+        self.trunks[trunk_sid] = Trunk(
+            sid=trunk.sid, name=trunk.name, origination=trunk.origination, domain=domain
+        )
+        self.made.append(f"terminal {domain}")
+
+    async def credential_list_named(self, name: str) -> str | None:
+        return self.logins.get(name)
+
+    async def create_credential_list(self, name: str, username: str, password: str) -> str:
+        # The password is taken and never shown again, exactly as Twilio takes it: a fake that
+        # handed it back would let a test pass that a repair on a real account cannot.
+        assert password
+        sid = f"CL_{len(self.logins) + 1}"
+        self.logins[name] = sid
+        self.made.append(f"login {name} as {username}")
+        return sid
+
+    async def credential_lists_on(self, trunk_sid: str) -> tuple[str, ...]:
+        return tuple(sorted(self.on_the_trunk.get(trunk_sid, set())))
+
+    async def with_credentials(self, trunk_sid: str, credential_list_sid: str) -> None:
+        self.on_the_trunk.setdefault(trunk_sid, set()).add(credential_list_sid)
+        self.made.append(f"trunked {credential_list_sid}")
 
     async def for_sale(self, country: str, area_code: str | None) -> str | None:
         on_the_shelf = self.shelf.get(f"{country} {area_code or ''}".strip(), [])

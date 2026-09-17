@@ -41,6 +41,7 @@ from pinecall.types.dialling import (
     DialPolicy,
     SipTransport,
     a_destination,
+    a_sip_transport,
     calling_code,
 )
 from pinecall.types.fusion import (
@@ -165,6 +166,7 @@ __all__ = [
     "a_carrier_kind",
     "a_destination",
     "a_role",
+    "a_sip_transport",
     "a_slug",
     "an_e164",
     "an_env",
