@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 
 from pinecall.auth.invitations import INVITATION_TTL_S, Invited, a_token
 from pinecall.auth.keys import fingerprint
-from pinecall.auth.members import Kept, _a_member, _text, a_member_id, an_address
+from pinecall.auth.members import Kept, a_member_id, a_member_of_row, an_address, text_or_none
 from pinecall.log.store import Pool
 from pinecall.types import Member, MemberStatus, Role
 
@@ -164,7 +164,7 @@ class PostgresMembers:
         row = await self._pool.fetchrow(_ACTIVATE, str(spent["member"]), password_hash)
         if row is None:
             return None
-        member = _a_member(row)
+        member = a_member_of_row(row)
         await self._pool.execute(_PASSWORD_EVERYWHERE, member.email, password_hash)
         return member
 
@@ -172,21 +172,21 @@ class PostgresMembers:
         """One read across the orgs, newest hash first."""
         email = an_address(email)
         row = await self._pool.fetchrow(_A_PERSONS_PASSWORD, email)
-        return None if row is None else _text(row["password_hash"])
+        return None if row is None else text_or_none(row["password_hash"])
 
     async def orgs_of(self, email: str) -> tuple[Member, ...]:
         """Every row of this email, oldest first: what the console's org switch lists."""
         email = an_address(email)
-        return tuple(_a_member(row) for row in await self._pool.fetch(_ORGS_OF, email))
+        return tuple(a_member_of_row(row) for row in await self._pool.fetch(_ORGS_OF, email))
 
     async def join(self, org: str, id: str, password_hash: str) -> Member | None:
         """One UPDATE, fenced by the org and by the standing."""
         row = await self._pool.fetchrow(_JOIN, org, id, password_hash)
-        return None if row is None else _a_member(row)
+        return None if row is None else a_member_of_row(row)
 
     async def listed(self, org: str) -> tuple[Member, ...]:
         """Oldest first, disabled ones included: the row stays because the log names them."""
-        return tuple(_a_member(row) for row in await self._pool.fetch(_LISTED, org))
+        return tuple(a_member_of_row(row) for row in await self._pool.fetch(_LISTED, org))
 
     async def seated(self, org: str) -> int:
         """One count over the org's rows: everybody it has not disabled."""
@@ -196,13 +196,15 @@ class PostgresMembers:
     async def find(self, org: str, id: str) -> Member | None:
         """One read on the primary key, fenced by the org."""
         row = await self._pool.fetchrow(_FIND, org, id)
-        return None if row is None else _a_member(row)
+        return None if row is None else a_member_of_row(row)
 
     async def by_email(self, org: str, email: str) -> Kept | None:
         """One read on the UNIQUE pair, with the hash login checks against."""
         email = an_address(email)
         row = await self._pool.fetchrow(_BY_EMAIL, org, email)
-        return None if row is None else Kept(_a_member(row), _text(row["password_hash"]))
+        return (
+            None if row is None else Kept(a_member_of_row(row), text_or_none(row["password_hash"]))
+        )
 
     async def update(
         self,
@@ -217,9 +219,9 @@ class PostgresMembers:
         row = await self._pool.fetchrow(
             _UPDATE, org, id, role, None if agents is None else sorted(agents), status
         )
-        return None if row is None else _a_member(row)
+        return None if row is None else a_member_of_row(row)
 
     async def make_operator(self, org: str, id: str, operator: bool) -> Member | None:
         """One column, fenced by the org. The row is the truth about who runs this box."""
         row = await self._pool.fetchrow(_MAKE_OPERATOR, org, id, operator)
-        return None if row is None else _a_member(row)
+        return None if row is None else a_member_of_row(row)

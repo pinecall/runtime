@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator, Mapping
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from pydantic import TypeAdapter
@@ -117,7 +117,7 @@ class Gateway:
         said = await self._read(
             "GET", f"/v1/agents/{slug}/rings-for", params={"org": org, "caller": caller}
         )
-        holder = said.get("holder") if isinstance(said, dict) else None
+        holder = cast("dict[str, object]", said).get("holder") if isinstance(said, dict) else None
         return holder if isinstance(holder, str) and holder else None
 
     async def opened(self, context: CallContext, agent: str, app: str | None = None) -> None:

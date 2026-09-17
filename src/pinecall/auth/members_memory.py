@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 
 from pinecall.auth.invitations import INVITATION_TTL_S, Invited, a_token
 from pinecall.auth.keys import fingerprint
-from pinecall.auth.members import Kept, _at, a_member_id, an_address
+from pinecall.auth.members import Kept, a_member_id, an_address, an_instant
 from pinecall.types import Member, MemberStatus, Role
 
 
@@ -37,7 +37,7 @@ class MemoryMembers:
     ) -> None:
         self._clock = clock
         self._rows: dict[str, _Row] = {
-            member.id: _Row(member, None, _at(clock())) for member in rows
+            member.id: _Row(member, None, an_instant(clock())) for member in rows
         }
         self._invitations: dict[str, _Invitation] = {}
 
@@ -61,9 +61,9 @@ class MemoryMembers:
             known = await self.a_persons_password(email)
             if known is not None:
                 member = replace(member, status="active")
-                self._rows[member.id] = _Row(member, known, _at(self._clock()))
+                self._rows[member.id] = _Row(member, known, an_instant(self._clock()))
                 return Invited(member=member, token=None, expires_at=None)
-            self._rows[member.id] = _Row(member, None, _at(self._clock()))
+            self._rows[member.id] = _Row(member, None, an_instant(self._clock()))
         else:
             member = kept.member
             for hashed, invitation in self._invitations.items():
@@ -71,7 +71,7 @@ class MemoryMembers:
                     self._invitations[hashed] = replace(invitation, spent=True)
         token, expires_at = a_token(), self._clock() + INVITATION_TTL_S
         self._invitations[fingerprint(token)] = _Invitation(member.id, expires_at)
-        return Invited(member=member, token=token, expires_at=_at(expires_at))
+        return Invited(member=member, token=token, expires_at=an_instant(expires_at))
 
     async def accept(self, token: str, password_hash: str) -> Member | None:
         """Spend the token, then make the member active with this password, everywhere."""

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
@@ -112,12 +113,24 @@ def test_an_admin_sees_every_corner_and_each_row_says_whose(gateway: TestClient)
         assert {str(held["slug"]) for held in seen} == {AGENT}
 
 
+# starlette's TestClient types its requests through httpx's private `_types`, which no checker can
+# resolve, so every request this file makes goes through here: the ignores live in one place.
+def _asked(gateway: TestClient, path: str, headers: dict[str, str]) -> tuple[int, str, Any]:
+    """One GET at the gateway: the status, the body as text, and the body as JSON when it is."""
+    got: Any = gateway.get(  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        path, headers=headers
+    )
+    status = int(got.status_code)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+    text = str(got.text)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+    return status, text, json.loads(text) if text.startswith(("{", "[")) else None
+
+
 def _the_line(gateway: TestClient, key: str, corner: str | None) -> tuple[int, Any]:
     headers = {"Authorization": f"Bearer {key}"}
     if corner is not None:
         headers["pinecall-corner"] = corner
-    answer = gateway.get(f"/v1/agents/{AGENT}/line", headers=headers)
-    return answer.status_code, answer.json()
+    status, _, said = _asked(gateway, f"/v1/agents/{AGENT}/line", headers)
+    return status, said
 
 
 def test_an_admin_opens_a_developers_copy_and_every_door_answers_in_that_corner(
@@ -169,9 +182,10 @@ def _sessions(gateway: TestClient, key: str, corner: str | None = None) -> list[
     headers = {"Authorization": f"Bearer {key}"}
     if corner is not None:
         headers["pinecall-corner"] = corner
-    answer = gateway.get(f"/v1/agents/{AGENT}/sessions", headers=headers)
-    assert answer.status_code == 200, answer.text
-    return [str(line["call"]) for line in answer.json()["calls"]]
+    status, text, said = _asked(gateway, f"/v1/agents/{AGENT}/sessions", headers)
+    assert status == 200, text
+    calls: list[dict[str, Any]] = said["calls"]
+    return [str(line["call"]) for line in calls]
 
 
 async def test_each_developer_lists_their_own_calls_and_the_telephones_are_productions(
