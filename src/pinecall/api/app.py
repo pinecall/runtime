@@ -46,7 +46,7 @@ from pinecall.api.agents import endpoints as agents
 from pinecall.api.agents import provider_keys as agents_provider_keys
 from pinecall.api.agents.registry import Registry
 from pinecall.api.calls import chat, commands, events, listing, lookup, recording, state, tools
-from pinecall.api.evals import caller, replay, runs, voice
+from pinecall.api.evals import caller, judge, replay, runs, voice
 from pinecall.api.evals.runner import Runner
 from pinecall.api.supervise import verbs
 from pinecall.api.whatsapp import webhook
@@ -269,6 +269,7 @@ for door in (
     lookup.router,
     verbs.router,
     replay.router,
+    judge.router,
     runs.router,
     caller.router,
     voice.router,

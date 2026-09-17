@@ -7,6 +7,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **`POST /v1/evals/judge/{call}`: a finished call judged on ask.** The hang-up's judges over a
+  call nobody judged — its org had judging off, or the judge broke — or again with `?again=true`;
+  the `call.score` lands on the call's own sealed log, the one entry a sealed log takes. `evals`.
 - **`GET /v1/insights?day=`: a day at a glance.** Conversations today and yesterday, the share of
   finished calls no person took part in, the median e2e_latency, the spend, the three doors, every
   call and the live ones, each agent's day and held-rate, and the month's budget beside what was

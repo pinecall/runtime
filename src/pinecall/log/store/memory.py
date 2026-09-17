@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pinecall.log.entry import Entry
 from pinecall.log.facts import CallFacts, change_of
 from pinecall.log.store import memory_index
-from pinecall.log.store.index import Day, Found, Threads, Wanted
+from pinecall.log.store.index import CallCorner, Day, Found, Threads, Wanted
 from pinecall.log.store.memory_index import Indexed
 from pinecall.log.store.protocol import DEFAULT_LIMIT, LogSealed, Metered
 from pinecall.types.json import JsonObject
@@ -177,6 +177,15 @@ class MemoryStore:
         ][:limit]
 
     # ── the call index (log/store/index.py), answered by memory_index.py over these logs ──────
+
+    async def corner_of_call(self, call: str) -> CallCorner | None:
+        """The corner the claim wrote, production's and the org's own when none was said."""
+        log = self._calls.get(call)
+        if log is None or log.facts is None:
+            return None
+        return CallCorner(
+            log.org, log.env or memory_index.UNCORNERED, log.holder or "", log.facts.agent
+        )
 
     async def facts_of(self, calls: Sequence[str]) -> dict[str, CallFacts]:
         """The facts of each call that has any."""

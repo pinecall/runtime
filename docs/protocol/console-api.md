@@ -85,3 +85,16 @@ Off, a hang-up asks no judge at all and seals the call with a `call.score` carry
 the gateway; a spoken one is judged in the worker, which asks `GET /v1/calls/{call}/judging` (`app`,
 the worker's own door, the call's org) before its judges run — a gateway it cannot reach is a call
 judged as before, still under the ceiling. Such a call can be judged later: §6.
+
+## 6. Judging a call later
+
+`POST /v1/evals/judge/{call}` (`evals`) runs the hang-up's judges over a finished call — one its org
+had judging off for, one whose judge broke, or one a person wants a second opinion on — writes the
+`call.score` onto the call's own log and answers it. That log is sealed, and a verdict is the one
+entry a sealed log takes (`Store.rescored`): the list, the day and `usage` read it like the first.
+
+| answer | when |
+|---|---|
+| `200` `CallScore` | judged, under the box's ceiling exactly as at hang-up |
+| `404` | no such call in the key's org, world and corner — another org's call is told the same |
+| `409` | the call has not ended; or its last `call.score` already carries a verdict and `?again=true` was not said |
