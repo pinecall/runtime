@@ -163,7 +163,7 @@ async def numbers_to_call(
             {"number": route.number, "agent": route.agent}
             for route in typed
             if route.number is not None and route.channel == "phone"
-        ]
+        ],
     }
 
 
