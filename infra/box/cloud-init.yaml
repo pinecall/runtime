@@ -54,6 +54,10 @@ write_files:
       # box runs no embedder at all — then put its key in with `make secret NAME=…`, from the
       # checkout. A worker embeds nothing either way. infra/box/README.md, "The embedder".
       #EMBED_PROVIDER=perplexity                                           # or openrouter
+      # Who this box's letters are from, when it sends any: invitations and password resets. The
+      # server they go out through is a secret — `make secret NAME=PINECALL_SMTP_URL` — and with
+      # neither set the box sends no mail at all. docs/a-box-in-production.md, "The box's mail".
+      #PINECALL_MAIL_FROM=Pinecall <noreply@box.example.com>
 
 runcmd:
   # Where the code lands: the deploy account's, because rsync arrives as it and owns what it

@@ -29,12 +29,13 @@ sandbox, answered in that colleague's corner.
 | `GET` · `PUT` | `/v1/org/judging` | whether the org's calls are judged at hang-up, and the box's ceiling; turned with `usage` |
 | `GET` | `/v1/calls/{call}/judging` | the worker's, at hang-up: whether that call's org judges — `app` |
 | `GET` | `/v1/events` | SSE, live only: the org's floor changing — an agent held, a call ringing, up, over |
-| `GET` | `/v1/members` · `POST` | the org's people; invite one, the token once — or none, for a person who already has a password here: seated at once |
+| `GET` | `/v1/members` · `POST` | the org's people; invite one, the token once and `mailed` — or none, for a person who already has a password here: seated at once |
 | `PATCH` | `/v1/members/{id}` | role, agents, standing; disabled revokes their keys |
-| `POST` | `/v1/members/{id}/reset` | a one-use link that sets an active member's password, the token once — `team`; the box sends no email |
+| `POST` | `/v1/members/{id}/reset` | a one-use link that sets an active member's password, the token once, and `mailed` — `team` |
 | `POST` | `/v1/invitations/{token}` | accept with a password: active, and the first key |
 | `POST` | `/v1/login` | a key for a person and a device: email, password, the org when they have several — or a code |
 | `POST` | `/v1/login/orgs` | which orgs an email and password sign in to, minting nothing — no key, throttled like the login |
+| `POST` | `/v1/login/reset` | a forgotten password: `202` whoever asks, and a one-use link mailed where one can be — no key, throttled like the login |
 | `GET` | `/v1/login/orgs` | every org this key's person belongs to, and which one the key opens — a person's key |
 | `POST` | `/v1/login/org` | the same person's key in another org of theirs, in the same world — a person's key |
 | `POST` | `/v1/login/codes` | a one-use code a key holder mints for a browser |
@@ -43,6 +44,8 @@ sandbox, answered in that colleague's corner.
 | `POST` | `/v1/login/pairings/{code}` | sign that terminal in as the person this browser is — any person's key |
 | `GET` | `/v1/login/pairings/{code}/key` | the terminal collects its key, once. 202 while nobody has approved — no key |
 | `GET` · `PUT` · `DELETE` | `/v1/org/sso` | the org's OpenID provider: the issuer, the client, the domains it admits, who it seats and whether a password still opens it — `team`. The client secret goes in and never comes out; 503 with no vault key |
+| `GET` · `PUT` · `DELETE` | `/v1/org/mail` | the org's own SMTP account its letters go out through, and how the last one went — `team`. The password goes in and never comes out; 503 with no vault key |
+| `POST` | `/v1/org/mail/test` | one test letter, waited for: `{sent, error}` — `team`; 409 when nothing can send |
 | `GET` | `/v1/login/sso?org=&pairing=` | 302 to that org's provider, with state, nonce and a PKCE challenge — no key |
 | `GET` | `/v1/login/sso/callback?code=&state=` | the code exchanged and the id_token checked; 302 to `/?login=<code>`, so no key is ever in a URL — no key |
 | `POST` | `/v1/login/sso/discover` | which orgs an address's domain signs in to with a provider; says nothing about who exists — no key, throttled like the login |

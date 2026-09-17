@@ -2,6 +2,8 @@
 
 from collections.abc import Callable, Mapping
 
+import pytest
+
 from pinecall.cli.doctor import verbs as doctor
 from pinecall.cli.doctor.probes import Probes
 
@@ -20,6 +22,15 @@ def probes_that_answer(
         postgres_extensions=postgres_extensions,
         executable_path=executable_path,
     )
+
+
+# The mail line is the one check a box passes only by having been TOLD something, and ring 0 is
+# told nothing: a report where everything answers has to say where a letter would go. The relay
+# is a port nothing listens on, like every other sentinel in this suite.
+def a_box_that_posts_mail(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A box with a mail server declared. Nothing is sent: the doctor only reads the setting."""
+    monkeypatch.setenv("PINECALL_SMTP_URL", "smtp://127.0.0.1:1")
+    monkeypatch.setenv("PINECALL_MAIL_FROM", "Pinecall <no-reply@dead.sentinel>")
 
 
 def named(name: str, results: list[doctor.Result]) -> doctor.Result:

@@ -65,6 +65,24 @@ make worker-secrets WORKER=deploy@<worker-ip>                          # every w
 `box secrets` (the generated ones: LiveKit pair, Postgres, ops, vault) never rotates; `box secret
 <NAME>` replaces in place.
 
+## The box's mail
+
+`PINECALL_SMTP_URL` is a secret (`make secret`), `PINECALL_MAIL_FROM` is a line of
+`/etc/pinecall/box.env`; with either missing the box sends nothing and the doctor's `mail` line is
+`!`, never the verdict. Three traps, each a refused letter and not an error at startup:
+
+- **SES's SMTP password is not the IAM secret access key.** It is derived from it and the region,
+  so it is region-specific; a secret key pasted in its place is `535 Authentication Credentials
+  Invalid`. The SES console's *Create SMTP credentials* derives it; AWS's *Obtaining Amazon SES
+  SMTP credentials* page is the algorithm. Build the URL with `read -rs` and `printf … | make
+  secret`, never on argv. `/` and `+` in it may be raw or percent-encoded.
+- **A sandboxed SES account sends only to verified addresses**: `554 Message rejected: Email address
+  is not verified` until production access is granted. The sender's domain must be a verified
+  identity with DKIM.
+- **Prove it with a letter, not with the line**: `make doctor MAIL_TO=you@…` posts one and prints
+  what the server said. An org's own account is proved at `POST /v1/org/mail/test`, and its last
+  refusal is `last_error` at `GET /v1/org/mail`.
+
 ## A second box
 
 The hub keeps the gateway and the media plane (`PINECALL_ROLE=hub` in its `/etc/pinecall/box.env`);
