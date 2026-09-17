@@ -131,3 +131,50 @@ async def _arrival(job: jobs.Job, room: FakeRoom) -> router.Arrival:
     """This job's arrival in this room, read the way `entry.answer` reads it, and never waiting."""
     async with asyncio.timeout(NOTHING_MAY_WAIT_S):
         return await router.arrival_of(job, as_a_room(room))
+
+
+def a_ring(**changed: object) -> router.Arrival:
+    """A phone call dialled to the clinic's number, as the SIP seat says it."""
+    said: dict[str, object] = {
+        "caller": "+59897777",
+        "channel": "phone",
+        "direction": "inbound",
+        "number": "+59891111",
+    }
+    said.update(changed)
+    return router.Arrival(**said)  # type: ignore[arg-type]
+
+
+def test_a_ring_to_a_production_number_is_asked_about_and_nothing_else_is() -> None:
+    """Only a production phone call nobody aimed can be a developer's own: a dispatch, a widget
+    visit, an outbound call and a sandbox number are already where they were sent."""
+    assert router.may_be_a_developers(a_ring(), CLINICA_PHONE)
+    assert not router.may_be_a_developers(a_ring(agent="clinica-norte"), CLINICA_PHONE)
+    assert not router.may_be_a_developers(a_ring(direction="outbound"), CLINICA_PHONE)
+    assert not router.may_be_a_developers(a_ring(number=None, channel="web"), CLINICA_WEB)
+    sandbox = Route(
+        org="pinecall", agent="clinica-norte", channel="phone", number="+59891111", env="sandbox"
+    )
+    assert not router.may_be_a_developers(a_ring(), sandbox)
+
+
+def test_a_developers_ring_is_built_in_their_sandbox_corner_and_says_where_it_rang() -> None:
+    arrival, route = router.diverted(a_ring(), CLINICA_PHONE, "m_berna")
+
+    assert (route.env, route.org, route.agent, route.number) == (
+        "sandbox",
+        "pinecall",
+        "clinica-norte",
+        "+59891111",
+    )
+    assert (arrival.whose.org, arrival.whose.env, arrival.whose.holder) == (
+        "pinecall",
+        "sandbox",
+        "m_berna",
+    )
+    assert arrival.metadata["diverted_from"] == "production"
+
+
+def test_a_ring_nobody_claimed_is_left_exactly_as_it_arrived() -> None:
+    ring = a_ring()
+    assert router.diverted(ring, CLINICA_PHONE, None) == (ring, CLINICA_PHONE)

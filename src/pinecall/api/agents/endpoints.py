@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import TypeAdapter
 
 from pinecall.api._corner import CornerDep
@@ -171,3 +171,31 @@ async def _named(org: str, holder: str | None, members: Members) -> LineHolder:
         return LineHolder(holder=None, name=None)
     member = await members.find(org, holder)
     return LineHolder(holder=holder, name=None if member is None else member.email)
+
+
+# The worker asks this on every phone call to a production number, before it builds the session:
+# is the phone dialling a developer's, who is holding this agent in the sandbox? The fleet's key
+# names the org of the call (`?org=`); a tenant's key asks for its own. Null is production's.
+@router.get("/v1/agents/{slug}/rings-for")
+async def rings_for(
+    slug: str,
+    caller: Annotated[str, Query(description="the number dialling, as the SIP leg says it")],
+    key: AppKeyDep,  # noqa: ARG001 — the scope is asked here; the corner says whose org
+    corner: CornerDep,
+    registry: RegistryDep,
+) -> dict[str, str | None]:
+    """Whose sandbox copy a production ring from this caller belongs to, or null: production's."""
+    return {"holder": a_developers_own(registry, corner.org, slug, caller)}
+
+
+# A developer who said which phone is theirs (`pinecall line from`) and is holding this agent in the
+# sandbox takes the calls their own phone makes to the real number: they test on the line the
+# customers use, and every other caller still reaches production. Only that phone, only while they
+# hold the agent, only in the org it is theirs in. `taking` is the sandbox's own answer for a ring
+# from this caller — their corner, or the line — and it is theirs only when they claimed the phone.
+def a_developers_own(registry: Registry, org: str, slug: str, caller: str) -> str | None:
+    """The developer whose sandbox copy takes a production ring from this caller, or None."""
+    held = registry.taking(SANDBOX, slug, caller)
+    if held is None or held.holder is None or held.org != org:
+        return None
+    return held.holder if caller in registry.calling(SANDBOX, held.holder) else None
