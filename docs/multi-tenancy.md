@@ -18,7 +18,8 @@ An app opens `WS /v1/apps` with an org's API key and says `agent.register`. The 
 org off that key — off the `KeyRecord`, never off anything the app sent — and from then on:
 
 - the agent is **held** for that org, and another org asking for it is told it is not there;
-- every call it takes writes a log **owned** by that org (`store.owner`);
+- every call it takes writes a log **owned** by that org (`store.owner`), and in the corner it was
+  opened in — the world and whose, on the same head row (`0024`);
 - every door that reads that log checks the reader's org against the log's owner and answers
   `403 this key does not read that org's log`, never a 404 — whether a call exists is not another
   tenant's business;
@@ -102,7 +103,9 @@ The link opens the console's own card: the person chooses a password, the token 
 they hold their first key — an admin's, every door of the org in production and, from the
 console's toggle, the sandbox too. The operator held a **token** and never a password: an
 invitation is inert until the person it names accepts it, so the box can seat somebody and never
-be them. From there the admin invites the rest from the Team screen, and issues the key the org's
+be them. An address that already has a password on this box gets no link: `orgs invite` prints the
+row `active` and `already a person on this box: seated, they sign in with the password they have`.
+From there the admin invites the rest from the Team screen, and issues the key the org's
 server runs on from the Keys screen (or `pinecall keys issue`) — the operator is out of the loop.
 The whole of it from the developer's side is the agents repo's `docs/worlds-and-teams.md`.
 
@@ -149,6 +152,32 @@ agent's **line**: the first corner to hold it takes it, a second developer claim
 handed on when that terminal closes. Before either, the newest `pinecall run` silently took the
 others' calls. Production needs none of it: one corner, and its line is nobody's.
 
+**Except for the developer's own phone.** An org buys one number, and the line its customers
+dial is the one a developer most needs to test on. So a phone call to a **production** number that
+no dispatch aimed anywhere is asked about before it is built: the worker knocks at `GET
+/v1/agents/{slug}/rings-for?caller=` (`worker/router.py`, `may_be_a_developers`), and when the
+phone dialling is one a developer registered with `pinecall line from` while they hold that agent
+in the sandbox, in that org, the call is built in **their sandbox corner** — their declaration,
+their app socket, the keys asked for that corner, and a sandbox log whose context metadata says
+`diverted_from: production`. Every other caller of the real number reaches production, and so does
+this one whenever the question cannot be asked or is answered wrongly: a gateway that does not
+answer leaves the call where it rang. A widget visit, an outbound call, an eval run and a sandbox
+number are already where they were sent, and are never asked about.
+
+**And the calls are listed by corner, not by org.** A call's head row keeps the world and the
+holder it was opened in (`0024`), and `GET /v1/sessions` and `GET /v1/agents/{slug}/sessions` list
+the reader's corner alone: a developer's sandbox test calls are theirs, a colleague's are the
+colleague's, and the telephone's are production's. The Sessions screen used to show all three
+together. Every row written before `0024` reads as production's, the org's own.
+
+**An admin can open a developer's copy.** The corners are private by construction, and a
+corner nobody can look into is one nobody can help with. So a key that sees every corner (`team`
+— an admin's, the operator's) may send `pinecall-corner: <member id>` on any HTTP door, and that
+request is answered in that member's sandbox corner (`auth/corner.py`, `in_the_corner_asked`): their
+agents, their line, their calls, as the console draws them when an admin opens one. Only in the
+sandbox — production has no corners to open — and only into an active member of the key's own
+org; anything else is `403` in one sentence. Nothing is stored: the corner is that request's.
+
 **And so does the data — twice.** A contact's facts and a knowledge base carry the world of the
 key that pushed or the call that taught them (`0018`): a test call on a laptop never writes into
 the memory a production call reads under the same number, and a `knowledge push` from that laptop
@@ -189,6 +218,15 @@ as `subject`. **In production a person's key never holds `app`**: a deployed age
 issued for a machine (`POST /v1/keys`, or `keys issue --scope app`), not by whoever is logged in. Disabling them keeps the row, revokes every key of theirs and refuses their login. A
 browser never carries a key in a URL: a key holder mints a one-use code (`POST /v1/login/codes`)
 and the browser spends it for a key of its own.
+
+**A person is their email, and may belong to several orgs.** The email is kept trimmed and
+lower-cased, and it has one password on the box: each org is a row of theirs carrying the same
+hash, and accepting an invitation sets it on every row that has one. So inviting somebody who
+already has a password here seats them `active` at once — no link, nothing to accept — and the
+operator's `orgs invite` says so instead of printing one. A login that names no org lands in the
+oldest org that has not disabled them; the console's org switch lists the rest
+(`GET /v1/login/orgs`) and mints the same person's key in the one picked (`POST /v1/login/org`),
+in the same world. A machine's key names nobody and opens its one org.
 
 **And a terminal never carries a password.** `pinecall login` holds no key, and the person at it
 has none to paste — a key is minted FOR a person and kept BY the browser that minted it, never
@@ -280,12 +318,12 @@ what a plan sells a team by, counted as everybody the org has not disabled. A te
 | `orgs` | id, slug, name. `default` is seeded by the migrations |
 | `quotas` | one row per org, the whole set of eight replaced at once |
 | `api_keys` | sha256 fingerprint, org, label, `env`, `scopes`, `subject`, `name`, created_at, revoked_at. **Never the key**, and a revoked row is kept |
-| `members` | one person of one org: email (unique per org), name, `role`, `agents`, `status`, the argon2id hash. A disabled row stays |
+| `members` | one person of one org: email (trimmed, lower-cased, unique per org), name, `role`, `agents`, `status`, the argon2id hash — the same hash on every row of that email. A disabled row stays |
 | `invitations` | the sha256 of a one-use token, whose it is, when it expires, when it was spent |
 | `routes` | (org, number) → (agent, channel), plus `env` and `managed`. One number is one door |
 | `carriers` | one per org: `twilio` or `sip`, the account it names, the credentials as Fernet ciphertext |
 | `provider_keys` | one row per (org, vendor), Fernet ciphertext under `PINECALL_VAULT_KEY` |
-| `call_log`, `call_log_head` | every entry, with the org that owns the call |
+| `call_log`, `call_log_head` | every entry, with the org that owns the call and, on a call's head row, the corner it was opened in: `env` and `holder`, the org's own being `''` (`0024`; older rows read as production's) |
 | `contact_memories` | a contact's facts, per org **and world** — a test call's never reach production's |
 | `knowledge_bases`, `knowledge_chunks` | a base per (org, `env`, name); a laptop's push never replaces the box's |
 | `eval_runs`, `pipeline_overrides`, `tokens` | the suites run, the operator's knobs, the room tokens minted and spent |
@@ -293,3 +331,15 @@ what a plan sells a team by, counted as everybody the org has not disabled. A te
 A tenant is a row in `orgs` and at least one way in: a **person** (a row in `members`, invited and
 then holding keys of their own) or a **machine** (a row in `api_keys`). Everything else follows
 from the key whoever knocks is carrying.
+
+## An admin opening a colleague's copy
+
+`pinecall-corner: <member id>`
+on any HTTP door that takes a key — the scoped doors and every read of a log — answers that request
+in that member's sandbox corner instead of the key's own (`auth/corner.py`): their agents, their
+line, their calls. It is what the console sends when an admin opens a developer's copy. Only a key
+that sees every corner may send it (`team`), only in the sandbox — production has one corner — and
+only naming an active member of the key's own org; otherwise `403 only a key that sees every corner
+opens a colleague's, and only in the sandbox`, or `403 no active member of this org answers to that
+corner`. A header naming the key's own person is the key's own corner. The sockets do not read it:
+`WS /v1/apps` and `WS /v1/chat` always work in the key's own corner.

@@ -166,3 +166,22 @@ async def test_the_sixth_signup_from_one_place_in_a_minute_is_throttled(
         assert made.status_code == 201, made.text
     sixth = await signed_up(stranger, org="org-more", email="more@x.uy")
     assert (sixth.status_code, sixth.json()["detail"]) == (429, TOO_MANY)
+
+
+async def test_a_signup_naming_somebody_elses_email_is_refused_and_makes_no_org(
+    stranger: httpx.AsyncClient, orgs: MemoryOrgs
+) -> None:
+    """A person is their email: a second org is made with their password, never with a guess.
+    Without this a stranger was seated as Ana and handed a key in her name."""
+    assert (await signed_up(stranger)).status_code == 201
+    answer = await signed_up(stranger, org="otra-org", password="not anas password at all")
+    assert answer.status_code == 401, answer.text
+    assert await orgs.find("otra-org") is None
+
+
+async def test_a_person_makes_a_second_org_with_their_own_password(
+    stranger: httpx.AsyncClient,
+) -> None:
+    assert (await signed_up(stranger)).status_code == 201
+    second = await signed_up(stranger, org="tienda-norte", email=" ANA@tiendasur.uy ")
+    assert second.status_code == 201, second.text

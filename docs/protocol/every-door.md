@@ -1,7 +1,9 @@
 # Every door, in one table
 
 The index of [gateway-api.md](gateway-api.md): one line per door, method and path, and what it
-is for. The prose, the shapes and the refusals are on that page and in the pages it names.
+is for. The prose, the shapes and the refusals are on that page and in the pages it names. Every
+HTTP door that takes a key also reads `pinecall-corner: <member id>`: an admin's key, in the
+sandbox, answered in that colleague's corner.
 
 | | | |
 |---|---|---|
@@ -19,12 +21,14 @@ is for. The prose, the shapes and the refusals are on that page and in the pages
 | `GET` | `/v1/keys` · `POST` | the org's own API keys by fingerprint; mint one for a machine, answered once — `keys` |
 | `POST` | `/v1/keys/{fingerprint}/revoke` | stop one of the org's keys; the row and its history stay |
 | `POST` | `/v1/login/env` | the same person's key for the other world, with what their role opens there |
-| `GET` | `/v1/sessions?limit=` | the org's newest calls across every agent, the same rows as an agent's |
+| `GET` | `/v1/sessions?limit=` | the newest calls across every agent, in the reader's corner — the same rows as an agent's |
 | `GET` | `/v1/events` | SSE, live only: the org's floor changing — an agent held, a call ringing, up, over |
-| `GET` | `/v1/members` · `POST` | the org's people; invite one, the token once |
+| `GET` | `/v1/members` · `POST` | the org's people; invite one, the token once — or none, for a person who already has a password here: seated at once |
 | `PATCH` | `/v1/members/{id}` | role, agents, standing; disabled revokes their keys |
 | `POST` | `/v1/invitations/{token}` | accept with a password: active, and the first key |
-| `POST` | `/v1/login` | a key for a person and a device: org, email, password — or a code |
+| `POST` | `/v1/login` | a key for a person and a device: email, password, the org when they have several — or a code |
+| `GET` | `/v1/login/orgs` | every org this key's person belongs to, and which one the key opens — a person's key |
+| `POST` | `/v1/login/org` | the same person's key in another org of theirs, in the same world — a person's key |
 | `POST` | `/v1/login/codes` | a one-use code a key holder mints for a browser |
 | `POST` | `/v1/login/pairings` | a word a terminal prints, so a person signs it in from a browser — no key |
 | `GET` | `/v1/login/pairings/{code}` | what the card is about to approve: which terminal, and whether it is answered — no key |
@@ -39,11 +43,12 @@ is for. The prose, the shapes and the refusals are on that page and in the pages
 | `GET` | `/v1/agents/{slug}/line` | whose terminal a RING lands in, and who else could take it — `calls` |
 | `POST` | `/v1/agents/{slug}/line` | claim it for this key's corner — `app`; 409 with no app of yours running |
 | `DELETE` | `/v1/agents/{slug}/line` | release it; whoever is still holding the agent picks it up — `app` |
-| `PUT` | `/v1/line/from` | this phone's calls reach this key's corner, in whatever agent it holds — `app`, the sandbox only |
+| `PUT` | `/v1/line/from` | this phone's calls reach this key's corner, in whatever agent it holds — the sandbox number's, and a production number's too — `app`, set from the sandbox only |
 | `DELETE` | `/v1/line/from` | stop answering your own calls; they fall back to the line — `app` |
 | `GET` | `/v1/agents/{slug}/pipeline` · `PUT …/pipeline/overrides` | what it runs on, and the five knobs |
 | `GET` | `/v1/agents/{slug}/provider-keys` | the org's own vendor keys, **in the clear**: the worker's door, see §6 |
-| `GET` | `/v1/agents/{slug}/sessions` | one line per finished call |
+| `GET` | `/v1/agents/{slug}/rings-for?caller=` | whose sandbox copy a production ring from this phone belongs to, or null: production's — the worker's, `app` |
+| `GET` | `/v1/agents/{slug}/sessions` | one line per finished call, in the reader's corner |
 | `GET` | `/v1/agents/{slug}/calls` | every call of the agent, as a log |
 | `GET` | `/v1/calls/{call}/events` | one call's log: a page, or SSE |
 | `GET` | `/v1/calls/{call}/state` | the call reduced |
@@ -62,6 +67,8 @@ is for. The prose, the shapes and the refusals are on that page and in the pages
 | `POST` | `/v1/calls` · `/v1/calls/{call}/events` · `/sealed` · `/tools` · `/lookup` · `/remember` · `GET /commands` | the worker's own doors |
 | `POST`·`GET` | `/v1/fleet/heartbeat` · `/v1/fleet/standing` | the fleet's: what a worker holds, and whether all are full. A key holding the `fleet` scope only |
 | `GET`·`POST` | `/v1/whatsapp/webhook` | Meta's |
+| `GET` | `/`, `/admin` | the console, and the operator's page — no key to load, each proves its own |
+| `GET` | `/widget/pinecall-widget.js` | the widget, for any site to load: `Access-Control-Allow-Origin: *`, the one CORS answer |
 | | `/v1/ops/*` | the operator's, with the ops key — [operator-api.md](operator-api.md) |
 
 `GET /openapi.json` is the generated schema of all of it, and `pinecall-runtime doctor` on the box

@@ -19,9 +19,9 @@ Three different things, and knowing which is which saves an afternoon:
 
 | group | speaks to |
 |---|---|
-| `gateway` · `worker` · `chat` · `box` · `doctor` | this machine |
+| `gateway` · `worker` · `box` · `doctor` · `providers` | this machine |
 | `migrate` · `sessions` | **Postgres**, straight, over `DATABASE_URL` |
-| `orgs` · `keys` · `routes` · `fleet` | **a running gateway**, over `/v1/ops/*` with `PINECALL_OPS_KEY` — and `fleet loop`, a cloud's own CLI beside it |
+| `init` · `orgs` · `keys` · `routes` · `fleet` | **a running gateway**, over `/v1/ops/*` with `PINECALL_OPS_KEY` — and `fleet loop`, a cloud's own CLI beside it |
 
 So `keys issue` on a box whose gateway is down is refused by the client, not by the table, and
 `sessions list` works whether or not anything is running.
@@ -116,6 +116,7 @@ id it follows the newest live one. `recording` says where that call's audio was 
 pinecall-runtime orgs list
 pinecall-runtime orgs add <slug> [--name "…"]
 pinecall-runtime orgs invite <org> <email> --name "…" [--role admin|manager|developer|supervisor|qa]
+pinecall-runtime orgs operator <org> <email> [--revoke]
 pinecall-runtime orgs move <agent> <org>
 pinecall-runtime orgs rm <org>
 pinecall-runtime orgs quota <org> [--minutes n] [--messages n] [--agents n]
@@ -131,6 +132,11 @@ type; `invite` is how a tenant gets its first person on a gateway that takes no 
 the row and a **link**, once, that opens the console's password card (the operator holds a token
 and never a password, and the invitation takes none of the org's seats); `rm` is refused while the
 org still has keys or routes, so a tenant is never half-deleted.
+
+A person is their email, with one password across every org: `invite` of an address that already
+has one prints no link and seats them `active` (`already a person on this box: seated, they sign in
+with the password they have`). `operator` makes a member, by email, an operator of this box — their
+key then opens every `/v1/ops` door, as `init` does for the first person; `--revoke` takes it back.
 
 `move` undoes the one thing a slug could not undo: it belongs to the org that first registered it
 for as long as its log exists, and a box walks into the wrong one by construction — its own worker
@@ -178,7 +184,8 @@ slug held once in each, a number in one refused to the other. A box's worker and
 production key, which is the default; a laptop gets a sandbox one. `--scope`, repeatable, is
 what the key may do (`app` · `calls` · `talk` · `supervise` · `pipeline` · `knowledge` · `memory` ·
 `evals` · `numbers` · `keys` — the org's own API keys — · `providers` — the vendor keys it brought
-— · `team` · `usage`); left out is every scope. An org issues its own machine keys without the
+— · `team` · `usage` · `fleet`); left out is every scope but `fleet`, which is the box's own worker's
+and is minted only when typed (`pinecall-worker-key.service` types it). An org issues its own machine keys without the
 operator at `POST /v1/keys`; these verbs are the box's way in, on `PINECALL_OPS_KEY`. `--subject` and `--name`
 say whose the key is when it is a person's, so a seat minted from it says who sat down.
 

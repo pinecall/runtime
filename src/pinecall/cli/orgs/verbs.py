@@ -250,7 +250,7 @@ async def make_operator(
 ) -> int:
     """The member with that email, made an operator of this box or unmade. Their org stands."""
     people = await operator.get(f"{OPS_ORGS}/{org}/members")
-    found = next((one for one in people["members"] if one["email"] == email), None)
+    found = next((one for one in people["members"] if one["email"] == email.strip().lower()), None)
     if found is None:
         print(NO_SUCH_MEMBER.format(email=email, org=org), file=sys.stderr)
         return 1

@@ -15,9 +15,10 @@ from pinecall.api._deps import (
     SettingsDep,
     ThrottleDep,
 )
-from pinecall.api.login import the_client
+from pinecall.api.login import NOBODY_ANYWHERE, the_client
 from pinecall.api.members import member_as_json
 from pinecall.auth import passwords
+from pinecall.auth.members import an_address
 from pinecall.types import PRODUCTION, DeclarationRefused, Member, Quotas, a_slug, for_a_person
 from pinecall_protocol import WireModel
 
@@ -70,6 +71,8 @@ async def signup(
     """The org made, allowed what its gateway's policy says, its admin active, their first key."""
     if not settings.signup:
         raise HTTPException(403, NOT_HERE)
+    # The address as every row keeps it, so `ANA@x.uy ` is Ana (auth/members.py).
+    said = said.model_copy(update={"email": an_address(said.email)})
     if not throttle.allowed(f"{the_client(request)} signup"):
         raise HTTPException(429, TOO_MANY)
     try:
@@ -80,6 +83,13 @@ async def signup(
         )
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused
+    # A person who already has a password on this box makes a second org as themselves, and only
+    # with THAT password: without this check a signup naming somebody else's email was seated as
+    # them, handed a key in their name, and that key minted theirs in every org they belong to
+    # (POST /v1/login/org). The refusal is the login's own: it says nothing about who exists.
+    known = await members.a_persons_password(said.email)
+    if known is not None and not passwords.matches(said.password, known):
+        raise HTTPException(401, NOBODY_ANYWHERE)
     org = await orgs.create(slug, said.name or said.org)
     if org is None:
         raise HTTPException(409, TAKEN.format(slug=slug))

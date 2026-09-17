@@ -12,9 +12,10 @@ named below is generated from the schema into the **protocol** repo's `docs/` (`
 
 ## The shape of it
 
-A gateway is an API at `/v1`, and it serves ONE page: the console, at `/` and every path that is
-not a door's (`api/console.py`, the last route). The page holds a person's scoped key, never the
-org's (§8). Three kinds of connection, and only three:
+A gateway is an API at `/v1`, and beside it serves the console at `/`, the operator's page at
+`/admin`, and the widget at `/widget/pinecall-widget.js` — the one answer carrying
+`Access-Control-Allow-Origin: *` (`api/pages.py`). The console holds a person's scoped key (§8).
+Three kinds of connection, and only three:
 
 | | what it is | who opens it |
 |---|---|---|
@@ -42,12 +43,13 @@ issued; a person's holds their role's, less `app` in production (§8). `app`: th
 worker's doors. `calls`: `GET /v1/agents`, every read of a log, and — beside `app` — the one door that opens to either, `GET /v1/agents/{slug}/config`: a declaration is read by the worker holding the agent and by the console drawing its state. `talk`: `POST /v1/tokens`, `WS
 /v1/chat`. `supervise`: listen, the seat, the verbs by key. `pipeline` · `knowledge` · `memory` ·
 `evals` · `numbers` · `usage` · `team`: the doors of that name. `keys`: the org's own API keys.
-`providers`: the vendor keys it brought. `GET /v1/whoami` and `POST /v1/login/codes` ask for none. **`fleet` is the box's own worker's, and only its**: one worker answers every org's spoken calls, so at the worker's doors — `GET /v1/routes`, `/agents/{slug}/config`, `/provider-keys`, `POST /v1/calls` and the call's doors — a key holding it resolves by the corner the request names, `?org=&env=&holder=`, which is the corner the call's dispatch named; `GET /v1/routes?number=&channel=` is its question for a phone call whose dispatch named no org. Any other key naming a corner but its own is `403 this key works in its own org and world: only the fleet's key names another`.
+`providers`: the vendor keys it brought. `GET /v1/whoami`, `POST /v1/login/codes` and the person's own login doors — `POST /v1/login/env`, `GET /v1/login/orgs`, `POST /v1/login/org` — ask for none. **`fleet` is the box's own worker's, and only its**: one worker answers every org's spoken calls, so at the worker's doors — `GET /v1/routes`, `/agents/{slug}/config`, `/provider-keys`, `POST /v1/calls` and the call's doors — a key holding it resolves by the corner the request names, `?org=&env=&holder=`, which is the corner the call's dispatch named; `GET /v1/routes?number=&channel=` is its question for a phone call whose dispatch named no org, and `GET /v1/agents/{slug}/rings-for?caller=&org=` its question about that call once routed to production (§3). Any other key naming a corner but its own is `403 this key works in its own org and world: only the fleet's key names another`.
 
 **The one exception to the header** is `?token=` on the two log doors, because an `EventSource` in
 a browser cannot set a header. Only a short-lived room token is accepted there (see Tokens), never
 an API key: a URL ends up in an access log.
 
+**One more header**: `pinecall-corner: <member id>` answers an HTTP door in that member's sandbox corner — an admin opening a colleague's copy ([multi-tenancy.md](../multi-tenancy.md)).
 **Refusals** are FastAPI's shape — `{"detail": "…"}` under the status — and the sentence names the
 fix. `401` no key; `403` another org's, or a token reading a call it was not minted for; `403` also a key whose scopes do not open the door; `404` a
 thing that is not there; `409` a request that disagrees with what is stored; `422` a body that is
@@ -97,10 +99,7 @@ minted for: two developers each run `tienda-sur` on their own laptop, and what e
 /v1/agents`, `WS /v1/chat`, the config door, a suite — is their own socket. A sandbox key naming
 nobody (CI's) holds the org's own, which a person holding none falls back to. Production has one
 corner, because a person's key does not open `app` there (§7). A **dialled** door is the exception:
-a number exists once in a world, and the newest `pinecall run` answers the shared one. **And
-somebody sees all of them**: `GET /v1/agents` answers a key that opens `team` — an admin's, the
-operator's — one row per corner rather than one per slug, each carrying `holder` — the member whose
-copy it is, by id and address, absent for the org's own. Whoever may see who the team IS may see what it is RUNNING.
+a number exists once in a world, and a ring reaches the caller's own copy or the agent's line (§3), even through a production number. **And somebody sees all of them**: `GET /v1/agents` answers a key that opens `team` one row per corner, each carrying `holder` (absent for the org's own), and the `pinecall-corner` header opens any of them.
 
 **Which world.** A key opens `production` or `sandbox`, and the agent this socket registers
 is held in that world alone: the same slug on a box's key and on a laptop's is two agents, and
@@ -276,15 +275,16 @@ every 25 s so no proxy cuts a quiet call, and `retry: 1000`. The stream ends whe
 on `call.score`, the entry a finished call seals with.
 
 The same shape reads an **agent's whole log**: `GET /v1/agents/{slug}/calls` — every call of that
-agent, one stream. Five more doors read a call without its log:
+agent, one stream. Six more doors read a call without its log, or say where one lands:
 
 | | |
 |---|---|
 | `GET /v1/calls/{call}/state` | the call reduced: who, where, the agent's state, the prompt, the room |
-| `GET /v1/agents/{slug}/sessions?limit=` | one line per finished call: when, how long, why it ended, the cost, the outcome |
+| `GET /v1/agents/{slug}/sessions?limit=` | one line per finished call: when, how long, why it ended, the cost, the outcome. **The reader's corner's calls only** — the world and the holder the call was opened in, which its head row keeps (`0024`): a developer's sandbox key lists their own test calls, a production key the telephone's, and an admin with `pinecall-corner` the colleague's. A call from before `0024` reads as production's, the org's own |
 | `GET /v1/calls/{call}/recording` | the audio, with byte ranges so a player can seek |
 | `GET /v1/agents/{slug}/config` | what the agent declared, with the operator's overrides applied. `app` or `calls`: the worker and the console both read it |
-| `PUT/DELETE /v1/line/from` · `GET/POST/DELETE /v1/agents/{slug}/line` | **where a RING lands**, in two steps. First whose phone dialled: a developer says which number they call FROM (`app`, the sandbox, a key naming a person) and every call they make lands in their own corner — no coordination, three of them testing at once. Then, for a number nobody claimed, the agent's **line**: reading it takes `calls`, claiming and releasing take `app`; the first corner to hold an agent takes it and it is handed on when that terminal closes, instead of the newest `pinecall run` silently answering in a colleague's scrollback. Neither is a row — both are only meaningful next to a socket, and `pinecall run` re-says the phone on every connect. Production has one corner and the box holds it. `TheLine` in `rest.json` |
+| `PUT/DELETE /v1/line/from` · `GET/POST/DELETE /v1/agents/{slug}/line` | **where a RING lands**, in two steps. First whose phone dialled: a developer says which number they call FROM (`app`, the sandbox, a key naming a person) and every call they make lands in their own corner — no coordination, three of them testing at once. Then, for a number nobody claimed, the agent's **line**: reading it takes `calls`, claiming and releasing take `app`; the first corner to hold an agent takes it and it is handed on when that terminal closes, instead of the newest `pinecall run` silently answering in a colleague's scrollback. Neither is a row — both are only meaningful next to a socket, and `pinecall run` re-says the phone on every connect. Production has one corner and the box holds it — with one exception, the next row. `TheLine` in `rest.json` |
+| `GET /v1/agents/{slug}/rings-for?caller=` | **a production ring from a developer's own phone.** The worker asks it on every phone call to a production number that no dispatch aimed (`app`; the fleet's key adds `&org=`): is the phone dialling one a developer registered with `PUT /v1/line/from`, and are they holding this agent in the sandbox, in this org? `{holder}` names that developer, and the worker builds the call in their sandbox corner — the declaration and the provider keys asked for their corner, their app socket, a sandbox log whose context metadata carries `diverted_from: production`. `{holder: null}` is production's, and so is any failure to ask: the call stays where it rang. Every other caller of the real number reaches production |
 
 ---
 
@@ -373,7 +373,7 @@ hang-up's one model call) and are documented with the log, not here.
 
 Before anybody picks an agent: `GET /v1/sessions?limit=` is every agent's newest calls in one
 list, the rows `GET /v1/agents/{slug}/sessions` draws, newest first across the org (`agent` on each
-row says whose). `GET /v1/events` is the floor changing, as SSE from now on and nothing before:
+row says whose) — and, like that door, the reader's corner's alone. `GET /v1/events` is the floor changing, as SSE from now on and nothing before:
 `agent.registered` when a process holds an agent, `call.ringing` · `call.dialing` ·
 `call.started` · `call.ended` as calls arrive and go — each the very entry of its own log, tapped
 as it is written, so what to resume from is that log and its `seq`. A turn is never on it. Both
@@ -386,7 +386,7 @@ it (`numbers`). `GET /v1/keys` is the org's own API keys by fingerprint, never a
 said, naming nobody — answered in the clear the once; `POST /v1/keys/{fingerprint}/revoke` stops
 one, and another org's fingerprint is `404` like nobody's. A key may not issue a scope it does not
 itself open (`keys`). A person holds one key per world: `POST /v1/login/env {env}` mints the same
-person's key, with what their role opens there, in the other — the console's toggle. A tenant's own
+person's key, with what their role opens there, in the other — the console's toggle — and `POST /v1/login/org {org}` in another of their orgs (§8). A tenant's own
 carrier and its numbers imported — Twilio or SIP, the carrier's trunk pointed at the box, the SFU's
 trunk admitting the number, the route — are [numbers.md](numbers.md).
 
@@ -395,6 +395,6 @@ trunk admitting the number, the route — are [numbers.md](numbers.md).
 An org's people are rows, not shared keys: invited with a one-use token, active with a password of
 their own, each key minted for one person and one device (`subject`, `name`), a code a browser
 spends for a key of its own — and, where `PINECALL_SIGNUP` is on, `POST /v1/signup` makes an org
-allowed what the gateway's policy says. Doors, shapes and refusals: [people.md](people.md).
+allowed what the gateway's policy says. **A person is their email**, one password across every org: [people.md](people.md).
 
 Every door, method and path, in one table: [every-door.md](every-door.md).

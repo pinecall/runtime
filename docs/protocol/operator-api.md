@@ -85,12 +85,17 @@ Forget the number. `204` when a row went; `404` when no row answered to it — a
 must never read as done. Whatever a running app declares for that number answers again from the
 next call.
 
-Two doors touch a tenant's people, and they are the only two. `GET /v1/ops/orgs/{named}/members`
+Three doors touch a tenant's people, and they are the only three. `GET /v1/ops/orgs/{named}/members`
 is the org's people as the operator reads them — `{members: [...], seated}`. `POST
 /v1/ops/orgs/{named}/members {email, name, role, agents?}` **invites** one — the org's first admin
 where sign-ups are shut, or one more — and answers `201` with the row and a one-use `token`,
 exactly as the tenant's own invite does; it takes none of the org's seats, because a plan caps
-what an org seats by itself. There is no door here that changes or disables a member: an
+what an org seats by itself. An email that already has a password on this box — a person of
+another org — gets no token: the row is `active` from the start, with that password, and `token`
+and `expires_at` are null ([people.md](people.md)). `PUT /v1/ops/orgs/{named}/members/{id}/operator
+{operator}` makes that member an operator of the box, or stops: their own key opens `/v1/ops/*` as
+well as their org's doors, and nothing about their org changes; `404` for an id no member of the
+org answers to. There is no door here that changes a member's role or standing: an
 invitation is inert until the person it names accepts it with a password of their own, so the box
 can seat somebody and never be them, while a role changed from here would be the box editing a
 tenant's team. Changing and disabling are the tenant's own `/v1/members` ([people.md](people.md)).
@@ -218,7 +223,8 @@ registry and the routes are namespaced by it — and the registry again, in the 
 member the key names, so two developers of one tenant hold their own — and a number claimed in one
 world is refused to a key of the other, naming the world that holds it. `scopes` is what it may do there, as the doors are
 grouped (`app` · `calls` · `talk` · `supervise` · `pipeline` · `knowledge` · `memory` · `evals` ·
-`numbers` · `keys` · `providers` · `team` · `usage`); `subject` and `name` say whose it is when it
+`numbers` · `keys` · `providers` · `team` · `usage`, and `fleet`, the box's own worker's — its doors
+resolve by the call's corner, and it is minted only when named); `subject` and `name` say whose it is when it
 is a person's. An org issues its own machine keys at `POST /v1/keys` without any of this.
 Every key issued before the fields existed is production's, with every scope.
 
@@ -229,8 +235,8 @@ is ever carried in the clear, and it is carried once.
 ### `POST /v1/ops/orgs/{org}/keys`
 
 Issue a key for the org. The body says what it is for, where it opens, what it may do, whose it is;
-every field is optional — `env` defaults to `production`, `scopes` left out is every scope, the
-rest to `null` — and a world or a scope nobody declared is `400` with the reason in `detail`:
+every field is optional — `env` defaults to `production`, `scopes` left out is every scope but
+`fleet`, the rest to `null` — and a world or a scope nobody declared is `400` with the reason in `detail`:
 
 ```json
 { "label": "berna's laptop", "env": "sandbox",
@@ -380,8 +386,8 @@ with `PINECALL_OPS_KEY`; every verb, flag by flag, is [../the-runtime-cli.md](..
 Two rules worth repeating here: `orgs provider-key set` reads the key from **stdin** and never from
 a flag, because argv is in `ps` and in a shell history; and `keys issue` prints **the key alone on
 the first line** — a script reads it with `head -1` — and the org, the label and the warning under
-it. `pinecall-runtime migrate up` prints one the same way on a database whose `default` org has
-none, and that alone is what creates the first key on a fresh box.
+it. `pinecall-runtime migrate up` mints nothing: on a database whose `default` org has no key it
+says so and names `keys issue --org default`, which is the one verb that creates a key.
 
 ## An agent's pipeline
 
