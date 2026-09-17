@@ -73,7 +73,8 @@ async def test_a_reset_link_sets_an_active_members_password_and_never_revives_a_
     pool: Pool, org: str
 ) -> None:
     members = PostgresMembers(pool)
-    invited = await members.invite(org, "ana@clinica.uy", "Ana", "qa", [])
+    email = f"ana-{uuid4().hex[:8]}@clinica.uy"
+    invited = await members.invite(org, email, "Ana", "qa", [])
     assert invited is not None and invited.token is not None
     assert await members.reset(org, invited.member.id) is None, "invited is not active"
     await members.accept(invited.token, A_HASH)
@@ -83,7 +84,7 @@ async def test_a_reset_link_sets_an_active_members_password_and_never_revives_a_
     assert second is not None and second.token is not None
     assert await members.accept(first.token, "new") is None, "the newest link is the only link"
     assert await members.accept(second.token, "$argon2id$new") is not None
-    assert await members.a_persons_password("ana@clinica.uy") == "$argon2id$new"
+    assert await members.a_persons_password(email) == "$argon2id$new"
     third = await members.reset(org, invited.member.id)
     assert third is not None and third.token is not None
     await members.update(org, invited.member.id, status="disabled")
