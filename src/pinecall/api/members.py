@@ -67,6 +67,8 @@ NOT_BY_HAND = "{email} has not accepted their invitation: they become active by 
 # invited admin does not count: an org whose only admin has not chosen a password is an org
 # nobody can sign in to.
 NOT_YOURSELF = "you cannot remove yourself: another admin of this org removes you"
+# Disabling is the same act for now, and refused to the person asking for the same reason.
+NOT_YOURSELF_DISABLED = "you cannot disable yourself: another admin of this org disables you"
 THE_LAST_ADMIN = (
     "{email} is the last active admin of this org: make somebody else an admin first, "
     "or the org is left with nobody who can run it"
@@ -193,7 +195,8 @@ async def invited_into(
 async def change(
     id: str, said: Changed, key: TeamKeyDep, members: MembersDep, keys: KeysDep
 ) -> dict[str, Any]:
-    """Replace the role, the agents or the standing. Disabling revokes every key of theirs."""
+    """Replace the role, the agents or the standing. Disabling revokes every key of theirs, and
+    is refused (409) for the person asking."""
     found = await members.find(key.org, id)
     if found is None:
         raise HTTPException(404, NO_SUCH_MEMBER.format(id=id))
@@ -204,6 +207,8 @@ async def change(
         raise HTTPException(400, str(refused)) from refused
     if status == "active" and found.status == "invited":
         raise HTTPException(400, NOT_BY_HAND.format(email=found.email))
+    if status == "disabled" and key.subject == id:
+        raise HTTPException(409, NOT_YOURSELF_DISABLED)
     changed = await members.update(key.org, id, role=role, agents=said.agents, status=status)
     if changed is None:
         raise HTTPException(404, NO_SUCH_MEMBER.format(id=id))

@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.api.members import NO_SUCH_MEMBER, NOT_YOURSELF, THE_LAST_ADMIN
+from pinecall.api.members import NO_SUCH_MEMBER, NOT_YOURSELF, NOT_YOURSELF_DISABLED, THE_LAST_ADMIN
 from pinecall.auth.keys import MemoryKeys
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.types import Quotas
@@ -138,3 +138,20 @@ async def test_a_key_without_team_removes_nobody(
     hers = over_the_asgi_app(f"Bearer {ana['key']}")
     assert (await hers.delete(f"{MEMBERS}/{berna['member']['id']}")).status_code == 403
     await hers.aclose()
+
+
+async def test_nobody_disables_themselves(
+    tenant_http: httpx.AsyncClient, stranger: httpx.AsyncClient
+) -> None:
+    ana = await seated(tenant_http, stranger, "ana", "admin")
+    hers = over_the_asgi_app(f"Bearer {ana['key']}")
+    me = ana["member"]["id"]
+
+    myself = await hers.patch(f"{MEMBERS}/{me}", json={"status": "disabled"})
+    assert (myself.status_code, myself.json()["detail"]) == (409, NOT_YOURSELF_DISABLED)
+    still = await hers.get(MEMBERS)
+    assert still.status_code == 200, "her key still opens the door: nothing was revoked"
+
+    other = await tenant_http.patch(f"{MEMBERS}/{me}", json={"status": "disabled"})
+    assert other.status_code == 200, other.text
+    assert other.json()["status"] == "disabled"
