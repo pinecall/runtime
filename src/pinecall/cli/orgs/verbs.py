@@ -26,7 +26,7 @@ BUDGET = "budget_eur"
 
 PURPOSE: str = (
     "the tenants: list | add | invite | operator | remove-member | move | rm | quota | "
-    "provider-key | sso"
+    "dialling | provider-key | sso"
 )
 VERBS: tuple[str, ...] = (
     "list",
@@ -37,6 +37,7 @@ VERBS: tuple[str, ...] = (
     "move",
     "rm",
     "quota",
+    "dialling",
     "provider-key",
     "sso",
 )
@@ -44,12 +45,8 @@ VERBS: tuple[str, ...] = (
 # What a quota reads as when nobody set it. The column is still a column.
 NO_LIMIT = "—"
 
-# The five an operator turns per org, in the order the door and the table declare them.
+# The four an operator turns per org, in the order the door and the table declare them.
 DIAL_GUARDS = ("dial_anywhere", "per_minute", "per_day", "max_duration_s")
-
-# An empty country list is not "nowhere": it is the codes of the org's own numbers, worked out at
-# each dial, so the listing says that rather than printing a pair of brackets.
-OWN_NUMBERS = "its own numbers'"
 
 # What an org with no row of its own runs on, said in the one line `provider-key list` prints.
 
@@ -315,7 +312,7 @@ async def set_dialling(
     kept = await operator.put(f"{OPS_ORGS}/{org}/dialling", said)
     for name in DIAL_GUARDS:
         guard = kept.get(name)
-        print(f"  {name:<17} {OWN_NUMBERS if guard == [] else guard}", file=out)
+        print(f"  {name:<17} {guard}", file=out)
     return 0
 
 
