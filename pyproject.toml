@@ -19,7 +19,7 @@ dependencies = [
   # A range, not a bare name: the wheel PyPI serves must say which protocol it speaks.
   # `[tool.uv.sources]` below still points a checkout at the repo next door — that is a
   # development convenience and does not travel in the wheel.
-  "pinecall-protocol>=0.1,<0.2",
+  "pinecall-protocol>=0.3,<0.4",
   "pydantic>=2.7,<3",
   "pydantic-settings>=2.3,<3",
   "fastapi>=0.115,<1",
