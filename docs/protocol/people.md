@@ -7,7 +7,7 @@ where its gateway opens one.
 An org's people are rows, not shared keys. A key holder invites one — `POST /v1/members` with
 `{email, name, role, agents?}` answers `201` with the member, a one-use `token`, shown once and
 dead in a week, and `mailed` (below: whether the link was also posted to them) — and the person accepts at `POST /v1/invitations/{token}` with `{password, env?,
-device?}` (no key at that door; twelve characters at least, argon2id at rest) — which is what the
+device?}` (no key at that door; `min_password` characters at least — `PINECALL_MIN_PASSWORD`, 8 unless the operator set it, below — argon2id at rest) — which is what the
 console's own card at `/invitations/{token}` does when the link is opened in a browser — and that
 makes them `active` and answers their **first key**, in the one shape a key travels in: `{key, key_id, org,
 label, env, scopes, subject, name, member}`. `subject` is the member's id and `scopes` the preset of
@@ -286,7 +286,7 @@ in with a provider.
 **The break-glass is the box's.** An org that lost its provider — a tenant renamed, a secret
 rotated on a Friday — has nobody inside who can turn `required` off, because the admin who would
 is the person locked out. So `GET /v1/ops/orgs/{org}/sso` reads what one org is wired to and
-`PUT /v1/ops/orgs/{org}/sso/required {required}` turns it off, on the box's own ops key
+`PUT /v1/ops/orgs/{org}/sso/required {required}` turns it off, on the operator's key ([operator-api.md](operator-api.md#authentication))
 (`pinecall-runtime orgs sso <org> --off`). Turning it back **on** is the org's own door: an
 operator who could would be an operator deciding how a tenant's people sign in. Losing the vault
 key has the same effect by itself — no secret can be read, so no org signs in with a provider and

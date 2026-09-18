@@ -101,7 +101,7 @@ this runtime reads `ELEVEN_API_KEY`; and `pinecall-runtime doctor` knocks at eve
 $ pinecall-runtime migrate up
 applied 0001_call_log.sql
 …
-applied 0024_a_calls_corner.sql
+applied 0035_box_settings.sql
 org default has no key yet — `pinecall-runtime keys issue --org default` mints one
 ```
 
@@ -155,7 +155,7 @@ m_b3796f3579fc  berna@clinica.test  admin  runs this box
 of this box — somebody has to be able to make the second org, and on a fresh runtime there is
 nobody else. Run it twice and it carries on to the person rather than stopping at the org.
 
-`PINECALL_OPS_KEY` opens `/v1/ops/*` and nothing else. It belongs to no org and is not a login.
+`PINECALL_OPS_KEY` opens `/v1/ops/*` and nothing else. It belongs to no org and is not a login. The person `init` made an operator opens the same doors with their own key.
 
 **`init` is an HTTP call, which is why the gateway comes first.** It knocks at
 `PINECALL_GATEWAY_URL` — `http://127.0.0.1:8080` unless `.env` says otherwise — so with nothing

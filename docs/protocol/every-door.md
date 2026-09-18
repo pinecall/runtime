@@ -80,7 +80,7 @@ sandbox, answered in that colleague's corner.
 | `GET` | `/v1/agents/{slug}/calls` | every call of the agent, as a log |
 | `GET` | `/v1/calls/{call}/events` | one call's log: a page, or SSE |
 | `GET` | `/v1/calls/{call}/state` | the call reduced |
-| `GET` | `/v1/calls/{call}/recording` | the audio, seekable |
+| `GET` | `/v1/calls/{call}/recording` | the audio, seekable. A written (chat) call keeps none: `404`, `call … kept no recording: its call.summary points at none` |
 | `POST` | `/v1/calls/{call}/listen` · `/supervise` | a seat |
 | `POST` | `/v1/calls/{call}/verbs` | one supervisor verb |
 | `POST` | `/v1/tokens` | a room token for a browser — `503` and `fleet.full` when every worker is full |
@@ -101,7 +101,7 @@ sandbox, answered in that colleague's corner.
 | `GET`·`POST` | `/v1/whatsapp/webhook` | Meta's |
 | `GET` | `/`, `/admin` | the console, and the operator's page — no key to load, each proves its own |
 | `GET` | `/widget/pinecall-widget.js` | the widget, for any site to load: `Access-Control-Allow-Origin: *`, the one CORS answer |
-| | `/v1/ops/*` | the operator's, with the ops key — [operator-api.md](operator-api.md) |
+| | `/v1/ops/*` | the operator's: the box's own key, or the key of a person the box made an operator — [operator-api.md](operator-api.md) |
 
 `GET /openapi.json` is the generated schema of all of it, and `pinecall-runtime doctor` on the box
 says which of these doors can actually answer today.

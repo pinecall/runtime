@@ -73,9 +73,10 @@ is written into a style attribute of every letter). `logo_url` is an **https** U
 mail client fetches it from wherever the reader is, and plain http is blocked or warned about in
 most of them. `400` in a sentence for anything else.
 
-In the letters: the logo stands where the wordmark stood, an `<img>` **28px tall** and as wide as
-it is, `alt` the name — a client that blocks images, which is most of them until the reader says
-otherwise, shows the name as text; with no logo the name IS the wordmark. The name replaces
+In the letters: the top of a letter is the logo or nothing. With a `logo_url` set, one row above
+the card holds an `<img>` **28px tall** and as wide as it is, `alt` the name — a client that blocks
+images, which is most of them until the reader says otherwise, shows the name as text in its
+place. With no logo there is no row at all, and the card is the top of the letter. The name replaces
 Pinecall everywhere a letter said it (`You're invited to <org> on <name>`, `Reset your <name>
 password`, `Sent by <org> through <name>`), and the accent is the button. The logo is the **one**
 outside resource a letter may ever carry, at the address the operator typed themselves; with none

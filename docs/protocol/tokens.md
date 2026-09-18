@@ -22,7 +22,7 @@ it is not ours: it implements LiveKit's standard token endpoint —
 > implementation only needs to pass `room_config` to the token builder.
 
 The token is minted with `livekit-api`'s `AccessToken` — the same minter that signs every call
-token this runtime reads back (`docs/decisions/auth.md`) — and a stock `livekit-client`,
+token this runtime reads back (the *auth* decision page in the maintainer's notebook) — and a stock `livekit-client`,
 `TokenSource.endpoint(url, { headers })`, joins the agent's room with what it answers. No Pinecall
 client code is involved.
 

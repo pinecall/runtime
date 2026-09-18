@@ -4,7 +4,7 @@ Beside [operator-api.md](operator-api.md) because they are the same public contr
 needed to self-host is here — but they are **not** the operator API and they take a different key:
 the org's own API key, as `Authorization: Bearer <key>`, on the one bearer parser every other door
 uses. The ops key does not open them. They belong to the AGENT, so a tenant's own dashboard opens
-them as readily as ours would — any UI is one client of them; `docs/decisions/pipeline.md` argues
+them as readily as ours would — any UI is one client of them; the *pipeline* decision page in the maintainer's notebook argues
 the shape.
 
 ### `GET /v1/agents/{slug}/pipeline`

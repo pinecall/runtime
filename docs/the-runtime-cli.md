@@ -108,7 +108,7 @@ pinecall-runtime sessions recording <call-id>
 The log, read back straight from Postgres — no gateway, no key, no org filter: this is the
 operator's view of the box, and it sees every tenant's calls. `show` prints one call entry by
 entry; `--json` prints the reduced state instead. `tail` follows a call as it happens, and with no
-id it follows the newest live one. `recording` says where that call's audio was written.
+id it follows the newest live one. `recording` says where that call's audio was written — and, for a written (chat) call, which keeps none, says so (`call … was not recorded: its call.summary carries no path`) and exits 1.
 
 ## `orgs`
 
@@ -122,6 +122,9 @@ pinecall-runtime orgs rm <org>
 pinecall-runtime orgs quota <org> [--minutes n] [--messages n] [--agents n]
                                   [--concurrent-calls n] [--memory-facts n] [--knowledge-chunks n]
                                   [--numbers n] [--seats n]
+pinecall-runtime orgs dialling <org> [--dial-anywhere | --no-dial-anywhere]
+                                     [--per-minute n] [--per-day n] [--max-duration-s n]
+pinecall-runtime orgs sso <org> [--off]
 pinecall-runtime orgs provider-key set <org> <vendor>     # the key on stdin
 pinecall-runtime orgs provider-key rm  <org> <vendor>
 pinecall-runtime orgs provider-key list <org>
@@ -130,8 +133,11 @@ pinecall-runtime orgs provider-key list <org>
 The tenants. `<org>` is an id or a slug — every door takes either. `add` makes the row people will
 type; `invite` is how a tenant gets its first person on a gateway that takes no sign-up — it prints
 the row and a **link**, once, that opens the console's password card (the operator holds a token
-and never a password, and the invitation takes none of the org's seats); `rm` is refused while the
-org still has keys or routes, so a tenant is never half-deleted.
+and never a password, and the invitation takes none of the org's seats). The door it knocks at,
+`POST /v1/ops/orgs/{org}/members`, also **mails** that link to the person when the box or the org
+has a mailbox ([the-box.md](protocol/the-box.md)); the verb prints the link either way and does
+not say whether a letter went. `rm` is refused while the org still has keys or routes, so a tenant
+is never half-deleted.
 
 A person is their email, with one password across every org: `invite` of an address that already
 has one prints no link and seats them `active` (`already a person on this box: seated, they sign in
@@ -144,6 +150,14 @@ and operator keys are issued into `default`, so the first agent anybody runs the
 `default` too. The agent's own log, one head row per call it has taken, and its numbers all go
 with it; it is refused while somebody is holding the slug, and a number the destination org
 already answers at stays where it is and is named.
+
+`dialling` replaces **the whole set** of what an org may dial out — `dial_anywhere` (off unless
+said: a destination must already have called or written to one of the org's agents), dials a
+minute (6), a day (200), and the longest a placed call may run (600 s); a guard left out goes back
+to the code's default. Which countries a dial may reach is the carrier account's own setting, not
+a flag here. `sso` prints which identity provider the org is wired to; `--off` lets its people sign
+in with a password again while their provider is down, and is the one SSO thing the operator does
+— wiring one is the org's own door ([protocol/people.md](protocol/people.md)).
 
 `quota` replaces **the whole set**: a limit left out is no limit. The meter is a fold over the log,
 so there is no counter to drift, and the gate runs before a call opens, before an agent registers,
@@ -342,14 +356,15 @@ own name, so the SDK that reads `ANTHROPIC_API_KEY` by itself and this runtime a
 | `TEI_URL` · `EMBED_PROVIDER` · `EMBED_MODEL` · `EMBED_BASE_URL` | who embeds, and where |
 | `ANTHROPIC_API_KEY` · `OPENAI_API_KEY` · `SONIOX_API_KEY` · `DEEPGRAM_API_KEY` · `ELEVEN_API_KEY` | a call needs one key of each role: llm, stt, tts |
 | `PINECALL_WORKER_KEY` | the key the worker knocks with. On a box the fleet's: `keys issue --org default --scope fleet --scope app --scope calls`, which is what lets one worker answer every org's calls. On a laptop an org's own key, and the worker serves that org |
-| `PINECALL_OPS_KEY` | what `/v1/ops/*` is authenticated by. Unset, the operator API is closed |
+| `PINECALL_OPS_KEY` | the box's own key to `/v1/ops/*`, and what these verbs knock with. A person the box made an operator opens the same doors with their own key; unset, only such a person does |
 | `PINECALL_VAULT_KEY` | the Fernet key a tenant's own provider keys are encrypted under |
 | `PINECALL_ROLE` | what this box runs: `all` · `hub` · `worker` |
 | `PINECALL_GATEWAY_URL` | the gateway a worker's job asks |
 | `PINECALL_MAX_JOBS` · `PINECALL_APP` · `PINECALL_AGENT` | what a worker takes, and for whom |
 | `PINECALL_WORKER_NAME` · `PINECALL_OVERFLOW_SAYS` | its name in the roster (unset: the hostname), and the overflow agent's one sentence |
 | `RECORD` · `PINECALL_RECORDINGS` | whether a call's audio is kept, and where it lands |
-| `WHATSAPP_ACCESS_TOKEN` · `WHATSAPP_APP_SECRET` · `WHATSAPP_VERIFY_TOKEN` | Meta's webhook |
+| `WHATSAPP_ACCESS_TOKEN` · `PINECALL_WHATSAPP_APP_SECRET` · `PINECALL_WHATSAPP_VERIFY_TOKEN` | Meta's webhook: the token messages are sent with; the app's App Secret every webhook body is HMAC-SHA256-signed with (unset, the WhatsApp door is closed); the word Meta echoes back when the webhook is subscribed |
+| `PINECALL_MIN_PASSWORD` | how short a member's password may be: 8 unless set, `0` for no rule |
 | `PINECALL_JUDGE_CEILING_EUR` | what judging one call may spend on a model. Zero: no judge asks |
 | `PINECALL_VOICE_LOOKUP_BUDGET_MS` · `PINECALL_TEXT_LOOKUP_BUDGET_MS` · `PINECALL_REMEMBER_BUDGET_S` | how long a turn waits for recall and search, and a hang-up for memory |
 | `PINECALL_LOG_LEVEL` | `DEBUG` · `INFO` · `WARNING` · `ERROR` |
