@@ -189,6 +189,10 @@ first, in the key's world and corner. A fact is the agent's through the call tha
 is in no agent's list. `q` matches the text, the contact and the category, case-insensitively;
 `after` is the `next` of the page before; `limit` is 1–200, 50 unsaid.
 
+`GET /v1/memory?after=&q=&limit=` (`memory`) is the same page across **every** agent of the org,
+each fact with the `agent` whose call taught it — `{facts: [{id, agent, contact, text, category,
+written_at}], next}` — for the console's Memory, beside Evals in the sidebar.
+
 `DELETE /v1/memory/facts/{id}` (`memory`) ends **one** fact the way a later call would have: the
 row stays with `invalidated_at` set to now, recall stops reading it from that moment, and the
 contact's history (`GET /v1/contacts/{contact}/memory`) still shows it, superseded. It answers

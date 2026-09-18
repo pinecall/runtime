@@ -52,6 +52,9 @@ LEARNED = datetime(2026, 9, 1, 10, 0, tzinfo=UTC)
 # tenant learned of a mismatch from a 409 instead of from the list.
 THE_MODEL = "BAAI/bge-m3"
 
+# Which agent a scripted fact came from, when a page is asked across every agent.
+TAUGHT_BY = "clinica-norte"
+
 
 def a_fact(id: str, text: str, score: float = 1.0, source: str | None = None) -> Fact:
     """One fact of the caller, as recall would score it; `source` is the call that taught it."""
@@ -168,7 +171,7 @@ class ScriptedMemory:
         org: str,  # noqa: ARG002 — the Protocol's shape
         env: Env,  # noqa: ARG002 — the Protocol's shape
         holder: str | None,  # noqa: ARG002 — the Protocol's shape
-        agent: str,  # noqa: ARG002 — the Protocol's shape
+        agent: str | None,  # noqa: ARG002 — the Protocol's shape
         *,
         words: str | None,
         after: str | None,
@@ -183,7 +186,8 @@ class ScriptedMemory:
         start = next((n + 1 for n, fact in enumerate(held) if fact.id == after), 0)
         page = held[start : start + limit]
         more = len(held) > start + limit
-        return FactsPage(facts=page, next=page[-1].id if more and page else None)
+        taught = {fact.id: agent or TAUGHT_BY for fact in page}
+        return FactsPage(facts=page, next=page[-1].id if more and page else None, agents=taught)
 
     async def invalidated(
         self,

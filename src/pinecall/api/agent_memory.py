@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from pinecall.api._deps import KeptMemoryDep, MemoryKeyDep
 from pinecall.auth.keys import held_by
+from pinecall_protocol import WireModel
 from pinecall_protocol.rest import AgentFact, AgentMemory, Forgotten
 
 router = APIRouter()
@@ -42,6 +43,49 @@ async def taught(
         facts=[
             AgentFact(
                 id=fact.id,
+                contact=fact.contact,
+                text=fact.text,
+                category=fact.category,
+                written_at=fact.valid_from.timestamp(),
+            )
+            for fact in page.facts
+        ],
+        next=page.next,
+    )
+
+
+class OrgFact(AgentFact):
+    """One current fact, with the agent whose call taught it."""
+
+    agent: str
+
+
+class OrgMemory(WireModel):
+    """A page of what every agent of the org has learnt, newest first, and the next cursor."""
+
+    facts: list[OrgFact]
+    next: str | None = None
+
+
+# The org's memory whole: every agent's facts on one page, each saying which agent taught it —
+# the console's Memory in the sidebar, beside Evals. Same world, corner, cursor and words as above.
+@router.get("/v1/memory")
+async def learnt(
+    key: MemoryKeyDep,
+    memory: KeptMemoryDep,
+    after: str | None = None,
+    q: Annotated[str | None, Query(max_length=200)] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = A_SCREENFUL,
+) -> OrgMemory:
+    """The current facts every agent of this org taught, a page at a time, filtered by words."""
+    page = await memory.taught_by(
+        key.org, key.env, held_by(key), None, words=q or None, after=after, limit=limit
+    )
+    return OrgMemory(
+        facts=[
+            OrgFact(
+                id=fact.id,
+                agent=page.agents.get(fact.id, ""),
                 contact=fact.contact,
                 text=fact.text,
                 category=fact.category,

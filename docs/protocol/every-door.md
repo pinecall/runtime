@@ -95,6 +95,7 @@ sandbox, answered in that colleague's corner.
 | `GET` | `/v1/agents/{slug}/threads?after=` · `/threads/{contact}` | the inbox: an agent's calls by contact, what this person has not read, and one thread merged — `calls` |
 | `POST` | `/v1/agents/{slug}/threads/{contact}/read` · `/messages` | mark a thread read — `calls`; say something on the open WhatsApp conversation — `talk` |
 | `GET` | `/v1/agents/{slug}/memory?after=&q=` | the current facts the agent's calls taught, across contacts — `memory` |
+| `GET` | `/v1/memory?after=&q=` | the same across every agent of the org, each fact with its `agent` — `memory` |
 | `DELETE` | `/v1/memory/facts/{id}` | end one fact, bi-temporally: the row stays, superseded — `memory` |
 | `POST` | `/v1/agents/{slug}/memory/extraction` | what a hang-up makes of a call |
 | `POST` | `/v1/evals/run` · `GET /v1/evals/runs[/{id}]` · `POST /v1/evals/replay/{call}` · `/v1/evals/judge/{call}` | the suites, ring 3, and the judges over a finished call nobody judged |

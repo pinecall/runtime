@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal, Protocol
 
@@ -106,13 +106,13 @@ class Memory(Protocol):
 
     # A fact carries the call that taught it, and that call the agent that took it: so what an
     # agent's calls taught, across every contact, is a read and not a column. A fact a golden held
-    # came from no call and belongs to no agent's list.
+    # came from no call and belongs to no agent's list. No agent is every agent of the org.
     async def taught_by(
         self,
         org: str,
         env: Env,
         holder: str | None,
-        agent: str,
+        agent: str | None,
         *,
         words: str | None,
         after: str | None,
@@ -136,3 +136,5 @@ class FactsPage:
 
     facts: list[Fact]
     next: str | None
+    # Which agent's call taught each fact, by the fact's id: what a page across agents shows.
+    agents: Mapping[str, str] = field(default_factory=dict[str, str])

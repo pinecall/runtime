@@ -12,7 +12,7 @@ from pinecall.api.agent_memory import NO_SUCH_FACT
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
 from pinecall.memory import Memory
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, over_the_asgi_app
-from tests.lookups.fakes import ScriptedMemory, a_fact
+from tests.lookups.fakes import TAUGHT_BY, ScriptedMemory, a_fact
 
 pytestmark = pytest.mark.unit
 
@@ -42,6 +42,16 @@ async def test_the_agents_facts_are_listed_a_page_at_a_time(tenant_http: httpx.A
     rest = (await tenant_http.get(f"{TAUGHT}?limit=1&after={first['next']}")).json()
     assert ([fact["id"] for fact in rest["facts"]], rest["next"]) == ([TWO], None)
     assert [f["id"] for f in (await tenant_http.get(f"{TAUGHT}?q=perro")).json()["facts"]] == [TWO]
+
+
+async def test_every_agents_facts_are_listed_each_with_the_agent_that_taught_it(
+    tenant_http: httpx.AsyncClient,
+) -> None:
+    first = (await tenant_http.get("/v1/memory?limit=1")).json()
+    [fact] = first["facts"]
+    assert (fact["text"], fact["agent"]) == ("prefiere la mañana", TAUGHT_BY)
+    rest = (await tenant_http.get(f"/v1/memory?after={first['next']}")).json()
+    assert ([f["id"] for f in rest["facts"]], rest["next"]) == ([TWO], None)
 
 
 async def test_one_fact_is_forgotten_and_a_second_time_there_is_nothing_to_forget(
