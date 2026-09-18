@@ -7,6 +7,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **`GET /v1/memory`: what every agent of the org has learnt, on one page.** The agent's memory
+  door without the agent — the current facts across every agent and contact, newest first, each
+  with the `agent` whose call taught it; the same `q`, `after` and `limit`, on the `memory` scope.
 - **A hold melody while a tool runs, on the phone and on the web.** The worker publishes a
   second audio track with livekit's `BackgroundAudioPlayer` and plays it around each tool's round
   trip: after 0.6 s, looped at 60 % with a fade, once for tools side by side, stopped before the

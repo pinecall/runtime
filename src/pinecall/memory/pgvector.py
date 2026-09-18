@@ -81,9 +81,10 @@ ORDER BY (invalidated_at IS NULL) DESC, valid_from DESC, id
 # that row says which agent took it. Current facts only, newest first; `$5` is the words as a LIKE
 # pattern, `$6`/`$7` the cursor — the last fact of the page before.
 _TAUGHT_BY = f"""
-SELECT {_COLUMNS} FROM contact_memories memory
+SELECT {_COLUMNS}, head.agent AS taught_by FROM contact_memories memory
 JOIN call_log_head head ON head.log = memory.source_call
-WHERE memory.org = $1 AND memory.env = $2 AND memory.holder = $3 AND head.agent = $4
+WHERE memory.org = $1 AND memory.env = $2 AND memory.holder = $3
+  AND ($4::text IS NULL OR head.agent = $4)
   AND memory.invalidated_at IS NULL
   AND ($5::text IS NULL OR memory.text ILIKE '%' || $5 || '%'
        OR memory.contact ILIKE '%' || $5 || '%' OR memory.category ILIKE '%' || $5 || '%')
@@ -253,7 +254,7 @@ class PgvectorMemory:
         org: str,
         env: Env,
         holder: str | None,
-        agent: str,
+        agent: str | None,
         *,
         words: str | None,
         after: str | None,
@@ -274,7 +275,8 @@ class PgvectorMemory:
         )
         facts = [_a_fact(row) for row in rows]
         page = facts[:limit]
-        return FactsPage(facts=page, next=cursor_of(page[-1]) if len(facts) > limit else None)
+        more = cursor_of(page[-1]) if len(facts) > limit else None
+        return FactsPage(page, more, {str(r["id"]): str(r["taught_by"]) for r in rows[:limit]})
 
     async def invalidated(
         self, org: str, env: Env, holder: str | None, id: str, at: datetime

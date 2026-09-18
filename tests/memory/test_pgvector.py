@@ -371,6 +371,8 @@ async def test_an_agents_facts_are_the_current_ones_its_calls_taught_newest_firs
     assert ([fact.id for fact in rest.facts], rest.next) == ([old], None)
     found = await memory.taught_by(org, PRODUCTION, None, agent, words="PERRO", after=None, limit=5)
     assert [fact.id for fact in found.facts] == [new]
+    every = await memory.taught_by(org, PRODUCTION, None, None, words=None, after=None, limit=5)
+    assert sorted(every.agents.values()) == sorted([agent, agent, "another-agent"]), "no golden's"
     assert await memory.invalidated(org, PRODUCTION, None, new, HUNG_UP) is True
     assert await memory.invalidated(org, PRODUCTION, None, new, HUNG_UP) is False
     assert await memory.invalidated(org, SANDBOX, None, old, HUNG_UP) is False, "another world"
