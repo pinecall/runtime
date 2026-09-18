@@ -143,11 +143,11 @@ first live call it was pointed at caught it in one second.
 
 | decision | where |
 |---|---|
-| warm transfer stays out of scope on a self-hosted SFU — measured, not assumed | `docs/decisions/sip.md` |
-| `beta.tools.EndCallTool` is adopted, per class, with the reason written before the close | `docs/decisions/livekit-1.8.md` verdict 23 |
-| `beta.workflows.warm_transfer` is refused | `docs/decisions/livekit-1.8.md` verdict 24 |
-| the example's `tools=[EndCallTool()]` row moves from not-yet to ours-too | `docs/decisions/livekit-examples.md` |
-| `room_options.delete_room_on_close` stays `False` on the session and `True` on the tool | `docs/decisions/livekit-examples.md` |
+| warm transfer stays out of scope on a self-hosted SFU — measured, not assumed | the *sip* decision page |
+| `beta.tools.EndCallTool` is adopted, per class, with the reason written before the close | the *livekit-1.8* decision page, verdict 23 |
+| `beta.workflows.warm_transfer` is refused | the *livekit-1.8* decision page, verdict 24 |
+| the example's `tools=[EndCallTool()]` row moves from not-yet to ours-too | the *livekit-examples* decision page |
+| `room_options.delete_room_on_close` stays `False` on the session and `True` on the tool | the *livekit-examples* decision page |
 | a class opts into hanging up with `hangup`; one that says nothing cannot end a call | the schema's `HangupConfig` |
 | the audio of a live call is the console's, not the terminal's | `src/cli/supervise.ts` |
 

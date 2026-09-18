@@ -41,7 +41,7 @@ This runtime does not implement a conversation. LiveKit does, and the line is dr
 What is ours, and only ours: **the log** (every event, with a seq), **the wire** (the protocol
 both sides are generated from), **the tenants** (orgs, keys, quotas, routes, the vault), **the
 gateway** (many app sockets, one fleet), **the bridge** between livekit's session and all of that,
-and **the box**. `docs/decisions/livekit-1.8.md`, `livekit-session.md`, `livekit-examples.md`.
+and **the box**. Decisions: *livekit-1.8*, *livekit-session*, *livekit-examples*.
 
 Where livekit may be imported is enforced: `types/` and `log/` hold no framework at all (no
 livekit, fastapi, uvicorn, asyncpg); a vendor SDK outside `providers/` fails the suite. By
@@ -63,7 +63,7 @@ table; the declared ones have a socket.
 | **Member** | `id`, `org`, `email`, `name`, `role` (`qa`·`supervisor`·`manager`·`admin`·`developer`, each a preset of key scopes — `types/member.py`), `agents` (empty is every one), `status` (`invited`·`active`·`disabled`), a password hash (argon2id, `auth/passwords.py`) | `members`; `invitations` (`token_hash`, `member`, `expires_at`, `spent_at`) | a person of one org. Made by a one-use invitation that dies in a week; `active` once they chose a password; `disabled` keeps the row and revokes their keys. Logging in mints a **key** for them and their device with their role's scopes for that world, `subject` = the member |
 | **Carrier** | `org`, `account`: a **TwilioAccount** (`account_sid`, `user`, `secret`) or a **SipPeer** (`username`, `password`, `addresses` CIDR, and four optional `outbound_*` fields — where the box places an INVITE, over what transport, and what it authenticates as, falling back to the pair the peer registers with) | `carriers` (`org`, `kind`, `account`, `ciphertext` under the vault key, `set_at`) | whose numbers reach the org's agents. One per org. Importing a number: the carrier's trunk pointed at the box and the number attached (`routes/twilio.py`), the org's LiveKit inbound trunk admitting it (`routes/trunks.py`), the route. `docs/protocol/numbers.md` |
 | **OutboundTrunk** | `org`, `kind`, `trunk_id`, `address`, `username`, `password` | `outbound_trunks` (0031), the password sealed under the vault key | the other direction, and a **different object**: origination is where the carrier sends a call that ARRIVES, termination is where the box sends one it PLACES. Provisioned once and remembered because neither Twilio nor LiveKit shows a trunk's password twice (`routes/outbound.py`, `orgs/outbound.py`, `api/outbound.py`) |
-| **DialPolicy** / **Destination** | `dial_anywhere` (off), `per_minute` (6), `per_day` (200), `countries` (empty = the org's own numbers'), `max_duration_s` (600) · a number and the calling code it reaches | `dial_policy` (0032), one row per org replaced whole — a NULL column is the code's default, not "no limit"; every dial asked for, taken **or** refused, in `dials` (0033) | what one org may dial out, set by the operator alone (`PUT /v1/ops/orgs/{org}/dialling`): an org that could lift its own fence has none. `types/dialling.py` holds E.164's calling codes and the satellite and global-service ranges a call BACK is never to; `orgs/guards.py` judges one dial in the order that refuses the cheapest thing first, and writes the ledger row either way. `docs/protocol/console-api.md` §4 |
+| **DialPolicy** / **Destination** | `dial_anywhere` (off), `per_minute` (6), `per_day` (200), `max_duration_s` (600) · a number and the calling code it reaches | `dial_policy` (0032), one row per org replaced whole — a NULL column is the code's default, not "no limit"; its `countries` column is still in the table and read by nothing; every dial asked for, taken **or** refused, in `dials` (0033) | what one org may dial out, set by the operator alone (`PUT /v1/ops/orgs/{org}/dialling`): an org that could lift its own fence has none. Which countries a dial may reach is the carrier account's own setting (Twilio's geo permissions), never a guard here. `types/dialling.py` holds E.164's calling codes and the satellite and global-service ranges a call BACK is never to; `orgs/guards.py` judges one dial in the order that refuses the cheapest thing first — shape, stranger, a minute's window, a day's — and writes the ledger row either way. `docs/protocol/console-api.md` §4 |
 | **Route** | `org`, `agent`, `channel` (`phone`·`web`·`whatsapp`), `number`, `label`, `env`, `managed` (the box bought it) | `routes` | one door into one agent, in one org, in one world. A number is a route, never an agent. The operator's row outranks the app's declaration; a door claimed in one world is refused to a key of the other |
 | **AgentConfig** | `slug`, `channels`, `name`, `prompt` (→ PromptBlock: `name`, `region`), **Greeting** (one of `say`/`reply`, plus `allow_interruptions`), `language`, **Voice** (`provider`, `model`, `voice_id`), **Model** ×2 (`llm`, `stt`), **Turn** (`min_interruption_words`, `endpointing_ms`), `says`, `hears`, **KnowledgeFile** (`path`, `text`), **Docs** (`base`, `mode`, `k`, `min_score`), **MemoryPolicy** (`remember`, `forget`), `tools`, `state_fields` (→ Visibility), `events` | **no table** — declared by the app over `WS /v1/apps` at `agent.register`; the agent's own log `@<slug>` is the durable record | one agent, many app sockets (a fleet of `pinecall run`, or one console); many calls |
 | **ToolSpec** | `name`, `description`, `parameters`, `side_effect` (`read`·`write`·`irreversible`), `pii`, `confirm`, `preview`, `result_summary`, `timeout_s` | inside AgentConfig | runs in the app's process; an irreversible one is the consent gate's subject |
@@ -79,8 +79,8 @@ table; the declared ones have a socket.
 Thirteen tables, twenty-one migrations (`migrations/00NN_*.sql`, applied in order by `migrate up`;
 `0008_memory` holds the contact's facts and `0010_memory_model` says which embedder wrote each one
 — **Fact** in `types/knowledge.py` is its shape — and `0009_knowledge` the knowledge base's
-chunks, **Chunk** beside it). `docs/decisions/types.md`, `orgs.md`, `keys.md`, `routes.md`,
-`tokens.md`, `provider-keys.md`, `log.md`, `memory.md`.
+chunks, **Chunk** beside it). Decisions: *types*, *orgs*, *keys*, *routes*, *tokens*,
+*provider-keys*, *log*, *memory*.
 
 **A migration is never edited, and that is now enforced and not asked.** `schema_migrations` keeps
 a `sha256` per applied file and `log/store/migrating.py` refuses a checkout where one has changed:
@@ -109,7 +109,8 @@ log's entry IS the wire's envelope (`log/entry.py`). The fifty-odd entry types, 
 | the room | `room.opened` `participant.joined` `.left` `.speaking` `room.sent` |
 | the state | `state.changed` (the tenant's fields, by Visibility) · `memory.ops` |
 | the agent's own log `@slug` | `agent.register` `agent.registered` `agent.configure` `agent.configured` |
-| **commands** (app → call) | `agent.say` `agent.reply` `agent.state` `agent.transcript` `state.set` `session.configure` `call.hangup` `call.transfer` `call.hold` `.unhold` `call.mute` `.unmute` `call.dtmf` `call.dial` `room.invite` `room.send` `participant.mute` `participant.remove` |
+| the two voices | `user.state` `user.transcript` `agent.state` `agent.transcript` — a transcript entry is one **delta**, never the words so far: in a voice call one word with the seconds the voice aligned it to, in a written call one model token; `reduce.py` joins every delta since the last `turn.agent` into `live.agent` |
+| **commands** (app → call) | `agent.say` `agent.reply` `state.set` `session.configure` `call.hangup` `call.transfer` `call.hold` `.unhold` `call.mute` `.unmute` `call.dtmf` `call.dial` `room.invite` `room.send` `participant.mute` `participant.remove` |
 
 Two **projections** decide what leaves the platform (`log/projection.py`, `auth/scopes.py`, the
 only two places that spell them): **public** — what a participant in the room may see: the
@@ -135,7 +136,7 @@ over them, then the routers `api/_doors.py` lists, one door each, in order — a
 | `POST /v1/calls/{call}/listen` · `/supervise` · `/verbs` | **the desk**: a supervisor's hidden ear, a seat in the call, the six supervise verbs |
 | `POST /v1/evals/run` · `/replay/{call}` · `/caller` · `/voice` · `GET /v1/evals/runs` | **rings 1–3** driven from the gateway: a suite over live text sessions, a finished call re-checked by code, the next line of a simulated caller, one simulated caller on a real line |
 | `POST /v1/tokens` | LiveKit's token endpoint with our three things in front: minted only for an agent the key's org answers, single-use, the dispatch riding it |
-| `GET /v1/routes` · `/v1/ops/routes` · `/v1/ops/orgs` · `/v1/ops/orgs/{org}/keys` · `/quotas` · `/provider-keys` · `/v1/ops/usage` | the tenant's read, and **the operator API** (`docs/protocol/operator-api.md`), keyed by `PINECALL_OPS_KEY` — what `pinecall/cloud` talks to |
+| `GET /v1/routes` · `/v1/ops/routes` · `/v1/ops/orgs` · `/v1/ops/orgs/{org}/keys` · `/quotas` · `/provider-keys` · `/v1/ops/usage` | the tenant's read, and **the operator API** (`docs/protocol/operator-api.md`), opened by `PINECALL_OPS_KEY` or by the key of a person the box made an operator (`api/_operator.py`) — what `pinecall/cloud` talks to |
 | `GET/POST /v1/whatsapp/webhook` | Meta's handshake and every delivered message; one thread per contact per number, each a text call (`api/whatsapp/`, `whatsapp/`) |
 | `GET /v1/keys` · `POST /v1/keys` · `POST /v1/keys/{fingerprint}/revoke` | **the org's own API keys**, on the org's key and scoped to its org, which it cannot name (`keys`): the listing is fingerprints and never a key; a POST mints one for a MACHINE — `{label?, env?, scopes?}`, `app` and production when nothing is said, `subject` always null, because people get keys by logging in — and answers it in the clear the once; revoking is a POST because the row stays. A key may not issue a scope it does not itself open, and a fingerprint that is not the org's is the same 404 as one that is nobody's. `api/keys.py` |
 | `PUT /v1/provider-keys/{vendor}` · `GET /v1/provider-keys` · `DELETE /v1/provider-keys/{vendor}` | **the keys a tenant brought of its own** (`providers`), on the tenant's key and scoped to its org, which it cannot name: bring one (`{key}` → 204, replacing whatever that vendor had), read the vendors back by name and never a value, take one back (404 for a vendor never brought). An alias is resolved before it is stored, so `11labs` and `elevenlabs` are one row. A build that knows no such vendor is 400 with the list; a runtime with no `PINECALL_VAULT_KEY` is 503. `api/provider_keys.py` |
@@ -155,7 +156,7 @@ over them, then the routers `api/_doors.py` lists, one door each, in order — a
 | `GET /v1/usage` · `GET /v1/numbers` · `POST /v1/login/env` | the org's own tables on the tenant's key: its metered rows and totals (`usage`), its doors with their source (`numbers`), and the same person's key for the other world (the console's toggle). `api/usage.py`, `api/routes.py`, `api/login.py` |
 | `POST /v1/signup` | **a new org**, no key, where `PINECALL_SIGNUP` is on — off by default, its own flag and not `cloud`, because a box run for its own agents wants no stranger making one: the org, allowed what the policy plugged into `extensions.admitted` says in the same breath it is made (the runtime's own answer is no limit and no row), its first admin invited and accepted — the same path a person invited later walks — their first key and a login code for the browser. Throttled per client; a box of its own refuses. `docs/protocol/people.md` |
 | `GET /.well-known/pinecall` | **discovery**, no key: `{version, cloud, signup, min_password, mail, brand, google}` — which runtime answers here, whether it is Pinecall's hosted gateway (`PINECALL_CLOUD`, which means a plan is billed) and whether it takes sign-ups at all (`PINECALL_SIGNUP`, off unless set — the two are separate facts). `api/discovery.py` |
-| `GET /admin[/{path}]` | **the operator's page**: the built admin from `src/pinecall/gateway/admin/`, declared BEFORE the catch-all so `/admin` is the box's page and never a screen of the tenant's. Its credential is the ops key, typed in and proved at `GET /v1/ops/whoami`; it holds nothing of a tenant's. `api/pages.py` |
+| `GET /admin[/{path}]` | **the operator's page**: the built admin from `src/pinecall/gateway/admin/`, declared BEFORE the catch-all so `/admin` is the box's page and never a screen of the tenant's. It signs in as a person (email and password, their own key must be an operator's) or with the box's own key typed in, and proves either at `GET /v1/ops/whoami` before it draws; it holds nothing of a tenant's. `api/pages.py` |
 | `GET /{path}` — the LAST route | **the console**: the built page from `src/pinecall/gateway/console/` (package data `scripts/console` copies in from the agents repo, git-ignored, shipped in the wheel) for every path that is not a door's, its assets as themselves, and a JSON 404 under `/v1/` and `/.well-known/` as before. One catch-all, and `tests/api/test_the_pages_are_served.py` pins that it is one and last. `api/pages.py` |
 | `GET /v1/whoami` | the name on the key that knocked: the org, the key's id and label, the world it opens, its scopes, the person it was minted for, whether they run the box (`operator`) and whether they are `visiting` — an operator inside an org they are no member of, whose key names `operator:<email>` and no member row, and verifies only while an active row of that address carries the flag (`auth/visiting.py`, `StandingKeys`; the switch is `api/login_orgs.py`) |
 | **every tenant door** | asks the key for exactly ONE scope by the dep it takes (`api/_deps.py`, `opening(scope)` → `AppKeyDep`, `CallsKeyDep`, …); the read doors ask `calls` at `the_reader`, the verb doors ask `supervise` of a key; `403 this key does not open X: it opens …` (`auth/keys.py`, `not_opening`), and both sockets close with that sentence. `tests/api/test_scopes_at_the_doors.py` walks the app and refuses a door that declares none or two. A seat minted from a person's key carries `pinecall.subject` and `pinecall.name`, so a supervise verb is written down as theirs (`tokens/seating.py`, `supervise/aiming.py`) |
@@ -166,8 +167,8 @@ sessions running here, the tool calls in flight waiting on an app, and the calls
 wait in for the worker, and the `CallContext` and `AgentConfig` the door that opened it knew,
 which is all a lookup ever asks of a call (`Live.the_call` → `lookups.OpenCall`). None of it is
 durable and none of it should be: "it is a fact about which sockets are open right now, not a
-fact about the world. The world is the log." `docs/decisions/api.md`, `dispatch.md`,
-`supervise.md`, `whatsapp.md`, `eval-runner.md`.
+fact about the world. The world is the log." Decisions: *api*, *dispatch*, *supervise*,
+*whatsapp*, *eval-runner*.
 
 A gateway that opens no Postgres pool holds no memory and no knowledge: a lookup finds nothing and
 refuses nobody, and the knowledge and contact doors say so in one sentence each (503). It cannot
@@ -212,7 +213,7 @@ words of agreement), `supervising.py` (the six desk verbs), `commands.py` (say, 
 prompt, stop), `dead_end.py` (a failure whose cause cannot change ends the call instead of
 retrying), `room/` (the room's events as facts; invite, mute, remove, send; the DataChannel to
 browsers, projected public), `sip.py` and `transfer.py` (the caller's leg; a cold transfer by
-REFER). `docs/decisions/worker.md`, `voice-bridge.md`, `room.md`, `sip.md`.
+REFER). Decisions: *worker*, *voice-bridge*, *room*, *sip*.
 
 ## 6. A session, on either channel
 
@@ -276,8 +277,8 @@ entry away in the agent's log, and asks no model to extract what it could not st
 in the tenant's process**: the session
 sends `tool.call` to the gateway, the gateway relays it down the app socket the call is bound
 to, the tenant's `@tool` runs where it was written, `tool.result` rides back to the model.
-`docs/decisions/text-session.md`, `prompt-blocks.md`, `memory.md`, `retrieval.md`,
-`livekit-context.md`, `livekit-words.md`.
+Decisions: *text-session*, *prompt-blocks*, *memory*, *retrieval*, *livekit-context*,
+*livekit-words*.
 
 ## 7. The path of a call, door by door
 
@@ -290,8 +291,8 @@ to, the tenant's `@tool` runs where it was written, `tool.result` rides back to 
 | **a call back** | `POST /v1/agents/{slug}/dial` with the org's key → the guards, then a dispatch into a room named by the call id | the worker places the SIP leg itself, through the org's outbound trunk | the worker; a **VoiceBridge**, once the far end answered |
 
 Every door ends the same way: `call.summary` (livekit's usage rows, the cost from
-`providers/prices.py`), then the judges, then `call.score`, then the seal. `docs/decisions/tokens.md`,
-`dispatch.md`, `whatsapp.md`.
+`providers/prices.py`), then the judges, then `call.score`, then the seal. Decisions: *tokens*,
+*dispatch*, *whatsapp*.
 
 **An outbound call runs backwards**: the gateway mints the call id, passes the guards, writes the
 head row and `call.dialing` (both numbers, and who asked) and dispatches a worker; `from` is the
@@ -312,7 +313,7 @@ door, numbers, contact, end, cost, verdict, whether a person took part, e2e, las
 by the store in the append that writes each entry; `store/index.py` the questions a list, a day
 and an inbox ask across calls, `call_facts` in Postgres, 0025). The `seq` is born under the
 database in the same INSERT; ephemerals spend a seq and leave no row; `ts` is the runtime's
-clock. **Compact the view, never the log.** `docs/decisions/log.md`.
+clock. **Compact the view, never the log.** Decision: *log*.
 
 A log is sealed by whoever ran the call, and a worker that is **killed** seals nothing: the
 gateway's **reaper** (`api/reaping.py`; `docs/protocol/console-api.md` §2) finishes, as `drained`,
@@ -351,8 +352,8 @@ and `GroundedJudge` (every price, hour, date and name the agent stated, against 
 `RegisterJudge` (tú or usted, by code) runs in ring 1 when a golden declares `register`; it is not
 on the ring-4 panel because `AgentConfig` declares no register yet. A judge that wants a model
 gets one Haiku behind a ceiling (`PINECALL_JUDGE_CEILING_EUR`; zero means no judge asks), and
-`call.score` records who was RUN and who ANSWERED. `docs/decisions/evals.md` and its chapters,
-`scoring.md`.
+`call.score` records who was RUN and who ANSWERED. Decisions: *evals* and its chapters,
+*scoring*.
 
 ## 11. Who may import whom
 
@@ -386,7 +387,7 @@ The core never imports a tenant; a tenant never imports LiveKit. A package earns
 One machine (`PINECALL_ROLE=all`), or a **hub** — gateway, SFU, SIP, Redis, Postgres, Caddy — and
 **workers** dialling it by URL with nothing but the org's key and the vendors' keys. Declared:
 cloud-init, systemd units, Quadlet containers, nftables, encrypted systemd credentials, a
-Makefile that is the manifest, on any provider. `infra/box/README.md`, `docs/decisions/box.md`.
+Makefile that is the manifest, on any provider. `infra/box/README.md`; decision: *box*.
 
 Everything the product does is here, open: orgs, keys, quotas, usage, routes, the log, the vault,
 the operator API, the sign-up as a mechanism, the box. **Nothing that charges is**: no plan, no

@@ -98,7 +98,7 @@ puts it there. The whole table, with what each still wants, is `make providers` 
 is pushed to it by a person at a checkout, with `make deploy` — rsync, ssh, make and curl, and no
 tool that does not come with a Unix. Its one build step runs on the laptop: `scripts/console` bundles
 the console into `src/pinecall/gateway/console/`, the rsync carries it, the gateway serves it at `/`.
-The rest is Python. `../../docs/decisions/box.md` argues both.
+The rest is Python. The *box* decision page in the maintainer's notebook argues both.
 
 ## Roles, and a second box
 
@@ -186,6 +186,15 @@ make deploy                  # which ends with the one command that proves it, `
 #  ✓ embedder  perplexity · pplx-embed-context-v1-0.6b — https://api.perplexity.ai/v1 — HTTP 200
 #  ✓ embedder  tei · BAAI/bge-m3 — http://127.0.0.1:8081/info — HTTP 200
 ```
+
+**A vector is comparable only to vectors of the same model**, and the line above changes the
+model: `tei` embeds with `BAAI/bge-m3`, `perplexity` with `pplx-embed-context-v1-0.6b` unless
+`EMBED_MODEL` says otherwise. After the switch, `knowledge.search` refuses every base the old model
+pushed — `409`, `base <name> was pushed with <old>; this gateway embeds with <new>: push it again`
+— until the project that owns it pushes it again (`pinecall knowledge push`, from each project);
+in a call, a lookup on such a base is skipped and said in the call's log (`search_skipped`). A
+contact's facts are not re-embedded either: the dense branch of a recall filters on the `model`
+column, so an older fact is recalled by its words (BM25) alone.
 
 On a **hub** that line is the verdict and not advice: a hub answers the knowledge pushes, so an
 embedder down there fails the deploy, naming what to type — `systemctl start pinecall-tei`, or
@@ -275,12 +284,12 @@ it is advice, and every call still runs. "The embedder", above.
 
 ## Where the keys come from
 
-Three, and none of them opens another's door. `../../docs/decisions/keys.md` argues the split;
+Three, and none of them opens another's door. The *keys* decision page in the maintainer's notebook argues the split;
 `../../docs/protocol/operator-api.md` is the contract.
 
 | key | who holds it | made by |
 |---|---|---|
-| `PINECALL_OPS_KEY` | the box — `/v1/ops/*` and nothing else | `pinecall-secrets.service`, once |
+| `PINECALL_OPS_KEY` | the box — `/v1/ops/*` and nothing else. A person the box made an operator (`orgs operator`) opens the same doors with their own key | `pinecall-secrets.service`, once |
 | `PINECALL_WORKER_KEY` | the worker unit — `/v1/routes`, the app socket, the log, for EVERY org's calls | `pinecall-worker-key.service`, once: `keys issue --org default --scope fleet --scope app --scope calls`, stdout straight into `systemd-creds encrypt` |
 
 `migrate up` mints nothing: it runs before every start of the gateway, and a verb that runs there
@@ -291,7 +300,7 @@ into a credential without a shell in between.
 ## Wire a number — the order, and it is ten minutes
 
 What was run on 2026-09-08 to put **+1 417 674 3169** on `box.pinecall.io`, in the order it was
-run; `../../docs/decisions/sip.md` argues why each step is what it is. Every tool takes `--dry-run`.
+run; the *sip* decision page in the maintainer's notebook argues why each step is what it is. Every tool takes `--dry-run`.
 
 ```bash
 export TWILIO_ACCOUNT_SID=… TWILIO_API_KEY=… TWILIO_API_SECRET=…   # from your own .env, never ours
@@ -311,7 +320,7 @@ uv run python ../tools/twilio_trunk.py \
 #    → the carrier's trunk, then the SFU's inbound trunk and the one-room-per-caller rule.
 #      Both LiveKit halves are looked for by name first, so a second run doubles neither.
 
-# 3. who answers. A ROW, never a field on the tenant's class — ../../docs/decisions/routes.md.
+# 3. who answers. A ROW, never a field on the tenant's class — the routes decision, in the maintainer's notebook.
 export PINECALL_GATEWAY_URL=https://box.pinecall.io
 export PINECALL_OPS_KEY=$(ssh <the box> sudo systemd-creds decrypt --name=PINECALL_OPS_KEY /etc/credstore.encrypted/PINECALL_OPS_KEY -)
 unset PINECALL_WORKER_KEY                       # v1 exports one, and this gateway has never heard of it

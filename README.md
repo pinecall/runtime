@@ -55,8 +55,12 @@ OPENROUTER_API_KEY=                      CONTEXTUAL: a chunk is embedded seeing 
 
 TEI's CPU image has no arm64 build, so on an Apple Silicon laptop TEI cannot run at all and
 `EMBED_PROVIDER=perplexity` with `PERPLEXITY_API_KEY` is how that machine retrieves — no
-container, and a better base than bge-m3 gives. `docs/decisions/retrieval.md` says why, and what
-`push it again` means when a box changes embedder. Development happens from the checkout, with `uv`:
+container, and a better base than bge-m3 gives. A vector is comparable only to vectors of the same
+model, so a box that changes embedder refuses, at search, every knowledge base the old one pushed
+(`base <name> was pushed with <old>; this gateway embeds with <new>: push it again`) until each
+project pushes it again (`pinecall knowledge push`); a contact's facts are recalled by their words
+only, since the dense branch of a recall filters on `model`. The *retrieval* decision page in the
+maintainer's notebook has the measurements. Development happens from the checkout, with `uv`:
 
 ```
 scripts/format        ruff format, then the fixable lint rules
@@ -180,7 +184,7 @@ they arrive as systemd credentials — and need a LiveKit server, a Postgres 17 
 | `sessions list` | the calls, newest first |
 | `sessions show <call>` | one call, entry by entry, every metric whole |
 | `sessions tail <call>` | follow a call as it happens |
-| `sessions recording <call>` | where its audio was written |
+| `sessions recording <call>` | where its audio was written; a written (chat) call kept none, and it says so |
 
 `sessions` reads Postgres, not HTTP: it is the operator's door, and works with the gateway down.
 A text call from a terminal is the tenant's `pinecall chat`: the tenant's own commands — `pinecall
@@ -199,7 +203,7 @@ gateway with the org's key.
 | `docs/the-runtime-cli.md` | every `pinecall-runtime` verb: what it takes, what it speaks to, and the two walkthroughs |
 | `docs/multi-tenancy.md` | orgs, keys and tenants: what a key IS, why a laptop runs the same runtime a box does, and how a tenant is given one |
 | `docs/protocol/gateway-api.md` | every door a tenant's own code may knock at, with an app in thirty lines |
-| `docs/decisions/` | why each module is the way it is, one page per module |
+| `docs/decisions/` | why each module is the way it is, one page per module — the maintainer's notebook, git-ignored: a clone has the names and not the pages |
 | `docs/protocol/` | the operator API and the token door, as public contracts |
 | `infra/box/README.md` | the box: standing one up, roles, slots, secrets, the fence, wiring a number |
 | `infra/README.md` | the dev stack |

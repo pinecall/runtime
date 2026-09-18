@@ -24,7 +24,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `PINECALL_SMTP_URL`, an org's own still wins over both, and the envelope says `source`. The
   doctor's mail line says which one it read. `GET`/`PUT /v1/ops/brand` is `{name, logo_url,
   accent}` — Pinecall, no logo, `#5b3df5` until set; a field left out keeps, an empty one
-  resets — and the letters carry it: the logo at 28px where the wordmark stood (the one outside
+  resets — and the letters carry it: the logo at 28px above the card (the one outside
   resource a letter may ever fetch), the name and the accent everywhere they said Pinecall.
   `GET /.well-known/pinecall` gains `brand`. `docs/protocol/the-box.md`.
 - **An operator of the box sees every org from the console's switch.** `GET /v1/login/orgs` rows
@@ -81,8 +81,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   now says so by name rather than as `no_session`: placing a call is `talk`'s door, not `app`'s.
 - **What an org may dial, and only an operator sets it.** `PUT /v1/ops/orgs/{org}/dialling`
   (`pinecall-runtime orgs dialling`) replaces the whole set — `dial_anywhere` off, six dials a
-  minute, two hundred a day, ten minutes a call, and a country fence that defaults to the calling
-  codes of the org's own numbers — and a guard left out goes back to the code's default and never
+  minute, two hundred a day, ten minutes a call — and a guard left out goes back to the code's default and never
   to "no limit". Every dial asked for is written to the `dials` ledger, taken **or** refused with
   the guard's one word, because a burst of refusals is the shape of an attack. Satellite and
   global-service ranges are never dialled at all. `dialling` rides on `GET /v1/ops/orgs/{org}`.
@@ -514,8 +513,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   budget when it is not. The budget is per tool and per channel now:
   `PINECALL_LOOKUP_BUDGET_MS` is gone, replaced by `PINECALL_VOICE_LOOKUP_BUDGET_MS` (250) and
   `PINECALL_TEXT_LOOKUP_BUDGET_MS` (3000). Measured over six two-turn calls each way, the caller
-  waited 125–251 ms per turn before and 0 ms on five turns of six after.
-  `docs/decisions/retrieval.md`.
+  waited 125–251 ms per turn before and 0 ms on five turns of six after. The *retrieval*
+  decision page, in the maintainer's notebook.
 - Memory itself: `memory/` and `0008_memory.sql`. `PgvectorMemory` keeps a contact's facts in
   `contact_memories`, bi-temporally — an update is a new row that supersedes the old one, an
   invalidation an end date, nothing is deleted but by `forget`, the right to be forgotten.
@@ -540,6 +539,20 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `README.md`, and `license-files` putting the text in the wheel and the sdist.
 
 ### Changed
+- **A written call keeps no recording.** A `chat` visit has no ears and no voice, and the room
+  carries no audio, yet the worker asked the session to record and the sealed `call.summary`
+  pointed at an `audio.ogg` nobody wrote — a session screen that said the file was on another box.
+  The worker now hands a written call no recording directory at all, so its summary points at
+  none, `GET /v1/calls/{call}/recording` answers `404` in a sentence (`kept no recording: its
+  call.summary points at none`) and `sessions recording` says the same and exits 1.
+- **A letter has a logo above its card, or nothing.** A box told no `logo_url` used to write its
+  name in plain type where the logo goes — "Pinecall" over every letter of a box nobody had
+  branded, a header that said less than the footer already does. The row above the card is now
+  drawn only when there is a logo to put in it; with none, the card is the top of the letter. The
+  `alt` of the logo stays the name, for a client that blocks images.
+- **`pinecall-protocol>=0.3,<0.4`.** The runtime requires the protocol that carries `start` and
+  `end` on `agent.transcript` and documents it as a delta; the checkout still reads the repo next
+  door through `[tool.uv.sources]`.
 - **`PINECALL_DEV_KEY` is gone, and with it the second runtime a laptop was.** One string in the
   gateway's own environment that needed no database and, when set, was the ONLY key the gateway
   honoured: every call org `default`, the `api_keys` table not read, `~/.pinecall/dev` written at
@@ -678,8 +691,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `EMBED_PROVIDER` (`tei` · `perplexity` · `openrouter`, default `tei`), `EMBED_MODEL`,
   `EMBED_BASE_URL` and the two keys; `embedder_for(settings, http)` is the one place a provider
   name is switched on, and the doctor says which this box embeds with. TEI's CPU image has no
-  arm64 build, so on an Apple Silicon laptop this is the only way to retrieve at all.
-  `docs/decisions/retrieval.md`.
+  arm64 build, so on an Apple Silicon laptop this is the only way to retrieve at all. The
+  *retrieval* decision page, in the maintainer's notebook.
 - A vector is only comparable to vectors of the same model, and both tables now say so out loud:
   `knowledge.search` refuses a base another model pushed (`base clinica-norte was pushed with
   pplx-embed-context-v1-0.6b; this gateway embeds with BAAI/bge-m3: push it again`), and
@@ -701,6 +714,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   import them, and a tie in a fused order is settled by id on both.
 
 ### Fixed
+- **The reducer joins the deltas of `agent.transcript` into the reply so far.** An
+  `agent.transcript` entry is one delta — a word with its timings in a voice call, one model
+  token in a written one — and `State.live.agent` was being replaced by each one, so a console
+  watching a reply saw one word at a time and never the sentence. `reduce.py` now appends every
+  delta since the last `turn.agent`: a word the voice aligned (`start` set) is set a space apart
+  unless the join already has one; a written token carries its own spacing and is glued as it
+  came, so "clean" + "ing" is "cleaning". `turn.agent` still clears it.
 - **Three web calls were `live` for thirty hours.** `call.ended` is written by the worker holding
   a spoken call, from a shutdown callback, and the unit's default `KillMode` sent systemd's
   SIGTERM to every process of the worker — livekit's forkserver and each job process with it. They
@@ -739,6 +759,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   that could not run is still `search_skipped` on the call's log and the turn goes on.
 
 ### Removed
+- **The country fence on a dial.** `DialPolicy.countries` — the calling codes an org might reach,
+  empty meaning its own numbers' — is gone from the type, the guards, `PUT
+  /v1/ops/orgs/{org}/dialling`, the console's dial door and `orgs dialling --country`. Which
+  countries a carrier account may reach is that account's own setting (Twilio's geo permissions),
+  and a second fence here only disagreed with the first. What stands: E.164's shape, the satellite
+  and global-service ranges never dialled, `dial_anywhere`, the two windows and `max_duration_s`.
+  The `countries` column of `dial_policy` (0032) stays in the table, written and read by nothing.
 - `PINECALL_TEXT_SEARCH_CONFIG`: nothing read it. The language BM25 stems in is the index's own,
   fixed in `0008_memory` and `0009_knowledge` (`spanish`).
 - `doctor --bench`: it printed that no embedder was wired. The embedder is wired; the `embedder`

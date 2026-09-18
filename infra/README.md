@@ -26,7 +26,7 @@ install livekit-cli` (Linux: `curl -sSL https://get.livekit.io/cli | bash`). It 
 livekit's current documentation from the terminal — `lk docs overview`, `lk docs search`,
 2.15.0 or newer — and it is how a trunk and a dispatch are inspected by hand: `lk sip`,
 `lk dispatch`. `pinecall-runtime doctor` reports whether it is there; nothing in this tree
-ever runs it. See `docs/decisions/livekit-examples.md`.
+ever runs it. The *livekit-examples* decision page in the maintainer's notebook says why.
 
 ## Three traps, one line each
 

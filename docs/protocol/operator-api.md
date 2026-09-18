@@ -10,24 +10,37 @@ The model underneath — what an org is, what a key IS, how a tenant is given on
 
 ## Authentication
 
-One key, out of the environment: `PINECALL_OPS_KEY`, sent as `Authorization: Bearer <key>`.
+Two things open these doors, sent as `Authorization: Bearer <key>`, and neither is an org's admin:
 
-`GET /v1/ops/whoami` answers `{operator: true, version, domain}` and is what the operator's page —
-served at **`/admin`** by the same gateway — proves its key at before it draws anything, exactly as
-the console proves a person's at `/v1/whoami`. `domain` is null on a box that was told none, and
-the page then says the host it was loaded from.
+- **The box's own key**, `PINECALL_OPS_KEY`, out of the environment. It belongs to no org and
+  carries no name.
+- **The key of a person the box made an operator** — `pinecall-runtime orgs operator <org>
+  <email>`, or the first person `init` makes (`PUT /v1/ops/orgs/{org}/members/{id}/operator`,
+  migration 0020). The flag is on their member row, never on the key, and it is read on every
+  request: any key of theirs, in any org of theirs, opens `/v1/ops/*` as well as their org's own
+  doors, for as long as an active row of their address carries the flag. `--revoke`, disabling
+  the member or removing them stops it on the next request. A machine key names nobody and never
+  opens these doors, whatever else it opens. An org's admin is not an operator by being an admin.
 
-It is the **box's** key, not an org's, so every door here names its org explicitly. An API key
+`GET /v1/ops/whoami` answers `{operator: true, version, domain, name, org}` and is what the
+operator's page — served at **`/admin`** by the same gateway — proves its credential at before it
+draws anything, exactly as the console proves a person's at `/v1/whoami`. `name` and `org` are
+the person's when a person's key knocked and null for the box's own; `domain` is null on a box
+that was told none, and the page then says the host it was loaded from.
+
+Every door here names its org explicitly, because neither credential is an org's. An API key
 (the kind an app or a worker holds) does not open these doors, and the ops key does not open
-theirs. An unset `PINECALL_OPS_KEY` closes `/v1/ops/*` entirely, which is the safe default: a
-runtime that was never given one cannot be operated remotely at all.
+theirs. With `PINECALL_OPS_KEY` unset, only a person already made an operator opens `/v1/ops/*`
+— and on a runtime that was never given one nobody was, since `init` knocks with that key — so
+the doors are closed.
 
-A wrong or missing key is `401` with `WWW-Authenticate: Bearer` and nothing about why.
+A wrong or missing credential is `401` with `WWW-Authenticate: Bearer` and one sentence:
+`this door is the box's: its operator key, or a person the box made an operator`.
 
 ## Routes
 
 A number is a route to an agent. A row here outranks whatever a running app declares for the same
-door — see `docs/decisions/routes.md` for the order and the reason. Changes take effect on the next
+door — the *routes* decision page in the maintainer's notebook has the order and the reason. Changes take effect on the next
 call: the gateway reads the table on every request and the worker asks before every job. Nothing is
 restarted, and nothing is deployed.
 
@@ -91,7 +104,7 @@ Four doors touch a tenant's people, and they are the only four. `GET /v1/ops/org
 
 The tenants. An org is a row: a minted **id** every other row names it by, the **slug** people type,
 and a name. Every door here takes the org by id or by slug, and the `default` org is the first row
-of every runtime. See `docs/decisions/orgs.md`.
+of every runtime. The *orgs* decision page in the maintainer's notebook says why.
 
 ### `GET /v1/ops/orgs`
 
@@ -216,7 +229,9 @@ A count below zero is `400` with the reason. The answer is the policy as kept, a
 An API key is what a worker and a tenant's app knock at the runtime's own doors with — `GET
 /v1/routes`, the app socket, the log. It **is** the org: every door reads the org off the key and
 none takes one from a parameter. It is **not** the ops key: the ops key is the box's and opens only
-`/v1/ops/*`; an API key is the tenant's and opens none of them. See `docs/decisions/keys.md`.
+`/v1/ops/*`; an API key is the tenant's and opens none of them — unless it is the key of a person
+the box made an operator ([Authentication](#authentication)). The *keys* decision page in the
+maintainer's notebook argues the split.
 
 And it knows **where and who**. `env` is the world it opens, `production` or `sandbox`: the
 agents registered on it, the doors they claim and every call they take are that world's, the
@@ -286,7 +301,7 @@ in `keys revoke` must never read as done.
 An org may bring its own key for a vendor. A call of that org then runs that vendor with that key;
 with no row, it runs on the box's own `ANTHROPIC_API_KEY`, `SONIOX_API_KEY` and the rest, exactly
 as every call did before this existed. That is the whole of managed versus BYOK, and nothing here
-prices anything. See `docs/decisions/provider-keys.md`.
+prices anything. The *provider-keys* decision page in the maintainer's notebook says why.
 
 The vendor is one of `anthropic`, `deepgram`, `elevenlabs`, `openai`, `soniox` — the vendor files
 this build has — and anything else is `400` with that list in `detail`.

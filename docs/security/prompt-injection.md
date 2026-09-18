@@ -122,7 +122,7 @@ there when the turn ends rather than half a second of silence after it. The quer
 the caller had said so far — `¿Cuánto cuesta una revisión` for a turn that ended `¿Cuánto cuesta una
 revisión dental?` — and **the `tool_use` carries the words that were actually sent**, never the
 finished sentence: a tenant reading their own log sees the query their knowledge base was asked, and
-so does the model. `docs/decisions/retrieval.md` has the measurements.
+so does the model. The *retrieval* decision page in the maintainer's notebook has the measurements.
 
 When the platform runs one it fabricates the pair itself, and the pair is real in livekit's terms:
 the `tool_use` and the `tool_result` carry the same `call_id`, which is what the formatter groups

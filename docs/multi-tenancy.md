@@ -32,7 +32,7 @@ So "clínica-norte does not have a key" is not a gap. It never had one, and it n
 | | what it is | who mints it | where it lives | opens |
 |---|---|---|---|---|
 | **org API key** | `pk_` + 256 bits. The tenant's own | **the tenant itself**, `POST /v1/keys` or `pinecall keys issue` (the `keys` scope) — or the operator, `keys issue --org` | the tenant's `~/.pinecall/credentials`, or `PINECALL_WORKER_KEY` in their container | every `/v1/…` door, for that org's rows only |
-| **ops key** | `PINECALL_OPS_KEY`, the box's own | the box, once (`box secrets`) | a systemd credential on the box | `/v1/ops/*` and nothing else. It is a gate, not an identity: it belongs to no org |
+| **ops key** | `PINECALL_OPS_KEY`, the box's own | the box, once (`box secrets`) | a systemd credential on the box | `/v1/ops/*` and nothing else. It is a gate, not an identity: it belongs to no org. A person the box made an **operator** (`orgs operator`, migration 0020) opens the same doors with their own key — the flag is on their member row, read on every request |
 | **room token** | a LiveKit JWT bound to ONE call | the gateway, from an org key, per visit | a browser tab, for a minute | that call's room and that call's log. See [protocol/tokens.md](protocol/tokens.md) |
 
 **And the box's worker holds a fourth kind: an org key with the `fleet` scope.** One worker
@@ -278,7 +278,11 @@ Each of these is one rule in one place, and they are the whole of the isolation:
 | a quota | `Admission` folds the org's own usage out of the log before every call and every register |
 
 The operator's key crosses those lines by design — it is the box's own — and it is the only thing
-that does. It opens `/v1/ops/*` and no tenant door: an ops key cannot read a call.
+that does. It opens `/v1/ops/*` and no tenant door: an ops key cannot read a call. A person the
+box made an operator crosses them as themselves: their own key opens `/v1/ops/*` too, and the
+console's org switch lets them into any org (`POST /v1/login/org`) on a key whose `subject` is
+`operator:<email>` — no member row there, no seat, and every dial or verb of theirs attributable
+by address in that tenant's own log.
 
 ## Provider keys, per tenant
 
