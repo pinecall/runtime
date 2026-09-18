@@ -415,10 +415,10 @@ Every dial asked for is written to the `dials` ledger — taken **or** refused, 
 word and the name of whoever asked — because a burst of refusals is the shape of somebody working
 out what a stolen key can reach. An org that has never been set one runs under the code's own
 defaults: `dial_anywhere` off, six dials a minute, two hundred a day, ten minutes the longest a
-placed call may run, and a country fence that is the calling codes of the org's own numbers.
+placed call may run. Which countries it reaches is the carrier account's own setting.
 
 ```bash
-pinecall-runtime orgs dialling clinica-norte --per-minute 6 --per-day 200 --countries 34
+pinecall-runtime orgs dialling clinica-norte --per-minute 6 --per-day 200
 pinecall-runtime orgs clinica-norte          # dialling, read back beside the quotas
 ```
 

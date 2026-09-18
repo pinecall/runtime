@@ -45,7 +45,7 @@ VERBS: tuple[str, ...] = (
 NO_LIMIT = "—"
 
 # The five an operator turns per org, in the order the door and the table declare them.
-DIAL_GUARDS = ("dial_anywhere", "per_minute", "per_day", "countries", "max_duration_s")
+DIAL_GUARDS = ("dial_anywhere", "per_minute", "per_day", "max_duration_s")
 
 # An empty country list is not "nowhere": it is the codes of the org's own numbers, worked out at
 # each dial, so the listing says that rather than printing a pair of brackets.
@@ -128,7 +128,6 @@ def configure(parser: argparse.ArgumentParser) -> None:
     )  # fmt: skip
     dialling.add_argument("--per-minute", type=int, default=None, help="dials a minute; out is 6")
     dialling.add_argument("--per-day", type=int, default=None, help="dials a day; out is 200")
-    dialling.add_argument("--countries", default=None, help="calling codes, comma separated: 34,1")
     dialling.add_argument("--max-duration-s", type=int, default=None, help="seconds; out is 600")
     dialling.set_defaults(run=run_dialling)
 
@@ -223,8 +222,6 @@ def run_quota(arguments: argparse.Namespace) -> int:
 def run_dialling(arguments: argparse.Namespace) -> int:
     """The org's outbound guards, replaced whole."""
     said: dict[str, Any] = {name: getattr(arguments, name) for name in DIAL_GUARDS}
-    codes: str | None = arguments.countries
-    said["countries"] = None if codes is None else [one for one in codes.split(",") if one.strip()]
     return against_the_gateway(partial(set_dialling, arguments.org, said))
 
 

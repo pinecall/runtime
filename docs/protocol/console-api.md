@@ -152,13 +152,14 @@ so a scanner throwing satellite numbers at the door never touches Postgres:
 | refused | status | what lifts it |
 |---|---|---|
 | `to` is not E.164, starts with no country calling code E.164 assigns, is a satellite or global-service range (`+870`, `+878`, `+881`, `+882`, `+883`, `+888`, `+979` — where international revenue-share fraud is dialled, and never a number that called us), or has fewer than five digits after its calling code | `400` | a number somebody could answer |
-| the country: the org dials the codes its policy names, and with none named the codes of its **own** numbers | `403` | an operator's `countries` |
 | the destination has never called or written to this org — a call back goes back to somebody | `403` | an operator's `dial_anywhere` |
 | more dials this minute than the org's `per_minute`, refusals counted | `429` | a wait |
 | more dials today than its `per_day` | `429` | a wait |
 
 The defaults an org runs under with nobody setting one: `dial_anywhere` off, **6** a minute, **200**
-a day, **600 s** the longest a placed call may run, and the country fence its own numbers'. They
+a day, **600 s** the longest a placed call may run. Which countries a dial may reach is the
+carrier account's own setting — Twilio's geo permissions, a SIP peer's dial plan — and never a
+second fence here, which once refused a +34 call a +1 org's Twilio account allowed. The guards
 are set per org by the operator alone — [operator-api.md](operator-api.md) — because an org that
 could lift its own fence has none. The ceiling rides in the dispatch and is enforced by the media
 plane, so a worker that crashed leaves no call running on somebody's bill.

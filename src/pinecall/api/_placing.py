@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
-from functools import partial
 from typing import Annotated
 
 from fastapi import Depends, HTTPException
 from starlette.requests import HTTPConnection
 
-from pinecall.api._deps import CallIndexDep, RoutesDep, held
+from pinecall.api._deps import CallIndexDep, held
 from pinecall.orgs.dialling import DialPolicies, Dials
 from pinecall.orgs.guards import Guards
 from pinecall.orgs.outbound import OutboundTrunks
 from pinecall.orgs.vault import NO_VAULT_KEY
-from pinecall.routes.answering import own_numbers
 from pinecall.routes.dispatching import Dispatches
 from pinecall.routes.outbound import Outbound
 
@@ -53,10 +51,9 @@ def the_guards(
     policies: Annotated[DialPolicies, Depends(the_dial_policies)],
     dials: Annotated[Dials, Depends(the_dials)],
     index: CallIndexDep,
-    table: RoutesDep,
 ) -> Guards:
     """Whether an org may dial a number right now, over this request's own tables."""
-    return Guards(policies, dials, index.ever_reached, partial(own_numbers, table))
+    return Guards(policies, dials, index.ever_reached)
 
 
 # The password an outbound trunk dials with is one this box MINTED on the tenant's account and can

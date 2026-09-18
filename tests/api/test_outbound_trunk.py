@@ -75,7 +75,6 @@ async def test_an_org_with_no_carrier_is_told_every_step_it_still_owes(
         "dial_anywhere": False,
         "per_minute": DialPolicy().per_minute,
         "per_day": DialPolicy().per_day,
-        "countries": [],
         "max_duration_s": DialPolicy().max_duration_s,
     }
 
@@ -185,7 +184,7 @@ async def test_the_read_door_says_ready_once_the_trunk_stands(
 ) -> None:
     await brought(tenant_http)
     await imported(routes)
-    await dialling.put(A_RECORD.org, DialPolicy(dial_anywhere=True, countries=("34",)))
+    await dialling.put(A_RECORD.org, DialPolicy(dial_anywhere=True))
     await tenant_http.post(OUTBOUND)
     said = (await tenant_http.get(OUTBOUND)).json()
     assert said == {
@@ -197,7 +196,6 @@ async def test_the_read_door_says_ready_once_the_trunk_stands(
             "dial_anywhere": True,
             "per_minute": DialPolicy().per_minute,
             "per_day": DialPolicy().per_day,
-            "countries": ["34"],
             "max_duration_s": DialPolicy().max_duration_s,
         },
     }

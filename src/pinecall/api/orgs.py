@@ -87,7 +87,6 @@ class WantedDialling(WireModel):
     dial_anywhere: bool | None = None
     per_minute: int | None = None
     per_day: int | None = None
-    countries: list[str] | None = None
     max_duration_s: int | None = None
 
 
@@ -263,7 +262,6 @@ async def set_dialling(
             else said.dial_anywhere,
             per_minute=standing.per_minute if said.per_minute is None else said.per_minute,
             per_day=standing.per_day if said.per_day is None else said.per_day,
-            countries=() if said.countries is None else tuple(said.countries),
             max_duration_s=standing.max_duration_s
             if said.max_duration_s is None
             else said.max_duration_s,

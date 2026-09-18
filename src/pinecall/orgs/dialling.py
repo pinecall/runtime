@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -77,15 +77,14 @@ class MemoryDialling:
 # Replaced whole, as the quotas row is: a policy read back is what the operator last set, and a
 # NULL column is the code's own default rather than an absence somebody has to remember.
 _PUT = """
-INSERT INTO dial_policy (org, dial_anywhere, per_minute, per_day, countries, max_duration_s, set_at)
-    VALUES ($1, $2, $3, $4, $5, $6, now())
+INSERT INTO dial_policy (org, dial_anywhere, per_minute, per_day, max_duration_s, set_at)
+    VALUES ($1, $2, $3, $4, $5, now())
     ON CONFLICT (org) DO UPDATE
     SET dial_anywhere = excluded.dial_anywhere, per_minute = excluded.per_minute,
-        per_day = excluded.per_day, countries = excluded.countries,
-        max_duration_s = excluded.max_duration_s, set_at = now()
+        per_day = excluded.per_day, max_duration_s = excluded.max_duration_s, set_at = now()
 """
 _OF = """
-SELECT dial_anywhere, per_minute, per_day, countries, max_duration_s FROM dial_policy WHERE org = $1
+SELECT dial_anywhere, per_minute, per_day, max_duration_s FROM dial_policy WHERE org = $1
 """
 _ASKED = """
 INSERT INTO dials (org, env, agent, call, dialled, shown, asked_by, refused)
@@ -116,7 +115,6 @@ class PostgresDialling:
             policy.dial_anywhere,
             policy.per_minute,
             policy.per_day,
-            list(policy.countries),
             policy.max_duration_s,
         )
 
@@ -152,12 +150,10 @@ def dialling_for(pool: Pool | None) -> tuple[DialPolicies, Dials]:
 def _a_policy(row: Any) -> DialPolicy:
     """One row back into the domain's own DialPolicy; a NULL column is the code's default."""
     standing = DialPolicy()
-    countries: Sequence[str] = row["countries"] or ()
     return DialPolicy(
         dial_anywhere=bool(row["dial_anywhere"]),
         per_minute=standing.per_minute if row["per_minute"] is None else int(row["per_minute"]),
         per_day=standing.per_day if row["per_day"] is None else int(row["per_day"]),
-        countries=tuple(str(code) for code in countries),
         max_duration_s=(
             standing.max_duration_s if row["max_duration_s"] is None else int(row["max_duration_s"])
         ),

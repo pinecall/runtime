@@ -131,7 +131,7 @@ the box only ever knows the one the tenant declared.
 ```json
 { "ready": true, "kind": "twilio", "from_numbers": ["+34910000000"], "steps_missing": [],
   "guards": { "dial_anywhere": false, "per_minute": 6, "per_day": 200,
-              "countries": [], "max_duration_s": 600 } }
+              "max_duration_s": 600 } }
 ```
 
 `steps_missing` is one sentence per thing still to do, in the order somebody would do them — no
