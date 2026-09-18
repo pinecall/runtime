@@ -13,6 +13,7 @@ from pinecall.cli.orgs.verbs import (
     list_provider_keys,
     remove_org,
     remove_provider_key,
+    set_dialling,
     set_provider_key,
     set_quota,
 )
@@ -66,6 +67,23 @@ async def test_quota_prints_every_limit_and_a_dash_for_the_ones_left_open(
     assert "messages" in said and "—" in said
     assert "knowledge_chunks" in said and "5000" in said
     assert "memory_facts      0" in said, "zero is a limit and prints as one, never as a dash"
+
+
+async def test_dialling_prints_the_four_guards_the_door_kept_and_no_country(
+    operator: Operator,
+) -> None:
+    out = printed()
+    said = {"dial_anywhere": False, "per_minute": 3, "per_day": None, "max_duration_s": None}
+    assert await set_dialling("clinica", said, operator, out) == 0
+    lines = out.getvalue().splitlines()
+    assert [line.split()[0] for line in lines] == [
+        "dial_anywhere",
+        "per_minute",
+        "per_day",
+        "max_duration_s",
+    ]
+    assert "  per_minute        3" in lines
+    assert "countr" not in out.getvalue()
 
 
 async def test_rm_on_an_org_nobody_typed_is_a_refusal_a_person_can_read(
