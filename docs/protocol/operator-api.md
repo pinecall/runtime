@@ -52,10 +52,11 @@ table put it there.
 ```json
 [
   { "route": { "org": "default", "agent": "tienda-sur", "channel": "phone",
-               "number": "+59829000000", "label": null, "env": "production" },
+               "number": "+59829000000", "label": null, "env": "production",
+               "managed": false },
     "source": "operator" },
   { "route": { "org": "default", "agent": "clinica-norte", "channel": "web",
-               "number": null, "label": null, "env": "production" },
+               "number": null, "label": null, "env": "production", "managed": false },
     "source": "app" }
 ]
 ```
@@ -83,7 +84,7 @@ that reason. A number that already has a row is **moved**, never doubled.
 
 ```json
 { "route": { "org": "default", "agent": "tienda-sur", "channel": "phone",
-             "number": "+59829000000", "label": null },
+             "number": "+59829000000", "label": null, "env": "production", "managed": false },
   "overrides": "clinica-norte" }
 ```
 
@@ -134,7 +135,8 @@ is no limit.
 ```json
 { "id": "org_3f2a9c1b8d0e", "slug": "clinica-norte", "name": "Clínica Norte",
   "quotas": { "minutes": 1000, "messages": null, "agents": 5, "concurrent_calls": 10,
-              "memory_facts": 5000, "knowledge_chunks": 2000, "seats": 10 },
+              "memory_facts": 5000, "knowledge_chunks": 2000, "numbers": 1, "seats": 10,
+              "budget_eur": 300 },
   "dialling": { "dial_anywhere": false, "per_minute": 6, "per_day": 200,
                 "max_duration_s": 600 },
   "holding": { "memory_facts": 412, "knowledge_chunks": 1860, "numbers": 1, "seats": 4 } }
@@ -150,6 +152,21 @@ at a cursor, and a stock has no cursor.
 Forget the org and its quotas. `204` when the row went; `409` while a live key or a route still
 names it — revoke the keys and remove the numbers first, in this same API — and `404` for an org
 nobody typed.
+
+### `PUT /v1/ops/orgs/{org}/agents`
+
+An agent that registered into the wrong org, moved into this one: its log, every call of it, and
+the numbers that answer for it. The body names the agent, `{ "agent": "tienda-sur" }`; the answer
+says what moved:
+
+```json
+{ "agent": "tienda-sur", "org": "clinica-norte", "logs": 14,
+  "numbers": ["+59829000000"], "stayed": [] }
+```
+
+`logs` is how many logs moved, the agent's own and one per call; `stayed` names a number left
+where it was because this org already answers at it. `409` while any socket holds the agent — stop
+it, move it, start it again — and `404` for a slug that has never written a log here. The CLI is `pinecall-runtime orgs move <agent> <org>`.
 
 ## Quotas
 
@@ -220,7 +237,7 @@ could lift its own dialling fence has none.
 { "dial_anywhere": false, "per_minute": 6, "per_day": 200, "max_duration_s": 600 }
 ```
 
-What each guard refuses, and its status, is [console-api.md](console-api.md) §4, beside the door that places a call. Three are worth naming here. `dial_anywhere` is the one switch that turns a call-back box into one that can dial strangers — off, a destination must already have called or written to one of the org's agents, and "call back" means back. Which countries an org may reach is its carrier account's own setting (Twilio's geo permissions), and never a guard here. `max_duration_s` rides in the dispatch and is enforced by the media plane, so a worker that crashed leaves no call running on somebody's bill.
+What each guard refuses, and its status, is [console-api.md](console-api.md) §4, beside the door that places a call. Two are worth naming here. `dial_anywhere` is the one switch that turns a call-back box into one that can dial strangers — off, a destination must already have called or written to one of the org's agents, and "call back" means back. Which countries an org may reach is its carrier account's own setting (Twilio's geo permissions), and never a guard here. `max_duration_s` rides in the dispatch and is enforced by the media plane, so a worker that crashed leaves no call running on somebody's bill.
 
 A count below zero is `400` with the reason. The answer is the policy as kept, and it bites the next dial. The CLI over this door is `pinecall-runtime orgs dialling <org> [--dial-anywhere/--no-dial-anywhere] [--per-minute N] [--per-day N] [--max-duration-s N]`.
 
@@ -303,8 +320,9 @@ with no row, it runs on the box's own `ANTHROPIC_API_KEY`, `SONIOX_API_KEY` and 
 as every call did before this existed. That is the whole of managed versus BYOK, and nothing here
 prices anything. The *provider-keys* decision page in the maintainer's notebook says why.
 
-The vendor is one of `anthropic`, `deepgram`, `elevenlabs`, `openai`, `soniox` — the vendor files
-this build has — and anything else is `400` with that list in `detail`.
+The vendor is any this build reaches with a key — `pinecall-runtime providers` lists them, and an
+alias (`11labs`) is stored under the vendor's own name — and anything else is `400` with that list
+in `detail`.
 
 The row holds a Fernet token under the box's own `PINECALL_VAULT_KEY`, never the key. A runtime
 that was given no vault key answers every door here with
@@ -388,9 +406,10 @@ in memory, and these doors read it. [../scaling.md](../scaling.md) is the whole 
 
 ### `GET /v1/ops/fleet`
 
-`{now, workers: [{worker, active, max_jobs, load, draining, cordoned, seen_at}], totals: {workers,
-active, seats, free, accepting, full, busy}}` — every worker ever heard from, stale ones included
-so a reader sees when one went quiet; the totals count the ones heard in the last 30 s. `max_jobs`
+`{now, stale_after_s, workers: [{worker, active, max_jobs, load, draining, cordoned, seen_at}],
+totals: {workers, active, seats, free, accepting, full, busy}}` — every worker ever heard from,
+stale ones included so a reader sees when one went quiet; the totals count the ones heard in the
+last `stale_after_s` (30 s). `max_jobs`
 is null for a worker gated on CPU, which counts no seats. `full` is workers > 0 and accepting = 0.
 
 ### `POST /v1/ops/fleet/{worker}/cordon` · `DELETE …/cordon`

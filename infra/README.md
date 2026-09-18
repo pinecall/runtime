@@ -4,7 +4,7 @@ Everything a laptop needs to carry a call end to end, in one compose file. Nothi
 a product decision: it is the same five services a self-hosted box runs, pinned and small
 enough to fit on a machine that is also running an editor. There, `tei` is a Quadlet unit and
 the box runs it only where it embeds on the machine rather than at a vendor (`box/README.md`,
-"The embedder"); the other four it always runs, on the same images as these.
+"The embedder"); the other four every box but a worker runs, on the same images as these.
 
 ```
 docker compose -f infra/compose/dev.yml up -d          the five services
@@ -28,7 +28,7 @@ livekit's current documentation from the terminal — `lk docs overview`, `lk do
 `lk dispatch`. `pinecall-runtime doctor` reports whether it is there; nothing in this tree
 ever runs it. The *livekit-examples* decision page in the maintainer's notebook says why.
 
-## Three traps, one line each
+## Two traps, one line each
 
 None of them says what it means, and each has cost an hour already.
 
@@ -116,8 +116,9 @@ services read `LIVEKIT_KEYS` and `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` from t
 environment, and `dev.yml` supplies obvious local defaults so an untouched checkout still
 comes up. Write your own `compose/.env` — gitignored, and docker compose reads it
 automatically beside `dev.yml` — the moment anything outside the machine can reach port
-7880: that secret is what mints room tokens. There is no committed example of it, because
-the only two names it ever holds are the pair above and `TEI_IMAGE` below.
+7880: that secret is what mints room tokens. There is no committed example of it: the names it
+may hold are the pair above, `TEI_IMAGE` below, and the others `dev.yml` reads with a default of
+its own — `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `HF_TOKEN`, `VLLM_MODEL`.
 
 ## Apple Silicon
 

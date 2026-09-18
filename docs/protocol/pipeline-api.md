@@ -18,8 +18,10 @@ config door answers with — a pipeline is a live thing and there is no empty on
   "hears":   { "vendor": "soniox", "model": null, "voice_id": null, "language": "es" },
   "decides": { "vendor": "anthropic", "model": "claude-haiku-4-5", "voice_id": null, "language": null },
   "speaks":  { "vendor": "elevenlabs", "model": null, "voice_id": "a-declared-voice", "language": "es" },
-  "greeting": "Clínica Norte, buenas.",
-  "overrides": { "voice": null, "tts_model": null, "stt": null, "llm": null, "greeting": null },
+  "greeting": { "say": "Clínica Norte, buenas.", "reply": null, "allow_interruptions": null },
+  "overrides": { "voice": null, "tts": null, "tts_model": null, "stt": null, "llm": null, "greeting": null },
+  "voices": [ "…" ],
+  "providers": [ … ],
   "calls": 12,
   "medians": [ { "name": "transcription_delay", "seconds": 0.13, "turns": 41 },
                { "name": "e2e_latency", "seconds": 0.94, "turns": 39 } ],
@@ -27,7 +29,10 @@ config door answers with — a pipeline is a live thing and there is no empty on
 ```
 
 Each stage names the vendor a session **would** be built with, which is what the agent declared or
-this build's default for that modality — never a guess. `medians` is `log/latencies.py` over every
+this build's default for that modality — never a guess. `greeting` is the opening in the wire's
+`GreetingConfig` shape, turned or declared, or null. `voices` are the names the voice knob may be
+turned to, and `providers` every vendor each stage could be turned onto, the same rows
+`GET /v1/providers` answers. `medians` is `log/latencies.py` over every
 turn of the agent's last calls together: livekit's own field names, in the order a turn happens,
 the median and not the mean, and a measure nobody measured has no row rather than a zero. `calls`
 is how many logs it read. `unavailable_reasons` names a stage whose vendor has no API key in this
@@ -35,7 +40,7 @@ process, so a screen can say so before the line goes dead instead of after.
 
 ### `PUT /v1/agents/{slug}/pipeline/overrides`
 
-Turn one or more of the five knobs. They are applied on the agent's **next session**, through
+Turn one or more of the six knobs. They are applied on the agent's **next session**, through
 `GET /v1/agents/{slug}/config` — the one door an agent's config has ever reached a worker by — so
 nothing is restarted and nothing is deployed.
 
@@ -43,9 +48,10 @@ nothing is restarted and nothing is deployed.
 { "voice": "a-voice-an-operator-chose", "llm": "anthropic/claude-sonnet-4-5" }
 ```
 
-`voice` is the voice id that speaks · `tts_model` the model it speaks with · `stt` and `llm` take
-`vendor/model`, or a model alone to keep whichever vendor is already in use · `greeting` the first
-thing said on the next call.
+`voice` is the voice that speaks · `tts` the vendor that speaks it · `tts_model` the model it speaks
+with, which wins over a model named in `tts` · `tts`, `stt` and `llm` take `vendor/model`, a vendor
+alone to keep its own default model, or a model alone to keep whichever vendor is already in use ·
+`greeting` the words said first on the next call.
 
 The body is the **whole** set: a knob left out stops being overridden and goes back to what the app
 declared. A knob that is present but **blank is refused** with `400` and the sentence that says

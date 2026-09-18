@@ -183,13 +183,14 @@ all — with `mail`, whether "Forgot your password?" may promise an email, and w
 `POST /v1/signup {org, name?, email, person, password, device?}` — no key — answers `201` with the
 same key shape plus `slug`, the `member` (an `admin`, `active`, password kept — or, for an email
 that already has a password on this box, seated with that one) and a one-use `code`
-good for `/?login=<code>`. **What the org may do is not this runtime's to say**: it asks the one
+good for `/?login=<code>`, with its `code_expires_at`. **What the org may do is not this runtime's to say**: it asks the one
 point a package beside it may have plugged a policy into (`extensions.admitted`, given the org and
 the email, answering `Quotas`) and writes the answer in the same breath the org is made. With no
 such package — a box of its own — the answer is no limit and no row, the same as `orgs add`. A
 plan, a trial, a price: those live in the package that charges, never here. Refusals: `403` where sign-ups are shut, naming the setting; `409` a slug taken; `400` a bad slug,
-email or a short password — nothing half-made — and `429` the sixth sign-up from one place in a
-minute.
+email or a short password — nothing half-made — `401 nobody answers to that email and password`
+for an email that has a password on this box and a password that is not it; and `429` the sixth
+sign-up from one place in a minute.
 
 The console is served by this gateway, so it is the same origin as every door it uses, and the
 sign-up is **its** screen (`/signup`): a site somewhere else links to it rather than posting here.
@@ -298,7 +299,7 @@ a password opens every one of them again.
 `GET /v1/login/google[?pairing=]` answers `302` to Google — `openid email profile`, issuer
 `https://accounts.google.com`, authorization code with PKCE, state and nonce, exactly as an org's
 own provider is asked (above); `404 this box signs in with no Google: …` while nobody wired one,
-and the fifth sign-in a minute from one address waits like the SSO's. Google sends the person to
+and the sixth sign-in in a minute from one place is `429`, as the SSO's is. Google sends the person to
 `GET /v1/login/google/callback?code=&state=`, where the id_token is checked and the address it
 carries — **`email_verified` required**, then trimmed and lower-cased — is matched against the
 **members of every org**: a person is their email on this box, and Google vouching for the

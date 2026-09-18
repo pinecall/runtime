@@ -54,10 +54,12 @@ client code is involved.
 
 ## Authentication
 
-The fleet's API key, as `Authorization: Bearer <key>`, on the one bearer parser every door uses.
+The org's API key, holding the `talk` scope, as `Authorization: Bearer <key>`, on the one bearer
+parser every door uses.
 **The key never reaches the browser**: the tenant's backend holds it, proxies its own `/token`
 route to this door, and the browser's `TokenSource` points at the tenant's backend. `401` with
-`WWW-Authenticate: Bearer` for a wrong or missing key, and nothing about why.
+`WWW-Authenticate: Bearer` for a wrong or missing key, and nothing about why; `403` for a key
+that does not hold `talk`.
 
 ## `POST /v1/tokens`
 
@@ -123,9 +125,12 @@ public projection (`projections.md`). A browser needs one token to speak and to 
 | status | when |
 |---|---|
 | `400` | no agent named either way; a scope this door does not mint; `room_name`, `participant_name` or `participant_metadata` present; a `pinecall.` attribute; a `room_config` that is not one, in the parser's words |
-| `401` | not the fleet's key |
-| `404` | the fleet does not answer that agent on the web |
+| `401` | no key, or not a key of ours |
+| `403` | a key that does not hold `talk` |
+| `404` | the key's org does not answer that agent on the web |
 | `422` | a `ttl_s` outside 1–600, or a body key nobody declared |
+| `429` | one of the org's quotas admits no more calls, in the quota's own sentence |
+| `503` | every worker of the fleet is full: `fleet.full` in the agent's log first, and a sentence naming `POST /v1/callbacks` |
 
 And at the dispatch, when the browser joins: `POST /v1/calls` answers the worker `409` for a token
 already spent (*"call … was already opened by its token: a call token opens one call, once"*) or

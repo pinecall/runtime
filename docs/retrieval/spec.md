@@ -93,8 +93,9 @@ the right passage. That is judged in two places.
 
 ### In production, on every call, already
 
-Ring 4 judges every finished call at hang-up, and the panel's grounding judge checks that what the
-agent stated appears in the evidence it was given. Since retrieval now arrives as a `tool_result`,
+Ring 4 judges every finished call at hang-up — unless its org declined judging, and then
+`POST /v1/evals/judge/{call}` judges one on request — and the panel's grounding judge checks that
+what the agent stated appears in the evidence it was given. Since retrieval now arrives as a `tool_result`,
 that evidence *is* the chunks.
 
 **The rate of `held` over calls that carry a `docs.sources` entry is the precision of retrieval,

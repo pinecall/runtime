@@ -146,8 +146,8 @@ entered.
 Every dial asked for is written to the org's `dials` ledger before it is placed — taken **or**
 refused, with the guard's one word — because a burst of refusals is the shape of somebody working
 out what a stolen key can reach, and a fence that counted only the attacks that got through would
-measure the wrong thing. The guards are asked in the order that refuses the cheapest thing first,
-so a scanner throwing satellite numbers at the door never touches Postgres:
+measure the wrong thing. The guards are asked in the order that refuses the cheapest thing first:
+the number's shape before the org's policy is read, the fence before the two windows are counted.
 
 | refused | status | what lifts it |
 |---|---|---|
@@ -170,7 +170,7 @@ door's path: placing a call opens a log and passes the outbound guards before an
 it is the `talk` scope's rather than `app`'s — what holds an agent and what may ring a stranger's
 phone are two different rights, and an app socket holds the first.
 
-Four more refusals are about the box rather than the number: `404` when the agent answers no phone
+The other refusals are about the box rather than the number: `404` when the agent answers no phone
 number in that world (a call back is shown as one of the org's own numbers, so there has to be
 one), and `400` for a `from` that is not one of them; `409` when the org has no outbound trunk —
 `POST /v1/carrier/outbound` provisions one, [numbers.md](numbers.md) — and `409` when nobody is

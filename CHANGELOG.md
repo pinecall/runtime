@@ -544,15 +544,16 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   pointed at an `audio.ogg` nobody wrote — a session screen that said the file was on another box.
   The worker now hands a written call no recording directory at all, so its summary points at
   none, `GET /v1/calls/{call}/recording` answers `404` in a sentence (`kept no recording: its
-  call.summary points at none`) and `sessions recording` says the same and exits 1.
+  call.summary points at none`) and `sessions recording` says so (`call … was not recorded: its
+  call.summary carries no path`) and exits 1.
 - **A letter has a logo above its card, or nothing.** A box told no `logo_url` used to write its
   name in plain type where the logo goes — "Pinecall" over every letter of a box nobody had
   branded, a header that said less than the footer already does. The row above the card is now
   drawn only when there is a logo to put in it; with none, the card is the top of the letter. The
   `alt` of the logo stays the name, for a client that blocks images.
-- **`pinecall-protocol>=0.3,<0.4`.** The runtime requires the protocol that carries `start` and
-  `end` on `agent.transcript` and documents it as a delta; the checkout still reads the repo next
-  door through `[tool.uv.sources]`.
+- **`pinecall-protocol>=0.3,<0.4`.** The runtime requires the protocol that documents
+  `agent.transcript` as a delta and whose dial guards carry no `countries`; the checkout still
+  reads the repo next door through `[tool.uv.sources]`.
 - **`PINECALL_DEV_KEY` is gone, and with it the second runtime a laptop was.** One string in the
   gateway's own environment that needed no database and, when set, was the ONLY key the gateway
   honoured: every call org `default`, the `api_keys` table not read, `~/.pinecall/dev` written at
