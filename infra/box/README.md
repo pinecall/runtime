@@ -1,10 +1,9 @@
 # The box
 
 The same five services as the dev stack (`../README.md`), on a machine a stranger can telephone,
-declared rather than scripted. Four are on every box but a worker; the fifth, the embedder, is a choice ("The embedder").
-
-This directory is a box **declared**: every file in it is one thing systemd, podman, Caddy or
-nftables reads, and there is no script. A fresh machine on any provider — a cloud that takes
+declared rather than scripted. Four are on every box but a worker; the fifth, the embedder, is a
+choice ("The embedder"). This directory is a box **declared**: every file in it is one thing
+systemd, podman, Caddy or nftables reads. A fresh machine on any provider — a cloud that takes
 cloud-init, which is all of them, or a bare one through a NoCloud seed — boots from
 `cloud-init.yaml`; everything after arrives with `make deploy`, made by systemd from these files.
 
@@ -93,14 +92,14 @@ sudo systemctl restart pinecall-gateway pinecall-worker
 The names are the environment's own and each unit lists which it may see (the embedder's
 `PERPLEXITY_API_KEY` or `OPENROUTER_API_KEY` is the gateway's alone). The box installs a plugin for
 **every vendor LiveKit ships one for** — forty-five — each reading its key under its own variable;
-one not in the credstore is simply absent and costs nothing until `make secret NAME=CARTESIA_API_KEY`
-puts it there. The whole table, with what each still wants, is `make providers` from the checkout.
-
-**The box holds no credential for the repository.** It cannot clone and it cannot fetch; the code
-is pushed to it by a person at a checkout, with `make deploy` — rsync, ssh, make and curl, and no
-tool that does not come with a Unix. Its one build step runs on the laptop: `scripts/console` bundles
-the console into `src/pinecall/gateway/console/`, the rsync carries it, the gateway serves it at `/`.
-The rest is Python. The *box* decision page in the maintainer's notebook argues both.
+one not in the credstore is simply absent and costs nothing until `make secret
+NAME=CARTESIA_API_KEY` puts it there. The whole table, with what each still wants, is `make
+providers` from the checkout. **The box holds no credential for the repository.** It cannot clone
+and it cannot fetch; the code is pushed to it by a person at a checkout, with `make deploy` — rsync,
+ssh, make and curl, and no tool that does not come with a Unix. Its one build step runs on the
+laptop: `scripts/console` bundles the console into `src/pinecall/gateway/console/`, the rsync
+carries it, the gateway serves it at `/`. The rest is Python. The *box* decision page in the
+maintainer's notebook argues both.
 
 ## Roles, and a second box
 
@@ -121,14 +120,13 @@ PINECALL_GATEWAY_URL=https://box.example.com
 PINECALL_MAX_JOBS=5                        # measured on THIS machine type — see below
 ```
 
-And its own credentials, and no others: the LiveKit keypair and the vendors' keys copied from
-the hub (`box secret`, from stdin, over ssh), and a `PINECALL_WORKER_KEY` issued there with
-`keys issue`. Never `DATABASE_URL`, never the ops key, never the vault key, and never an
-embedder's: a worker has no database, guards nothing, and embeds nothing.
-
-It needs no port open but ssh. It registers by an outbound WebSocket, LiveKit hands it jobs on
-that socket, and the media goes to the hub's public UDP port. `nftables.conf` is the same file
-on every role; the doors it opens that nothing listens on are doors to nothing.
+And its own credentials, and no others: the LiveKit keypair and the vendors' keys copied from the
+hub (`box secret`, from stdin, over ssh), and a `PINECALL_WORKER_KEY` issued there with `keys
+issue`. Never `DATABASE_URL`, never the ops key, never the vault key, and never an embedder's: a
+worker has no database, guards nothing, and embeds nothing. It needs no port open but ssh. It
+registers by an outbound WebSocket, LiveKit hands it jobs on that socket, and the media goes to the
+hub's public UDP port. `nftables.conf` is the same file on every role; the doors it opens that
+nothing listens on are doors to nothing.
 
 ## The fleet
 
@@ -137,19 +135,16 @@ overflow agent that answers the phone when every worker is full: [../../docs/sca
 
 ## Slots
 
-A worker with `PINECALL_MAX_JOBS` reports its load to LiveKit as **calls held over calls it
-may hold**, and LiveKit stops routing to it at 0.7 of them — the same line it holds a CPU
-average to. Without it, the worker reports the machine's CPU average, which is right for a box
-it shares with the SFU and wrong for one it has to itself.
-
-`MAX_JOBS` is measured, never guessed: on the machine type it will run on, calls with real audio
-in a loop, five more each step, until the p95 of first audio crosses 1.8 s. That concurrency
-is the ceiling, and `MAX_JOBS` is **one under it**: LiveKit re-reads the load every half second,
-and two jobs that arrive inside that window both see the old count (livekit/agents#4884). The
-tolerance is one call, never more.
-
-A fleet is summed in slots: `free = Σ(max − active)` over the workers that are up. That is the
-number a person watches and the number a loop scales on — never a CPU.
+A worker with `PINECALL_MAX_JOBS` reports its load to LiveKit as **calls held over calls it may
+hold**, and LiveKit stops routing to it at 0.7 of them — the same line it holds a CPU average to.
+Without it, the worker reports the machine's CPU average, which is right for a box it shares with
+the SFU and wrong for one it has to itself. `MAX_JOBS` is measured, never guessed: on the machine
+type it will run on, calls with real audio in a loop, five more each step, until the p95 of first
+audio crosses 1.8 s. That concurrency is the ceiling, and `MAX_JOBS` is **one under it**: LiveKit
+re-reads the load every half second, and two jobs that arrive inside that window both see the old
+count (livekit/agents#4884). The tolerance is one call, never more. A fleet is summed in slots:
+`free = Σ(max − active)` over the workers that are up. That is the number a person watches and the
+number a loop scales on — never a CPU.
 
 ## The embedder
 
@@ -164,19 +159,17 @@ in the same way — chooses between them.
 | `perplexity` · `openrouter` | a vendor's door — Perplexity's is contextual, a chunk embedded while the model saw the file around it | one API key, in the credstore like every other, and every push leaves the building |
 
 `make install` puts `pinecall-tei.container` under Quadlet only where the box asked for it, and
-stops the container and takes the file away where it did not, so a changed line takes effect on
-the next deploy. **A worker never runs it and needs none**: it holds calls, and every lookup in
-them is run by the gateway on the hub. The container publishes on `127.0.0.1:8081` and nowhere
-else, exactly as Postgres does — the gateway is a process on the host and reaches it over
-loopback — so the fence has no line about the embedder and nothing outside can ask it anything.
-
-**The first start is minutes**: a cold box fetches those 2.3 GB before the port answers at all,
-which is why the unit's health start period is fifteen. Nothing waits for it — the gateway reaches
-the embedder lazily — so the box answers the telephone throughout, and what a call loses meanwhile
-is a search, written into the log as `search_skipped`, while a knowledge push answers
-503 and says so. Afterwards the weights live in the `pinecall-tei` volume and a restart is
-seconds; they are **not** removed with the unit, so a box that will not come back frees them by
-hand: `podman volume rm pinecall-tei`.
+stops the container and takes the file away where it did not, so a changed line takes effect on the
+next deploy. **A worker never runs it and needs none**: it holds calls, and every lookup in them is
+run by the gateway on the hub. The container publishes on `127.0.0.1:8081` and nowhere else, exactly
+as Postgres does — the gateway is a process on the host and reaches it over loopback — so the fence
+has no line about the embedder and nothing outside can ask it anything. **The first start is
+minutes**: a cold box fetches those 2.3 GB before the port answers at all, which is why the unit's
+health start period is fifteen. Nothing waits for it — the gateway reaches the embedder lazily — so
+the box answers the telephone throughout, and what a call loses meanwhile is a search, written into
+the log as `search_skipped`, while a knowledge push answers 503 and says so. Afterwards the weights
+live in the `pinecall-tei` volume and a restart is seconds; they are **not** removed with the unit,
+so a box that will not come back frees them by hand: `podman volume rm pinecall-tei`.
 
 Switching to a vendor, from the checkout — the key first, so the box is never configured for a
 door it cannot open — and back again by emptying the same line:
@@ -248,15 +241,14 @@ deploy, and a changed `.container` takes effect on its next restart, which is yo
 `sudo systemctl restart pinecall-livekit` between two calls, not during one.
 
 The last word is the doctor's. `make doctor` runs `pinecall-runtime doctor` on the box exactly as
-the units run — their user, their `box.env`, every credential in the credstore, in a transient
-unit systemd tears down on exit — and every provider key that is set is knocked at its own
-vendor's cheapest door, once. A key that expired or was pasted wrong fails the deploy right
-there, with its **name** on the screen and never its value, instead of failing a caller: the
-first voice call through the second box, 2026-09-09, found an ElevenLabs key the hub had carried
-dead since its `.env` days. A worker box is asked after what a worker has — the keys, the SFU —
-and never after the hub's Postgres or its embedder, because a worker has neither. On a **hub**
-the embedder's line is the verdict, since a hub is what answers a knowledge push; anywhere else
-it is advice, and every call still runs. "The embedder", above.
+the units run — their user, their `box.env`, every credential in the credstore, in a transient unit
+systemd tears down on exit — and every provider key that is set is knocked at its own vendor's
+cheapest door, once. A key that expired or was pasted wrong fails the deploy right there, with its
+**name** on the screen and never its value, instead of failing a caller: the first voice call
+through the second box, 2026-09-09, found an ElevenLabs key the hub had carried dead since its
+`.env` days. A worker box is asked after what a worker has — the keys, the SFU — and never after the
+hub's Postgres or its embedder, because a worker has neither. The embedder's line is a verdict on a
+**hub** and advice anywhere else, where every call still runs: "The embedder", above.
 
 ## Five traps on a real box, one line each
 
@@ -265,7 +257,6 @@ it is advice, and every call still runs. "The embedder", above.
   packet TO THE HOST and it arrives in `input`. Without the one line that accepts 53 from a
   `podman*` bridge, every container says "bad address", livekit sits up and silent with no redis,
   and the only symptom is a healthcheck that never turns green.
-
 - **A credential's file is named exactly as the credential, with no extension.** systemd refuses
   `PINECALL_OPS_KEY.cred` for a credential named `PINECALL_OPS_KEY` — "embedded credential name
   does not match filename, refusing" — and `ImportCredential=` then finds nothing and says
@@ -353,15 +344,12 @@ costs money: an admitted INVITE is a room, a job, a model and three provider bil
 | the routes table | an unknown number resolves to nobody; it is never a default | `pinecall-runtime routes` |
 
 The networks are written down **once**, as the `carrier_signalling` set in the fence itself.
-`../tools/carrier_cidrs.py` reads that set for the trunk, so the fence and the carrier can
-never disagree about who is allowed to ring. `nft list table inet pinecall` shows the drop rule's
-counter: that is the fence, working.
-
-Media stays open, on purpose: RTP legitimately arrives from any of the carrier's media addresses,
-and from any browser anywhere. Without an admitted INVITE nothing is listening there for it.
-
-A cloud's own firewall in front of all this is fine and is not relied on: the box is its own fence,
-so the same tree stands on any provider and on a machine in a cupboard.
+`../tools/carrier_cidrs.py` reads that set for the trunk, so the fence and the carrier can never
+disagree about who is allowed to ring. `nft list table inet pinecall` shows the drop rule's counter:
+that is the fence, working. Media stays open, on purpose: RTP legitimately arrives from any of the
+carrier's media addresses, and from any browser anywhere. Without an admitted INVITE nothing is
+listening there for it. A cloud's own firewall in front of all this is fine and is not relied on:
+the box is its own fence, so the same tree stands on any provider and on a machine in a cupboard.
 
 ## Working with the carrier, not against its fraud detection
 
