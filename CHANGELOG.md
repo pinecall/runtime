@@ -7,6 +7,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **`supervisor` and `manager` open `memory`.** What the agent remembers about the caller is what a
+  person beside a live call, or running the floor, has to see; the two presets now carry the scope,
+  as `developer` and `admin` already did. A preset is what the NEXT key minted opens.
 - **`GET /v1/memory`: what every agent of the org has learnt, on one page.** The agent's memory
   door without the agent — the current facts across every agent and contact, newest first, each
   with the `agent` whose call taught it; the same `q`, `after` and `limit`, on the `memory` scope.

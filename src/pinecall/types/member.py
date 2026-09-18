@@ -17,11 +17,23 @@ ROLES: frozenset[str] = frozenset(get_args(Role.__value__))
 ROLE_SCOPES: dict[str, frozenset[str]] = {
     # Reads finished calls and the suites: the sessions, the scores, drift.
     "qa": frozenset({"calls", "evals"}),
-    # Everything qa has, plus the live floor: watch a call, listen, take the line.
-    "supervisor": frozenset({"calls", "evals", "supervise", "talk"}),
+    # Everything qa has, plus the live floor: watch a call, listen, take the line — and what the
+    # agent remembers about the caller on it, which a person sitting beside the call has to see.
+    "supervisor": frozenset({"calls", "evals", "supervise", "talk", "memory"}),
     # The floor and the org's numbers, keys and consumption — never the agent's own declaration.
     "manager": frozenset(
-        {"calls", "evals", "supervise", "talk", "numbers", "keys", "providers", "usage", "team"}
+        {
+            "calls",
+            "evals",
+            "supervise",
+            "talk",
+            "memory",
+            "numbers",
+            "keys",
+            "providers",
+            "usage",
+            "team",
+        }
     ),
     # Every door there is.
     "admin": KEY_SCOPES,
