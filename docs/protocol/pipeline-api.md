@@ -60,3 +60,27 @@ model this build will not run is refused too, in the words that name the one it 
 so is a vendor this build has no file for.
 
 The answer is the same report `GET` gives, so a screen redraws from what the gateway now holds.
+
+## The hold melody
+
+While a tool runs, the caller hears a melody instead of silence — on the phone and on the web
+alike, because it is a second audio track in the room, which the widget attaches and the SIP bridge
+mixes into the phone leg. It starts once a tool has been running for 0.6 s, so a tool that answers
+at once plays nothing, loops under the wait at 60 % volume with a short fade in and out, and stops
+before the tool's confirm read-back is said. Tools running side by side play it once. A written
+(`chat`) call has no audio and plays nothing. Every agent plays **"A New Life"**, the runtime's own,
+until it is told otherwise here; these doors are their own and not a knob of `…/overrides`, so a
+console that PUTs the six knobs never moves the melody.
+
+| door | what |
+|---|---|
+| `GET /v1/agents/{slug}/pipeline/hold-audio` | `{played: "default" \| "off" \| "custom", name, seconds, sha256}` |
+| `GET …/pipeline/hold-audio/audio` | the file that plays, `audio/ogg` (Opus, 48 kHz mono); `404` when `off` |
+| `PUT …/pipeline/hold-audio` | the body **is** the file — wav, mp3, ogg, m4a, whatever PyAV decodes — and `?name=` names it. Converted once, here, to Opus 48 kHz mono and kept in Postgres (`hold_audio`, 0036); answers the `GET` shape |
+| `PUT …/pipeline/hold-audio/played` | `{"played": "default"}` gives the runtime's melody back, `{"played": "off"}` plays nothing; an uploaded clip is forgotten either way |
+
+An upload over 20 MB is `413`; a file that is no audio, shorter than a second or longer than five
+minutes is `400` with the sentence that says which. The choice applies from the **next call**: the
+worker asks `GET /v1/agents/{slug}/hold-audio` (the fleet's key, the call's corner) while it reads
+the config, and fetches a clip once per box by its `sha256`, keeping it on disk after that. A
+gateway that cannot answer leaves the call with the default melody, never with a broken one.

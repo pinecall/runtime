@@ -23,6 +23,7 @@ from pinecall.types import AgentConfig, CallContext, Route
 from pinecall.types.dispatch import DIAL_KEY, SCOPE_KEY, WRITTEN_SCOPE
 from pinecall.worker import commanding, dialling, recordings, router, seat
 from pinecall.worker.client import Gateway
+from pinecall.worker.hold import the_melody
 from pinecall.worker.recordings import Keeping
 from pinecall_protocol import Command, defs, encode
 from pinecall_protocol.events import CallEnded
@@ -48,6 +49,10 @@ class Bridge(Protocol):
 
     async def closed(self, reason: str) -> None:
         """The job is shutting down: call.ended, then call.summary with the usage and the cost."""
+        ...
+
+    async def holding(self, melody: Path | None) -> None:
+        """The room is live: what plays into it while a tool runs, or None for nothing."""
         ...
 
 
@@ -115,11 +120,12 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     # and asking it in parallel with the config costs the caller nothing. See providers/registry.py.
     # Both are asked for the route's org and world — the one the call is for — and the corner the
     # dispatch named, so a sandbox call is built from the developer's own declaration.
-    config, keys = await asyncio.gather(
+    config, keys, melody = await asyncio.gather(
         worker.gateway.agent(route.agent, org=route.org, env=route.env, holder=whose.holder),
         worker.gateway.provider_keys(
             route.agent, org=route.org, env=route.env, holder=whose.holder
         ),
+        the_melody(worker.gateway, route.agent, org=route.org, env=route.env, holder=whose.holder),
     )
     took("config+keys")
     context = a_call(ctx.room.name or ctx.job.id, arrival, route)
@@ -165,6 +171,8 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
         record=recordings.AUDIO_ONLY if recording is not None else False,
     )
     took("start")
+    # The hold melody's track, once the room is live. A written visit has no audio to play it in.
+    await bridge.holding(None if typed else melody)
     logger.info(
         "the pipeline is live %.2fs after the job arrived",
         time.monotonic() - began,

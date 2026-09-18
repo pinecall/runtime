@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator, Mapping
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import httpx
-from pydantic import TypeAdapter, ValidationError
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from pinecall.fleet import Heartbeat, Standing
 from pinecall.session.voice.platform import PlatformRefused
@@ -37,6 +37,16 @@ EVENT_STREAM = "text/event-stream"
 # read side waits for either as long as the call lasts, and only the connect is on the clock.
 # remember() is on the same clock: the session bounds it by its own budget and cancels the wait.
 TAIL_TIMEOUT = httpx.Timeout(TIMEOUT_S, read=None)
+# A clip is a few hundred kilobytes, fetched once per box and then kept by its hash.
+HOLD_AUDIO_TIMEOUT_S = 15.0
+
+
+class HoldAudioSaid(BaseModel):
+    """What the gateway says an agent plays while a tool runs (api/hold_audio.py)."""
+
+    played: Literal["default", "off", "custom"]
+    sha256: str | None = None
+
 
 # The hop carries the domain object itself, adapted by pydantic. The one wire-to-domain conversion
 # in the tree is providers/declaration.py, at the app's edge, and this is deliberately not a
@@ -113,6 +123,40 @@ class Gateway:
             "GET", f"/v1/agents/{slug}/provider-keys", params=_whose(org, env, holder)
         )
         return KEYS.validate_python(said["keys"])
+
+    async def hold_audio(
+        self,
+        slug: str,
+        *,
+        org: str | None = None,
+        env: Env | None = None,
+        holder: str | None = None,
+    ) -> HoldAudioSaid:
+        """Which melody this agent plays while a tool runs: default, off, or a clip by its hash."""
+        said = await self._read(
+            "GET", f"/v1/agents/{slug}/hold-audio", params=_whose(org, env, holder)
+        )
+        return HoldAudioSaid.model_validate(said)
+
+    async def hold_audio_file(
+        self,
+        slug: str,
+        *,
+        org: str | None = None,
+        env: Env | None = None,
+        holder: str | None = None,
+    ) -> bytes:
+        """The clip itself, Ogg Opus as the gateway converted it."""
+        path = f"/v1/agents/{slug}/hold-audio/audio"
+        try:
+            answer = await self._http.get(
+                path, params=_whose(org, env, holder) or None, timeout=HOLD_AUDIO_TIMEOUT_S
+            )
+        except httpx.HTTPError as unreachable:
+            raise GatewayRefused(f"GET {path}: {unreachable}") from unreachable
+        if answer.status_code >= httpx.codes.BAD_REQUEST:
+            raise GatewayRefused(f"GET {path}: {answer.status_code} {answer.text}")
+        return answer.content
 
     async def rings_for(self, slug: str, *, org: str, caller: str) -> str | None:
         """The developer whose sandbox copy takes this production ring, or None: production's."""

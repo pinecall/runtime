@@ -44,6 +44,10 @@ class CountingBridge:
         """The job is shutting down."""
         self.closed_because = reason
 
+    async def holding(self, melody: Path | None) -> None:
+        """What this call plays while a tool runs, noted."""
+        self.melody = melody
+
 
 # The participant is left empty on purpose: livekit fills it for a publisher job, and every job
 # this worker answers is a room job, so a fake that filled it would be a fake of another library.

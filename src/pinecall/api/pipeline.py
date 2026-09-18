@@ -24,7 +24,8 @@ async def pipeline(
     settings: SettingsDep,
 ) -> Report:
     """What this agent hears, decides and speaks with, what it measured, and what is turned."""
-    return await report(slug, _declared(slug, key, registry), overrides.of(slug), store, settings)
+    declared = declared_here(slug, key, registry)
+    return await report(slug, declared, overrides.of(slug), store, settings)
 
 
 # PUT and not PATCH: the body is the whole set of knobs, so leaving one out is how an operator
@@ -40,7 +41,7 @@ async def turn(
     settings: SettingsDep,
 ) -> Report:
     """Turn the knobs. Refused whole or applied whole, and the next session is built with them."""
-    declared = _declared(slug, key, registry)
+    declared = declared_here(slug, key, registry)
     try:
         await overrides.set(key.org, slug, turned.checked(declared))
     except DeclarationRefused as refused:
@@ -48,7 +49,7 @@ async def turn(
     return await report(slug, declared, overrides.of(slug), store, settings)
 
 
-def _declared(slug: str, key: KeyRecord, registry: RegistryDep) -> AgentConfig:
+def declared_here(slug: str, key: KeyRecord, registry: RegistryDep) -> AgentConfig:
     """What the app says about this agent right now. Nothing is turned on an agent nobody holds."""
     held = registry.of(key.env, slug, held_by(key))
     if held is None or held.org != key.org:

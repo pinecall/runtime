@@ -1,0 +1,101 @@
+"""The hold melody around a tool: after a grace, once for tools side by side, never in the way."""
+
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from pinecall.session.hold_audio import DEFAULT
+from pinecall.session.voice import hold as holding
+from pinecall.session.voice.hold import HoldMusic
+
+pytestmark = pytest.mark.unit
+
+
+class Handle:
+    """What livekit's player hands back for one sound: stopped, or still playing."""
+
+    def __init__(self) -> None:
+        self.stopped = False
+
+    def stop(self) -> None:
+        self.stopped = True
+
+
+class Player:
+    """livekit's BackgroundAudioPlayer, as far as the melody uses it."""
+
+    def __init__(self) -> None:
+        self.played: list[tuple[Any, bool]] = []
+        self.handles: list[Handle] = []
+
+    def play(self, config: Any, *, loop: bool) -> Handle:
+        self.played.append((config, loop))
+        self.handles.append(Handle())
+        return self.handles[-1]
+
+    async def aclose(self) -> None:
+        return None
+
+
+def a_melody(player: Player, source: Path = DEFAULT) -> HoldMusic:
+    music = HoldMusic(source)
+    music._player = player  # pyright: ignore[reportPrivateUsage, reportAttributeAccessIssue] — the room is livekit's to give
+    return music
+
+
+@pytest.fixture(autouse=True)
+def no_grace(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(holding, "GRACE_S", 0.01)
+
+
+async def test_a_tool_that_takes_a_while_plays_the_melody_looped_and_stops_it_after() -> None:
+    player = Player()
+    music = a_melody(player)
+    async with music.playing():
+        await asyncio.sleep(0.05)
+    [(config, loop)] = player.played
+    assert (config.source, loop) == (str(DEFAULT), True)
+    assert 0 < config.volume < 1, "under the voice that comes back"
+    assert player.handles[0].stopped
+
+
+async def test_a_tool_that_answers_inside_the_grace_plays_nothing() -> None:
+    player = Player()
+    music = a_melody(player)
+    async with music.playing():
+        pass
+    await asyncio.sleep(0.05)
+    assert player.played == []
+
+
+async def test_tools_side_by_side_play_it_once_until_the_last_one_ends() -> None:
+    player = Player()
+    music = a_melody(player)
+
+    async def a_tool(seconds: float) -> None:
+        async with music.playing():
+            await asyncio.sleep(seconds)
+
+    first = asyncio.create_task(a_tool(0.05))
+    second = asyncio.create_task(a_tool(0.1))
+    await first
+    assert len(player.played) == 1
+    assert not player.handles[0].stopped, "the second tool is still running"
+    await second
+    assert player.handles[0].stopped
+
+
+async def test_a_call_with_no_room_or_turned_off_plays_nothing_and_the_tool_still_runs() -> None:
+    for music in (
+        HoldMusic(),
+        await HoldMusic.in_this_room(DEFAULT),
+        await HoldMusic.in_this_room(None),
+    ):
+        ran = False
+        async with music.playing():
+            ran = True
+        assert ran

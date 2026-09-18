@@ -136,6 +136,8 @@ ASKS_NOTHING_OR_ASKS_INSIDE: dict[str, str] = {
 # production. Named by path, so a second such door is a line here and never a surprise.
 OPENS_TO_EITHER: dict[str, frozenset[str]] = {
     "GET /v1/agents/{slug}/config": frozenset({"app", "calls"}),
+    "GET /v1/agents/{slug}/hold-audio": frozenset({"app", "calls"}),
+    "GET /v1/agents/{slug}/hold-audio/audio": frozenset({"app", "calls"}),
 }
 
 

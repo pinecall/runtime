@@ -7,6 +7,15 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **A hold melody while a tool runs, on the phone and on the web.** The worker publishes a
+  second audio track with livekit's `BackgroundAudioPlayer` and plays it around each tool's round
+  trip: after 0.6 s, looped at 60 % with a fade, once for tools side by side, stopped before the
+  confirm read-back. Every agent plays "A New Life" (session/a-new-life.ogg, made from the first
+  Pinecall's mp3 — its 8 kHz wavs played an octave high on a 16 kHz track). The pipeline has doors
+  of its own for it: `GET`/`PUT /v1/agents/{slug}/pipeline/hold-audio` (the body is the file; any
+  format PyAV decodes, converted once to Opus 48 kHz mono, 20 MB and five minutes at most),
+  `…/audio`, and `…/played` (`default` or `off`). Kept in `hold_audio` (migration 0036); the worker
+  fetches a clip by its hash once per box. `docs/protocol/pipeline-api.md`.
 - **"Continue with Google", box-wide, configured by the operator.** `GET /v1/ops/signin` lists
   every box-wide provider (`{google: {configured, client_id, redirect_uri}}`);
   `PUT /v1/ops/signin/google {client_id, client_secret}` keeps one OAuth client at Google for
