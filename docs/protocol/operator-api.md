@@ -123,7 +123,7 @@ is no limit.
   "quotas": { "minutes": 1000, "messages": null, "agents": 5, "concurrent_calls": 10,
               "memory_facts": 5000, "knowledge_chunks": 2000, "seats": 10 },
   "dialling": { "dial_anywhere": false, "per_minute": 6, "per_day": 200,
-                "countries": [], "max_duration_s": 600 },
+                "max_duration_s": 600 },
   "holding": { "memory_facts": 412, "knowledge_chunks": 1860, "numbers": 1, "seats": 4 } }
 ```
 
@@ -204,13 +204,12 @@ tenant's, deliberately and unlike `PUT /v1/org/judging`, which an org turns for 
 could lift its own dialling fence has none.
 
 ```json
-{ "dial_anywhere": false, "per_minute": 6, "per_day": 200, "countries": ["34", "1"],
-  "max_duration_s": 600 }
+{ "dial_anywhere": false, "per_minute": 6, "per_day": 200, "max_duration_s": 600 }
 ```
 
-What each guard refuses, and its status, is [console-api.md](console-api.md) §4, beside the door that places a call. Three are worth naming here. `dial_anywhere` is the one switch that turns a call-back box into one that can dial strangers — off, a destination must already have called or written to one of the org's agents, and "call back" means back. `countries` empty is not anywhere: it is the calling codes of the org's **own** numbers, worked out per dial, which is the fence a tenant never has to configure. `max_duration_s` rides in the dispatch and is enforced by the media plane, so a worker that crashed leaves no call running on somebody's bill.
+What each guard refuses, and its status, is [console-api.md](console-api.md) §4, beside the door that places a call. Three are worth naming here. `dial_anywhere` is the one switch that turns a call-back box into one that can dial strangers — off, a destination must already have called or written to one of the org's agents, and "call back" means back. Which countries an org may reach is its carrier account's own setting (Twilio's geo permissions), and never a guard here. `max_duration_s` rides in the dispatch and is enforced by the media plane, so a worker that crashed leaves no call running on somebody's bill.
 
-A count below zero, or a code E.164 assigns to nobody, is `400` with the reason. The answer is the policy as kept, and it bites the next dial. The CLI over this door is `pinecall-runtime orgs dialling <org> [--dial-anywhere/--no-dial-anywhere] [--per-minute N] [--per-day N] [--countries 34,1] [--max-duration-s N]`.
+A count below zero is `400` with the reason. The answer is the policy as kept, and it bites the next dial. The CLI over this door is `pinecall-runtime orgs dialling <org> [--dial-anywhere/--no-dial-anywhere] [--per-minute N] [--per-day N] [--max-duration-s N]`.
 
 ## Keys
 

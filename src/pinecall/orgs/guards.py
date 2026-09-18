@@ -8,7 +8,7 @@ from typing import override
 
 from pinecall._exceptions import PinecallError
 from pinecall.orgs.dialling import Dial, DialPolicies, Dials
-from pinecall.types import DeclarationRefused, Destination, DialPolicy, a_destination, calling_code
+from pinecall.types import DeclarationRefused, Destination, DialPolicy, a_destination
 
 # A minute and a day, in seconds: the two windows the ledger is counted over.
 A_MINUTE = 60.0
@@ -17,15 +17,10 @@ A_DAY = 86_400.0
 # Every refusal names the guard in one word, and the word is what the `dials` ledger keeps, so
 # "which fence is this org hitting" is one GROUP BY and not a search through sentences.
 SHAPE = "shape"
-COUNTRY = "country"
 STRANGER = "stranger"
 TOO_FAST = "too_fast"
 TOO_MANY = "too_many"
 
-NOT_A_COUNTRY_WE_DIAL = (
-    "{number} is +{code}, and this org dials {allowed}: an operator sets the countries it may "
-    "reach, and with none set they are the countries of the org's own numbers"
-)
 NOT_ONE_OF_OURS = (
     "{number} has never called or written to this org: a call back goes back to somebody. An "
     "operator lifts this for the org with dial_anywhere"
@@ -35,7 +30,7 @@ A_DAYS_WORTH = "org {org} has placed {used} of its {limit} outbound calls a day:
 
 # What the door answers with. A shape nobody could dial is the caller's mistake (400); a fence is
 # this org's standing policy and retrying will not help (403); a window is a wait (429).
-STATUS: dict[str, int] = {SHAPE: 400, COUNTRY: 403, STRANGER: 403, TOO_FAST: 429, TOO_MANY: 429}
+STATUS: dict[str, int] = {SHAPE: 400, STRANGER: 403, TOO_FAST: 429, TOO_MANY: 429}
 
 
 @dataclass(frozen=True)
@@ -68,7 +63,6 @@ class DialRefused(PinecallError):
 # routes/). Both are handed in, the way Admission is handed its Counting, so orgs/ keeps importing
 # nothing but types and log.
 type EverReached = Callable[[str, str], Awaitable[bool]]
-type OwnNumbers = Callable[[str], Awaitable[tuple[str, ...]]]
 
 
 # What the door hands the guards: everything a ledger row needs, so one object travels instead of
@@ -104,12 +98,10 @@ class Guards:
         policies: DialPolicies,
         dials: Dials,
         ever_reached: EverReached,
-        own_numbers: OwnNumbers,
     ) -> None:
         self._policies = policies
         self._dials = dials
         self._ever_reached = ever_reached
-        self._own_numbers = own_numbers
 
     async def policy_of(self, org: str) -> DialPolicy:
         """What this org dials under, for a door that reports the guards without passing them."""
@@ -138,16 +130,8 @@ class Guards:
     async def _fenced(
         self, org: str, destination: Destination, policy: DialPolicy
     ) -> Refusal | None:
-        """Where this org may reach, and whether the far end ever reached it first."""
-        own = await self._codes_of(org)
-        if not policy.reaches(destination, own):
-            allowed = ", ".join(f"+{code}" for code in (policy.countries or own)) or "nowhere yet"
-            return Refusal(
-                COUNTRY,
-                NOT_A_COUNTRY_WE_DIAL.format(
-                    number=destination.number, code=destination.code, allowed=allowed
-                ),
-            )
+        """Whether the far end ever reached this org first. Which countries a dial may reach is
+        the carrier account's own setting, and never a second fence here."""
         if policy.dial_anywhere:
             return None
         if await self._ever_reached(org, destination.number):
@@ -169,11 +153,6 @@ class Guards:
                 A_DAYS_WORTH.format(org=org, used=a_day, limit=policy.per_day, guard=TOO_MANY),
             )
         return None
-
-    async def _codes_of(self, org: str) -> tuple[str, ...]:
-        """The calling codes of the org's own numbers: the fence a tenant never has to configure."""
-        numbers = await self._own_numbers(org)
-        return tuple({code for number in numbers if (code := calling_code(number)) is not None})
 
     async def _written(self, asking: Asking, refused: str | None) -> None:
         """One row per dial asked for, before the call is placed and whatever the answer was."""

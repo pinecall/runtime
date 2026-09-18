@@ -75,7 +75,6 @@ async def outbound(
             "dial_anywhere": policy.dial_anywhere,
             "per_minute": policy.per_minute,
             "per_day": policy.per_day,
-            "countries": list(policy.countries),
             "max_duration_s": policy.max_duration_s,
         },
     }

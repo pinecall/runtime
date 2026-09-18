@@ -117,7 +117,7 @@ def calling_code(number: str) -> str | None:
 # still dials at six a minute. Zero is a real limit and refuses everything, as a quota's is.
 @dataclass(frozen=True)
 class DialPolicy:
-    """What one org may dial: where, how often, for how long, and whether only its own callers."""
+    """What one org may dial: how often, for how long, and whether only its own callers."""
 
     # The one guard an operator lifts by hand: off, a destination must already have called or
     # written to one of this org's agents — "call back" means back. On, the org dials strangers,
@@ -125,9 +125,8 @@ class DialPolicy:
     dial_anywhere: bool = False
     per_minute: int = DIALS_A_MINUTE
     per_day: int = DIALS_A_DAY
-    # The calling codes this org may reach. Empty is not "anywhere": it means the codes of the
-    # org's OWN numbers, worked out per dial, which is the fence a tenant never has to configure.
-    countries: tuple[str, ...] = ()
+    # No country fence: which countries a carrier account may reach is that account's own setting
+    # (Twilio's geo permissions), and a second fence here only disagreed with the first.
     max_duration_s: int = LONGEST_CALL_S
 
     def __post_init__(self) -> None:
@@ -135,14 +134,6 @@ class DialPolicy:
             limit: int = getattr(self, name)
             if limit < 0:
                 raise DeclarationRefused(f"{name} is a count, and cannot be {limit}")
-        for code in self.countries:
-            if code not in CALLING_CODES:
-                raise DeclarationRefused(f"{code!r} is no country calling code E.164 assigns")
-
-    def reaches(self, destination: Destination, own: tuple[str, ...]) -> bool:
-        """Whether the org may reach that country; with none named, its own numbers' are."""
-        allowed = self.countries or own
-        return destination.code in allowed
 
 
 def a_sip_transport(word: str | None) -> SipTransport:

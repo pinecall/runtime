@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 
 from pinecall.types import (
@@ -66,13 +68,9 @@ def test_a_destination_carries_the_country_and_what_is_left_of_the_number() -> N
 
 
 # Empty is not "anywhere": it is the codes of the org's own numbers, worked out at each dial.
-def test_an_org_that_named_no_countries_reaches_the_ones_its_numbers_are_in() -> None:
-    standing = DialPolicy()
-    assert standing.reaches(a_destination("+34600123456"), own=("34",))
-    assert not standing.reaches(a_destination("+12125550123"), own=("34",))
-    named = DialPolicy(countries=("1",))
-    assert named.reaches(a_destination("+12125550123"), own=("34",))
-    assert not named.reaches(a_destination("+34600123456"), own=("34",))
+def test_a_policy_names_no_countries_the_carrier_account_does() -> None:
+    """Which countries a dial may reach is the carrier's setting, never a fence of the policy."""
+    assert "countries" not in {field.name for field in dataclasses.fields(DialPolicy)}
 
 
 def test_the_defaults_are_a_call_back_box_and_not_a_call_centre() -> None:
@@ -88,11 +86,6 @@ def test_a_guard_is_a_count_and_cannot_be_negative() -> None:
         DialPolicy(per_day=-1)
     with pytest.raises(DeclarationRefused, match="max_duration_s"):
         DialPolicy(max_duration_s=-1)
-
-
-def test_a_country_nobody_assigns_is_refused_when_the_policy_is_declared() -> None:
-    with pytest.raises(DeclarationRefused, match="no country calling code"):
-        DialPolicy(countries=("999",))
 
 
 def test_the_transport_is_one_of_four_and_unsaid_is_auto() -> None:

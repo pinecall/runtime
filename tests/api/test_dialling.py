@@ -165,19 +165,19 @@ async def test_a_number_that_never_called_is_refused_until_an_operator_lifts_it(
     assert (await tenant_http.post(DIAL, json={"to": A_STRANGER})).status_code == 202
 
 
-async def test_a_country_the_org_has_no_number_in_is_refused_naming_where_it_may_reach(
+async def test_a_country_the_org_has_no_number_in_is_the_carriers_to_refuse_and_not_ours(
     tenant_http: httpx.AsyncClient,
     outbound_trunks: MemoryOutboundTrunks,
     store: MemoryStore,
     registry: Registry,
     dialling: MemoryDialling,
 ) -> None:
-    """With no countries set the fence is the codes of the org's own numbers. Here, Spain."""
+    """A Spanish org dials a +1: which countries an account reaches is the carrier's setting
+    (Twilio's geo permissions), and a second fence here once refused what Twilio allowed."""
     await ready(outbound_trunks, store, registry, dialling)
     await dialling.put(A_RECORD.org, DialPolicy(dial_anywhere=True))
     answer = await tenant_http.post(DIAL, json={"to": "+12125550123"})
-    assert answer.status_code == 403
-    assert "is +1, and this org dials +34" in answer.json()["detail"]
+    assert answer.status_code == 202, answer.text
 
 
 async def test_a_satellite_range_and_a_number_that_is_not_one_are_refused_by_shape(

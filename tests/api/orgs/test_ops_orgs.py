@@ -154,29 +154,17 @@ async def test_the_dial_guards_are_the_operators_and_are_replaced_whole(
     made = (await ops_http.post(ORGS, json={"slug": "tienda-sur"})).json()
     turned = await ops_http.put(
         f"{ORGS}/tienda-sur/dialling",
-        json={"dial_anywhere": True, "per_minute": 30, "countries": ["34", "598"]},
+        json={"dial_anywhere": True, "per_minute": 30},
     )
     assert turned.status_code == 200, turned.text
     assert turned.json() == {
         "dial_anywhere": True,
         "per_minute": 30,
         "per_day": DialPolicy().per_day,
-        "countries": ["34", "598"],
         "max_duration_s": DialPolicy().max_duration_s,
     }
-    assert await dialling.of(made["id"]) == DialPolicy(
-        dial_anywhere=True, per_minute=30, countries=("34", "598")
-    )
+    assert await dialling.of(made["id"]) == DialPolicy(dial_anywhere=True, per_minute=30)
     # Replaced whole: the next PUT says nothing about dial_anywhere, and the fence comes back up.
     back = await ops_http.put(f"{ORGS}/tienda-sur/dialling", json={"per_day": 10})
     assert back.json()["dial_anywhere"] is False
     assert (await ops_http.get(f"{ORGS}/tienda-sur")).json()["dialling"]["per_day"] == 10
-
-
-async def test_a_country_nobody_assigns_is_refused_in_the_domains_words(
-    ops_http: httpx.AsyncClient,
-) -> None:
-    await ops_http.post(ORGS, json={"slug": "tienda-sur"})
-    answer = await ops_http.put(f"{ORGS}/tienda-sur/dialling", json={"countries": ["999"]})
-    assert answer.status_code == 400
-    assert "no country calling code" in answer.json()["detail"]
