@@ -1,12 +1,10 @@
 # `pinecall-runtime`
 
 The operator's terminal: the two processes, the database, the tenants and the box. One module per
-group, one parser each; `pinecall-runtime` with nothing after it prints them all, and
-`pinecall-runtime <group> --help` prints that group's verbs.
-
-This is the box's side. The **tenant's** terminal is `pinecall` — the agents repo's
-`docs/the-cli.md` — and the two never overlap: nothing here writes an agent, and nothing there
-issues a key. Who a key belongs to is [multi-tenancy.md](multi-tenancy.md).
+group, one parser each; `pinecall-runtime` with nothing after it prints them all, and `<group>
+--help` that group's verbs. The **tenant's** terminal is `pinecall` — the agents repo's
+`docs/the-cli.md` — and they never overlap: nothing here writes an agent, nothing there issues a
+key. Who a key belongs to is [multi-tenancy.md](multi-tenancy.md).
 
 ```bash
 uv run pinecall-runtime <group> <verb>     # in a checkout
@@ -25,8 +23,6 @@ Three different things, and knowing which is which saves an afternoon:
 
 So `keys issue` on a box whose gateway is down is refused by the client, not by the table, and
 `sessions list` works whether or not anything is running.
-
----
 
 ## `init`
 
@@ -55,8 +51,6 @@ m_b3796f3579fc  you@example.com  admin  runs this box
 Run it twice and it carries on to the person rather than stopping at the org: it is the verb
 somebody runs twice while reading the README. A second tenant afterwards is [`orgs`](#orgs).
 
-The whole path, with every output under it, is [from-zero.md](from-zero.md).
-
 ## `gateway`
 
 ```
@@ -64,12 +58,11 @@ pinecall-runtime gateway [--host 0.0.0.0] [--port 8080] [--reload]
 ```
 
 The control plane: HTTP and WebSocket, one process, the whole API of
-[protocol/gateway-api.md](protocol/gateway-api.md). It needs, at the least, one key of each
-provider role and `DATABASE_URL` with the schema applied — a laptop as much as a box, because a key
-is verified against the `api_keys` table and there is nowhere else it could be. With no database
-the gateway says so at startup and answers every keyed door 503 with the same sentence.
-
-`--reload` restarts on a source change; it is for writing the runtime, not for running it.
+[protocol/gateway-api.md](protocol/gateway-api.md). It needs, at the least, one key of each provider
+role and `DATABASE_URL` with the schema applied — a laptop as much as a box, because a key is
+verified against the `api_keys` table and there is nowhere else it could be. With no database the
+gateway says so at startup and answers every keyed door 503 with the same sentence. `--reload`
+restarts on a source change, for writing the runtime, not for running it.
 
 ## `worker`
 
@@ -79,22 +72,17 @@ pinecall-runtime worker [dev | start | overflow | talk | download-files] [flags�
 
 The fleet: the process that holds spoken calls. `dev` for a laptop, `start` for a box, `talk` to
 join a room from this terminal, `download-files` to warm the model files a first call would
-otherwise wait for. Everything after the verb is passed through to livekit's own CLI untouched.
-
-A worker takes jobs off LiveKit and asks the gateway for everything else, so it needs
-`LIVEKIT_URL` and the pair, `PINECALL_GATEWAY_URL`, and a key to knock with. `PINECALL_MAX_JOBS`
-caps how many calls one machine holds; unset, it gates on CPU.
-
-`dev` and `start` also **heartbeat** to the gateway every five seconds — the worker's name
-(`PINECALL_WORKER_NAME`, else the short hostname), the calls it holds, its measured seats, its
-load — which is what `fleet list` shows and the loop sizes on. A worker told it was **cordoned**
-takes no new call, finishes the ones it holds, and exits **3**; the unit's
-`RestartPreventExitStatus=3` leaves it down.
-
-`overflow` is the one worker that is never full: it runs on the hub, reports itself full to
-LiveKit until the gateway says every real worker is, and then answers the call nobody else can
-— one sentence (`PINECALL_OVERFLOW_SAYS`), the caller's number onto the agent's log as
-`callback.requested`, and it hangs up. No STT, no model.
+otherwise wait for. Everything after the verb goes to livekit's own CLI untouched. A worker takes
+jobs off LiveKit and asks the gateway for everything else, so it needs `LIVEKIT_URL` and the pair,
+`PINECALL_GATEWAY_URL`, and a key to knock with. `PINECALL_MAX_JOBS` caps how many calls one machine
+holds; unset, it gates on CPU. `dev` and `start` also **heartbeat** to the gateway every five
+seconds — the worker's name (`PINECALL_WORKER_NAME`, else the short hostname), the calls it holds,
+its measured seats, its load — what `fleet list` shows and the loop sizes on. A worker told it was
+**cordoned** takes no new call, finishes what it holds, and exits **3**; the unit's
+`RestartPreventExitStatus=3` leaves it down. `overflow` is the one worker that is never full: it
+runs on the hub, reports itself full to LiveKit until the gateway says every real worker is, and
+then answers the call nobody else can — one sentence (`PINECALL_OVERFLOW_SAYS`), the caller's number
+onto the agent's log as `callback.requested`, and it hangs up. No STT, no model.
 
 ## `sessions`
 
@@ -132,40 +120,37 @@ pinecall-runtime orgs provider-key list <org>
 
 The tenants. `<org>` is an id or a slug — every door takes either. `add` makes the row people will
 type; `invite` is how a tenant gets its first person on a gateway that takes no sign-up — it prints
-the row and a **link**, once, that opens the console's password card (the operator holds a token
-and never a password, and the invitation takes none of the org's seats). The door it knocks at,
-`POST /v1/ops/orgs/{org}/members`, also **mails** that link to the person when the box or the org
-has a mailbox ([the-box.md](protocol/the-box.md)); the verb prints the link either way and does
-not say whether a letter went. `rm` is refused while the org still has keys or routes, so a tenant
-is never half-deleted.
-
-A person is their email, with one password across every org: `invite` of an address that already
-has one prints no link and seats them `active` (`already a person on this box: seated, they sign in
-with the password they have`). `operator` makes a member, by email, an operator of this box — their
-key then opens every `/v1/ops` door, as `init` does for the first person; `--revoke` takes it back. `remove-member` takes a person out of an org **for good** — keys revoked, row and links gone, the seat free — and carries the door's refusal for the org's last active admin.
-
-`move` undoes the one thing a slug could not undo: it belongs to the org that first registered it
-for as long as its log exists, and a box walks into the wrong one by construction — its own worker
-and operator keys are issued into `default`, so the first agent anybody runs there lands in
-`default` too. The agent's own log, one head row per call it has taken, and its numbers all go
-with it; it is refused while somebody is holding the slug, and a number the destination org
-already answers at stays where it is and is named.
+the row and a **link**, once, that opens the console's password card (the operator holds a token and
+never a password, and the invitation takes none of the org's seats). The door it knocks at, `POST
+/v1/ops/orgs/{org}/members`, also **mails** that link to the person when the box or the org has a
+mailbox ([the-box.md](protocol/the-box.md)); the verb prints the link either way and does not say
+whether a letter went. `rm` is refused while the org still has keys or routes, so a tenant is never
+half-deleted. A person is their email, with one password across every org: `invite` of an address
+that already has one prints no link and seats them `active` (`already a person on this box: seated,
+they sign in with the password they have`). `operator` makes a member, by email, an operator of this
+box — their key then opens every `/v1/ops` door, as `init` does for the first person; `--revoke`
+takes it back. `remove-member` takes a person out of an org **for good** — keys revoked, row and
+links gone, the seat free — and carries the door's refusal for the org's last active admin. `move`
+undoes the one thing a slug could not undo: it belongs to the org that first registered it for as
+long as its log exists, and a box walks into the wrong one by construction — its own worker and
+operator keys are issued into `default`, so the first agent anybody runs there lands in `default`
+too. The agent's own log, one head row per call it has taken, and its numbers all go with it; it is
+refused while somebody is holding the slug, and a number the destination org already answers at
+stays where it is and is named.
 
 `dialling` replaces **the whole set** of what an org may dial out — `dial_anywhere` (off unless
-said: a destination must already have called or written to one of the org's agents), dials a
-minute (6), a day (200), and the longest a placed call may run (600 s); a guard left out goes back
-to the code's default. Which countries a dial may reach is the carrier account's own setting, not
-a flag here. `sso` prints which identity provider the org is wired to; `--off` lets its people sign
-in with a password again while their provider is down, and is the one SSO thing the operator does
-— wiring one is the org's own door ([protocol/people.md](protocol/people.md)).
-
-`quota` replaces **the whole set**: a limit left out is no limit. The meter is a fold over the log,
-so there is no counter to drift, and the gate runs before a call opens, before an agent registers,
-before memory keeps a fact and before an invitation makes a row — never in the middle of a call.
-`--seats` is what a plan sells a team by: everybody the org has not disabled, invited and active
-together, because an invitation sent is a seat taken. `--budget-eur` is euros a calendar month,
-set with the quotas and not one of them: it is shown beside what was spent, and nothing is ever
-refused over it.
+said: a destination must already have called or written to one of the org's agents), dials a minute
+(6), a day (200), and the longest a placed call may run (600 s); a guard left out goes back to the
+code's default. Which countries a dial may reach is the carrier account's own setting, not a flag
+here. `sso` prints which identity provider the org is wired to; `--off` lets its people sign in with
+a password again while their provider is down, and is the one SSO thing the operator does — wiring
+one is the org's own door ([protocol/people.md](protocol/people.md)). `quota` replaces **the whole
+set**: a limit left out is no limit. The meter is a fold over the log, so there is no counter to
+drift, and the gate runs before a call opens, before an agent registers, before memory keeps a fact
+and before an invitation makes a row — never mid-call. `--seats` is what a plan sells a team by:
+everybody the org has not disabled, invited and active together, because an invitation sent is a
+seat taken. `--budget-eur` is euros a calendar month, set with the quotas and not one of them: shown
+beside what was spent, and nothing is refused over it.
 
 `provider-key set` reads the key from **stdin**, never from a flag, for the reason every verb in
 this repo that touches a secret does: argv is visible in `ps` to every user on the box. The row is
@@ -189,21 +174,20 @@ pk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ```
 
 That sentence is the whole group: the table stores a sha256 and **no verb anywhere reads a key
-back**. `list` prints fingerprint, world, label, whose, and whether it is revoked. `revoke` takes a
-fingerprint as `list` prints it and stops that key from being honoured; the row and the history
-stay, so log entries that name it remain readable. Issue one key per place — a laptop, CI, each
-deployment — with a label, because a key you can revoke on its own is a key you will revoke.
-
-`--env` is **the key knowing where**: the agents registered on it, the doors they claim and every
-call they take are that world's, and the gateway keeps production and the sandbox apart — the same
-slug held once in each, a number in one refused to the other. A box's worker and app run on a
-production key, which is the default; a laptop gets a sandbox one. `--scope`, repeatable, is
-what the key may do (`app` · `calls` · `talk` · `supervise` · `pipeline` · `knowledge` · `memory` ·
-`evals` · `numbers` · `keys` — the org's own API keys — · `providers` — the vendor keys it brought
-— · `team` · `usage` · `fleet`); left out is every scope but `fleet`, which is the box's own worker's
-and is minted only when typed (`pinecall-worker-key.service` types it). An org issues its own machine keys without the
-operator at `POST /v1/keys`; these verbs are the box's way in, on `PINECALL_OPS_KEY`. `--subject` and `--name`
-say whose the key is when it is a person's, so a seat minted from it says who sat down.
+back**. `list` prints fingerprint, world, label, whose, and whether it is revoked. `revoke` stops
+honouring the key whose fingerprint `list` printed; the row and history stay, so log entries naming
+it remain readable. Issue one key per place — a laptop, CI, each deployment — with a label, because
+a key you can revoke on its own is a key you will revoke. `--env` is **the key knowing where**: the
+agents registered on it, the doors they claim and every call they take are that world's, and the
+gateway keeps production and the sandbox apart — the same slug held once in each, a number in one
+refused to the other. A box's worker and app run on a production key, the default; a laptop gets a
+sandbox one. `--scope`, repeatable, is what the key may do (`app` · `calls` · `talk` · `supervise` ·
+`pipeline` · `knowledge` · `memory` · `evals` · `numbers` · `keys` — the org's own API keys — ·
+`providers` — the vendor keys it brought — · `team` · `usage` · `fleet`); left out is every scope
+but `fleet`, the box's own worker's, minted only when typed (`pinecall-worker-key.service` types
+it). An org issues its own machine keys without the operator at `POST /v1/keys`; these verbs are the
+box's way in, on `PINECALL_OPS_KEY`. `--subject` and `--name` say whose the key is, if a person's,
+so a seat minted from it says who sat down.
 
 ## `routes`
 
@@ -228,10 +212,9 @@ pinecall-runtime fleet uncordon <worker>
 pinecall-runtime fleet loop --cloud <gcp|aws|hetzner|./yours> --seats <n> [--target 0.6] [--min 1] [--max 10] [--every 15] [--once] [--dry-run]
 ```
 
-`list` is the roster as the hub hears it — one line per worker that has ever knocked, with what
-it holds, its seats, its load, its standing (`accepting` · `full` · `draining` · `cordoned` ·
-`gone`) and when it was last heard — and the totals: `free = Σ(max − active)`, how many accept,
-and **FULL** when nobody does.
+`list` is the roster the hub hears — one line per worker that ever knocked, what it holds, its seats
+and load, its standing (`accepting` · `full` · `draining` · `cordoned` · `gone`) and when last heard
+— and the totals: `free = Σ(max − active)`, how many accept, and **FULL** when nobody does.
 
 ```
 worker             held  seats  load  standing   heard
@@ -242,15 +225,14 @@ pinecall-worker-1  2     4      0.50  accepting  4s ago
 ```
 
 `cordon` is the graceful shrink: the worker is told on its next heartbeat, takes no new call,
-finishes the ones it holds, and leaves. `uncordon` takes it back while it is still there.
-
-`loop` is the fleet loop ([scaling.md](scaling.md)): every `--every` seconds it reads the roster
-and the cloud, and keeps `busy = active / seats` at `--target` — asks for a machine when over it,
-cordons the quietest one when under it by 0.15 or more, deletes a cordoned machine once it holds
-nothing, and deletes one that never dialled in. `--seats` is the `PINECALL_MAX_JOBS` baked into
-the image, so a machine still booting counts from the moment it is asked for. `--cloud` names a
-script under `infra/fleet/` or a path to yours ([../infra/fleet/README.md](../infra/fleet/README.md));
-the cloud's own CLI must be signed in wherever the loop runs. `--once --dry-run` prints one tick's
+finishes the ones it holds, and leaves. `uncordon` takes it back while it is still there. `loop` is
+the fleet loop ([scaling.md](scaling.md)): every `--every` seconds it reads the roster and the
+cloud, and keeps `busy = active / seats` at `--target` — asks for a machine when over it, cordons
+the quietest one when under it by 0.15 or more, deletes a cordoned machine once it holds nothing,
+and deletes one that never dialled in. `--seats` is the `PINECALL_MAX_JOBS` baked into the image, so
+a machine still booting counts from the moment it is asked for. `--cloud` names a script under
+`infra/fleet/` or a path to yours ([../infra/fleet/README.md](../infra/fleet/README.md)); the
+cloud's own CLI must be signed in wherever the loop runs. `--once --dry-run` prints one tick's
 verdict and touches nothing.
 
 ## `migrate`
@@ -264,12 +246,10 @@ pinecall-runtime migrate plan
 The `.sql` files under `pinecall/migrations`, applied in order, straight over `DATABASE_URL`. It is
 what a unit runs before every start, so it prints no secret: the `default` org is seeded here and
 its first key is `keys issue`, never this verb. `status` says which have run and `plan` which would
-run next. `--schema` applies into a schema of its own, which is how a test run owns its copy.
-
-**`--post` is the other half, and it is never run at startup.** A migration is held to five seconds
-there — the unit runs `migrate up` before the gateway opens its socket — so anything slower is
-written as a `.post.sql`, applied by a person, after the deploy, with this flag. An index over a
-big table is always one of those.
+run next. `--schema` applies into a schema of its own, how a test run owns its copy. **`--post` is
+the other half, never run at startup.** A migration is held to five seconds there — the unit runs
+`migrate up` before the gateway opens its socket — so anything slower is written as a `.post.sql`,
+applied by a person, after the deploy, with this flag. An index over a big table is always one.
 
 ## `doctor`
 
@@ -277,9 +257,8 @@ big table is always one of those.
 pinecall-runtime doctor [--mail-to <address>]
 ```
 
-Every dependency asked a real question — is the key present, does it answer, is the port open — and
-one line each. It is the first thing to run on a box that behaves strangely, and the last thing to
-run after a deploy.
+Every dependency asked a real question — is the key present, does it answer, is the port open , one
+line each. It is the first to run on a box behaving strangely, and the last after a deploy.
 
 ```console
 $ pinecall-runtime doctor
@@ -298,21 +277,17 @@ env: /Users/berna/pinecall-v2/runtime/.env
 all up
 ```
 
-`✓` is answered, `!` is advice — something degraded that stops no call — and `✗` is broken; the
-last line is `all up` or `first down: <check> — …`, and the exit code is 1 on a `✗`. What it asks
-after depends on `PINECALL_ROLE`: `all`, `hub` (no worker) or `worker`, which is not asked after
-Postgres, the embedder or the mail. On a `hub` a dead embedder is `✗`, not advice: a hub answers
-knowledge pushes.
-
-The mail line names the server the box posts invitations and password resets through, as the
+`✓` is answered, `!` is advice — something degraded that stops no call — and `✗` is broken; the last
+line is `all up` or `first down: <check> — …`, and the exit code is 1 on a `✗`. What it asks after
+depends on `PINECALL_ROLE`: `all`, `hub` (no worker) or `worker`, which is not asked after Postgres,
+the embedder or the mail. On a `hub` a dead embedder is `✗`, not advice: a hub answers knowledge
+pushes. The mail line names the server the box posts invitations and password resets through, as the
 gateway resolves it: the mailbox the operator stored at `PUT /v1/ops/mail` first, else
 `PINECALL_SMTP_URL` and `PINECALL_MAIL_FROM`. `--mail-to` posts one real test letter through it
 after the report — `mail sent  <address> — taken by <host>:<port>`, or the server's own refusal —
-and a letter that did not go makes the exit code 1.
-
-The first line used to read differently on a laptop and on a box, because a laptop could run on
-`PINECALL_DEV_KEY` — one key, org `default`, the table not read. That was a second runtime, and it
-is gone: there is one table everywhere, and the line names the verb that puts a key in it.
+and a letter that did not go makes the exit code 1. The first line once read differently on a
+laptop, which could run on `PINECALL_DEV_KEY` — one key, org `default`, the table not read; that
+second runtime is gone, and the line names the verb that puts a key in the one table there is.
 
 ## `providers`
 
@@ -320,10 +295,9 @@ is gone: there is one table everywhere, and the line names the verb that puts a 
 pinecall-runtime providers [--does llm|stt|tts]
 ```
 
-Every vendor this build can reach, what each one does, and whether it has a key here: `ready` ·
-`no key` · `no plugin` · `its own`. It is the same table `pinecall providers` prints for a tenant,
-read from the box's side — the answer to "can this box speak Spanish with ElevenLabs" before a
-call proves it cannot.
+Every vendor this build can reach, what each does, and whether it has a key: `ready` · `no key` ·
+`no plugin` · `its own`. The same table `pinecall providers` prints for a tenant, from the box's
+side — the answer to "can this box speak Spanish with ElevenLabs" before a call proves it cannot.
 
 ```console
 $ pinecall-runtime providers
@@ -345,12 +319,10 @@ pinecall-runtime box secret <NAME> [--into …]        # the value on stdin
 `secrets` generates, once, everything a box makes for itself and nobody issues to it: the LiveKit
 pair, the Postgres password and `DATABASE_URL`, `PINECALL_OPS_KEY`, `PINECALL_VAULT_KEY`, and the
 `media.env` the three containers read. Run twice it **rotates nothing** — what is there is kept and
-only what is missing is made.
-
-`secret` keeps one secret you bring under its own name, read from stdin: a provider key, WhatsApp's
-token. Both write systemd encrypted credentials, which is why the runtime reads
-`CREDENTIALS_DIRECTORY` as a source of settings: on a box a secret is a file the unit decrypts, not
-a line in an environment file.
+only what is missing is made. `secret` keeps one secret you bring under its own name, read from
+stdin: a provider key, WhatsApp's token. Both write systemd encrypted credentials, which is why the
+runtime reads `CREDENTIALS_DIRECTORY` as a source of settings: on a box a secret is a file the unit
+decrypts, not a line in an environment file.
 
 ---
 
@@ -386,8 +358,6 @@ own name, so the SDK that reads `ANTHROPIC_API_KEY` by itself and this runtime a
 | `PINECALL_VOICE_LOOKUP_BUDGET_MS` · `PINECALL_TEXT_LOOKUP_BUDGET_MS` · `PINECALL_REMEMBER_BUDGET_S` | how long a turn waits for recall and search, and a hang-up for memory |
 | `PINECALL_LOG_LEVEL` | `DEBUG` · `INFO` · `WARNING` · `ERROR` |
 
----
-
 ## A laptop, from nothing
 
 ```bash
@@ -404,18 +374,15 @@ pinecall-runtime worker dev                        # in another terminal, for sp
 pinecall login http://localhost:8080               # in the agent's directory, as a person
 ```
 
-[from-zero.md](from-zero.md) is this same path with every output under it, through to a call.
-
-**This is the same runtime a box runs, and there is no other.** A laptop used to have one of its
-own — `PINECALL_DEV_KEY`, one key that needed no database, org `default`, no login anywhere — and
-what it bought in the first five minutes it charged back in every hour after: two sets of keys,
-two orgs, two behaviours, and no way to see which you were on. So: the same Postgres, the same
-migrations, the same issued keys, and `init` in place of the magic key.
-
-It has every table a box has — the knowledge base, contact memory, the vault (given a
-`PINECALL_VAULT_KEY`), durable routes. On an M-series Mac, TEI needs the arm64 tag
-`infra/README.md` names in `TEI_IMAGE`; without an embedder a push answers 503 and a lookup is
-skipped and said in the call's log.
+[from-zero.md](from-zero.md) is this same path with every output under it, through to a call. **This
+is the same runtime a box runs, and there is no other.** A laptop used to have one of its own —
+`PINECALL_DEV_KEY`, one key that needed no database, org `default`, no login anywhere — and what it
+bought in the first five minutes it charged back in every hour after: two sets of keys, two orgs,
+two behaviours, and no way to see which you were on. So: the same Postgres, the same migrations, the
+same issued keys, and `init` in place of the magic key. It has every table a box has — the knowledge
+base, contact memory, the vault (given a `PINECALL_VAULT_KEY`), durable routes. On an M-series Mac,
+TEI needs the arm64 tag `infra/README.md` names in `TEI_IMAGE`; without an embedder a push answers
+503 and a lookup is skipped and said in the call's log.
 
 ## A box, from nothing
 
