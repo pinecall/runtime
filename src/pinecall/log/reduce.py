@@ -208,7 +208,23 @@ def _on_user_transcript(state: State, data: events.UserTranscript) -> None:
 
 
 def _on_agent_transcript(state: State, data: events.AgentTranscript) -> None:
-    state.live.agent = None if data.final else data.text
+    # A delta, not the reply so far: one word of a spoken reply, one token of a written one.
+    state.live.agent = None if data.final else _said_so_far(state.live.agent, data)
+
+
+def _said_so_far(so_far: str | None, delta: events.AgentTranscript) -> str:
+    """The reply in flight with one more delta.
+
+    A word the voice aligned arrives bare and is set a space apart; a token of a written reply
+    carries its own spacing, and a space glued between "clean" and "ing" would be a word nobody
+    said.
+    """
+    if not so_far:
+        return delta.text
+    apart = so_far[-1].isspace() or delta.text[:1].isspace()
+    if delta.start is not None and not apart:
+        return f"{so_far} {delta.text}"
+    return f"{so_far}{delta.text}"
 
 
 # The turn is the event's data plus its role; encode keeps only the fields the wire carried.

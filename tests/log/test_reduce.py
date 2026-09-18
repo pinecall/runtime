@@ -59,6 +59,26 @@ def test_a_finished_turn_clears_the_words_on_screen() -> None:
     assert len(state.turns) == 1 and state.turns[0].text == "Hola, quería cita."
 
 
+def test_the_agents_words_on_screen_are_its_deltas_joined() -> None:
+    def word(seq: int, text: str, start: float) -> Entry:
+        said = {"speech_id": "s1", "text": text, "final": False, "start": start, "end": start + 0.2}
+        return entry(seq, "agent.transcript", said, ephemeral=True)
+
+    def token(seq: int, text: str) -> Entry:
+        said = {"speech_id": "s2", "text": text, "final": False}
+        return entry(seq, "agent.transcript", said, ephemeral=True)
+
+    spoken = reduce([word(1, "Buenos", 0), word(2, "días,", 0.3), word(3, "Clínica", 0.6)])
+    assert spoken.live.agent == "Buenos días, Clínica"
+    written = reduce(
+        [token(1, "Buenos"), token(2, " días"), token(3, ","), token(4, " clean"), token(5, "ing")]
+    )
+    assert written.live.agent == "Buenos días, cleaning"
+    turn = {"speech_id": "s1", "text": "Buenos días.", "interrupted": False, "metrics": {}}
+    closed = reduce([word(1, "Buenos", 0), entry(2, "turn.agent", turn)])
+    assert closed.live.agent is None
+
+
 def test_a_tool_result_closes_its_call_as_done_or_failed() -> None:
     call = {"call_id": "t1", "name": "find_slots", "arguments": {"day": "jueves"}}
     done = reduce(
