@@ -74,7 +74,7 @@ console that PUTs the six knobs never moves the melody.
 
 | door | what |
 |---|---|
-| `GET /v1/agents/{slug}/pipeline/hold-audio` | `{played: "default" \| "off" \| "custom", name, seconds, sha256}` |
+| `GET /v1/agents/{slug}/pipeline/hold-audio` | `{played, name, seconds, sha256}`, where `played` is `default`, `off` or `custom` |
 | `GET …/pipeline/hold-audio/audio` | the file that plays, `audio/ogg` (Opus, 48 kHz mono); `404` when `off` |
 | `PUT …/pipeline/hold-audio` | the body **is** the file — wav, mp3, ogg, m4a, whatever PyAV decodes — and `?name=` names it. Converted once, here, to Opus 48 kHz mono and kept in Postgres (`hold_audio`, 0036); answers the `GET` shape |
 | `PUT …/pipeline/hold-audio/played` | `{"played": "default"}` gives the runtime's melody back, `{"played": "off"}` plays nothing; an uploaded clip is forgotten either way |
