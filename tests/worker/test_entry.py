@@ -92,9 +92,10 @@ async def test_a_written_call_keeps_no_recording_even_on_a_box_that_keeps_audio(
         handed.append(recording)
         return _a_bridge_that_refuses(context, config, platform, recording)
 
-    worker = dataclasses.replace(
-        _a_worker(bridging=a_bridge_that_notes), keeping=lambda _: tmp_path
-    )
+    def kept_here(_call: str) -> Path | None:
+        return tmp_path
+
+    worker = dataclasses.replace(_a_worker(bridging=a_bridge_that_notes), keeping=kept_here)
     job = _a_job_that_records([], scope=WRITTEN_SCOPE)
     with pytest.raises(_FarEnough):
         await entry.answer(cast(JobContext, job), worker)

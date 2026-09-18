@@ -74,7 +74,12 @@ def test_the_agents_words_on_screen_are_its_deltas_joined() -> None:
         [token(1, "Buenos"), token(2, " días"), token(3, ","), token(4, " clean"), token(5, "ing")]
     )
     assert written.live.agent == "Buenos días, cleaning"
-    turn = {"speech_id": "s1", "text": "Buenos días.", "interrupted": False, "metrics": {}}
+    turn: dict[str, object] = {
+        "speech_id": "s1",
+        "text": "Buenos días.",
+        "interrupted": False,
+        "metrics": {},
+    }
     closed = reduce([word(1, "Buenos", 0), entry(2, "turn.agent", turn)])
     assert closed.live.agent is None
 
