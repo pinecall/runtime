@@ -48,6 +48,7 @@ from pinecall.orgs.admission import Admission
 from pinecall.orgs.box import box_settings_for
 from pinecall.orgs.carriers import carriers_for
 from pinecall.orgs.dialling import dialling_for
+from pinecall.orgs.hold_audio import hold_audio_for
 from pinecall.orgs.mail import mail_for
 from pinecall.orgs.meter import Meter
 from pinecall.orgs.outbound import outbound_trunks_for
@@ -188,6 +189,8 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # deploy does not hand every agent back the model its class declared with nobody told.
     gateway.state.overrides = Overrides(turned_for(pool))
     await gateway.state.overrides.loaded()
+    # Which melody each agent plays while a tool runs, read per call: the table is small.
+    gateway.state.hold_audio = hold_audio_for(pool)
     # The suites: which run is happening right now, and where every run that has finished is kept.
     gateway.state.evals = Runner()
     gateway.state.eval_runs = runs_for(pool)

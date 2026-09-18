@@ -13,6 +13,7 @@ from livekit.agents.voice import RunContext
 from pinecall.log import as_text
 from pinecall.session.pending import Emit
 from pinecall.session.visibility import Visibility
+from pinecall.session.voice.hold import HoldMusic
 from pinecall.session.voice.platform import Platform, PlatformRefused
 from pinecall.session.voice.reading_back import read_back
 from pinecall.types import AgentConfig, ToolSpec
@@ -27,8 +28,17 @@ _A_PLACEHOLDER = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
 class Tools:
     """The tools of one call: what the model may call, and what happens when it does."""
 
-    def __init__(self, config: AgentConfig, platform: Platform, call: str, emit: Emit) -> None:
+    def __init__(
+        self,
+        config: AgentConfig,
+        platform: Platform,
+        call: str,
+        emit: Emit,
+        hold: HoldMusic | None = None,
+    ) -> None:
         self._config = config
+        # What the caller hears while a tool runs: nothing until the worker gives it a room.
+        self.hold = hold or HoldMusic()
         self._platform = platform
         self._call = call
         self._emit = emit
@@ -81,7 +91,10 @@ class Tools:
                 arguments=dict(raw_arguments),
                 speech_id=context.speech_handle.id,
             )
-            text = await self.ran(spec, use)
+            # The melody covers the round trip and nothing after it: it has stopped before the
+            # read-back is said, so the caller never hears the sentence over the music.
+            async with self.hold.playing():
+                text = await self.ran(spec, use)
             said = self.read_backs.pop(use.call_id, None)
             if said is not None:
                 read_back(context.session, said)

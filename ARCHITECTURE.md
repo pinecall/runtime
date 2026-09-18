@@ -42,7 +42,6 @@ What is ours, and only ours: **the log** (every event, with a seq), **the wire**
 both sides are generated from), **the tenants** (orgs, keys, quotas, routes, the vault), **the
 gateway** (many app sockets, one fleet), **the bridge** between livekit's session and all of that,
 and **the box**. Decisions: *livekit-1.8*, *livekit-session*, *livekit-examples*.
-
 Where livekit may be imported is enforced: `types/` and `log/` hold no framework at all (no
 livekit, fastapi, uvicorn, asyncpg); a vendor SDK outside `providers/` fails the suite. By
 package, what actually imports livekit today: `session` (the bridge — `AgentSession`, `Agent`,
@@ -76,23 +75,21 @@ table; the declared ones have a socket.
 | **eval run** | `id`, `agent`, `started_at`, `finished_at`, `status`, `document` | `eval_runs` | ring-1 suites driven over live text sessions |
 | **Base** / **Chunk** | `base`, `chunks`, `pushed_at` · `id`, `base`, `path`, `heading`, `text`, `score` | `knowledge_bases` (`org`, `env`, `base`, `model`, `dimensions`, `chunks`, `pushed_at`) · `knowledge_chunks` (`id`, `org`, `env`, `base`, `path`, `heading`, `ordinal`, `text`, `embedding halfvec(1024)`), HNSW by cosine and BM25 in spanish | a base is one world's (`0018`): a laptop's push never replaces the one the telephone answers from, and promoting is the same push with the box's key. A push replaces the base whole (`knowledge/store.py`); a chunk is embedded seeing its file's other chunks (`embed_documents`, one document per file); a search is both indexes fused by reciprocal rank (`types/fusion.py`, the one fusion memory ranks with too) and refuses a base another model pushed. Decision: *retrieval* |
 
-Twenty-five tables, thirty-five migrations (`migrations/00NN_*.sql`, applied in order by `migrate up`,
-the one `.post.sql` by `migrate up --post`;
-`0008_memory` holds the contact's facts and `0010_memory_model` says which embedder wrote each one
-— **Fact** in `types/knowledge.py` is its shape — and `0009_knowledge` the knowledge base's
-chunks, **Chunk** beside it). Decisions: *types*, *orgs*, *keys*, *routes*, *tokens*,
-*provider-keys*, *log*, *memory*.
+Twenty-five tables, thirty-five migrations (`migrations/00NN_*.sql`, applied in order by `migrate
+up`, the one `.post.sql` by `migrate up --post`; `0008_memory` holds the contact's facts and
+`0010_memory_model` says which embedder wrote each one — **Fact** in `types/knowledge.py` is its
+shape — and `0009_knowledge` the knowledge base's chunks, **Chunk** beside it). Decisions: *types*,
+*orgs*, *keys*, *routes*, *tokens*, *provider-keys*, *log*, *memory*.
 
-**A migration is never edited, and that is now enforced and not asked.** `schema_migrations` keeps
-a `sha256` per applied file and `log/store/migrating.py` refuses a checkout where one has changed:
-every database that ran it has the OLD one, and the fix for an old migration is a new migration.
-A run takes an advisory lock before any DDL, holds each migration to a 5 s statement and a 1 s
-lock timeout inside its own transaction, and says which database it is talking to before it
-applies anything. `migrations/migrations.lock` names the last one that landed — bumping it is what
-makes two branches adding `0022` conflict in git, and it is the baseline `scripts/lint-migrations`
-lints above with **squawk**, which reads the `.sql` for what it will do to a table that has rows.
-What proves a migration against data is `tests/migrations.py`: a schema built as a box HAD it,
-rows written, then the migration applied on top.
+**A migration is never edited, and that is enforced, not asked.** `schema_migrations` keeps a
+`sha256` per applied file and `log/store/migrating.py` refuses a checkout where one has changed:
+every database that ran it has the OLD one, and an old migration is fixed by a new one. A run takes
+an advisory lock before any DDL, holds each migration to a 5 s statement and a 1 s lock timeout
+inside its own transaction, and names the database it talks to before applying anything.
+`migrations/migrations.lock` names the last one that landed — bumping it makes two branches adding
+`0022` conflict in git — and is the baseline `scripts/lint-migrations` lints above with **squawk**,
+which reads the `.sql` for what it will do to a table that has rows. `tests/migrations.py` proves a
+migration against data: a schema built as a box HAD it, rows written, the migration applied on top.
 
 ## 3. The wire
 
@@ -121,10 +118,10 @@ names the agent declared. A **scope** picks the projection a bearer reads throug
 
 ## 4. The gateway, process 1
 
-`api/app.py` is one FastAPI process: a lifespan that opens the Postgres pool, the key table,
-the routes, the vault and the meter, the embedder `EMBED_PROVIDER` names, memory, the knowledge base and the one `Lookups`
-over them, then the routers `api/_doors.py` lists, one door each, in order — and the one loop that answers to nobody, the
-**reaper** (`api/reaping.py`, §8). By resource:
+`api/app.py` is one FastAPI process: a lifespan that opens the Postgres pool, the key table, the
+routes, the vault and the meter, the embedder `EMBED_PROVIDER` names, memory, the knowledge base and
+the one `Lookups` over them, then the routers `api/_doors.py` lists, one door each, in order — and
+the one loop that answers to nobody, the **reaper** (`api/reaping.py`, §8). By resource:
 
 | door | what |
 |---|---|
@@ -141,6 +138,7 @@ over them, then the routers `api/_doors.py` lists, one door each, in order — a
 | `GET/POST /v1/whatsapp/webhook` | Meta's handshake and every delivered message; one thread per contact per number, each a text call (`api/whatsapp/`, `whatsapp/`) |
 | `GET /v1/keys` · `POST /v1/keys` · `POST /v1/keys/{fingerprint}/revoke` | **the org's own API keys**, on the org's key and scoped to its org, which it cannot name (`keys`): the listing is fingerprints and never a key; a POST mints one for a MACHINE — `{label?, env?, scopes?}`, `app` and production when nothing is said, `subject` always null, because people get keys by logging in — and answers it in the clear the once; revoking is a POST because the row stays. A key may not issue a scope it does not itself open, and a fingerprint that is not the org's is the same 404 as one that is nobody's. `api/keys.py` |
 | `PUT /v1/provider-keys/{vendor}` · `GET /v1/provider-keys` · `DELETE /v1/provider-keys/{vendor}` | **the keys a tenant brought of its own** (`providers`), on the tenant's key and scoped to its org, which it cannot name: bring one (`{key}` → 204, replacing whatever that vendor had), read the vendors back by name and never a value, take one back (404 for a vendor never brought). An alias is resolved before it is stored, so `11labs` and `elevenlabs` are one row. A build that knows no such vendor is 400 with the list; a runtime with no `PINECALL_VAULT_KEY` is 503. `api/provider_keys.py` |
+| `GET`·`PUT /v1/agents/{slug}/pipeline/hold-audio` · `…/audio` · `…/played` · `GET /v1/agents/{slug}/hold-audio[/audio]` | **the hold melody**: what a caller hears while a tool runs — the runtime's own (`session/a-new-life.ogg`), off, or a file uploaded as the body and converted once to Opus 48 kHz mono (`session/hold_audio.py`, `hold_audio` 0036). Its own doors, never a knob of the overrides' whole-set PUT. The worker asks the second pair on the fleet's key, keeps a clip by its hash (`worker/hold.py`), and `session/voice/hold.py` plays it on livekit's `BackgroundAudioPlayer` around each tool's round trip. `api/hold_audio.py` |
 | `GET /v1/providers` | **the catalogue** (`providers`): every vendor this build runs — what each does, every word it answers to, whether this box has its plugin and whether it holds a key — plus the vendor each stage runs on when an agent declares none, and the voices this build curates. Never a key, not even a prefix. The same rows ride inside the pipeline report, built by the same function, so the two screens cannot disagree. `api/providers.py`, `providers/catalog.py` |
 | `PUT /v1/knowledge/{base}` · `GET /v1/knowledge` · `DELETE /v1/knowledge/{base}` · `POST /v1/knowledge/{base}/eval` | **the knowledge base**, on the tenant's key: a base pushed whole (`{files: [{path, text}]}` → `{base, chunks, took_ms}`), listed, dropped (404 for a name never pushed); and **the golden** — questions naming the heading path that should answer them (`{asks, expects}`), asked of the base and answered as `recall@k` and `nDCG@10` by code with no model (`knowledge/scoring.py`, the arithmetic shared with memory's golden in `types/goldens.py`). `api/knowledge.py` |
 | `GET /v1/contacts/{contact}/memory` · `DELETE` · `POST /v1/contacts/memory/eval` | **a contact's memory**: every fact ever held, current first; forget, the right to be forgotten (`{forgotten: n}`); and **the golden** — questions that bring their own facts (`{holds, asks, expects}`), written to a scratch contact, recalled, deleted, and answered as `recall@k` and `nDCG@10` by code with no model (`memory/scoring.py`, the arithmetic shared with the base's golden in `types/goldens.py`). `api/contacts.py` |
@@ -163,14 +161,12 @@ over them, then the routers `api/_doors.py` lists, one door each, in order — a
 | **every tenant door** | asks the key for exactly ONE scope by the dep it takes (`api/_deps.py`, `opening(scope)` → `AppKeyDep`, `CallsKeyDep`, …); the read doors ask `calls` at `the_reader`, the verb doors ask `supervise` of a key; `403 this key does not open X: it opens …` (`auth/keys.py`, `not_opening`), and both sockets close with that sentence. `tests/api/test_scopes_at_the_doors.py` walks the app and refuses a door that declares none or two. A seat minted from a person's key carries `pinecall.subject` and `pinecall.name`, so a supervise verb is written down as theirs (`tokens/seating.py`, `supervise/aiming.py`) |
 
 **What the process keeps in memory** (`api/_live.py`, `Live`): the open app sockets, the text
-sessions running here, the tool calls in flight waiting on an app, and the calls being **served**
-— each bound to the app socket that took it, with its subscription, the queue its commands
-wait in for the worker, and the `CallContext` and `AgentConfig` the door that opened it knew,
-which is all a lookup ever asks of a call (`Live.the_call` → `lookups.OpenCall`). None of it is
-durable and none of it should be: "it is a fact about which sockets are open right now, not a
-fact about the world. The world is the log." Decisions: *api*, *dispatch*, *supervise*,
-*whatsapp*, *eval-runner*.
-
+sessions running here, the tool calls in flight waiting on an app, and the calls being **served** —
+each bound to the app socket that took it, with its subscription, the queue its commands wait in for
+the worker, and the `CallContext` and `AgentConfig` the door that opened it knew, which is all a
+lookup ever asks of a call (`Live.the_call` → `lookups.OpenCall`). None of it is durable and none of
+it should be: "it is a fact about which sockets are open right now, not a fact about the world. The
+world is the log." Decisions: *api*, *dispatch*, *supervise*, *whatsapp*, *eval-runner*.
 A gateway that opens no Postgres pool holds no memory and no knowledge: a lookup finds nothing and
 refuses nobody, and the knowledge and contact doors say so in one sentence each (503). It cannot
 verify a key either, which it says at startup and at every keyed door — one runtime, one table.
@@ -221,64 +217,58 @@ REFER). Decisions: *worker*, *voice-bridge*, *room*, *sip*.
 `session/` is one call on either channel, and what both share: the `Scorer` seam, the pending
 tool calls, the supervise verbs, `clock.py` (today's date as a tool call the model appears to
 have made, never a system message), `declaring.py` (our ToolSpec as livekit's tool).
-
-**Voice** runs in the worker, in a room, with audio — and so does a browser's `chat` visit, the
-same session with no ears and no voice (`spoken=False`, `worker/entry.py`), which keeps no
-recording. **Text** (`session/text/`) runs in the
-**gateway** — WhatsApp, `/v1/chat`, `pinecall chat`, the ring-1 runner — as one livekit
-`AgentSession` driven by hand, one turn per message, no room, no ears, the same entries under the
-same names; it measures nothing itself, livekit's `LLMMetrics` is the measurement. The **prompt**
-on both is a list of named blocks (`types/prompt.py`, `Blocks`) in two regions, in one order —
-static blocks (cached by the vendor; `identity · knowledge · tools` by default) · append-only
-history · the dynamic region at the end, which is the tenant's **view** of its state and nothing
-else. The app writes a block by name with `prompt.set`; the static ones are livekit's
-`instructions`, rewritten only when their joined text moved, and `providers/blocks.py` builds
-each request: the history, then this turn's lookups, then the dynamic blocks, one message each,
-and for Anthropic one `system` string per static block, so a rewritten `tools` block leaves the
-others cached. The tenant never writes a prompt: the class is the prompt, `render(state)`, and
+**Voice** runs in the worker, in a room, with audio — and so does a browser's `chat` visit, the same
+session with no ears and no voice (`spoken=False`, `worker/entry.py`), which keeps no recording.
+**Text** (`session/text/`) runs in the **gateway** — WhatsApp, `/v1/chat`, `pinecall chat`, the
+ring-1 runner — as one livekit `AgentSession` driven by hand, one turn per message, no room, no
+ears, the same entries under the same names; it measures nothing itself, livekit's `LLMMetrics` is
+the measurement. The **prompt** on both is a list of named blocks (`types/prompt.py`, `Blocks`) in
+two regions, in one order — static blocks (cached by the vendor; `identity · knowledge · tools` by
+default) · append-only history · the dynamic region at the end, which is the tenant's **view** of
+its state and nothing else. The app writes a block by name with `prompt.set`; the static ones are
+livekit's `instructions`, rewritten only when their joined text moved, and `providers/blocks.py`
+builds each request: the history, then this turn's lookups, then the dynamic blocks, one message
+each, and for Anthropic one `system` string per static block, so a rewritten `tools` block leaves
+the others cached. The tenant never writes a prompt: the class is the prompt, `render(state)`, and
 `knowledge` is the file's own text in a static block.
 
-**Memory and the knowledge base are two declared tools**, `recall` and `search`
-(`types/lookup.py`), and the class's declaration is what brings each one: `memory` declares
-`recall`, `docs` declares `search`. They stand in the request's `tools` array beside the app's
-own, and their answers reach the model **as `tool_result` blocks, JSON-encoded** — the one place
-both vendors name for anything that arrived from outside the conversation
-(`docs/security/prompt-injection.md`, a public contract). With `docs.mode = "retrieved"` (the
-default) and whenever `memory` is declared, the session runs the lookup itself and puts a real
-`FunctionCall` + `FunctionCallOutput` pair into the request, paired by `call_id` so livekit's
-formatter groups it (`session/lookups.py`, the same shape `clock.py` puts today's date in).
-**On a spoken call it starts while the caller is still talking**: `session/voice/events.py` hands
-every interim transcript to `TurnLookups.heard_so_far`, and the first one carrying four words
-(`WORDS_ENOUGH_TO_SEARCH_WITH`) starts one task per tool, asked with the caller's words so far.
-One run per turn; livekit's `on_user_turn_completed` consumes it and drops it — already back, it
-is read with no wait; still out, its tail is awaited under `PINECALL_VOICE_LOOKUP_BUDGET_MS`; never
-started, because the turn was too short, it runs there and then. A text turn has no interim and runs
-the whole lookup at turn end, under `PINECALL_TEXT_LOOKUP_BUDGET_MS`, which is larger because nobody
-hears a chat's silence. Past the budget that tool's pair is left out and an `error` entry
-(`recall_skipped`, `search_skipped`) says why — per tool, so a `recall` that answered is used beside
-a `search` that did not; with `docs.mode = "tool"` the platform runs nothing and the model calls
-`search` itself, through the same callable. The pair is rebuilt every turn and never kept in the
-history, so the cached prefix never moves. At hang-up, between `call.ended` and
-`call.summary`, the session's `Rememberer` writes what the call taught about the contact; a miss
-is `remember_failed`, recoverable, and the call seals.
-
-**A lookup is run by the gateway, never by the app**: the voice session's `Lookup` is the worker's
-gateway client (`POST /v1/calls/{call}/lookup`, `/remember`), the text session's is the gateway's
-own `lookups/`, in-process — one
-`Lookups(memory, knowledge, logs, calls, keys_of, quotas_of, may_remember)` per process,
-implementing both protocols, that recalls the contact's facts (the contact is
-`CallContext.remembered_as`: the resolved id, else the number on phone and WhatsApp, else
-nobody — never what the model wrote in the tool's input), searches the agent's `docs.base` under
-its declared `k`/`min_score`, writes `memory.ops` and `docs.sources` on the call's log with the
-turn's `speech_id`, and names the embedder's vendor and URL in the error entry when it is down.
-The answers are `{"facts": [{text, source, since}]}` and `{"chunks": [{path, heading, text}]}` and
-nothing else. The last two arguments are the org's PLAN, asked of `orgs/` (which `lookups/` may
-not import): a tool whose quota is `0` finds nothing, embeds nothing and writes no entry at all —
-a plan without the feature is not a failure and never reads as one — and a hang-up whose org may
-keep no more facts writes `memory.ops` with an op that kept none, its `credits.exhausted` one
-entry away in the agent's log, and asks no model to extract what it could not store. **A tool runs
-in the tenant's process**: the session
-sends `tool.call` to the gateway, the gateway relays it down the app socket the call is bound
+**Memory and the knowledge base are two declared tools**, `recall` and `search` (`types/lookup.py`),
+and the class's declaration is what brings each one: `memory` declares `recall`, `docs` declares
+`search`. They stand in the request's `tools` array beside the app's own, and their answers reach
+the model **as `tool_result` blocks, JSON-encoded** — the one place both vendors name for anything
+that arrived from outside the conversation (`docs/security/prompt-injection.md`, a public contract).
+With `docs.mode = "retrieved"` (the default) and whenever `memory` is declared, the session runs the
+lookup itself and puts a real `FunctionCall` + `FunctionCallOutput` pair into the request, paired by
+`call_id` so livekit's formatter groups it (`session/lookups.py`, the same shape `clock.py` puts
+today's date in). **On a spoken call it starts while the caller is still talking**:
+`session/voice/events.py` hands every interim transcript to `TurnLookups.heard_so_far`, and the
+first one carrying four words (`WORDS_ENOUGH_TO_SEARCH_WITH`) starts one task per tool, asked with
+the caller's words so far. One run per turn; livekit's `on_user_turn_completed` consumes it and
+drops it — already back, it is read with no wait; still out, its tail is awaited under
+`PINECALL_VOICE_LOOKUP_BUDGET_MS`; never started, because the turn was too short, it runs there and
+then. A text turn has no interim and runs the whole lookup at turn end, under
+`PINECALL_TEXT_LOOKUP_BUDGET_MS`, which is larger because nobody hears a chat's silence. Past the
+budget that tool's pair is left out and an `error` entry (`recall_skipped`, `search_skipped`) says
+why — per tool, so a `recall` that answered is used beside a `search` that did not; with `docs.mode
+= "tool"` the platform runs nothing and the model calls `search` itself, through the same callable.
+The pair is rebuilt every turn and never kept in the history, so the cached prefix never moves. At
+hang-up, between `call.ended` and `call.summary`, the session's `Rememberer` writes what the call
+taught about the contact; a miss is `remember_failed`, recoverable, and the call seals. **A lookup
+is run by the gateway, never by the app**: the voice session's `Lookup` is the worker's gateway
+client (`POST /v1/calls/{call}/lookup`, `/remember`), the text session's is the gateway's own
+`lookups/`, in-process — one `Lookups(memory, knowledge, logs, calls, keys_of, quotas_of,
+may_remember)` per process, implementing both protocols, that recalls the contact's facts (the
+contact is `CallContext.remembered_as`: the resolved id, else the number on phone and WhatsApp, else
+nobody — never what the model wrote in the tool's input), searches the agent's `docs.base` under its
+declared `k`/`min_score`, writes `memory.ops` and `docs.sources` on the call's log with the turn's
+`speech_id`, and names the embedder's vendor and URL in the error entry when it is down. The answers
+are `{"facts": [{text, source, since}]}` and `{"chunks": [{path, heading, text}]}` and nothing else.
+The last two arguments are the org's PLAN, asked of `orgs/` (which `lookups/` may not import): a
+tool whose quota is `0` finds nothing, embeds nothing and writes no entry — a plan without the
+feature is not a failure and never reads as one — and a hang-up whose org may keep no more facts
+writes `memory.ops` with an op that kept none, its `credits.exhausted` one entry away in the agent's
+log, and asks no model to extract what it could not store. **A tool runs in the tenant's process**:
+the session sends `tool.call` to the gateway, which relays it down the app socket the call is bound
 to, the tenant's `@tool` runs where it was written, `tool.result` rides back to the model.
 Decisions: *text-session*, *prompt-blocks*, *memory*, *retrieval*, *livekit-context*,
 *livekit-words*.
@@ -293,9 +283,8 @@ Decisions: *text-session*, *prompt-blocks*, *memory*, *retrieval*, *livekit-cont
 | **a terminal** | `WS /v1/chat` (`pinecall chat`, `pinecall-runtime chat`) | a text call, `?app=<id>` binds it to the console that opened it | the gateway; a **TextSession** |
 | **a call back** | `POST /v1/agents/{slug}/dial` with the org's key → the guards, then a dispatch into a room named by the call id | the worker places the SIP leg itself, through the org's outbound trunk | the worker; a **VoiceBridge**, once the far end answered |
 
-Every door ends the same way: `call.summary` (livekit's usage rows, the cost from
-`providers/prices.py`), then the judges, then `call.score`, then the seal. Decisions: *tokens*,
-*dispatch*, *whatsapp*.
+Every door ends alike: `call.summary` (livekit's usage rows, cost from `providers/prices.py`), the
+judges, `call.score`, the seal. Decisions: *tokens*, *dispatch*, *whatsapp*.
 
 **An outbound call runs backwards**: the gateway mints the call id, passes the guards, writes the
 head row and `call.dialing` (both numbers, and who asked) and dispatches a worker; `from` is the
@@ -317,7 +306,6 @@ by the store in the append that writes each entry; `store/index.py` the question
 and an inbox ask across calls, `call_facts` in Postgres, 0025). The `seq` is born under the
 database in the same INSERT; ephemerals spend a seq and leave no row; `ts` is the runtime's
 clock. **Compact the view, never the log.** Decision: *log*.
-
 A log is sealed by whoever ran the call, and a worker that is **killed** seals nothing: the
 gateway's **reaper** (`api/reaping.py`; `docs/protocol/console-api.md` §2) finishes, as `drained`,
 every spoken call quiet for five minutes whose room the SFU no longer has (`routes/rooms.py`).
@@ -350,13 +338,12 @@ row wins and the loser is named.
 | 3 | a finished call read back whole and checked **by code, with no model**: consent, provider errors, latency budget, the register scan, a replay | `POST /v1/evals/replay/{call}`, `pinecall eval` | `evals/checks/*` |
 | 4 | **every finished call judged at hang-up**, the verdict an entry in the tenant's own log | the session's `Scorer`, on either channel | `evals/score.py`, `evals/judges/*` |
 
-The judges are livekit's shape. The ring-4 panel is `ConsentJudge` (by code, off the gate lines)
-and `GroundedJudge` (every price, hour, date and name the agent stated, against the evidence).
+The judges are livekit's shape. The ring-4 panel is `ConsentJudge` (by code, off the gate lines) and
+`GroundedJudge` (every price, hour, date and name the agent stated, against the evidence).
 `RegisterJudge` (tú or usted, by code) runs in ring 1 when a golden declares `register`; it is not
-on the ring-4 panel because `AgentConfig` declares no register yet. A judge that wants a model
-gets one Haiku behind a ceiling (`PINECALL_JUDGE_CEILING_EUR`; zero means no judge asks), and
-`call.score` records who was RUN and who ANSWERED. Decisions: *evals* and its chapters,
-*scoring*.
+on the ring-4 panel because `AgentConfig` declares no register yet. A judge that wants a model gets
+one Haiku behind a ceiling (`PINECALL_JUDGE_CEILING_EUR`; zero means no judge asks), and
+`call.score` records who was RUN and who ANSWERED. Decisions: *evals* and its chapters, *scoring*.
 
 ## 11. Who may import whom
 
@@ -392,7 +379,6 @@ One machine (`PINECALL_ROLE=all`), or a **hub** — gateway, SFU, SIP, Redis, Po
 **workers** dialling it by URL with nothing but the org's key and the vendors' keys. Declared:
 cloud-init, systemd units, Quadlet containers, nftables, encrypted systemd credentials, a
 Makefile that is the manifest, on any provider. `infra/box/README.md`; decision: *box*.
-
 Everything the product does is here, open: orgs, keys, quotas, usage, routes, the log, the vault,
 the operator API, the sign-up as a mechanism, the box. **Nothing that charges is**: no plan, no
 price, no trial, no card. The two meet at `extensions/` — named points the runtime answers itself

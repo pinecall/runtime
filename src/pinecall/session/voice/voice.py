@@ -26,6 +26,7 @@ from pinecall.session.voice.agent import VoiceAgent
 from pinecall.session.voice.barge_in import is_a_backchannel
 from pinecall.session.voice.events import Events
 from pinecall.session.voice.hanging_up import HOW_IT_ENDED, a_way_to_hang_up
+from pinecall.session.voice.hold import HoldMusic
 from pinecall.session.voice.metrics import Meters
 from pinecall.session.voice.platform import Platform
 from pinecall.session.voice.room import DataChannel, Facts, Holding
@@ -135,6 +136,10 @@ class VoiceBridge:
         )
         await a_line_for_the_file_it_ships_with(self.blocks, self.writing.emit)
 
+    async def holding(self, melody: Path | None) -> None:
+        """The room is live: what the caller hears while a tool runs, or None for nothing."""
+        self.tools.hold = await HoldMusic.in_this_room(melody)
+
     # The shutdown callbacks of a job run gathered, not in order, so the session is closed here
     # first: its own close drains the last speech and adds the last turn to the history, and
     # call.ended must come after that turn and never before it.
@@ -226,8 +231,7 @@ class VoiceBridge:
         await commands.apply(applying, command)
 
     # The static blocks are livekit's instructions, rewritten only when their joined text moved:
-    # the same bytes again would still cost the provider a cache write. A dynamic block is read
-    # per request, in llm_node, and touches nothing here.
+    # the same bytes would still cost a cache write. A dynamic block is read in llm_node.
     async def set_prompt(self, name: str, text: str) -> None:
         """prompt.set: one block rewritten. The text stays out of the log; its hash goes in."""
         if self.blocks.set(name, text):
@@ -331,8 +335,7 @@ class VoiceBridge:
 
     # Nobody hung up: a component answered something that will not change — a voice that does not
     # exist, a key that is not accepted — and every second spent retrying it is a caller hearing an
-    # apology for silence. The log already has the one error entry that says which. See
-    # docs/decisions/providers.md.
+    # apology for silence. The log already has the one error entry that says which.
     def ends_for(self, cause: str) -> None:
         """A component failed for good: the call ends now, as the error nobody could answer."""
         self._ended = ("error", "platform")
