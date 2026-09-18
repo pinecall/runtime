@@ -54,7 +54,7 @@ sandbox, answered in that colleague's corner.
 | `POST` | `/v1/login/sso/discover` | which orgs an address's domain signs in to with a provider; says nothing about who exists — no key, throttled like the login |
 | `POST` | `/v1/signup` | where `PINECALL_SIGNUP` is on, off by default: a new org allowed what its gateway's policy says, its admin active, their first key and a login code |
 | `GET` | `/v1/whoami` | the org as an id AND as the `slug` its people type, the key's id, its label, the world it opens (`env`), its `scopes`, whose it is (`subject`, `name`), whether that person runs the box (`operator`) and whether they are inside an org they are no member of (`visiting`) |
-| `GET` | `/v1/ops/whoami` | **the box's own**: that this key is the operator's, the version, the domain — what the `/admin` page proves its key at |
+| `GET` | `/v1/ops/whoami` | **the box's own**: that this key is the operator's, the version, the domain, and the `name` and `org` of the person holding it — null for the box's own key; what the `/admin` page proves its key at |
 | `GET` · `PUT` · `DELETE` | `/v1/ops/mail` | **the box's own**: the mail server the box posts through, stored here over the environment's — `source` says which; never the password. [the-box.md](the-box.md) |
 | `POST` | `/v1/ops/mail/test` | **the box's own**: one letter through the box's mailbox, waited for — `{sent, error}` |
 | `GET` | `/v1/ops/signin` | **the box's own**: every box-wide provider — `{google: {configured, client_id, redirect_uri}}` |
@@ -63,6 +63,7 @@ sandbox, answered in that colleague's corner.
 | `GET` | `/v1/ops/orgs/{org}/sso` | **the box's own**: which provider one org signs in with, never its secret |
 | `PUT` | `/v1/ops/orgs/{org}/sso/required` | **the box's own**: the break-glass — a password opens that org again while its provider is down. Never the other way |
 | `GET` · `POST` | `/v1/ops/orgs/{org}/members` | **the box's own**: an org's people and how many hold a seat; invite one — the first admin, where sign-ups are shut — the token once. Never a change |
+| `PUT` | `/v1/ops/orgs/{org}/members/{id}/operator` | **the box's own**: whether this member runs the box; false takes it back at once |
 | `DELETE` | `/v1/ops/orgs/{org}/members/{id}` | **the box's own**: that person out of the org for good, under the tenant door's rules less "yourself" — `409` for its last active admin |
 | `GET` | `/v1/agents` | the agents this gateway is holding for your org |
 | `GET` | `/v1/agents/{slug}/config` | what it declared, overrides applied — `app` or `calls` |
@@ -72,8 +73,9 @@ sandbox, answered in that colleague's corner.
 | `PUT` | `/v1/line/from` | this phone's calls reach this key's corner, in whatever agent it holds — the sandbox number's, and a production number's too — `app`, set from the sandbox only |
 | `GET` | `/v1/line/numbers` | the org's production phone numbers and the agent each reaches: what a developer's own phone dials to reach their copy — `app`, a key naming a person, from the sandbox |
 | `DELETE` | `/v1/line/from` | stop answering your own calls; they fall back to the line — `app` |
-| `GET` | `/v1/agents/{slug}/pipeline` · `PUT …/pipeline/overrides` | what it runs on, and the five knobs |
+| `GET` | `/v1/agents/{slug}/pipeline` · `PUT …/pipeline/overrides` | what it runs on, and the six knobs — [pipeline-api.md](pipeline-api.md) |
 | `GET` · `PUT` | `/v1/agents/{slug}/widget` | how the widget presents the agent — title, tagline, greeting, accent, autostart — per world; read with `talk`, set with `pipeline` |
+| `POST` | `/v1/agents/{slug}/dev/{family}/{verb}` · `?app=` | a console's ask, relayed to the app standing in the agent's directory — `talk`, `knowledge`, `memory` or `evals` by family; [dev-verbs.md](dev-verbs.md) |
 | `GET` | `/v1/agents/{slug}/provider-keys` | the org's own vendor keys, **in the clear**: the worker's door, see §6 |
 | `GET` | `/v1/agents/{slug}/rings-for?caller=` | whose sandbox copy a production ring from this phone belongs to, or null: production's — the worker's, `app` |
 | `GET` | `/v1/agents/{slug}/sessions` | one line per call, in the reader's corner — the same filters |
@@ -87,6 +89,7 @@ sandbox, answered in that colleague's corner.
 | `POST`·`GET` | `/v1/callbacks` | a number to call back when the fleet was full, and the list of them |
 | `GET` | `/v1/routes` | the numbers and doors your org answers |
 | `PUT`·`DELETE`·`GET` | `/v1/provider-keys[/{vendor}]` | the org's own vendor accounts — `providers` |
+| `GET` | `/v1/providers` | every vendor this build runs, which are ready on this box and which want a key, the defaults and the curated voices — `providers` |
 | `PUT`·`GET`·`DELETE` | `/v1/knowledge[/{base}]` · `POST …/eval` | the base the agent answers from, in the key's world |
 | `GET`·`DELETE` | `/v1/contacts/{contact}/memory` · `POST /v1/contacts/memory/eval` | what it keeps about a person, in the key's world |
 | `GET` | `/v1/agents/{slug}/threads?after=` · `/threads/{contact}` | the inbox: an agent's calls by contact, what this person has not read, and one thread merged — `calls` |
@@ -99,6 +102,7 @@ sandbox, answered in that colleague's corner.
 | `POST` | `/v1/calls` · `/v1/calls/{call}/events` · `/sealed` · `/tools` · `/lookup` · `/remember` · `GET /commands` | the worker's own doors |
 | `POST`·`GET` | `/v1/fleet/heartbeat` · `/v1/fleet/standing` | the fleet's: what a worker holds, and whether all are full. A key holding the `fleet` scope only |
 | `GET`·`POST` | `/v1/whatsapp/webhook` | Meta's |
+| `GET` | `/.well-known/pinecall` | what this gateway is before anybody holds a key: version, `cloud`, `signup`, `min_password`, `mail`, `brand`, `google` — no key |
 | `GET` | `/`, `/admin` | the console, and the operator's page — no key to load, each proves its own |
 | `GET` | `/widget/pinecall-widget.js` | the widget, for any site to load: `Access-Control-Allow-Origin: *`, the one CORS answer |
 | | `/v1/ops/*` | the operator's: the box's own key, or the key of a person the box made an operator — [operator-api.md](operator-api.md) |

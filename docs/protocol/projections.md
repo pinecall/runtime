@@ -4,10 +4,7 @@ A call's log holds everything: every word, every number, every tool's arguments.
 receives is a **projection** of it, chosen by who is reading, and there are exactly two. This is a
 public contract: a console, a widget or a customer's own reader may rely on every row below.
 The runtime spells the two names in two places and nowhere else — `log/projection.py` and
-`auth/scopes.py` — so no sink can decide on its own what "public" means. The whitelist below is
-asserted through the door itself, over the protocol's golden log, in
-`tests/api/calls/test_state.py`: a participant's token reads the public projection and an API key
-the tenant's.
+`auth/scopes.py` — so no sink can decide on its own what "public" means.
 
 ## Who reads through which
 
@@ -52,7 +49,7 @@ The envelope keeps `seq`, `ts`, `type`, `ephemeral`.
 | `call.ended` | `reason` `ended_by` `ended_at` `duration_s` | status |
 | `user.state` `agent.state` | `state` | user_state, agent_state |
 | `user.transcript` | `text` `final` | live (the interim words, without the recognizer's confidence) |
-| `agent.transcript` | `speech_id` `text` `final` — one **delta**, never the reply so far: a word with its timings in a voice call, one model token in a written one. `start` and `end` are dropped. The reducer joins every delta since the last `turn.agent` into `live.agent` | live |
+| `agent.transcript` | `speech_id` `text` `final` — one **delta**, never the reply so far: a word with its timings in a voice call, one model token in a written one. `start` and `end` are dropped. The reducer joins every delta since the last `turn.agent` into `live.agent`; a `final` one clears it | live |
 | `turn.user` | `speech_id` `text` | turns |
 | `turn.agent` | `speech_id` `text` `interrupted` `metrics` — of the metrics, only `e2e_latency` | turns |
 | `room.opened` | `name` `sid` | room |

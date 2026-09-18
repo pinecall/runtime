@@ -85,9 +85,10 @@ at another one. Two that cost an afternoon: your shell may already export `ELEVE
 this runtime reads `ELEVEN_API_KEY`; and `pinecall-runtime doctor` knocks at every key you put in
 `.env`, so it — not a failed call — is where you find out one of them is dead.
 
-> **On an M-series Mac the `tei` container cannot start** — its CPU image has no arm64 build. Set
-> `EMBED_PROVIDER=perplexity` with a `PERPLEXITY_API_KEY` and lookups embed over HTTP with no
-> container. That is what this walkthrough ran on. With neither, `knowledge push` answers
+> **On an M-series Mac the `tei` container's default image is amd64** — Docker runs it under
+> emulation and one embedding takes minutes. Put the arm64 tag `infra/README.md` names in
+> `TEI_IMAGE`, or set `EMBED_PROVIDER=perplexity` with a `PERPLEXITY_API_KEY` and lookups embed
+> over HTTP with no container. The second is what this walkthrough ran on. With neither, `knowledge push` answers
 > `503 TEI at http://127.0.0.1:8081 did not answer` and a lookup is skipped and said in the call's
 > log — no call fails for it.
 
@@ -99,9 +100,11 @@ this runtime reads `ELEVEN_API_KEY`; and `pinecall-runtime doctor` knocks at eve
 
 ```console
 $ pinecall-runtime migrate up
+at 127.0.0.1:5432/pinecall · schema public
 applied 0001_call_log.sql
 …
 applied 0035_box_settings.sql
+1 post-deployment migration(s) not run: `pinecall-runtime migrate up --post`
 org default has no key yet — `pinecall-runtime keys issue --org default` mints one
 ```
 
@@ -128,10 +131,12 @@ it. That is the right refusal, but it is a step, not a surprise. The widget is t
 `no widget checkout at ../widget: set PINECALL_WIDGET`, after the two pages are already copied.
 
 ```bash
+echo "PINECALL_OPS_KEY=$(openssl rand -hex 32)" >> .env
 pinecall-runtime gateway
 ```
 
-It needs `DATABASE_URL` with the schema applied. **A gateway with no database verifies nothing**,
+The operator key goes in `.env` before the gateway starts: the gateway reads it once, at startup,
+and `init` below knocks with the same one. It needs `DATABASE_URL` with the schema applied. **A gateway with no database verifies nothing**,
 says so at startup and answers every keyed door `503` — it does not come up looking healthy. There
 is no second mode: a laptop runs the same Postgres, the same migrations and the same issued keys a
 server does.
@@ -139,7 +144,6 @@ server does.
 ## 4. The first person
 
 ```console
-$ export PINECALL_OPS_KEY=$(openssl rand -hex 32)
 $ pinecall-runtime init --email berna@clinica.test --person "Berna"
 org default is already there
 m_b3796f3579fc  berna@clinica.test  admin  runs this box
@@ -520,9 +524,14 @@ org_fb00ba7794ac  clinica  Clínica Norte
 
 $ pinecall-runtime orgs quota clinica --agents 5 --seats 10
   minutes           —
+  messages          —
   agents            5
+  concurrent_calls  —
+  memory_facts      —
+  knowledge_chunks  —
+  numbers           —
   seats             10
-  …
+  budget_eur        —
 ```
 
 `quota` replaces the whole set: a limit left out is no limit. A slug belongs to the first org that

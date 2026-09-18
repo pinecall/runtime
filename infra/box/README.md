@@ -1,7 +1,7 @@
 # The box
 
 The same five services as the dev stack (`../README.md`), on a machine a stranger can telephone,
-declared rather than scripted. Four are on every box; the fifth, the embedder, is a choice ("The embedder").
+declared rather than scripted. Four are on every box but a worker; the fifth, the embedder, is a choice ("The embedder").
 
 This directory is a box **declared**: every file in it is one thing systemd, podman, Caddy or
 nftables reads, and there is no script. A fresh machine on any provider — a cloud that takes
@@ -23,6 +23,8 @@ infra/box/
 ├── pinecall-postgres-image.service   our Postgres image, built once per tag
 ├── pinecall-gateway.service · pinecall-worker.service        the two processes we write
 ├── pinecall-worker-key.service · pinecall-operator-key.service   two keys, minted once each
+├── pinecall-overflow.service  the overflow agent, on the hub: it answers when every worker is full
+├── pinecall-fleet.service     the fleet loop, on a hub whose box.env names a cloud (docs/scaling.md)
 ├── pinecall-app@.service      a tenant's app held here, one instance per app (docs/a-box-in-production.md §7)
 └── caddy/                     the Caddyfile, and the drop-in that hands Caddy its domain
 ```
@@ -61,7 +63,7 @@ Three steps, and the machine does the rest.
 ```bash
 # 1. A machine. Any Linux with systemd ≥ 254 and podman ≥ 4.9; Ubuntu 24.04 is what we run.
 #    Hand your provider cloud-init.yaml as the instance's user-data, with the three YOURS lines
-#    filled: your ssh public key, the domain, the SFU's public URL. It installs the packages,
+#    filled: your ssh public key, the domain, the SFU's public URL, the role. It installs the packages,
 #    makes the deploy account and its /opt/pinecall/app, installs uv, and raises the fence — a
 #    machine without cloud-init does those four things by hand; they are the whole file.
 
@@ -209,8 +211,8 @@ Nowhere in the clear. Every secret on the box is a **systemd credential**: one f
 has one — and decrypted by systemd into a private directory for the one unit that named it
 (`ImportCredential=` in each `.service`), readable by that process and by nothing down the tree.
 The runtime reads that directory as it reads the environment (`_settings.py`, `secrets_dir`),
-under the same names; the three LiveKit containers read one credential, `media.env`, as their
-environment file. There is no `.env` on the box, and a stolen disk is not a stolen tenant.
+under the same names; the three containers that take a secret — livekit, sip and postgres — read
+one credential, `media.env`, as their environment file. There is no `.env` on the box, and a stolen disk is not a stolen tenant.
 
 | credential | who reads it | made by |
 |---|---|---|
@@ -256,7 +258,7 @@ and never after the hub's Postgres or its embedder, because a worker has neither
 the embedder's line is the verdict, since a hub is what answers a knowledge push; anywhere else
 it is advice, and every call still runs. "The embedder", above.
 
-## Four traps on a real box, one line each
+## Five traps on a real box, one line each
 
 - **The fence must let the containers ask the host for a name.** podman's own DNS, aardvark-dns,
   answers on the bridge's address (`10.89.0.1`), so a container resolving `pinecall-redis` sends a
@@ -291,6 +293,7 @@ Three, and none of them opens another's door. The *keys* decision page in the ma
 |---|---|---|
 | `PINECALL_OPS_KEY` | the box — `/v1/ops/*` and nothing else. A person the box made an operator (`orgs operator`) opens the same doors with their own key | `pinecall-secrets.service`, once |
 | `PINECALL_WORKER_KEY` | the worker unit — `/v1/routes`, the app socket, the log, for EVERY org's calls | `pinecall-worker-key.service`, once: `keys issue --org default --scope fleet --scope app --scope calls`, stdout straight into `systemd-creds encrypt` |
+| `PINECALL_OPERATOR_KEY` | you — a key of org `default`, every scope but `fleet` | `pinecall-operator-key.service`, once: `keys issue --org default --label the-operator`, the same way |
 
 `migrate up` mints nothing: it runs before every start of the gateway, and a verb that runs there
 must print no secret into a journal. `keys issue` is the one place a key exists in the clear — on
@@ -300,7 +303,7 @@ into a credential without a shell in between.
 ## Wire a number — the order, and it is ten minutes
 
 What was run on 2026-09-08 to put **+1 417 674 3169** on `box.pinecall.io`, in the order it was
-run; the *sip* decision page in the maintainer's notebook argues why each step is what it is. Every tool takes `--dry-run`.
+run; the *sip* decision page in the maintainer's notebook argues why each step is what it is. `twilio_trunk.py` takes `--dry-run`; `routes` has none.
 
 ```bash
 export TWILIO_ACCOUNT_SID=… TWILIO_API_KEY=… TWILIO_API_SECRET=…   # from your own .env, never ours
@@ -405,5 +408,5 @@ speaks UDP, so an ssh tunnel is not a way around either. Put the address in both
 take it out again — a deploy restores the fence to exactly the eight networks in the file, so
 taking it out is one command and not a memory. That inconvenience is the fence working.
 
-`_the_address_that_reaches` reports the address on this machine's own interface, which behind
+`_the_address_that_reaches` (`../tools/sip_call.py`) reports the address on this machine's own interface, which behind
 NAT is not the address the box sees: read the public one (`curl -s ifconfig.me`) and admit that.

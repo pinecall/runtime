@@ -121,7 +121,7 @@ pinecall-runtime orgs move <agent> <org>
 pinecall-runtime orgs rm <org>
 pinecall-runtime orgs quota <org> [--minutes n] [--messages n] [--agents n]
                                   [--concurrent-calls n] [--memory-facts n] [--knowledge-chunks n]
-                                  [--numbers n] [--seats n]
+                                  [--numbers n] [--seats n] [--budget-eur n]
 pinecall-runtime orgs dialling <org> [--dial-anywhere | --no-dial-anywhere]
                                      [--per-minute n] [--per-day n] [--max-duration-s n]
 pinecall-runtime orgs sso <org> [--off]
@@ -163,7 +163,9 @@ in with a password again while their provider is down, and is the one SSO thing 
 so there is no counter to drift, and the gate runs before a call opens, before an agent registers,
 before memory keeps a fact and before an invitation makes a row — never in the middle of a call.
 `--seats` is what a plan sells a team by: everybody the org has not disabled, invited and active
-together, because an invitation sent is a seat taken.
+together, because an invitation sent is a seat taken. `--budget-eur` is euros a calendar month,
+set with the quotas and not one of them: it is shown beside what was spent, and nothing is ever
+refused over it.
 
 `provider-key set` reads the key from **stdin**, never from a flag, for the reason every verb in
 this repo that touches a secret does: argv is visible in `ps` to every user on the box. The row is
@@ -272,7 +274,7 @@ big table is always one of those.
 ## `doctor`
 
 ```
-pinecall-runtime doctor
+pinecall-runtime doctor [--mail-to <address>]
 ```
 
 Every dependency asked a real question — is the key present, does it answer, is the port open — and
@@ -290,13 +292,23 @@ env: /Users/berna/pinecall-v2/runtime/.env
 ✓ postgres              postgresql://pinecall@[::1]:5432/pinecall — vector, pg_textsearch
 ! embedder              tei · BAAI/bge-m3 — http://127.0.0.1:8081/info — ConnectError: …;
                         a lookup without it is skipped and said in the call's log: this stops no call
-! lk                    not installed — brew install livekit-cli
+! mail                  not configured — set it at PUT /v1/ops/mail (the admin page), or set PINECALL_SMTP_URL and PINECALL_MAIL_FROM, …
+! lk                    not installed — brew install livekit-cli (lk docs · lk sip · lk dispatch)
 
 all up
 ```
 
-`✓` is answered, `!` is advice — something degraded that stops no call — and `✗` is broken. What it
-asks after depends on `PINECALL_ROLE`: `all`, `hub` (no worker) or `worker`.
+`✓` is answered, `!` is advice — something degraded that stops no call — and `✗` is broken; the
+last line is `all up` or `first down: <check> — …`, and the exit code is 1 on a `✗`. What it asks
+after depends on `PINECALL_ROLE`: `all`, `hub` (no worker) or `worker`, which is not asked after
+Postgres, the embedder or the mail. On a `hub` a dead embedder is `✗`, not advice: a hub answers
+knowledge pushes.
+
+The mail line names the server the box posts invitations and password resets through, as the
+gateway resolves it: the mailbox the operator stored at `PUT /v1/ops/mail` first, else
+`PINECALL_SMTP_URL` and `PINECALL_MAIL_FROM`. `--mail-to` posts one real test letter through it
+after the report — `mail sent  <address> — taken by <host>:<port>`, or the server's own refusal —
+and a letter that did not go makes the exit code 1.
 
 The first line used to read differently on a laptop and on a box, because a laptop could run on
 `PINECALL_DEV_KEY` — one key, org `default`, the table not read. That was a second runtime, and it
@@ -364,6 +376,11 @@ own name, so the SDK that reads `ANTHROPIC_API_KEY` by itself and this runtime a
 | `PINECALL_WORKER_NAME` · `PINECALL_OVERFLOW_SAYS` | its name in the roster (unset: the hostname), and the overflow agent's one sentence |
 | `RECORD` · `PINECALL_RECORDINGS` | whether a call's audio is kept, and where it lands |
 | `WHATSAPP_ACCESS_TOKEN` · `PINECALL_WHATSAPP_APP_SECRET` · `PINECALL_WHATSAPP_VERIFY_TOKEN` | Meta's webhook: the token messages are sent with; the app's App Secret every webhook body is HMAC-SHA256-signed with (unset, the WhatsApp door is closed); the word Meta echoes back when the webhook is subscribed |
+| `PINECALL_SMTP_URL` · `PINECALL_MAIL_FROM` | the box's own mail (`smtp://user:pass@host:587`, or `smtps://…:465`) and who its letters are from. A mailbox stored at `PUT /v1/ops/mail` is used before these, and an org that wired its own uses that one; with none, nothing is sent |
+| `TWILIO_ACCOUNT_SID` · `TWILIO_API_KEY` · `TWILIO_API_SECRET` | the box's own carrier account, for the numbers it buys for a tenant |
+| `PINECALL_DOMAIN` | the box's public name: where a carrier sends a call for a number a tenant imports. Unset, nothing imports |
+| `PINECALL_WORKER_HTTP_PORT` | where the worker's own health server binds, on loopback: 8082 unless set |
+| `PINECALL_SIGNUP` · `PINECALL_CLOUD` · `PINECALL_EXTENSIONS` | whether a stranger may make an org here (off unless set); Pinecall's hosted gateway; packages that plug a policy into the runtime, comma separated |
 | `PINECALL_MIN_PASSWORD` | how short a member's password may be: 8 unless set, `0` for no rule |
 | `PINECALL_JUDGE_CEILING_EUR` | what judging one call may spend on a model. Zero: no judge asks |
 | `PINECALL_VOICE_LOOKUP_BUDGET_MS` · `PINECALL_TEXT_LOOKUP_BUDGET_MS` · `PINECALL_REMEMBER_BUDGET_S` | how long a turn waits for recall and search, and a hang-up for memory |
@@ -374,8 +391,9 @@ own name, so the SDK that reads `ANTHROPIC_API_KEY` by itself and this runtime a
 ## A laptop, from nothing
 
 ```bash
+cd runtime
 docker compose -f infra/compose/dev.yml up -d      # livekit · sip · redis · postgres · tei
-cd runtime && uv sync --extra runtime --group dev
+uv sync --extra runtime --group dev
 cp .env.example .env                               # and fill in the provider keys
 pinecall-runtime migrate up                        # the schema, on the compose Postgres
 pinecall-runtime doctor                            # every line green before anything else

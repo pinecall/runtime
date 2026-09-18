@@ -23,9 +23,11 @@ runtime with nothing in front of it. This page is the machine with a domain on i
 - **Your checkout**, on your laptop. The deploy is rsync and ssh from it: nothing on the box ever
   clones, and the box needs no git, no GitHub and no registry.
 
-Three ports, and no others: `22` for you, `80` and `443` for Caddy. The firewall in
-`infra/box/nftables.conf` closes the rest, including Postgres and LiveKit — they answer on
-loopback and nowhere else.
+Three ports on the host itself, and no others: `22` for you, `80` and `443` for Caddy. The
+firewall in `infra/box/nftables.conf` closes the rest; Postgres, the embedder and LiveKit's
+signalling are published on loopback and nowhere else. What the media containers publish stays
+open, because media arrives from anywhere — `7881/tcp` and `7882/udp` for WebRTC,
+`10000-10199/udp` for RTP — and `5060` is open to the carrier's signalling networks alone.
 
 ## 1. The machine, from cloud-init
 
@@ -34,7 +36,8 @@ the packages, the account rsync logs in as, the directory it lands in, uv, and t
 are this box's alone. Paste it as the instance's user-data — GCP's `user-data` metadata key, AWS's
 User data, Hetzner's cloud config.
 
-**Three lines are yours**, marked `YOURS`: your SSH public key, your domain, and the role.
+**The lines marked `YOURS`** are your SSH public key (and the deploy account's name, if you want
+another), and in `box.env` your domain — twice, the second as `wss://` — and the role:
 
 ```yaml
   - path: /etc/pinecall/box.env
@@ -109,14 +112,16 @@ inside the box, with the box's own credentials — never yours.
 
 ```console
 $ make doctor
+env: no .env — environment only
+
 ✓ api keys              the api_keys table — `pinecall-runtime keys issue --org <slug>` mints one
 ✓ provider keys         llm ANTHROPIC_API_KEY, OPENAI_API_KEY · stt DEEPGRAM_API_KEY, … · tts ELEVEN_API_KEY, …
 ✓ provider keys answer  ANTHROPIC_API_KEY · OPENAI_API_KEY · SONIOX_API_KEY · DEEPGRAM_API_KEY · ELEVEN_API_KEY
 ✓ livekit               http://127.0.0.1:7880/ — HTTP 200
 ✓ postgres              postgresql://pinecall@127.0.0.1:5432/pinecall — vector, pg_textsearch
 ✓ embedder              tei · BAAI/bge-m3 — http://127.0.0.1:8081/info — HTTP 200
-! mail                  not configured — set PINECALL_SMTP_URL and PINECALL_MAIL_FROM to mail invitations and password resets; …
-! lk                    not installed — brew install livekit-cli
+! mail                  not configured — set it at PUT /v1/ops/mail (the admin page), or set PINECALL_SMTP_URL and PINECALL_MAIL_FROM, to mail invitations and password resets; …
+! lk                    not installed — brew install livekit-cli (lk docs · lk sip · lk dispatch)
 
 all up
 ```
@@ -157,12 +162,13 @@ The worker knocks at the gateway with a key of its own, minted once on first sta
 `pinecall-worker-key.service`: org `default`, with the **`fleet`** scope. That scope is what lets
 one worker answer every org's calls — its doors resolve by the call the dispatch named, never by
 the key's org — and nothing but that unit mints it. A box born before the scope existed still
-holds a worker key without it, and every org's call but `default`'s dies with `NoRoute`. Once:
+holds a worker key without it, and every org's call but `default`'s dies with `NoRoute`. Once,
+the two `keys` verbs from the checkout with the box's ops key (§6 says how):
 
 ```console
-$ pinecall-runtime keys list --org default          # from the checkout: the old key's fingerprint
+$ pinecall-runtime keys list --org default          # the old key's fingerprint
+$ pinecall-runtime keys revoke <that fingerprint>
 $ ssh $BOX
-$ sudo /opt/pinecall/venv/bin/pinecall-runtime keys revoke <that fingerprint>
 $ sudo rm /etc/credstore.encrypted/PINECALL_WORKER_KEY
 $ sudo systemctl start pinecall-worker-key           # mints the new one, fleet scope and all
 $ sudo systemctl restart pinecall-worker pinecall-overflow
@@ -217,7 +223,7 @@ make doctor MAIL_TO=you@example.com
 ```
 
 ```console
-✓ mail                  Pinecall <noreply@pinecall.io> through email-smtp.us-east-1.amazonaws.com:587 (starttls) — `doctor --mail-to you@example.com` posts one
+✓ mail                  Pinecall <noreply@pinecall.io> through email-smtp.us-east-1.amazonaws.com:587 (starttls), from the environment — `doctor --mail-to you@example.com` posts one
 …
 mail sent  you@example.com — taken by email-smtp.us-east-1.amazonaws.com:587
 ```
@@ -232,12 +238,14 @@ over the box's for that org; `POST /v1/org/mail/test` sends one and says what th
 ## 6. The first org and the first person
 
 The schema seeds one org, `default`. One command turns a migrated database into a box somebody can
-sign in to:
+sign in to. It knocks at the operator API with the box's key, `PINECALL_OPS_KEY`, which lives in
+the credstore and in no shell's environment, so it runs from the checkout — and the link it
+prints starts with `PINECALL_GATEWAY_URL`:
 
 ```console
-$ ssh $BOX
-$ sudo -u pinecall /opt/pinecall/venv/bin/pinecall-runtime init \
-    --email you@example.com --person "Your Name"
+$ export PINECALL_GATEWAY_URL=https://box.example.com
+$ export PINECALL_OPS_KEY=$(ssh $BOX sudo systemd-creds decrypt --name=PINECALL_OPS_KEY /etc/credstore.encrypted/PINECALL_OPS_KEY -)
+$ uv run pinecall-runtime init --email you@example.com --person "Your Name"
 org default is already there
 m_b3796f3579fc  you@example.com  admin  runs this box
   https://box.example.com/invitations/inv_…
@@ -380,7 +388,8 @@ yourself opening a port to make dialling work, the problem is at the far end's A
 ### On Twilio, the box provisions the trunk
 
 Nothing is done by hand for the trunk itself. `POST /v1/carrier/outbound` sets the termination
-label on the org's own trunk — the one the import already made — mints a credential list named
+label on the org's own trunk, `pinecall-<org>` — the one the import already made, or a new one
+when there is none — mints a credential list named
 `pinecall-<org>` on the tenant's account, attaches it to the trunk, and makes the SFU's outbound
 trunk pointed at `pinecall-<org>.pstn.twilio.com`. Two things are the operator's:
 
@@ -419,11 +428,11 @@ placed call may run. Which countries it reaches is the carrier account's own set
 
 ```bash
 pinecall-runtime orgs dialling clinica-norte --per-minute 6 --per-day 200
-pinecall-runtime orgs clinica-norte          # dialling, read back beside the quotas
 ```
 
-Replaced whole, and a guard left out goes back to the default and never to "no limit". **The one
-that matters is `dial_anywhere`**: off, the box only calls back somebody who already called or
+It prints the four guards as the door kept them; `GET /v1/ops/orgs/{org}` reads them back beside
+the quotas. Replaced whole, and a guard left out goes back to the default and never to "no
+limit". **The one that matters is `dial_anywhere`**: off, the box only calls back somebody who already called or
 wrote to one of the org's agents, which is what makes an outbound trunk safe to leave standing.
 On, the box can dial anybody — a telemarketer, and a decision somebody makes with their name on
 it. It is the operator's switch and no tenant's, because an org that could lift its own fence has
@@ -590,9 +599,10 @@ No hay contador que se desincronice: es una suma sobre lo que ya está escrito.
 
 # El admin, que es del operador
 
-Vive en `/admin`, toma **la ops key** y no la de ninguna persona. No hay `?login=` acá y no lo va a
-haber: un código en una URL es cómo se le entrega una key a un navegador, y la de esta página abre
-toda la box.
+Vive en `/admin`. Se entra como **una persona que la box hizo operador** — org, email y contraseña;
+`init` hace operador a la primera y `orgs operator <org> <email>` a las demás, `--revoke` lo quita
+— o con **la ops key** de la box. No hay `?login=` acá y no lo va a haber: un código en una URL es
+cómo se le entrega una key a un navegador, y la de esta página abre toda la box.
 
 <picture>
   <source srcset="images/dark/admin-orgs.png" media="(prefers-color-scheme: dark)">
@@ -660,7 +670,7 @@ make ssh
 | `curl: (56) … 502` ten times, then `never answered` | the gateway did not start. `make logs` |
 | `Error: parsing file ".../media.env"` | the box's own secrets are missing. `make deploy` starts `pinecall-secrets`; a reboot also does |
 | `livekit — ConnectError: Connection refused` | the media plane is down. `make deploy` starts it; it never restarts one under a call |
-| `✗ provider keys answer  ELEVEN_API_KEY refused (HTTP 401)` | a dead key, not a failed deploy. Rotate it, §5, then `make restart` |
+| `✗ provider keys answer  refused ELEVEN_API_KEY (HTTP 401)` | a dead key, not a failed deploy. Rotate it, §5, then `make restart` |
 | `no database: a key is verified against the api_keys table` | no `DATABASE_URL`, or the schema was never migrated |
 
 **Nothing fixed by hand on a box counts.** A package goes in `PACKAGES`, a secret through

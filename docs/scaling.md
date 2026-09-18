@@ -71,18 +71,19 @@ A worker on a full box (`role=all`) keeps its own health server on **loopback:80
 
 ## Deploys that drain, not cut
 
-A restart is a drain. On `SIGTERM` the worker tells LiveKit it is full and finishes every call it
-holds; systemd gives it **fifteen minutes** of grace (`TimeoutStopSec=900`) where its default 90 s
-would cut a call mid-sentence. `make deploy` restarts the gateway first and the worker only once
-the gateway answers, so no call rings into the gap.
+A restart is a drain. On `SIGTERM` the worker tells LiveKit it is full and waits for the calls it
+holds to end, for up to **ten minutes** (`DRAIN_S`, `worker/main.py`); past that each remaining job
+is shut down and seals its log as `drained`. systemd gives it **fifteen minutes** of grace
+(`TimeoutStopSec=900`) where its default 90 s would cut a call mid-sentence. `make deploy` restarts
+the gateway first and the worker only once the gateway answers, so no call rings into the gap.
 
 ## Cordon: the graceful shrink
 
 `pinecall-runtime fleet cordon <worker>` is the drain an operator asks for. The worker learns on its
 next heartbeat, tells LiveKit it is full, finishes the calls it holds, and exits **3** — the code
 `RestartPreventExitStatus=3` in its unit leaves down, because the machine is about to be deleted or
-a person will start it back. `fleet uncordon` takes it back while it is still there. Nothing
-already inside a call is cut, ever.
+a person will start it back. `fleet uncordon` takes it back while it is still there. It is the
+same drain, with the same ten minutes.
 
 ## Concurrency per client, held at the door
 

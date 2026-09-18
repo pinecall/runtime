@@ -50,8 +50,8 @@ dates. Revoking keeps the row, so the log entries that name that key stay readab
 
 An org issues its own without the operator: `POST /v1/keys {label?, env?, scopes?}` on a key that
 opens `keys`, which mints one for a **machine** — `app` and production when nothing is said, and
-naming nobody, because people get keys by logging in. A key may not issue a scope it does not
-itself open, and a fingerprint that is not the org's is the 404 a stranger's is.
+naming nobody, because people get keys by logging in. A key may not issue a scope beyond what it
+opens — a person's, beyond what their role opens — and a fingerprint that is not the org's is the 404 a stranger's is.
 
 ## A laptop is a box with one tenant
 
@@ -116,8 +116,11 @@ A process is not a person and has no password: a worker, a CI job, a box the ten
 The tenant issues those itself (`POST /v1/keys`); the operator can too, for a tenant who asked:
 
 ```bash
-pinecall-runtime keys issue --org pinecall --label "prod server"   # --scope app, production
-#   pk_…  copy it now: the table keeps the fingerprint, and the key is never shown again
+pinecall-runtime keys issue --org pinecall --label "prod server" --scope app   # production
+#   pk_…
+#     org org_… · production · prod server
+#     scopes app
+#     copy it now: the table keeps the fingerprint, and the key is never shown again
 pinecall-runtime routes add +34910000000 tienda-sur --org pinecall --channel phone
 ```
 
@@ -205,8 +208,8 @@ pinecall-runtime routes add +34910000000 clinica-norte --org clinica   # product
 ```
 
 The key also knows **what** — `scopes`, the doors as they are grouped — and **who** — `subject`
-and `name`, the member it was minted for. A key issued with nothing said holds every scope, which
-is what an org's own machine key means; a person's key holds what their role presets.
+and `name`, the member it was minted for. A key the operator issues with nothing said holds every
+scope but `fleet`, which is what an org's own machine key means; a person's key holds what their role presets.
 
 ## People
 
@@ -321,9 +324,9 @@ what a plan sells a team by, counted as everybody the org has not disabled. A te
 | | |
 |---|---|
 | `orgs` | id, slug, name. `default` is seeded by the migrations |
-| `quotas` | one row per org, the whole set of eight replaced at once |
+| `quotas` | one row per org, the whole set of eight and `budget_eur` (`0028`) replaced at once |
 | `api_keys` | sha256 fingerprint, org, label, `env`, `scopes`, `subject`, `name`, created_at, revoked_at. **Never the key**, and a revoked row is kept |
-| `members` | one person of one org: email (trimmed, lower-cased, unique per org), name, `role`, `agents`, `status`, the argon2id hash — the same hash on every row of that email. A disabled row stays |
+| `members` | one person of one org: email (trimmed, lower-cased, unique per org), name, `role`, `agents`, `status`, the argon2id hash — the same hash on every row of that email — and `operator` (`0020`). A disabled row stays |
 | `invitations` | the sha256 of a one-use token, whose it is, when it expires, when it was spent |
 | `routes` | (org, number) → (agent, channel), plus `env` and `managed`. One number is one door |
 | `carriers` | one per org: `twilio` or `sip`, the account it names, the credentials as Fernet ciphertext |
