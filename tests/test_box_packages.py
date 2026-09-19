@@ -75,8 +75,9 @@ def test_a_tenants_app_can_be_held_on_the_box() -> None:
     assert "nodesource" in plan, "NodeSource's repository goes in before apt is asked for nodejs"
     assert "pnpm@" in plan
     template = (BOX / "pinecall-app@.service").read_text()
-    assert "pinecall login http://127.0.0.1:8080 --key-stdin" in template
-    assert "pinecall run --env production" in template
+    assert 'PINECALL_KEY=$$(cat "$CREDENTIALS_DIRECTORY/pinecall-app-%i.key")' in template
+    assert "PINECALL_URL=http://127.0.0.1:8080" in template
+    assert "pinecall start --prod" in template
     assert 'set -a; . "$CREDENTIALS_DIRECTORY/pinecall-app-%i.env"' in template
     # The manager reads environment files before the credentials exist: measured, 2026-09-16.
     assert not re.search(r"^EnvironmentFile=", template, re.M)
