@@ -40,8 +40,9 @@ node ../../bin/pinecall.js personas list
 
 `--voice` mounts the class in THIS terminal (it serves the call the runtime opens), asks the
 gateway to put a synthetic caller on a real line, and prints each turn with its latencies; with
-`--judge`, `call.score` read back. The key comes from `PINECALL_API_KEY` in the env or
-`~/.pinecall/credentials`; `PINECALL_URL` picks the gateway (otherwise the local dev file).
+`--judge`, `call.score` read back. The key comes from `PINECALL_KEY` in the env or the
+nearest `.env` (`pinecall link` writes it); `PINECALL_URL` picks the gateway (box.pinecall.io
+otherwise). `pinecall whoami` says which key and where it was read.
 
 What a `503` from simulate means:
 - `this box has no speech tool` — the GATEWAY's box lacks `espeak-ng` (macOS: `say`). It is in
@@ -65,8 +66,9 @@ stop the others first (`sudo systemctl stop pinecall-worker` on the hub), never 
 
 ## Local
 
-`uv run pinecall-runtime doctor` first. `unset PINECALL_API_KEY` before `pinecall run` against a
-dev-key gateway (it is ignored out loud; a bare 403 is that). Native Postgres on the laptop:
+`uv run pinecall-runtime doctor` first. `pinecall start` reads `PINECALL_KEY` and `PINECALL_URL`
+and nothing else — v1's `PINECALL_API_KEY` is never read, so a bare 403 is the key in the project's
+`.env`, not a stray export (`pinecall whoami` names it). Native Postgres on the laptop:
 `DATABASE_URL=…@[::1]:5432/…`. A `.env` the runtime ignored is never silent: the doctor's first
 line says which file it read.
 

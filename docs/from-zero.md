@@ -476,8 +476,8 @@ production, `pc_test_…` sandbox), is shown once, and belongs to the org: it ke
 person who made it leaves. One per server and world.
 
 The Tokens screen (`GET /v1/keys`) lists every server's token and your own keys — everybody's for
-an admin — with who made each and when it was last used. `pinecall keys revoke <fingerprint>`
-stops your own, one you made, or any for a key that opens `keys`. Revoking keeps the row, so the
+an admin — with who made each and when it was last used. Revoke on a row (`POST
+/v1/keys/{fingerprint}/revoke`) stops your own, one you made, or any for a key that opens `keys`. Revoking keeps the row, so the
 calls that key wrote stay readable.
 
 The second person is the console's Team screen, or:
@@ -581,7 +581,6 @@ Every one of these was met while writing this page, and each names the next move
 | `no database: a key is verified against the api_keys table` | no `DATABASE_URL`, or the schema was never migrated |
 | `404 this org has no carrier yet` | bring one with `PUT /v1/carrier` before importing a number |
 | `409 agent <slug> is held right now` | stop the `pinecall start` holding it, then move it |
-| `404 no key of this org begins with <word>` | `pinecall keys list` prints the fingerprints it takes |
 
 `pinecall whoami` answers the question under most of them: which gateway, which org, which world,
 and where the key came from.
