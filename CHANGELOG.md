@@ -7,6 +7,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **Which processes hold an org's agents, where, and a stop.** `GET /v1/apps` lists every app
+  socket in the request's world — its agents, the machine (`host`, now on `agent.register`), the
+  address, the SDK, whose corner, since when — and `POST /v1/apps/{app}/stop` tells one it was
+  stopped (`error` code `stopped`) and closes it; the SDK exits instead of reconnecting.
 - **Production access is a switch on the person.** `members.production` (migration 0039, off for
   everybody: an admin opens production by the role): the role says what somebody does, the switch —
   set by an admin at `POST`/`PATCH

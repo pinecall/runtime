@@ -69,6 +69,8 @@ that colleague's corner.
 | `PUT` | `/v1/ops/orgs/{org}/members/{id}/operator` | **the box's own**: whether this member runs the box; false takes it back at once |
 | `DELETE` | `/v1/ops/orgs/{org}/members/{id}` | **the box's own**: that person out of the org for good, under the tenant door's rules less "yourself" — `409` for its last active admin |
 | `GET` | `/v1/agents` | the agents this gateway is holding for your org |
+| `GET` | `/v1/apps` | the processes holding them right now, one per socket: agents, world, the machine (`host`, from `agent.register`), address, SDK, whose corner, since when |
+| `POST` | `/v1/apps/{app}/stop` | `app`: tell that process it was stopped (`error` code `stopped`) and close its socket; it exits instead of reconnecting — a supervisor (systemd, pm2) starts it again |
 | `GET` | `/v1/agents/{slug}/config` | what it declared, overrides applied — `app` or `calls` |
 | `GET` | `/v1/agents/{slug}/line` | whose terminal a RING lands in, and who else could take it — `calls` |
 | `POST` | `/v1/agents/{slug}/line` | claim it for this key's corner — `app`; 409 with no app of yours running |
