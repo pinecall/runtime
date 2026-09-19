@@ -169,7 +169,7 @@ def test_a_plant_that_survives_because_the_class_declares_no_such_tool_is_a_fail
     assert [one.check for one in answer.broke] == ["plants"]
 
 
-# ── a golden that names what the class does not declare is refused ─────────────
+# ── a golden that names what the memory policy does not keep is refused ────────
 
 
 def test_a_category_the_class_never_said_it_keeps_is_the_goldens_own_bug() -> None:

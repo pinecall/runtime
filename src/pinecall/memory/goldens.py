@@ -19,14 +19,17 @@ CALLER = "caller"
 # reads it in the failure and an `of` the model echoed back is how a supersession is recognised.
 HELD = "h{number}"
 
-# A sentence somebody tried to plant is offered under a category the class DOES keep, so that the
+# A sentence somebody tried to plant is offered under a category the policy DOES keep, so that the
 # only thing that can refuse it is admission — a forget category would refuse it for free and the
 # golden would pass without ever exercising the check it was written for.
 PLANTED: OpName = "add"
 
-# What a golden names that the class does not declare. The vocabulary is always the declaration:
-# a golden that expects a category the class never said it keeps is a bug in the golden.
-NOT_DECLARED = "{case}: expect.{field} names {named!r}, which the class does not declare: {has}"
+# What a golden names that the agent's memory policy does not keep. The vocabulary is always the
+# policy — the world's, per corner, `pinecall memory policy` — and a golden that expects a category
+# nobody said is kept is a bug in the golden, not in the call.
+NOT_DECLARED = (
+    "{case}: expect.{field} names {named!r}, which this agent's memory policy does not keep: {has}"
+)
 
 NOT_HELD = "{case}: expect.invalidates names {named!r}, which this golden does not hold"
 
@@ -34,7 +37,7 @@ _SPACES = re.compile(r"\s+")
 
 
 def undeclared(case: ExtractionGolden, policy: MemoryPolicy) -> str | None:
-    """What this golden names that the class does not declare, or None when it is answerable."""
+    """What this golden names that the policy does not keep, or None when it is answerable."""
     for named in case.expect.writes:
         if not _among(named, policy.remember):
             return NOT_DECLARED.format(
