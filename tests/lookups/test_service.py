@@ -151,6 +151,32 @@ async def test_search_answers_chunks_under_the_declarations_own_k_and_writes_the
     ]
 
 
+async def test_every_attached_base_is_searched_and_the_best_of_all_of_them_come_first() -> None:
+    served = a_served_call(
+        config=a_config(bases=(Docs(base="clinica", k=2), Docs(base="tarifas", k=1))),
+        knowledge=ScriptedKnowledge(
+            answers=[
+                a_chunk("c1", "Tarifas", "Tarifas\n\n45 €.", 0.7),
+                a_chunk("c2", "Otro", "x", 0.4),
+            ]
+        ),
+    )
+    output = await served.lookups.lookup(CALL, "search", SEARCHING, "sp_5")
+    assert [(one["base"], one["k"]) for one in served.knowledge.searched] == [
+        ("clinica", 2),
+        ("tarifas", 1),
+    ]
+    # Four answers came back (two per base, cut to each k: 2 + 1), the best first, at most 2.
+    assert [one["heading"] for one in output["chunks"]] == ["Tarifas", "Tarifas"]
+
+
+async def test_a_class_searching_for_itself_may_say_how_many() -> None:
+    served = a_served_call(config=a_config(docs=Docs(base="clinica", k=8)))
+    await served.lookups.lookup(CALL, "search", {**SEARCHING, "k": 3}, None)
+    [asked] = served.knowledge.searched
+    assert asked["k"] == 3
+
+
 async def test_the_declarations_min_score_is_what_the_base_is_searched_under() -> None:
     served = a_served_call(config=a_config(docs=Docs(base="clinica", k=3, min_score=0.5)))
     await served.lookups.lookup(CALL, "search", SEARCHING, None)

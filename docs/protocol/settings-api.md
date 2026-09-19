@@ -41,7 +41,10 @@ that holds no corner. `config` is `TuningBody` (`rest.json`): `voice`, `tts`, `t
 `llm` (the three model knobs take `vendor/model`, a vendor alone to keep its own default model, or a
 model alone to keep whichever vendor is in use), `greeting` (`{say}` or `{reply}`, one of the two),
 `hangup {when}`, `turn {min_interruption_words, endpointing_ms}`, `memory {remember, forget}`,
-`knowledge [{base, mode, k, min_score}]`.
+`knowledge [{base, mode, k, min_score}]` — every base the agent reads in this world, each with how
+a turn reads it (`mode` `retrieved` or `tool`, `k`, `min_score`); a turn's search fans out over all
+of them, and their `whole` files are the static knowledge block ([gateway-api.md](gateway-api.md),
+Knowledge). `pinecall knowledge attach <base> --agent <slug>` writes this list.
 
 ### `PUT /v1/agents/{slug}/settings` — `pipeline` or `words`
 

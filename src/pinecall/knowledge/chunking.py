@@ -39,6 +39,9 @@ class Piece:
 
 def chunks_of(file: KnowledgeFile) -> list[Piece]:
     """The file cut at its headings, every cut under the cap, in the order it was read."""
+    # A whole file is one piece, uncut and never embedded: it goes into the static block entire.
+    if file.mode == "whole":
+        return [Piece(file.path, None, 0, file.text)]
     pieces: list[Piece] = []
     for heading, body in _sections_of(file.text):
         for group in _paragraphs_under_the_cap(body, heading):

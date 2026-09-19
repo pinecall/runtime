@@ -67,3 +67,17 @@ class Knowledge(Protocol):
     ) -> list[Chunk]:
         """The best k chunks for the query, by meaning and by words, fused; under min_score, cut."""
         ...
+
+    # The files kept whole (0038): what the static knowledge block of every call reads, off the
+    # bases the agent's settings attach. The same fallback a search makes.
+    async def whole_texts(
+        self, org: str, env: Env, holder: str | None, base: str
+    ) -> list[KnowledgeFile]:
+        """The files of this base kept whole, in the order a folder lists them."""
+        ...
+
+    # Promote: the very rows a golden was held over, into another world's org's-own corner,
+    # vectors and all. No embedder runs, so what production reads is what the sandbox tested.
+    async def copy(self, org: str, env: Env, holder: str | None, base: str, to: Env) -> int:
+        """This corner's base as the org's own base of another world; how many chunks went."""
+        ...

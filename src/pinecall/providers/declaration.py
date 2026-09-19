@@ -101,6 +101,8 @@ def _sent(wire: defs.AgentConfig) -> dict[str, Any]:
         converted["hears"] = tuple(wire.hears or ())
     if "knowledge" in sent:
         converted["knowledge"] = _a_knowledge_file(wire.knowledge)
+    if "uses_knowledge" in sent:
+        converted["uses_knowledge"] = wire.uses_knowledge
     if "docs" in sent:
         converted["docs"] = the_docs(wire.docs)
     if "memory" in sent:
@@ -147,7 +149,7 @@ def _a_turn(wire: defs.TurnConfig | None) -> Turn | None:
 
 
 def _a_knowledge_file(wire: defs.KnowledgeFile | None) -> KnowledgeFile | None:
-    return None if wire is None else KnowledgeFile(wire.path, wire.text)
+    return None if wire is None else KnowledgeFile(wire.path, wire.text, wire.mode)
 
 
 def the_docs(wire: defs.DocsConfig | None) -> Docs | None:

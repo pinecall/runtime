@@ -1,4 +1,4 @@
-"""The knowledge base's doors: a tenant pushes a base whole, lists its bases, drops one."""
+"""The knowledge base's doors: a push, the list, a drop, the golden, and who reads what."""
 
 from __future__ import annotations
 
@@ -6,7 +6,8 @@ import time
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import AdmissionDep, KeptKnowledgeDep, KnowledgeKeyDep
+from pinecall.api._deps import AdmissionDep, KeptKnowledgeDep, KnowledgeKeyDep, TuningDep
+from pinecall.api.knowledge_promote import router as promote_router
 from pinecall.auth.keys import held_by
 from pinecall.knowledge.scoring import Answered, Question, Score, scored
 from pinecall.orgs.admission import QuotaExhausted
@@ -20,9 +21,12 @@ from pinecall_protocol.rest import (
     KnowledgePush,
     KnowledgePushed,
     KnowledgeScore,
+    KnowledgeUse,
+    KnowledgeUses,
 )
 
 router = APIRouter()
+router.include_router(promote_router)
 
 # Dropping a name nobody pushed is a typo, and a verb that answered yes to it would send the
 # tenant looking for the change somewhere else. 404, and the org is never named: it is the key's.
@@ -47,7 +51,7 @@ async def push(
 ) -> KnowledgePushed:
     """The tenant's files as this base, chunked, embedded and indexed; how many chunks, how long."""
     started = time.perf_counter()
-    files = [KnowledgeFile(path=file.path, text=file.text) for file in said.files]
+    files = [KnowledgeFile(path=file.path, text=file.text, mode=file.mode) for file in said.files]
     # What the org would keep once this push has landed: everything it holds in both worlds, less
     # what the base being replaced frees — the push replaces it whole — plus what these files
     # become. Judged before a row is written, because a push is one statement and all or nothing.
@@ -77,6 +81,21 @@ async def bases(key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep) -> KnowledgeL
             )
             for one in await knowledge.bases(key.org, key.env, held_by(key))
         ]
+    )
+
+
+# Which agents read each base: off every agent's newest settings in the key's world, the
+# corner's own else the org's — the same rows a session is built from. Registered before the
+# `{base}` doors so "attached" is never taken for a base's name.
+@router.get("/v1/knowledge/attached")
+async def attached(key: KnowledgeKeyDep, kept: TuningDep) -> KnowledgeUses:
+    """One row per base any agent's settings attach, with the agents that read it."""
+    readers: dict[str, list[str]] = {}
+    for slug, row in (await kept.every_newest(key.org, key.env, held_by(key))).items():
+        for docs in row.value.knowledge:
+            readers.setdefault(docs.base, []).append(slug)
+    return KnowledgeUses(
+        bases=[KnowledgeUse(base=base, agents=agents) for base, agents in sorted(readers.items())]
     )
 
 

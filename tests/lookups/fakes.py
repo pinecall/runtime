@@ -1,14 +1,13 @@
-"""A Memory and a Knowledge that answer from a script, and the one call this suite serves."""
+"""A Memory answering from a script, the one call this suite serves; the Knowledge, re-exported."""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
+from datetime import datetime
 from functools import partial
 from typing import Any
 
-from pinecall.knowledge import Base
 from pinecall.log.logs import CallLog
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
@@ -23,7 +22,6 @@ from pinecall.types import (
     AgentConfig,
     CallContext,
     Channel,
-    Chunk,
     Contact,
     Docs,
     Env,
@@ -41,16 +39,14 @@ from pinecall_protocol import encode
 from pinecall_protocol.defs import MemoryOp
 from pinecall_protocol.events import AgentTurnEnded, UserTurnEnded
 from pinecall_protocol.metrics import AgentTurnMetrics, UserTurnMetrics
+from tests.lookups.fake_knowledge import LEARNED, THE_MODEL, ScriptedKnowledge, a_chunk
+
+__all__ = ["LEARNED", "THE_MODEL", "ScriptedKnowledge", "a_chunk"]
 
 ORG = "clinica"
 CALL = "call_filled"
 AGENT = "clinica-norte"
 THE_NUMBER = "+34600000001"
-LEARNED = datetime(2026, 9, 1, 10, 0, tzinfo=UTC)
-
-# The embedder a fake base says wrote its vectors: a listing that left it out was a listing where a
-# tenant learned of a mismatch from a 409 instead of from the list.
-THE_MODEL = "BAAI/bge-m3"
 
 # Which agent a scripted fact came from, when a page is asked across every agent.
 TAUGHT_BY = "clinica-norte"
@@ -68,11 +64,6 @@ def a_fact(id: str, text: str, score: float = 1.0, source: str | None = None) ->
         invalidated_at=None,
         score=score,
     )
-
-
-def a_chunk(id: str, heading: str, text: str, score: float = 1.0) -> Chunk:
-    """One chunk of the clinic's base, as search would score it."""
-    return Chunk(id=id, base="clinica", path="tarifas.md", heading=heading, text=text, score=score)
 
 
 @dataclass
@@ -205,72 +196,6 @@ class ScriptedMemory:
         return False
 
 
-@dataclass
-class ScriptedKnowledge:
-    """A Knowledge answering the chunks it was given, and remembering what it was searched for."""
-
-    answers: list[Chunk] = field(default_factory=list[Chunk])
-    failing: Exception | None = None
-    searched: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
-    pushed: dict[str, list[KnowledgeFile]] = field(default_factory=dict[str, list[KnowledgeFile]])
-
-    async def put(
-        self,
-        org: str,  # noqa: ARG002 — the Protocol's shape
-        env: Env,  # noqa: ARG002 — the Protocol's shape
-        holder: str | None,  # noqa: ARG002 — the Protocol's shape
-        base: str,
-        files: Sequence[KnowledgeFile],
-    ) -> int:
-        if self.failing is not None:
-            raise self.failing
-        self.pushed[base] = list(files)
-        return len(files) * 2
-
-    async def bases(self, org: str, env: Env, holder: str | None = None) -> list[Base]:  # noqa: ARG002
-        return [
-            Base(base=base, chunks=len(files) * 2, model=THE_MODEL, pushed_at=LEARNED)
-            for base, files in sorted(self.pushed.items())
-        ]
-
-    async def drop(self, org: str, env: Env, holder: str | None, base: str) -> bool:  # noqa: ARG002
-        return self.pushed.pop(base, None) is not None
-
-    async def kept(self, org: str) -> int:  # noqa: ARG002
-        """Every base's chunks, on this fake's own cut."""
-        return sum(self.how_many_chunks(files) for files in self.pushed.values())
-
-    def how_many_chunks(self, files: Sequence[KnowledgeFile]) -> int:
-        """This fake cuts every file into two, so a push of one file is two chunks."""
-        return len(files) * 2
-
-    async def search(
-        self,
-        org: str,
-        env: Env,
-        holder: str | None,
-        base: str,
-        query: str,
-        *,
-        k: int = 8,
-        min_score: float | None = None,
-    ) -> list[Chunk]:
-        if self.failing is not None:
-            raise self.failing
-        self.searched.append(
-            {
-                "org": org,
-                "env": env,
-                "holder": holder,
-                "base": base,
-                "query": query,
-                "k": k,
-                "min_score": min_score,
-            }
-        )
-        return list(self.answers)[:k]
-
-
 # What a Lookups is handed about the org's plan: the quotas table, and the gate that reads it.
 # A suite that sets no quota gets the mechanism with no numbers in it, which is a self-hosted box.
 def a_plan(logs: Logs, orgs: MemoryOrgs) -> tuple[QuotasOf, MayRemember]:
@@ -312,13 +237,15 @@ def a_config(
     docs: Docs | None = Docs(base="clinica", k=8),  # noqa: B008 — frozen
     memory: MemoryPolicy | None = MemoryPolicy(remember=("preference",)),  # noqa: B008 — frozen
     knowledge: KnowledgeFile | None = None,
+    bases: tuple[Docs, ...] = (),
 ) -> AgentConfig:
     """The clinic as it declares itself for these tests: a base to search, a policy to keep."""
     return AgentConfig(
         slug=AGENT,
         channels=frozenset({"phone", "web"}),
         llm=Model(provider="anthropic", model="claude-haiku"),
-        docs=docs,
+        docs=bases[0] if bases else docs,
+        bases=bases,
         memory=memory,
         knowledge=knowledge,
     )

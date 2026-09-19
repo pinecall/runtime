@@ -12,6 +12,7 @@ from starlette.websockets import WebSocketState
 from pinecall.api._deps import (
     AdmissionDep,
     KeysDep,
+    KnowledgeDep,
     LlmsDep,
     LogsDep,
     LookupsDep,
@@ -75,6 +76,7 @@ async def chat(
     vault: VaultDep,
     lookups: LookupsDep,
     settings: SettingsDep,
+    knowledge: KnowledgeDep,
 ) -> None:
     """One caller, one text call: they send {text}, they receive every entry of their own call."""
     key = await a_key_on_a_socket(websocket, keys)
@@ -115,6 +117,7 @@ async def chat(
             live.running(held.org),
             lookups,
             settings.budgets,
+            knowledge=knowledge,
         )
     except NoProvider as missing:
         logger.warning("chat refused for %s: %s", slug, missing)
