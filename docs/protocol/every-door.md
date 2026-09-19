@@ -100,7 +100,7 @@ that colleague's corner.
 | `GET` | `/v1/routes` | the numbers and doors your org answers |
 | `PUT`·`DELETE`·`GET` | `/v1/provider-keys[/{vendor}]` | the org's own vendor accounts — `providers` |
 | `GET` | `/v1/providers` | every vendor this build runs, which are ready on this box and which want a key, the defaults and the curated voices — `providers` |
-| `PUT`·`GET`·`DELETE` | `/v1/knowledge[/{base}]` · `POST …/eval` · `GET /v1/knowledge/attached` | the base the agent answers from, in the request's world — production's pushed there directly; a push answers `whole_tokens`, and a `notice` past 8,000; which agents read which |
+| `PUT`·`GET`·`DELETE` | `/v1/knowledge[/{base}]` · `POST …/eval` · `GET /v1/knowledge/attached` | the bases the agent searches, in the request's world — production's pushed there directly; a push answers the chunks it made; which agents read which |
 | `GET`·`DELETE` | `/v1/contacts/{contact}/memory` · `POST /v1/contacts/memory/eval` | what it keeps about a person, in the key's world |
 | `GET` | `/v1/agents/{slug}/threads?after=` · `/threads/{contact}` | the inbox: an agent's calls by contact, what this person has not read, and one thread merged — `calls` |
 | `POST` | `/v1/agents/{slug}/threads/{contact}/read` · `/messages` | mark a thread read — `calls`; say something on the open WhatsApp conversation — `talk` |

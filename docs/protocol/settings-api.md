@@ -4,9 +4,10 @@ What an agent runs on is the org's, not the class's: which vendors and models, h
 ends, how a turn is cut, what is remembered, which knowledge bases it reads — and the org's words,
 how the voice says a brand and what the ears must know. These doors keep all of it **per world, per
 corner, a version a row**, and a call's head row says which versions it ran on. They take the org's
-own API key, as every tenant door does. The class still declares what it declares; what the org set
-is laid over it at the one place every session is built (`providers/tuning.py`), and a class field
-the org never set stands as the class wrote it.
+own API key, as every tenant door does. The class declares the contract — the tools, the state,
+the language, the doors — and nothing of this: the world is put on the declaration at the one place
+every session is built (`providers/tuning.py`), and a knob the org never set is the runtime's
+default.
 
 **Two kinds of key open them.** A key that opens `pipeline` — a developer's, an admin's — may set
 everything. A key that opens `words` — a supervisor's, a manager's — may set the opening's words,
@@ -57,7 +58,7 @@ Knowledge). `pinecall docs attach <base>` writes that list; the text is the cons
 { "config": { "voice": "amelia", "llm": "anthropic/claude-haiku-4-5" }, "if_version": 4, "note": "cleaner on the phone", "team": false }
 ```
 
-The **whole** set: a knob left out is not set, and what the app declared stands for it. A knob that
+The **whole** set: a knob left out is not set, and the runtime's default stands for it. A knob that
 is present but **blank is refused** with `400` — an empty voice once reached the vendor and a whole
 line of calls went out silent. A vendor this build has no file for, an ElevenLabs model it will not
 run, a voice nobody curated, an opening with both verbs: `400`, each in its own sentence, and
