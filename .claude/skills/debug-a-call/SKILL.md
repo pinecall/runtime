@@ -45,8 +45,8 @@ nearest `.env` (`pinecall link` writes it); `PINECALL_URL` picks the gateway (bo
 otherwise). `pinecall whoami` says which key and where it was read.
 
 What a `503` from simulate means:
-- `this box has no speech tool` — the GATEWAY's box lacks `espeak-ng` (macOS: `say`). It is in
-  `PACKAGES`; `make deploy` installs it.
+- `elevenlabs has no API key in this process` — the caller speaks with ElevenLabs (a person's
+  voice, never the agent's: `evals/speech.py`), so the GATEWAY needs `ELEVEN_API_KEY` too.
 - `no agent joined room … in 20s: is pinecall-runtime worker up?` — no worker took the job:
   none registered on the SFU, or the one that did crashed on the job (its journal has a traceback:
   `NoProvider: <vendor> has no API key in this process` is a missing or empty credential).

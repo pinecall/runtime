@@ -92,11 +92,6 @@ def test_the_fence_lets_the_sip_containers_own_answers_out() -> None:
     assert bridge < drop
 
 
-def test_the_speech_tool_a_simulated_caller_speaks_with_is_on_the_list() -> None:
-    """Without it the gateway refuses `pinecall simulate --voice` with a 503, on any box."""
-    assert "espeak-ng" in packages_cloud_init_installs()
-
-
 def test_a_box_that_embeds_here_installs_the_embedder_and_the_volume_its_weights_live_in() -> None:
     """The default, and what an untouched box.env means: bge-m3 served on the machine itself."""
     plan = what_a_box_installs(role="hub")

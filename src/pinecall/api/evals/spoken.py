@@ -11,6 +11,7 @@ from pinecall.auth.scopes import a_visitor
 from pinecall.evals.calling import Line, a_simulated_call
 from pinecall.evals.goldens import Golden
 from pinecall.evals.polling import until
+from pinecall.evals.speech import Speaking
 from pinecall.log.entry import Entry
 from pinecall.log.replay import whole
 from pinecall.log.store import Store
@@ -43,7 +44,7 @@ async def a_spoken_conversation(
     holder: str | None = None,
     line: Line | None = None,
     app: str | None = None,
-    language: str | None = None,
+    speaking: Speaking | None = None,
 ) -> Conversation:
     """Dispatch the agent into a room, say the golden's lines out loud, and read the log back."""
     said = _the_lines_of(golden)
@@ -61,7 +62,7 @@ async def a_spoken_conversation(
         caller=a_visitor(),
         run=run,
         app=app,
-        language=language,
+        speaking=speaking,
         settled=lambda so_far: until_the_answer_lands(store, call, so_far),
     )
     entries = await _once_it_is_sealed(store, call)

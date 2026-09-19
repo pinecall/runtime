@@ -341,7 +341,7 @@ row wins and the loser is named.
 | ring | what | runs where | in the tree |
 |---|---|---|---|
 | 1 | goldens over text: a starting state, what the caller says, what must come of it | the gateway, over the app that holds the agent (`api/evals/`) | `evals/goldens.py`, `headless.py`, `matrix.py`, `report.py`, `runs.py` |
-| 2 | the same, spoken: one simulated caller on a real line, the box's speech tool as its voice, an interferer and packet loss if asked | a room, the worker | `evals/calling.py`, `caller.py`, `speech.py`, `line.py` |
+| 2 | the same, spoken: one simulated caller on a real line, an ElevenLabs voice that is not the agent's, an interferer and packet loss if asked | a room, the worker | `evals/calling.py`, `caller.py`, `speech.py`, `line.py` |
 | 3 | a finished call read back whole and checked **by code, with no model**: consent, provider errors, latency budget, the register scan, a replay | `POST /v1/evals/replay/{call}`, `pinecall eval` | `evals/checks/*` |
 | 4 | **every finished call judged at hang-up**, the verdict an entry in the tenant's own log | the session's `Scorer`, on either channel | `evals/score.py`, `evals/judges/*` |
 

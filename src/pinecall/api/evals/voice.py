@@ -5,8 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import Field
 
-from pinecall.api._deps import EvalsKeyDep, LlmsDep, SettingsDep, StoreDep, VaultDep
+from pinecall.api._deps import EvalsKeyDep, LlmsDep, SettingsDep, StoreDep, TuningDep, VaultDep
 from pinecall.api.agents.registry import RegistryDep
+from pinecall.api.agents.tuned import tuned_for
 from pinecall.api.evals.listening import until_the_answer_lands
 from pinecall.auth.keys import held_by
 from pinecall.evals.caller import (
@@ -17,6 +18,7 @@ from pinecall.evals.caller import (
     what_they_say_next,
 )
 from pinecall.evals.calling import Line, a_simulated_call
+from pinecall.evals.speech import Speaking
 from pinecall.log.replay import whole
 from pinecall.orgs.vault import keys_brought_by
 from pinecall.providers.models import NoProvider
@@ -65,17 +67,26 @@ async def a_voice_call(
     settings: SettingsDep,
     vault: VaultDep,
     registry: RegistryDep,
+    kept: TuningDep,
 ) -> Called:
     """Dispatch the agent into a room, put the persona on the line out loud, and hang up."""
+    keys = await keys_brought_by(vault, key.org)
     try:
-        llm = llms(None, await keys_brought_by(vault, key.org))
+        llm = llms(None, keys)
     except NoProvider as missing:
         raise HTTPException(503, NO_MODEL.format(missing=missing)) from missing
     line = Line(interferer_db=said.interferer_db, packet_loss=said.packet_loss)
-    # The caller speaks the language the agent declared, read off the socket that holds it for
-    # this key — the one the call is dispatched to.
+    # The caller speaks the agent's language in a voice the agent does not have: both read off
+    # the config the agent runs on, in the corner of the socket the call is dispatched to.
+    speaking = Speaking(keys=keys)
     held = registry.of(key.env, said.agent, held_by(key))
-    language = None if held is None else held.config.language
+    if held is not None:
+        running = await tuned_for(kept, key.org, key.env, held_by(key), said.agent, held.config)
+        speaking = Speaking(
+            language=running.config.language,
+            agents_voice=None if running.config.voice is None else running.config.voice.voice_id,
+            keys=keys,
+        )
 
     # The conversation so far is read off the call's own log rather than kept a second time here:
     # the worker writes every turn through this gateway, so the log is the transcript, and it is
@@ -104,7 +115,7 @@ async def a_voice_call(
             org=key.org,
             env=key.env,
             holder=held_by(key),
-            language=language,
+            speaking=speaking,
         )
     except (TimeoutError, RuntimeError) as broke:
         raise HTTPException(503, NO_LINE.format(broke=broke)) from broke

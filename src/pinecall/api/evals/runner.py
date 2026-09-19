@@ -28,6 +28,7 @@ from pinecall.api.evals.spoken import a_spoken_conversation
 from pinecall.evals.calling import Line
 from pinecall.evals.goldens import Golden
 from pinecall.evals.runs import EvalRun, Opened, Runs
+from pinecall.evals.speech import Speaking
 from pinecall.log.store import Store
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
@@ -245,7 +246,11 @@ async def _every_conversation(
                             interferer_db=wanted.interferer_db, packet_loss=wanted.packet_loss
                         ),
                         app=serving.owner,
-                        language=config.language,
+                        speaking=Speaking(
+                            language=config.language,
+                            agents_voice=None if config.voice is None else config.voice.voice_id,
+                            keys=keys,
+                        ),
                     )
                     if wanted.voice
                     else await a_conversation(

@@ -17,7 +17,6 @@ packages:
   - nftables
   - make
   - curl
-  - espeak-ng   # the voice a simulated caller speaks with (`pinecall simulate --voice`); the gateway refuses the call without one
   - nodejs      # what a tenant's app runs on (pinecall-app@.service): NodeSource's, put in by bootcmd below
 
 # Before the packages: NodeSource's repository, so `nodejs` above is their 24 and not Ubuntu's 18

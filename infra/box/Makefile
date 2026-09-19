@@ -22,10 +22,9 @@ CONTAINERS = $(filter-out $(TEI),$(wildcard containers/*))
 
 # The packages a box runs on, the same list cloud-init.yaml installs at first boot — a test pins
 # the two equal — so a box born before a package was added converges on the next deploy.
-# espeak-ng is the voice a simulated caller speaks with (`pinecall simulate --voice`). nodejs is
-# what a tenant's app runs on (pinecall-app@.service): NodeSource's 24, because the framework
+# nodejs is what a tenant's app runs on (pinecall-app@.service): NodeSource's 24, because the framework
 # says `>=24` and Ubuntu's own is 18 — `node-repo` below puts the vendor's repository in first.
-PACKAGES = podman caddy nftables make curl espeak-ng nodejs
+PACKAGES = podman caddy nftables make curl nodejs
 
 .PHONY: install packages node-repo pnpm doctor providers
 install: packages pnpm
