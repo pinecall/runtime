@@ -121,7 +121,7 @@ async def test_a_golden_that_names_a_category_the_class_never_declared_is_refuse
     refused = await tenant_http.post(DOOR, json={"cases": [case]})
 
     assert refused.status_code == 400
-    assert "which the class does not declare" in refused.json()["detail"]
+    assert "which this agent's memory policy does not keep" in refused.json()["detail"]
 
 
 async def test_a_class_that_keeps_nothing_has_nothing_to_hold_to_a_golden(
