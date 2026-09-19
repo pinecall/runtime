@@ -55,7 +55,7 @@ TUNING: TypeAdapter[Tuning] = TypeAdapter(Tuning)
 # What a `words` key may touch and what it may not: the vendors, the models, the cut of a turn and
 # what the call reads from are the pipeline's. A words key's set carries those over untouched
 # from what stands, and is refused by name the moment it would move one.
-PIPELINE_ONLY = ("voice", "tts", "tts_model", "stt", "llm", "hangup", "turn", "knowledge")
+PIPELINE_ONLY = ("voice", "tts", "tts_model", "stt", "llm", "hangup", "turn", "bases")
 NOT_WORDS = "{fields}: the pipeline's, and {refusal}"
 
 NO_SUCH_VERSION = "no version {version} in this corner of {slug}"
@@ -273,9 +273,8 @@ async def diff(
 
 
 # A rollback is a new version equal to an old one: nothing is deleted, and the history says a
-# person went back and to what. Production may be rolled back on a production key — the row it
-# copies was promoted there once, so the rule that production only holds what the goldens held
-# is kept by the copy itself.
+# person went back and to what. It works in production as a set does: the row it copies was set
+# there once, by somebody the org let act there.
 @router.post("/v1/agents/{slug}/settings/rollback")
 async def rollback(slug: str, said: Rollback, key: PipelineKeyDep, kept: TuningDep) -> TuningAnswer:
     """Bring one version back, as the next version of this corner."""

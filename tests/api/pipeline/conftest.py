@@ -6,7 +6,8 @@ import httpx
 import pytest
 
 from pinecall.api.agents.registry import Registry
-from pinecall.types import PRODUCTION
+from pinecall.orgs.tuning import MemoryTuning
+from pinecall.types import PRODUCTION, Greeting, Tuning
 from pinecall.worker.client import Gateway
 from pinecall_protocol import defs
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, over_the_asgi_app
@@ -26,19 +27,26 @@ async def fleet_http(worker_gateway: Gateway) -> AsyncIterator[httpx.AsyncClient
     await http.aclose()
 
 
-async def declared(registry: Registry, greeting: defs.GreetingConfig | None = None) -> None:
-    """The clinic on air: an app socket holding it, with a voice and a model already declared."""
+async def declared(
+    registry: Registry, tuning: MemoryTuning, greeting: Greeting | None = None
+) -> None:
+    """The clinic on air: a socket holding it; its voice, model and opening set in production."""
     await registry.register(
         AN_OWNER, A_RECORD.org, PRODUCTION, AGENT, [defs.Route(channel="web", number=None)]
     )
-    await registry.configure(
-        AN_OWNER,
+    await registry.configure(AN_OWNER, PRODUCTION, AGENT, defs.AgentConfig(language="es"))
+    await tuning.put(
+        A_RECORD.org,
         PRODUCTION,
+        "",
         AGENT,
-        defs.AgentConfig(
-            greeting=greeting or defs.GreetingConfig(say="Clínica Norte, buenas."),
-            language="es",
-            voice=defs.VoiceConfig(provider="elevenlabs", voice_id="a-declared-voice"),
-            llm=defs.ModelConfig(provider="anthropic", model="claude-haiku-4-5"),
+        Tuning(
+            tts="elevenlabs",
+            voice="mateo",
+            llm="anthropic/claude-haiku-4-5",
+            greeting=greeting or Greeting(say="Clínica Norte, buenas."),
         ),
+        author="k_1",
+        note=None,
+        if_version=None,
     )

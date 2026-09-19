@@ -26,7 +26,6 @@ from pinecall.types import (
     Docs,
     Env,
     Fact,
-    KnowledgeFile,
     MemoryPolicy,
     Model,
     Org,
@@ -234,17 +233,15 @@ def a_context(channel: Channel = "phone", contact: Contact | None = None) -> Cal
 
 
 def a_config(
-    docs: Docs | None = Docs(base="clinica", k=8),  # noqa: B008 — frozen
+    bases: tuple[Docs, ...] = (Docs(base="clinica", k=8),),  # noqa: B008 — frozen
     memory: MemoryPolicy | None = MemoryPolicy(remember=("preference",)),  # noqa: B008 — frozen
-    knowledge: KnowledgeFile | None = None,
-    bases: tuple[Docs, ...] = (),
+    knowledge: str | None = None,
 ) -> AgentConfig:
-    """The clinic as it declares itself for these tests: a base to search, a policy to keep."""
+    """The clinic as a session runs it for these tests: a base to search, a policy to keep."""
     return AgentConfig(
         slug=AGENT,
         channels=frozenset({"phone", "web"}),
         llm=Model(provider="anthropic", model="claude-haiku"),
-        docs=bases[0] if bases else docs,
         bases=bases,
         memory=memory,
         knowledge=knowledge,

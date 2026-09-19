@@ -86,13 +86,3 @@ class ScriptedKnowledge:
             }
         )
         return list(self.answers)[:k]
-
-    async def whole_texts(
-        self,
-        org: str,  # noqa: ARG002 — the Protocol's shape
-        env: Env,  # noqa: ARG002 — the Protocol's shape
-        holder: str | None,  # noqa: ARG002 — the Protocol's shape
-        base: str,
-    ) -> list[KnowledgeFile]:
-        """The files pushed whole under that name, in the order they were pushed."""
-        return [file for file in self.pushed.get(base, []) if file.mode == "whole"]

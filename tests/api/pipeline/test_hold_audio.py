@@ -15,6 +15,7 @@ from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
 from pinecall.api.hold_audio import MAX_BYTES, the_hold_audio
 from pinecall.orgs.hold_audio import MemoryHoldAudio
+from pinecall.orgs.tuning import MemoryTuning
 from pinecall.session.hold_audio import DEFAULT, NOT_AUDIO
 from pinecall.worker.client import Gateway
 from tests.api.conftest import AGENT, PIPELINE
@@ -56,9 +57,9 @@ def a_wav(seconds: float = 2.0, rate: int = 8000) -> bytes:
 
 
 async def test_an_agent_nobody_told_plays_the_melody_it_ships_with(
-    fleet_http: httpx.AsyncClient, registry: Registry
+    fleet_http: httpx.AsyncClient, registry: Registry, tuning: MemoryTuning
 ) -> None:
-    await declared(registry)
+    await declared(registry, tuning)
     said = (await fleet_http.get(HOLD)).json()
     assert (said["played"], said["name"]) == ("default", "A New Life")
     heard = await fleet_http.get(f"{HOLD}/audio")
@@ -67,9 +68,9 @@ async def test_an_agent_nobody_told_plays_the_melody_it_ships_with(
 
 
 async def test_a_wav_of_yours_is_converted_and_is_what_the_next_call_plays(
-    fleet_http: httpx.AsyncClient, registry: Registry, worker_gateway: Gateway
+    fleet_http: httpx.AsyncClient, registry: Registry, tuning: MemoryTuning, worker_gateway: Gateway
 ) -> None:
-    await declared(registry)
+    await declared(registry, tuning)
     put = await fleet_http.put(
         HOLD,
         content=a_wav(),
@@ -90,9 +91,9 @@ async def test_a_wav_of_yours_is_converted_and_is_what_the_next_call_plays(
 
 
 async def test_off_plays_nothing_and_default_brings_the_melody_back(
-    fleet_http: httpx.AsyncClient, registry: Registry
+    fleet_http: httpx.AsyncClient, registry: Registry, tuning: MemoryTuning
 ) -> None:
-    await declared(registry)
+    await declared(registry, tuning)
     await fleet_http.put(HOLD, content=a_wav(), headers={"content-type": "audio/wav"})
     off = await fleet_http.put(f"{HOLD}/played", json={"played": "off"})
     assert off.json() == {"played": "off", "name": None, "seconds": None, "sha256": None}
@@ -103,18 +104,18 @@ async def test_off_plays_nothing_and_default_brings_the_melody_back(
 
 
 async def test_what_is_no_audio_is_refused_in_a_sentence_and_nothing_changes(
-    fleet_http: httpx.AsyncClient, registry: Registry
+    fleet_http: httpx.AsyncClient, registry: Registry, tuning: MemoryTuning
 ) -> None:
-    await declared(registry)
+    await declared(registry, tuning)
     refused = await fleet_http.put(HOLD, content=b"%PDF-1.7 not a melody")
     assert (refused.status_code, refused.json()["detail"]) == (400, NOT_AUDIO)
     assert (await fleet_http.get(HOLD)).json()["played"] == "default"
 
 
 async def test_a_file_over_the_cap_is_refused_before_anything_decodes_it(
-    fleet_http: httpx.AsyncClient, registry: Registry
+    fleet_http: httpx.AsyncClient, registry: Registry, tuning: MemoryTuning
 ) -> None:
-    await declared(registry)
+    await declared(registry, tuning)
     refused = await fleet_http.put(HOLD, content=b"\0" * (MAX_BYTES + 1))
     assert refused.status_code == 413
 

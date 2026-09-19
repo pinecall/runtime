@@ -12,6 +12,7 @@ from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
 from pinecall.evals.score import JUDGING_OFF, JudgedWhen
 from pinecall.orgs.table import MemoryOrgs
+from pinecall.orgs.tuning import MemoryTuning
 from pinecall.types import AgentConfig
 from pinecall.worker.client import Gateway
 from tests.api.calls.test_lookup import CALL, a_phone_call
@@ -65,9 +66,9 @@ def test_a_key_that_only_reads_calls_may_not_turn_it(gateway: TestClient) -> Non
 
 
 async def test_the_worker_asks_about_the_call_it_is_sealing_and_another_org_is_told_nothing(
-    worker_gateway: Gateway, registry: Registry, orgs: MemoryOrgs
+    worker_gateway: Gateway, registry: Registry, orgs: MemoryOrgs, tuning: MemoryTuning
 ) -> None:
-    await a_phone_call(worker_gateway, registry)
+    await a_phone_call(worker_gateway, registry, tuning)
     assert await worker_gateway.judging(CALL) is True
     await orgs.set_judging(AN_ORG.id, False)
     assert await worker_gateway.judging(CALL) is False

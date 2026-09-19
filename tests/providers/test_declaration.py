@@ -1,9 +1,9 @@
-"""The wire's declaration as the domain's: the three ms-9 fields land as the shapes they are."""
+"""The wire's declaration as the domain's: the contract lands, the environment is the world's."""
 
 import pytest
 
 from pinecall.providers.declaration import changed_by, configured
-from pinecall.types import AgentConfig, Docs, Greeting, KnowledgeFile, MemoryPolicy
+from pinecall.types import AgentConfig
 from pinecall_protocol import defs
 
 pytestmark = pytest.mark.unit
@@ -11,35 +11,39 @@ pytestmark = pytest.mark.unit
 CLARA = AgentConfig(slug="clinica-norte", channels=frozenset({"web"}))
 
 
-def test_the_knowledge_file_the_docs_and_the_memory_policy_land_as_the_domain_holds_them() -> None:
+def test_the_language_the_layout_and_the_search_land_as_the_domain_holds_them() -> None:
     wire = defs.AgentConfig.model_validate(
         {
-            "knowledge": {"path": "./knowledge/clinica.md", "text": "Abrimos a las nueve."},
-            "docs": {"base": "clinica-norte", "k": 4, "min_score": 0.02},
-            "memory": {"remember": ["preference", "health"], "forget": ["religion"]},
+            "language": "es-ES",
+            "uses_knowledge": True,
+            "prompt": [{"name": "identity", "region": "static"}],
         }
     )
     agent = configured(CLARA, wire)
-    assert agent.knowledge == KnowledgeFile("./knowledge/clinica.md", "Abrimos a las nueve.")
-    assert agent.docs == Docs(base="clinica-norte", mode="retrieved", k=4, min_score=0.02)
-    assert agent.memory == MemoryPolicy(remember=("preference", "health"), forget=("religion",))
-    assert changed_by(wire) == ("docs", "knowledge", "memory")
+    assert (agent.language, agent.uses_knowledge) == ("es-ES", True)
+    assert [block.name for block in agent.prompt] == ["identity"]
+    assert changed_by(wire) == ("language", "prompt", "uses_knowledge")
 
 
-def test_a_configure_that_leaves_the_three_out_keeps_what_the_agent_declared_before() -> None:
-    before = configured(
-        CLARA,
-        defs.AgentConfig.model_validate({"docs": {"base": "clinica-norte"}}),
+# A class written for an older package still sends its voice, its models, an opening, a base: the
+# gateway takes the frame and reads none of it, because every one of those is the world's now.
+def test_the_environment_a_class_still_sends_is_taken_and_not_read() -> None:
+    wire = defs.AgentConfig.model_validate(
+        {
+            "voice": {"name": "carolina"},
+            "llm": {"provider": "anthropic", "model": "claude-haiku-4-5"},
+            "greeting": {"say": "Hola."},
+            "docs": {"base": "clinica-norte"},
+            "memory": {"remember": ["preference"]},
+            "knowledge": {"path": "./knowledge/clinica.md", "text": "Abrimos a las nueve."},
+        }
     )
-    after = configured(before, defs.AgentConfig.model_validate({"greeting": {"say": "Hola."}}))
-    assert after.docs == Docs(base="clinica-norte")
-    assert after.greeting == Greeting(say="Hola.")
+    agent = configured(CLARA, wire)
+    assert (agent.voice, agent.llm, agent.greeting, agent.memory, agent.knowledge) == (None,) * 5
+    assert agent.bases == ()
 
 
-def test_the_three_sent_as_null_clear_what_was_declared() -> None:
-    before = configured(
-        CLARA,
-        defs.AgentConfig.model_validate({"memory": {"remember": ["preference"]}}),
-    )
-    after = configured(before, defs.AgentConfig.model_validate({"memory": None}))
-    assert after.memory is None
+def test_a_configure_that_leaves_a_field_out_keeps_what_the_agent_declared_before() -> None:
+    before = configured(CLARA, defs.AgentConfig.model_validate({"language": "es-ES"}))
+    after = configured(before, defs.AgentConfig.model_validate({"uses_knowledge": True}))
+    assert (after.language, after.uses_knowledge) == ("es-ES", True)

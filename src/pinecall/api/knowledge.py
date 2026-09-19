@@ -11,8 +11,7 @@ from pinecall.auth.keys import held_by
 from pinecall.knowledge.scoring import Answered, Question, Score, scored
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.types import KnowledgeFile
-from pinecall.types.counting import estimated_tokens
-from pinecall.types.knowledge import DEFAULT_CHUNKS_PER_TURN, HEAVY_WHOLE_TOKENS
+from pinecall.types.knowledge import DEFAULT_CHUNKS_PER_TURN
 from pinecall_protocol.rest import (
     GoldenMiss,
     KnowledgeBase,
@@ -30,14 +29,6 @@ router = APIRouter()
 # Dropping a name nobody pushed is a typo, and a verb that answered yes to it would send the
 # tenant looking for the change somewhere else. 404, and the org is never named: it is the key's.
 NO_SUCH_BASE = "no knowledge base named {base}: nothing was pushed under that name"
-
-# What a push past the heavy line is told. It landed: the sentence says what it costs, and the
-# way to pay less, and nothing about it is an error.
-HEAVY = (
-    "{base}: the files kept whole come to about {tokens} tokens, and every call of an agent "
-    "reading this base carries them in its prompt. Past {heavy}, a file a turn searches costs "
-    "less: push it without --whole."
-)
 
 # A drop has nothing to say back. The same number every removal in this runtime answers.
 NO_BODY = 204
@@ -58,7 +49,7 @@ async def push(
 ) -> KnowledgePushed:
     """The tenant's files as this base, chunked, embedded and indexed; how many chunks, how long."""
     started = time.perf_counter()
-    files = [KnowledgeFile(path=file.path, text=file.text, mode=file.mode) for file in said.files]
+    files = [KnowledgeFile(path=file.path, text=file.text) for file in said.files]
     # What the org would keep once this push has landed: everything it holds in both worlds, less
     # what the base being replaced frees — the push replaces it whole — plus what these files
     # become. Judged before a row is written, because a push is one statement and all or nothing.
@@ -72,16 +63,7 @@ async def push(
         # push` prints it, and it names both figures — what this would keep, and what the cap is.
         raise HTTPException(429, str(refused)) from refused
     chunks = await knowledge.put(key.org, key.env, held_by(key), base, files)
-    whole = sum(estimated_tokens(file.text) for file in files if file.mode == "whole")
-    return KnowledgePushed(
-        base=base,
-        chunks=chunks,
-        took_ms=(time.perf_counter() - started) * 1000,
-        whole_tokens=whole,
-        notice=HEAVY.format(base=base, tokens=f"{whole:,}", heavy=f"{HEAVY_WHOLE_TOKENS:,}")
-        if whole > HEAVY_WHOLE_TOKENS
-        else None,
-    )
+    return KnowledgePushed(base=base, chunks=chunks, took_ms=(time.perf_counter() - started) * 1000)
 
 
 @router.get("/v1/knowledge")
@@ -108,7 +90,7 @@ async def attached(key: KnowledgeKeyDep, kept: TuningDep) -> KnowledgeUses:
     """One row per base any agent's settings attach, with the agents that read it."""
     readers: dict[str, list[str]] = {}
     for slug, row in (await kept.every_newest(key.org, key.env, held_by(key))).items():
-        for docs in row.value.knowledge:
+        for docs in row.value.bases:
             readers.setdefault(docs.base, []).append(slug)
     return KnowledgeUses(
         bases=[KnowledgeUse(base=base, agents=agents) for base, agents in sorted(readers.items())]

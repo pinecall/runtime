@@ -7,6 +7,7 @@ import pytest
 
 from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry
+from pinecall.orgs.tuning import MemoryTuning
 from tests.api.conftest import PIPELINE
 from tests.api.pipeline.conftest import declared
 
@@ -22,8 +23,8 @@ def settings(settings: Settings) -> Settings:
 
 
 async def test_a_stage_whose_vendor_has_no_key_says_so_instead_of_reading_as_ready(
-    fleet_http: httpx.AsyncClient, registry: Registry
+    fleet_http: httpx.AsyncClient, registry: Registry, tuning: MemoryTuning
 ) -> None:
-    await declared(registry)
+    await declared(registry, tuning)
     said = (await fleet_http.get(PIPELINE)).json()
     assert said["unavailable_reasons"] == {"speaks": "elevenlabs has no API key in this process"}

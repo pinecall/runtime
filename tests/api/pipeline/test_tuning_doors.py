@@ -1,4 +1,4 @@
-"""An agent's settings over the real ASGI app: three corners, the version gate, words, the shim."""
+"""An agent's settings over the real ASGI app: three corners, the version gate, words."""
 
 from __future__ import annotations
 
@@ -12,8 +12,7 @@ from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
 from pinecall.auth.world import ENV_HEADER, NO_PRODUCTION
 from pinecall.types import BLANK, ROLE_SCOPES, SANDBOX
 from pinecall_protocol import defs
-from tests.api.conftest import A_KEY, A_RECORD, AGENT, PIPELINE_KNOBS, over_the_asgi_app
-from tests.api.pipeline.conftest import declared
+from tests.api.conftest import A_KEY, A_RECORD, AGENT, over_the_asgi_app
 
 pytestmark = pytest.mark.unit
 
@@ -100,11 +99,7 @@ async def in_the_sandbox(registry: Registry) -> None:
         "app_ci",
         SANDBOX,
         AGENT,
-        defs.AgentConfig(
-            language="es",
-            llm=defs.ModelConfig(provider="anthropic", model="claude-haiku-4-5"),
-            says=[defs.Pronunciation(word="Vidal", spoken="bidál")],
-        ),
+        defs.AgentConfig(language="es"),
     )
 
 
@@ -188,22 +183,28 @@ async def test_a_person_the_org_keeps_out_of_production_is_refused_there_by_name
 # ── words ───────────────────────────────────────────────────────────────────────
 
 
-async def test_a_words_key_sets_the_opening_and_carries_the_pipeline_over_untouched(
-    ana: httpx.AsyncClient, carla: httpx.AsyncClient
+async def test_a_words_key_sets_the_opening_and_the_knowledge_and_carries_the_pipeline_over(
+    ana: httpx.AsyncClient, carla: httpx.AsyncClient, registry: Registry
 ) -> None:
+    await in_the_sandbox(registry)
     await ana.put(SETTINGS, json={"config": SONNET, "team": True})
-    put = await carla.put(
-        SETTINGS, json={"config": {"greeting": {"say": "Buenas, Clínica Norte."}}}
-    )
+    words = {
+        "greeting": {"say": "Buenas, Clínica Norte."},
+        "knowledge": "# Clínica Norte\n\nDe 9 a 20.",
+    }
+    put = await carla.put(SETTINGS, json={"config": words})
     assert put.status_code == 200, put.text
     team = put.json()["team"]
     assert (team["version"], team["author"]) == (2, "m_carla")
     assert team["config"]["llm"] == SONNET["llm"]
+    assert team["config"]["knowledge"] == "# Clínica Norte\n\nDe 9 a 20."
     assert team["config"]["greeting"] == {
         "say": "Buenas, Clínica Norte.",
         "reply": None,
         "allow_interruptions": None,
     }
+    # What the floor wrote is what the next call reads, in the static block.
+    assert (await ana.get(CONFIG)).json()["knowledge"] == "# Clínica Norte\n\nDe 9 a 20."
 
 
 async def test_a_words_key_is_refused_a_vendor_by_name_and_the_scope_it_lacks(
@@ -258,18 +259,3 @@ async def test_a_vendor_this_build_has_no_file_for_is_refused_before_it_is_kept(
     refused = await ana.put(SETTINGS, json={"config": {"llm": "misspelt/gpt-5"}})
     assert refused.status_code == 400 and "no llm vendor named" in refused.json()["detail"]
     assert (await ana.get(SETTINGS)).json()["yours"] is None
-
-
-# ── the six-knob door, kept one release ─────────────────────────────────────────
-
-
-async def test_the_old_knobs_door_writes_a_version_of_the_same_store(
-    fleet_http: httpx.AsyncClient, registry: Registry
-) -> None:
-    await declared(registry)
-    turned = await fleet_http.put(PIPELINE_KNOBS, json={"llm": SONNET["llm"]})
-    assert turned.status_code == 200, turned.text
-    assert turned.json()["overrides"]["llm"] == SONNET["llm"]
-    production = (await fleet_http.get(SETTINGS)).json()["production"]
-    assert (production["version"], production["note"]) == (1, "pipeline/overrides")
-    assert production["config"]["llm"] == SONNET["llm"]

@@ -67,11 +67,3 @@ class Knowledge(Protocol):
     ) -> list[Chunk]:
         """The best k chunks for the query, by meaning and by words, fused; under min_score, cut."""
         ...
-
-    # The files kept whole (0038): what the static knowledge block of every call reads, off the
-    # bases the agent's settings attach. The same fallback a search makes.
-    async def whole_texts(
-        self, org: str, env: Env, holder: str | None, base: str
-    ) -> list[KnowledgeFile]:
-        """The files of this base kept whole, in the order a folder lists them."""
-        ...

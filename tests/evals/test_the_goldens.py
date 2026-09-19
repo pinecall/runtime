@@ -30,13 +30,6 @@ def test_booking_is_declared_irreversible_with_the_sentence_it_reads_back() -> N
     assert "¿Lo confirmo?" in (book.confirm or "")
 
 
-def test_the_declaration_names_the_model_the_class_asked_for() -> None:
-    llm = declared().llm
-
-    assert llm is not None
-    assert (llm.provider, llm.model) == ("anthropic", "claude-haiku-4-5-20251001")
-
-
 def test_the_first_state_renders_a_prefix_with_the_rules_and_a_view_with_the_next_move() -> None:
     prompt = prompt_at(IDENTIFY)
 

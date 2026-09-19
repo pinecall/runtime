@@ -43,10 +43,13 @@ that holds no corner. `config` is `TuningBody` (`rest.json`): `voice`, `tts`, `t
 `llm` (the three model knobs take `vendor/model`, a vendor alone to keep its own default model, or a
 model alone to keep whichever vendor is in use), `greeting` (`{say}` or `{reply}`, one of the two),
 `hangup {when}`, `turn {min_interruption_words, endpointing_ms}`, `memory {remember, forget}`,
-`knowledge [{base, mode, k, min_score}]` — every base the agent reads in this world, each with how
-a turn reads it (`mode` `retrieved` or `tool`, `k`, `min_score`); a turn's search fans out over all
-of them, and their `whole` files are the static knowledge block ([gateway-api.md](gateway-api.md),
-Knowledge). `pinecall knowledge attach <base> --agent <slug>` writes this list.
+`knowledge` — what the agent knows by heart, in Markdown: the business as the org describes it,
+read whole into the static knowledge block of every call, cached ahead of everything, and set by
+the floor (`words`) without a deploy — and `bases [{base, mode, k, min_score}]`, the RAG: every
+base the agent reads in this world, each with how a turn reads it (`mode` `retrieved` or `tool`,
+`k`, `min_score`); a turn's search fans out over all of them ([gateway-api.md](gateway-api.md),
+Knowledge). `pinecall docs attach <base>` writes that list; the text is the console's textarea, or
+`pinecall agent knowledge edit`.
 
 ### `PUT /v1/agents/{slug}/settings` — `pipeline` or `words`
 
@@ -85,11 +88,3 @@ of `LexiconRow`, each `{holder, version, author, note, set_at, lexicon: {said: [
 heard: [string]}}`. `PUT {lexicon, if_version, note, team}` is the whole lexicon, with the same
 `409`, written in the request's world as the settings are — production's org's-own corner directly —
 and a blank word refused. `GET /v1/lexicon/history`. All three open to `pipeline` or `words`.
-
-## The six-knob door, kept one release
-
-`PUT /v1/agents/{slug}/pipeline/overrides` ([pipeline-api.md](pipeline-api.md)) still answers, for
-the console's Pipeline screen: its six knobs become the next version of the key's corner's tuning,
-the six replaced and the rest kept, `note: "pipeline/overrides"`, through the same store — nothing
-here is a second truth. In production it writes production, as the table it replaced did and as
-the settings door now does; it goes with the screen that uses it.

@@ -8,7 +8,6 @@ from fastapi import APIRouter, HTTPException, Query
 
 from pinecall.api._deps import (
     EvalsKeyDep,
-    KnowledgeDep,
     LlmsDep,
     LogsDep,
     LookupsDep,
@@ -60,7 +59,6 @@ async def run_the_goldens(
     vault: VaultDep,
     lookups: LookupsDep,
     settings: SettingsDep,
-    knowledge: KnowledgeDep,
 ) -> dict[str, Any]:
     """Every golden against the app that is holding the agent, scored, stored, and answered."""
     process = Process(
@@ -77,7 +75,6 @@ async def run_the_goldens(
         lookups=lookups,
         budgets=settings.budgets,
         settings=settings,
-        knowledge=knowledge,
     )
     try:
         return (await a_run(said, runner, process)).as_json

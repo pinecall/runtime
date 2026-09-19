@@ -61,7 +61,9 @@ async def test_a_pushed_base_answers_a_search_and_the_log_names_the_sources(
     store = MemoryStore()
     logs = Logs(store)
     logs.writing(CALL, AGENT)
-    opened = OpenCall(org=org, context=a_context(), config=a_config(docs=Docs(base="clinica", k=2)))
+    opened = OpenCall(
+        org=org, context=a_context(), config=a_config(bases=(Docs(base="clinica", k=2),))
+    )
     lookups = Lookups(
         None,
         knowledge,
@@ -102,7 +104,7 @@ async def test_a_plan_that_keeps_no_chunks_finds_nothing_and_embeds_nothing(
     store = MemoryStore()
     logs = Logs(store)
     logs.writing(CALL, AGENT)
-    opened = OpenCall(org=org, context=a_context(), config=a_config(docs=Docs(base="clinica")))
+    opened = OpenCall(org=org, context=a_context(), config=a_config(bases=(Docs(base="clinica"),)))
     orgs = MemoryOrgs([Org(id=org, slug=org, name=org)])
     await orgs.set_quotas(org, Quotas(knowledge_chunks=0))
     lookups = Lookups(

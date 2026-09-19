@@ -325,4 +325,4 @@ class TextSession:
 # knowledge block, which sends nothing at all.
 def _the_file_it_ships_with(config: AgentConfig) -> str:
     """The text of the file this agent knows by heart, or nothing."""
-    return config.knowledge.text if config.knowledge is not None else ""
+    return config.knowledge or ""

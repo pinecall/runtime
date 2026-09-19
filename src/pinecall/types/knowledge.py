@@ -12,20 +12,8 @@ type DocsMode = Literal["retrieved", "tool"]
 
 DOCS_MODES: frozenset[str] = frozenset(get_args(DocsMode.__value__))
 
-# How one FILE of a base reaches the model: cut into chunks a turn searches, or whole, in the
-# static knowledge block of every call — the file the class used to carry by heart, as a
-# document of the base instead (0038).
-type FileMode = Literal["retrieved", "whole"]
-
-FILE_MODES: frozenset[str] = frozenset(get_args(FileMode.__value__))
-
 # The design's budget: thirty candidates per branch, RRF, and eight chunks to the model.
 DEFAULT_CHUNKS_PER_TURN = 8
-
-# Past this many tokens a base's whole files are called heavy: every call of every agent reading
-# the base carries them in its prompt, cached but paid for, and the first turn waits on them. A
-# push past it lands all the same and is told so; the number is a notice, never a refusal.
-HEAVY_WHOLE_TOKENS = 8_000
 
 
 @dataclass(frozen=True)
@@ -50,19 +38,14 @@ class Docs:
 
 @dataclass(frozen=True)
 class KnowledgeFile:
-    """One file of knowledge: its path as the tenant keeps it, its text, and its mode."""
+    """One file of a base, as a push sends it: its path as the tenant keeps it, and its text."""
 
     path: str
     text: str
-    mode: FileMode = "retrieved"
 
     def __post_init__(self) -> None:
         if not self.path:
             raise DeclarationRefused("a knowledge file is named by its path")
-        if self.mode not in FILE_MODES:
-            raise DeclarationRefused(
-                f"a file's mode is one of {sorted(FILE_MODES)}, not {self.mode!r}"
-            )
 
 
 # The tenant says what is worth keeping in its own words: "how they like to be addressed",

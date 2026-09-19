@@ -94,7 +94,6 @@ AGENT = "clinica-norte"
 # The agent's own pipeline door and the knobs of it, written once: its own package knocks at
 # both, and text/ knocks at the knobs to prove a turn reaches a text call too.
 PIPELINE = f"/v1/agents/{AGENT}/pipeline"
-PIPELINE_KNOBS = f"{PIPELINE}/overrides"
 
 
 @pytest.fixture

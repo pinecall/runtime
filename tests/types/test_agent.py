@@ -9,7 +9,6 @@ from pinecall.types import (
     AgentConfig,
     DeclarationRefused,
     Docs,
-    KnowledgeFile,
     MemoryPolicy,
     PromptBlock,
     ToolSpec,
@@ -105,11 +104,11 @@ def test_a_whole_declaration_holds_together() -> None:
         name="Clínica Norte",
         channels=frozenset({"phone", "web"}),
         language="es-ES",
-        knowledge=KnowledgeFile("./knowledge/clinica.md", "# Clínica Norte\nHorario de 9 a 20."),
-        docs=Docs("clinica"),
+        knowledge="# Clínica Norte\nHorario de 9 a 20.",
+        bases=(Docs("clinica"),),
         memory=MemoryPolicy(remember=("alergias",)),
         tools=(FIND_PATIENT,),
     )
-    assert agent.knowledge is not None and agent.knowledge.path == "./knowledge/clinica.md"
-    assert agent.docs is not None and agent.docs.base == "clinica"
+    assert agent.knowledge is not None and agent.knowledge.startswith("# Clínica Norte")
+    assert [docs.base for docs in agent.bases] == ["clinica"]
     assert agent.memory is not None and agent.memory.remember == ("alergias",)

@@ -1,4 +1,4 @@
-"""The agent's two pipeline doors, over the real ASGI app: what is measured, and what is turned."""
+"""The agent's pipeline door, over the real ASGI app: what it runs on, and what is measured."""
 
 from __future__ import annotations
 
@@ -7,13 +7,9 @@ import pytest
 
 from pinecall.api.agents.registry import Registry
 from pinecall.log.store import MemoryStore
-from pinecall.providers.tts.elevenlabs import DEFAULT_MODEL
-from pinecall.providers.tts.voices import VOICES, known_voices, voice_names
-from pinecall.providers.tuning import NOT_RUN_HERE
-from pinecall.types import BLANK, Greeting
-from pinecall.worker.client import Gateway
-from pinecall_protocol import defs
-from tests.api.conftest import AGENT, PIPELINE, PIPELINE_KNOBS
+from pinecall.orgs.tuning import MemoryTuning
+from pinecall.providers.tts.voices import VOICES, voice_names
+from tests.api.conftest import AGENT, PIPELINE
 from tests.api.pipeline.conftest import declared
 
 pytestmark = pytest.mark.unit
@@ -26,9 +22,9 @@ async def a_call_that_measured(store: MemoryStore, call: str, *seconds: float) -
 
 
 async def test_the_pipeline_names_the_vendor_each_of_the_three_stages_runs(
-    fleet_http: httpx.AsyncClient, registry: Registry
+    fleet_http: httpx.AsyncClient, registry: Registry, tuning: MemoryTuning
 ) -> None:
-    await declared(registry)
+    await declared(registry, tuning)
     said = (await fleet_http.get(PIPELINE)).json()
     assert said["hears"]["vendor"] == "soniox"
     assert (said["decides"]["vendor"], said["decides"]["model"]) == (
@@ -37,7 +33,7 @@ async def test_the_pipeline_names_the_vendor_each_of_the_three_stages_runs(
     )
     assert (said["speaks"]["vendor"], said["speaks"]["voice_id"]) == (
         "elevenlabs",
-        "a-declared-voice",
+        VOICES["mateo"].voice_id,
     )
     assert said["greeting"] == {
         "say": "Clínica Norte, buenas.",
@@ -47,9 +43,9 @@ async def test_the_pipeline_names_the_vendor_each_of_the_three_stages_runs(
 
 
 async def test_the_medians_are_taken_over_every_turn_of_the_agents_last_calls(
-    fleet_http: httpx.AsyncClient, registry: Registry, store: MemoryStore
+    fleet_http: httpx.AsyncClient, registry: Registry, tuning: MemoryTuning, store: MemoryStore
 ) -> None:
-    await declared(registry)
+    await declared(registry, tuning)
     await a_call_that_measured(store, "call_one", 1.0, 2.0)
     await a_call_that_measured(store, "call_two", 3.0)
     said = (await fleet_http.get(PIPELINE)).json()
@@ -64,168 +60,19 @@ async def test_an_agent_no_app_is_holding_is_a_refusal_and_never_an_empty_pipeli
     assert answered.status_code == 404
 
 
-# The criterion, proven without a telephone: the override an operator PUTs is on the config the
-# worker reads to build the next session, off the one door an agent's config has ever travelled.
-# And it is a NAME that is PUT: the worker is handed the id the table holds for it, never the word.
-async def test_a_voice_name_turned_here_reaches_the_worker_as_the_id_the_vendor_knows(
-    fleet_http: httpx.AsyncClient, registry: Registry, worker_gateway: Gateway
-) -> None:
-    await declared(registry)
-    turned = await fleet_http.put(PIPELINE_KNOBS, json={"voice": "mateo"})
-    assert turned.status_code == 200
-    config = await worker_gateway.agent(AGENT)
-    assert config.voice is not None
-    assert config.voice.voice_id == VOICES["mateo"].voice_id
-    assert config.voice.voice_id != "mateo"
-    assert config.voice.provider == "elevenlabs"
-
-
-# The 1008 door, closed on the operator's side: what an app cannot declare, an operator cannot PUT.
-async def test_a_voice_no_one_curated_is_refused_in_the_tables_own_sentence(
-    fleet_http: httpx.AsyncClient, registry: Registry, worker_gateway: Gateway
-) -> None:
-    await declared(registry)
-    refused = await fleet_http.put(PIPELINE_KNOBS, json={"voice": "carolinaa"})
-    assert refused.status_code == 400
-    assert known_voices() in refused.json()["detail"]
-    assert "no voice named 'carolinaa'" in refused.json()["detail"]
-    config = await worker_gateway.agent(AGENT)
-    assert config.voice is not None
-    assert config.voice.voice_id == "a-declared-voice"
-
-
-# The knob is a text box, so what an operator types is always the words themselves. Turning it on
-# an agent that improvises its opening is how you stop it improvising tonight, without a deploy.
-async def test_the_greeting_knob_turns_an_improvised_opening_into_the_words_typed(
-    fleet_http: httpx.AsyncClient, registry: Registry, worker_gateway: Gateway
-) -> None:
-    await declared(registry, greeting=defs.GreetingConfig(reply="saluda y preséntate"))
-    await fleet_http.put(PIPELINE_KNOBS, json={"greeting": "Buenas, Clínica Norte."})
-    config = await worker_gateway.agent(AGENT)
-    assert config.greeting == Greeting(say="Buenas, Clínica Norte.")
-
-
 async def test_the_pipeline_door_offers_the_names_the_table_curates_and_no_second_list(
-    fleet_http: httpx.AsyncClient, registry: Registry
+    fleet_http: httpx.AsyncClient, registry: Registry, tuning: MemoryTuning
 ) -> None:
-    await declared(registry)
+    await declared(registry, tuning)
     said = (await fleet_http.get(PIPELINE)).json()
     assert said["voices"] == list(voice_names())
 
 
-async def test_a_knob_left_out_of_the_next_body_goes_back_to_what_the_app_declared(
-    fleet_http: httpx.AsyncClient, registry: Registry, worker_gateway: Gateway
-) -> None:
-    await declared(registry)
-    await fleet_http.put(PIPELINE_KNOBS, json={"voice": "mateo"})
-    await fleet_http.put(PIPELINE_KNOBS, json={"greeting": "Buenas, Clínica Norte."})
-    config = await worker_gateway.agent(AGENT)
-    assert config.voice is not None
-    assert config.voice.voice_id == "a-declared-voice"
-    assert config.greeting == Greeting(say="Buenas, Clínica Norte.")
-
-
-# convo ms-14: an empty voice reached the vendor and a line of calls went out silent.
-async def test_a_blank_voice_is_refused_with_the_sentence_that_says_why(
-    fleet_http: httpx.AsyncClient, registry: Registry, worker_gateway: Gateway
-) -> None:
-    await declared(registry)
-    refused = await fleet_http.put(PIPELINE_KNOBS, json={"voice": "   "})
-    assert refused.status_code == 400
-    assert refused.json()["detail"] == BLANK.format(field="voice")
-    config = await worker_gateway.agent(AGENT)
-    assert config.voice is not None
-    assert config.voice.voice_id == "a-declared-voice"
-
-
-async def test_a_tts_model_this_build_does_not_run_is_refused_in_the_providers_own_words(
-    fleet_http: httpx.AsyncClient, registry: Registry
-) -> None:
-    await declared(registry)
-    refused = await fleet_http.put(PIPELINE_KNOBS, json={"tts_model": "eleven_turbo_v2_5"})
-    assert refused.status_code == 400
-    assert refused.json()["detail"] == NOT_RUN_HERE.format(
-        asked="eleven_turbo_v2_5", instead=DEFAULT_MODEL
-    )
-
-
-async def test_a_vendor_this_build_has_no_file_for_is_a_typo_and_is_refused(
-    fleet_http: httpx.AsyncClient, registry: Registry
-) -> None:
-    await declared(registry)
-    refused = await fleet_http.put(PIPELINE_KNOBS, json={"llm": "openai-but-misspelt/gpt-5"})
-    assert refused.status_code == 400
-    assert "no llm vendor named" in refused.json()["detail"]
-
-
-async def test_a_bare_model_keeps_the_vendor_the_agent_is_already_running_on(
-    fleet_http: httpx.AsyncClient, registry: Registry, worker_gateway: Gateway
-) -> None:
-    await declared(registry)
-    await fleet_http.put(PIPELINE_KNOBS, json={"llm": "claude-sonnet-4-5"})
-    config = await worker_gateway.agent(AGENT)
-    assert config.llm is not None
-    assert (config.llm.provider, config.llm.model) == ("anthropic", "claude-sonnet-4-5")
-
-
-# ── the knob that moves a whole stage onto another vendor ────────────────────────
-
-
-async def test_a_bare_vendor_moves_the_stage_and_keeps_that_vendors_own_model(
-    fleet_http: httpx.AsyncClient, registry: Registry, worker_gateway: Gateway
-) -> None:
-    """What the console's vendor picker sends. A bare word that names a vendor IS the vendor."""
-    await declared(registry)
-    assert (await fleet_http.put(PIPELINE_KNOBS, json={"llm": "openai"})).status_code == 200
-    config = await worker_gateway.agent(AGENT)
-    assert config.llm is not None
-    assert (config.llm.provider, config.llm.model) == ("openai", "")
-
-
-async def test_a_vendor_written_by_one_of_its_other_names_is_the_same_vendor(
-    fleet_http: httpx.AsyncClient, registry: Registry, worker_gateway: Gateway
-) -> None:
-    """`claude` is what a person types; `anthropic` is what the config, the vault and a key say."""
-    await declared(registry)
-    await fleet_http.put(PIPELINE_KNOBS, json={"llm": "claude/claude-sonnet-4-5"})
-    config = await worker_gateway.agent(AGENT)
-    assert config.llm is not None
-    assert config.llm.provider == "anthropic"
-
-
-async def test_the_tts_knob_moves_the_voice_onto_another_vendor_entirely(
-    fleet_http: httpx.AsyncClient, registry: Registry, worker_gateway: Gateway
-) -> None:
-    """The speaking stage was the one an operator could not move, which made a screen that
-    offered Cartesia everywhere except the stage that actually speaks a screen that lied."""
-    await declared(registry)
-    turned = await fleet_http.put(
-        PIPELINE_KNOBS, json={"tts": "cartesia/sonic-3", "voice": "a-uuid"}
-    )
-    assert turned.status_code == 200, turned.text
-    config = await worker_gateway.agent(AGENT)
-    assert config.voice is not None
-    assert (config.voice.provider, config.voice.model) == ("cartesia", "sonic-3")
-    # The vendor was named, so the word beside it is that vendor's own id and this build does not
-    # judge its shape — providers/tts/voices.py only knows ElevenLabs'.
-    assert config.voice.voice_id == "a-uuid"
-
-
-async def test_a_tts_model_of_another_vendor_is_that_vendors_business_and_not_ours(
-    fleet_http: httpx.AsyncClient, registry: Registry
-) -> None:
-    """The ElevenLabs model rule is ElevenLabs', and it used to be applied to every vendor."""
-    await declared(registry)
-    turned = await fleet_http.put(PIPELINE_KNOBS, json={"tts": "rime", "tts_model": "mistv2"})
-    assert turned.status_code == 200, turned.text
-    assert turned.json()["speaks"]["vendor"] == "rime"
-
-
 async def test_the_pipeline_report_lists_every_vendor_a_stage_could_be_turned_onto(
-    fleet_http: httpx.AsyncClient, registry: Registry
+    fleet_http: httpx.AsyncClient, registry: Registry, tuning: MemoryTuning
 ) -> None:
     """The screen that changes a stage is where a person needs to see that Cartesia exists."""
-    await declared(registry)
+    await declared(registry, tuning)
     report = (await fleet_http.get(PIPELINE)).json()
     names = {row["name"] for row in report["providers"]}
     assert len(names) > 40

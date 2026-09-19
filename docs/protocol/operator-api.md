@@ -396,5 +396,5 @@ says so and names `keys issue --org default`, which is the one verb that creates
 
 ## An agent's pipeline
 
-`GET /v1/agents/{slug}/pipeline` and `PUT …/pipeline/overrides` are the agent's own doors, on the
-org's API key, and have a page of their own: [pipeline-api.md](pipeline-api.md).
+`GET /v1/agents/{slug}/pipeline` is the agent's own door, on the org's API key, and has a page of
+its own: [pipeline-api.md](pipeline-api.md).

@@ -6,17 +6,15 @@ import dataclasses
 from typing import Any
 
 from pinecall.providers import catalog
-from pinecall.providers.declaration import a_greeting, a_hangup, a_memory_policy, the_docs
 from pinecall.providers.llm import VENDORS as LLM_VENDORS
 from pinecall.providers.models import DEFAULT_VENDOR
-from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS, vendor_running
+from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS
 from pinecall.providers.registry import NoProvider, Vendors
 from pinecall.providers.stt import VENDORS as STT_VENDORS
 from pinecall.providers.tts import VENDORS as TTS_VENDORS
 from pinecall.providers.tts.elevenlabs import a_model
 from pinecall.providers.tts.voices import voice_declared
-from pinecall.types import AgentConfig, DeclarationRefused, Greeting, Lexicon, Model, Tuning, Voice
-from pinecall_protocol import defs
+from pinecall.types import AgentConfig, DeclarationRefused, Lexicon, Model, Tuning, Voice
 
 # The vendor tables' own refusal, over the vendor tables' own list. The list is forty-five long
 # now, so the sentence names the door that prints it rather than printing it into a form's error.
@@ -38,76 +36,30 @@ VENDOR_SEPARATOR = "/"
 
 
 # The one function every session is built through, whichever door it came in by: the worker's
-# config hop, the chat socket, a WhatsApp thread, an eval run. What the org set wins over what the
-# app declared, knob by knob; a knob the org never set leaves the declaration exactly as it was.
-# The lexicon is MERGED, not laid over: an agent's own pronunciations stay, and the org's word wins
-# where both say the same one. Building the config IS the check — what a door accepts is exactly
-# what the next session runs, so nothing is validated twice in two places.
+# config hop, the chat socket, a WhatsApp thread, an eval run. The class declares the contract —
+# its tools, its layout, its language — and the world sets the environment, knob by knob; a knob
+# the org never set is the runtime's own default. The lexicon is the org's words, the agent's
+# `says` and `hears`. Building the config IS the check — what a door accepts is exactly what the
+# next session runs, so nothing is validated twice in two places.
 def tuned(declared: AgentConfig, tuning: Tuning, lexicon: Lexicon) -> AgentConfig:
-    """What the app declared with the org's tuning laid over it: what the next session runs."""
+    """What the class declared with the world's settings on it: what the next session runs."""
     return dataclasses.replace(
         declared,
-        greeting=_greeting(tuning.greeting, declared.greeting),
-        voice=_voice(tuning, declared.voice),
-        stt=_model("stt", STT_VENDORS, tuning.stt, declared.stt, DEFAULT_STT),
-        llm=_model("llm", LLM_VENDORS, tuning.llm, declared.llm, DEFAULT_VENDOR),
-        hangup=declared.hangup if tuning.hangup is None else tuning.hangup,
-        turn=declared.turn if tuning.turn is None else tuning.turn,
-        memory=declared.memory if tuning.memory is None else tuning.memory,
-        # Every base the world attached, and the first of them as `docs`, for the one place that
-        # asks whether the model has a search tool at all (session/lookups.py).
-        docs=tuning.knowledge[0] if tuning.knowledge else declared.docs,
-        bases=tuning.knowledge if tuning.knowledge else ((declared.docs,) if declared.docs else ()),
-        says={**declared.says, **lexicon.said},
-        hears=tuple(dict.fromkeys((*declared.hears, *lexicon.heard))),
+        greeting=tuning.greeting,
+        voice=_voice(tuning),
+        stt=_model("stt", STT_VENDORS, tuning.stt, DEFAULT_STT),
+        llm=_model("llm", LLM_VENDORS, tuning.llm, DEFAULT_VENDOR),
+        hangup=tuning.hangup,
+        turn=tuning.turn,
+        memory=tuning.memory,
+        knowledge=tuning.knowledge,
+        bases=tuning.bases,
+        says=dict(lexicon.said),
+        hears=tuple(lexicon.heard),
     )
-
-
-# What a class still declares of the environment — a voice, the models, an opening, what it
-# remembers, the base it reads — as the tuning a world with nothing set is seeded with, once: the
-# first `pinecall start` of any developer gives the team's sandbox its v1, and the box's own app
-# gives production its. Read off the WIRE and not the resolved config, because the wire still
-# carries the voice's name and the resolved config only its id. None when the class declares
-# nothing of it, which is what a class written for the world to own looks like.
-def declared_as_tuning(wire: defs.AgentConfig) -> Tuning | None:
-    """The environment a class still declares, as a tuning; None when it declares none."""
-    voice = wire.voice
-    seed = Tuning(
-        voice=None if voice is None else (voice.name or voice.voice_id),
-        tts=None if voice is None or voice.name is not None else voice.provider,
-        tts_model=None if voice is None else voice.model,
-        stt=_a_model_knob(wire.stt),
-        llm=_a_model_knob(wire.llm),
-        greeting=a_greeting(wire.greeting),
-        hangup=a_hangup(wire.hangup),
-        memory=a_memory_policy(wire.memory),
-        knowledge=() if (docs := the_docs(wire.docs)) is None else (docs,),
-    )
-    return None if seed == Tuning() else seed
-
-
-def _a_model_knob(wire: defs.ModelConfig | None) -> str | None:
-    """`vendor/model`, or the vendor alone when the app named none: the knob's own three forms."""
-    if wire is None:
-        return None
-    return f"{wire.provider}/{wire.model}" if wire.model else wire.provider
 
 
 # ── one knob at a time ──────────────────────────────────────────────────────────
-
-
-# An opening the org set is the opening — the words, or what the model reads before it finds its
-# own. Whether the caller may interrupt it stays the class's unless the org said otherwise: turning
-# the words is not turning the interruptibility, and a form that set one never set the other.
-def _greeting(turned: Greeting | None, declared: Greeting | None) -> Greeting | None:
-    """The opening: the org's when it set one, the class's when it did not."""
-    if turned is None:
-        return declared
-    if turned.allow_interruptions is not None or declared is None:
-        return turned
-    return Greeting(
-        say=turned.say, reply=turned.reply, allow_interruptions=declared.allow_interruptions
-    )
 
 
 # A person types the same two forms an app declares — a curated name, or their own vendor id — and
@@ -116,51 +68,42 @@ def _greeting(turned: Greeting | None, declared: Greeting | None) -> Greeting | 
 #
 # The vendor comes off `tts` when that knob is set, which is what makes the speaking stage as
 # movable as the other two: `tts = "cartesia"` moves the whole stage, and the voice written beside
-# it is then Cartesia's own id, because voice_declared takes a named vendor at its word.
-def _voice(tuning: Tuning, declared: Voice | None) -> Voice | None:
+# it is then Cartesia's own id, because voice_declared takes a named vendor at its word. Nothing
+# set is no voice at all: the session speaks with this build's default vendor and its own voice.
+def _voice(tuning: Tuning) -> Voice | None:
     """The voice the agent speaks in: the vendor, the id and the model may each be set."""
     if tuning.voice is None and tuning.tts is None and tuning.tts_model is None:
-        return declared
-    vendor, model = _speaking(tuning, declared)
-    return Voice(
-        provider=vendor,
-        model=model or (declared.model if declared else None),
-        voice_id=_voice_id(tuning, vendor, declared),
-    )
+        return None
+    vendor, model = _speaking(tuning)
+    return Voice(provider=vendor, model=model, voice_id=_voice_id(tuning, vendor))
 
 
 # `tts` carries the same two forms the other model knobs do, and `tts_model` is the older way to
 # say the half after the slash. Both are read, the explicit `tts_model` wins, and a vendor named
 # in neither is whatever the app declared.
-def _speaking(tuning: Tuning, declared: Voice | None) -> tuple[str, str | None]:
+def _speaking(tuning: Tuning) -> tuple[str, str | None]:
     """Which vendor speaks and with which model, out of the two knobs that can say so."""
-    in_use = vendor_running(declared, DEFAULT_TTS)
-    vendor, model = the_vendor_and_the_model(tuning.tts, in_use) if tuning.tts else (in_use, "")
+    vendor, model = (
+        the_vendor_and_the_model(tuning.tts, DEFAULT_TTS) if tuning.tts else (DEFAULT_TTS, "")
+    )
     _refuse_an_unknown_vendor("tts", TTS_VENDORS, vendor)
     return vendor, _a_voice_model(vendor, tuning.tts_model or model or None)
 
 
-def _voice_id(tuning: Tuning, vendor: str, declared: Voice | None) -> str | None:
-    """What the vendor is sent: the table's id for the name asked, or what the app declared."""
-    if tuning.voice is None:
-        return declared.voice_id if declared else None
-    return voice_declared(tuning.voice, vendor, None).voice_id
+def _voice_id(tuning: Tuning, vendor: str) -> str | None:
+    """What the vendor is sent: the table's id for the name asked, or nothing when none was."""
+    return None if tuning.voice is None else voice_declared(tuning.voice, vendor, None).voice_id
 
 
 def _model(
-    modality: catalog.Modality,
-    vendors: Vendors[Any],
-    asked: str | None,
-    declared: Model | None,
-    ours: str,
+    modality: catalog.Modality, vendors: Vendors[Any], asked: str | None, ours: str
 ) -> Model | None:
-    """A model knob, in any of the three forms the_vendor_and_the_model reads."""
+    """A model knob, in any of the three forms the_vendor_and_the_model reads; None unset."""
     if asked is None:
-        return declared
-    vendor, model = the_vendor_and_the_model(asked, vendor_running(declared, ours))
+        return None
+    vendor, model = the_vendor_and_the_model(asked, ours)
     _refuse_an_unknown_vendor(modality, vendors, vendor)
-    temperature = declared.temperature if declared else None
-    return Model(provider=vendor, model=model, temperature=temperature)
+    return Model(provider=vendor, model=model)
 
 
 # Three forms, one reading, for all three model knobs — and the middle one is what the console's

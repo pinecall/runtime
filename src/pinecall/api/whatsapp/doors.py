@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from pinecall._settings import Settings
 from pinecall.api._live import Live
 from pinecall.api.agents.registry import Registry
-from pinecall.knowledge import Knowledge
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
@@ -37,4 +36,3 @@ class Doors:
     live: Live
     graph: Graph
     lookups: Lookups
-    knowledge: Knowledge | None = None

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Literal, get_args
 
 from pinecall.types.channel import CHANNELS, Channel
-from pinecall.types.knowledge import Docs, KnowledgeFile, MemoryPolicy
+from pinecall.types.knowledge import Docs, MemoryPolicy
 from pinecall.types.prompt import DEFAULT_LAYOUT, PromptBlock
 from pinecall.types.refused import DeclarationRefused
 from pinecall.types.tool import ToolSpec
@@ -100,12 +100,11 @@ class AgentConfig:
     turn: Turn | None = None
     says: Mapping[str, str] = field(default_factory=dict[str, str])
     hears: tuple[str, ...] = ()
-    knowledge: KnowledgeFile | None = None
-    docs: Docs | None = None
-    # Every base the world attached, each with how a turn reads it; `docs` is the first of them,
-    # for the one place that asks whether the model has a search tool at all. Never on the wire:
-    # the resolver fills it from the agent's settings (api/agents/tuned.py), and a config built
-    # with `docs` alone reads that one base.
+    # What the agent knows by heart, in Markdown: the org's own words, read whole into the static
+    # knowledge block of every call. The world's (Tuning.knowledge), never the class's.
+    knowledge: str | None = None
+    # Every base the world attached, each with how a turn reads it: the RAG. The world's too
+    # (Tuning.bases); the resolver fills it (api/agents/tuned.py).
     bases: tuple[Docs, ...] = ()
     # Whether the class searches the base itself, `this.knowledge.search`: a world that attaches
     # none refuses the registration, so a tool that would find nothing is refused at boot.
@@ -123,8 +122,6 @@ class AgentConfig:
             raise DeclarationRefused(
                 f"an agent's slug is lowercase words joined by dashes, not {self.slug!r}"
             )
-        if self.docs is not None and not self.bases:
-            object.__setattr__(self, "bases", (self.docs,))
         if unknown := self.channels - CHANNELS:
             raise DeclarationRefused(f"agent {self.slug}: unknown channels {sorted(unknown)}")
         names = [tool.name for tool in self.tools]

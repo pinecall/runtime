@@ -6,24 +6,7 @@ import dataclasses
 from collections.abc import Sequence
 from typing import Any
 
-from pinecall.providers.catalog import canonical
-from pinecall.providers.tts import voices
-from pinecall.types import (
-    DEFAULT_LAYOUT,
-    AgentConfig,
-    Docs,
-    Env,
-    Greeting,
-    Hangup,
-    KnowledgeFile,
-    MemoryPolicy,
-    Model,
-    PromptBlock,
-    Route,
-    ToolSpec,
-    Turn,
-    Voice,
-)
+from pinecall.types import DEFAULT_LAYOUT, AgentConfig, Env, PromptBlock, Route, ToolSpec
 from pinecall.types.agent import EventSource, Visibility
 from pinecall.types.channel import CHANNELS_WITH_A_NUMBER, Channel
 from pinecall_protocol import defs
@@ -65,7 +48,9 @@ def an_agent(slug: str, routes: Sequence[Route]) -> AgentConfig:
 
 
 # Only the fields the app sent change: a configure is a patch, and pydantic remembers which keys
-# were on the wire. An absent field keeps whatever the agent declared before.
+# were on the wire. An absent field keeps whatever the agent declared before. The environment the
+# wire still carries — a voice, the models, an opening, what is remembered, a base — is the
+# world's now (Tuning) and is not read: an app on an older package registers all the same.
 def configured(current: AgentConfig, wire: defs.AgentConfig) -> AgentConfig:
     """The config with the sent fields replaced. DeclarationRefused when one breaks its rule."""
     return dataclasses.replace(current, **_sent(wire))
@@ -85,30 +70,8 @@ def _sent(wire: defs.AgentConfig) -> dict[str, Any]:
         converted["prompt"] = _a_layout(wire.prompt)
     if "language" in sent:
         converted["language"] = wire.language
-    if "greeting" in sent:
-        converted["greeting"] = a_greeting(wire.greeting)
-    if "voice" in sent:
-        converted["voice"] = _a_voice(wire.voice)
-    if "llm" in sent:
-        converted["llm"] = _a_model(wire.llm)
-    if "stt" in sent:
-        converted["stt"] = _a_model(wire.stt)
-    if "turn" in sent:
-        converted["turn"] = _a_turn(wire.turn)
-    if "says" in sent:
-        converted["says"] = _pronunciations(wire.says or ())
-    if "hears" in sent:
-        converted["hears"] = tuple(wire.hears or ())
-    if "knowledge" in sent:
-        converted["knowledge"] = _a_knowledge_file(wire.knowledge)
     if "uses_knowledge" in sent:
         converted["uses_knowledge"] = wire.uses_knowledge
-    if "docs" in sent:
-        converted["docs"] = the_docs(wire.docs)
-    if "memory" in sent:
-        converted["memory"] = a_memory_policy(wire.memory)
-    if "hangup" in sent:
-        converted["hangup"] = a_hangup(wire.hangup)
     if "tools" in sent:
         converted["tools"] = tuple(a_tool(tool) for tool in wire.tools or ())
     if "state_fields" in sent:
@@ -123,68 +86,6 @@ def _a_layout(specs: Sequence[defs.PromptBlockSpec] | None) -> tuple[PromptBlock
     if not specs:
         return DEFAULT_LAYOUT
     return tuple(PromptBlock(spec.name, spec.region) for spec in specs)
-
-
-# The vendor is only ever sent an id. `voice = "carolina"` once reached ElevenLabs as a voice_id
-# and came back 1008 seven times in one call, so the name is resolved here, while the app is
-# declaring itself: an unknown one is a declaration refused, not a caller listening to silence.
-def _a_voice(wire: defs.VoiceConfig | None) -> Voice | None:
-    if wire is None:
-        return None
-    speaking = voices.voice_declared(wire.name, wire.provider, wire.voice_id)
-    return dataclasses.replace(speaking, model=wire.model)
-
-
-# The vendor is spelled ONE way inside the runtime, whatever the app wrote: `11labs`, `claude` and
-# `gemini` are words people type, and a config that kept them would look up a key under a name no
-# settings field has and refuse a vendor this build plainly runs. providers/catalog.py holds every
-# word each vendor answers to; an unknown one is returned as typed and refused when it is built,
-# with the whole list in the sentence.
-def _a_model(wire: defs.ModelConfig | None) -> Model | None:
-    return None if wire is None else Model(canonical(wire.provider), wire.model, wire.temperature)
-
-
-def _a_turn(wire: defs.TurnConfig | None) -> Turn | None:
-    return None if wire is None else Turn(wire.min_interruption_words, wire.endpointing_ms)
-
-
-def _a_knowledge_file(wire: defs.KnowledgeFile | None) -> KnowledgeFile | None:
-    return None if wire is None else KnowledgeFile(wire.path, wire.text, wire.mode)
-
-
-def the_docs(wire: defs.DocsConfig | None) -> Docs | None:
-    """The wire's docs as the domain's, or None."""
-    if wire is None:
-        return None
-    return Docs(base=wire.base, mode=wire.mode, k=wire.k, min_score=wire.min_score)
-
-
-def a_memory_policy(wire: defs.MemoryConfig | None) -> MemoryPolicy | None:
-    """The wire's memory policy as the domain's, or None."""
-    if wire is None:
-        return None
-    return MemoryPolicy(remember=tuple(wire.remember), forget=tuple(wire.forget))
-
-
-# DeclarationRefused out of Greeting itself when neither verb or both were sent: the rule is one
-# rule, held by the shape, and this door only hands it the wire's own fields.
-def a_greeting(wire: defs.GreetingConfig | None) -> Greeting | None:
-    """The wire's opening as the domain's, or None; the shape refuses one naming both verbs."""
-    if wire is None:
-        return None
-    return Greeting(say=wire.say, reply=wire.reply, allow_interruptions=wire.allow_interruptions)
-
-
-def a_hangup(wire: defs.HangupConfig | None) -> Hangup | None:
-    """The wire's hangup as the domain's, or None."""
-    if wire is None:
-        return None
-    return Hangup(when=wire.when)
-
-
-def _pronunciations(said: Sequence[defs.Pronunciation]) -> dict[str, str]:
-    """The wire's list of {word, spoken} as the map the voice's replace transform is built from."""
-    return {one.word: one.spoken for one in said}
 
 
 def _visibilities(specs: Sequence[defs.StateFieldSpec]) -> dict[str, Visibility]:

@@ -25,7 +25,7 @@ pytestmark = pytest.mark.unit
 A_VIEW = "The caller is Ana. Two slots are free."
 
 REMEMBERS = replace(
-    CLARA, memory=MemoryPolicy(remember=("preference",)), docs=Docs(base="clinica", k=4)
+    CLARA, memory=MemoryPolicy(remember=("preference",)), bases=(Docs(base="clinica", k=4),)
 )
 
 type Talking = tuple[Recording, VoiceBridge, AgentSession[None], FakeLLM]
@@ -140,7 +140,7 @@ async def test_a_lookup_past_its_budget_is_a_recoverable_entry_and_the_turn_goes
     recording = Recording()
     bridge = a_bridge(
         a_context(),
-        replace(REMEMBERS, docs=None),
+        replace(REMEMBERS, bases=()),
         recording,
         lookup=Slow(),
         budgets=Budgets(voice_lookup_ms=0, remember_s=1.0),

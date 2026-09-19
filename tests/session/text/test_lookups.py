@@ -26,7 +26,7 @@ REMEMBERS = AgentConfig(
     slug=AGENT,
     channels=frozenset({"web"}),
     memory=MemoryPolicy(remember=("preference",)),
-    docs=Docs(base="clinica", k=4),
+    bases=(Docs(base="clinica", k=4),),
 )
 
 
@@ -113,7 +113,7 @@ async def test_an_agent_reply_is_no_query_and_asks_nobody() -> None:
 
 async def test_recall_and_search_are_declared_only_when_the_class_declares_them() -> None:
     llm = FakeLLM(Scripted(chunks=("Uno.",)))
-    session = a_session(MemoryStore(), llm, Answering(), config=replace(REMEMBERS, docs=None))
+    session = a_session(MemoryStore(), llm, Answering(), config=replace(REMEMBERS, bases=()))
     await session.start()
     await session.hears("hola")
     (asked,) = llm.asked
@@ -127,7 +127,7 @@ async def test_a_lookup_past_its_budget_is_a_recoverable_entry_and_the_turn_goes
         store,
         FakeLLM(),
         Answering(after_s=0.5),
-        config=replace(REMEMBERS, docs=None),
+        config=replace(REMEMBERS, bases=()),
         budgets=Budgets(text_lookup_ms=0, remember_s=1.0),
     )
     await session.start()

@@ -13,10 +13,10 @@ pytestmark = pytest.mark.unit
 def test_nothing_set_is_every_knob_none_and_no_base() -> None:
     nothing = Tuning()
     assert (nothing.voice, nothing.llm, nothing.greeting, nothing.memory) == (None,) * 4
-    assert nothing.knowledge == ()
+    assert nothing.knowledge is None and nothing.bases == ()
 
 
-@pytest.mark.parametrize("knob", ["voice", "tts", "tts_model", "stt", "llm"])
+@pytest.mark.parametrize("knob", ["voice", "tts", "tts_model", "stt", "llm", "knowledge"])
 def test_a_blank_named_knob_is_refused_in_the_sentence_that_says_why(knob: str) -> None:
     """convo ms-14: an empty voice reached the vendor and a line of calls went out silent."""
     blank: dict[str, Any] = {knob: "   "}

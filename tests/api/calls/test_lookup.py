@@ -7,7 +7,8 @@ import pytest
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.log.store import MemoryStore
-from pinecall.types import PRODUCTION
+from pinecall.orgs.tuning import MemoryTuning
+from pinecall.types import PRODUCTION, Docs, MemoryPolicy, Tuning
 from pinecall.worker.client import Gateway, GatewayRefused
 from pinecall_protocol import defs
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, over_the_asgi_app
@@ -21,9 +22,8 @@ AN_OWNER = "app_the_lookup_doors"
 ANOTHER_KEY = "pk_test_the_shop_next_door"
 ANOTHER_ORG = KeyRecord(key_id="k_2", org="tienda")
 
-A_DECLARATION = defs.AgentConfig(
-    docs=defs.DocsConfig(base="clinica"), memory=defs.MemoryConfig(remember=["preference"])
-)
+# What the clinic reads and remembers, set in its world: a base, and a policy.
+READS = Tuning(bases=(Docs(base="clinica"),), memory=MemoryPolicy(remember=("preference",)))
 
 
 @pytest.fixture
@@ -46,8 +46,8 @@ def memory() -> ScriptedMemory:
     return ScriptedMemory(answers=[a_fact("f1", "prefiere turnos por la mañana")])
 
 
-async def declared(registry: Registry) -> None:
-    """The clinic, holding a base and a memory policy, as its app would have declared it."""
+async def declared(registry: Registry, tuning: MemoryTuning) -> None:
+    """The clinic on its socket; the base it reads and the policy it keeps set in production."""
     await registry.register(
         AN_OWNER,
         A_RECORD.org,
@@ -55,19 +55,22 @@ async def declared(registry: Registry) -> None:
         AGENT,
         [defs.Route(channel="phone", number="+34910000000")],
     )
-    await registry.configure(AN_OWNER, PRODUCTION, AGENT, A_DECLARATION)
+    await registry.configure(AN_OWNER, PRODUCTION, AGENT, defs.AgentConfig(language="es"))
+    await tuning.put(
+        A_RECORD.org, PRODUCTION, "", AGENT, READS, author="k_1", note=None, if_version=None
+    )
 
 
-async def a_phone_call(worker_gateway: Gateway, registry: Registry) -> None:
+async def a_phone_call(worker_gateway: Gateway, registry: Registry, tuning: MemoryTuning) -> None:
     """The clinic declared, and one call from a number opened by the worker."""
-    await declared(registry)
+    await declared(registry, tuning)
     await worker_gateway.opened(a_context(CALL, channel="phone", caller="+34600000001"), AGENT)
 
 
 async def test_a_lookup_answers_an_object_and_writes_the_sources_on_the_calls_log(
-    worker_gateway: Gateway, registry: Registry, store: MemoryStore
+    worker_gateway: Gateway, registry: Registry, tuning: MemoryTuning, store: MemoryStore
 ) -> None:
-    await a_phone_call(worker_gateway, registry)
+    await a_phone_call(worker_gateway, registry, tuning)
     found = await worker_gateway.lookup(CALL, "search", {"query": "¿cuánto cuesta?"}, "sp_2")
     assert found == {
         "chunks": [
@@ -90,10 +93,10 @@ async def test_a_call_nobody_opened_here_is_refused_in_the_events_doors_words(
 
 
 async def test_another_orgs_worker_is_refused_the_call_in_the_very_same_words(
-    worker_gateway: Gateway, registry: Registry
+    worker_gateway: Gateway, registry: Registry, tuning: MemoryTuning
 ) -> None:
     """That the call exists at all is not the asker's business: 404, not 403."""
-    await a_phone_call(worker_gateway, registry)
+    await a_phone_call(worker_gateway, registry, tuning)
     http = over_the_asgi_app(f"Bearer {ANOTHER_KEY}")
     try:
         with pytest.raises(GatewayRefused, match="404.*open it with POST /v1/calls first"):
@@ -105,9 +108,13 @@ async def test_another_orgs_worker_is_refused_the_call_in_the_very_same_words(
 
 
 async def test_remember_reads_the_turns_off_the_log_and_answers_how_many_ops(
-    worker_gateway: Gateway, registry: Registry, store: MemoryStore, memory: ScriptedMemory
+    worker_gateway: Gateway,
+    registry: Registry,
+    tuning: MemoryTuning,
+    store: MemoryStore,
+    memory: ScriptedMemory,
 ) -> None:
-    await a_phone_call(worker_gateway, registry)
+    await a_phone_call(worker_gateway, registry, tuning)
     await worker_gateway.append(
         CALL, "turn.user", {"speech_id": "sp_1", "text": "soy Ana", "metrics": {}}
     )
@@ -131,9 +138,9 @@ class TestOnADevKey:
         return None
 
     async def test_every_lookup_finds_nothing_in_the_tools_own_shape(
-        self, worker_gateway: Gateway, registry: Registry, store: MemoryStore
+        self, worker_gateway: Gateway, registry: Registry, store: MemoryStore, tuning: MemoryTuning
     ) -> None:
-        await a_phone_call(worker_gateway, registry)
+        await a_phone_call(worker_gateway, registry, tuning)
         assert await worker_gateway.lookup(CALL, "recall", {"query": "hola"}, "sp_1") == {
             "facts": []
         }

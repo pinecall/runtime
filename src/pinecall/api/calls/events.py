@@ -12,7 +12,6 @@ from pinecall.api._deps import (
     AdmissionDep,
     AppKeyDep,
     KeysDep,
-    KnowledgeDep,
     LogsDep,
     SettingsDep,
     SnapshotsDep,
@@ -288,7 +287,6 @@ async def opened(
     tokens: TokensDep,
     admission: AdmissionDep,
     tuning: TuningDep,
-    knowledge: KnowledgeDep,
 ) -> None:
     """A call started: open its log, put it on the app's socket, and write how it arrived."""
     context = said.context
@@ -331,7 +329,7 @@ async def opened(
     corner = None if serving is None else serving.holder
     resolved = None
     if held:
-        resolved = await tuned_for(tuning, org, env, corner, said.agent, held.config, knowledge)
+        resolved = await tuned_for(tuning, org, env, corner, said.agent, held.config)
     config = AgentConfig(slug=said.agent) if resolved is None else resolved.config
     versions = None if resolved is None else resolved.versions
     await logs.owned(context.call, said.agent, org, env, holder, versions)
