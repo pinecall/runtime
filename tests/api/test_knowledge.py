@@ -1,4 +1,4 @@
-"""The knowledge base's three doors, on the org's key: a push, the list, a drop."""
+"""The knowledge base's doors, on the org's key: a push, the list, a drop, the files one by one."""
 
 from __future__ import annotations
 
@@ -41,6 +41,62 @@ async def test_a_push_then_the_list_then_a_drop(
 
     assert (await tenant_http.delete(f"{KNOWLEDGE}/clinica")).status_code == 204
     assert (await tenant_http.get(KNOWLEDGE)).json() == {"bases": []}
+
+
+async def test_the_files_of_a_base_are_listed_read_put_and_taken_out_one_at_a_time(
+    tenant_http: httpx.AsyncClient, knowledge: ScriptedKnowledge
+) -> None:
+    """What a person at the console does: sees the files, adds one, fixes one, takes one out."""
+    await tenant_http.put(f"{KNOWLEDGE}/clinica", json=A_PUSH)
+
+    listed = (await tenant_http.get(f"{KNOWLEDGE}/clinica")).json()
+    assert listed["base"] == "clinica"
+    assert listed["kept"] is True
+    [row] = listed["files"]
+    assert (row["path"], row["chars"], row["chunks"]) == (
+        "tarifas.md",
+        len(A_PUSH["files"][0]["text"]),
+        2,
+    )
+
+    put = await tenant_http.put(
+        f"{KNOWLEDGE}/clinica/files/faq/horarios.md", json={"text": "# Horarios\n\nDe 9 a 20."}
+    )
+    assert put.status_code == 200
+    assert (put.json()["path"], put.json()["chunks"]) == ("faq/horarios.md", 2)
+    assert [file.path for file in knowledge.pushed["clinica"]] == ["tarifas.md", "faq/horarios.md"]
+
+    read = (await tenant_http.get(f"{KNOWLEDGE}/clinica/files/faq/horarios.md")).json()
+    assert (read["path"], read["text"]) == ("faq/horarios.md", "# Horarios\n\nDe 9 a 20.")
+
+    replaced = await tenant_http.put(
+        f"{KNOWLEDGE}/clinica/files/tarifas.md", json={"text": "# Tarifas\n\nRevisión: 50 €."}
+    )
+    assert replaced.status_code == 200
+    assert [file.text for file in knowledge.pushed["clinica"] if file.path == "tarifas.md"] == [
+        "# Tarifas\n\nRevisión: 50 €."
+    ]
+
+    assert (await tenant_http.delete(f"{KNOWLEDGE}/clinica/files/tarifas.md")).status_code == 204
+    assert [file.path for file in knowledge.pushed["clinica"]] == ["faq/horarios.md"]
+
+
+async def test_a_file_put_into_no_base_begins_one(
+    tenant_http: httpx.AsyncClient, knowledge: ScriptedKnowledge
+) -> None:
+    put = await tenant_http.put(f"{KNOWLEDGE}/nueva/files/inicio.md", json={"text": "# Inicio"})
+    assert put.status_code == 200
+    assert [file.path for file in knowledge.pushed["nueva"]] == ["inicio.md"]
+
+
+async def test_a_file_nobody_put_is_a_refusal_that_names_it(tenant_http: httpx.AsyncClient) -> None:
+    await tenant_http.put(f"{KNOWLEDGE}/clinica", json=A_PUSH)
+    read = await tenant_http.get(f"{KNOWLEDGE}/clinica/files/nadie.md")
+    assert read.status_code == 404
+    assert read.json()["detail"] == "no file nadie.md in the base clinica"
+    assert (await tenant_http.delete(f"{KNOWLEDGE}/clinica/files/nadie.md")).status_code == 404
+    listed = await tenant_http.get(f"{KNOWLEDGE}/nadie")
+    assert listed.status_code == 404
 
 
 async def test_dropping_a_base_nobody_pushed_is_a_refusal_that_names_it(

@@ -1,4 +1,4 @@
-"""The knowledge base's doors: a push, the list, a drop, the golden, and who reads what."""
+"""The knowledge doors: a push, the list, a drop, the golden, who reads, the files one by one."""
 
 from __future__ import annotations
 
@@ -15,6 +15,11 @@ from pinecall.types.knowledge import DEFAULT_CHUNKS_PER_TURN
 from pinecall_protocol.rest import (
     GoldenMiss,
     KnowledgeBase,
+    KnowledgeFilePushed,
+    KnowledgeFilePut,
+    KnowledgeFileRead,
+    KnowledgeFileRow,
+    KnowledgeFiles,
     KnowledgeGolden,
     KnowledgeList,
     KnowledgePush,
@@ -32,6 +37,10 @@ NO_SUCH_BASE = "no knowledge base named {base}: nothing was pushed under that na
 
 # A drop has nothing to say back. The same number every removal in this runtime answers.
 NO_BODY = 204
+
+# A file nobody put under that path. A base pushed before its files were kept (0041) lists none
+# and says `kept: false`, and the way out is a push again, or a file put into it.
+NO_SUCH_FILE = "no file {path} in the base {base}"
 
 
 # The org is the key's, on every verb here: a tenant pushes into its own tables and reads its own
@@ -95,6 +104,89 @@ async def attached(key: KnowledgeKeyDep, kept: TuningDep) -> KnowledgeUses:
     return KnowledgeUses(
         bases=[KnowledgeUse(base=base, agents=agents) for base, agents in sorted(readers.items())]
     )
+
+
+# The files of a base, one at a time — what a person at the console reads, adds, edits and takes
+# out, with no folder on a laptop and no push of the whole. The base stays the unit a push
+# replaces and a drop forgets; a file put alone is re-cut into its own chunks and nothing else's.
+# Read after `attached`, so that word is never taken for a base's name.
+@router.get("/v1/knowledge/{base}")
+async def files(base: str, key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep) -> KnowledgeFiles:
+    """Every file of the base, by path, with its size and what it became; never the text."""
+    held = await knowledge.bases(key.org, key.env, held_by(key))
+    if not any(one.base == base for one in held):
+        raise HTTPException(status_code=404, detail=NO_SUCH_BASE.format(base=base))
+    listed = await knowledge.files(key.org, key.env, held_by(key), base)
+    return KnowledgeFiles(
+        base=base,
+        kept=bool(listed),
+        files=[
+            KnowledgeFileRow(
+                path=one.path,
+                chars=one.chars,
+                chunks=one.chunks,
+                pushed_at=one.pushed_at.timestamp(),
+            )
+            for one in listed
+        ],
+    )
+
+
+# `{file:path}`: a file's path has slashes in it — `faq/horarios.md` — so the converter is the
+# path one; the name is the file's, and the console's own catch-all keeps `{path:path}` to itself.
+@router.get("/v1/knowledge/{base}/files/{file:path}")
+async def read_file(
+    base: str, file: str, key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep
+) -> KnowledgeFileRead:
+    """One file of the base, text and all."""
+    found = await knowledge.file(key.org, key.env, held_by(key), base, file)
+    if found is None:
+        raise HTTPException(status_code=404, detail=_no_such_file(base, file))
+    return KnowledgeFileRead(
+        path=found.path,
+        text=found.text or "",
+        chunks=found.chunks,
+        pushed_at=found.pushed_at.timestamp(),
+    )
+
+
+@router.put("/v1/knowledge/{base}/files/{file:path}")
+async def put_file(
+    base: str,
+    file: str,
+    said: KnowledgeFilePut,
+    key: KnowledgeKeyDep,
+    knowledge: KeptKnowledgeDep,
+    admission: AdmissionDep,
+) -> KnowledgeFilePushed:
+    """The file put into the base, new or replaced in place, and re-cut alone; how many chunks."""
+    started = time.perf_counter()
+    wanted = KnowledgeFile(path=file, text=said.text)
+    # Judged as a push is: what the org would keep once this file has landed, less what this
+    # corner's own copy of it frees, plus what the text becomes.
+    freed = await knowledge.freed_by(key.org, key.env, held_by(key), base, file)
+    keeping = await knowledge.kept(key.org) - freed + knowledge.how_many_chunks([wanted])
+    try:
+        await admission.a_push(key.org, keeping)
+    except QuotaExhausted as refused:
+        raise HTTPException(429, str(refused)) from refused
+    chunks = await knowledge.put_file(key.org, key.env, held_by(key), base, wanted)
+    return KnowledgeFilePushed(
+        base=base, path=file, chunks=chunks, took_ms=(time.perf_counter() - started) * 1000
+    )
+
+
+@router.delete("/v1/knowledge/{base}/files/{file:path}", status_code=NO_BODY)
+async def drop_file(
+    base: str, file: str, key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep
+) -> None:
+    """The file and its chunks gone; the base too when it was the last. 404 when there is none."""
+    if not await knowledge.drop_file(key.org, key.env, held_by(key), base, file):
+        raise HTTPException(status_code=404, detail=_no_such_file(base, file))
+
+
+def _no_such_file(base: str, path: str) -> str:
+    return NO_SUCH_FILE.format(base=base, path=path)
 
 
 @router.delete("/v1/knowledge/{base}", status_code=NO_BODY)

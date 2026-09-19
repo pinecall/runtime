@@ -19,9 +19,11 @@ from pinecall_protocol import WireModel
 router = APIRouter()
 
 # What a server does, and so what its token opens: it holds the agent over the app socket, reads
-# the calls it answers, mints the room tokens its own web page hands a browser, and pushes the
-# knowledge base in its release step. Nothing about the org's people, numbers or money.
-SERVER_SCOPES: frozenset[str] = frozenset({"app", "calls", "talk", "knowledge"})
+# the calls it answers, mints the room tokens its own web page hands a browser, pushes the
+# knowledge base in its release step, and runs what the console asks of the agent's directory —
+# a simulation, a suite — which the evals doors answer: the production console's Simulations had
+# nothing to run on without it (2026-09-19). Nothing about the org's people, numbers or money.
+SERVER_SCOPES: frozenset[str] = frozenset({"app", "calls", "talk", "knowledge", "evals"})
 
 # A server's token is made by a PERSON, from the console, and belongs to the org: it names who
 # made it and outlives them — a production that stopped when its developer left would be an

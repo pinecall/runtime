@@ -325,7 +325,10 @@ be built, and turns nothing ([pipeline-api.md](pipeline-api.md)).
 whole, never merged: the RAG, chunked and indexed, a turn's search fans out over every base the
 agent's settings attach (`bases`). `GET /v1/knowledge` lists the bases; `DELETE …/{base}` drops
 one; `POST …/{base}/eval` takes `{questions: [{asks, expects}], k?}` and answers `recall@k` and
-`nDCG@10` by code; `GET /v1/knowledge/attached` says which agents read each base.
+`nDCG@10` by code; `GET /v1/knowledge/attached` says which agents read each base. A base keeps
+its files as pushed (0041), read and changed one at a time from the console: `GET …/{base}` lists
+them (`kept: false` until a base pushed before is pushed again), `GET`·`PUT {text}`·`DELETE
+…/{base}/files/{path}` read, put (new or replaced, re-cut alone) and take out one; the last out takes the base.
 `agent.configure` refuses a class that searches for itself (`uses_knowledge`) in a world that
 attaches it none, and one whose world attaches a base never pushed there, naming `pinecall docs`.
 

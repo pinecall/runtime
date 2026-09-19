@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Protocol
 
+from pinecall.knowledge.files import File
 from pinecall.knowledge.store import Base
 from pinecall.types import Chunk, Env, KnowledgeFile
 from pinecall.types.knowledge import DEFAULT_CHUNKS_PER_TURN
@@ -38,6 +39,33 @@ class Knowledge(Protocol):
 
     async def drop(self, org: str, env: Env, holder: str | None, base: str) -> bool:
         """Forget THIS corner's base and its chunks. False when it pushed none by that name."""
+        ...
+
+    # The files of a base one at a time (0041): what a person at the console reads, adds, edits
+    # and takes out without a folder on a laptop. A read falls back to the org's copy as `bases`
+    # does; a put and a drop are about this corner's own, as a push is.
+    async def files(self, org: str, env: Env, holder: str | None, base: str) -> list[File]:
+        """Every file of the base this corner reads, by path, without their text."""
+        ...
+
+    async def file(
+        self, org: str, env: Env, holder: str | None, base: str, path: str
+    ) -> File | None:
+        """One file of the base this corner reads, text and all; None when there is none."""
+        ...
+
+    async def freed_by(self, org: str, env: Env, holder: str | None, base: str, path: str) -> int:
+        """How many chunks this corner's own copy of the file holds: what putting it frees."""
+        ...
+
+    async def put_file(
+        self, org: str, env: Env, holder: str | None, base: str, file: KnowledgeFile
+    ) -> int:
+        """This corner's copy of one file replaced, or the base begun with it; how many chunks."""
+        ...
+
+    async def drop_file(self, org: str, env: Env, holder: str | None, base: str, path: str) -> bool:
+        """This corner's copy of one file gone, and the base with it when it was the last."""
         ...
 
     # What the knowledge_chunks quota is measured against, and the one read of both worlds at

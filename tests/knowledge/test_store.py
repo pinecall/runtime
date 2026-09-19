@@ -8,7 +8,7 @@ import pytest
 from pinecall.knowledge import Base, PgKnowledge
 from pinecall.log.store import open_pool
 from pinecall.providers.embedder import DIMENSIONS, WrongModel
-from pinecall.types import PRODUCTION, SANDBOX
+from pinecall.types import PRODUCTION, SANDBOX, KnowledgeFile
 from tests.knowledge.files import CLINICA, TARIFAS, an_org
 from tests.postgres import Dev
 from tests.vectors import HASH_MODEL, HashEmbedder
@@ -45,6 +45,63 @@ async def test_a_push_counts_its_chunks_and_a_second_push_replaces_the_first(
     assert (listed.base, listed.chunks) == (THE_BASE, 2)
     found = await knowledge.search(org, PRODUCTION, None, THE_BASE, "horarios turnos")
     assert {chunk.path for chunk in found} == {"tarifas.md"}
+
+
+async def test_a_push_keeps_its_files_and_a_file_is_put_and_taken_out_alone(
+    knowledge: PgKnowledge, org: str
+) -> None:
+    """The files are what a person reads and edits; the chunks stay the index, kept in step."""
+    await knowledge.put(org, PRODUCTION, None, THE_BASE, [CLINICA, TARIFAS])
+    listed = await knowledge.files(org, PRODUCTION, None, THE_BASE)
+    assert [(one.path, one.chunks, one.chars) for one in listed] == [
+        ("clinica.md", 2, len(CLINICA.text)),
+        ("tarifas.md", 2, len(TARIFAS.text)),
+    ]
+    read = await knowledge.file(org, PRODUCTION, None, THE_BASE, "tarifas.md")
+    assert read is not None and read.text == TARIFAS.text
+
+    # One file put alone: its chunks replaced, the others untouched, the base's count moved.
+    horarios = KnowledgeFile("faq/horarios.md", "# Horarios\n\n## Semana\n\nDe nueve a veinte.\n")
+    assert await knowledge.put_file(org, PRODUCTION, None, THE_BASE, horarios) == 1
+    [base] = await knowledge.bases(org, PRODUCTION)
+    assert base.chunks == 5
+    found = await knowledge.search(org, PRODUCTION, None, THE_BASE, "nueve veinte semana")
+    assert found[0].path == "faq/horarios.md"
+
+    shorter = KnowledgeFile("tarifas.md", "# Tarifas\n\nTodo cuesta cuarenta euros.\n")
+    assert await knowledge.put_file(org, PRODUCTION, None, THE_BASE, shorter) == 1
+    [base] = await knowledge.bases(org, PRODUCTION)
+    assert base.chunks == 4
+    assert await knowledge.freed_by(org, PRODUCTION, None, THE_BASE, "tarifas.md") == 1
+
+    assert await knowledge.drop_file(org, PRODUCTION, None, THE_BASE, "tarifas.md") is True
+    assert await knowledge.drop_file(org, PRODUCTION, None, THE_BASE, "tarifas.md") is False
+    [base] = await knowledge.bases(org, PRODUCTION)
+    assert base.chunks == 3
+    assert [one.path for one in await knowledge.files(org, PRODUCTION, None, THE_BASE)] == [
+        "clinica.md",
+        "faq/horarios.md",
+    ]
+
+
+async def test_a_file_begins_a_base_and_the_last_file_out_takes_the_base_with_it(
+    knowledge: PgKnowledge, org: str
+) -> None:
+    assert await knowledge.put_file(org, SANDBOX, None, "nueva", TARIFAS) == 2
+    [base] = await knowledge.bases(org, SANDBOX)
+    assert (base.base, base.chunks) == ("nueva", 2)
+    assert await knowledge.drop_file(org, SANDBOX, None, "nueva", "tarifas.md") is True
+    assert await knowledge.bases(org, SANDBOX) == []
+
+
+async def test_a_second_push_forgets_the_files_the_folder_no_longer_has(
+    knowledge: PgKnowledge, org: str
+) -> None:
+    await knowledge.put(org, PRODUCTION, None, THE_BASE, [CLINICA, TARIFAS])
+    await knowledge.put(org, PRODUCTION, None, THE_BASE, [TARIFAS])
+    assert [one.path for one in await knowledge.files(org, PRODUCTION, None, THE_BASE)] == [
+        "tarifas.md"
+    ]
 
 
 async def test_the_base_row_says_which_model_wrote_the_vectors_and_at_which_width(

@@ -8,7 +8,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from pinecall.knowledge import files as the_files
 from pinecall.knowledge.chunking import chunks_of
+from pinecall.knowledge.files import File
 from pinecall.log.store import Pool
 from pinecall.providers.embedder import Embedder, WrongModel, as_halfvec
 from pinecall.types import (
@@ -47,7 +49,9 @@ class Base:
 
 
 # One statement, so a push is all or nothing: the base's row written or bumped, every chunk it
-# had gone, every chunk it now has in. The vectors travel as text and become halfvec at the door,
+# had gone, every chunk it now has in, and the files kept as they arrived (0041) — a file the
+# folder no longer has goes, one it still has is replaced in place, so no path is deleted and
+# inserted in the same statement. The vectors travel as text and become halfvec at the door,
 # which keeps the driver out of the vector type entirely.
 _PUT = """
 WITH pushed AS (
@@ -58,6 +62,15 @@ WITH pushed AS (
             chunks = excluded.chunks, pushed_at = now()
 ), replaced AS (
     DELETE FROM knowledge_chunks WHERE org = $1 AND env = $2 AND holder = $3 AND base = $4
+), forgotten AS (
+    DELETE FROM knowledge_files
+    WHERE org = $1 AND env = $2 AND holder = $3 AND base = $4 AND path <> ALL ($13::text[])
+), filed AS (
+    INSERT INTO knowledge_files (org, env, holder, base, path, text, chunks, pushed_at)
+    SELECT $1, $2, $3, $4, file.path, file.text, file.chunks, now()
+    FROM unnest($13::text[], $14::text[], $15::integer[]) AS file (path, text, chunks)
+    ON CONFLICT (org, env, holder, base, path) DO UPDATE
+    SET text = excluded.text, chunks = excluded.chunks, pushed_at = now()
 )
 INSERT INTO knowledge_chunks (org, env, holder, base, path, heading, ordinal, text, embedding)
 SELECT $1, $2, $3, $4, chunk.path, chunk.heading, chunk.ordinal, chunk.text,
@@ -155,6 +168,7 @@ class PgKnowledge:
         )
         pieces = [piece for file in cut for piece in file]
         vectors = [vector for file in embedded for vector in file]
+        paths, texts, counted = the_files.as_columns(files)
         await self._pool.execute(
             _PUT,
             org,
@@ -169,8 +183,38 @@ class PgKnowledge:
             [piece.ordinal for piece in pieces],
             [piece.text for piece in pieces],
             [as_halfvec(vector) for vector in vectors],
+            paths,
+            texts,
+            counted,
         )
         return len(pieces)
+
+    # The files of a base, one at a time — what a person at the console reads and edits. Each verb
+    # is knowledge/files.py's, over this store's pool and embedder; the base stays the unit a push
+    # replaces and a drop forgets.
+    async def files(self, org: str, env: Env, holder: str | None, base: str) -> list[File]:
+        """Every file of the base this corner reads, by path, without their text."""
+        return await the_files.files(self._pool, org, env, holder, base)
+
+    async def file(
+        self, org: str, env: Env, holder: str | None, base: str, path: str
+    ) -> File | None:
+        """One file of the base this corner reads, text and all; None when there is none."""
+        return await the_files.file(self._pool, org, env, holder, base, path)
+
+    async def freed_by(self, org: str, env: Env, holder: str | None, base: str, path: str) -> int:
+        """How many chunks this corner's own copy of the file holds: what putting it frees."""
+        return await the_files.freed_by(self._pool, org, env, holder, base, path)
+
+    async def put_file(
+        self, org: str, env: Env, holder: str | None, base: str, file: KnowledgeFile
+    ) -> int:
+        """This corner's copy of one file replaced, or the base begun with it; how many chunks."""
+        return await the_files.put_file(self._pool, self._embedder, org, env, holder, base, file)
+
+    async def drop_file(self, org: str, env: Env, holder: str | None, base: str, path: str) -> bool:
+        """This corner's copy of one file gone, and the base with it when it was the last."""
+        return await the_files.drop_file(self._pool, org, env, holder, base, path)
 
     async def bases(self, org: str, env: Env, holder: str | None = None) -> list[Base]:
         """Every base this corner can read in this world: its own, and the org's for a name it

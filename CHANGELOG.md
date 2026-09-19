@@ -7,6 +7,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Fixed
+- **A server's token opens `evals`.** The console asks the process holding an agent to run a
+  simulation or a suite, and that process knocks at the evals doors on its own token: without the
+  scope, Simulations on the production console was refused `403 this key does not open evals`.
+  Tokens made from now on carry it; an app minted before is minted again (`make key`).
 - **A simulated caller speaks like a person, in the agent's language, never in its voice.** The
   caller's lines were read by the box's speech tool in a Spanish voice (`say -v Mónica`,
   `espeak-ng -v es`): an English agent's ears heard Spanish nonsense from the first turn, and even
@@ -17,6 +21,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   and the gateway needs `ELEVEN_API_KEY` for a spoken simulation.
 
 ### Added
+- **A base keeps its files, and they are read and changed one at a time.** A base was chunks
+  alone, so nothing of it could be seen or edited without the folder on a laptop and a push of the
+  whole. Migration 0041 keeps every file as pushed, and four doors work on one file:
+  `GET /v1/knowledge/{base}` lists them, `GET …/files/{path}` reads one, `PUT …/files/{path}`
+  puts one — new, or replaced in place, re-cut into its own chunks — and `DELETE …/files/{path}`
+  takes one out, the base with it when it was the last. The console's Docs opens a base onto
+  its files: add one from disk, write one, edit one, take one out. A base pushed before this
+  lists no files and says `kept: false` until it is pushed again.
 - **The models each vendor runs, on the wire.** `GET /v1/providers` and the pipeline report carry
   `models`, keyed `<modality>/<vendor>`, the vendor's default first — what each tuned vendor file
   registers — and the report also carries `defaults`. The console's Settings picks a model from

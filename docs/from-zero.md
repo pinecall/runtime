@@ -471,7 +471,7 @@ People get keys by logging in: one per device, `pc_…`, with their role's scope
 `pinecall link` writes the one in hand into the project's `.env` as `PINECALL_KEY`. A **server's
 token** is the other kind, made in the console — Tokens ▸ New server token, `POST /v1/keys {label,
 env}` — by a person whose key opens `app` (production's only with production access). It holds
-`app · calls · talk · knowledge`, names nobody, says its world in its prefix (`pc_live_…`
+`app · calls · talk · knowledge · evals`, names nobody, says its world in its prefix (`pc_live_…`
 production, `pc_test_…` sandbox), is shown once, and belongs to the org: it keeps working when the
 person who made it leaves. One per server and world.
 

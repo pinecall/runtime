@@ -75,7 +75,7 @@ async def test_the_vectors_are_written_back_flat_in_the_order_the_files_were_cut
     embedder = RecordingEmbedder()
     pool = RecordingPool()
     await PgKnowledge(pool, embedder).put("org", PRODUCTION, None, "clinica", [CLINICA, TARIFAS])
-    paths, _headings, _ordinals, texts, vectors = pool.arguments[7:]
+    paths, _headings, _ordinals, texts, vectors = pool.arguments[7:12]
     assert paths == ["clinica.md", "clinica.md", "tarifas.md", "tarifas.md"]
     assert [vector.split(",")[0].lstrip("[") for vector in vectors] == [
         str(float(len(text))) for text in texts
@@ -86,3 +86,15 @@ async def test_the_bases_row_keeps_the_model_that_answered_and_its_width() -> No
     pool = RecordingPool()
     await PgKnowledge(pool, RecordingEmbedder()).put("org", PRODUCTION, None, "clinica", [CLINICA])
     assert pool.arguments[4:7] == ("pplx-embed-context-v1-0.6b", DIMENSIONS, 2)
+
+
+async def test_the_files_travel_beside_the_chunks_with_what_each_became() -> None:
+    """The three arrays 0041 keeps a file by: its path, its text, how many chunks it cut into."""
+    pool = RecordingPool()
+    await PgKnowledge(pool, RecordingEmbedder()).put(
+        "org", PRODUCTION, None, "clinica", [CLINICA, TARIFAS]
+    )
+    paths, texts, counted = pool.arguments[12:15]
+    assert paths == ["clinica.md", "tarifas.md"]
+    assert texts == [CLINICA.text, TARIFAS.text]
+    assert counted == [2, 2]
