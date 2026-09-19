@@ -7,6 +7,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **The models each vendor runs, on the wire.** `GET /v1/providers` and the pipeline report carry
+  `models`, keyed `<modality>/<vendor>`, the vendor's default first — what each tuned vendor file
+  registers — and the report also carries `defaults`. The console's Settings picks a model from
+  that list instead of a box a model name is typed into. Deepgram lists the two Flux models its v2
+  socket speaks, never nova.
 - **Which processes hold an org's agents, where, and a stop.** `GET /v1/apps` lists every app
   socket in the request's world — its agents, the machine (`host`, now on `agent.register`), the
   address, the SDK, whose corner, since when — and `POST /v1/apps/{app}/stop` tells one it was

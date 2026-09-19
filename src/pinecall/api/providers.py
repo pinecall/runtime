@@ -15,7 +15,7 @@ from fastapi import APIRouter
 
 from pinecall._settings import Settings
 from pinecall.api._deps import ProviderKeysKeyDep, SettingsDep
-from pinecall.providers import catalog
+from pinecall.providers import catalog, llm, stt, tts
 from pinecall.providers.catalog import MODALITIES, Provider
 from pinecall.providers.models import DEFAULT_VENDOR
 from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS
@@ -58,6 +58,10 @@ class Catalogue(WireModel):
     # The voices this build curates by name, off providers/tts/voices.py. Every other voice is a
     # vendor's own id, and for a vendor that was named that is exactly what a word is taken as.
     voices: list[str]
+    # The models this build vouches for, by "<modality>/<vendor>", each vendor's default first —
+    # what a tuned vendor file registered. A screen offers these as a list and a person picks one
+    # that exists; a vendor with no entry runs its own default and takes no model name here.
+    models: dict[str, list[str]]
 
 
 @router.get("/v1/providers")
@@ -73,7 +77,18 @@ def catalogue(settings: Settings) -> Catalogue:
         providers=rows(settings),
         defaults={"llm": DEFAULT_VENDOR, "stt": DEFAULT_STT, "tts": DEFAULT_TTS},
         voices=list(voice_names()),
+        models=models_vouched_for(),
     )
+
+
+def models_vouched_for() -> dict[str, list[str]]:
+    """Every tuned vendor's models under "<modality>/<vendor>", the vendor's default first."""
+    return {
+        f"{modality}/{vendor}": list(vendors.models(vendor))
+        for modality, vendors in (("llm", llm.VENDORS), ("stt", stt.VENDORS), ("tts", tts.VENDORS))
+        for vendor in vendors.tuned
+        if vendors.models(vendor)
+    }
 
 
 def rows(settings: Settings) -> list[ProviderRow]:

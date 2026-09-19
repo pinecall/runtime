@@ -7,7 +7,7 @@ from pinecall.providers.llm import VENDORS
 from pinecall.providers.registry import Asked, Chat
 
 
-@VENDORS.registers(VENDOR)
+@VENDORS.registers(VENDOR, models=(DEFAULT_LLM,))
 def build(asked: Asked) -> Chat:
     """The model is `<vendor>/<model>`: the vendor is inside the name, not beside it."""
     key, secret = the_projects_pair(asked)

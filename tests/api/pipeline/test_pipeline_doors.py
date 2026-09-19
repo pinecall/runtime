@@ -77,3 +77,5 @@ async def test_the_pipeline_report_lists_every_vendor_a_stage_could_be_turned_on
     names = {row["name"] for row in report["providers"]}
     assert len(names) > 40
     assert {"cartesia", "rime", "livekit"} <= names
+    assert report["defaults"]["stt"] == "soniox"
+    assert report["models"]["llm/anthropic"][0] == "claude-haiku-4-5-20251001"

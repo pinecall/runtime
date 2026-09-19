@@ -8,13 +8,15 @@ from pinecall.providers.stt import MAX_SILENCE_MS, VENDORS, hints_for
 # flux-general-multi is the only Flux model that takes language hints at all; the plugin's own
 # default is flux-general-en (deepgram/stt_v2.py:73), which would quietly ignore a Spanish agent.
 DEFAULT_MODEL = "flux-general-multi"
+# The two the v2 socket speaks (deepgram/models.py:41): nova is v1's and would go out silent here.
+MODELS = (DEFAULT_MODEL, "flux-general-en")
 
 
 # Nothing about `asked.hears` here on purpose: Flux advertises the keyterms capability
 # (deepgram/stt_v2.py:124), so the session hands it the agent's declared words itself and merges
 # them with whatever the socket was opened with (stt/stt.py:286, deepgram/stt_v2.py:304-308).
 # Soniox advertises none, which is why soniox.py has a door of its own to fill.
-@VENDORS.registers("deepgram")
+@VENDORS.registers("deepgram", models=MODELS)
 def build(asked: Asked) -> Ears:
     """STTv2 is the Flux door: STT (v1) speaks nova and knows nothing about end-of-turn."""
     return deepgram.STTv2(

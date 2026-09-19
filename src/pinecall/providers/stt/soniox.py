@@ -22,7 +22,11 @@ def _the_words_it_expects(hears: tuple[str, ...]) -> soniox.ContextObject | None
     return soniox.ContextObject(terms=list(hears)) if hears else None
 
 
-@VENDORS.registers("soniox")
+# The plugin's own default, and the one before it, as the plugin spells them (soniox/stt.py).
+MODELS = ("stt-rt-v5", "stt-rt-v3-preview")
+
+
+@VENDORS.registers("soniox", models=MODELS)
 def build(asked: Asked) -> Ears:
     """Only what differs from the plugin: its model and its 16 kHz are already what we want."""
     params = soniox.STTOptions(

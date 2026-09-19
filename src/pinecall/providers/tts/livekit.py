@@ -8,7 +8,7 @@ from pinecall.providers.registry import Asked, Speech
 from pinecall.providers.tts import VENDORS
 
 
-@VENDORS.registers(VENDOR)
+@VENDORS.registers(VENDOR, models=(DEFAULT_TTS,))
 def build(asked: Asked) -> Speech:
     """The voice is the vendor's own id; a model with no voice speaks in that model's default."""
     key, secret = the_projects_pair(asked)

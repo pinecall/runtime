@@ -23,10 +23,11 @@ INSTEAD = {
 }
 
 # What an agent may ask for by name. Anything else is a typo, and a typo must not reach the vendor.
-ALLOWED = frozenset({DEFAULT_MODEL, "eleven_v3_conversational", "eleven_multilingual_v2"})
+MODELS = (DEFAULT_MODEL, "eleven_v3_conversational", "eleven_multilingual_v2")
+ALLOWED = frozenset(MODELS)
 
 
-@VENDORS.registers("elevenlabs")
+@VENDORS.registers("elevenlabs", models=MODELS)
 def build(asked: Asked) -> Speech:
     """The model is the whole of it: the plugin's own default is one this repo forbids."""
     return elevenlabs.TTS(

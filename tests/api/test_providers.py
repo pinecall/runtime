@@ -16,6 +16,21 @@ async def test_the_door_answers_the_whole_catalogue(tenant_http: httpx.AsyncClie
     assert "carolina" in said["voices"]
 
 
+async def test_the_door_lists_the_models_this_build_vouches_for_per_vendor(
+    tenant_http: httpx.AsyncClient,
+) -> None:
+    """A screen offers a list, the default first: a typed model name was a dead agent once."""
+    models = (await tenant_http.get("/v1/providers")).json()["models"]
+    assert models["llm/anthropic"][0] == "claude-haiku-4-5-20251001"
+    assert models["stt/deepgram"][0] == "flux-general-multi"
+    assert models["tts/elevenlabs"] == [
+        "eleven_flash_v2_5",
+        "eleven_v3_conversational",
+        "eleven_multilingual_v2",
+    ]
+    assert "llm/cartesia" not in models
+
+
 async def test_a_row_says_what_the_vendor_does_and_what_it_is_also_called(
     tenant_http: httpx.AsyncClient,
 ) -> None:

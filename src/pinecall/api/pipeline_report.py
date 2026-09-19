@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pinecall._settings import Settings
-from pinecall.api.providers import ProviderRow, rows
+from pinecall.api.providers import ProviderRow, models_vouched_for, rows
 from pinecall.log.entry import Entry
 from pinecall.log.latencies import medians
 from pinecall.log.store import Store
@@ -56,6 +56,11 @@ class Report(WireModel):
     # rows GET /v1/providers answers, built by the same function (api/providers.py). The screen
     # that changes a stage is where a person needs to see that Cartesia exists and wants a key.
     providers: list[ProviderRow]
+    # Which vendor runs each stage when nobody chose, and the models this build vouches for per
+    # vendor — the same two the catalogue answers, so the Settings screen draws lists a person
+    # picks from, never a box they type a model name into.
+    defaults: dict[str, str]
+    models: dict[str, list[str]]
     calls: int
     medians: list[Measured]
     unavailable_reasons: dict[str, str]
@@ -86,6 +91,8 @@ async def report(
         greeting=_on_the_wire(config.greeting),
         voices=list(voice_names()),
         providers=rows(settings),
+        defaults={"llm": DEFAULT_VENDOR, "stt": DEFAULT_STT, "tts": DEFAULT_TTS},
+        models=models_vouched_for(),
         calls=len(calls),
         medians=[
             Measured(name=row.name, seconds=row.seconds, turns=row.turns)

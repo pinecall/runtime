@@ -11,7 +11,7 @@ from pinecall.providers.stt import VENDORS
 # the session hands it whatever keyterms the model advertises support for, exactly as it does for
 # a plugin (stt/stt.py:286). What is passed is the one thing the gateway cannot infer: the
 # language, which is also what turns `auto` from a guess into a choice.
-@VENDORS.registers(VENDOR)
+@VENDORS.registers(VENDOR, models=(DEFAULT_STT,))
 def build(asked: Asked) -> Ears:
     """`deepgram/nova-3`, `assemblyai/universal-streaming`, or `auto` to be told by the language."""
     key, secret = the_projects_pair(asked)

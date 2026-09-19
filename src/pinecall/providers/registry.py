@@ -73,18 +73,30 @@ class Vendors[Made]:
         self._modality: Modality = modality
         self._package = package
         self._rows: dict[str, Build[Made]] = {}
+        self._models: dict[str, tuple[str, ...]] = {}
         self._read = False
 
     # The one line a tuned vendor file writes above its build function. Nothing else changes: the
-    # package is read whole, so the file being there IS the registration.
-    def registers(self, vendor: str) -> Callable[[Build[Made]], Build[Made]]:
+    # package is read whole, so the file being there IS the registration. `models` is what this
+    # build vouches for at that vendor, the default first: a screen offers these as a list, so a
+    # person picks a model that exists instead of typing one that does not (`anthropic/haiku` was
+    # a dead agent with no sound about it). A vendor with none reads as "its own default".
+    def registers(
+        self, vendor: str, *, models: tuple[str, ...] = ()
+    ) -> Callable[[Build[Made]], Build[Made]]:
         """Claim a vendor name for the function underneath: the whole of a file's bookkeeping."""
 
         def keep(build: Build[Made]) -> Build[Made]:
             self._rows[vendor] = build
+            self._models[vendor] = models
             return build
 
         return keep
+
+    def models(self, vendor: str) -> tuple[str, ...]:
+        """The models this build vouches for at a vendor, the default first; none when unsaid."""
+        self.read()
+        return self._models.get(catalog.canonical(vendor), ())
 
     @property
     def names(self) -> tuple[str, ...]:
