@@ -85,7 +85,7 @@ async def agents(key: CallsKeyDep, registry: RegistryDep, members: MembersDep) -
 # ── the line ────────────────────────────────────────────────────────────────────
 
 # An org shares ONE sandbox number, so a call at it rings in one terminal. Which one is
-# claimed and said out loud — before the line, the second `pinecall run` silently took the first
+# claimed and said out loud — before the line, the second `pinecall start` silently took the first
 # one's calls and a developer dialling to test was answered in a colleague's scrollback. Alone,
 # nobody claims anything: the first corner to hold an agent answers its ring. See
 # api/agents/doors.py for the table, and docs/decisions/dispatch.md for why a number is shared.

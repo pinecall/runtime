@@ -2,8 +2,11 @@
 
 The index of [gateway-api.md](gateway-api.md): one line per door, method and path, and what it
 is for. The prose, the shapes and the refusals are on that page and in the pages it names. Every
-HTTP door that takes a key also reads `pinecall-corner: <member id>`: an admin's key, in the
-sandbox, answered in that colleague's corner.
+door that takes a key, both sockets included, reads `pinecall-env: sandbox|production`: the world
+a person's key works in for this request (none is the sandbox; production only with production
+access, `403` otherwise), and on a server's token only its own world, `403` for the other. Every
+HTTP door then reads `pinecall-corner: <member id>`: an admin's key, in the sandbox, answered in
+that colleague's corner.
 
 | | | |
 |---|---|---|
@@ -21,16 +24,16 @@ sandbox, answered in that colleague's corner.
 | `GET` | `/v1/carrier/outbound` | whether the org can place a call at all, one sentence per thing missing, and the guards it dials under — `numbers` |
 | `POST` | `/v1/carrier/outbound` · `?dry_run=true` | provision the trunk the org dials THROUGH — Twilio's termination and a credential list, or the peer the tenant declared, then the SFU's outbound trunk — or the plan alone |
 | `POST` | `/v1/agents/{slug}/dial` | place a call as this agent: `202` with the call it became, after the guards — `talk` |
-| `GET` | `/v1/keys` · `POST` | the org's own API keys by fingerprint; mint one for a machine, answered once — `keys` |
-| `POST` | `/v1/keys/{fingerprint}/revoke` | stop one of the org's keys; the row and its history stay |
-| `POST` | `/v1/login/env` | the same person's key for the other world, with what their role opens there |
+| `GET` | `/v1/keys` | the org's tokens by fingerprint: every server's, and your own person keys (every person's with `keys`), who made each and when it was last used — any key |
+| `POST` | `/v1/keys` | a server's token `{label, env}`, answered once, `pc_live_`/`pc_test_`: a person's key with `app`, production only with production access |
+| `POST` | `/v1/keys/{fingerprint}/revoke` | stop your own key, a token you made, or any with `keys`; the row and its history stay |
 | `GET` | `/v1/sessions?limit=&q=&agent=&channel=&before=` | the newest calls across every agent, in the reader's corner, filtered and paged, each with its verdict and flags — [console-api.md](console-api.md) |
 | `GET` | `/v1/insights?day=` | one day of the reader's corner — calls, resolved rate, median e2e, spend, doors, agents — and the month's budget, UTC — `calls` |
 | `GET` · `PUT` | `/v1/org/judging` | whether the org's calls are judged at hang-up, and the box's ceiling; turned with `usage` |
 | `GET` | `/v1/calls/{call}/judging` | the worker's, at hang-up: whether that call's org judges — `app` |
 | `GET` | `/v1/events` | SSE, live only: the org's floor changing — an agent held, a call ringing, up, over |
 | `GET` | `/v1/members` · `POST` | the org's people; invite one, the token once and `mailed` — or none, for a person who already has a password here: seated at once |
-| `PATCH` | `/v1/members/{id}` | role, agents, standing; disabled revokes their keys |
+| `PATCH` | `/v1/members/{id}` | role, agents, standing, `production`; disabled revokes their keys; `409` taking production from an admin |
 | `DELETE` | `/v1/members/{id}` | out of the org for good: keys revoked, row and links gone, the seat free — `team`; `409` for yourself and for the last active admin |
 | `POST` | `/v1/members/{id}/reset` | a one-use link that sets an active member's password, the token once, and `mailed` — `team` |
 | `POST` | `/v1/invitations/{token}` | accept with a password: active, and the first key |
@@ -38,7 +41,7 @@ sandbox, answered in that colleague's corner.
 | `POST` | `/v1/login/orgs` | which orgs an email and password sign in to, minting nothing — no key, throttled like the login |
 | `POST` | `/v1/login/reset` | a forgotten password: `202` whoever asks, and a one-use link mailed where one can be — no key, throttled like the login |
 | `GET` | `/v1/login/orgs` | every org this key's person belongs to, and which one the key opens; for an operator of the box, every org there is, `member: false` and `role: "operator"` where they are none — a person's key |
-| `POST` | `/v1/login/org` | the same person's key in another org of theirs, in the same world; an operator is let into ANY org on a production key with an admin's scopes, `subject` `operator:<email>`, no member row and no seat — a person's key |
+| `POST` | `/v1/login/org` | the same person's key in another org of theirs; an operator is let into ANY org on a production key with an admin's scopes, `subject` `operator:<email>`, no member row and no seat — a person's key |
 | `POST` | `/v1/login/codes` | a one-use code a key holder mints for a browser |
 | `POST` | `/v1/login/pairings` | a word a terminal prints, so a person signs it in from a browser — no key |
 | `GET` | `/v1/login/pairings/{code}` | what the card is about to approve: which terminal, and whether it is answered — no key |
@@ -53,7 +56,7 @@ sandbox, answered in that colleague's corner.
 | `GET` | `/v1/login/google/callback?code=&state=` | the address matched against every org's members: 302 `/?login=<code>` for a member, `/?refused=<why>` for nobody — no key |
 | `POST` | `/v1/login/sso/discover` | which orgs an address's domain signs in to with a provider; says nothing about who exists — no key, throttled like the login |
 | `POST` | `/v1/signup` | where `PINECALL_SIGNUP` is on, off by default: a new org allowed what its gateway's policy says, its admin active, their first key and a login code |
-| `GET` | `/v1/whoami` | the org as an id AND as the `slug` its people type, the key's id, its label, the world it opens (`env`), its `scopes`, whose it is (`subject`, `name`), whether that person runs the box (`operator`) and whether they are inside an org they are no member of (`visiting`) |
+| `GET` | `/v1/whoami` | the org as an id AND as the `slug` its people type, the key's id, its label, the world this request runs in (`env`), whether it may act in `production`, its `scopes`, whose it is (`subject`, `name`), whether that person runs the box (`operator`) and whether they are inside an org they are no member of (`visiting`) |
 | `GET` | `/v1/ops/whoami` | **the box's own**: that this key is the operator's, the version, the domain, and the `name` and `org` of the person holding it — null for the box's own key; what the `/admin` page proves its key at |
 | `GET` · `PUT` · `DELETE` | `/v1/ops/mail` | **the box's own**: the mail server the box posts through, stored here over the environment's — `source` says which; never the password. [the-box.md](the-box.md) |
 | `POST` | `/v1/ops/mail/test` | **the box's own**: one letter through the box's mailbox, waited for — `{sent, error}` |
@@ -74,11 +77,11 @@ sandbox, answered in that colleague's corner.
 | `GET` | `/v1/line/numbers` | the org's production phone numbers and the agent each reaches: what a developer's own phone dials to reach their copy — `app`, a key naming a person, from the sandbox |
 | `DELETE` | `/v1/line/from` | stop answering your own calls; they fall back to the line — `app` |
 | `GET` | `/v1/agents/{slug}/pipeline` · `PUT …/pipeline/overrides` | what it runs on, and the six knobs, kept one release — [pipeline-api.md](pipeline-api.md) |
-| `GET` · `PUT` | `/v1/agents/{slug}/settings` | what the org set over the class — vendors, models, the opening, the cut of a turn, what is remembered, the bases — per world, per corner, a version a row: yours, the team's, production's — `pipeline` or `words`; `words` sets the opening's words and what is remembered and is refused the rest by name — [settings-api.md](settings-api.md) |
+| `GET` · `PUT` | `/v1/agents/{slug}/settings` | what the org set over the class — vendors, models, the opening, the cut of a turn, what is remembered, the bases — per world, per corner, a version a row: yours, the team's, production's — a set writes the request's world, production's directly — `pipeline` or `words`; `words` sets the opening's words and what is remembered and is refused the rest by name — [settings-api.md](settings-api.md) |
 | `GET` | `…/settings/history` · `…/settings/diff` | one corner's versions, newest first; this corner against the team's or production's — `pipeline` or `words` |
-| `POST` | `…/settings/rollback` · `…/settings/promote` | one version back as the next one; yours to the team's, or the team's sandbox to production once the goldens in the body hold — `pipeline`. Nobody writes production any other way |
+| `POST` | `…/settings/rollback` | one version back as the next one — `pipeline` |
 | `GET` | `/v1/calls/{call}/settings` | the exact settings and lexicon a call ran on, by the versions its head row kept — `calls` |
-| `GET` · `PUT` | `/v1/lexicon` · `GET …/history` · `POST …/promote` | the org's words — how the voice says them, what the ears must know — laid over every agent's own; promoted with no goldens between — `pipeline` or `words` |
+| `GET` · `PUT` | `/v1/lexicon` · `GET …/history` | the org's words — how the voice says them, what the ears must know — laid over every agent's own, in the request's world — `pipeline` or `words` |
 | `GET` · `PUT` | `/v1/agents/{slug}/widget` | how the widget presents the agent — title, tagline, greeting, accent, autostart — per world; read with `talk`, set with `pipeline` |
 | `POST` | `/v1/agents/{slug}/dev/{family}/{verb}` · `?app=` | a console's ask, relayed to the app standing in the agent's directory — `talk`, `knowledge`, `memory` or `evals` by family; [dev-verbs.md](dev-verbs.md) |
 | `GET` | `/v1/agents/{slug}/provider-keys` | the org's own vendor keys, **in the clear**: the worker's door, see §6 |
@@ -95,7 +98,7 @@ sandbox, answered in that colleague's corner.
 | `GET` | `/v1/routes` | the numbers and doors your org answers |
 | `PUT`·`DELETE`·`GET` | `/v1/provider-keys[/{vendor}]` | the org's own vendor accounts — `providers` |
 | `GET` | `/v1/providers` | every vendor this build runs, which are ready on this box and which want a key, the defaults and the curated voices — `providers` |
-| `PUT`·`GET`·`DELETE` | `/v1/knowledge[/{base}]` · `POST …/eval` · `POST …/promote` · `GET /v1/knowledge/attached` | the base the agent answers from, in the key's world; promoted into production once the golden holds; which agents read which |
+| `PUT`·`GET`·`DELETE` | `/v1/knowledge[/{base}]` · `POST …/eval` · `GET /v1/knowledge/attached` | the base the agent answers from, in the request's world — production's pushed there directly; a push answers `whole_tokens`, and a `notice` past 8,000; which agents read which |
 | `GET`·`DELETE` | `/v1/contacts/{contact}/memory` · `POST /v1/contacts/memory/eval` | what it keeps about a person, in the key's world |
 | `GET` | `/v1/agents/{slug}/threads?after=` · `/threads/{contact}` | the inbox: an agent's calls by contact, what this person has not read, and one thread merged — `calls` |
 | `POST` | `/v1/agents/{slug}/threads/{contact}/read` · `/messages` | mark a thread read — `calls`; say something on the open WhatsApp conversation — `talk` |
@@ -105,7 +108,7 @@ sandbox, answered in that colleague's corner.
 | `POST` | `/v1/agents/{slug}/memory/extraction` | what a hang-up makes of a call |
 | `POST` | `/v1/evals/run` · `GET /v1/evals/runs[/{id}]` · `POST /v1/evals/replay/{call}` · `/v1/evals/judge/{call}` | the suites, ring 3, and the judges over a finished call nobody judged |
 | `POST` | `/v1/evals/caller` · `/v1/evals/voice` | the improvising caller, and a spoken eval |
-| `POST` | `/v1/calls` · `/v1/calls/{call}/events` · `/sealed` · `/tools` · `/lookup` · `/remember` · `GET /commands` | the worker's own doors |
+| `POST` | `/v1/calls` · `/v1/calls/{call}/events` · `/sealed` · `/tools` · `/lookup` · `/remember` · `GET /commands` | the worker's own doors; `/lookup` is also the app's own `this.knowledge.search` — `app` |
 | `POST`·`GET` | `/v1/fleet/heartbeat` · `/v1/fleet/standing` | the fleet's: what a worker holds, and whether all are full. A key holding the `fleet` scope only |
 | `GET`·`POST` | `/v1/whatsapp/webhook` | Meta's |
 | `GET` | `/.well-known/pinecall` | what this gateway is before anybody holds a key: version, `cloud`, `signup`, `min_password`, `mail`, `brand`, `google` — no key |

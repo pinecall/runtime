@@ -10,7 +10,8 @@ from pinecall.api._operator import an_operator, runs_the_box
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.visiting import visiting
-from pinecall.types import Env
+from pinecall.auth.world import a_person, opens_production
+from pinecall.types import Env, is_a_deployment
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -31,7 +32,8 @@ class Whose(WireModel):
     slug: str | None = None
     key_id: str
     label: str | None = None
-    # The world this key opens, and what it may do there: what a console gates its sections by.
+    # The world this request runs in — a person's key names it with `pinecall-env`, a server's
+    # token has its own — and what the key may do there: what a console gates its sections by.
     env: Env
     scopes: list[str]
     # The person the key was minted for, when it is a person's; an org's own key names nobody.
@@ -44,14 +46,18 @@ class Whose(WireModel):
     # `subject` is then `operator:<their address>` and `name` still says who. A console reads it
     # to say so on the page, because what they do here is done in somebody else's org.
     visiting: bool = False
+    # Whether this key may act in production: the person's row says so (an admin always), or it
+    # is a production server's token. What `pinecall whoami` and the console's switch read.
+    production: bool = False
 
 
 # The door `pinecall login` proves a key at and `pinecall whoami` asks every day: it takes the key
 # every other tenant door takes, and answers the words a person can check against their own.
 @router.get("/v1/whoami")
-async def whoami(key: KeyDep, orgs: OrgsDep, members: MembersDep) -> Whose:
+async def whoami(key: KeyDep, orgs: OrgsDep, members: MembersDep, keys: KeysDep) -> Whose:
     """Whose key opened this door, where it opens, and what it may do."""
     org = await orgs.find(key.org)
+    await keys.touch(key.key_id)
     return Whose(
         org=key.org,
         slug=None if org is None else org.slug,
@@ -63,6 +69,9 @@ async def whoami(key: KeyDep, orgs: OrgsDep, members: MembersDep) -> Whose:
         name=key.name,
         operator=await runs_the_box(key, members),
         visiting=visiting(key.subject) is not None,
+        production=await opens_production(key, members)
+        if a_person(key)
+        else is_a_deployment(key.env),
     )
 
 

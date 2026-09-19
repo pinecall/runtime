@@ -8,20 +8,31 @@ from typing import Any, cast
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
-from pinecall.api._deps import AdmissionDep, KeysDep, LogsDep, TuningDep, a_key_on_a_socket
+from pinecall.api._deps import (
+    AdmissionDep,
+    KeysDep,
+    KnowledgeDep,
+    LogsDep,
+    MembersDep,
+    TuningDep,
+    a_key_on_a_socket,
+)
 from pinecall.api.agents.handlers import HANDLERS, Live, LiveDep, Socket, asked, handles
 from pinecall.api.agents.holding import SocketId, a_socket_id
 from pinecall.api.agents.registry import Registry, RegistryDep
+from pinecall.api.agents.tuned import tuned_for
 from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
 from pinecall.auth.corner import author_of
 from pinecall.auth.keys import KeyRecord, held_by, not_opening
+from pinecall.knowledge import Knowledge
 from pinecall.log import REFUSED
 from pinecall.log.entry import Entry, unstored
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import Admission, QuotaExhausted
 from pinecall.orgs.tuning import TuningStore, VersionMoved
+from pinecall.providers import declaration
 from pinecall.providers.tuning import declared_as_tuning
-from pinecall.types import THE_ORGS_OWN, DeclarationRefused, Env
+from pinecall.types import THE_ORGS_OWN, AgentConfig, DeclarationRefused, Env
 from pinecall_protocol import Command, ProtocolError, WireModel, defs, encode
 from pinecall_protocol.commands import AgentConfigure, AgentRegister
 from pinecall_protocol.events import ErrorEvent, Pong
@@ -42,18 +53,26 @@ async def apps(
     live: LiveDep,
     admission: AdmissionDep,
     tuning: TuningDep,
+    knowledge: KnowledgeDep,
+    members: MembersDep,
 ) -> None:
     """One app, one socket: a key at the door, then commands in and log entries out."""
-    key = await a_key_on_a_socket(websocket, keys)
+    try:
+        key = await a_key_on_a_socket(websocket, keys, members)
+    except PermissionError as refused:
+        await websocket.accept()
+        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(str(refused)))
+        return
     if key is None:
         await websocket.close(code=POLICY_VIOLATION)
         return
     await websocket.accept()
+    await keys.touch(key.key_id)
     # Holding an agent is the `app` scope: a person's key without it is told so and closed.
     if (closed := not_opening(key, "app")) is not None:
         await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(closed))
         return
-    socket = AppSocket(websocket, key, logs, registry, live, admission, tuning)
+    socket = AppSocket(websocket, key, logs, registry, live, admission, tuning, knowledge)
     live.connect(socket.id, socket.send)
     try:
         await socket.serve()
@@ -76,6 +95,7 @@ class AppSocket:
         live: Live,
         admission: Admission,
         tuning: TuningStore,
+        knowledge: Knowledge | None,
     ):
         self._websocket = websocket
         self._id = a_socket_id()
@@ -85,6 +105,7 @@ class AppSocket:
         self.live = live
         self.admission = admission
         self.tuning = tuning
+        self.knowledge = knowledge
 
     @property
     def id(self) -> SocketId:
@@ -232,12 +253,19 @@ async def register(socket: Socket, command: Command) -> None:
     await socket.send(entry)
 
 
-# A class that searches the base itself — `this.knowledge.search` — with no base attached in this
-# world is refused HERE, where the app is declaring itself, and not in a call where the tool would
-# find nothing: the same rule that refuses a voice nobody curated. The sentence names the verb.
+# What the agent reads is refused HERE, where the app is declaring itself, and not in a call where
+# a turn would find nothing: the same rule that refuses a voice nobody curated. Two sentences, each
+# naming the verb that fixes it. A class that searches the base itself — `this.knowledge.search` —
+# needs one attached in this world; and every base the world attaches, or the class still names in
+# `docs`, has to have been pushed to it. The bases are the ones the session would read, from the
+# resolver every session is built by: one rule for which bases, never a second copy of it here.
 NO_BASE_ATTACHED = (
     "{slug} searches knowledge, and no base is attached to it in {world}: "
     "pinecall knowledge attach <base> --agent {slug}"
+)
+NO_SUCH_BASE = (
+    "{slug} reads the base {base}, and nothing was pushed to {base} in {world}: "
+    "pinecall knowledge push ./knowledge/docs --base {base}"
 )
 
 
@@ -245,19 +273,34 @@ NO_BASE_ATTACHED = (
 async def configure(socket: Socket, command: Command) -> None:
     """Declare or change what the agent is. Only the fields the app sent change."""
     wanted = asked(command, AgentConfigure)
-    await a_base_to_search(socket, command.agent, wanted.config)
+    held = socket.registry.on(socket.env, command.agent, socket.id)
+    # Not held on this socket: the registry's own refusal below says so, in its own words.
+    if held is not None:
+        declared = declaration.configured(held.config, wanted.config)
+        await the_bases_it_reads(socket, command.agent, declared)
     entry = await socket.registry.configure(socket.id, socket.env, command.agent, wanted.config)
     await socket.send(entry)
     await seeded(socket, command.agent, wanted.config)
 
 
-async def a_base_to_search(socket: Socket, slug: str, wire: defs.AgentConfig) -> None:
-    """DeclarationRefused when the class searches and this world attaches it no base."""
-    if not wire.uses_knowledge or wire.docs is not None:
-        return
-    row = await socket.tuning.newest(socket.org, socket.env, socket.holder, slug)
-    if row is None or not row.value.knowledge:
+async def the_bases_it_reads(socket: Socket, slug: str, declared: AgentConfig) -> None:
+    """Refused when the class searches with nothing attached, or reads a base never pushed."""
+    session = await tuned_for(socket.tuning, socket.org, socket.env, socket.holder, slug, declared)
+    bases = session.config.bases
+    if declared.uses_knowledge and not bases:
         raise DeclarationRefused(NO_BASE_ATTACHED.format(slug=slug, world=socket.env))
+    # A gateway with no table keeps no base at all, and there a lookup finds nothing and refuses
+    # nobody (api/_deps.py): the same holds for the declaration.
+    if socket.knowledge is None or not bases:
+        return
+    pushed = {
+        kept.base for kept in await socket.knowledge.bases(socket.org, socket.env, socket.holder)
+    }
+    for docs in bases:
+        if docs.base not in pushed:
+            raise DeclarationRefused(
+                NO_SUCH_BASE.format(slug=slug, base=docs.base, world=socket.env)
+            )
 
 
 # The note every seeded row carries, so a history says where the world's first version came from.
@@ -265,9 +308,9 @@ SEEDED = "seeded from the class"
 
 
 # The class still declares what the world owns now — a voice, a model, an opening — and a world
-# that has nothing set is seeded from it, once, into the org's own corner: the first `pinecall run`
+# with nothing set is seeded from it, once, into the org's own corner: the first `pinecall start`
 # of any developer gives the team's sandbox its v1, and the box's own app gives production its. A
-# world that has a row is never touched again: from then on the world wins, and `pinecall run`
+# world that has a row is never touched again: from then on the world wins, and `pinecall start`
 # says so beside every field the class still declares differently. `if_version=0` is the race:
 # two apps configuring at once both find no row, and the primary key lets exactly one seed.
 async def seeded(socket: Socket, slug: str, wire: defs.AgentConfig) -> None:

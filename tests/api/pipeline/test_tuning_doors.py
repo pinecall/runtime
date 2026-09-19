@@ -8,8 +8,8 @@ import httpx
 import pytest
 
 from pinecall.api.agents.registry import Registry
-from pinecall.api.tuning import PRODUCTION_IS_PROMOTED, PROMOTE_SETTINGS
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
+from pinecall.auth.world import ENV_HEADER, NO_PRODUCTION
 from pinecall.types import BLANK, ROLE_SCOPES, SANDBOX
 from pinecall_protocol import defs
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, PIPELINE_KNOBS, over_the_asgi_app
@@ -168,12 +168,21 @@ async def test_two_saves_that_read_the_same_version_do_not_both_win(
 # ── production ──────────────────────────────────────────────────────────────────
 
 
-async def test_production_is_written_by_promote_never_set(fleet_http: httpx.AsyncClient) -> None:
-    refused = await fleet_http.put(SETTINGS, json={"config": SONNET})
+async def test_a_key_that_acts_in_production_sets_production_there_and_nowhere_else(
+    fleet_http: httpx.AsyncClient,
+) -> None:
+    put = await fleet_http.put(SETTINGS, json={"config": SONNET})
+    assert put.status_code == 200, put.text
+    assert put.json()["production"]["version"] == 1
+    assert put.json()["production"]["config"]["llm"] == SONNET["llm"]
+
+
+async def test_a_person_the_org_keeps_out_of_production_is_refused_there_by_name(
+    ana: httpx.AsyncClient,
+) -> None:
+    refused = await ana.put(SETTINGS, json={"config": SONNET}, headers={ENV_HEADER: "production"})
     assert refused.status_code == 403
-    assert refused.json()["detail"] == PRODUCTION_IS_PROMOTED.format(
-        door=PROMOTE_SETTINGS.format(slug=AGENT)
-    )
+    assert refused.json()["detail"] == NO_PRODUCTION.format(name="Ana")
 
 
 # ── words ───────────────────────────────────────────────────────────────────────

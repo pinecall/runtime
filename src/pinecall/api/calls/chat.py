@@ -16,6 +16,7 @@ from pinecall.api._deps import (
     LlmsDep,
     LogsDep,
     LookupsDep,
+    MembersDep,
     SettingsDep,
     TuningDep,
     VaultDep,
@@ -77,9 +78,15 @@ async def chat(
     lookups: LookupsDep,
     settings: SettingsDep,
     knowledge: KnowledgeDep,
+    members: MembersDep,
 ) -> None:
     """One caller, one text call: they send {text}, they receive every entry of their own call."""
-    key = await a_key_on_a_socket(websocket, keys)
+    try:
+        key = await a_key_on_a_socket(websocket, keys, members)
+    except PermissionError as refused:
+        await websocket.accept()
+        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(str(refused)))
+        return
     if key is None:
         await websocket.close(code=POLICY_VIOLATION)
         return

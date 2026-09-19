@@ -83,11 +83,8 @@ THE_FLEET: KeyScope = "fleet"
 KEY_SCOPES: frozenset[str] = EVERY_SCOPE - {THE_FLEET}
 
 
-# Holding an agent is a deployment, and a deployment is a process somebody put on a box — never a
-# laptop that happens to be logged in. So a person's key opens `app` in the sandbox, where what
-# they run is their own, and never in production, where a slug is held by a key issued for a
-# machine (`keys issue --label "prod server" --scope app`). The rule lives at the MINTING and not
-# at the door: a door that refused later would have handed out a key promising what it will not do.
+# Holding an agent over the app socket: what a server's token is made for, and what a developer's
+# own key opens — in production too, for a person the org lets act there (auth/world.py, 0039).
 HOLDING: KeyScope = "app"
 
 # The members door, which an admin's key and the operator's open and a developer's does not. It is
@@ -105,11 +102,6 @@ THE_TEAM: KeyScope = "team"
 def is_a_deployment(env: Env) -> bool:
     """Whether this world is the org's — a machine holds it — rather than one person's sandbox."""
     return env != SANDBOX
-
-
-def for_a_person(scopes: frozenset[str], env: Env) -> frozenset[str]:
-    """What a person may do in this world: their role's preset, less `app` in a deployment."""
-    return scopes - {HOLDING} if is_a_deployment(env) else scopes
 
 
 def an_env(word: str) -> Env:

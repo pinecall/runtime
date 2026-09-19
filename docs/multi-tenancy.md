@@ -31,7 +31,7 @@ So "clínica-norte does not have a key" is not a gap. It never had one, and it n
 
 | | what it is | who mints it | where it lives | opens |
 |---|---|---|---|---|
-| **org API key** | `pk_` + 256 bits. The tenant's own | **the tenant itself**, `POST /v1/keys` or `pinecall keys issue` (the `keys` scope) — or the operator, `keys issue --org` | the tenant's `~/.pinecall/credentials`, or `PINECALL_WORKER_KEY` in their container | every `/v1/…` door, for that org's rows only |
+| **org API key** | 256 bits behind a prefix that says whose: `pc_` a person's, `pc_live_`/`pc_test_` a server's token in production/sandbox (`pk_` before, still honoured). The tenant's own | **a person**, by logging in (one per device) — a **server's token** from the console's Tokens screen (`POST /v1/keys`) — or the operator, `keys issue --org` | the project's `.env` as `PINECALL_KEY` (`pinecall link`), `~/.pinecall/credentials`, the server's secrets, or `PINECALL_WORKER_KEY` in a worker's container | every `/v1/…` door, for that org's rows only |
 | **ops key** | `PINECALL_OPS_KEY`, the box's own | the box, once (`box secrets`) | a systemd credential on the box | `/v1/ops/*` and nothing else. It is a gate, not an identity: it belongs to no org. A person the box made an **operator** (`orgs operator`, migration 0020) opens the same doors with their own key — the flag is on their member row, read on every request |
 | **room token** | a LiveKit JWT bound to ONE call | the gateway, from an org key, per visit | a browser tab, for a minute | that call's room and that call's log. See [protocol/tokens.md](protocol/tokens.md) |
 
@@ -48,10 +48,13 @@ A key is stored as its **sha256** and nothing else. `keys issue` prints the plai
 is no verb, here or anywhere, that reads one back — and `keys list` prints fingerprints, labels and
 dates. Revoking keeps the row, so the log entries that name that key stay readable.
 
-An org issues its own without the operator: `POST /v1/keys {label?, env?, scopes?}` on a key that
-opens `keys`, which mints one for a **machine** — `app` and production when nothing is said, and
-naming nobody, because people get keys by logging in. A key may not issue a scope beyond what it
-opens — a person's, beyond what their role opens — and a fingerprint that is not the org's is the 404 a stranger's is.
+An org makes its servers' tokens without the operator: `POST /v1/keys {label, env}` on a
+**person's** key that opens `app` — production's only for a person with production access — mints
+one with `app` · `calls` · `talk` · `knowledge`, naming nobody, `created_by` its maker, and it does
+not die when they leave: a production that stopped with its developer would be an outage nobody
+chose. `GET /v1/keys` lists every server's token and the asker's own keys, with who made each and
+when it was last used; revoking takes your own, the tokens you made, or any with `keys`, and a
+fingerprint outside that is the 404 a stranger's is.
 
 ## A laptop is a box with one tenant
 
@@ -72,6 +75,7 @@ pinecall-runtime migrate up
 pinecall-runtime init --org clinica --email berna@clinica.test --person "Berna"
 pinecall-runtime gateway
 pinecall login http://localhost:8080
+pinecall link
 ```
 
 `init` is the one command that replaces the magic key: it makes the first org, invites its first
@@ -100,60 +104,64 @@ pinecall-runtime orgs quota pinecall --seats 10 --agents 25
 ```
 
 The link opens the console's own card: the person chooses a password, the token is spent, and
-they hold their first key — an admin's, every door of the org in production. The sandbox is not
-on this console: a person's sandbox key is their machine's (`pinecall login`), and what it holds is
-watched there, on `pinecall serve`. The operator held a **token** and never a password: an
+they hold their first key — an admin's, every door of the org, and an admin always opens
+production. The sandbox is not on this console: a person's terminal key (`pinecall login`) works
+in the sandbox unless a request names production, and what it holds is watched there, on
+`pinecall serve`. The operator held a **token** and never a password: an
 invitation is inert until the person it names accepts it, so the box can seat somebody and never
 be them. An address that already has a password on this box gets no link: `orgs invite` prints the
 row `active` and `already a person on this box: seated, they sign in with the password they have`.
-From there the admin invites the rest from the Team screen, and issues the key the org's
-server runs on from the Keys screen (or `pinecall keys issue`) — the operator is out of the loop.
+From there the admin invites the rest from the Team screen — switching production on for whoever
+may act there — and makes the token the org's server runs on from the Tokens screen (New server
+token) — the operator is out of the loop.
 The whole of it from the developer's side is the agents repo's `docs/worlds-and-teams.md`.
 
 ## Giving a machine a key
 
 A process is not a person and has no password: a worker, a CI job, a box the tenant deploys to.
-The tenant issues those itself (`POST /v1/keys`); the operator can too, for a tenant who asked:
+The tenant makes those itself (Tokens in the console, `POST /v1/keys`); the operator can too, for a
+tenant who asked:
 
 ```bash
 pinecall-runtime keys issue --org pinecall --label "prod server" --scope app   # production
-#   pk_…
+#   pc_live_…
 #     org org_… · production · prod server
 #     scopes app
 #     copy it now: the table keeps the fingerprint, and the key is never shown again
 pinecall-runtime routes add +34910000000 tienda-sur --org pinecall --channel phone
 ```
 
-In a container there is no login: `PINECALL_WORKER_KEY` in the environment is that key, and
-`PINECALL_URL` says which gateway. On a laptop, `pinecall login` keeps a key **nobody typed** —
+In a container there is no login: `PINECALL_KEY` in the server's secrets is that token for the
+app's process (`PINECALL_WORKER_KEY` for a worker's), and `PINECALL_URL` says which gateway. On a laptop, `pinecall login` keeps a key **nobody typed** —
 it prints a link, the person signs in on that page, and the page mints the terminal a key of its
 own (see below). That is the whole of a tenant's authentication.
 
 ## Two worlds on one gateway
 
 A tenant writes an agent on a laptop and runs the same agent on the box, and the two must never
-see each other: a laptop's `pinecall run` must not take the clinic's number, and the clinic's
-sessions must not fill with a developer's test calls. So **the key knows where.** It is issued into
-`production` or `sandbox`, and the gateway namespaces its registry and its routes by that
-word: the same slug is held in each world by different sockets; `GET /v1/agents`, `GET
-/v1/routes` and every door that names an agent answer the world the key opens; a dialled number
-is one agent's in one world, and a sandbox key claiming a production number is refused with
-the world named.
+see each other: a laptop's `pinecall start` must not take the clinic's number, and the clinic's
+sessions must not fill with a developer's test calls. So **every request runs in one world.** A
+server's token is made for `production` or `sandbox` and stays there; a person's key names one per
+request with `pinecall-env` (none is the sandbox; production only while an admin's switch on their
+row allows it, read at every request — `auth/world.py`). The gateway namespaces its registry and
+its routes by that word: the same slug is held in each world by different sockets; `GET /v1/agents`, `GET
+/v1/routes` and every door that names an agent answer the world the request runs in; a dialled
+number is one agent's in one world, and a sandbox request claiming a production number is refused
+with the world named.
 
 **And the key knows whose.** The sandbox is namespaced a second time, by the member the key was
 minted for, because a tenant is a team: Berna and Carla both run `tienda-sur` on their own
 laptops, each reaches their own, and neither takes the other's. A sandbox key that names
 nobody — CI's, a machine's — holds the org's own, which is what a developer holding none falls
-back to. Production is namespaced by nobody, because there is one holder there by construction:
-a person's key does not open `app` in production at all (see below), so what holds a deployed
-slug is a key issued for a machine. The exception is a **dialled** door: a number exists once in
+back to. Production is namespaced by nobody: there is one corner there, the org's, whether a
+server's token holds the slug or a person with production access (`pinecall start --prod`). The exception is a **dialled** door: a number exists once in
 a world, so the sandbox number is the org's and a call at it rings in one terminal — web and
 chat are each developer's own, the telephone is shared. WHICH terminal is asked in two steps
 (`api/agents/doors.py`). First, **whose phone dialled**: a developer says which number they call
 from (`PUT /v1/line/from`) and every call they make lands in their own corner — three of them can
 test at once, and that is the answer for almost every ring. Then, for a number nobody claimed, the
 agent's **line**: the first corner to hold it takes it, a second developer claims it, and it is
-handed on when that terminal closes. Before either, the newest `pinecall run` silently took the
+handed on when that terminal closes. Before either, the newest `pinecall start` silently took the
 others' calls. Production needs none of it: one corner, and its line is nobody's.
 
 **Except for the developer's own phone.** An org buys one number, and the line its customers
@@ -185,8 +193,8 @@ org; anything else is `403` in one sentence. Nothing is stored: the corner is th
 **And so does the data — twice.** A contact's facts and a knowledge base carry the world of the
 key that pushed or the call that taught them (`0018`): a test call on a laptop never writes into
 the memory a production call reads under the same number, and a `knowledge push` from that laptop
-replaces the laptop's base and never the telephone's. Promoting knowledge is the same push made
-with the box's key. And they carry WHOSE corner, exactly as the registry does (`0021`): before it,
+replaces the laptop's base and never the telephone's. Production's base is pushed there directly,
+by a person with production access or the server's token in its release step. And they carry WHOSE corner, exactly as the registry does (`0021`): before it,
 the sandbox was one pile shared by the team, so one developer's push replaced what the other two
 were testing against and one test call's extracted fact arrived in another's. The org's own corner
 is the empty string and not NULL, because it is part of a key and a NULL in one matches nothing —
@@ -199,8 +207,9 @@ empty knowledge base. A push and a drop never fall back — they are about one c
 drop must not take the telephone's base. A contact's facts are what a CALL learned, and there is
 no org-wide sandbox call to inherit from: they are the corner's, or nothing. The counts behind `memory_facts` and `knowledge_chunks` read both worlds, because a
 row a laptop wrote is a row on the same disk. `agent.registered` and `call.started` carry `env`, so a console and a session
-list can say which world they are reading. A login keeps a sandbox key — a laptop is where things
-are written — and every key issued before the field existed is production's.
+list can say which world they are reading. A person's key is stored in the sandbox — what a request
+naming no world runs in, since a laptop is where things are written — and every key issued before
+the field existed is production's.
 
 ```bash
 pinecall-runtime keys issue --org clinica --label "berna's laptop" --env sandbox
@@ -209,7 +218,8 @@ pinecall-runtime routes add +34910000000 clinica-norte --org clinica   # product
 
 The key also knows **what** — `scopes`, the doors as they are grouped — and **who** — `subject`
 and `name`, the member it was minted for. A key the operator issues with nothing said holds every
-scope but `fleet`, which is what an org's own machine key means; a person's key holds what their role presets.
+scope but `fleet`; a server's token made in the console holds `app` · `calls` · `talk` ·
+`knowledge`; a person's key holds what their role presets, whole.
 
 ## People
 
@@ -218,8 +228,10 @@ A person of an org is a **member**, not a shared key: invited with a one-use lin
 gives an org its first admin where sign-ups are shut), active once they chose a password on the
 card that link opens (`POST /v1/invitations/{token}`), and holding keys of their own from then on — one per device, minted at `POST /v1/login` with the
 scopes of their role (`qa` · `supervisor` · `manager` · `admin` · `developer`) and their member id
-as `subject`. **In production a person's key never holds `app`**: a deployed agent is held by a key
-issued for a machine (`POST /v1/keys`, or `keys issue --scope app`), not by whoever is logged in. Disabling them keeps the row, revokes every key of theirs and refuses their login. A
+as `subject`. **What they may do in production is a switch on their row**, `production`, that an
+admin sets (`PATCH /v1/members/{id}`; an admin always has it): with it their one key acts in
+production too, `app` included, whenever a request says `pinecall-env: production`; without it that
+request is `403`. Disabling them keeps the row, revokes every key of theirs and refuses their login. A
 browser never carries a key in a URL: a key holder mints a one-use code (`POST /v1/login/codes`)
 and the browser spends it for a key of its own.
 
@@ -230,7 +242,8 @@ already has a password here seats them `active` at once — no link, nothing to 
 operator's `orgs invite` says so instead of printing one. A login that names no org lands in the
 oldest org that has not disabled them; the console's org switch lists the rest
 (`GET /v1/login/orgs`) and mints the same person's key in the one picked (`POST /v1/login/org`),
-in the same world. A machine's key names nobody and opens its one org.
+where their row there says whether production opens. A server's token names nobody and opens its
+one org.
 
 **And a terminal never carries a password.** `pinecall login` holds no key, and the person at it
 has none to paste — a key is minted FOR a person and kept BY the browser that minted it, never
@@ -243,12 +256,13 @@ touches none of this: the terminal's half knows nothing about how the person pro
 Which door each scope opens, and every refusal in the words it is said in:
 [protocol/people.md](protocol/people.md) and [protocol/gateway-api.md](protocol/gateway-api.md).
 
-**One key per place, not one per tenant.** Issue a key for the laptop, one for CI, one for each
-deployment, each with a `--label` — a key you can revoke on its own is a key you will revoke.
+**One key per place, not one per tenant.** A person's key per device, a token for CI, one for each
+deployment and world, each labelled — a key you can revoke on its own is a key you will revoke.
 
 ## Taking it back
 
-The tenant does this itself, on a key that opens `keys` — the Keys screen of its console, or:
+The tenant does this itself — anybody their own keys and the tokens they made, a key that opens
+`keys` any of them — from the Tokens screen of its console, or:
 
 ```bash
 pinecall keys list                               # fingerprints, labels, worlds, whose, revoked
@@ -325,8 +339,8 @@ what a plan sells a team by, counted as everybody the org has not disabled. A te
 |---|---|
 | `orgs` | id, slug, name. `default` is seeded by the migrations |
 | `quotas` | one row per org, the whole set of eight and `budget_eur` (`0028`) replaced at once |
-| `api_keys` | sha256 fingerprint, org, label, `env`, `scopes`, `subject`, `name`, created_at, revoked_at. **Never the key**, and a revoked row is kept |
-| `members` | one person of one org: email (trimmed, lower-cased, unique per org), name, `role`, `agents`, `status`, the argon2id hash — the same hash on every row of that email — and `operator` (`0020`). A disabled row stays |
+| `api_keys` | sha256 fingerprint, org, label, `env` (a person's is `sandbox` since `0039`: the request names the world), `scopes`, `subject`, `name`, `created_by` and `last_used_at` (`0039`), created_at, revoked_at. **Never the key**, and a revoked row is kept |
+| `members` | one person of one org: email (trimmed, lower-cased, unique per org), name, `role`, `agents`, `status`, the argon2id hash — the same hash on every row of that email — and `operator` (`0020`), and `production` (`0039`: the admin's switch; an admin opens production by the role). A disabled row stays |
 | `invitations` | the sha256 of a one-use token, whose it is, when it expires, when it was spent |
 | `routes` | (org, number) → (agent, channel), plus `env` and `managed`. One number is one door |
 | `carriers` | one per org: `twilio` or `sip`, the account it names, the credentials as Fernet ciphertext |
@@ -339,7 +353,7 @@ what a plan sells a team by, counted as everybody the org has not disabled. A te
 | `pipeline_overrides` | the operator's six knobs until `0037` copied them into `agent_config` as version 1 of both worlds; read by nothing, dropped next release |
 
 A tenant is a row in `orgs` and at least one way in: a **person** (a row in `members`, invited and
-then holding keys of their own) or a **machine** (a row in `api_keys`). Everything else follows
+then holding keys of their own) or a **server's token** (a row in `api_keys` naming nobody). Everything else follows
 from the key whoever knocks is carrying.
 
 ## An admin opening a colleague's copy

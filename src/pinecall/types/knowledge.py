@@ -22,6 +22,11 @@ FILE_MODES: frozenset[str] = frozenset(get_args(FileMode.__value__))
 # The design's budget: thirty candidates per branch, RRF, and eight chunks to the model.
 DEFAULT_CHUNKS_PER_TURN = 8
 
+# Past this many tokens a base's whole files are called heavy: every call of every agent reading
+# the base carries them in its prompt, cached but paid for, and the first turn waits on them. A
+# push past it lands all the same and is told so; the number is a notice, never a refusal.
+HEAVY_WHOLE_TOKENS = 8_000
+
 
 @dataclass(frozen=True)
 class Docs:

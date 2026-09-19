@@ -1,4 +1,4 @@
-"""A whole file in Postgres: one bare row, never searched, read for the block; promote copies."""
+"""A whole file in Postgres: one bare row, never searched, read for the block."""
 
 from collections.abc import AsyncIterator
 from typing import Any
@@ -54,31 +54,3 @@ async def test_the_whole_files_fall_back_to_the_orgs_own_as_a_search_does(
     assert await knowledge.whole_texts(org, SANDBOX, "m_ana", THE_BASE) == [BY_HEART]
     await knowledge.put(org, SANDBOX, "m_ana", THE_BASE, [TARIFAS])
     assert await knowledge.whole_texts(org, SANDBOX, "m_ana", THE_BASE) == []
-
-
-async def test_promoting_copies_the_rows_and_their_vectors_into_the_other_world(
-    knowledge: PgKnowledge, org: str, raw_connection: Any
-) -> None:
-    await knowledge.put(org, SANDBOX, None, THE_BASE, [CLINICA, BY_HEART])
-    await knowledge.put(org, PRODUCTION, None, THE_BASE, [TARIFAS])
-    assert await knowledge.copy(org, SANDBOX, None, THE_BASE, PRODUCTION) == 3
-    [listed] = await knowledge.bases(org, PRODUCTION)
-    assert listed.chunks == 3
-    assert await knowledge.whole_texts(org, PRODUCTION, None, THE_BASE) == [BY_HEART]
-    found = await knowledge.search(org, PRODUCTION, None, THE_BASE, "turnos teléfono")
-    assert {chunk.path for chunk in found} == {"clinica.md"}
-    embedded = await raw_connection.fetchval(
-        "select count(*) from knowledge_chunks "
-        "where org = $1 and env = $2 and embedding is not null",
-        org,
-        PRODUCTION,
-    )
-    assert embedded == 2
-
-
-async def test_promoting_a_developers_corner_copies_the_orgs_own_when_they_pushed_none(
-    knowledge: PgKnowledge, org: str
-) -> None:
-    await knowledge.put(org, SANDBOX, None, THE_BASE, [BY_HEART])
-    assert await knowledge.copy(org, SANDBOX, "m_ana", THE_BASE, PRODUCTION) == 1
-    assert await knowledge.copy(org, SANDBOX, None, "nunca", PRODUCTION) == 0

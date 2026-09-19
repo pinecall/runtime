@@ -167,7 +167,7 @@ async def test_a_member_google_vouches_for_lands_in_the_oldest_org_of_theirs_wit
     assert (said["org"], said["subject"], said["env"], said["label"]) == (
         AN_ORG.id,
         NICO.id,
-        "production",
+        "sandbox",
         A_BROWSER,
     )
     assert idp.secrets_seen == [A_CLIENT["client_secret"]]

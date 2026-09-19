@@ -150,7 +150,7 @@ def test_a_caller_of_an_agent_only_consoles_hold_is_refused_with_what_to_start(
         assert heard_nothing(console), "a refused call was still put on the console's socket"
     assert refused.value.code == POLICY_VIOLATION
     assert AGENT in refused.value.reason
-    assert "pinecall run" in refused.value.reason
+    assert "pinecall start" in refused.value.reason
 
 
 def test_a_worker_opening_a_call_on_an_agent_only_consoles_hold_is_refused(
@@ -163,7 +163,7 @@ def test_a_worker_opening_a_call_on_an_agent_only_consoles_hold_is_refused(
         assert heard_nothing(console), "a refused call was still put on the console's socket"
     assert status == 409
     assert AGENT in refused["detail"]
-    assert "pinecall run" in refused["detail"]
+    assert "pinecall start" in refused["detail"]
 
 
 # ── when the socket serving a call goes away ────────────────────────────────────

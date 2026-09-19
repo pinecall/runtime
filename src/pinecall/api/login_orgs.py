@@ -10,8 +10,9 @@ from pinecall.api._deps import KeyDep, KeysDep, MembersDep, OrgsDep
 from pinecall.api.login import NOT_A_MEMBER
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Members
+from pinecall.auth.persons import a_persons_key
 from pinecall.auth.visiting import VISITOR_LABEL, a_visitor, the_operator, visiting
-from pinecall.types import PRODUCTION, ROLE_SCOPES, Member, Org, for_a_person
+from pinecall.types import HOLDING, PRODUCTION, ROLE_SCOPES, Member, Org
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -68,15 +69,7 @@ async def the_other_org(
     org = await orgs.find(said.org)
     there = None if org is None else await members.by_email(org.id, person.email)
     if org is not None and there is not None and there.member.status == "active":
-        issued = await keys.issue(
-            org=org.id,
-            label=key.label,
-            env=key.env,
-            scopes=for_a_person(there.member.scopes, key.env),
-            subject=there.member.id,
-            name=there.member.name,
-        )
-        return issued.as_json
+        return (await a_persons_key(keys, there.member, key.label)).as_json
     # A row of theirs that is invited or disabled is the ORG's word about them, and the box does
     # not talk over it: an operator the tenant disabled walks in as the operator, which the Keys
     # screen says in so many words, and never as the member the tenant stopped.
@@ -84,12 +77,12 @@ async def the_other_org(
         raise HTTPException(403, NOT_THERE.format(org=said.org))
     # Production, whatever world the asking key opens: a visit is to what the tenant's customers
     # reach, and a sandbox is a member's corner (auth/visiting.py). An admin's reach there, less
-    # `app` as any person's key is — the box may look at and mend a tenant, and deploys nothing.
+    # `app` — the box may look at and mend a tenant, and holds none of its agents.
     issued = await keys.issue(
         org=org.id,
         label=VISITOR_LABEL.format(email=person.email),
         env=PRODUCTION,
-        scopes=for_a_person(ROLE_SCOPES["admin"], PRODUCTION),
+        scopes=ROLE_SCOPES["admin"] - {HOLDING},
         subject=a_visitor(person.email),
         name=person.name,
     )

@@ -1,16 +1,16 @@
-"""/v1/keys: the org's own API keys — the one its server runs on — issued, listed, revoked."""
+"""/v1/keys: the org's tokens — a person's own, and its servers' — made, listed, revoked."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from pydantic import TypeAdapter
 
-from pinecall.api._deps import ApiKeysKeyDep, KeysDep, MembersDep
+from pinecall.api._deps import AppKeyDep, KeyDep, KeysDep, MembersDep
+from pinecall.auth.corner import author_of
 from pinecall.auth.keys import KeyRecord, ListedKey
-from pinecall.auth.members import Members
-from pinecall.types import HOLDING, PRODUCTION, DeclarationRefused, an_env, key_scopes
+from pinecall.auth.world import a_person, opens_production
+from pinecall.types import DeclarationRefused, an_env, is_a_deployment
 from pinecall_protocol import WireModel
 
 # The tenant's own three doors, on the org's API key, exactly as every other tenant door. They
@@ -18,100 +18,96 @@ from pinecall_protocol import WireModel
 # mint a key into somebody else's. The operator's own are /v1/ops/orgs/{org}/keys (api/orgs.py).
 router = APIRouter()
 
-LISTED: TypeAdapter[tuple[ListedKey, ...]] = TypeAdapter(tuple[ListedKey, ...])
+# What a server does, and so what its token opens: it holds the agent over the app socket, reads
+# the calls it answers, mints the room tokens its own web page hands a browser, and pushes the
+# knowledge base in its release step. Nothing about the org's people, numbers or money.
+SERVER_SCOPES: frozenset[str] = frozenset({"app", "calls", "talk", "knowledge"})
 
-# A key may not hand out what its HOLDER does not hold, or the smallest role in an org would be a
-# way to mint the largest. The sentence names what is missing, so the person reading it knows
-# which of their own rights ran out rather than guessing at the whole set.
-NOT_YOURS_TO_GIVE = "this key cannot issue {missing}: {whose} does not open {missing}"
+# A server's token is made by a PERSON, from the console, and belongs to the org: it names who
+# made it and outlives them — a production that stopped when its developer left would be an
+# outage nobody chose (0039). Production's is made by somebody the org lets act there.
+BY_A_PERSON = "a server's token is made by a person, from Tokens in the console"
+NOT_IN_PRODUCTION = "{name} has no production access, so no production token: an admin gives it"
 
-# What a key is measured against, and it is NOT the key's own scopes when a person holds it.
-#
-# A person's key in production does not carry `app`: holding an agent there is a deployment, and a
-# deployment is a machine (types/key.py). Measuring against the key made that absence contagious —
-# an admin could not mint the key their own server runs on, in EITHER world, and the only key in
-# the building that could was the box operator's. A tenant could not deploy at all.
-#
-# The right bound is the person's ROLE: what their org trusts them with. An admin's role opens
-# `app`; what they may not do is hold an agent themselves in production, which is a rule about
-# their own key and not about the machines they are trusted to set up. A key that names nobody is
-# a machine's, and a machine is bounded by what it itself holds, exactly as before.
-A_PERSON = "your role"
-THIS_KEY = "this key"
-
-# Nothing of THIS org answers to that fingerprint. The same 404 whether the row belongs to
-# another org, was already revoked, or never existed: a tenant learns nothing about the table.
+# Nothing of THIS org answers to that fingerprint that this key may stop. The same 404 whether the
+# row belongs to another org, was already revoked, or is somebody else's person key: a tenant
+# learns nothing about the table.
 NO_SUCH_KEY = "no live key of this org has the fingerprint {fingerprint}"
 
 
-class WantedKey(WireModel):
-    """What the org asks for: what the key is for, which world it opens, what it may do there."""
+class WantedToken(WireModel):
+    """What a server's token is for, and the one world it opens."""
 
-    label: str | None = None
-    # Production unless asked otherwise: a key issued here is a machine's, and a machine is a
-    # deployment. A sandbox one is for CI, and is the deliberate act of saying so.
-    env: str = PRODUCTION
-    # Holding an agent, and nothing else, when nobody said: that is what a server does, and it is
-    # the one thing a person's key may no longer do in production (types/key.py).
-    scopes: list[str] | None = None
+    label: str
+    env: str
 
 
 @router.get("/v1/keys")
-async def listed(key: ApiKeysKeyDep, keys: KeysDep) -> list[dict[str, Any]]:
-    """Every key of this org by its fingerprint, oldest first, revoked ones named as revoked."""
-    return list(LISTED.dump_python(await keys.listed(key.org), mode="json"))
+async def listed(key: KeyDep, keys: KeysDep, members: MembersDep) -> list[dict[str, Any]]:
+    """The tokens this key may see, oldest first: every server's, and a person's own — every
+    person's for a key that opens `keys`. Revoked ones are named as revoked."""
+    names = {member.id: member.name for member in await members.listed(key.org)}
+    return [
+        _as_json(row, names)
+        for row in await keys.listed(key.org)
+        if row.subject is None or row.subject == key.subject or "keys" in key.scopes
+    ]
 
 
 # The one response of the tenant API that carries a key in the clear. It is read once by whoever
 # asked and stored by nobody: the table keeps the sha256 and no door reads one back.
 @router.post("/v1/keys")
 async def issue(
-    said: WantedKey, key: ApiKeysKeyDep, keys: KeysDep, members: MembersDep
+    said: WantedToken, key: AppKeyDep, keys: KeysDep, members: MembersDep
 ) -> dict[str, Any]:
-    """A key for a machine of this org, answered once. It names nobody: people log in."""
+    """A server's token for this org, in the world named, answered once."""
     try:
         env = an_env(said.env)
-        wanted = frozenset({HOLDING}) if said.scopes is None else key_scopes(said.scopes)
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused
-    allowed, whose = await _what_the_asker_may_give(key, members)
-    if missing := wanted - allowed:
-        said_missing = " · ".join(sorted(missing))
-        raise HTTPException(403, NOT_YOURS_TO_GIVE.format(missing=said_missing, whose=whose))
-    issued = await keys.issue(org=key.org, label=said.label, env=env, scopes=wanted)
+    if not a_person(key):
+        raise HTTPException(403, BY_A_PERSON)
+    if is_a_deployment(env) and not await opens_production(key, members):
+        raise HTTPException(403, NOT_IN_PRODUCTION.format(name=key.name or "this person"))
+    issued = await keys.issue(
+        org=key.org, label=said.label, env=env, scopes=SERVER_SCOPES, created_by=author_of(key)
+    )
     return issued.as_json
 
 
-async def _what_the_asker_may_give(key: KeyRecord, members: Members) -> tuple[frozenset[str], str]:
-    """The bound on what this key may mint, and the word the refusal calls it by. See A_PERSON."""
-    if key.subject is None:
-        return key.scopes, THIS_KEY
-    member = await members.find(key.org, key.subject)
-    # A key naming somebody the table no longer has an active row for is bounded by itself: they
-    # were removed or disabled, and a removed person's key must not keep their role's reach.
-    if member is None or member.status != "active":
-        return key.scopes, THIS_KEY
-    return member.scopes, A_PERSON
-
-
 # A POST and not a DELETE, because nothing is deleted: the row stays and grows a timestamp, so the
-# log entries that name this key stay readable.
+# log entries that name this key stay readable. A person stops their own keys and the server
+# tokens they made; a key that opens `keys` stops any of the org's.
 @router.post("/v1/keys/{fingerprint}/revoke")
-async def revoke(fingerprint: str, key: ApiKeysKeyDep, keys: KeysDep) -> dict[str, Any]:
+async def revoke(fingerprint: str, key: KeyDep, keys: KeysDep) -> dict[str, Any]:
     """Stop honouring one key of this org from the next request. Its row, and its history, stay."""
-    if not await _is_the_orgs(fingerprint, key, keys):
+    row = next((row for row in await keys.listed(key.org) if row.fingerprint == fingerprint), None)
+    if row is None or row.revoked_at is not None or not _may_stop(key, row):
         raise HTTPException(404, NO_SUCH_KEY.format(fingerprint=fingerprint))
     if not await keys.revoke(fingerprint):
         raise HTTPException(404, NO_SUCH_KEY.format(fingerprint=fingerprint))
     return {"fingerprint": fingerprint, "revoked": True}
 
 
-# The fingerprint names one row of the whole table, so the org is checked before the UPDATE and
-# not after it: a tenant may revoke its own keys and must not be able to touch — or probe for —
-# anybody else's.
-async def _is_the_orgs(fingerprint: str, key: KeyRecord, keys: KeysDep) -> bool:
-    """Whether a live key of this org hashes to that fingerprint."""
-    return any(
-        row.fingerprint == fingerprint and row.revoked_at is None
-        for row in await keys.listed(key.org)
-    )
+def _may_stop(key: KeyRecord, row: ListedKey) -> bool:
+    """Whether this key may revoke that row: its own, one it made, or any with `keys`."""
+    mine = key.subject is not None and key.subject in (row.subject, row.created_by)
+    return mine or "keys" in key.scopes
+
+
+def _as_json(row: ListedKey, names: dict[str, str]) -> dict[str, Any]:
+    """One token as the Tokens screen draws it: whose, which world, who made it, when used."""
+    person = row.subject is not None
+    return {
+        "fingerprint": row.fingerprint,
+        "label": row.label,
+        "kind": "person" if person else "server",
+        # A person's key opens whatever their row does; only a server's token has a world.
+        "env": None if person else row.env,
+        "name": row.name,
+        "created_by": None if row.created_by is None else names.get(row.created_by, row.created_by),
+        "created_at": row.created_at,
+        "last_used_at": row.last_used_at,
+        "revoked_at": row.revoked_at,
+        "scopes": list(row.scopes),
+    }

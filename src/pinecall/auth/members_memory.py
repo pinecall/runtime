@@ -42,7 +42,14 @@ class MemoryMembers:
         self._invitations: dict[str, _Invitation] = {}
 
     async def invite(
-        self, org: str, email: str, name: str, role: Role, agents: Iterable[str]
+        self,
+        org: str,
+        email: str,
+        name: str,
+        role: Role,
+        agents: Iterable[str],
+        *,
+        production: bool = False,
     ) -> Invited | None:
         """One row per (org, email); a second invite of one still invited replaces the token."""
         email = an_address(email)
@@ -57,6 +64,7 @@ class MemoryMembers:
                 name=name,
                 role=role,
                 agents=frozenset(agents),
+                production=production,
             )
             known = await self.a_persons_password(email)
             if known is not None:
@@ -146,6 +154,7 @@ class MemoryMembers:
         role: Role | None = None,
         agents: Iterable[str] | None = None,
         status: MemberStatus | None = None,
+        production: bool | None = None,
     ) -> Member | None:
         """Replace what was named; the rest stays as it was."""
         found = await self.find(org, id)
@@ -156,6 +165,7 @@ class MemoryMembers:
             role=found.role if role is None else role,
             agents=found.agents if agents is None else frozenset(agents),
             status=found.status if status is None else status,
+            production=found.production if production is None else production,
         )
         self._rows[id] = replace(self._rows[id], member=member)
         return member

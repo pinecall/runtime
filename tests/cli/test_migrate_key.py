@@ -5,7 +5,8 @@ from uuid import uuid4
 
 import pytest
 
-from pinecall.auth.keys import PostgresKeys, fingerprint
+from pinecall.auth.keys import PRODUCTION_PREFIX, fingerprint
+from pinecall.auth.keys_postgres import PostgresKeys
 from pinecall.log.store import open_pool
 from pinecall.log.store.migrating import apply_migrations
 from pinecall.types import DEFAULT_ORG
@@ -40,7 +41,7 @@ async def test_a_fresh_database_seeds_the_default_org_with_no_key_until_one_is_i
 
         issued = await keys.issue(DEFAULT_ORG, "the first")
 
-        assert issued.key.startswith("pk_")
+        assert issued.key.startswith(PRODUCTION_PREFIX)
         assert [row.fingerprint for row in await keys.listed(DEFAULT_ORG)] == [
             fingerprint(issued.key)
         ]

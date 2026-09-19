@@ -66,26 +66,6 @@ FROM unnest($8::text[], $9::text[], $10::integer[], $11::text[], $12::text[], $1
     AS chunk (path, heading, ordinal, text, embedding, mode)
 """
 
-# A base copied into another world's org's-own corner, vectors and all: no embedder runs, so a
-# promoted base is the very rows the golden was held over. One statement, as a push is: the
-# corner's chunks gone, its row upserted, the chunks copied under it.
-_COPY = """
-WITH replaced AS (
-    DELETE FROM knowledge_chunks WHERE org = $1 AND env = $3 AND holder = '' AND base = $4
-), promoted AS (
-    INSERT INTO knowledge_bases (org, env, holder, base, model, dimensions, chunks, pushed_at)
-        SELECT org, $3, '', base, model, dimensions, chunks, now()
-        FROM knowledge_bases WHERE org = $1 AND env = $2 AND holder = $5 AND base = $4
-        ON CONFLICT (org, env, holder, base) DO UPDATE
-        SET model = excluded.model, dimensions = excluded.dimensions,
-            chunks = excluded.chunks, pushed_at = now()
-)
-INSERT INTO knowledge_chunks (org, env, holder, base, path, heading, ordinal, text, embedding, mode)
-SELECT org, $3, '', base, path, heading, ordinal, text, embedding, mode
-FROM knowledge_chunks WHERE org = $1 AND env = $2 AND holder = $5 AND base = $4
-RETURNING 1
-"""
-
 # Yours, and the org's own for a name you have not pushed: a developer who has pushed nothing
 # reads what the team wrote down, the way `Registry.of()` falls back to the org's corner. Nobody
 # joins a team to an empty knowledge base. DISTINCT ON takes yours where both exist, because ''
@@ -107,13 +87,6 @@ _KEPT = "SELECT coalesce(sum(chunks), 0) AS kept FROM knowledge_bases WHERE org 
 # not an error here: a search of a base nobody pushed answers with nothing, as it always did.
 _MODEL_OF = """
 SELECT model FROM knowledge_bases
-WHERE org = $1 AND env = $2 AND holder IN ($3, '') AND base = $4
-ORDER BY holder DESC LIMIT 1
-"""
-
-# The corner a read of this base falls to, named: what a promote copies from.
-_MODEL_OF_WHOSE = """
-SELECT holder FROM knowledge_bases
 WHERE org = $1 AND env = $2 AND holder IN ($3, '') AND base = $4
 ORDER BY holder DESC LIMIT 1
 """
@@ -230,15 +203,6 @@ class PgKnowledge:
         """The files of this base kept whole, for the static block, in a folder's order."""
         rows = await self._pool.fetch(_WHOLE, org, env, whose(holder), base)
         return [KnowledgeFile(str(row["path"]), str(row["text"]), "whole") for row in rows]
-
-    async def copy(self, org: str, env: Env, holder: str | None, base: str, to: Env) -> int:
-        """This corner's base as the org's own base of another world; how many chunks went."""
-        # `whose` answers the corner the read falls to, so a developer promoting a base only the
-        # org pushed copies the org's — the very rows the golden ranked.
-        corner = await self._pool.fetchrow(_MODEL_OF_WHOSE, org, env, whose(holder), base)
-        if corner is None:
-            return 0
-        return len(await self._pool.fetch(_COPY, org, env, to, base, str(corner["holder"])))
 
     async def bases(self, org: str, env: Env, holder: str | None = None) -> list[Base]:
         """Every base this corner can read in this world: its own, and the org's for a name it

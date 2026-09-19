@@ -253,7 +253,8 @@ m_b3796f3579fc  you@example.com  admin  runs this box
   Open the link above to set a password. Then, in the directory of an agent:
 
     pinecall login https://box.example.com
-    pinecall run
+    pinecall link
+    pinecall start
 ```
 
 `init` makes the org, invites its first **admin**, and makes that person an **operator** of this
@@ -281,11 +282,13 @@ open this to sign in:
 https://box.example.com/cli?c=cli_…
 
 waiting…
-▸ box · https://box.example.com · org pinecall · sandbox
+signed in to https://box.example.com as You
+$ pinecall link
+▸ pinecall · PINECALL_KEY and PINECALL_URL written to .env
 
-$ pinecall run
-clinica-norte · pinecall · sandbox · connected to https://box.example.com · key from profile · tools 5 · doors phone +34910000000, whatsapp +34910000000, web
-console  `pinecall serve` opens it on this machine (or `pinecall run --serve`)
+$ pinecall start
+clinica-norte · pinecall · sandbox · connected to https://box.example.com · key from .env · tools 5 · doors phone +34910000000, whatsapp +34910000000, web
+console  `pinecall serve` opens it on this machine (or `pinecall start --serve`)
 line     rings in this terminal
 ```
 
@@ -302,19 +305,15 @@ $ pinecall chat
 › Buenos días. Para buscar su cita necesito su nombre completo y un teléfono de contacto.
 ```
 
-**That key opens the sandbox**, which is the world a person's login gives them. What answers your
-customers is a key issued for a machine:
-
-```bash
-pinecall keys issue --label "the prod server" --scope app     # printed once
-pinecall login --key-stdin https://box.example.com < the-key  # on that server
-pinecall run --env production
-```
-
-`--env` asserts and never selects: a key opens one world, so the flag is you saying which one you
-believe you hold, and the verb stops when the key disagrees. A person's key does not open `app` in
-production at all — what holds a deployed slug is a key issued for a server, never a laptop that
-logged in.
+**That key is yours, and a request that names no world runs in the sandbox.** The same key acts in
+production only while your member row opens it — an admin always does; anybody else has the
+`production` switch an admin turns on in Team — and only when the request says so (`pinecall-env:
+production`; from a terminal, `pinecall start --prod`). What answers your customers is normally a
+**server's token**: made in this box's console (Tokens ▸ New server token, production), shown
+once, `pc_live_…`, and put in the server's secrets as `PINECALL_KEY`. It belongs to the org and
+outlives whoever made it; it opens production and nothing else, so a request naming the sandbox is
+`403`. The same token pushes the knowledge base in the release step: production is written
+directly, and the goldens run in CI before the deploy.
 
 ### Or on the box itself
 
@@ -335,7 +334,10 @@ of its own under `/var/lib/pinecall/apps/<name>`, sources its `.env` credential 
 `pinecall run --env production ${PINECALL_AGENT:-}` against the gateway on loopback: a
 `PINECALL_AGENT` in that `.env` names the agent file to run when the app's repo holds several, and
 with none `pinecall run` runs what the directory holds — its `agent.tsx`, or at a project's root
-every agent of the project. Its journal is the app's stdout: `journalctl -u pinecall-app@<name> -f`. It is the
+every agent of the project. The unit says `run` and `login --key-stdin` because the apps it holds
+today install `pinecall@0.4.0`, which has neither `start` nor `PINECALL_KEY`; a `pinecall` that
+does reads the token from the `.env` credential and runs `pinecall start --prod`. Its journal is
+the app's stdout: `journalctl -u pinecall-app@<name> -f`. It is the
 org's production holder, so nothing else — no laptop — should hold that slug in production.
 
 Every verb, with its own outputs: [from-zero.md](from-zero.md) and the agents repo's
@@ -453,7 +455,7 @@ propia máquina: la consola sigue `prefers-color-scheme` y se estampa el tema so
 La consola vive en `/` y la sirve el gateway. Un tab guarda **la key de una persona**, en
 `sessionStorage`, y muere con el tab: nunca la del org, nunca en una URL. Se entra de dos maneras —
 abriendo `https://<tu dominio>` y poniendo contraseña, o por el link con código de un solo uso que
-`pinecall run` imprime.
+`pinecall start` imprime.
 
 Arriba a la derecha, en cada pantalla: el org, la key que ese tab sostiene y quién está mirando.
 Es la pregunta que contesta `pinecall whoami`, sobre la pantalla.
@@ -469,8 +471,9 @@ La portada. **Qué agentes hay sostenidos en este momento**, con las puertas que
 `phone · web · whatsapp` son las tres de Clínica Norte. Es la tabla viva del gateway y no el
 registro: un agente que ningún proceso sostiene no contesta ninguna llamada, y por eso no está.
 
-El interruptor `production | sandbox` de arriba cambia de mundo acuñando la key del otro para la
-misma persona. Una key abre un mundo y sólo uno.
+El interruptor `production | sandbox` de arriba cambia el mundo de cada pedido (el header
+`pinecall-env`) con la misma key: una persona tiene una sola. Production se abre sólo si su fila
+lo dice — un admin siempre; los demás, si un admin les prendió `production` en Team.
 
 <picture>
   <source srcset="images/dark/live.png" media="(prefers-color-scheme: dark)">
@@ -565,9 +568,11 @@ acá se trae el carrier y se importa un número.
   <img src="images/light/keys.png" alt="Keys">
 </picture>
 
-**Keys**: las keys de la org por huella, nunca por valor. Qué mundo abre cada una, para qué es y de
-quién: una key de persona lleva su nombre, una de máquina dice `a machine`. Revocar deja la fila,
-así que las llamadas que esa key escribió se siguen leyendo.
+**Tokens**: las keys de la org por huella, nunca por valor — cada token de servidor y las keys
+propias de quien mira (todas, para un admin), con quién hizo cada una y cuándo se usó por última
+vez. Un token de servidor se crea acá (New server token), para un mundo, y es de la org: sobrevive
+a quien lo hizo; una key de persona lleva su nombre y no tiene mundo. Revocar deja la fila, así que
+las llamadas que esa key escribió se siguen leyendo.
 
 <picture>
   <source srcset="images/dark/providers.png" media="(prefers-color-scheme: dark)">
@@ -585,7 +590,8 @@ las que el tenant trajo propias, que viajan cifradas y no se leen de vuelta desd
 **Team**: la gente de la org, su rol y su estado. Invitar imprime un link de un solo uso que abre la
 pantalla de contraseña; el operador entrega el link y nunca una contraseña. Si el email ya tiene
 contraseña en esta box, no hay link: queda `active` en el acto, entra con la contraseña que ya
-tiene, y la org nueva aparece en su selector de orgs. Un rol es un preset de scopes y nada más.
+tiene, y la org nueva aparece en su selector de orgs. Un rol es un preset de scopes y nada más;
+el interruptor `production` de cada persona dice si puede hacerlo en production.
 
 <picture>
   <source srcset="images/dark/usage.png" media="(prefers-color-scheme: dark)">

@@ -8,9 +8,9 @@ import pytest
 from starlette.testclient import TestClient
 
 from pinecall.api.agents.registry import Registry
-from pinecall.api.login import ONE_WORLD_EACH
-from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
+from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
+from pinecall.auth.world import ENV_HEADER
 from pinecall.log.store import MemoryStore
 from pinecall.types import PRODUCTION, SANDBOX, Member
 from pinecall_protocol import defs
@@ -31,10 +31,16 @@ ANA = KeyRecord(
     name="Ana",
 )
 
-# The row her key's subject names. A key for a person is minted from a member, so a world it is
-# asked to look into is read off that member's role and not off the key that asked.
+# The row her key's subject names, and the org lets her act in production: a request of hers that
+# names production is read there (auth/world.py).
 A_MEMBER = Member(
-    id="m_ana", org=A_RECORD.org, email="ana@acme.com", name="Ana", role="manager", status="active"
+    id="m_ana",
+    org=A_RECORD.org,
+    email="ana@acme.com",
+    name="Ana",
+    role="manager",
+    status="active",
+    production=True,
 )
 
 
@@ -57,10 +63,13 @@ def posted(gateway: TestClient, path: str, body: object, bearer: str) -> tuple[i
     return status, said
 
 
-def listed(gateway: TestClient, path: str, bearer: str) -> tuple[int, list[Json]]:
-    """A door that answers a list, which `got` does not type."""
+def listed(
+    gateway: TestClient, path: str, bearer: str, world: str = SANDBOX
+) -> tuple[int, list[Json]]:
+    """A door that answers a list, which `got` does not type, in the world the request names."""
     handle: Any = gateway
-    answer: Any = handle.get(path, headers={"Authorization": f"Bearer {bearer}"})
+    headers = {"Authorization": f"Bearer {bearer}", ENV_HEADER: world}
+    answer: Any = handle.get(path, headers=headers)
     status: int = answer.status_code
     rows: list[Json] = answer.json()
     return status, rows
@@ -82,7 +91,7 @@ async def test_usage_is_the_orgs_own_rows_and_totals_and_a_cursor(
     assert (empty["rows"], empty["totals"], empty["next"]) == ([], None, None)
 
 
-async def test_numbers_are_the_orgs_doors_in_the_keys_world_with_their_source(
+async def test_numbers_are_the_orgs_doors_in_the_world_asked_with_their_source(
     gateway: TestClient, registry: Registry
 ) -> None:
     await registry.register(
@@ -92,7 +101,8 @@ async def test_numbers_are_the_orgs_doors_in_the_keys_world_with_their_source(
         AGENT,
         [defs.Route(channel="phone", number="+34910000000")],
     )
-    status, doors = listed(gateway, "/v1/numbers", ANAS_KEY)
+    assert listed(gateway, "/v1/numbers", ANAS_KEY)[1] == [], "the sandbox has no number"
+    status, doors = listed(gateway, "/v1/numbers", ANAS_KEY, PRODUCTION)
     assert status == 200
     assert [(door["route"]["number"], door["source"]) for door in doors] == [
         ("+34910000000", "app")
@@ -103,29 +113,3 @@ def test_the_tables_ask_their_own_scope(gateway: TestClient) -> None:
     """The org's machine key opens them all; a key without the scope is told what it opens."""
     assert got(gateway, "/v1/usage", A_KEY)[0] == 200
     assert got(gateway, "/v1/numbers", A_KEY)[0] == 200
-
-
-def test_a_person_looks_the_other_way_and_holds_a_key_for_that_world_too(
-    gateway: TestClient,
-) -> None:
-    status, said = posted(gateway, "/v1/login/env", {"env": SANDBOX}, ANAS_KEY)
-    assert status == 200, said
-    assert (said["env"], said["subject"], said["name"], said["label"]) == (
-        SANDBOX,
-        "m_ana",
-        "Ana",
-        "laptop",
-    )
-    assert said["scopes"] == sorted(A_MEMBER.scopes), "her role, in that world"
-    _, who = got(gateway, "/v1/whoami", str(said["key"]))
-    assert (who["env"], who["subject"]) == (SANDBOX, "m_ana")
-
-
-def test_an_orgs_machine_key_is_one_worlds_and_a_world_that_is_none_is_refused(
-    gateway: TestClient,
-) -> None:
-    status, said = posted(gateway, "/v1/login/env", {"env": SANDBOX}, A_KEY)
-    assert (status, said["detail"]) == (403, ONE_WORLD_EACH)
-    status, said = posted(gateway, "/v1/login/env", {"env": "staging"}, ANAS_KEY)
-    assert status == 400 and "staging" in str(said["detail"])
-    assert NOT_OPENED  # the sentence the scoped doors refuse with, pinned elsewhere

@@ -37,7 +37,7 @@ uv run pinecall-runtime worker dev                 the fleet that answers a call
 uv run pinecall-runtime doctor                     every service and key, one line each
 ```
 
-Then, from an example in the agents repository, `pinecall run` registers the agent and
+Then, from an example in the agents repository, `pinecall start` registers the agent and
 `pinecall chat` talks to it. `pinecall knowledge push ./knowledge/docs --base clinica-norte`
 puts the agent's files where its `search` tool reads from, and `pinecall memory
 <contact>` prints what a caller's calls taught the agent (`memory forget` erases it). Both are
@@ -175,7 +175,7 @@ they arrive as systemd credentials — and need a LiveKit server, a Postgres 17 
 | `fleet list · cordon · uncordon · loop` | the workers as the hub hears them, the graceful shrink, and the loop that keeps `busy` at the target over any cloud |
 | `providers [--does llm\|stt\|tts]` | every vendor this build runs — forty-five — as a table: what each does, whether this box has its plugin and its key, the variable a key goes under, and every other word the vendor answers to. Reads the catalog and this process's settings; asks nothing of anybody, so it answers on a box that is down. Never a key |
 | `orgs list · add · invite · operator · remove-member · move · rm · quota · dialling · provider-key · sso` | the tenants: a person invited (no link for somebody who already has a password on this box: they are seated at once), a person made an operator of the box, a person removed from an org for good (keys revoked, the seat free; refused for its last active admin), an agent moved to the org it belongs to, their quotas (`--minutes --messages --agents --concurrent-calls --memory-facts --knowledge-chunks --numbers --seats`, the whole set at once; a flag left out is no limit and `0` refuses everything; `--budget-eur` beside them is shown, never refused), what it may dial out (`--dial-anywhere --per-minute --per-day --max-duration-s`, the whole set; a guard left out goes back to the code's default), the vendor keys an org brings, which identity provider an org signs in with (`orgs sso <org>`, and `--off` the break-glass that lets a password open it again while that provider is down) |
-| `keys issue · list · revoke` | an org's API keys: printed once, listed by fingerprint, revoked by UPDATE. `issue --env production\|sandbox --scope … --subject … --name …`: which world the key opens, what it may do there (left out, every scope but `fleet`), whose it is |
+| `keys issue · list · revoke` | an org's API keys, the operator's way in: printed once, listed by fingerprint, revoked by UPDATE. `issue --env production\|sandbox --scope … --subject … --name …`: which world the key opens (`pc_live_…`, `pc_test_…`), what it may do there (left out, every scope but `fleet`), whose it is — with `--subject` a person's (`pc_…`), whose world each request names. A tenant makes its servers' tokens itself, in the console's Tokens screen |
 | `routes list · add · rm · seed` | which agent answers a number, from the next call; `--env` says in which world |
 
 **Reading a call**

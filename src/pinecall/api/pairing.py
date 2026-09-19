@@ -8,7 +8,6 @@ from fastapi import APIRouter, HTTPException, Response
 
 from pinecall.api._deps import KeyDep, KeysDep, MembersDep, PairingsDep
 from pinecall.api.login import for_the_same_person
-from pinecall.types import SANDBOX
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -67,10 +66,10 @@ async def approve(
         raise HTTPException(404, NO_PAIRING)
     if asked.answered:
         raise HTTPException(409, ANSWERED)
-    # A terminal is a laptop and a laptop is where things are written, so the key it is handed
-    # opens SANDBOX: `pinecall run` and `pinecall chat` answer in a world of the person's own
-    # and never in the one their customers call. docs/worlds-and-teams.md.
-    issued = await for_the_same_person(key, SANDBOX, asked.device, keys, members)
+    # The terminal's key is the person's own, as every key of theirs: what it opens in production
+    # is what their row says (auth/world.py), and a request names no world unless `--prod` says
+    # so. docs/worlds-and-teams.md.
+    issued = await for_the_same_person(key, asked.device, keys, members)
     if not pairings.fill(code, str(issued["key"]), key.org):
         raise HTTPException(409, ANSWERED)
     return {"device": asked.device, "org": key.org}

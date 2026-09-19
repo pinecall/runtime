@@ -3,7 +3,7 @@
 import httpx
 import pytest
 
-from pinecall.auth.keys import MemoryKeys, fingerprint
+from pinecall.auth.keys import PRODUCTION_PREFIX, MemoryKeys, fingerprint
 from pinecall.types import KEY_SCOPES
 from tests.api.conftest import AN_OPS_KEY, over_the_asgi_app
 
@@ -27,7 +27,7 @@ async def test_issuing_answers_with_the_key_and_the_record_it_was_written_under(
 ) -> None:
     """The one door in the runtime that carries a key in the clear, and it carries it once."""
     issued = await issue(ops_http, label="the worker on this box")
-    assert str(issued["key"]).startswith("pk_")
+    assert str(issued["key"]).startswith(PRODUCTION_PREFIX)
     assert (issued["org"], issued["label"]) == (ORG, "the worker on this box")
     assert await keys.verify(str(issued["key"])) is not None
 

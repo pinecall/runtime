@@ -38,7 +38,7 @@ from pinecall.auth.openid import (
 )
 from pinecall.auth.sso import Handshake
 from pinecall.orgs.admission import Admission, QuotaExhausted
-from pinecall.types import PRODUCTION, Member, Org, OrgSso, a_domain, for_a_person
+from pinecall.types import SANDBOX, Member, Org, OrgSso, a_domain
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -49,7 +49,7 @@ router = APIRouter()
 FOUND = 302
 
 # Where the person lands with the word that mints their key. The console spends it at
-# POST /v1/login {code} exactly as it spends the one `pinecall run` prints (auth/codes.py), so
+# POST /v1/login {code} exactly as it spends the one `pinecall start` prints (auth/codes.py), so
 # no key is ever in a URL — and the console needed no new screen to learn this.
 THE_CONSOLE = "/"
 # …or the card that signs a terminal in, when `pinecall login` is what sent them here. The
@@ -261,17 +261,17 @@ async def _activated(members: Members, org: Org, member: Member) -> Member:
     return seated
 
 
-# The same word `pinecall run` prints and the console already knows how to spend, standing for a
+# The same word `pinecall start` prints and the console already knows how to spend, standing for a
 # key that does not exist yet: the browser spending it is what mints one, labelled as a console's,
-# in production and with what this person's role opens there (api/login.py:_with_a_code).
+# the person's own and with what their role opens (api/login.py:_with_a_code).
 def a_way_in(member: Member, codes: LoginCodes) -> str:
     """A one-use login code for this person, good for five minutes and for one browser."""
     record = KeyRecord(
         key_id=NO_KEY_YET,
         org=member.org,
         label=A_BROWSER,
-        env=PRODUCTION,
-        scopes=for_a_person(member.scopes, PRODUCTION),
+        env=SANDBOX,
+        scopes=member.scopes,
         subject=member.id,
         name=member.name,
     )

@@ -113,9 +113,9 @@ async def test_a_person_the_provider_vouches_for_lands_on_a_one_use_way_in(
     assert minted.status_code == 200
     said = minted.json()
     assert said["subject"] == NICO.id and said["org"] == AN_ORG.id
-    assert said["env"] == "production" and said["label"] == A_BROWSER
-    # A person's key holds no `app` in production, whatever their role opens in the sandbox.
-    assert "app" not in said["scopes"] and "calls" in said["scopes"]
+    assert said["env"] == "sandbox" and said["label"] == A_BROWSER
+    # The person's own key: every door their role opens, and the world the request names.
+    assert said["scopes"] == sorted(NICO.scopes)
     # And the secret the exchange carried is the one the vault sealed and opened again.
     assert idp.secrets_seen == [CLIENT_SECRET]
 

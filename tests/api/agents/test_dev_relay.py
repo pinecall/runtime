@@ -112,7 +112,7 @@ async def test_nobody_holding_the_agent_is_404_and_a_console_alone_is_409(
     await holding(registry, live, takes_unclaimed=False)
     console_only = await tenant_http.post(f"{DEV}/evals/drift.read", json={})
     assert console_only.status_code == 409
-    assert "pinecall run" in console_only.json()["detail"]
+    assert "pinecall start" in console_only.json()["detail"]
     # Named by its app id, the console IS asked: that is how a developer's own terminal mounts.
     named = asyncio.create_task(tenant_http.post(f"{DEV}/evals/drift.read?app={AN_OWNER}", json={}))
     await asyncio.sleep(0.02)

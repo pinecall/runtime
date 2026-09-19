@@ -16,12 +16,12 @@ from pinecall.types import Member, MemberStatus, Role
 # (org, email) is UNIQUE, so a second invite of an accepted member is the conflict this INSERT
 # steps around: the row is read first and the decision made in Python, where the sentence is.
 _INSERT = """
-INSERT INTO members (id, org, email, name, role, agents, status)
-VALUES ($1, $2, $3, $4, $5, $6, 'invited')
+INSERT INTO members (id, org, email, name, role, agents, status, production)
+VALUES ($1, $2, $3, $4, $5, $6, 'invited', $7)
 """
 
 _LISTED = """
-SELECT id, org, email, name, role, agents, status, operator, password_hash, created_at
+SELECT id, org, email, name, role, agents, status, operator, production, password_hash, created_at
   FROM members
  WHERE org = $1
  ORDER BY created_at, id
@@ -32,13 +32,13 @@ SELECT id, org, email, name, role, agents, status, operator, password_hash, crea
 _SEATED = "SELECT count(*) AS seated FROM members WHERE org = $1 AND status <> 'disabled'"
 
 _FIND = """
-SELECT id, org, email, name, role, agents, status, operator, password_hash, created_at
+SELECT id, org, email, name, role, agents, status, operator, production, password_hash, created_at
   FROM members
  WHERE org = $1 AND id = $2
 """
 
 _BY_EMAIL = """
-SELECT id, org, email, name, role, agents, status, operator, password_hash, created_at
+SELECT id, org, email, name, role, agents, status, operator, production, password_hash, created_at
   FROM members
  WHERE org = $1 AND email = $2
 """
@@ -46,22 +46,25 @@ SELECT id, org, email, name, role, agents, status, operator, password_hash, crea
 # COALESCE is "a field left None keeps what it had", in the table's own words.
 _UPDATE = """
 UPDATE members
-   SET role = COALESCE($3, role), agents = COALESCE($4, agents), status = COALESCE($5, status)
+   SET role = COALESCE($3, role), agents = COALESCE($4, agents), status = COALESCE($5, status),
+       production = COALESCE($6, production)
  WHERE org = $1 AND id = $2
-RETURNING id, org, email, name, role, agents, status, operator, password_hash, created_at
+RETURNING id, org, email, name, role, agents, status, operator, production, password_hash,
+          created_at
 """
 
 # A disabled member stays disabled: a link issued before they were is spent and opens nothing.
 _ACTIVATE = """
 UPDATE members SET status = 'active', password_hash = $2 WHERE id = $1 AND status <> 'disabled'
-RETURNING id, org, email, name, role, agents, status, operator, password_hash, created_at
+RETURNING id, org, email, name, role, agents, status, operator, production, password_hash,
+          created_at
 """
 
 # A person who already exists on this box joins a second org seated: the row is active from the
 # start and carries the hash they already have, so there is no link and no second password.
 _INSERT_SEATED = """
-INSERT INTO members (id, org, email, name, role, agents, status, password_hash)
-VALUES ($1, $2, $3, $4, $5, $6, 'active', $7)
+INSERT INTO members (id, org, email, name, role, agents, status, password_hash, production)
+VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $8)
 """
 
 # The newest hash any row of this email holds: the person's password, whichever org chose it.
@@ -74,7 +77,7 @@ SELECT password_hash
 """
 
 _ORGS_OF = """
-SELECT id, org, email, name, role, agents, status, operator, password_hash, created_at
+SELECT id, org, email, name, role, agents, status, operator, production, password_hash, created_at
   FROM members
  WHERE email = $1
  ORDER BY created_at, id
@@ -91,14 +94,16 @@ UPDATE members SET password_hash = $2 WHERE email = $1 AND password_hash IS NOT 
 _JOIN = """
 UPDATE members SET status = 'active', password_hash = $3
  WHERE org = $1 AND id = $2 AND status = 'invited'
-RETURNING id, org, email, name, role, agents, status, operator, password_hash, created_at
+RETURNING id, org, email, name, role, agents, status, operator, production, password_hash,
+          created_at
 """
 
 # The box's own write, and the only one that is not the org's: fenced by the org like every other
 # read, so an id from one tenant cannot name a member of another.
 _MAKE_OPERATOR = """
 UPDATE members SET operator = $3 WHERE org = $1 AND id = $2
-RETURNING id, org, email, name, role, agents, status, operator, password_hash, created_at
+RETURNING id, org, email, name, role, agents, status, operator, production, password_hash,
+          created_at
 """
 
 # Fenced by the org like every other statement here. The invitations go with the row by their own
@@ -127,7 +132,14 @@ class PostgresMembers:
         self._pool = pool
 
     async def invite(
-        self, org: str, email: str, name: str, role: Role, agents: Iterable[str]
+        self,
+        org: str,
+        email: str,
+        name: str,
+        role: Role,
+        agents: Iterable[str],
+        *,
+        production: bool = False,
     ) -> Invited | None:
         """The row when there is none yet, then the token; a still-invited member gets a new one."""
         email = an_address(email)
@@ -142,16 +154,25 @@ class PostgresMembers:
                 name=name,
                 role=role,
                 agents=frozenset(agents),
+                production=production,
             )
             known = await self.a_persons_password(email)
             if known is not None:
                 member = replace(member, status="active")
                 await self._pool.execute(
-                    _INSERT_SEATED, member.id, org, email, name, role, sorted(member.agents), known
+                    _INSERT_SEATED,
+                    member.id,
+                    org,
+                    email,
+                    name,
+                    role,
+                    sorted(member.agents),
+                    known,
+                    production,
                 )
                 return Invited(member=member, token=None, expires_at=None)
             await self._pool.execute(
-                _INSERT, member.id, org, email, name, role, sorted(member.agents)
+                _INSERT, member.id, org, email, name, role, sorted(member.agents), production
             )
         else:
             member = kept.member
@@ -231,10 +252,17 @@ class PostgresMembers:
         role: Role | None = None,
         agents: Iterable[str] | None = None,
         status: MemberStatus | None = None,
+        production: bool | None = None,
     ) -> Member | None:
         """One UPDATE; NULL for a field left alone, which COALESCE turns into the column's own."""
         row = await self._pool.fetchrow(
-            _UPDATE, org, id, role, None if agents is None else sorted(agents), status
+            _UPDATE,
+            org,
+            id,
+            role,
+            None if agents is None else sorted(agents),
+            status,
+            production,
         )
         return None if row is None else a_member_of_row(row)
 

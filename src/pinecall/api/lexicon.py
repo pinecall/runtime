@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query
 
 from pinecall.api._deps import TuningDep
-from pinecall.api.tuning import TuningKeyDep, a_lexicon_row, corner_written, refuse_in_production
+from pinecall.api.tuning import TuningKeyDep, a_lexicon_row, corner_written
 from pinecall.auth.corner import author_of
 from pinecall.auth.keys import KeyRecord, held_by
 from pinecall.orgs.tuning import HISTORY_LIMIT, TuningStore, VersionMoved
@@ -15,8 +15,6 @@ from pinecall.types import HOLDING, PRODUCTION, THE_ORGS_OWN, DeclarationRefused
 from pinecall_protocol.rest import LexiconAnswer, LexiconBody, LexiconHistory, LexiconPut
 
 router = APIRouter()
-
-PROMOTE_LEXICON = "POST /v1/lexicon/promote with to=production"
 
 
 def a_lexicon(body: LexiconBody) -> Lexicon:
@@ -38,7 +36,6 @@ async def lexicon(key: TuningKeyDep, kept: TuningDep) -> LexiconAnswer:
 @router.put("/v1/lexicon")
 async def set_lexicon(said: LexiconPut, key: TuningKeyDep, kept: TuningDep) -> LexiconAnswer:
     """Set the lexicon in this key's corner, or the team's: a new version."""
-    refuse_in_production(key, PROMOTE_LEXICON)
     corner = corner_written(key, said.team)
     wanted = a_lexicon(said.lexicon)
     try:

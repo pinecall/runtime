@@ -11,7 +11,7 @@ the tests that hold it.
 
 **This is a public contract.** A tenant who reads it can predict exactly where their own words end
 up in a request and where a retrieved sentence ends up, and can check it with
-`pinecall run --show-prompt` and the call's own log.
+`pinecall start --show-prompt` and the call's own log.
 
 ## The rule
 

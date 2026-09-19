@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass, replace
 from typing import Literal, Protocol
 
-from pinecall.auth.keys import CHANGED_NOTHING
+from pinecall.auth.keys_postgres import CHANGED_NOTHING
 from pinecall.log.store import Pool
 
 # What spending a call's token comes back as. `spent` is the one yes; the two refusals are told

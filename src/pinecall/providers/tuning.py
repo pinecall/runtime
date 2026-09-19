@@ -65,7 +65,7 @@ def tuned(declared: AgentConfig, tuning: Tuning, lexicon: Lexicon) -> AgentConfi
 
 # What a class still declares of the environment — a voice, the models, an opening, what it
 # remembers, the base it reads — as the tuning a world with nothing set is seeded with, once: the
-# first `pinecall run` of any developer gives the team's sandbox its v1, and the box's own app
+# first `pinecall start` of any developer gives the team's sandbox its v1, and the box's own app
 # gives production its. Read off the WIRE and not the resolved config, because the wire still
 # carries the voice's name and the resolved config only its id. None when the class declares
 # nothing of it, which is what a class written for the world to own looks like.

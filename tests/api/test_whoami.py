@@ -28,6 +28,7 @@ def test_the_door_names_the_org_the_key_belongs_to(gateway: TestClient) -> None:
         "name": None,
         "operator": False,
         "visiting": False,
+        "production": True,
     }
 
 

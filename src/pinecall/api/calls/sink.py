@@ -16,9 +16,9 @@ from pinecall._settings import Settings
 from pinecall.api._deps import SCOPE_OF_THE_DOOR, KeysDep, MembersDep, SettingsDep
 from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.auth.bearer import bearer_of
-from pinecall.auth.corner import in_the_corner_asked
 from pinecall.auth.keys import Keys, is_the_fleets, not_opening
 from pinecall.auth.scopes import LivekitKeys, Reader, a_reader, secret_for
+from pinecall.auth.world import as_asked
 from pinecall.log.entry import Entry
 from pinecall.log.filters import Filter, FilterRefused
 from pinecall.log.projection import project_entry
@@ -103,10 +103,10 @@ async def the_reader(
     reader = await reading(connection, keys, settings, token)
     if reader is None:
         raise HTTPException(401, "a log is read with a key", {"WWW-Authenticate": "Bearer"})
-    # A key reads in its own corner, or in the colleague's an admin named (auth/corner.py).
+    # A key reads in the world it names, in its own corner or the colleague's an admin named.
     if reader.key is not None:
         try:
-            looking = await in_the_corner_asked(reader.key, connection.headers, members)
+            looking = await as_asked(reader.key, connection.headers, members)
         except PermissionError as refused:
             raise HTTPException(403, str(refused)) from refused
         if looking is not reader.key:

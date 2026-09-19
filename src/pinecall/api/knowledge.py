@@ -7,12 +7,12 @@ import time
 from fastapi import APIRouter, HTTPException
 
 from pinecall.api._deps import AdmissionDep, KeptKnowledgeDep, KnowledgeKeyDep, TuningDep
-from pinecall.api.knowledge_promote import router as promote_router
 from pinecall.auth.keys import held_by
 from pinecall.knowledge.scoring import Answered, Question, Score, scored
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.types import KnowledgeFile
-from pinecall.types.knowledge import DEFAULT_CHUNKS_PER_TURN
+from pinecall.types.counting import estimated_tokens
+from pinecall.types.knowledge import DEFAULT_CHUNKS_PER_TURN, HEAVY_WHOLE_TOKENS
 from pinecall_protocol.rest import (
     GoldenMiss,
     KnowledgeBase,
@@ -26,11 +26,18 @@ from pinecall_protocol.rest import (
 )
 
 router = APIRouter()
-router.include_router(promote_router)
 
 # Dropping a name nobody pushed is a typo, and a verb that answered yes to it would send the
 # tenant looking for the change somewhere else. 404, and the org is never named: it is the key's.
 NO_SUCH_BASE = "no knowledge base named {base}: nothing was pushed under that name"
+
+# What a push past the heavy line is told. It landed: the sentence says what it costs, and the
+# way to pay less, and nothing about it is an error.
+HEAVY = (
+    "{base}: the files kept whole come to about {tokens} tokens, and every call of an agent "
+    "reading this base carries them in its prompt. Past {heavy}, a file a turn searches costs "
+    "less: push it without --whole."
+)
 
 # A drop has nothing to say back. The same number every removal in this runtime answers.
 NO_BODY = 204
@@ -65,7 +72,16 @@ async def push(
         # push` prints it, and it names both figures — what this would keep, and what the cap is.
         raise HTTPException(429, str(refused)) from refused
     chunks = await knowledge.put(key.org, key.env, held_by(key), base, files)
-    return KnowledgePushed(base=base, chunks=chunks, took_ms=(time.perf_counter() - started) * 1000)
+    whole = sum(estimated_tokens(file.text) for file in files if file.mode == "whole")
+    return KnowledgePushed(
+        base=base,
+        chunks=chunks,
+        took_ms=(time.perf_counter() - started) * 1000,
+        whole_tokens=whole,
+        notice=HEAVY.format(base=base, tokens=f"{whole:,}", heavy=f"{HEAVY_WHOLE_TOKENS:,}")
+        if whole > HEAVY_WHOLE_TOKENS
+        else None,
+    )
 
 
 @router.get("/v1/knowledge")

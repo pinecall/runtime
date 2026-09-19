@@ -75,10 +75,11 @@ class StandingKeys:
         scopes: frozenset[str] = KEY_SCOPES,
         subject: str | None = None,
         name: str | None = None,
+        created_by: str | None = None,
     ) -> Issued:
         """Straight through to the table."""
         return await self._keys.issue(
-            org, label, env=env, scopes=scopes, subject=subject, name=name
+            org, label, env=env, scopes=scopes, subject=subject, name=name, created_by=created_by
         )
 
     async def listed(self, org: str) -> tuple[ListedKey, ...]:
@@ -88,3 +89,7 @@ class StandingKeys:
     async def revoke(self, hashed: str) -> bool:
         """Straight through to the table."""
         return await self._keys.revoke(hashed)
+
+    async def touch(self, key_id: str) -> None:
+        """Straight through to the table."""
+        await self._keys.touch(key_id)

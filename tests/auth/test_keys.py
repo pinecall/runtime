@@ -8,14 +8,16 @@ import pytest
 
 from pinecall._settings import Settings
 from pinecall.auth.keys import (
-    KEY_PREFIX,
+    PERSONS_PREFIX,
+    PRODUCTION_PREFIX,
+    SANDBOX_PREFIX,
     KeyRecord,
     MemoryKeys,
-    PostgresKeys,
     fingerprint,
     keys_for,
     mint,
 )
+from pinecall.auth.keys_postgres import PostgresKeys
 from pinecall.auth.visiting import StandingKeys
 from pinecall.log.store.postgres import MIGRATIONS
 from pinecall.types import ENVS, KEY_SCOPES, PRODUCTION, SANDBOX
@@ -43,10 +45,14 @@ async def test_memory_keys_answers_only_what_it_issued() -> None:
     assert await keys.verify("pk_live_something_else") is None
 
 
-def test_a_minted_key_is_new_every_time_and_says_what_it_is() -> None:
-    """A key is 256 bits of CSPRNG under a prefix, so one pasted anywhere is recognisable."""
-    assert mint() != mint()
-    assert mint().startswith(KEY_PREFIX)
+def test_a_minted_key_is_new_every_time_and_says_whose_it_is() -> None:
+    """A key is 256 bits of CSPRNG under a prefix, so one pasted anywhere is recognisable: a
+    person's, or a server's token and the world it was made for."""
+    assert mint(PRODUCTION, None) != mint(PRODUCTION, None)
+    assert mint(PRODUCTION, None).startswith(PRODUCTION_PREFIX)
+    assert mint(SANDBOX, None).startswith(SANDBOX_PREFIX)
+    assert mint(SANDBOX, "m_1").startswith(PERSONS_PREFIX)
+    assert not mint(SANDBOX, "m_1").startswith(SANDBOX_PREFIX)
 
 
 async def test_a_revoked_key_stops_verifying_and_its_row_stays_in_the_listing() -> None:
@@ -150,6 +156,7 @@ async def test_postgres_issue_writes_the_world_the_scopes_sorted_and_the_person(
         ["calls", "talk"],
         "m_1",
         "B",
+        None,
     ]
 
 

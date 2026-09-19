@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 import httpx
 import pytest
 
-from pinecall.auth.keys import KeyRecord, MemoryKeys
+from pinecall.auth.keys import PERSONS_PREFIX, KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.pairing import CODE_TTL_S, Pairings
 from pinecall.types import PRODUCTION, SANDBOX, Member
@@ -84,7 +84,7 @@ async def test_the_terminal_waits_until_the_browser_answers_and_then_gets_a_key(
     collected = await terminal.get(f"{PAIRINGS}/{code}/key")
 
     assert collected.status_code == 200
-    assert collected.json()["key"].startswith("pk_")
+    assert collected.json()["key"].startswith(PERSONS_PREFIX)
 
 
 async def test_the_key_the_terminal_gets_is_its_own_and_never_the_browsers(

@@ -5,7 +5,7 @@ import io
 import httpx
 import pytest
 
-from pinecall.auth.keys import fingerprint
+from pinecall.auth.keys import PRODUCTION_PREFIX, fingerprint
 from pinecall.cli.keys.verbs import issue_key, list_keys, revoke_key
 from pinecall.cli.operator import Operator, OperatorRefused
 
@@ -40,7 +40,7 @@ async def test_issue_prints_the_key_alone_on_stdout_and_the_words_about_it_on_st
     assert await issue_key(ORG, "the worker on this box", operator, out) == 0
     assert out.getvalue().splitlines() == [out.getvalue().strip()]
     key = out.getvalue().strip()
-    assert key.startswith("pk_") and " " not in key
+    assert key.startswith(PRODUCTION_PREFIX) and " " not in key
     said = capsys.readouterr().err.splitlines()
     assert f"org {ORG}" in said[0]
     assert "production" in said[0]

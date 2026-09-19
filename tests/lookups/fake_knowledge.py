@@ -30,8 +30,6 @@ class ScriptedKnowledge:
     failing: Exception | None = None
     searched: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
     pushed: dict[str, list[KnowledgeFile]] = field(default_factory=dict[str, list[KnowledgeFile]])
-    # (base, to): every copy a promote made, in order.
-    copied: list[tuple[str, str]] = field(default_factory=list[tuple[str, str]])
 
     async def put(
         self,
@@ -98,15 +96,3 @@ class ScriptedKnowledge:
     ) -> list[KnowledgeFile]:
         """The files pushed whole under that name, in the order they were pushed."""
         return [file for file in self.pushed.get(base, []) if file.mode == "whole"]
-
-    async def copy(
-        self,
-        org: str,  # noqa: ARG002 — the Protocol's shape
-        env: Env,  # noqa: ARG002 — the Protocol's shape
-        holder: str | None,  # noqa: ARG002 — the Protocol's shape
-        base: str,
-        to: Env,
-    ) -> int:
-        """Noted, and counted as a push of the same files would be."""
-        self.copied.append((base, to))
-        return self.how_many_chunks(self.pushed.get(base, []))

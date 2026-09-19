@@ -38,7 +38,7 @@ NOT_THAT_APP = "app {app} is not holding agent {slug}: it disconnected, or it ne
 # A call nobody claimed is refused here rather than dropped into whoever's terminal is open, which
 # is the whole point of the flag; the sentence says what to start so the agent answers in public.
 NO_UNCLAIMED = (
-    "agent {slug} is held only by apps that take no call they did not open: start `pinecall run`"
+    "agent {slug} is held only by apps that take no call they did not open: run `pinecall start`"
 )
 
 # A corner asked for the line of an agent it is not holding, or holds only in a console. A ring

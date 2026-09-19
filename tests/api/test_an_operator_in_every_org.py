@@ -12,7 +12,7 @@ from pinecall.api.login_orgs import AS_THE_OPERATOR, NOT_THERE
 from pinecall.auth.keys import MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.orgs.table import MemoryOrgs
-from pinecall.types import ROLE_SCOPES, Member, for_a_person
+from pinecall.types import ROLE_SCOPES, Member
 from tests.api.conftest import AN_ORG, over_the_asgi_app
 
 pytestmark = [pytest.mark.unit, pytest.mark.usefixtures("wired")]
@@ -52,7 +52,7 @@ async def a_key_of(keys: MemoryKeys, member: Member, env: str = "production") ->
         member.org,
         "console",
         env="sandbox" if env == "sandbox" else "production",
-        scopes=for_a_person(member.scopes, "production"),
+        scopes=member.scopes,
         subject=member.id,
         name=member.name,
     )
@@ -112,7 +112,7 @@ async def test_walking_in_mints_an_admins_production_key_that_says_whose_it_is_a
         "subject": A_VISITOR,
         "name": "Bernardo",
     }
-    assert issued["scopes"] == sorted(for_a_person(ROLE_SCOPES["admin"], "production"))
+    assert issued["scopes"] == sorted(ROLE_SCOPES["admin"] - {"app"})
     assert "app" not in issued["scopes"], "the box looks and mends; it deploys nothing"
     assert await members.listed(elsewhere) == () and await members.seated(elsewhere) == 0
     # The tenant reads whose key it is on its own Keys screen, and may revoke it there.
@@ -204,8 +204,6 @@ async def test_a_visitor_opens_no_sandbox_and_signs_no_terminal_in(
     operator = await a_key_of(keys, BERNA)
     inside = over_the_asgi_app(f"Bearer {(await walked_into(operator, elsewhere))['key']}")
 
-    sandbox = await inside.post("/v1/login/env", json={"env": "sandbox"})
-    assert (sandbox.status_code, sandbox.json()["detail"]) == (403, VISITS_PRODUCTION)
     pairing = (await inside.post("/v1/login/pairings", json={"device": "laptop"})).json()
     approved = await inside.post(f"/v1/login/pairings/{pairing['code']}")
     assert (approved.status_code, approved.json()["detail"]) == (403, VISITS_PRODUCTION)

@@ -59,7 +59,7 @@ async def test_accepting_makes_the_member_active_and_hands_them_their_first_key(
     tenant_http: httpx.AsyncClient, stranger: httpx.AsyncClient, keys: MemoryKeys
 ) -> None:
     said = await invited(tenant_http)
-    signed = await accepted(stranger, said["token"], env="sandbox")
+    signed = await accepted(stranger, said["token"])
     assert signed["member"]["status"] == "active"
     assert (signed["org"], signed["env"], signed["label"]) == (
         A_RECORD.org,
@@ -108,9 +108,10 @@ async def test_login_with_the_password_mints_a_key_for_that_person_and_device(
     assert signed.status_code == 200, signed.text
     body = signed.json()
     assert body["scopes"] == sorted(ROLE_SCOPES["supervisor"])
+    # The person's own key: no world of its own, so the column holds the sandbox (auth/persons.py).
     assert (body["label"], body["env"], body["subject"]) == (
         "phone",
-        "production",
+        "sandbox",
         said["member"]["id"],
     )
 

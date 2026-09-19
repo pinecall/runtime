@@ -19,7 +19,8 @@ from pinecall.api.login import NOBODY_ANYWHERE, the_client
 from pinecall.api.members import member_as_json
 from pinecall.auth import passwords
 from pinecall.auth.members import an_address
-from pinecall.types import PRODUCTION, DeclarationRefused, Member, Quotas, a_slug, for_a_person
+from pinecall.auth.persons import a_persons_key
+from pinecall.types import DeclarationRefused, Member, Quotas, a_slug
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -108,17 +109,8 @@ async def signup(
         invited.member if invited.token is None else await members.accept(invited.token, hashed)
     )
     assert member is not None
-    # Production, and so without `app`: what an admin holds here is every door of the org and not
-    # the right to hold an agent from a laptop. `pinecall signup` asks /v1/login/env for the
-    # sandbox key next, which is the world its `run` answers in.
-    issued = await keys.issue(
-        org=org.id,
-        label=said.device or SIGNED_UP,
-        env=PRODUCTION,
-        scopes=for_a_person(member.scopes, PRODUCTION),
-        subject=member.id,
-        name=member.name,
-    )
+    # The admin's own key, which opens production too: an admin always does (0039).
+    issued = await a_persons_key(keys, member, said.device or SIGNED_UP)
     minted = codes.mint(issued.record)
     return {
         **issued.as_json,

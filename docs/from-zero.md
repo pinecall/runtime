@@ -152,7 +152,8 @@ m_b3796f3579fc  berna@clinica.test  admin  runs this box
   Open the link above to set a password. Then, in the directory of an agent:
 
     pinecall login http://127.0.0.1:8080
-    pinecall run
+    pinecall link
+    pinecall start
 ```
 
 `init` is the whole bootstrap: the org, its first **admin**, and that person made an **operator**
@@ -167,62 +168,71 @@ listening there it cannot reach anything, and with *somebody else's* gateway lis
 answers `401: this door is the box's`. That 401 is worth reading twice: it means the key was
 refused, not that the command is wrong.
 
-Open the invitation link and set a password. That browser now holds a key of its own, in
-**production**, which is the world this gateway's console shows — and the only one. What a laptop
-runs is in the sandbox, and is watched on that laptop: `pinecall serve` (§6).
+Open the invitation link and set a password. That browser now holds a key of its own — Berna's,
+an admin's, and an admin always opens production — and this gateway's console shows production,
+and only production. What a laptop runs is in the sandbox, and is watched on that laptop:
+`pinecall serve` (§6).
 
-## 5. Sign a terminal in
+## 5. Sign a terminal in, and link the project
 
 ```console
-$ cd ../agents/examples/clinica-norte && pnpm install
 $ pinecall login http://127.0.0.1:8080
 
 open this to sign in:
 http://127.0.0.1:8080/cli?c=cli_…
 
 waiting…
-▸ local · http://127.0.0.1:8080 · org default · sandbox
+signed in to http://127.0.0.1:8080 as Berna
+$ cd ../agents/examples/clinica-norte && pnpm install
+$ pinecall link
+▸ default · PINECALL_KEY and PINECALL_URL written to .env
 ```
 
 The terminal prints a word, the browser approves it, and the terminal collects a key **of its
-own** — minted for the same person, labelled as this machine, revoked on its own from the Keys
-screen. No password is ever typed into a shell.
+own** — minted for the same person, labelled as this machine, revoked on its own from the Tokens
+screen. No password is ever typed into a shell. `pinecall link`, in a project's folder, asks
+which of your orgs the project is and writes your key for that org into the project's `.env`
+(`PINECALL_KEY`, and `PINECALL_URL` when the gateway is not the cloud's): a second project of
+another org is a second folder with its own `.env`, and nothing is ever switched. `link` signs
+the machine in first when it is not, so on a new laptop it is the one command to type.
 
-**The key it keeps opens the sandbox.** A laptop is where things are written.
+**It is the person's key, not a world's.** Each request names its world with the `pinecall-env`
+header, and one that names none runs in the sandbox — a laptop is where things are written. The
+same key reaches production only while the person's row opens it (below).
 
-It lives in `~/.pinecall/config.json` (0600) and nowhere else:
+Every verb reads `PINECALL_KEY` and `PINECALL_URL` from the process's environment, else from the
+nearest `.env` up from where it runs:
 
 ```console
-$ pinecall config
-▸ local  http://127.0.0.1:8080  default · sandbox
 $ pinecall whoami
-gateway http://127.0.0.1:8080 · key from profile
-org default · key k_29c915320fcf · sandbox · berna-air
+gateway http://127.0.0.1:8080 · key from .env
+org default · key k_29c915320fcf · sandbox · berna-air · production: yes
 ```
 
-`pinecall use <name>` switches; `--profile <name>` goes to one for a single command. No
-environment variable is read: exporting `PINECALL_API_KEY` changes nothing.
+`--prod` on any verb names production for that one command, and the gateway lets it through only
+while your row opens production. v1's `PINECALL_API_KEY` is never read.
 
-For a machine with no browser — CI, a container — `pinecall login --key-stdin <url> < key` writes
-the same profile from a key `pinecall keys issue` minted.
+A machine with no browser — a server, CI — has no login and no link: a server's token made in the
+console (Tokens ▸ New server token) goes into its secrets as `PINECALL_KEY`.
 
 ## 6. The agent
 
 ```console
-$ pinecall run
-clinica-norte · default · sandbox · connected to http://127.0.0.1:8080 · key from profile · tools 5 · doors phone +34910000000, whatsapp +34910000000, web
-console  `pinecall serve` opens it on this machine (or `pinecall run --serve`)
+$ pinecall start
+clinica-norte · default · sandbox · connected to http://127.0.0.1:8080 · key from .env · tools 5 · doors phone +34910000000, whatsapp +34910000000, web
+console  `pinecall serve` opens it on this machine (or `pinecall start --serve`)
 line     rings in this terminal
 ```
 
 One line, and it says the four things that decide where you are: the agent, **whose org**, **which
-world**, and where the key came from. `pinecall run` binds no port. What it holds is in the
-sandbox, and the sandbox is watched on your own machine: `pinecall serve` — or `pinecall run
+world**, and where the key came from. `pinecall start` binds no port. What it holds is in the
+sandbox, and the sandbox is watched on your own machine: `pinecall serve` — or `pinecall start
 --serve`, both in one terminal — puts the console on `http://localhost:4100`, forwarding every
 request to this gateway with the terminal's key, so there is nothing to sign in to. The gateway's
 own console, the one you sign in to with the password from §4, shows **production** and only
 production: there the page says `no agent called clinica-norte is held here`, which is true. A
-production `pinecall run`, on a machine key, prints that console's URL with a one-use code.
+production run — a server's token, or `pinecall start --prod` by a person with production access —
+prints that console's URL with a one-use code.
 
 ## 7. Talk to it
 
@@ -250,19 +260,17 @@ That is the first call. Everything below is a feature, in the order you meet it.
 
 ## The two worlds
 
-A key opens **one** world — `production` or `sandbox` — and every agent it holds, every call it
-takes and every fact it writes is that world's.
+Every request runs in **one** world — `production` or `sandbox` — and every agent it holds, every
+call it takes and every fact it writes is that world's. A person holds **one key**, and the request
+names the world: `pinecall-env: production`, or nothing, which is the sandbox. So a deployment from
+a terminal says it out loud — `pinecall start --prod` — the deliberate act it should be.
 
-```console
-$ pinecall run --env production
---env production asks for production, and this key opens sandbox: a key opens one world and no flag changes that.
-  `pinecall use <profile>` for a key that opens production — `pinecall config` lists them.
-```
-
-`--env` **asserts**; it never selects. Nothing said means the sandbox, so a deployment types
-`--env production` out loud — the deliberate act it should be. An agent that lands in production
-because of whichever key happened to be active is the accident this exists to prevent. A console
-has no such choice either: the gateway's shows production, and a machine's own the sandbox.
+**Production is a switch on the person, not a second key.** The role says what somebody does; an
+admin's `production` switch on their row (Team, or `PATCH /v1/members/{id} {production: true}`)
+says whether they may do it in production. An admin always may. Without it, the request is refused
+`403 <name> has no production access: an admin gives it in Team`, and the switch is read at every
+request — taking it away closes the next one. A console has no choice to make: the gateway's
+shows production, and a machine's own the sandbox.
 
 ## Whose corner is whose
 
@@ -287,12 +295,12 @@ page set it, when they open a developer's copy —
 so the agent, its line and its calls are Carla's:
 
 ```bash
-curl -H "Authorization: Bearer $ADMINS_SANDBOX_KEY" -H "pinecall-corner: m_6bb3ec66bf2b" \
+curl -H "Authorization: Bearer $ADMINS_KEY" -H "pinecall-corner: m_6bb3ec66bf2b" \
      localhost:8080/v1/agents/clinica-norte/sessions
 ```
 
-A key without `team`, a production key, or an id that is no active member of the org is refused
-`403`.
+A key without `team`, a request in production, or an id that is no active member of the org is
+refused `403`.
 
 ## Reading calls
 
@@ -407,7 +415,8 @@ run_9c9fa5c00b67  2026-09-14 14:17:48  clinica-norte  done  8/11
 ```
 
 `runs show`, `runs diff` and `runs drift` read those back; `runs promote` turns one real call into
-a golden.
+a golden. Nothing promotes settings or a base into production: a request there sets them directly,
+and the goldens run in CI before a deploy.
 
 ## Where a ring lands
 
@@ -419,7 +428,7 @@ calls from +34600123456 reach this terminal
 ```
 
 A number exists once in a world, so a call at it rings in one place and which one is said out
-loud. With nobody running it: `nobody is answering clinica-norte: start \`pinecall run\``.
+loud. With nobody running it: `nobody is answering clinica-norte: run \`pinecall start\``.
 `line claim` takes it, `line release` hands it on.
 
 `line from` is your own phone, and it reaches your terminal at **both** numbers. At a sandbox
@@ -428,7 +437,7 @@ holding that agent. At the **production**
 number — the one the customers dial — the worker asks the gateway before it builds the call, and
 while you hold the agent in the sandbox your phone rings in your copy: your declaration, your
 tools, a sandbox log that says `diverted_from: production`. Every other caller reaches production.
-Stop `pinecall run` and your phone reaches production too; a gateway that cannot be asked leaves the
+Stop `pinecall start` and your phone reaches production too; a gateway that cannot be asked leaves the
 call there as well.
 
 ## Numbers, and staging for nothing
@@ -456,27 +465,20 @@ An org buys **one** number. Pointing it at the sandbox is how a team tries a new
 line: one row, in effect on the next call, with the carrier account and both trunks untouched. A
 move to where it already is writes nothing and says so.
 
-## The team, and the keys
+## The team, and the tokens
 
-```console
-$ pinecall keys issue --label "the prod server" --scope app
-pk_…
-  production · the prod server · app
-  copy it now: the gateway keeps the fingerprint, and the key is never shown again
+People get keys by logging in: one per device, `pc_…`, with their role's scopes whole, and
+`pinecall link` writes the one in hand into the project's `.env` as `PINECALL_KEY`. A **server's
+token** is the other kind, made in the console — Tokens ▸ New server token, `POST /v1/keys {label,
+env}` — by a person whose key opens `app` (production's only with production access). It holds
+`app · calls · talk · knowledge`, names nobody, says its world in its prefix (`pc_live_…`
+production, `pc_test_…` sandbox), is shown once, and belongs to the org: it keeps working when the
+person who made it leaves. One per server and world.
 
-$ pinecall keys list
-c2e5f051e67f  production  the browser          Carla          live
-28ae52d33e03  sandbox     berna-air            Carla          live
-7e4887c70518  sandbox     anas browser         Ana            live
-ea98de57a943  production  the prod server      a machine      live
-
-$ pinecall keys revoke ea98de57a943
-revoked ea98de57a943
-```
-
-A key issued here is a **machine's** — a server, a CI job. People get keys by logging in, and a
-person's key does not open `app` in production at all: what holds a deployed slug is a key issued
-for a server. Revoking keeps the row, so the calls that key wrote stay readable.
+The Tokens screen (`GET /v1/keys`) lists every server's token and your own keys — everybody's for
+an admin — with who made each and when it was last used. `pinecall keys revoke <fingerprint>`
+stops your own, one you made, or any for a key that opens `keys`. Revoking keeps the row, so the
+calls that key wrote stay readable.
 
 The second person is the console's Team screen, or:
 
@@ -510,7 +512,7 @@ registered worker {"agent_name": "pinecall", "url": "ws://127.0.0.1:7880", …}
 ```
 
 The worker is the process that answers a call with audio. It knocks at the gateway with
-`PINECALL_WORKER_KEY` — one key, issued by a person, wherever it runs.
+`PINECALL_WORKER_KEY` — one key, wherever it runs.
 
 ## A second tenant
 
@@ -556,8 +558,10 @@ differences:
 
 - the gateway and the worker are systemd units reading systemd credentials, not a shell;
 - `PINECALL_ROLE` says what the machine runs: `all` · `hub` · `worker`;
-- the agent's process runs on a key issued **for that machine** (`keys issue --scope app`), never
-  on anybody's login.
+- the agent's process runs on a **server's token** made in the console (Tokens ▸ New server
+  token, production), put in the server's secrets as `PINECALL_KEY` — never on anybody's login.
+  Its release step pushes the knowledge base with the same token; production is written directly,
+  and the goldens run in CI before the deploy.
 
 `infra/box/README.md` is the box itself, credential by credential.
 
@@ -569,13 +573,14 @@ Every one of these was met while writing this page, and each names the next move
 
 | you see | it means |
 |---|---|
-| `no gateway: pinecall login …` | this machine knows no gateway. `pinecall config` lists the ones it does |
-| `this key opens production, and \`pinecall run\` answers in the sandbox unless you say so` | the profile in hand is the wrong world. `--env production`, or `pinecall use` |
+| `no PINECALL_KEY here: pinecall link` | this folder is linked to no org. `pinecall link` in the project's folder writes its `.env` |
+| `403 <name> has no production access: an admin gives it in Team` | a request named production and your row does not open it. An admin switches it on |
+| `403 this token was made for sandbox: make one for production in Tokens` | a server's token opens its own world only. Make one for the other |
 | `403 this key does not open numbers: it opens …` | your role's preset. An admin or a manager holds that scope |
 | `503 TEI at … did not answer` | no embedder. `EMBED_PROVIDER=perplexity`, or start the container |
 | `no database: a key is verified against the api_keys table` | no `DATABASE_URL`, or the schema was never migrated |
 | `404 this org has no carrier yet` | bring one with `PUT /v1/carrier` before importing a number |
-| `409 agent <slug> is held right now` | stop the `pinecall run` holding it, then move it |
+| `409 agent <slug> is held right now` | stop the `pinecall start` holding it, then move it |
 | `404 no key of this org begins with <word>` | `pinecall keys list` prints the fingerprints it takes |
 
 `pinecall whoami` answers the question under most of them: which gateway, which org, which world,
