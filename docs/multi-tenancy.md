@@ -262,11 +262,12 @@ deployment and world, each labelled — a key you can revoke on its own is a key
 ## Taking it back
 
 The tenant does this itself — anybody their own keys and the tokens they made, a key that opens
-`keys` any of them — from the Tokens screen of its console, or:
+`keys` any of them — from the Tokens screen of its console (a Revoke on the row), or through the
+doors the screen uses:
 
 ```bash
-pinecall keys list                               # fingerprints, labels, worlds, whose, revoked
-pinecall keys revoke <fingerprint>               # stops being honoured from the next request
+GET  /v1/keys                                    # fingerprints, labels, worlds, whose, last used, revoked
+POST /v1/keys/{fingerprint}/revoke               # stops being honoured from the next request
 ```
 
 The operator can too, for a tenant who asked, and is the only one who can remove the org:
