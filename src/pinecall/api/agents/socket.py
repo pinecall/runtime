@@ -8,18 +8,21 @@ from typing import Any, cast
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
-from pinecall.api._deps import AdmissionDep, KeysDep, LogsDep, a_key_on_a_socket
+from pinecall.api._deps import AdmissionDep, KeysDep, LogsDep, TuningDep, a_key_on_a_socket
 from pinecall.api.agents.handlers import HANDLERS, Live, LiveDep, Socket, asked, handles
 from pinecall.api.agents.holding import SocketId, a_socket_id
 from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
+from pinecall.auth.corner import author_of
 from pinecall.auth.keys import KeyRecord, held_by, not_opening
 from pinecall.log import REFUSED
 from pinecall.log.entry import Entry, unstored
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import Admission, QuotaExhausted
-from pinecall.types import DeclarationRefused, Env
-from pinecall_protocol import Command, ProtocolError, WireModel, encode
+from pinecall.orgs.tuning import TuningStore, VersionMoved
+from pinecall.providers.tuning import declared_as_tuning
+from pinecall.types import THE_ORGS_OWN, DeclarationRefused, Env
+from pinecall_protocol import Command, ProtocolError, WireModel, defs, encode
 from pinecall_protocol.commands import AgentConfigure, AgentRegister
 from pinecall_protocol.events import ErrorEvent, Pong
 from pinecall_protocol.registry import COMMANDS
@@ -38,6 +41,7 @@ async def apps(
     registry: RegistryDep,
     live: LiveDep,
     admission: AdmissionDep,
+    tuning: TuningDep,
 ) -> None:
     """One app, one socket: a key at the door, then commands in and log entries out."""
     key = await a_key_on_a_socket(websocket, keys)
@@ -49,7 +53,7 @@ async def apps(
     if (closed := not_opening(key, "app")) is not None:
         await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(closed))
         return
-    socket = AppSocket(websocket, key, logs, registry, live, admission)
+    socket = AppSocket(websocket, key, logs, registry, live, admission, tuning)
     live.connect(socket.id, socket.send)
     try:
         await socket.serve()
@@ -71,6 +75,7 @@ class AppSocket:
         registry: Registry,
         live: Live,
         admission: Admission,
+        tuning: TuningStore,
     ):
         self._websocket = websocket
         self._id = a_socket_id()
@@ -79,6 +84,7 @@ class AppSocket:
         self.registry = registry
         self.live = live
         self.admission = admission
+        self.tuning = tuning
 
     @property
     def id(self) -> SocketId:
@@ -99,6 +105,11 @@ class AppSocket:
     def holder(self) -> str | None:
         """Whose corner of that world: a developer's own in the sandbox, nobody's in production."""
         return held_by(self.key)
+
+    @property
+    def author(self) -> str:
+        """Whom a row this socket writes names as its author: the person, else the key."""
+        return author_of(self.key)
 
     async def serve(self) -> None:
         """Read frames until the app goes away. Every frame is answered, none of them raises out."""
@@ -227,6 +238,37 @@ async def configure(socket: Socket, command: Command) -> None:
     wanted = asked(command, AgentConfigure)
     entry = await socket.registry.configure(socket.id, socket.env, command.agent, wanted.config)
     await socket.send(entry)
+    await seeded(socket, command.agent, wanted.config)
+
+
+# The note every seeded row carries, so a history says where the world's first version came from.
+SEEDED = "seeded from the class"
+
+
+# The class still declares what the world owns now — a voice, a model, an opening — and a world
+# that has nothing set is seeded from it, once, into the org's own corner: the first `pinecall run`
+# of any developer gives the team's sandbox its v1, and the box's own app gives production its. A
+# world that has a row is never touched again: from then on the world wins, and `pinecall run`
+# says so beside every field the class still declares differently. `if_version=0` is the race:
+# two apps configuring at once both find no row, and the primary key lets exactly one seed.
+async def seeded(socket: Socket, slug: str, wire: defs.AgentConfig) -> None:
+    """The org's own corner of this world seeded from the class, when it has nothing set yet."""
+    seed = declared_as_tuning(wire)
+    if seed is None or await socket.tuning.own(socket.org, socket.env, THE_ORGS_OWN, slug):
+        return
+    try:
+        await socket.tuning.put(
+            socket.org,
+            socket.env,
+            THE_ORGS_OWN,
+            slug,
+            seed,
+            author=socket.author,
+            note=SEEDED,
+            if_version=0,
+        )
+    except VersionMoved:
+        pass
 
 
 @handles("ping")

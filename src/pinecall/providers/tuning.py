@@ -6,6 +6,7 @@ import dataclasses
 from typing import Any
 
 from pinecall.providers import catalog
+from pinecall.providers.declaration import a_greeting, a_hangup, a_memory_policy, the_docs
 from pinecall.providers.llm import VENDORS as LLM_VENDORS
 from pinecall.providers.models import DEFAULT_VENDOR
 from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS, vendor_running
@@ -15,6 +16,7 @@ from pinecall.providers.tts import VENDORS as TTS_VENDORS
 from pinecall.providers.tts.elevenlabs import a_model
 from pinecall.providers.tts.voices import voice_declared
 from pinecall.types import AgentConfig, DeclarationRefused, Greeting, Lexicon, Model, Tuning, Voice
+from pinecall_protocol import defs
 
 # The vendor tables' own refusal, over the vendor tables' own list. The list is forty-five long
 # now, so the sentence names the door that prints it rather than printing it into a form's error.
@@ -58,6 +60,36 @@ def tuned(declared: AgentConfig, tuning: Tuning, lexicon: Lexicon) -> AgentConfi
         says={**declared.says, **lexicon.said},
         hears=tuple(dict.fromkeys((*declared.hears, *lexicon.heard))),
     )
+
+
+# What a class still declares of the environment — a voice, the models, an opening, what it
+# remembers, the base it reads — as the tuning a world with nothing set is seeded with, once: the
+# first `pinecall run` of any developer gives the team's sandbox its v1, and the box's own app
+# gives production its. Read off the WIRE and not the resolved config, because the wire still
+# carries the voice's name and the resolved config only its id. None when the class declares
+# nothing of it, which is what a class written for the world to own looks like.
+def declared_as_tuning(wire: defs.AgentConfig) -> Tuning | None:
+    """The environment a class still declares, as a tuning; None when it declares none."""
+    voice = wire.voice
+    seed = Tuning(
+        voice=None if voice is None else (voice.name or voice.voice_id),
+        tts=None if voice is None or voice.name is not None else voice.provider,
+        tts_model=None if voice is None else voice.model,
+        stt=_a_model_knob(wire.stt),
+        llm=_a_model_knob(wire.llm),
+        greeting=a_greeting(wire.greeting),
+        hangup=a_hangup(wire.hangup),
+        memory=a_memory_policy(wire.memory),
+        knowledge=() if (docs := the_docs(wire.docs)) is None else (docs,),
+    )
+    return None if seed == Tuning() else seed
+
+
+def _a_model_knob(wire: defs.ModelConfig | None) -> str | None:
+    """`vendor/model`, or the vendor alone when the app named none: the knob's own three forms."""
+    if wire is None:
+        return None
+    return f"{wire.provider}/{wire.model}" if wire.model else wire.provider
 
 
 # ── one knob at a time ──────────────────────────────────────────────────────────

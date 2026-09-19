@@ -12,6 +12,7 @@ from pinecall.api.agents.holding import Send, SocketId
 from pinecall.api.agents.registry import Registry
 from pinecall.log.entry import Entry
 from pinecall.orgs.admission import Admission
+from pinecall.orgs.tuning import TuningStore
 from pinecall.types import Env
 from pinecall_protocol import Command, ProtocolError, WireModel, command_of
 from pinecall_protocol.commands import DevAnswer
@@ -56,6 +57,7 @@ class Socket(Protocol):
     registry: Registry
     live: Live
     admission: Admission
+    tuning: TuningStore
 
     @property
     def id(self) -> SocketId:
@@ -75,6 +77,11 @@ class Socket(Protocol):
     @property
     def holder(self) -> str | None:
         """Whose corner of that world: a developer's own in the sandbox, nobody's in production."""
+        ...
+
+    @property
+    def author(self) -> str:
+        """Whom a row this socket writes names as its author: the person, else the key."""
         ...
 
     async def send(self, entry: Entry) -> None:

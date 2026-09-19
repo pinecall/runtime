@@ -86,7 +86,7 @@ def _sent(wire: defs.AgentConfig) -> dict[str, Any]:
     if "language" in sent:
         converted["language"] = wire.language
     if "greeting" in sent:
-        converted["greeting"] = _a_greeting(wire.greeting)
+        converted["greeting"] = a_greeting(wire.greeting)
     if "voice" in sent:
         converted["voice"] = _a_voice(wire.voice)
     if "llm" in sent:
@@ -102,11 +102,11 @@ def _sent(wire: defs.AgentConfig) -> dict[str, Any]:
     if "knowledge" in sent:
         converted["knowledge"] = _a_knowledge_file(wire.knowledge)
     if "docs" in sent:
-        converted["docs"] = _the_docs(wire.docs)
+        converted["docs"] = the_docs(wire.docs)
     if "memory" in sent:
-        converted["memory"] = _a_memory_policy(wire.memory)
+        converted["memory"] = a_memory_policy(wire.memory)
     if "hangup" in sent:
-        converted["hangup"] = _a_hangup(wire.hangup)
+        converted["hangup"] = a_hangup(wire.hangup)
     if "tools" in sent:
         converted["tools"] = tuple(a_tool(tool) for tool in wire.tools or ())
     if "state_fields" in sent:
@@ -150,13 +150,15 @@ def _a_knowledge_file(wire: defs.KnowledgeFile | None) -> KnowledgeFile | None:
     return None if wire is None else KnowledgeFile(wire.path, wire.text)
 
 
-def _the_docs(wire: defs.DocsConfig | None) -> Docs | None:
+def the_docs(wire: defs.DocsConfig | None) -> Docs | None:
+    """The wire's docs as the domain's, or None."""
     if wire is None:
         return None
     return Docs(base=wire.base, mode=wire.mode, k=wire.k, min_score=wire.min_score)
 
 
-def _a_memory_policy(wire: defs.MemoryConfig | None) -> MemoryPolicy | None:
+def a_memory_policy(wire: defs.MemoryConfig | None) -> MemoryPolicy | None:
+    """The wire's memory policy as the domain's, or None."""
     if wire is None:
         return None
     return MemoryPolicy(remember=tuple(wire.remember), forget=tuple(wire.forget))
@@ -164,13 +166,15 @@ def _a_memory_policy(wire: defs.MemoryConfig | None) -> MemoryPolicy | None:
 
 # DeclarationRefused out of Greeting itself when neither verb or both were sent: the rule is one
 # rule, held by the shape, and this door only hands it the wire's own fields.
-def _a_greeting(wire: defs.GreetingConfig | None) -> Greeting | None:
+def a_greeting(wire: defs.GreetingConfig | None) -> Greeting | None:
+    """The wire's opening as the domain's, or None; the shape refuses one naming both verbs."""
     if wire is None:
         return None
     return Greeting(say=wire.say, reply=wire.reply, allow_interruptions=wire.allow_interruptions)
 
 
-def _a_hangup(wire: defs.HangupConfig | None) -> Hangup | None:
+def a_hangup(wire: defs.HangupConfig | None) -> Hangup | None:
+    """The wire's hangup as the domain's, or None."""
     if wire is None:
         return None
     return Hangup(when=wire.when)
