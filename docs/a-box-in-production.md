@@ -328,15 +328,13 @@ $ make secrets    # the app's .env, as dotenv lines, into the credstore as pinec
 $ make deploy     # rsync to /opt/pinecall/apps/<name>, `pnpm install --frozen-lockfile`, enable and restart the instance
 ```
 
-The instance signs in with `pinecall login --key-stdin` off its credential into a `PINECALL_HOME`
-of its own under `/var/lib/pinecall/apps/<name>`, sources its `.env` credential into its environment
-(`set -a` in the unit's own shell: `EnvironmentFile=` is read before a credential exists), and runs
-`pinecall run --env production ${PINECALL_AGENT:-}` against the gateway on loopback: a
-`PINECALL_AGENT` in that `.env` names the agent file to run when the app's repo holds several, and
-with none `pinecall run` runs what the directory holds — its `agent.tsx`, or at a project's root
-every agent of the project. The unit says `run` and `login --key-stdin` because the apps it holds
-today install `pinecall@0.4.0`, which has neither `start` nor `PINECALL_KEY`; a `pinecall` that
-does reads the token from the `.env` credential and runs `pinecall start --prod`. Its journal is
+The instance exports its `.env` credential into its environment (`set -a` in the unit's own
+shell: `EnvironmentFile=` is read before a credential exists), sets `PINECALL_KEY` from its `.key`
+credential and `PINECALL_URL` to the gateway on loopback, and runs `pinecall start --prod
+${PINECALL_AGENT:-}`: a `PINECALL_AGENT` in that `.env` names the agent file to run when the app's
+repo holds several, and with none `pinecall start` runs what the directory holds — its
+`agent.tsx`, or at a project's root every agent of the project. The app installs `pinecall`
+0.5.0 or later, the first that reads its key from the environment. Its journal is
 the app's stdout: `journalctl -u pinecall-app@<name> -f`. It is the
 org's production holder, so nothing else — no laptop — should hold that slug in production.
 

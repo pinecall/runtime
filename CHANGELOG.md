@@ -37,6 +37,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `agent.configure` in a world that attaches it no base, naming `pinecall knowledge attach`.
 
 ### Changed
+- **A tenant's app on the box runs `pinecall start --prod` on `PINECALL_KEY`.** `pinecall-app@<name>`
+  exports the server's token off its `.key` credential and the gateway on loopback as
+  `PINECALL_URL`, with no `pinecall login` first; the app installs `pinecall` 0.5.0 or later.
 - **One key per person; the request names the world.** Every key minted for a person — invitation,
   login, SSO or Google code, sign-up, terminal pairing, another org — carries the role's scopes
   whole, `app` included, and is stored in the sandbox; migration 0039 moves every existing person's

@@ -7,18 +7,18 @@
 # What an instance needs, and where it looks for it:
 #   /opt/pinecall/apps/<name>/                 the app: agent.tsx, its node_modules, rsynced there
 #                                              by the tenant's deploy, as the deploy account
-#   /etc/credstore.encrypted/pinecall-app-<name>.key   the org's key the app knocks with — a
-#                                              machine's, `keys issue --scope app …`
+#   /etc/credstore.encrypted/pinecall-app-<name>.key   the server's token the app knocks with —
+#                                              the org's, for production (`keys issue`, or
+#                                              Tokens ▸ New server token in the console)
 #   /etc/credstore.encrypted/pinecall-app-<name>.env   the app's own secrets, dotenv lines,
 #                                              exported into its environment by the shell below
 #                                              — PINECALL_AGENT among them names the file to
 #                                              run when the repo holds several (agents/<name>.tsx)
 #
-# The CLI reads its key from a profile and never from the environment (the agents repo's
-# src/cli/env.ts says why), so the first thing an instance does is what a server of the tenant's
-# would: `pinecall login --key-stdin`, off the credential, into a PINECALL_HOME of its own under
-# /var/lib. The gateway it signs in to is this box's, on loopback: the app opens one outbound
-# socket and serves nothing.
+# The CLI reads PINECALL_KEY and PINECALL_URL from its environment (the agents repo's
+# src/cli/env.ts), which is what a server of the tenant's would give it: the token off the
+# credential, and this box's gateway on loopback. The app opens one outbound socket and serves
+# nothing, and `pinecall start --prod` holds the agent in production.
 #
 # Two things systemd will not do, measured on the box on 2026-09-16, and the shape below is why:
 # it decrypts a credential only when the name sealed inside it (`systemd-creds encrypt --name=`,
@@ -37,12 +37,10 @@ After=network-online.target pinecall-gateway.service
 User=pinecall
 Group=pinecall
 WorkingDirectory=/opt/pinecall/apps/%i
-StateDirectory=pinecall/apps/%i
-Environment=PINECALL_HOME=/var/lib/pinecall/apps/%i
+Environment=PINECALL_URL=http://127.0.0.1:8080
 LoadCredentialEncrypted=pinecall-app-%i.key:/etc/credstore.encrypted/pinecall-app-%i.key
 LoadCredentialEncrypted=pinecall-app-%i.env:/etc/credstore.encrypted/pinecall-app-%i.env
-ExecStartPre=/bin/sh -c 'exec node_modules/.bin/pinecall login http://127.0.0.1:8080 --key-stdin --as box < "$CREDENTIALS_DIRECTORY/pinecall-app-%i.key"'
-ExecStart=/bin/sh -c 'set -a; . "$CREDENTIALS_DIRECTORY/pinecall-app-%i.env"; set +a; exec node_modules/.bin/pinecall run --env production $${PINECALL_AGENT:-}'
+ExecStart=/bin/sh -c 'set -a; . "$CREDENTIALS_DIRECTORY/pinecall-app-%i.env"; PINECALL_KEY=$$(cat "$CREDENTIALS_DIRECTORY/pinecall-app-%i.key"); set +a; exec node_modules/.bin/pinecall start --prod $${PINECALL_AGENT:-}'
 Restart=always
 RestartSec=3
 
