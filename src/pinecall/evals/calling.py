@@ -108,17 +108,21 @@ async def a_simulated_call(
     caller: str | None = None,
     run: str | None = None,
     app: str | None = None,
+    language: str | None = None,
 ) -> int:
-    """Open the room, dispatch the agent into it, say the turns out loud, and hang up."""
+    """Open the room, dispatch the agent into it, say the turns out loud, and hang up.
+
+    `language` is the agent's declared one: the caller's lines are read in a voice of it.
+    """
     if line.interferer_db is not None and not line.interferer:
-        line.interferer = await speech.spoken(speech.A_TELEVISION)
+        line.interferer = await speech.spoken(speech.A_TELEVISION, language="es")
     async with _dispatch(call, agent, fleet, settings, caller, run, app, org, env, holder):
         room = rtc.Room()
         await room.connect(settings.livekit_url, _a_token(call, settings))
         try:
             # In the order of a phone call: the caller is on the line, then somebody picks up, then
             # the caller speaks. The line is held open until the run says the answer has landed.
-            mouth = await _Mouth.on(room, line)
+            mouth = await _Mouth.on(room, line, language)
             await _until_the_agent_is_here(room, call)
             spoken = await every_turn(mouth, turns, next_line, settled)
             # Held once more before the hangup, which ENDS the job: a caller that said it was
@@ -234,9 +238,10 @@ def _dispatch(
 class _Mouth:
     """The caller's own track: published once, at the room's rate, before a word of it exists."""
 
-    def __init__(self, source: rtc.AudioSource, line: Line) -> None:
+    def __init__(self, source: rtc.AudioSource, line: Line, language: str | None) -> None:
         self._source = source
         self._line = line
+        self._language = language
 
     # Published BEFORE the agent is waited for. A room's audio flows because somebody subscribed
     # to a track, and a subscription is signalled, negotiated and then opened: a track opened and
@@ -244,18 +249,18 @@ class _Mouth:
     # to subscribe were the caller's whole first sentence (2026-09-11, `identifica-al-paciente`, one
     # run in three). The three lines are livekit's own (examples/primitives/echo-agent.py:45-50).
     @classmethod
-    async def on(cls, room: rtc.Room, line: Line) -> _Mouth:
+    async def on(cls, room: rtc.Room, line: Line, language: str | None) -> _Mouth:
         """The caller's microphone in this room: open, silent, and kept for the whole call."""
         source = rtc.AudioSource(sample_rate=speech.SAMPLE_RATE, num_channels=speech.CHANNELS)
         track = rtc.LocalAudioTrack.create_audio_track(A_SIMULATED_CALLER, source)
         await room.local_participant.publish_track(
             track, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE)
         )
-        return cls(source, line)
+        return cls(source, line, language)
 
     async def say(self, text: str) -> None:
         """One line spoken by the box, mixed with the interferer, and pushed frame by frame."""
-        pcm = await speech.spoken(text)
+        pcm = await speech.spoken(text, language=self._language)
         if self._line.interferer_db is not None:
             pcm = degrading.mixed(pcm, self._line.interferer, self._line.interferer_db)
         frames = degrading.with_losses(

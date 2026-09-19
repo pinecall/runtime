@@ -42,3 +42,29 @@ def test_what_espeak_wrote_at_its_own_rate_comes_back_as_a_second_at_the_rooms(
     assert abs(samples - speech.SAMPLE_RATE) < speech.SAMPLE_RATE // 100, (
         "a second in should be a second out, within the resampler's own edge"
     )
+
+
+# The caller is read in the agent's language. An English line read by the Spanish voice reached
+# the agent's ears as Spanish nonsense and the call went wrong from its first turn.
+def test_say_reads_an_english_agents_caller_in_an_english_voice(tmp_path: Path) -> None:
+    command = speech.the_command(speech.SAY, "hello", tmp_path / "said.wav", "en-US")
+
+    assert command[1:3] == ["-v", "Samantha"]
+
+
+def test_espeak_is_asked_for_the_agents_language_by_its_primary_subtag(tmp_path: Path) -> None:
+    command = speech.the_command(speech.ESPEAK, "hello", tmp_path / "said.wav", "en_GB")
+
+    assert command[1:3] == ["-v", "en"]
+
+
+def test_an_agent_that_declared_no_language_is_called_in_spanish(tmp_path: Path) -> None:
+    command = speech.the_command(speech.ESPEAK, "hola", tmp_path / "said.wav", None)
+
+    assert command[1:3] == ["-v", "es"]
+
+
+def test_a_language_say_has_nobody_for_is_read_by_the_machines_own_voice(tmp_path: Path) -> None:
+    command = speech.the_command(speech.SAY, "bonjour", tmp_path / "said.wav", "fr")
+
+    assert "-v" not in command

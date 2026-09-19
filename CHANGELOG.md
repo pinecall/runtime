@@ -6,6 +6,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 
 ## [Unreleased]
 
+### Fixed
+- **A simulated caller speaks the agent's language.** The caller's lines were always read by a
+  Spanish voice (`say -v Mónica`, `espeak-ng -v es`), so an English agent's ears heard Spanish
+  nonsense from the first turn and the call went wrong. `a_simulated_call` takes the agent's
+  declared `language` — `/v1/evals/voice` reads it off the socket holding the agent, a ring-2 run
+  off the config it runs — and the line is read in a voice of it; undeclared stays Spanish.
+
 ### Added
 - **The models each vendor runs, on the wire.** `GET /v1/providers` and the pipeline report carry
   `models`, keyed `<modality>/<vendor>`, the vendor's default first — what each tuned vendor file

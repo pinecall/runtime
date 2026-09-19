@@ -245,6 +245,7 @@ async def _every_conversation(
                             interferer_db=wanted.interferer_db, packet_loss=wanted.packet_loss
                         ),
                         app=serving.owner,
+                        language=config.language,
                     )
                     if wanted.voice
                     else await a_conversation(

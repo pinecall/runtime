@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import Field
 
 from pinecall.api._deps import EvalsKeyDep, LlmsDep, SettingsDep, StoreDep, VaultDep
+from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.evals.listening import until_the_answer_lands
 from pinecall.auth.keys import held_by
 from pinecall.evals.caller import (
@@ -63,6 +64,7 @@ async def a_voice_call(
     store: StoreDep,
     settings: SettingsDep,
     vault: VaultDep,
+    registry: RegistryDep,
 ) -> Called:
     """Dispatch the agent into a room, put the persona on the line out loud, and hang up."""
     try:
@@ -70,6 +72,10 @@ async def a_voice_call(
     except NoProvider as missing:
         raise HTTPException(503, NO_MODEL.format(missing=missing)) from missing
     line = Line(interferer_db=said.interferer_db, packet_loss=said.packet_loss)
+    # The caller speaks the language the agent declared, read off the socket that holds it for
+    # this key — the one the call is dispatched to.
+    held = registry.of(key.env, said.agent, held_by(key))
+    language = None if held is None else held.config.language
 
     # The conversation so far is read off the call's own log rather than kept a second time here:
     # the worker writes every turn through this gateway, so the log is the transcript, and it is
@@ -98,6 +104,7 @@ async def a_voice_call(
             org=key.org,
             env=key.env,
             holder=held_by(key),
+            language=language,
         )
     except (TimeoutError, RuntimeError) as broke:
         raise HTTPException(503, NO_LINE.format(broke=broke)) from broke

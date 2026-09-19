@@ -43,6 +43,7 @@ async def a_spoken_conversation(
     holder: str | None = None,
     line: Line | None = None,
     app: str | None = None,
+    language: str | None = None,
 ) -> Conversation:
     """Dispatch the agent into a room, say the golden's lines out loud, and read the log back."""
     said = _the_lines_of(golden)
@@ -60,6 +61,7 @@ async def a_spoken_conversation(
         caller=a_visitor(),
         run=run,
         app=app,
+        language=language,
         settled=lambda so_far: until_the_answer_lands(store, call, so_far),
     )
     entries = await _once_it_is_sealed(store, call)

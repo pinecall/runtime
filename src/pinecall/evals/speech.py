@@ -19,7 +19,16 @@ CHANNELS = 1
 # macOS first, because it is the box this was measured on, over five calls. `--data-format`
 # writes 16-bit little-endian at the rate asked for, and a `.wav` path makes it a WAVE file.
 SAY = "say"
-A_SPANISH_VOICE = "Mónica"
+
+# The caller speaks the agent's language, in a voice of that language: an English line read by a
+# Spanish voice was heard by the agent's ears as Spanish nonsense, and the whole call went wrong
+# from the first turn (2026-09-19, maravilla). `say` names a person per language; espeak-ng takes
+# the language itself. A language `say` has nobody for is read by the machine's own voice.
+SAY_VOICES = {"es": "Mónica", "en": "Samantha"}
+
+# What a call is spoken in when the agent declared no language: the one the examples were
+# measured on, and the television's.
+UNDECLARED = "es"
 
 # Linux, where `say` is not: espeak-ng writes a WAVE at its own rate and is resampled below.
 ESPEAK = "espeak-ng"
@@ -46,22 +55,26 @@ def a_speech_tool() -> str | None:
     return next((tool for tool in (SAY, ESPEAK) if shutil.which(tool) is not None), None)
 
 
-async def spoken(text: str, *, voice: str = A_SPANISH_VOICE) -> bytes:
-    """One line said out loud by the box, as 16-bit mono PCM at SAMPLE_RATE."""
+async def spoken(text: str, *, language: str | None = None) -> bytes:
+    """One line said out loud by the box in that language, as 16-bit mono PCM at SAMPLE_RATE."""
     tool = a_speech_tool()
     if tool is None:
         raise NoVoice(NO_SPEECH_TOOL)
     with TemporaryDirectory() as folder:
         written = Path(folder) / "said.wav"
-        await _run(_the_command(tool, text, written, voice))
+        await _run(the_command(tool, text, written, language))
         return pcm_of(written)
 
 
-def _the_command(tool: str, text: str, written: Path, voice: str) -> list[str]:
-    """The one command line each tool takes, with the rate asked for where it can be."""
+def the_command(tool: str, text: str, written: Path, language: str | None) -> list[str]:
+    """The one command line each tool takes, in the language's voice, at the rate it can be."""
+    # `es-ES`, `en_US` and `en` are one language to a voice: the primary subtag is what is matched.
+    spoken_in = (language or UNDECLARED).replace("_", "-").split("-")[0].lower()
     if tool == SAY:
-        return [SAY, "-v", voice, "-o", str(written), f"--data-format=LEI16@{SAMPLE_RATE}", text]
-    return [ESPEAK, "-v", "es", "-w", str(written), text]
+        voice = SAY_VOICES.get(spoken_in)
+        chosen = [] if voice is None else ["-v", voice]
+        return [SAY, *chosen, "-o", str(written), f"--data-format=LEI16@{SAMPLE_RATE}", text]
+    return [ESPEAK, "-v", spoken_in, "-w", str(written), text]
 
 
 async def _run(command: list[str]) -> None:
