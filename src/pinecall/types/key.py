@@ -43,6 +43,8 @@ ENVS: frozenset[str] = frozenset(get_args(Env.__value__))
 #   providers   the provider keys an org brought of its own
 #   team        the org's members and their invitations
 #   usage       what the org consumed
+#   words       what the agent says: the org's lexicon, the opening's words, what it remembers —
+#               never which vendor or model. The person who hears a word said wrong fixes it
 #   fleet       the box's own worker: the fleet's doors, and the worker's doors resolved by the
 #               CALL it serves — whose org, which world, whose corner — instead of by this key's
 #               org. In no role's preset; only `keys issue --scope fleet` mints it, for a machine
@@ -60,6 +62,7 @@ type KeyScope = Literal[
     "providers",
     "team",
     "usage",
+    "words",
     "fleet",
 ]
 # Every word a key may carry, for the verb that checks one; the two sets below are what a key

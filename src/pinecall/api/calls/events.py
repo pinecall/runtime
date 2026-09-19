@@ -20,14 +20,15 @@ from pinecall.api._deps import (
     AppKeyDep,
     KeysDep,
     LogsDep,
-    OverridesDep,
     SettingsDep,
     SnapshotsDep,
     StoreDep,
     TokensDep,
+    TuningDep,
 )
 from pinecall.api._serving import Serving, ServingDep
 from pinecall.api.agents.registry import NO_UNCLAIMED, NOT_THAT_APP, RegistryDep
+from pinecall.api.agents.tuned import tuned_for
 from pinecall.api.calls.opening import how_it_arrived, who_serves
 from pinecall.api.calls.sink import (
     AcceptDep,
@@ -292,7 +293,7 @@ async def opened(
     live: ServingDep,
     tokens: TokensDep,
     admission: AdmissionDep,
-    overrides: OverridesDep,
+    tuning: TuningDep,
 ) -> None:
     """A call started: open its log, put it on the app's socket, and write how it arrived."""
     context = said.context
@@ -330,19 +331,20 @@ async def opened(
     # drops. A call whose app disconnected mid-setup is the other case, and it still goes through.
     if serving is None and registry.of(env, said.agent, holder) is not None:
         raise HTTPException(409, NO_UNCLAIMED.format(slug=said.agent))
-    # Whose call this is, on the head row, before the first entry: every reader of it will ask.
-    await logs.owned(context.call, said.agent, org, env, holder)
+    # What this call's agent declared, resolved in the corner that serves it as the worker read it
+    # through the config door, before the head row is claimed: the row records the versions the
+    # call ran on. An agent nobody holds any more declared nothing this gateway can name.
+    held = serving or registry.of(env, said.agent, holder)
+    corner = None if serving is None else serving.holder
+    resolved = await tuned_for(tuning, org, env, corner, said.agent, held.config) if held else None
+    config = AgentConfig(slug=said.agent) if resolved is None else resolved.config
+    versions = None if resolved is None else resolved.versions
+    await logs.owned(context.call, said.agent, org, env, holder, versions)
     log = logs.writing(context.call, said.agent)
     # Served before the first entry is written, so the app hears the call arrive: this is the very
-    # same registration a text call gets, and it is what the call's tools travel down.
+    # same registration a text call gets, and it is what the call's tools travel down. What this
+    # call recalls and searches is that corner's; one nobody is holding belongs to the org's own.
     app = serving.owner if serving is not None else None
-    # What this call's agent declared, resolved the way the worker read it a moment ago through
-    # the config door — so a lookup searches the base the worker's session was built to expect. An
-    # agent nobody holds any more declared nothing this gateway can name, and nothing is found.
-    held = serving or registry.of(env, said.agent, holder)
-    config = overrides.config_for(said.agent, held.config) if held else AgentConfig(slug=said.agent)
-    # Whose corner serves it, from the registration the door just resolved: what this call recalls
-    # and searches is that corner's, and a call nobody is holding belongs to the org's own.
     live.serve(
         context.call,
         said.agent,
@@ -351,7 +353,7 @@ async def opened(
         app,
         context=context,
         config=config,
-        holder=None if serving is None else serving.holder,
+        holder=corner,
     )
     await how_it_arrived(log, context, said.agent)
 

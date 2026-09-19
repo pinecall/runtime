@@ -138,6 +138,17 @@ OPENS_TO_EITHER: dict[str, frozenset[str]] = {
     "GET /v1/agents/{slug}/config": frozenset({"app", "calls"}),
     "GET /v1/agents/{slug}/hold-audio": frozenset({"app", "calls"}),
     "GET /v1/agents/{slug}/hold-audio/audio": frozenset({"app", "calls"}),
+    # An agent's settings and the org's lexicon are read and set by the developer's key and by the
+    # floor's: `pipeline` may move a vendor, `words` may set the opening, the lexicon and what is
+    # remembered. The door asks inside which half a body touches (api/tuning.py).
+    "GET /v1/agents/{slug}/settings": frozenset({"pipeline", "words"}),
+    "PUT /v1/agents/{slug}/settings": frozenset({"pipeline", "words"}),
+    "GET /v1/agents/{slug}/settings/history": frozenset({"pipeline", "words"}),
+    "GET /v1/agents/{slug}/settings/diff": frozenset({"pipeline", "words"}),
+    "GET /v1/lexicon": frozenset({"pipeline", "words"}),
+    "PUT /v1/lexicon": frozenset({"pipeline", "words"}),
+    "GET /v1/lexicon/history": frozenset({"pipeline", "words"}),
+    "POST /v1/lexicon/promote": frozenset({"pipeline", "words"}),
 }
 
 

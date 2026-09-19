@@ -11,10 +11,10 @@ from pinecall.api._deps import (
     LlmsDep,
     LogsDep,
     LookupsDep,
-    OverridesDep,
     RunsDep,
     SettingsDep,
     StoreDep,
+    TuningDep,
     VaultDep,
 )
 from pinecall.api._live import LiveDep
@@ -50,7 +50,7 @@ async def run_the_goldens(
     key: EvalsKeyDep,
     runner: RunnerDep,
     registry: RegistryDep,
-    overrides: OverridesDep,
+    tuning: TuningDep,
     llms: LlmsDep,
     logs: LogsDep,
     live: LiveDep,
@@ -63,7 +63,7 @@ async def run_the_goldens(
     """Every golden against the app that is holding the agent, scored, stored, and answered."""
     process = Process(
         registry=registry,
-        overrides=overrides,
+        tuning=tuning,
         llms=llms,
         logs=logs,
         live=live,

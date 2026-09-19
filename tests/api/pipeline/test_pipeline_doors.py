@@ -7,10 +7,10 @@ import pytest
 
 from pinecall.api.agents.registry import Registry
 from pinecall.log.store import MemoryStore
-from pinecall.providers.overrides import BLANK, NOT_RUN_HERE
 from pinecall.providers.tts.elevenlabs import DEFAULT_MODEL
 from pinecall.providers.tts.voices import VOICES, known_voices, voice_names
-from pinecall.types import Greeting
+from pinecall.providers.tuning import NOT_RUN_HERE
+from pinecall.types import BLANK, Greeting
 from pinecall.worker.client import Gateway
 from pinecall_protocol import defs
 from tests.api.conftest import AGENT, PIPELINE, PIPELINE_KNOBS

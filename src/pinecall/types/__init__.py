@@ -81,8 +81,10 @@ from pinecall.types.route import Route, an_e164, dialable
 from pinecall.types.sso import OrgSso, a_domain
 from pinecall.types.token import GRANTS, Grant, Scope, grant_for
 from pinecall.types.tool import SideEffect, ToolSpec
+from pinecall.types.tuning import BLANK, NAMED_KNOBS, Kept, Lexicon, Tuning, Versions
 
 __all__ = [
+    "BLANK",
     "CALLING_CODES",
     "CANDIDATES_PER_BRANCH",
     "CARRIER_KINDS",
@@ -99,6 +101,7 @@ __all__ = [
     "KEY_SCOPES",
     "KNOWLEDGE",
     "LONGEST_CALL_S",
+    "NAMED_KNOBS",
     "NEVER_DIALLED",
     "NO_ORG_KEYS",
     "PLATFORM_TOOLS",
@@ -139,8 +142,10 @@ __all__ = [
     "Greeting",
     "Hangup",
     "JsonObject",
+    "Kept",
     "KeyScope",
     "KnowledgeFile",
+    "Lexicon",
     "Mailbox",
     "Member",
     "MemberStatus",
@@ -163,8 +168,10 @@ __all__ = [
     "SipPeer",
     "SipTransport",
     "ToolSpec",
+    "Tuning",
     "Turn",
     "TwilioAccount",
+    "Versions",
     "Visibility",
     "Voice",
     "a_call_id",

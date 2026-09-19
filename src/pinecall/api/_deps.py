@@ -29,10 +29,10 @@ from pinecall.memory import Memory
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.carriers import Carriers
 from pinecall.orgs.table import Orgs
+from pinecall.orgs.tuning import TuningStore
 from pinecall.orgs.vault import NO_VAULT_KEY, Vault
 from pinecall.providers.embedder import Embedder
 from pinecall.providers.models import Models
-from pinecall.providers.overrides import Overrides
 from pinecall.routes.table import Routes
 from pinecall.routes.trunks import Trunks
 from pinecall.routes.twilio import TwilioFor
@@ -227,9 +227,9 @@ def the_admission(connection: HTTPConnection) -> Admission:
     return held(connection, "admission", Admission)
 
 
-def the_overrides(connection: HTTPConnection) -> Overrides:
-    """What an operator has turned since this process started."""
-    return held(connection, "overrides", Overrides)
+def the_tuning(connection: HTTPConnection) -> TuningStore:
+    """Where an agent's tuning and the org's lexicon are kept, a version a row."""
+    return held(connection, "tuning")
 
 
 def the_runs(connection: HTTPConnection) -> Runs:
@@ -308,7 +308,7 @@ TokensDep = Annotated[Tokens, Depends(the_tokens)]
 LogsDep = Annotated[Logs, Depends(the_logs)]
 SnapshotsDep = Annotated[Snapshots, Depends(the_snapshots)]
 AdmissionDep = Annotated[Admission, Depends(the_admission)]
-OverridesDep = Annotated[Overrides, Depends(the_overrides)]
+TuningDep = Annotated[TuningStore, Depends(the_tuning)]
 RunsDep = Annotated[Runs, Depends(the_runs)]
 GraphDep = Annotated[Graph, Depends(the_graph)]
 VaultDep = Annotated["Vault | None", Depends(the_vault)]

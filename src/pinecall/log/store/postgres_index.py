@@ -81,7 +81,14 @@ class PostgresIndex:
         row = await self._pool.fetchrow(CORNER_OF_CALL, call)
         if row is None:
             return None
-        return CallCorner(row["org"], str(row["env"]), str(row["holder"]), str(row["agent"] or ""))
+        return CallCorner(
+            row["org"],
+            str(row["env"]),
+            str(row["holder"]),
+            str(row["agent"] or ""),
+            row["config_version"],
+            row["lexicon_version"],
+        )
 
     async def facts_of(self, calls: Sequence[str]) -> dict[str, CallFacts]:
         """The facts of each of these calls that has a row."""

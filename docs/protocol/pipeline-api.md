@@ -30,7 +30,8 @@ config door answers with — a pipeline is a live thing and there is no empty on
 
 Each stage names the vendor a session **would** be built with, which is what the agent declared or
 this build's default for that modality — never a guess. `greeting` is the opening in the wire's
-`GreetingConfig` shape, turned or declared, or null. `voices` are the names the voice knob may be
+`GreetingConfig` shape, set or declared, or null. `overrides` draws the six of the corner's settings
+this door still turns. `voices` are the names the voice knob may be
 turned to, and `providers` every vendor each stage could be turned onto, the same rows
 `GET /v1/providers` answers. `medians` is `log/latencies.py` over every
 turn of the agent's last calls together: livekit's own field names, in the order a turn happens,
@@ -38,9 +39,13 @@ the median and not the mean, and a measure nobody measured has no row rather tha
 is how many logs it read. `unavailable_reasons` names a stage whose vendor has no API key in this
 process, so a screen can say so before the line goes dead instead of after.
 
-### `PUT /v1/agents/{slug}/pipeline/overrides`
+### `PUT /v1/agents/{slug}/pipeline/overrides` — kept one release
 
-Turn one or more of the six knobs. They are applied on the agent's **next session**, through
+The six knobs are six fields of the agent's **settings** now — per world, per corner, a version a
+row, with the opening, the cut of a turn, what is remembered and the bases beside them:
+[settings-api.md](settings-api.md). This door stays one release for the console's Pipeline screen:
+a body here becomes the next version of the key's corner's tuning, the six replaced and the rest
+kept, through the same store. It is applied on the agent's **next session**, through
 `GET /v1/agents/{slug}/config` — the one door an agent's config has ever reached a worker by — so
 nothing is restarted and nothing is deployed.
 
@@ -53,7 +58,7 @@ with, which wins over a model named in `tts` · `tts`, `stt` and `llm` take `ven
 alone to keep its own default model, or a model alone to keep whichever vendor is already in use ·
 `greeting` the words said first on the next call.
 
-The body is the **whole** set: a knob left out stops being overridden and goes back to what the app
+The body is the **whole** set of six: a knob left out is not set and goes back to what the app
 declared. A knob that is present but **blank is refused** with `400` and the sentence that says
 why — an empty voice once reached the vendor and a whole line of calls went out silent. A `tts`
 model this build will not run is refused too, in the words that name the one it runs instead, and
@@ -69,8 +74,8 @@ mixes into the phone leg. It starts once a tool has been running for 0.6 s, so a
 at once plays nothing, loops under the wait at 60 % volume with a short fade in and out, and stops
 before the tool's confirm read-back is said. Tools running side by side play it once. A written
 (`chat`) call has no audio and plays nothing. Every agent plays **"A New Life"**, the runtime's own,
-until it is told otherwise here; these doors are their own and not a knob of `…/overrides`, so a
-console that PUTs the six knobs never moves the melody.
+until it is told otherwise here; these doors are their own and not a field of the settings, so a
+console that sets the settings whole never moves the melody.
 
 | door | what |
 |---|---|

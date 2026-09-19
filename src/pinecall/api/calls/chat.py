@@ -15,8 +15,8 @@ from pinecall.api._deps import (
     LlmsDep,
     LogsDep,
     LookupsDep,
-    OverridesDep,
     SettingsDep,
+    TuningDep,
     VaultDep,
     a_key_on_a_socket,
 )
@@ -70,7 +70,7 @@ async def chat(
     registry: RegistryDep,
     live: LiveDep,
     llms: LlmsDep,
-    overrides: OverridesDep,
+    tuning: TuningDep,
     admission: AdmissionDep,
     vault: VaultDep,
     lookups: LookupsDep,
@@ -107,7 +107,7 @@ async def chat(
         opened = await a_text_call(
             held,
             a_call_from(websocket, held.org, held.env, slug),
-            overrides,
+            tuning,
             vault,
             llms,
             admission,
@@ -126,7 +126,7 @@ async def chat(
         return
     await websocket.accept()
     session = opened.session
-    await logs.owned(session.call, slug, held.org, held.env, held.holder)
+    await logs.owned(session.call, slug, held.org, held.env, held.holder, opened.versions)
     await _talk(websocket, session, live, logs, held.owner, held.org, held.holder)
 
 

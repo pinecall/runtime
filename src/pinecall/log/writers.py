@@ -8,6 +8,7 @@ from pinecall.log.entry import Entry
 from pinecall.log.fanout import Fanout
 from pinecall.log.logs import AgentLog, CallLog
 from pinecall.log.store import Store
+from pinecall.types import Versions
 
 # What an org's own stream carries: the moments a floor changes shape, and nothing said on a
 # call. An agent held or let go, a call arriving, up, and over — each already an entry of some
@@ -77,10 +78,12 @@ class Logs:
         org: str,
         env: str | None = None,
         holder: str | None = None,
+        versions: Versions | None = None,
     ) -> None:
         """This log is the org's — and a call's, one corner's: the world it was opened in and
-        whose. The agent a key registered has no corner: one log per slug, whatever the world."""
-        await self._store.owned(call, agent, org, env, holder)
+        whose, and which versions of the corner's tuning and lexicon it was built on. The agent a
+        key registered has no corner: one log per slug, whatever the world."""
+        await self._store.owned(call, agent, org, env, holder, versions)
 
     async def owner(self, call: str | None, agent: str) -> str | None:
         """Whose log this is, or None when no org has claimed it."""

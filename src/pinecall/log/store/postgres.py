@@ -33,6 +33,7 @@ from pinecall.log.store.statements import (
     PAGE,
     SEAL,
 )
+from pinecall.types import Versions
 from pinecall.types.json import JsonObject
 
 # The .sql files, numbered, applied in name order. A migration is added, never edited. They are the
@@ -211,10 +212,13 @@ class PostgresStore(PostgresIndex):
         org: str,
         env: str | None = None,
         holder: str | None = None,
+        versions: Versions | None = None,
     ) -> None:
-        """Write the owner, and a call's corner, on the head row, creating it when the claim comes
-        before any entry. An agent's own log has no corner: one log per slug, whatever the world."""
+        """Write the owner, a call's corner and the versions it ran on, on the head row, creating
+        it when the claim comes before any entry. An agent's own log has no corner: one log per
+        slug, whatever the world."""
         corner = None if call is None or env is None else (env, holder or "")
+        built_on = Versions() if versions is None or call is None else versions
         await self._pool.execute(
             OWNED,
             log_name(call, agent),
@@ -223,6 +227,8 @@ class PostgresStore(PostgresIndex):
             org,
             None if corner is None else corner[0],
             None if corner is None else corner[1],
+            built_on.config,
+            built_on.lexicon,
         )
 
     async def moved(self, agent: str, org: str) -> int:

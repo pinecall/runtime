@@ -23,7 +23,7 @@ from pinecall.lookups import Lookups
 from pinecall.providers.models import Chat
 from pinecall.session.asking import Asking, NotAsking, WhatWasAsked
 from pinecall.session.text.session import TextSession
-from pinecall.types import AgentConfig, CallContext, Env, Route
+from pinecall.types import AgentConfig, CallContext, Env, Route, Versions
 from pinecall_protocol.commands import CallEvent, SessionConfigure
 
 
@@ -56,6 +56,7 @@ async def a_conversation(
     store: Store,
     lookups: Lookups,
     budgets: Budgets,
+    versions: Versions | None = None,
 ) -> Conversation:
     """Open the call, seed its state, say every turn, hang up, and read the log back whole."""
     # A run is the one reader allowed the prompt itself: a golden that breaks has to be openable
@@ -65,7 +66,7 @@ async def a_conversation(
         golden, call, run, config, org, env, logs, llm, lookups, budgets, asking=asked
     )
     settling = Settling(session)
-    await logs.owned(session.call, session.agent, org, env, app.holder)
+    await logs.owned(session.call, session.agent, org, env, app.holder, versions)
     live.serve(
         session.call,
         session.agent,

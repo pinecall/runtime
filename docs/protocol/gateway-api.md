@@ -315,12 +315,12 @@ the same way as what the agent did.
 
 ## 5. The knobs, the knowledge, the memory
 
-**Pipeline.** `GET /v1/agents/{slug}/pipeline` answers the three legs as the NEXT call would be
-built — vendor, model, voice, language — the class's greeting, the medians livekit measured over
-recent calls, and which of the six knobs is turned. `PUT /v1/agents/{slug}/pipeline/overrides`
-turns them: `{voice, tts, tts_model, stt, llm, greeting}`. The body is the **whole set**, so leaving a
-field out is how you give it back to what the app declared; a blank value is refused, because an
-empty voice once silenced a whole line of calls.
+**Settings.** What an agent runs on is the org's, per world, per corner, a version a row —
+`GET`/`PUT /v1/agents/{slug}/settings`, its `history`, `diff`, `rollback` and `promote`, and
+`/v1/lexicon` for the org's words: [settings-api.md](settings-api.md). `pipeline` sets everything,
+`words` the opening's words, the lexicon and what is remembered; production is written by promote
+alone, once the goldens hold. `GET /v1/agents/{slug}/pipeline` still answers the three legs as the
+NEXT call would be built, and the six knobs its old `PUT …/pipeline/overrides` turns one release more.
 
 **Knowledge.** `PUT /v1/knowledge/{base}` takes `{files: [{path, text}]}` and replaces the base
 whole — it is never merged. `GET /v1/knowledge` lists the bases with their chunk counts and

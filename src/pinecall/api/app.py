@@ -54,12 +54,11 @@ from pinecall.orgs.meter import Meter
 from pinecall.orgs.outbound import outbound_trunks_for
 from pinecall.orgs.sso import sso_for
 from pinecall.orgs.table import orgs_for
-from pinecall.orgs.turned import turned_for
+from pinecall.orgs.tuning import tuning_for
 from pinecall.orgs.vault import keys_brought_by, vault_for
 from pinecall.orgs.widgets import widgets_for
 from pinecall.providers.embed import embedder_for
 from pinecall.providers.models import models_for
-from pinecall.providers.overrides import Overrides
 from pinecall.routes.dispatching import dispatches_for
 from pinecall.routes.outbound import outbound_for
 from pinecall.routes.rooms import rooms_for
@@ -184,11 +183,9 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # heartbeats write it again. docs/decisions/fleet.md.
     gateway.state.fleet = Roster()
     gateway.state.snapshots = Snapshots(store)
-    # What an operator has turned, from the table into this process's memory: the next session
-    # reads it through the very same config door a worker already asks. Read once here, so a
-    # deploy does not hand every agent back the model its class declared with nobody told.
-    gateway.state.overrides = Overrides(turned_for(pool))
-    await gateway.state.overrides.loaded()
+    # What the org set over every agent's class, per world, per corner, a version a row. Read per
+    # session and never cached: what one gateway sets is on the next call of every other one.
+    gateway.state.tuning = tuning_for(pool)
     # Which melody each agent plays while a tool runs, read per call: the table is small.
     gateway.state.hold_audio = hold_audio_for(pool)
     # The suites: which run is happening right now, and where every run that has finished is kept.

@@ -21,6 +21,10 @@ class CallCorner:
     env: str
     holder: str
     agent: str
+    # Which tuning and which lexicon the call was built on (0037); None for a corner that had set
+    # nothing, and for every call from before the columns.
+    config_version: int | None = None
+    lexicon_version: int | None = None
 
     def is_in(self, org: str, env: str, holder: str) -> bool:
         """Whether this call is in that corner."""

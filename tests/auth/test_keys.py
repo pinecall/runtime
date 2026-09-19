@@ -169,15 +169,21 @@ async def test_postgres_reads_the_world_and_the_scopes_back_off_the_row() -> Non
 # A scope added in Python is a scope no existing row holds until a migration hands it over, and
 # SQL cannot import a Python constant. So the words the migrations name are read back out of the
 # files and compared: 0013 backfilled the twelve of its day, 0017 handed the thirteenth to the
-# rows that had earned it, and together they are what the runtime knows. Adding one on the Python
-# side and not the SQL side fails here, and not on somebody's box.
+# rows that had earned it, 0037 the fourteenth to the floor's, and together they are what the
+# runtime knows. Adding one on the Python side and not the SQL side fails here, not on a box.
+HANDING_OVER = ("0017_provider_scope.sql", "0037_agent_tuning.sql")
+
+
 def test_the_migrations_hand_over_the_very_scopes_the_runtime_knows() -> None:
     backfilled = (MIGRATIONS / "0013_environments.sql").read_text(encoding="utf-8")
     array = re.search(r"ARRAY\[(.*?)\]", backfilled, re.S)
     assert array is not None
-    since = (MIGRATIONS / "0017_provider_scope.sql").read_text(encoding="utf-8")
-    handed = set(re.findall(r"array_append\(scopes, '([a-z]+)'\)", since))
-    assert handed, "0017 hands a scope to the rows that hold the one it was cut from"
+    handed: set[str] = set()
+    for name in HANDING_OVER:
+        since = (MIGRATIONS / name).read_text(encoding="utf-8")
+        found = set(re.findall(r"array_append\(scopes, '([a-z]+)'\)", since))
+        assert found, f"{name} hands a scope to the rows that hold the one it was cut from"
+        handed |= found
     assert set(re.findall(r"'([a-z]+)'", array.group(1))) | handed == KEY_SCOPES
 
 

@@ -19,8 +19,11 @@ ROLE_SCOPES: dict[str, frozenset[str]] = {
     "qa": frozenset({"calls", "evals"}),
     # Everything qa has, plus the live floor: watch a call, listen, take the line — and what the
     # agent remembers about the caller on it, which a person sitting beside the call has to see.
-    "supervisor": frozenset({"calls", "evals", "supervise", "talk", "memory"}),
-    # The floor and the org's numbers, keys and consumption — never the agent's own declaration.
+    # And the words: a supervisor who hears a brand said wrong forty times a day fixes the
+    # lexicon, and the opening's words, without a developer and without a deploy.
+    "supervisor": frozenset({"calls", "evals", "supervise", "talk", "memory", "words"}),
+    # The floor, the org's numbers, keys and consumption, and the words — never which vendor or
+    # model the agent runs on, and never its declaration: those are the developer's.
     "manager": frozenset(
         {
             "calls",
@@ -33,6 +36,7 @@ ROLE_SCOPES: dict[str, frozenset[str]] = {
             "providers",
             "usage",
             "team",
+            "words",
         }
     ),
     # Every door there is.
@@ -40,7 +44,7 @@ ROLE_SCOPES: dict[str, frozenset[str]] = {
     # Everything a person needs to write and run an agent: the app socket, the pipeline, the
     # knowledge base, a contact's memory, the suites — and the floor, to hear what was written.
     "developer": frozenset(
-        {"app", "calls", "talk", "supervise", "pipeline", "knowledge", "memory", "evals"}
+        {"app", "calls", "talk", "supervise", "pipeline", "knowledge", "memory", "evals", "words"}
     ),
 }
 

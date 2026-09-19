@@ -41,7 +41,8 @@ on conflict (call) do update set
 
 # A row from before 0024 has no corner and is production's, the org's own, as the list reads it.
 CORNER_OF_CALL = """
-select org, coalesce(env, 'production') as env, coalesce(holder, '') as holder, agent
+select org, coalesce(env, 'production') as env, coalesce(holder, '') as holder, agent,
+       config_version, lexicon_version
 from call_log_head where log = $1 and call is not null
 """
 

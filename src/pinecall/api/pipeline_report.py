@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 from pinecall._settings import Settings
 from pinecall.api.providers import ProviderRow, rows
 from pinecall.log.entry import Entry
@@ -9,16 +11,56 @@ from pinecall.log.latencies import medians
 from pinecall.log.store import Store
 from pinecall.providers.catalog import settings_field_of
 from pinecall.providers.models import DEFAULT_VENDOR
-from pinecall.providers.overrides import Overridden
 from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS, vendor_running
 from pinecall.providers.registry import NO_KEY
 from pinecall.providers.tts.voices import voice_names
-from pinecall.types import AgentConfig, Greeting, Model, Voice
+from pinecall.providers.tuning import tuned
+from pinecall.types import AgentConfig, Greeting, Lexicon, Model, Tuning, Voice
 from pinecall_protocol import WireModel, defs
 
 # How many of the agent's calls the medians are taken over. Enough that one bad morning does not
 # read as the pipeline's normal, few enough that the door answers while a person is looking at it.
 LAST_CALLS = 20
+
+
+# The six knobs the old door takes, kept one release for the console's Pipeline screen: a knob
+# left out is not set. What they set lives in the agent's tuning now (api/tuning.py), so a body
+# here becomes the next version of the corner's tuning with these six replaced and the rest kept.
+class Overridden(WireModel):
+    """The six knobs an operator turns at PUT …/pipeline/overrides. A knob left out is not set."""
+
+    voice: str | None = None
+    tts: str | None = None
+    tts_model: str | None = None
+    stt: str | None = None
+    llm: str | None = None
+    greeting: str | None = None
+
+
+def turned(standing: Tuning, knobs: Overridden) -> Tuning:
+    """The corner's tuning with the six knobs replaced whole, as the old door replaced them."""
+    return dataclasses.replace(
+        standing,
+        voice=knobs.voice,
+        tts=knobs.tts,
+        tts_model=knobs.tts_model,
+        stt=knobs.stt,
+        llm=knobs.llm,
+        greeting=None if knobs.greeting is None else Greeting(say=knobs.greeting),
+    )
+
+
+def overridden_of(tuning: Tuning) -> Overridden:
+    """The six knobs as the report still draws them, off what the corner's tuning says."""
+    greeting = tuning.greeting
+    return Overridden(
+        voice=tuning.voice,
+        tts=tuning.tts,
+        tts_model=tuning.tts_model,
+        stt=tuning.stt,
+        llm=tuning.llm,
+        greeting=None if greeting is None else greeting.say,
+    )
 
 
 class Stage(WireModel):
@@ -63,17 +105,18 @@ class Report(WireModel):
 
 
 # The stages are read off the config the NEXT session would be built on — what the app declared
-# with the operator's knobs already turned — so the screen never shows a vendor that is no
-# longer the one in use.
+# with the corner's tuning laid over it — so the screen never shows a vendor that is no longer
+# the one in use.
 async def report(
     agent: str,
     declared: AgentConfig,
-    turned: Overridden,
+    tuning: Tuning,
+    lexicon: Lexicon,
     store: Store,
     settings: Settings,
 ) -> Report:
     """Read the agent's last calls once and answer everything the pipeline screen draws."""
-    config = turned.applied_to(declared)
+    config = tuned(declared, tuning, lexicon)
     hears = _hears(config.stt, config.language)
     decides = _decides(config.llm)
     speaks = _speaks(config.voice, config.language)
@@ -84,7 +127,7 @@ async def report(
         decides=decides,
         speaks=speaks,
         greeting=_on_the_wire(config.greeting),
-        overrides=turned,
+        overrides=overridden_of(tuning),
         voices=list(voice_names()),
         providers=rows(settings),
         calls=len(calls),

@@ -7,18 +7,19 @@ from dataclasses import dataclass
 from pinecall._settings import Budgets
 from pinecall.api.agents.holding import Registration, SocketId
 from pinecall.api.agents.registry import Registry
+from pinecall.api.agents.tuned import tuned_for
 from pinecall.evals.score import JudgedWhen
 from pinecall.log.logs import CallLog
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
+from pinecall.orgs.tuning import TuningStore
 from pinecall.orgs.vault import Vault, keys_brought_by
 from pinecall.providers.declaration import rang
 from pinecall.providers.models import Models
-from pinecall.providers.overrides import Overrides
 from pinecall.session.first_entries import arrived
 from pinecall.session.text.session import TextSession
-from pinecall.types import CallContext, Env, ProviderKeys
+from pinecall.types import CallContext, Env, ProviderKeys, Versions
 from pinecall_protocol import encode
 
 
@@ -31,6 +32,8 @@ class TextCall:
 
     session: TextSession
     keys: ProviderKeys
+    # Which tuning and lexicon the session was built on, for the head row the door claims next.
+    versions: Versions
 
 
 # One order, two doors: the chat socket and the WhatsApp webhook both come through here, so a call
@@ -40,7 +43,7 @@ class TextCall:
 async def a_text_call(
     held: Registration,
     context: CallContext,
-    overrides: Overrides,
+    tuning: TuningStore,
     vault: Vault | None,
     llms: Models,
     admission: Admission,
@@ -50,9 +53,10 @@ async def a_text_call(
     budgets: Budgets,
 ) -> TextCall:
     """The config, whose keys, the model and the quota — then the session, unstarted."""
-    # What the operator turned on the Pipeline screen is on this call too: a text call reads the
-    # config through the same applying function the worker's config door reads it through.
-    config = overrides.config_for(held.slug, held.config)
+    # What the org set is on this call too: a text call reads the config through the same
+    # resolving function the worker's config door reads it through, in the corner that serves it.
+    resolved = await tuned_for(tuning, held.org, held.env, held.holder, held.slug, held.config)
+    config = resolved.config
     # Asked at the moment the call opens and never held for the next one: a tenant who rotated a
     # key a minute ago is answered on the new one, and an org that brought none runs on the box's.
     brought = await keys_brought_by(vault, held.org)
@@ -76,7 +80,7 @@ async def a_text_call(
         rememberer=lookups,
         budgets=budgets,
     )
-    return TextCall(session=session, keys=brought)
+    return TextCall(session=session, keys=brought, versions=resolved.versions)
 
 
 # The call's first entry, unless another door already wrote it.
