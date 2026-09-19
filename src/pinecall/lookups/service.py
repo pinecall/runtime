@@ -16,7 +16,15 @@ from pinecall.log.writers import Logs
 from pinecall.lookups.answers import found, recalled
 from pinecall.lookups.entries import a_recall, a_retrieval, a_skip
 from pinecall.memory import DEFAULT_FACTS_PER_TURN, Memory, Spoken
-from pinecall.types import AgentConfig, CallContext, Counting, PlatformTool, ProviderKeys, Quotas
+from pinecall.types import (
+    AgentConfig,
+    CallContext,
+    Chunk,
+    Counting,
+    PlatformTool,
+    ProviderKeys,
+    Quotas,
+)
 from pinecall_protocol import WireModel, encode
 from pinecall_protocol.defs import MemoryOp
 from pinecall_protocol.events import MemoryOps
@@ -101,6 +109,10 @@ class Lookups:
         if opened is None or log is None:
             return _nothing_found(tool)
         query = str(input.get("query") or "")
+        # A class searching for itself (`this.knowledge.search(q, {k})`) may say how many; a turn's
+        # own search takes each base's k.
+        asked = input.get("k")
+        k = asked if isinstance(asked, int) and asked > 0 else None
         started = time.perf_counter()
         try:
             # One read per lookup: a plan that switched a feature off answers with nothing, and
@@ -108,7 +120,7 @@ class Lookups:
             quotas = await self._quotas_of(opened.org)
             if tool == "recall":
                 return await self._recalled(opened, log, quotas, query, speech_id, started)
-            return await self._searched(opened, log, quotas, query, speech_id, started)
+            return await self._searched(opened, log, quotas, query, speech_id, started, k)
         except Exception as failed:  # noqa: BLE001 — a lookup must never break a reply
             logger.warning("call %s: %s did not run", opened.context.call, tool, exc_info=True)
             await _written(log, "error", a_skip(tool, str(failed) or type(failed).__name__))
@@ -150,23 +162,32 @@ class Lookups:
         query: str,
         speech_id: str | None,
         started: float,
+        k: int | None = None,
     ) -> Mapping[str, Any]:
-        """The best chunks of the agent's base under its own k; docs.sources on the log."""
-        docs = opened.config.docs
+        """The best chunks of every base the agent reads, each under its k; docs.sources logged."""
+        bases = opened.config.bases
         # An org that may keep no chunks has none to find, and docs.sources with no sources would
         # tell the grounded judge the base was searched and answered nothing. Nothing is written,
         # and the query is not embedded to search a base that cannot exist.
-        if self._knowledge is None or docs is None or quotas.switched_off("knowledge_chunks"):
+        if self._knowledge is None or not bases or quotas.switched_off("knowledge_chunks"):
             return found(())
-        chunks = await self._knowledge.search(
-            opened.org,
-            opened.context.route.env,
-            opened.holder,
-            docs.base,
-            query,
-            k=docs.k,
-            min_score=docs.min_score,
-        )
+        # Several bases, one answer: each searched under its own k, the scores already read
+        # against each base's best, the best of all of them first, cut to the largest k asked.
+        chunks: list[Chunk] = []
+        for docs in bases:
+            chunks.extend(
+                await self._knowledge.search(
+                    opened.org,
+                    opened.context.route.env,
+                    opened.holder,
+                    docs.base,
+                    query,
+                    k=k or docs.k,
+                    min_score=docs.min_score,
+                )
+            )
+        chunks.sort(key=lambda chunk: chunk.score, reverse=True)
+        chunks = chunks[: k or max(docs.k for docs in bases)]
         took_ms = _since(started)
         await _written(log, "docs.sources", a_retrieval(query, chunks, took_ms, speech_id))
         return found(chunks)

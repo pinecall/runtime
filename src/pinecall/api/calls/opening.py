@@ -9,6 +9,7 @@ from pinecall.api.agents.holding import Registration, SocketId
 from pinecall.api.agents.registry import Registry
 from pinecall.api.agents.tuned import tuned_for
 from pinecall.evals.score import JudgedWhen
+from pinecall.knowledge import Knowledge
 from pinecall.log.logs import CallLog
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
@@ -51,11 +52,14 @@ async def a_text_call(
     running: int,
     lookups: Lookups,
     budgets: Budgets,
+    knowledge: Knowledge | None = None,
 ) -> TextCall:
     """The config, whose keys, the model and the quota — then the session, unstarted."""
     # What the org set is on this call too: a text call reads the config through the same
     # resolving function the worker's config door reads it through, in the corner that serves it.
-    resolved = await tuned_for(tuning, held.org, held.env, held.holder, held.slug, held.config)
+    resolved = await tuned_for(
+        tuning, held.org, held.env, held.holder, held.slug, held.config, knowledge
+    )
     config = resolved.config
     # Asked at the moment the call opens and never held for the next one: a tenant who rotated a
     # key a minute ago is answered on the new one, and an org that brought none runs on the box's.

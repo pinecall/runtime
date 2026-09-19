@@ -59,11 +59,31 @@ WITH pushed AS (
 ), replaced AS (
     DELETE FROM knowledge_chunks WHERE org = $1 AND env = $2 AND holder = $3 AND base = $4
 )
-INSERT INTO knowledge_chunks (org, env, holder, base, path, heading, ordinal, text, embedding)
+INSERT INTO knowledge_chunks (org, env, holder, base, path, heading, ordinal, text, embedding, mode)
 SELECT $1, $2, $3, $4, chunk.path, chunk.heading, chunk.ordinal, chunk.text,
-       chunk.embedding::halfvec
-FROM unnest($8::text[], $9::text[], $10::integer[], $11::text[], $12::text[])
-    AS chunk (path, heading, ordinal, text, embedding)
+       chunk.embedding::halfvec, chunk.mode
+FROM unnest($8::text[], $9::text[], $10::integer[], $11::text[], $12::text[], $13::text[])
+    AS chunk (path, heading, ordinal, text, embedding, mode)
+"""
+
+# A base copied into another world's org's-own corner, vectors and all: no embedder runs, so a
+# promoted base is the very rows the golden was held over. One statement, as a push is: the
+# corner's chunks gone, its row upserted, the chunks copied under it.
+_COPY = """
+WITH replaced AS (
+    DELETE FROM knowledge_chunks WHERE org = $1 AND env = $3 AND holder = '' AND base = $4
+), promoted AS (
+    INSERT INTO knowledge_bases (org, env, holder, base, model, dimensions, chunks, pushed_at)
+        SELECT org, $3, '', base, model, dimensions, chunks, now()
+        FROM knowledge_bases WHERE org = $1 AND env = $2 AND holder = $5 AND base = $4
+        ON CONFLICT (org, env, holder, base) DO UPDATE
+        SET model = excluded.model, dimensions = excluded.dimensions,
+            chunks = excluded.chunks, pushed_at = now()
+)
+INSERT INTO knowledge_chunks (org, env, holder, base, path, heading, ordinal, text, embedding, mode)
+SELECT org, $3, '', base, path, heading, ordinal, text, embedding, mode
+FROM knowledge_chunks WHERE org = $1 AND env = $2 AND holder = $5 AND base = $4
+RETURNING 1
 """
 
 # Yours, and the org's own for a name you have not pushed: a developer who has pushed nothing
@@ -91,12 +111,28 @@ WHERE org = $1 AND env = $2 AND holder IN ($3, '') AND base = $4
 ORDER BY holder DESC LIMIT 1
 """
 
+# The corner a read of this base falls to, named: what a promote copies from.
+_MODEL_OF_WHOSE = """
+SELECT holder FROM knowledge_bases
+WHERE org = $1 AND env = $2 AND holder IN ($3, '') AND base = $4
+ORDER BY holder DESC LIMIT 1
+"""
+
 # Whose copy of this base a read is about: yours when you pushed one, the org's otherwise. Written
 # once and pasted into the two branch queries, so neither can drift from `_MODEL_OF`.
 _WHOSE = """
     holder = (SELECT holder FROM knowledge_bases
               WHERE org = $1 AND env = $2 AND holder IN ($3, '') AND base = $4
               ORDER BY holder DESC LIMIT 1)
+"""
+
+# The whole files of a base, in the order a folder lists them: what the static block reads. The
+# same fallback a search makes — the corner's copy, else the org's.
+_WHOLE = f"""
+SELECT path, text
+FROM knowledge_chunks
+WHERE org = $1 AND env = $2 AND base = $4 AND mode = 'whole' AND {_WHOSE}
+ORDER BY path
 """
 
 # The chunks go with the row: 0009 declares them ON DELETE CASCADE. The row returned is the
@@ -109,11 +145,12 @@ DELETE FROM knowledge_bases WHERE org = $1 AND env = $2 AND holder = $3 AND base
 RETURNING base
 """
 
-# The dense branch: nearest by cosine, the HNSW index's own order.
+# The dense branch: nearest by cosine, the HNSW index's own order. A whole file is never a
+# candidate: the model reads it entire already, in the static block.
 _NEAREST = f"""
 SELECT id, path, heading, text
 FROM knowledge_chunks
-WHERE org = $1 AND env = $2 AND base = $4 AND {_WHOSE}
+WHERE org = $1 AND env = $2 AND base = $4 AND mode = 'retrieved' AND {_WHOSE}
 ORDER BY embedding <=> $5::halfvec
 LIMIT $6
 """
@@ -125,7 +162,7 @@ SELECT id, path, heading, text
 FROM (
     SELECT id, path, heading, text, text <@> to_bm25query($5, '{TEXT_INDEX}') AS score
     FROM knowledge_chunks
-    WHERE org = $1 AND env = $2 AND base = $4 AND {_WHOSE}
+    WHERE org = $1 AND env = $2 AND base = $4 AND mode = 'retrieved' AND {_WHOSE}
 ) scored
 WHERE score < 0
 ORDER BY score
@@ -150,11 +187,25 @@ class PgKnowledge:
     ) -> int:
         """Replace THIS corner's base with these files; how many chunks it became."""
         cut = [chunks_of(file) for file in files]
-        embedded = await self._embedder.embed_documents(
-            [[piece.text for piece in file] for file in cut]
+        # Only what a turn will search is embedded: a whole file is one row with no vector.
+        embedded = iter(
+            await self._embedder.embed_documents(
+                [
+                    [piece.text for piece in file_pieces]
+                    for file, file_pieces in zip(files, cut, strict=True)
+                    if file.mode != "whole"
+                ]
+            )
         )
-        pieces = [piece for file in cut for piece in file]
-        vectors = [vector for file in embedded for vector in file]
+        pieces = [piece for file_pieces in cut for piece in file_pieces]
+        modes: list[str] = []
+        vectors: list[str | None] = []
+        for file, file_pieces in zip(files, cut, strict=True):
+            modes += [file.mode] * len(file_pieces)
+            if file.mode == "whole":
+                vectors += [None] * len(file_pieces)
+            else:
+                vectors += [as_halfvec(vector) for vector in next(embedded)]
         await self._pool.execute(
             _PUT,
             org,
@@ -168,9 +219,26 @@ class PgKnowledge:
             [piece.heading for piece in pieces],
             [piece.ordinal for piece in pieces],
             [piece.text for piece in pieces],
-            [as_halfvec(vector) for vector in vectors],
+            vectors,
+            modes,
         )
         return len(pieces)
+
+    async def whole_texts(
+        self, org: str, env: Env, holder: str | None, base: str
+    ) -> list[KnowledgeFile]:
+        """The files of this base kept whole, for the static block, in a folder's order."""
+        rows = await self._pool.fetch(_WHOLE, org, env, whose(holder), base)
+        return [KnowledgeFile(str(row["path"]), str(row["text"]), "whole") for row in rows]
+
+    async def copy(self, org: str, env: Env, holder: str | None, base: str, to: Env) -> int:
+        """This corner's base as the org's own base of another world; how many chunks went."""
+        # `whose` answers the corner the read falls to, so a developer promoting a base only the
+        # org pushed copies the org's — the very rows the golden ranked.
+        corner = await self._pool.fetchrow(_MODEL_OF_WHOSE, org, env, whose(holder), base)
+        if corner is None:
+            return 0
+        return len(await self._pool.fetch(_COPY, org, env, to, base, str(corner["holder"])))
 
     async def bases(self, org: str, env: Env, holder: str | None = None) -> list[Base]:
         """Every base this corner can read in this world: its own, and the org's for a name it

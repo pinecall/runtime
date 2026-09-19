@@ -232,13 +232,32 @@ async def register(socket: Socket, command: Command) -> None:
     await socket.send(entry)
 
 
+# A class that searches the base itself — `this.knowledge.search` — with no base attached in this
+# world is refused HERE, where the app is declaring itself, and not in a call where the tool would
+# find nothing: the same rule that refuses a voice nobody curated. The sentence names the verb.
+NO_BASE_ATTACHED = (
+    "{slug} searches knowledge, and no base is attached to it in {world}: "
+    "pinecall knowledge attach <base> --agent {slug}"
+)
+
+
 @handles("agent.configure")
 async def configure(socket: Socket, command: Command) -> None:
     """Declare or change what the agent is. Only the fields the app sent change."""
     wanted = asked(command, AgentConfigure)
+    await a_base_to_search(socket, command.agent, wanted.config)
     entry = await socket.registry.configure(socket.id, socket.env, command.agent, wanted.config)
     await socket.send(entry)
     await seeded(socket, command.agent, wanted.config)
+
+
+async def a_base_to_search(socket: Socket, slug: str, wire: defs.AgentConfig) -> None:
+    """DeclarationRefused when the class searches and this world attaches it no base."""
+    if not wire.uses_knowledge or wire.docs is not None:
+        return
+    row = await socket.tuning.newest(socket.org, socket.env, socket.holder, slug)
+    if row is None or not row.value.knowledge:
+        raise DeclarationRefused(NO_BASE_ATTACHED.format(slug=slug, world=socket.env))
 
 
 # The note every seeded row carries, so a history says where the world's first version came from.

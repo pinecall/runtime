@@ -1,6 +1,7 @@
 """A world with nothing set is seeded from the class on agent.configure, once, in its own corner."""
 
 import asyncio
+from collections.abc import Mapping
 
 import pytest
 from starlette.testclient import TestClient
@@ -23,7 +24,7 @@ DECLARED = {
 }
 
 
-def configured(gateway: TestClient, config: dict[str, object]) -> None:
+def configured(gateway: TestClient, config: Mapping[str, object]) -> None:
     with an_app(gateway) as app_socket:
         app_socket.send_json(a_register(AGENT, a_door("web")))
         app_socket.receive_json()

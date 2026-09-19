@@ -19,6 +19,15 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **The `words` scope: the floor fixes what the agent says.** A supervisor's and a manager's keys
   set the opening's words, the lexicon and what is remembered, and are refused a vendor by name.
   0037 hands it to every key that holds `supervise`; `developer` carries it too.
+- **A file of a base may be kept whole.** `PUT /v1/knowledge/{base}` takes each file's `mode`:
+  `retrieved`, cut and searched as before, or `whole` — one row, no vector (0038), read entire into
+  the static knowledge block of every call of an agent whose settings attach the base, where the
+  class's `knowledge =` file used to go. A turn's search fans out over every attached base, each
+  under its own `k`, the best of all of them first. `POST /v1/knowledge/{base}/promote` copies the
+  sandbox's rows into production, vectors and all, and refuses when the golden in the body would
+  score lower there than it does over production; `GET /v1/knowledge/attached` says which agents
+  read each base. A class that searches for itself (`uses_knowledge` on the wire) is refused at
+  `agent.configure` in a world that attaches it no base, naming `pinecall knowledge attach`.
 
 ### Changed
 - **`pipeline_overrides` is absorbed.** Its rows became version 1 of both worlds of `agent_config`;

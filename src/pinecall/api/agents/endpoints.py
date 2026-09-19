@@ -12,6 +12,7 @@ from pinecall.api._deps import (
     AppKeyDep,
     CallsKeyDep,
     DeclarationKeyDep,
+    KnowledgeDep,
     MembersDep,
     RoutesDep,
     TuningDep,
@@ -42,6 +43,7 @@ async def config(
     corner: CornerDep,
     registry: RegistryDep,
     kept: TuningDep,
+    knowledge: KnowledgeDep,
 ) -> dict[str, Any]:
     """What the app declared about this agent, resolved: the session is built from it, and the
     console draws the state by it."""
@@ -50,7 +52,9 @@ async def config(
         raise HTTPException(status_code=404, detail=NO_AGENT.format(slug=slug))
     # The corner's tuning is laid on through tuned_for(), the one resolving function every door
     # that builds a session calls, so what the org set arrives by the path a declaration travels.
-    resolved = await tuned_for(kept, corner.org, corner.env, corner.holder, slug, held.config)
+    resolved = await tuned_for(
+        kept, corner.org, corner.env, corner.holder, slug, held.config, knowledge
+    )
     dumped = CONFIG.dump_python(resolved.config, mode="json")
     return cast("dict[str, Any]", dumped)
 

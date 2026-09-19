@@ -54,9 +54,10 @@ def tuned(declared: AgentConfig, tuning: Tuning, lexicon: Lexicon) -> AgentConfi
         hangup=declared.hangup if tuning.hangup is None else tuning.hangup,
         turn=declared.turn if tuning.turn is None else tuning.turn,
         memory=declared.memory if tuning.memory is None else tuning.memory,
-        # One base a turn retrieves from, today: fanning a search out over several attached bases
-        # is the knowledge chapter's, and until then the first attachment is the one.
+        # Every base the world attached, and the first of them as `docs`, for the one place that
+        # asks whether the model has a search tool at all (session/lookups.py).
         docs=tuning.knowledge[0] if tuning.knowledge else declared.docs,
+        bases=tuning.knowledge if tuning.knowledge else ((declared.docs,) if declared.docs else ()),
         says={**declared.says, **lexicon.said},
         hears=tuple(dict.fromkeys((*declared.hears, *lexicon.heard))),
     )

@@ -11,6 +11,14 @@ from pydantic import TypeAdapter
 
 from pinecall._exceptions import PinecallError
 from pinecall.log.store import Pool
+from pinecall.orgs.lexicon import (
+    LEXICON_AT,
+    LEXICON_HISTORY,
+    NEWEST_LEXICON,
+    OWN_LEXICON,
+    PUT_LEXICON,
+    a_lexicon,
+)
 from pinecall.types import Env, Kept, Lexicon, Tuning, whose
 
 # The adapters both stores read a row's JSON back through and write one out through: the same
@@ -71,6 +79,16 @@ SELECT holder, version, config, author, note, set_at
  LIMIT $5
 """
 
+# Every agent's newest in this world, each by the same fallback `_NEWEST` makes — the corner's
+# own when it set one, the org's otherwise. What the knowledge screen answers "who reads this
+# base" from.
+_EVERY_NEWEST = """
+SELECT DISTINCT ON (agent) agent, holder, version, config, author, note, set_at
+  FROM agent_config
+ WHERE org = $1 AND env = $2 AND holder IN ($3, '')
+ ORDER BY agent, holder DESC, version DESC
+"""
+
 _PUT = """
 INSERT INTO agent_config (org, env, holder, agent, version, config, author, note)
 SELECT $1, $2, $3, $4, coalesce(max(version), 0) + 1, $5::jsonb, $6, $7
@@ -78,50 +96,6 @@ SELECT $1, $2, $3, $4, coalesce(max(version), 0) + 1, $5::jsonb, $6, $7
  WHERE org = $1 AND env = $2 AND holder = $3 AND agent = $4
 HAVING $8::integer IS NULL OR coalesce(max(version), 0) = $8
 ON CONFLICT (org, env, holder, agent, version) DO NOTHING
-RETURNING version
-"""
-
-# The lexicon is the org's and not one agent's, so its rows have no agent: the same four
-# statements over the same three questions, one column fewer.
-_NEWEST_LEXICON = """
-SELECT holder, version, said, heard, author, note, set_at
-  FROM lexicon
- WHERE org = $1 AND env = $2 AND holder IN ($3, '')
- ORDER BY holder DESC, version DESC
- LIMIT 1
-"""
-
-_OWN_LEXICON = """
-SELECT holder, version, said, heard, author, note, set_at
-  FROM lexicon
- WHERE org = $1 AND env = $2 AND holder = $3
- ORDER BY version DESC
- LIMIT 1
-"""
-
-_LEXICON_AT = """
-SELECT holder, version, said, heard, author, note, set_at
-  FROM lexicon
- WHERE org = $1 AND env = $2 AND holder IN ($3, '') AND version = $4
- ORDER BY holder DESC
- LIMIT 1
-"""
-
-_LEXICON_HISTORY = """
-SELECT holder, version, said, heard, author, note, set_at
-  FROM lexicon
- WHERE org = $1 AND env = $2 AND holder = $3
- ORDER BY version DESC
- LIMIT $4
-"""
-
-_PUT_LEXICON = """
-INSERT INTO lexicon (org, env, holder, version, said, heard, author, note)
-SELECT $1, $2, $3, coalesce(max(version), 0) + 1, $4::jsonb, $5::jsonb, $6, $7
-  FROM lexicon
- WHERE org = $1 AND env = $2 AND holder = $3
-HAVING $8::integer IS NULL OR coalesce(max(version), 0) = $8
-ON CONFLICT (org, env, holder, version) DO NOTHING
 RETURNING version
 """
 
@@ -170,6 +144,12 @@ class MemoryTuning:
     ) -> list[Kept[Tuning]]:
         """This corner's versions, newest first."""
         return list(reversed(self._rows.get((org, env, holder, agent), [])))[:limit]
+
+    async def every_newest(self, org: str, env: Env, holder: str | None) -> dict[str, Kept[Tuning]]:
+        """Every agent's newest in this world by slug, the corner's own else the org's."""
+        agents = {slug for (o, e, _h, slug) in self._rows if (o, e) == (org, env)}
+        found = {slug: await self.newest(org, env, holder, slug) for slug in sorted(agents)}
+        return {slug: row for slug, row in found.items() if row is not None}
 
     async def put(
         self,
@@ -278,6 +258,11 @@ class PostgresTuning:
         rows = await self._pool.fetch(_HISTORY, org, env, agent, holder, limit)
         return [_a_tuning(row) for row in rows]
 
+    async def every_newest(self, org: str, env: Env, holder: str | None) -> dict[str, Kept[Tuning]]:
+        """Every agent's newest in this world by slug, the corner's own else the org's."""
+        rows = await self._pool.fetch(_EVERY_NEWEST, org, env, whose(holder))
+        return {str(row["agent"]): _a_tuning(row) for row in rows}
+
     async def put(
         self,
         org: str,
@@ -301,27 +286,27 @@ class PostgresTuning:
 
     async def newest_lexicon(self, org: str, env: Env, holder: str | None) -> Kept[Lexicon] | None:
         """The corner's own newest lexicon, else the org's own; None when neither set one."""
-        row = await self._pool.fetchrow(_NEWEST_LEXICON, org, env, whose(holder))
-        return None if row is None else _a_lexicon(row)
+        row = await self._pool.fetchrow(NEWEST_LEXICON, org, env, whose(holder))
+        return None if row is None else a_lexicon(row)
 
     async def own_lexicon(self, org: str, env: Env, holder: str) -> Kept[Lexicon] | None:
         """This corner's newest lexicon and nothing else's."""
-        row = await self._pool.fetchrow(_OWN_LEXICON, org, env, holder)
-        return None if row is None else _a_lexicon(row)
+        row = await self._pool.fetchrow(OWN_LEXICON, org, env, holder)
+        return None if row is None else a_lexicon(row)
 
     async def lexicon_at(
         self, org: str, env: Env, holder: str | None, version: int
     ) -> Kept[Lexicon] | None:
         """One version of the lexicon, the corner's own if it has it, else the org's own."""
-        row = await self._pool.fetchrow(_LEXICON_AT, org, env, whose(holder), version)
-        return None if row is None else _a_lexicon(row)
+        row = await self._pool.fetchrow(LEXICON_AT, org, env, whose(holder), version)
+        return None if row is None else a_lexicon(row)
 
     async def lexicon_history(
         self, org: str, env: Env, holder: str, limit: int = HISTORY_LIMIT
     ) -> list[Kept[Lexicon]]:
         """This corner's lexicon versions, newest first."""
-        rows = await self._pool.fetch(_LEXICON_HISTORY, org, env, holder, limit)
-        return [_a_lexicon(row) for row in rows]
+        rows = await self._pool.fetch(LEXICON_HISTORY, org, env, holder, limit)
+        return [a_lexicon(row) for row in rows]
 
     async def put_lexicon(
         self,
@@ -336,7 +321,7 @@ class PostgresTuning:
     ) -> int:
         """A new lexicon version in this corner; VersionMoved when the corner moved on."""
         row = await self._pool.fetchrow(
-            _PUT_LEXICON,
+            PUT_LEXICON,
             org,
             env,
             holder,
@@ -363,20 +348,6 @@ def _a_tuning(row: Mapping[str, Any]) -> Kept[Tuning]:
         note=row["note"],
         set_at=row["set_at"],
         value=TUNING.validate_python(json.loads(str(row["config"]))),
-    )
-
-
-def _a_lexicon(row: Mapping[str, Any]) -> Kept[Lexicon]:
-    """One lexicon row as the store hands it back."""
-    return Kept(
-        holder=str(row["holder"]),
-        version=int(row["version"]),
-        author=str(row["author"]),
-        note=row["note"],
-        set_at=row["set_at"],
-        value=Lexicon(
-            said=json.loads(str(row["said"])), heard=tuple(json.loads(str(row["heard"])))
-        ),
     )
 
 

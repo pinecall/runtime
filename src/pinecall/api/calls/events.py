@@ -5,20 +5,14 @@ from __future__ import annotations
 import asyncio
 from typing import Annotated, Any
 
-from fastapi import (
-    APIRouter,
-    HTTPException,
-    Query,
-    Response,
-    WebSocket,
-    WebSocketDisconnect,
-)
+from fastapi import APIRouter, HTTPException, Query, Response, WebSocket, WebSocketDisconnect
 from starlette.responses import StreamingResponse
 
 from pinecall.api._deps import (
     AdmissionDep,
     AppKeyDep,
     KeysDep,
+    KnowledgeDep,
     LogsDep,
     SettingsDep,
     SnapshotsDep,
@@ -294,6 +288,7 @@ async def opened(
     tokens: TokensDep,
     admission: AdmissionDep,
     tuning: TuningDep,
+    knowledge: KnowledgeDep,
 ) -> None:
     """A call started: open its log, put it on the app's socket, and write how it arrived."""
     context = said.context
@@ -325,18 +320,18 @@ async def opened(
     serving = who_serves(registry, env, said.agent, said.app, context, holder)
     if said.app is not None and serving is None:
         raise HTTPException(409, NOT_THAT_APP.format(app=said.app, slug=said.agent))
-    # Held, but by consoles only: this is the phone call the flag exists to keep out of somebody's
-    # terminal. Refused here, where the caller has not been greeted yet, rather than run with no app
-    # socket on it — a conversation whose every tool goes out to nobody is worse than a line that
-    # drops. A call whose app disconnected mid-setup is the other case, and it still goes through.
+    # Held, but by consoles only: the phone call the flag keeps out of somebody's terminal. Refused
+    # before the caller is greeted, not run with no app socket on it — a conversation whose every
+    # tool goes out to nobody is worse than a line that drops. An app gone mid-setup still goes on.
     if serving is None and registry.of(env, said.agent, holder) is not None:
         raise HTTPException(409, NO_UNCLAIMED.format(slug=said.agent))
-    # What this call's agent declared, resolved in the corner that serves it as the worker read it
-    # through the config door, before the head row is claimed: the row records the versions the
-    # call ran on. An agent nobody holds any more declared nothing this gateway can name.
+    # What the agent declared, resolved in the corner that serves it as the worker read it through
+    # the config door, before the head row is claimed: the row records the versions the call ran on.
     held = serving or registry.of(env, said.agent, holder)
     corner = None if serving is None else serving.holder
-    resolved = await tuned_for(tuning, org, env, corner, said.agent, held.config) if held else None
+    resolved = None
+    if held:
+        resolved = await tuned_for(tuning, org, env, corner, said.agent, held.config, knowledge)
     config = AgentConfig(slug=said.agent) if resolved is None else resolved.config
     versions = None if resolved is None else resolved.versions
     await logs.owned(context.call, said.agent, org, env, holder, versions)

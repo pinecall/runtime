@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import Field
 
 from pinecall.api._deps import (
+    KnowledgeDep,
     LlmsDep,
     LogsDep,
     LookupsDep,
@@ -101,6 +102,7 @@ async def promote(
     vault: VaultDep,
     lookups: LookupsDep,
     settings: SettingsDep,
+    knowledge: KnowledgeDep,
 ) -> Promoted:
     """Your corner to the team's, or the team's sandbox to production once the goldens hold."""
     if said.to == "team":
@@ -130,6 +132,7 @@ async def promote(
         lookups=lookups,
         budgets=settings.budgets,
         settings=settings,
+        knowledge=knowledge,
     )
     try:
         run = await a_run(Wanted(agent=slug, goldens=said.goldens), runner, process)

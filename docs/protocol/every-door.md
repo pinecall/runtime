@@ -95,7 +95,7 @@ sandbox, answered in that colleague's corner.
 | `GET` | `/v1/routes` | the numbers and doors your org answers |
 | `PUT`·`DELETE`·`GET` | `/v1/provider-keys[/{vendor}]` | the org's own vendor accounts — `providers` |
 | `GET` | `/v1/providers` | every vendor this build runs, which are ready on this box and which want a key, the defaults and the curated voices — `providers` |
-| `PUT`·`GET`·`DELETE` | `/v1/knowledge[/{base}]` · `POST …/eval` | the base the agent answers from, in the key's world |
+| `PUT`·`GET`·`DELETE` | `/v1/knowledge[/{base}]` · `POST …/eval` · `POST …/promote` · `GET /v1/knowledge/attached` | the base the agent answers from, in the key's world; promoted into production once the golden holds; which agents read which |
 | `GET`·`DELETE` | `/v1/contacts/{contact}/memory` · `POST /v1/contacts/memory/eval` | what it keeps about a person, in the key's world |
 | `GET` | `/v1/agents/{slug}/threads?after=` · `/threads/{contact}` | the inbox: an agent's calls by contact, what this person has not read, and one thread merged — `calls` |
 | `POST` | `/v1/agents/{slug}/threads/{contact}/read` · `/messages` | mark a thread read — `calls`; say something on the open WhatsApp conversation — `talk` |

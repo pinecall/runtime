@@ -102,6 +102,14 @@ class AgentConfig:
     hears: tuple[str, ...] = ()
     knowledge: KnowledgeFile | None = None
     docs: Docs | None = None
+    # Every base the world attached, each with how a turn reads it; `docs` is the first of them,
+    # for the one place that asks whether the model has a search tool at all. Never on the wire:
+    # the resolver fills it from the agent's settings (api/agents/tuned.py), and a config built
+    # with `docs` alone reads that one base.
+    bases: tuple[Docs, ...] = ()
+    # Whether the class searches the base itself, `this.knowledge.search`: a world that attaches
+    # none refuses the registration, so a tool that would find nothing is refused at boot.
+    uses_knowledge: bool = False
     memory: MemoryPolicy | None = None
     hangup: Hangup | None = None
     tools: tuple[ToolSpec, ...] = ()
@@ -115,6 +123,8 @@ class AgentConfig:
             raise DeclarationRefused(
                 f"an agent's slug is lowercase words joined by dashes, not {self.slug!r}"
             )
+        if self.docs is not None and not self.bases:
+            object.__setattr__(self, "bases", (self.docs,))
         if unknown := self.channels - CHANNELS:
             raise DeclarationRefused(f"agent {self.slug}: unknown channels {sorted(unknown)}")
         names = [tool.name for tool in self.tools]

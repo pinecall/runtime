@@ -7,14 +7,14 @@ nothing else — so an app written against this document in any language is a fi
 The operator's half (`/v1/ops/*`, orgs, quotas, routes, usage) is [operator-api.md](operator-api.md)
 and takes a different key; who a key belongs to at all is [../multi-tenancy.md](../multi-tenancy.md),
 and the terminal that issues one is [../the-runtime-cli.md](../the-runtime-cli.md). Every wire shape
-named below is generated from the schema into the **protocol** repo's `docs/` (`events.md`,
-`commands.md`, `shapes.md`); the terminal that speaks all of it is **agents**' `docs/the-cli.md`.
+named below is generated from the schema into the **protocol** repo's `docs/` (`events.md`, `commands.md`,
+`shapes.md`); the terminal that speaks all of it is **agents**' `docs/the-cli.md`.
 
 ## The shape of it
 
 A gateway is an API at `/v1`, and beside it serves the console at `/`, the operator's page at
-`/admin`, and the widget at `/widget/pinecall-widget.js` — the one answer carrying
-`Access-Control-Allow-Origin: *` (`api/pages.py`). That console holds a person's scoped key (§8) and shows production; the sandbox's is the same page served by `pinecall serve` on a developer's machine.
+`/admin`, and the widget at `/widget/pinecall-widget.js` — the one answer carrying `Access-Control-Allow-Origin: *`
+(`api/pages.py`). That console holds a person's scoped key (§8) and shows production; the sandbox's is the same page served by `pinecall serve` on a developer's machine.
 Three kinds of connection, and only three:
 
 | | what it is | who opens it |
@@ -65,8 +65,7 @@ This is the door. An app is a process that **holds an agent**: it declares what 
 receives every entry of every call that agent takes, and it answers the tool calls the model
 makes. It binds no port and needs no public address — the socket is outbound.
 
-The upgrade carries the key on the header. Then the app sends **commands** and receives
-**entries**; both are single-line JSON.
+The upgrade carries the key on the header. Then the app sends **commands** and receives **entries**; both are single-line JSON.
 
 ```jsonc
 // → a command (envelope.json)
@@ -300,16 +299,14 @@ A **seat** is a LiveKit token for one call, minted by your key:
 Both answer `{server_url, participant_token, call, identity}`. Join the room with it (any LiveKit
 client, browser or server), or use it as the bearer of:
 
-- **`WS /v1/attach?call=<id>&token=<seat>`** — the call's log as it happens, and the verbs back up
-  the same socket.
+- **`WS /v1/attach?call=<id>&token=<seat>`** — the call's log as it happens, the verbs back up it.
 - **`POST /v1/calls/{call}/verbs`** — one verb. The bearer may be the seat **or the org key**: a
-  desk that only reads and types needs no seat at all, which is what `pinecall supervise` is. It
-  answers `202 {call, verb, seq}`, `seq` null: the entry is written after, and read off the log.
+  desk that only reads and types needs no seat, which is what `pinecall supervise` is. It answers
+  `202 {call, verb, seq}`, `seq` null: the entry is written after, and read off the log.
 
 The six verbs (`protocol/schema/verbs.json`): `say` (the agent says your words), `whisper` (an
 instruction the caller never hears), `takeover`, `release`, `transfer`, `end`. Each lands in the
-caller's own log as its own `supervisor.*` entry with a seq, so what a human did to a call is read
-the same way as what the agent did.
+caller's log as its own `supervisor.*` entry with a seq: what a human did is read as what the agent did.
 
 ---
 
@@ -319,26 +316,30 @@ the same way as what the agent did.
 `GET`/`PUT /v1/agents/{slug}/settings`, its `history`, `diff`, `rollback` and `promote`, and
 `/v1/lexicon` for the org's words: [settings-api.md](settings-api.md). `pipeline` sets everything,
 `words` the opening's words, the lexicon and what is remembered; production is written by promote
-alone, once the goldens hold. `GET /v1/agents/{slug}/pipeline` still answers the three legs as the
-NEXT call would be built, and the six knobs its old `PUT …/pipeline/overrides` turns one release more.
+alone, once the goldens hold. `GET …/pipeline` still answers the three legs as the NEXT call would
+be built; its old `PUT …/pipeline/overrides` turns six knobs one release more ([pipeline-api.md](pipeline-api.md)).
 
-**Knowledge.** `PUT /v1/knowledge/{base}` takes `{files: [{path, text}]}` and replaces the base
-whole — it is never merged. `GET /v1/knowledge` lists the bases with their chunk counts and
-embedder; `DELETE /v1/knowledge/{base}` drops one; `POST /v1/knowledge/{base}/eval` takes
-`{questions: [{asks, expects}], k?}` and answers `recall@k` and `nDCG@10`, computed by code with
-no model in the loop.
+**Knowledge.** `PUT /v1/knowledge/{base}` takes `{files: [{path, text, mode?}]}` and replaces the
+base whole, never merged; a file's `mode` is `retrieved` (chunks a turn searches) or `whole` (one
+row, no vector, read entire into the static knowledge block of every call of an agent whose
+settings attach the base — where the class's `knowledge =` file went). `GET /v1/knowledge` lists
+the bases; `DELETE …/{base}` drops one; `POST …/{base}/eval` takes `{questions: [{asks, expects}],
+k?}` and answers `recall@k` and `nDCG@10` by code. `POST …/{base}/promote` (a sandbox key) copies
+the sandbox's rows into production, vectors and all, once the body's `golden`, when sent, scores no
+lower there than over production's; `GET /v1/knowledge/attached` says which agents read each base.
+Which bases an agent reads is its settings' `knowledge` ([settings-api.md](settings-api.md)); a
+class that searches for itself (`uses_knowledge`) is refused at `agent.configure` in a world that
+attaches it none.
 
 **Memory.** `GET /v1/contacts/{contact}/memory` is everything memory kept about one contact,
-current facts first and superseded ones with the date they stopped holding.
-`DELETE /v1/contacts/{contact}/memory` is the right to be forgotten and answers how many facts
-went. `POST /v1/contacts/memory/eval` scores recall the same way knowledge is scored — every
-question brings its own facts to a scratch contact, so no contact of yours is read or written.
-`POST /v1/agents/{slug}/memory/extraction` runs the write side: one call written down per case,
-one model call each — the very one a hang-up makes — judged by code.
+current facts first and superseded ones with the date they stopped holding; `DELETE` there is the
+right to be forgotten and answers how many facts went. `POST /v1/contacts/memory/eval` scores
+recall as knowledge is scored — every question brings its own facts to a scratch contact, so no
+contact of yours is read or written. `POST /v1/agents/{slug}/memory/extraction` runs the write
+side: one call written down per case, one model call each — the one a hang-up makes — judged by code.
 
-**Both are one world's.** A base and a contact's facts carry the `env` of the key that pushed or
-the call that taught them: a laptop's push never replaces the base the telephone answers from, and
-a test call's facts never reach the memory a production call reads under the same number.
+**Both are one world's.** A base and a contact's facts carry the `env` of the key that pushed or the
+call that taught them: a laptop's push never replaces the telephone's base, nor a test call's facts its memory.
 Promoting knowledge is the same push with the key the box runs on. The quotas count both worlds.
 
 > Both of these are **tables**. A gateway whose `DATABASE_URL` did not answer has none, and these
@@ -349,8 +350,7 @@ Promoting knowledge is the same push with the key the box runs on. The quotas co
 
 ## 6. Provider keys, and the vault
 
-An org may bring its own vendor keys, sealed under the box's vault key and read back by the
-worker alone (`providers`): [provider-keys.md](provider-keys.md).
+An org may bring its own vendor keys, sealed under the box's vault key and read back by the worker alone (`providers`): [provider-keys.md](provider-keys.md).
 
 ---
 
