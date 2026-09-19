@@ -24,11 +24,11 @@ NAMED_KNOBS = ("voice", "tts", "tts_model", "stt", "llm")
 
 # What the org set for one agent, in one world, in one corner, as one version says it. Everything
 # the class used to declare and a deploy used to change: which vendors and models, how the call
-# opens and ends, how a turn is cut, what is remembered, which bases are read. None, or empty, is
-# a knob nobody set — the app's own declaration, or the runtime's default, stands for it.
+# opens and ends, how a turn is cut, what is remembered, what the agent knows by heart, which
+# bases it reads. None, or empty, is a knob nobody set — the runtime's default stands for it.
 @dataclass(frozen=True)
 class Tuning:
-    """One agent's tuning: every knob None, or empty, until the org set it."""
+    """One agent's settings: every knob None, or empty, until the org set it."""
 
     voice: str | None = None
     tts: str | None = None
@@ -39,10 +39,15 @@ class Tuning:
     hangup: Hangup | None = None
     turn: Turn | None = None
     memory: MemoryPolicy | None = None
-    knowledge: tuple[Docs, ...] = ()
+    # What the agent knows by heart, in Markdown — the business as the org describes it — read
+    # whole into the static knowledge block of every call. The floor's to write (`words`).
+    knowledge: str | None = None
+    # The bases a turn searches, each with how: the RAG, which is a different thing from what
+    # the agent knows by heart, and is attached here rather than named by the class.
+    bases: tuple[Docs, ...] = ()
 
     def __post_init__(self) -> None:
-        for name in NAMED_KNOBS:
+        for name in (*NAMED_KNOBS, "knowledge"):
             value: str | None = getattr(self, name)
             if value is not None and not value.strip():
                 raise DeclarationRefused(BLANK.format(field=name))

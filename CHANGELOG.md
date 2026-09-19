@@ -17,9 +17,6 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   /v1/members` and the operator's invite — whether they may do it in production. An admin always
   may, and `production: false` on one is `409`. It is read at every request, so taking it away
   closes the next one; member JSON and `GET /v1/whoami` carry `production`.
-- **A push says what its whole files weigh.** `PUT /v1/knowledge/{base}` answers `whole_tokens`,
-  and past 8,000 a `notice` that every call of an agent reading the base carries them in its
-  prompt — a notice, never a refusal.
 - **An agent's settings are the org's, per world, per corner, a version a row.** What an agent
   runs on — vendors, models, the opening, the cut of a turn, what is remembered, the bases — and
   the org's words are set at `GET`/`PUT /v1/agents/{slug}/settings` and `/v1/lexicon`, with
@@ -30,17 +27,30 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   production's org's-own corner directly; and a call's head row keeps the two versions it ran on
   (`GET /v1/calls/{call}/settings`). `docs/protocol/settings-api.md`.
 - **The `words` scope: the floor fixes what the agent says.** A supervisor's and a manager's keys
-  set the opening's words, the lexicon and what is remembered, and are refused a vendor by name.
+  set the opening's words, the lexicon, what is remembered and what the agent knows by heart, and
+  are refused a vendor by name.
   0037 hands it to every key that holds `supervise`; `developer` carries it too.
-- **A file of a base may be kept whole.** `PUT /v1/knowledge/{base}` takes each file's `mode`:
-  `retrieved`, cut and searched as before, or `whole` — one row, no vector (0038), read entire into
-  the static knowledge block of every call of an agent whose settings attach the base, where the
-  class's `knowledge =` file used to go. A turn's search fans out over every attached base, each
-  under its own `k`, the best of all of them first. `GET /v1/knowledge/attached` says which agents
-  read each base. A class that searches for itself (`uses_knowledge` on the wire) is refused at
-  `agent.configure` in a world that attaches it no base, naming `pinecall knowledge attach`.
+- **What the agent knows by heart is a setting: `knowledge`.** The business as the org describes
+  it, in Markdown, one field of the agent's settings — set by whoever holds `words`, from the
+  console or `pinecall agent knowledge edit`, versioned like the rest — and read whole into the
+  static knowledge block of every call. It is not the RAG: the bases a turn searches are `bases`
+  in the same settings (`[{base, mode, k, min_score}]`; migration 0040 renames the key 0037 kept
+  them under), a turn's search fans out over every one attached, and `GET /v1/knowledge/attached`
+  says which agents read each base. `agent.configure` refuses a class that searches for itself
+  (`uses_knowledge`) in a world that attaches it no base, and one whose world attaches a base
+  never pushed there, each naming the `pinecall docs` verb that fixes it.
 
 ### Changed
+- **The class is code; the world is environment.** `agent.configure` reads only the contract —
+  the prompt's layout, the language, the tools, `uses_knowledge`, the visibilities, the events. A
+  voice, the models, an opening, a hangup, the cut of a turn, `says`, `hears`, `memory`, `docs` and
+  a `knowledge` file still travel from an app on an older package and are ignored: the world's
+  settings are the one source, and a world with nothing set runs on the runtime's defaults. The
+  seed a class used to give a world's first version is gone with it. The wire fields stay one
+  release and are removed in the next.
+- **`pipeline_overrides` is dropped (0040), and `PUT …/pipeline/overrides` with it.** 0037 stopped
+  reading the table; the six-knob door wrote through the settings store for one release. The
+  Pipeline door reads what the next session would run on and turns nothing: the settings do.
 - **A tenant's app on the box runs `pinecall start --prod` on `PINECALL_KEY`.** `pinecall-app@<name>`
   exports the server's token off its `.key` credential and the gateway on loopback as
   `PINECALL_URL`, with no `pinecall login` first; the app installs `pinecall` 0.5.0 or later.

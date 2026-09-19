@@ -71,15 +71,15 @@ that colleague's corner.
 | `GET` | `/v1/agents` | the agents this gateway is holding for your org |
 | `GET` | `/v1/apps` | the processes holding them right now, one per socket: agents, world, the machine (`host`, from `agent.register`), address, SDK, whose corner, since when |
 | `POST` | `/v1/apps/{app}/stop` | `app`: tell that process it was stopped (`error` code `stopped`) and close its socket; it exits instead of reconnecting — a supervisor (systemd, pm2) starts it again |
-| `GET` | `/v1/agents/{slug}/config` | what it declared, overrides applied — `app` or `calls` |
+| `GET` | `/v1/agents/{slug}/config` | what it declared, its world's settings on it — `app` or `calls` |
 | `GET` | `/v1/agents/{slug}/line` | whose terminal a RING lands in, and who else could take it — `calls` |
 | `POST` | `/v1/agents/{slug}/line` | claim it for this key's corner — `app`; 409 with no app of yours running |
 | `DELETE` | `/v1/agents/{slug}/line` | release it; whoever is still holding the agent picks it up — `app` |
 | `PUT` | `/v1/line/from` | this phone's calls reach this key's corner, in whatever agent it holds — the sandbox number's, and a production number's too — `app`, set from the sandbox only |
 | `GET` | `/v1/line/numbers` | the org's production phone numbers and the agent each reaches: what a developer's own phone dials to reach their copy — `app`, a key naming a person, from the sandbox |
 | `DELETE` | `/v1/line/from` | stop answering your own calls; they fall back to the line — `app` |
-| `GET` | `/v1/agents/{slug}/pipeline` · `PUT …/pipeline/overrides` | what it runs on, and the six knobs, kept one release — [pipeline-api.md](pipeline-api.md) |
-| `GET` · `PUT` | `/v1/agents/{slug}/settings` | what the org set over the class — vendors, models, the opening, the cut of a turn, what is remembered, the bases — per world, per corner, a version a row: yours, the team's, production's — a set writes the request's world, production's directly — `pipeline` or `words`; `words` sets the opening's words and what is remembered and is refused the rest by name — [settings-api.md](settings-api.md) |
+| `GET` | `/v1/agents/{slug}/pipeline` | what it hears, decides and speaks with, and what that cost — [pipeline-api.md](pipeline-api.md) |
+| `GET` · `PUT` | `/v1/agents/{slug}/settings` | what the org set over the class — vendors, models, the opening, the cut of a turn, what is remembered, what it knows by heart, the bases — per world, per corner, a version a row: yours, the team's, production's — a set writes the request's world, production's directly — `pipeline` or `words`; `words` sets the opening's words and what is remembered and is refused the rest by name — [settings-api.md](settings-api.md) |
 | `GET` | `…/settings/history` · `…/settings/diff` | one corner's versions, newest first; this corner against the team's or production's — `pipeline` or `words` |
 | `POST` | `…/settings/rollback` | one version back as the next one — `pipeline` |
 | `GET` | `/v1/calls/{call}/settings` | the exact settings and lexicon a call ran on, by the versions its head row kept — `calls` |

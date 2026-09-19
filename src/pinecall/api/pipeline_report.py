@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import dataclasses
-
 from pinecall._settings import Settings
 from pinecall.api.providers import ProviderRow, rows
 from pinecall.log.entry import Entry
@@ -21,46 +19,6 @@ from pinecall_protocol import WireModel, defs
 # How many of the agent's calls the medians are taken over. Enough that one bad morning does not
 # read as the pipeline's normal, few enough that the door answers while a person is looking at it.
 LAST_CALLS = 20
-
-
-# The six knobs the old door takes, kept one release for the console's Pipeline screen: a knob
-# left out is not set. What they set lives in the agent's tuning now (api/tuning.py), so a body
-# here becomes the next version of the corner's tuning with these six replaced and the rest kept.
-class Overridden(WireModel):
-    """The six knobs an operator turns at PUT …/pipeline/overrides. A knob left out is not set."""
-
-    voice: str | None = None
-    tts: str | None = None
-    tts_model: str | None = None
-    stt: str | None = None
-    llm: str | None = None
-    greeting: str | None = None
-
-
-def turned(standing: Tuning, knobs: Overridden) -> Tuning:
-    """The corner's tuning with the six knobs replaced whole, as the old door replaced them."""
-    return dataclasses.replace(
-        standing,
-        voice=knobs.voice,
-        tts=knobs.tts,
-        tts_model=knobs.tts_model,
-        stt=knobs.stt,
-        llm=knobs.llm,
-        greeting=None if knobs.greeting is None else Greeting(say=knobs.greeting),
-    )
-
-
-def overridden_of(tuning: Tuning) -> Overridden:
-    """The six knobs as the report still draws them, off what the corner's tuning says."""
-    greeting = tuning.greeting
-    return Overridden(
-        voice=tuning.voice,
-        tts=tuning.tts,
-        tts_model=tuning.tts_model,
-        stt=tuning.stt,
-        llm=tuning.llm,
-        greeting=None if greeting is None else greeting.say,
-    )
 
 
 class Stage(WireModel):
@@ -91,7 +49,6 @@ class Report(WireModel):
     # this agent reads words out or tells the model to find its own, because the knob below
     # only ever sets words and would otherwise look like it changed nothing.
     greeting: defs.GreetingConfig | None
-    overrides: Overridden
     # The names the voice knob may be turned to, read off the one table: a screen that offered a
     # free text box let an operator paste an id no vendor knows, which ends a line and not a form.
     voices: list[str]
@@ -127,7 +84,6 @@ async def report(
         decides=decides,
         speaks=speaks,
         greeting=_on_the_wire(config.greeting),
-        overrides=overridden_of(tuning),
         voices=list(voice_names()),
         providers=rows(settings),
         calls=len(calls),

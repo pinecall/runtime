@@ -30,11 +30,10 @@ from pinecall.log import REFUSED
 from pinecall.log.entry import Entry, unstored
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import Admission, QuotaExhausted
-from pinecall.orgs.tuning import TuningStore, VersionMoved
+from pinecall.orgs.tuning import TuningStore
 from pinecall.providers import declaration
-from pinecall.providers.tuning import declared_as_tuning
-from pinecall.types import THE_ORGS_OWN, AgentConfig, DeclarationRefused, Env
-from pinecall_protocol import Command, ProtocolError, WireModel, defs, encode
+from pinecall.types import AgentConfig, DeclarationRefused, Env
+from pinecall_protocol import Command, ProtocolError, WireModel, encode
 from pinecall_protocol.commands import AgentConfigure, AgentRegister
 from pinecall_protocol.events import ErrorEvent, Pong
 from pinecall_protocol.registry import COMMANDS
@@ -285,17 +284,16 @@ async def register(socket: Socket, command: Command) -> None:
 
 # What the agent reads is refused HERE, where the app is declaring itself, and not in a call where
 # a turn would find nothing: the same rule that refuses a voice nobody curated. Two sentences, each
-# naming the verb that fixes it. A class that searches the base itself — `this.knowledge.search` —
-# needs one attached in this world; and every base the world attaches, or the class still names in
-# `docs`, has to have been pushed to it. The bases are the ones the session would read, from the
-# resolver every session is built by: one rule for which bases, never a second copy of it here.
+# naming the verb that fixes it. A class that searches its bases itself — `this.knowledge.search` —
+# needs one attached in this world; and every base the world attaches has to have been pushed to
+# it. The bases are the ones the session would read, from the resolver every session is built by:
+# one rule for which bases, never a second copy of it here.
 NO_BASE_ATTACHED = (
-    "{slug} searches knowledge, and no base is attached to it in {world}: "
-    "pinecall knowledge attach <base> --agent {slug}"
+    "{slug} searches its bases, and none is attached to it in {world}: "
+    "pinecall docs attach <base> --agent {slug}"
 )
 NO_SUCH_BASE = (
-    "{slug} reads the base {base}, and nothing was pushed to {base} in {world}: "
-    "pinecall knowledge push ./knowledge/docs --base {base}"
+    "{slug} reads the base {base}, and nothing was pushed to {base} in {world}: pinecall docs push"
 )
 
 
@@ -310,7 +308,6 @@ async def configure(socket: Socket, command: Command) -> None:
         await the_bases_it_reads(socket, command.agent, declared)
     entry = await socket.registry.configure(socket.id, socket.env, command.agent, wanted.config)
     await socket.send(entry)
-    await seeded(socket, command.agent, wanted.config)
 
 
 async def the_bases_it_reads(socket: Socket, slug: str, declared: AgentConfig) -> None:
@@ -331,36 +328,6 @@ async def the_bases_it_reads(socket: Socket, slug: str, declared: AgentConfig) -
             raise DeclarationRefused(
                 NO_SUCH_BASE.format(slug=slug, base=docs.base, world=socket.env)
             )
-
-
-# The note every seeded row carries, so a history says where the world's first version came from.
-SEEDED = "seeded from the class"
-
-
-# The class still declares what the world owns now — a voice, a model, an opening — and a world
-# with nothing set is seeded from it, once, into the org's own corner: the first `pinecall start`
-# of any developer gives the team's sandbox its v1, and the box's own app gives production its. A
-# world that has a row is never touched again: from then on the world wins, and `pinecall start`
-# says so beside every field the class still declares differently. `if_version=0` is the race:
-# two apps configuring at once both find no row, and the primary key lets exactly one seed.
-async def seeded(socket: Socket, slug: str, wire: defs.AgentConfig) -> None:
-    """The org's own corner of this world seeded from the class, when it has nothing set yet."""
-    seed = declared_as_tuning(wire)
-    if seed is None or await socket.tuning.own(socket.org, socket.env, THE_ORGS_OWN, slug):
-        return
-    try:
-        await socket.tuning.put(
-            socket.org,
-            socket.env,
-            THE_ORGS_OWN,
-            slug,
-            seed,
-            author=socket.author,
-            note=SEEDED,
-            if_version=0,
-        )
-    except VersionMoved:
-        pass
 
 
 @handles("ping")

@@ -116,7 +116,7 @@ async def test_a_web_call_with_no_identity_finds_nothing_and_writes_no_entry() -
 
 async def test_search_answers_chunks_under_the_declarations_own_k_and_writes_the_sources() -> None:
     served = a_served_call(
-        config=a_config(docs=Docs(base="clinica", k=2)),
+        config=a_config(bases=(Docs(base="clinica", k=2),)),
         knowledge=ScriptedKnowledge(
             answers=[
                 a_chunk("c1", "Tarifas › Revisión", "Tarifas › Revisión\n\nLa revisión son 45 €."),
@@ -171,21 +171,21 @@ async def test_every_attached_base_is_searched_and_the_best_of_all_of_them_come_
 
 
 async def test_a_class_searching_for_itself_may_say_how_many() -> None:
-    served = a_served_call(config=a_config(docs=Docs(base="clinica", k=8)))
+    served = a_served_call(config=a_config(bases=(Docs(base="clinica", k=8),)))
     await served.lookups.lookup(CALL, "search", {**SEARCHING, "k": 3}, None)
     [asked] = served.knowledge.searched
     assert asked["k"] == 3
 
 
 async def test_the_declarations_min_score_is_what_the_base_is_searched_under() -> None:
-    served = a_served_call(config=a_config(docs=Docs(base="clinica", k=3, min_score=0.5)))
+    served = a_served_call(config=a_config(bases=(Docs(base="clinica", k=3, min_score=0.5),)))
     await served.lookups.lookup(CALL, "search", SEARCHING, None)
     [asked] = served.knowledge.searched
     assert (asked["k"], asked["min_score"]) == (3, 0.5)
 
 
 async def test_an_agent_that_declared_no_docs_finds_nothing_and_searches_nothing() -> None:
-    served = a_served_call(config=a_config(docs=None))
+    served = a_served_call(config=a_config(bases=()))
     assert await served.lookups.lookup(CALL, "search", SEARCHING, None) == {"chunks": []}
     assert served.knowledge.searched == []
     assert await served.written("docs.sources") == []

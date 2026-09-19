@@ -281,7 +281,7 @@ agent, one stream. Six more doors read a call without its log, or say where one 
 | `GET /v1/calls/{call}/state` | the call reduced: who, where, the agent's state, the prompt, the room |
 | `GET /v1/agents/{slug}/sessions?limit=&q=&channel=&before=` | one line per call: when, how long, why it ended, the cost, the outcome, the verdict and the flags — filtered, counted and paged as [console-api.md](console-api.md) §1 says. **The reader's corner's calls only** — the world and the holder the call was opened in, which its head row keeps (`0024`): a developer's sandbox key lists their own test calls, a production key the telephone's, and an admin with `pinecall-corner` the colleague's. A call from before `0024` reads as production's, the org's own |
 | `GET /v1/calls/{call}/recording` | the audio, with byte ranges so a player can seek. A written (chat) call keeps no recording and its `call.summary` points at none: `404` in a sentence |
-| `GET /v1/agents/{slug}/config` | what the agent declared, with the operator's overrides applied. `app` or `calls`: the worker and the console both read it |
+| `GET /v1/agents/{slug}/config` | what the agent declared, with its world's settings on it. `app` or `calls`: the worker and the console both read it |
 | `PUT/DELETE /v1/line/from` · `GET /v1/line/numbers` · `GET/POST/DELETE /v1/agents/{slug}/line` | **where a RING lands**, in two steps. (`/v1/line/numbers`, `app`: the phones this person said are theirs, the org's production phone numbers and the agent each reaches — what a developer's phone dials, which the numbers door would not tell a sandbox key.) First whose phone dialled: a developer says which number they call FROM (`app`, the sandbox, a key naming a person) and every call they make lands in their own corner — no coordination, three of them testing at once. Then, for a number nobody claimed, the agent's **line**: reading it takes `calls`, claiming and releasing take `app`; the first corner to hold an agent takes it and it is handed on when that terminal closes, instead of the newest `pinecall start` silently answering in a colleague's scrollback. Neither is a row — both are only meaningful next to a socket, and `pinecall start` re-says the phone on every connect. Production has one corner and the box holds it — with one exception, the next row. `TheLine` in `rest.json` |
 | `GET /v1/agents/{slug}/rings-for?caller=` | **a production ring from a developer's own phone.** The worker asks it on every phone call to a production number that no dispatch aimed (`app`; the fleet's key adds `&org=`): is the phone dialling one a developer registered with `PUT /v1/line/from`, and are they holding this agent in the sandbox, in this org? `{holder}` names that developer, and the worker builds the call in their sandbox corner — the declaration and the provider keys asked for their corner, their app socket, a sandbox log whose context metadata carries `diverted_from: production`. `{holder: null}` is production's, and so is any failure to ask: the call stays where it rang. Every other caller of the real number reaches production |
 
@@ -316,20 +316,18 @@ caller's log as its own `supervisor.*` entry with a seq: what a human did is rea
 `GET`/`PUT /v1/agents/{slug}/settings`, its `history`, `diff` and `rollback`, and
 `/v1/lexicon` for the org's words: [settings-api.md](settings-api.md). `pipeline` sets everything,
 `words` the opening's words, the lexicon and what is remembered; a request in production sets
-production directly — there is no promote, the goldens run in CI before a deploy. `GET …/pipeline` still answers the three legs as the NEXT call would
-be built; its old `PUT …/pipeline/overrides` turns six knobs one release more ([pipeline-api.md](pipeline-api.md)).
+production directly — there is no promote, the goldens run in CI before a deploy. What the agent
+knows by heart is `knowledge` there, a Markdown text read whole into the static block of every
+call; the class carries none of it. `GET …/pipeline` reads the three legs as the NEXT call would
+be built, and turns nothing ([pipeline-api.md](pipeline-api.md)).
 
-**Knowledge.** `PUT /v1/knowledge/{base}` takes `{files: [{path, text, mode?}]}` and replaces the
-base whole, never merged; a file's `mode` is `retrieved` (chunks a turn searches) or `whole` (one
-row, no vector, read entire into the static knowledge block of every call of an agent whose
-settings attach the base — where the class's `knowledge =` file went). `GET /v1/knowledge` lists
-the bases; `DELETE …/{base}` drops one; `POST …/{base}/eval` takes `{questions: [{asks, expects}],
-k?}` and answers `recall@k` and `nDCG@10` by code. A push answers `{base, chunks, took_ms,
-whole_tokens, notice?}`: past 8,000 whole tokens, which every call carries in its prompt, a `notice`
-and never a refusal; `GET /v1/knowledge/attached` says which agents read each base. Which bases an
-agent reads is its settings' `knowledge` ([settings-api.md](settings-api.md)); `agent.configure`
-refuses a class that searches for itself (`uses_knowledge`) in a world that attaches it none, and
-one that reads a base never pushed in that world, naming `pinecall knowledge push`.
+**The bases.** `PUT /v1/knowledge/{base}` takes `{files: [{path, text}]}` and replaces the base
+whole, never merged: the RAG, chunked and indexed, a turn's search fans out over every base the
+agent's settings attach (`bases`). `GET /v1/knowledge` lists the bases; `DELETE …/{base}` drops
+one; `POST …/{base}/eval` takes `{questions: [{asks, expects}], k?}` and answers `recall@k` and
+`nDCG@10` by code; `GET /v1/knowledge/attached` says which agents read each base.
+`agent.configure` refuses a class that searches for itself (`uses_knowledge`) in a world that
+attaches it none, and one whose world attaches a base never pushed there, naming `pinecall docs`.
 
 **Memory.** `GET /v1/contacts/{contact}/memory` is everything memory kept about one contact,
 current facts first and superseded ones with the date they stopped holding; `DELETE` there is the

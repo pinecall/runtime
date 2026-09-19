@@ -48,7 +48,10 @@ TWINS: list[tuple[type[Any], type[WireModel]]] = [
 # before the declaration becomes an AgentConfig. A shape that kept the name would be a name that
 # could still reach a vendor, which is the call this rule was written after.
 RESOLVED_AT_THE_EDGE: dict[type[WireModel], frozenset[str]] = {
-    defs.VoiceConfig: frozenset({"name"})
+    defs.VoiceConfig: frozenset({"name"}),
+    # `docs` is the base a class used to name; the bases are the world's (Tuning.bases) and the
+    # field stays on the wire one release, ignored, so an app on an older package registers.
+    defs.AgentConfig: frozenset({"docs"}),
 }
 
 

@@ -1,4 +1,4 @@
-"""What the org set laid over what the app declared: every knob's rule, and the lexicon merged."""
+"""The world's settings on what the class declared: every knob's rule, and the org's words."""
 
 import re
 
@@ -15,32 +15,25 @@ from pinecall.types import (
     Hangup,
     Lexicon,
     MemoryPolicy,
-    Model,
     Tuning,
     Turn,
-    Voice,
 )
 
 pytestmark = pytest.mark.unit
 
-DECLARED = AgentConfig(
-    slug="clinica-norte",
-    language="es",
-    greeting=Greeting(say="Clínica Norte, buenas.", allow_interruptions=False),
-    voice=Voice(provider="elevenlabs", voice_id="a-declared-voice"),
-    llm=Model(provider="anthropic", model="claude-haiku-4-5"),
-    says={"Vidal": "bidál"},
-    hears=("Vidal",),
-)
+DECLARED = AgentConfig(slug="clinica-norte", language="es")
 NOTHING = Lexicon()
 
 
-def test_nothing_set_leaves_the_declaration_exactly_as_it_was() -> None:
-    assert tuned(DECLARED, Tuning(), NOTHING) == DECLARED
+def test_nothing_set_is_the_declaration_with_every_knob_at_the_runtimes_default() -> None:
+    config = tuned(DECLARED, Tuning(), NOTHING)
+    assert (config.slug, config.language) == ("clinica-norte", "es")
+    assert (config.voice, config.stt, config.llm, config.greeting, config.knowledge) == (None,) * 5
+    assert config.bases == () and config.says == {} and config.hears == ()
 
 
 def test_a_model_knob_reads_three_ways() -> None:
-    """`vendor/model` names both; a vendor alone keeps its model; a model alone keeps the vendor."""
+    """`vendor/model` names both; a vendor alone keeps its model; a model alone, the default."""
     both = tuned(DECLARED, Tuning(llm="openai/gpt-5"), NOTHING).llm
     vendor = tuned(DECLARED, Tuning(llm="openai"), NOTHING).llm
     model = tuned(DECLARED, Tuning(llm="claude-sonnet-4-5"), NOTHING).llm
@@ -69,29 +62,30 @@ def test_an_elevenlabs_model_this_build_does_not_run_is_refused() -> None:
         tuned(DECLARED, Tuning(tts_model="eleven_turbo_v2_5"), NOTHING)
 
 
-def test_the_openings_words_are_set_and_its_interruptibility_kept_unless_said() -> None:
-    words = tuned(DECLARED, Tuning(greeting=Greeting(say="Buenas.")), NOTHING).greeting
-    assert words == Greeting(say="Buenas.", allow_interruptions=False)
+def test_the_opening_is_the_worlds_words_or_nobodys() -> None:
     said = Greeting(say="Buenas.", allow_interruptions=True)
     assert tuned(DECLARED, Tuning(greeting=said), NOTHING).greeting == said
+    assert tuned(DECLARED, Tuning(), NOTHING).greeting is None
 
 
-def test_hangup_turn_memory_and_the_first_base_are_the_orgs_when_it_set_them() -> None:
+def test_hangup_turn_memory_knowledge_and_the_bases_are_the_worlds() -> None:
     tuning = Tuning(
         hangup=Hangup(when="the caller says bye"),
         turn=Turn(endpointing_ms=300),
         memory=MemoryPolicy(remember=("allergies",)),
-        knowledge=(Docs(base="clinica", k=4), Docs(base="precios")),
+        knowledge="# Clínica Norte\n\nAbrimos a las nueve.",
+        bases=(Docs(base="clinica", k=4), Docs(base="precios")),
     )
     config = tuned(DECLARED, tuning, NOTHING)
     assert config.hangup == Hangup(when="the caller says bye")
     assert config.turn == Turn(endpointing_ms=300)
     assert config.memory == MemoryPolicy(remember=("allergies",))
-    assert config.docs == Docs(base="clinica", k=4)
+    assert config.knowledge == "# Clínica Norte\n\nAbrimos a las nueve."
+    assert [docs.base for docs in config.bases] == ["clinica", "precios"]
 
 
-def test_the_lexicon_is_merged_into_says_and_hears_and_the_orgs_word_wins() -> None:
+def test_the_lexicon_is_the_agents_says_and_hears() -> None:
     words = Lexicon(said={"Vidal": "vidál", "GSA": "G S A"}, heard=("GSA", "Vidal"))
     config = tuned(DECLARED, Tuning(), words)
     assert config.says == {"Vidal": "vidál", "GSA": "G S A"}
-    assert config.hears == ("Vidal", "GSA")
+    assert config.hears == ("GSA", "Vidal")

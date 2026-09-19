@@ -165,7 +165,6 @@ class Threads:
                 doors.live.running(held.org),
                 doors.lookups,
                 doors.settings.budgets,
-                knowledge=doors.knowledge,
             )
             # The org's own Meta token or the box's, out of the very keys the model was built
             # from: the vault is read once per call and not once per thing the call needs.

@@ -75,7 +75,7 @@ async def test_the_vectors_are_written_back_flat_in_the_order_the_files_were_cut
     embedder = RecordingEmbedder()
     pool = RecordingPool()
     await PgKnowledge(pool, embedder).put("org", PRODUCTION, None, "clinica", [CLINICA, TARIFAS])
-    paths, _headings, _ordinals, texts, vectors, _modes = pool.arguments[7:]
+    paths, _headings, _ordinals, texts, vectors = pool.arguments[7:]
     assert paths == ["clinica.md", "clinica.md", "tarifas.md", "tarifas.md"]
     assert [vector.split(",")[0].lstrip("[") for vector in vectors] == [
         str(float(len(text))) for text in texts

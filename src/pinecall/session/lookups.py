@@ -165,7 +165,7 @@ class TurnLookups:
         tools: list[PlatformTool] = []
         if self._config.memory is not None:
             tools.append("recall")
-        if self._config.docs is not None and self._config.docs.mode == "retrieved":
+        if any(docs.mode == "retrieved" for docs in self._config.bases):
             tools.append("search")
         return tuple(tools)
 

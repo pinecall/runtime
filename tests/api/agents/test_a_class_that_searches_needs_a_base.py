@@ -34,7 +34,7 @@ def test_searching_with_nothing_attached_is_refused_naming_the_verb(gateway: Tes
     assert answer["type"] == "error"
     assert answer["data"]["code"] == "refused"
     assert answer["data"]["message"] == NO_BASE_ATTACHED.format(slug=AGENT, world=PRODUCTION)
-    assert "pinecall knowledge attach <base> --agent" in answer["data"]["message"]
+    assert "pinecall docs attach <base> --agent" in answer["data"]["message"]
 
 
 def test_a_base_the_world_attached_lets_the_class_search(
@@ -46,14 +46,10 @@ def test_a_base_the_world_attached_lets_the_class_search(
             PRODUCTION,
             "",
             AGENT,
-            Tuning(knowledge=(Docs(base="clinica"),)),
+            Tuning(bases=(Docs(base="clinica"),)),
             author="k_1",
             note=None,
             if_version=None,
         )
     )
     assert configured(gateway, SEARCHES)["type"] != "error"
-
-
-def test_a_class_that_still_declares_docs_searches_that_base(gateway: TestClient) -> None:
-    assert configured(gateway, {**SEARCHES, "docs": {"base": "clinica"}})["type"] != "error"

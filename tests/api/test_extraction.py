@@ -6,7 +6,8 @@ import httpx
 import pytest
 
 from pinecall.api.agents.registry import Registry
-from pinecall.types import PRODUCTION
+from pinecall.orgs.tuning import MemoryTuning
+from pinecall.types import PRODUCTION, MemoryPolicy, Tuning
 from pinecall_protocol import defs
 from tests.api.conftest import A_RECORD, AGENT
 from tests.session.fake_llm import FakeLLM, Scripted
@@ -24,8 +25,8 @@ A_CALL = [
     ["caller", f"Mejor por la mañana, y le paso la Visa {A_CARD}"],
 ]
 
-CLARAS_MEMORY = defs.MemoryConfig(
-    remember=["cómo prefiere que le llamen", "alergias", "su médico habitual"], forget=["pagos"]
+CLARAS_MEMORY = MemoryPolicy(
+    remember=("cómo prefiere que le llamen", "alergias", "su médico habitual"), forget=("pagos",)
 )
 
 A_TOOL = defs.ToolSpec(name="book", description="Books a slot", parameters={"type": "object"})
@@ -43,20 +44,31 @@ def llm() -> FakeLLM:
     return FakeLLM(Scripted(chunks=(WHAT_THE_MODEL_ANSWERED,)))
 
 
-async def declared(registry: Registry, memory: defs.MemoryConfig | None = CLARAS_MEMORY) -> None:
-    """The clinic on its socket, with the declaration the goldens are judged against."""
+async def declared(
+    registry: Registry, tuning: MemoryTuning, memory: MemoryPolicy | None = CLARAS_MEMORY
+) -> None:
+    """The clinic on its socket, and the policy the goldens are judged against set in its world."""
     await registry.register(
         AN_OWNER, A_RECORD.org, PRODUCTION, AGENT, [defs.Route(channel="web", number=None)]
     )
-    await registry.configure(
-        AN_OWNER, PRODUCTION, AGENT, defs.AgentConfig(memory=memory, tools=[A_TOOL])
-    )
+    await registry.configure(AN_OWNER, PRODUCTION, AGENT, defs.AgentConfig(tools=[A_TOOL]))
+    if memory is not None:
+        await tuning.put(
+            A_RECORD.org,
+            PRODUCTION,
+            "",
+            AGENT,
+            Tuning(memory=memory),
+            author="k_1",
+            note=None,
+            if_version=None,
+        )
 
 
 async def test_a_case_is_one_hang_up_and_the_answer_says_what_memory_would_have_kept(
-    tenant_http: httpx.AsyncClient, registry: Registry, llm: FakeLLM
+    tenant_http: httpx.AsyncClient, registry: Registry, tuning: MemoryTuning, llm: FakeLLM
 ) -> None:
-    await declared(registry)
+    await declared(registry, tuning)
     case = {
         "name": "anota la alergia y nunca la tarjeta",
         "said": A_CALL,
@@ -83,9 +95,9 @@ async def test_a_case_is_one_hang_up_and_the_answer_says_what_memory_would_have_
 
 
 async def test_a_case_that_did_not_hold_is_named_and_the_count_says_so(
-    tenant_http: httpx.AsyncClient, registry: Registry
+    tenant_http: httpx.AsyncClient, registry: Registry, tuning: MemoryTuning
 ) -> None:
-    await declared(registry)
+    await declared(registry, tuning)
     case = {
         "name": "recuerda al médico",
         "said": A_CALL,
@@ -101,9 +113,9 @@ async def test_a_case_that_did_not_hold_is_named_and_the_count_says_so(
 
 
 async def test_a_golden_that_names_a_category_the_class_never_declared_is_refused(
-    tenant_http: httpx.AsyncClient, registry: Registry
+    tenant_http: httpx.AsyncClient, registry: Registry, tuning: MemoryTuning
 ) -> None:
-    await declared(registry)
+    await declared(registry, tuning)
     case = {"name": "seguros", "said": A_CALL, "expect": {"writes": ["seguros"]}}
 
     refused = await tenant_http.post(DOOR, json={"cases": [case]})
@@ -113,9 +125,9 @@ async def test_a_golden_that_names_a_category_the_class_never_declared_is_refuse
 
 
 async def test_a_class_that_keeps_nothing_has_nothing_to_hold_to_a_golden(
-    tenant_http: httpx.AsyncClient, registry: Registry
+    tenant_http: httpx.AsyncClient, registry: Registry, tuning: MemoryTuning
 ) -> None:
-    await declared(registry, memory=None)
+    await declared(registry, tuning, memory=None)
 
     refused = await tenant_http.post(DOOR, json={"cases": []})
 

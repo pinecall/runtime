@@ -28,7 +28,6 @@ from pinecall.api.evals.spoken import a_spoken_conversation
 from pinecall.evals.calling import Line
 from pinecall.evals.goldens import Golden
 from pinecall.evals.runs import EvalRun, Opened, Runs
-from pinecall.knowledge import Knowledge
 from pinecall.log.store import Store
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
@@ -126,8 +125,6 @@ class Process:
     # What a spoken run needs to reach the media plane: the LiveKit pair and its url. A written
     # run never touches it.
     settings: Settings
-    # The base, for the whole files the attached bases put in the static block; None keeps none.
-    knowledge: Knowledge | None = None
 
 
 class Runner:
@@ -173,7 +170,6 @@ async def a_run(wanted: Wanted, runner: Runner, process: Process) -> EvalRun:
         serving.holder,
         wanted.agent,
         serving.config,
-        process.knowledge,
     )
     config = resolved.config
     # Whose keys this run's conversations are answered on, read once as the run opens: a run is

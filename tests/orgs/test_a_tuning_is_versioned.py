@@ -35,7 +35,8 @@ WHOLE = Tuning(
     hangup=Hangup(when="the caller says bye"),
     turn=Turn(min_interruption_words=2, endpointing_ms=300),
     memory=MemoryPolicy(remember=("allergies",), forget=("card numbers",)),
-    knowledge=(Docs(base="clinica", k=4), Docs(base="precios", mode="tool")),
+    knowledge="# Clínica Norte\n\nAbrimos a las nueve.",
+    bases=(Docs(base="clinica", k=4), Docs(base="precios", mode="tool")),
 )
 
 

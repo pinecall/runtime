@@ -33,7 +33,7 @@ def attached(tuning: MemoryTuning, base: str) -> None:
             PRODUCTION,
             "",
             AGENT,
-            Tuning(knowledge=(Docs(base=base),)),
+            Tuning(bases=(Docs(base=base),)),
             author="k_1",
             note=None,
             if_version=None,
@@ -51,12 +51,6 @@ def test_a_base_the_world_attaches_and_nobody_pushed_is_refused_naming_the_push(
     assert answer["data"]["message"] == NO_SUCH_BASE.format(
         slug=AGENT, base="precios", world=PRODUCTION
     )
-
-
-def test_a_base_the_class_still_names_and_nobody_pushed_is_refused_too(gateway: TestClient) -> None:
-    answer = configured(gateway, {"language": "es", "docs": {"base": "precios"}})
-    assert answer["type"] == "error"
-    assert "pinecall knowledge push ./knowledge/docs --base precios" in answer["data"]["message"]
 
 
 def test_a_pushed_base_the_world_attaches_is_read(

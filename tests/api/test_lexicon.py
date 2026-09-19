@@ -70,12 +70,7 @@ async def test_a_supervisor_sets_the_teams_words_and_the_next_call_says_them(
     await registry.register(
         "app_ci", A_RECORD.org, SANDBOX, AGENT, [defs.Route(channel="web", number=None)]
     )
-    await registry.configure(
-        "app_ci",
-        SANDBOX,
-        AGENT,
-        defs.AgentConfig(says=[defs.Pronunciation(word="Vidal", spoken="bidál")], hears=["Vidal"]),
-    )
+    await registry.configure("app_ci", SANDBOX, AGENT, defs.AgentConfig(language="es"))
     put = await carla.put(LEXICON, json={"lexicon": WORDS, "note": "said wrong all morning"})
     assert put.status_code == 200, put.text
     # A supervisor holds no agent, so their set is the team's: no corner of their own to hear it.
@@ -84,8 +79,8 @@ async def test_a_supervisor_sets_the_teams_words_and_the_next_call_says_them(
     assert (team["version"], team["holder"], team["author"]) == (1, "", "m_carla")
     assert team["lexicon"] == WORDS
     config = (await ana.get(CONFIG)).json()
-    assert config["says"] == {"Vidal": "bidál", "GSA": "G S A"}
-    assert config["hears"] == ["Vidal", "Maravilla"]
+    assert config["says"] == {"GSA": "G S A"}
+    assert config["hears"] == ["Maravilla"]
 
 
 async def test_a_blank_word_is_refused_in_the_shapes_own_sentence(carla: httpx.AsyncClient) -> None:

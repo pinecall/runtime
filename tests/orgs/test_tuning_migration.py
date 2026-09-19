@@ -125,8 +125,50 @@ async def test_0037_hands_words_to_the_keys_that_hold_the_floor_and_not_to_qa(
     assert "words" not in scopes["k_qa"]
 
 
-async def test_0037_leaves_the_old_table_standing_for_one_release(a_box_from_before: Box) -> None:
-    """A table is dropped in two migrations, the code first: 0037 reads it and does not drop it."""
+async def test_0040_takes_the_old_table_one_release_after_0037_stopped_reading_it(
+    a_box_from_before: Box,
+) -> None:
+    """A table is dropped in two migrations, the code first: 0037 read it, 0040 drops it."""
     box = a_box_from_before
     await apply_migrations(box.dsn, schema=box.schema)
-    assert await box.connection.fetchval("select count(*) from pipeline_overrides") == 1
+    gone = await box.connection.fetchval(
+        "select to_regclass($1)", f"{box.schema}.pipeline_overrides"
+    )
+    assert gone is None
+
+
+async def test_0040_renames_the_bases_a_world_attached_and_leaves_a_row_with_none_alone(
+    a_box_from_before: Box,
+) -> None:
+    """0037 kept the bases under `knowledge`; that word is the business text now, the RAG bases."""
+    box = a_box_from_before
+    # Up to 0039 by hand, as the fixture applied the ones before 0037: the row is written in the
+    # shape 0037 kept it, and 0040 is what is under test.
+    between = [
+        name.name for name in sorted(MIGRATIONS.glob("*.sql")) if "0037" <= name.name < "0040"
+    ]
+    for name in between:
+        await box.connection.execute((MIGRATIONS / name).read_text(encoding="utf-8"))
+        await box.connection.execute(RECORD_MIGRATION, name, a_hash(MIGRATIONS / name))
+    await box.connection.execute(
+        "insert into agent_config (org, env, holder, agent, version, config, author) "
+        "values ($1, 'sandbox', '', $2, 2, $3, 'k_1')",
+        THE_ORG,
+        THE_AGENT,
+        json.dumps({"voice": "carolina", "knowledge": [{"base": "clinica", "k": 4}]}),
+    )
+    await apply_migrations(box.dsn, schema=box.schema)
+    rows = await box.connection.fetch(
+        "select version, config from agent_config "
+        "where org = $1 and env = 'sandbox' order by version",
+        THE_ORG,
+    )
+    assert json.loads(rows[0]["config"]) == {
+        "voice": "carolina",
+        "llm": "anthropic/claude-haiku-4-5",
+        "greeting": {"say": "Buenas."},
+    }
+    assert json.loads(rows[1]["config"]) == {
+        "voice": "carolina",
+        "bases": [{"base": "clinica", "k": 4}],
+    }

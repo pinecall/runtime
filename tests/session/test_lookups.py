@@ -27,9 +27,9 @@ REMEMBERS = AgentConfig(
     memory=MemoryPolicy(remember=("preference",)),
 )
 SEARCHES = AgentConfig(
-    slug="clinica-norte", channels=frozenset({"phone"}), docs=Docs(base="clinica", k=4)
+    slug="clinica-norte", channels=frozenset({"phone"}), bases=(Docs(base="clinica", k=4),)
 )
-BOTH = replace(REMEMBERS, docs=Docs(base="clinica", k=4))
+BOTH = replace(REMEMBERS, bases=(Docs(base="clinica", k=4),))
 
 
 class Answering:
@@ -123,7 +123,7 @@ async def test_the_pair_is_replaced_whole_every_turn_and_holds_nothing_between_t
 
 async def test_docs_in_tool_mode_runs_nothing_before_the_turn_and_still_answers_the_model() -> None:
     service = Answering()
-    lookups = a_lookups(service, replace(SEARCHES, docs=Docs(base="clinica", mode="tool")))
+    lookups = a_lookups(service, replace(SEARCHES, bases=(Docs(base="clinica", mode="tool"),)))
     assert await lookups.turn_ended("cuánto cuesta", "sp_1") == ()
     assert lookups.items == ()
     assert service.asked == []

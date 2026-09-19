@@ -87,7 +87,7 @@ def platform_tools(config: AgentConfig) -> tuple[ToolSpec, ...]:
     declared: list[ToolSpec] = []
     if config.memory is not None:
         declared.append(RECALL)
-    if config.docs is not None:
+    if config.bases:
         declared.append(SEARCH)
     return tuple(declared)
 
