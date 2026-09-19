@@ -131,10 +131,7 @@ class AgentConfig:
             raise DeclarationRefused(
                 f"agent {self.slug}: visibility is one of {sorted(VISIBILITIES)}: {sorted(bad)}"
             )
-        if blank := {word for word, spoken in self.says.items() if not word or not spoken}:
-            raise DeclarationRefused(
-                f"agent {self.slug}: a pronunciation is a word and how it is said: {sorted(blank)}"
-            )
+        pronunciations_checked(self.says, f"agent {self.slug}")
         for event, sources in self.events.items():
             if not event or not sources or sources - EVENT_SOURCES:
                 raise DeclarationRefused(
@@ -155,3 +152,13 @@ class AgentConfig:
     def tools_by_name(self) -> Mapping[str, ToolSpec]:
         """The declared tools, by the name the model calls."""
         return {tool.name: tool for tool in self.tools}
+
+
+# One rule for a map of pronunciations, wherever one is declared: the class's own `says`, and the
+# org's lexicon laid over it (types/tuning.py). `whose` names the declaration in the sentence.
+def pronunciations_checked(says: Mapping[str, str], whose: str) -> None:
+    """Refuse a word or a spoken form that is blank, naming whose declaration it was."""
+    if blank := {word for word, spoken in says.items() if not word or not spoken}:
+        raise DeclarationRefused(
+            f"{whose}: a pronunciation is a word and how it is said: {sorted(blank)}"
+        )

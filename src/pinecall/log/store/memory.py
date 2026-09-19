@@ -13,6 +13,7 @@ from pinecall.log.store import memory_index
 from pinecall.log.store.index import CallCorner, Day, Found, Threads, Unsealed, Wanted
 from pinecall.log.store.memory_index import Indexed, StillOpen
 from pinecall.log.store.protocol import DEFAULT_LIMIT, LogSealed, Metered
+from pinecall.types import Versions
 from pinecall.types.json import JsonObject
 
 
@@ -138,6 +139,7 @@ class MemoryStore:
         org: str,
         env: str | None = None,
         holder: str | None = None,
+        versions: Versions | None = None,
     ) -> None:
         """The first claim keeps a log, exactly as the head row's coalesce does."""
         async with self._lock:
@@ -147,6 +149,11 @@ class MemoryStore:
             if call is not None and log.env is None and env is not None:
                 log.env = env
                 log.holder = holder or ""
+            if call is not None and versions is not None:
+                if log.config_version is None:
+                    log.config_version = versions.config
+                if log.lexicon_version is None:
+                    log.lexicon_version = versions.lexicon
 
     async def moved(self, agent: str, org: str) -> int:
         """The agent's own log and every call of it, into another org. As many as there were."""
@@ -184,7 +191,12 @@ class MemoryStore:
         if log is None or log.facts is None:
             return None
         return CallCorner(
-            log.org, log.env or memory_index.UNCORNERED, log.holder or "", log.facts.agent
+            log.org,
+            log.env or memory_index.UNCORNERED,
+            log.holder or "",
+            log.facts.agent,
+            log.config_version,
+            log.lexicon_version,
         )
 
     async def facts_of(self, calls: Sequence[str]) -> dict[str, CallFacts]:
@@ -302,6 +314,9 @@ class _Log:
     # A call's corner, as the head row keeps it: None until a claim said which world.
     env: str | None = None
     holder: str | None = None
+    # Which tuning and which lexicon the call was built on, as the head row keeps them.
+    config_version: int | None = None
+    lexicon_version: int | None = None
     # When the call's first entry landed, as the head row's started_at, and what its entries said.
     started_at: float | None = None
     facts: CallFacts | None = None

@@ -73,7 +73,12 @@ sandbox, answered in that colleague's corner.
 | `PUT` | `/v1/line/from` | this phone's calls reach this key's corner, in whatever agent it holds — the sandbox number's, and a production number's too — `app`, set from the sandbox only |
 | `GET` | `/v1/line/numbers` | the org's production phone numbers and the agent each reaches: what a developer's own phone dials to reach their copy — `app`, a key naming a person, from the sandbox |
 | `DELETE` | `/v1/line/from` | stop answering your own calls; they fall back to the line — `app` |
-| `GET` | `/v1/agents/{slug}/pipeline` · `PUT …/pipeline/overrides` | what it runs on, and the six knobs — [pipeline-api.md](pipeline-api.md) |
+| `GET` | `/v1/agents/{slug}/pipeline` · `PUT …/pipeline/overrides` | what it runs on, and the six knobs, kept one release — [pipeline-api.md](pipeline-api.md) |
+| `GET` · `PUT` | `/v1/agents/{slug}/settings` | what the org set over the class — vendors, models, the opening, the cut of a turn, what is remembered, the bases — per world, per corner, a version a row: yours, the team's, production's — `pipeline` or `words`; `words` sets the opening's words and what is remembered and is refused the rest by name — [settings-api.md](settings-api.md) |
+| `GET` | `…/settings/history` · `…/settings/diff` | one corner's versions, newest first; this corner against the team's or production's — `pipeline` or `words` |
+| `POST` | `…/settings/rollback` · `…/settings/promote` | one version back as the next one; yours to the team's, or the team's sandbox to production once the goldens in the body hold — `pipeline`. Nobody writes production any other way |
+| `GET` | `/v1/calls/{call}/settings` | the exact settings and lexicon a call ran on, by the versions its head row kept — `calls` |
+| `GET` · `PUT` | `/v1/lexicon` · `GET …/history` · `POST …/promote` | the org's words — how the voice says them, what the ears must know — laid over every agent's own; promoted with no goldens between — `pipeline` or `words` |
 | `GET` · `PUT` | `/v1/agents/{slug}/widget` | how the widget presents the agent — title, tagline, greeting, accent, autostart — per world; read with `talk`, set with `pipeline` |
 | `POST` | `/v1/agents/{slug}/dev/{family}/{verb}` · `?app=` | a console's ask, relayed to the app standing in the agent's directory — `talk`, `knowledge`, `memory` or `evals` by family; [dev-verbs.md](dev-verbs.md) |
 | `GET` | `/v1/agents/{slug}/provider-keys` | the org's own vendor keys, **in the clear**: the worker's door, see §6 |

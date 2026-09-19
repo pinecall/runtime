@@ -71,12 +71,15 @@ limit $2
 # key and never moves. The row may not exist yet — a claim can land before the first entry — so
 # it is inserted with a seq of 0, which is what APPEND's own insert would have written.
 OWNED = """
-insert into call_log_head as head (log, agent, call, org, env, holder)
-values ($1, $2, $3, $4, $5, $6)
+insert into call_log_head as head
+    (log, agent, call, org, env, holder, config_version, lexicon_version)
+values ($1, $2, $3, $4, $5, $6, $7, $8)
 on conflict (log) do update
-    set org    = coalesce(head.org, excluded.org),
-        env    = coalesce(head.env, excluded.env),
-        holder = coalesce(head.holder, excluded.holder)
+    set org             = coalesce(head.org, excluded.org),
+        env             = coalesce(head.env, excluded.env),
+        holder          = coalesce(head.holder, excluded.holder),
+        config_version  = coalesce(head.config_version, excluded.config_version),
+        lexicon_version = coalesce(head.lexicon_version, excluded.lexicon_version)
 """
 
 # Every head row this agent has: its own, and one per call it took. `call_log_head_by_agent`

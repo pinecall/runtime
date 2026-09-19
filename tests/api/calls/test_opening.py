@@ -12,8 +12,8 @@ from pinecall.evals.score import JudgedWhen
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
+from pinecall.orgs.tuning import MemoryTuning
 from pinecall.providers.models import Models
-from pinecall.providers.overrides import Overrides
 from pinecall.session.scoring import unjudged
 from pinecall.types import PRODUCTION, AgentConfig, CallContext, Route
 from tests.api.conftest import AGENT
@@ -53,10 +53,10 @@ def _context() -> CallContext:
 # with `not_judged` and nobody was told. The assertion is on identity, because the default is a
 # perfectly working function that answers no verdict at all.
 async def test_a_text_call_is_opened_with_the_judge_and_not_with_the_default(
-    overrides: Overrides, llms: Models, admission: Admission, logs: Logs, lookups: Lookups
+    tuning: MemoryTuning, llms: Models, admission: Admission, logs: Logs, lookups: Lookups
 ) -> None:
     opened = await a_text_call(
-        _held(), _context(), overrides, None, llms, admission, logs, 0, lookups, Budgets()
+        _held(), _context(), tuning, None, llms, admission, logs, 0, lookups, Budgets()
     )
 
     judge = opened.session._score  # pyright: ignore[reportPrivateUsage]

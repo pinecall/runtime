@@ -26,9 +26,9 @@ from pinecall.api._deps import (
     the_members,
     the_memory,
     the_orgs,
-    the_overrides,
     the_pairings,
     the_throttle,
+    the_tuning,
     the_vault,
 )
 from pinecall.api._live import Live
@@ -56,10 +56,10 @@ from pinecall.orgs.admission import Admission
 from pinecall.orgs.carriers import MemoryCarriers
 from pinecall.orgs.meter import Meter
 from pinecall.orgs.table import MemoryOrgs
+from pinecall.orgs.tuning import MemoryTuning
 from pinecall.orgs.vault import MemoryVault, Vault, keys_brought_by
 from pinecall.orgs.widgets import MemoryWidgets
 from pinecall.providers.models import Chat, Models
-from pinecall.providers.overrides import Overrides
 from pinecall.routes.table import MemoryRoutes
 from pinecall.routes.trunks import MemoryTrunks
 from pinecall.routes.twilio import TwilioFor
@@ -158,9 +158,9 @@ def registry(logs: Logs) -> Registry:
 
 
 @pytest.fixture
-def overrides() -> Overrides:
-    """What an operator has turned, empty at the start of every test: nothing is inherited."""
-    return Overrides()
+def tuning() -> MemoryTuning:
+    """What the org has set, empty at the start of every test: nothing is inherited."""
+    return MemoryTuning()
 
 
 @pytest.fixture
@@ -286,7 +286,7 @@ def wired(
     logs: Logs,
     live: Live,
     llms: Models,
-    overrides: Overrides,
+    tuning: MemoryTuning,
     orgs: MemoryOrgs,
     vault: Vault | None,
     admission: Admission,
@@ -317,7 +317,7 @@ def wired(
     app.dependency_overrides[log_writers.the_logs] = lambda: logs
     app.dependency_overrides[gateway_connected.what_is_live] = lambda: live
     app.dependency_overrides[deps.the_llms] = lambda: llms
-    app.dependency_overrides[the_overrides] = lambda: overrides
+    app.dependency_overrides[the_tuning] = lambda: tuning
     widgets = MemoryWidgets()
     app.dependency_overrides[the_widgets] = lambda: widgets
     app.dependency_overrides[the_orgs] = lambda: orgs

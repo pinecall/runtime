@@ -334,7 +334,9 @@ what a plan sells a team by, counted as everybody the org has not disabled. A te
 | `call_log`, `call_log_head` | every entry, with the org that owns the call and, on a call's head row, the corner it was opened in: `env` and `holder`, the org's own being `''` (`0024`; older rows read as production's) |
 | `contact_memories` | a contact's facts, per org **and world** — a test call's never reach production's |
 | `knowledge_bases`, `knowledge_chunks` | a base per (org, `env`, name); a laptop's push never replaces the box's |
-| `eval_runs`, `pipeline_overrides`, `tokens` | the suites run, the operator's knobs, the room tokens minted and spent |
+| `agent_config`, `lexicon` | what the org set over an agent's class, and the org's words: per (org, `env`, `holder`, version), a row a version, never updated (`0037`). A call's head row keeps the two versions it ran on |
+| `eval_runs`, `tokens` | the suites run, the room tokens minted and spent |
+| `pipeline_overrides` | the operator's six knobs until `0037` copied them into `agent_config` as version 1 of both worlds; read by nothing, dropped next release |
 
 A tenant is a row in `orgs` and at least one way in: a **person** (a row in `members`, invited and
 then holding keys of their own) or a **machine** (a row in `api_keys`). Everything else follows

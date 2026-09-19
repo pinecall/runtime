@@ -6,6 +6,7 @@ from typing import Protocol
 
 from pinecall._exceptions import PinecallError
 from pinecall.log.entry import Entry
+from pinecall.types import Versions
 from pinecall.types.json import JsonObject
 
 # One page of a log. A reader replays in pages of this size, then goes live.
@@ -97,9 +98,11 @@ class Store(Protocol):
         org: str,
         env: str | None = None,
         holder: str | None = None,
+        versions: Versions | None = None,
     ) -> None:
         """This log is the org's, and a call's is one corner's — the world it was opened in and
-        whose (the org's own is ""). Said at open or at register; a later claim changes nothing."""
+        whose (the org's own is "") — built on these versions of the corner's tuning and lexicon.
+        Said at open or at register; a later claim changes nothing."""
         ...
 
     # The one thing that undoes `owned`, and the reason it exists: a slug is one org's for as long

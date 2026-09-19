@@ -20,6 +20,7 @@ from pinecall.api._deps import held
 from pinecall.api._live import Live
 from pinecall.api.agents.holding import Registration
 from pinecall.api.agents.registry import NO_AGENT, Registry
+from pinecall.api.agents.tuned import tuned_for
 from pinecall.api.evals.attachment import AppDetached, Attachment
 from pinecall.api.evals.conversation import a_conversation
 from pinecall.api.evals.scoring import Judging
@@ -30,11 +31,19 @@ from pinecall.evals.runs import EvalRun, Opened, Runs
 from pinecall.log.store import Store
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
+from pinecall.orgs.tuning import TuningStore
 from pinecall.orgs.vault import Vault, keys_brought_by
 from pinecall.providers import declaration
 from pinecall.providers.models import Models
-from pinecall.providers.overrides import Overrides
-from pinecall.types import AgentConfig, DeclarationRefused, Env, Model, ProviderKeys, a_call_id
+from pinecall.types import (
+    AgentConfig,
+    DeclarationRefused,
+    Env,
+    Model,
+    ProviderKeys,
+    Versions,
+    a_call_id,
+)
 from pinecall_protocol import WireModel, defs
 
 # The design says SIGKILL, and there is no child to signal: a run is coroutines in the gateway's
@@ -97,7 +106,7 @@ class Process:
     """What a run needs of the process it runs in: everything a text call is opened with."""
 
     registry: Registry
-    overrides: Overrides
+    tuning: TuningStore
     llms: Models
     logs: Logs
     live: Live
@@ -152,9 +161,12 @@ async def a_run(wanted: Wanted, runner: Runner, process: Process) -> EvalRun:
         raise NobodyServing(NO_AGENT.format(slug=wanted.agent))
     if wanted.voice:
         _refuse_what_a_spoken_run_cannot_do(wanted)
-    # The same config a real caller would reach: what an operator turned on the Pipeline screen
-    # is on this run too, because a golden that tested something else would test nothing.
-    config = process.overrides.config_for(wanted.agent, serving.config)
+    # The same config a real caller would reach: what the org set is on this run too, because a
+    # golden that tested something else would test nothing. Resolved in the corner that serves.
+    resolved = await tuned_for(
+        process.tuning, serving.org, serving.env, serving.holder, wanted.agent, serving.config
+    )
+    config = resolved.config
     # Whose keys this run's conversations are answered on, read once as the run opens: a run is
     # one org's, and a suite is one session — the chat socket asks the same question per call.
     keys = await keys_brought_by(process.vault, serving.org)
@@ -165,7 +177,7 @@ async def a_run(wanted: Wanted, runner: Runner, process: Process) -> EvalRun:
             async with asyncio.timeout(A_RUN_MAY_TAKE_S):
                 judging = Judging(config)
                 run = await _every_conversation(
-                    wanted, run, config, serving, process, judging, keys
+                    wanted, run, config, serving, process, judging, keys, resolved.versions
                 )
                 return await _finished(run, process)
         # Not raised: the run failed, and the row that says so — with every golden scored before
@@ -192,6 +204,7 @@ async def _every_conversation(
     process: Process,
     judging: Judging,
     keys: ProviderKeys,
+    versions: Versions,
 ) -> EvalRun:
     """The run as it stands after every call has been made and judged."""
     app = Attachment(process.registry, serving.agent, serving.owner)
@@ -244,6 +257,7 @@ async def _every_conversation(
                         store=process.store,
                         lookups=process.lookups,
                         budgets=process.budgets,
+                        versions=versions,
                     )
                 )
             # The call itself has already ended as app_detached; what this adds is the run's own

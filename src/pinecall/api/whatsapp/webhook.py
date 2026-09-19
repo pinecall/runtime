@@ -15,9 +15,9 @@ from pinecall.api._deps import (
     LlmsDep,
     LogsDep,
     LookupsDep,
-    OverridesDep,
     RoutesDep,
     SettingsDep,
+    TuningDep,
     VaultDep,
 )
 from pinecall.api._live import LiveDep
@@ -73,7 +73,7 @@ async def delivered(
     threads: ThreadsDep,
     routes: RoutesDep,
     registry: RegistryDep,
-    overrides: OverridesDep,
+    tuning: TuningDep,
     vault: VaultDep,
     llms: LlmsDep,
     admission: AdmissionDep,
@@ -94,7 +94,7 @@ async def delivered(
         settings=settings,
         routes=routes,
         registry=registry,
-        overrides=overrides,
+        tuning=tuning,
         vault=vault,
         llms=llms,
         admission=admission,

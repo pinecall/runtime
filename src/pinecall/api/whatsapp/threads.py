@@ -157,7 +157,7 @@ class Threads:
             opened = await a_text_call(
                 held,
                 _a_context(route, inbound),
-                doors.overrides,
+                doors.tuning,
                 doors.vault,
                 doors.llms,
                 doors.admission,
@@ -173,7 +173,9 @@ class Threads:
             logger.warning(NOT_ANSWERED, route.agent, inbound.number, refused)
             return None
         session = opened.session
-        await doors.logs.owned(session.call, route.agent, held.org, held.env, held.holder)
+        await doors.logs.owned(
+            session.call, route.agent, held.org, held.env, held.holder, opened.versions
+        )
         doors.live.serve(
             session.call,
             session.agent,

@@ -10,9 +10,9 @@ from pinecall.api.agents.registry import Registry
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
+from pinecall.orgs.tuning import TuningStore
 from pinecall.orgs.vault import Vault
 from pinecall.providers.models import Models
-from pinecall.providers.overrides import Overrides
 from pinecall.routes.table import Routes
 from pinecall.whatsapp.graph import Graph
 
@@ -28,7 +28,7 @@ class Doors:
     settings: Settings
     routes: Routes
     registry: Registry
-    overrides: Overrides
+    tuning: TuningStore
     vault: Vault | None
     llms: Models
     admission: Admission

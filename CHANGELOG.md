@@ -7,6 +7,24 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **An agent's settings are the org's, per world, per corner, a version a row.** What an agent
+  runs on — vendors, models, the opening, the cut of a turn, what is remembered, the bases — and
+  the org's words are set at `GET`/`PUT /v1/agents/{slug}/settings` and `/v1/lexicon`, with
+  `history`, `diff`, `rollback` and `promote` beside them, kept in `agent_config` and `lexicon`
+  (migration 0037) and laid over the class at the one place every session is built. A corner reads
+  its own newest, else the org's own, as knowledge falls back; the whole set is written with the
+  version it was read at and a corner that moved answers 409; production is written by promote
+  alone, once the goldens in the body hold; and a call's head row keeps the two versions it ran on
+  (`GET /v1/calls/{call}/settings`). `docs/protocol/settings-api.md`.
+- **The `words` scope: the floor fixes what the agent says.** A supervisor's and a manager's keys
+  set the opening's words, the lexicon and what is remembered, and are refused a vendor by name.
+  0037 hands it to every key that holds `supervise`; `developer` carries it too.
+
+### Changed
+- **`pipeline_overrides` is absorbed.** Its rows became version 1 of both worlds of `agent_config`;
+  `PUT /v1/agents/{slug}/pipeline/overrides` stays one release for the console's Pipeline screen,
+  writing a version of the same store, and the table is read by nothing. The gateway no longer
+  caches what an operator turned: it reads the corner's tuning per session.
 - **`supervisor` and `manager` open `memory`.** What the agent remembers about the caller is what a
   person beside a live call, or running the floor, has to see; the two presets now carry the scope,
   as `developer` and `admin` already did. A preset is what the NEXT key minted opens.
