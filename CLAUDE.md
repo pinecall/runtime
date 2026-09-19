@@ -115,7 +115,7 @@ as sentences.
   `test_scopes_at_the_doors` found no `APIRoute` at all and pinned every door's scope over an
   EMPTY list, silently. Any walk of the app unwraps that, and asserts it reached something.
 - A key is never printed — not in a commit, a test, a log line, a reply. Compare by sha256.
-- Versions and tags are the human's: never pick a number, never tag. `_version.py` stays `0.0.0`.
+- `_version.py` stays `0.0.0`.
 - The shell may name a vendor's key differently (`ELEVENLABS_API_KEY`) than the runtime does
   (`ELEVEN_API_KEY`); `.env.example` is the list.
 
