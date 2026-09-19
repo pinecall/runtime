@@ -24,7 +24,6 @@ from pinecall.types import (
     Lexicon,
     Tuning,
     an_env,
-    is_a_deployment,
     whose,
 )
 from pinecall_protocol.defs import Pronunciation
@@ -52,13 +51,6 @@ TuningKeyDep = Annotated[KeyRecord, Depends(opening("pipeline", "words"))]
 # The wire's body read into the shape, and the shape written back out: one adapter, so what a door
 # accepts and what a row says are the same thing. orgs/tuning.py writes a column through it too.
 TUNING: TypeAdapter[Tuning] = TypeAdapter(Tuning)
-
-# Production is written by promote alone, so what the public reaches is always something the
-# sandbox ran and the goldens held. A key that tries to set it is told which door instead.
-PRODUCTION_IS_PROMOTED = (
-    "production is written by promote, never set: set it in the sandbox, then {door}"
-)
-PROMOTE_SETTINGS = "POST /v1/agents/{slug}/settings/promote with to=production"
 
 # What a `words` key may touch and what it may not: the vendors, the models, the cut of a turn and
 # what the call reads from are the pipeline's. A words key's set carries those over untouched
@@ -134,12 +126,6 @@ def corner_written(key: KeyRecord, team: bool) -> str:
     if team or HOLDING not in key.scopes:
         return THE_ORGS_OWN
     return whose(held_by(key))
-
-
-def refuse_in_production(key: KeyRecord, door: str) -> None:
-    """A production key sets nothing: 403 naming the promote door that writes production."""
-    if is_a_deployment(key.env):
-        raise HTTPException(403, PRODUCTION_IS_PROMOTED.format(door=door))
 
 
 # A set needs no socket: a supervisor fixing tonight's opening has no app running, and the rules a
@@ -241,7 +227,6 @@ async def set_settings(
     slug: str, said: TuningPut, key: TuningKeyDep, registry: RegistryDep, kept: TuningDep
 ) -> TuningAnswer:
     """Set this agent's tuning in this key's corner, or the team's: a new version, checked first."""
-    refuse_in_production(key, PROMOTE_SETTINGS.format(slug=slug))
     corner = corner_written(key, said.team)
     wanted = a_tuning(said.config)
     if "pipeline" not in key.scopes:

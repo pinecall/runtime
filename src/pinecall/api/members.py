@@ -21,17 +21,15 @@ from pinecall.api.orgs import NO_BODY
 from pinecall.auth import passwords
 from pinecall.auth.keys import KeyRecord, Keys
 from pinecall.auth.members import Members
+from pinecall.auth.persons import a_persons_key
 from pinecall.mail import Letter, Outbox, a_reset, an_invitation, where_the_card_is
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.types import (
-    PRODUCTION,
     DeclarationRefused,
     Member,
     Org,
     Role,
     a_role,
-    an_env,
-    for_a_person,
 )
 from pinecall.types.member import STATUSES, MemberStatus
 from pinecall_protocol import WireModel
@@ -69,6 +67,9 @@ NOT_BY_HAND = "{email} has not accepted their invitation: they become active by 
 NOT_YOURSELF = "you cannot remove yourself: another admin of this org removes you"
 # Disabling is the same act for now, and refused to the person asking for the same reason.
 NOT_YOURSELF_DISABLED = "you cannot disable yourself: another admin of this org disables you"
+# An admin always opens production (Member.opens_production): the org's owner must reach what
+# answers its phone, so taking it from one is refused rather than quietly ignored.
+AN_ADMIN_OPENS_PRODUCTION = "{email} is an admin, and an admin always opens production"
 THE_LAST_ADMIN = (
     "{email} is the last active admin of this org: make somebody else an admin first, "
     "or the org is left with nobody who can run it"
@@ -87,6 +88,8 @@ class WantedMember(WireModel):
     role: str
     # Empty is every agent of the org.
     agents: list[str] = []
+    # Whether they may act in production. An admin does whatever this says.
+    production: bool = False
 
 
 class Changed(WireModel):
@@ -95,14 +98,14 @@ class Changed(WireModel):
     role: str | None = None
     agents: list[str] | None = None
     status: str | None = None
+    production: bool | None = None
 
 
 class Accepting(WireModel):
     """What the person answers the invitation with: the password they chose, and their device."""
 
     password: str
-    # The world the first key opens, and what the key is labelled — the browser, the laptop.
-    env: str = PRODUCTION
+    # What the first key is labelled — the browser, the laptop.
     device: str | None = None
 
 
@@ -169,7 +172,9 @@ async def invited_into(
     they have, and the console's org switch lists the new org beside the others. There is
     nothing for a letter to carry, so nothing is posted and `mailed` is false.
     """
-    invited = await members.invite(org.id, said.email, said.name, role, said.agents)
+    invited = await members.invite(
+        org.id, said.email, said.name, role, said.agents, production=said.production
+    )
     if invited is None:
         raise HTTPException(409, ALREADY_A_MEMBER.format(email=said.email))
     letter = (
@@ -195,8 +200,8 @@ async def invited_into(
 async def change(
     id: str, said: Changed, key: TeamKeyDep, members: MembersDep, keys: KeysDep
 ) -> dict[str, Any]:
-    """Replace the role, the agents or the standing. Disabling revokes every key of theirs, and
-    is refused (409) for the person asking."""
+    """Replace the role, the agents, the standing or production. Disabling revokes every key of
+    theirs, and is refused (409) for the person asking."""
     found = await members.find(key.org, id)
     if found is None:
         raise HTTPException(404, NO_SUCH_MEMBER.format(id=id))
@@ -209,7 +214,11 @@ async def change(
         raise HTTPException(400, NOT_BY_HAND.format(email=found.email))
     if status == "disabled" and key.subject == id:
         raise HTTPException(409, NOT_YOURSELF_DISABLED)
-    changed = await members.update(key.org, id, role=role, agents=said.agents, status=status)
+    if said.production is False and (role or found.role) == "admin":
+        raise HTTPException(409, AN_ADMIN_OPENS_PRODUCTION.format(email=found.email))
+    changed = await members.update(
+        key.org, id, role=role, agents=said.agents, status=status, production=said.production
+    )
     if changed is None:
         raise HTTPException(404, NO_SUCH_MEMBER.format(id=id))
     # A disabled person may not open a door from the next request, and their keys are the doors:
@@ -297,21 +306,13 @@ async def accept(
 ) -> dict[str, Any]:
     """Spend the invitation: the member is active, and the answer is their first key, once."""
     try:
-        env = an_env(said.env)
         kept = passwords.hashed(said.password, settings.min_password)
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused
     member = await members.accept(token, kept)
     if member is None:
         raise HTTPException(404, NO_INVITATION)
-    issued = await keys.issue(
-        org=member.org,
-        label=said.device or "invitation",
-        env=env,
-        scopes=for_a_person(member.scopes, env),
-        subject=member.id,
-        name=member.name,
-    )
+    issued = await a_persons_key(keys, member, said.device or "invitation")
     return {**issued.as_json, "member": member_as_json(member)}
 
 
@@ -357,4 +358,6 @@ def member_as_json(member: Member) -> dict[str, Any]:
         # its own team sees it too: somebody who can open every org's door is not a secret from
         # the org they are in.
         "operator": member.operator,
+        # Whether a request of theirs may run in production: the switch, or being an admin.
+        "production": member.opens_production,
     }

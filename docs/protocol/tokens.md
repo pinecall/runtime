@@ -28,7 +28,7 @@ client code is involved.
 
 ## What we put in front of LiveKit's mint — the three additions
 
-1. **The organisation check.** The door takes the org's API key (`Authorization: Bearer pk_…`),
+1. **The organisation check.** The door takes the org's API key (`Authorization: Bearer pc_live_…`, the server's token),
    never a browser's, and mints only for an agent that key's fleet answers **on the web** — the
    very tables the worker asks at `GET /v1/routes` when the job arrives. The token's `room_config`
    is one `RoomAgentDispatch` to our worker pool, whose metadata names the agent, so the worker's
@@ -147,7 +147,7 @@ const room = new Room();
 await room.connect(...(await tokens.fetch({ agentName: "clinica-norte" })));
 ```
 
-The backend's `/token` is a `fetch` to `POST /v1/tokens` with `Authorization: Bearer pk_…` and the
+The backend's `/token` is a `fetch` to `POST /v1/tokens` with `Authorization: Bearer pc_live_…` and the
 same body, plus whatever it knows: `contact`, `metadata`. The runtime dispatches the worker into
 the room the moment the browser joins; the worker resolves the agent from the dispatch, opens the
 call, and answers.

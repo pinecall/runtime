@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from pinecall.auth.keys import KeyRecord
 
-# `pinecall run` prints `https://<gateway>/a/<agent>?login=<code>`: the code goes in the URL, the
+# `pinecall start` prints `https://<gateway>/a/<agent>?login=<code>`: the code goes in the URL, the
 # key never does. A URL is in a shell history, a browser history and a proxy log; a code that dies
 # in five minutes and on first use is nothing to find there.
 CODE_PREFIX = "lc_"
@@ -37,7 +37,7 @@ class _Minted:
     expires_at: float
 
 
-# This process's memory and nothing else: a code is minted by the gateway a `pinecall run` talks
+# This process's memory and nothing else: a code is minted by the gateway a `pinecall start` talks
 # to and spent by the browser that URL opens, seconds apart, against the same process. A table
 # would make it survive a restart, which is not a property a five-minute word needs.
 class LoginCodes:

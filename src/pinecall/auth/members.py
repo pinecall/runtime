@@ -40,7 +40,14 @@ class Members(Protocol):
     # No migration carried this: 0014's schema already holds a hash per row, and the rule is
     # kept here, in the four verbs that read and write it (2026-09-16).
     async def invite(
-        self, org: str, email: str, name: str, role: Role, agents: Iterable[str]
+        self,
+        org: str,
+        email: str,
+        name: str,
+        role: Role,
+        agents: Iterable[str],
+        *,
+        production: bool = False,
     ) -> Invited | None:
         """A new member with a one-use token, or a fresh token for one still invited. An email
         that already has a password on this box is seated ACTIVE with it, and no token is made.
@@ -94,6 +101,7 @@ class Members(Protocol):
         role: Role | None = None,
         agents: Iterable[str] | None = None,
         status: MemberStatus | None = None,
+        production: bool | None = None,
     ) -> Member | None:
         """The member with these fields replaced; a field left None keeps what it had. None when
         no member of this org answers to the id."""
@@ -159,6 +167,7 @@ def a_member_of_row(row: Any) -> Member:
         agents=frozenset(str(agent) for agent in row["agents"]),
         status=_a_status(str(row["status"])),
         operator=bool(row["operator"]),
+        production=bool(row["production"]),
     )
 
 

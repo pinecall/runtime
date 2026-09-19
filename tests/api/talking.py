@@ -7,15 +7,21 @@ from urllib.parse import quote
 
 from starlette.testclient import TestClient, WebSocketTestSession
 
+from pinecall.auth.world import ENV_HEADER
 from pinecall.types import CallContext, Route
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS, CHAT, Json
 
 
 # starlette's TestClient is an httpx client, and httpx 0.x ships no stubs for the members a test
 # uses; every GET in this package goes through this one deliberately untyped handle.
-def got(client: TestClient, path: str, bearer: str | None = A_KEY) -> tuple[int, Json]:
-    """One GET at this door, as a status and, when the body is JSON, the body."""
+def got(
+    client: TestClient, path: str, bearer: str | None = A_KEY, world: str | None = None
+) -> tuple[int, Json]:
+    """One GET at this door, as a status and, when the body is JSON, the body. `world` is the
+    one a person's request names (auth/world.py); a server's token has its own."""
     headers = {} if bearer is None else {"Authorization": f"Bearer {bearer}"}
+    if world is not None:
+        headers[ENV_HEADER] = world
     handle: Any = client
     answer: Any = handle.get(path, headers=headers)
     status: int = answer.status_code

@@ -5,16 +5,16 @@ key a person logs in for, the code a browser spends, and the one door a stranger
 where its gateway opens one.
 
 An org's people are rows, not shared keys. A key holder invites one — `POST /v1/members` with
-`{email, name, role, agents?}` answers `201` with the member, a one-use `token`, shown once and
-dead in a week, and `mailed` (below: whether the link was also posted to them) — and the person accepts at `POST /v1/invitations/{token}` with `{password, env?,
+`{email, name, role, agents?, production?}` answers `201` with the member, a one-use `token`, shown once and
+dead in a week, and `mailed` (below: whether the link was also posted to them) — and the person accepts at `POST /v1/invitations/{token}` with `{password,
 device?}` (no key at that door; `min_password` characters at least — `PINECALL_MIN_PASSWORD`, 8 unless the operator set it, below — argon2id at rest) — which is what the
 console's own card at `/invitations/{token}` does when the link is opened in a browser — and that
 makes them `active` and answers their **first key**, in the one shape a key travels in: `{key, key_id, org,
 label, env, scopes, subject, name, member}`. `subject` is the member's id and `scopes` the preset of
 their role: `qa` · `supervisor` · `manager` · `admin` · `developer` (`types/member.py`). `GET
-/v1/members` lists them; `PATCH /v1/members/{id}` replaces `role`, `agents` or `status` — `disabled`
-revokes every key of theirs and refuses their login, `active` re-enables one who had a password and
-never activates one still invited.
+/v1/members` lists them, each saying `production`; `PATCH /v1/members/{id}` replaces `role`,
+`agents`, `status` or `production` — `disabled` revokes every key of theirs and refuses their
+login, `active` re-enables one who had a password and never activates one still invited.
 
 **Removing is for good, where disabling is for now.** `DELETE /v1/members/{id}` (`team`) answers
 `204`: every key of theirs is revoked FIRST, so there is no moment a removed person's key opens a
@@ -46,14 +46,20 @@ invited counts, or an org at its limit could invite forever and seat them all th
 accepted — so disabling somebody is what frees one, and their row stays because the log names
 them. Re-inviting an email the org already holds takes no second seat.
 
-**A person's key does not hold `app` in production.** Holding an agent is a deployment, and a
-deployment is a process somebody put on a box — never a laptop that happens to be logged in. So
-every key minted for a person carries their role's preset in the sandbox and that preset less
-`app` in production: at login, at `POST /v1/invitations/{token}`, at sign-up and at `POST
-/v1/login/env`, which reads the role and not the key that asked (a production key has already
-lost it). What holds a slug in production is a key issued for a machine — `POST /v1/keys` with
-`{label, scopes: ["app"]}` — and it names nobody. Two people's sandbox keys are two people's:
-the registry holds a sandbox slug per person, so nobody takes another's agent.
+**A person holds one key per device, and the request names its world.** The role says what they
+do; the member's **`production`** switch, set by an admin, says whether they may do it in
+production. Every key minted for a person — at login, at `POST /v1/invitations/{token}`, at
+sign-up, at a code, at a terminal's pairing, at another org of theirs — carries their role's preset
+whole, `app` included, and opens no world of its own (`auth/persons.py`). A request says
+`pinecall-env: production` or `sandbox`; none is the sandbox. Production answers only while the
+member's row opens it, read at every request, so switching it off closes the very next one: `403
+<name> has no production access: an admin gives it in Team`. **An admin always opens production**
+— `PATCH` with `production: false` on one is `409 <email> is an admin, and an admin always opens
+production`. So a developer with the switch holds an agent in production from their own terminal
+(`pinecall start --prod`); what normally holds it is a **server's token**, made from the console's
+Tokens screen (`POST /v1/keys`, [gateway-api.md](gateway-api.md) §8), which names nobody and
+outlives whoever made it. Two people's sandbox keys are two people's: the registry holds a sandbox
+slug per person, so nobody takes another's agent.
 
 **How short a password may be is the OPERATOR's, not this runtime's.** `PINECALL_MIN_PASSWORD`
 (default 8, `0` for no rule at all) is the floor, and it is carried on `GET /.well-known/pinecall`
@@ -61,7 +67,7 @@ as `min_password` so a card can say the rule this gateway actually enforces rath
 copied into a page that drifts the day somebody moves it. Every door that takes a new password —
 the invitation, the sign-up — is held to the same one.
 
-`POST /v1/login` takes `{org?, email, password, env?, device?}` and answers a key for that person
+`POST /v1/login` takes `{org?, email, password, device?}` and answers a key for that person
 and that device. The password is checked as the person's, whichever org it was chosen in; then
 the row is the one in the org named, or — **with no org** — the oldest row of theirs that is not
 disabled, so a person with one org never types it. Every wrong thing — the org, the email, the
@@ -69,15 +75,15 @@ password, an email that has accepted nowhere — is one `401` sentence (`no memb
 to that email and password`, or `nobody answers to that email and password` when no org was named);
 a disabled member is `403`; the sixth try in a minute for one name is `429` whatever the password.
 Or it takes `{code, device?}`: a key holder minted the code at `POST /v1/login/codes` (five minutes,
-one use), which is how `pinecall run` prints `?login=<code>` and a browser ends up holding a key of
+one use), which is how `pinecall start` prints `?login=<code>` and a browser ends up holding a key of
 its own, never the org's.
 
 **Switching orgs** is two doors on a person's key, no scope asked: `GET /v1/login/orgs` answers
 `{orgs: [{org, slug, name, role, status, here}]}`, every org the person belongs to, oldest first,
 disabled rows left out and `here` marking the one this key opens; `POST /v1/login/org {org}`, an id
-or a slug, answers a key for the same person in that org — the same world and label as the key that
-asked, with what their role there opens in that world — or `403 you are not an active member of
-<org>`. A machine's key names nobody and opens one org: both doors refuse it `403`.
+or a slug, answers a key for the same person in that org — the same label as the key that asked, with
+what their role there opens, and production as their row there says — or `403 you are not an
+active member of <org>`. A server's token names nobody and opens one org: both doors refuse it `403`.
 
 **An operator of the box is shown every org.** Each row of `GET /v1/login/orgs` also says
 `member`: `true` for the person's own orgs, which come first, oldest first, exactly as before. For
@@ -87,23 +93,23 @@ the box follows, oldest first, with `member: false`, `role: "operator"` and `sta
 above; an operator who is none gets a **visitor's key** —
 
 ```json
-{"key": "pk_…", "key_id": "k_…", "org": "org_4ad9…", "env": "production",
+{"key": "pc_…", "key_id": "k_…", "org": "org_4ad9…", "env": "production",
  "label": "operator · bernardo@pinecall.io", "scopes": ["calls", "evals", "…", "team", "usage"],
  "subject": "operator:bernardo@pinecall.io", "name": "Bernardo"}
 ```
 
-— `production` whatever world the asking key opened, the `admin` role's scopes less `app` as any
-person's key, and **no member row**: no seat is taken and the org's Team screen gains nobody.
-`subject` is `operator:<their address>` and not a member id, so the org's Keys screen says whose
+— `production`, fixed, whatever world the asking request named, the `admin` role's scopes less
+`app` — the box mends a tenant and holds none of its agents — and **no member row**: no seat is taken and the org's Team screen gains nobody.
+`subject` is `operator:<their address>` and not a member id, so the org's Tokens screen says whose
 key it is (and may revoke it), and everything that writes a subject down — a dial's `asked_by`, a
 supervise verb, a seat — attributes what they did to a person by address, in the tenant's own
 log. A row of theirs the tenant **disabled** is not the way in: they walk in as the operator,
 said in so many words, never as the member the org stopped. `GET /v1/whoami` says `operator:
 true` for such a person in every org and `visiting: true` inside one they are no member of, with
 `name` still theirs; both switch doors work from inside, which is how they get home. A visitor's
-key opens no sandbox and signs no terminal in — `POST /v1/login/env` and the pairing answer `403
-an operator visits an org in production, from the console: …` — because a sandbox is a member's
-corner. **It stops the moment they stop running the box**: the flag is read on every verify
+key opens no sandbox and signs no terminal in — `pinecall-env: sandbox` is `403 this token was
+made for production: …` and the pairing answers `403 an operator visits an org in production,
+from the console: …` — because a sandbox is a member's corner. **It stops the moment they stop running the box**: the flag is read on every verify
 (`auth/visiting.py`), so `orgs operator --revoke`, disabling them or removing them is one write
 and the next request with that key is `401`, with nothing to remember to revoke.
 
@@ -211,8 +217,8 @@ That door is `202` with an empty body while nobody has approved, `200 {key}` onc
 The browser, holding the person's key, reads `GET /v1/login/pairings/{code}` — `{device,
 expires_at, answered}`, and never a key — so the card can say **what** it is about to sign in, and
 then `POST /v1/login/pairings/{code}` approves it. What that mints is the TERMINAL's own key: a
-fresh one for the same person, in the **sandbox**, labelled as that machine, so it is revoked on
-its own from the Keys screen. The browser's key never travels to the terminal, and the terminal's
+fresh one for the same person, with their role's scopes, labelled as that machine, so it is
+revoked on its own from the Tokens screen; `pinecall start --prod` names production per request. The browser's key never travels to the terminal, and the terminal's
 never travels through the browser.
 
 **The password is typed into a page and never into a shell.** That is the point, and it is also why
@@ -266,9 +272,8 @@ domains. Then the member: `active` signs in; `invited` is seated active by signi
 no password — the provider is how they get in); `disabled` is `403`; an address nobody invited is
 `403` unless `role` says otherwise, and auto-provisioning takes a **seat** and is `429` in the
 quota's own sentence when the plan has none left. What the person lands on is `302` to
-`/?login=<code>` — the very one-use login code `pinecall run` prints, spent at `POST /v1/login
-{code}` for a key of the browser's own, labelled `console`, in production, with what their role
-opens there. **No key is ever in a URL.** With `pairing`, the landing is `/cli?c=<code>&login=…`
+`/?login=<code>` — the very one-use login code `pinecall start` prints, spent at `POST /v1/login
+{code}` for a key of the browser's own, labelled `console`, with what their role opens. **No key is ever in a URL.** With `pairing`, the landing is `/cli?c=<code>&login=…`
 instead: the card that signs the terminal in, reached holding a key.
 
 `POST /v1/login/sso/discover {email}` answers `{orgs: [{org, slug, name}]}` — the orgs whose

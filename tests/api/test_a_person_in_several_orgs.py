@@ -10,7 +10,7 @@ import pytest
 from pinecall.api.login import NOBODY_ANYWHERE
 from pinecall.api.login_orgs import NOT_THERE, ONE_ORG_EACH
 from pinecall.orgs.table import MemoryOrgs
-from pinecall.types import ROLE_SCOPES, for_a_person
+from pinecall.types import ROLE_SCOPES
 from tests.api.conftest import A_RECORD, over_the_asgi_app
 
 pytestmark = pytest.mark.unit
@@ -67,10 +67,10 @@ async def test_a_person_invited_into_a_second_org_is_seated_at_once_with_no_seco
         LOGIN, json={"org": "cloudacio", "email": JP["email"], "password": A_PASSWORD}
     )
     assert signed.status_code == 200, signed.text
-    # An admin's key, in production: what the role opens there, `app` not among it.
+    # An admin's key, the person's own: every door their role opens, and no world of its own.
     assert (signed.json()["org"], signed.json()["scopes"]) == (
         other,
-        sorted(for_a_person(ROLE_SCOPES["admin"], "production")),
+        sorted(ROLE_SCOPES["admin"]),
     )
 
 

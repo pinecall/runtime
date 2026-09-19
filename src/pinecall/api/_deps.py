@@ -11,11 +11,11 @@ from starlette.requests import HTTPConnection
 from pinecall._settings import Settings
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.codes import LoginCodes
-from pinecall.auth.corner import in_the_corner_asked
 from pinecall.auth.keys import NO_KEYS_TABLE, KeyRecord, Keys, not_opening
 from pinecall.auth.members import Members
 from pinecall.auth.pairing import Pairings
 from pinecall.auth.throttle import Throttle
+from pinecall.auth.world import as_asked, in_the_world_asked
 from pinecall.evals.runs import Runs
 from pinecall.extensions import Extensions
 from pinecall.fleet import Roster
@@ -104,19 +104,21 @@ async def a_key(connection: HTTPConnection, keys: KeysDep, members: MembersDep) 
     record = None if bearer is None else await keys.verify(bearer)
     if record is None:
         raise HTTPException(401, "this door takes an API key", {"WWW-Authenticate": "Bearer"})
-    # An admin reading a colleague's sandbox copy: the header names the corner (auth/corner.py).
+    # The world the request names, then the corner an admin names (auth/world.py, corner.py).
     try:
-        return await in_the_corner_asked(record, connection.headers, members)
+        return await as_asked(record, connection.headers, members)
     except PermissionError as refused:
         raise HTTPException(403, str(refused)) from refused
 
 
-# A socket has no 401 to answer with, so its door asks this as a question and closes with the
-# policy code on None. Both sockets — the app's and the chat's — ask here and nowhere else.
-async def a_key_on_a_socket(websocket: HTTPConnection, keys: Keys) -> KeyRecord | None:
+# A socket has no 401 to answer with: its door closes with the policy code on None, and with the
+# sentence of a PermissionError when the key may not open the world named. Both sockets ask here.
+async def a_key_on_a_socket(
+    websocket: HTTPConnection, keys: Keys, members: Members
+) -> KeyRecord | None:
     """The key travels as the Authorization header of the upgrade, never in the URL."""
-    bearer = bearer_of(websocket.headers)
-    return None if bearer is None else await keys.verify(bearer)
+    record = None if (bearer := bearer_of(websocket.headers)) is None else await keys.verify(bearer)
+    return None if record is None else await in_the_world_asked(record, websocket.headers, members)
 
 
 SettingsDep = Annotated[Settings, Depends(a_settings)]
@@ -153,8 +155,8 @@ AppKeyDep = Annotated[KeyRecord, Depends(opening("app"))]
 CallsKeyDep = Annotated[KeyRecord, Depends(opening("calls"))]
 # What an agent DECLARED is read by two kinds of key: the worker holding it, which builds the
 # session from it, and a reader watching its calls, which draws the state by the visibility the
-# declaration gave each field. A person's key holds no `app` in production, so a door that asked
-# for `app` alone left every console panel at the default. The one door that opens to either.
+# declaration gave each field. A reader's key — qa's, a supervisor's — holds no `app`, so a door
+# that asked for `app` alone left every console panel at the default. The one door open to either.
 DeclarationKeyDep = Annotated[KeyRecord, Depends(opening("app", "calls"))]
 TalkKeyDep = Annotated[KeyRecord, Depends(opening("talk"))]
 SuperviseKeyDep = Annotated[KeyRecord, Depends(opening("supervise"))]

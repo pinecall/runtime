@@ -45,11 +45,11 @@ m_b3796f3579fc  you@example.com  admin  runs this box
   Open the link above to set a password. Then, in the directory of an agent:
 
     pinecall login http://127.0.0.1:8080
-    pinecall run
+    pinecall link
+    pinecall start
 ```
 
-Run it twice and it carries on to the person rather than stopping at the org: it is the verb
-somebody runs twice while reading the README. A second tenant afterwards is [`orgs`](#orgs).
+Run twice, it carries on to the person, not stopping at the org. A second tenant is [`orgs`](#orgs).
 
 ## `gateway`
 
@@ -167,7 +167,7 @@ pinecall-runtime keys revoke <fingerprint>
 
 ```console
 $ pinecall-runtime keys issue --org clinica --label "berna's laptop" --env sandbox
-pk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+pc_test_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   org clinica · sandbox · berna's laptop
   every scope
   copy it now: the table keeps the fingerprint, and the key is never shown again
@@ -180,14 +180,14 @@ it remain readable. Issue one key per place — a laptop, CI, each deployment �
 a key you can revoke on its own is a key you will revoke. `--env` is **the key knowing where**: the
 agents registered on it, the doors they claim and every call they take are that world's, and the
 gateway keeps production and the sandbox apart — the same slug held once in each, a number in one
-refused to the other. A box's worker and app run on a production key, the default; a laptop gets a
-sandbox one. `--scope`, repeatable, is what the key may do (`app` · `calls` · `talk` · `supervise` ·
+refused to the other; the prefix says it (`pc_live_`, `pc_test_`). A box's worker and app run on a
+production key, the default. `--scope`, repeatable, is what the key may do (`app` · `calls` · `talk` · `supervise` ·
 `pipeline` · `knowledge` · `memory` · `evals` · `numbers` · `keys` — the org's own API keys — ·
 `providers` — the vendor keys it brought — · `team` · `usage` · `fleet`); left out is every scope
 but `fleet`, the box's own worker's, minted only when typed (`pinecall-worker-key.service` types
-it). An org issues its own machine keys without the operator at `POST /v1/keys`; these verbs are the
-box's way in, on `PINECALL_OPS_KEY`. `--subject` and `--name` say whose the key is, if a person's,
-so a seat minted from it says who sat down.
+it). An org makes its servers' tokens without the operator, in its console (`POST /v1/keys`); these
+verbs are the box's way in, on `PINECALL_OPS_KEY`. `--subject` and `--name` make it a person's key
+(`pc_…`), whose world is each request's as any person's — `--env` says nothing then.
 
 ## `routes`
 
@@ -371,7 +371,7 @@ pinecall-runtime init --org clinica \
   --email berna@clinica.test --person "Berna"      # the first org, and a link to set a password
 pinecall-runtime gateway
 pinecall-runtime worker dev                        # in another terminal, for spoken calls
-pinecall login http://localhost:8080               # in the agent's directory, as a person
+pinecall login http://localhost:8080 && pinecall link   # as a person; the agent's .env
 ```
 
 [from-zero.md](from-zero.md) is this same path with every output under it, through to a call. **This

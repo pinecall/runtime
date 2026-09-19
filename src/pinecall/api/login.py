@@ -11,10 +11,12 @@ from pinecall.api.sso import SsoDep
 from pinecall.auth import passwords
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Kept, Members
+from pinecall.auth.persons import a_persons_key
 from pinecall.auth.visiting import visiting
+from pinecall.auth.world import a_person
 from pinecall.orgs.sso import Sso
 from pinecall.orgs.table import Orgs
-from pinecall.types import PRODUCTION, DeclarationRefused, Env, an_env, for_a_person
+from pinecall.types import SANDBOX
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -53,15 +55,12 @@ ONE_OR_THE_OTHER = "log in with org, email and password, or with a code — one 
 LOGGED_IN = "login"
 A_BROWSER = "console"
 
-# A key opens one world. A person's key may mint the same person's key in the other world —
-# same person, same label, the scopes their role presets there — because the console's toggle is
-# that person looking the other way, not a new right. An org's machine key names nobody and gets
-# nothing here.
-ONE_WORLD_EACH = "an org's own key opens one world: issue another with `keys issue --env`"
+# A key is minted from another only for the person it names: a server's token names nobody.
+NOT_A_PERSONS = "a server's token names nobody: a person's key signs another device in"
 
 # The key names a member the table no longer has an active row for: they were removed, or
-# disabled while holding a key. Their key still opens its own world until it is revoked; it does
-# not open a second one.
+# disabled while holding a key. Their key still opens what it did until it is revoked; it does
+# not mint another.
 NOT_A_MEMBER = "the person this key was minted for is no longer an active member of this org"
 
 # An operator inside an org they are no member of (auth/visiting.py) looks at what that org's
@@ -71,12 +70,6 @@ VISITS_PRODUCTION = (
     "an operator visits an org in production, from the console: the sandbox and a terminal are "
     "a member's — switch back to an org you belong to"
 )
-
-
-class OtherWorld(WireModel):
-    """Which world the person wants a key for now."""
-
-    env: str
 
 
 class Credentials(WireModel):
@@ -94,8 +87,6 @@ class Login(WireModel):
     email: str | None = None
     password: str | None = None
     code: str | None = None
-    # The world the key opens. A code carries its own — the minting key's — and ignores this.
-    env: str = PRODUCTION
     # What the key is labelled: this browser, this laptop. Revoked on its own, later.
     device: str | None = None
 
@@ -147,7 +138,7 @@ async def orgs_to_sign_in_to(
     return {"orgs": listed}
 
 
-# A key holder — `pinecall run`, a person already in — mints a word a browser can carry in a URL
+# A key holder — `pinecall start`, a person already in — mints a word a browser can carry in a URL
 # instead of the key: `https://<gateway>/a/<agent>?login=<code>`. The word stands for the minting
 # key's record and is spent for a NEW key with the same org, world, scopes and person, so the
 # browser's key is its own and is revoked on its own.
@@ -158,42 +149,21 @@ async def a_code(key: KeyDep, codes: LoginCodesDep) -> dict[str, Any]:
     return {"code": minted.code, "expires_at": minted.expires_at}
 
 
-@router.post("/v1/login/env")
-async def the_other_world(
-    said: OtherWorld, key: KeyDep, keys: KeysDep, members: MembersDep
-) -> dict[str, Any]:
-    """A key for the same person, with what their role opens there, in the world named."""
-    try:
-        env = an_env(said.env)
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
-    return await for_the_same_person(key, env, key.label, keys, members)
-
-
-# The one place a key is minted FROM another key: the console's world toggle above, and the card
-# that signs a terminal in (api/pairing.py). The scopes come off the MEMBER and not off the key
-# that asked — a person's production key does not hold `app`, and reading its scopes would carry
-# that absence into the sandbox, where what they run is their own. The role is the source.
+# The one place a key is minted FROM another key: the card that signs a terminal in
+# (api/pairing.py). The scopes come off the MEMBER and not off the key that asked — the role is
+# the source, and a role changed since the asking key was minted is the role now.
 async def for_the_same_person(
-    key: KeyRecord, env: Env, label: str | None, keys: KeysDep, members: MembersDep
+    key: KeyRecord, label: str | None, keys: KeysDep, members: MembersDep
 ) -> dict[str, Any]:
-    """A key for the person this one names, in the world named, with what their role opens there."""
+    """A key for the person this one names, with what their role opens."""
     if key.subject is None:
-        raise HTTPException(403, ONE_WORLD_EACH)
+        raise HTTPException(403, NOT_A_PERSONS)
     if visiting(key.subject) is not None:
         raise HTTPException(403, VISITS_PRODUCTION)
     member = await members.find(key.org, key.subject)
     if member is None or member.status != "active":
         raise HTTPException(403, NOT_A_MEMBER)
-    issued = await keys.issue(
-        org=key.org,
-        label=label,
-        env=env,
-        scopes=for_a_person(member.scopes, env),
-        subject=key.subject,
-        name=key.name,
-    )
-    return issued.as_json
+    return (await a_persons_key(keys, member, label)).as_json
 
 
 async def _with_a_password(
@@ -208,10 +178,6 @@ async def _with_a_password(
     """The member this email and password name, in the org named or in the oldest of theirs, and
     a key minted for them."""
     assert said.email is not None and said.password is not None
-    try:
-        env = an_env(said.env)
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
     if not throttle.allowed(f"{client} {said.org or '*'}/{said.email}"):
         raise HTTPException(429, TOO_MANY.format(email=said.email))
     nobody = NOBODY_ANYWHERE if said.org is None else NOBODY.format(org=said.org)
@@ -237,15 +203,7 @@ async def _with_a_password(
         if seated is None:
             raise HTTPException(403, NOT_YET.format(email=member.email))
         member = seated
-    issued = await keys.issue(
-        org=member.org,
-        label=said.device or LOGGED_IN,
-        env=env,
-        scopes=for_a_person(member.scopes, env),
-        subject=member.id,
-        name=member.name,
-    )
-    return issued.as_json
+    return (await a_persons_key(keys, member, said.device or LOGGED_IN)).as_json
 
 
 async def _the_row_for(said: Login, orgs: Orgs, members: Members, sso: Sso | None) -> Kept | None:
@@ -279,7 +237,8 @@ async def only_with_the_provider(sso: Sso | None, org: str) -> bool:
 
 
 async def _with_a_code(said: Login, keys: KeysDep, codes: LoginCodesDep) -> dict[str, Any]:
-    """The record the code stood for, spent, and a key of the browser's own minted from it."""
+    """The record the code stood for, spent, and a key of the browser's own minted from it. A
+    person's carries no world, whatever world the request that minted the code named."""
     assert said.code is not None
     record = codes.spend(said.code)
     if record is None:
@@ -287,7 +246,7 @@ async def _with_a_code(said: Login, keys: KeysDep, codes: LoginCodesDep) -> dict
     issued = await keys.issue(
         org=record.org,
         label=said.device or A_BROWSER,
-        env=record.env,
+        env=SANDBOX if a_person(record) else record.env,
         scopes=record.scopes,
         subject=record.subject,
         name=record.name,

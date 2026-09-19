@@ -4,7 +4,7 @@ Some of what a console does needs the **agent's directory**, not the gateway: mo
 written call, read `test/personas` or `test/goldens`, push `knowledge/docs`, run `memory/golden.json`
 and `test/memory`, write a golden candidate beside the goldens, read the reproduction a broken run
 left on that disk. None of those files are on the box. So the console asks the gateway, and the
-gateway asks the process that IS standing there — the `pinecall run` holding the agent — over the
+gateway asks the process that IS standing there — the `pinecall start` holding the agent — over the
 app socket it already has open:
 
 ```
@@ -31,10 +31,10 @@ the wrong family is `404 no dev verb chat.start in knowledge: the verbs are […
 verb's own, passed through as `data`.
 
 **Which process answers.** The one the chat door would give a caller: the newest socket holding the
-agent in the key's world that takes unclaimed calls — a `pinecall run`, never a console — unless
+agent in the key's world that takes unclaimed calls — a `pinecall start`, never a console — unless
 `?app=<socket id>` names one, which is how a developer's own terminal is the one that mounts the
 class. Nobody holding the agent is `404 no app is holding agent …`; only consoles holding it is
-`409 … start `pinecall run``; an app named that is not there is `409 app … is not holding agent …`.
+`409 … run `pinecall start``; an app named that is not there is `409 app … is not holding agent …`.
 
 **When it goes wrong.** The app answers a refusal with a status and a sentence — *this console runs
 in clinica-norte's directory*, *no golden called X* — and the console gets exactly that. An app that

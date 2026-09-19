@@ -18,7 +18,7 @@ Two things open these doors, sent as `Authorization: Bearer <key>`, and neither 
   The flag is on their member row, never the key, and is read on every request: any key of theirs,
   in any org of theirs, opens `/v1/ops/*` as well as their org's own doors, while an active row of
   their address carries the flag. `--revoke`, disabling or removing the member stops it on the next
-  request. A machine key names nobody and never opens these doors, whatever else it opens.
+  request. A server's token names nobody and never opens these doors, whatever else it opens.
 
 `GET /v1/ops/whoami` answers `{operator: true, version, domain, name, org}` and is what the
 operator's page — served at **`/admin`** by the same gateway — proves its credential at before it
@@ -84,7 +84,7 @@ with the reason in `detail` for a number or a channel the domain refuses.
 Forget the number. `204` when a row went, `404` when none did — a typo in `routes rm` must never
 read as done. What a running app declares for that number answers again from the next call.
 
-Four doors touch a tenant's people, and they are the only four. `GET /v1/ops/orgs/{named}/members` is the org's people as the operator reads them — `{members: [...], seated}`. `POST /v1/ops/orgs/{named}/members {email, name, role, agents?}` **invites** one — the org's first admin where sign-ups are shut, or one more — and answers `201` with the row and a one-use `token`, exactly as the tenant's own invite does; it takes none of the org's seats, because a plan caps what an org seats by itself. An email that already has a password on this box — a person of another org — gets no token: the row is `active` from the start, with that password, and `token` and `expires_at` are null ([people.md](people.md)). `PUT /v1/ops/orgs/{named}/members/{id}/operator {operator}` makes that member an operator of the box, or stops: their own key opens `/v1/ops/*` as well as their org's doors, and nothing about their org changes — a person is their email, so it is their key in ANY org of theirs, and the console's org switch then lists every org of the box and lets them into one as `operator:<email>`, on a production key with an admin's scopes and no member row ([people.md](people.md)); taking the flag back stops those keys on their next request; `404` for an id no member of the org answers to. `DELETE /v1/ops/orgs/{named}/members/{id}` removes one **for good** — `204`, every key of theirs revoked first, the row and its open links gone, the seat free — under the tenant door's own rules less "yourself": `409` for the org's last active admin, `404` for a stranger. There is no door here that changes a member's role or standing: an invitation is inert until the person it names accepts it with a password of their own, so the box can seat somebody and never be them, while a role changed from here would be the box editing a tenant's team. Changing and disabling are the tenant's own `/v1/members` ([people.md](people.md)).
+Four doors touch a tenant's people, and they are the only four. `GET /v1/ops/orgs/{named}/members` is the org's people as the operator reads them — `{members: [...], seated}`. `POST /v1/ops/orgs/{named}/members {email, name, role, agents?, production?}` **invites** one — the org's first admin where sign-ups are shut, or one more — and answers `201` with the row and a one-use `token`, exactly as the tenant's own invite does; it takes none of the org's seats, because a plan caps what an org seats by itself. An email that already has a password on this box — a person of another org — gets no token: the row is `active` from the start, with that password, and `token` and `expires_at` are null ([people.md](people.md)). `PUT /v1/ops/orgs/{named}/members/{id}/operator {operator}` makes that member an operator of the box, or stops: their own key opens `/v1/ops/*` as well as their org's doors, and nothing about their org changes — a person is their email, so it is their key in ANY org of theirs, and the console's org switch then lists every org of the box and lets them into one as `operator:<email>`, on a production key with an admin's scopes and no member row ([people.md](people.md)); taking the flag back stops those keys on their next request; `404` for an id no member of the org answers to. `DELETE /v1/ops/orgs/{named}/members/{id}` removes one **for good** — `204`, every key of theirs revoked first, the row and its open links gone, the seat free — under the tenant door's own rules less "yourself": `409` for the org's last active admin, `404` for a stranger. There is no door here that changes a member's role or standing: an invitation is inert until the person it names accepts it with a password of their own, so the box can seat somebody and never be them, while a role changed from here would be the box editing a tenant's team. Changing and disabling are the tenant's own `/v1/members` ([people.md](people.md)).
 
 ## Orgs
 
@@ -226,15 +226,15 @@ An API key is what a worker and a tenant's app knock at the runtime's own doors 
 from a parameter. It is **not** the ops key, the box's, which opens only `/v1/ops/*`; an API key is
 the tenant's and opens none of them — unless it is the key of a person the box made an operator
 ([Authentication](#authentication)). The *keys* decision page in the maintainer's notebook argues
-the split. And it knows **where and who**. `env` is the world it opens, `production` or `sandbox`:
+the split. `env` is the world it opens: a server's token's own; a person's key is stored `sandbox` and each request names its world with `pinecall-env`, production only while their member row opens it (0039). That world's are
 the agents registered on it, the doors they claim and every call they take are that world's, the
 registry and the routes are namespaced by it — and the registry again, in the sandbox, by the member
 the key names, so two developers of one tenant hold their own — and a number claimed in one world is
-refused to a key of the other, naming the world that holds it. `scopes` is what it may do there, as
+refused to a request in the other, naming the world that holds it. `scopes` is what it may do there, as
 the doors are grouped (`app` · `calls` · `talk` · `supervise` · `pipeline` · `knowledge` · `memory`
 · `evals` · `numbers` · `keys` · `providers` · `team` · `usage`, and `fleet`, the box's own worker's
 — its doors resolve by the call's corner, and it is minted only when named); `subject` and `name`
-say whose it is, if a person's. An org issues its own machine keys at `POST /v1/keys` without any of
+say whose it is, if a person's. An org makes its servers' tokens at `POST /v1/keys` without any of
 this. A key issued before the fields existed is production's, with every scope.
 
 The table stores `sha256(key)`, never the key, and nothing in the runtime reads a key back: the
@@ -251,11 +251,11 @@ every field is optional — `env` defaults to `production`, `scopes` left out is
   "scopes": ["calls", "talk"], "subject": "m_1", "name": "Berna" }
 ```
 
-The answer carries the key, once, with the record it was written under. Copy it: no verb shows it
+The answer carries the key, once — `pc_` when it names a person, else `pc_live_`/`pc_test_` by its world — with the record it was written under. Copy it: no verb shows it
 again and there is no recovery path — a lost key is revoked and another is issued:
 
 ```json
-{ "key": "pk_yT3…", "key_id": "k_9f2c4a1b8d0e6f37", "org": "org_3f2a9c1b8d0e",
+{ "key": "pc_yT3…", "key_id": "k_9f2c4a1b8d0e6f37", "org": "org_3f2a9c1b8d0e",
   "label": "berna's laptop", "env": "sandbox", "scopes": ["calls", "talk"],
   "subject": "m_1", "name": "Berna" }
 ```

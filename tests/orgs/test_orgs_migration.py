@@ -8,7 +8,8 @@ from uuid import uuid4
 import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
 import pytest
 
-from pinecall.auth.keys import PostgresKeys, fingerprint
+from pinecall.auth.keys import fingerprint
+from pinecall.auth.keys_postgres import PostgresKeys
 from pinecall.log.store import open_pool
 from pinecall.log.store.migrating import (
     MIGRATIONS_TABLE,

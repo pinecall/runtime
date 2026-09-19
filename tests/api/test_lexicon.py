@@ -8,8 +8,6 @@ import httpx
 import pytest
 
 from pinecall.api.agents.registry import Registry
-from pinecall.api.lexicon import PROMOTE_LEXICON
-from pinecall.api.tuning import PRODUCTION_IS_PROMOTED
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
 from pinecall.types import ROLE_SCOPES, SANDBOX
 from pinecall_protocol import defs
@@ -104,18 +102,14 @@ async def test_a_stale_version_is_told_where_the_corner_is_now(carla: httpx.Asyn
     assert [row["version"] for row in history["rows"]] == [2, 1]
 
 
-async def test_the_lexicon_is_promoted_to_production_with_no_goldens_between(
+async def test_production_says_what_a_key_that_acts_there_set_and_the_sandbox_never_leaks(
     carla: httpx.AsyncClient, production: httpx.AsyncClient
 ) -> None:
     await carla.put(LEXICON, json={"lexicon": WORDS})
-    promoted = await carla.post(f"{LEXICON}/promote", json={"to": "production"})
-    assert promoted.status_code == 200, promoted.text
-    assert promoted.json() == {"world": "production", "holder": "", "version": 1, "run": None}
-    seen = (await production.get(LEXICON)).json()
-    assert seen["production"]["lexicon"] == WORDS
-    refused = await production.put(LEXICON, json={"lexicon": WORDS})
-    assert refused.status_code == 403
-    assert refused.json()["detail"] == PRODUCTION_IS_PROMOTED.format(door=PROMOTE_LEXICON)
+    assert (await production.get(LEXICON)).json()["production"] is None
+    put = await production.put(LEXICON, json={"lexicon": WORDS})
+    assert put.status_code == 200, put.text
+    assert put.json()["production"]["lexicon"] == WORDS
 
 
 async def test_a_key_that_only_reads_is_refused_and_told_both_scopes_that_open_it(

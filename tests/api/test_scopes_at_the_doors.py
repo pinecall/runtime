@@ -107,7 +107,6 @@ ASKS_NOTHING_OR_ASKS_INSIDE: dict[str, str] = {
     "POST /v1/login": "takes no key: it mints one",
     "POST /v1/signup": "takes no key: it makes the org that will hold one, on the cloud alone",
     "POST /v1/login/codes": "any key may mint a code for its own record",
-    "POST /v1/login/env": "a person's key may mint the same person's key in the other world",
     "GET /v1/login/orgs": "a person's key may list the orgs that same person belongs to",
     "POST /v1/login/orgs": "takes no key: an email and a password, throttled, mint nothing",
     "POST /v1/login/reset": "takes no key: the person who forgot their password has none",
@@ -128,6 +127,8 @@ ASKS_NOTHING_OR_ASKS_INSIDE: dict[str, str] = {
     "WS /v1/apps": "asked inside, so the socket can say why it closed",
     "WS /v1/chat": "asked inside, so the socket can say why it closed",
     "WS /v1/attach": "a key or a supervise token: the reader is asked inside",
+    "GET /v1/keys": "any key lists its own and the org's servers' tokens; `keys` lists every one",
+    "POST /v1/keys/{fingerprint}/revoke": "a key stops its own and what it made; `keys` any",
 }
 
 
@@ -148,7 +149,6 @@ OPENS_TO_EITHER: dict[str, frozenset[str]] = {
     "GET /v1/lexicon": frozenset({"pipeline", "words"}),
     "PUT /v1/lexicon": frozenset({"pipeline", "words"}),
     "GET /v1/lexicon/history": frozenset({"pipeline", "words"}),
-    "POST /v1/lexicon/promote": frozenset({"pipeline", "words"}),
 }
 
 

@@ -76,6 +76,10 @@ class Member:
     # the ops key says so, and an org's `admin` is not one by being an admin — an admin owns a
     # tenant, an operator owns the machine every tenant is on. See 0020.
     operator: bool = False
+    # Whether this person may act in production: run the agent there, set what it says and sounds
+    # like, push its base. The org's admin gives it; an admin always has it (`opens_production`).
+    # Read at every request that asks for production, so taking it away closes the next one.
+    production: bool = False
 
     def __post_init__(self) -> None:
         if not self.id or not self.org:
@@ -95,6 +99,12 @@ class Member:
     def scopes(self) -> frozenset[str]:
         """What a key minted for this person may do: the role's preset, spelled once above."""
         return ROLE_SCOPES[self.role]
+
+    # The one rule, in the one place: the org's owner must always reach what answers its phone.
+    @property
+    def opens_production(self) -> bool:
+        """Whether a request of this person's may run in production."""
+        return self.role == "admin" or self.production
 
 
 def a_role(word: str) -> Role:

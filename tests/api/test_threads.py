@@ -11,7 +11,9 @@ from starlette.testclient import TestClient
 from pinecall.api.threads import NO_THREAD, NOTHING_OPEN, ONLY_WHATSAPP, WINDOW_CLOSED
 from pinecall.api.whatsapp.threads import WINDOW_SECONDS
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
+from pinecall.auth.members_memory import MemoryMembers
 from pinecall.log.store import MemoryStore
+from pinecall.types import PRODUCTION, Member
 from tests.api.conftest import A_KEY, A_RECORD, AGENT
 from tests.api.talking import got
 
@@ -22,6 +24,16 @@ ANA = "+34600000001"
 LUIS = "+34611000000"
 A_QA_KEY = "pk_test_reads"
 A_QA = KeyRecord(key_id="k_qa", org=A_RECORD.org, scopes=frozenset({"calls"}), subject="m_qa")
+# The person that key is, and the org lets them read production, where the conversations are.
+QA = Member(
+    id="m_qa",
+    org=A_RECORD.org,
+    email="qa@x.test",
+    name="QA",
+    role="qa",
+    status="active",
+    production=True,
+)
 THE_SHOPS_KEY = "pk_test_the_shop"
 THE_SHOP = KeyRecord(key_id="k_shop", org="tienda")
 
@@ -45,6 +57,11 @@ def clock() -> Clock:
 @pytest.fixture
 def store(clock: Clock) -> MemoryStore:
     return MemoryStore(clock=clock)
+
+
+@pytest.fixture
+def members() -> MemoryMembers:
+    return MemoryMembers([QA])
 
 
 @pytest.fixture
@@ -92,7 +109,10 @@ async def test_the_inbox_is_a_line_per_contact_and_each_person_reads_their_own(
     }
     assert post(gateway, f"{INBOX}/{ANA}/read").status_code == 204
     assert [one["unread"] for one in got(gateway, INBOX)[1]["threads"]] == [0, 1]
-    assert [one["unread"] for one in got(gateway, INBOX, A_QA_KEY)[1]["threads"]] == [3, 1]
+    assert [one["unread"] for one in got(gateway, INBOX, A_QA_KEY, PRODUCTION)[1]["threads"]] == [
+        3,
+        1,
+    ]
     _, first = got(gateway, f"{INBOX}?limit=1")
     _, rest = got(gateway, f"{INBOX}?limit=1&after={first['next']}")
     assert ([one["contact"] for one in rest["threads"]], rest["next"]) == ([LUIS], None)

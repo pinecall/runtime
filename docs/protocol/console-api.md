@@ -6,7 +6,8 @@ org's calls are judged — beside [gateway-api.md](gateway-api.md), which is eve
 answer's shape is the protocol's own (`protocol/schema/rest.json`), and every field added to a
 shape that already existed is optional, so an older console reads a newer gateway.
 
-All of them answer in the **reader's corner** — the key's org, its world, and in the sandbox whose
+All of them answer in the **reader's corner** — the key's org, the request's world (`pinecall-env`
+on a person's key, a token's own), and in the sandbox whose
 copy (`pinecall-corner` opens a colleague's, [multi-tenancy.md](../multi-tenancy.md)) — and count
 off the **call index**: one row per call the store folds as it appends each entry (`log/facts.py`,
 `call_facts`), never a fold of every log. A call from before migration 0025 is in no count until
@@ -110,7 +111,7 @@ or visitor id the call came from. Every door below is one agent's, in the reader
 | `POST /v1/agents/{slug}/threads/{contact}/read` | `calls` | `204`: this reader has read the thread up to now |
 | `POST /v1/agents/{slug}/threads/{contact}/messages {text}` | `talk` | `202 {contact, call}`: said as the agent on the contact's open WhatsApp conversation |
 
-`unread` is per **person** (the key's member, or the key itself for a machine key): what arrived
+`unread` is per **person** (the key's member, or the key itself for a server's token): what arrived
 after they last marked the thread read — each message the contact wrote, and each spoken call.
 `name` is the caller's name when a call recorded one; nothing writes one today but an app's
 `caller`, so it is usually `null`.
@@ -239,6 +240,14 @@ list is every org of the box — draw the `member: false` ones apart, they are e
 operator; `GET /v1/whoami` gains `operator` and `visiting`, and a page inside a visited org should
 say so, because `visiting: true` means no sandbox, no terminal pairing and an org that is not
 theirs ([people.md](people.md)).
+
+**The world switch and the Tokens screen**: a person holds one key, so the `production | sandbox`
+switch mints nothing — it sends `pinecall-env` on every request (and on both sockets), and draws
+production only where `GET /v1/whoami` says `production: true`; a `403 … has no production access`
+is the sentence to show. Team draws each member's `production` and sets it with `PATCH
+/v1/members/{id}` (`409` for an admin, who always has it). Tokens is `GET /v1/keys` — `kind`,
+`env` (null for a person's), `created_by`, `last_used_at` — with New server token as `POST /v1/keys
+{label, env}`, the key shown once, and revoke on each row ([gateway-api.md](gateway-api.md) §7b).
 
 `POST /v1/login/orgs {email, password}` — which orgs a person may sign in to, before any key is
 minted — `DELETE /v1/members/{id}` (`team`), a person removed for good: `204`, or `409` with

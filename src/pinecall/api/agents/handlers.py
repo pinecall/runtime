@@ -10,6 +10,7 @@ from fastapi import Depends
 from pinecall.api._deps import what_is_live
 from pinecall.api.agents.holding import Send, SocketId
 from pinecall.api.agents.registry import Registry
+from pinecall.knowledge import Knowledge
 from pinecall.log.entry import Entry
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.tuning import TuningStore
@@ -58,6 +59,7 @@ class Socket(Protocol):
     live: Live
     admission: Admission
     tuning: TuningStore
+    knowledge: Knowledge | None
 
     @property
     def id(self) -> SocketId:

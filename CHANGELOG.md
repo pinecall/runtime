@@ -7,14 +7,23 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **Production access is a switch on the person.** `members.production` (migration 0039, off for
+  everybody: an admin opens production by the role): the role says what somebody does, the switch —
+  set by an admin at `POST`/`PATCH
+  /v1/members` and the operator's invite — whether they may do it in production. An admin always
+  may, and `production: false` on one is `409`. It is read at every request, so taking it away
+  closes the next one; member JSON and `GET /v1/whoami` carry `production`.
+- **A push says what its whole files weigh.** `PUT /v1/knowledge/{base}` answers `whole_tokens`,
+  and past 8,000 a `notice` that every call of an agent reading the base carries them in its
+  prompt — a notice, never a refusal.
 - **An agent's settings are the org's, per world, per corner, a version a row.** What an agent
   runs on — vendors, models, the opening, the cut of a turn, what is remembered, the bases — and
   the org's words are set at `GET`/`PUT /v1/agents/{slug}/settings` and `/v1/lexicon`, with
-  `history`, `diff`, `rollback` and `promote` beside them, kept in `agent_config` and `lexicon`
+  `history`, `diff` and `rollback` beside them, kept in `agent_config` and `lexicon`
   (migration 0037) and laid over the class at the one place every session is built. A corner reads
   its own newest, else the org's own, as knowledge falls back; the whole set is written with the
-  version it was read at and a corner that moved answers 409; production is written by promote
-  alone, once the goldens in the body hold; and a call's head row keeps the two versions it ran on
+  version it was read at and a corner that moved answers 409; a request in production writes
+  production's org's-own corner directly; and a call's head row keeps the two versions it ran on
   (`GET /v1/calls/{call}/settings`). `docs/protocol/settings-api.md`.
 - **The `words` scope: the floor fixes what the agent says.** A supervisor's and a manager's keys
   set the opening's words, the lexicon and what is remembered, and are refused a vendor by name.
@@ -23,13 +32,36 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `retrieved`, cut and searched as before, or `whole` — one row, no vector (0038), read entire into
   the static knowledge block of every call of an agent whose settings attach the base, where the
   class's `knowledge =` file used to go. A turn's search fans out over every attached base, each
-  under its own `k`, the best of all of them first. `POST /v1/knowledge/{base}/promote` copies the
-  sandbox's rows into production, vectors and all, and refuses when the golden in the body would
-  score lower there than it does over production; `GET /v1/knowledge/attached` says which agents
+  under its own `k`, the best of all of them first. `GET /v1/knowledge/attached` says which agents
   read each base. A class that searches for itself (`uses_knowledge` on the wire) is refused at
   `agent.configure` in a world that attaches it no base, naming `pinecall knowledge attach`.
 
 ### Changed
+- **One key per person; the request names the world.** Every key minted for a person — invitation,
+  login, SSO or Google code, sign-up, terminal pairing, another org — carries the role's scopes
+  whole, `app` included, and is stored in the sandbox; migration 0039 moves every existing person's
+  key there. Each request says `pinecall-env: sandbox|production` (none is the sandbox), on every
+  door and both sockets; production answers only with production access (`403 <name> has no
+  production access`). A server's token keeps its one world, and a header asking the other is
+  `403`. An operator's visiting key stays production's.
+- **`/v1/keys` are the org's tokens.** `POST /v1/keys {label, env}` makes a server's token — only on
+  a person's key that opens `app`, production's only with production access — with the fixed scopes
+  `app` · `calls` · `talk` · `knowledge`, recording `created_by`, and it outlives its maker.
+  `GET /v1/keys` (any key) lists every server's token and the asker's own keys (every person's with
+  `keys`), each with `kind`, `env`, `created_by` and `last_used_at` (0039, written when a key opens
+  the app socket or asks `/v1/whoami`); revoking takes your own keys, the tokens you made, or any
+  with `keys`. New keys say whose in the prefix — `pc_` a person's, `pc_live_`/`pc_test_` a
+  server's — and `pk_` keys still verify.
+- **Production's settings, lexicon and base are set directly.** `PUT /v1/agents/{slug}/settings`,
+  `PUT /v1/lexicon` and `PUT /v1/knowledge/{base}` write the world of the request; in production the
+  org's own corner, by a key with production access or a server's token in its release step. The
+  goldens run in CI before a deploy.
+- **`agent.configure` refuses a base never pushed.** A class whose settings or `docs` read a base
+  nobody pushed in that world is refused where it declares itself, naming `pinecall knowledge push`,
+  and not in a call whose turns would find nothing.
+- **The app may search the base itself.** `POST /v1/calls/{call}/lookup` also answers the app
+  (`app`) for `this.knowledge.search`, and a search's answer is the wire's `SearchFound {chunks:
+  [{path, heading, text}]}`.
 - **`pipeline_overrides` is absorbed.** Its rows became version 1 of both worlds of `agent_config`;
   `PUT /v1/agents/{slug}/pipeline/overrides` stays one release for the console's Pipeline screen,
   writing a version of the same store, and the table is read by nothing. The gateway no longer
@@ -296,7 +328,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   could see anybody else's: a tenant's admin had no way to tell what their team was running, and
   the operator of the box had none either. `GET /v1/agents` now answers a key that opens `team`
   with one row per CORNER instead of one per slug, and every row carries `holder`, the member
-  whose copy it is — absent for the org's own, which is what a machine key holds. Which rows a
+  whose copy it is — absent for the org's own, which is what a server's token holds. Which rows a
   reader gets is the key's own answer (`sees_every_corner`, `auth/keys.py`): whoever may see who
   the team IS may see what the team is RUNNING. `holder` is the same `{holder, name}` the line
   door answers with, because the id alone names nobody a page can show.
@@ -426,9 +458,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   floor changing — an agent registered or detached, a call ringing, dialing, started, ended — as
   SSE, live only, each frame the entry of its own log. Both on a key with `calls`.
 - **The org's tables on the tenant's key.** `GET /v1/usage` (the org's metered rows and totals,
-  scope `usage`), `GET /v1/numbers` (its doors in the key's world with their source, scope
-  `numbers`), and `POST /v1/login/env {env}` — a person's key mints the same person's key in the
-  other world, which is how the console's Production/Sandbox toggle works.
+  scope `usage`) and `GET /v1/numbers` (its doors in the key's world with their source, scope
+  `numbers`).
 - **`agent.detached`.** A socket that held an agent and went is written to the agent's own log:
   which socket, which world, and whether anybody still holds the agent there.
 - **The gateway serves the console.** `GET /` and every path that is not a door's answer the
@@ -647,8 +678,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `knowledge_bases` and `knowledge_chunks` carry `env` (`0018`, everything already written is
   production's), and every read and write says which: a test call on a laptop no longer writes
   facts into the memory a production call reads under the same number, and a `knowledge push`
-  with a sandbox key replaces the sandbox base and never the telephone's — promoting is
-  the same push made with the box's key. The `kept` counts the quotas read take both worlds,
+  with a sandbox key replaces the sandbox base and never the telephone's; production's is the
+  same push made in production. The `kept` counts the quotas read take both worlds,
   because a row a laptop wrote is a row on the same disk.
 - **An agent is held per person in the sandbox.** The registry's name for a holding is
   `(env, holder, slug)`: nobody's corner in production, where what is deployed is the org's, and
@@ -660,13 +691,6 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   neither: a number exists once in a world, so the shared sandbox number is answered by the
   newest run, and `GET /v1/agents` lists what the reader can actually reach — never another
   developer's socket.
-- **A person's key does not hold `app` in production.** Holding an agent is a deployment, and a
-  deployment is a process on a box, not a laptop that happens to be logged in — so two developers
-  can no longer take production's agent from each other by running it. Every key minted for a
-  person carries their role's preset in the sandbox and that preset less `app` in production: at
-  login, at an accepted invitation, at sign-up, and at `POST /v1/login/env`, which now reads the
-  member's role rather than the scopes of the key that asked, and refuses a key whose member is
-  gone or disabled. What holds a deployed slug is a key issued for a machine.
 - **One rule for "a call a run opened has no opening".** Both sessions ask `the_greeting_for`
   with the call's `run`; the eval runner no longer rewrites the class's config with `greeting=None`.
   The three first entries of a call (`call.ringing`, `call.dialing`, `call.started`) are built in
@@ -802,6 +826,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   that could not run is still `search_skipped` on the call's log and the turn goes on.
 
 ### Removed
+- **Promote.** `POST /v1/agents/{slug}/settings/promote`, `POST /v1/lexicon/promote` and `POST
+  /v1/knowledge/{base}/promote` are gone, with the `403` that refused a production key a set:
+  production is set directly by a request that runs there. History, diff and rollback stay.
+- **`POST /v1/login/env`**, and `env` on `POST /v1/login` and on accepting an invitation: a person
+  holds one key, not one per world.
 - **The country fence on a dial.** `DialPolicy.countries` — the calling codes an org might reach,
   empty meaning its own numbers' — is gone from the type, the guards, `PUT
   /v1/ops/orgs/{org}/dialling`, the console's dial door and `orgs dialling --country`. Which

@@ -28,7 +28,8 @@ WHAT_TO_DO_NEXT = """
   Open the link above to set a password. Then, in the directory of an agent:
 
     pinecall login {url}
-    pinecall run
+    pinecall link
+    pinecall start
 """
 
 
