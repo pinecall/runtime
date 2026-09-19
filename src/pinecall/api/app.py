@@ -16,6 +16,7 @@ from pinecall.api import pages
 from pinecall.api._doors import DOORS
 from pinecall.api._live import Live
 from pinecall.api._refusals import refusals_answered_by
+from pinecall.api.agents.processes import Processes
 from pinecall.api.agents.registry import Registry
 from pinecall.api.evals.runner import Runner
 from pinecall.api.reaping import Reaper, reaping
@@ -178,6 +179,8 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     gateway.state.admission = Admission(gateway.state.orgs, Meter(store), gateway.state.logs)
     # It holds no registry: which socket serves a call is the door's answer, given to serve().
     gateway.state.live = Live()
+    # The app sockets open right now, one process each: where it runs, and its stop (GET /v1/apps).
+    gateway.state.processes = Processes()
     # The fleet, as its heartbeats describe it: which workers are up and what each holds. This
     # process's memory and nothing else — a restart forgets it and the next five seconds of
     # heartbeats write it again. docs/decisions/fleet.md.

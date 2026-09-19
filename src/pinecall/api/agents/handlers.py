@@ -9,6 +9,7 @@ from fastapi import Depends
 
 from pinecall.api._deps import what_is_live
 from pinecall.api.agents.holding import Send, SocketId
+from pinecall.api.agents.processes import Processes
 from pinecall.api.agents.registry import Registry
 from pinecall.knowledge import Knowledge
 from pinecall.log.entry import Entry
@@ -60,6 +61,7 @@ class Socket(Protocol):
     admission: Admission
     tuning: TuningStore
     knowledge: Knowledge | None
+    processes: Processes
 
     @property
     def id(self) -> SocketId:

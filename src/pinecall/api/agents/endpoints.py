@@ -75,7 +75,9 @@ async def agents(key: CallsKeyDep, registry: RegistryDep, members: MembersDep) -
             HeldAgent(
                 slug=one.slug,
                 channels=sorted(one.config.channels),
-                holder=None if one.holder is None else await _named(key.org, one.holder, members),
+                holder=None
+                if one.holder is None
+                else await named_holder(key.org, one.holder, members),
             )
             for one in held
         ]
@@ -193,14 +195,14 @@ async def _said(slug: str, key: KeyRecord, registry: Registry, members: Members)
         agent=slug,
         env=key.env,
         held=held,
-        holding=await _named(key.org, holder, members) if held else None,
+        holding=await named_holder(key.org, holder, members) if held else None,
         yours=held and holder == whose,
-        waiting=[await _named(key.org, one.holder, members) for one in waiting],
+        waiting=[await named_holder(key.org, one.holder, members) for one in waiting],
         calling=list(registry.calling(key.env, whose)),
     )
 
 
-async def _named(org: str, holder: str | None, members: Members) -> LineHolder:
+async def named_holder(org: str, holder: str | None, members: Members) -> LineHolder:
     """A corner, for a person. The org's own names nobody: a machine key — CI's — has no member."""
     if holder is None:
         return LineHolder(holder=None, name=None)

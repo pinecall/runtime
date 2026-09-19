@@ -19,6 +19,7 @@ from pinecall.api._deps import (
 )
 from pinecall.api.agents.handlers import HANDLERS, Live, LiveDep, Socket, asked, handles
 from pinecall.api.agents.holding import SocketId, a_socket_id
+from pinecall.api.agents.processes import Process, Processes, ProcessesDep
 from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.api.agents.tuned import tuned_for
 from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
@@ -40,6 +41,10 @@ from pinecall_protocol.registry import COMMANDS
 
 router = APIRouter()
 
+# The error code an app hears when a member of its org stopped it (POST /v1/apps/{app}/stop): the
+# protocol's error.json names it, and the SDK exits on it instead of reconnecting.
+STOPPED = "stopped"
+
 # The close code and the header parser are auth's, so that the three doors of this gateway refuse
 # a caller the same way and read a credential with the same function.
 
@@ -55,6 +60,7 @@ async def apps(
     tuning: TuningDep,
     knowledge: KnowledgeDep,
     members: MembersDep,
+    processes: ProcessesDep,
 ) -> None:
     """One app, one socket: a key at the door, then commands in and log entries out."""
     try:
@@ -72,14 +78,29 @@ async def apps(
     if (closed := not_opening(key, "app")) is not None:
         await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(closed))
         return
-    socket = AppSocket(websocket, key, logs, registry, live, admission, tuning, knowledge)
+    socket = AppSocket(
+        websocket, key, logs, registry, live, admission, tuning, knowledge, processes
+    )
     live.connect(socket.id, socket.send)
+    client = websocket.client
+    processes.opened(
+        Process(
+            app=socket.id,
+            org=key.org,
+            env=key.env,
+            holder=held_by(key),
+            address=None if client is None else client.host,
+            connected_at=time.time(),
+            stop=socket.stopped,
+        )
+    )
     try:
         await socket.serve()
     except WebSocketDisconnect:
         pass
     finally:
         live.disconnect(socket.id)
+        processes.closed(socket.id)
         await registry.release(socket.id)
 
 
@@ -96,6 +117,7 @@ class AppSocket:
         admission: Admission,
         tuning: TuningStore,
         knowledge: Knowledge | None,
+        processes: Processes,
     ):
         self._websocket = websocket
         self._id = a_socket_id()
@@ -106,6 +128,7 @@ class AppSocket:
         self.admission = admission
         self.tuning = tuning
         self.knowledge = knowledge
+        self.processes = processes
 
     @property
     def id(self) -> SocketId:
@@ -176,6 +199,12 @@ class AppSocket:
         """One log entry down the wire, exactly as the store keeps it."""
         await self._websocket.send_json(encode(entry))
 
+    async def stopped(self, why: str) -> None:
+        """Tell the app it was stopped — it exits rather than reconnect — and close its socket."""
+        said = ErrorEvent(code=STOPPED, message=why, recoverable=False)
+        await self.send(unstored("error", said))
+        await self._websocket.close(reason=as_a_close_reason(why))
+
     async def refuse(self, agent: str, code: str, message: str, raw: Any) -> None:
         """Say no in the protocol's own words, naming the command and the id the app gave it."""
         said: dict[str, Any] = {"code": code, "message": message, "recoverable": True}
@@ -234,6 +263,7 @@ NOT_THIS_SOCKET = (
 async def register(socket: Socket, command: Command) -> None:
     """This socket speaks for this agent and answers these doors, or it is told why not."""
     wanted = asked(command, AgentRegister)
+    socket.processes.named(socket.id, wanted.host)
     # One more agent for this org, unless it already holds this one: a socket correcting its own
     # doors, or a second process of the same agent, is not a new agent — and neither is the same
     # slug held in the other world or in another developer's corner. The count is the ORG's slugs

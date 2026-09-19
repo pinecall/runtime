@@ -157,12 +157,15 @@ class Registry:
                 return found
         return None
 
+    def owned_by(self, app: SocketId) -> tuple[Registration, ...]:
+        """Every agent one socket holds, in the order it claimed them: what GET /v1/apps lists."""
+        held = (h for name in self._owned.get(app, ()) for h in self._agents.get(name, ()))
+        return tuple(sorted((h for h in held if h.owner == app), key=lambda h: h.claimed))
+
     # THE one answer to "which process serves this call", asked by both doors that open one: the
-    # chat door with `?app=`, and POST /v1/calls with the app id the worker was given. Two doors
-    # asking it two ways would be two rules. A call that named no app skips every socket that takes
-    # none, and only this question does: `of()` still means the newest holder, whatever it declared,
-    # because a console alone still declares the agent and still serves its own call.
-    # See docs/decisions/dispatch.md.
+    # chat door with `?app=`, and POST /v1/calls with the app id the worker was given. A call that
+    # named no app skips every socket that takes none, and only this question does: `of()` still
+    # means the newest holder, because a console alone still serves its own call (dispatch.md).
     def serving(
         self, env: Env, slug: str, app: SocketId | None, holder: str | None = None
     ) -> Registration | None:
@@ -203,17 +206,15 @@ class Registry:
                 seen[under] = holding[-1]
         return tuple(seen.values())
 
-    # Every corner, because a quota is the ORG's: two developers holding two different agents are
-    # two agents against the plan, and the same agent in both worlds is one.
+    # Every corner: a quota is the ORG's, and the same agent in both worlds is one.
     def slugs(self, org: str) -> frozenset[str]:
         """Every agent slug this org is holding anywhere right now, once each."""
         return frozenset(
             slug for (_, _, slug), holding in self._agents.items() if holding[-1].org == org
         )
 
-    # Asked before an agent is moved between orgs: a socket that is holding it right now believes
-    # what it registered with, and moving the log under it would leave the process and the table
-    # disagreeing about whose agent this is until somebody restarts. `orgs move` refuses instead.
+    # Asked before an agent moves between orgs: a socket holding it believes what it registered
+    # with, and moving the log under it leaves process and table disagreeing. `orgs move` refuses.
     def held_anywhere(self, slug: str) -> bool:
         """Whether any corner of any world is holding this slug at this instant."""
         return any(held == slug for (_, _, held) in self._agents)
