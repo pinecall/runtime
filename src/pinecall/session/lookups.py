@@ -24,6 +24,24 @@ from pinecall_protocol.events import ErrorEvent
 # on its worst turn. So the answer is back before they stop, which is the whole point.
 WORDS_ENOUGH_TO_SEARCH_WITH = 4
 
+
+# The other half of the same rule, and the half a written caller is held to, because they type
+# what a speaker takes four words to say. A turn with no letter in it is a number being read out
+# — a phone, an order, a card — and it is not a query: no prose index answers it, the top of the
+# contact's facts comes back ranked by nothing, and it goes to the embedder, which is the last
+# place a caller's digits should travel. Measured: `305 555 0101.` searched a cleaning company's
+# base and came back with its data-center pages, in the evidence of that very turn (2026-09-20).
+#
+# It is the whole of the decision on purpose. Deciding when to retrieve is a research problem with
+# a literature — Adaptive-RAG routes on a trained classifier, Self-RAG on reflection tokens the
+# model is fine-tuned to emit, FLARE on the model's own uncertainty — and none of that belongs in
+# the path a caller is waiting on. An agent that wants the model to decide has that already:
+# `pinecall docs attach <base> --mode tool`.
+def could_be_a_query(said: str) -> bool:
+    """Whether these words could be asked of an index at all: something in them is a word."""
+    return any(character.isalpha() for character in said)
+
+
 # What one lookup hands back when it is run as a task nobody may be awaiting: what it found, or the
 # failure as a VALUE. A task whose exception is never retrieved warns at collection, and a turn
 # that gave up on its budget retrieves nothing.
@@ -122,7 +140,7 @@ class TurnLookups:
         tools = self._what_the_platform_runs
         if self._running is not None or not tools:
             return
-        if len(said.split()) < WORDS_ENOUGH_TO_SEARCH_WITH:
+        if len(said.split()) < WORDS_ENOUGH_TO_SEARCH_WITH or not could_be_a_query(said):
             return
         # No speech exists while the caller is still speaking — the reply's handle is created after
         # the turn ends (agent_activity.py:2672) — which is what the turn-end path files under too.
@@ -142,6 +160,10 @@ class TurnLookups:
         running, self._running = self._running, None
         tools = self._what_the_platform_runs
         if not tools:
+            return ()
+        # A turn nothing could be asked of runs nothing, and says nothing: a skip entry would tell
+        # the grounded judge a lookup was tried and failed, and none was worth trying.
+        if running is None and not could_be_a_query(query):
             return ()
         run = running or self._a_run(tools, query, speech_id)
         return self._what_came_back(tools, run.query, await self._within_the_budget(run.tasks))

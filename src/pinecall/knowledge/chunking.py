@@ -26,6 +26,10 @@ A_PARAGRAPH_BREAK = re.compile(r"\n\s*\n")
 # Where one sentence ends, for the one paragraph that is over the cap by itself.
 A_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 
+# A file's front matter: a `---` line, the metadata, and the `---` line that closes it.
+FENCE = "---\n"
+A_CLOSING_FENCE = re.compile(r"^---[ \t]*$", re.MULTILINE)
+
 
 @dataclass(frozen=True)
 class Piece:
@@ -40,10 +44,23 @@ class Piece:
 def chunks_of(file: KnowledgeFile) -> list[Piece]:
     """The file cut at its headings, every cut under the cap, in the order it was read."""
     pieces: list[Piece] = []
-    for heading, body in _sections_of(file.text):
+    for heading, body in _sections_of(without_front_matter(file.text)):
         for group in _paragraphs_under_the_cap(body, heading):
             pieces.append(Piece(file.path, heading, len(pieces), prefixed(heading, group)))
     return pieces
+
+
+# Every static-site generator and every scraper opens a file with a fenced block of metadata —
+# `source:`, `title:`, `scraped_at:` — and it is not prose: nobody asks a question it answers.
+# Left in, it is the file's first section, so it is embedded, indexed and retrievable, and it
+# wins a slot of the handful a turn gets. Measured on a scraped site: 75 of 537 chunks, one in
+# seven, and one of them came back as evidence for a caller's phone number (2026-09-20).
+def without_front_matter(text: str) -> str:
+    """The file's text after a leading `---` block, or the text as it was when there is none."""
+    if not text.startswith(FENCE):
+        return text
+    closed = A_CLOSING_FENCE.search(text, len(FENCE))
+    return text[closed.end() :].lstrip("\n") if closed else text
 
 
 def prefixed(heading: str | None, body: str) -> str:

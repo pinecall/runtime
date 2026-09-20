@@ -332,3 +332,34 @@ async def test_a_class_that_ships_no_file_writes_no_line_about_one() -> None:
 
     await a_line_for_the_file_it_ships_with(Blocks(), emit)
     assert written == []
+
+
+# A turn with no letter in it is a number being read out, and no prose index answers one. It used
+# to be embedded and searched like any other: `305 555 0101.` came back with a cleaning company's
+# data-center pages, in the evidence of that very turn (a real call, 2026-09-20).
+async def test_a_turn_that_is_only_digits_asks_nothing_of_either_index() -> None:
+    service = Answering()
+    lookups = a_lookups(service)
+
+    assert await lookups.turn_ended("305 555 0101.", "sp_1") == ()
+
+    assert service.asked == [], "nothing was asked, and nothing was skipped either"
+
+
+async def test_a_written_caller_who_types_one_word_is_still_asked_for() -> None:
+    """The four-word floor is the SPOKEN path's: somebody typing `precio?` asked a question."""
+    service = Answering()
+    lookups = a_lookups(service)
+
+    await lookups.turn_ended("precio?", None)
+
+    assert [tool for _call, tool, _input, _speech in service.asked] == ["recall", "search"]
+
+
+def test_the_eager_run_also_refuses_a_turn_that_could_not_be_a_query() -> None:
+    service = Answering()
+    lookups = a_lookups(service)
+
+    lookups.heard_so_far("305 555 0101 3053")
+
+    assert service.asked == []

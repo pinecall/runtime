@@ -11,6 +11,16 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `docs/the-environment.md`, a page of their own (and a page of the site).
 
 ### Fixed
+- **A file's front matter is not a chunk.** Every static-site generator and every scraper opens a
+  `.md` with a fenced block of metadata — `source:`, `title:`, `scraped_at:` — and it was the
+  file's first section: embedded, indexed and retrievable. On a real scraped site that was **75 of
+  537 chunks, one in seven**, and one of them came back as the evidence for a caller's phone
+  number. Push a base again to rebuild it without them.
+- **Neither lookup runs on a turn that could not be a query.** A turn with no letter in it is a
+  number being read out — a phone, an order, a card — and `305 555 0101.` searched a cleaning
+  company's base and came back with its data-center pages. No prose index answers one, the
+  contact's facts would rank by nothing, and a caller's digits are the last thing to send to an
+  embedder. The eager path had a floor of its own (four words); the turn-end path had none.
 - **`doctor`'s embedder line embeds a word.** It used to GET the provider's base URL, and a vendor
   answers the same status there for a live key, an expired one and none at all — so a box with a
   dead `PERPLEXITY_API_KEY` read `✓ embedder … HTTP 404` while every lookup on it was skipped. The

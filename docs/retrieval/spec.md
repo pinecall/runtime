@@ -18,6 +18,14 @@ it.
 | `search` | passages of the tenant's knowledge base, by the words of the question | while the caller is still speaking, four words in | two index scans and one embedding |
 | `recall` | facts held about this contact from earlier calls | the same moment | two index scans and one embedding |
 
+Neither runs on a turn that **could not be a query**: one with no letter in it at all, which is a
+number being read out — a phone, an order, a card. No prose index answers one, the contact's facts
+would come back ranked by nothing, and a caller's digits are the last thing to send to an
+embedder. That is the whole of the decision, deliberately: choosing when to retrieve has a
+literature of trained classifiers and fine-tuned reflection tokens (Adaptive-RAG, Self-RAG,
+FLARE), and none of it belongs in the path a caller is waiting on. An agent that wants the model
+to decide turn by turn attaches its base with `--mode tool` instead.
+
 Both are declared tools. The platform runs them on the app's behalf when the base is attached with
 `mode` `retrieved` — one field of the ATTACHMENT in the org's settings (`pinecall docs attach
 <base> --mode retrieved`, the default), never a class declaration — when `docs.mode` is `retrieved`

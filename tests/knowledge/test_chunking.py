@@ -101,3 +101,37 @@ def test_an_empty_file_is_no_piece() -> None:
 def test_prefixed_and_body_of_are_each_others_inverse() -> None:
     assert body_of(prefixed("Tarifas", "cuarenta"), "Tarifas") == "cuarenta"
     assert body_of(prefixed(None, "cuarenta"), None) == "cuarenta"
+
+
+# A scraper and every static-site generator open a file with a fenced block of metadata. Left in,
+# it is the file's first section: embedded, indexed, retrievable — 75 of a real site's 537 chunks,
+# one in seven, and one came back as the evidence for a caller's phone number (2026-09-20).
+def test_a_files_front_matter_is_not_a_chunk() -> None:
+    file = KnowledgeFile(
+        "about.md",
+        "---\nsource: https://example.com/about\n"
+        'title: "Who we are"\nscraped_at: 2026-08-22\n---\n\n'
+        "## What this page answers\n\nWe clean offices.",
+    )
+
+    pieces = chunks_of(file)
+
+    assert len(pieces) == 1
+    assert "scraped_at" not in pieces[0].text
+    assert pieces[0].heading == "What this page answers"
+
+
+def test_a_file_that_opens_with_a_rule_and_never_closes_it_is_left_alone() -> None:
+    """`---` is also a horizontal rule: what is not a CLOSED block is somebody's own text."""
+    file = KnowledgeFile("rule.md", "---\n\n## Tarifas\n\ncuarenta euros")
+
+    assert [piece.heading for piece in chunks_of(file)] == [None, "Tarifas"]
+    assert chunks_of(file)[0].text == "---"
+
+
+def test_the_front_matter_of_a_file_with_no_headings_is_still_dropped() -> None:
+    file = KnowledgeFile("flat.md", "---\ntitle: x\n---\n\nWe clean offices.")
+
+    pieces = chunks_of(file)
+
+    assert [piece.text for piece in pieces] == ["We clean offices."]
