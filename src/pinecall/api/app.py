@@ -292,7 +292,15 @@ async def _a_store(settings: Settings) -> Store:
         return MemoryStore()
 
 
-app = FastAPI(title="Pinecall gateway", lifespan=lifespan)
+# The interactive schema lives under `/v1`, where every other door of this API lives, and not at
+# FastAPI's default `/docs` — which is a SCREEN of the console (`/docs[/:base]`, the org's knowledge
+# bases). A route wins over the catch-all that serves the page, so the default shadowed it: a link
+# to `/docs` pasted to a colleague opened Swagger, and a reload of the screen they were on threw
+# them out of the console (found against production, 2026-09-20). `/openapi.json` stays where every
+# generator looks for it; nothing of the console answers to that name.
+app = FastAPI(
+    title="Pinecall gateway", lifespan=lifespan, docs_url="/v1/docs", redoc_url="/v1/redoc"
+)
 
 
 # Every door, in the order a reader meets them: api/_doors.py is the list.

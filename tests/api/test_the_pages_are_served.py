@@ -173,3 +173,19 @@ def test_the_widget_is_served_from_the_gateway_with_cors_for_any_site(
     assert body == AN_ASSET
     # Nothing else under /widget is a page: a wrong name is a 404 and never index.html.
     assert fetched(gateway, "/widget/nope.js")[0] == 404
+
+
+# `/docs` is a SCREEN of the console — the org's knowledge bases — and FastAPI mounts its own
+# Swagger there by default. A route wins over the catch-all that serves the page, so the API's
+# schema shadowed the screen: a pasted link opened Swagger and a reload threw a person out of the
+# console (production, 2026-09-20). The interactive schema lives under `/v1` with every other door.
+def test_the_console_owns_docs_and_the_schema_lives_under_v1(gateway: TestClient) -> None:
+    handle: Any = gateway
+    page: Any = handle.get("/docs")
+    assert page.status_code == 200
+    assert "swagger" not in page.text.lower()
+    assert handle.get("/docs/some-base").status_code == 200
+    swagger: Any = handle.get("/v1/docs")
+    assert swagger.status_code == 200
+    assert "swagger" in swagger.text.lower()
+    assert handle.get("/openapi.json").status_code == 200

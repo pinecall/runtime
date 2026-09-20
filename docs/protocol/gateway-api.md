@@ -268,7 +268,7 @@ curl -H "authorization: Bearer $KEY" -H "accept: text/event-stream" \
 `next` is the last seq the page **read**, not the last it kept, so a page whose every entry was
 filtered still moves you forward. `null` means you have reached the end of what is written.
 
-The SSE frames are `id: <seq>`, `event: <type>`, `data: <the entry's data>`, a `: ping` comment
+The SSE frames are `id: <seq>`, `event: <type>`, `data: <the entry, whole — the same bytes the JSON page stores>`, a `: ping` comment
 every 25 s so no proxy cuts a quiet call, and `retry: 1000`. The stream ends when the log does —
 on `call.score`, the entry a finished call seals with.
 
@@ -292,7 +292,7 @@ A **seat** is a LiveKit token for one call, minted by your key:
 
 | door | scope | what it may do |
 |---|---|---|
-| `POST /v1/calls/{call}/listen` | `observe` | hear the room. Hidden and silent: the caller is never told anybody joined |
+| `POST /v1/calls/{call}/listen` | `supervise` | hear the room. Hidden and silent: the caller is never told anybody joined. (`observe` is the TOKEN this door mints, not a scope a key holds) |
 | `POST /v1/calls/{call}/supervise` | `supervise` | hear it, publish a microphone, and send the verbs |
 
 Both answer `{server_url, participant_token, call, identity}`. Join the room with it (any LiveKit

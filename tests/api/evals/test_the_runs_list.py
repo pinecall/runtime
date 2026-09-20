@@ -6,6 +6,8 @@ import httpx
 import pytest
 
 from pinecall.evals.runs import EvalRun, MemoryRuns
+from pinecall.log.store import MemoryStore
+from tests.api.conftest import A_RECORD
 
 pytestmark = pytest.mark.unit
 
@@ -87,3 +89,20 @@ async def test_since_and_agent_narrow_the_same_list_together(
     ).json()["runs"]
 
     assert [run["id"] for run in listed] == ["run_clinic_new"]
+
+
+# The cut used to come BEFORE the org filter: `newest(limit)` took the box's newest runs whatever
+# org they belong to, and what survived the filter was whatever share of them happened to be this
+# key's. On a box where another tenant ran last, `?limit=2` answered an empty list — found against
+# production with `pinecall runs list --limit 2` (2026-09-20).
+async def test_the_limit_counts_this_orgs_runs_and_not_the_boxs(
+    suite_http: httpx.AsyncClient, eval_runs: MemoryRuns, store: MemoryStore
+) -> None:
+    """Two tenants on one box, the other one's runs newest: the page is still mine and full."""
+    await store.owned(None, CLINIC, A_RECORD.org)
+    await store.owned(None, SHOP, "tienda")
+    await two_agents_of_runs(eval_runs)
+
+    listed: list[dict[str, Any]] = (await suite_http.get(RUNS, params={"limit": 2})).json()["runs"]
+
+    assert [run["id"] for run in listed] == ["run_clinic_new", "run_clinic_old"]

@@ -7,6 +7,22 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Fixed
+- **A key in `?token=` is refused.** The one door that reads a bearer out of a URL — the log's SSE
+  and JSON flavours, because an `EventSource` cannot set a header — took an API KEY there as well
+  as a room token, against what its own paragraph has said since it was written. A URL is written
+  down: the access log, the referrer, the history of whatever followed it, and a key is the whole
+  tenant until somebody revokes it. Only a short-lived room token travels in the query string now;
+  the header is untouched. Found by exercising the door against production.
+- **`GET /v1/evals/runs?limit=` counts YOUR runs.** The cut came before the org filter, so the box's
+  newest N were read whatever tenant they belonged to and what survived was whatever share happened
+  to be yours: on a box where two other tenants had run last, `?limit=2` answered an empty list
+  (`pinecall runs list --limit 2`, production). The page is filled with the org's own now, reading
+  ahead until it has the limit or the table is spent.
+- **The console owns `/docs` again.** FastAPI mounts its Swagger there by default and a route wins
+  over the catch-all that serves the page, so `/docs` — the console's screen for the org's
+  knowledge bases — opened the API reference instead: a pasted link landed on Swagger, and a reload
+  threw a person out of the console. The interactive schema is `/v1/docs`, with every other door;
+  `/openapi.json` stays where a generator looks for it.
 - **The supervisor's desk works from the console.** Every verb a desk sent against a production
   call was refused — `403 that call's agent belongs to another org` — because the door asked the
   LIVE registry whose the call was, in the world of the key that asked. A person's key is minted

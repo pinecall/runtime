@@ -17,7 +17,7 @@ from pinecall.api._deps import SCOPE_OF_THE_DOOR, KeysDep, MembersDep, SettingsD
 from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.keys import Keys, is_the_fleets, not_opening
-from pinecall.auth.scopes import LivekitKeys, Reader, a_reader, secret_for
+from pinecall.auth.scopes import LivekitKeys, Reader, a_reader, is_a_jwt, secret_for
 from pinecall.auth.world import as_asked
 from pinecall.log.entry import Entry
 from pinecall.log.filters import Filter, FilterRefused
@@ -57,8 +57,16 @@ async def reading(
     connection: HTTPConnection, keys: Keys, settings: Settings, token: str | None
 ) -> Reader | None:
     """Who is reading: the Bearer key, or ?token= for a browser. None means nobody we know."""
-    bearer = bearer_of(connection.headers) or (token or "")
-    return await a_reader(bearer, keys, _a_secret(settings)) if bearer else None
+    header = bearer_of(connection.headers)
+    if header:
+        return await a_reader(header, keys, _a_secret(settings))
+    # A KEY in the query string is refused here and not merely discouraged: this is the one door
+    # that reads a bearer out of a URL, and a URL is written down — the access log, the referrer,
+    # the history of whatever browser followed it. A room token is short-lived and reads one call;
+    # a key is the whole tenant, for as long as nobody revokes it. The paragraph above has said so
+    # since this door was written, and the door took either until 2026-09-20 (found against
+    # production: `GET /v1/calls/{call}/events?token=pc_…` answered the org's log).
+    return await a_reader(token, keys, _a_secret(settings)) if token and is_a_jwt(token) else None
 
 
 # A token bound to a call reads that call and nothing else — not another call's log, not another

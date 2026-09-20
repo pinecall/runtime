@@ -90,9 +90,26 @@ def test_a_key_nobody_issued_is_refused(gateway: TestClient) -> None:
     assert refused.status == 401
 
 
-# EventSource cannot set a header, so the browser's only way in is the query string.
-def test_the_key_may_travel_as_a_query_token(gateway: TestClient) -> None:
-    assert read(gateway, f"/v1/calls/{CALL}/events?token={A_KEY}").status == 200
+# EventSource cannot set a header, so the query string is the browser's only way in — and what may
+# travel there is a ROOM token, which is short-lived and reads one call. A key is the whole tenant
+# for as long as nobody revokes it, and a URL is written down: the access log, the referrer, the
+# history. This door took a key in `?token=` until 2026-09-20, against what its own paragraph said.
+def test_a_room_token_may_travel_in_the_query_string(gateway: TestClient) -> None:
+    from pinecall.auth.scopes import a_room_token
+    from tests.api.conftest import A_LIVEKIT
+
+    token = a_room_token(CALL, "participate", 4102444800.0, A_LIVEKIT)
+    assert read(gateway, f"/v1/calls/{CALL}/events?token={token}").status == 200
+
+
+def test_a_key_in_the_query_string_is_refused(gateway: TestClient) -> None:
+    assert read(gateway, f"/v1/calls/{CALL}/events?token={A_KEY}").status == 401
+    assert read(gateway, f"/v1/calls/{CALL}/state?token={A_KEY}").status == 401
+    # The same key on the header is the way in, and still is.
+    assert (
+        read(gateway, f"/v1/calls/{CALL}/events", {"Authorization": f"Bearer {A_KEY}"}).status
+        == 200
+    )
 
 
 # ── the JSON page ───────────────────────────────────────────────────────────────

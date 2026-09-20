@@ -28,7 +28,7 @@ from pinecall.api.evals.runner import (
     a_run,
 )
 from pinecall.auth.keys import held_by
-from pinecall.evals.runs import DEFAULT_LIMIT
+from pinecall.evals.runs import DEFAULT_LIMIT, EvalRun, Runs
 from pinecall.log.store import Store
 from pinecall.providers.models import NoProvider
 from pinecall.types import DeclarationRefused
@@ -38,6 +38,10 @@ router = APIRouter()
 NO_SUCH_RUN = "no eval run {id} on this gateway"
 
 HOW_MANY = Query(DEFAULT_LIMIT, ge=1, le=200, description="how many runs, newest first")
+
+# How far the read-ahead below will go for one page: a box where this org ran nothing lately does
+# not read its whole history to answer "the newest twenty of yours".
+MOST_READ_AHEAD = 400
 SINCE = Query(0.0, ge=0, description="only runs started after this many seconds since the epoch")
 OF_AGENT = Query(None, description="only this agent's runs; every agent of the org's when absent")
 
@@ -103,10 +107,34 @@ async def listed(
     agent: str | None = OF_AGENT,
 ) -> dict[str, Any]:
     """The runs this gateway has done, newest first: the list a drift check diffs across."""
-    newest = await runs.newest(limit, since, agent)
     return {
-        "runs": [run.as_json for run in newest if await _is_the_orgs(key.org, store, run.agent)]
+        "runs": [run.as_json for run in await _the_orgs(key.org, runs, store, limit, since, agent)]
     }
+
+
+# The cut belongs AFTER the org filter, and used to come before it: `newest(limit)` took the box's
+# newest runs whatever org they belong to, and what was left after the filter was whatever share
+# of them happened to be this org's — `?limit=2` answered an empty list on a box where two other
+# tenants had run last (`pinecall runs list --limit 2`, production, 2026-09-20). So this reads
+# ahead, in pages, until it has `limit` of the org's or the table is exhausted.
+async def _the_orgs(
+    org: str, runs: Runs, store: Store, limit: int, since: float, agent: str | None
+) -> list[EvalRun]:
+    """The newest `limit` runs OF THIS ORG, newest first."""
+    mine: list[EvalRun] = []
+    read = 0
+    while len(mine) < limit:
+        asked = min(MOST_READ_AHEAD, max(limit * 2, limit + read))
+        page = await runs.newest(asked, since, agent)
+        for run in page[read:]:
+            if await _is_the_orgs(org, store, run.agent):
+                mine.append(run)
+                if len(mine) == limit:
+                    break
+        if len(page) <= read or len(page) < asked:
+            break
+        read = len(page)
+    return mine
 
 
 @router.get("/v1/evals/runs/{id}")
