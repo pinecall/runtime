@@ -110,6 +110,24 @@ async def test_the_dispatch_names_the_corner_the_call_is_in() -> None:
     assert said == {"agent": THE_AGENT, "org": "clinica", "env": "sandbox", "holder": "m_carla"}
 
 
+async def test_the_dispatch_names_the_synthetic_caller_being_played() -> None:
+    """The gateway holds the call but the WORKER writes call.started: this is the only road."""
+    async with calling._dispatch(  # pyright: ignore[reportPrivateUsage]
+        THE_CALL, THE_AGENT, THE_FLEET, A_BOX, org="clinica", persona="homeowner"
+    ):
+        pass
+
+    assert json.loads(FakeLiveKit.made[0].dispatched[0].metadata)["persona"] == "homeowner"
+
+
+async def test_a_dispatch_for_nobody_in_particular_names_no_persona() -> None:
+    """A room somebody made by hand, and every real call: the field is absent, never empty."""
+    async with calling._dispatch(THE_CALL, THE_AGENT, THE_FLEET, A_BOX, org="clinica"):  # pyright: ignore[reportPrivateUsage]
+        pass
+
+    assert "persona" not in json.loads(FakeLiveKit.made[0].dispatched[0].metadata)
+
+
 async def test_a_dispatch_in_nobodys_corner_leaves_the_holder_out() -> None:
     """Production is the org's own: the field is absent rather than an empty string."""
     async with calling._dispatch(  # pyright: ignore[reportPrivateUsage]

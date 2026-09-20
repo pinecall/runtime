@@ -30,6 +30,7 @@ from pinecall.api.calls.sink import (
     LimitDep,
     ProjectDep,
     ReaderDep,
+    another_orgs,
     ended,
     page,
     reading,
@@ -45,7 +46,7 @@ from pinecall.auth.scopes import Reader
 from pinecall.log.entry import Entry, unstored
 from pinecall.log.filters import EVERYTHING
 from pinecall.log.logs import CallLog
-from pinecall.log.store import DEFAULT_LIMIT, Store
+from pinecall.log.store import DEFAULT_LIMIT
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.tokens.spending import spent
@@ -165,7 +166,6 @@ async def attach(
     logs: LogsDep,
     store: StoreDep,
     project: ProjectDep,
-    registry: RegistryDep,
     snapshots: SnapshotsDep,
     live: QueueingDep,
     call: Annotated[str, Query()],
@@ -177,7 +177,7 @@ async def attach(
     if reader is None or (reader.call is not None and reader.call != call):
         await websocket.close(code=POLICY_VIOLATION)
         return
-    if reader.key is not None and await _another_orgs(reader.key.org, store, call):
+    if await another_orgs(reader, store, call, ""):
         await websocket.close(code=POLICY_VIOLATION)
         return
     await websocket.accept()
@@ -191,7 +191,7 @@ async def attach(
         # receive(), not receive_json(): a frame that is not JSON at all is answered by name here
         # rather than closing the socket under a desk that mistyped one message.
         while (frame := await websocket.receive())["type"] != "websocket.disconnect":
-            said = await _verb(live, registry, snapshots, reader, call, frame.get("text"))
+            said = await _verb(live, store, snapshots, reader, call, frame.get("text"))
             if said is not None:
                 await websocket.send_json(encode(said))
     except WebSocketDisconnect:
@@ -205,7 +205,7 @@ async def attach(
 # seq 0 reads as "this was never written down", the same shape the app socket uses.
 async def _verb(
     live: QueueingDep,
-    registry: RegistryDep,
+    store: StoreDep,
     snapshots: SnapshotsDep,
     reader: Reader,
     call: str,
@@ -217,7 +217,7 @@ async def _verb(
     except ProtocolError as malformed:
         return _an_error(BAD_VERB, str(malformed))
     try:
-        await aimed(live, registry, snapshots, reader, call, said)
+        await aimed(live, store, snapshots, reader, call, said)
     except VerbRefused as refused:
         return _an_error(VERB_REFUSED, refused.detail)
     return None
@@ -243,14 +243,6 @@ async def _tail(
             await websocket.send_json(said)
         if entry.type == TERMINAL_EVENT:
             return
-
-
-# A socket has no 403 to answer with, so the sink's rule is asked as a question here and the
-# answer is the same close code every refused socket gets.
-async def _another_orgs(org: str, store: Store, call: str) -> bool:
-    """Whether this call's log belongs to some other org than the key's."""
-    owner = await store.owner(call, "")
-    return owner is not None and owner != org
 
 
 # ── the worker writing a call ───────────────────────────────────────────────────

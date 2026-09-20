@@ -27,10 +27,11 @@ NOT_BUILT = (
 )
 
 
-# Two pages, and they share nothing but this shape. The console is the TENANT's, mounted at the
-# root so a deep link is a screen; the admin is the OPERATOR's, mounted under `/admin` so it is a
-# second program with a second bundle and a second credential — the ops key belongs to no org and
-# must never reach a tab that holds a tenant's. docs/decisions/api.md.
+# One page, mounted at the root so a deep link is a screen. The operator had a second program
+# under `/admin`, with a second bundle and the box's ops key typed into it; it is gone. The box is
+# operated from this same console — the Box screens, which `/v1/ops/*` opens for a person the box
+# made an operator — and the first org of a box is made before any page exists, by
+# `pinecall-runtime init` on the box itself. docs/decisions/api.md.
 @dataclass(frozen=True)
 class Page:
     """One built single-page app: the name it says when it is missing, and where its files are."""
@@ -40,7 +41,6 @@ class Page:
 
 
 CONSOLE = Page(name="console", directory=BUILT / "console")
-ADMIN = Page(name="admin", directory=BUILT / "admin")
 # Not a page: one script, `<pinecall-widget>`, for any site to load from this gateway as from a
 # CDN. A module script from another origin is fetched with CORS, so the header is on every answer.
 WIDGET = BUILT / "widget"
@@ -55,16 +55,6 @@ async def widget(file: str) -> FileResponse:
     if WIDGET.resolve() not in asked.parents or not asked.is_file():
         raise HTTPException(404, NO_WIDGET if not WIDGET.is_dir() else "Not Found")
     return FileResponse(asked, headers=WIDGET_HEADERS)
-
-
-# The operator's page, declared BEFORE the catch-all so `/admin` and everything under it is this
-# bundle and never the console's. Its own router owns the paths below it, so a reload on
-# /admin/orgs/clinica lands on the same screen.
-@router.get("/admin", include_in_schema=False)
-@router.get("/admin/{path:path}", include_in_schema=False)
-async def admin(path: str = "") -> FileResponse:
-    """The operator's page for a screen, or one of its assets."""
-    return _served(ADMIN, path)
 
 
 # The one catch-all of the whole gateway, included LAST by api/app.py so every /v1 door and the

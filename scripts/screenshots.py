@@ -88,8 +88,9 @@ SHOTS: tuple[Shot, ...] = (
     Shot("agents", "/overview"),
     Shot("live", "/live", the_newest_ended_call),
     Shot("sessions", "/sessions"),
-    # One caller open, because a roster on its own says nothing about what a persona is.
-    Shot("personas", "/personas/alta-y-reserva?agent={agent}"),
+    # One caller open, because a roster on its own says nothing about what a persona is. No agent
+    # in the URL: a caller is the org's, and the pane beside it is every simulation it has run.
+    Shot("personas", "/personas/alta-y-reserva"),
     # The form with an agent and a caller already in it, as the Personas screen hands it over.
     Shot("simulations", "/simulations?agent={agent}&persona=alta-y-reserva", a_simulation),
     # One agent, tab by tab.

@@ -45,6 +45,9 @@ def started(context: CallContext, door: str, at: float) -> CallStarted:
             "from": from_,
             "to": to,
             "run": context.run,
+            # Who is being played on this call, when a simulation opened it. The log is where the
+            # fact lives; call_facts is a projection of this line (log/facts.py, migration 0046).
+            "persona": context.persona,
             "caller": None,
             "started_at": at,
             "env": context.env,

@@ -1,4 +1,4 @@
-"""Who a written caller is: the id the chat socket may name, and what memory files under it."""
+"""Who a written caller is: the id the chat socket may name, and who is being played on it."""
 
 from typing import cast
 
@@ -31,6 +31,22 @@ def test_a_chat_that_names_nobody_is_a_call_memory_files_under_nothing() -> None
 def test_the_visitor_id_is_still_the_calling_side_when_a_contact_is_named() -> None:
     said = a_call_from(_asked({"agent": AGENT, "contact": "c_9"}), "clinica", PRODUCTION, AGENT)
     assert said.caller.startswith("web_")
+
+
+# The written half of the seam that names a synthetic caller. `pinecall simulate` drives the turns
+# from the terminal, so without this nothing on the call said who the model was playing, and the
+# Personas screen could show what a caller is and nothing about what it has done. The spoken half
+# is the dispatch's `persona` (types/dispatch.py), because there the worker writes call.started.
+def test_a_chat_that_names_a_persona_is_a_call_that_says_who_is_being_played() -> None:
+    said = a_call_from(
+        _asked({"agent": AGENT, "persona": "homeowner"}), "clinica", PRODUCTION, AGENT
+    )
+    assert said.persona == "homeowner"
+
+
+def test_a_persons_chat_names_no_persona_because_nobody_is_playing_anybody() -> None:
+    said = a_call_from(_asked({"agent": AGENT}), "clinica", PRODUCTION, AGENT)
+    assert said.persona is None
 
 
 class _QueryOnly:

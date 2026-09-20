@@ -103,6 +103,30 @@ class ThreadRow:
     name: str | None
 
 
+# What a persona's pane reads: the call's own facts, and the clock the list is ordered by — the
+# head row's started_at, which is not a fact (0025) and so cannot come off CallFacts.
+@dataclass(frozen=True)
+class PersonaRun:
+    """One simulation a synthetic caller ran: when the call opened, and what the call said."""
+
+    started_at: float
+    facts: CallFacts
+
+    @property
+    def turns(self) -> int:
+        """How many turns the caller took: one `heard_at` per line the model playing them said."""
+        return len(self.facts.heard_at)
+
+
+@dataclass(frozen=True)
+class PersonaRuns:
+    """One page of a caller's runs, how many there are in all, and the cursor to the next page."""
+
+    runs: list[PersonaRun]
+    total: int
+    next: str | None
+
+
 @dataclass(frozen=True)
 class Threads:
     """One page of an inbox and the cursor to the next one."""
@@ -138,6 +162,14 @@ class CallIndex(Protocol):
 
     async def found(self, org: str, env: str, holder: str, wanted: Wanted, limit: int) -> Found:
         """The newest calls of the corner that match, a page, the count of all, and the cursor."""
+        ...
+
+    # The persona is the ORG's, but its runs are calls, and a call is one corner's like every
+    # other: the same cut, the same `before` cursor and the same count the session list answers.
+    async def runs_of_persona(
+        self, org: str, env: str, holder: str, persona: str, before: str | None, limit: int
+    ) -> PersonaRuns:
+        """This caller's newest simulations in the corner, a page, the count, and the cursor."""
         ...
 
     async def a_day(self, org: str, env: str, holder: str, start: float) -> Day:

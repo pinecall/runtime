@@ -87,7 +87,6 @@ the domain to answer · **doctor** runs the runtime's own checks from inside the
 $ make deploy
 scripts/console
 console → src/pinecall/gateway/console (4 files)
-admin → src/pinecall/gateway/admin (3 files)
 widget → src/pinecall/gateway/widget/pinecall-widget.js
 …
 sudo make -s -C /opt/pinecall/app/runtime/infra/box install
@@ -120,7 +119,7 @@ env: no .env — environment only
 ✓ livekit               http://127.0.0.1:7880/ — HTTP 200
 ✓ postgres              postgresql://pinecall@127.0.0.1:5432/pinecall — vector, pg_textsearch
 ✓ embedder              tei · BAAI/bge-m3 — http://127.0.0.1:8081/info — HTTP 200
-! mail                  not configured — set it at PUT /v1/ops/mail (the admin page), or set PINECALL_SMTP_URL and PINECALL_MAIL_FROM, to mail invitations and password resets; …
+! mail                  not configured — set it at PUT /v1/ops/mail (Box settings), or set PINECALL_SMTP_URL and PINECALL_MAIL_FROM, to mail invitations and password resets; …
 ! lk                    not installed — brew install livekit-cli (lk docs · lk sip · lk dispatch)
 
 all up
@@ -181,7 +180,7 @@ about, and lets a person who forgot their password ask for a link themselves (`P
 /v1/login/reset`). A box that cannot still works exactly as before: the link is in the answer, and
 an admin passes it on. The transport is **generic SMTP** — Amazon SES, Postmark, Mailgun or a mail
 server of your own — and it is two settings, **or one screen**: the operator stores a mailbox at
-`PUT /v1/ops/mail` from the admin page ([the-box.md](protocol/the-box.md)), which wins over the two
+`PUT /v1/ops/mail` from Box settings ([the-box.md](protocol/the-box.md)), which wins over the two
 variables below and needs no restart:
 
 | | | |
@@ -509,11 +508,14 @@ entero y apretás Enter se abre ése. El id de cada una abre su log entero — e
 **Personas**: los llamantes que un modelo juega contra tus agentes. Cada uno son tres cosas y
 ninguna es un guion — **qué quiere**, **cómo habla** y **qué sabe de sí mismo**, que es lo único que
 puede afirmar como un hecho; lo demás lo improvisa turno a turno, y lo que no sabe dice que no lo
-sabe. La lista de la izquierda es la de todos los agentes a la vez, agrupada por agente cuando hay
-más de uno: nadie tendría que elegir un agente para ver lo que escribió. **Son del gateway**,
-guardadas al lado de los settings del agente, así que lo que escribís acá es lo que lista
-`pinecall personas` y con lo que llama `pinecall simulate`, sin un deploy en el medio. Un proyecto
-que todavía las tiene en archivos las manda una vez con `pinecall personas push`.
+sabe. La lista de la izquierda es **una sola, de la org**: una persona es alguien del otro lado del
+teléfono, y quién es no depende de cuál de tus agentes atienda, así que se escribe una vez y la
+llaman todos. **Son del gateway**, guardadas al lado de los settings del agente, así que lo que
+escribís acá es lo que lista `pinecall personas` y con lo que llama `pinecall simulate`, sin un
+deploy en el medio. Un proyecto que todavía las tiene en archivos las manda una vez con `pinecall
+personas push`. A la derecha, **lo que esa persona hizo**: cada simulación que corrió — cuándo, qué
+agente atendió, cuántos turnos, cómo terminó, en qué quedó, qué costó y qué dijeron los jueces — y
+el id de cada llamada abre su sesión.
 
 <picture>
   <source srcset="images/dark/simulations.png" media="(prefers-color-scheme: dark)">
@@ -663,48 +665,9 @@ Y en la barra de la izquierda, lo que no tiene captura acá: **Home**, el resume
 **Evals**, la **Memory** y los **Docs** de toda la org; **Lexicon**, las palabras propias de la org
 en dos pestañas — `Pronunciation`, cómo se dice una marca o un apellido, y `Recognition`, los
 nombres que el oído tiene que esperar —, que valen desde la próxima llamada, sin developer y sin
-deploy; y, para quien la box hizo operador, el grupo **Box**, que es el admin de acá abajo dentro de
-la consola.
-
----
-
-# El admin, que es del operador
-
-Vive en `/admin`. Se entra como **una persona que la box hizo operador** — org, email y contraseña;
-`init` hace operador a la primera y `orgs operator <org> <email>` a las demás, `--revoke` lo quita
-— o con **la ops key** de la box. No hay `?login=` acá y no lo va a haber: un código en una URL es
-cómo se le entrega una key a un navegador, y la de esta página abre toda la box.
-
-<picture>
-  <source srcset="images/dark/admin-orgs.png" media="(prefers-color-scheme: dark)">
-  <img src="images/light/admin-orgs.png" alt="Orgs">
-</picture>
-
-**Orgs**: cada tenant que esta box sirve. El id es por el que lo nombran sus filas y no cambia; el
-slug es lo que una persona escribe. Desde acá se crea uno.
-
-<picture>
-  <source srcset="images/dark/admin-routes.png" media="(prefers-color-scheme: dark)">
-  <img src="images/light/admin-routes.png" alt="Routes">
-</picture>
-
-**Routes**: los números desde el lado del operador — qué org, qué agente, qué mundo.
-
-<picture>
-  <source srcset="images/dark/admin-fleet.png" media="(prefers-color-scheme: dark)">
-  <img src="images/light/admin-fleet.png" alt="Fleet">
-</picture>
-
-**Fleet**: los workers que golpearon a este gateway, con cuántas llamadas aguanta cada uno y cuándo
-latió por última vez. Desde acá se corta uno sin matarlo: deja de tomar llamadas nuevas y termina
-las que tiene.
-
-<picture>
-  <source srcset="images/dark/admin-usage.png" media="(prefers-color-scheme: dark)">
-  <img src="images/light/admin-usage.png" alt="Usage">
-</picture>
-
-**Usage**: el consumo de cada org, que es lo que se factura.
+deploy; y, para quien la box hizo operador, el grupo **Box** — Organizations, Fleet, Routes, Box
+usage y Box settings —, que es desde donde se opera la box entera. No hay una segunda página para
+eso: el `/admin` que existía se fue, y la ops key no se escribe en ningún navegador.
 
 ---
 
@@ -713,7 +676,7 @@ las que tiene.
 ```
                  ┌─ caddy ────────── TLS, :80 :443, the only thing the internet reaches
 internet ──────► │
-                 └─ pinecall-gateway ── the API, the two pages and the widget, :8080 on loopback
+                 └─ pinecall-gateway ── the API, the console and the widget, :8080 on loopback
                         │
                         ├── pinecall-postgres   the log, the orgs, the keys, the routes
                         ├── pinecall-livekit    the media plane, :7880 on loopback

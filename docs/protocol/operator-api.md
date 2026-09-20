@@ -21,8 +21,8 @@ Two things open these doors, sent as `Authorization: Bearer <key>`, and neither 
   request. A server's token names nobody and never opens these doors, whatever else it opens.
 
 `GET /v1/ops/whoami` answers `{operator: true, version, domain, name, org}` and is what the
-operator's page — served at **`/admin`** by the same gateway — proves its credential at before it
-draws, as the console proves a person's at `/v1/whoami`. `name` and `org` are the person's when a
+console's **Box** screens — served by the same gateway, to a person the box made an operator —
+prove their credential at before they draw, as the console proves a person's at `/v1/whoami`. `name` and `org` are the person's when a
 person's key knocked and null for the box's own; `domain` is null on a box that was told none, and
 the page then says the host it was loaded from. Every door here names its org explicitly, because
 neither credential is an org's. An app's or a worker's API key does not open these doors, nor the

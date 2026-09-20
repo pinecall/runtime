@@ -12,6 +12,8 @@ from pinecall.log.store.index import (
     CallCorner,
     Day,
     Found,
+    PersonaRun,
+    PersonaRuns,
     ThreadRow,
     Threads,
     Unsealed,
@@ -32,6 +34,8 @@ from pinecall.log.store.index_statements import (
     FACTS_OF,
     FOUND_COUNT,
     FOUND_PAGE,
+    PERSONA_RUNS_COUNT,
+    PERSONA_RUNS_PAGE,
     READ,
     SPENT_BETWEEN,
     THREADS,
@@ -74,6 +78,7 @@ class PostgresIndex:
             change.last_text,
             change.last_at,
             change.last_in,
+            change.persona,
         )
 
     async def corner_of_call(self, call: str) -> CallCorner | None:
@@ -121,6 +126,23 @@ class PostgresIndex:
             calls=page,
             total=int(total or 0),
             next=page[-1] if len(calls) > limit and page else None,
+        )
+
+    async def runs_of_persona(
+        self, org: str, env: str, holder: str, persona: str, before: str | None, limit: int
+    ) -> PersonaRuns:
+        """The count and one page, off the same WHERE — the session list's own shape."""
+        asked = (org, env, holder, persona)
+        total = await self._pool.fetchval(PERSONA_RUNS_COUNT, *asked)
+        rows: Sequence[Any] = await self._pool.fetch(PERSONA_RUNS_PAGE, *asked, before, limit + 1)
+        runs = [
+            PersonaRun(started_at=float(row["started_at"]), facts=facts_of_row(row)) for row in rows
+        ]
+        page = runs[:limit]
+        return PersonaRuns(
+            runs=page,
+            total=int(total or 0),
+            next=page[-1].facts.call if len(runs) > limit and page else None,
         )
 
     async def a_day(self, org: str, env: str, holder: str, start: float) -> Day:
@@ -222,6 +244,7 @@ def facts_of_row(row: Mapping[str, Any]) -> CallFacts:
         to=row["to_number"],
         name=row["name"],
         contact=row["contact"],
+        persona=row["persona"],
         spoken=bool(row["spoken"]),
         ended_at=row["ended_at"],
         end_reason=row["end_reason"],

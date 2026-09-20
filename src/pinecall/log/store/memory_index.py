@@ -12,6 +12,8 @@ from pinecall.log.store.index import (
     AgentDay,
     Day,
     Found,
+    PersonaRun,
+    PersonaRuns,
     ThreadRow,
     Threads,
     Unsealed,
@@ -94,6 +96,29 @@ def found(calls: Iterable[Indexed], wanted: Wanted, limit: int) -> Found:
         calls=[one.facts.call for one in cut],
         total=len(matching),
         next=cut[-1].facts.call if more and cut else None,
+    )
+
+
+def runs_of_persona(
+    calls: Iterable[Indexed], persona: str, before: str | None, limit: int
+) -> PersonaRuns:
+    """The caller's runs, the page, the count and the cursor — exactly as the statement answers."""
+    matching = sorted(
+        (one for one in calls if one.facts.persona == persona),
+        key=lambda one: (one.at, one.facts.call),
+        reverse=True,
+    )
+    below = next((one for one in matching if one.facts.call == before), None)
+    page = [
+        one
+        for one in matching
+        if below is None or (one.at, one.facts.call) < (below.at, below.facts.call)
+    ]
+    cut = page[:limit]
+    return PersonaRuns(
+        runs=[PersonaRun(started_at=one.at, facts=one.facts) for one in cut],
+        total=len(matching),
+        next=cut[-1].facts.call if len(page) > limit and cut else None,
     )
 
 

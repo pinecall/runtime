@@ -7,8 +7,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from starlette.requests import Request
 
-from pinecall.api._deps import KeysDep, SettingsDep, SnapshotsDep
-from pinecall.api.agents.registry import RegistryDep
+from pinecall.api._deps import KeysDep, SettingsDep, SnapshotsDep, StoreDep
 from pinecall.api.calls.sink import reading
 from pinecall.api.supervise.aiming import STEERS, QueueingDep, VerbRefused
 from pinecall.api.supervise.aiming import aimed as aimed_at
@@ -34,7 +33,7 @@ async def verb(
     request: Request,
     keys: KeysDep,
     settings: SettingsDep,
-    registry: RegistryDep,
+    store: StoreDep,
     snapshots: SnapshotsDep,
     live: QueueingDep,
 ) -> dict[str, Any]:
@@ -45,7 +44,7 @@ async def verb(
     if reader.key is not None and (closed := not_opening(reader.key, STEERS)) is not None:
         raise HTTPException(403, closed)
     try:
-        await aimed_at(live, registry, snapshots, reader, call, said)
+        await aimed_at(live, store, snapshots, reader, call, said)
     except VerbRefused as refused:
         raise HTTPException(refused.status, refused.detail) from refused
     return {"call": call, "verb": said.verb, "seq": None}

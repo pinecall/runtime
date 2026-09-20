@@ -83,12 +83,18 @@ def refuse_another_call(reader: Reader, call: str | None) -> None:
 NOT_YOUR_ORGS = "this key does not read that org's log"
 
 
+async def another_orgs(reader: Reader, store: Store, call: str | None, agent: str) -> bool:
+    """Whether this key's org is not the one whose log this is. The question, without the answer:
+    a socket has no 403 to raise and a verb answers in its own words."""
+    if reader.key is None or is_the_fleets(reader.key):
+        return False
+    owner = await store.owner(call, agent)
+    return owner is not None and owner != reader.key.org
+
+
 async def refuse_another_org(reader: Reader, store: Store, call: str | None, agent: str) -> None:
     """Refuse a key whose org does not own the log it asked for. A token has its own gate."""
-    if reader.key is None or is_the_fleets(reader.key):
-        return
-    owner = await store.owner(call, agent)
-    if owner is not None and owner != reader.key.org:
+    if await another_orgs(reader, store, call, agent):
         raise HTTPException(status_code=403, detail=NOT_YOUR_ORGS)
 
 

@@ -8,9 +8,9 @@ from fastapi import Depends
 from pydantic import TypeAdapter, ValidationError
 
 from pinecall.api._deps import SnapshotsDep, what_is_live
-from pinecall.api.agents.registry import RegistryDep
-from pinecall.auth.keys import held_by
+from pinecall.api.calls.sink import another_orgs
 from pinecall.auth.scopes import Reader
+from pinecall.log.store import Store
 from pinecall.session.text.session import TextSession
 from pinecall.session.text.supervising import applied
 from pinecall_protocol import Command, ProtocolError, encode, verbs
@@ -27,10 +27,10 @@ NOT_A_FRAME = "a supervise verb is one JSON object: {reason}"
 # and a desk pointed at the wrong gateway learns that instead of guessing at a permission.
 NO_LIVE_CALL = "no live call {call!r} on this gateway"
 
-# The bearer's org does not answer for this call's agent. 403 and never 404: whether a call
+# The bearer's org is not the one whose call this is. 403 and never 404: whether a call
 # exists is already public to anybody holding a key, and pretending otherwise would only make an
 # operator debug a permission as if it were a routing bug.
-NOT_YOUR_CALL = "that call's agent belongs to another org"
+NOT_YOUR_CALL = "that call belongs to another org"
 
 # The scope a key steers a call with. A supervise TOKEN was minted at a door that already asked
 # it, so the token's grant is the whole of its right; a key is asked here, at both verb doors.
@@ -88,7 +88,7 @@ QueueingDep = Annotated[Queueing, Depends(what_is_live)]
 # one place a verb can be refused. See docs/decisions/supervise.md.
 async def aimed(
     live: Queueing,
-    registry: RegistryDep,
+    store: Store,
     snapshots: SnapshotsDep,
     reader: Reader,
     call: str,
@@ -101,11 +101,13 @@ async def aimed(
     agent = snapshot.state.agent
     # A token was minted for ONE call and carries no org; the key carries an org and no call.
     # Each is checked against what it has, and neither reaches a call the other's holder owns.
-    if reader.key is not None:
-        held = registry.of(reader.key.env, agent, held_by(reader.key))
-        if held is None or held.org != reader.key.org:
-            raise VerbRefused(403, NOT_YOUR_CALL)
-    elif reader.call != call:
+    # Whose the call is, is what its LOG says — the same question every read door asks — and never
+    # who is holding the agent's socket right now: a person's key works in the sandbox corner it
+    # was minted into, so asking the live table refused every desk a console ever opened on a
+    # production call, in the words of a permission it did have.
+    if await another_orgs(reader, store, call, ""):
+        raise VerbRefused(403, NOT_YOUR_CALL)
+    if reader.key is None and reader.call != call:
         raise VerbRefused(403, NOT_YOUR_CALL)
     if not snapshot.live:
         raise VerbRefused(409, CALL_IS_OVER.format(call=call))

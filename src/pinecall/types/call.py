@@ -50,6 +50,10 @@ class CallContext:
     metadata: Mapping[str, Any] = field(default_factory=dict[str, Any])
     # The eval run that opened this call, or None for a person. A run's call opens mid-conversation.
     run: str | None = None
+    # The synthetic caller a model is playing on this call, by name (GET /v1/personas), or None
+    # when nobody is playing anybody. It rides call.started beside `run` and is projected into
+    # call_facts from there: it is what the Personas screen reads a caller's own runs off.
+    persona: str | None = None
     # Whose corner of the world the call is for, as the dispatch that opened it said: a developer
     # in the sandbox, nobody's — the org's own — in production or when nothing said. The org and
     # the world are the route's; this is the third coordinate, and the worker carries it to the

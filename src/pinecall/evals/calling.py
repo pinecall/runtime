@@ -30,6 +30,7 @@ from pinecall.types.dispatch import (
     ENV_KEY,
     HOLDER_KEY,
     ORG_KEY,
+    PERSONA_KEY,
     RUN_KEY,
     WORKER_NAME,
 )
@@ -110,6 +111,7 @@ async def a_simulated_call(
     holder: str | None = None,
     caller: str | None = None,
     run: str | None = None,
+    persona: str | None = None,
     app: str | None = None,
     speaking: Speaking | None = None,
 ) -> int:
@@ -119,7 +121,7 @@ async def a_simulated_call(
     """
     async with (
         _the_callers_voice(settings, line, speaking or Speaking()) as voice,
-        _dispatch(call, agent, fleet, settings, caller, run, app, org, env, holder),
+        _dispatch(call, agent, fleet, settings, caller, run, persona, app, org, env, holder),
     ):
         room = rtc.Room()
         await room.connect(settings.livekit_url, _a_token(call, settings))
@@ -173,6 +175,7 @@ class _Dispatch:
         settings: Settings,
         caller: str | None,
         run: str | None,
+        persona: str | None,
         app: str | None,
         org: str,
         env: Env,
@@ -184,6 +187,7 @@ class _Dispatch:
         self._settings = settings
         self._caller = caller
         self._run = run
+        self._persona = persona
         self._app = app
         self._whose = (org, env, holder)
         self._api: api.LiveKitAPI | None = None
@@ -205,9 +209,10 @@ class _Dispatch:
             )
         )
 
-    # A caller and a run are named only when there is a reason to. Ring 2 says which run opened the
-    # call, so the worker and the app treat it as a written eval call: no greeting, the golden's
-    # state seeded. A plain simulate names neither, and the router falls back to the room.
+    # A caller, a run and a persona are named only when there is a reason to. Ring 2 says which run
+    # opened the call, so the worker and the app treat it as a written eval call: no greeting, the
+    # golden's state seeded. A `simulate --voice` names the persona it is playing, and nothing
+    # else; a room somebody made by hand names none of the three, and the router falls back to it.
     def _metadata(self) -> dict[str, str]:
         """What the dispatch tells the worker: the agent, the caller, and which run opened it."""
         # Whose call it is, the same three words `POST /v1/tokens` writes: the one worker every
@@ -223,6 +228,9 @@ class _Dispatch:
             said[CALLER_KEY] = self._caller
         if self._run is not None:
             said[RUN_KEY] = self._run
+        # The one road the persona's name has to the worker, which is what writes call.started.
+        if self._persona is not None:
+            said[PERSONA_KEY] = self._persona
         if self._app is not None:
             said[APP_KEY] = self._app
         return said
@@ -252,13 +260,14 @@ def _dispatch(
     settings: Settings,
     caller: str | None = None,
     run: str | None = None,
+    persona: str | None = None,
     app: str | None = None,
     org: str = "",
     env: Env = PRODUCTION,
     holder: str | None = None,
 ) -> _Dispatch:
     """The agent asked into this room for the length of the call."""
-    return _Dispatch(call, agent, fleet, settings, caller, run, app, org, env, holder)
+    return _Dispatch(call, agent, fleet, settings, caller, run, persona, app, org, env, holder)
 
 
 class _Mouth:

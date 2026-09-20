@@ -35,6 +35,8 @@ from pinecall.api import (
     orgs,
     outbound,
     pairing,
+    persona_runs,
+    personas,
     pipeline,
     processes,
     provider_keys,
@@ -50,7 +52,7 @@ from pinecall.api import (
     whoami,
     widget,
 )
-from pinecall.api.agents import dev, personas, socket
+from pinecall.api.agents import dev, socket
 from pinecall.api.agents import endpoints as agents
 from pinecall.api.agents import provider_keys as agents_provider_keys
 from pinecall.api.calls import chat, commands, events, listing, lookup, recording, state, tools
@@ -67,6 +69,7 @@ DOORS: tuple[APIRouter, ...] = (
     agents_provider_keys.router,
     dev.router,
     personas.router,
+    persona_runs.router,
     events.router,
     state.router,
     listing.router,

@@ -103,7 +103,7 @@ $ pinecall-runtime migrate up
 at 127.0.0.1:5432/pinecall · schema public
 applied 0001_call_log.sql
 …
-applied 0043_personas_org_fk.sql
+applied 0046_the_persona_on_a_call.sql
 2 post-deployment migration(s) not run: `pinecall-runtime migrate up --post`
 org default has no key yet — `pinecall-runtime keys issue --org default` mints one
 ```
@@ -120,7 +120,6 @@ checkout. A fresh clone has never run that, so run it once:
 ```console
 $ scripts/console
 console → src/pinecall/gateway/console (4 files)
-admin → src/pinecall/gateway/admin (3 files)
 widget → src/pinecall/gateway/widget/pinecall-widget.js
 ```
 

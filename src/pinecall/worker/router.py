@@ -22,6 +22,7 @@ from pinecall.types.dispatch import (
     ENV_KEY,
     HOLDER_KEY,
     ORG_KEY,
+    PERSONA_KEY,
     RUN_KEY,
 )
 
@@ -59,6 +60,8 @@ class Arrival:
     app: str | None = None
     # Which eval run opened this call, when one did. A spoken golden's call starts mid-conversation.
     run: str | None = None
+    # Which synthetic caller a model is playing on it, when a spoken simulation named one.
+    persona: str | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict[str, Any])
     whose: Whose = field(default_factory=Whose)
 
@@ -101,6 +104,7 @@ async def arrival_of(job: jobs.Job, room: rtc.Room) -> Arrival:
         number=numbers.dialled,
         app=_text(said.get(APP_KEY)) or None,
         run=_text(said.get(RUN_KEY)) or None,
+        persona=_text(said.get(PERSONA_KEY)) or None,
         metadata=said,
         whose=whose(job),
     )

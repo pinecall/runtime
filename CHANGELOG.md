@@ -6,12 +6,53 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 
 ## [Unreleased]
 
+### Fixed
+- **The supervisor's desk works from the console.** Every verb a desk sent against a production
+  call was refused — `403 that call's agent belongs to another org` — because the door asked the
+  LIVE registry whose the call was, in the world of the key that asked. A person's key is minted
+  into the sandbox whatever world the page reads in (`api/login.py`), so the lookup missed and a
+  key that owned the call was told it was somebody else's. Whose a call is, is what its LOG says:
+  the one question every read door already asks (`api/calls/sink.py`), now asked here too, by
+  `POST /v1/calls/{call}/verbs` and `WS /v1/attach` alike. The sentence is `403 that call belongs
+  to another org`.
+
+### Removed
+- **The operator's page, `/admin`.** The gateway served a second bundle there, opened with the
+  box's ops key typed into a browser, doing a poorer version of what the console's **Box** group
+  already does for a person the box made an operator — Organizations, Fleet, Routes, Box usage,
+  Box settings — with that person's own key. One page, one build, one credential. The `/v1/ops/*`
+  doors are untouched, and a box's first org is made where it always was:
+  `pinecall-runtime init --org … --email … --person …`, now written down in the README.
+
+### Changed
+- **A persona belongs to the org, not to one agent.** A caller is a person on the phone, and who
+  they are does not depend on which of the org's agents answers — so `agent_personas` is keyed
+  `(org, name)` and the doors lost the agent in their path: `GET /v1/personas`, `PUT` and `DELETE`
+  on `/v1/personas/{name}`, same `evals` scope, same 422/404/409. The per-agent doors are gone
+  rather than kept beside them; this is pre-1.0 and one shape beats two. Migration 0045 merges a
+  name two agents of one org both held by keeping the most-recently-written under that name and
+  the other under `<name>-<agent>`, so nothing is lost and a person can delete it from the
+  console. Production had no such collision when this was written.
+
 ### Added
-- **The personas are the gateway's.** `GET /v1/agents/{slug}/personas`, `PUT` and `DELETE` on one
+- **What a persona has done.** `GET /v1/personas/{name}/runs?limit=&before=` answers every
+  simulation that caller has run in the key's world and corner, newest first: the call id, the
+  agent, when, how many turns the caller took, how it ended, its outcome line, what it cost and
+  how the judges answered — paged exactly as the sessions list is. It is read off the call index
+  and never by folding a log.
+- **A simulated call says who is being played.** Nothing recorded the persona on a call before,
+  so the Personas screen could show what a caller is and nothing about what it has done. The name
+  now rides the call's own `call.started`, beside `run`: a written simulation puts it on the chat
+  socket (`/v1/chat?persona=`) and a spoken one on the dispatch, because there the worker is what
+  writes that entry. `log/facts.py` projects it into `call_facts.persona` (migration 0046) the way
+  every other fact is projected. There is no backfill — the name is nowhere in the logs of the
+  calls that already happened — so every older simulation reads as "no persona", which is what it
+  honestly is.
+- **The personas are the gateway's.** `GET /v1/personas`, `PUT` and `DELETE` on one
   by name, opened by `evals`: a synthetic caller is a goal, a manner and a few facts — the same
   kind of thing as the voice and the lexicon, and no more a file of a project than those are. One
-  list per agent per org, not per world: a caller is a test, not something a customer hears.
-  Migration 0042.
+  list per org, not per world: a caller is a test, not something a customer hears. Migration
+  0042, and 0045 which took the agent out of the key.
 - **The hold melody's doors are in the protocol.** The six of them — `GET`·`PUT`
   `/v1/agents/{slug}/pipeline/hold-audio`, `…/audio`, `…/played`, and the worker's
   `GET /v1/agents/{slug}/hold-audio[/audio]` — were in no public page.

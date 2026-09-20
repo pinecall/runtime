@@ -1,4 +1,4 @@
-"""An agent's personas over the wire: listed, written, renamed, dropped — and the names refused."""
+"""The org's personas over the wire: listed, written, renamed, dropped — and the names refused."""
 
 from __future__ import annotations
 
@@ -7,20 +7,20 @@ from collections.abc import Iterator
 import httpx
 import pytest
 
-from pinecall.api.agents.personas import the_personas
 from pinecall.api.app import app
+from pinecall.api.personas import the_personas
 from pinecall.orgs.personas import MemoryPersonas
 
 pytestmark = pytest.mark.unit
 
-PERSONAS = "/v1/agents/clinica-norte/personas"
+PERSONAS = "/v1/personas"
 
 
 # This door's own store, for the length of one test: `wired` answers every other dependency, and
 # a table only this page reads is overridden where it is read.
 @pytest.fixture(autouse=True)
 def personas() -> Iterator[MemoryPersonas]:
-    """The agent's callers, empty at the start of every test."""
+    """The org's callers, empty at the start of every test."""
     kept = MemoryPersonas()
     app.dependency_overrides[the_personas] = lambda: kept
     yield kept
@@ -35,7 +35,7 @@ DANA = {
 }
 
 
-async def test_an_agent_with_nobody_written_for_it_lists_none(
+async def test_an_org_with_nobody_written_for_it_lists_none(
     tenant_http: httpx.AsyncClient,
 ) -> None:
     listed = await tenant_http.get(PERSONAS)
@@ -124,14 +124,15 @@ async def test_one_dropped_is_gone_and_a_name_nobody_wrote_is_a_404(
     assert (await tenant_http.delete(f"{PERSONAS}/homeowner")).status_code == 404
 
 
-# One list an agent, per org: what is written for one agent is not another's, and the world the
-# key acts in does not cut them apart — a caller is a test, not something a customer hears.
-async def test_the_list_is_one_agents_and_not_another_agents(
+# One list an ORG: a caller is a person on the phone, and who they are does not depend on which
+# of the org's agents answers. The world the key acts in does not cut them apart either — a caller
+# is a test, not something a customer hears.
+async def test_one_caller_written_once_is_the_whole_orgs(
     tenant_http: httpx.AsyncClient, personas: MemoryPersonas
 ) -> None:
     await tenant_http.put(f"{PERSONAS}/homeowner", json=DANA)
 
-    other = await tenant_http.get("/v1/agents/dental-sur/personas")
+    listed = await tenant_http.get(PERSONAS)
 
-    assert other.json() == {"personas": []}
-    assert len(await personas.of("clinica", "clinica-norte")) == 1
+    assert [one["name"] for one in listed.json()["personas"]] == ["homeowner"]
+    assert [one["name"] for one in await personas.of("clinica")] == ["homeowner"]

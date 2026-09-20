@@ -113,6 +113,10 @@ async def a_voice_call(
             # The persona speaks again when the agent is listening again, never on a clock: the
             # same wait the golden runner makes, so a turn that runs a tool is not talked over.
             settled=lambda so_far: until_the_answer_lands(store, said.call, so_far),
+            # Who is being played, so call.started says it: the worker writes that entry, and
+            # this name is all that reaches it. Without it a spoken simulation was a call like
+            # any other and the Personas screen could not find its own runs.
+            persona=said.persona.name or None,
             org=key.org,
             env=key.env,
             holder=held_by(key),

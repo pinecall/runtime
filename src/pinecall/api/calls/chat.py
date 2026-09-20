@@ -208,6 +208,11 @@ def a_call_from(websocket: WebSocket, org: str, env: Env, slug: str) -> CallCont
         direction="inbound",
         caller=websocket.query_params.get("caller") or a_visitor(),
         contact=_who_they_say_they_are(websocket),
+        # `?persona=` is a written simulation saying who is being played on this call: `pinecall
+        # simulate` drives the turns from here, and without it nothing on the call named the
+        # caller. It rides call.started and is projected into call_facts from there, which is what
+        # the Personas screen reads a caller's own runs off. A person's chat names none.
+        persona=websocket.query_params.get("persona") or None,
         route=Route(org=org, agent=slug, channel=THE_WIDGET, number=None, env=env),
         today=date.today(),
     )

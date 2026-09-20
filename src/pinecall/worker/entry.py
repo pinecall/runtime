@@ -244,6 +244,7 @@ def a_call(call: str, arrival: router.Arrival, route: Route) -> CallContext:
         today=date.today(),
         metadata=arrival.metadata,
         run=arrival.run,
+        persona=arrival.persona,
         holder=arrival.whose.holder,
     )
 

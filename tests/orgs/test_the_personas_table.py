@@ -1,4 +1,4 @@
-"""The personas table in Postgres: written whole, renamed, dropped, and JSON back as it went in."""
+"""The org's personas in Postgres: written whole, renamed, dropped, and JSON back as it went in."""
 
 from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Any
@@ -40,6 +40,17 @@ async def pool(postgres: Dev) -> AsyncIterator[Pool]:
 @pytest.fixture
 async def org(pool: Pool) -> str:
     """An org of this test's own: the rows outlive the test, and 0043 references it."""
+    return await an_org(pool)
+
+
+@pytest.fixture
+async def other(pool: Pool) -> str:
+    """A second org, to prove one org's callers are not another's."""
+    return await an_org(pool)
+
+
+async def an_org(pool: Pool) -> str:
+    """One org row nobody else holds."""
     id = f"org-{uuid4().hex[:12]}"
     await pool.execute("INSERT INTO orgs (id, slug, name) VALUES ($1, $1, $1)", id)
     return id
@@ -69,18 +80,16 @@ class Counted:
         await self.pool.close()
 
 
-async def names_in_the_table(pool: Pool, org: str, agent: str) -> list[str]:
-    """What the table itself holds for this agent, asked of it and not of the verb under test."""
-    rows = await pool.fetch(
-        "SELECT name FROM agent_personas WHERE org = $1 AND agent = $2 ORDER BY name", org, agent
-    )
+async def names_in_the_table(pool: Pool, org: str) -> list[str]:
+    """What the table itself holds for this org, asked of it and not of the verb under test."""
+    rows = await pool.fetch("SELECT name FROM agent_personas WHERE org = $1 ORDER BY name", org)
     return [str(row["name"]) for row in rows]
 
 
 async def test_a_caller_written_comes_back_whole(pool: Pool, org: str) -> None:
     kept = Personas(pool)
 
-    [one] = await kept.put(org, "clinica", "homeowner", **DANA)
+    [one] = await kept.put(org, "homeowner", **DANA)
 
     assert (one["name"], one["goal"], one["about"]) == ("homeowner", DANA["goal"], DANA["about"])
     assert one["facts"] == {"their name": "Dana Ruiz"}
@@ -94,16 +103,16 @@ async def test_the_state_of_a_caller_the_business_knows_survives_the_column(
     kept = Personas(pool)
     state = {"stage": "book", "patient": {"id": "p-1", "slots": [1, 2]}}
 
-    [one] = await kept.put(org, "clinica", "known", **dana(state=state))
+    [one] = await kept.put(org, "known", **dana(state=state))
 
     assert one["state"] == state
 
 
 async def test_writing_the_same_name_replaces_it_and_never_doubles_it(pool: Pool, org: str) -> None:
     kept = Personas(pool)
-    await kept.put(org, "clinica", "homeowner", **DANA)
+    await kept.put(org, "homeowner", **DANA)
 
-    written = await kept.put(org, "clinica", "homeowner", **dana(goal="a price today"))
+    written = await kept.put(org, "homeowner", **dana(goal="a price today"))
 
     assert [one["goal"] for one in written] == ["a price today"]
 
@@ -111,12 +120,12 @@ async def test_writing_the_same_name_replaces_it_and_never_doubles_it(pool: Pool
 async def test_a_rename_leaves_exactly_one_row_and_it_is_the_new_name(pool: Pool, org: str) -> None:
     """The old name is gone from the table itself, not merely absent from what put() answered."""
     kept = Personas(pool)
-    await kept.put(org, "clinica", "homeowner", **DANA)
+    await kept.put(org, "homeowner", **DANA)
 
-    renamed = await kept.put(org, "clinica", "dana", **dana(goal="a price today"), was="homeowner")
+    renamed = await kept.put(org, "dana", **dana(goal="a price today"), was="homeowner")
 
     assert [one["name"] for one in renamed] == ["dana"]
-    assert await names_in_the_table(pool, org, "clinica") == ["dana"]
+    assert await names_in_the_table(pool, org) == ["dana"]
     assert renamed[0]["goal"] == "a price today"
 
 
@@ -124,50 +133,61 @@ async def test_a_rename_is_one_statement_so_no_cut_leaves_both_names(pool: Pool,
     """Gone and written together: what used to be an INSERT, a gap, and then a DELETE."""
     counted = Counted(pool)
     kept = Personas(counted)
-    await kept.put(org, "clinica", "homeowner", **DANA)
+    await kept.put(org, "homeowner", **DANA)
     counted.statements.clear()
 
-    await kept.put(org, "clinica", "dana", **DANA, was="homeowner")
+    await kept.put(org, "dana", **DANA, was="homeowner")
 
     assert len(counted.statements) == 1
-    assert await names_in_the_table(pool, org, "clinica") == ["dana"]
+    assert await names_in_the_table(pool, org) == ["dana"]
 
 
 async def test_a_rename_writes_nothing_when_nobody_wrote_the_name_it_renames(
     pool: Pool, org: str
 ) -> None:
     kept = Personas(pool)
-    await kept.put(org, "clinica", "homeowner", **DANA)
+    await kept.put(org, "homeowner", **DANA)
 
     with pytest.raises(NoSuchPersona):
-        await kept.put(org, "clinica", "dana", **DANA, was="nobody")
+        await kept.put(org, "dana", **DANA, was="nobody")
 
-    assert await names_in_the_table(pool, org, "clinica") == ["homeowner"]
+    assert await names_in_the_table(pool, org) == ["homeowner"]
 
 
 async def test_a_rename_onto_a_name_somebody_holds_is_refused_and_moves_nothing(
     pool: Pool, org: str
 ) -> None:
     kept = Personas(pool)
-    await kept.put(org, "clinica", "homeowner", **DANA)
-    await kept.put(org, "clinica", "dana", **DANA)
+    await kept.put(org, "homeowner", **DANA)
+    await kept.put(org, "dana", **DANA)
 
     with pytest.raises(NameTaken):
-        await kept.put(org, "clinica", "dana", **DANA, was="homeowner")
+        await kept.put(org, "dana", **DANA, was="homeowner")
 
-    assert await names_in_the_table(pool, org, "clinica") == ["dana", "homeowner"]
+    assert await names_in_the_table(pool, org) == ["dana", "homeowner"]
 
 
 async def test_dropping_one_nobody_wrote_says_so(pool: Pool, org: str) -> None:
     kept = Personas(pool)
 
     with pytest.raises(NoSuchPersona):
-        await kept.drop(org, "clinica", "nobody")
+        await kept.drop(org, "nobody")
 
 
-async def test_one_agents_callers_are_not_anothers(pool: Pool, org: str) -> None:
+async def test_a_caller_written_once_is_read_by_every_agent_of_the_org(
+    pool: Pool, org: str
+) -> None:
+    """The row names no agent, so there is one list and every agent of the org calls with it."""
     kept = Personas(pool)
-    await kept.put(org, "clinica", "homeowner", **DANA)
+    await kept.put(org, "homeowner", **DANA)
 
-    assert await kept.of(org, "dental") == []
-    assert [one["name"] for one in await kept.of(org, "clinica")] == ["homeowner"]
+    assert [one["name"] for one in await kept.of(org)] == ["homeowner"]
+    assert await names_in_the_table(pool, org) == ["homeowner"]
+
+
+async def test_one_orgs_callers_are_not_anothers(pool: Pool, org: str, other: str) -> None:
+    kept = Personas(pool)
+    await kept.put(org, "homeowner", **DANA)
+
+    assert await kept.of(other) == []
+    assert [one["name"] for one in await kept.of(org)] == ["homeowner"]

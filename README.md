@@ -18,10 +18,10 @@ pip install pinecall          # or: uv add pinecall
 ```
 
 That is the whole install on a server: the wheel carries the gateway, the worker, the migrations
-and both browser pages, with the widget the gateway serves at `/widget/pinecall-widget.js` — all
-three copied in by `scripts/console` before a build; a gateway built without them answers those
-paths `404` with the sentence that says so. The console it serves at `/` shows production; a
-developer's sandbox is watched on their own machine, by the CLI's `pinecall serve`. A laptop that wants to read the code, run the example agent or bring up
+and the console, with the widget the gateway serves at `/widget/pinecall-widget.js` — both copied
+in by `scripts/console` before a build; a gateway built without them answers those paths `404`
+with the sentence that says so. The console it serves at `/` shows production; a developer's
+sandbox is watched on their own machine, by the CLI's `pinecall serve`. A laptop that wants to read the code, run the example agent or bring up
 the dev stack clones instead — [docs/from-zero.md](docs/from-zero.md) is that walkthrough, every
 command in it run in order with the output it returned.
 
@@ -112,6 +112,22 @@ make doctor [MAIL_TO=you@example.com]                                   what the
 make providers [DOES=tts]                                               every vendor, and what each wants
 make status · make logs UNIT=worker · make ssh
 ```
+
+**The first org, and who operates the box.** A box answers nobody until an org exists, and there
+is no page to make one in: a fresh box has no person to sign in as. It is made on the box, by the
+CLI, which is the only thing that can speak to a runtime nobody has used yet:
+
+```
+pinecall-runtime init --org clinica-norte --email ana@clinica.example --person "Ana Ruiz"
+```
+
+That makes the org, makes Ana its first admin, makes her an **operator of this box**, and prints
+the link she signs in with, once. From then on everything is the console at `https://<your
+domain>`: Ana's own screens are her org's, and the **Box** group in her sidebar — Organizations,
+Fleet, Routes, Box usage, Box settings — is the operator's, which `/v1/ops/*` opens for her
+because the box made her one. More orgs are made there, or with `pinecall-runtime orgs add`; more
+operators with `pinecall-runtime orgs operator <org> <email>`. There is no separate operator page
+and no ops key typed into a browser.
 
 **A second box.** One machine is `PINECALL_ROLE=all`. To grow, the machine you have becomes the
 **hub** (`PINECALL_ROLE=hub` in its `/etc/pinecall/box.env`: gateway and media plane, no worker)

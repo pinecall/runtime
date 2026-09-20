@@ -30,6 +30,21 @@ async def test_a_dispatched_job_resolves_to_the_agent_its_metadata_names() -> No
     assert router.resolve(arrival, ROUTES) == TIENDA_PHONE
 
 
+# The spoken half of the seam that names a synthetic caller: the gateway holds the whole simulated
+# call, but this process is what writes call.started, so the name arrives in the dispatch or not
+# at all. Every other call names none, and reads as nobody playing anybody.
+async def test_a_dispatched_simulation_says_which_synthetic_caller_is_being_played() -> None:
+    arrival = await _arrival(
+        a_job(metadata={"agent": "tienda-sur", "persona": "homeowner"}), _a_seat()
+    )
+    assert arrival.persona == "homeowner"
+
+
+async def test_a_job_that_names_no_persona_is_a_call_nobody_is_playing() -> None:
+    arrival = await _arrival(a_job(metadata={"agent": "tienda-sur"}), _a_seat())
+    assert arrival.persona is None
+
+
 # THE bug: livekit fills `job.participant` for a publisher job and leaves it empty for a room job,
 # which is what a SIP dispatch rule creates — so a real INVITE only routes if the number is read
 # off the seat in the room. Every job in this file has an empty participant, this one included.

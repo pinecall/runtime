@@ -10,7 +10,15 @@ from dataclasses import dataclass, field
 from pinecall.log.entry import Entry
 from pinecall.log.facts import CallFacts, change_of
 from pinecall.log.store import memory_index
-from pinecall.log.store.index import CallCorner, Day, Found, Threads, Unsealed, Wanted
+from pinecall.log.store.index import (
+    CallCorner,
+    Day,
+    Found,
+    PersonaRuns,
+    Threads,
+    Unsealed,
+    Wanted,
+)
 from pinecall.log.store.memory_index import Indexed, StillOpen
 from pinecall.log.store.protocol import DEFAULT_LIMIT, LogSealed, Metered
 from pinecall.types import Versions
@@ -211,6 +219,12 @@ class MemoryStore:
     async def found(self, org: str, env: str, holder: str, wanted: Wanted, limit: int) -> Found:
         """The corner's calls that match, a page of them, newest first."""
         return memory_index.found(self._indexed(org, env, holder), wanted, limit)
+
+    async def runs_of_persona(
+        self, org: str, env: str, holder: str, persona: str, before: str | None, limit: int
+    ) -> PersonaRuns:
+        """This caller's newest simulations in the corner, a page of them."""
+        return memory_index.runs_of_persona(self._indexed(org, env, holder), persona, before, limit)
 
     async def a_day(self, org: str, env: str, holder: str, start: float) -> Day:
         """The corner's day, counted."""

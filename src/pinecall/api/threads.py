@@ -9,7 +9,6 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, Response
 
 from pinecall.api._deps import CallIndexDep, CallsKeyDep, SnapshotsDep, StoreDep, TalkKeyDep
-from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.supervise.aiming import QueueingDep, VerbRefused, aimed
 from pinecall.api.whatsapp.threads import WINDOW_SECONDS
 from pinecall.auth.corner import Corner, corner_of
@@ -109,7 +108,7 @@ async def say(
     key: TalkKeyDep,
     index: CallIndexDep,
     live: QueueingDep,
-    registry: RegistryDep,
+    store: StoreDep,
     snapshots: SnapshotsDep,
 ) -> ThreadSaid:
     """The words said to the contact on their open WhatsApp conversation."""
@@ -125,7 +124,7 @@ async def say(
         raise HTTPException(409, NOTHING_OPEN.format(contact=contact))
     reader = Reader(projection=KEY_PROJECTION, key=key, subject=key.subject, name=key.name)
     try:
-        await aimed(live, registry, snapshots, reader, newest, verbs.SayVerb(text=said.text))
+        await aimed(live, store, snapshots, reader, newest, verbs.SayVerb(text=said.text))
     except VerbRefused as refused:
         raise HTTPException(refused.status, refused.detail) from refused
     return ThreadSaid(contact=contact, call=newest)

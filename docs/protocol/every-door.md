@@ -57,7 +57,7 @@ that colleague's corner.
 | `POST` | `/v1/login/sso/discover` | which orgs an address's domain signs in to with a provider; says nothing about who exists — no key, throttled like the login |
 | `POST` | `/v1/signup` | where `PINECALL_SIGNUP` is on, off by default: a new org allowed what its gateway's policy says, its admin active, their first key and a login code |
 | `GET` | `/v1/whoami` | the org as an id AND as the `slug` its people type, the key's id, its label, the world this request runs in (`env`), whether it may act in `production`, its `scopes`, whose it is (`subject`, `name`), whether that person runs the box (`operator`) and whether they are inside an org they are no member of (`visiting`) |
-| `GET` | `/v1/ops/whoami` | **the box's own**: that this key is the operator's, the version, the domain, and the `name` and `org` of the person holding it — null for the box's own key; what the `/admin` page proves its key at |
+| `GET` | `/v1/ops/whoami` | **the box's own**: that this key is the operator's, the version, the domain, and the `name` and `org` of the person holding it — null for the box's own key; what the console's Box screens prove their key at |
 | `GET` · `PUT` · `DELETE` | `/v1/ops/mail` | **the box's own**: the mail server the box posts through, stored here over the environment's — `source` says which; never the password. [the-box.md](the-box.md) |
 | `POST` | `/v1/ops/mail/test` | **the box's own**: one letter through the box's mailbox, waited for — `{sent, error}` |
 | `GET` | `/v1/ops/signin` | **the box's own**: every box-wide provider — `{google: {configured, client_id, redirect_uri}}` |
@@ -106,7 +106,8 @@ that colleague's corner.
 | `GET` | `/v1/routes` | the numbers and doors your org answers |
 | `PUT`·`DELETE`·`GET` | `/v1/provider-keys[/{vendor}]` | the org's own vendor accounts — `providers` |
 | `GET` | `/v1/providers` | every vendor this build runs, which are ready on this box and which want a key, the vendor each stage runs on when nobody chose (`defaults`), the models this build vouches for under `<modality>/<vendor>` (`models`) and the curated voices — `providers` |
-| `GET` | `/v1/agents/{slug}/personas` · `PUT`·`DELETE …/{name}` | the agent's synthetic callers — a goal, a manner, the facts they may state — one list an agent per org, whichever world asks; `evals` |
+| `GET` | `/v1/personas` · `PUT`·`DELETE …/{name}` | the org's synthetic callers — a goal, a manner, the facts they may state — one list an org, whichever agent and whichever world asks; `evals` |
+| `GET` | `/v1/personas/{name}/runs?limit=&before=` | that caller's simulations in the key's corner, newest first: the call, the agent, when, its turns, how it ended, its outcome, what it cost and how the judges answered. Paged as the sessions list is; `404` for a name this org never wrote — `evals` |
 | `PUT`·`GET`·`DELETE` | `/v1/knowledge[/{base}]` · `POST …/eval` · `GET /v1/knowledge/attached` · `GET`·`PUT`·`DELETE …/{base}/files/{path}` | the bases the agent searches, in the request's world — production's pushed there directly; a push answers the chunks it made; which agents read which; a base's files listed, read, put and taken out one at a time |
 | `GET`·`DELETE` | `/v1/contacts/{contact}/memory` · `POST /v1/contacts/memory/eval` | what it keeps about a person, in the key's world |
 | `GET` | `/v1/agents/{slug}/threads?after=` · `/threads/{contact}` | the inbox: an agent's calls by contact, what this person has not read, and one thread merged — `calls` |
@@ -121,7 +122,7 @@ that colleague's corner.
 | `POST`·`GET` | `/v1/fleet/heartbeat` · `/v1/fleet/standing` | the fleet's: what a worker holds, and whether all are full. A key holding the `fleet` scope only |
 | `GET`·`POST` | `/v1/whatsapp/webhook` | Meta's |
 | `GET` | `/.well-known/pinecall` | what this gateway is before anybody holds a key: version, `cloud`, `signup`, `min_password`, `mail`, `brand`, `google` — no key |
-| `GET` | `/`, `/admin` | the console, and the operator's page — no key to load, each proves its own |
+| `GET` | `/` | the console — no key to load, it proves its own |
 | `GET` | `/widget/pinecall-widget.js` | the widget, for any site to load: `Access-Control-Allow-Origin: *`, the one CORS answer |
 | | `/v1/ops/*` | the operator's: the box's own key, or the key of a person the box made an operator — [operator-api.md](operator-api.md) |
 

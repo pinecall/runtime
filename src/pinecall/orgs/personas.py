@@ -1,4 +1,4 @@
-"""Where an agent's synthetic callers are kept: one row a caller, one list an agent, per org."""
+"""Where an org's synthetic callers are kept: one row a caller, one list an org, whichever agent."""
 
 from __future__ import annotations
 
@@ -11,38 +11,38 @@ from pinecall._exceptions import PinecallError
 from pinecall.log.store import Pool
 
 # A caller nobody wrote, and a name taken by somebody else: the two things a write can meet.
-NOBODY = "no persona called {name} for {agent}"
-TAKEN = "{agent} has a persona called {name} already"
+NOBODY = "no persona called {name} in this org"
+TAKEN = "this org has a persona called {name} already"
 
 
 class NoSuchPersona(PinecallError):
-    """The caller a read, a rename or a drop named is not one this agent has."""
+    """The caller a read, a rename or a drop named is not one this org has."""
 
 
 class NameTaken(PinecallError):
-    """A rename onto a name another caller of this agent already holds."""
+    """A rename onto a name another caller of this org already holds."""
 
 
 _LIST = """
 SELECT name, about, goal, style, facts, state, author, set_at
   FROM agent_personas
- WHERE org = $1 AND agent = $2
+ WHERE org = $1
  ORDER BY name
 """
 
 # One statement, so a rename is one: the old row goes and the new one arrives together, or
-# neither does. Two calls left both names behind whenever anything cut between them. `$10` is the
-# name it was called before, NULL for a write that renames nothing — `name = $10` then matches no
-# row, as does `$10 <> $3` when the rename is onto the same name, and the DELETE takes nothing.
+# neither does. Two calls left both names behind whenever anything cut between them. `$9` is the
+# name it was called before, NULL for a write that renames nothing — `name = $9` then matches no
+# row, as does `$9 <> $2` when the rename is onto the same name, and the DELETE takes nothing.
 _PUT = """
 WITH gone AS (
     DELETE FROM agent_personas
-          WHERE org = $1 AND agent = $2 AND name = $10 AND $10 <> $3
+          WHERE org = $1 AND name = $9 AND $9 <> $2
       RETURNING name
 )
-INSERT INTO agent_personas (org, agent, name, about, goal, style, facts, state, author, set_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, now())
-ON CONFLICT (org, agent, name)
+INSERT INTO agent_personas (org, name, about, goal, style, facts, state, author, set_at)
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, now())
+ON CONFLICT (org, name)
   DO UPDATE SET about = EXCLUDED.about,
                 goal = EXCLUDED.goal,
                 style = EXCLUDED.style,
@@ -52,28 +52,27 @@ ON CONFLICT (org, agent, name)
                 set_at = now()
 """
 
-_DROP = "DELETE FROM agent_personas WHERE org = $1 AND agent = $2 AND name = $3 RETURNING name"
+_DROP = "DELETE FROM agent_personas WHERE org = $1 AND name = $2 RETURNING name"
 
 
 class Personas:
-    """Every caller an org wrote for one of its agents, read and written by name."""
+    """Every caller an org wrote, read and written by name — whichever agent ends up answering."""
 
     def __init__(self, pool: Pool) -> None:
         self._pool = pool
 
-    async def of(self, org: str, agent: str) -> list[dict[str, Any]]:
-        """Every caller of this agent, by name. Each one whole: the gateway keeps no half."""
-        rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(_LIST, org, agent)
+    async def of(self, org: str) -> list[dict[str, Any]]:
+        """Every caller of this org, by name. Each one whole: the gateway keeps no half."""
+        rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(_LIST, org)
         return [_a_persona(row) for row in rows]
 
-    async def named(self, org: str, agent: str, name: str) -> dict[str, Any] | None:
+    async def named(self, org: str, name: str) -> dict[str, Any] | None:
         """One caller, or None when nobody wrote that name."""
-        return next((one for one in await self.of(org, agent) if one["name"] == name), None)
+        return next((one for one in await self.of(org) if one["name"] == name), None)
 
     async def put(
         self,
         org: str,
-        agent: str,
         name: str,
         *,
         about: str,
@@ -87,18 +86,17 @@ class Personas:
         """The caller written whole — new, replaced, or renamed from `was` — and the list after.
 
         A rename is refused before it is written — nobody wrote `was`, or somebody else holds the
-        new name — and then it is ONE statement, so no cut leaves the agent with both names.
+        new name — and then it is ONE statement, so no cut leaves the org with both names.
         Nothing is merged: what the page sent IS the caller.
         """
         if was is not None and was != name:
-            if await self.named(org, agent, was) is None:
-                raise NoSuchPersona(NOBODY.format(name=was, agent=agent))
-            if await self.named(org, agent, name) is not None:
-                raise NameTaken(TAKEN.format(agent=agent, name=name))
+            if await self.named(org, was) is None:
+                raise NoSuchPersona(NOBODY.format(name=was))
+            if await self.named(org, name) is not None:
+                raise NameTaken(TAKEN.format(name=name))
         await self._pool.execute(
             _PUT,
             org,
-            agent,
             name,
             about,
             goal,
@@ -108,13 +106,13 @@ class Personas:
             author,
             was,
         )
-        return await self.of(org, agent)
+        return await self.of(org)
 
-    async def drop(self, org: str, agent: str, name: str) -> list[dict[str, Any]]:
+    async def drop(self, org: str, name: str) -> list[dict[str, Any]]:
         """The caller gone, and the list after. A name nobody wrote is said so, never a quiet no."""
-        if await self._pool.fetchrow(_DROP, org, agent, name) is None:
-            raise NoSuchPersona(NOBODY.format(name=name, agent=agent))
-        return await self.of(org, agent)
+        if await self._pool.fetchrow(_DROP, org, name) is None:
+            raise NoSuchPersona(NOBODY.format(name=name))
+        return await self.of(org)
 
 
 # The two JSON columns come back as text from one driver and as objects from another; both are
@@ -146,18 +144,17 @@ class MemoryPersonas(Personas):
     """The same list in this process's own memory: a gateway with no database still simulates."""
 
     def __init__(self) -> None:  # noqa: D107 — there is nothing to open
-        self._kept: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
+        self._kept: dict[str, dict[str, dict[str, Any]]] = {}
 
     @override
-    async def of(self, org: str, agent: str) -> list[dict[str, Any]]:
-        """Every caller of this agent, by name."""
-        return [dict(one) for _, one in sorted(self._kept.get((org, agent), {}).items())]
+    async def of(self, org: str) -> list[dict[str, Any]]:
+        """Every caller of this org, by name."""
+        return [dict(one) for _, one in sorted(self._kept.get(org, {}).items())]
 
     @override
     async def put(
         self,
         org: str,
-        agent: str,
         name: str,
         *,
         about: str,
@@ -169,12 +166,12 @@ class MemoryPersonas(Personas):
         was: str | None = None,
     ) -> list[dict[str, Any]]:
         """The caller written whole, renamed from `was` when it is one, and the list after."""
-        held = self._kept.setdefault((org, agent), {})
+        held = self._kept.setdefault(org, {})
         if was is not None and was != name:
             if was not in held:
-                raise NoSuchPersona(NOBODY.format(name=was, agent=agent))
+                raise NoSuchPersona(NOBODY.format(name=was))
             if name in held:
-                raise NameTaken(TAKEN.format(agent=agent, name=name))
+                raise NameTaken(TAKEN.format(name=name))
             del held[was]
         held[name] = {
             "name": name,
@@ -186,15 +183,15 @@ class MemoryPersonas(Personas):
             "author": author,
             "set_at": time.time(),
         }
-        return await self.of(org, agent)
+        return await self.of(org)
 
     @override
-    async def drop(self, org: str, agent: str, name: str) -> list[dict[str, Any]]:
+    async def drop(self, org: str, name: str) -> list[dict[str, Any]]:
         """The caller gone, and the list after."""
-        held = self._kept.get((org, agent), {})
+        held = self._kept.get(org, {})
         if held.pop(name, None) is None:
-            raise NoSuchPersona(NOBODY.format(name=name, agent=agent))
-        return await self.of(org, agent)
+            raise NoSuchPersona(NOBODY.format(name=name))
+        return await self.of(org)
 
 
 def personas_for(pool: Pool | None) -> Personas:

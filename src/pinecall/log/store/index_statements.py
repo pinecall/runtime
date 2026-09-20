@@ -9,10 +9,10 @@ FACTS_CHANGED = """
 insert into call_facts as f (
     call, channel, direction, from_number, to_number, name, contact, spoken, ended_at, end_reason,
     outcome, cost_eur, judged, held, passed, reason, promised, escalated, e2e, heard_at,
-    last_text, last_at, last_in
+    last_text, last_at, last_in, persona
 ) values (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $14, $15, $16, $17, $18, $19,
-    $20::double precision[], $21::double precision[], $22, $23, $24
+    $20::double precision[], $21::double precision[], $22, $23, $24, $25
 )
 on conflict (call) do update set
     channel     = coalesce(excluded.channel, f.channel),
@@ -21,6 +21,7 @@ on conflict (call) do update set
     to_number   = coalesce(excluded.to_number, f.to_number),
     name        = coalesce(excluded.name, f.name),
     contact     = coalesce(excluded.contact, f.contact),
+    persona     = coalesce(excluded.persona, f.persona),
     spoken      = f.spoken or excluded.spoken,
     ended_at    = coalesce(excluded.ended_at, f.ended_at),
     end_reason  = coalesce(f.end_reason, excluded.end_reason),
@@ -184,6 +185,32 @@ where $6::double precision is null or (newest.moved_at, newest.contact) < ($6, $
 order by newest.moved_at desc, newest.contact desc
 limit $8
 """
+
+# The runs of one synthetic caller, in one corner, newest first: the same WHERE twice, once
+# counted and once paged, exactly as the session list asks its own question. call_facts_by_persona
+# (0046) finds the caller's calls and the join narrows them to the corner. `$5` is the cursor.
+_THE_CALLERS_RUNS = """
+from call_log_head head join call_facts f on f.call = head.log
+where head.org = $1 and head.env = $2 and head.holder = $3 and head.call is not null
+  and f.persona = $4
+"""
+
+PERSONA_RUNS_COUNT = "select count(*) as total " + _THE_CALLERS_RUNS
+
+PERSONA_RUNS_PAGE = (
+    """
+select f.*, head.agent, coalesce(head.started_at, -1) as started_at,
+       coalesce(array_length(f.heard_at, 1), 0) as turns
+"""
+    + _THE_CALLERS_RUNS
+    + """
+  and ($5::text is null or (coalesce(head.started_at, -1), head.log) < (
+        select coalesce(before.started_at, -1), before.log
+        from call_log_head before where before.log = $5))
+order by coalesce(head.started_at, -1) desc, head.log desc
+limit $6
+"""
+)
 
 CALLS_WITH = """
 select head.log as call

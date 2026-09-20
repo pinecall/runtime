@@ -12,8 +12,7 @@ named below is generated from the schema into the **protocol** repo's `docs/` (`
 
 ## The shape of it
 
-A gateway is an API at `/v1`, and beside it serves the console at `/`, the operator's page at
-`/admin`, and the widget at `/widget/pinecall-widget.js` — the one answer carrying `Access-Control-Allow-Origin: *`
+A gateway is an API at `/v1`, and beside it serves the console at `/` and the widget at `/widget/pinecall-widget.js` — the one answer carrying `Access-Control-Allow-Origin: *`
 (`api/pages.py`). That console holds a person's scoped key (§8) and shows production; the sandbox's is the same page served by `pinecall serve` on a developer's machine.
 Three kinds of connection, and only three:
 
@@ -307,6 +306,7 @@ client, browser or server), or use it as the bearer of:
 The six verbs (`protocol/schema/verbs.json`): `say` (the agent says your words), `whisper` (an
 instruction the caller never hears), `takeover`, `release`, `transfer`, `end`. Each lands in the
 caller's log as its own `supervisor.*` entry with a seq: what a human did is read as what the agent did.
+Whose call it is, is what the call's own **log** says — the question every read door asks, and never who holds the agent's socket at that moment: a key of that org steers it, whatever world the key was minted into; another org's is `403 that call belongs to another org`. A call with no room — the widget's chat, WhatsApp — is steered by the same door and takes five of the six: nothing to hear, no microphone to publish, and `transfer` is `409 supervisor.verb: a text call has no line to transfer`.
 
 ---
 
@@ -362,11 +362,11 @@ An org may bring its own vendor keys, sealed under the box's vault key and read 
 | `POST /v1/evals/run` | a suite of goldens driven through the connected app, scored and stored. Answers an `EvalRun` |
 | `GET /v1/evals/runs?agent=&limit=` · `GET /v1/evals/runs/{id}` | what this gateway has run |
 | `POST /v1/evals/replay/{call}` | ring 3: one finished call rebuilt from its log and answered by four **code** checks — consent, register, errors, latency. Takes `{banned?, budget?}` · `POST /v1/evals/judge/{call}` runs the model judges over one nobody judged: [console-api.md](console-api.md) §6 |
-| `POST /v1/evals/caller` | one improvised line from a persona: `{persona, heard, turns_left}` → `{say, hangup}`. The caller itself is a row, not a file: `GET /v1/agents/{slug}/personas` · `PUT`·`DELETE …/{name}`, one list an agent per **org** and not per world, opened by `evals`. A PUT writes one whole and `was` renames the caller it names (`404` nobody wrote it, `409` the new name is taken); a name is lower-case words joined by hyphens, or `422` |
+| `POST /v1/evals/caller` | one improvised line from a persona: `{persona, heard, turns_left}` → `{say, hangup}`. The caller itself is a row, not a file: `GET /v1/personas` · `PUT`·`DELETE …/{name}`, one list an **org** — no agent in the path, and not per world — opened by `evals`. A PUT writes one whole and `was` renames the caller it names (`404` nobody wrote it, `409` the new name is taken); a name is lower-case words joined by hyphens, or `422` |
+| `GET /v1/personas/{name}/runs?limit=&before=` | what that caller has DONE: every simulation it has run in the key's world and corner, newest first — `PersonaRunList {runs: [{call, agent, started_at, ended_at, turns, end_reason, outcome, cost_eur, score}], total, next}`. `turns` is the caller's own lines, `score` is `null` when nobody judged the run, and the paging is the sessions list's: `next` is the last call of the page, handed back as `before`. Read off the call index, never off a log. `404` for a name this org never wrote, rather than an empty page — `evals` |
 | `POST /v1/evals/voice` | a spoken eval call held in the gateway: a room, the agent dispatched into it, and the persona on the line out loud — an ElevenLabs voice that is **not** one an agent is given, speaking the agent's declared language, waiting for the greeting before its first line and for each answer to land before the next. The line is spoiled on purpose if asked (`interferer_db`, `packet_loss`). The gateway process needs a key for that vendor — the org's own when it brought one, else the box's `ELEVEN_API_KEY` |
 
-`POST /v1/calls/{call}/lookup` and `/remember` are the worker's own doors (retrieval and the
-hang-up's one model call); `lookup` also answers the app (`app`) for `this.knowledge.search`, as `SearchFound {chunks: [{path, heading, text}]}`.
+`POST /v1/calls/{call}/lookup` and `/remember` are the worker's own doors (retrieval and the hang-up's one model call); `lookup` also answers the app (`app`) for `this.knowledge.search`, as `SearchFound {chunks: [{path, heading, text}]}`.
 
 ---
 

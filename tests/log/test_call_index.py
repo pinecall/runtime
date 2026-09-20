@@ -81,6 +81,7 @@ async def a_call(
     took_over: bool = False,
     env: str = "production",
     holder: str = "",
+    persona: str | None = None,
     ended: bool = True,
 ) -> str:
     """One call as a session writes it, claimed by the org, and its id."""
@@ -89,7 +90,10 @@ async def a_call(
     line = {"channel": channel, "from": caller, "to": "+34910000000", "caller": None}
     await store.append(call, agent, "call.ringing", line)
     await store.append(
-        call, agent, "call.started", {**line, "direction": "inbound", "started_at": 1}
+        call,
+        agent,
+        "call.started",
+        {**line, "direction": "inbound", "started_at": 1, "persona": persona},
     )
     await store.append(call, agent, "turn.user", {"text": "hola"})
     await store.append(
@@ -169,6 +173,28 @@ async def test_a_list_is_found_by_words_numbers_door_and_page(
     rest = await store.found(org, "production", "", Wanted(before=one.next), 5)
     assert (rest.calls, rest.next) == ([second, first], None)
     assert (await found(q="%")).calls == [], "a percent sign is a character, not a wildcard"
+
+
+async def test_a_callers_own_runs_are_listed_newest_first_and_paged(
+    store: Indexing, org: str, agent: str
+) -> None:
+    """The persona rides call.started, is folded like every other fact, and the pane reads it."""
+    older = await a_call(store, org, agent, persona="homeowner")
+    newer = await a_call(store, org, "another-agent", persona="homeowner")
+    await a_call(store, org, agent, persona="price-shopper")
+    await a_call(store, org, agent)
+    await a_call(store, org, agent, persona="homeowner", env="sandbox", holder="m_dev")
+
+    assert (await store.facts_of([older]))[older].persona == "homeowner"
+    whole = await store.runs_of_persona(org, "production", "", "homeowner", None, 10)
+    assert [run.facts.call for run in whole.runs] == [newer, older]
+    assert (whole.total, whole.next) == (2, None)
+    assert [run.turns for run in whole.runs] == [1, 1]
+
+    first = await store.runs_of_persona(org, "production", "", "homeowner", None, 1)
+    assert ([run.facts.call for run in first.runs], first.total, first.next) == ([newer], 2, newer)
+    second = await store.runs_of_persona(org, "production", "", "homeowner", newer, 1)
+    assert ([run.facts.call for run in second.runs], second.next) == ([older], None)
 
 
 async def test_a_day_is_counted_in_its_corner(store: Indexing, org: str, agent: str) -> None:

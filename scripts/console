@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# The two pages into the gateway: build the agents repo's console and admin, and copy them in as
-# package data. `make deploy` runs this before it syncs, so the box serves what the checkout built;
-# a clone that never ran it has a gateway that answers `/` with a sentence saying to run it.
+# The console into the gateway: build the agents repo's page and copy it in as package data.
+# `make deploy` runs this before it syncs, so the box serves what the checkout built; a clone that
+# never ran it has a gateway that answers `/` with a sentence saying to run it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -11,17 +11,17 @@ SHIPPED="src/pinecall/gateway"
 
 [ -d "$AGENTS" ] || { echo "no agents checkout at $AGENTS: set PINECALL_AGENTS" >&2; exit 2; }
 
-# One per page: the vite config that builds it, and the directory the gateway serves it from.
-# api/pages.py is the other half of this list and the two are read together.
-for page in console admin; do
-  built="$AGENTS/dist/cli/ui/$page"
-  pnpm --dir "$AGENTS" exec vite build --config "src/cli/ui/$page/vite.config.ts" --logLevel error
-  [ -f "$built/index.html" ] || { echo "vite built no page at $built" >&2; exit 1; }
-  rm -rf "${SHIPPED:?}/$page"
-  mkdir -p "$SHIPPED"
-  cp -R "$built" "$SHIPPED/$page"
-  echo "$page → $SHIPPED/$page ($(find "$SHIPPED/$page" -type f | wc -l | tr -d ' ') files)"
-done
+# The vite config that builds it, and the directory the gateway serves it from. api/pages.py is
+# the other half of this and the two are read together. `admin/` is swept away because a box
+# deployed before the operator's page was removed still carries it, and a stale bundle served by
+# nobody is a bundle somebody finds.
+BUILT="$AGENTS/dist/cli/ui/console"
+pnpm --dir "$AGENTS" exec vite build --config src/cli/ui/console/vite.config.ts --logLevel error
+[ -f "$BUILT/index.html" ] || { echo "vite built no page at $BUILT" >&2; exit 1; }
+rm -rf "${SHIPPED:?}/console" "${SHIPPED:?}/admin"
+mkdir -p "$SHIPPED"
+cp -R "$BUILT" "$SHIPPED/console"
+echo "console → $SHIPPED/console ($(find "$SHIPPED/console" -type f | wc -l | tr -d ' ') files)"
 
 # And the widget, one file, served at /widget/pinecall-widget.js for any page on the internet to
 # load — the gateway is the CDN. api/pages.py serves it with the CORS header a module needs.

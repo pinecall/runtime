@@ -15,7 +15,7 @@ from pinecall.api.calls.events import BAD_VERB, VERB_REFUSED
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
-from pinecall.types import PRODUCTION
+from pinecall.types import PRODUCTION, SANDBOX
 from pinecall_protocol import Command, decode_entries, defs
 from pinecall_protocol.commands import SupervisorVerb
 from pinecall_protocol.fixtures import GOLDEN_LOG
@@ -33,13 +33,18 @@ AN_OWNER = "app_holding_the_clinic"
 ANOTHER_KEY = "pk_test_the_shop_next_door"
 ANOTHER_ORG = KeyRecord(key_id="k_2", org="tienda")
 
+# What a console holds: the key a person's browser was given at login, which is minted into the
+# SANDBOX whatever world the page is reading (api/login.py), and names the member behind it.
+A_PERSONS_KEY = "pk_the_browser_of_somebody_at_the_clinic"
+A_PERSON = KeyRecord(key_id="k_3", org=A_RECORD.org, env=SANDBOX, subject="mem_ana", name="Ana")
+
 SAY: dict[str, Any] = {"verb": "say", "text": "Decile que el turno quedó a las diez."}
 
 
 @pytest.fixture
 def keys() -> MemoryKeys:
     """Two tenants, so a verb aimed across the fence is refused by a key that is otherwise real."""
-    return MemoryKeys({A_KEY: A_RECORD, ANOTHER_KEY: ANOTHER_ORG})
+    return MemoryKeys({A_KEY: A_RECORD, ANOTHER_KEY: ANOTHER_ORG, A_PERSONS_KEY: A_PERSON})
 
 
 # ── the world one verb needs ────────────────────────────────────────────────────
@@ -53,6 +58,9 @@ async def a_live_call(
         await registry.register(
             AN_OWNER, A_RECORD.org, PRODUCTION, AGENT, [defs.Route(channel="web", number=None)]
         )
+    # The claim the open door makes, and what says whose call this is: a verb is refused by the
+    # log's own org, never by who is holding the agent's socket at the moment it is sent.
+    await store.owned(call, AGENT, A_RECORD.org, PRODUCTION, "")
     for entry in decode_entries(GOLDEN_LOG.read_text()):
         await store.append(call=call, agent=AGENT, type=entry.type, data=entry.data)
         if entry.type == "turn.user":
@@ -143,6 +151,19 @@ async def test_another_orgs_key_is_403_and_its_verb_never_reaches_the_worker(
     assert answer.status_code == 403
     assert "another org" in answer.json()["detail"]
     assert queued(live, THE_CALL) == []
+
+
+async def test_a_persons_key_steers_the_orgs_own_production_call(
+    gateway: TestClient, store: MemoryStore, registry: Registry, live: Live, logs: Logs
+) -> None:
+    """The desk in the console: the key is the sandbox's, the call is production's, and both are
+    the one org's. Who is holding the agent's socket has nothing to say about it."""
+    await a_live_call(store, registry, live, logs)
+    assert sent(gateway, THE_CALL, SAY, A_PERSONS_KEY).status_code == 202
+    (command,) = queued(live, THE_CALL)
+    assert SupervisorVerb.model_validate(command.data).by == defs.Supervisor(
+        id="mem_ana", name="Ana"
+    )
 
 
 async def test_a_supervise_token_for_that_call_sends_the_verb_under_its_own_identity(

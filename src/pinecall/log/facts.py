@@ -52,6 +52,9 @@ class CallFacts:
     name: str | None = None
     # Who the inbox files the call under: the id the app resolved, else the number or visitor id.
     contact: str | None = None
+    # The synthetic caller a model played on this call, when a simulation opened it: the name
+    # call.started carried. None for a person, and for every call from before 0046.
+    persona: str | None = None
     spoken: bool = False
     ended_at: float | None = None
     end_reason: str | None = None
@@ -83,6 +86,7 @@ class CallFacts:
             to=change.to or self.to,
             name=change.name or self.name,
             contact=change.contact or self.contact,
+            persona=change.persona or self.persona,
             spoken=self.spoken or change.spoken,
             ended_at=change.ended_at if change.ended_at is not None else self.ended_at,
             end_reason=self.end_reason or change.end_reason,
@@ -134,6 +138,7 @@ class Change:
     to: str | None = None
     name: str | None = None
     contact: str | None = None
+    persona: str | None = None
     spoken: bool = False
     ended_at: float | None = None
     end_reason: str | None = None
@@ -164,7 +169,7 @@ def change_of(entry: Entry) -> Change | None:
 
 
 def _the_line(entry: Entry) -> Change:
-    """ringing, dialing, started: the door, the two sides, and who the contact is."""
+    """ringing, dialing, started: the door, the two sides, the contact, and who is playing them."""
     data = entry.data
     caller = _a_mapping(data.get("caller"))
     channel = _a_word(data.get("channel"))
@@ -178,6 +183,9 @@ def _the_line(entry: Entry) -> Change:
         to=_a_word(data.get("to")),
         name=_a_word(caller.get("name")),
         contact=_a_word(caller.get("id")) or _a_word(data.get("from")),
+        # Only call.started carries it: a ring and a dial happen before anybody is playing
+        # anybody, and a simulation opens its call through neither.
+        persona=_a_word(data.get("persona")),
         spoken=channel == SPOKEN_CHANNEL,
     )
 
