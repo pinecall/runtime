@@ -96,20 +96,20 @@ ORDER BY base, holder DESC
 # holds that base's row from the listing it drew.
 _KEPT = "SELECT coalesce(sum(chunks), 0) AS kept FROM knowledge_bases WHERE org = $1"
 
-# Which model wrote this base's vectors. None when the org pushed no base by that name, which is
-# not an error here: a search of a base nobody pushed answers with nothing, as it always did.
-_MODEL_OF = """
-SELECT model FROM knowledge_bases
-WHERE org = $1 AND env = $2 AND holder IN ($3, '') AND base = $4
-ORDER BY holder DESC LIMIT 1
-"""
+# What a caller hears for the one mistake this signature invites.
+ONE_BASE_IS_STILL_A_LIST = (
+    "search takes the bases a turn reads, as a list: [{base!r}], not {base!r}"
+)
 
-# Whose copy of this base a read is about: yours when you pushed one, the org's otherwise. Written
-# once and pasted into the two branch queries, so neither can drift from `_MODEL_OF`.
-_WHOSE = """
-    holder = (SELECT holder FROM knowledge_bases
-              WHERE org = $1 AND env = $2 AND holder IN ($3, '') AND base = $4
-              ORDER BY holder DESC LIMIT 1)
+# Whose copy of each base this corner reads, and what wrote its vectors: yours where you pushed
+# one, the org's otherwise — '' sorts before any member id, so DESC puts yours first. One
+# definition read twice: the model a base was pushed with, and the holder the two branches join
+# their chunks to. A base the org never pushed is simply absent, which is not an error here: a
+# search of a name nobody pushed answers with nothing, as it always did.
+_MINE = """
+SELECT DISTINCT ON (base) base, holder, model FROM knowledge_bases
+WHERE org = $1 AND env = $2 AND holder IN ($3, '') AND base = ANY($4::text[])
+ORDER BY base, holder DESC
 """
 
 # The chunks go with the row: 0009 declares them ON DELETE CASCADE. The row returned is the
@@ -122,11 +122,21 @@ DELETE FROM knowledge_bases WHERE org = $1 AND env = $2 AND holder = $3 AND base
 RETURNING base
 """
 
-# The dense branch: nearest by cosine, the HNSW index's own order.
+# Both branches read EVERY base the turn asks for, in one pass, and that is the whole of the
+# multi-base design: a score is only comparable to the scores it was ranked against. Searched one
+# base at a time and merged afterwards, each base's own best came back at 1.0 — the fusion reads
+# relative to the best of ITS query — so three attached collections took three of a turn's four
+# slots before the ranking said anything, whatever the third was about (measured 2026-09-20).
+#
+# The dense branch: nearest by cosine, the HNSW index's own order. The corner is JOINED and not
+# asked per candidate: as a correlated subquery it ran once per row — 537 times over maravilla's
+# base, 19ms — and as a join the four columns of `knowledge_chunks_by_base` are one index
+# condition, 5ms (measured on the box, 2026-09-20).
 _NEAREST = f"""
-SELECT id, path, heading, text
-FROM knowledge_chunks
-WHERE org = $1 AND env = $2 AND base = $4 AND {_WHOSE}
+WITH mine AS ({_MINE})
+SELECT id, base, path, heading, text
+FROM knowledge_chunks JOIN mine USING (base, holder)
+WHERE org = $1 AND env = $2
 ORDER BY embedding <=> $5::halfvec
 LIMIT $6
 """
@@ -134,11 +144,12 @@ LIMIT $6
 # The words branch. `<@>` answers the negative BM25 score, lower is better, and 0 is a text
 # none of the query's terms is in — which is not a candidate, so it never earns a rank.
 _BEST_WORDED = f"""
-SELECT id, path, heading, text
+WITH mine AS ({_MINE})
+SELECT id, base, path, heading, text
 FROM (
-    SELECT id, path, heading, text, text <@> to_bm25query($5, '{TEXT_INDEX}') AS score
-    FROM knowledge_chunks
-    WHERE org = $1 AND env = $2 AND base = $4 AND {_WHOSE}
+    SELECT id, base, path, heading, text, text <@> to_bm25query($5, '{TEXT_INDEX}') AS score
+    FROM knowledge_chunks JOIN mine USING (base, holder)
+    WHERE org = $1 AND env = $2
 ) scored
 WHERE score < 0
 ORDER BY score
@@ -251,32 +262,39 @@ class PgKnowledge:
         org: str,
         env: Env,
         holder: str | None,
-        base: str,
+        bases: Sequence[str],
         query: str,
         *,
         k: int = DEFAULT_CHUNKS_PER_TURN,
-        min_score: float | None = None,
+        floors: Mapping[str, float | None] | None = None,
     ) -> list[Chunk]:
-        """The best k chunks for the query, by meaning and by words, fused; under min_score, cut."""
+        """The best k chunks of every base asked, by meaning and by words, fused once together."""
+        # A `str` IS a Sequence[str], so a caller that hands one base the old way asks for its
+        # LETTERS and is answered nothing at all, silently — twelve tests read an empty set before
+        # anybody read this line. The refusal is a sentence because a type checker cannot say it.
+        if isinstance(bases, str):
+            raise TypeError(ONE_BASE_IS_STILL_A_LIST.format(base=bases))
+        if not bases:
+            return []
         [vector] = await self._embedder.embed([query])
         # The base's row rides along with the two branches instead of gating them: it is one more
         # index read on a primary key, and the turn's budget covers the slowest of the three
         # rather than their sum. The refusal comes before a rank is read, either way.
         mine = whose(holder)
+        # The candidate pool grows with the bases asked, so a small collection is not crowded out
+        # of the ranking by a big one before the fusion has read either of them.
+        room = CANDIDATES_PER_BRANCH * len(bases)
+        asked = list(bases)
         pushed, nearest, worded = await asyncio.gather(
-            self._pool.fetchrow(_MODEL_OF, org, env, mine, base),
-            self._pool.fetch(
-                _NEAREST, org, env, mine, base, as_halfvec(vector), CANDIDATES_PER_BRANCH
-            ),
-            self._pool.fetch(_BEST_WORDED, org, env, mine, base, query, CANDIDATES_PER_BRANCH),
+            self._pool.fetch(_MINE, org, env, mine, asked),
+            self._pool.fetch(_NEAREST, org, env, mine, asked, as_halfvec(vector), room),
+            self._pool.fetch(_BEST_WORDED, org, env, mine, asked, query, room),
         )
-        _the_same_model(base, pushed, await self._embedder.model())
-        chunks = [
-            _a_chunk(row, base, score)
-            for row, score in _fused((nearest, worded))
-            if min_score is None or score >= min_score
-        ]
-        return chunks[:k]
+        _every_base_on_the_same_model(pushed, await self._embedder.model())
+        # One fusion over the union, so the scores are comparable; then each chunk against the
+        # floor of ITS OWN base, because a threshold is the attachment's and not the turn's.
+        chunks = [_a_chunk(row, score) for row, score in _fused((nearest, worded))]
+        return [chunk for chunk in chunks if _above_its_floor(chunk, floors)][:k]
 
 
 # The fusion is types/fusion.py's, the same one memory ranks with: a candidate earns
@@ -291,19 +309,30 @@ def _fused(
     return [(rows[id], score) for id, score in relative_to_the_best(fused).items()]
 
 
-def _the_same_model(base: str, pushed: Mapping[str, Any] | None, mine: str) -> None:
-    """Refuse a base whose vectors another model wrote, naming both models and the way out."""
-    if pushed is not None and str(pushed["model"]) != mine:
-        raise WrongModel(
-            PUSHED_WITH_ANOTHER_MODEL.format(base=base, pushed=str(pushed["model"]), mine=mine)
-        )
+def _every_base_on_the_same_model(pushed: Sequence[Mapping[str, Any]], mine: str) -> None:
+    """Refuse the first base whose vectors another model wrote, naming both and the way out."""
+    for row in pushed:
+        if str(row["model"]) != mine:
+            raise WrongModel(
+                PUSHED_WITH_ANOTHER_MODEL.format(
+                    base=str(row["base"]), pushed=str(row["model"]), mine=mine
+                )
+            )
 
 
-def _a_chunk(row: Mapping[str, Any], base: str, score: float) -> Chunk:
-    """One row back into the shape retrieval hands out."""
+# A threshold belongs to the attachment that set it — `docs attach <base> --min-score` — so it is
+# read against the chunk's own base and never against the turn's other collections.
+def _above_its_floor(chunk: Chunk, floors: Mapping[str, float | None] | None) -> bool:
+    """Whether this chunk clears the floor the world put on the base it came from."""
+    floor = None if floors is None else floors.get(chunk.base)
+    return floor is None or chunk.score >= floor
+
+
+def _a_chunk(row: Mapping[str, Any], score: float) -> Chunk:
+    """One row back into the shape retrieval hands out; the row says which base it is from."""
     return Chunk(
         id=str(row["id"]),
-        base=base,
+        base=str(row["base"]),
         path=str(row["path"]),
         heading=None if row["heading"] is None else str(row["heading"]),
         text=str(row["text"]),

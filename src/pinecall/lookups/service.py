@@ -19,7 +19,6 @@ from pinecall.memory import DEFAULT_FACTS_PER_TURN, Memory, Spoken
 from pinecall.types import (
     AgentConfig,
     CallContext,
-    Chunk,
     Counting,
     PlatformTool,
     ProviderKeys,
@@ -164,30 +163,25 @@ class Lookups:
         started: float,
         k: int | None = None,
     ) -> Mapping[str, Any]:
-        """The best chunks of every base the agent reads, each under its k; docs.sources logged."""
+        """The best chunks of every base the agent reads, ranked together; docs.sources logged."""
         bases = opened.config.bases
         # An org that may keep no chunks has none to find, and docs.sources with no sources would
         # tell the grounded judge the base was searched and answered nothing. Nothing is written,
         # and the query is not embedded to search a base that cannot exist.
         if self._knowledge is None or not bases or quotas.switched_off("knowledge_chunks"):
             return found(())
-        # Several bases, one answer: each searched under its own k, the scores already read
-        # against each base's best, the best of all of them first, cut to the largest k asked.
-        chunks: list[Chunk] = []
-        for docs in bases:
-            chunks.extend(
-                await self._knowledge.search(
-                    opened.org,
-                    opened.context.route.env,
-                    opened.holder,
-                    docs.base,
-                    query,
-                    k=k or docs.k,
-                    min_score=docs.min_score,
-                )
-            )
-        chunks.sort(key=lambda chunk: chunk.score, reverse=True)
-        chunks = chunks[: k or max(docs.k for docs in bases)]
+        # Several bases, ONE search: the fusion ranks them against each other, which is the only
+        # way two collections can be compared at all. The turn reads as many chunks as the most
+        # generous attachment allows, and each chunk answers to the floor of its own base.
+        chunks = await self._knowledge.search(
+            opened.org,
+            opened.context.route.env,
+            opened.holder,
+            [docs.base for docs in bases],
+            query,
+            k=k or max(docs.k for docs in bases),
+            floors={docs.base: docs.min_score for docs in bases},
+        )
         took_ms = _since(started)
         await _written(log, "docs.sources", a_retrieval(query, chunks, took_ms, speech_id))
         return found(chunks)

@@ -219,7 +219,7 @@ async def evaluate(
             question=Question(asks=one.asks, expects=one.expects),
             # No min_score: a golden asks where the passage RANKED, and a threshold would answer
             # a different question — whether it also cleared the bar the agent happens to set.
-            chunks=await knowledge.search(key.org, key.env, held_by(key), base, one.asks, k=k),
+            chunks=await knowledge.search(key.org, key.env, held_by(key), [base], one.asks, k=k),
         )
         for one in said.questions
     ]

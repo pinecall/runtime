@@ -1,4 +1,4 @@
-"""The two files every knowledge test pushes, and an org of a test's own to push them under."""
+"""The files every knowledge test pushes, and an org of a test's own to push them under."""
 
 from typing import Any
 from uuid import uuid4
@@ -14,6 +14,14 @@ TARIFAS = KnowledgeFile(
     "tarifas.md",
     "# Tarifas\n\n## Revisión\n\nLa revisión cuesta cuarenta euros y dura media hora.\n\n"
     "## Limpieza\n\nLa limpieza dental cuesta sesenta euros.\n",
+)
+
+# A second base with nothing to do with the first: no word of it is a word of a question about
+# the clinic, which is what makes it the right neighbour for a multi-base search.
+VENDING = KnowledgeFile(
+    "vending.md",
+    "# Máquinas\n\n## Café\n\nLa máquina del pasillo acepta monedas de un euro.\n\n"
+    "## Reposición\n\nEl proveedor repone los snacks cada martes por la mañana.\n",
 )
 
 

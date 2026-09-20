@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Protocol
 
 from pinecall.knowledge.files import File
@@ -82,16 +82,19 @@ class Knowledge(Protocol):
         """How many chunks these files would become, cut as a push would cut them."""
         ...
 
+    # One call for every base the agent reads, and not one call per base: a fusion ranks what it
+    # was given, so two rankings made apart cannot be compared afterwards — the best chunk of each
+    # is a 1.0 whatever it says. `floors` is the min_score each attachment set, by base.
     async def search(
         self,
         org: str,
         env: Env,
         holder: str | None,
-        base: str,
+        bases: Sequence[str],
         query: str,
         *,
         k: int = DEFAULT_CHUNKS_PER_TURN,
-        min_score: float | None = None,
+        floors: Mapping[str, float | None] | None = None,
     ) -> list[Chunk]:
-        """The best k chunks for the query, by meaning and by words, fused; under min_score, cut."""
+        """The best k chunks of every base asked, by meaning and by words, fused once together."""
         ...

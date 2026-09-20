@@ -49,7 +49,7 @@ Four entry types, none of them added for this page:
 
 | entry | fields |
 |---|---|
-| `docs.sources` | `query`, `sources[{id, path, heading, score, excerpt}]`, `took_ms`, `speech_id` |
+| `docs.sources` | `query`, `sources[{id, base, path, heading, score, excerpt}]`, `took_ms`, `speech_id` |
 | `memory.ops` | `ops[{op, contact, query, facts[{id, text, category, score, source}], took_ms}]`, `speech_id` |
 | `metrics.eou` | `end_of_utterance_delay`, `transcription_delay`, `on_user_turn_completed_delay` |
 | `metrics.llm` | `ttft`, `duration`, `prompt_tokens`, `prompt_cached_tokens`, `cache_creation_tokens`, `completion_tokens` |
@@ -121,6 +121,33 @@ is pushed again.
 What a base holds is still the tenant's: a page of nav and footer scraped as a document competes
 for the handful of slots a turn has, and it answers nothing. Retrieval quality is decided at
 extraction more than at embedding, and nothing here can tell a nav bar from a paragraph.
+
+## Several bases, one search
+
+An agent reads every base the world attached to it (`bases` in its settings, one entry per
+`pinecall docs attach`), and a turn searches **all of them in one pass** — one query embedded
+once, both branches reading the union, one fusion over everything that came back, and then each
+chunk against the floor of its OWN attachment.
+
+That is not an optimisation, it is the only ranking that means anything. A fused score is read
+`relative_to_the_best` of its own query, so a base searched **alone** always answers 1.0 for its
+own best chunk, whatever it is about. Searched one at a time and merged afterwards — which is
+what this did until 2026-09-20 — three attached collections took three of a turn's four slots
+before the ranking had said a word about any of them: the vending machine's manual and the
+clinic's tariffs arrived as equals. Read together they are ranked against each other, and a
+collection with nothing to say about the question takes no slot at all.
+
+Two consequences worth stating:
+
+- **The candidate pool grows with the bases asked** (`CANDIDATES_PER_BRANCH × len(bases)`), so a
+  small collection is not crowded out of the fusion by a big one before either is read.
+- **`k` is the turn's, and `min_score` is the attachment's.** How many chunks reach the model is
+  one number for the turn (the most generous `k` of the attachments); the floor is read against
+  the base each chunk came from, because a threshold was set on that collection and says nothing
+  about the others.
+
+And the log says which collection answered: `docs.sources` carries `base` per source, so the rate
+of `held` below can be read per collection and a base that never wins a slot is visible.
 
 ## Quality: what it says is in the documents
 

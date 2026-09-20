@@ -7,6 +7,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Changed
+- **Every base an agent reads is searched in ONE pass, ranked against the others.** A turn asked
+  each attached base its own query and merged the answers afterwards — and a fused score is read
+  relative to the best of ITS query, so every collection answered 1.0 for its own best chunk
+  whatever it was about: three attached bases took three of a turn's four slots before the ranking
+  had said a word. Now one query, both branches over the union, one fusion, and then each chunk
+  against the floor of its own attachment (`--min-score` is the attachment's; `k` is the turn's).
+  The candidate pool grows with the bases asked, so a small collection is not crowded out by a big
+  one. `docs.sources` now carries the `base` each chunk came from.
 - `docs/the-runtime-cli.md` is the verbs; the environment table and the two walkthroughs are
   `docs/the-environment.md`, a page of their own (and a page of the site).
 

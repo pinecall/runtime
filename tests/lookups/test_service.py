@@ -142,16 +142,23 @@ async def test_search_answers_chunks_under_the_declarations_own_k_and_writes_the
         ]
     }
     [asked] = served.knowledge.searched
-    assert (asked["base"], asked["k"], asked["min_score"]) == ("clinica", 2, None)
+    assert (asked["bases"], asked["k"], asked["floors"]) == (["clinica"], 2, {"clinica": None})
     [sources] = await served.written("docs.sources")
     assert (sources["query"], sources["speech_id"]) == ("¿cuánto cuesta?", "sp_4")
-    assert [(one["id"], one["heading"], one["excerpt"]) for one in sources["sources"]] == [
-        ("c1", "Tarifas › Revisión", "La revisión son 45 €."),
-        ("c2", "Tarifas › Limpieza", "La limpieza son 60 €."),
+    # The base is on every source, because a turn reads every base the agent has attached and
+    # nothing else on the log would say which collection answered.
+    assert [
+        (one["id"], one["base"], one["heading"], one["excerpt"]) for one in sources["sources"]
+    ] == [
+        ("c1", "clinica", "Tarifas › Revisión", "La revisión son 45 €."),
+        ("c2", "clinica", "Tarifas › Limpieza", "La limpieza son 60 €."),
     ]
 
 
-async def test_every_attached_base_is_searched_and_the_best_of_all_of_them_come_first() -> None:
+async def test_every_attached_base_is_searched_in_ONE_pass_so_the_scores_are_comparable() -> None:
+    """Two collections, one search. Asked one at a time and merged afterwards, each base's own
+    best came back at 1.0 — the fusion reads relative to the best of ITS query — so the second
+    collection took a slot before the ranking had said anything about it."""
     served = a_served_call(
         config=a_config(bases=(Docs(base="clinica", k=2), Docs(base="tarifas", k=1))),
         knowledge=ScriptedKnowledge(
@@ -162,12 +169,11 @@ async def test_every_attached_base_is_searched_and_the_best_of_all_of_them_come_
         ),
     )
     output = await served.lookups.lookup(CALL, "search", SEARCHING, "sp_5")
-    assert [(one["base"], one["k"]) for one in served.knowledge.searched] == [
-        ("clinica", 2),
-        ("tarifas", 1),
-    ]
-    # Four answers came back (two per base, cut to each k: 2 + 1), the best first, at most 2.
-    assert [one["heading"] for one in output["chunks"]] == ["Tarifas", "Tarifas"]
+    [asked] = served.knowledge.searched
+    # One search over both names, under the most generous k of the two, each base's own floor.
+    assert (asked["bases"], asked["k"]) == (["clinica", "tarifas"], 2)
+    assert asked["floors"] == {"clinica": None, "tarifas": None}
+    assert [one["heading"] for one in output["chunks"]] == ["Tarifas", "Otro"]
 
 
 async def test_a_class_searching_for_itself_may_say_how_many() -> None:
@@ -181,7 +187,7 @@ async def test_the_declarations_min_score_is_what_the_base_is_searched_under() -
     served = a_served_call(config=a_config(bases=(Docs(base="clinica", k=3, min_score=0.5),)))
     await served.lookups.lookup(CALL, "search", SEARCHING, None)
     [asked] = served.knowledge.searched
-    assert (asked["k"], asked["min_score"]) == (3, 0.5)
+    assert (asked["k"], asked["floors"]) == (3, {"clinica": 0.5})
 
 
 async def test_an_agent_that_declared_no_docs_finds_nothing_and_searches_nothing() -> None:

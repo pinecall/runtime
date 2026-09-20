@@ -9,7 +9,7 @@ from pinecall.knowledge import Base, PgKnowledge
 from pinecall.log.store import open_pool
 from pinecall.providers.embedder import DIMENSIONS, WrongModel
 from pinecall.types import PRODUCTION, SANDBOX, KnowledgeFile
-from tests.knowledge.files import CLINICA, TARIFAS, an_org
+from tests.knowledge.files import CLINICA, TARIFAS, VENDING, an_org
 from tests.postgres import Dev
 from tests.vectors import HASH_MODEL, HashEmbedder
 
@@ -43,7 +43,7 @@ async def test_a_push_counts_its_chunks_and_a_second_push_replaces_the_first(
     assert await knowledge.put(org, PRODUCTION, None, THE_BASE, [TARIFAS]) == 2
     [listed] = await knowledge.bases(org, PRODUCTION)
     assert (listed.base, listed.chunks) == (THE_BASE, 2)
-    found = await knowledge.search(org, PRODUCTION, None, THE_BASE, "horarios turnos")
+    found = await knowledge.search(org, PRODUCTION, None, [THE_BASE], "horarios turnos")
     assert {chunk.path for chunk in found} == {"tarifas.md"}
 
 
@@ -65,7 +65,7 @@ async def test_a_push_keeps_its_files_and_a_file_is_put_and_taken_out_alone(
     assert await knowledge.put_file(org, PRODUCTION, None, THE_BASE, horarios) == 1
     [base] = await knowledge.bases(org, PRODUCTION)
     assert base.chunks == 5
-    found = await knowledge.search(org, PRODUCTION, None, THE_BASE, "nueve veinte semana")
+    found = await knowledge.search(org, PRODUCTION, None, [THE_BASE], "nueve veinte semana")
     assert found[0].path == "faq/horarios.md"
 
     shorter = KnowledgeFile("tarifas.md", "# Tarifas\n\nTodo cuesta cuarenta euros.\n")
@@ -121,7 +121,7 @@ async def test_a_search_finds_a_chunk_by_a_heading_word_the_text_search_stems(
     """'turno' is not a word of the chunk; 'Turnos' is, and spanish stems them to one. Only BM25
     can: the hash embedder points 'turno' nowhere near 'turnos'."""
     await knowledge.put(org, PRODUCTION, None, THE_BASE, [CLINICA, TARIFAS])
-    first, *_rest = await knowledge.search(org, PRODUCTION, None, THE_BASE, "turno")
+    first, *_rest = await knowledge.search(org, PRODUCTION, None, [THE_BASE], "turno")
     assert first.heading == "Clínica Norte › Turnos"
     assert first.text.startswith("Clínica Norte › Turnos\n\nLos turnos se piden")
 
@@ -132,7 +132,7 @@ async def test_a_search_finds_a_chunk_by_words_the_text_search_drops_because_the
     """'por', 'con' and 'el' are stopwords to spanish and BM25 finds nothing; they are words to the
     hash embedder, and only the Turnos chunk has all three."""
     await knowledge.put(org, PRODUCTION, None, THE_BASE, [CLINICA, TARIFAS])
-    first, *_rest = await knowledge.search(org, PRODUCTION, None, THE_BASE, "por con el")
+    first, *_rest = await knowledge.search(org, PRODUCTION, None, [THE_BASE], "por con el")
     assert first.heading == "Clínica Norte › Turnos"
 
 
@@ -140,19 +140,21 @@ async def test_a_chunk_both_branches_find_scores_one_and_min_score_drops_the_res
     knowledge: PgKnowledge, org: str
 ) -> None:
     await knowledge.put(org, PRODUCTION, None, THE_BASE, [CLINICA, TARIFAS])
-    found = await knowledge.search(org, PRODUCTION, None, THE_BASE, "turnos teléfono")
+    found = await knowledge.search(org, PRODUCTION, None, [THE_BASE], "turnos teléfono")
     assert [chunk.heading for chunk in found][0] == "Clínica Norte › Turnos"
     assert found[0].score == 1.0
     assert all(chunk.score < 0.6 for chunk in found[1:])
     assert len(found) == 4
-    kept = await knowledge.search(org, PRODUCTION, None, THE_BASE, "turnos teléfono", min_score=0.6)
+    kept = await knowledge.search(
+        org, PRODUCTION, None, [THE_BASE], "turnos teléfono", floors={THE_BASE: 0.6}
+    )
     assert [chunk.heading for chunk in kept] == ["Clínica Norte › Turnos"]
 
 
 async def test_k_caps_what_a_turn_is_handed(knowledge: PgKnowledge, org: str) -> None:
     await knowledge.put(org, PRODUCTION, None, THE_BASE, [CLINICA, TARIFAS])
-    assert len(await knowledge.search(org, PRODUCTION, None, THE_BASE, "revisión", k=1)) == 1
-    assert len(await knowledge.search(org, PRODUCTION, None, THE_BASE, "revisión", k=3)) == 3
+    assert len(await knowledge.search(org, PRODUCTION, None, [THE_BASE], "revisión", k=1)) == 1
+    assert len(await knowledge.search(org, PRODUCTION, None, [THE_BASE], "revisión", k=3)) == 3
 
 
 async def test_dropping_a_base_never_pushed_answers_false_and_a_pushed_one_true(
@@ -162,7 +164,7 @@ async def test_dropping_a_base_never_pushed_answers_false_and_a_pushed_one_true(
     await knowledge.put(org, PRODUCTION, None, THE_BASE, [CLINICA])
     assert await knowledge.drop(org, PRODUCTION, None, THE_BASE) is True
     assert await knowledge.bases(org, PRODUCTION) == []
-    assert await knowledge.search(org, PRODUCTION, None, THE_BASE, "horarios") == []
+    assert await knowledge.search(org, PRODUCTION, None, [THE_BASE], "horarios") == []
     assert await knowledge.drop(org, PRODUCTION, None, THE_BASE) is False
 
 
@@ -173,7 +175,8 @@ async def test_an_org_never_sees_another_orgs_base_of_the_same_name(
     await knowledge.put(org, PRODUCTION, None, THE_BASE, [CLINICA])
     await knowledge.put(other, PRODUCTION, None, THE_BASE, [TARIFAS])
     assert {
-        chunk.path for chunk in await knowledge.search(org, PRODUCTION, None, THE_BASE, "revisión")
+        chunk.path
+        for chunk in await knowledge.search(org, PRODUCTION, None, [THE_BASE], "revisión")
     } == {"clinica.md"}
     assert [listed.chunks for listed in await knowledge.bases(other, PRODUCTION)] == [2]
 
@@ -181,7 +184,7 @@ async def test_an_org_never_sees_another_orgs_base_of_the_same_name(
 async def test_a_push_of_nothing_is_a_base_with_no_chunks(knowledge: PgKnowledge, org: str) -> None:
     assert await knowledge.put(org, PRODUCTION, None, THE_BASE, []) == 0
     assert [listed.chunks for listed in await knowledge.bases(org, PRODUCTION)] == [0]
-    assert await knowledge.search(org, PRODUCTION, None, THE_BASE, "horarios") == []
+    assert await knowledge.search(org, PRODUCTION, None, [THE_BASE], "horarios") == []
 
 
 async def test_a_base_pushed_with_another_model_is_refused_naming_both_and_the_way_out(
@@ -194,7 +197,7 @@ async def test_a_base_pushed_with_another_model_is_refused_naming_both_and_the_w
     try:
         other = PgKnowledge(pool, OtherModel())
         with pytest.raises(WrongModel) as refused:
-            await other.search(org, PRODUCTION, None, THE_BASE, "horarios")
+            await other.search(org, PRODUCTION, None, [THE_BASE], "horarios")
     finally:
         await pool.close()
     assert str(refused.value) == (
@@ -210,7 +213,9 @@ async def test_a_base_nobody_pushed_is_not_a_model_mismatch_but_an_empty_answer(
     pool = await open_pool(postgres.dsn, schema=postgres.schema)
     try:
         assert (
-            await PgKnowledge(pool, OtherModel()).search(org, PRODUCTION, None, "nunca", "horarios")
+            await PgKnowledge(pool, OtherModel()).search(
+                org, PRODUCTION, None, ["nunca"], "horarios"
+            )
             == []
         )
     finally:
@@ -245,10 +250,10 @@ async def test_a_base_is_one_worlds_and_a_laptops_push_never_touches_the_boxs(
     await knowledge.put(org, PRODUCTION, None, THE_BASE, [CLINICA])
     await knowledge.put(org, SANDBOX, None, THE_BASE, [TARIFAS])
     deployed = {
-        chunk.path for chunk in await knowledge.search(org, PRODUCTION, None, THE_BASE, "turnos")
+        chunk.path for chunk in await knowledge.search(org, PRODUCTION, None, [THE_BASE], "turnos")
     }
     written = {
-        chunk.path for chunk in await knowledge.search(org, SANDBOX, None, THE_BASE, "turnos")
+        chunk.path for chunk in await knowledge.search(org, SANDBOX, None, [THE_BASE], "turnos")
     }
     assert deployed == {CLINICA.path}
     assert written == {TARIFAS.path}
@@ -256,8 +261,8 @@ async def test_a_base_is_one_worlds_and_a_laptops_push_never_touches_the_boxs(
     assert [one.chunks for one in await knowledge.bases(org, SANDBOX)] == [2]
     # Dropping the laptop's leaves the telephone's answering exactly as before.
     assert await knowledge.drop(org, SANDBOX, None, THE_BASE) is True
-    assert await knowledge.search(org, SANDBOX, None, THE_BASE, "turnos") == []
-    assert len(await knowledge.search(org, PRODUCTION, None, THE_BASE, "turnos")) == 2
+    assert await knowledge.search(org, SANDBOX, None, [THE_BASE], "turnos") == []
+    assert len(await knowledge.search(org, PRODUCTION, None, [THE_BASE], "turnos")) == 2
 
 
 async def test_how_many_chunks_a_push_would_become_is_the_cut_the_push_itself_makes(
@@ -282,8 +287,8 @@ async def test_two_developers_push_their_own_and_neither_replaces_the_others(
     await knowledge.put(org, SANDBOX, ANA, THE_BASE, [CLINICA])
     await knowledge.put(org, SANDBOX, BETO, THE_BASE, [TARIFAS])
 
-    anas = await knowledge.search(org, SANDBOX, ANA, THE_BASE, "turnos")
-    betos = await knowledge.search(org, SANDBOX, BETO, THE_BASE, "turnos")
+    anas = await knowledge.search(org, SANDBOX, ANA, [THE_BASE], "turnos")
+    betos = await knowledge.search(org, SANDBOX, BETO, [THE_BASE], "turnos")
 
     assert {chunk.path for chunk in anas} == {CLINICA.path}
     assert {chunk.path for chunk in betos} == {TARIFAS.path}
@@ -295,7 +300,7 @@ async def test_a_developer_who_has_pushed_nothing_reads_the_orgs_own(
     """Nobody joins a team to an empty knowledge base: a READ falls back the way `of()` does."""
     await knowledge.put(org, SANDBOX, None, THE_BASE, [CLINICA])
 
-    found = await knowledge.search(org, SANDBOX, ANA, THE_BASE, "turnos")
+    found = await knowledge.search(org, SANDBOX, ANA, [THE_BASE], "turnos")
 
     assert {chunk.path for chunk in found} == {CLINICA.path}
     assert [one.base for one in await knowledge.bases(org, SANDBOX, ANA)] == [THE_BASE]
@@ -307,7 +312,7 @@ async def test_their_own_wins_over_the_orgs_own_once_they_have_pushed(
     await knowledge.put(org, SANDBOX, None, THE_BASE, [CLINICA])
     await knowledge.put(org, SANDBOX, ANA, THE_BASE, [TARIFAS])
 
-    found = await knowledge.search(org, SANDBOX, ANA, THE_BASE, "turnos")
+    found = await knowledge.search(org, SANDBOX, ANA, [THE_BASE], "turnos")
 
     assert {chunk.path for chunk in found} == {TARIFAS.path}
     assert [one.chunks for one in await knowledge.bases(org, SANDBOX, ANA)] == [2]
@@ -323,7 +328,7 @@ async def test_a_drop_takes_your_own_copy_and_never_the_orgs(
     assert await knowledge.drop(org, SANDBOX, ANA, THE_BASE) is True
 
     # Hers is gone, and she reads the org's again rather than nothing.
-    found = await knowledge.search(org, SANDBOX, ANA, THE_BASE, "turnos")
+    found = await knowledge.search(org, SANDBOX, ANA, [THE_BASE], "turnos")
     assert {chunk.path for chunk in found} == {CLINICA.path}
 
 
@@ -333,7 +338,7 @@ async def test_dropping_a_name_you_never_pushed_says_so_even_where_the_org_has_o
     await knowledge.put(org, SANDBOX, None, THE_BASE, [CLINICA])
 
     assert await knowledge.drop(org, SANDBOX, ANA, THE_BASE) is False
-    assert len(await knowledge.search(org, SANDBOX, None, THE_BASE, "turnos")) == 2
+    assert len(await knowledge.search(org, SANDBOX, None, [THE_BASE], "turnos")) == 2
 
 
 async def test_the_quota_counts_every_corner_because_the_rows_are_the_orgs(
@@ -344,3 +349,29 @@ async def test_the_quota_counts_every_corner_because_the_rows_are_the_orgs(
     await knowledge.put(org, SANDBOX, BETO, THE_BASE, [TARIFAS])
 
     assert await knowledge.kept(org) == 4
+
+
+async def test_a_second_base_with_nothing_relevant_in_it_takes_none_of_the_turns_slots(
+    knowledge: PgKnowledge, org: str
+) -> None:
+    """The whole point of searching the union: a score is only worth what it was ranked against.
+    Searched one base at a time and merged afterwards, the vending base's best chunk came back at
+    1.0 — the fusion reads relative to the best of ITS query — and took a slot from the clinic's
+    own answer before the ranking had said anything."""
+    await knowledge.put(org, PRODUCTION, None, THE_BASE, [CLINICA, TARIFAS])
+    await knowledge.put(org, PRODUCTION, None, "vending", [VENDING])
+
+    found = await knowledge.search(org, PRODUCTION, None, [THE_BASE, "vending"], "turnos teléfono")
+    assert [chunk.base for chunk in found[:2]] == [THE_BASE, THE_BASE]
+    assert found[0].heading == "Clínica Norte › Turnos"
+    assert found[0].score == 1.0
+    assert all(chunk.score < 1.0 for chunk in found if chunk.base == "vending")
+
+
+async def test_one_base_handed_as_a_string_is_refused_and_not_read_letter_by_letter(
+    knowledge: PgKnowledge, org: str
+) -> None:
+    """`str` is a Sequence[str]: a caller that hands one base the way the old signature took it
+    would ask for its letters and be answered nothing at all."""
+    with pytest.raises(TypeError, match="as a list"):
+        await knowledge.search(org, PRODUCTION, None, THE_BASE, "turnos")  # type: ignore[arg-type]

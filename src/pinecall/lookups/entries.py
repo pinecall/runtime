@@ -40,7 +40,9 @@ def a_recall(
 
 # The excerpt is the text the model read — the body under its heading path — because the
 # grounded judge reads `docs.sources` as the evidence a stated price or hour had to come from
-# (evals/bridge.py `_excerpts`): what the log does not carry, no judge can find afterwards.
+# (evals/bridge.py `_excerpts`): what the log does not carry, no judge can find afterwards. The
+# base is there for the same reason: a turn reads every base attached to the agent, ranked
+# together, so which collection answered is a fact only this line can keep.
 def a_retrieval(
     query: str, chunks: Sequence[Chunk], took_ms: float, speech_id: str | None
 ) -> DocsSources:
@@ -50,6 +52,7 @@ def a_retrieval(
         sources=[
             DocSource(
                 id=chunk.id,
+                base=chunk.base,
                 path=chunk.path,
                 heading=chunk.heading,
                 score=chunk.score,

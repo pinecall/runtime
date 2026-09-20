@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -134,11 +134,11 @@ class ScriptedKnowledge:
         org: str,
         env: Env,
         holder: str | None,
-        base: str,
+        bases: Sequence[str],
         query: str,
         *,
         k: int = 8,
-        min_score: float | None = None,
+        floors: Mapping[str, float | None] | None = None,
     ) -> list[Chunk]:
         if self.failing is not None:
             raise self.failing
@@ -147,10 +147,10 @@ class ScriptedKnowledge:
                 "org": org,
                 "env": env,
                 "holder": holder,
-                "base": base,
+                "bases": list(bases),
                 "query": query,
                 "k": k,
-                "min_score": min_score,
+                "floors": dict(floors or {}),
             }
         )
         return list(self.answers)[:k]
