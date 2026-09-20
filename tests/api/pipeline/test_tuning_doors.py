@@ -51,6 +51,8 @@ CARLA = KeyRecord(
 CI_KEY = "pk_test_the_orgs_own_ci"
 CI = KeyRecord(key_id="k_ci", org=A_RECORD.org, env=SANDBOX, scopes=ROLE_SCOPES["developer"])
 
+# ElevenLabs' Sarah, as providers/tts/voices.py curates her: what a voice knob resolves to.
+CAROLINA = "EXAVITQu4vr4xnSDxMaL"
 SONNET = {"llm": "anthropic/claude-sonnet-4-5"}
 HAIKU = {"llm": "anthropic/claude-haiku-4-5"}
 
@@ -137,6 +139,39 @@ async def test_the_team_flag_writes_the_orgs_own_corner_which_every_corner_falls
         "model": "claude-sonnet-4-5",
         "temperature": None,
     }
+
+
+# Berna's worked example over the doors, on the path a call really takes: `GET .../config` is what
+# the worker builds the session from, so this is the effective tuning and not a screen's view of it.
+async def test_a_voice_of_your_own_keeps_the_teams_model_and_ear(
+    ana: httpx.AsyncClient, registry: Registry
+) -> None:
+    """Setting one knob used to take the whole row: the team's llm, stt and the rest went unset."""
+    await in_the_sandbox(registry)
+    await ana.put(SETTINGS, json={"config": {**SONNET, "stt": "soniox"}, "team": True})
+    mine = await ana.put(SETTINGS, json={"config": {"voice": "carolina"}})
+    assert mine.status_code == 200, mine.text
+
+    config = (await ana.get(CONFIG)).json()
+    assert config["voice"]["voice_id"] == CAROLINA
+    assert config["llm"]["model"] == "claude-sonnet-4-5"
+    assert config["stt"]["provider"] == "soniox"
+
+
+async def test_clearing_your_corner_leaves_the_team_standing(
+    ana: httpx.AsyncClient, registry: Registry
+) -> None:
+    """An empty row supplies nothing: it used to win, and blank every knob under it."""
+    await in_the_sandbox(registry)
+    await ana.put(SETTINGS, json={"config": {**SONNET, "stt": "soniox"}, "team": True})
+    await ana.put(SETTINGS, json={"config": {"voice": "carolina"}})
+    cleared = await ana.put(SETTINGS, json={"config": {}, "if_version": 1})
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["yours"]["version"] == 2
+
+    config = (await ana.get(CONFIG)).json()
+    assert config["voice"] is None
+    assert (config["llm"]["model"], config["stt"]["provider"]) == ("claude-sonnet-4-5", "soniox")
 
 
 async def test_a_key_that_names_nobody_writes_the_orgs_own_corner(ci: httpx.AsyncClient) -> None:

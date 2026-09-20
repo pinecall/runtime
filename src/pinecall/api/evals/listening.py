@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Sequence
 
 from pinecall.evals.polling import until
@@ -31,13 +32,31 @@ A_BEAT_S = 0.75
 # run that never hangs up.
 AGENT_STATE: EventType = "agent.state"
 IT_IS_LISTENING: AgentState = "listening"
+THE_AGENT_SAID: EventType = "turn.agent"
+
+# The opening. A caller that spoke the moment the agent joined talked over its greeting
+# (2026-09-19, maravilla, in production): the first line waits for the greeting to have been said
+# and the agent to be listening again. An agent that opens with nothing is believed after it has
+# listened this long without starting to speak, and no opening is waited for longer than the cap.
+A_SILENT_OPENING_S = 3.0
+AN_OPENING_MAY_TAKE_S = 15.0
 
 
 # The one wait every spoken caller makes between two of its lines, and after its last: the golden
 # runner and `simulate --voice` alike. Before this was shared the simulated persona slept six fixed
 # seconds and spoke over any answer that ran a tool (2026-09-11, heard on the recordings).
 async def until_the_answer_lands(store: Store, call: str, said: int) -> None:
-    """Hold the line until the agent has answered the last line, or until it plainly will not."""
+    """Hold the line until the agent has answered the last line, or until it plainly will not.
+
+    With nothing said yet, it is the agent's opening that is waited for: see the_line_is_open.
+    """
+    if said == 0:
+
+        async def open_() -> bool:
+            return the_line_is_open(await whole(store, call), time.time())
+
+        await until(open_, within_s=AN_OPENING_MAY_TAKE_S)
+        return
 
     async def landed() -> bool:
         if not the_answer_has_landed(await whole(store, call), said):
@@ -78,6 +97,23 @@ def the_answer_has_landed(entries: Sequence[Entry], said: int) -> bool:
         return False
     at, last = states[-1]
     return at > heard[-1] and AgentStateChanged.model_validate(last.data).state == IT_IS_LISTENING
+
+
+def the_line_is_open(entries: Sequence[Entry], now: float) -> bool:
+    """The caller may speak first: the agent said its opening and listens, or it opens with none."""
+    states = [(at, entry) for at, entry in enumerate(entries) if entry.type == AGENT_STATE]
+    if not states:
+        return False
+    said = [at for at, entry in enumerate(entries) if entry.type == THE_AGENT_SAID]
+    at, last = states[-1]
+    listening = AgentStateChanged.model_validate(last.data).state == IT_IS_LISTENING
+    if said:
+        return listening and at > said[-1]
+    # Nothing said yet: an agent that has only ever listened, for long enough, opens with nothing.
+    only_listened = all(
+        AgentStateChanged.model_validate(entry.data).state == IT_IS_LISTENING for _, entry in states
+    )
+    return only_listened and now - states[0][1].ts >= A_SILENT_OPENING_S
 
 
 # `listening` is not the same as finished. An agent that says "Perfecto, la doy de alta" and calls

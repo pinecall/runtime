@@ -6,7 +6,42 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 
 ## [Unreleased]
 
+### Added
+- **The personas are the gateway's.** `GET /v1/agents/{slug}/personas`, `PUT` and `DELETE` on one
+  by name, opened by `evals`: a synthetic caller is a goal, a manner and a few facts — the same
+  kind of thing as the voice and the lexicon, and no more a file of a project than those are. One
+  list per agent per org, not per world: a caller is a test, not something a customer hears.
+  Migration 0042.
+- **The hold melody's doors are in the protocol.** The six of them — `GET`·`PUT`
+  `/v1/agents/{slug}/pipeline/hold-audio`, `…/audio`, `…/played`, and the worker's
+  `GET /v1/agents/{slug}/hold-audio[/audio]` — were in no public page.
+  [docs/protocol/pipeline-api.md](docs/protocol/pipeline-api.md) documents them whole, and
+  every-door.md lists each.
+
 ### Fixed
+- **An agent's settings fall through corner by corner, knob by knob.** Resolution took the whole
+  row of the first corner that had one, so `agent set --voice x` wrote a row with only a voice in
+  it and the agent stopped reading the team's stt, llm, memory, knowledge and bases — they went
+  silently unset — and `clear` left an empty row that won and blanked everything under it. Every
+  knob now falls through on its own: a corner supplies the knobs it actually set and the corner
+  below supplies the rest, a knob set to a falsy value (`turn {endpointing_ms: 0}`) is set and
+  wins, and an empty row supplies nothing and is invisible to resolution. One definition,
+  `orgs/resolving.py:resolved`, which both stores read through; the versioned writes and the
+  per-corner doors are untouched. [docs/protocol/settings-api.md](docs/protocol/settings-api.md)
+- **Renaming a persona is one statement.** It was an INSERT and then a DELETE, so anything that
+  cut between them — a process stopped, a connection lost — left the agent holding both names.
+  The two are one `WITH gone AS (DELETE …) INSERT …` now: the old name goes and the new one
+  arrives together, or neither does. The refusals are untouched (`404` nobody wrote that name,
+  `409` somebody else holds the new one).
+- **The personas belong to an org, and the table says so.** `agent_personas` was the one per-org
+  table with no `REFERENCES orgs (id) ON DELETE CASCADE`, so deleting an org left its synthetic
+  callers behind. Migration 0043 adds the constraint `NOT VALID` — enforced for every write from
+  the moment it runs — and `0044_personas_org_fk_validated.post.sql` checks the rows that were
+  already there: a person runs it when they choose, `pinecall-runtime migrate up --post`.
+- **A spoken caller waits for the greeting.** A simulated caller (and a spoken golden) said its
+  first line the moment the agent joined, over the greeting. `every_turn` now waits for the
+  opening — the agent's first `turn.agent` and `listening` after it, or an agent that has only
+  listened for three seconds — before the first line, fifteen seconds at most.
 - **A server's token opens `evals`.** The console asks the process holding an agent to run a
   simulation or a suite, and that process knocks at the evals doors on its own token: without the
   scope, Simulations on the production console was refused `403 this key does not open evals`.

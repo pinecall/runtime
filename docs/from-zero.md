@@ -103,8 +103,8 @@ $ pinecall-runtime migrate up
 at 127.0.0.1:5432/pinecall · schema public
 applied 0001_call_log.sql
 …
-applied 0035_box_settings.sql
-1 post-deployment migration(s) not run: `pinecall-runtime migrate up --post`
+applied 0043_personas_org_fk.sql
+2 post-deployment migration(s) not run: `pinecall-runtime migrate up --post`
 org default has no key yet — `pinecall-runtime keys issue --org default` mints one
 ```
 

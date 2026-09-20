@@ -39,7 +39,7 @@ tenant's business.
 
 **A key opens what its scopes say.** Every tenant door asks for exactly one and refuses without it
 as `403 this key does not open knowledge: it opens calls · evals`. A server's token holds `app` ·
-`calls` · `talk` · `knowledge`; a person's holds their role's, whole, in either world (§8). `app`: the app socket and the
+`calls` · `talk` · `knowledge` · `evals`; a person's holds their role's, whole, in either world (§8). `app`: the app socket and the
 worker's doors, and `POST /v1/apps/{app}/stop`. `calls`: `GET /v1/agents`, `GET /v1/apps` (the processes holding them: machine, SDK, since when), every read of a log, and — beside `app` — the one door that opens to either, `GET /v1/agents/{slug}/config`: a declaration is read by the worker holding the agent and by the console drawing its state. `talk`: `POST /v1/tokens`, `WS
 /v1/chat`, and `POST /v1/agents/{slug}/dial`, the one door that PLACES a call ([console-api.md](console-api.md) §4; the trunk it dials through is `GET`·`POST /v1/carrier/outbound`, under `numbers`). `supervise`: listen, the seat, the verbs by key. `pipeline` · `knowledge` · `memory` ·
 `evals` · `numbers` · `usage` · `team`: the doors of that name. `keys`: the org's own API keys.
@@ -83,9 +83,9 @@ The upgrade carries the key on the header. Then the app sends **commands** and r
 | `agent.configure` | what the agent IS: the tool list, the voice, the models, the language, the greeting, the state fields it declares. Only the fields you send change. Answers `agent.configured` |
 | `ping` | answers `pong` with the gateway's clock |
 
-What only the process in the agent's directory can do — a written call to its class, its goldens
-and personas, its knowledge folder — a console asks the gateway for, and the gateway asks that
-process over this socket: [dev-verbs.md](dev-verbs.md).
+What only the process in the agent's directory can do — a written call to its class, its goldens,
+its knowledge folder, a simulated caller on the class it holds — a console asks the gateway for, and
+it asks that process over this socket: [dev-verbs.md](dev-verbs.md).
 
 `takes_unclaimed: false` is what makes a process a console rather than a server: it holds the
 agent but is never handed a call that named no app — every phone call, and every web visit that
@@ -362,8 +362,8 @@ An org may bring its own vendor keys, sealed under the box's vault key and read 
 | `POST /v1/evals/run` | a suite of goldens driven through the connected app, scored and stored. Answers an `EvalRun` |
 | `GET /v1/evals/runs?agent=&limit=` · `GET /v1/evals/runs/{id}` | what this gateway has run |
 | `POST /v1/evals/replay/{call}` | ring 3: one finished call rebuilt from its log and answered by four **code** checks — consent, register, errors, latency. Takes `{banned?, budget?}` · `POST /v1/evals/judge/{call}` runs the model judges over one nobody judged: [console-api.md](console-api.md) §6 |
-| `POST /v1/evals/caller` | one improvised line from a persona: `{persona, heard, turns_left}` → `{say, hangup}` |
-| `POST /v1/evals/voice` | a spoken eval call held in the runtime: a room, the persona's voice, the line spoiled on purpose |
+| `POST /v1/evals/caller` | one improvised line from a persona: `{persona, heard, turns_left}` → `{say, hangup}`. The caller itself is a row, not a file: `GET /v1/agents/{slug}/personas` · `PUT`·`DELETE …/{name}`, one list an agent per **org** and not per world, opened by `evals`. A PUT writes one whole and `was` renames the caller it names (`404` nobody wrote it, `409` the new name is taken); a name is lower-case words joined by hyphens, or `422` |
+| `POST /v1/evals/voice` | a spoken eval call held in the gateway: a room, the agent dispatched into it, and the persona on the line out loud — an ElevenLabs voice that is **not** one an agent is given, speaking the agent's declared language, waiting for the greeting before its first line and for each answer to land before the next. The line is spoiled on purpose if asked (`interferer_db`, `packet_loss`). The gateway process needs a key for that vendor — the org's own when it brought one, else the box's `ELEVEN_API_KEY` |
 
 `POST /v1/calls/{call}/lookup` and `/remember` are the worker's own doors (retrieval and the
 hang-up's one model call); `lookup` also answers the app (`app`) for `this.knowledge.search`, as `SearchFound {chunks: [{path, heading, text}]}`.
@@ -384,7 +384,7 @@ tenant's read of what the operator's `/v1/ops/usage` pages; and `GET /v1/numbers
 the org answers in the key's world, each saying whether an operator typed it or an app declared
 it (`numbers`). `GET /v1/keys` (any key) is the org's tokens by fingerprint, never a key: every
 server's, and the asker's own person keys — every person's with `keys` — each `{fingerprint, label, kind: person|server, env (null for a person's), name, created_by, created_at, last_used_at, revoked_at, scopes}`.
-`POST /v1/keys {label, env}` makes a **server's token**, on a person's key with `app` (`403` on any other; production only with production access): `app` · `calls` · `talk` · `knowledge`, `pc_live_…` or `pc_test_…`, answered in the clear the once, and it outlives the person who made it.
+`POST /v1/keys {label, env}` makes a **server's token**, on a person's key with `app` (`403` on any other; production only with production access): `app` · `calls` · `talk` · `knowledge` · `evals`, `pc_live_…` or `pc_test_…`, answered in the clear the once, and it outlives the person who made it.
 `POST /v1/keys/{fingerprint}/revoke` stops your own key, a token you made, or any with `keys`; anything else is `404` like nobody's.
 A person holds ONE key per device, `pc_…`, and names the world per request; `POST /v1/login/org {org}` mints one in another of their orgs (§8). Keys minted before, `pk_…`, still verify. A tenant's own
 carrier and its numbers imported — Twilio or SIP, the carrier's trunk pointed at the box, the SFU's

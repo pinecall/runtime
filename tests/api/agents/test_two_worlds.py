@@ -21,7 +21,7 @@ def a_door(channel: Channel, number: str | None = None) -> defs.Route:
 
 
 async def test_the_same_slug_is_held_once_in_each_world_and_neither_sees_the_other() -> None:
-    """A laptop's `pinecall run` on a dev key and the box's on a production key are two agents."""
+    """A laptop's `pinecall start` on a dev key and the box's on a production key are two agents."""
     registry = Registry(Logs(MemoryStore()))
     await registry.register(A_SOCKET, "madrid", PRODUCTION, "clinica-norte", [a_door("web")])
     await registry.register(ANOTHER_SOCKET, "madrid", SANDBOX, "clinica-norte", [a_door("web")])

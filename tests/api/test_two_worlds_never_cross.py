@@ -194,7 +194,7 @@ class TestATeamInOneWorld:
     def test_a_developer_is_minted_a_token_for_the_agent_in_their_own_corner(
         self, gateway: TestClient
     ) -> None:
-        """The web door their own `pinecall run` declared is theirs to talk through."""
+        """The web door their own `pinecall start` declared is theirs to talk through."""
         with an_app_on(gateway, BERNAS_KEY) as bernas:
             holding(bernas)
             status, said = minted(gateway, {"agent": AGENT}, bearer=BERNAS_KEY)

@@ -43,7 +43,7 @@ def a_registry() -> Registry:
 
 
 async def test_each_developer_holds_their_own_and_neither_takes_the_others() -> None:
-    """The whole point: before this, the second `pinecall run` replaced the first."""
+    """The whole point: before this, the second `pinecall start` replaced the first."""
     registry = a_registry()
     await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("web")], holder=BERNA)
     await registry.register(CARLAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("web")], holder=CARLA)
@@ -88,7 +88,7 @@ async def test_production_has_one_corner_and_a_laptop_is_not_in_it() -> None:
 async def test_the_sandbox_number_is_the_orgs_and_starting_later_does_not_take_it() -> None:
     """Web and chat are each developer's; the number is shared, and it rings where it was claimed.
 
-    Before the line, the second `pinecall run` silently took the first one's calls: Berna would
+    Before the line, the second `pinecall start` silently took the first one's calls: Berna would
     dial the sandbox number to test and it would answer in Carla's scrollback.
     """
     registry = a_registry()

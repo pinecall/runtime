@@ -53,6 +53,7 @@ from pinecall.orgs.hold_audio import hold_audio_for
 from pinecall.orgs.mail import mail_for
 from pinecall.orgs.meter import Meter
 from pinecall.orgs.outbound import outbound_trunks_for
+from pinecall.orgs.personas import personas_for
 from pinecall.orgs.sso import sso_for
 from pinecall.orgs.table import orgs_for
 from pinecall.orgs.tuning import tuning_for
@@ -189,6 +190,8 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # What the org set over every agent's class, per world, per corner, a version a row. Read per
     # session and never cached: what one gateway sets is on the next call of every other one.
     gateway.state.tuning = tuning_for(pool)
+    # The agent's synthetic callers, written from the console or the CLI and played by a model.
+    gateway.state.personas = personas_for(pool)
     # Which melody each agent plays while a tool runs, read per call: the table is small.
     gateway.state.hold_audio = hold_audio_for(pool)
     # The suites: which run is happening right now, and where every run that has finished is kept.

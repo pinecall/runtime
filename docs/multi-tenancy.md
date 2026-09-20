@@ -50,7 +50,7 @@ dates. Revoking keeps the row, so the log entries that name that key stay readab
 
 An org makes its servers' tokens without the operator: `POST /v1/keys {label, env}` on a
 **person's** key that opens `app` — production's only for a person with production access — mints
-one with `app` · `calls` · `talk` · `knowledge`, naming nobody, `created_by` its maker, and it does
+one with `app` · `calls` · `talk` · `knowledge` · `evals`, naming nobody, `created_by` its maker, and it does
 not die when they leave: a production that stopped with its developer would be an outage nobody
 chose. `GET /v1/keys` lists every server's token and the asker's own keys, with who made each and
 when it was last used; revoking takes your own, the tokens you made, or any with `keys`, and a

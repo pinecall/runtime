@@ -1,4 +1,4 @@
-"""An agent's tuning in Postgres: a row a version, the corner's fallback, and the version race."""
+"""An agent's tuning in Postgres: a row a version, the corner's fall-through, the version race."""
 
 import asyncio
 from collections.abc import AsyncIterator
@@ -88,6 +88,26 @@ async def test_versions_count_from_one_and_a_corner_falls_back_to_the_orgs_own(
     mine = await kept.newest(org, SANDBOX, ANA, agent)
     assert mine is not None and (mine.holder, mine.version, mine.value) == (ANA, 1, SONNET)
     assert await kept.newest(org, PRODUCTION, None, agent) is None
+
+
+# Berna's worked example, over the column: the team runs a model and an ear, Ana has set only a
+# voice, and every knob she did not set is still the team's.
+async def test_every_knob_falls_through_on_its_own_and_an_empty_row_supplies_nothing(
+    pool: Pool, org: str, agent: str
+) -> None:
+    kept = PostgresTuning(pool)
+    await put(kept, org, "", agent, Tuning(llm=SONNET.llm, stt="soniox"))
+    await put(kept, org, ANA, agent, Tuning(voice="carolina"))
+    read = await kept.newest(org, SANDBOX, ANA, agent)
+    assert read is not None and (read.holder, read.version) == (ANA, 1)
+    assert read.value == Tuning(voice="carolina", llm=SONNET.llm, stt="soniox")
+    # What `clear` leaves behind is a version of its own that blanks nothing under it.
+    assert await put(kept, org, ANA, agent, Tuning(), if_version=1) == 2
+    cleared = await kept.newest(org, SANDBOX, ANA, agent)
+    assert cleared is not None and (cleared.holder, cleared.version) == ("", 1)
+    assert cleared.value == Tuning(llm=SONNET.llm, stt="soniox")
+    # And every agent at once, which the knowledge screen reads, falls through the same way.
+    assert (await kept.every_newest(org, SANDBOX, ANA))[agent].value == cleared.value
 
 
 async def test_every_knob_survives_the_column_whole(pool: Pool, org: str, agent: str) -> None:

@@ -342,6 +342,9 @@ def _listening(room: rtc.Room) -> bool:
 async def every_turn(mouth: Speaks, turns: int, next_line: NextLine, settled: Settled) -> int:
     """The caller's turns, said out loud one at a time, each waiting for the answer to the last."""
     spoken = 0
+    # Nobody talks over a greeting: the first line waits for the agent's opening, as every later
+    # one waits for its answer.
+    await settled(0)
     for turn in range(turns):
         text, hanging_up = await next_line(turns - turn)
         if not text:

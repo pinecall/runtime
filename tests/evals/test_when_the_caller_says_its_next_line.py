@@ -53,7 +53,7 @@ async def test_the_caller_waits_for_the_answer_to_each_line_before_saying_the_ne
     spoken = await _turns(said, waited)
 
     assert (spoken, said.out) == (2, list(LINES))
-    assert waited.after == [1, 2]
+    assert waited.after == [0, 1, 2]
 
 
 async def test_a_line_the_golden_does_not_have_ends_the_call_without_a_wait() -> None:
@@ -62,4 +62,14 @@ async def test_a_line_the_golden_does_not_have_ends_the_call_without_a_wait() ->
 
     spoken = await every_turn(said, 2, said.next_line, waited)
 
-    assert (spoken, waited.after) == (1, [1])
+    assert (spoken, waited.after) == (1, [0, 1])
+
+
+# The caller that spoke the moment the agent joined talked over its greeting (2026-09-19,
+# maravilla, in production). The first line waits for the opening, told that nothing is said yet.
+async def test_the_first_line_waits_for_the_agents_opening() -> None:
+    said, waited = _Said(), _Waited()
+
+    await _turns(said, waited)
+
+    assert waited.after[0] == 0

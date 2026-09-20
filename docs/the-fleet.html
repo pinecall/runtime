@@ -132,7 +132,7 @@ infra/fleet/&lt;cloud&gt; list             name&lt;TAB&gt;created-at (ISO 8601),
 <p>LiveKit's open-source server is one region. Routing a caller to the nearest SFU is a cloud feature or a second full stack behind a geographic DNS answer; the repository ships neither and <code>scaling.md</code> says so.</p>
 <h3>Dialing back <span class="tag warn">the tenant's</span></h3>
 <p>The runtime <em>records</em> <code>callback.requested</code>; the org's app has the number, the agent's words and the outbound trunk, so it places the call. <code>GET /v1/callbacks</code> hands the list over and stops.</p>
-<h3>What does <code>pinecall run</code> do when the gateway falls? <span class="tag">built</span></h3>
+<h3>What does <code>pinecall start</code> do when the gateway falls? <span class="tag">built</span></h3>
 <p>It reconnects. The app socket is <b>ours</b>, not LiveKit's (LiveKit reconnects media rooms; the app socket is the runtime's WebSocket at <code>/v1/apps</code>), and <code>src/client/connection.ts</code> retries with full-jitter exponential backoff — 500 ms first, doubling, capped at 30 s, no attempt limit — and <code>agent.ts</code> sends <code>agent.register</code> and the declaration again on every open, because the gateway's registry is memory. A deploy's restart window is about five seconds; each try inside it prints one <code>Unexpected server response: 502</code> through the error door, which is what looked like a crash and was not: the processes were found alive an hour later. Only the <em>first</em> connect rejects — a wrong key, a host nobody is on — which is right. One "reconnected" line on stdout would make this legible; it is the only thing missing.</p>
 
 <h2 id="start">7. From here, in ten lines</h2>

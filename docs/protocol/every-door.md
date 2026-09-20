@@ -79,6 +79,10 @@ that colleague's corner.
 | `GET` | `/v1/line/numbers` | the org's production phone numbers and the agent each reaches: what a developer's own phone dials to reach their copy — `app`, a key naming a person, from the sandbox |
 | `DELETE` | `/v1/line/from` | stop answering your own calls; they fall back to the line — `app` |
 | `GET` | `/v1/agents/{slug}/pipeline` | what it hears, decides and speaks with, and what that cost — [pipeline-api.md](pipeline-api.md) |
+| `GET` | `/v1/agents/{slug}/pipeline/hold-audio` | which melody it plays while a tool runs — the runtime's own, `off`, or an uploaded clip with its name, its length and its hash — `pipeline` |
+| `PUT` | `/v1/agents/{slug}/pipeline/hold-audio` · `?name=` | a file of yours as that melody: the BODY is the file, no multipart, converted once to Ogg Opus; `413` over 20 MB, `400` for what is no melody — `pipeline` |
+| `GET` | `/v1/agents/{slug}/pipeline/hold-audio/audio` | the melody itself, `audio/ogg`, to listen to before a caller does; `404` while the agent plays none — `pipeline` |
+| `PUT` | `/v1/agents/{slug}/pipeline/hold-audio/played` | `{played: "default"|"off"}`: the runtime's melody back, or silence — the uploaded clip forgotten either way — `pipeline` |
 | `GET` · `PUT` | `/v1/agents/{slug}/settings` | what the org set over the class — vendors, models, the opening, the cut of a turn, what is remembered, what it knows by heart, the bases — per world, per corner, a version a row: yours, the team's, production's — a set writes the request's world, production's directly — `pipeline` or `words`; `words` sets the opening's words and what is remembered and is refused the rest by name — [settings-api.md](settings-api.md) |
 | `GET` | `…/settings/history` · `…/settings/diff` | one corner's versions, newest first; this corner against the team's or production's — `pipeline` or `words` |
 | `POST` | `…/settings/rollback` | one version back as the next one — `pipeline` |
@@ -88,6 +92,8 @@ that colleague's corner.
 | `POST` | `/v1/agents/{slug}/dev/{family}/{verb}` · `?app=` | a console's ask, relayed to the app standing in the agent's directory — `talk`, `knowledge`, `memory` or `evals` by family; [dev-verbs.md](dev-verbs.md) |
 | `GET` | `/v1/agents/{slug}/provider-keys` | the org's own vendor keys, **in the clear**: the worker's door, see §6 |
 | `GET` | `/v1/agents/{slug}/rings-for?caller=` | whose sandbox copy a production ring from this phone belongs to, or null: production's — the worker's, `app` |
+| `GET` | `/v1/agents/{slug}/hold-audio` | the worker's: what the call being built plays while a tool runs, in the call's corner (`?org=&env=&holder=`) — `app` or `calls` |
+| `GET` | `/v1/agents/{slug}/hold-audio/audio` | the worker's: the clip's bytes, fetched once per box per hash and kept on disk; `404` when the agent plays none — `app` or `calls` |
 | `GET` | `/v1/agents/{slug}/sessions` | one line per call, in the reader's corner — the same filters |
 | `GET` | `/v1/agents/{slug}/calls` | every call of the agent, as a log |
 | `GET` | `/v1/calls/{call}/events` | one call's log: a page, or SSE |
@@ -99,7 +105,8 @@ that colleague's corner.
 | `POST`·`GET` | `/v1/callbacks` | a number to call back when the fleet was full, and the list of them |
 | `GET` | `/v1/routes` | the numbers and doors your org answers |
 | `PUT`·`DELETE`·`GET` | `/v1/provider-keys[/{vendor}]` | the org's own vendor accounts — `providers` |
-| `GET` | `/v1/providers` | every vendor this build runs, which are ready on this box and which want a key, the defaults and the curated voices — `providers` |
+| `GET` | `/v1/providers` | every vendor this build runs, which are ready on this box and which want a key, the vendor each stage runs on when nobody chose (`defaults`), the models this build vouches for under `<modality>/<vendor>` (`models`) and the curated voices — `providers` |
+| `GET` | `/v1/agents/{slug}/personas` · `PUT`·`DELETE …/{name}` | the agent's synthetic callers — a goal, a manner, the facts they may state — one list an agent per org, whichever world asks; `evals` |
 | `PUT`·`GET`·`DELETE` | `/v1/knowledge[/{base}]` · `POST …/eval` · `GET /v1/knowledge/attached` · `GET`·`PUT`·`DELETE …/{base}/files/{path}` | the bases the agent searches, in the request's world — production's pushed there directly; a push answers the chunks it made; which agents read which; a base's files listed, read, put and taken out one at a time |
 | `GET`·`DELETE` | `/v1/contacts/{contact}/memory` · `POST /v1/contacts/memory/eval` | what it keeps about a person, in the key's world |
 | `GET` | `/v1/agents/{slug}/threads?after=` · `/threads/{contact}` | the inbox: an agent's calls by contact, what this person has not read, and one thread merged — `calls` |

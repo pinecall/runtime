@@ -19,12 +19,11 @@ from pinecall.orgs.lexicon import (
     PUT_LEXICON,
     a_lexicon,
 )
+from pinecall.orgs.resolving import TUNING, as_json, corners, resolved
 from pinecall.types import Env, Kept, Lexicon, Tuning, whose
 
-# The adapters both stores read a row's JSON back through and write one out through: the same
-# device api/agents/endpoints.py hands a worker its config by. The columns hold JSON and no
-# meaning; what a knob may be is providers/tuning.py's, the one place that knows a vendor.
-TUNING: TypeAdapter[Tuning] = TypeAdapter(Tuning)
+# The adapter this store reads a lexicon back through and writes one out through; a tuning's own
+# is `resolving.TUNING`, where what "set" means is said once for the column and the fall-through.
 LEXICON: TypeAdapter[Lexicon] = TypeAdapter(Lexicon)
 
 # What a write says when the corner is not at the version the writer read. Two people saving the
@@ -40,19 +39,19 @@ class VersionMoved(PinecallError):
         self.newest = newest
 
 
-# A corner reads its own newest, and falls back to the org's own when it set nothing — the rule
-# 0021 gave knowledge, for the same reason: nobody joins a team to an agent with no voice. `''`
-# sorts before any member id, and DESC puts yours first. A write is one INSERT whose version is
+# The corner chain, nearest first: this holder's newest and the org's own newest, which every
+# corner falls back to — the rule 0021 gave knowledge, for the same reason: nobody joins a team to
+# an agent with no voice. `''` sorts before any member id, and DESC puts yours first; what the two
+# rows resolve to, knob by knob, is `orgs/resolving.py`. A write is one INSERT whose version is
 # born inside it: the aggregate over the corner yields one row even over none, HAVING is the
 # if_version gate, and two writers computing the same number both hit the primary key — the first
 # lands, the second's RETURNING is empty. No lock, no transaction, and no driver exception here,
 # because this package may not name the driver (log/store/pool.py).
-_NEWEST = """
-SELECT holder, version, config, author, note, set_at
+_CHAIN = """
+SELECT DISTINCT ON (holder) holder, version, config, author, note, set_at
   FROM agent_config
  WHERE org = $1 AND env = $2 AND agent = $3 AND holder IN ($4, '')
  ORDER BY holder DESC, version DESC
- LIMIT 1
 """
 
 _OWN = """
@@ -79,11 +78,10 @@ SELECT holder, version, config, author, note, set_at
  LIMIT $5
 """
 
-# Every agent's newest in this world, each by the same fallback `_NEWEST` makes — the corner's
-# own when it set one, the org's otherwise. What the knowledge screen answers "who reads this
-# base" from.
-_EVERY_NEWEST = """
-SELECT DISTINCT ON (agent) agent, holder, version, config, author, note, set_at
+# Every agent's chain in this world, the same two corners per agent and in the same order, for the
+# same resolution. What the knowledge screen answers "who reads this base" from.
+_EVERY_CHAIN = """
+SELECT DISTINCT ON (agent, holder) agent, holder, version, config, author, note, set_at
   FROM agent_config
  WHERE org = $1 AND env = $2 AND holder IN ($3, '')
  ORDER BY agent, holder DESC, version DESC
@@ -103,12 +101,6 @@ RETURNING version
 HISTORY_LIMIT = 50
 
 
-def as_json(tuning: Tuning) -> dict[str, Any]:
-    """The tuning as the column holds it: every knob that is set, and none that is not."""
-    dumped: dict[str, Any] = TUNING.dump_python(tuning, mode="json", exclude_none=True)
-    return {name: value for name, value in dumped.items() if value != []}
-
-
 class MemoryTuning:
     """A gateway with no pool: the versions live as long as the process, as the knobs once did."""
 
@@ -119,10 +111,15 @@ class MemoryTuning:
     async def newest(
         self, org: str, env: Env, holder: str | None, agent: str
     ) -> Kept[Tuning] | None:
-        """The corner's own newest, else the org's own; None when neither set anything."""
-        return await self.own(org, env, whose(holder), agent) or await self.own(
-            org, env, whose(None), agent
-        )
+        """What this corner reads: each knob from the nearest corner that sets it, else None."""
+        return resolved(await self._chain(org, env, holder, agent))
+
+    async def _chain(
+        self, org: str, env: Env, holder: str | None, agent: str
+    ) -> list[Kept[Tuning]]:
+        """The newest row of each corner this key reads through, nearest first."""
+        found = [await self.own(org, env, corner, agent) for corner in corners(holder)]
+        return [row for row in found if row is not None]
 
     async def own(self, org: str, env: Env, holder: str, agent: str) -> Kept[Tuning] | None:
         """This corner's newest and nothing else's; None when it set nothing."""
@@ -146,7 +143,7 @@ class MemoryTuning:
         return list(reversed(self._rows.get((org, env, holder, agent), [])))[:limit]
 
     async def every_newest(self, org: str, env: Env, holder: str | None) -> dict[str, Kept[Tuning]]:
-        """Every agent's newest in this world by slug, the corner's own else the org's."""
+        """Every agent in this world by slug, each as this corner reads it."""
         agents = {slug for (o, e, _h, slug) in self._rows if (o, e) == (org, env)}
         found = {slug: await self.newest(org, env, holder, slug) for slug in sorted(agents)}
         return {slug: row for slug, row in found.items() if row is not None}
@@ -235,9 +232,9 @@ class PostgresTuning:
     async def newest(
         self, org: str, env: Env, holder: str | None, agent: str
     ) -> Kept[Tuning] | None:
-        """The corner's own newest, else the org's own; None when neither set anything."""
-        row = await self._pool.fetchrow(_NEWEST, org, env, agent, whose(holder))
-        return None if row is None else _a_tuning(row)
+        """What this corner reads: each knob from the nearest corner that sets it, else None."""
+        rows = await self._pool.fetch(_CHAIN, org, env, agent, whose(holder))
+        return resolved([_a_tuning(row) for row in rows])
 
     async def own(self, org: str, env: Env, holder: str, agent: str) -> Kept[Tuning] | None:
         """This corner's newest and nothing else's; None when it set nothing."""
@@ -259,9 +256,13 @@ class PostgresTuning:
         return [_a_tuning(row) for row in rows]
 
     async def every_newest(self, org: str, env: Env, holder: str | None) -> dict[str, Kept[Tuning]]:
-        """Every agent's newest in this world by slug, the corner's own else the org's."""
-        rows = await self._pool.fetch(_EVERY_NEWEST, org, env, whose(holder))
-        return {str(row["agent"]): _a_tuning(row) for row in rows}
+        """Every agent in this world by slug, each as this corner reads it."""
+        rows = await self._pool.fetch(_EVERY_CHAIN, org, env, whose(holder))
+        chains: dict[str, list[Kept[Tuning]]] = {}
+        for row in rows:
+            chains.setdefault(str(row["agent"]), []).append(_a_tuning(row))
+        read = {slug: resolved(chain) for slug, chain in chains.items()}
+        return {slug: row for slug, row in read.items() if row is not None}
 
     async def put(
         self,

@@ -26,8 +26,9 @@ from pinecall_protocol import WireModel
 
 router = APIRouter()
 
-# A room nobody answered, a box with no speech tool, no LiveKit pair: three ways a spoken call
-# cannot happen, and all three are the operator's to fix rather than a verdict about the agent.
+# A room nobody answered, no key for the voice the caller speaks with, no LiveKit pair: three ways
+# a spoken call cannot happen, and all three are the operator's to fix rather than a verdict about
+# the agent.
 NO_LINE = "the simulated call could not be held: {broke}"
 
 

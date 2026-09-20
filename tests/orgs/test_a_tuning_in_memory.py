@@ -1,9 +1,9 @@
-"""The memory store of an agent's tuning: versions, the corner's fallback, and the version gate."""
+"""The memory store of an agent's tuning: versions, the corner's fall-through, the version gate."""
 
 import pytest
 
 from pinecall.orgs.tuning import MemoryTuning, VersionMoved, tuning_for
-from pinecall.types import SANDBOX, Lexicon, Tuning
+from pinecall.types import SANDBOX, Hangup, Lexicon, Tuning, Turn
 
 pytestmark = pytest.mark.unit
 
@@ -12,6 +12,9 @@ AGENT = "clinica-norte"
 ANA = "m_ana"
 HAIKU = Tuning(llm="anthropic/claude-haiku-4-5")
 SONNET = Tuning(llm="anthropic/claude-sonnet-4-5")
+# The team runs a model and an ear; Ana, in her own corner, has only picked a voice.
+THE_TEAMS = Tuning(llm="anthropic/claude-sonnet-4-5", stt="soniox")
+A_VOICE = Tuning(voice="nova")
 
 
 async def put(
@@ -39,6 +42,41 @@ async def test_a_corner_reads_its_own_newest_and_falls_back_to_the_orgs_own() ->
     mine = await kept.newest(ORG, SANDBOX, ANA, AGENT)
     assert mine is not None and (mine.holder, mine.value) == (ANA, SONNET)
     assert await kept.own(ORG, SANDBOX, "m_bruno", AGENT) is None
+
+
+async def test_every_knob_falls_through_on_its_own_and_a_voice_keeps_the_teams_model() -> None:
+    """Ana picks a voice and goes on hearing the team's llm and stt: nothing of theirs is unset."""
+    kept = MemoryTuning()
+    await put(kept, "", THE_TEAMS)
+    await put(kept, ANA, A_VOICE)
+    read = await kept.newest(ORG, SANDBOX, ANA, AGENT)
+    assert read is not None
+    assert read.value == Tuning(voice="nova", llm=SONNET.llm, stt="soniox")
+    # Whose corner and which version: the nearest one that supplied a knob, which is Ana's own.
+    assert (read.holder, read.version) == (ANA, 1)
+
+
+async def test_an_empty_row_supplies_nothing_and_the_corner_below_is_heard_whole() -> None:
+    """What `clear` leaves behind: a version of its own, and not one knob blanked under it."""
+    kept = MemoryTuning()
+    await put(kept, "", THE_TEAMS)
+    await put(kept, ANA, A_VOICE)
+    assert await put(kept, ANA, Tuning(), if_version=1) == 2
+    read = await kept.newest(ORG, SANDBOX, ANA, AGENT)
+    assert read is not None and read.value == THE_TEAMS
+    assert (read.holder, read.version) == ("", 1)
+    # An empty row over nothing at all is nothing at all: the runtime's own defaults stand.
+    assert await kept.newest(ORG, SANDBOX, "m_bruno", "nobody-tuned-this") is None
+
+
+async def test_a_knob_set_to_a_falsy_value_wins_over_the_corner_below() -> None:
+    """Zero is a decision: only an absent knob falls through, never one somebody set to nothing."""
+    kept = MemoryTuning()
+    await put(kept, "", Tuning(turn=Turn(endpointing_ms=700), hangup=Hangup(when="at goodbye")))
+    await put(kept, ANA, Tuning(turn=Turn(endpointing_ms=0)))
+    read = await kept.newest(ORG, SANDBOX, ANA, AGENT)
+    assert read is not None
+    assert read.value == Tuning(turn=Turn(endpointing_ms=0), hangup=Hangup(when="at goodbye"))
 
 
 async def test_a_stale_version_is_refused_with_where_the_corner_is_now() -> None:

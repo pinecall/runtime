@@ -1,7 +1,7 @@
 # The directory verbs — `POST /v1/agents/{slug}/dev/{family}/{verb}`
 
 Some of what a console does needs the **agent's directory**, not the gateway: mount the class for a
-written call, read `test/personas` or `test/goldens`, push `knowledge/docs`, run `memory/golden.json`
+written call or a simulated one, read `test/goldens`, push `knowledge/docs`, run `memory/golden.json`
 and `test/memory`, write a golden candidate beside the goldens, read the reproduction a broken run
 left on that disk. None of those files are on the box. So the console asks the gateway, and the
 gateway asks the process that IS standing there — the `pinecall start` holding the agent — over the
@@ -24,7 +24,7 @@ verb's own shape, which belongs to the CLI that answers it; the protocol closes 
 | `chat` | `talk` | `chat.roster` · `chat.start` · `chat.say` · `chat.end` |
 | `knowledge` | `knowledge` | `knowledge.roster` · `knowledge.push` · `knowledge.eval` |
 | `memory` | `memory` | `memory.roster` · `memory.eval` · `memory.extraction` |
-| `evals` | `evals` | `simulate.roster` · `simulate.start` · `goldens.roster` · `goldens.run` · `promote.roster` · `promote.write` · `drift.read` · `reproductions.roster` · `reproductions.read` |
+| `evals` | `evals` | `simulate.start` · `goldens.roster` · `goldens.run` · `promote.roster` · `promote.write` · `drift.read` · `reproductions.roster` · `reproductions.read` |
 
 The family in the path is the door's scope; the verb is the wire's word, whole. A verb asked under
 the wrong family is `404 no dev verb chat.start in knowledge: the verbs are […]`. The body is the

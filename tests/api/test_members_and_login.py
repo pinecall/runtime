@@ -216,7 +216,7 @@ async def test_the_refusals_of_the_invite_door_are_sentences(
 async def test_a_code_minted_by_a_key_holder_logs_a_browser_in_with_a_key_of_its_own(
     tenant_http: httpx.AsyncClient, stranger: httpx.AsyncClient, keys: MemoryKeys
 ) -> None:
-    """`pinecall run` prints ?login=<code>; the browser spends it and holds a key of its own."""
+    """`pinecall start` prints ?login=<code>; the browser spends it and holds a key of its own."""
     minted = await tenant_http.post(CODES)
     assert minted.status_code == 200 and minted.json()["code"].startswith("lc_")
     signed = await stranger.post(LOGIN, json={"code": minted.json()["code"]})

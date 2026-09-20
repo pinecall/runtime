@@ -62,7 +62,7 @@ def members() -> MemoryMembers:
 
 
 async def running(registry: Registry, socket: str, holder: str) -> None:
-    """One developer's `pinecall run`, holding the agent and the shared sandbox number."""
+    """One developer's `pinecall start`, holding the agent and the shared sandbox number."""
     await registry.register(
         socket,
         A_RECORD.org,

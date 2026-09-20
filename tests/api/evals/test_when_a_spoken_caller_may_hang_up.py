@@ -2,7 +2,7 @@
 
 import pytest
 
-from pinecall.api.evals.listening import the_answer_has_landed
+from pinecall.api.evals.listening import A_SILENT_OPENING_S, the_answer_has_landed, the_line_is_open
 from pinecall.log.entry import Entry
 
 pytestmark = pytest.mark.unit
@@ -84,3 +84,32 @@ def test_a_second_line_still_needs_its_own_answer() -> None:
     )
 
     assert the_answer_has_landed(one, said=2) is False
+
+
+# The opening: the caller's first line waits for the greeting, never talks over it.
+def test_an_agent_still_greeting_keeps_the_line_closed() -> None:
+    log = _states(("agent.state", "listening"), ("agent.state", "speaking"))
+
+    assert the_line_is_open(log, now=100.0) is False
+
+
+def test_the_greeting_said_and_the_agent_listening_opens_the_line() -> None:
+    log = _states(
+        ("agent.state", "listening"),
+        ("agent.state", "speaking"),
+        "turn.agent",
+        ("agent.state", "listening"),
+    )
+
+    assert the_line_is_open(log, now=5.0) is True
+
+
+def test_an_agent_that_opens_with_nothing_is_believed_after_a_quiet_while() -> None:
+    log = _states(("agent.state", "listening"))
+
+    assert the_line_is_open(log, now=1.0 + A_SILENT_OPENING_S - 0.1) is False
+    assert the_line_is_open(log, now=1.0 + A_SILENT_OPENING_S) is True
+
+
+def test_no_agent_in_the_room_yet_keeps_the_line_closed() -> None:
+    assert the_line_is_open(_log("call.started"), now=100.0) is False

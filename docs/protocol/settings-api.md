@@ -24,6 +24,25 @@ corner always. Production has one corner, the org's own, and is **set directly**
 runs there (`pinecall-env: production`): a person with production access, or a production server's
 token. There is no promote: the goldens run in CI before a deploy, not at this door.
 
+**Every knob falls through on its own.** A corner supplies the knobs it actually set, and each knob
+it did not set is read from the corner below it — never the whole row of the first corner that has
+one. Setting a voice of your own does not disconnect you from the team's model:
+
+| set in | `voice` | `llm` | `stt` |
+|---|---|---|---|
+| yours | `nova` | | |
+| the team's | | `anthropic/claude-sonnet-4-5` | `soniox` |
+| **what the next call runs** | `nova` | `anthropic/claude-sonnet-4-5` | `soniox` |
+
+A knob is **set** when it is in the row, which is exactly what leaving it out of a `PUT` decides. A
+knob set to a falsy value is set and wins over the corner below — `turn {endpointing_ms: 0}`,
+`hangup {when: ""}`, `memory {remember: [], forget: []}` — and only an ABSENT knob falls through.
+An empty row therefore supplies nothing and is invisible to resolution: clearing your corner is a
+version of its own that blanks nothing under it. One knob cannot say it, and the shape is why:
+`bases` is a list with no absent form, so `[]` is written as no bases at all and reads as a corner
+that never attached one. The version a call records and a diff answers with is the nearest corner
+that supplied a knob.
+
 **Versions.** Every set is a new row; nothing is updated, nothing deleted. The body carries the
 version it was read at, and a corner that moved on since answers `409` with where it is now — two
 people saving from two screens never write over each other in silence. A rollback is a new version
@@ -42,7 +61,10 @@ Each corner's **own** newest, or null when that corner set nothing — not the f
 `if_version` is about the corner being written. `yours` is null on a request in production and on a key
 that holds no corner. `config` is `TuningBody` (`rest.json`): `voice`, `tts`, `tts_model`, `stt`,
 `llm` (the three model knobs take `vendor/model`, a vendor alone to keep its own default model, or a
-model alone to keep whichever vendor is in use), `greeting` (`{say}` or `{reply}`, one of the two),
+model alone to keep whichever vendor is in use; the model names a screen offers are the `models`
+map that `GET /v1/providers` and the pipeline report carry, keyed `<modality>/<vendor>` with each
+vendor's default first — a vendor with no entry there runs its own default and takes no model
+name), `greeting` (`{say}` or `{reply}`, one of the two),
 `hangup {when}`, `turn {min_interruption_words, endpointing_ms}`, `memory {remember, forget}`,
 `knowledge` — what the agent knows by heart, in Markdown: the business as the org describes it,
 read whole into the static knowledge block of every call, cached ahead of everything, and set by
@@ -58,7 +80,8 @@ Knowledge). `pinecall docs attach <base>` writes that list; the text is the cons
 { "config": { "voice": "amelia", "llm": "anthropic/claude-haiku-4-5" }, "if_version": 4, "note": "cleaner on the phone", "team": false }
 ```
 
-The **whole** set: a knob left out is not set, and the runtime's default stands for it. A knob that
+The **whole** set: a knob left out is not set in THIS corner, and the corner below it supplies the
+knob — the runtime's default when none of them sets it either. A knob that
 is present but **blank is refused** with `400` — an empty voice once reached the vendor and a whole
 line of calls went out silent. A vendor this build has no file for, an ElevenLabs model it will not
 run, a voice nobody curated, an opening with both verbs: `400`, each in its own sentence, and
@@ -69,7 +92,7 @@ the `GET` shape.
 ### `GET …/settings/history?team=&limit=` · `GET …/settings/diff?against=team|production` · `POST …/settings/rollback {version, team}`
 
 One corner's versions, newest first, each with who set it and why. What this key's corner reads
-(its own newest, else the org's own) against another corner's newest, with the fields that differ
+(knob by knob down its corners) against another corner's newest, with the fields that differ
 by name. One version copied forward as the next one, `note: "rollback to v{n}"`; `404` for a
 version the corner never had. Rollback takes `pipeline`, and works in production: what it copies
 was set there once.
