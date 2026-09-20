@@ -179,12 +179,15 @@ def test_the_widget_is_served_from_the_gateway_with_cors_for_any_site(
 # Swagger there by default. A route wins over the catch-all that serves the page, so the API's
 # schema shadowed the screen: a pasted link opened Swagger and a reload threw a person out of the
 # console (production, 2026-09-20). The interactive schema lives under `/v1` with every other door.
-def test_the_console_owns_docs_and_the_schema_lives_under_v1(gateway: TestClient) -> None:
+def test_the_console_owns_docs_and_the_schema_lives_under_v1(
+    gateway: TestClient,
+    built: Path,  # noqa: ARG001 — the fixture is the built console, in place
+) -> None:
     handle: Any = gateway
-    page: Any = handle.get("/docs")
-    assert page.status_code == 200
-    assert "swagger" not in page.text.lower()
-    assert handle.get("/docs/some-base").status_code == 200
+    for screen in ("/docs", "/docs/some-base"):
+        page: Any = handle.get(screen)
+        assert page.status_code == 200
+        assert page.text == THE_PAGE
     swagger: Any = handle.get("/v1/docs")
     assert swagger.status_code == 200
     assert "swagger" in swagger.text.lower()
