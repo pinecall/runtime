@@ -42,6 +42,9 @@ def a_member(id: str, email: str) -> Member:
 # CI's: a sandbox key that names nobody, which is what holds the org's own corner.
 CI_KEY = "pk_test_the_ci_job"
 
+# A production key: no corner at all, because what is deployed is the ORG's.
+PRODUCTIONS_KEY = "pk_live_the_orgs_own"
+
 
 @pytest.fixture
 def keys() -> MemoryKeys:
@@ -50,6 +53,7 @@ def keys() -> MemoryKeys:
             BERNAS_KEY: a_laptop("k_berna", BERNA),
             CARLAS_KEY: a_laptop("k_carla", CARLA),
             CI_KEY: KeyRecord(key_id="k_ci", org=A_RECORD.org, env=SANDBOX, label="ci"),
+            PRODUCTIONS_KEY: KeyRecord(key_id="k_prod", org=A_RECORD.org, env=PRODUCTION),
         }
     )
 
@@ -246,3 +250,32 @@ async def test_a_developer_reads_the_production_numbers_their_phone_can_dial(
 async def test_a_key_that_names_nobody_has_no_phone_to_dial_from(wired: None) -> None:  # noqa: ARG001
     async with over_the_asgi_app(f"Bearer {CI_KEY}") as ci:
         assert (await ci.get(TO_CALL)).status_code == 403
+
+
+# PRODUCTION HAS NO CORNERS. `held_by` answers None there for every key and so does the line's
+# holder, so `holder == whose` was None == None — true — and `pinecall line` told a laptop holding
+# nothing that the number "rings in this terminal", about a box (production, 2026-09-20).
+@pytest.fixture
+async def the_boxs(wired: None) -> AsyncIterator[httpx.AsyncClient]:  # noqa: ARG001
+    """A production key: no corner at all, because what is deployed is the ORG's."""
+    http = over_the_asgi_app(f"Bearer {PRODUCTIONS_KEY}")
+    yield http
+    await http.aclose()
+
+
+async def test_a_production_key_is_never_told_the_line_is_its_own(
+    the_boxs: httpx.AsyncClient, registry: Registry
+) -> None:
+    """What is deployed is the org's: no terminal owns the ring, so none is told it does."""
+    await registry.register(
+        "app_on_the_box",
+        A_RECORD.org,
+        PRODUCTION,
+        AGENT,
+        [defs.Route(channel="phone", number=THE_REAL_NUMBER)],
+    )
+
+    said = (await the_boxs.get(LINE)).json()
+
+    assert said["held"] is True
+    assert said["yours"] is False

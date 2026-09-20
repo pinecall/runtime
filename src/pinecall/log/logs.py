@@ -37,8 +37,20 @@ class CallLog:
         self._call = call
         self._masker = masker or Masker()
         self._fanout = fanout or Fanout()
-        self._tap = tap
+        self._taps = [tap] if tap is not None else []
         self._sealed = False
+
+    def tapped(self, tap: Tap) -> None:
+        """Hear every entry of this log INLINE, before the append that wrote it returns.
+
+        The fanout is the other way to read a log and the right one for a socket: a queue, drained
+        by a task, at the reader's pace. A tap is for a reader whose work is part of the write —
+        the WhatsApp thread's sender, whose door answers "said to the contact" — and for one that
+        must see entries this session did not write itself: the gateway's lookups append
+        `docs.sources` and `memory.ops` to this very log (`lookups/service.py`), and a reader fed
+        from the session's own `emit` never saw them (production, 2026-09-20).
+        """
+        self._taps.append(tap)
 
     @property
     def call(self) -> str:
@@ -60,8 +72,8 @@ class CallLog:
         # never see an entry the store does not have, which is what makes the cursor a promise.
         entry = await self._store.append(self._call, self._agent, type, payload, forgettable)
         self._fanout.publish(entry)
-        if self._tap is not None:
-            await self._tap(entry)
+        for tap in list(self._taps):
+            await tap(entry)
         if type == TERMINAL_EVENT:
             await self.seal()
         return entry
@@ -102,7 +114,7 @@ class AgentLog:
         self._store = store
         self._agent = agent
         self._fanout = fanout or Fanout()
-        self._tap = tap
+        self._taps = [tap] if tap is not None else []
 
     @property
     def agent(self) -> str:
@@ -116,8 +128,8 @@ class AgentLog:
         forgettable = ephemeral_by_default(type) if ephemeral is None else ephemeral
         entry = await self._store.append(None, self._agent, type, data or {}, forgettable)
         self._fanout.publish(entry)
-        if self._tap is not None:
-            await self._tap(entry)
+        for tap in list(self._taps):
+            await tap(entry)
         return entry
 
     async def since(self, after: int = 0, limit: int = DEFAULT_LIMIT) -> list[Entry]:

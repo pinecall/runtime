@@ -82,7 +82,7 @@ class TextSession:
         # commands, because a takeover and the release that answers it are minutes apart.
         self.taken_by: Supervisor | None = None
         self._log = log
-        self._watchers: list[Watcher] = []
+        self._gone: set[Watcher] = set()
         self._blocks = Blocks(config.prompt, _the_file_it_ships_with(config))
         self._state: dict[str, Any] = {}
         self._speeches = 0
@@ -130,8 +130,29 @@ class TextSession:
         return self.config.slug
 
     def watch(self, watcher: Watcher) -> None:
-        """Send every entry of this call there too, unprojected: the sink applies projections."""
-        self._watchers.append(watcher)
+        """Send every entry of this call there too, unprojected: the sink applies projections.
+
+        On the LOG's tap and not on `emit`, because `emit` is only what the SESSION writes: the
+        gateway's lookups append `docs.sources` and `memory.ops` to this very log
+        (`lookups/service.py`), and a watcher fed from `emit` never saw them — the caller's socket
+        skipped a seq the stored log had (production, 2026-09-20). A tap is inline, so a watcher
+        whose work is part of the write — the WhatsApp sender, whose door answers "said to the
+        contact" — still finishes before the append returns.
+        """
+        self._log.tapped(self._sent_to(watcher))
+
+    def _sent_to(self, watcher: Watcher) -> Watcher:
+        """One watcher, wrapped so a reader that went away never breaks the call's log."""
+
+        async def sent(entry: Entry) -> None:
+            if watcher in self._gone:
+                return
+            try:
+                await watcher(entry)
+            except Exception:  # noqa: BLE001 — a reader that went away must not break the log
+                self._gone.add(watcher)
+
+        return sent
 
     # ── the call ────────────────────────────────────────────────────────────────
 
@@ -300,14 +321,8 @@ class TextSession:
     # encode() here, at the one call site: the ledger's CallLog takes the wire's own dict, masks
     # it, publishes it to every live reader and seals the log after call.summary.
     async def emit(self, type: str, event: WireModel, ephemeral: bool | None = None) -> Entry:
-        """Append the entry, then hand the very same entry to everyone reading this call."""
-        entry = await self._log.append(type, encode(event), ephemeral)
-        for watcher in list(self._watchers):
-            try:
-                await watcher(entry)
-            except Exception:  # a reader that went away must never break the call's log
-                self._watchers.remove(watcher)
-        return entry
+        """One entry onto this call's log. Everyone watching the call reads it from there."""
+        return await self._log.append(type, encode(event), ephemeral)
 
     @property
     def speech_now(self) -> str:

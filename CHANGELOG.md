@@ -7,6 +7,16 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Fixed
+- **`WS /v1/chat` carries every entry of the call, as the door has always claimed.** A watcher of
+  a text call was fed from the session's own `emit`, so the entries the GATEWAY writes on the same
+  log — `docs.sources` and `memory.ops`, from `lookups/service.py` — reached the caller's socket
+  and the WhatsApp thread never: a reader following the seqs saw one skip and the stored log had
+  it. A log takes more than one tap now, and a watcher is one: inline, in order, before the append
+  returns, so the WhatsApp door still answers only once the contact has the message.
+- **A production key is never told the line is its own.** Production has no corners: `held_by`
+  answers None for every key there and so does the line's holder, so `holder == whose` was
+  `None == None` and `pinecall line` told a laptop holding nothing that the number "rings in this
+  terminal", about a box.
 - **A key in `?token=` is refused.** The one door that reads a bearer out of a URL — the log's SSE
   and JSON flavours, because an `EventSource` cannot set a header — took an API KEY there as well
   as a room token, against what its own paragraph has said since it was written. A URL is written

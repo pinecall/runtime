@@ -20,7 +20,14 @@ from pinecall.api.agents.registry import NO_AGENT, Registry, RegistryDep
 from pinecall.api.agents.tuned import tuned_for
 from pinecall.auth.keys import KeyRecord, held_by, sees_every_corner
 from pinecall.auth.members import Members
-from pinecall.types import PRODUCTION, SANDBOX, AgentConfig, DeclarationRefused, an_e164
+from pinecall.types import (
+    PRODUCTION,
+    SANDBOX,
+    AgentConfig,
+    DeclarationRefused,
+    an_e164,
+    is_a_deployment,
+)
 from pinecall_protocol import WireModel
 from pinecall_protocol.rest import AgentList, HeldAgent, LineHolder, TheLine
 
@@ -192,7 +199,11 @@ async def _said(slug: str, key: KeyRecord, registry: Registry, members: Members)
         env=key.env,
         held=held,
         holding=await named_holder(key.org, holder, members) if held else None,
-        yours=held and holder == whose,
+        # PRODUCTION HAS NO CORNERS: `held_by` is None there for every key, and so is the line's
+        # holder, so `None == None` made the line "yours" for anybody who asked — `pinecall line`
+        # answered "rings in this terminal" on a laptop holding nothing, about a number ringing a
+        # box (production, 2026-09-20). A line is somebody's only where corners exist.
+        yours=held and holder == whose and not is_a_deployment(key.env),
         waiting=[await named_holder(key.org, one.holder, members) for one in waiting],
         calling=list(registry.calling(key.env, whose)),
     )
