@@ -179,12 +179,15 @@ cloud-cli-hetzner:
 #
 # `stop`, and not `disable --now`: disabling is what systemd refuses on a generated unit, and it
 # refuses before it would have stopped anything. So the container is stopped while its generated
-# unit still exists to be stopped, and the files go after. The weights stay — `podman volume rm
+# unit still exists to be stopped, and the files go after — BOTH of them, the container's and the
+# volume's, and then a reload: a generator's unit whose file is gone sits in `systemctl` as
+# `not-found` until systemd is told to look again, and `make status` printed it for days. The weights stay — `podman volume rm
 # pinecall-tei` frees the 2.3 GB, and that is a person's to type, because a line changed in a
 # config file must not throw data away.
 .PHONY: embedder-tei embedder-elsewhere
 embedder-tei:
 	install -D -m 644 -t $(QUADLET) $(TEI)
 embedder-elsewhere:
-	-systemctl stop pinecall-tei 2>/dev/null
+	-systemctl stop pinecall-tei pinecall-tei-volume 2>/dev/null
 	rm -f $(addprefix $(QUADLET)/,$(notdir $(TEI)))
+	systemctl daemon-reload
