@@ -32,6 +32,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **`fleet list` no longer totals `0 seats free` for a fleet nobody counted.** A worker with no
   `PINECALL_MAX_JOBS` is gated by its CPU and reports no seats, which read as a full fleet beside
   the same line saying it accepts calls. Those totals say `seats gated by cpu, uncounted`.
+- **`fleet uncordon` says whether there is still a worker there.** A cordon is how a machine is
+  retired: the worker drains, exits 3, and the unit is written not to bring it back. Lifting the
+  cordon afterwards printed `uncordoned` and left the box with **no worker**, while `fleet list`
+  went on saying `accepting` for the thirty seconds a heartbeat counts for. It now says which it
+  did — takes calls again, or already drained and left, with the line that starts it — and
+  `cordon` says out loud that the worker does not come back on its own.
 - **`migrate up` names only the post-deployment files this database has not run.** It listed every
   `.post.sql` on disk as still waiting, applied or not, and sent a person to `migrate up --post`
   for one they had applied weeks ago. It had the table's answer two lines above it.

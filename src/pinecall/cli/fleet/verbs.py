@@ -13,7 +13,7 @@ from pydantic import TypeAdapter
 
 from pinecall.cli.columns import as_columns
 from pinecall.cli.operator import Operator, OperatorRefused, against_the_gateway
-from pinecall.fleet import Line, Seat, cloud_named
+from pinecall.fleet import STALE_AFTER_S, Line, Seat, cloud_named
 from pinecall.fleet.clouds import CloudRefused
 from pinecall.fleet.loop import tick
 
@@ -144,13 +144,46 @@ async def cordon(worker: str, on: bool, operator: Operator, out: TextIO = sys.st
     path = f"{OPS_FLEET}/{worker}/cordon"
     if on:
         await operator.post(path)
-        print(
-            f"{worker} cordoned: it takes no new call, finishes what it holds, and leaves", file=out
-        )
-    else:
-        await operator.delete(path)
-        print(f"{worker} uncordoned", file=out)
+        print(CORDONED.format(worker=worker), file=out)
+        return 0
+    await operator.delete(path)
+    print(_what_lifting_it_did(worker, await _the_seat_of(operator, worker)), file=out)
     return 0
+
+
+# A cordon is how a machine is RETIRED: it drains and exits, and the unit is written not to bring
+# a drained worker back (`RestartPreventExitStatus=3`, infra/box/pinecall-worker.service), because
+# the fleet loop deletes the machine next. Said only as "it leaves", an operator cordons a box to
+# look at something, uncordons it, reads `uncordoned`, and has no worker — for thirty seconds
+# `fleet list` still says `accepting`, because that is how long a heartbeat counts (2026-09-20).
+CORDONED = (
+    "{worker} cordoned: it takes no new call, finishes what it holds, and leaves — "
+    "and it does not come back on its own"
+)
+UNCORDONED = "{worker} uncordoned: it takes calls again"
+ALREADY_GONE = (
+    "{worker} uncordoned, but nothing has been heard from it for {since}s: it already drained and "
+    "left, and a drained worker is not restarted — on a box, `systemctl start pinecall-worker`"
+)
+NOBODY_HEARD_OF = "{worker} uncordoned, and no worker of that name has ever knocked here"
+
+
+def _what_lifting_it_did(worker: str, seat: Seat | None) -> str:
+    """Whether there is still a worker there to take calls again, which is the whole question."""
+    if seat is None:
+        return NOBODY_HEARD_OF.format(worker=worker)
+    since = time.time() - seat.seen_at
+    if since > STALE_AFTER_S:
+        return ALREADY_GONE.format(worker=worker, since=int(since))
+    return UNCORDONED.format(worker=worker)
+
+
+async def _the_seat_of(operator: Operator, worker: str) -> Seat | None:
+    """The roster's row for one worker, as the gateway has it right now."""
+    said = await operator.get(OPS_FLEET)
+    return next(
+        (seat for seat in SEATS.validate_python(said["workers"]) if seat.worker == worker), None
+    )
 
 
 async def loop(

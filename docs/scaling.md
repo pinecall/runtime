@@ -82,8 +82,12 @@ the gateway first and the worker only once the gateway answers, so no call rings
 `pinecall-runtime fleet cordon <worker>` is the drain an operator asks for. The worker learns on its
 next heartbeat, tells LiveKit it is full, finishes the calls it holds, and exits **3** — the code
 `RestartPreventExitStatus=3` in its unit leaves down, because the machine is about to be deleted or
-a person will start it back. `fleet uncordon` takes it back while it is still there. It is the
-same drain, with the same ten minutes.
+a person will start it back. `fleet uncordon` takes it back **while it is still there**, and says
+which it did: a worker still heartbeating takes calls again, and one that already drained is named
+as gone with the line that starts it (`systemctl start pinecall-worker` on a box). That matters on
+a box of one worker: a cordon there is not a shrink, it is the end of the service until somebody
+types that line, and the roster keeps saying `accepting` for the thirty seconds a heartbeat counts
+for. It is the same drain, with the same ten minutes.
 
 ## Concurrency per client, held at the door
 
