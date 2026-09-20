@@ -2,6 +2,7 @@
 
 import pytest
 
+from pinecall._exceptions import PinecallError
 from pinecall.cli import GROUPS, build_parser, gateway, main
 from pinecall.cli.box import verbs as box
 from pinecall.cli.doctor import verbs as doctor
@@ -129,3 +130,21 @@ def test_keys_issue_takes_the_fleet_scope_the_worker_key_unit_types() -> None:
     """`--scope fleet` is minted here and nowhere else: infra/box/pinecall-worker-key.service."""
     typed = ["keys", "issue", "--org", "default", "--scope", "fleet", "--scope", "app"]
     assert build_parser().parse_args(typed).scope == ["fleet", "app"]
+
+
+# Anything this runtime raises DELIBERATELY is a refusal a person acts on, and a person reading a
+# terminal should never be handed a stack trace out of the middle of a library for one. A verb
+# that wants its own exit code still catches its own first; this is the door behind all of them.
+def test_a_refusal_from_a_verb_is_one_sentence_on_stderr_and_exits_one(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def refuse(_arguments: object) -> int:
+        raise PinecallError("the embedder has no API key in this process: set PERPLEXITY_API_KEY")
+
+    monkeypatch.setattr(doctor, "run", refuse)
+
+    assert main(["doctor"]) == 1
+
+    said = capsys.readouterr()
+    assert said.err.strip() == "the embedder has no API key in this process: set PERPLEXITY_API_KEY"
+    assert "Traceback" not in said.err

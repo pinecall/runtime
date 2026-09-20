@@ -5,6 +5,7 @@ import sys
 from collections.abc import Callable, Sequence
 from typing import NoReturn, Protocol, override
 
+from pinecall._exceptions import PinecallError
 from pinecall.cli import (
     box,
     doctor,
@@ -59,7 +60,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     # Every group's configure() left the function that does the work under `run`.
     run: Callable[[argparse.Namespace], int] = arguments.run
-    return run(arguments)
+    try:
+        return run(arguments)
+    except PinecallError as refused:
+        # Anything this runtime raises deliberately is a sentence a person acts on, and the exit
+        # code says it failed. A verb that wants its own code catches its own refusal first; this
+        # is the door, so nothing reaches a terminal as a stack trace out of a library.
+        print(str(refused), file=sys.stderr)
+        return 1
 
 
 def build_parser() -> argparse.ArgumentParser:

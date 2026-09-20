@@ -18,6 +18,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **`fleet list` no longer totals `0 seats free` for a fleet nobody counted.** A worker with no
   `PINECALL_MAX_JOBS` is gated by its CPU and reports no seats, which read as a full fleet beside
   the same line saying it accepts calls. Those totals say `seats gated by cpu, uncounted`.
+- **Nothing this runtime refuses reaches a terminal as a traceback.** The dispatcher prints any
+  refusal the runtime raises deliberately as one sentence on stderr and exits 1. The one that made
+  it necessary: a `.env` that is there and cannot be opened — `sudo -u pinecall <verb>` inside
+  another user's home — came out of the middle of python-dotenv as a `PermissionError`. It reads
+  `cannot read .env: Permission denied — a .env that is there is never skipped in silence`.
 - **A database that does not answer is a sentence, and never the password.** Every refusal that
   names the database went through the raw DSN, so `migrate status` against a box whose password had
   changed printed `postgresql://pinecall:<the password>@…` under an asyncpg traceback. The store

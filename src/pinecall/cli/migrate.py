@@ -7,13 +7,12 @@ from pinecall._settings import load_settings
 from pinecall.log.store.migrating import (
     POST_DEPLOY,
     Applied,
-    SchemaRefused,
     apply_migrations,
     every,
     migrations_behind,
     ordered,
 )
-from pinecall.log.store.postgres import DEFAULT_SCHEMA, StoreUnreachable, create_pool
+from pinecall.log.store.postgres import DEFAULT_SCHEMA, create_pool
 
 PURPOSE: str = "the database schema: up | status | plan"
 VERBS: tuple[str, ...] = ("up", "status", "plan")
@@ -51,20 +50,17 @@ def configure(parser: argparse.ArgumentParser) -> None:
     parser.set_defaults(run=run)
 
 
+# A schema this verb will not splice into SQL, and a database that does not answer, both leave
+# here as themselves: the dispatcher prints anything this runtime raises deliberately as one
+# sentence and exits 1 (cli/__init__.py). The DSN in that sentence has no password in it
+# (log/store/postgres.py, without_password) — it used to arrive as an asyncpg traceback with one.
 def run(arguments: argparse.Namespace) -> int:
     """Apply, or just say. Applying twice applies nothing: the record is the guard."""
-    try:
-        if arguments.verb == "plan":
-            return _plan(arguments.post)
-        if arguments.verb == "status":
-            return asyncio.run(_status(arguments.schema))
-        return asyncio.run(_migrate(arguments.schema, arguments.post))
-    except (SchemaRefused, StoreUnreachable) as refused:
-        # Not a traceback: this is a sentence a person acts on, and the exit code says it failed.
-        # A database that does not answer is the commonest of the two, and it arrives here with
-        # the password already out of the DSN (log/store/postgres.py, without_password).
-        print(str(refused))
-        return 1
+    if arguments.verb == "plan":
+        return _plan(arguments.post)
+    if arguments.verb == "status":
+        return asyncio.run(_status(arguments.schema))
+    return asyncio.run(_migrate(arguments.schema, arguments.post))
 
 
 async def _migrate(schema: str, post: bool) -> int:

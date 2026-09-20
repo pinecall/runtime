@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from pinecall._env_files import EnvFileRefused
 from pinecall._settings import ENV_FILES, Settings, env_files_read, load_settings, variable_of
 from tests.tree import PACKAGE_ROOT
 
@@ -188,3 +189,22 @@ def test_the_example_file_copied_verbatim_builds_settings(
     write_env_file(tmp_path / ".env", example)
     monkeypatch.chdir(tmp_path)
     assert load_settings().max_jobs is None
+
+
+# A .env this process cannot open used to arrive as a PermissionError traceback out of the middle
+# of python-dotenv — a person running a verb as the service user inside another user's home, on
+# the box (2026-09-20). It is not read, and it is never skipped in silence either.
+@pytest.mark.usefixtures("the_env_file_is_read")
+def test_an_env_file_that_cannot_be_opened_is_a_sentence_naming_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_env_file(tmp_path / ".env", "ELEVEN_API_KEY=never-read\n")
+    (tmp_path / ".env").chmod(0o000)
+    monkeypatch.chdir(tmp_path)
+    try:
+        with pytest.raises(EnvFileRefused) as refused:
+            load_settings()
+    finally:
+        (tmp_path / ".env").chmod(0o600)
+    assert ".env" in str(refused.value)
+    assert "never skipped in silence" in str(refused.value)

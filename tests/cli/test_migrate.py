@@ -54,7 +54,7 @@ def test_a_database_that_does_not_answer_is_a_sentence_without_the_password(
 
     assert main(["migrate", "status"]) == 1
 
-    printed = capsys.readouterr().out
+    printed = capsys.readouterr().err
     assert "postgresql://pinecall@127.0.0.1:1/pinecall" in printed
     assert "s3cret" not in printed
     assert "Traceback" not in printed

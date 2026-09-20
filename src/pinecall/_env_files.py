@@ -3,6 +3,8 @@
 from collections.abc import Iterator
 from pathlib import Path
 
+from pinecall._exceptions import PinecallError
+
 # The two names a .env is looked for under: in the directory the process started in, then in
 # each parent up to the repository root. `uv run pinecall-runtime …` starts in the runtime
 # directory, where the first name is the file; an app started from a checkout's root, or from an
@@ -29,3 +31,22 @@ def _folders_up_to_the_repository_root(start: Path) -> Iterator[Path]:
         yield candidate
         if (candidate / ".git").exists():
             return
+
+
+# A `.env` that is there and cannot be opened is not the same as no `.env`: the file may hold the
+# very key the verb needs, and reading none of it silently is how a process runs against the wrong
+# database. python-dotenv opens it while pydantic builds its source, so what a person saw was a
+# PermissionError out of the middle of a library (`sudo -u pinecall` inside another user's home,
+# on the box, 2026-09-20). One sentence, naming the file and why.
+UNREADABLE_ENV = "cannot read {file}: {why} — a .env that is there is never skipped in silence"
+
+
+class EnvFileRefused(PinecallError):
+    """A .env this process cannot open. Nothing is read from it, and nothing pretends otherwise."""
+
+
+def as_a_refusal(failed: OSError) -> EnvFileRefused:
+    """The OS's own complaint about a .env, as the sentence a person reads."""
+    return EnvFileRefused(
+        UNREADABLE_ENV.format(file=failed.filename or ENV_FILES[0], why=failed.strerror or failed)
+    )

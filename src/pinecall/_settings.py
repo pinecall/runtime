@@ -12,7 +12,7 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
-from pinecall._env_files import ENV_FILES, env_files_read
+from pinecall._env_files import ENV_FILES, as_a_refusal, env_files_read
 from pinecall._vendor_keys import VendorKeys
 
 # Our own knobs carry this prefix; a vendor key keeps the vendor's own name (the alias on the
@@ -57,11 +57,10 @@ class Settings(VendorKeys):
     # environment before the dotenv source. That is what a box with systemd's EnvironmentFile
     # needs, and what a laptop exporting a key from another project will feel — the export
     # shadows the file, and `env | grep PINECALL` is the first thing to run when it surprises.
-    # extra="ignore" because the file may carry names this runtime does not read.
-    # A box hands its secrets over as systemd credentials: one file per name under the directory
-    # named in CREDENTIALS_DIRECTORY, readable by this process alone (`ImportCredential=` in
-    # infra/box/*.service). pydantic reads such a directory as a secrets source, matching the
-    # names the environment uses, so `/run/credentials/…/DATABASE_URL` is `DATABASE_URL`.
+    # extra="ignore" because the file may carry names this runtime does not read. A box hands its
+    # secrets over as systemd credentials instead: one file per name under CREDENTIALS_DIRECTORY,
+    # readable by this process alone (`ImportCredential=` in infra/box/*.service), which pydantic
+    # reads as a secrets source — so `/run/credentials/…/DATABASE_URL` is `DATABASE_URL`.
     model_config = SettingsConfigDict(
         env_prefix=ENV_PREFIX,
         env_file=ENV_FILES,
@@ -292,12 +291,10 @@ class Settings(VendorKeys):
         description="Packages that plug a policy into the runtime's points, comma separated.",
     )
     # The org's own key, as `keys issue` printed it: what the WORKER knocks at its gateway with,
-    # minted once by pinecall-worker-key.service and kept in the credstore.
-    #
-    # It was PINECALL_API_KEY, and that name was three different things at once: this credential,
-    # a key source in the v2 CLI, and the variable v1's SDK exports — so a laptop with v1's export
-    # still live silently registered agents into whatever org THAT key named. The runtime's half
-    # of the collision is gone by having a name of its own; the CLI's half goes with the profiles.
+    # minted once by pinecall-worker-key.service and kept in the credstore. It was
+    # PINECALL_API_KEY — this credential, a key source in the v2 CLI and the variable v1's SDK
+    # exports, all at once, so a laptop with v1's export still live silently registered agents
+    # into whatever org THAT key named. A name of its own ends the collision.
     worker_key: str | None = Field(
         default=None,
         description="The org key the worker knocks its gateway with, as `keys issue` printed it.",
@@ -390,8 +387,11 @@ class Settings(VendorKeys):
 
 
 def load_settings() -> Settings:
-    """Read the environment now. Cheap, and no hidden global: hold the result where it is needed."""
-    return Settings()
+    """The environment now. No hidden global; an unopenable .env is a sentence, not a trace."""
+    try:
+        return Settings()
+    except OSError as failed:
+        raise as_a_refusal(failed) from failed
 
 
 def variable_of(field: str) -> str:
