@@ -41,17 +41,11 @@ as `403 this key does not open knowledge: it opens calls · evals`. A server's t
 `calls` · `talk` · `knowledge` · `evals`; a person's holds their role's, whole, in either world (§8). `app`: the app socket and the
 worker's doors, and `POST /v1/apps/{app}/stop`. `calls`: `GET /v1/agents`, `GET /v1/apps` (the processes holding them: machine, SDK, since when), every read of a log, and — beside `app` — the one door that opens to either, `GET /v1/agents/{slug}/config`: a declaration is read by the worker holding the agent and by the console drawing its state. `talk`: `POST /v1/tokens`, `WS
 /v1/chat`, and `POST /v1/agents/{slug}/dial`, the one door that PLACES a call ([console-api.md](console-api.md) §4; the trunk it dials through is `GET`·`POST /v1/carrier/outbound`, under `numbers`). `supervise`: listen, the seat, the verbs by key. `pipeline` · `knowledge` · `memory` ·
-`evals` · `numbers` · `usage` · `team`: the doors of that name. `words`: the org's lexicon
-(`GET`·`PUT /v1/lexicon`, and the words on an agent's settings). `keys`: the org's own API keys.
+`evals` · `numbers` · `usage` · `team`: the doors of that name. `words`: the org's lexicon (`GET`·`PUT /v1/lexicon`, and the words on an agent's settings). `keys`: the org's own API keys.
 `providers`: the vendor keys it brought. `GET /v1/whoami`, `POST /v1/login/codes` and the person's own login doors — `GET /v1/login/orgs`, `POST /v1/login/org` — ask for none. **`fleet` is the box's own worker's, and only its**: one worker answers every org's spoken calls, so at the worker's doors — `GET /v1/routes`, `/agents/{slug}/config`, `/provider-keys`, `POST /v1/calls` and the call's doors — a key holding it resolves by the corner the request names, `?org=&env=&holder=`, which is the corner the call's dispatch named; `GET /v1/routes?number=&channel=` is its question for a phone call whose dispatch named no org, and `GET /v1/agents/{slug}/rings-for?caller=&org=` its question about that call once routed to production (§3). Any other key naming a corner but its own is `403 this key works in its own org and world: only the fleet's key names another`.
 
-**The one exception to the header** is `?token=`, because an `EventSource` in a browser cannot set
-one. Only a short-lived room token is accepted there (see Tokens), never an API key: a URL ends up
-in an access log. Every door that reads a log takes the query parameter — the schema declares it on
-seven — but a room token is a token for ONE call, so the three it actually opens are that call's:
-`GET /v1/calls/{call}/events`, `…/state` and `…/recording`, its own audio. The org-wide doors
-(`/v1/sessions`, `/v1/events`, `/v1/agents/{slug}/calls`, `/v1/agents/{slug}/sessions`) refuse it
-by name: `an org's events are read with a key`.
+**The one exception to the header** is `?token=`, because an `EventSource` cannot set one. Only a
+short-lived room token is accepted there (see Tokens), never an API key: a URL ends up in an access log. Every log door takes the parameter (seven, in the schema), but a room token is a token for ONE call, so it opens that call's three — `GET /v1/calls/{call}/events`, `…/state`, `…/recording`, its own audio — and the org-wide doors refuse it: `an org's events are read with a key`.
 
 **Two more headers**: `pinecall-env: sandbox|production` names the world a person's key works in for this request — none is the sandbox, production only while their member row opens it (`403 <name> has no production access: …`), read at every request — and a server's token stays in the one it was made for (`403 this token was made for …`), sockets closing with the sentence; `pinecall-corner: <member id>` answers an HTTP door in that member's sandbox corner — an admin opening a colleague's copy ([multi-tenancy.md](../multi-tenancy.md)).
 **Refusals** are FastAPI's shape — `{"detail": "…"}` under the status — and the sentence names the

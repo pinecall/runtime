@@ -91,8 +91,7 @@ sudo systemctl restart pinecall-gateway pinecall-worker
 
 The names are the environment's own and each unit lists which it may see (the embedder's
 `PERPLEXITY_API_KEY` or `OPENROUTER_API_KEY` is the gateway's alone). The box installs a plugin for
-**every vendor LiveKit ships one for** but the four whose SDKs it deliberately leaves out
-(`providers-big`: aws, azure, google, speechmatics), each reading its key under its own variable;
+**every vendor LiveKit ships one for** but the four heavy ones it leaves out (`providers-big`: aws, azure, google, speechmatics), each reading its key under its own variable;
 one not in the credstore is simply absent and costs nothing until `make secret
 NAME=CARTESIA_API_KEY` puts it there. The whole table, with what each still wants, is `make
 providers` from the checkout. **The box holds no credential for the repository.** It cannot clone
