@@ -41,12 +41,17 @@ as `403 this key does not open knowledge: it opens calls · evals`. A server's t
 `calls` · `talk` · `knowledge` · `evals`; a person's holds their role's, whole, in either world (§8). `app`: the app socket and the
 worker's doors, and `POST /v1/apps/{app}/stop`. `calls`: `GET /v1/agents`, `GET /v1/apps` (the processes holding them: machine, SDK, since when), every read of a log, and — beside `app` — the one door that opens to either, `GET /v1/agents/{slug}/config`: a declaration is read by the worker holding the agent and by the console drawing its state. `talk`: `POST /v1/tokens`, `WS
 /v1/chat`, and `POST /v1/agents/{slug}/dial`, the one door that PLACES a call ([console-api.md](console-api.md) §4; the trunk it dials through is `GET`·`POST /v1/carrier/outbound`, under `numbers`). `supervise`: listen, the seat, the verbs by key. `pipeline` · `knowledge` · `memory` ·
-`evals` · `numbers` · `usage` · `team`: the doors of that name. `keys`: the org's own API keys.
+`evals` · `numbers` · `usage` · `team`: the doors of that name. `words`: the org's lexicon
+(`GET`·`PUT /v1/lexicon`, and the words on an agent's settings). `keys`: the org's own API keys.
 `providers`: the vendor keys it brought. `GET /v1/whoami`, `POST /v1/login/codes` and the person's own login doors — `GET /v1/login/orgs`, `POST /v1/login/org` — ask for none. **`fleet` is the box's own worker's, and only its**: one worker answers every org's spoken calls, so at the worker's doors — `GET /v1/routes`, `/agents/{slug}/config`, `/provider-keys`, `POST /v1/calls` and the call's doors — a key holding it resolves by the corner the request names, `?org=&env=&holder=`, which is the corner the call's dispatch named; `GET /v1/routes?number=&channel=` is its question for a phone call whose dispatch named no org, and `GET /v1/agents/{slug}/rings-for?caller=&org=` its question about that call once routed to production (§3). Any other key naming a corner but its own is `403 this key works in its own org and world: only the fleet's key names another`.
 
-**The one exception to the header** is `?token=` on the two log doors, because an `EventSource` in
-a browser cannot set a header. Only a short-lived room token is accepted there (see Tokens), never
-an API key: a URL ends up in an access log.
+**The one exception to the header** is `?token=`, because an `EventSource` in a browser cannot set
+one. Only a short-lived room token is accepted there (see Tokens), never an API key: a URL ends up
+in an access log. Every door that reads a log takes the query parameter — the schema declares it on
+seven — but a room token is a token for ONE call, so the three it actually opens are that call's:
+`GET /v1/calls/{call}/events`, `…/state` and `…/recording`, its own audio. The org-wide doors
+(`/v1/sessions`, `/v1/events`, `/v1/agents/{slug}/calls`, `/v1/agents/{slug}/sessions`) refuse it
+by name: `an org's events are read with a key`.
 
 **Two more headers**: `pinecall-env: sandbox|production` names the world a person's key works in for this request — none is the sandbox, production only while their member row opens it (`403 <name> has no production access: …`), read at every request — and a server's token stays in the one it was made for (`403 this token was made for …`), sockets closing with the sentence; `pinecall-corner: <member id>` answers an HTTP door in that member's sandbox corner — an admin opening a colleague's copy ([multi-tenancy.md](../multi-tenancy.md)).
 **Refusals** are FastAPI's shape — `{"detail": "…"}` under the status — and the sentence names the
@@ -97,7 +102,7 @@ minted for: two developers each run `tienda-sur` on their own laptop, and what e
 /v1/agents`, `WS /v1/chat`, the config door, a suite — is their own socket. A sandbox key naming
 nobody (CI's) holds the org's own, which a person holding none falls back to. Production has one
 corner, the org's own, whether a server's token or a person with production access holds it (§8). A **dialled** door is the exception:
-a number exists once in a world, and a ring reaches the caller's own copy or the agent's line (§3), even through a production number. **And somebody sees all of them**: `GET /v1/agents` answers a key that opens `team` one row per corner, each carrying `holder` (absent for the org's own), and the `pinecall-corner` header opens any of them.
+a number exists once in a world, and a ring reaches the caller's own copy or the agent's line (§3), even through a production number. **And somebody sees all of them**: `GET /v1/agents` answers a key that opens `team` one row per corner, each carrying `holder` (`null` for the org's own), and the `pinecall-corner` header opens any of them.
 
 **Which world.** A request runs in `production` or `sandbox` — a token's own, or what a person's key names — and the agent this socket registers
 is held in that world alone: the same slug in production and in the sandbox is two agents, and
@@ -232,7 +237,7 @@ full, with the numbers and the way out in the sentence (`every seat of the fleet
 calls on 3 workers. Offer a call back — POST /v1/callbacks with the number — or try again in a
 minute.`) and `fleet.full` in the agent's log. Your page offers the visitor a call back **before**
 any room is made: `POST /v1/callbacks` with `{agent, number, channel?, via?, call?}` writes
-`callback.requested` onto the agent's log and answers `204`, and `GET /v1/callbacks[?agent=&after=]` is every
+`callback.requested` onto the agent's log and answers `204`, and `GET /v1/callbacks[?agent=&after=]` answers `{requests, next}` — every
 request your agents took, oldest first, for your app to dial. A phone caller who arrives when the
 fleet is full is answered by the overflow agent on the hub, hears one sentence, and lands on the
 same log the same way, `via: "overflow"`. The call id is minted **before** the browser
@@ -360,7 +365,7 @@ An org may bring its own vendor keys, sealed under the box's vault key and read 
 | door | |
 |---|---|
 | `POST /v1/evals/run` | a suite of goldens driven through the connected app, scored and stored. Answers an `EvalRun` |
-| `GET /v1/evals/runs?agent=&limit=` · `GET /v1/evals/runs/{id}` | what this gateway has run |
+| `GET /v1/evals/runs?agent=&limit=&since=` · `GET /v1/evals/runs/{id}` | what this gateway has run; `since` is a unix second, for a pipe that reads only what is new |
 | `POST /v1/evals/replay/{call}` | ring 3: one finished call rebuilt from its log and answered by four **code** checks — consent, register, errors, latency. Takes `{banned?, budget?}` · `POST /v1/evals/judge/{call}` runs the model judges over one nobody judged: [console-api.md](console-api.md) §6 |
 | `POST /v1/evals/caller` | one improvised line from a persona: `{persona, heard, turns_left}` → `{say, hangup}`. The caller itself is a row, not a file: `GET /v1/personas` · `PUT`·`DELETE …/{name}`, one list an **org** — no agent in the path, and not per world — opened by `evals`. A PUT writes one whole and `was` renames the caller it names (`404` nobody wrote it, `409` the new name is taken); a name is lower-case words joined by hyphens, or `422` |
 | `GET /v1/personas/{name}/runs?limit=&before=` | what that caller has DONE: every simulation it has run in the key's world and corner, newest first — `PersonaRunList {runs: [{call, agent, started_at, ended_at, turns, end_reason, outcome, cost_eur, score}], total, next}`. `turns` is the caller's own lines, `score` is `null` when nobody judged the run, and the paging is the sessions list's: `next` is the last call of the page, handed back as `before`. Read off the call index, never off a log. `404` for a name this org never wrote, rather than an empty page — `evals` |

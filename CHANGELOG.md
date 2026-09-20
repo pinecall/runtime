@@ -6,6 +6,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 
 ## [Unreleased]
 
+### Changed
+- `docs/the-runtime-cli.md` is the verbs; the environment table and the two walkthroughs are
+  `docs/the-environment.md`, a page of their own (and a page of the site).
+
 ### Fixed
 - **`doctor`'s embedder line embeds a word.** It used to GET the provider's base URL, and a vendor
   answers the same status there for a live key, an expired one and none at all — so a box with a
@@ -18,6 +22,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **`fleet list` no longer totals `0 seats free` for a fleet nobody counted.** A worker with no
   `PINECALL_MAX_JOBS` is gated by its CPU and reports no seats, which read as a full fleet beside
   the same line saying it accepts calls. Those totals say `seats gated by cpu, uncounted`.
+- **`migrate status` asks the database about post-deployment files too.** Every `.post.sql` read
+  `waiting` off the disk alone, so one a person had already applied still looked pending for ever.
+  Each file is now `applied`, `behind` (a startup file this database has not run) or `waiting`, by
+  what the table says, and what waits is counted at the end.
 - **Nothing this runtime refuses reaches a terminal as a traceback.** The dispatcher prints any
   refusal the runtime raises deliberately as one sentence on stderr and exits 1. The one that made
   it necessary: a `.env` that is there and cannot be opened — `sudo -u pinecall <verb>` inside

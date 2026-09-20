@@ -9,10 +9,10 @@ from pinecall.log.store.migrating import (
     Applied,
     apply_migrations,
     every,
-    migrations_behind,
+    migrations_applied,
     ordered,
 )
-from pinecall.log.store.postgres import DEFAULT_SCHEMA, create_pool
+from pinecall.log.store.postgres import DEFAULT_SCHEMA, create_pool, without_password
 
 PURPOSE: str = "the database schema: up | status | plan"
 VERBS: tuple[str, ...] = ("up", "status", "plan")
@@ -86,14 +86,26 @@ async def _status(schema: str) -> int:
     dsn = load_settings().database_url
     pool = await create_pool(dsn, schema=schema)
     try:
-        behind = set(await migrations_behind(pool))
+        done = await migrations_applied(pool)
     finally:
         await pool.close()
-    print(AT.format(database=dsn.split("@")[-1], schema=schema))
+    print(AT.format(database=without_password(dsn), schema=schema))
     for path in every():
-        mark = "waiting" if path.name.endswith(POST_DEPLOY) else "applied"
-        print(f"{'behind ' if path.name in behind else mark} {path.name}")
+        print(f"{_the_mark_of(path.name, done)} {path.name}")
+    waiting = [path for path in ordered(post=True) if path.name not in done]
+    if waiting:
+        print(WAITING.format(count=len(waiting)))
     return 0
+
+
+# Three words, and which one a file gets is the TABLE's answer, never the disk's: applied, behind
+# (a startup file this database has not run — a gateway on it fails one door at a time), and
+# waiting (a post-deployment file, which no startup ever runs and a person applies when they can).
+def _the_mark_of(name: str, done: set[str]) -> str:
+    """What this file is to this database."""
+    if name in done:
+        return "applied"
+    return "waiting" if name.endswith(POST_DEPLOY) else "behind "
 
 
 def _plan(post: bool) -> int:

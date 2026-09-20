@@ -219,7 +219,7 @@ pinecall-runtime routes add +34910000000 clinica-norte --org clinica   # product
 The key also knows **what** — `scopes`, the doors as they are grouped — and **who** — `subject`
 and `name`, the member it was minted for. A key the operator issues with nothing said holds every
 scope but `fleet`; a server's token made in the console holds `app` · `calls` · `talk` ·
-`knowledge`; a person's key holds what their role presets, whole.
+`knowledge` · `evals`; a person's key holds what their role presets, whole.
 
 ## People
 

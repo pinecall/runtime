@@ -16,9 +16,11 @@ from pinecall.log.store.migrating import (
     a_hash,
     apply_migrations,
     every,
+    migrations_applied,
+    migrations_behind,
     ordered,
 )
-from pinecall.log.store.postgres import MIGRATIONS, connect
+from pinecall.log.store.postgres import MIGRATIONS, connect, create_pool
 from tests.postgres import Dev
 
 pytestmark = pytest.mark.postgres
@@ -181,3 +183,22 @@ async def test_a_database_whose_table_predates_the_hashes_gets_the_column(postgr
     ran = await apply_migrations(postgres.dsn, schema=schema)
 
     assert ran.applied, "and every migration ran on top of it"
+
+
+# `migrate status` marked every `.post.sql` "waiting" off the disk alone, so one a person had
+# already applied by hand read as pending for ever (the box, 2026-09-20). The table is the answer,
+# and it answers for post-deployment files too.
+async def test_what_a_database_has_run_includes_the_post_deployment_files(postgres: Dev) -> None:
+    schema = await a_schema(postgres)
+    post = next(path for path in every() if path.name.endswith(POST_DEPLOY))
+    await pretend_it_ran(postgres, schema, post.name, a_hash(post))
+
+    pool = await create_pool(postgres.dsn, schema=schema)
+    try:
+        done = await migrations_applied(pool)
+        behind = await migrations_behind(pool)
+    finally:
+        await pool.close()
+
+    assert post.name in done
+    assert post.name not in behind, "a post file is never BEHIND: no startup run applies it"

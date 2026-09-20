@@ -91,7 +91,8 @@ sudo systemctl restart pinecall-gateway pinecall-worker
 
 The names are the environment's own and each unit lists which it may see (the embedder's
 `PERPLEXITY_API_KEY` or `OPENROUTER_API_KEY` is the gateway's alone). The box installs a plugin for
-**every vendor LiveKit ships one for** — forty-five — each reading its key under its own variable;
+**every vendor LiveKit ships one for** but the four whose SDKs it deliberately leaves out
+(`providers-big`: aws, azure, google, speechmatics), each reading its key under its own variable;
 one not in the credstore is simply absent and costs nothing until `make secret
 NAME=CARTESIA_API_KEY` puts it there. The whole table, with what each still wants, is `make
 providers` from the checkout. **The box holds no credential for the repository.** It cannot clone
@@ -178,8 +179,8 @@ door it cannot open — and back again by emptying the same line:
 printf '%s' 'pplx-…' | make secret NAME=PERPLEXITY_API_KEY
 make ssh                     # sudoedit /etc/pinecall/box.env → EMBED_PROVIDER=perplexity
 make deploy                  # which ends with the one command that proves it, `make doctor`:
-#  ✓ embedder  perplexity · pplx-embed-context-v1-0.6b — https://api.perplexity.ai/v1 — HTTP 200
-#  ✓ embedder  tei · BAAI/bge-m3 — http://127.0.0.1:8081/info — HTTP 200
+#  ✓ embedder  perplexity · pplx-embed-context-v1-0.6b — https://api.perplexity.ai/v1 — a word embedded, 1024 wide
+#  ✓ embedder  tei · BAAI/bge-m3 — http://127.0.0.1:8081 — a word embedded, 1024 wide
 ```
 
 **A vector is comparable only to vectors of the same model**, and the line above changes the

@@ -219,7 +219,8 @@ gateway with the org's key.
 | `docs/the-fleet.html` | the same fleet on one page for a reader: every way to run it, every verb and door, what was measured, what is left and why |
 | `docs/a-box-in-production.md` | **a box in production**: one machine with a domain, from an operating system and nothing else — written by deleting a real box's software and putting it back |
 | `docs/from-zero.md` | **start here**: a runtime of your own and an agent answering, every command run and every output what came back |
-| `docs/the-runtime-cli.md` | every `pinecall-runtime` verb: what it takes, what it speaks to, and the two walkthroughs |
+| `docs/the-runtime-cli.md` | every `pinecall-runtime` verb: what it takes and what it speaks to |
+| `docs/the-environment.md` | every variable the two processes read, and the two walkthroughs: a laptop from nothing, a box from nothing |
 | `docs/multi-tenancy.md` | orgs, keys and tenants: what a key IS, why a laptop runs the same runtime a box does, and how a tenant is given one |
 | `docs/protocol/gateway-api.md` | every door a tenant's own code may knock at, with an app in thirty lines |
 | `docs/decisions/` | why each module is the way it is, one page per module — the maintainer's notebook, git-ignored: a clone has the names and not the pages |

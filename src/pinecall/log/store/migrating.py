@@ -153,14 +153,21 @@ def a_hash(path: Path) -> str:
 # you, and this is the line that says so.
 async def migrations_behind(pool: Any) -> tuple[str, ...]:
     """Every startup migration this database has not run. Empty is a schema that is level."""
-    done: set[str] = set()
+    done = await migrations_applied(pool)
+    return tuple(path.name for path in ordered(post=False) if path.name not in done)
+
+
+# What the TABLE says, post-deployment files included — `migrate status` marked every `.post.sql`
+# "waiting" off the disk alone, so one a person had applied by hand still read as pending for ever
+# (the box, 2026-09-20). One question, one answer, and the two readers above and below it agree.
+async def migrations_applied(pool: Any) -> set[str]:
+    """The name of every migration this database has run, whenever it ran it."""
     try:
         rows: Sequence[Any] = await pool.fetch(APPLIED_MIGRATIONS)
-        done = {str(row["name"]) for row in rows}
     except asyncpg.PostgresError:
-        # No table of its own yet: nothing has ever been applied, so everything is behind.
-        pass
-    return tuple(path.name for path in ordered(post=False) if path.name not in done)
+        # No table of its own yet: nothing has ever been applied.
+        return set()
+    return {str(row["name"]) for row in rows}
 
 
 async def _what_was_applied(connection: Any) -> set[str]:

@@ -126,5 +126,7 @@ that colleague's corner.
 | `GET` | `/widget/pinecall-widget.js` | the widget, for any site to load: `Access-Control-Allow-Origin: *`, the one CORS answer |
 | | `/v1/ops/*` | the operator's: the box's own key, or the key of a person the box made an operator — [operator-api.md](operator-api.md) |
 
-`GET /openapi.json` is the generated schema of all of it, and `pinecall-runtime doctor` on the box
+`GET /openapi.json` is the generated schema of all of it — with `/v1/docs` and `/v1/redoc`, the two
+pages that render it, all three open with no key, as an API's schema usually is — and
+`pinecall-runtime doctor` on the box
 says which of these doors can actually answer today.
