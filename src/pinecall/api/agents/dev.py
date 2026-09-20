@@ -8,7 +8,13 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query
 
-from pinecall.api._deps import EvalsKeyDep, KnowledgeKeyDep, MemoryKeyDep, TalkKeyDep
+from pinecall.api._deps import (
+    CallsKeyDep,
+    EvalsKeyDep,
+    KnowledgeKeyDep,
+    MemoryKeyDep,
+    TalkKeyDep,
+)
 from pinecall.api._live import LiveDep
 from pinecall.api.agents.handlers import Socket, asked, handles
 from pinecall.api.agents.registry import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, RegistryDep
@@ -24,7 +30,8 @@ router = APIRouter()
 
 # The verbs, as the wire closes the set; the door refuses a word that is not one before any app
 # is asked. Grouped by the scope the console needs to ask them, which is the scope of the thing
-# each family is about: a written call is `talk`, the base is `knowledge`, the goldens are `evals`.
+# each family is about: a written call is `talk`, the base is `knowledge`, the goldens are `evals`,
+# the panel beside a conversation is `calls`.
 # The path names both — `/dev/evals/goldens.run` — because the family is the door's scope and the
 # verb is the wire's word, and a verb asked under the wrong family is a 404 that says so.
 VERBS: frozenset[str] = frozenset(get_args(DevVerb.__value__))
@@ -32,10 +39,14 @@ FAMILIES: dict[str, frozenset[str]] = {
     "chat": frozenset({"chat.roster", "chat.start", "chat.say", "chat.end"}),
     "knowledge": frozenset({"knowledge.roster", "knowledge.push", "knowledge.eval"}),
     "memory": frozenset({"memory.roster", "memory.eval", "memory.extraction"}),
+    # The panel drawn beside a conversation is read where the conversations are read, so it is
+    # asked for with the scope that opens them and not with the developer's `evals`.
+    "view": frozenset({"view.render"}),
     "evals": VERBS
     - frozenset({"chat.roster", "chat.start", "chat.say", "chat.end"})
     - frozenset({"knowledge.roster", "knowledge.push", "knowledge.eval"})
-    - frozenset({"memory.roster", "memory.eval", "memory.extraction"}),
+    - frozenset({"memory.roster", "memory.eval", "memory.extraction"})
+    - frozenset({"view.render"}),
 }
 
 # How long the door waits for the app. A push reads a folder and a suite waits for its run's row
@@ -95,6 +106,20 @@ async def memory(
 ) -> JsonObject:
     """The agent's two memory goldens, run from the directory that holds them."""
     return await _relayed("memory", verb, slug, said, key, registry, live, app)
+
+
+@router.post("/v1/agents/{slug}/dev/view/{verb}")
+async def view(
+    slug: str,
+    verb: str,
+    said: JsonObject,
+    key: CallsKeyDep,
+    registry: RegistryDep,
+    live: LiveDep,
+    app: str | None = APP,
+) -> JsonObject:
+    """The panel the agent draws about one conversation, rendered by the app that holds it."""
+    return await _relayed("view", verb, slug, said, key, registry, live, app)
 
 
 @router.post("/v1/agents/{slug}/dev/evals/{verb}")

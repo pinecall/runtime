@@ -3,7 +3,10 @@
 Some of what a console does needs the **agent's directory**, not the gateway: mount the class for a
 written call or a simulated one, read `test/goldens`, push `knowledge/docs`, run `memory/golden.json`
 and `test/memory`, write a golden candidate beside the goldens, read the reproduction a broken run
-left on that disk. None of those files are on the box. So the console asks the gateway, and the
+left on that disk. None of those files are on the box. One of them needs the app for a different
+reason: the panel an agent draws beside a conversation (`view.render`) is rendered where the
+tenant's own systems are reachable — their CRM, their orders — which is the app's process and never
+the gateway's. So the console asks the gateway, and the
 gateway asks the process that IS standing there — the `pinecall start` holding the agent — over the
 app socket it already has open:
 
@@ -24,9 +27,12 @@ verb's own shape, which belongs to the CLI that answers it; the protocol closes 
 | `chat` | `talk` | `chat.roster` · `chat.start` · `chat.say` · `chat.end` |
 | `knowledge` | `knowledge` | `knowledge.roster` · `knowledge.push` · `knowledge.eval` |
 | `memory` | `memory` | `memory.roster` · `memory.eval` · `memory.extraction` |
+| `view` | `calls` | `view.render` |
 | `evals` | `evals` | `simulate.start` · `goldens.roster` · `goldens.run` · `promote.roster` · `promote.write` · `drift.read` · `reproductions.roster` · `reproductions.read` |
 
-The family in the path is the door's scope; the verb is the wire's word, whole. A verb asked under
+The family in the path is the door's scope, which is the scope of the thing the family is about —
+a panel is read where the conversations are read, so `view` is asked for with `calls` and not with
+a developer's `evals`. The verb is the wire's word, whole. A verb asked under
 the wrong family is `404 no dev verb chat.start in knowledge: the verbs are […]`. The body is the
 verb's own, passed through as `data`.
 

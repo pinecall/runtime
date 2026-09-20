@@ -76,6 +76,10 @@ def _sent(wire: defs.AgentConfig) -> dict[str, Any]:
         converted["tools"] = tuple(a_tool(tool) for tool in wire.tools or ())
     if "state_fields" in sent:
         converted["state_fields"] = _visibilities(wire.state_fields or ())
+    if "view" in sent:
+        # The wire carries a shape so it can grow; the domain carries the one thing in it, which
+        # is the name a console titles the panel with.
+        converted["view"] = wire.view.name if wire.view is not None else None
     if "events" in sent:
         converted["events"] = _senders(wire.events or ())
     return converted

@@ -25,6 +25,15 @@ def test_the_language_the_layout_and_the_search_land_as_the_domain_holds_them() 
     assert changed_by(wire) == ("language", "prompt", "uses_knowledge")
 
 
+def test_the_panel_declares_its_name_and_nothing_of_what_it_holds() -> None:
+    wire = defs.AgentConfig.model_validate({"view": {"name": "Cliente"}})
+    assert configured(CLARA, wire).view == "Cliente"
+    # A class that stopped drawing one says so by sending null, and the agent draws none again.
+    assert configured(CLARA, defs.AgentConfig.model_validate({"view": None})).view is None
+    # A configure about something else leaves the panel exactly as it was.
+    assert configured(CLARA, defs.AgentConfig.model_validate({"language": "es"})).view is None
+
+
 # A class written for an older package still sends its voice, its models, an opening, a base: the
 # gateway takes the frame and reads none of it, because every one of those is the world's now.
 def test_the_environment_a_class_still_sends_is_taken_and_not_read() -> None:

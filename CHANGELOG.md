@@ -6,6 +6,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 
 ## [Unreleased]
 
+### Added
+- **The panel an agent draws beside a conversation.** An app may declare a view — one name, on
+  `AgentConfig` — and the console then asks the process holding the agent to draw it for one
+  conversation at a time, through a dev family of its own: `POST /v1/agents/{slug}/dev/view/view.render`,
+  opened by a key with `calls`, because a panel is read where the conversations are read. The
+  gateway relays and stores nothing: what the panel holds is the tenant's own data, read in the
+  tenant's own process. `docs/protocol/dev-verbs.md`.
+
 ### Changed
 - **Every base an agent reads is searched in ONE pass, ranked against the others.** A turn asked
   each attached base its own query and merged the answers afterwards — and a fused score is read

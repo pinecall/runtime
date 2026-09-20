@@ -94,6 +94,24 @@ async def test_the_apps_refusal_is_the_consoles_status_and_sentence_verbatim(
     assert (answer.status_code, answer.json()["detail"]) == (409, refused.detail)
 
 
+async def test_the_panel_beside_a_conversation_is_asked_for_with_the_calls_scope(
+    tenant_http: httpx.AsyncClient, registry: Registry, live: Live
+) -> None:
+    socket = await holding(registry, live)
+    asking = asyncio.create_task(
+        tenant_http.post(
+            f"{DEV}/view/view.render", json={"contact": "+34600000001", "call": "CA_1"}
+        )
+    )
+    request = await the_request(socket)
+    assert request.data["verb"] == "view.render"
+    assert request.data["data"] == {"contact": "+34600000001", "call": "CA_1"}
+    drawn = {"name": "Cliente", "nodes": [{"tag": "text", "text": "Dana"}]}
+    assert live.dev_answered(DevAnswer(id=request.data["id"], result=drawn))
+    answer = await asking
+    assert (answer.status_code, answer.json()) == (200, drawn)
+
+
 async def test_a_verb_that_is_not_one_of_the_family_is_refused_before_any_app_is_asked(
     tenant_http: httpx.AsyncClient, registry: Registry, live: Live
 ) -> None:

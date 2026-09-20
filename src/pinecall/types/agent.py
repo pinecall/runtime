@@ -115,6 +115,11 @@ class AgentConfig:
     hangup: Hangup | None = None
     tools: tuple[ToolSpec, ...] = ()
     state_fields: Mapping[str, Visibility] = field(default_factory=dict[str, Visibility])
+    # The panel the agent draws beside a conversation, by the name a person reads over it. Only
+    # the NAME is declared: a console asks the app itself for what the panel holds, one
+    # conversation at a time (api/agents/dev.py, the `view` family), because what it holds is the
+    # tenant's own data and never the gateway's.
+    view: str | None = None
     events: Mapping[str, frozenset[EventSource]] = field(
         default_factory=dict[str, frozenset[EventSource]]
     )

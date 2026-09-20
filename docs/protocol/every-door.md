@@ -89,7 +89,7 @@ that colleague's corner.
 | `GET` | `/v1/calls/{call}/settings` | the exact settings and lexicon a call ran on, by the versions its head row kept — `calls` |
 | `GET` · `PUT` | `/v1/lexicon` · `GET …/history` | the org's words — how the voice says them, what the ears must know — laid over every agent's own, in the request's world — `pipeline` or `words` |
 | `GET` · `PUT` | `/v1/agents/{slug}/widget` | how the widget presents the agent — title, tagline, greeting, accent, autostart — per world; read with `talk`, set with `pipeline` |
-| `POST` | `/v1/agents/{slug}/dev/{family}/{verb}` · `?app=` | a console's ask, relayed to the app standing in the agent's directory — `chat`, `knowledge`, `memory` or `evals` by family; [dev-verbs.md](dev-verbs.md) |
+| `POST` | `/v1/agents/{slug}/dev/{family}/{verb}` · `?app=` | a console's ask, relayed to the app standing in the agent's directory — `chat`, `knowledge`, `memory`, `view` or `evals` by family; [dev-verbs.md](dev-verbs.md) |
 | `GET` | `/v1/agents/{slug}/provider-keys` | the org's own vendor keys, **in the clear**: the worker's door, see §6 |
 | `GET` | `/v1/agents/{slug}/rings-for?caller=` | whose sandbox copy a production ring from this phone belongs to, or null: production's — the worker's, `app` |
 | `GET` | `/v1/agents/{slug}/hold-audio` | the worker's: what the call being built plays while a tool runs, in the call's corner (`?org=&env=&holder=`) — `app` or `calls` |
