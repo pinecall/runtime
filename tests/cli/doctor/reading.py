@@ -9,6 +9,7 @@ from pinecall._settings import Settings
 from pinecall.cli.doctor import verbs as doctor
 from pinecall.cli.doctor.probes import Probes
 from pinecall.mail import BoxMail, TheBoxsMail, the_environments_mailbox
+from pinecall.providers.embedder import DIMENSIONS
 
 
 def probes_that_answer(
@@ -17,6 +18,7 @@ def probes_that_answer(
     knock: Callable[[str, Mapping[str, str]], int] = lambda _url, _headers: 200,
     postgres_extensions: Callable[[str], set[str]] = lambda _dsn: set(doctor.REQUIRED_EXTENSIONS),
     executable_path: Callable[[str], str | None] = lambda program: f"/opt/homebrew/bin/{program}",
+    embed_width: Callable[[Settings], int] = lambda _settings: DIMENSIONS,
     the_boxs_mail: Callable[[Settings], BoxMail | None] = lambda settings: asyncio.run(
         TheBoxsMail(the_environments_mailbox(settings), None).of()
     ),
@@ -28,6 +30,7 @@ def probes_that_answer(
         knock=knock,
         postgres_extensions=postgres_extensions,
         executable_path=executable_path,
+        embed_width=embed_width,
         the_boxs_mail=the_boxs_mail,
     )
 

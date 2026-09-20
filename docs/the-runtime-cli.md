@@ -1,10 +1,9 @@
 # `pinecall-runtime`
 
 The operator's terminal: the two processes, the database, the tenants and the box. One module per
-group, one parser each; `pinecall-runtime` with nothing after it prints them all, and `<group>
---help` that group's verbs. The **tenant's** terminal is `pinecall` — the agents repo's
-`docs/the-cli.md` — and they never overlap: nothing here writes an agent, nothing there issues a
-key. Who a key belongs to is [multi-tenancy.md](multi-tenancy.md).
+group, one parser each; `pinecall-runtime` alone prints them all, `<group> --help` that group's
+verbs. The **tenant's** is `pinecall`, the agents repo's `docs/the-cli.md`, and they never overlap:
+nothing here writes an agent, nothing there issues a key. Whose a key is: [multi-tenancy.md](multi-tenancy.md).
 
 ```bash
 uv run pinecall-runtime <group> <verb>     # in a checkout
@@ -200,8 +199,10 @@ pinecall-runtime routes seed [--file infra/seed/routes.json]
 
 Which number reaches which agent, through which door, in which world. A number belongs to one agent
 at a time; adding it again moves it — to another agent, or with `--env` to the other world. `list`
-answers one world, production unless asked. `seed` applies a file of them (each route may carry an
-`env`), which is how a box is brought up from a checkout rather than from six commands.
+answers one world, production unless asked, in four columns: number, channel, agent, and who put
+the door there — `operator`, typed with `add` and outliving every restart, or `app`, declared by a
+running `pinecall start` and answered while that app holds it. `seed` applies a file of them (each
+may carry an `env`), which brings a box up from a checkout instead of six commands.
 
 ## `fleet`
 
@@ -213,8 +214,9 @@ pinecall-runtime fleet loop --cloud <gcp|aws|hetzner|./yours> --seats <n> [--tar
 ```
 
 `list` is the roster the hub hears — one line per worker that ever knocked, what it holds, its seats
-and load, its standing (`accepting` · `full` · `draining` · `cordoned` · `gone`) and when last heard
-— and the totals: `free = Σ(max − active)`, how many accept, and **FULL** when nobody does.
+(`cpu` where no `PINECALL_MAX_JOBS` was baked in) and load, its standing (`accepting` · `full` ·
+`draining` · `cordoned` · `gone`), when last heard — and the totals: `free = Σ(max − active)`, or
+`seats gated by cpu, uncounted` when nobody counted, how many accept, **FULL** when nobody does.
 
 ```
 worker             held  seats  load  standing   heard
@@ -226,10 +228,9 @@ pinecall-worker-1  2     4      0.50  accepting  4s ago
 
 `cordon` is the graceful shrink: the worker is told on its next heartbeat, takes no new call,
 finishes the ones it holds, and leaves. `uncordon` takes it back while it is still there. `loop` is
-the fleet loop ([scaling.md](scaling.md)): every `--every` seconds it reads the roster and the
-cloud, and keeps `busy = active / seats` at `--target` — asks for a machine when over it, cordons
-the quietest one when under it by 0.15 or more, deletes a cordoned machine once it holds nothing,
-and deletes one that never dialled in. `--seats` is the `PINECALL_MAX_JOBS` baked into the image, so
+the fleet loop ([scaling.md](scaling.md)): every `--every` seconds it reads the roster and the cloud
+and keeps `busy = active / seats` at `--target` — a machine when over it, a cordon on the quietest
+when under it by 0.15 or more, a delete once a cordoned machine holds nothing or never dialled in. `--seats` is the `PINECALL_MAX_JOBS` baked into the image, so
 a machine still booting counts from the moment it is asked for. `--cloud` names a script under
 `infra/fleet/` or a path to yours ([../infra/fleet/README.md](../infra/fleet/README.md)); the
 cloud's own CLI must be signed in wherever the loop runs. `--once --dry-run` prints one tick's
@@ -245,8 +246,7 @@ pinecall-runtime migrate plan
 
 The `.sql` files under `pinecall/migrations`, applied in order, straight over `DATABASE_URL`. It is
 what a unit runs before every start, so it prints no secret: the `default` org is seeded here and
-its first key is `keys issue`, never this verb. `status` says which have run and `plan` which would
-run next. `--schema` applies into a schema of its own, how a test run owns its copy. **`--post` is
+its first key is `keys issue`, never this verb. **`migrate` with no verb READS**: `status`, which asks the database which files have run and how many wait. `plan` names the files a run of that kind applies, off the disk, touching no database. Applying is `migrate up`, typed in full. `--schema` applies into a schema of its own, how a test run owns its copy. **`--post` is
 the other half, never run at startup.** A migration is held to five seconds there — the unit runs
 `migrate up` before the gateway opens its socket — so anything slower is written as a `.post.sql`,
 applied by a person, after the deploy, with this flag. An index over a big table is always one.
@@ -257,7 +257,7 @@ applied by a person, after the deploy, with this flag. An index over a big table
 pinecall-runtime doctor [--mail-to <address>]
 ```
 
-Every dependency asked a real question — is the key present, does it answer, is the port open , one
+Every dependency asked a real question — is the key present, does it answer, is the port open — one
 line each. It is the first to run on a box behaving strangely, and the last after a deploy.
 
 ```console
@@ -269,7 +269,7 @@ env: /Users/berna/pinecall-v2/runtime/.env
 ✓ provider keys answer  ANTHROPIC_API_KEY · OPENAI_API_KEY · SONIOX_API_KEY · …
 ✓ livekit               http://127.0.0.1:7880/ — HTTP 200
 ✓ postgres              postgresql://pinecall@[::1]:5432/pinecall — vector, pg_textsearch
-! embedder              tei · BAAI/bge-m3 — http://127.0.0.1:8081/info — ConnectError: …;
+! embedder              tei · BAAI/bge-m3 — http://127.0.0.1:8081 — ConnectError: …;
                         a lookup without it is skipped and said in the call's log: this stops no call
 ! mail                  not configured — set it at PUT /v1/ops/mail (Box settings), or set PINECALL_SMTP_URL and PINECALL_MAIL_FROM, …
 ! lk                    not installed — brew install livekit-cli (lk docs · lk sip · lk dispatch)
@@ -296,15 +296,16 @@ pinecall-runtime providers [--does llm|stt|tts]
 ```
 
 Every vendor this build can reach, what each does, and whether it has a key: `ready` · `no key` ·
-`no plugin` · `its own`. The same table `pinecall providers` prints for a tenant, from the box's
-side — the answer to "can this box speak Spanish with ElevenLabs" before a call proves it cannot.
+`no plugin` · `its own`. `←` marks the vendor this build runs that stage on when an agent names
+none, and the last line counts the table. The same one `pinecall providers` prints for a tenant.
 
 ```console
 $ pinecall-runtime providers
 vendor        does         standing   variable              also known as
 livekit       llm,stt,tts  ready                            inference lk
-anthropic     llm          ready      ANTHROPIC_API_KEY     claude
-assemblyai    stt          no key     ASSEMBLYAI_API_KEY    assembly
+anthropic ←   llm          ready      ANTHROPIC_API_KEY     claude
+…
+48 vendors · ours: llm anthropic · stt soniox · tts elevenlabs
 ```
 
 A vendor an org brought of its own is `orgs provider-key`, above; this table is the box's.
@@ -376,13 +377,12 @@ pinecall login http://localhost:8080 && pinecall link   # as a person; the agent
 
 [from-zero.md](from-zero.md) is this same path with every output under it, through to a call. **This
 is the same runtime a box runs, and there is no other.** A laptop used to have one of its own —
-`PINECALL_DEV_KEY`, one key that needed no database, org `default`, no login anywhere — and what it
-bought in the first five minutes it charged back in every hour after: two sets of keys, two orgs,
-two behaviours, and no way to see which you were on. So: the same Postgres, the same migrations, the
-same issued keys, and `init` in place of the magic key. It has every table a box has — the knowledge
-base, contact memory, the vault (given a `PINECALL_VAULT_KEY`), durable routes. On an M-series Mac,
-TEI needs the arm64 tag `infra/README.md` names in `TEI_IMAGE`; without an embedder a push answers
-503 and a lookup is skipped and said in the call's log.
+`PINECALL_DEV_KEY`, one key that needed no database and no login — and it charged back every hour
+what it saved in the first five minutes: two sets of keys, two orgs, two behaviours, and no way to
+see which you were on. So: the same Postgres, the same migrations, the same issued keys, `init` in
+place of the magic key, and every table a box has. On an M-series Mac, TEI needs the arm64 tag
+`infra/README.md` names in `TEI_IMAGE`; without an embedder a push answers 503 and a lookup is
+skipped and said in the call's log.
 
 ## A box, from nothing
 

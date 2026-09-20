@@ -8,7 +8,6 @@ import pytest
 from pinecall._settings import load_settings
 from pinecall.cli import main
 from pinecall.cli.doctor import verbs as doctor
-from pinecall.cli.doctor.probes import Probes
 from pinecall.mail import BoxMail
 from pinecall.orgs.mail import KeptMail
 from pinecall.types import Mailbox
@@ -25,11 +24,6 @@ def elevenlabs_refuses(url: str, _headers: Mapping[str, str]) -> int:
 def refuse_http(_url: str) -> int:
     """What httpx raises when nothing listens on the port."""
     raise ConnectionRefusedError("[Errno 61] Connection refused")
-
-
-def tei_that_serves_nothing(url: str) -> int:
-    """TEI's port answers, but /info does not: the embedder never finished loading a model."""
-    return 404 if url.endswith("/info") else 200
 
 
 def test_a_stack_that_is_all_up_reports_all_up_and_nothing_down(
@@ -86,91 +80,6 @@ def test_an_ipv6_database_host_keeps_the_brackets_that_make_it_an_address(
     monkeypatch.setenv("DATABASE_URL", "postgresql://pinecall:s3cret@[::1]:5432/pinecall")
     report = doctor.render_report(doctor.run_checks(load_settings(), probes_that_answer()))
     assert "postgresql://pinecall@[::1]:5432/pinecall" in report
-
-
-def test_a_tei_that_answers_anything_but_200_is_reported_and_stops_no_call() -> None:
-    """A down embedder is printed, with why, and never makes the verdict: no call needs one."""
-    embedder = _the_embedder(probes_that_answer(http_status=tei_that_serves_nothing))
-    assert not embedder.ok
-    assert embedder.advisory
-    assert "404" in embedder.detail
-    assert "stops no call" in embedder.detail
-    assert (
-        doctor.first_failure(_the_report(probes_that_answer(http_status=tei_that_serves_nothing)))
-        is None
-    )
-
-
-def test_a_hub_whose_embedder_is_down_is_the_verdict_and_is_told_to_start_the_unit(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A hub answers the knowledge pushes: a shut door there is an outage the operator can fix."""
-    monkeypatch.setenv("PINECALL_ROLE", "hub")
-    results = _the_report(probes_that_answer(http_status=tei_that_serves_nothing))
-    down = doctor.first_failure(results)
-    assert down is not None
-    assert down.name == "embedder"
-    assert not down.advisory
-    assert "a knowledge push answers 503" in down.detail
-    assert "systemctl start pinecall-tei" in down.detail
-    assert "EMBED_PROVIDER" in down.detail
-
-
-def test_a_hub_that_embeds_through_a_vendor_is_told_which_key_to_bring(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The fix is a credential and not a container, so the sentence names the credential."""
-    monkeypatch.setenv("PINECALL_ROLE", "hub")
-    monkeypatch.setenv("EMBED_PROVIDER", "perplexity")
-    monkeypatch.setenv("PERPLEXITY_API_KEY", "")
-    embedder = _the_embedder(probes_that_answer())
-    assert not embedder.ok
-    assert not embedder.advisory
-    assert "no PERPLEXITY_API_KEY" in embedder.detail
-    assert "make secret NAME=PERPLEXITY_API_KEY" in embedder.detail
-    assert "systemctl" not in embedder.detail
-
-
-def test_the_embedder_line_says_which_provider_and_model_this_box_embeds_with() -> None:
-    embedder = _the_embedder(probes_that_answer())
-    assert embedder.ok
-    assert "tei · BAAI/bge-m3" in embedder.detail
-    assert "http://127.0.0.1:8081/info" in embedder.detail
-
-
-def test_a_hosted_embedder_with_no_key_is_named_by_its_variable_and_never_knocked(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The key is missing, so nothing is asked of the vendor: the fix is a variable, not a probe."""
-    monkeypatch.setenv("EMBED_PROVIDER", "perplexity")
-    monkeypatch.setenv("PERPLEXITY_API_KEY", "")
-    embedder = _the_embedder(probes_that_answer())
-    assert not embedder.ok
-    assert embedder.advisory
-    assert "perplexity · pplx-embed-context-v1-0.6b" in embedder.detail
-    assert "no PERPLEXITY_API_KEY" in embedder.detail
-
-
-def test_a_hosted_embedder_that_answers_at_all_is_up_whatever_status_it_answers(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """api.perplexity.ai has no /info and no free door: that it answers a GET is the whole check."""
-    monkeypatch.setenv("EMBED_PROVIDER", "openrouter")
-    monkeypatch.setenv("OPENROUTER_API_KEY", "dead-sentinel")
-    embedder = _the_embedder(probes_that_answer(http_status=lambda _url: 405))
-    assert embedder.ok
-    assert "openrouter · perplexity/pplx-embed-v1-0.6b" in embedder.detail
-    assert "https://openrouter.ai/api/v1" in embedder.detail
-
-
-def _the_embedder(probes: Probes) -> doctor.Result:
-    """The one line of the report this box's embedder gets, whichever provider it names."""
-    return next(result for result in _the_report(probes) if result.name == "embedder")
-
-
-def _the_report(probes: Probes) -> list[doctor.Result]:
-    """Every check, against a stack where only what a test swapped is down."""
-    return doctor.run_checks(load_settings(), probes)
 
 
 def test_a_provider_key_is_reported_by_its_variable_and_never_by_its_value() -> None:
@@ -379,8 +288,16 @@ def test_a_machine_without_the_livekit_cli_is_told_how_to_install_it(
     assert main(["doctor"]) == 0
     printed = capsys.readouterr().out
     assert "! lk" in printed
-    assert "brew install livekit-cli" in printed
+    assert doctor.how_to_install_the_livekit_cli() in printed
     assert "all up" in printed
+
+
+# A remedy for another machine is not a remedy: the box that printed this one runs Debian.
+def test_the_install_line_is_the_machines_own(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(doctor.sys, "platform", "linux")
+    assert doctor.how_to_install_the_livekit_cli() == doctor.INSTALL_LIVEKIT_CLI_ANYWHERE
+    monkeypatch.setattr(doctor.sys, "platform", "darwin")
+    assert doctor.how_to_install_the_livekit_cli() == doctor.INSTALL_LIVEKIT_CLI_WITH_BREW
 
 
 def test_the_doctor_never_runs_the_livekit_cli_it_only_looks_for_it() -> None:

@@ -122,11 +122,21 @@ async def list_workers(operator: Operator, out: TextIO = sys.stdout) -> int:
     totals: dict[str, Any] = said["totals"]
     full = " · FULL" if totals["workers"] and not totals["accepting"] else ""
     print(
-        f"\n{totals['workers']} up · {totals['active']} calls · {totals['free']} seats free · "
+        f"\n{totals['workers']} up · {totals['active']} calls · {_seats_of(totals)} · "
         f"{totals['accepting']} accepting{full}",
         file=out,
     )
     return 0
+
+
+# A worker with no PINECALL_MAX_JOBS is gated by its CPU and reports no count at all, so a fleet
+# of those totalled `0 seats free` — which reads exactly like a fleet with nothing left, beside
+# the same line saying it accepts calls (box.pinecall.io, 2026-09-20).
+def _seats_of(totals: dict[str, Any]) -> str:
+    """How much room the fleet has, or that nobody gave it a number to count."""
+    if not totals["seats"]:
+        return "seats gated by cpu, uncounted"
+    return f"{totals['free']} seats free"
 
 
 async def cordon(worker: str, on: bool, operator: Operator, out: TextIO = sys.stdout) -> int:

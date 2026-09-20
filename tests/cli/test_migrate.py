@@ -9,9 +9,12 @@ from pinecall.log.store.postgres import MIGRATIONS
 pytestmark = pytest.mark.unit
 
 
-def test_the_group_is_registered_and_defaults_to_up() -> None:
+# `migrate` alone used to mean `migrate up`: a person who typed it to see what it would do
+# MIGRATED the database. It was the one default in this CLI that changes a box by being curious —
+# and a verification sweep, told to run no writes, ran one (the production box, 2026-09-20).
+def test_the_group_is_registered_and_defaults_to_reading() -> None:
     arguments = build_parser().parse_args(["migrate"])
-    assert (arguments.verb, arguments.schema) == ("up", "public")
+    assert (arguments.verb, arguments.schema) == ("status", "public")
 
 
 def test_an_unknown_verb_is_a_usage_error_today() -> None:

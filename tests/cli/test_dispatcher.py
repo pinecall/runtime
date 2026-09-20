@@ -3,7 +3,11 @@
 import pytest
 
 from pinecall.cli import GROUPS, build_parser, gateway, main
+from pinecall.cli.box import verbs as box
 from pinecall.cli.doctor import verbs as doctor
+from pinecall.cli.fleet import verbs as fleet
+from pinecall.cli.keys import verbs as keys
+from pinecall.cli.orgs import verbs as orgs
 from pinecall.cli.routes import verbs as routes
 from pinecall.cli.sessions import verbs as sessions
 from pinecall.types import QUOTAS
@@ -52,10 +56,26 @@ def test_every_routes_verb_is_wired_to_its_own_function(
     assert parsed.run is runs
 
 
-def test_routes_with_no_verb_prints_its_verbs(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main(["routes"]) == 0
+# Every group that has verbs answers a bare `pinecall-runtime <group>` the same way: it says what
+# there is and exits 0, the way a help screen does. `box` exited 2 on it, so a person listing the
+# box's verbs read a failure and a script stopped (2026-09-20).
+@pytest.mark.parametrize(
+    ("group", "verbs"),
+    [
+        ("sessions", sessions.VERBS),
+        ("orgs", orgs.VERBS),
+        ("routes", routes.VERBS),
+        ("keys", keys.VERBS),
+        ("fleet", fleet.VERBS),
+        ("box", box.VERBS),
+    ],
+)
+def test_a_group_with_no_verb_prints_its_verbs_and_exits_zero(
+    group: str, verbs: tuple[str, ...], capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main([group]) == 0
     printed = capsys.readouterr().out
-    assert all(verb in printed for verb in routes.VERBS)
+    assert all(verb in printed for verb in verbs)
 
 
 @pytest.mark.parametrize(
@@ -65,12 +85,6 @@ def test_routes_with_no_verb_prints_its_verbs(capsys: pytest.CaptureFixture[str]
 def test_every_sessions_verb_is_wired_to_its_own_function(verb: str, runs: object) -> None:
     arguments = build_parser().parse_args(["sessions", verb, *(["CA_1"] if verb == "show" else [])])
     assert arguments.run is runs
-
-
-def test_sessions_with_no_verb_prints_its_verbs(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main(["sessions"]) == 0
-    printed = capsys.readouterr().out
-    assert all(verb in printed for verb in sessions.VERBS)
 
 
 def test_the_gateway_group_is_wired_to_the_server_with_its_defaults() -> None:

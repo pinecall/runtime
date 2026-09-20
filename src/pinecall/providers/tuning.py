@@ -16,8 +16,8 @@ from pinecall.providers.tts.elevenlabs import a_model
 from pinecall.providers.tts.voices import voice_declared
 from pinecall.types import AgentConfig, DeclarationRefused, Lexicon, Model, Tuning, Voice
 
-# The vendor tables' own refusal, over the vendor tables' own list. The list is forty-nine long
-# now, so the sentence names the door that prints it rather than printing it into a form's error.
+# The vendor tables' own refusal, over the vendor tables' own list. The list is long now, so the
+# sentence names the door that prints it rather than printing it into a form's error.
 NO_VENDOR = (
     "no {modality} vendor named {vendor!r}; this build has {count} of them — "
     "GET /v1/providers lists every one, with the other words each answers to"
@@ -112,7 +112,7 @@ def _model(
 # is already in use.
 #
 # A bare word used to be read as a model, always. That was right while this build had five vendors
-# and no word was both; with forty-nine there is nothing a person could mean by typing `cartesia`
+# and no word was both; with the whole catalog there is nothing a person could mean by `cartesia`
 # except the vendor — and providers/catalog.py keeps an alias from ever being a model name, so the
 # two readings cannot collide.
 def the_vendor_and_the_model(asked: str, in_use: str) -> tuple[str, str]:

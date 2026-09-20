@@ -7,6 +7,21 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Fixed
+- **`doctor`'s embedder line embeds a word.** It used to GET the provider's base URL, and a vendor
+  answers the same status there for a live key, an expired one and none at all — so a box with a
+  dead `PERPLEXITY_API_KEY` read `✓ embedder … HTTP 404` while every lookup on it was skipped. The
+  check now asks the embedder this box is configured with for one vector, with the real key, and
+  fails when it does not answer or answers at a width the `halfvec` columns were not declared at.
+- **The `lk` line tells THIS machine how to install it.** It recommended `brew install livekit-cli`
+  on a Debian box, where brew is not installed and nothing else was; on anything but a Mac it names
+  the script LiveKit publishes.
+- **`fleet list` no longer totals `0 seats free` for a fleet nobody counted.** A worker with no
+  `PINECALL_MAX_JOBS` is gated by its CPU and reports no seats, which read as a full fleet beside
+  the same line saying it accepts calls. Those totals say `seats gated by cpu, uncounted`.
+- **`migrate` with no verb READS.** A bare `migrate` meant `migrate up`: somebody typing it to see
+  what it would do migrated the database. It is `status` now, and applying is typed in full.
+- **`pinecall-runtime box` with no verb exits 0**, as every other group's bare form does; it exited
+  2, so listing the box's verbs looked like a command that had failed.
 - **`WS /v1/chat` carries every entry of the call, as the door has always claimed.** A watcher of
   a text call was fed from the session's own `emit`, so the entries the GATEWAY writes on the same
   log — `docs.sources` and `memory.ops`, from `lookups/service.py` — reached the caller's socket

@@ -21,7 +21,7 @@ PURPOSE: str = "every llm, stt and tts vendor this build runs, and what each one
 HEADINGS = ("vendor", "does", "standing", "variable", "also known as")
 
 # Which vendor runs a stage when an agent declares none, marked in the table so the three that
-# actually run today are findable among forty-nine.
+# actually run today are findable among all of them.
 OURS: dict[str, str] = {"llm": DEFAULT_VENDOR, "stt": DEFAULT_STT, "tts": DEFAULT_TTS}
 
 

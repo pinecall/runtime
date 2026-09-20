@@ -2,8 +2,8 @@
 
 # This file exists because "which vendors does Pinecall run?" used to be answered by counting the
 # files under `llm/`, `stt/` and `tts/` — five of them — while livekit-agents 1.8 ships plugins for
-# forty-nine. A tenant who wanted Cartesia was told `no tts vendor named 'cartesia'` by a build that
-# was one import away from having it.
+# ten times that. A tenant who wanted Cartesia was told `no tts vendor named 'cartesia'` by a build
+# that was one import away from having it.
 #
 # The rows are read off livekit-agents 1.8.0 itself: `does` is what the plugin's own `__all__`
 # exports, and `env` is the variable that plugin reads its key from when nobody passes one. Nothing

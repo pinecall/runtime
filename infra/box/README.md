@@ -76,7 +76,7 @@ make deploy
 #    comes up (redis, livekit, sip, postgres), the gateway migrates the schema and opens, the two
 #    keys are minted (pinecall-worker-key, pinecall-operator-key), the worker registers.
 
-# 3. Your key. Minted on the box on that first start, encrypted, printed nowhere. Read it once:
+# 3. Your key. Minted on that first start (gone? `systemctl start pinecall-operator-key`). Read it once:
 ssh <the box> sudo systemd-creds decrypt --name=PINECALL_OPERATOR_KEY /etc/credstore.encrypted/PINECALL_OPERATOR_KEY -
 pinecall login https://<the domain>     # on the laptop, and the key is kept in ~/.pinecall/credentials
 ```
@@ -211,7 +211,7 @@ one credential, `media.env`, as their environment file. There is no `.env` on th
 |---|---|---|
 | `LIVEKIT_API_KEY` `LIVEKIT_API_SECRET` `POSTGRES_PASSWORD` `DATABASE_URL` `PINECALL_OPS_KEY` `PINECALL_VAULT_KEY` `media.env` | the units and the containers, each what it names | `pinecall-secrets.service`, once: `pinecall-runtime box secrets` |
 | `PINECALL_WORKER_KEY` — the fleet's key the worker knocks with: org default, the `fleet` scope | the worker | `pinecall-worker-key.service`, once |
-| `PINECALL_OPERATOR_KEY` — yours | you, once, with `systemd-creds decrypt` | `pinecall-operator-key.service`, once |
+| `PINECALL_OPERATOR_KEY` — yours | you, once, with `systemd-creds decrypt` | `pinecall-operator-key.service` — it mints one only while the credstore has none, so `systemctl start` it to replace one that is gone |
 | `pinecall-app-<name>.key` `pinecall-app-<name>.env` — an app held here: the org's key it knocks with, and its own secrets as dotenv lines | `pinecall-app@<name>` | that app's deploy, from its checkout |
 | the vendors' keys | the gateway and the worker | you: `pinecall-runtime box secret <NAME>` |
 | `TWILIO_ACCOUNT_SID` `TWILIO_API_KEY` `TWILIO_API_SECRET` — the box's own Twilio, for the numbers it buys for a tenant | the gateway | you, the same way; unset, `POST /v1/numbers/buy` says so |

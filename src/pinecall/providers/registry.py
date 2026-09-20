@@ -38,7 +38,7 @@ class NoProvider(PinecallError):
 # sees the missing key as a state (api/pipeline_report.py).
 NO_KEY = "{vendor} has no API key in this process"
 
-# What a word nobody catalogues reads as. The list is long now — forty-nine vendors — so the
+# What a word nobody catalogues reads as. The list is long now — the whole catalog — so the
 # sentence names the door that prints the whole of it instead of printing it into a log line.
 NO_VENDOR = (
     "no {modality} vendor named {vendor!r}; this build catalogues {count} of them "

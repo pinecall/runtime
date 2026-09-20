@@ -2,9 +2,9 @@
 
 # providers/prices.py holds the table this runtime read itself — one page per vendor, on a stated
 # date, in the units a livekit usage row carries. It covers the five vendors this build runs by
-# default and nothing else, which was the whole truth while there were five. There are forty-nine
-# now (providers/catalog.py), and a call on Cartesia that came back `unpriced` is a bill nobody
-# can see.
+# default and nothing else, which was the whole truth while there were five. The catalog runs to
+# every vendor livekit-agents ships a plugin for now (providers/catalog.py), and a call on Cartesia
+# that came back `unpriced` is a bill nobody can see.
 #
 # So behind the curated table sits this one: mahimailabs/voice-prices, "an open, dated source that
 # puts direct and gateway cost side by side, per model", vendored as published_prices.json by

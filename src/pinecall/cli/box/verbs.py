@@ -133,4 +133,4 @@ def encrypt_with_systemd(name: str, value: str, into: Path) -> None:
 def _print_the_verbs(parser: argparse.ArgumentParser, _arguments: Any) -> int:
     """`box` with no verb: say what there is, and exit as a help screen does."""
     parser.print_help()
-    return 2
+    return 0

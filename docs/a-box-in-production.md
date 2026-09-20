@@ -118,16 +118,17 @@ env: no .env — environment only
 ✓ provider keys answer  ANTHROPIC_API_KEY · OPENAI_API_KEY · SONIOX_API_KEY · DEEPGRAM_API_KEY · ELEVEN_API_KEY
 ✓ livekit               http://127.0.0.1:7880/ — HTTP 200
 ✓ postgres              postgresql://pinecall@127.0.0.1:5432/pinecall — vector, pg_textsearch
-✓ embedder              tei · BAAI/bge-m3 — http://127.0.0.1:8081/info — HTTP 200
+✓ embedder              perplexity · pplx-embed-context-v1-0.6b — https://api.perplexity.ai/v1 — a word embedded, 1024 wide
 ! mail                  not configured — set it at PUT /v1/ops/mail (Box settings), or set PINECALL_SMTP_URL and PINECALL_MAIL_FROM, to mail invitations and password resets; …
-! lk                    not installed — brew install livekit-cli (lk docs · lk sip · lk dispatch)
+! lk                    not installed — curl -sSL https://get.livekit.io/cli | bash (lk docs · lk sip · lk dispatch)
 
 all up
 ```
 
 `✓` answered · `!` advice, something degraded that stops no call · `✗` broken, and the verdict
 names the first one down. **`provider keys answer` knocks at every vendor with the key the box
-holds**, so a dead key is caught here and not by a caller.
+holds**, and **`embedder` embeds a word with this box's own embedder**, so a dead key is caught
+here and not by a caller.
 
 > **On an ARM box, TEI cannot start**: its CPU image has no arm64 build. Set
 > `EMBED_PROVIDER=perplexity` with a `PERPLEXITY_API_KEY` and lookups embed over HTTP with no

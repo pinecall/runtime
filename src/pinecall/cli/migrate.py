@@ -34,8 +34,10 @@ WAITING = "{count} post-deployment migration(s) not run: `pinecall-runtime migra
 
 
 def configure(parser: argparse.ArgumentParser) -> None:
-    """One verb, `up` by default: running migrations is what a person types `migrate` to do."""
-    parser.add_argument("verb", nargs="?", default="up", choices=VERBS, help=" | ".join(VERBS))
+    """One verb, and it is named. `migrate` alone used to mean `migrate up`: a person who typed it
+    to see what it would do MIGRATED the database, which is the one default in this CLI that can
+    change a box by being curious. It reads now, like every other group asked with no verb."""
+    parser.add_argument("verb", nargs="?", default="status", choices=VERBS, help=" | ".join(VERBS))
     parser.add_argument(
         "--schema",
         default=DEFAULT_SCHEMA,

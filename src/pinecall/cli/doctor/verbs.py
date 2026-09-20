@@ -1,6 +1,7 @@
 """`pinecall-runtime doctor`: one line per check, ✓ or ✗ with the reason, and what is down first."""
 
 import argparse
+import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from urllib.parse import urlsplit, urlunsplit
@@ -11,6 +12,7 @@ from pinecall.cli.doctor.mail import send_one_to, the_mail_line
 from pinecall.cli.doctor.probes import Probes, live_probes
 from pinecall.providers import catalog
 from pinecall.providers.embed import base_url_of, key_field_of, model_of
+from pinecall.providers.embedder import DIMENSIONS
 from pinecall.providers.knocks import KNOCKS
 from pinecall.providers.models import DEFAULT_VENDOR
 from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS
@@ -79,10 +81,11 @@ EMBEDDER_IS_DOWN = "a hub embeds: a knowledge push answers 503 and every lookup 
 START_THE_UNIT = "start it with `systemctl start pinecall-tei`, or name a vendor in EMBED_PROVIDER"
 BRING_A_LIVE_KEY = "put a live key in with `make secret NAME={variable}`, from the checkout"
 
-# TEI names the model it loaded at /info and answers 200 there. The hosted embedders have no such
-# door: what can be asked of them without spending anything is whether the host answers at all,
-# and whichever status it answers a keyless GET with is an answer.
-TEI_INFO = "/info"
+# The embedder is asked the only question that proves it: embed a word. A GET at a vendor's base
+# URL answers the same 404 for a live key, an expired one and none at all, so the box read ✓
+# through a key that could embed nothing (found on box.pinecall.io, 2026-09-20).
+A_WORD_EMBEDDED = "a word embedded, {width} wide"
+WRONG_WIDTH = "answered {width} wide, and every column is halfvec({expected})"
 
 # Which keys this gateway would honour. There used to be a second answer — PINECALL_DEV_KEY, one
 # key that needed no database and, when set, the ONLY key honoured — and a box that set one by
@@ -94,8 +97,13 @@ THE_KEYS_TABLE = "the api_keys table — `pinecall-runtime keys issue --org <slu
 # (`lk docs`, `lk sip`, `lk dispatch`) — livekit's own starter tells its agent to ask for it. It is
 # a tool on the machine, never a dependency of a call, so its absence is advice and not an outage.
 LIVEKIT_CLI = "lk"
-HOW_TO_INSTALL_LIVEKIT_CLI = "brew install livekit-cli"
 WHAT_LIVEKIT_CLI_IS_FOR = "lk docs · lk sip · lk dispatch"
+
+# The install line is THIS machine's. A box read "brew install livekit-cli" on Debian, where brew
+# is not installed and is not how anything else on it was (box.pinecall.io, 2026-09-20); LiveKit
+# publishes a script for every other platform, and infra/README.md names the same two.
+INSTALL_LIVEKIT_CLI_WITH_BREW = "brew install livekit-cli"
+INSTALL_LIVEKIT_CLI_ANYWHERE = "curl -sSL https://get.livekit.io/cli | bash"
 
 
 @dataclass(frozen=True)
@@ -254,19 +262,20 @@ def check_postgres_is_ready(settings: Settings, probes: Probes) -> Result:
 # fact a person is usually looking for: a box that retrieves nothing is far more often one running
 # the embedder somebody else configured than one whose service is down.
 def check_the_embedder_answers(settings: Settings, probes: Probes) -> Result:
-    """Which provider and model this box embeds with, its key present, and its door answering."""
+    """Which provider and model this box embeds with, and one word this box actually embedded."""
     runs = f"{settings.embed_provider} · {model_of(settings)}"
     field = key_field_of(settings)
     if field is not None and not getattr(settings, field):
         return _no_embedder(settings, f"{runs} — no {variable_of(field)}")
-    url = _where_the_embedder_answers(settings)
+    url = base_url_of(settings)
     try:
-        status = probes.http_status(url)
+        width = probes.embed_width(settings)
     except Exception as failure:
         return _no_embedder(settings, f"{runs} — {url} — {_reason(failure)}")
-    if field is None and status != 200:
-        return _no_embedder(settings, f"{runs} — {url} — HTTP {status}")
-    return Result("embedder", True, f"{runs} — {url} — HTTP {status}")
+    if width != DIMENSIONS:
+        wrong = WRONG_WIDTH.format(width=width, expected=DIMENSIONS)
+        return _no_embedder(settings, f"{runs} — {url} — {wrong}")
+    return Result("embedder", True, f"{runs} — {url} — {A_WORD_EMBEDDED.format(width=width)}")
 
 
 def _no_embedder(settings: Settings, detail: str) -> Result:
@@ -285,10 +294,11 @@ def _the_fix(settings: Settings) -> str:
     return BRING_A_LIVE_KEY.format(variable=variable_of(field))
 
 
-def _where_the_embedder_answers(settings: Settings) -> str:
-    """TEI's /info, which names the model it loaded; the hosted providers' own base URL."""
-    base = base_url_of(settings).rstrip("/")
-    return f"{base}{TEI_INFO}" if settings.embed_provider == "tei" else base
+def how_to_install_the_livekit_cli() -> str:
+    """What to type on the machine reading the report: brew on a Mac, the script anywhere else."""
+    return (
+        INSTALL_LIVEKIT_CLI_WITH_BREW if sys.platform == "darwin" else INSTALL_LIVEKIT_CLI_ANYWHERE
+    )
 
 
 def check_the_livekit_cli_is_installed(_settings: Settings, probes: Probes) -> Result:
@@ -298,7 +308,7 @@ def check_the_livekit_cli_is_installed(_settings: Settings, probes: Probes) -> R
         return Result(
             LIVEKIT_CLI,
             False,
-            f"not installed — {HOW_TO_INSTALL_LIVEKIT_CLI} ({WHAT_LIVEKIT_CLI_IS_FOR})",
+            f"not installed — {how_to_install_the_livekit_cli()} ({WHAT_LIVEKIT_CLI_IS_FOR})",
             advisory=True,
         )
     return Result(LIVEKIT_CLI, True, f"{found} — {WHAT_LIVEKIT_CLI_IS_FOR}")

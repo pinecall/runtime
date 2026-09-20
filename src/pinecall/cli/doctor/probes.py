@@ -1,4 +1,4 @@
-"""How the doctor touches the world: an HTTP GET, a knock with a key, Postgres, the PATH."""
+"""How the doctor touches the world: an HTTP GET, a knock with a key, Postgres, the PATH, a word."""
 
 import asyncio
 import shutil
@@ -12,6 +12,7 @@ from pinecall.log.store import StoreUnreachable, open_pool
 from pinecall.log.store.postgres import installed_extensions
 from pinecall.mail import BoxMail, TheBoxsMail
 from pinecall.orgs.box import box_settings_for
+from pinecall.providers.embed import embedder_for
 
 # A doctor runs while something is broken: long enough for a healthy service on the same box,
 # short enough that four checks against a dead one still answer in one breath.
@@ -19,15 +20,23 @@ TIMEOUT_SECONDS = 2.0
 # A vendor is across the internet, not on the box; a key that answers in five seconds is alive.
 KNOCK_TIMEOUT_SECONDS = 5.0
 
+# The one word the doctor embeds to prove this box can embed at all. It is a real request with
+# the real key at the real model, because that is the only thing that answers the question: the
+# vendors' base URLs give the same status to a live key, a dead one and none.
+A_WORD = "pinecall"
+
 
 @dataclass(frozen=True)
 class Probes:
-    """The five ways the doctor leaves the process. The CLI passes live_probes(); a test fakes."""
+    """The six ways the doctor leaves the process. The CLI passes live_probes(); a test fakes."""
 
     http_status: Callable[[str], int]
     knock: Callable[[str, Mapping[str, str]], int]
     postgres_extensions: Callable[[str], set[str]]
     executable_path: Callable[[str], str | None]
+    # One word through whichever embedder this box is configured with, answering how wide the
+    # vector came back. Whatever stops it raises, and the sentence it raises with is the reason.
+    embed_width: Callable[[Settings], int]
     # The mail server the box posts through, read as the gateway reads it: what the operator
     # stored from the console, else the environment's. A test's default is a box that stored none.
     the_boxs_mail: Callable[[Settings], BoxMail | None] = lambda settings: (  # noqa: ARG005
@@ -42,6 +51,7 @@ def live_probes() -> Probes:
         knock=read_knock,
         postgres_extensions=read_postgres_extensions,
         executable_path=read_executable_path,
+        embed_width=read_embed_width,
         the_boxs_mail=read_the_boxs_mail,
     )
 
@@ -54,6 +64,20 @@ def read_http_status(url: str) -> int:
 def read_knock(url: str, headers: Mapping[str, str]) -> int:
     """GET with a key in the headers, and answer with the status: 200 is alive, 401 is dead."""
     return httpx.get(url, headers=dict(headers), timeout=KNOCK_TIMEOUT_SECONDS).status_code
+
+
+# The embedder this box is configured with, asked for real: the vendor, the model, the key, over
+# HTTP. Synchronous like every other probe — the CLI runs no event loop of its own.
+def read_embed_width(settings: Settings) -> int:
+    """Embed one word and answer how wide the vector came back."""
+    return asyncio.run(_embed_a_word(settings))
+
+
+async def _embed_a_word(settings: Settings) -> int:
+    """One client, one request, closed again."""
+    async with httpx.AsyncClient(timeout=KNOCK_TIMEOUT_SECONDS) as http:
+        vectors = await embedder_for(settings, http).embed([A_WORD])
+    return len(vectors[0])
 
 
 def read_postgres_extensions(dsn: str) -> set[str]:
