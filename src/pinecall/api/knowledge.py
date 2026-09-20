@@ -99,7 +99,7 @@ async def attached(key: KnowledgeKeyDep, kept: TuningDep) -> KnowledgeUses:
     """One row per base any agent's settings attach, with the agents that read it."""
     readers: dict[str, list[str]] = {}
     for slug, row in (await kept.every_newest(key.org, key.env, held_by(key))).items():
-        for docs in row.value.bases:
+        for docs in row.value.bases or ():
             readers.setdefault(docs.base, []).append(slug)
     return KnowledgeUses(
         bases=[KnowledgeUse(base=base, agents=agents) for base, agents in sorted(readers.items())]

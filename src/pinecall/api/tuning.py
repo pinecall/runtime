@@ -55,7 +55,9 @@ TUNING: TypeAdapter[Tuning] = TypeAdapter(Tuning)
 
 # What a `words` key may touch and what it may not: the vendors, the models, the cut of a turn and
 # what the call reads from are the pipeline's. A words key's set carries those over untouched
-# from what stands, and is refused by name the moment it would move one.
+# from what stands, and is refused by name the moment it would move one. An ABSENT knob is the one
+# carried over, `bases` with the rest: an empty `bases` is a person taking the bases out, which is
+# a move of the pipeline and is refused by name like any other.
 PIPELINE_ONLY = ("voice", "tts", "tts_model", "stt", "llm", "hangup", "turn", "bases")
 NOT_WORDS = "{fields}: the pipeline's, and {refusal}"
 
@@ -160,7 +162,7 @@ def words_only(key: KeyRecord, wanted: Tuning, standing: Tuning) -> Tuning:
     touched: list[str] = []
     for name in PIPELINE_ONLY:
         sent, kept = getattr(wanted, name), getattr(standing, name)
-        if sent is None or sent == ():
+        if sent is None:
             carried[name] = kept
         elif sent != kept:
             touched.append(name)

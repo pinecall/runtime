@@ -25,10 +25,11 @@ NAMED_KNOBS = ("voice", "tts", "tts_model", "stt", "llm")
 # What the org set for one agent, in one world, in one corner, as one version says it. Everything
 # the class used to declare and a deploy used to change: which vendors and models, how the call
 # opens and ends, how a turn is cut, what is remembered, what the agent knows by heart, which
-# bases it reads. None, or empty, is a knob nobody set — the runtime's default stands for it.
+# bases it reads. None is a knob nobody set — the runtime's default stands for it, and the corner
+# below is heard instead. Every knob has that absent form, `bases` included.
 @dataclass(frozen=True)
 class Tuning:
-    """One agent's settings: every knob None, or empty, until the org set it."""
+    """One agent's settings: every knob None until the org set it."""
 
     voice: str | None = None
     tts: str | None = None
@@ -43,8 +44,10 @@ class Tuning:
     # whole into the static knowledge block of every call. The floor's to write (`words`).
     knowledge: str | None = None
     # The bases a turn searches, each with how: the RAG, which is a different thing from what
-    # the agent knows by heart, and is attached here rather than named by the class.
-    bases: tuple[Docs, ...] = ()
+    # the agent knows by heart, and is attached here rather than named by the class. An EMPTY
+    # tuple is a decision — "this agent reads no base" — and wins over the corner below, the way
+    # `turn {endpointing_ms: 0}` does; None is nobody having attached one.
+    bases: tuple[Docs, ...] | None = None
 
     def __post_init__(self) -> None:
         for name in (*NAMED_KNOBS, "knowledge"):

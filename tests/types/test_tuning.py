@@ -10,10 +10,12 @@ from pinecall.types import BLANK, DeclarationRefused, Greeting, Lexicon, Tuning,
 pytestmark = pytest.mark.unit
 
 
-def test_nothing_set_is_every_knob_none_and_no_base() -> None:
+def test_nothing_set_is_every_knob_none_the_bases_with_the_rest() -> None:
+    """Absent is None for every knob: an empty `bases` is a decision, never "nobody set it"."""
     nothing = Tuning()
     assert (nothing.voice, nothing.llm, nothing.greeting, nothing.memory) == (None,) * 4
-    assert nothing.knowledge is None and nothing.bases == ()
+    assert nothing.knowledge is None and nothing.bases is None
+    assert Tuning(bases=()).bases == ()
 
 
 @pytest.mark.parametrize("knob", ["voice", "tts", "tts_model", "stt", "llm", "knowledge"])

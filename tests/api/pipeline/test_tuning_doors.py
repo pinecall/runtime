@@ -174,6 +174,30 @@ async def test_clearing_your_corner_leaves_the_team_standing(
     assert (config["llm"]["model"], config["stt"]["provider"]) == ("claude-sonnet-4-5", "soniox")
 
 
+# `bases` is the knob that had no way to say "none": an empty list was dropped on its way into the
+# column, so a person taking the team's bases out of their own corner went on reading them.
+async def test_an_empty_bases_of_your_own_wins_over_the_teams(
+    ana: httpx.AsyncClient, registry: Registry
+) -> None:
+    await in_the_sandbox(registry)
+    await ana.put(SETTINGS, json={"config": {"bases": [{"base": "clinica"}]}, "team": True})
+    mine = await ana.put(SETTINGS, json={"config": {"bases": []}})
+    assert mine.status_code == 200, mine.text
+    assert mine.json()["yours"]["config"]["bases"] == []
+
+    # What the worker builds the session from: no base at all, and no search tool with it.
+    assert (await ana.get(CONFIG)).json()["bases"] == []
+
+
+async def test_bases_nobody_attached_fall_through_to_the_teams(
+    ana: httpx.AsyncClient, registry: Registry
+) -> None:
+    await in_the_sandbox(registry)
+    await ana.put(SETTINGS, json={"config": {"bases": [{"base": "clinica"}]}, "team": True})
+    await ana.put(SETTINGS, json={"config": {"voice": "carolina"}})
+    assert [one["base"] for one in (await ana.get(CONFIG)).json()["bases"]] == ["clinica"]
+
+
 async def test_a_key_that_names_nobody_writes_the_orgs_own_corner(ci: httpx.AsyncClient) -> None:
     put = await ci.put(SETTINGS, json={"config": SONNET})
     assert put.status_code == 200, put.text
@@ -254,6 +278,9 @@ async def test_a_words_key_is_refused_a_vendor_by_name_and_the_scope_it_lacks(
     )
     instructed = await carla.put(SETTINGS, json={"config": {"greeting": {"reply": "saluda"}}})
     assert instructed.status_code == 403 and "greeting.reply" in instructed.json()["detail"]
+    # Taking the bases out is a move of the pipeline like any other, now that it can be said.
+    detached = await carla.put(SETTINGS, json={"config": {"bases": []}})
+    assert detached.status_code == 403 and detached.json()["detail"].startswith("bases: ")
 
 
 # ── history, diff, rollback ─────────────────────────────────────────────────────

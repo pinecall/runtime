@@ -110,6 +110,33 @@ async def test_every_knob_falls_through_on_its_own_and_an_empty_row_supplies_not
     assert (await kept.every_newest(org, SANDBOX, ANA))[agent].value == cleared.value
 
 
+# The one knob that had no absent form: an empty `bases` was dropped on its way into the column,
+# so "I read no base" and "I never attached one" were the same row and both fell through.
+async def test_no_base_at_all_is_kept_in_the_column_and_wins_over_the_teams_bases(
+    pool: Pool, org: str, agent: str
+) -> None:
+    kept = PostgresTuning(pool)
+    await put(kept, org, "", agent, Tuning(bases=(Docs(base="clinica", k=4),), llm=SONNET.llm))
+    await put(kept, org, ANA, agent, Tuning(bases=()))
+    read = await kept.newest(org, SANDBOX, ANA, agent)
+    assert read is not None and (read.holder, read.version) == (ANA, 1)
+    assert read.value == Tuning(bases=(), llm=SONNET.llm)
+    # And the corner's own row says it too, read back off the column as it was written.
+    own = await kept.own(org, SANDBOX, ANA, agent)
+    assert own is not None and own.value.bases == ()
+
+
+async def test_bases_nobody_attached_fall_through_to_the_orgs_own(
+    pool: Pool, org: str, agent: str
+) -> None:
+    kept = PostgresTuning(pool)
+    await put(kept, org, "", agent, Tuning(bases=(Docs(base="clinica", k=4),)))
+    await put(kept, org, ANA, agent, Tuning(voice="carolina"))
+    read = await kept.newest(org, SANDBOX, ANA, agent)
+    assert read is not None
+    assert read.value == Tuning(voice="carolina", bases=(Docs(base="clinica", k=4),))
+
+
 async def test_every_knob_survives_the_column_whole(pool: Pool, org: str, agent: str) -> None:
     kept = PostgresTuning(pool)
     await put(kept, org, "", agent, WHOLE)

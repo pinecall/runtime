@@ -28,6 +28,15 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   wins, and an empty row supplies nothing and is invisible to resolution. One definition,
   `orgs/resolving.py:resolved`, which both stores read through; the versioned writes and the
   per-corner doors are untouched. [docs/protocol/settings-api.md](docs/protocol/settings-api.md)
+- **`bases: []` is a corner saying it reads no base.** It was the one knob with no absent form: an
+  empty list was dropped on its way into the column, so "take the team's bases off this agent" was
+  written as the same row as "nobody ever attached one" and both fell through to the corner below.
+  `Tuning.bases` is absent as `None` now, like every other knob, and an explicit `[]` is stored and
+  wins over the corner below. **This changes what `bases: []` means on the wire** — it used to mean
+  nothing and now means no base, and do not inherit one; leaving the field out is what falls
+  through. No migration: the column is `jsonb` and no row can hold an empty `bases`, because one
+  was never written. A `words` key sending `bases: []` is refused by name, as it is for any other
+  move of the pipeline. [docs/protocol/settings-api.md](docs/protocol/settings-api.md)
 - **Renaming a persona is one statement.** It was an INSERT and then a DELETE, so anything that
   cut between them — a process stopped, a connection lost — left the agent holding both names.
   The two are one `WITH gone AS (DELETE …) INSERT …` now: the old name goes and the new one

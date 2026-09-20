@@ -36,12 +36,12 @@ one. Setting a voice of your own does not disconnect you from the team's model:
 
 A knob is **set** when it is in the row, which is exactly what leaving it out of a `PUT` decides. A
 knob set to a falsy value is set and wins over the corner below — `turn {endpointing_ms: 0}`,
-`hangup {when: ""}`, `memory {remember: [], forget: []}` — and only an ABSENT knob falls through.
-An empty row therefore supplies nothing and is invisible to resolution: clearing your corner is a
-version of its own that blanks nothing under it. One knob cannot say it, and the shape is why:
-`bases` is a list with no absent form, so `[]` is written as no bases at all and reads as a corner
-that never attached one. The version a call records and a diff answers with is the nearest corner
-that supplied a knob.
+`hangup {when: ""}`, `memory {remember: [], forget: []}`, `bases []` — and only an ABSENT knob
+falls through. An empty row therefore supplies nothing and is invisible to resolution: clearing
+your corner is a version of its own that blanks nothing under it. Every knob says it the same way,
+`bases` with the rest: `"bases": []` is **no base, and do not inherit one** — it is written and it
+wins over the corner below — while leaving `bases` out reads the corner below's. The version a
+call records and a diff answers with is the nearest corner that supplied a knob.
 
 **Versions.** Every set is a new row; nothing is updated, nothing deleted. The body carries the
 version it was read at, and a corner that moved on since answers `409` with where it is now — two
@@ -71,8 +71,9 @@ read whole into the static knowledge block of every call, cached ahead of everyt
 the floor (`words`) without a deploy — and `bases [{base, mode, k, min_score}]`, the RAG: every
 base the agent reads in this world, each with how a turn reads it (`mode` `retrieved` or `tool`,
 `k`, `min_score`); a turn's search fans out over all of them ([gateway-api.md](gateway-api.md),
-Knowledge). `pinecall docs attach <base>` writes that list; the text is the console's textarea, or
-`pinecall agent knowledge edit`.
+Knowledge). `[]` is a corner that reads NO base and is not the same as leaving `bases` out, which
+reads the corner below's. `pinecall docs attach <base>` writes that list; the text is the console's
+textarea, or `pinecall agent knowledge edit`.
 
 ### `PUT /v1/agents/{slug}/settings` — `pipeline` or `words`
 

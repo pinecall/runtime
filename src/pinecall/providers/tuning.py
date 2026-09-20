@@ -53,7 +53,7 @@ def tuned(declared: AgentConfig, tuning: Tuning, lexicon: Lexicon) -> AgentConfi
         turn=tuning.turn,
         memory=tuning.memory,
         knowledge=tuning.knowledge,
-        bases=tuning.bases,
+        bases=tuning.bases or (),
         says=dict(lexicon.said),
         hears=tuple(lexicon.heard),
     )

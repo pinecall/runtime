@@ -18,13 +18,13 @@ TUNING: TypeAdapter[Tuning] = TypeAdapter(Tuning)
 
 # What "set" means, once, for the column and for the fall-through alike: a knob is set when it is
 # in the row, and it is in the row when it is not None. A knob set to a FALSY value is set — a
-# `hangup {when: ""}`, a `turn {endpointing_ms: 0}` — and only an absent one is missing.
-# `bases` is the exception the shape forces: it is a tuple with no None, so an empty one is
-# written as no bases at all and cannot be told from bases nobody set.
+# `hangup {when: ""}`, a `turn {endpointing_ms: 0}`, a `bases []` — and only an absent one is
+# missing. There is no exception: `bases []` used to be dropped here, which made "I read no base,
+# ignore the team's" the same row as "I never attached one", and both fell through.
 def as_json(tuning: Tuning) -> dict[str, Any]:
     """The tuning as the column holds it: every knob that is set, and none that is not."""
     dumped: dict[str, Any] = TUNING.dump_python(tuning, mode="json", exclude_none=True)
-    return {name: value for name, value in dumped.items() if value != []}
+    return dumped
 
 
 def corners(holder: str | None) -> tuple[str, ...]:

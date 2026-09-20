@@ -3,7 +3,7 @@
 import pytest
 
 from pinecall.orgs.tuning import MemoryTuning, VersionMoved, tuning_for
-from pinecall.types import SANDBOX, Hangup, Lexicon, Tuning, Turn
+from pinecall.types import SANDBOX, Docs, Hangup, Lexicon, Tuning, Turn
 
 pytestmark = pytest.mark.unit
 
@@ -77,6 +77,26 @@ async def test_a_knob_set_to_a_falsy_value_wins_over_the_corner_below() -> None:
     read = await kept.newest(ORG, SANDBOX, ANA, AGENT)
     assert read is not None
     assert read.value == Tuning(turn=Turn(endpointing_ms=0), hangup=Hangup(when="at goodbye"))
+
+
+async def test_no_base_at_all_is_a_decision_and_the_teams_bases_are_not_heard() -> None:
+    """`bases []` in your corner is "I read none": it used to be dropped and fall through."""
+    kept = MemoryTuning()
+    await put(kept, "", Tuning(bases=(Docs(base="clinica"),), llm=SONNET.llm))
+    await put(kept, ANA, Tuning(bases=()))
+    read = await kept.newest(ORG, SANDBOX, ANA, AGENT)
+    assert read is not None and read.value == Tuning(bases=(), llm=SONNET.llm)
+    assert (read.holder, read.version) == (ANA, 1)
+
+
+async def test_bases_nobody_attached_fall_through_to_the_corner_below() -> None:
+    """The other half of it: absent is absent, and the team's bases are read."""
+    kept = MemoryTuning()
+    await put(kept, "", Tuning(bases=(Docs(base="clinica"),)))
+    await put(kept, ANA, A_VOICE)
+    read = await kept.newest(ORG, SANDBOX, ANA, AGENT)
+    assert read is not None
+    assert read.value == Tuning(voice="nova", bases=(Docs(base="clinica"),))
 
 
 async def test_a_stale_version_is_refused_with_where_the_corner_is_now() -> None:

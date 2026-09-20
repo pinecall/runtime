@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# docs/images/{light,dark}/*.png — every console screen docs/a-box-in-production.md shows, taken
+# against a real gateway with Playwright. Idempotent apart from the pixels: a run that finds the
+# page unchanged rewrites the same images and git shows nothing.
+#
+# It signs in with a ONE-USE code minted from the key of a ~/.pinecall/config.json profile, which
+# is how `pinecall start` signs a browser in: no key is typed into the page and none is on screen.
+# The profile must be a PERSON's key at the gateway whose console is being photographed, and that
+# gateway's console shows production, so what the shots show is what production holds.
+#
+#   scripts/screenshots                                  # both themes, every screen
+#   scripts/screenshots --only personas,simulations      # a few of them
+#   scripts/screenshots --profile box --agent clinica-norte --theme dark
+#
+# Playwright is a browser and a wheel, not something this package depends on, so it is brought in
+# for the run. The browser itself is installed once: `uv run --with playwright playwright install chromium`.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+uv run --with playwright python scripts/screenshots.py "$@"
