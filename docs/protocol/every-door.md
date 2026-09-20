@@ -89,7 +89,7 @@ that colleague's corner.
 | `GET` | `/v1/calls/{call}/settings` | the exact settings and lexicon a call ran on, by the versions its head row kept — `calls` |
 | `GET` · `PUT` | `/v1/lexicon` · `GET …/history` | the org's words — how the voice says them, what the ears must know — laid over every agent's own, in the request's world — `pipeline` or `words` |
 | `GET` · `PUT` | `/v1/agents/{slug}/widget` | how the widget presents the agent — title, tagline, greeting, accent, autostart — per world; read with `talk`, set with `pipeline` |
-| `POST` | `/v1/agents/{slug}/dev/{family}/{verb}` · `?app=` | a console's ask, relayed to the app standing in the agent's directory — `talk`, `knowledge`, `memory` or `evals` by family; [dev-verbs.md](dev-verbs.md) |
+| `POST` | `/v1/agents/{slug}/dev/{family}/{verb}` · `?app=` | a console's ask, relayed to the app standing in the agent's directory — `chat`, `knowledge`, `memory` or `evals` by family; [dev-verbs.md](dev-verbs.md) |
 | `GET` | `/v1/agents/{slug}/provider-keys` | the org's own vendor keys, **in the clear**: the worker's door, see §6 |
 | `GET` | `/v1/agents/{slug}/rings-for?caller=` | whose sandbox copy a production ring from this phone belongs to, or null: production's — the worker's, `app` |
 | `GET` | `/v1/agents/{slug}/hold-audio` | the worker's: what the call being built plays while a tool runs, in the call's corner (`?org=&env=&holder=`) — `app` or `calls` |
@@ -100,7 +100,7 @@ that colleague's corner.
 | `GET` | `/v1/calls/{call}/state` | the call reduced |
 | `GET` | `/v1/calls/{call}/recording` | the audio, seekable. A written (chat) call keeps none: `404`, `call … kept no recording: its call.summary points at none` |
 | `POST` | `/v1/calls/{call}/listen` · `/supervise` | a seat |
-| `POST` | `/v1/calls/{call}/verbs` | one supervisor verb |
+| `POST` | `/v1/calls/{call}/verbs` | one supervisor verb, from a key of the org whose call it is · `403` another's, `404` no live call, `409` it is over |
 | `POST` | `/v1/tokens` | a room token for a browser — `503` and `fleet.full` when every worker is full |
 | `POST`·`GET` | `/v1/callbacks` | a number to call back when the fleet was full, and the list of them |
 | `GET` | `/v1/routes` | the numbers and doors your org answers |
@@ -119,7 +119,7 @@ that colleague's corner.
 | `POST` | `/v1/evals/run` · `GET /v1/evals/runs[/{id}]` · `POST /v1/evals/replay/{call}` · `/v1/evals/judge/{call}` | the suites, ring 3, and the judges over a finished call nobody judged |
 | `POST` | `/v1/evals/caller` · `/v1/evals/voice` | the improvising caller, and a spoken eval |
 | `POST` | `/v1/calls` · `/v1/calls/{call}/events` · `/sealed` · `/tools` · `/lookup` · `/remember` · `GET /commands` | the worker's own doors; `/lookup` is also the app's own `this.knowledge.search` — `app` |
-| `POST`·`GET` | `/v1/fleet/heartbeat` · `/v1/fleet/standing` | the fleet's: what a worker holds, and whether all are full. A key holding the `fleet` scope only |
+| `POST`·`GET` | `/v1/fleet/heartbeat` · `/v1/fleet/standing` | the fleet's: what a worker holds, and whether all are full. A key holding `app` AND `fleet` — what the box mints for its worker |
 | `GET`·`POST` | `/v1/whatsapp/webhook` | Meta's |
 | `GET` | `/.well-known/pinecall` | what this gateway is before anybody holds a key: version, `cloud`, `signup`, `min_password`, `mail`, `brand`, `google` — no key |
 | `GET` | `/` | the console — no key to load, it proves its own |

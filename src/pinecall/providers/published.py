@@ -2,7 +2,7 @@
 
 # providers/prices.py holds the table this runtime read itself — one page per vendor, on a stated
 # date, in the units a livekit usage row carries. It covers the five vendors this build runs by
-# default and nothing else, which was the whole truth while there were five. There are forty-five
+# default and nothing else, which was the whole truth while there were five. There are forty-nine
 # now (providers/catalog.py), and a call on Cartesia that came back `unpriced` is a bill nobody
 # can see.
 #

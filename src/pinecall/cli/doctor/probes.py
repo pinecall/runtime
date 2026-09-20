@@ -29,7 +29,7 @@ class Probes:
     postgres_extensions: Callable[[str], set[str]]
     executable_path: Callable[[str], str | None]
     # The mail server the box posts through, read as the gateway reads it: what the operator
-    # stored from /admin, else the environment's. A test's default is a box that stored nothing.
+    # stored from the console, else the environment's. A test's default is a box that stored none.
     the_boxs_mail: Callable[[Settings], BoxMail | None] = lambda settings: (  # noqa: ARG005
         None
     )

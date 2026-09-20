@@ -142,7 +142,7 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     gateway.state.sso = sso_for(settings, pool)
     # The one place a letter leaves by: the account an org wired of its own, sealed under the same
     # vault key (orgs/mail.py); the box's PINECALL_SMTP_URL when it wired none; nobody with neither.
-    # What the operator configured for the box itself from /admin — its brand, its own mail, a
+    # What the operator configured for the box itself from the console — its brand, its own mail, a
     # box-wide "Continue with Google" — one row a setting, secrets under the same vault key
     # (orgs/box.py). It exists without one: the brand is no secret.
     gateway.state.box_settings = box_settings_for(settings, pool)
@@ -190,7 +190,7 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # What the org set over every agent's class, per world, per corner, a version a row. Read per
     # session and never cached: what one gateway sets is on the next call of every other one.
     gateway.state.tuning = tuning_for(pool)
-    # The agent's synthetic callers, written from the console or the CLI and played by a model.
+    # The org's synthetic callers, written from the console or the CLI and played by a model.
     gateway.state.personas = personas_for(pool)
     # Which melody each agent plays while a tool runs, read per call: the table is small.
     gateway.state.hold_audio = hold_audio_for(pool)

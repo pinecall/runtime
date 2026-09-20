@@ -86,7 +86,7 @@ async def started(
     member: dict[str, Any] = said["member"]
     # And an operator of the box. Somebody has to be able to make the SECOND org, and on a fresh
     # runtime there is nobody else who could be given that: the ops key is a box secret, not a
-    # person. `orgs operator <org> <email> --no` takes it back.
+    # person. `orgs operator <org> <email> --revoke` takes it back.
     await operator.put(f"{OPS_ORGS}/{org}/members/{member['id']}/operator", {"operator": True})
     print(f"{member['id']}  {member['email']}  {member['role']}  runs this box", file=out)
     print(f"  {operator.base}/invitations/{said['token']}", file=out)

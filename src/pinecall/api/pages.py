@@ -1,4 +1,4 @@
-"""The pages the gateway serves — the console, the operator's page — and the widget at `/widget`."""
+"""The two things the gateway serves beside its doors: the console at `/`, and the widget."""
 
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ async def widget(file: str) -> FileResponse:
 # The one catch-all of the whole gateway, included LAST by api/app.py so every /v1 door and the
 # page above are matched before it. A file the build wrote is served as itself; anything else is
 # the page, because the console's router owns the path — /a/<slug>/talk is a screen, not a file —
-# and a reload has to land on exactly the same screen. tests/api/test_the_console_is_served.py.
+# and a reload has to land on exactly the same screen. tests/api/test_the_pages_are_served.py.
 @router.get("/{path:path}", include_in_schema=False)
 async def console(path: str) -> FileResponse:
     """The page for a screen, or one of its assets; a JSON 404 under the API's own prefixes."""

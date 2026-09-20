@@ -76,7 +76,7 @@ async def whoami(key: KeyDep, orgs: OrgsDep, members: MembersDep, keys: KeysDep)
 
 
 class TheBox(WireModel):
-    """What the operator's page reads at login: that the key opened, and which box it opened."""
+    """What the console's Box screens read: that the key opened, and which box it opened."""
 
     # Always true: a key that did not open this door was answered 401 before the endpoint ran.
     # It is here so the page has a field to check rather than an empty body to guess at.
@@ -92,7 +92,7 @@ class TheBox(WireModel):
     org: str | None = None
 
 
-# The door the operator's page proves its key at, exactly as the console proves a person's at
+# The door the console's Box screens prove an operator's key at, as the console proves a person's at
 # /v1/whoami: a key that opens nothing is a page a person would trust tomorrow and a refusal they
 # would not understand. It reads the settings and no table, because the ops key names no org.
 @operator.get("/whoami")

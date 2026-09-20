@@ -15,7 +15,7 @@ from pinecall.types import DeclarationRefused, an_address
 
 # The same gate every /v1/ops door takes. The mail server the box posts through is the box's
 # credential and nobody's tenant's: until here it was a line of the environment, changed by
-# whoever can ssh in and restart the gateway, and the person who runs a box from /admin is not
+# whoever can ssh in and restart the gateway, and the person who runs a box from the console is not
 # always that person.
 operator = APIRouter(prefix="/v1/ops", dependencies=[Depends(an_operator)])
 
@@ -74,7 +74,7 @@ async def test(said: TestTo, outbox: OutboxDep) -> dict[str, Any]:
 
 # The org's envelope plus `source` (protocol/schema/rest.json, BoxMail): a page that draws the
 # one draws the other, and `source` is the one thing the box's has to say that an org's does
-# not — whether what it reads came from /admin or from a file on the machine.
+# not — whether what it reads came from the console or from a file on the machine.
 def _standing(boxs: BoxMail | None) -> dict[str, Any]:
     """One mailbox as the operator sees it: what, from where, how it went — never the password."""
     kept = None if boxs is None else boxs.kept

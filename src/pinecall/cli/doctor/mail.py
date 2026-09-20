@@ -10,7 +10,7 @@ from pinecall.types import DeclarationRefused, Mailbox, an_address
 # existed, and an admin hands a link over by copying it out of the answer. So the line is advice,
 # and it names the two variables rather than reading like an outage.
 NO_MAIL = (
-    "not configured — set it at PUT /v1/ops/mail (the admin page), or set {url} and {sender}, "
+    "not configured — set it at PUT /v1/ops/mail (Box settings), or set {url} and {sender}, "
     "to mail invitations and password resets; an admin hands the link over by copying it "
     "until then"
 )
@@ -23,7 +23,7 @@ CONFIGURED = (
     "`doctor --mail-to you@example.com` posts one"
 )
 
-# Which of the two places the mailbox came from, said so an operator who set one from /admin and
+# Which of the two places the mailbox came from, said so an operator who set one in the console and
 # still sees the old relay's host knows the row lost — a vault key rotated — and not the page.
 SOURCES = {"stored": "stored by the operator", "environment": "from the environment"}
 

@@ -1,6 +1,6 @@
 """LiveKit Inference: the vendors LiveKit fronts itself, on this box's own LiveKit project."""
 
-# The other forty-five rows of providers/catalog.py are a vendor account: a plugin to install and a
+# The other forty-nine rows of providers/catalog.py are a vendor account: a plugin to install and a
 # key of that vendor's to hold. This one is neither. LiveKit Inference is a gateway in front of
 # OpenAI, Google, Deepgram, Cartesia, AssemblyAI, Inworld, xAI, Rime, Speechmatics and the rest; a
 # model is named `<vendor>/<model>` and the bill lands on the LiveKit project the box already has a

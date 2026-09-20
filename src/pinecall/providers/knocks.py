@@ -21,7 +21,7 @@ class Knock:
 # is the cheapest one the vendor has: a listing, or the account itself — nothing is generated,
 # transcribed or spoken, and a dead key is a 401 here instead of a silent agent on a live call.
 #
-# There are forty-five vendors in providers/catalog.py and five rows here, and that is on purpose.
+# There are forty-nine vendors in providers/catalog.py and five rows here, and that is on purpose.
 # A knock is a URL somebody OPENED with a live key and watched answer 200; a guessed one answers
 # 404 for a perfectly good key and makes `make deploy` refuse a box that was fine. So a vendor
 # with no row is not knocked at all — the doctor says its variable is set and stops there, which

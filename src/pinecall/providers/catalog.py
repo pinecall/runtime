@@ -2,7 +2,7 @@
 
 # This file exists because "which vendors does Pinecall run?" used to be answered by counting the
 # files under `llm/`, `stt/` and `tts/` — five of them — while livekit-agents 1.8 ships plugins for
-# forty-five. A tenant who wanted Cartesia was told `no tts vendor named 'cartesia'` by a build that
+# forty-nine. A tenant who wanted Cartesia was told `no tts vendor named 'cartesia'` by a build that
 # was one import away from having it.
 #
 # The rows are read off livekit-agents 1.8.0 itself: `does` is what the plugin's own `__all__`
@@ -288,7 +288,7 @@ def env_of(vendor: str) -> str | None:
 
 # The settings field that holds a vendor's key is the vendor's own variable, lowercased — that is
 # the whole rule, and _vendor_keys.py is written to keep it true. It replaces a hand-kept table of
-# vendor-to-field that had six rows and would have needed forty-five.
+# vendor-to-field that had six rows and would have needed one per vendor.
 def settings_field_of(vendor: str) -> str | None:
     """Which field of Settings holds this vendor's key, or None when it has no single one."""
     env = env_of(vendor)

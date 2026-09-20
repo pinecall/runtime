@@ -301,7 +301,7 @@ client, browser or server), or use it as the bearer of:
 - **`WS /v1/attach?call=<id>&token=<seat>`** — the call's log as it happens, the verbs back up it.
 - **`POST /v1/calls/{call}/verbs`** — one verb. The bearer may be the seat **or the org key**: a
   desk that only reads and types needs no seat, which is what `pinecall supervise` is. It answers
-  `202 {call, verb, seq}`, `seq` null: the entry is written after, and read off the log.
+  `202 {call, verb, seq}`, `seq` null: the entry is written after, and read off the log. `401` with no bearer, `404 no live call '<id>' on this gateway`, `409 call <id> is over: read its log or its recording instead`.
 
 The six verbs (`protocol/schema/verbs.json`): `say` (the agent says your words), `whisper` (an
 instruction the caller never hears), `takeover`, `release`, `transfer`, `end`. Each lands in the

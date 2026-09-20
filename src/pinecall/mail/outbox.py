@@ -32,7 +32,7 @@ class Outbox:
     """The one place a letter leaves by. It never raises: a door has already answered."""
 
     # The order is the whole policy. The ORG's own account first: its people's letters come from
-    # its own domain. Then what the operator STORED from /admin, which is newer than and
+    # its own domain. Then what the operator STORED from the console, which is newer than and
     # deliberately instead of the third: the line somebody left in the box's environment.
     def __init__(
         self, box: Mailbox | None, mail: Mail | None, settings: BoxSettings | None = None

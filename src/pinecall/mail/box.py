@@ -1,4 +1,4 @@
-"""The box's own mail server: what the operator stored from /admin, else the environment's."""
+"""The box's own mail server: what the operator stored from the console, else the environment's."""
 
 from __future__ import annotations
 

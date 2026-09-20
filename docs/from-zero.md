@@ -113,7 +113,7 @@ tenant is further down the page.
 
 ## 3. The gateway
 
-The two browser pages — the console and the operator admin — are built from the agents checkout
+The browser page — the console — is built from the agents checkout
 next door and copied in as package data, and the widget is copied beside them from the widget
 checkout. A fresh clone has never run that, so run it once:
 
@@ -127,7 +127,7 @@ Skip it and the gateway still comes up, and answers every page with a sentence t
 it. That is the right refusal, but it is a step, not a surprise. The widget is then served at
 `/widget/pinecall-widget.js` with `Access-Control-Allow-Origin: *`: a site anywhere loads
 `<pinecall-widget>` from this gateway, as from a CDN. With no widget checkout the script stops at
-`no widget checkout at ../widget: set PINECALL_WIDGET`, after the two pages are already copied.
+`no widget checkout at ../widget: set PINECALL_WIDGET`, after the page is already copied.
 
 ```bash
 echo "PINECALL_OPS_KEY=$(openssl rand -hex 32)" >> .env

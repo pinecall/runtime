@@ -104,7 +104,7 @@ class Settings(VendorKeys):
         description="The LiveKit API key, as the LiveKit server's own config declares it.",
     )
     # The pair also signs and verifies a call token: it IS a LiveKit room token, so there is no
-    # second secret to set. auth/scopes.py derives one from the dev key when this is unset.
+    # second secret to set. Without a pair this gateway verifies none and mints none.
     livekit_api_secret: str | None = Field(
         default=None,
         validation_alias="LIVEKIT_API_SECRET",

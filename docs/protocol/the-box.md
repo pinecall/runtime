@@ -1,7 +1,7 @@
 # The box's own settings — `/v1/ops/mail`, `/v1/ops/brand`, `/v1/ops/signin`
 
 Part of the [operator API](operator-api.md), on its own page: what the person who runs the box
-configures **about the box itself**, from the admin page and not from a file on the machine. Each
+configures **about the box itself**, from the console's Box settings and not from a file on the machine. Each
 is one row of `box_settings` (migration 0035), by name, its one secret sealed under
 `PINECALL_VAULT_KEY` exactly as a provider key, a carrier and an org's own SMTP password are. The
 environment still works, and is what a box with no row falls back to.

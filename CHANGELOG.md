@@ -35,6 +35,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   console. Production had no such collision when this was written.
 
 ### Added
+- **A text call has no line to transfer.** Five of the six supervise verbs apply to a conversation
+  with no room — the widget's chat, WhatsApp — and `transfer` is refused with
+  `409 supervisor.verb: a text call has no line to transfer`; the console's desk draws neither the
+  button, nor the ear, nor a microphone for one.
+  [docs/protocol/gateway-api.md](docs/protocol/gateway-api.md)
 - **What a persona has done.** `GET /v1/personas/{name}/runs?limit=&before=` answers every
   simulation that caller has run in the key's world and corner, newest first: the call id, the
   agent, when, how many turns the caller took, how it ended, its outcome line, what it cost and
@@ -534,11 +539,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   **link** once that opens the console's password card. The operator holds a token and never a
   password, the invitation takes none of the org's seats, and there is no door that changes or
   disables a member from the box: an invitation is inert until the person it names accepts it.
-- **The operator's page, served at `/admin`.** `api/console.py` becomes `api/pages.py` with a
-  `Page` each, `/admin` declared before the catch-all so it is the box's page and never a screen
-  of the tenant's console. `GET /v1/ops/whoami` (`{operator, version, domain}`) is what the page
-  proves its key at; `GET /v1/ops/fleet` carries `stale_after_s`, the hub's own threshold. The
-  page is the agents repo's `src/cli/ui/admin/`; `scripts/console` builds and copies both.
+- **`GET /v1/ops/whoami`**, where an operator's key is proved: `{operator, version, domain, name,
+  org}` — the name and the org when a person's key knocked, null for the box's own. `api/console.py`
+  becomes `api/pages.py`, and `GET /v1/ops/fleet` carries `stale_after_s`, the hub's own threshold.
+  (This shipped with a second browser page at `/admin`, built from the agents repo's
+  `src/cli/ui/admin/`. That page is gone — see **Removed** above — and nothing but this door
+  outlived it.)
 - **`seats`, the seventh quota.** How many people an org may hold: invited and active together,
   because an invitation sent is a seat taken, and a `disabled` member keeps their row and holds
   none — which is what frees one. `POST /v1/members` counts before it writes and answers the

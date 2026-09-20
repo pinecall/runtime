@@ -271,7 +271,7 @@ env: /Users/berna/pinecall-v2/runtime/.env
 ✓ postgres              postgresql://pinecall@[::1]:5432/pinecall — vector, pg_textsearch
 ! embedder              tei · BAAI/bge-m3 — http://127.0.0.1:8081/info — ConnectError: …;
                         a lookup without it is skipped and said in the call's log: this stops no call
-! mail                  not configured — set it at PUT /v1/ops/mail (the admin page), or set PINECALL_SMTP_URL and PINECALL_MAIL_FROM, …
+! mail                  not configured — set it at PUT /v1/ops/mail (Box settings), or set PINECALL_SMTP_URL and PINECALL_MAIL_FROM, …
 ! lk                    not installed — brew install livekit-cli (lk docs · lk sip · lk dispatch)
 
 all up

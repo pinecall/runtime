@@ -55,7 +55,8 @@ whole, `app` included, and opens no world of its own (`auth/persons.py`). A requ
 member's row opens it, read at every request, so switching it off closes the very next one: `403
 <name> has no production access: an admin gives it in Team`. **An admin always opens production**
 — `PATCH` with `production: false` on one is `409 <email> is an admin, and an admin always opens
-production`. So a developer with the switch holds an agent in production from their own terminal
+production`; `PATCH` disabling YOURSELF is `409 you cannot disable yourself: another admin of this
+org disables you`. So a developer with the switch holds an agent in production from their own terminal
 (`pinecall start --prod`); what normally holds it is a **server's token**, made from the console's
 Tokens screen (`POST /v1/keys`, [gateway-api.md](gateway-api.md) §8), which names nobody and
 outlives whoever made it. Two people's sandbox keys are two people's: the registry holds a sandbox
