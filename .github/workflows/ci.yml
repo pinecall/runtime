@@ -59,10 +59,17 @@ jobs:
           docker run -d --name postgres -p 5432:5432 \
             -e POSTGRES_USER=pinecall -e POSTGRES_PASSWORD=pinecall -e POSTGRES_DB=pinecall \
             pinecall/postgres:ci -c max_connections=300
-          # NOT pg_isready: postgres's entrypoint runs initdb behind a TEMPORARY server on the
-          # same socket, so `accepting connections` is true a second before POSTGRES_DB exists
-          # and the next line dies with `database "pinecall" does not exist`. Wait for the thing
-          # that actually matters — the database answering a query as the user.
+          # NOT pg_isready, and not one query either: postgres's entrypoint runs initdb behind a
+          # TEMPORARY server on the same socket, and that server has already made the user and the
+          # database — so `select 1` as the user answers, and a second later the bootstrap server
+          # shuts down to hand over to the real one. A CREATE EXTENSION that lands in that window
+          # dies with `the database system is shutting down` (a red run on green code, 2026-09-20).
+          # The entrypoint says which server is which in the log: it prints the ready line once
+          # for the bootstrap and again for the real one, with `init process complete` between.
+          for _ in $(seq 1 90); do
+            docker logs postgres 2>&1 | grep -q "init process complete" && break
+            sleep 1
+          done
           for _ in $(seq 1 90); do
             docker exec postgres psql -U pinecall -d pinecall -c 'select 1' >/dev/null 2>&1 && break
             sleep 1
