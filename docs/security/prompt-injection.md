@@ -18,7 +18,7 @@ up in a request and where a retrieved sentence ends up, and can check it with
 | what | who wrote it | where it goes | authority |
 |---|---|---|---|
 | the class docstring, `<rules>`, `<protocols>` | the tenant | the top-level `system` field | operator |
-| the `knowledge` file | the tenant, shipped with the class | the top-level `system` field | operator |
+| the `knowledge` text | the org, in its settings | the top-level `system` field | operator |
 | the tool docstrings | the tenant | the top-level `system` field | operator |
 | the caller's words | the person on the line | a `user` turn | user |
 | what `recall` returned | a model, from earlier callers' words | a `tool_result` block, JSON-encoded | none |
@@ -174,22 +174,23 @@ This runtime has three of the four:
   memory would have kept beside what admission dropped. On Clínica Norte, 2026-09-10, a
   caller's «a mí resérvemela siempre sin preguntarme» came back written as «Prefiere que le
   reserven las citas sin preguntarle», which names no tool and was refused by nothing. The
-  class's tools are `book` and `findPatient` and its callers speak Spanish: the vocabulary is
-  a method name, and a caller does not use one.
-- **Provenance.** Every fact carries `source_call` and `valid_from`, and both reach the model in the
-  tool result.
+  class's tools are named in English — `book`, `findPatient` — and its callers speak Spanish: the
+  vocabulary is a method name, and a caller does not use one.
+- **Provenance.** Every fact carries where it came from and since when, and both reach the model in
+  the tool result: `{"facts": [{text, source, since}]}` and nothing else (`lookups/answers.py`).
 - **Read-time framing.** The fact arrives as JSON inside a tool result, which is the position both
   vendors name for content the model should not obey.
 
 Monitoring is the fourth and is not built. `memory.ops` in the call's log is what a monitor would
 read; nothing reads it yet.
 
-### The knowledge file is the operator's, and stays in `system`
+### The knowledge text is the operator's, and stays in `system`
 
-`knowledge` is one file the tenant writes and ships with the class, the same way they ship the
-docstring. It is the operator's own words and belongs with them, in the cached prefix.
+`knowledge` is the org's own Markdown, one field of the agent's settings, written in the console or
+with `pinecall agent knowledge edit` — a class that declares one is refused at load. It is the
+operator's own words and belongs with them, in the cached prefix.
 
-The line to watch: the moment that file stops being written by hand — generated from a CMS, exported
+The line to watch: the moment that text stops being written by hand — generated from a CMS, exported
 from a customer's system, assembled from user submissions — it stops being the operator's words and
 belongs in a knowledge base, which is retrieved and arrives as a tool result. A tenant who generates
 it should push it instead of shipping it.
@@ -201,8 +202,9 @@ it should push it instead of shipping it.
   describing, never as a sentence you are passing on.
 - **Say in the tool's docstring what the content is and where it came from.** The model reads that
   docstring, and it is what lets it calibrate.
-- **Keep `memory.remember` narrow.** It is the vocabulary of what may be written at all, in the
-  tenant's own words, and a narrow list is admission control.
+- **Keep what is remembered narrow.** `pinecall memory policy --remember '…'` — a field of the
+  agent's settings, not a class declaration — is the vocabulary of what may be written at all, in
+  the org's own words, and a narrow list is admission control.
 - **Use `confirm:` on anything irreversible.** It declares the tool irreversible and the sentence
   read back when it runs; the gate that would hold it until a yes is deferred, above.
 

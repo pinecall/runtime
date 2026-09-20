@@ -18,7 +18,9 @@ it.
 | `search` | passages of the tenant's knowledge base, by the words of the question | while the caller is still speaking, four words in | two index scans and one embedding |
 | `recall` | facts held about this contact from earlier calls | the same moment | two index scans and one embedding |
 
-Both are declared tools. The platform runs them on the app's behalf when `docs.mode` is `retrieved`
+Both are declared tools. The platform runs them on the app's behalf when the base is attached with
+`mode` `retrieved` — one field of the ATTACHMENT in the org's settings (`pinecall docs attach
+<base> --mode retrieved`, the default), never a class declaration — when `docs.mode` is `retrieved`
 (the default); with `mode: "tool"` the model calls `search` itself. Either way the answer reaches
 the model as a `tool_result`, and either way the call's log gets the same entry.
 
@@ -125,11 +127,12 @@ both find the passage are not equal if one puts it first and the other seventh, 
 Neither needs a model, so both are deterministic, free, and safe to run on every change. They are
 what makes "we changed the embedder" a statement with a number after it.
 
-**The golden's shape**, one file per base, beside the documents it asks about:
+**The golden's shape**, one file per AGENT at `test/<agent>/goldens/docs.json` — the same folder
+its spoken goldens live in, not beside the documents:
 
 ```json
 [
-  { "asks": "¿cuánto cuesta una revisión?",        "expects": "tarifas.md › Tarifas › Revisión" },
+  { "asks": "¿cuánto tengo que pagar de copago en la consulta?", "expects": "seguros-y-autorizaciones.md › Seguros, autorizaciones y facturación › Copagos" },
   { "asks": "¿hay que ir en ayunas a la analítica?", "expects": "preparacion-de-pruebas.md › Analítica general" },
   { "asks": "¿me cubre Asisa la primera consulta?", "expects": "seguros-y-autorizaciones.md › Qué necesita autorización previa" }
 ]
@@ -189,7 +192,7 @@ question whose contact holds four is answered whole by any ranking at all, and i
 does, and a smaller `k` is what makes recall bite:
 
 ```bash
-pinecall memory eval                 # memory/golden.json beside the agent file
+pinecall memory eval                 # test/<agent>/goldens/memory.json
 pinecall memory eval --k 1           # the best fact alone: is the right one first?
 ```
 
