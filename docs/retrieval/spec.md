@@ -20,11 +20,22 @@ it.
 
 Neither runs on a turn that **could not be a query**: one with no letter in it at all, which is a
 number being read out — a phone, an order, a card. No prose index answers one, the contact's facts
-would come back ranked by nothing, and a caller's digits are the last thing to send to an
-embedder. That is the whole of the decision, deliberately: choosing when to retrieve has a
-literature of trained classifiers and fine-tuned reflection tokens (Adaptive-RAG, Self-RAG,
-FLARE), and none of it belongs in the path a caller is waiting on. An agent that wants the model
-to decide turn by turn attaches its base with `--mode tool` instead.
+would come back ranked by nothing, and a caller's digits are the last thing to send to an embedder.
+
+**The score cannot make that decision, and this is why.** A chunk's score is the fused rank read
+`relative_to_the_best` of THAT query (`knowledge/store.py`), so the top chunk is 1.0 whatever was
+asked: the sums a reciprocal-rank fusion produces are not comparable between two queries, which is
+the very reason they are normalised. `min_score` therefore cuts the tail of an answer and can
+never say "nothing here answers this" — a cleaning company's base returned its data-center page,
+at 1.0, for a caller reading out a phone number (2026-09-20). A relative score orders; it does not
+judge. So the judgment is made before the search, on the words.
+
+That is the whole of the decision, deliberately: choosing when to retrieve has a literature of
+trained classifiers and fine-tuned reflection tokens (Adaptive-RAG, Self-RAG, FLARE), and none of
+it belongs in the path a caller is waiting on. An agent that wants the model to decide turn by
+turn attaches its base with `--mode tool` instead. Saying it with a NUMBER instead would mean an
+absolute signal — a raw cosine, or a reranker that calibrates one — which is a different design
+and is not what is built.
 
 Both are declared tools. The platform runs them on the app's behalf when the base is attached with
 `mode` `retrieved` — one field of the ATTACHMENT in the org's settings (`pinecall docs attach
@@ -95,6 +106,21 @@ turn, and the usual cause is a knowledge file that is not stable or a tool list 
 cacheable prefix is 1024 tokens on Sonnet 5 and **4096 on Haiku 4.5**, which is the default model:
 an agent whose whole prefix is smaller than that caches nothing at all, and the ratio is honestly
 zero rather than broken.
+
+## What a base is made of
+
+A `.md` is cut at its headings (one to three hashes), each cut kept under 350 tokens, and each
+chunk carries its heading path in the text both indexes read — `tarifas.md › Tarifas › Revisión`.
+A file's **front matter is not a chunk**: the fenced block of metadata every scraper and every
+static-site generator opens a file with (`source:`, `title:`, `scraped_at:`) is dropped before the
+cut. Left in it was the file's first section — embedded, indexed, retrievable — which on a scraped
+site was 75 of 537 chunks, one in seven, and one of them came back as the evidence of a turn
+(2026-09-20). A push rebuilds the base whole, so a base pushed before that carries them until it
+is pushed again.
+
+What a base holds is still the tenant's: a page of nav and footer scraped as a document competes
+for the handful of slots a turn has, and it answers nothing. Retrieval quality is decided at
+extraction more than at embedding, and nothing here can tell a nav bar from a paragraph.
 
 ## Quality: what it says is in the documents
 
