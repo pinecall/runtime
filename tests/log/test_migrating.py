@@ -185,6 +185,20 @@ async def test_a_database_whose_table_predates_the_hashes_gets_the_column(postgr
     assert ran.applied, "and every migration ran on top of it"
 
 
+# And the other half of the same sentence: a run that applies the startup files names what still
+# waits, and it named every post file on disk — including the one this database had already run,
+# which sends a person to `migrate up --post` for nothing (the box, 2026-09-20).
+async def test_a_run_names_only_the_post_files_this_database_has_not_run(postgres: Dev) -> None:
+    schema = await a_schema(postgres)
+    post = [path for path in ordered(post=True)]
+    await pretend_it_ran(postgres, schema, post[0].name, a_hash(post[0]))
+
+    ran = await apply_migrations(postgres.dsn, schema=schema)
+
+    assert post[0].name not in ran.waiting, "it ran: it is not waiting"
+    assert [path.name for path in post[1:]] == list(ran.waiting)
+
+
 # `migrate status` marked every `.post.sql` "waiting" off the disk alone, so one a person had
 # already applied by hand read as pending for ever (the box, 2026-09-20). The table is the answer,
 # and it answers for post-deployment files too.

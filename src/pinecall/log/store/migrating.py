@@ -123,7 +123,11 @@ async def apply_migrations(
             database=_the_database(dsn),
             schema=name,
             applied=tuple(ran),
-            waiting=tuple(path.name for path in every() if path.name.endswith(POST_DEPLOY))
+            # What waits is what THIS DATABASE has not run, which the table above already
+            # answered: naming every post file on disk sent a person to `migrate up --post` for
+            # one they had applied by hand weeks ago (the box, 2026-09-20). `migrate status` was
+            # told the same thing the same day, and they read one table between them now.
+            waiting=tuple(path.name for path in ordered(post=True) if path.name not in done)
             if not post
             else (),
         )

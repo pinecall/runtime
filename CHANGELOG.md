@@ -32,6 +32,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **`fleet list` no longer totals `0 seats free` for a fleet nobody counted.** A worker with no
   `PINECALL_MAX_JOBS` is gated by its CPU and reports no seats, which read as a full fleet beside
   the same line saying it accepts calls. Those totals say `seats gated by cpu, uncounted`.
+- **`migrate up` names only the post-deployment files this database has not run.** It listed every
+  `.post.sql` on disk as still waiting, applied or not, and sent a person to `migrate up --post`
+  for one they had applied weeks ago. It had the table's answer two lines above it.
 - **`migrate status` asks the database about post-deployment files too.** Every `.post.sql` read
   `waiting` off the disk alone, so one a person had already applied still looked pending for ever.
   Each file is now `applied`, `behind` (a startup file this database has not run) or `waiting`, by
