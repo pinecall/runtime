@@ -14,9 +14,15 @@ def test_the_password_never_travels_with_the_url() -> None:
 
 
 def test_a_url_with_no_password_is_itself() -> None:
-    assert without_password("postgresql://127.0.0.1:5432/pinecall") == "postgresql://127.0.0.1:5432/pinecall"
+    assert (
+        without_password("postgresql://127.0.0.1:5432/pinecall")
+        == "postgresql://127.0.0.1:5432/pinecall"
+    )
 
 
 def test_an_ipv6_host_keeps_the_brackets_that_make_it_an_address() -> None:
     """`::1:5432` is not an address, and a laptop's second Postgres is reached at `[::1]`."""
-    assert without_password("postgresql://pinecall:p@[::1]:5432/pinecall") == "postgresql://pinecall@[::1]:5432/pinecall"
+    assert (
+        without_password("postgresql://pinecall:p@[::1]:5432/pinecall")
+        == "postgresql://pinecall@[::1]:5432/pinecall"
+    )
