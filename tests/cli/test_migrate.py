@@ -43,3 +43,18 @@ def test_plan_post_lists_the_ones_a_deploy_does_not_wait_for(
 
     printed = capsys.readouterr().out.split()
     assert all(name.endswith(POST_DEPLOY) for name in printed)
+
+
+# A database that does not answer is the commonest thing this verb hits, and it used to arrive as
+# an asyncpg traceback with `postgresql://pinecall:<the password>@…` in it (the box, 2026-09-20).
+def test_a_database_that_does_not_answer_is_a_sentence_without_the_password(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgresql://pinecall:s3cret@127.0.0.1:1/pinecall")
+
+    assert main(["migrate", "status"]) == 1
+
+    printed = capsys.readouterr().out
+    assert "postgresql://pinecall@127.0.0.1:1/pinecall" in printed
+    assert "s3cret" not in printed
+    assert "Traceback" not in printed

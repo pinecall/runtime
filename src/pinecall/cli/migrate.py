@@ -13,7 +13,7 @@ from pinecall.log.store.migrating import (
     migrations_behind,
     ordered,
 )
-from pinecall.log.store.postgres import DEFAULT_SCHEMA, create_pool
+from pinecall.log.store.postgres import DEFAULT_SCHEMA, StoreUnreachable, create_pool
 
 PURPOSE: str = "the database schema: up | status | plan"
 VERBS: tuple[str, ...] = ("up", "status", "plan")
@@ -59,8 +59,10 @@ def run(arguments: argparse.Namespace) -> int:
         if arguments.verb == "status":
             return asyncio.run(_status(arguments.schema))
         return asyncio.run(_migrate(arguments.schema, arguments.post))
-    except SchemaRefused as refused:
+    except (SchemaRefused, StoreUnreachable) as refused:
         # Not a traceback: this is a sentence a person acts on, and the exit code says it failed.
+        # A database that does not answer is the commonest of the two, and it arrives here with
+        # the password already out of the DSN (log/store/postgres.py, without_password).
         print(str(refused))
         return 1
 

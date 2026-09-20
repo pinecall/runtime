@@ -10,6 +10,7 @@ from pinecall._env_files import env_files_read
 from pinecall._settings import Role, Settings, load_settings, variable_of
 from pinecall.cli.doctor.mail import send_one_to, the_mail_line
 from pinecall.cli.doctor.probes import Probes, live_probes
+from pinecall.log.store.postgres import without_password
 from pinecall.providers import catalog
 from pinecall.providers.embed import base_url_of, key_field_of, model_of
 from pinecall.providers.embedder import DIMENSIONS
@@ -247,7 +248,7 @@ def check_livekit_is_reachable(settings: Settings, probes: Probes) -> Result:
 
 def check_postgres_is_ready(settings: Settings, probes: Probes) -> Result:
     """Reachable is half of it: without both extensions the search stack has nowhere to live."""
-    shown = _without_password(settings.database_url)
+    shown = without_password(settings.database_url)
     try:
         installed = probes.postgres_extensions(settings.database_url)
     except Exception as failure:
@@ -349,23 +350,6 @@ def _http_url_of(livekit_url: str) -> str:
     parts = urlsplit(livekit_url)
     scheme = {"ws": "http", "wss": "https"}.get(parts.scheme, parts.scheme)
     return urlunsplit((scheme, parts.netloc, parts.path or "/", "", ""))
-
-
-def _without_password(dsn: str) -> str:
-    """A report is read out loud and pasted into issues; the password never travels with it."""
-    parts = urlsplit(dsn)
-    if parts.password is None:
-        return dsn
-    host = _bracketed(parts.hostname or "")
-    if parts.port is not None:
-        host = f"{host}:{parts.port}"
-    netloc = f"{parts.username}@{host}" if parts.username else host
-    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
-
-
-def _bracketed(host: str) -> str:
-    """urlsplit hands back an IPv6 host without its brackets, and `::1:5432` is not an address."""
-    return f"[{host}]" if ":" in host else host
 
 
 def _reason(failure: Exception) -> str:

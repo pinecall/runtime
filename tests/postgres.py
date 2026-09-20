@@ -6,7 +6,6 @@ from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from itertools import count
 from typing import Any, cast
-from urllib.parse import urlsplit, urlunsplit
 from uuid import uuid4
 
 import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
@@ -15,7 +14,7 @@ import pytest
 from pinecall._settings import load_settings
 from pinecall.log.store import MemoryStore, PostgresStore, Store
 from pinecall.log.store.migrating import apply_migrations
-from pinecall.log.store.postgres import search_path_of
+from pinecall.log.store.postgres import search_path_of, without_password
 
 # Long enough for a container on the same laptop, short enough that a whole suite does not hang
 # waiting for a database nobody started.
@@ -44,7 +43,7 @@ class Dev:
 def postgres() -> Iterator[Dev]:
     """Probe once. Unreachable is a skip naming the URL, never a silent pass and never a failure."""
     dsn = load_settings().database_url
-    shown = _without_password(dsn)
+    shown = without_password(dsn)
     if reason := _why_it_is_unreachable(dsn):
         pytest.skip(f"postgres is not reachable at {shown}: {reason}")
     # One schema per pytest process, so xdist workers never share a table and the run cleans up
@@ -122,16 +121,3 @@ async def _drop_schema(dsn: str, schema: str) -> None:
         await connection.execute(f"drop schema if exists {schema} cascade")
     finally:
         await connection.close()
-
-
-def _without_password(dsn: str) -> str:
-    """A skip reason is read out loud and pasted into issues; the password never travels with it."""
-    parts = urlsplit(dsn)
-    if parts.password is None:
-        return dsn
-    host = parts.hostname or ""
-    host = f"[{host}]" if ":" in host else host
-    if parts.port is not None:
-        host = f"{host}:{parts.port}"
-    netloc = f"{parts.username}@{host}" if parts.username else host
-    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))

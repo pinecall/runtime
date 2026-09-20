@@ -18,6 +18,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **`fleet list` no longer totals `0 seats free` for a fleet nobody counted.** A worker with no
   `PINECALL_MAX_JOBS` is gated by its CPU and reports no seats, which read as a full fleet beside
   the same line saying it accepts calls. Those totals say `seats gated by cpu, uncounted`.
+- **A database that does not answer is a sentence, and never the password.** Every refusal that
+  names the database went through the raw DSN, so `migrate status` against a box whose password had
+  changed printed `postgresql://pinecall:<the password>@…` under an asyncpg traceback. The store
+  strips it once (`without_password`), the doctor and the test suite read the same function, and
+  `migrate` catches the refusal instead of raising it.
 - **`migrate` with no verb READS.** A bare `migrate` meant `migrate up`: somebody typing it to see
   what it would do migrated the database. It is `status` now, and applying is typed in full.
 - **`pinecall-runtime box` with no verb exits 0**, as every other group's bare form does; it exited

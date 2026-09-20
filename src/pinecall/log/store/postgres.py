@@ -8,6 +8,7 @@ import time
 from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import urlsplit, urlunsplit
 
 import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
 
@@ -77,6 +78,26 @@ class StoreUnreachable(PinecallError):
     """The database did not answer, or answered that this is not a database we can use."""
 
 
+# A DSN carries the password, and this sentence is printed in a terminal, a journal and an issue:
+# `migrate` printed `postgresql://pinecall:pinecall@…` at a person the day the box's password
+# changed (2026-09-20). Every refusal that names the database names it through here.
+def without_password(dsn: str) -> str:
+    """The DSN as it may be shown: the user, the host, the database — never the password."""
+    parts = urlsplit(dsn)
+    if parts.password is None:
+        return dsn
+    host = _bracketed(parts.hostname or "")
+    if parts.port is not None:
+        host = f"{host}:{parts.port}"
+    netloc = f"{parts.username}@{host}" if parts.username else host
+    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+
+
+def _bracketed(host: str) -> str:
+    """urlsplit hands back an IPv6 host without its brackets, and `::1:5432` is not an address."""
+    return f"[{host}]" if ":" in host else host
+
+
 class PostgresStore(PostgresIndex):
     """A Store on one pool. Seq and ts are born in append(); ephemerals get a seq and no row."""
 
@@ -114,7 +135,7 @@ class PostgresStore(PostgresIndex):
                 server_settings={"search_path": search_path_of(schema)},
             )
         except (OSError, ValueError, asyncpg.PostgresError) as refused:
-            raise StoreUnreachable(f"{dsn}: {refused}") from refused
+            raise StoreUnreachable(f"{without_password(dsn)}: {refused}") from refused
         return cls(pool, clock=clock, owns_pool=True)
 
     async def aclose(self) -> None:
@@ -308,7 +329,7 @@ async def create_pool(dsn: str, *, schema: str = DEFAULT_SCHEMA) -> Any:
     except (OSError, ValueError, asyncpg.PostgresError) as refused:
         # The same three the store's own connect turns into StoreUnreachable: a caller that opens
         # a pool must be able to say "no database answered" without naming the driver.
-        raise StoreUnreachable(f"{dsn}: {refused}") from refused
+        raise StoreUnreachable(f"{without_password(dsn)}: {refused}") from refused
 
 
 async def _teach_the_connection_json(connection: Any) -> None:
