@@ -14,6 +14,11 @@
 #
 # Playwright is a browser and a wheel, not something this package depends on, so it is brought in
 # for the run. The browser itself is installed once: `uv run --with playwright playwright install chromium`.
+#
+# Two things a run leaves behind, both on purpose: one key per theme, labelled `console` in Tokens,
+# because that is what signing a browser in means and it is revoked there like any other; and the
+# calls it makes — one written turn on the Chat tab and one spoken simulation — which are real
+# calls in the world the console is looking at, and are in its own log afterwards.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

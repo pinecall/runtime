@@ -445,159 +445,226 @@ none. [protocol/operator-api.md](protocol/operator-api.md) is the door,
 
 # La consola, pantalla por pantalla
 
-Todo lo que sigue son capturas de esta box, tomadas con Playwright contra
-`https://box.pinecall.io` con la instalación de más arriba recién hecha. Nada está maquetado: es
-la página leyendo sus propias puertas. **Cada una está en los dos temas** y vas a ver la de tu
-propia máquina: la consola sigue `prefers-color-scheme` y se estampa el tema sola.
+Todo lo que sigue son capturas de esta box, tomadas contra `https://box.pinecall.io` con
+`scripts/screenshots` — Playwright entrando por el mismo link con código de un solo uso que imprime
+`pinecall start`, pantalla por pantalla y tema por tema. Nada está maquetado: es la página leyendo
+sus propias puertas. **Cada una está en los dos temas** y vas a ver la de tu propia máquina: la
+consola sigue `prefers-color-scheme`, y el sol o la luna de arriba a la derecha la da vuelta — la
+vuelta se guarda en el navegador hasta que el sistema cambie de idea, y ahí manda el sistema.
 
-La consola vive en `/` y la sirve el gateway. Un tab guarda **la key de una persona**, en
-`sessionStorage`, y muere con el tab: nunca la del org, nunca en una URL. Se entra de dos maneras —
-abriendo `https://<tu dominio>` y poniendo contraseña, o por el link con código de un solo uso que
-`pinecall start` imprime.
+La consola vive en `/` y la sirve el gateway. Guarda **la key de una persona** en el navegador:
+nunca la de la org, y nunca en una URL — el `?login=` se gasta una vez y se borra de la barra de
+direcciones antes de que la página dibuje nada. Se entra de dos maneras: abriendo
+`https://<tu dominio>` y poniendo contraseña, o por ese link que `pinecall start` imprime.
 
-Arriba a la derecha, en cada pantalla: el org, la key que ese tab sostiene y quién está mirando.
-Es la pregunta que contesta `pinecall whoami`, sobre la pantalla.
+**Esta página es production, y sólo production.** El sandbox no se mira acá: cada developer mira su
+copia en su propia máquina, con `pinecall serve`. Arriba a la derecha, el selector dice qué está
+mirando este tab — quién sos, en qué org, con qué key (por su id, nunca por su valor), en qué mundo
+y qué agentes hay sostenidos ahora mismo. Es la pregunta que contesta `pinecall whoami`, sobre la
+pantalla.
 
 ## La flota — lo que la box sostiene ahora
 
 <picture>
   <source srcset="images/dark/agents.png" media="(prefers-color-scheme: dark)">
-  <img src="images/light/agents.png" alt="Agents">
+  <img src="images/light/agents.png" alt="Overview">
 </picture>
 
-La portada. **Qué agentes hay sostenidos en este momento**, con las puertas que cada uno declaró —
-`phone · web · whatsapp` son las tres de Clínica Norte. Es la tabla viva del gateway y no el
-registro: un agente que ningún proceso sostiene no contesta ninguna llamada, y por eso no está.
+**Overview**, la portada. **Qué agentes hay sostenidos en este momento**, con las puertas que cada
+uno declaró — `phone · web · whatsapp` son las tres de Clínica Norte —, los números que le entran,
+las llamadas de hoy y cuánto aguantó el juez. Es la tabla viva del gateway y no el registro: un
+agente que ningún proceso sostiene no contesta ninguna llamada, y por eso no está.
 
-El interruptor `production | sandbox` de arriba cambia el mundo de cada pedido (el header
-`pinecall-env`) con la misma key: una persona tiene una sola. Production se abre sólo si su fila
-lo dice — un admin siempre; los demás, si un admin les prendió `production` en Team.
+Debajo, **Processes**: las máquinas que sostienen esos agentes, con su host, su versión del SDK y
+desde cuándo están conectadas. `Stop` cierra una, y el proceso sale en vez de volver a marcar.
 
 <picture>
   <source srcset="images/dark/live.png" media="(prefers-color-scheme: dark)">
   <img src="images/light/live.png" alt="Live">
 </picture>
 
-**El suelo**: cada llamada que está abierta ahora mismo, del agente que sea. Llega por un stream,
-así que se llena sola mientras mirás.
+**Live**: el suelo. A la izquierda, lo que está abierto ahora mismo y lo último que terminó, del
+agente que sea; a la derecha, la llamada que elegiste turno por turno, con su estado, su sala, su
+prompt bloque a bloque y sus métricas al costado. Llega por un stream, así que se llena sola
+mientras mirás. Una key con `supervise` tiene además el escritorio: escuchar, susurrarle al agente
+sin que el llamante lo oiga, hablarle al llamante con la voz del agente, tomar la línea, pasarla o
+cortarla.
 
 <picture>
   <source srcset="images/dark/sessions.png" media="(prefers-color-scheme: dark)">
   <img src="images/light/sessions.png" alt="Sessions">
 </picture>
 
-**Las terminadas**, del rincón de tu key, la más nueva arriba: cuándo, cuánto duró, de dónde vino y
-con qué frase terminó. En producción son las del teléfono; en el sandbox, las que hiciste vos —
-las de prueba de otro developer son suyas, y un admin las ve abriendo su copia. El id de cada una abre su log entero — el mismo que leen `pinecall sessions` y
-la API, byte por byte.
+**Sessions**: las terminadas, de toda la org y **agrupadas por día** — "On a call now" primero,
+después "Today", "Yesterday" y cada día anterior por su nombre —, con la hora en UTC, cuánto duró,
+de dónde vino y con qué frase terminó. Se filtra por agente y por canal, y si pegás un `call_…`
+entero y apretás Enter se abre ése. El id de cada una abre su log entero — el mismo que leen
+`pinecall sessions` y la API, byte por byte.
+
+<picture>
+  <source srcset="images/dark/personas.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/personas.png" alt="Personas">
+</picture>
+
+**Personas**: los llamantes que un modelo juega contra tus agentes. Cada uno son tres cosas y
+ninguna es un guion — **qué quiere**, **cómo habla** y **qué sabe de sí mismo**, que es lo único que
+puede afirmar como un hecho; lo demás lo improvisa turno a turno, y lo que no sabe dice que no lo
+sabe. La lista de la izquierda es la de todos los agentes a la vez, agrupada por agente cuando hay
+más de uno: nadie tendría que elegir un agente para ver lo que escribió. **Son del gateway**,
+guardadas al lado de los settings del agente, así que lo que escribís acá es lo que lista
+`pinecall personas` y con lo que llama `pinecall simulate`, sin un deploy en el medio. Un proyecto
+que todavía las tiene en archivos las manda una vez con `pinecall personas push`.
+
+<picture>
+  <source srcset="images/dark/simulations.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/simulations.png" alt="Simulations">
+</picture>
+
+**Simulations**: elegís el agente, la persona y cuántos turnos como mucho, y el modelo la llama. Con
+**Voice** prendido la llamada es una línea de verdad — la persona habla con una voz de ElevenLabs
+que el agente no tiene, en el idioma del agente — y la consola se sienta en la sala: **oís los dos
+lados mientras pasa**. Lo que se abre al lado es la pantalla de Live, la misma. La simulación monta
+la clase del directorio donde corre `pinecall start`, así que la empieza ese proceso y ningún otro.
 
 ## Un agente
 
-Elegido uno en el selector de arriba, las pantallas pasan a ser suyas.
+Elegido uno en el selector de arriba, las pantallas pasan a ser suyas — **Chat · Calls · Sessions ·
+Settings · Pipeline · Docs · Memory · Evals · Widget** —, y de ésas se dibujan las que abre tu key:
+una que no abre no se dibuja, así que no hay 403 después de un click.
 
 <picture>
   <source srcset="images/dark/talk.png" media="(prefers-color-scheme: dark)">
-  <img src="images/light/talk.png" alt="Talk">
+  <img src="images/light/talk.png" alt="Chat">
 </picture>
 
-**Talk**: hablarle desde el navegador, con micrófono, contra la misma sala de LiveKit que usaría un
-teléfono. La consola pide un token de una llamada, no la key.
-
-<picture>
-  <source srcset="images/dark/chat.png" media="(prefers-color-scheme: dark)">
-  <img src="images/light/chat.png" alt="Chat">
-</picture>
-
-**Chat**: la misma conversación escrita, con el log de esa llamada al lado. Lo que tipeás sale como
-un turno; lo que vuelve es el log de la llamada, tal cual quedó escrito.
+**Chat**: llegarle al agente como le llegaría un cliente. **Call** abre una sala de LiveKit de
+verdad con el micrófono de esta máquina, la misma sala que usaría un teléfono; **Write** abre la
+misma conversación escrita, sin audio. Es una pantalla sola y no dos porque es la misma sala: en una
+llamada también se puede tipear — un número, una dirección, un apellido que nadie deletrea bien en
+voz alta. Al costado, el Inspector lee el log de esa llamada mientras se escribe: los turnos, las
+herramientas, el estado y las métricas de la sesión. La consola pide un token de esa llamada, no la
+key.
 
 <picture>
   <source srcset="images/dark/calls.png" media="(prefers-color-scheme: dark)">
   <img src="images/light/calls.png" alt="Calls">
 </picture>
 
-**Calls**: las llamadas de este agente según van pasando, y una de ellas entera — los turnos, las
-herramientas que corrió, las métricas de cada una.
+**Calls**: las conversaciones de este agente como una bandeja de entrada — una fila por contacto,
+con lo último que se dijo y cuándo — y el hilo entero al lado, con el botón para mirar la llamada en
+vivo o abrir su sesión. Donde hay salida configurada, desde acá se marca un número.
+
+<picture>
+  <source srcset="images/dark/settings.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/settings.png" alt="Settings">
+</picture>
+
+**Settings**: con qué corre el agente, por pestañas — **STT · LLM · Voice · Conversation · Memory ·
+Knowledge · Bases** — y al costado un panel fijo, **What is set now**, que dice valor por valor lo
+que hay puesto ahora mismo; un `—` es una perilla que este rincón no fija y que cae a la de abajo.
+Cada guardada es una versión con tu nombre y su motivo, y cualquiera se puede volver atrás desde la
+historia, debajo del panel. En production hay un solo rincón; en el sandbox el panel sigue al que
+estás editando — el tuyo, o el del equipo, que es al que caen todos los demás.
 
 <picture>
   <source srcset="images/dark/pipeline.png" media="(prefers-color-scheme: dark)">
   <img src="images/light/pipeline.png" alt="Pipeline">
 </picture>
 
-**Pipeline**: qué oye, con qué decide y con qué habla, y las perillas encima. Cambiar una acá es lo
-mismo que `pinecall pipeline set`: vale desde la próxima llamada, sin desplegar nada.
+**Pipeline**: las tres patas de un turno como datos y no como prosa — qué oye, con qué decide y con
+qué habla —, leídas del gateway con los settings del agente ya puestos encima de la clase, y las
+medianas de las últimas llamadas debajo. Se mira acá y se cambia en Settings: vale desde la próxima
+llamada, sin desplegar nada.
 
 <picture>
-  <source srcset="images/dark/knowledge.png" media="(prefers-color-scheme: dark)">
-  <img src="images/light/knowledge.png" alt="Knowledge">
+  <source srcset="images/dark/docs.png" media="(prefers-color-scheme: dark)">
+  <img src="images/light/docs.png" alt="Docs">
 </picture>
 
-**Knowledge**: la base de la que contesta, por trozos, con cuándo se subió. Es la del mundo de tu
-key — un push con la key del sandbox no toca la que contesta el teléfono.
+**Docs**: los documentos que este agente busca en un turno, que es el RAG. Arriba, las bases que
+tiene puestas, con su `k` y su corte; debajo, la carpeta de este directorio y el botón que la empuja
+entera, que es `pinecall docs push`; al final, todas las bases que hay. Son las del mundo de tu key:
+un push con la key del sandbox no toca la que contesta el teléfono. Una base nueva se empieza en el
+**Docs** de la org, con **New base**, y desde ahí se abre y sus archivos se leen y se cambian de a
+uno.
 
 <picture>
   <source srcset="images/dark/memory.png" media="(prefers-color-scheme: dark)">
   <img src="images/light/memory.png" alt="Memory">
 </picture>
 
-**Memory**: lo que el agente aprendió de un contacto a lo largo de sus llamadas, y el botón para
-olvidarlo. Los hechos son de una persona y de un mundo.
+**Memory**: lo que el agente aprendió de un contacto a lo largo de sus llamadas, buscado por el
+número o por el id con el que lo nombró tu app, y el botón para olvidarlo — de a un hecho, o entero.
+Los hechos son de una persona y de un mundo. Debajo, los dos goldens de memoria del directorio: el
+del ranking y el de la extracción.
 
 <picture>
   <source srcset="images/dark/evals.png" media="(prefers-color-scheme: dark)">
   <img src="images/light/evals.png" alt="Evals">
 </picture>
 
-**Evals**: los goldens y sus corridas. Correr una suite desde acá se la pide al proceso que sostiene
-el agente — los goldens son archivos de su directorio, así que sólo ese proceso puede abrirla.
+**Evals**: los goldens de este agente y cómo quedó cada uno, las llamadas reales que el juez no dio
+por buenas, y la deriva. Correr una suite es de la consola del sandbox y no de ésta: los goldens son
+archivos del directorio de quien los escribió, así que sólo ese proceso puede abrirlos.
 
 ## Lo que es de la org y no de un agente
 
 <picture>
   <source srcset="images/dark/numbers.png" media="(prefers-color-scheme: dark)">
-  <img src="images/light/numbers.png" alt="Numbers">
+  <img src="images/light/numbers.png" alt="Phone numbers">
 </picture>
 
-**Numbers**: qué número llega a qué agente, y quién lo puso — un operador o la propia clase. Desde
-acá se trae el carrier y se importa un número.
+**Phone numbers**: qué número llega a qué agente, en tres pestañas — los números, las llamadas que
+la org coloca y el carrier. Desde acá se conecta el carrier —una cuenta de Twilio o un peer SIP— y
+se trae un número.
 
 <picture>
   <source srcset="images/dark/keys.png" media="(prefers-color-scheme: dark)">
-  <img src="images/light/keys.png" alt="Keys">
+  <img src="images/light/keys.png" alt="Tokens">
 </picture>
 
-**Tokens**: las keys de la org por huella, nunca por valor — cada token de servidor y las keys
-propias de quien mira (todas, para un admin), con quién hizo cada una y cuándo se usó por última
-vez. Un token de servidor se crea acá (New server token), para un mundo, y es de la org: sobrevive
-a quien lo hizo; una key de persona lleva su nombre y no tiene mundo. Revocar deja la fila, así que
-las llamadas que esa key escribió se siguen leyendo.
+**Tokens**: las keys de la org, nunca por su valor. Las propias de quien mira —una por máquina, las
+que escribe `pinecall link`— y los tokens con los que corren los servidores de la org. Un token de
+servidor se crea acá (New server token), para un mundo, se muestra una sola vez y es de la org:
+sobrevive a quien lo hizo. Revocar deja la fila, así que las llamadas que esa key escribió se siguen
+leyendo.
 
 <picture>
   <source srcset="images/dark/providers.png" media="(prefers-color-scheme: dark)">
   <img src="images/light/providers.png" alt="Providers">
 </picture>
 
-**Providers**: cada vendor que esta build alcanza y cómo está — `ready`, `no key`, `no plugin`. Y
-las que el tenant trajo propias, que viajan cifradas y no se leen de vuelta desde ninguna puerta.
+**Providers**: cada vendor que esta build alcanza y cómo está — `ready`, `no key`, `no plugin` —,
+filtrable por lo que hace cada uno. Y las keys que el tenant trajo propias, que viajan cifradas y no
+se leen de vuelta desde ninguna puerta.
 
 <picture>
   <source srcset="images/dark/team.png" media="(prefers-color-scheme: dark)">
   <img src="images/light/team.png" alt="Team">
 </picture>
 
-**Team**: la gente de la org, su rol y su estado. Invitar imprime un link de un solo uso que abre la
-pantalla de contraseña; el operador entrega el link y nunca una contraseña. Si el email ya tiene
-contraseña en esta box, no hay link: queda `active` en el acto, entra con la contraseña que ya
-tiene, y la org nueva aparece en su selector de orgs. Un rol es un preset de scopes y nada más;
-el interruptor `production` de cada persona dice si puede hacerlo en production.
+**Team**: la gente de la org, su rol y su estado, y en las otras dos pestañas qué abre cada rol y el
+proveedor de identidad que los firma. Invitar imprime un link de un solo uso que abre la pantalla de
+contraseña; el operador entrega el link y nunca una contraseña. Si el email ya tiene contraseña en
+esta box, no hay link: queda `active` en el acto, entra con la contraseña que ya tiene, y la org
+nueva aparece en su selector de orgs. Un rol es un preset de scopes y nada más; el interruptor
+`production` de cada persona dice si puede hacerlo en production.
 
 <picture>
   <source srcset="images/dark/usage.png" media="(prefers-color-scheme: dark)">
   <img src="images/light/usage.png" alt="Usage">
 </picture>
 
-**Usage**: lo que la org consumió, doblado del log según crece — minutos, mensajes, tokens, coste.
-No hay contador que se desincronice: es una suma sobre lo que ya está escrito.
+**Usage**: lo que la org consumió, doblado del log según crece — por día, por agente o llamada por
+llamada: minutos, mensajes, tokens, coste. No hay contador que se desincronice: es una suma sobre lo
+que ya está escrito.
+
+Y en la barra de la izquierda, lo que no tiene captura acá: **Home**, el resumen del día; los
+**Evals**, la **Memory** y los **Docs** de toda la org; **Lexicon**, las palabras propias de la org
+en dos pestañas — `Pronunciation`, cómo se dice una marca o un apellido, y `Recognition`, los
+nombres que el oído tiene que esperar —, que valen desde la próxima llamada, sin developer y sin
+deploy; y, para quien la box hizo operador, el grupo **Box**, que es el admin de acá abajo dentro de
+la consola.
 
 ---
 

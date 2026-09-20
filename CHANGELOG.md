@@ -368,11 +368,15 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   resolves the repo next door on a laptop and does not travel in the wheel. Protocol publishes
   first, always.
 - **`docs/a-box-in-production.md`: one machine with a domain, from an operating system.** Now
-  with a screenshot of **every screen of both pages, in both themes** — thirty-eight, taken with
-  Playwright against that same box right after the install, each with a paragraph saying what it
-  is for: the console's fifteen and the operator admin's four. A reader sees the theme their own
+  with a screenshot of **every screen of both pages, in both themes** — forty-two, taken with
+  Playwright against that same box, each with a paragraph saying what it is for: the console's
+  seventeen and the operator admin's four. A reader sees the theme their own
   machine is in, because each one is a `<picture>` and the console follows
-  `prefers-color-scheme` itself. Nothing is mocked — it is the page reading its own doors. Written
+  `prefers-color-scheme` itself. `scripts/screenshots` is how they are taken, so the next
+  redesign is one command and a diff: it signs a browser in with the one-use code
+  `pinecall start` prints, walks the list of screens, and photographs each in both themes —
+  no key is typed into the page and none is ever on one. Nothing is mocked — it is the page
+  reading its own doors. Written
   the only way such a page is worth anything — by deleting a working box's units, app, containers
   and own secrets, and putting it all back with `make deploy` while writing down what actually
   came out. cloud-init, the deploy's five steps, the doctor, the vendor keys by fingerprint,
