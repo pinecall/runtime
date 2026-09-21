@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # silence on both channels. The same call mixed by default has the melody in it. Since the melody
 # and a supervisor who took the line are the whole reason the box records the room rather than the
 # session, a mode that drops them is a mode that undoes the change.
-AUDIO_BOTH_SIDES = proto.AudioMixing.DEFAULT_MIXING
+THE_WHOLE_ROOM = proto.AudioMixing.DEFAULT_MIXING
 
 # No `.json` beside the audio: the log is where a call is described, and a second description of
 # it on disk is one that will disagree.
@@ -48,7 +48,7 @@ async def recording_the_room(lk: api.LiveKitAPI, room: str, audio: Path) -> str 
             proto.RoomCompositeEgressRequest(
                 room_name=room,
                 audio_only=True,
-                audio_mixing=AUDIO_BOTH_SIDES,
+                audio_mixing=THE_WHOLE_ROOM,
                 file_outputs=[
                     proto.EncodedFileOutput(
                         file_type=proto.EncodedFileType.OGG,
