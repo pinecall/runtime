@@ -21,11 +21,13 @@ Network=pinecall.network
 # nftables.conf, exactly as the embedder's does not.
 PublishPort=127.0.0.1:7980:7980
 # Where the file lands, which is the same directory the gateway serves a recording from
-# (api/calls/recording.py). The container writes as the `pinecall-media` group and the directory
-# is setgid, so what egress writes is readable by the runtime whatever uid either of them has —
-# the service user's is assigned by systemd-sysusers and is not the same on two boxes, and a
-# container cannot be told a uid it will only learn at install time.
-User=65534:4200
+# (api/calls/recording.py). The image's own user is kept — its entrypoint clears a directory under
+# /home/egress and a container told to be somebody else dies on the first line, restarting for
+# ever — and it is ADDED to the group that owns the recordings. The directory is setgid, so what
+# egress writes there belongs to that group whatever uid wrote it, and the runtime, which is the
+# other member, reads it. A group and not a uid because the service user's is assigned by
+# systemd-sysusers and is a different number on every box, while this one is declared.
+GroupAdd=4200
 Volume=/var/lib/pinecall/recordings:/var/lib/pinecall/recordings:rw
 # The keypair, as LIVEKIT_API_KEY and LIVEKIT_API_SECRET, out of the same credential the SFU reads.
 EnvironmentFile=%d/media.env

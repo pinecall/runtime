@@ -202,7 +202,7 @@ def test_a_box_that_becomes_a_worker_stops_the_containers_it_can_no_longer_disab
 # disagreement here looks like, and it looks like that a week later, on a call somebody asks for.
 def test_the_recorder_writes_as_the_group_the_recordings_directory_belongs_to() -> None:
     recorder = (BOX / "containers" / "pinecall-egress.container").read_text()
-    group = re.search(r"^User=\d+:(\d+)$", recorder, re.M)
+    group = re.search(r"^GroupAdd=(\d+)$", recorder, re.M)
     assert group is not None
     declared = re.search(
         r"^g\s+pinecall-media\s+(\d+)", (BOX / "sysusers.d" / "pinecall.conf").read_text(), re.M
