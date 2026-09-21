@@ -21,13 +21,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   tenant's own process. `docs/protocol/dev-verbs.md`.
 
 ### Fixed
-- **A tool no longer runs while the agent is still talking.** The model emits its text and its
-  tool call in one response, so livekit began the tool the instant the call arrived on the stream
-  — while the line announcing it was still being spoken. Everything followed from that: the hold
-  melody came up over the agent's own voice, the work was finished before the caller had heard it
-  would start, and the log read as though the agent announced what it had already done. A tool
-  waits for the floor now, capped at twelve seconds so a turn that never ends cannot hold a call.
-  The melody waits for it too, and looks again after its grace.
+- **The hold melody no longer starts under the agent's own voice.** A tool begins while the line
+  announcing it is still being spoken — the model emits its text and its tool call in one response
+  — and the melody was counted from the tool, so it came up over the voice every time. It waits
+  for the floor now and looks again after its grace. The tool itself cannot wait: the turn does not
+  finish until the tool returns, which is why livekit raises on `SpeechHandle.wait_for_playout()`
+  called from inside the tool that owns it.
 - **The agent no longer answers its own questions.** livekit's preemptive generation is off for a
   spoken call as well as a written one. With it on, a caller's end-of-turn landing inside a
   tool's execution window starts a whole new reply before the tool has answered, on a context

@@ -90,9 +90,7 @@ class VoiceBridge:
             lookup, context.call, context.remembered_as, config, budgets.voice_lookup_ms
         )
         self.events = Events(self.writing, self.meters, self, self.lookups)
-        self.tools = Tools(
-            config, platform, context.call, self.writing.emit, speaking=self._agent_is_speaking
-        )
+        self.tools = Tools(config, platform, context.call, self.writing.emit, self._has_the_floor)
         self.blocks = Blocks(config.prompt, _the_file_it_ships_with(config))
         self._agent = VoiceAgent(
             blocks=self.blocks,
@@ -140,7 +138,7 @@ class VoiceBridge:
 
     async def holding(self, melody: Path | None) -> None:
         """The room is live: what the caller hears while a tool runs, or None for nothing."""
-        self.tools.hold = await HoldMusic.in_this_room(melody, self._agent_is_speaking)
+        self.tools.hold = await HoldMusic.in_this_room(melody, self._has_the_floor)
 
     # The shutdown callbacks of a job run gathered, not in order, so the session is closed here
     # first: its own close drains the last speech and adds the last turn to the history, and
@@ -217,7 +215,7 @@ class VoiceBridge:
     def heard(self, event: recognition.SpeechEvent) -> bool:
         """Whether this is the caller speaking; False drops it before the LLM ever sees it."""
         text = event.alternatives[0].text if event.alternatives else ""
-        return not (text and self._agent_is_speaking() and is_a_backchannel(text))
+        return not (text and self._has_the_floor() and is_a_backchannel(text))
 
     async def skipped(self, error: ErrorEvent) -> None:
         """A lookup did not run: the entry, recoverable, and the reply goes on without it."""
@@ -376,8 +374,8 @@ class VoiceBridge:
         if job is not None:
             job.shutdown(reason=reason)
 
-    def _agent_is_speaking(self) -> bool:
-        """Whether the caller's words are landing on top of the agent's own audio."""
+    def _has_the_floor(self) -> bool:
+        """Whether the agent is speaking: a caller landing on it, a tool that must wait for it."""
         return self._live is not None and self._live.agent_state == "speaking"
 
 
