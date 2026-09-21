@@ -65,7 +65,12 @@ model alone to keep whichever vendor is in use; the model names a screen offers 
 map that `GET /v1/providers` and the pipeline report carry, keyed `<modality>/<vendor>` with each
 vendor's default first — a vendor with no entry there runs its own default and takes no model
 name), `greeting` (`{say}` or `{reply}`, one of the two),
-`hangup {when}`, `turn {min_interruption_words, endpointing_ms}`, `memory {remember, forget}`,
+`hangup {when}`, `turn {min_interruption_words, endpointing_ms, eot_threshold,
+eager_eot_threshold}` — the last two are how sure ears that end the turn themselves (Deepgram's
+Flux) have to be before the agent answers: `eot_threshold` is the bar the turn is handed over
+at, `eager_eot_threshold` the lower one at which it is only probably over, which is what
+livekit's speculative generation hangs off, and a corner that sets the eager one ABOVE the sure
+one is refused by name —, `memory {remember, forget}`,
 `record` — whether the agent's calls keep their audio, the one boolean here, and the reason it is
 a boolean and not a flag: `false` is a corner saying no and is heard over the corner below, while
 leaving it out is a corner that never said and falls through to one that did (unset anywhere, a
