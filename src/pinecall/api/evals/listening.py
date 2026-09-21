@@ -58,8 +58,13 @@ async def until_the_answer_lands(store: Store, call: str, said: int) -> None:
         await until(open_, within_s=AN_OPENING_MAY_TAKE_S)
         return
 
+    # The moment the caller stopped talking, read off the runner's own clock — the same clock the
+    # log is stamped with, since both this door and the store run in the gateway. It is taken here
+    # because here is where `every_turn` calls this: the line has just been said.
+    stopped = time.time()
+
     async def landed() -> bool:
-        if not the_answer_has_landed(await whole(store, call), said):
+        if not the_answer_has_landed(await whole(store, call), said, since=stopped):
             return False
         # Asked twice, a beat apart, because `agent.state` reaches the log a moment after the
         # agent changed and the log is all this can see. Once was not enough: on 2026-09-13 the
@@ -68,7 +73,7 @@ async def until_the_answer_lands(store: Store, call: str, said: int) -> None:
         # A single reading cannot tell a call that is over from one whose last state has not
         # landed yet; two, a pause apart, can. The cost is that pause, once per turn.
         await asyncio.sleep(A_BEAT_S)
-        return the_answer_has_landed(await whole(store, call), said)
+        return the_answer_has_landed(await whole(store, call), said, since=stopped)
 
     await until(landed, within_s=AN_ANSWER_MAY_TAKE_S)
 
@@ -85,15 +90,21 @@ async def until_the_answer_lands(store: Store, call: str, said: int) -> None:
 # `thinking`, `speaking`, and back to `listening` when it has nothing left to say. A filler leaves
 # it thinking. So the line is held until it is listening again, and that is neither a guess nor a
 # count of anything.
-def the_answer_has_landed(entries: Sequence[Entry], said: int) -> bool:
-    """Every line heard, and the agent back to listening after the last of them."""
+def the_answer_has_landed(entries: Sequence[Entry], said: int, *, since: float) -> bool:
+    """Every line heard, and the agent back to listening after the last of them.
+
+    `since` is when the caller stopped talking. A log that has not moved since then cannot say
+    anything about the turn that starts after it — see _has_caught_up.
+    """
+    if not _has_caught_up(entries, since):
+        return False
     heard = [at for at, entry in enumerate(entries) if entry.type == "turn.user"]
     if len(heard) < said:
         return False
     if _a_tool_is_still_running(entries):
         return False
     states = [(at, entry) for at, entry in enumerate(entries) if entry.type == AGENT_STATE]
-    if not states:
+    if not _took_the_line(states, after=heard[-1]):
         return False
     at, last = states[-1]
     return at > heard[-1] and AgentStateChanged.model_validate(last.data).state == IT_IS_LISTENING
@@ -114,6 +125,34 @@ def the_line_is_open(entries: Sequence[Entry], now: float) -> bool:
         AgentStateChanged.model_validate(entry.data).state == IT_IS_LISTENING for _, entry in states
     )
     return only_listened and now - states[0][1].ts >= A_SILENT_OPENING_S
+
+
+# Reading the log is not free and the store answers with what it had a moment ago, so every
+# snapshot is a little behind. That lag is what let the caller talk over Sofia on 2026-09-21
+# (call_e6b08cd30647694ef0ac9b09): it stopped talking at 102.0s, and the snapshot it was judged on
+# still ended before its own line — last state `listening`, left over from the PREVIOUS turn, with
+# no thinking after it yet because the agent had not been handed the line. Both readings agreed,
+# the gate opened, and the caller was speaking again at 103.8s, a second before the agent came
+# back to listening at 104.8s. Counting entries cannot catch this: Flux ends a turn per sentence,
+# so one spoken line becomes two or three `turn.user` (thirteen for ten lines on that call) and
+# `len(heard) >= said` was already true from the caller's own earlier sentences.
+#
+# What cannot be stale is a clock. The log must have moved on since the caller fell silent before
+# anything in it is read as an answer to what the caller just said.
+def _has_caught_up(entries: Sequence[Entry], since: float) -> bool:
+    """Whether this snapshot is fresh enough to speak about the turn that starts at `since`."""
+    return bool(entries) and entries[-1].ts >= since
+
+
+# And the agent must have been HANDED the line: it leaves `listening` the moment the turn is its.
+# A `listening` with no thinking or speaking between it and the caller's last word is the quiet
+# BEFORE the turn, not the silence after it.
+def _took_the_line(states: Sequence[tuple[int, Entry]], *, after: int) -> bool:
+    """Whether the agent started a turn on the line the caller has just said."""
+    return any(
+        at > after and AgentStateChanged.model_validate(entry.data).state != IT_IS_LISTENING
+        for at, entry in states
+    )
 
 
 # `listening` is not the same as finished. An agent that says "Perfecto, la doy de alta" and calls

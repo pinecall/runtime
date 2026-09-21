@@ -33,6 +33,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `docs/the-environment.md`, a page of their own (and a page of the site).
 
 ### Fixed
+- **A spoken persona no longer talks over the agent.** The wait between two of a simulated
+  caller's lines read the log as it stood a moment ago, so a `listening` left over from the
+  PREVIOUS turn was accepted as the answer to the line just said: the caller spoke again a second
+  before the agent had finished, and the agent's turn came back cut to two words. The snapshot now
+  has to have moved on since the caller fell silent, and the agent has to have LEFT `listening` —
+  which is what it does the moment the line is handed to it, and the one thing a transcript split
+  into sentences by Flux cannot fake.
 - **A file's front matter is not a chunk.** Every static-site generator and every scraper opens a
   `.md` with a fenced block of metadata — `source:`, `title:`, `scraped_at:` — and it was the
   file's first section: embedded, indexed and retrievable. On a real scraped site that was **75 of
