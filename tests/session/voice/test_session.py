@@ -63,16 +63,17 @@ async def test_a_spoken_call_asks_the_voice_to_align_the_transcript_it_speaks() 
     assert spoken.options.use_tts_aligned_transcript is True
 
 
-async def test_preemptive_generation_stays_on_where_the_caller_can_hear_it() -> None:
-    """1.8 turned it on (voice/turn.py:223) and a spoken call keeps it; the doc argues why."""
-    spoken = a_call_on(CLARA, _a_kit(), "phone")
-    preemptive = _turns(spoken)["preemptive_generation"]
-    assert (preemptive["enabled"], preemptive["preemptive_tts"]) == (True, False)
-
-
-async def test_a_written_call_never_runs_the_model_before_the_turn_is_in() -> None:
-    written = a_call_on(CLARA, _a_kit(), "whatsapp")
-    assert _turns(written)["preemptive_generation"]["enabled"] is False
+# It was on, for the half second a caller hears. What it bought with that half second: when an
+# end-of-turn lands inside a tool's execution window, the preemptive path starts a whole reply
+# before the tool has answered, on a context missing it. On call_5cc362bf11a3ed9419763383 the agent
+# asked "Is this a house?" and then answered, in its own voice and under the same speech id, "Yes,
+# a house." — twenty-seven entries before the caller did. The metrics name it: every round of that
+# call ran on 4,300 to 4,900 prompt tokens and that one ran on 2,923.
+async def test_the_model_never_runs_before_the_turn_is_in_on_either_channel() -> None:
+    """An agent that sometimes plays both parts is not a latency problem and no prompt fixes it."""
+    for channel in ("phone", "whatsapp"):
+        call = a_call_on(CLARA, _a_kit(), channel)
+        assert _turns(call)["preemptive_generation"]["enabled"] is False
 
 
 async def test_what_it_takes_to_cut_the_agent_off_is_the_agents_own_declaration() -> None:

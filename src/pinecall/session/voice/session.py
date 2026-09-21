@@ -32,10 +32,24 @@ CHANNELS_THAT_LISTEN: frozenset[str] = frozenset({"phone", "web"})
 # must never be one environment variable away from sending a caller's transcript to a cloud.
 LOCAL_TURN_VERSION: inference.TurnDetectorVersions = "v1-mini"
 
-# livekit 1.8 runs the model before the turn is confirmed (voice/turn.py:223) and we keep it: on a
-# line the caller hears the half second, and a discarded attempt is a Haiku prompt. Written turns
-# arrive whole, so there is nothing to race and nothing to discard — see docs/decisions/worker.md.
-SPOKEN_PREEMPTION: PreemptiveGenerationOptions = {"enabled": True, "preemptive_tts": False}
+# livekit 1.8 runs the model before the turn is confirmed (voice/turn.py:223). We kept it for the
+# half second a caller hears, and it was buying that half second with the agent answering its own
+# questions.
+#
+# What it does when a caller's end-of-turn lands INSIDE a tool's execution window: the preemptive
+# path starts a whole new reply before the tool has answered, on a context that is missing it.
+# call_5cc362bf11a3ed9419763383, seq 250 — the agent asked "Is this a house?" and then said, in its
+# own voice and under the same speech id, "Yes, a house.". The caller answered it for real
+# twenty-seven entries later. The metrics name the mechanism outright: every round of that call
+# was built on 4,300 to 4,900 prompt tokens, and the one that invented the caller's line was built
+# on 2,923 — fourteen hundred tokens short of the conversation it was supposed to be continuing.
+# Beside it, seq 271: a round with `cancelled: true` and no tokens at all, a preemptive generation
+# thrown away. livekit has both halves on file (agents#1365 for the tool window, agents#4219 for
+# the doubled requests).
+#
+# The cost of turning it off is the half second. The cost of leaving it on is an agent that
+# sometimes plays both parts, which is not a latency problem and cannot be prompted away.
+SPOKEN_PREEMPTION: PreemptiveGenerationOptions = {"enabled": False}
 WRITTEN_PREEMPTION: PreemptiveGenerationOptions = {"enabled": False}
 
 # A written turn is complete the moment it arrives, so the channel says when the caller is done.

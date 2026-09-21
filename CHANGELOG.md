@@ -21,6 +21,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   tenant's own process. `docs/protocol/dev-verbs.md`.
 
 ### Fixed
+- **The agent no longer answers its own questions.** livekit's preemptive generation is off for a
+  spoken call as well as a written one. With it on, a caller's end-of-turn landing inside a
+  tool's execution window starts a whole new reply before the tool has answered, on a context
+  missing it: on one call the agent asked "Is this a house?" and then said, in its own voice and
+  under the same speech id, "Yes, a house." — twenty-seven entries before the caller did. Every
+  round of that call ran on 4,300 to 4,900 prompt tokens; that one ran on 2,923. It also made a
+  second, discarded model call per turn. The cost of turning it off is about half a second of
+  latency; the cost of leaving it on was an agent that sometimes played both parts.
 - **A spoken persona waits for the answer to the line it just said, not to the one before.** The
   wait between two of a simulated caller's lines could be judged on a snapshot that did not
   contain that line yet: every `agent.state` in it then belonged to the previous turn, and the
