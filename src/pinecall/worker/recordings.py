@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import suppress
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -36,9 +37,17 @@ def keeping_for(settings: Settings) -> Keeping:
 # the agent's own setting, resolved with the rest of its world (types/tuning.py), and the worker
 # asks for this directory only for a call that keeps its audio.
 def destination_for(call: str, settings: Settings) -> Path:
-    """The directory this call's audio goes in, created."""
+    """The directory this call's audio goes in, created for whoever is going to write in it."""
     directory = Path(settings.recordings_root) / call
     directory.mkdir(parents=True, exist_ok=True)
+    # Group-writable, and setgid so the file belongs to the group and not to whoever wrote it.
+    # `mkdir` masks its mode with the umask (022 here), which gave the group r-x and no w — and
+    # the recorder is a member of that group and the owner of nothing, so every recording ended
+    # `Local upload failed: … permission denied` and the call's summary pointed at no audio
+    # (2026-09-21, the first recorded call on the box). It is said here because this is the one
+    # place a recording's directory is made; the ROOT's mode is the box's (infra/box/tmpfiles.d).
+    with suppress(OSError):
+        directory.chmod(0o2770)
     return directory
 
 

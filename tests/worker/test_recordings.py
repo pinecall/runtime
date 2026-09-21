@@ -19,6 +19,14 @@ def test_a_call_gets_its_own_directory_under_the_root_the_box_named(tmp_path: Pa
     assert directory.is_dir()
 
 
+# The recorder is a container: a member of the group that owns the recordings and the owner of
+# nothing. A directory made with the umask's own mode gave it r-x and no w, and every recording
+# died with `permission denied` after the call had already been held.
+def test_the_directory_a_call_gets_is_writable_by_the_group_that_owns_it(tmp_path: Path) -> None:
+    directory = recordings.destination_for("CA_7", _keeping(tmp_path))
+    assert directory.stat().st_mode & 0o7770 == 0o2770
+
+
 def test_the_directory_is_ours_and_the_file_inside_it_is_livekits(tmp_path: Path) -> None:
     """RecorderIO writes `audio.ogg` into the session's directory (agent_session.py:1043)."""
     directory = recordings.destination_for("CA_7", _keeping(tmp_path))
