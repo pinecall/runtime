@@ -8,7 +8,7 @@ from pydantic import Field
 from pinecall.api._deps import EvalsKeyDep, LlmsDep, SettingsDep, StoreDep, TuningDep, VaultDep
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.agents.tuned import tuned_for
-from pinecall.api.evals.listening import until_the_answer_lands
+from pinecall.api.evals.listening import the_call_is_over, until_the_answer_lands
 from pinecall.auth.keys import held_by
 from pinecall.evals.caller import (
     NO_MODEL,
@@ -94,9 +94,16 @@ async def a_voice_call(
     # the same reason ring 4's judges read it back (docs/decisions/scoring.md).
     async def next_line(turns_left: int) -> tuple[str, bool]:
         """What this caller says next, given everything the log says has been said so far."""
+        entries = await whole(store, said.call)
+        # Somebody hung up while the caller was waiting for its answer: the console's Stop, the
+        # app, the agent. This loop is the gateway's and the call is the worker's, so the log is
+        # the only place it hears of it — and a caller that did not look went on saying its
+        # remaining turns to an empty room. No line is the hangup (evals/calling.py:357).
+        if the_call_is_over(entries):
+            return "", True
         asking = Asking(
             persona=said.persona,
-            heard=heard_in(await whole(store, said.call)),
+            heard=heard_in(entries),
             turns_left=turns_left,
         )
         improvised = await what_they_say_next(llm, asking)

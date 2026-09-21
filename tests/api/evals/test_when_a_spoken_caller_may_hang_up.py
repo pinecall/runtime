@@ -1,9 +1,19 @@
 """When a spoken run decides the agent has finished answering, and the turn that fooled it once."""
 
+import time
+
 import pytest
 
-from pinecall.api.evals.listening import A_SILENT_OPENING_S, the_answer_has_landed, the_line_is_open
+from pinecall.api.evals.listening import (
+    A_SILENT_OPENING_S,
+    AN_ANSWER_MAY_TAKE_S,
+    the_answer_has_landed,
+    the_call_is_over,
+    the_line_is_open,
+    until_the_answer_lands,
+)
 from pinecall.log.entry import Entry
+from pinecall.log.store.memory import MemoryStore
 
 pytestmark = pytest.mark.unit
 
@@ -142,3 +152,26 @@ def test_the_agent_must_have_been_handed_the_line_before_its_silence_counts() ->
     )
 
     assert the_answer_has_landed(split, said=2, since=0.0) is False
+
+
+# A simulated caller runs in the gateway and the call it is on is the worker's, so the log is the
+# only place it hears that somebody hung up. Before this, the console's Stop ended the call and the
+# persona went on saying its remaining turns into an empty room.
+def test_a_call_somebody_hung_up_is_over() -> None:
+    assert the_call_is_over(_log("call.started", "turn.user", "call.ended")) is True
+
+
+def test_a_call_still_being_spoken_on_is_not_over() -> None:
+    assert the_call_is_over(_log("call.started", "turn.user", "turn.agent")) is False
+
+
+async def test_the_wait_between_two_lines_ends_the_moment_the_call_does() -> None:
+    """A hung-up call answers nothing: the line is not held the thirty seconds an answer may."""
+    store = MemoryStore()
+    for type_ in ("call.started", "turn.user", "call.ended"):
+        await store.append("call_1", "clinica-norte", type_, {})
+
+    began = time.monotonic()
+    await until_the_answer_lands(store, "call_1", said=1)
+
+    assert time.monotonic() - began < AN_ANSWER_MAY_TAKE_S / 2

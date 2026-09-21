@@ -20,6 +20,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   gateway relays and stores nothing: what the panel holds is the tenant's own data, read in the
   tenant's own process. `docs/protocol/dev-verbs.md`.
 
+### Fixed
+- **A simulated caller stops when the call is hung up.** The persona is played inside the gateway,
+  by a loop that reads the call's own log every turn; the call itself belongs to the worker, so
+  ending it — a supervisor's verb, the app, the agent — left the caller improvising into a room
+  nobody was in, one thirty-second wait per turn it had left. It now reads `call.ended` off that
+  same log and stops there, and the wait between two lines gives up at once on a call that is over.
+
 ### Changed
 - **Every base an agent reads is searched in ONE pass, ranked against the others.** A turn asked
   each attached base its own query and merged the answers afterwards — and a fused score is read

@@ -34,6 +34,12 @@ AGENT_STATE: EventType = "agent.state"
 IT_IS_LISTENING: AgentState = "listening"
 THE_AGENT_SAID: EventType = "turn.agent"
 
+# The one thing no reading of the agent's state can say: somebody hung the call up. A supervisor's
+# Stop, the app, the agent itself — all three land as this entry, and it is where a caller running
+# in ANOTHER process learns of it. Without it the persona went on improvising into a room the agent
+# had left, a thirty-second wait per turn it had left over (2026-09-21, the console's Stop).
+THE_CALL_ENDED: EventType = "call.ended"
+
 # The opening. A caller that spoke the moment the agent joined talked over its greeting
 # (2026-09-19, maravilla, in production): the first line waits for the greeting to have been said
 # and the agent to be listening again. An agent that opens with nothing is believed after it has
@@ -53,7 +59,8 @@ async def until_the_answer_lands(store: Store, call: str, said: int) -> None:
     if said == 0:
 
         async def open_() -> bool:
-            return the_line_is_open(await whole(store, call), time.time())
+            entries = await whole(store, call)
+            return the_call_is_over(entries) or the_line_is_open(entries, time.time())
 
         await until(open_, within_s=AN_OPENING_MAY_TAKE_S)
         return
@@ -64,7 +71,12 @@ async def until_the_answer_lands(store: Store, call: str, said: int) -> None:
     stopped = time.time()
 
     async def landed() -> bool:
-        if not the_answer_has_landed(await whole(store, call), said, since=stopped):
+        entries = await whole(store, call)
+        # Nothing is going to answer a call that has been hung up, so the line is not held for the
+        # thirty seconds an answer may take: this is what makes stopping a simulation immediate.
+        if the_call_is_over(entries):
+            return True
+        if not the_answer_has_landed(entries, said, since=stopped):
             return False
         # Asked twice, a beat apart, because `agent.state` reaches the log a moment after the
         # agent changed and the log is all this can see. Once was not enough: on 2026-09-13 the
@@ -108,6 +120,11 @@ def the_answer_has_landed(entries: Sequence[Entry], said: int, *, since: float) 
         return False
     at, last = states[-1]
     return at > heard[-1] and AgentStateChanged.model_validate(last.data).state == IT_IS_LISTENING
+
+
+def the_call_is_over(entries: Sequence[Entry]) -> bool:
+    """Whether this call has been hung up, by whoever hung it up. Nothing more will answer."""
+    return any(entry.type == THE_CALL_ENDED for entry in entries)
 
 
 def the_line_is_open(entries: Sequence[Entry], now: float) -> bool:
