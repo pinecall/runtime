@@ -90,7 +90,9 @@ class VoiceBridge:
             lookup, context.call, context.remembered_as, config, budgets.voice_lookup_ms
         )
         self.events = Events(self.writing, self.meters, self, self.lookups)
-        self.tools = Tools(config, platform, context.call, self.writing.emit)
+        self.tools = Tools(
+            config, platform, context.call, self.writing.emit, speaking=self._agent_is_speaking
+        )
         self.blocks = Blocks(config.prompt, _the_file_it_ships_with(config))
         self._agent = VoiceAgent(
             blocks=self.blocks,

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
-from collections.abc import Mapping
+import time
+from collections.abc import Callable, Mapping
 from typing import Any, cast
 
 from livekit.agents import llm as agents
@@ -35,8 +37,12 @@ class Tools:
         call: str,
         emit: Emit,
         hold: HoldMusic | None = None,
+        speaking: Callable[[], bool] | None = None,
     ) -> None:
         self._config = config
+        # Whether the agent has the floor. A tool waits for it, so what was announced happens
+        # after the announcement rather than under it.
+        self.speaking = speaking or (lambda: False)
         # What the caller hears while a tool runs: nothing until the worker gives it a room.
         self.hold = hold or HoldMusic()
         self._platform = platform
@@ -81,6 +87,18 @@ class Tools:
         except PlatformRefused as refused:
             return defs.ToolResult(call_id=use.call_id, name=use.name, error=str(refused))
 
+    # A cap, because a tool that never runs is worse than one that runs early: a turn that somehow
+    # never stops speaking would otherwise hold the call forever. Long enough for any line a desk
+    # says out loud — the longest Sofia has ever spoken measured under nine seconds.
+    AGENT_MAY_TALK_FOR_S = 12.0
+    A_GLANCE_S = 0.1
+
+    async def _until_the_agent_stops(self) -> None:
+        """Hold the tool while the agent still has the floor, and never longer than the cap."""
+        deadline = time.monotonic() + self.AGENT_MAY_TALK_FOR_S
+        while self.speaking() and time.monotonic() < deadline:
+            await asyncio.sleep(self.A_GLANCE_S)
+
     def _a_tool(self, spec: ToolSpec) -> agents.Tool:
         """One ToolSpec as livekit's raw-schema tool: our parameters, and our own body."""
 
@@ -91,6 +109,16 @@ class Tools:
                 arguments=dict(raw_arguments),
                 speech_id=context.speech_handle.id,
             )
+            # NOT while the agent is talking. The model emits its text and its tool call in one
+            # response, so livekit begins the tool the instant the call arrives on the stream —
+            # which is while the line announcing it is still being spoken. Everything that follows
+            # then happens under that voice: the melody comes up over it, the work is done before
+            # the caller has heard it will be, and the log reads as though the agent announced what
+            # it had already finished. It had not; it had barely started saying it.
+            #
+            # So the tool waits for the floor. The announcement is heard, and THEN the thing it
+            # announced happens — which is the order everybody assumed it was in.
+            await self._until_the_agent_stops()
             # The melody covers the round trip and nothing after it: it has stopped before the
             # read-back is said, so the caller never hears the sentence over the music.
             async with self.hold.playing():
