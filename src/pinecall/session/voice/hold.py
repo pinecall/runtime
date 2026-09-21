@@ -17,7 +17,11 @@ logger = logging.getLogger(__name__)
 # Under the voice that comes back, never over it: a phone leg has no volume knob of its own.
 VOLUME = 0.6
 # A tool that answers in a moment plays nothing: a note that starts and is cut is worse than none.
-GRACE_S = 0.6
+# Two and a half seconds and not half of one, because the agent ANNOUNCES the slow tools — it says
+# "let me look that up" and the tool starts in the same breath, so a melody on a short grace comes
+# up underneath the agent's own voice and the caller hears both at once (2026-09-21, maravilla).
+# By this point the announcement has been said and the silence is real.
+GRACE_S = 2.5
 FADE_IN_S = 0.4
 FADE_OUT_S = 0.3
 

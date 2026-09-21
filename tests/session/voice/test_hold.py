@@ -47,6 +47,10 @@ def a_melody(player: Player, source: Path = DEFAULT) -> HoldMusic:
     return music
 
 
+# Read here because the fixture below shortens it for every test in this file.
+DECLARED_GRACE_S = holding.GRACE_S
+
+
 @pytest.fixture(autouse=True)
 def no_grace(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(holding, "GRACE_S", 0.01)
@@ -99,3 +103,10 @@ async def test_a_call_with_no_room_or_turned_off_plays_nothing_and_the_tool_stil
         async with music.playing():
             ran = True
         assert ran
+
+
+# The grace is not a comfort setting: the agent ANNOUNCES the tools that take a while — "let me
+# look that up" — and starts the tool in the same breath, so a melody on a short grace comes up
+# underneath the agent's own voice and the caller hears both at once (2026-09-21, maravilla).
+def test_the_grace_outlasts_the_line_the_agent_says_before_the_tool() -> None:
+    assert DECLARED_GRACE_S >= 2.0

@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from pinecall.types import BLANK, DeclarationRefused, Greeting, Lexicon, Tuning, Versions
+from pinecall.types.agent import Turn
 
 pytestmark = pytest.mark.unit
 
@@ -40,3 +41,17 @@ def test_a_lexicon_refuses_a_blank_word_and_a_blank_spoken_form() -> None:
 
 def test_versions_none_is_a_corner_that_had_set_nothing() -> None:
     assert Versions() == Versions(config=None, lexicon=None)
+
+
+# Deepgram refuses a socket whose eager bar sits above its real one, and a refused socket is a call
+# with no ears at all — so the two are held to their order where the class is declared, not on the
+# first call of the day.
+def test_a_turn_that_would_guess_later_than_it_decides_is_refused() -> None:
+    with pytest.raises(DeclarationRefused, match="cannot sit above"):
+        Turn(eot_threshold=0.7, eager_eot_threshold=0.9)
+
+
+def test_the_eager_bar_may_sit_on_the_other_one() -> None:
+    """Equal is Deepgram's own ceiling for it, not an error: guessing exactly when it is sure."""
+    assert Turn(eot_threshold=0.85, eager_eot_threshold=0.85).eager_eot_threshold == 0.85
+    assert Turn(eager_eot_threshold=0.4).eot_threshold is None

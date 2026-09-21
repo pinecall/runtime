@@ -3,6 +3,7 @@
 import inspect
 
 import pytest
+from livekit.agents.utils import is_given
 from livekit.plugins import deepgram, soniox
 
 from pinecall._settings import Settings
@@ -53,6 +54,27 @@ def test_deepgram_is_the_flux_model_on_the_v2_socket() -> None:
     assert options.model == FLUX == "flux-general-multi"
     assert options.language_hint == ["pt", "es", "en"]
     assert options.eot_timeout_ms == MAX_SILENCE_MS
+
+
+# The timeout is only the silence Flux is UNSURE about. A caller it is confidently wrong about is
+# cut whatever the clock says, and Deepgram's own measurement of its default confidence — 0.7 — is
+# that as much as a fifth of the turns it ends were ended before the person had finished. The bar
+# is the knob for that, and the eager one is how it is raised without paying for it in latency.
+def test_the_two_confidences_flux_ends_a_turn_on_are_the_agents_to_set() -> None:
+    built = VENDORS.build("deepgram", an_ask(eot_threshold=0.85, eager_eot_threshold=0.4))
+    assert isinstance(built, deepgram.STTv2)
+    options = built._opts  # pyright: ignore[reportPrivateUsage]
+    assert options.eot_threshold == 0.85
+    assert options.eager_eot_threshold == 0.4
+
+
+def test_an_agent_that_set_neither_is_left_at_the_plugins_own() -> None:
+    """None would go out as `null` on a socket that refuses it: the sentinel is livekit's own."""
+    built = VENDORS.build("deepgram", an_ask())
+    assert isinstance(built, deepgram.STTv2)
+    options = built._opts  # pyright: ignore[reportPrivateUsage]
+    assert not is_given(options.eot_threshold)
+    assert not is_given(options.eager_eot_threshold)
 
 
 def test_an_agent_that_named_no_model_gets_the_plugins_own_realtime_one() -> None:

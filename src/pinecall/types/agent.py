@@ -43,12 +43,37 @@ class Model:
     temperature: float | None = None
 
 
+# Deepgram refuses a socket whose eager bar sits above its real one, and a refused socket is a
+# call with no ears at all — so it is said here, once, where the class is declared.
+EAGER_IS_THE_LOWER_BAR = (
+    "eager_eot_threshold {eager} is the bar for GUESSING the turn is over, so it cannot sit above "
+    "eot_threshold {sure}, which is the bar for ending it."
+)
+
+
 @dataclass(frozen=True)
 class Turn:
     """How the session decides the caller is done, and how much it takes to interrupt the agent."""
 
     min_interruption_words: int | None = None
     endpointing_ms: int | None = None
+    # How sure a recogniser that calls the end of the turn itself has to be. Deepgram's own
+    # measurement of its default (0.7) is that as much as a fifth of the turns it ends were ended
+    # before the caller had finished — half a sentence answered, and a tool run on half the facts.
+    eot_threshold: float | None = None
+    # And the lower bar at which it says the turn MIGHT be over, which is what livekit's
+    # speculative generation hangs off: it is how the bar above is raised without paying latency.
+    eager_eot_threshold: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.eager_eot_threshold is None or self.eot_threshold is None:
+            return
+        if self.eager_eot_threshold > self.eot_threshold:
+            raise DeclarationRefused(
+                EAGER_IS_THE_LOWER_BAR.format(
+                    eager=self.eager_eot_threshold, sure=self.eot_threshold
+                )
+            )
 
 
 # The two verbs of agent.say and agent.reply, declared instead of called: the session runs one of

@@ -73,6 +73,8 @@ def _hearing(config: AgentConfig, settings: Settings, keys: ProviderKeys) -> Ask
         model=config.stt.model if config.stt else None,
         language=config.language,
         endpointing_ms=config.turn.endpointing_ms if config.turn else None,
+        eot_threshold=config.turn.eot_threshold if config.turn else None,
+        eager_eot_threshold=config.turn.eager_eot_threshold if config.turn else None,
         hears=config.hears,
     )
 

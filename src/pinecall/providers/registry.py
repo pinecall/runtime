@@ -57,6 +57,8 @@ class Asked:
     language: str | None = None
     voice_id: str | None = None
     endpointing_ms: int | None = None
+    eot_threshold: float | None = None
+    eager_eot_threshold: float | None = None
     hears: tuple[str, ...] = ()
     # The org's own keys, when it brought any. Empty is the common case and means the box's.
     keys: ProviderKeys = NO_ORG_KEYS

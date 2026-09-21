@@ -32,7 +32,23 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - `docs/the-runtime-cli.md` is the verbs; the environment table and the two walkthroughs are
   `docs/the-environment.md`, a page of their own (and a page of the site).
 
+### Added
+- **An agent may say how sure its ears have to be that the caller has finished.**
+  `turn.eot_threshold` and `turn.eager_eot_threshold`, handed to Deepgram Flux, which is the one
+  recogniser here that calls the end of a turn itself. The endpointing we already had is a clock,
+  and a clock only catches the silences Flux is unsure about: a caller it is CONFIDENTLY wrong
+  about is cut whatever the timeout says, and Deepgram measures that at as much as a fifth of the
+  turns at its own default of 0.7. The eager bar is the lower confidence at which it says the turn
+  MIGHT be over, which is what livekit's speculative generation hangs off — so the first can be
+  raised without paying for it in latency. A declaration whose eager bar sits above its real one
+  is refused where the class is read, because Deepgram refuses the socket and a refused socket is
+  a call with no ears at all.
+
 ### Fixed
+- **The hold melody no longer comes up under the agent's own voice.** It waited 0.6 s after a tool
+  began, and an agent that announces what it is about to do starts the tool in the same breath —
+  so the caller heard the melody and the announcement at once. It waits 2.5 s now, by which time
+  the line has been said and the silence is real.
 - **A spoken persona no longer talks over the agent.** The wait between two of a simulated
   caller's lines read the log as it stood a moment ago, so a `listening` left over from the
   PREVIOUS turn was accepted as the answer to the line just said: the caller spoke again a second
