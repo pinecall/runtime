@@ -16,7 +16,7 @@ from pinecall.types import PRODUCTION, SANDBOX
 
 router = APIRouter()
 
-# Where the built pages live inside the distribution: package data the agents repo's vite builds
+# Where the built pages live inside the distribution: package data the console repo's vite build
 # wrote and `scripts/console` copied here. Git-ignored, because a build is not a source; shipped
 # in the wheel as artifacts. A checkout that never ran the script has no page, and the door says
 # so rather than answering a blank one.

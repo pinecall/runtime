@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
-# The console into the gateway: build the agents repo's page and copy it in as package data.
+# The console into the gateway: build the console repo's page and copy it in as package data.
 # `make deploy` runs this before it syncs, so the box serves what the checkout built; a clone that
 # never ran it has a gateway that answers `/` with a sentence saying to run it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-AGENTS="${PINECALL_AGENTS:-../agents}"
+CONSOLE="${PINECALL_CONSOLE:-../console}"
 WIDGET="${PINECALL_WIDGET:-../widget}"
 SHIPPED="src/pinecall/gateway"
 
-[ -d "$AGENTS" ] || { echo "no agents checkout at $AGENTS: set PINECALL_AGENTS" >&2; exit 2; }
+[ -d "$CONSOLE" ] || { echo "no console checkout at $CONSOLE: set PINECALL_CONSOLE" >&2; exit 2; }
 
 # The vite config that builds it, and the directory the gateway serves it from. api/pages.py is
 # the other half of this and the two are read together. `admin/` is swept away because a box
 # deployed before the operator's page was removed still carries it, and a stale bundle served by
 # nobody is a bundle somebody finds.
-BUILT="$AGENTS/dist/cli/ui/console"
-pnpm --dir "$AGENTS" exec vite build --config src/cli/ui/console/vite.config.ts --logLevel error
+BUILT="$CONSOLE/dist"
+pnpm --dir "$CONSOLE" exec vite build --logLevel error
 [ -f "$BUILT/index.html" ] || { echo "vite built no page at $BUILT" >&2; exit 1; }
 rm -rf "${SHIPPED:?}/console" "${SHIPPED:?}/admin"
 mkdir -p "$SHIPPED"
