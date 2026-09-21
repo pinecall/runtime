@@ -35,7 +35,7 @@ install: packages pnpm
 	install -D -m 644 -t $(SYSTEMD) $(UNITS)
 	install -D -m 644 -t $(QUADLET) $(CONTAINERS)
 	$(MAKE) --no-print-directory embedder-$(EMBEDDER)
-	install -D -m 644 -t /etc/pinecall livekit.yaml sip.yaml
+	install -D -m 644 -t /etc/pinecall livekit.yaml sip.yaml egress.yaml
 	install -D -m 644 caddy/Caddyfile /etc/caddy/Caddyfile
 	install -D -m 644 caddy/pinecall.conf $(SYSTEMD)/caddy.service.d/pinecall.conf
 	# The sandbox's site where box.env names a second name, and away where it does not: a box
@@ -141,7 +141,7 @@ endif
 # when box.env names a cloud — a hub whose workers a person stands up runs no loop.
 HUB_UNITS    = caddy pinecall-secrets pinecall-gateway pinecall-worker-key pinecall-operator-key pinecall-overflow
 WORKER_UNITS = pinecall-worker
-CONTAINERS_  = pinecall-redis pinecall-livekit pinecall-sip pinecall-postgres
+CONTAINERS_  = pinecall-redis pinecall-livekit pinecall-sip pinecall-postgres pinecall-egress
 FLEET_CLOUD  = $(shell sed -n 's/^PINECALL_FLEET_CLOUD=//p' /etc/pinecall/box.env 2>/dev/null || true)
 FLEET_UNIT   = $(if $(FLEET_CLOUD),pinecall-fleet,)
 

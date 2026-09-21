@@ -18,7 +18,7 @@ from pinecall.providers.knocks import KNOCKS
 from pinecall.providers.models import DEFAULT_VENDOR
 from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS
 
-PURPOSE: str = "keys present · keys answer · livekit · postgres · embedder · mail · lk"
+PURPOSE: str = "keys present · keys answer · livekit · egress · postgres · embedder · mail · lk"
 
 # pgvector installs under the name `vector`; the BM25 half of the search stack installs under
 # `pg_textsearch`. Both come from the Postgres image infra/compose/dev.yml runs.
@@ -105,6 +105,10 @@ WHAT_LIVEKIT_CLI_IS_FOR = "lk docs · lk sip · lk dispatch"
 # publishes a script for every other platform, and infra/README.md names the same two.
 INSTALL_LIVEKIT_CLI_WITH_BREW = "brew install livekit-cli"
 INSTALL_LIVEKIT_CLI_ANYWHERE = "curl -sSL https://get.livekit.io/cli | bash"
+
+# What a box with no recorder is actually losing, said in the line itself: an operator reading a
+# doctor report should not have to know what egress is to know what is broken.
+NO_AUDIO = "no call is keeping its audio"
 
 
 @dataclass(frozen=True)
@@ -246,6 +250,19 @@ def check_livekit_is_reachable(settings: Settings, probes: Probes) -> Result:
     return Result("livekit", True, f"{url} — HTTP {status}")
 
 
+# A box whose recorder is down takes every call it would have taken and keeps the audio of none
+# of them, and nothing else on the box would ever say so: the caller hears the call, the agent
+# answers it, the log is written, and only the file is missing. Which is why this is a ✗ and not
+# a note — a month of calls nobody can play back is found by reading this line, or not at all.
+def check_the_recorder_answers(settings: Settings, probes: Probes) -> Result:
+    """The box's egress: one room composite per call is what keeps a call's audio at all."""
+    try:
+        status = probes.http_status(settings.egress_url)
+    except Exception as failure:
+        return Result("egress", False, f"{settings.egress_url} — {_reason(failure)} · {NO_AUDIO}")
+    return Result("egress", True, f"{settings.egress_url} — HTTP {status}")
+
+
 def check_postgres_is_ready(settings: Settings, probes: Probes) -> Result:
     """Reachable is half of it: without both extensions the search stack has nowhere to live."""
     shown = without_password(settings.database_url)
@@ -335,13 +352,19 @@ CHECKS: tuple[Check, ...] = (
     check_provider_keys,
     check_provider_keys_answer,
     check_livekit_is_reachable,
+    check_the_recorder_answers,
     check_postgres_is_ready,
     check_the_embedder_answers,
     check_the_mail_is_configured,
     check_the_livekit_cli_is_installed,
 )
 ONLY_ON_A_HUB: frozenset[Check] = frozenset(
-    {check_postgres_is_ready, check_the_embedder_answers, check_the_mail_is_configured}
+    {
+        check_postgres_is_ready,
+        check_the_embedder_answers,
+        check_the_mail_is_configured,
+        check_the_recorder_answers,
+    }
 )
 
 

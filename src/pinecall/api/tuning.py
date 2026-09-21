@@ -58,7 +58,10 @@ TUNING: TypeAdapter[Tuning] = TypeAdapter(Tuning)
 # from what stands, and is refused by name the moment it would move one. An ABSENT knob is the one
 # carried over, `bases` with the rest: an empty `bases` is a person taking the bases out, which is
 # a move of the pipeline and is refused by name like any other.
-PIPELINE_ONLY = ("voice", "tts", "tts_model", "stt", "llm", "hangup", "turn", "bases")
+# `record` is not a stage of the pipeline and sits in this list anyway: whether a call keeps its
+# audio is the org's to decide and nobody's to change from the floor, which is exactly what this
+# list is for. One list, so there is one place to look for what a words key cannot move.
+PIPELINE_ONLY = ("voice", "tts", "tts_model", "stt", "llm", "hangup", "turn", "bases", "record")
 NOT_WORDS = "{fields}: the pipeline's, and {refusal}"
 
 NO_SUCH_VERSION = "no version {version} in this corner of {slug}"

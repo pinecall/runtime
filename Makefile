@@ -108,7 +108,7 @@ restart-hub: require-box
 	# simply down — postgres answers only because the gateway requires it. `start` on something
 	# already running is a no-op, which is what keeps this clear of the rule that a container is
 	# never restarted under a call.
-	$(SSH) 'sudo systemctl start pinecall-redis pinecall-livekit pinecall-sip pinecall-postgres 2>/dev/null || true'
+	$(SSH) 'sudo systemctl start pinecall-redis pinecall-livekit pinecall-sip pinecall-postgres pinecall-egress 2>/dev/null || true'
 	$(SSH) 'sudo systemctl restart pinecall-gateway pinecall-overflow && { systemctl is-enabled -q pinecall-fleet && sudo systemctl restart pinecall-fleet || true; }'
 	$(MAKE) --no-print-directory health
 

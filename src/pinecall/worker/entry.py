@@ -21,8 +21,9 @@ from pinecall.session.voice.kit import Kit
 from pinecall.session.voice.platform import Platform
 from pinecall.types import AgentConfig, CallContext, Route
 from pinecall.types.dispatch import DIAL_KEY, SCOPE_KEY, WRITTEN_SCOPE
-from pinecall.worker import commanding, dialling, recordings, router, seat
+from pinecall.worker import commanding, dialling, egress, recordings, router, seat
 from pinecall.worker.client import Gateway
+from pinecall.worker.egress import Stopping
 from pinecall.worker.hold import the_melody
 from pinecall.worker.recordings import Keeping
 from pinecall_protocol import Command, defs, encode
@@ -142,12 +143,26 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     # A `chat` visit is written: the session has no ears and no voice, and the room carries no
     # audio either way, so the words reach the page at the pace the model writes them.
     typed = arrival.metadata.get(SCOPE_KEY) == WRITTEN_SCOPE
-    # So a written call keeps no recording, and its summary points at none: a pointer to an
-    # audio.ogg nobody wrote was a session screen that said the file was on another box.
-    recording = None if typed else where_the_audio_goes(ctx, context.call, worker.keeping)
+    # Where this call's audio would go. A written call keeps none — a pointer to an audio.ogg
+    # nobody wrote was a session screen that said the file was on another box — and whether a
+    # spoken one is kept at all is the agent's own setting now, resolved with the rest of its
+    # world (`pinecall agent set --record`).
+    wanted = (
+        None
+        if typed or not config.record
+        else where_the_audio_goes(ctx, context.call, worker.keeping)
+    )
+    # Asked for HERE, before the session is built and well before the greeting is spoken: the room
+    # has been joined since ctx.connect() and the box's recorder takes a moment to come up, and
+    # that moment is the one the session spends being built.
+    taping = await _the_box_records(ctx, wanted)
+    # A recorder that would not take the job is a call with no audio and a call all the same: the
+    # summary points at nothing rather than at a file nobody is writing. Which is what the
+    # doctor's `egress` line is for — nothing else would say it out loud.
+    recording = wanted if taping is not None or recordings.the_session_records_itself() else None
     bridge = worker.bridging(context, config, worker.gateway, recording)
     # Registered before anything can fail: a call that dies mid-setup still seals its own log.
-    ctx.add_shutdown_callback(sealing(worker.gateway, bridge, context.call))
+    ctx.add_shutdown_callback(sealing(worker.gateway, bridge, context.call, taping))
     live = session.a_session(config, worker.kit, route.channel, keys, spoken=not typed)
     took("session")
     await clock.seeded(bridge.agent, context.today)
@@ -168,7 +183,7 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
             audio_input=False if typed else NOT_GIVEN,
             audio_output=False if typed else NOT_GIVEN,
         ),
-        record=recordings.AUDIO_ONLY if recording is not None else False,
+        record=recordings.asked_of_the_session(recording),
     )
     took("start")
     # The hold melody's track, once the room is live. A written visit has no audio to play it in.
@@ -221,14 +236,27 @@ def _or_livekits(interruptible: bool | None) -> NotGivenOr[bool]:
 
 
 # Decided before the session exists, so the bridge is born knowing the pointer call.summary will
-# carry and the session is told to record exactly what the log points at — and nothing when the
-# box keeps no audio (RECORD=0), when the directory is never composed at all.
+# carry, and the directory is composed only for a call that is going to fill it.
 def where_the_audio_goes(ctx: JobContext, call: str, keeping: Keeping) -> Path | None:
     """The file this call's audio will be in, or None when none is kept."""
-    destination = keeping(call)
-    if destination is None:
+    return recordings.kept_by_the_job(ctx, keeping(call))
+
+
+# The box's own recorder, one room composite for this room: everything anybody on the call heard,
+# the hold melody and a supervisor's voice with it. Under livekit's console there is no room on a
+# server to compose and the session records itself instead, so nothing is asked for.
+async def _the_box_records(ctx: JobContext, audio: Path | None) -> Stopping | None:
+    """Ask the box to record this room, and answer with how to stop it and wait for its file."""
+    if audio is None or recordings.the_session_records_itself():
         return None
-    return recordings.kept_by_the_job(ctx, destination)
+    taping = await egress.recording_the_room(ctx.api, ctx.room.name, audio)
+    if taping is None:
+        return None
+
+    async def stop() -> None:
+        await egress.and_the_file_is_written(ctx.api, taping, audio)
+
+    return stop
 
 
 # The room's name IS the call id: a reader of the log can find the room and the room can find the
@@ -287,11 +315,17 @@ def letting_go(reading: asyncio.Task[None]) -> Callable[[str], Coroutine[None, N
 
 
 def sealing(
-    gateway: Gateway, bridge: Bridge, call: str
+    gateway: Gateway, bridge: Bridge, call: str, stopping: Stopping | None = None
 ) -> Callable[[str], Coroutine[None, None, None]]:
-    """The shutdown callback: the bridge says how the call ended, then the log is closed."""
+    """The shutdown callback: the recording is closed, the bridge says how the call ended, the
+    log is sealed."""
 
     async def seal(reason: str) -> None:
+        # Before the summary and never after it: the summary is the one place the pointer to the
+        # audio is stated, and a pointer to a file the recorder has not finished writing reads,
+        # at the door, as a recording that is on another box.
+        if stopping is not None:
+            await stopping()
         await bridge.closed(reason)
         await gateway.sealed(call)
 

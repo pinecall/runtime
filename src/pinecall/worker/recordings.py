@@ -20,21 +20,23 @@ AUDIO_FILE = "audio.ogg"
 # What a call that keeps audio asks the session to record: the audio, and only the audio. A key
 # left out of RecordingOptions defaults to on (agent_session.py:104), and the other three are
 # uploads to an observability host — nothing of a call leaves the box for a file the log points at.
+# Asked of the session under the CONSOLE alone: see kept_by_the_job below.
 AUDIO_ONLY: RecordingOptions = {"audio": True, "traces": False, "logs": False, "transcript": False}
 
-type Keeping = Callable[[str], Path | None]
-"""What one process holds: a call id in, the directory its audio goes in out — or None."""
+type Keeping = Callable[[str], Path]
+"""What one process holds: a call id in, the directory its audio goes in out."""
 
 
 def keeping_for(settings: Settings) -> Keeping:
-    """The process's way to a call's directory: the switch and the root read once at startup."""
+    """The process's way to a call's directory: the root read once at startup."""
     return partial(destination_for, settings=settings)
 
 
-def destination_for(call: str, settings: Settings) -> Path | None:
-    """The directory this call's audio goes in, created; None when the box records nothing."""
-    if not settings.record:
-        return None
+# WHETHER a call is recorded is not asked here and never was the box's to answer any more: it is
+# the agent's own setting, resolved with the rest of its world (types/tuning.py), and the worker
+# asks for this directory only for a call that keeps its audio.
+def destination_for(call: str, settings: Settings) -> Path:
+    """The directory this call's audio goes in, created."""
     directory = Path(settings.recordings_root) / call
     directory.mkdir(parents=True, exist_ok=True)
     return directory
@@ -63,16 +65,31 @@ def kept_by_the_console(destination: Path) -> Path:
     return audio_in(destination)
 
 
-# An ordinary job's directory is a TemporaryDirectory livekit cleans up when the job ends
-# (job.py:232,364), so an audio.ogg left there is gone before anybody reads the pointer. The job
-# exposes the directory read-only (job.py:378) and RecorderIO writes wherever it points, so the one
-# way to keep the file is the same move the console needed. Under a console the directory is
-# already ours (kept_by_the_console), and the file is written only when the console was asked to
-# record (agent_session.py:1042): a pointer to a file livekit will not write is a lie, so None.
+# Two writers, and which one it is depends on where the job runs. On a box the recorder is the
+# BOX's — one room composite egress per call, which writes the file itself (worker/egress.py) —
+# and the session records nothing, because the session only ever knew two sources: the participant
+# it was pinned to and its own voice. Everything else the call heard, the hold melody and a
+# supervisor who took the line, was published as a track of its own and was never in the file.
+#
+# Under livekit's console (`pinecall talk`) there is no room on any server to compose, so the
+# library's own recorder writes it, into the directory the console was already pointed at
+# (kept_by_the_console) and only when the console was asked to record (agent_session.py:1042): a
+# pointer to a file livekit will not write is a lie, so None.
 def kept_by_the_job(job: JobContext, destination: Path) -> Path | None:
-    """Point this job's recorder at our directory, and answer with the file it will write."""
+    """The file this call's audio will be in, or None when nobody is going to write one."""
     console = _legacy.AgentsConsole.get_instance()
     if console.enabled:
         return audio_in(job.session_directory) if console.record else None
-    job._session_directory = destination  # pyright: ignore[reportPrivateUsage]
     return audio_in(destination)
+
+
+def the_session_records_itself() -> bool:
+    """Whether livekit's own recorder writes this file: only the console, which has no room."""
+    return _legacy.AgentsConsole.get_instance().enabled
+
+
+def asked_of_the_session(recording: Path | None) -> RecordingOptions | bool:
+    """What `AgentSession.start(record=…)` is told: nothing on a box, where egress writes it."""
+    if recording is None or not the_session_records_itself():
+        return False
+    return AUDIO_ONLY

@@ -1,7 +1,7 @@
 # The box
 
-The same five services as the dev stack (`../README.md`), on a machine a stranger can telephone,
-declared rather than scripted. Four are on every box but a worker; the fifth, the embedder, is a
+The same services as the dev stack (`../README.md`), on a machine a stranger can telephone,
+declared rather than scripted. Five are on every box but a worker; the sixth, the embedder, is a
 choice ("The embedder"). This directory is a box **declared**: every file in it is one thing
 systemd, podman, Caddy or nftables reads. A fresh machine on any provider — a cloud that takes
 cloud-init, which is all of them, or a bare one through a NoCloud seed — boots from
@@ -15,9 +15,9 @@ infra/box/
 ├── sysusers.d/pinecall.conf   the service user
 ├── tmpfiles.d/pinecall.conf   every directory, with its owner and mode
 ├── nftables.conf              the fence, on the host: 5060 to the carrier and to nobody else
-├── containers/                the media plane as Quadlet units: redis · livekit · sip · postgres,
-│                              and tei where the box embeds here rather than at a vendor
-├── livekit.yaml · sip.yaml    what the two LiveKit containers mount
+├── containers/                the media plane as Quadlet units: redis · livekit · sip · postgres ·
+│                              egress, and tei where the box embeds here rather than at a vendor
+├── livekit.yaml · sip.yaml · egress.yaml   what the three LiveKit containers mount
 ├── pinecall-secrets.service   the box's own secrets, drawn once, encrypted by systemd
 ├── pinecall-postgres-image.service   our Postgres image, built once per tag
 ├── pinecall-gateway.service · pinecall-worker.service        the two processes we write
@@ -28,6 +28,36 @@ infra/box/
 └── caddy/                     the Caddyfile and its sandbox site, and the drop-in that hands
                                Caddy the box's names
 ```
+
+## What keeps a call's audio
+
+A recording is one **room composite egress** per call, asked for by the worker the moment the room
+exists and stopped when the call ends (`worker/egress.py`). It writes
+`/var/lib/pinecall/recordings/<call>/audio.ogg`, which is the path `call.summary` points at and the
+path `GET /v1/calls/{call}/recording` serves from.
+
+The room, and not the session: everything anybody on the call heard is in the file — the caller,
+the agent, **the hold melody** the agent publishes beside its own voice, and **a supervisor who
+took the line**. livekit-agents' own recorder, which wrote these files before, knew two sources
+and only two: the participant the session was pinned to, and its own TTS. The melody and the
+supervisor were never in a recording, and nothing said so.
+
+| | |
+|---|---|
+| the unit | `containers/pinecall-egress.container`, `docker.io/livekit/egress:v1.14.1` |
+| its config | `egress.yaml` → `/etc/pinecall/egress.yaml`, mounted read-only |
+| how it is found | this box's redis, by container name — a self-hosted egress registers through redis and through nothing else |
+| its port | `127.0.0.1:7980`, the health port, which only the doctor knocks at (`egress` in the report) |
+| what it costs | `audio_only` with no layout and no base URL is the one shape that runs on livekit's **SDK** and not on a headless Chromium, and it costs about a core per concurrent recording. `max_cpu_utilization` in `egress.yaml` is the ceiling: above it the recorder refuses, the call is taken anyway and its summary points at no audio |
+| **whether** a call is recorded | the AGENT's setting, not the box's: `pinecall agent set --record on\|off`, per world and per corner, versioned like every other knob. There is no `RECORD` variable any more |
+
+**The trap, and it costs a directory nobody can read.** Egress runs in a container, as no uid this
+box can name in advance — the service user's is assigned by `systemd-sysusers` and is a different
+number on every machine. So the two meet on a **group with a fixed id**: `pinecall-media`, 4200,
+declared in `sysusers.d/pinecall.conf` with the runtime as a member, and
+`/var/lib/pinecall/recordings` is `2770 pinecall:pinecall-media`. The setgid bit is what keeps a
+file egress writes readable by the gateway that serves it. Change one of the three and recordings
+go on being written and stop being readable, which is a thing you find out a week later.
 
 ## The path a call takes
 

@@ -196,12 +196,11 @@ livekit-server that stops routing to a worker at 0.7 of what it reports (`worker
    org's declaration and runs it on that org's keys; a phone call on the box's own trunk names no
    org, and `GET /v1/routes?number=&channel=` finds its one door across every org.
 3. `POST /v1/calls`: the gateway opens the log and binds the call to an app socket.
-4. `session/voice/kit.py` asks `providers/` for the three vendor objects the declaration names;
-   `session/voice/session.py` builds the `AgentSession`; **`VoiceBridge`** (`session/voice/voice.py`)
-   sits between it and the platform.
-5. `worker/commanding.py` streams the app's commands off `GET /v1/calls/{call}/commands` and
+4. The audio, when the agent's world keeps it (`record`): `worker/recordings.py` composes the one path a recording has, `worker/egress.py` asks LiveKit for a **room composite** of this room — audio only, a channel each, the shape that runs on the SDK and not on a browser — here, before the session, so the greeting is inside it, and stopped before the summary states the pointer. The ROOM, so the hold melody and a supervisor's voice are in it; a recorder that refuses is a call with no audio and the doctor's `egress` line is what says so.
+5. `session/voice/kit.py` asks `providers/` for the three vendor objects the declaration names; `session/voice/session.py` builds the `AgentSession`; **`VoiceBridge`** (`session/voice/voice.py`) sits between it and the platform.
+6. `worker/commanding.py` streams the app's commands off `GET /v1/calls/{call}/commands` and
    applies each to the bridge, until `None` — the call ending.
-6. Hang-up: the bridge writes `call.ended`, asks the gateway to remember the call
+7. Hang-up: the bridge writes `call.ended`, asks the gateway to remember the call
    (`POST /v1/calls/{call}/remember`, under `PINECALL_REMEMBER_BUDGET_S`), writes `call.summary`,
    hands its own log to the `Scorer` (`session/scoring.py` → `evals/score.py`), writes
    `call.score`, and the worker seals the call.

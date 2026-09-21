@@ -138,6 +138,9 @@ class AgentConfig:
     uses_knowledge: bool = False
     memory: MemoryPolicy | None = None
     hangup: Hangup | None = None
+    # Whether this agent's calls keep their audio. The world's (Tuning.record), never the class's;
+    # the box records the whole room, so what is kept is what everybody on the call heard.
+    record: bool = True
     tools: tuple[ToolSpec, ...] = ()
     state_fields: Mapping[str, Visibility] = field(default_factory=dict[str, Visibility])
     # The panel the agent draws beside a conversation, by the name a person reads over it. Only

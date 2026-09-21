@@ -19,6 +19,23 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   opened by a key with `calls`, because a panel is read where the conversations are read. The
   gateway relays and stores nothing: what the panel holds is the tenant's own data, read in the
   tenant's own process. `docs/protocol/dev-verbs.md`.
+- **The box records the ROOM, and whether it records at all is the agent's setting.** A recording
+  was written by livekit's own session recorder, which knew two sources and only two: the
+  participant the session was pinned to, and its own voice. Everything else a call heard was a
+  track of its own and was in no file — **the hold melody**, and **a supervisor who took the
+  line**. A box now runs `livekit-egress` (`infra/box/containers/pinecall-egress.container`) and
+  every recorded call is one audio room composite of its room, a channel each, written to the same
+  `recordings/<call>/audio.ogg` the summary has always pointed at. `pinecall-runtime doctor` gains
+  an `egress` line, because a recorder that is down is otherwise silent: every call is answered
+  and none of them is kept.
+- **`record`, a setting of the agent.** Whether its calls keep their audio, per world and per
+  corner, versioned like every other knob — one org on a box may record and another may not, and
+  neither waits for a deploy. `pinecall agent set --record on|off`.
+
+### Removed
+- **`RECORD`.** The box-wide switch is gone: the agent says whether its calls are recorded, so a
+  box that had `RECORD=0` keeps recording until each agent is told not to. `PINECALL_RECORDINGS`
+  is unchanged — it is where they land.
 
 ### Fixed
 - **The hold melody no longer starts under the agent's own voice.** A tool begins while the line

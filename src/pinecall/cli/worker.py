@@ -31,9 +31,6 @@ VERBS: tuple[str, ...] = tuple(LIVEKIT_VERBS)
 # livekit's console flag for keeping the audio. `pinecall talk --record` arrives as this.
 RECORD_FLAG = "--record"
 
-# What a box that keeps no audio answers when somebody asks for a recording anyway.
-REFUSED = f"RECORD=0: this box keeps no audio, so {RECORD_FLAG} cannot run"
-
 # The two verbs that REGISTER with livekit, and so need the url and the key pair. `talk` runs the
 # session unregistered (worker.py:678) and `download-files` never opens a socket: neither needs one.
 REGISTERING_VERBS: tuple[str, ...] = ("dev", "start", "overflow")
@@ -85,9 +82,6 @@ def run(arguments: argparse.Namespace) -> int:
         # Decided before the microphone is opened, so a `pinecall talk` of tomorrow does not
         # write over the one from today and the path is in the terminal from its first line.
         destination = recordings.destination_for(recordings.a_console_session(), settings)
-        if destination is None:
-            print(REFUSED, file=sys.stderr)
-            return 2
         print(f"recording to {recordings.kept_by_the_console(destination)}")
     return hand_over(arguments.verb, flags, settings)
 

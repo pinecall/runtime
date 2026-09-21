@@ -15,12 +15,14 @@ from livekit.agents import NOT_GIVEN, JobContext
 from livekit.agents.voice import Agent, AgentSession
 from livekit.agents.voice.room_io import RoomOptions
 from livekit.protocol import agent as jobs
+from livekit.protocol import egress as proto
 
 from pinecall.auth.scopes import SCOPE_ATTRIBUTE
 from pinecall.session.voice.platform import Platform
 from pinecall.types import AgentConfig, CallContext, Route
 from pinecall.types.dispatch import SCOPE_KEY, WRITTEN_SCOPE
 from pinecall.worker import entry, recordings, router
+from pinecall.worker.recordings import Keeping
 from tests.session.fake_llm import FakeLLM
 from tests.session.voice.room.fakes import (
     FakeParticipant,
@@ -29,7 +31,7 @@ from tests.session.voice.room.fakes import (
     as_a_room,
 )
 from tests.session.voice.silence import FakeKit
-from tests.worker.fakes import CountingBridge, Seen, a_gateway, a_job, a_job_in
+from tests.worker.fakes import CountingBridge, Seen, a_gateway, a_job
 
 pytestmark = pytest.mark.unit
 
@@ -60,16 +62,11 @@ async def test_the_shutdown_callback_tells_the_bridge_then_seals_the_log() -> No
     assert [(one.method, one.path) for one in seen] == [("POST", "/v1/calls/call_room_1/sealed")]
 
 
-def test_a_box_that_keeps_no_audio_composes_no_pointer_and_touches_no_job() -> None:
+def test_the_pointer_is_composed_without_touching_the_job_at_all(tmp_path: Path) -> None:
+    """The box's recorder writes this file, so nothing of livekit's own is redirected for it."""
     job = _a_job_nobody_may_touch()
-    assert entry.where_the_audio_goes(job, "call_room_1", lambda _call: None) is None
-
-
-def test_a_box_that_keeps_audio_points_the_job_at_the_calls_directory(tmp_path: Path) -> None:
-    job = a_job_in(tmp_path / "livekit-tmp")
     audio = entry.where_the_audio_goes(job, "call_room_1", lambda call: tmp_path / call)
     assert audio == tmp_path / "call_room_1" / recordings.AUDIO_FILE
-    assert job.session_directory == tmp_path / "call_room_1"
 
 
 class _FarEnough(Exception):
@@ -82,21 +79,61 @@ async def test_a_written_call_keeps_no_recording_even_on_a_box_that_keeps_audio(
     """A `chat` visit carries no audio, so no audio.ogg is ever written: a summary that pointed
     at one was a session screen saying the file was on another box."""
     handed: list[Path | None] = []
-
-    def a_bridge_that_notes(
-        context: CallContext,
-        config: AgentConfig,
-        platform: Platform,
-        recording: Path | None,
-    ) -> entry.Bridge:
-        handed.append(recording)
-        return _a_bridge_that_refuses(context, config, platform, recording)
-
-    def kept_here(_call: str) -> Path | None:
-        return tmp_path
-
-    worker = dataclasses.replace(_a_worker(bridging=a_bridge_that_notes), keeping=kept_here)
+    worker = _a_worker(
+        bridging=_a_bridge_that_notes(handed), records=True, keeping=lambda _call: tmp_path
+    )
     job = _a_job_that_records([], scope=WRITTEN_SCOPE)
+    with pytest.raises(_FarEnough):
+        await entry.answer(cast(JobContext, job), worker)
+    assert handed == [None]
+
+
+async def test_an_agent_whose_world_says_not_to_record_keeps_no_audio(tmp_path: Path) -> None:
+    """The one switch there is, and it is the agent's: `pinecall agent set --record off`."""
+    handed: list[Path | None] = []
+    worker = _a_worker(
+        bridging=_a_bridge_that_notes(handed), records=False, keeping=lambda call: tmp_path / call
+    )
+    job = _a_job_that_records([])
+    with pytest.raises(_FarEnough):
+        await entry.answer(cast(JobContext, job), worker)
+    assert handed == [None]
+    assert job.recorded == []
+
+
+async def test_a_call_that_keeps_its_audio_asks_the_box_to_record_the_room(tmp_path: Path) -> None:
+    """Audio only, a channel each, and the room's own name: everything the call heard, in one ogg.
+
+    Asked for BEFORE the session is built, so the greeting is inside the recording rather than
+    ahead of it — the recorder takes a moment to come up and that moment is the one the session
+    spends being built."""
+    handed: list[Path | None] = []
+    worker = _a_worker(
+        bridging=_a_bridge_that_notes(handed), records=True, keeping=lambda call: tmp_path / call
+    )
+    job = _a_job_that_records([])
+    with pytest.raises(_FarEnough):
+        await entry.answer(cast(JobContext, job), worker)
+
+    assert handed == [tmp_path / "call_1" / recordings.AUDIO_FILE]
+    (asked,) = job.recorded
+    # The room's name IS the call id, which is what lets a reader of the log find the audio.
+    assert asked.room_name == "call_1"
+    assert asked.audio_only is True
+    assert asked.audio_mixing == proto.AudioMixing.DUAL_CHANNEL_AGENT
+    assert not asked.layout and not asked.custom_base_url  # the shape that runs without a browser
+    (output,) = asked.file_outputs
+    assert output.file_type == proto.EncodedFileType.OGG
+    assert output.filepath == str(tmp_path / "call_1" / recordings.AUDIO_FILE)
+
+
+async def test_a_recorder_that_will_not_take_the_job_still_takes_the_call(tmp_path: Path) -> None:
+    """A call is never lost over its recording: the summary points at nothing instead."""
+    handed: list[Path | None] = []
+    worker = _a_worker(
+        bridging=_a_bridge_that_notes(handed), records=True, keeping=lambda call: tmp_path / call
+    )
+    job = _a_job_that_records([], recorder_refuses=True)
     with pytest.raises(_FarEnough):
         await entry.answer(cast(JobContext, job), worker)
     assert handed == [None]
@@ -140,8 +177,15 @@ async def test_a_room_the_agent_reached_first_leaves_livekits_own_rule_in_place(
     assert started.participant_identity is NOT_GIVEN
 
 
+# `record` is said in every one of these, and said False unless a card is about the recording:
+# whether a call keeps its audio is the agent's own setting now, and a job that keeps it asks the
+# box's recorder for the room — which is a door, and a door nothing else here is about.
 def _a_worker(
-    order: list[str] | None = None, bridging: entry.Bridging | None = None
+    order: list[str] | None = None,
+    bridging: entry.Bridging | None = None,
+    *,
+    records: bool = False,
+    keeping: Keeping | None = None,
 ) -> entry.Worker:
     """The worker one job runs on: both of the agent's doors, and a bridge that stops it."""
     seen: list[Seen] = []
@@ -151,6 +195,7 @@ def _a_worker(
             "/v1/agents/clinica-norte/config": {
                 "slug": "clinica-norte",
                 "channels": ["phone", "web"],
+                "record": records,
             },
             "/v1/agents/clinica-norte/provider-keys": {"keys": {}},
         },
@@ -161,8 +206,20 @@ def _a_worker(
         gateway=gateway,
         kit=FakeKit(FakeLLM()),
         bridging=bridging or _a_bridge_that_refuses,
-        keeping=lambda _call: None,
+        keeping=keeping or (lambda call: Path("/nowhere") / call),
     )
+
+
+def _a_bridge_that_notes(handed: list[Path | None]) -> entry.Bridging:
+    """A bridging seam that writes down the pointer it was born with, and then stops the job."""
+
+    def bridging(
+        context: CallContext, config: AgentConfig, platform: Platform, recording: Path | None
+    ) -> entry.Bridge:
+        handed.append(recording)
+        return _a_bridge_that_refuses(context, config, platform, recording)
+
+    return bridging
 
 
 def _a_bridge_that_refuses(
@@ -197,13 +254,28 @@ class _AJobThatRecords:
     """The five lines of JobContext one job touches, with a room already seated and a slow join."""
 
     def __init__(
-        self, order: list[str], room: rtc.Room | None = None, scope: str | None = None
+        self,
+        order: list[str],
+        room: rtc.Room | None = None,
+        scope: str | None = None,
+        recorder_refuses: bool = False,
     ) -> None:
         self.log_context_fields: dict[str, str] = {}
         self._order = order
         said = {"agent": "clinica-norte"} | ({SCOPE_KEY: scope} if scope is not None else {})
         self._job = a_job(room="call_room_1", metadata=said)
         self._room = room or as_a_room(a_connected_room(a_caller("+59897777", dialled="+59891111")))
+        self._api = _ARecorder(refuses=recorder_refuses)
+
+    @property
+    def api(self) -> Any:
+        """livekit's own API client, which is how a room is asked to be recorded."""
+        return self._api
+
+    @property
+    def recorded(self) -> list[proto.RoomCompositeEgressRequest]:
+        """Every recording this job asked the box for, as it asked for it."""
+        return self._api.egress.asked
 
     @property
     def job(self) -> jobs.Job:
@@ -223,13 +295,40 @@ class _AJobThatRecords:
 
 
 def _a_job_that_records(
-    order: list[str], room: rtc.Room | None = None, scope: str | None = None
+    order: list[str],
+    room: rtc.Room | None = None,
+    scope: str | None = None,
+    recorder_refuses: bool = False,
 ) -> _AJobThatRecords:
-    return _AJobThatRecords(order, room, scope)
+    return _AJobThatRecords(order, room, scope, recorder_refuses)
+
+
+class _TheBoxsRecorder:
+    """The egress half of livekit's API client: what was asked for, and an id or a refusal."""
+
+    def __init__(self, refuses: bool) -> None:
+        self.asked: list[proto.RoomCompositeEgressRequest] = []
+        self._refuses = refuses
+
+    async def start_room_composite_egress(
+        self, request: proto.RoomCompositeEgressRequest
+    ) -> proto.EgressInfo:
+        """One room composite asked for, or the refusal a box with no recorder answers with."""
+        self.asked.append(request)
+        if self._refuses:
+            raise ConnectionError("no egress on this box")
+        return proto.EgressInfo(egress_id="EG_fake", room_name=request.room_name)
+
+
+class _ARecorder:
+    """livekit's API client as this job uses it: the one service a call reaches for."""
+
+    def __init__(self, refuses: bool) -> None:
+        self.egress = _TheBoxsRecorder(refuses)
 
 
 def _a_job_nobody_may_touch() -> JobContext:
-    """A job that fails the test on any attribute at all: RECORD=0 must never reach it."""
+    """A job that fails the test on any attribute at all: composing a path must never reach it."""
 
     class Untouchable:
         def __getattr__(self, name: str) -> object:

@@ -56,6 +56,16 @@ def test_the_livekit_websocket_url_is_asked_over_http() -> None:
     assert asked[0] == "http://127.0.0.1:1/"
 
 
+# A box whose recorder is down answers every call and keeps the audio of none of them, and only
+# this line would ever say so: the caller hears the call, the log is written, the file is missing.
+def test_a_recorder_that_does_not_answer_says_what_the_box_is_losing() -> None:
+    results = doctor.run_checks(load_settings(), probes_that_answer(http_status=refuse_http))
+    (recorder,) = [result for result in results if result.name == "egress"]
+    assert not recorder.ok
+    assert not recorder.advisory
+    assert doctor.NO_AUDIO in recorder.detail
+
+
 def test_a_postgres_without_the_search_extension_names_the_one_that_is_missing() -> None:
     results = doctor.run_checks(
         load_settings(),
@@ -233,6 +243,8 @@ def test_a_worker_is_asked_after_no_postgres_and_no_embedder(
         "livekit",
         "lk",
     ]
+    # The recorder with them: a worker records nothing, because the room is on the hub.
+    assert all(result.name != "egress" for result in results)
     assert doctor.first_failure(results) is None
 
 

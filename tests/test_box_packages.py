@@ -119,7 +119,7 @@ def test_a_worker_installs_no_embedder_whatever_its_line_says() -> None:
 def test_the_media_plane_every_box_runs_is_installed_whatever_it_embeds_with() -> None:
     """The embedder is the one optional member: the other four arrive on every hub, unasked."""
     plan = what_a_box_installs(role="hub", embed_provider="openrouter")
-    for always in ("redis", "livekit", "sip", "postgres"):
+    for always in ("redis", "livekit", "sip", "postgres", "egress"):
         assert f"containers/pinecall-{always}.container" in plan
 
 
@@ -192,6 +192,33 @@ def test_a_box_that_becomes_a_worker_stops_the_containers_it_can_no_longer_disab
     stopped = [line for line in planned if "systemctl stop -q" in line]
     assert all("pinecall-postgres" not in line for line in disabled)
     assert any("pinecall-postgres" in line and "pinecall-livekit" in line for line in stopped)
+    # The recorder with them: a worker box records nothing, because the room it would compose is
+    # on the hub, where livekit is.
+    assert any("pinecall-egress" in line for line in stopped)
+
+
+# The two halves of one decision, and they are in two files: the group the recorder writes as, and
+# the group the directory it writes into belongs to. A recording nobody can read is what a
+# disagreement here looks like, and it looks like that a week later, on a call somebody asks for.
+def test_the_recorder_writes_as_the_group_the_recordings_directory_belongs_to() -> None:
+    recorder = (BOX / "containers" / "pinecall-egress.container").read_text()
+    group = re.search(r"^User=\d+:(\d+)$", recorder, re.M)
+    assert group is not None
+    declared = re.search(
+        r"^g\s+pinecall-media\s+(\d+)", (BOX / "sysusers.d" / "pinecall.conf").read_text(), re.M
+    )
+    assert declared is not None and declared.group(1) == group.group(1)
+    kept = (BOX / "tmpfiles.d" / "pinecall.conf").read_text()
+    # setgid, so what the recorder writes stays in the group the gateway reads as.
+    assert re.search(
+        r"^d\s+/var/lib/pinecall/recordings\s+2770\s+pinecall\s+pinecall-media", kept, re.M
+    )
+
+
+def test_the_recorder_answers_on_loopback_and_opens_no_port_to_the_world() -> None:
+    """Nothing knocks at it but the doctor: a recording is asked for through livekit itself."""
+    recorder = (BOX / "containers" / "pinecall-egress.container").read_text()
+    assert re.findall(r"^PublishPort=(.+)$", recorder, re.M) == ["127.0.0.1:7980:7980"]
 
 
 # The overflow agent lives where the media plane is and never counts as a seat: a hub and a full

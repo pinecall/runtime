@@ -66,6 +66,10 @@ map that `GET /v1/providers` and the pipeline report carry, keyed `<modality>/<v
 vendor's default first — a vendor with no entry there runs its own default and takes no model
 name), `greeting` (`{say}` or `{reply}`, one of the two),
 `hangup {when}`, `turn {min_interruption_words, endpointing_ms}`, `memory {remember, forget}`,
+`record` — whether the agent's calls keep their audio, the one boolean here, and the reason it is
+a boolean and not a flag: `false` is a corner saying no and is heard over the corner below, while
+leaving it out is a corner that never said and falls through to one that did (unset anywhere, a
+call is recorded) —
 `knowledge` — what the agent knows by heart, in Markdown: the business as the org describes it,
 read whole into the static knowledge block of every call, cached ahead of everything, and set by
 the floor (`words`) without a deploy — and `bases [{base, mode, k, min_score}]`, the RAG: every

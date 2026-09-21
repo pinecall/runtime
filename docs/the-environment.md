@@ -23,7 +23,7 @@ own name, so the SDK that reads `ANTHROPIC_API_KEY` by itself and this runtime a
 | `PINECALL_GATEWAY_URL` | the gateway a worker's job asks |
 | `PINECALL_MAX_JOBS` · `PINECALL_APP` · `PINECALL_AGENT` | what a worker takes, and for whom |
 | `PINECALL_WORKER_NAME` · `PINECALL_OVERFLOW_SAYS` | its name in the roster (unset: the hostname), and the overflow agent's one sentence |
-| `RECORD` · `PINECALL_RECORDINGS` | whether a call's audio is kept, and where it lands |
+| `PINECALL_RECORDINGS` · `PINECALL_EGRESS_URL` | where a call's audio lands, and where the recorder that writes it answers. **Whether** it is kept is the agent's own setting (`pinecall agent set --record`), not the box's |
 | `WHATSAPP_ACCESS_TOKEN` · `PINECALL_WHATSAPP_APP_SECRET` · `PINECALL_WHATSAPP_VERIFY_TOKEN` | Meta's webhook: the token messages are sent with; the app's App Secret every webhook body is HMAC-SHA256-signed with (unset, the WhatsApp door is closed); the word Meta echoes back when the webhook is subscribed |
 | `PINECALL_SMTP_URL` · `PINECALL_MAIL_FROM` | the box's own mail (`smtp://user:pass@host:587`, or `smtps://…:465`) and who its letters are from. A mailbox stored at `PUT /v1/ops/mail` is used before these, and an org that wired its own uses that one; with none, nothing is sent |
 | `TWILIO_ACCOUNT_SID` · `TWILIO_API_KEY` · `TWILIO_API_SECRET` | the box's own carrier account, for the numbers it buys for a tenant |

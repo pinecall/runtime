@@ -1,0 +1,44 @@
+# The recorder. One room composite per call, which is what puts EVERYTHING a call heard in its
+# file: the caller, the agent, the hold melody the agent publishes beside its voice, and a
+# supervisor who took the line. The session's own recorder never saw the last two — it knew the
+# participant it was pinned to and its own TTS, and nothing else in the room.
+#
+# It is asked for through the LiveKit API (worker/egress.py) and answers through THIS redis, which
+# is how a self-hosted egress is found at all.
+[Unit]
+Description=Pinecall media plane: the recorder (livekit-egress)
+Requires=pinecall-redis.service pinecall-livekit.service
+After=pinecall-redis.service pinecall-livekit.service
+
+[Container]
+ContainerName=pinecall-egress
+Image=docker.io/livekit/egress:v1.14.1
+Volume=/etc/pinecall/egress.yaml:/etc/egress/config.yaml:ro
+Environment=EGRESS_CONFIG_FILE=/etc/egress/config.yaml
+Network=pinecall.network
+# Only the health port, and only on loopback, because the doctor is the one thing that knocks:
+# every recording is asked for through livekit itself. A port on `lo` needs no line in
+# nftables.conf, exactly as the embedder's does not.
+PublishPort=127.0.0.1:7980:7980
+# Where the file lands, which is the same directory the gateway serves a recording from
+# (api/calls/recording.py). The container writes as the `pinecall-media` group and the directory
+# is setgid, so what egress writes is readable by the runtime whatever uid either of them has —
+# the service user's is assigned by systemd-sysusers and is not the same on two boxes, and a
+# container cannot be told a uid it will only learn at install time.
+User=65534:4200
+Volume=/var/lib/pinecall/recordings:/var/lib/pinecall/recordings:rw
+# The keypair, as LIVEKIT_API_KEY and LIVEKIT_API_SECRET, out of the same credential the SFU reads.
+EnvironmentFile=%d/media.env
+HealthCmd=wget -q --spider -T 3 http://127.0.0.1:7980/
+HealthInterval=10s
+HealthTimeout=5s
+HealthRetries=12
+HealthStartPeriod=30s
+
+[Service]
+ImportCredential=media.env
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

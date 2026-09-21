@@ -40,6 +40,11 @@ class Tuning:
     hangup: Hangup | None = None
     turn: Turn | None = None
     memory: MemoryPolicy | None = None
+    # Whether this agent's calls keep their audio. False is a decision and None is nobody having
+    # made one, which is why it is `bool | None` and not `bool`: `as_json` drops what is None
+    # (orgs/resolving.py), so a plain False would be indistinguishable from unset and the corner
+    # below would never be heard.
+    record: bool | None = None
     # What the agent knows by heart, in Markdown — the business as the org describes it — read
     # whole into the static knowledge block of every call. The floor's to write (`words`).
     knowledge: str | None = None

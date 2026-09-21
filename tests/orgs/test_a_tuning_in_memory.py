@@ -79,6 +79,18 @@ async def test_a_knob_set_to_a_falsy_value_wins_over_the_corner_below() -> None:
     assert read.value == Tuning(turn=Turn(endpointing_ms=0), hangup=Hangup(when="at goodbye"))
 
 
+# The same rule, on the one knob where getting it wrong would be silent: `record=False` is an org
+# saying it does not keep audio, and it has to win over a corner that does. A `bool` with a default
+# — rather than `bool | None` — would be dropped by as_json as if nobody had said anything.
+async def test_an_agent_told_not_to_record_is_not_a_corner_that_never_said() -> None:
+    kept = MemoryTuning()
+    await put(kept, "", Tuning(record=True))
+    await put(kept, ANA, Tuning(record=False))
+    read = await kept.newest(ORG, SANDBOX, ANA, AGENT)
+    assert read is not None
+    assert read.value.record is False
+
+
 async def test_no_base_at_all_is_a_decision_and_the_teams_bases_are_not_heard() -> None:
     """`bases []` in your corner is "I read none": it used to be dropped and fall through."""
     kept = MemoryTuning()

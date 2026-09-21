@@ -97,6 +97,15 @@ class Settings(VendorKeys):
         validation_alias="LIVEKIT_URL",
         description="LiveKit: the media plane both processes talk to. One port serves ws and http.",
     )
+    # The recorder: one room composite per call, which is what puts EVERYTHING the call heard in
+    # the file — the hold melody and a supervisor's voice, neither of which the session's own
+    # recorder could ever see. It is asked for through the LiveKit API like any other room job;
+    # this is only where the doctor knocks to say whether the box has one at all.
+    egress_url: str = Field(
+        default="http://127.0.0.1:7980",
+        validation_alias="PINECALL_EGRESS_URL",
+        description="Where the box's recorder answers its health check. Nothing reaches it here.",
+    )
     livekit_api_key: str | None = Field(
         default=None,
         validation_alias="LIVEKIT_API_KEY",
@@ -201,14 +210,11 @@ class Settings(VendorKeys):
         ),
     )
 
-    # ── Recordings: whether a call's audio is kept at all, and where ───────────
-    # RECORD keeps its bare name because it is the one switch an operator flips on a box, and
-    # pydantic already reads 0/false/no/off as no. worker/recordings.py composes the path.
-    record: bool = Field(
-        default=True,
-        validation_alias="RECORD",
-        description="Whether a call's audio is kept at all. 0, false, no and off all mean no.",
-    )
+    # ── Recordings: where a call's audio lands ─────────────────────────────────
+    # WHETHER it is kept is the agent's own setting and not the box's (`pinecall agent set
+    # --record`, types/tuning.py): one org may record and another may not on the same machine,
+    # and neither waits for a deploy. worker/recordings.py composes the path; worker/egress.py
+    # asks the box's recorder for the room.
     recordings_root: str = Field(
         default="recordings",
         validation_alias="PINECALL_RECORDINGS",

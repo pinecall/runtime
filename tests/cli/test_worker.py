@@ -88,16 +88,6 @@ def test_asking_to_record_prints_the_path_before_the_microphone_opens(
     assert str(tmp_path) in printed and recordings.AUDIO_FILE in printed
 
 
-def test_a_box_that_keeps_no_audio_refuses_the_record_flag_rather_than_ignoring_it(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setenv("PINECALL_RECORDINGS", str(tmp_path))
-    monkeypatch.setenv("RECORD", "0")
-    monkeypatch.setattr(worker, "hand_over", _never_handed_over)
-    assert worker.run(build_parser().parse_args(["worker", "talk", "--record"])) == 2
-    assert "RECORD=0" in capsys.readouterr().err
-
-
 # The failure this card was cut for: `worker dev` died on livekit's own sentence about the
 # environment, beside a runtime/.env that had all three. Ours names the file instead.
 def test_a_worker_that_cannot_reach_livekit_says_so_naming_runtime_env(

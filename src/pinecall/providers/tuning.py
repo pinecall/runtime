@@ -52,6 +52,7 @@ def tuned(declared: AgentConfig, tuning: Tuning, lexicon: Lexicon) -> AgentConfi
         hangup=tuning.hangup,
         turn=tuning.turn,
         memory=tuning.memory,
+        record=declared.record if tuning.record is None else tuning.record,
         knowledge=tuning.knowledge,
         bases=tuning.bases or (),
         says=dict(lexicon.said),

@@ -1,0 +1,23 @@
+# The recorder, on the box. Installed to /etc/pinecall/egress.yaml by infra/box/Makefile and
+# mounted read-only into pinecall-egress; the keypair arrives as environment, out of the same
+# systemd credential the SFU reads, and is not written here.
+#
+# Everything this box records is an AUDIO room composite with no layout and no base URL, which is
+# the one shape egress runs on livekit's own SDK instead of a headless Chromium
+# (egress pkg/config/pipeline.go, ShouldUseSDKSource). That is why a recorder fits on a box of
+# four cores beside the SFU, the gateway and a worker holding calls.
+ws_url: ws://pinecall-livekit:7880
+# The same redis the SFU uses, by container name on the pinecall network: a self-hosted egress is
+# found through redis and through nothing else.
+redis:
+  address: pinecall-redis:6379
+# What the doctor knocks at (`pinecall-runtime doctor`, the `egress` line), published on loopback.
+health_port: 7980
+log_level: info
+# What one recording is worth in cores, and the ceiling above which this instance stops accepting
+# them. An audio room composite is egress's own cheapest composite; the ceiling is what decides
+# how many calls of a four-core box may be recorded at once, and it is written down rather than
+# discovered on the day forty calls arrive together.
+cpu_cost:
+  audio_room_composite_cpu_cost: 1
+max_cpu_utilization: 0.8
