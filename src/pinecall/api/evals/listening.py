@@ -105,12 +105,12 @@ async def until_the_answer_lands(store: Store, call: str, said: int) -> None:
 def the_answer_has_landed(entries: Sequence[Entry], said: int, *, since: float) -> bool:
     """Every line heard, and the agent back to listening after the last of them.
 
-    `since` is when the caller stopped talking. A log that has not moved since then cannot say
-    anything about the turn that starts after it — see _has_caught_up.
+    `since` is when the caller stopped talking, and the line it just said has to be IN this log
+    before anything in the log is read as an answer to it — see _the_line_has_landed.
     """
-    if not _has_caught_up(entries, since):
-        return False
     heard = [at for at, entry in enumerate(entries) if entry.type == "turn.user"]
+    if not _the_line_has_landed(entries, heard, since):
+        return False
     if len(heard) < said:
         return False
     if _a_tool_is_still_running(entries):
@@ -144,21 +144,26 @@ def the_line_is_open(entries: Sequence[Entry], now: float) -> bool:
     return only_listened and now - states[0][1].ts >= A_SILENT_OPENING_S
 
 
-# Reading the log is not free and the store answers with what it had a moment ago, so every
-# snapshot is a little behind. That lag is what let the caller talk over Sofia on 2026-09-21
-# (call_e6b08cd30647694ef0ac9b09): it stopped talking at 102.0s, and the snapshot it was judged on
-# still ended before its own line — last state `listening`, left over from the PREVIOUS turn, with
-# no thinking after it yet because the agent had not been handed the line. Both readings agreed,
-# the gate opened, and the caller was speaking again at 103.8s, a second before the agent came
-# back to listening at 104.8s. Counting entries cannot catch this: Flux ends a turn per sentence,
-# so one spoken line becomes two or three `turn.user` (thirteen for ten lines on that call) and
-# `len(heard) >= said` was already true from the caller's own earlier sentences.
+# Reading the log is not free, the store answers with what it had a moment ago, and a transcript
+# lands a beat after the words that made it. So the newest thing in a snapshot can easily be older
+# than the line the caller has just finished saying — and then every `agent.state` in it belongs to
+# the turn BEFORE, and the `listening` that ended that one reads as the end of this one.
 #
-# What cannot be stale is a clock. The log must have moved on since the caller fell silent before
-# anything in it is read as an answer to what the caller just said.
-def _has_caught_up(entries: Sequence[Entry], since: float) -> bool:
-    """Whether this snapshot is fresh enough to speak about the turn that starts at `since`."""
-    return bool(entries) and entries[-1].ts >= since
+# That is what happened on call_e64f46c28e1eafc76500cccf. The caller stopped at 145.2s; the agent
+# was listening, from 140.2s, because it had finished answering the PREVIOUS line. Both readings
+# agreed, the gate opened, and the caller was speaking again at 146.7s — half a second after the
+# agent had started its answer, which came back cut to three words. Four turns in a row went that
+# way. Watching for the log to have moved at all does not catch it: `user.state` entries land while
+# the caller is still being transcribed, so the log moves without the line arriving.
+#
+# What pins a snapshot to THIS line is the line itself. The caller's newest transcript has to have
+# landed after the caller fell silent, which is true of the line just said and of no earlier one.
+# It cannot be done by counting: Deepgram Flux ends a turn per sentence, so one spoken line arrives
+# as two or three `turn.user` (thirteen for ten lines on one call) and `len(heard) >= said` was
+# already satisfied by the caller's own earlier sentences.
+def _the_line_has_landed(entries: Sequence[Entry], heard: Sequence[int], since: float) -> bool:
+    """Whether the caller's own last line is in this snapshot, rather than only older ones."""
+    return bool(heard) and entries[heard[-1]].ts >= since
 
 
 # And the agent must have been HANDED the line: it leaves `listening` the moment the turn is its.

@@ -21,6 +21,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   tenant's own process. `docs/protocol/dev-verbs.md`.
 
 ### Fixed
+- **A spoken persona waits for the answer to the line it just said, not to the one before.** The
+  wait between two of a simulated caller's lines could be judged on a snapshot that did not
+  contain that line yet: every `agent.state` in it then belonged to the previous turn, and the
+  `listening` that ended THAT one read as the end of this one. Requiring the log to have moved at
+  all did not catch it — `user.state` entries land while the caller is still being transcribed, so
+  the log moves without the transcript arriving. The caller's own newest transcript must now have
+  landed after the caller fell silent, which is true of the line just said and of no earlier one.
 - **A simulated caller stops when the call is hung up.** The persona is played inside the gateway,
   by a loop that reads the call's own log every turn; the call itself belongs to the worker, so
   ending it — a supervisor's verb, the app, the agent — left the caller improvising into a room

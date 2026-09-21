@@ -139,6 +139,26 @@ def test_a_log_that_has_not_caught_up_with_the_caller_says_nothing() -> None:
     assert the_answer_has_landed(before, said=1, since=99.0) is False
 
 
+# call_e64f46c28e1eafc76500cccf, 2026-09-21. The caller stopped at 145.2s and the agent had been
+# listening since 140.2s — because it had finished answering the line BEFORE. The whole turn is in
+# the snapshot, complete and consistent, and every bit of it belongs to the wrong line. The caller
+# spoke again at 146.7s, half a second into the agent's answer; four of its turns in a row came
+# back cut to three words. The log HAS moved on — `user.state` entries land while the caller is
+# still being transcribed — so "has anything arrived since" cannot tell these apart. The line can.
+def test_a_whole_answer_to_the_previous_line_is_not_an_answer_to_this_one() -> None:
+    the_turn_before = _states(
+        "turn.user",
+        ("agent.state", "thinking"),
+        ("agent.state", "speaking"),
+        "turn.agent",
+        ("agent.state", "listening"),
+        "user.state",
+    )
+
+    # ts is the seq here, so the caller's only transcript sits at 1.0 and fell silent long after.
+    assert the_answer_has_landed(the_turn_before, said=2, since=5.5) is False
+
+
 # The same call, the other half: Flux ends a turn per sentence, so one spoken line arrives as two
 # or three `turn.user` and `len(heard) >= said` is satisfied by the caller's own earlier sentences.
 # What no split can fake is the agent LEAVING `listening` — it does that the moment the line is its.
