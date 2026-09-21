@@ -80,7 +80,7 @@ async def chat(
 ) -> None:
     """One caller, one text call: they send {text}, they receive every entry of their own call."""
     try:
-        key = await a_key_on_a_socket(websocket, keys, members)
+        key = await a_key_on_a_socket(websocket, keys, members, settings.sandbox_domain)
     except PermissionError as refused:
         await websocket.accept()
         await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(str(refused)))

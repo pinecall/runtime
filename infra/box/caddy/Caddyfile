@@ -1,11 +1,16 @@
-# One name, two upstreams, and TLS for both: Caddy is the only thing on the box that answers 443.
-# The domain arrives as PINECALL_DOMAIN out of /etc/pinecall/box.env (caddy/pinecall.conf points
-# Caddy's unit at it), so this file is the same on every box and nothing is rendered.
+# One or two names, two upstreams, and TLS for all of them: Caddy is the only thing on the box
+# that answers 443. The domain arrives as PINECALL_DOMAIN out of /etc/pinecall/box.env
+# (caddy/pinecall.conf points Caddy's unit at it), so this file is the same on every box and
+# nothing is rendered.
 #
 # Media does NOT pass through here: WebRTC (7881/tcp, 7882/udp) and SIP (5060, 10000-10199/udp)
 # reach the host's own ports directly. A proxy in front of media is a proxy inside every call.
 
-{$PINECALL_DOMAIN} {
+# What a name of this box answers, whichever name it is: both consoles are the same gateway, and
+# the sandbox's name must serve every door the other does — a call joined from that page is the
+# same WebSocket to the same SFU. Written once here and imported by each site below, because two
+# copies of a routing table are two routing tables that will disagree.
+(pinecall) {
 	# LiveKit's own paths, signalling included: a browser's WebSocket is upgraded by Caddy and
 	# handed to the SFU, which is how the room token ever reaches it over TLS. /agent is the
 	# socket a WORKER registers on — a worker on a box of its own dials wss://<this domain>/agent.
@@ -19,3 +24,12 @@
 		reverse_proxy 127.0.0.1:8080
 	}
 }
+
+{$PINECALL_DOMAIN} {
+	import pinecall
+}
+
+# The box's SECOND name, whose console is the sandbox's (caddy/sandbox.caddy, installed into
+# conf.d by infra/box/Makefile only where box.env names one). A glob that matches nothing is not
+# an error, which is how a box of one name reads this same file and serves one site.
+import /etc/caddy/conf.d/*.caddy

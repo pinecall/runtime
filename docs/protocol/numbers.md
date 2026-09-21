@@ -86,7 +86,7 @@ Which numbers those are, a developer's key cannot read off `GET /v1/numbers`: th
 key's own world, to a key that opens `numbers`. `GET /v1/line/numbers` (`app`, a key naming a
 person, the sandbox) answers `{calling, numbers}` — the phones this person said are theirs, and
 the org's production phone numbers with the agent each reaches — and nothing else about a route.
-It is what the local console's Phone testing screen reads (`pinecall serve`).
+It is what the sandbox console's Phone testing screen reads.
 
 ## Letting one go — `DELETE /v1/numbers/{number}`
 

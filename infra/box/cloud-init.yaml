@@ -41,6 +41,10 @@ write_files:
     content: |
       PINECALL_DOMAIN=box.example.com                                      # YOURS
       LIVEKIT_PUBLIC_URL=wss://box.example.com                             # YOURS: wss://<the same>
+      # The box's SECOND name, if it has one: the console served there is the sandbox's, and no
+      # request that arrives at it runs in production. Point it at this same machine and Caddy
+      # takes the certificate; unset, the box has one console and it is production's.
+      #PINECALL_SANDBOX_DOMAIN=sandbox.example.com
       # What this box runs: `all` (one machine, everything), `hub` (control and media, no
       # worker) or `worker` (a worker alone). A worker dials its hub by name, and holds the
       # calls it was MEASURED to hold — infra/box/README.md, "Slots".

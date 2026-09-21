@@ -47,6 +47,51 @@ def test_every_screen_is_the_page_so_a_reload_lands_where_it_was(
     assert body == THE_PAGE
 
 
+# One bundle, two consoles: a box that answers to a second name serves the sandbox's console
+# there, and the page is told which it is by a mark in its own head (the console's lib/mode.ts
+# reads it at boot). A box of ONE name marks nothing, which is what every box was before there
+# were two — and a page nobody marked is production's.
+THE_BOX = "box.example.test"
+THE_SANDBOX = "sandbox.example.test"
+BOTH_NAMES = Settings(domain=THE_BOX, sandbox_domain=THE_SANDBOX)
+
+
+def test_a_box_of_one_name_marks_nothing_at_all() -> None:
+    assert pages.marks(Settings(domain=THE_BOX), THE_BOX) == ""
+
+
+def test_each_name_is_marked_with_its_world_and_with_where_the_other_console_is() -> None:
+    assert pages.marks(BOTH_NAMES, THE_SANDBOX) == (
+        '<meta name="pinecall-world" content="sandbox">'
+        f'<meta name="pinecall-elsewhere" content="https://{THE_BOX}">'
+    )
+    assert pages.marks(BOTH_NAMES, THE_BOX) == (
+        '<meta name="pinecall-world" content="production">'
+        f'<meta name="pinecall-elsewhere" content="https://{THE_SANDBOX}">'
+    )
+
+
+def test_the_page_is_marked_for_the_name_it_was_asked_at_and_is_never_cached(
+    gateway: TestClient,
+    built: Path,  # noqa: ARG001 — the fixture is the built console, in place
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """What the mark SAYS is the two tests above; this is that it reaches the head of the page."""
+    asked: list[str] = []
+
+    def marked(settings: Settings, host: str) -> str:  # noqa: ARG001 — the settings are the app's
+        asked.append(host)
+        return '<meta name="pinecall-world" content="sandbox">'
+
+    monkeypatch.setattr(pages, "marks", marked)
+    body, cached = asked_at(gateway, "/a/clinica-norte", THE_SANDBOX)
+    assert asked == [THE_SANDBOX]
+    assert body.startswith(
+        '<!doctype html><html><head><meta name="pinecall-world" content="sandbox">'
+    )
+    assert cached == "no-store", "the page names hashed assets, so the page itself is never kept"
+
+
 def test_an_asset_the_build_wrote_is_served_as_itself(
     gateway: TestClient,
     built: Path,  # noqa: ARG001
@@ -145,6 +190,17 @@ def fetched(gateway: TestClient, path: str) -> tuple[int, str, str]:
         int(got.status_code),  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
         str(got.headers["content-type"]),  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
         str(got.text),  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+    )
+
+
+def asked_at(gateway: TestClient, path: str, host: str) -> tuple[str, str]:
+    """One GET at a name of the box: the body as a browser reads it, and whether it may be kept."""
+    got: Any = gateway.get(  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        path, headers={"host": host}
+    )
+    return (
+        str(got.text),  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+        str(got.headers.get("cache-control", "")),  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
     )
 
 

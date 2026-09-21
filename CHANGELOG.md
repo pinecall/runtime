@@ -7,6 +7,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **A box may answer to a SECOND name, and its console is the sandbox's.** `PINECALL_SANDBOX_DOMAIN`
+  in `box.env`: the same gateway, the same doors and the same bundle, with two things different at
+  that name — the page marks itself the sandbox's (`<meta name="pinecall-world">`, which the console
+  reads at boot) and **no request that arrives there runs in production**, whoever holds the key
+  (`403 … answers the sandbox only`). Caddy serves both names off one `(pinecall)` snippet, and a
+  box with one name is what it always was. `infra/box/README.md`, "Two names".
 - **The panel an agent draws beside a conversation.** An app may declare a view — one name, on
   `AgentConfig` — and the console then asks the process holding the agent to draw it for one
   conversation at a time, through a dev family of its own: `POST /v1/agents/{slug}/dev/view/view.render`,

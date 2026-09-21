@@ -25,7 +25,8 @@ infra/box/
 ├── pinecall-overflow.service  the overflow agent, on the hub: it answers when every worker is full
 ├── pinecall-fleet.service     the fleet loop, on a hub whose box.env names a cloud (docs/scaling.md)
 ├── pinecall-app@.service      a tenant's app held here, one instance per app (docs/a-box-in-production.md §7)
-└── caddy/                     the Caddyfile, and the drop-in that hands Caddy its domain
+└── caddy/                     the Caddyfile and its sandbox site, and the drop-in that hands
+                               Caddy the box's names
 ```
 
 ## The path a call takes
@@ -100,6 +101,26 @@ ssh, make and curl, and no tool that does not come with a Unix. Its one build st
 laptop: `scripts/console` bundles the console into `src/pinecall/gateway/console/`, the rsync
 carries it, the gateway serves it at `/`. The rest is Python. The *box* decision page in the
 maintainer's notebook argues both.
+
+## Two names: production's console and the sandbox's
+
+A box answers to one name, and may answer to a second whose console is the **sandbox's**. It is
+the same gateway, the same doors and the same bundle: what the second name changes is that the
+page served there marks itself the workshop (`api/pages.py` reads the `Host`), and that **no
+request arriving at it runs in production** — a key that asks is refused in a sentence, whoever
+holds it (`auth/world.py`). A person is signed in at each name separately, since a browser keeps
+a key per origin.
+
+Point the name at this machine in DNS, name it in `/etc/pinecall/box.env`, and deploy:
+
+```
+PINECALL_SANDBOX_DOMAIN=sandbox.example.com
+```
+
+`make install` then puts `caddy/sandbox.caddy` in `/etc/caddy/conf.d/`, which the Caddyfile
+imports by glob, and Caddy takes the certificate on its own. Take the line out and the next
+deploy takes the site away with it. A box with no such line has one console and it is
+production's, which is what every box was before there were two.
 
 ## Roles, and a second box
 
@@ -270,6 +291,11 @@ hub's Postgres or its embedder, because a worker has neither. The embedder's lin
   site block collapses to a bare `{ … }`, and Caddy reads it as the *global options* block:
   `unrecognized global option: @livekit`. `caddy/pinecall.conf` is the drop-in that points it at
   `/etc/pinecall/box.env`.
+- **A `{$VAR}` cannot be the second address of a site block.** `{$PINECALL_DOMAIN},
+  {$PINECALL_SANDBOX_DOMAIN} { … }` does not adapt — `Expected another address but had '{'` —
+  because the placeholder is read where the block's own brace is expected, and it fails the same
+  way with the variable SET. Two names are two site blocks sharing one `(pinecall)` snippet,
+  which is what `caddy/Caddyfile` does. Measured with `caddy validate`, 2026-09-21.
 - **`StandardOutput=file:` is opened before `RuntimeDirectory=` is created**, so a unit that
   catches a key into a directory it also declares dies with `209/STDOUT` and "No such file or
   directory". The two key units write into `/run` itself and set `UMask=0077`, which is what makes

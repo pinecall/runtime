@@ -20,8 +20,9 @@ pip install pinecall          # or: uv add pinecall
 That is the whole install on a server: the wheel carries the gateway, the worker, the migrations
 and the console, with the widget the gateway serves at `/widget/pinecall-widget.js` — both copied
 in by `scripts/console` before a build; a gateway built without them answers those paths `404`
-with the sentence that says so. The console it serves at `/` shows production; a developer's
-sandbox is watched on their own machine, by the CLI's `pinecall serve`. A laptop that wants to read the code, run the example agent or bring up
+with the sentence that says so. The console it serves at `/` shows production — and, at a second name the box may answer to
+(`PINECALL_SANDBOX_DOMAIN`), the same page shows the sandbox instead, where a developer watches
+what they are running (`pinecall console` opens it). A laptop that wants to read the code, run the example agent or bring up
 the dev stack clones instead — [docs/from-zero.md](docs/from-zero.md) is that walkthrough, every
 command in it run in order with the output it returned.
 

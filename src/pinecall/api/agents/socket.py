@@ -14,6 +14,7 @@ from pinecall.api._deps import (
     KnowledgeDep,
     LogsDep,
     MembersDep,
+    SettingsDep,
     TuningDep,
     a_key_on_a_socket,
 )
@@ -60,10 +61,11 @@ async def apps(
     knowledge: KnowledgeDep,
     members: MembersDep,
     processes: ProcessesDep,
+    settings: SettingsDep,
 ) -> None:
     """One app, one socket: a key at the door, then commands in and log entries out."""
     try:
-        key = await a_key_on_a_socket(websocket, keys, members)
+        key = await a_key_on_a_socket(websocket, keys, members, settings.sandbox_domain)
     except PermissionError as refused:
         await websocket.accept()
         await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(str(refused)))

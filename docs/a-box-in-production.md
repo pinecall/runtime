@@ -288,15 +288,15 @@ $ pinecall link
 
 $ pinecall start
 clinica-norte · pinecall · sandbox · connected to https://box.example.com · key from .env · tools 5 · doors phone +34910000000, whatsapp +34910000000, web
-console  `pinecall serve` opens it on this machine (or `pinecall start --serve`)
+console  https://sandbox.example.com/a/clinica-norte?login=lc_9f2   (opens within five minutes, once)
 line     rings in this terminal
 ```
 
 One line, and it says the four things that decide where you are: the agent, **whose org**, **which
 world**, and where the key came from. A laptop's run is in the sandbox, and the sandbox is watched
-on that laptop: `pinecall serve` puts the console on `http://localhost:4100`, signed by the
-terminal's key. The page this box serves at `/` shows production, and only production. Then, in
-another terminal:
+at this box's second name — the URL above, opened signed in by `pinecall console` — while the page
+at the box's own name shows production, and only production. A box with no second name has one
+console and it is production's. Then, in another terminal:
 
 ```console
 $ pinecall chat
@@ -457,8 +457,9 @@ nunca la de la org, y nunca en una URL — el `?login=` se gasta una vez y se bo
 direcciones antes de que la página dibuje nada. Se entra de dos maneras: abriendo
 `https://<tu dominio>` y poniendo contraseña, o por ese link que `pinecall start` imprime.
 
-**Esta página es production, y sólo production.** El sandbox no se mira acá: cada developer mira su
-copia en su propia máquina, con `pinecall serve`. Arriba a la derecha, el selector dice qué está
+**Esta página es production, y sólo production.** El sandbox se mira en el segundo nombre de la
+caja (`PINECALL_SANDBOX_DOMAIN`), que sirve la misma página mirando el rincón de cada developer;
+`pinecall console` la abre ya firmada. Arriba a la derecha, el selector dice qué está
 mirando este tab — quién sos, en qué org, con qué key (por su id, nunca por su valor), en qué mundo
 y qué agentes hay sostenidos ahora mismo. Es la pregunta que contesta `pinecall whoami`, sobre la
 pantalla.

@@ -98,15 +98,18 @@ def the_llms(connection: HTTPConnection) -> Models:
 # The worker's doors take an API key and nothing else: no participate token reaches them, because
 # nothing a browser holds may open a call's log for writing. One parser, auth/bearer.py, as every
 # other door uses.
-async def a_key(connection: HTTPConnection, keys: KeysDep, members: MembersDep) -> KeyRecord:
+async def a_key(
+    connection: HTTPConnection, keys: KeysDep, members: MembersDep, settings: SettingsDep
+) -> KeyRecord:
     """Whose key knocked. 401, and an unknown key is told nothing about why it is unknown."""
     bearer = bearer_of(connection.headers)
     record = None if bearer is None else await keys.verify(bearer)
     if record is None:
         raise HTTPException(401, "this door takes an API key", {"WWW-Authenticate": "Bearer"})
-    # The world the request names, then the corner an admin names (auth/world.py, corner.py).
+    # The world the request names, then the corner an admin names (auth/world.py, corner.py) —
+    # held against the name it arrived at, because the sandbox's own name answers no production.
     try:
-        return await as_asked(record, connection.headers, members)
+        return await as_asked(record, connection.headers, members, settings.sandbox_domain)
     except PermissionError as refused:
         raise HTTPException(403, str(refused)) from refused
 
@@ -114,11 +117,13 @@ async def a_key(connection: HTTPConnection, keys: KeysDep, members: MembersDep) 
 # A socket has no 401 to answer with: its door closes with the policy code on None, and with the
 # sentence of a PermissionError when the key may not open the world named. Both sockets ask here.
 async def a_key_on_a_socket(
-    websocket: HTTPConnection, keys: Keys, members: Members
+    websocket: HTTPConnection, keys: Keys, members: Members, sandbox_host: str | None = None
 ) -> KeyRecord | None:
     """The key travels as the Authorization header of the upgrade, never in the URL."""
     record = None if (bearer := bearer_of(websocket.headers)) is None else await keys.verify(bearer)
-    return None if record is None else await in_the_world_asked(record, websocket.headers, members)
+    if record is None:
+        return None
+    return await in_the_world_asked(record, websocket.headers, members, sandbox_host)
 
 
 SettingsDep = Annotated[Settings, Depends(a_settings)]

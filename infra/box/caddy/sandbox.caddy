@@ -1,0 +1,9 @@
+# The box's second name, and the whole of what makes it the sandbox's: the same gateway, the same
+# doors, a page that marks itself the workshop (api/pages.py reads the Host) and a world the doors
+# refuse to leave (auth/world.py). Installed as /etc/caddy/conf.d/sandbox.caddy by
+# infra/box/Makefile, and ONLY where /etc/pinecall/box.env names PINECALL_SANDBOX_DOMAIN — the
+# Caddyfile imports this directory with a glob, so a box of one name has no such file and no such
+# site. The `pinecall` snippet is the Caddyfile's, which is what keeps the two names one table.
+{$PINECALL_SANDBOX_DOMAIN} {
+	import pinecall
+}

@@ -3,16 +3,26 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterator
 from typing import Any
 
 import pytest
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+from pinecall._settings import Settings
+from pinecall.api import _deps as deps
+from pinecall.api.app import app
 from pinecall.auth.bearer import POLICY_VIOLATION
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
-from pinecall.auth.world import ENV_HEADER, NO_PRODUCTION, NOT_A_WORLD, ONE_WORLD
+from pinecall.auth.world import (
+    ENV_HEADER,
+    NO_PRODUCTION,
+    NOT_A_WORLD,
+    ONE_WORLD,
+    ONLY_THE_SANDBOX,
+)
 from pinecall.types import PRODUCTION, SANDBOX, Member, Role
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS
 from tests.api.talking import a_door, a_register, got
@@ -140,3 +150,76 @@ def test_the_app_socket_closes_on_a_person_kept_out_of_production_and_says_why(
             socket.receive_json()
     assert refused.value.code == POLICY_VIOLATION
     assert refused.value.reason == NO_PRODUCTION.format(name="Carla")
+
+
+# A box may answer to a SECOND name whose console is the sandbox's, and the name is not
+# decoration: what arrives there runs in the sandbox or it is refused (auth/world.py). The two
+# clients below are the same gateway asked at each of its names.
+THE_BOX = "box.example.test"
+THE_SANDBOX = "sandbox.example.test"
+
+
+@pytest.fixture
+def two_names(wired: None, settings: Settings) -> Iterator[None]:  # noqa: ARG001
+    """A gateway configured with both of its names, for the length of one test."""
+    named = settings.model_copy(update={"domain": THE_BOX, "sandbox_domain": THE_SANDBOX})
+    app.dependency_overrides[deps.a_settings] = lambda: named
+    yield
+    app.dependency_overrides[deps.a_settings] = lambda: settings
+
+
+@pytest.fixture
+def at_the_sandbox(two_names: None) -> Iterator[TestClient]:  # noqa: ARG001
+    """The same gateway, asked at the name whose console is the sandbox's."""
+    with TestClient(app, base_url=f"https://{THE_SANDBOX}") as client:
+        yield client
+
+
+@pytest.fixture
+def at_the_box(two_names: None) -> Iterator[TestClient]:  # noqa: ARG001
+    """The same gateway, asked at its own name."""
+    with TestClient(app, base_url=f"https://{THE_BOX}") as client:
+        yield client
+
+
+def test_the_sandboxs_own_name_answers_no_production_to_a_person_who_opens_it(
+    at_the_sandbox: TestClient,
+) -> None:
+    """Diana acts in production everywhere else; at this name the answer is the refusal."""
+    status, who = whose(at_the_sandbox, "pc_diana", PRODUCTION)
+    assert (status, who["detail"]) == (403, ONLY_THE_SANDBOX.format(host=THE_SANDBOX))
+
+
+def test_the_same_person_works_in_the_sandbox_at_that_name_as_anywhere(
+    at_the_sandbox: TestClient,
+) -> None:
+    status, who = whose(at_the_sandbox, "pc_diana")
+    assert (status, who["env"]) == (200, SANDBOX)
+
+
+def test_a_production_token_is_refused_there_though_it_named_no_world(
+    at_the_sandbox: TestClient,
+) -> None:
+    """The world is settled first and held against the name after, so a token's own world counts."""
+    status, who = whose(at_the_sandbox, A_KEY)
+    assert (status, who["detail"]) == (403, ONLY_THE_SANDBOX.format(host=THE_SANDBOX))
+
+
+def test_the_gateways_own_name_opens_production_as_it_always_did(at_the_box: TestClient) -> None:
+    status, who = whose(at_the_box, "pc_diana", PRODUCTION)
+    assert (status, who["env"]) == (200, PRODUCTION)
+
+
+def test_the_app_socket_closes_at_the_sandboxs_name_when_it_asks_for_production(
+    at_the_sandbox: TestClient,
+) -> None:
+    """`pinecall start --prod` pointed at the sandbox's name is told so, not quietly sandboxed."""
+    # The Host is spelled out because starlette's TestClient writes `testserver` into a websocket
+    # upgrade whatever its base_url says — only its HTTP requests carry the name.
+    headers = {"Authorization": "Bearer pc_diana", ENV_HEADER: PRODUCTION, "host": THE_SANDBOX}
+    with pytest.raises(WebSocketDisconnect) as refused:
+        with at_the_sandbox.websocket_connect(APPS, headers=headers) as socket:
+            socket.send_json(a_register(AGENT, a_door("web")))
+            socket.receive_json()
+    assert refused.value.code == POLICY_VIOLATION
+    assert refused.value.reason == ONLY_THE_SANDBOX.format(host=THE_SANDBOX)

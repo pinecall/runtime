@@ -106,8 +106,8 @@ pinecall-runtime orgs quota pinecall --seats 10 --agents 25
 The link opens the console's own card: the person chooses a password, the token is spent, and
 they hold their first key — an admin's, every door of the org, and an admin always opens
 production. The sandbox is not on this console: a person's terminal key (`pinecall login`) works
-in the sandbox unless a request names production, and what it holds is watched there, on
-`pinecall serve`. The operator held a **token** and never a password: an
+in the sandbox unless a request names production, and what it holds is watched at the box's
+second name, if it answers to one. The operator held a **token** and never a password: an
 invitation is inert until the person it names accepts it, so the box can seat somebody and never
 be them. An address that already has a password on this box gets no link: `orgs invite` prints the
 row `active` and `already a person on this box: seated, they sign in with the password they have`.
@@ -362,9 +362,8 @@ from the key whoever knocks is carrying.
 `pinecall-corner: <member id>`
 on any HTTP door that takes a key — the scoped doors and every read of a log — answers that request
 in that member's sandbox corner instead of the key's own (`auth/corner.py`): their agents, their
-line, their calls. It is what an admin's own console — `pinecall serve`, on their machine, which
-forwards the header as the page sent it — sends when they open a developer's copy; the gateway's
-console shows production, where there is one corner and nothing to open. Only a key
+line, their calls. It is what the sandbox's console sends when an admin opens a developer's copy; production's
+console has one corner and nothing to open. Only a key
 that sees every corner may send it (`team`), only in the sandbox — production has one corner — and
 only naming an active member of the key's own org; otherwise `403 only a key that sees every corner
 opens a colleague's, and only in the sandbox`, or `403 no active member of this org answers to that

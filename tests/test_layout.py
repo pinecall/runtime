@@ -24,6 +24,16 @@ FILES_THE_CEILING_SKIPS = frozenset(
         # than none — a person following it stops at a command that does not work.
         Path("docs/from-zero.md"),
         Path("docs/a-box-in-production.md"),
+        # The box's own page: a file-by-file account of a machine, its two names, its roles and
+        # the traps each one cost. It grows when the box does, and a box described in two pages is
+        # a box half-described in each.
+        Path("infra/box/README.md"),
+        # The two tables every other file reads FROM: every variable of the runtime, once, and
+        # every dependency a door takes, once. They sat at exactly 400 and the next setting was
+        # going to cost a split of one of them — which buys a second place to look for a variable,
+        # the one thing these two files exist to prevent. They grow by rows, not by ideas.
+        Path("src/pinecall/_settings.py"),
+        Path("src/pinecall/api/_deps.py"),
     }
 )
 # The design corpus is imported whole and read as a book, not as code.

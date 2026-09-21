@@ -38,6 +38,9 @@ install: packages pnpm
 	install -D -m 644 -t /etc/pinecall livekit.yaml sip.yaml
 	install -D -m 644 caddy/Caddyfile /etc/caddy/Caddyfile
 	install -D -m 644 caddy/pinecall.conf $(SYSTEMD)/caddy.service.d/pinecall.conf
+	# The sandbox's site where box.env names a second name, and away where it does not: a box
+	# converges on what box.env says, so a name taken out of the file is a site taken off Caddy.
+	$(if $(SANDBOX_DOMAIN),install -D -m 644 caddy/sandbox.caddy /etc/caddy/conf.d/sandbox.caddy,rm -f /etc/caddy/conf.d/sandbox.caddy)
 	# Caddy re-reads its file on a reload and drops no connection doing it; without this line a
 	# changed Caddyfile waits for the next restart, which nobody schedules.
 	-systemctl reload-or-restart caddy 2>/dev/null
@@ -111,6 +114,12 @@ providers:
 # at boot, and pinecall-postgres-image is pulled in by the Requires= of the one that needs it.
 ROLE = $(shell sed -n 's/^PINECALL_ROLE=//p' /etc/pinecall/box.env 2>/dev/null || true)
 ROLE := $(if $(ROLE),$(ROLE),all)
+
+# The box's second name, out of the same file: the name whose console is the sandbox's. Named,
+# `install` puts caddy/sandbox.caddy where the Caddyfile's glob finds it; unnamed, it takes away
+# the file a former deploy left — the box is what box.env says and never what it used to say.
+# Everything else about that name is the gateway's (api/pages.py, auth/world.py).
+SANDBOX_DOMAIN = $(shell sed -n 's/^PINECALL_SANDBOX_DOMAIN=//p' /etc/pinecall/box.env 2>/dev/null || true)
 
 # Who embeds, out of the same file and by the same rule: `tei` — the default, and what a box.env
 # with no such line means — is the container beside the other four; `perplexity` and `openrouter`

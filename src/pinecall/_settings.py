@@ -140,6 +140,15 @@ class Settings(VendorKeys):
         default=None,
         description="The box's public name: where a carrier sends a call. Unset, nothing imports.",
     )
+    # The box's SECOND name, and the only thing that tells the two consoles apart: a page served
+    # at this one is the sandbox's, and a request that arrives here may not run in production
+    # (auth/world.py). One gateway answers both names — Caddy holds them and passes the Host
+    # through — so this is a name, never a second process. Unset, the box has one console and it
+    # is production's, as it was before there were two.
+    sandbox_domain: str | None = Field(
+        default=None,
+        description="The box's second name, whose console is the sandbox's. Unset, there is one.",
+    )
 
     # ── The services the doctor asks after: Postgres, and the embedder ─────────
     # Every default is what infra/compose/dev.yml serves, so a fresh clone runs the doctor with

@@ -169,8 +169,8 @@ refused, not that the command is wrong.
 
 Open the invitation link and set a password. That browser now holds a key of its own — Berna's,
 an admin's, and an admin always opens production — and this gateway's console shows production,
-and only production. What a laptop runs is in the sandbox, and is watched on that laptop:
-`pinecall serve` (§6).
+and only production. What a laptop runs is in the sandbox, and is watched at the gateway's SECOND
+name (§6) — on a laptop, the same gateway asked as `127.0.0.1` instead of `localhost`.
 
 ## 5. Sign a terminal in, and link the project
 
@@ -219,17 +219,23 @@ console (Tokens ▸ New server token) goes into its secrets as `PINECALL_KEY`.
 ```console
 $ pinecall start
 clinica-norte · default · sandbox · connected to http://127.0.0.1:8080 · key from .env · tools 5 · doors phone +34910000000, whatsapp +34910000000, web
-console  `pinecall serve` opens it on this machine (or `pinecall start --serve`)
+console  your box's sandbox console is at its second name (PINECALL_SANDBOX_DOMAIN on the box)
 line     rings in this terminal
 ```
 
 One line, and it says the four things that decide where you are: the agent, **whose org**, **which
-world**, and where the key came from. `pinecall start` binds no port. What it holds is in the
-sandbox, and the sandbox is watched on your own machine: `pinecall serve` — or `pinecall start
---serve`, both in one terminal — puts the console on `http://localhost:4100`, forwarding every
-request to this gateway with the terminal's key, so there is nothing to sign in to. The gateway's
-own console, the one you sign in to with the password from §4, shows **production** and only
-production: there the page says `no agent called clinica-norte is held here`, which is true. A
+world**, and where the key came from. `pinecall start` binds no port, and neither does anything
+else on this side: the gateway serves both consoles, one at each name it answers to.
+
+A laptop has two names for one machine already, so give the gateway the second one — in the
+runtime's `.env`, `PINECALL_SANDBOX_DOMAIN=127.0.0.1`, and restart it. Then
+`http://localhost:8080` is production's console, `http://127.0.0.1:8080` is the sandbox's, each
+with its own sign-in (a browser keeps a key per origin), and a request that reaches the second one
+asking for production is refused there. On a box the two names are two domains and the line above
+prints the URL with a one-use code in it.
+
+The console you sign in to with the password from §4 shows **production** and only production:
+there the page says `no agent called clinica-norte is held here`, which is true. A
 production run — a server's token, or `pinecall start --prod` by a person with production access —
 prints that console's URL with a one-use code.
 
@@ -268,14 +274,14 @@ a terminal says it out loud — `pinecall start --prod` — the deliberate act i
 admin's `production` switch on their row (Team, or `PATCH /v1/members/{id} {production: true}`)
 says whether they may do it in production. An admin always may. Without it, the request is refused
 `403 <name> has no production access: an admin gives it in Team`, and the switch is read at every
-request — taking it away closes the next one. A console has no choice to make: the gateway's
-shows production, and a machine's own the sandbox.
+request — taking it away closes the next one. A console has no choice to make: the name it was
+served at is the world it shows.
 
 ## Whose corner is whose
 
 The sandbox holds **one agent per person**: two developers each run `clinica-norte` and neither
-takes the other's. What each reaches — their own `pinecall serve`, `chat`, the config door, a suite
-— is their own socket. A key that opens `team` (an admin's, the box operator's) is answered every member's corner,
+takes the other's. What each reaches — the sandbox's console, `chat`, the config door, a suite — is their own
+socket. A key that opens `team` (an admin's, the box operator's) is answered every member's corner,
 each row saying whose:
 
 ```console
@@ -284,13 +290,13 @@ $ curl -H "Authorization: Bearer $ADMINS_KEY" localhost:8080/v1/agents
              "holder": {"holder": "m_6bb3ec66bf2b", "name": "carla@clinica.test"}}]}
 ```
 
-That admin holds no agent of their own and can see what the team is running. Their local console's front
+That admin holds no agent of their own and can see what the team is running. The sandbox console's front
 page draws the same thing with a **whose** column and a filter — *everything · mine · the team's*.
 A developer sees none of it: there is one corner and nothing to filter.
 
 And the admin can open one. In the sandbox, the header `pinecall-corner: <member id>` answers any
-HTTP door in that member's corner — an admin's own `pinecall serve` sends it, forwarded as the
-page set it, when they open a developer's copy —
+HTTP door in that member's corner — the sandbox's console sends it when an admin opens a
+developer's copy —
 so the agent, its line and its calls are Carla's:
 
 ```bash
