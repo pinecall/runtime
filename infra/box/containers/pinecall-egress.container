@@ -27,7 +27,11 @@ PublishPort=127.0.0.1:7980:7980
 # egress writes there belongs to that group whatever uid wrote it, and the runtime, which is the
 # other member, reads it. A group and not a uid because the service user's is assigned by
 # systemd-sysusers and is a different number on every box, while this one is declared.
-GroupAdd=4200
+# `--group-add` and not Quadlet's own `GroupAdd=`, which this podman (4.9) does not know: an
+# unsupported key makes the generator skip the WHOLE file, and the unit is then not "failed" but
+# missing — `systemctl restart` answers "Unit not found" and nothing says why until you run the
+# generator by hand with --dryrun.
+PodmanArgs=--group-add 4200
 Volume=/var/lib/pinecall/recordings:/var/lib/pinecall/recordings:rw
 # The keypair, as LIVEKIT_API_KEY and LIVEKIT_API_SECRET, out of the same credential the SFU reads.
 EnvironmentFile=%d/media.env

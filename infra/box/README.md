@@ -51,7 +51,14 @@ supervisor were never in a recording, and nothing said so.
 | what it costs | `audio_only` with no layout and no base URL is the one shape that runs on livekit's **SDK** and not on a headless Chromium, and it costs about a core per concurrent recording. `max_cpu_utilization` in `egress.yaml` is the ceiling: above it the recorder refuses, the call is taken anyway and its summary points at no audio |
 | **whether** a call is recorded | the AGENT's setting, not the box's: `pinecall agent set --record on\|off`, per world and per corner, versioned like every other knob. There is no `RECORD` variable any more |
 
-**The trap, and it costs a directory nobody can read.** Egress runs in a container, as no uid this
+**A Quadlet key this podman does not know makes the unit vanish, not fail.** `GroupAdd=` is
+Quadlet's own spelling and podman 4.9 has never heard of it, so the generator skipped the whole
+file and `systemctl restart pinecall-egress` answered *Unit pinecall-egress.service not found* —
+which reads like a typo in the name. `PodmanArgs=--group-add 4200` says the same thing to a
+podman of this age. To see the reason at all:
+`sudo /usr/lib/systemd/system-generators/podman-system-generator --dryrun`.
+
+**The other trap, and it costs a directory nobody can read.** Egress runs in a container, as no uid this
 box can name in advance — the service user's is assigned by `systemd-sysusers` and is a different
 number on every machine. So the two meet on a **group with a fixed id**: `pinecall-media`, 4200,
 declared in `sysusers.d/pinecall.conf` with the runtime as a member, and
