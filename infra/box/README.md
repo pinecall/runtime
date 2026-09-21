@@ -49,6 +49,7 @@ supervisor were never in a recording, and nothing said so.
 | how it is found | this box's redis, by container name — a self-hosted egress registers through redis and through nothing else |
 | its port | `127.0.0.1:7980`, the health port, which only the doctor knocks at (`egress` in the report) |
 | what it costs | `audio_only` with no layout and no base URL is the one shape that runs on livekit's **SDK** and not on a headless Chromium, and it costs about a core per concurrent recording. `max_cpu_utilization` in `egress.yaml` is the ceiling: above it the recorder refuses, the call is taken anyway and its summary points at no audio |
+| the mix | the DEFAULT one, never `DUAL_CHANNEL_AGENT`. Measured here on 2026-09-21, one call recorded each way: dual channel carries one track per participant, so the hold melody — a track of the agent's own, beside its voice — was subscribed to and dropped, and the tool's twenty seconds came back as digital silence on both channels. The default mix has it. A mode that drops the melody undoes the reason for recording the room |
 | **whether** a call is recorded | the AGENT's setting, not the box's: `pinecall agent set --record on\|off`, per world and per corner, versioned like every other knob. There is no `RECORD` variable any more |
 
 **A Quadlet key this podman does not know makes the unit vanish, not fail.** `GroupAdd=` is

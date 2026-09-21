@@ -102,7 +102,7 @@ async def test_an_agent_whose_world_says_not_to_record_keeps_no_audio(tmp_path: 
 
 
 async def test_a_call_that_keeps_its_audio_asks_the_box_to_record_the_room(tmp_path: Path) -> None:
-    """Audio only, a channel each, and the room's own name: everything the call heard, in one ogg.
+    """Audio only, one mix, and the room's own name: everything the call heard, in one ogg.
 
     Asked for BEFORE the session is built, so the greeting is inside the recording rather than
     ahead of it — the recorder takes a moment to come up and that moment is the one the session
@@ -120,7 +120,9 @@ async def test_a_call_that_keeps_its_audio_asks_the_box_to_record_the_room(tmp_p
     # The room's name IS the call id, which is what lets a reader of the log find the audio.
     assert asked.room_name == "call_1"
     assert asked.audio_only is True
-    assert asked.audio_mixing == proto.AudioMixing.DUAL_CHANNEL_AGENT
+    # Never DUAL_CHANNEL_AGENT: it carries one track per participant and drops the melody, which
+    # is measured in worker/egress.py and is the whole reason this records the room.
+    assert asked.audio_mixing == proto.AudioMixing.DEFAULT_MIXING
     assert not asked.layout and not asked.custom_base_url  # the shape that runs without a browser
     (output,) = asked.file_outputs
     assert output.file_type == proto.EncodedFileType.OGG

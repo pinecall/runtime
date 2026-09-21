@@ -13,17 +13,20 @@ from pinecall.evals.polling import until
 
 logger = logging.getLogger(__name__)
 
-# Audio, and a channel each. `audio_only` with no layout and no base URL is the one shape of a
+# One mix of the whole room. `audio_only` with no layout and no base URL is the one shape of a
 # room composite that runs on livekit's own SDK instead of a headless Chromium (egress
 # pkg/config/pipeline.go:ShouldUseSDKSource) — the same file for a fraction of a machine, which is
 # what makes recording every call on a box of four cores a thing anyone can do.
 #
-# DUAL_CHANNEL_AGENT keeps the shape the session's own recorder had: the agent on one channel and
-# everyone else on the other. What it ADDS is everyone else — the hold melody, which the agent
-# publishes as a track of its own beside its voice, and a supervisor who took the line. Neither
-# was ever in a recording before, because the session recorder only ever knew two sources: the
-# participant it was pinned to, and its own TTS.
-AUDIO_BOTH_SIDES = proto.AudioMixing.DUAL_CHANNEL_AGENT
+# And the mix is the DEFAULT one, not DUAL_CHANNEL_AGENT, which would have been the pretty answer:
+# the agent on one channel, everyone else on the other, the shape the session's own recorder had.
+# Measured on the box, 2026-09-21, one call recorded each way: dual channel carries one track per
+# participant, so the hold melody — which the agent publishes as a track of its OWN beside its
+# voice — was subscribed to and then dropped, and the tool's twenty seconds came back as digital
+# silence on both channels. The same call mixed by default has the melody in it. Since the melody
+# and a supervisor who took the line are the whole reason the box records the room rather than the
+# session, a mode that drops them is a mode that undoes the change.
+AUDIO_BOTH_SIDES = proto.AudioMixing.DEFAULT_MIXING
 
 # No `.json` beside the audio: the log is where a call is described, and a second description of
 # it on disk is one that will disagree.

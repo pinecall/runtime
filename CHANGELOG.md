@@ -24,7 +24,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   participant the session was pinned to, and its own voice. Everything else a call heard was a
   track of its own and was in no file — **the hold melody**, and **a supervisor who took the
   line**. A box now runs `livekit-egress` (`infra/box/containers/pinecall-egress.container`) and
-  every recorded call is one audio room composite of its room, a channel each, written to the same
+  every recorded call is one audio room composite of its room, one mix, written to the same
   `recordings/<call>/audio.ogg` the summary has always pointed at. `pinecall-runtime doctor` gains
   an `egress` line, because a recorder that is down is otherwise silent: every call is answered
   and none of them is kept.
