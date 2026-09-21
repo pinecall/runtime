@@ -21,6 +21,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   tenant's own process. `docs/protocol/dev-verbs.md`.
 
 ### Fixed
+- **The hold melody no longer starts under the agent's own voice.** It was counted from the
+  moment a tool began, and a tool begins while the agent is still saying the line that announced
+  it — the model emits its text and its tool call in one response, so the two overlap by
+  construction. The grace is counted from the moment the agent stops speaking now, and it looks
+  again after the grace, because the round that follows a tool result starts speaking while the
+  next tool of the same reply is already running.
 - **The agent no longer answers its own questions.** livekit's preemptive generation is off for a
   spoken call as well as a written one. With it on, a caller's end-of-turn landing inside a
   tool's execution window starts a whole new reply before the tool has answered, on a context

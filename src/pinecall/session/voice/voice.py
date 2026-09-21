@@ -138,7 +138,7 @@ class VoiceBridge:
 
     async def holding(self, melody: Path | None) -> None:
         """The room is live: what the caller hears while a tool runs, or None for nothing."""
-        self.tools.hold = await HoldMusic.in_this_room(melody)
+        self.tools.hold = await HoldMusic.in_this_room(melody, self._agent_is_speaking)
 
     # The shutdown callbacks of a job run gathered, not in order, so the session is closed here
     # first: its own close drains the last speech and adds the last turn to the history, and

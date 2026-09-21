@@ -41,8 +41,8 @@ class Player:
         return None
 
 
-def a_melody(player: Player, source: Path = DEFAULT) -> HoldMusic:
-    music = HoldMusic(source)
+def a_melody(player: Player, source: Path = DEFAULT, speaking: object = None) -> HoldMusic:
+    music = HoldMusic(source, speaking)  # pyright: ignore[reportArgumentType]
     music._player = player  # pyright: ignore[reportPrivateUsage, reportAttributeAccessIssue] — the room is livekit's to give
     return music
 
@@ -110,3 +110,20 @@ async def test_a_call_with_no_room_or_turned_off_plays_nothing_and_the_tool_stil
 # underneath the agent's own voice and the caller hears both at once (2026-09-21, maravilla).
 def test_the_grace_outlasts_the_line_the_agent_says_before_the_tool() -> None:
     assert DECLARED_GRACE_S >= 2.0
+
+
+# The tool starts while the agent is still saying the line that announced it — the model emits its
+# text and its tool call in one response, so they overlap by construction. On a timer alone the
+# melody therefore came up underneath the agent's own voice every time a tool ran after an
+# announcement, which is the one thing it exists to avoid.
+async def test_the_melody_waits_for_the_agent_to_stop_talking() -> None:
+    player = Player()
+    talking = [True]
+    music = a_melody(player, DEFAULT, lambda: talking[0])
+
+    async with music.playing():
+        await asyncio.sleep(0.10)
+        assert player.played == [], "it started under the agent's own voice"
+        talking[0] = False
+        await asyncio.sleep(0.20)
+        assert player.played != [], "and it never started once the agent had stopped"
