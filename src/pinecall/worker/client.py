@@ -10,7 +10,7 @@ import httpx
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from pinecall.fleet import Heartbeat, Standing
-from pinecall.session.voice.platform import PlatformRefused
+from pinecall.session.voice.platform import Dialled, PlatformRefused
 from pinecall.types import (
     AgentConfig,
     CallContext,
@@ -158,6 +158,9 @@ class Gateway:
             raise GatewayRefused(f"GET {path}: {answer.status_code} {answer.text}")
         return answer.content
 
+    # The gateway judges the number against the org's guards before it answers with a trunk, so a
+    # refusal here is "not this number, not this often" and not "no trunk" — the two read very
+    # differently in a caller's log, and the verb writes whichever happened.
     async def outbound_trunk(
         self,
         slug: str,
@@ -165,13 +168,17 @@ class Gateway:
         org: str | None = None,
         env: Env | None = None,
         holder: str | None = None,
-    ) -> str | None:
-        """The trunk a second leg is dialled out through; None when this org has none."""
-        said = await self._read(
-            "GET", f"/v1/agents/{slug}/outbound-trunk", params=_whose(org, env, holder)
-        )
+        to: str,
+        call: str,
+    ) -> Dialled:
+        """The trunk this leg dials out through once the number passed the org's guards."""
+        asked = {**_whose(org, env, holder), "to": to, "call": call}
+        try:
+            said = await self._read("GET", f"/v1/agents/{slug}/outbound-trunk", params=asked)
+        except GatewayRefused as refused:
+            return Dialled(refused=_the_detail_of(str(refused)))
         trunk = cast("dict[str, object]", said).get("trunk") if isinstance(said, dict) else None
-        return trunk if isinstance(trunk, str) and trunk else None
+        return Dialled(trunk=trunk if isinstance(trunk, str) and trunk else None)
 
     async def rings_for(self, slug: str, *, org: str, caller: str) -> str | None:
         """The developer whose sandbox copy takes this production ring, or None: production's."""
@@ -348,6 +355,24 @@ def _whose(org: str | None, env: Env | None, holder: str | None) -> dict[str, st
 # The reader the gateway's sink writes for: `id:` is the seq, `event:` the type, and `data:` the
 # entry as JSON, which already carries both — so the data line is the whole message and the rest is
 # the browser's business. A comment line is the gateway keeping the connection warm.
+# The gateway's refusals carry the sentence in `detail`, and the whole body is what the client
+# raises with. The verb writes ONE line in the caller's log, so it writes the sentence a person
+# can act on — "org … has placed 6 of its 6 outbound calls a minute" — and not the JSON around it.
+def _the_detail_of(refusal: str) -> str:
+    """The `detail` of a refused answer, or the refusal as it came when there is none."""
+    opened = refusal.find("{")
+    if opened == -1:
+        return refusal
+    try:
+        said: object = json.loads(refusal[opened:])
+    except ValueError:
+        return refusal
+    if not isinstance(said, dict):
+        return refusal
+    detail = cast("dict[str, object]", said).get("detail")
+    return detail if isinstance(detail, str) and detail else refusal
+
+
 async def server_sent_events(lines: AsyncIterator[str]) -> AsyncIterator[JsonObject]:
     """Each SSE message's data, decoded, in the order the stream carried them."""
     data: list[str] = []

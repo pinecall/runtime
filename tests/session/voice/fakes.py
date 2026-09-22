@@ -10,7 +10,7 @@ from typing import Any
 
 from pinecall.log.entry import ephemeral_by_default
 from pinecall.log.reduce import reduce
-from pinecall.session.voice.platform import PlatformRefused
+from pinecall.session.voice.platform import Dialled, PlatformRefused
 from pinecall.types import AgentConfig, CallContext, Env, Route, ToolSpec
 from pinecall.types.json import JsonObject
 from pinecall_protocol import decode_entry, encode
@@ -83,8 +83,11 @@ class Recording:
         self._refuse = refuse
         self.entries: list[Written] = []
         self.asked: list[Asked] = []
-        # What `outbound_trunk` answers: no trunk, until a test says this deployment has one.
+        # What `outbound_trunk` answers: no trunk, until a test says this deployment has one —
+        # and the numbers it was asked about, because a guard runs per number and per dial.
         self.trunk: str | None = None
+        self.refuses_to_dial: str | None = None
+        self.dialled: list[str] = []
         self._live: asyncio.Queue[JsonObject] = asyncio.Queue()
 
     async def outbound_trunk(
@@ -94,9 +97,14 @@ class Recording:
         org: str,  # noqa: ARG002
         env: Env,  # noqa: ARG002
         holder: str | None,  # noqa: ARG002
-    ) -> str | None:
-        """The org's outbound trunk: a test platform dials nobody unless it was told one."""
-        return self.trunk
+        to: str,
+        call: str,  # noqa: ARG002
+    ) -> Dialled:
+        """A test platform dials nobody unless it was told a trunk, and refuses what it was told."""
+        self.dialled.append(to)
+        if self.refuses_to_dial is not None:
+            return Dialled(refused=self.refuses_to_dial)
+        return Dialled(trunk=self.trunk)
 
     async def append(
         self, call: str, type: str, data: JsonObject, ephemeral: bool | None = None

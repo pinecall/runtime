@@ -25,12 +25,14 @@ async def dialled(holding: Holding, wanted: RoomInvite) -> None:
     if wanted.kind != "sip":
         holding.failed(VERB, NOT_DIALLED)
         return
-    trunk = await holding.trunks.outbound()
-    if trunk is None:
-        holding.failed(VERB, NO_TRUNK.format(to=wanted.to))
+    # As a warm transfer does: the trunk comes back only when the org's guards let this number be
+    # dialled, and the log gets the guard's own sentence when they do not.
+    asked = await holding.trunks.outbound(wanted.to)
+    if asked.trunk is None:
+        holding.failed(VERB, asked.refused or NO_TRUNK.format(to=wanted.to))
         return
     request = CreateSIPParticipantRequest(
-        sip_trunk_id=trunk,
+        sip_trunk_id=asked.trunk,
         sip_call_to=wanted.to,
         room_name=holding.room.name,
         participant_identity=f"{LEG_PREFIX}{wanted.to}",

@@ -86,6 +86,25 @@ async def test_a_warm_transfer_with_no_trunk_to_dial_through_leaves_the_caller_w
     assert end.transfers == 0
 
 
+# The number a warm transfer dials goes out on the org's own carrier, so it passes the org's own
+# guards first (api/dialling.py). A refusal is not "no trunk": the agent is told what a person
+# would be told, and tells the caller.
+async def test_a_warm_transfer_the_orgs_guards_refused_says_what_they_said() -> None:
+    held = a_held_room(
+        channel="web",
+        refused="org clinica has placed 6 of its 6 outbound calls a minute: dial.too_fast",
+    )
+    held.room.connect()
+
+    end = await applied(held, {"to": THE_DESK, "mode": "warm"})
+
+    assert held.api.requests == [], "nothing was dialled"
+    (said,) = held.recording.of("call.transferred")
+    assert (said.data["ok"], said.data["mode"]) == (False, "warm")
+    assert "dial.too_fast" in said.data["error"]
+    assert end.transfers == 0
+
+
 async def test_a_cold_transfer_of_a_call_with_no_sip_leg_leaves_the_caller_where_they_are() -> None:
     held = a_held_room(channel="web")
     held.room.connect()

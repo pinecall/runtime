@@ -285,7 +285,7 @@ Decisions: *text-session*, *prompt-blocks*, *memory*, *retrieval*, *livekit-cont
 | **web** | `POST /v1/tokens` with the org's key → a room token with the agent's dispatch and the scope inside, single-use | the browser joins; the dispatch spends the token | the worker; the log to the browser over the DataChannel, projected public |
 | **WhatsApp** | Meta → `POST /v1/whatsapp/webhook`, signature over the raw bytes | one thread per (contact, number) = one text call, `whatsapp/routing.py` picks the agent | the gateway; a **TextSession**; `whatsapp/sending.py` puts the agent's words back on Meta's API |
 | **a terminal** | `WS /v1/chat` (`pinecall chat`, `pinecall-runtime chat`) | a text call, `?app=<id>` binds it to the console that opened it | the gateway; a **TextSession** |
-| **a call back** | `POST /v1/agents/{slug}/dial` with the org's key → the guards, then a dispatch into a room named by the call id | the worker places the SIP leg itself, through the org's outbound trunk | the worker; a **VoiceBridge**, once the far end answered |
+| **a call back** | `POST /v1/agents/{slug}/dial` with the org's key → the guards, then a dispatch into a room named by the call id | the worker places the SIP leg itself, through the org's outbound trunk — and a leg dialled INTO a live call (a warm transfer, `room.invite`) passes the same guards and the same ledger at `GET …/outbound-trunk?to=`, the stranger fence excepted | the worker; a **VoiceBridge**, once the far end answered |
 
 Every door ends alike: `call.summary` (livekit's usage rows, cost from `providers/prices.py`), the
 judges, `call.score`, the seal. Decisions: *tokens*, *dispatch*, *whatsapp*.

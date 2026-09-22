@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Protocol
 
 from pinecall._exceptions import PinecallError
@@ -14,6 +15,17 @@ from pinecall_protocol.events import ToolCall
 
 class PlatformRefused(PinecallError):
     """The platform answered anything but yes; the caller of the verb says what that means."""
+
+
+# A leg is dialled through the org's own trunk and only after the number it dials has passed the
+# org's guards (orgs/guards.py), so "no trunk" and "not this number, not this often" are two
+# different answers and the verb writes the one that happened into the call's own log.
+@dataclass(frozen=True)
+class Dialled:
+    """What the platform said about dialling a number: the trunk to do it with, or why not."""
+
+    trunk: str | None = None
+    refused: str | None = None
 
 
 # A Protocol and not the worker's HTTP client itself: the bridge is one call's logic and knows
@@ -33,9 +45,9 @@ class Platform(Protocol):
         ...
 
     async def outbound_trunk(
-        self, slug: str, *, org: str, env: Env, holder: str | None
-    ) -> str | None:
-        """The trunk a second leg is dialled into this call's room through, when the org has one."""
+        self, slug: str, *, org: str, env: Env, holder: str | None, to: str, call: str
+    ) -> Dialled:
+        """The trunk this leg dials out through once `to` passed the org's guards, or why not."""
         ...
 
     async def state(self, call: str) -> tuple[JsonObject, int]:

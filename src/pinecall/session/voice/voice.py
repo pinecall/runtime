@@ -31,7 +31,7 @@ from pinecall.session.voice.hanging_up import a_way_to_hang_up
 from pinecall.session.voice.hold import HoldMusic
 from pinecall.session.voice.line import Line
 from pinecall.session.voice.metrics import Meters
-from pinecall.session.voice.platform import Platform, PlatformRefused
+from pinecall.session.voice.platform import Dialled, Platform, PlatformRefused
 from pinecall.session.voice.recording import Recorder
 from pinecall.session.voice.room import DataChannel, Facts, Holding, Trunks
 from pinecall.session.voice.supervising import Supervising
@@ -276,18 +276,24 @@ class VoiceBridge:
         visible = self.tools.visibility.narrow(tools)
         await self.writing.emit("tools.changed", ToolsChanged(visible=list(visible)))
 
-    # Asked of the gateway the first time a verb dials a second leg — a warm transfer, an invite —
-    # and never on a call that dials none, which is almost all of them. A gateway that refuses
-    # costs the verb its trunk and nothing else: it says so in the log, by name, like any refusal.
-    async def _outbound_trunk(self) -> str | None:
-        """The trunk this org dials out through, or None when it has none to dial through."""
+    # Asked whenever a verb dials a second leg — a warm transfer, an invite — and never on a call
+    # that dials none, which is almost all of them. The gateway answers with the org's trunk only
+    # once the number has passed the org's guards, so a refusal carries the guard's own sentence
+    # into the call's log instead of the verb guessing at "no trunk".
+    async def _outbound_trunk(self, to: str) -> Dialled:
+        """What this call may dial `to` with, or why the platform said it may not."""
         route = self.context.route
         try:
             return await self.platform.outbound_trunk(
-                route.agent, org=route.org, env=route.env, holder=self.context.holder
+                route.agent,
+                org=route.org,
+                env=route.env,
+                holder=self.context.holder,
+                to=to,
+                call=self.context.call,
             )
-        except PlatformRefused:
-            return None
+        except PlatformRefused as refused:
+            return Dialled(refused=str(refused))
 
     # ── what the app writes into the log through this call ──────────────────────
 

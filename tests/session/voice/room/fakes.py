@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator, Callable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, cast
 
@@ -12,6 +12,7 @@ from livekit import rtc
 from livekit.api import LiveKitAPI
 from livekit.protocol.sip import SIPTransferStatus, TransferSIPParticipantResponse
 
+from pinecall.session.voice.platform import Dialled
 from pinecall.session.voice.room import Holding, Trunks
 from pinecall.session.voice.room.datachannel import DATA
 from pinecall.session.voice.room.facts import CONNECTION, JOINED, LEFT, SPEAKERS
@@ -246,7 +247,10 @@ class Held:
 
 
 def a_held_room(
-    api: FakeApi | None = None, trunk: str | None = TRUNK, channel: Channel = "phone"
+    api: FakeApi | None = None,
+    trunk: str | None = TRUNK,
+    channel: Channel = "phone",
+    refused: str | None = None,
 ) -> Held:
     """One call's room, held: the verbs and the DataChannel reach it through the Holding."""
     room, recording = FakeRoom(), Recording()
@@ -258,9 +262,19 @@ def a_held_room(
         api=cast("LiveKitAPI", served),
         writing=writing,
         channel=channel,
-        trunks=Trunks.known(trunk),
+        trunks=Trunks.known(trunk) if refused is None else Trunks(_refusing(refused)),
     )
     return Held(holding, room, served, recording)
+
+
+# A platform whose guards said no to this number: what the verb writes is the guard's sentence.
+def _refusing(said: str) -> Callable[[str], Awaitable[Dialled]]:
+    """A Trunks that refuses every number with one sentence, as a rate-limited org's does."""
+
+    async def refused(to: str) -> Dialled:  # noqa: ARG001 — every number gets the same no
+        return Dialled(refused=said)
+
+    return refused
 
 
 # The gateway's three reading doors, over a log the test writes itself: durable entries in seq

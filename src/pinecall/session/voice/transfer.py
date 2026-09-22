@@ -109,11 +109,13 @@ async def sent_on(holding: Holding, wanted: CallTransfer) -> CallTransferred:
 # a phone ringing instead of a silence they read as a dropped call.
 async def dialled_in(holding: Holding, wanted: CallTransfer) -> CallTransferred:
     """CreateSIPParticipant into this call's own room. ok=True: the person is on the line now."""
-    trunk = await holding.trunks.outbound()
-    if trunk is None:
-        return _stayed(wanted, NO_TRUNK.format(to=wanted.to), WARM)
+    # The platform answers with a trunk only when the number passed the org's own guards, so a
+    # transfer refused for dialling too fast says exactly that to the agent, and not "no trunk".
+    asked = await holding.trunks.outbound(wanted.to)
+    if asked.trunk is None:
+        return _stayed(wanted, asked.refused or NO_TRUNK.format(to=wanted.to), WARM)
     request = CreateSIPParticipantRequest(
-        sip_trunk_id=trunk,
+        sip_trunk_id=asked.trunk,
         sip_call_to=wanted.to,
         room_name=holding.room.name,
         participant_identity=f"{LEG_PREFIX}{wanted.to}",

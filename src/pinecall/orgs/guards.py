@@ -111,14 +111,29 @@ class Guards:
     # no `refused`, one that was not carries the guard's word. That is the row the rate guard
     # counts and the row an operator reads when a bill arrives.
     async def judged(self, asking: Asking) -> Allowed:
-        """This dial, judged. DialRefused with the guard's own sentence when one says no."""
+        """A cold dial, judged: every guard. DialRefused with the guard's own sentence."""
+        return await self._judged(asking, fenced=True)
+
+    # A number dialled INTO a call that is already happening — a warm transfer, room.invite — is
+    # not a cold call, and the stranger fence is about cold calls: "a call back goes back to
+    # somebody". The colleague an agent puts a caller through to has no reason to have ever rung
+    # the org, and refusing that by default would leave every tenant choosing between no transfers
+    # and `dial_anywhere`, which is the telemarketer's switch. What it does NOT skip is the shape
+    # and the two windows: an agent looping a premium-rate number is exactly what those cap, and
+    # every leg is a row in the same ledger, so a bill is read back the same way.
+    async def a_second_leg(self, asking: Asking) -> Allowed:
+        """A leg dialled into a live call: the shape and the windows, not the stranger fence."""
+        return await self._judged(asking, fenced=False)
+
+    async def _judged(self, asking: Asking, *, fenced: bool) -> Allowed:
+        """Both doors' one body: which guards run is the only thing that differs."""
         try:
             destination = a_destination(asking.to)
         except DeclarationRefused as malformed:
             await self._written(asking, SHAPE)
             raise DialRefused(Refusal(SHAPE, str(malformed))) from malformed
         policy = await self._policies.of(asking.org)
-        refusal = await self._fenced(asking.org, destination, policy)
+        refusal = await self._fenced(asking.org, destination, policy) if fenced else None
         if refusal is None:
             refusal = await self._paced(asking.org, policy)
         if refusal is not None:

@@ -20,10 +20,18 @@ framework wraps them as `this.call.transfer(…)` and the rest — **agents**' `
 room, and this call ends as `transferred`. It needs a phone call — a browser has no leg to refer.
 
 **Warm** dials the destination INTO this call's room, over the org's own outbound trunk
-(`POST /v1/carrier/outbound` provisions one; the worker reads it at
-`GET /v1/agents/{slug}/outbound-trunk`). Nobody moves: the caller hears a ringing tone, and when
-the far end answers the agent goes mute and deaf and the two humans have the call. It ends when
-either of them hangs up, as `transferred`.
+(`POST /v1/carrier/outbound` provisions one; the worker asks for it at
+`GET /v1/agents/{slug}/outbound-trunk?to=&call=`). Nobody moves: the caller hears a ringing tone,
+and when the far end answers the agent goes mute and deaf and the two humans have the call. It
+ends when either of them hangs up, as `transferred`.
+
+**A dialled leg passes the org's guards** — the same ones `POST /v1/agents/{slug}/dial` passes, and
+the same ledger — because it goes out on the same carrier: the number's shape, and how many calls
+the org has placed this minute and today. Refused, nothing is dialled and `call.transferred` says
+which guard said no (`dial.too_fast`), so the agent tells the caller something true. The one guard
+a leg does **not** pass is the stranger fence: the colleague an agent puts a caller through to has
+no reason to have ever rung the org, and `dial_anywhere` is the telemarketer's switch, not this.
+`room.invite` is judged exactly the same way.
 
 `mode` is optional, and unsaid the runtime picks: **cold** for a caller on a SIP leg, **warm** for
 one in a browser. Ask for one by name and it is refused rather than quietly swapped — the two

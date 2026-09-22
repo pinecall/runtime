@@ -6,6 +6,17 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 
 ## [Unreleased]
 
+### Security
+- **A leg dialled into a live call passes the org's dial guards.** A warm transfer and
+  `room.invite` go out on the org's own carrier, and until now neither passed the fences
+  `POST /v1/agents/{slug}/dial` passes: an agent with a number in its class dialled as often as it
+  liked and left no row anywhere. The worker cannot dial without a trunk and cannot have one
+  without the number passing `GET /v1/agents/{slug}/outbound-trunk?to=&call=` — the shape check,
+  the per-minute and per-day windows, and the same `dials` ledger. The stranger fence stays a cold
+  dial's: a colleague an agent transfers to has no reason to have ever rung the org
+  (`orgs/guards.py:a_second_leg`). A refusal reaches the caller's log as the guard's own sentence,
+  so `call.transferred` says `dial.too_fast` and the agent can say something true.
+
 ### Fixed
 - **A media plane that lost its trunks gets them back, and says so.** livekit-sip keeps every
   trunk and dispatch rule in Redis; the box ran Redis with no volume and no persistence, and on

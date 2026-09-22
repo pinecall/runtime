@@ -6,7 +6,7 @@ import time
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import Field
 
 from pinecall.api._corner import CornerDep
@@ -47,6 +47,11 @@ NO_LIVEKIT = (
     " it places"
 )
 DID_NOT_DIAL = "the media plane refused the call: {why}"
+
+# What the worker names when it asks for the trunk: the number the verb is about to dial, and the
+# call it is dialling into. Both ride the ledger row, so a leg is read back like any other dial.
+DIALLING = Query(description="the number this leg will dial, E.164")
+ON_THE_CALL = Query(description="the call the leg is dialled into")
 
 
 class WantedCall(WireModel):
@@ -204,21 +209,41 @@ async def _never_rang(logs: Logs, context: CallContext, slug: str) -> None:
 
 
 # A warm transfer and room.invite both dial a number INTO the call's room, and the trunk that does
-# it is the org's own — the same one this door's neighbour places a call with. The worker asks for
-# it only when a verb wants one, and it is asked of the SFU by name and not read off the row: the
-# row is the provisioning's memory, the SFU is what exists, and a row naming a trunk the SFU lost
-# is the 404 a caller heard on 2026-09-22. No SFU, no carrier, no trunk: null, and the verb says
-# so in the call's log by name.
+# it is the org's own — the same one this door's neighbour places a call with. Which is why the
+# guards are HERE and not only there: the worker cannot dial without a trunk, and it cannot have
+# one without the number passing the same shape check, the same two windows and the same ledger a
+# cold dial passes. Until 2026-09-22 it could — an agent with a number in its class dialled as
+# often as it liked, on the org's own carrier, and no row anywhere said so.
+#
+# The trunk is asked of the SFU by name and never read off the row: the row is the provisioning's
+# memory, the SFU is what exists, and a row naming a trunk the SFU lost is the 404 a caller heard.
 @router.get("/v1/agents/{slug}/outbound-trunk")
 async def outbound_trunk(
     slug: str,
-    key: DeclarationKeyDep,  # noqa: ARG001 — the scope is asked here; the corner says where
+    key: DeclarationKeyDep,
     corner: CornerDep,
     registry: RegistryDep,
     sfu: OutboundDep,
+    guards: GuardsDep,
+    to: str = DIALLING,
+    call: str = ON_THE_CALL,
 ) -> dict[str, str | None]:
-    """The SFU's id for this org's outbound trunk, or null when it has none to dial through."""
+    """The SFU's id for this org's outbound trunk, once the number it will dial has passed."""
     held = registry.of(corner.env, slug, corner.holder)
     if held is None or held.org != corner.org:
         raise HTTPException(404, NO_AGENT.format(slug=slug))
-    return {"trunk": None if sfu is None else await sfu.standing(corner.org)}
+    if sfu is None:
+        return {"trunk": None}
+    asking = Asking(
+        org=corner.org,
+        env=corner.env,
+        agent=slug,
+        to=to,
+        asked_by=key.subject or key.key_id,
+        call=call,
+    )
+    try:
+        await guards.a_second_leg(asking)
+    except DialRefused as refused:
+        raise HTTPException(refused.refusal.status, str(refused)) from refused
+    return {"trunk": await sfu.standing(corner.org)}
