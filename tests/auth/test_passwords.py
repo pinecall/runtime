@@ -29,6 +29,12 @@ def test_the_right_password_matches_and_anything_else_does_not() -> None:
     assert not matches("", kept)
 
 
+def test_nobodys_hash_matches_no_password_and_still_costs_a_verification() -> None:
+    """An address nobody has is checked against a hash of nobody's, so the clock says nothing."""
+    assert not matches(A_PASSWORD, None)
+    assert not matches("", None)
+
+
 def test_a_hash_that_is_not_one_is_a_mismatch_and_never_an_error() -> None:
     assert not matches(A_PASSWORD, "not-a-hash")
     assert not matches(A_PASSWORD, "")

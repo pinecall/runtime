@@ -6,6 +6,39 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 
 ## [Unreleased]
 
+### Security
+- **A key grants what it holds.** `team` opened every role to whoever held it: a manager could
+  invite an admin, PATCH a colleague or their own row to one, or wire SSO seating a whole domain as
+  admins, and hold the org by the next login. `POST`/`PATCH /v1/members` and `PUT /v1/org/sso` now
+  refuse `403` a role whose preset opens a door the asking key does not (`auth/granting.py`,
+  `this key does not open everything <role> would: …`), production access from a key that has
+  none (`… has no production access, and cannot give it`), and `409` a change to one's own role
+  or switch. A key naming nobody — a server's, the box's, an operator's visit — grants as before.
+- **One org's admin never holds the link that sets another org's person's password.** An
+  invitation's or a reset's token is in the answer only for an address that is this org's alone;
+  for somebody who is also another org's it is posted to them (`mailed`) and to nobody else — a
+  link handed over sets the person's ONE password, in every org of theirs. The operator's door
+  hands it over always. `POST /v1/signup` refuses `409` an address already invited on this box
+  and passwordless: accepting that invitation is what chooses the password.
+- **An address is a person's once somebody other than an admin proved it** (migration `0048`:
+  `members.verified_at`, `invitations.vouched`; `verified` on every member the doors answer). A
+  link handed to an admin in the answer proves nothing about who opens it, so whoever chose an
+  address's password first — through their own org's link, or a sign-up — was seated wherever that
+  address was invited next, and their invited rows were seated at login. Now a second org seats a
+  known person without a link, and `POST /v1/login` seats an invited row, only when some row of
+  theirs is verified: they accepted a link that travelled by mail alone, an identity provider (the
+  org's, or Google) named them, or the operator invited them (`pinecall-runtime orgs invite`,
+  `POST /v1/ops/orgs/{org}/members`). Nobody is grandfathered: an existing person of two orgs is
+  invited once more, by mail or by the operator, and that verifies them.
+- **A developer's sandbox is not the floor's to open.** Seeing every corner — the agent listing
+  by corner, `pinecall-corner`, the processes of every copy — takes `team` AND `app` (an admin's,
+  the box's own); a manager opens `team` alone and now sees the org's own corner, as a developer
+  does (`auth/keys.py:sees_every_corner`).
+- The login doors verify a password against a hash of nobody's when the address has none
+  (`auth/passwords.py`), so a stranger's email costs what a member's does and the clock names
+  no members. `GET /v1/login/sso?org=` answers one `404` for an unwired org and for none. A voice
+  eval no longer reads the voice and language another org's socket declared under the same slug.
+
 ### Added
 - **A persona says how it is played and when it accepts the call — and a judge reads the call by
   it.** `agent_personas` gains `llm`, `tts`, `voice`, `accepts_when` and `declines_when`

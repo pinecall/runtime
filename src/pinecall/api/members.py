@@ -16,9 +16,11 @@ from pinecall.api._deps import (
     an_org,
 )
 from pinecall.api._gateway import where_this_gateway_answers
+from pinecall.api._seating import elsewhere_too, may_grant
 from pinecall.api.org_mail import OutboxDep
 from pinecall.api.orgs import NO_BODY
 from pinecall.auth import passwords
+from pinecall.auth.granting import NOT_YOUR_OWN_ROW
 from pinecall.auth.keys import KeyRecord, Keys
 from pinecall.auth.members import Members
 from pinecall.auth.persons import a_persons_key
@@ -128,6 +130,7 @@ async def invite(
 ) -> dict[str, Any]:
     """One more person, invited: the row, the one-use token, and the link posted to them."""
     role = a_wanted_member(said, key.org)
+    await may_grant(key, members, role, said.production)
     # A seat is charged only where a ROW will be made. An email the org already holds is either a
     # member who accepted — refused below — or one still invited, whose seat was taken when the
     # first invitation went out: re-sending their link must not be the thing an org at its limit
@@ -139,8 +142,12 @@ async def invite(
         except QuotaExhausted as refused:
             raise HTTPException(429, str(refused)) from refused
     org = await an_org(key.org, orgs)
+    base = where_this_gateway_answers(settings, request)
+    # Handed to this admin only for an address that is this org's alone — and a handed link
+    # proves nothing about the address, so only one that travels by mail alone vouches for it.
+    alone = not await elsewhere_too(members, key.org, said.email)
     return await invited_into(
-        members, org, said, role, _by(key), where_this_gateway_answers(settings, request), outbox
+        members, org, said, role, _by(key), base, outbox, handed=alone, vouched=not alone
     )
 
 
@@ -163,17 +170,30 @@ async def invited_into(
     inviter: str,
     base: str,
     outbox: Outbox,
+    *,
+    handed: bool = True,
+    vouched: bool = True,
 ) -> dict[str, Any]:
     """The row, the token the once, and whether a letter carrying it was posted; 409 for an
     email that already accepted here.
 
-    A person who already exists on this box — an email with a password in another org — is
-    seated active at once and the answer carries no token: they sign in with the password
-    they have, and the console's org switch lists the new org beside the others. There is
-    nothing for a letter to carry, so nothing is posted and `mailed` is false.
+    A person who already exists on this box — an email with a password in another org, and
+    proved to be theirs — is seated active at once and the answer carries no token: they sign
+    in with the password they have, and the console's org switch lists the new org beside the
+    others. There is nothing for a letter to carry, so nothing is posted and `mailed` is false.
+
+    `handed` false keeps the token out of the answer too: the letter carries it, and only the
+    letter (`elsewhere_too`). `vouched` says whether accepting it proves the address (0048).
+    The box's own door hands it over always, and vouches: the operator knows who they seat.
     """
     invited = await members.invite(
-        org.id, said.email, said.name, role, said.agents, production=said.production
+        org.id,
+        said.email,
+        said.name,
+        role,
+        said.agents,
+        production=said.production,
+        vouched=vouched,
     )
     if invited is None:
         raise HTTPException(409, ALREADY_A_MEMBER.format(email=said.email))
@@ -190,7 +210,7 @@ async def invited_into(
     )
     return {
         "member": member_as_json(invited.member),
-        "token": invited.token,
+        "token": invited.token if handed else None,
         "expires_at": invited.expires_at,
         "mailed": await _posted(outbox, org.id, letter),
     }
@@ -214,6 +234,10 @@ async def change(
         raise HTTPException(400, NOT_BY_HAND.format(email=found.email))
     if status == "disabled" and key.subject == id:
         raise HTTPException(409, NOT_YOURSELF_DISABLED)
+    # Your own row is not yours to raise: a role and the switch are what another admin gives you.
+    if key.subject == id and (role is not None or said.production is not None):
+        raise HTTPException(409, NOT_YOUR_OWN_ROW)
+    await may_grant(key, members, role, said.production)
     if said.production is False and (role or found.role) == "admin":
         raise HTTPException(409, AN_ADMIN_OPENS_PRODUCTION.format(email=found.email))
     changed = await members.update(
@@ -279,7 +303,11 @@ async def reset(
     found = await members.find(key.org, id)
     if found is None:
         raise HTTPException(404, NO_SUCH_MEMBER.format(id=id))
-    issued = await members.reset(key.org, id)
+    # The link sets the person's ONE password, in every org of theirs: handed to this admin only
+    # when the person is this org's alone, posted to the person otherwise (`elsewhere_too`) —
+    # and only a link that travels by mail alone proves the address it reaches.
+    handed = not await elsewhere_too(members, key.org, found.email)
+    issued = await members.reset(key.org, id, vouched=not handed)
     if issued is None:
         raise HTTPException(409, NOT_ACTIVE.format(email=found.email, status=found.status))
     org = await an_org(key.org, orgs)
@@ -291,7 +319,7 @@ async def reset(
     )
     return {
         "member": member_as_json(issued.member),
-        "token": issued.token,
+        "token": issued.token if handed else None,
         "expires_at": issued.expires_at,
         "mailed": await _posted(outbox, key.org, letter),
     }
@@ -360,4 +388,7 @@ def member_as_json(member: Member) -> dict[str, Any]:
         "operator": member.operator,
         # Whether a request of theirs may run in production: the switch, or being an admin.
         "production": member.opens_production,
+        # Whether the address was proved theirs on this row (0048): what lets them be seated in
+        # another org without a link, and what a Team screen may say about a pending person.
+        "verified": member.verified,
     }

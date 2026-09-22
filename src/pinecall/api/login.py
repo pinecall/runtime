@@ -127,8 +127,9 @@ async def orgs_to_sign_in_to(
     """The orgs this person may sign in to, oldest first; 401 for a wrong email or password."""
     if not throttle.allowed(f"{the_client(request)} */{said.email}"):
         raise HTTPException(429, TOO_MANY.format(email=said.email))
-    known = await members.a_persons_password(said.email)
-    if known is None or not passwords.matches(said.password, known):
+    # `matches` takes as long for an address nobody has as for a wrong password (auth/passwords.py):
+    # the one sentence would say nothing, and the clock must not say it instead.
+    if not passwords.matches(said.password, await members.a_persons_password(said.email)):
         raise HTTPException(401, NOBODY_ANYWHERE)
     listed: list[dict[str, Any]] = []
     for row in await members.orgs_of(said.email):
@@ -184,8 +185,9 @@ async def _with_a_password(
     # The password is the PERSON's, whichever org it was chosen in: a row of theirs still
     # invited in this org — made before they existed, or before this rule — is seated with it.
     known = await members.a_persons_password(said.email)
-    if known is None or not passwords.matches(said.password, known):
+    if not passwords.matches(said.password, known):
         raise HTTPException(401, nobody)
+    assert known is not None
     kept = await _the_row_for(said, orgs, members, sso)
     if kept is None:
         raise HTTPException(401, nobody)
@@ -199,7 +201,14 @@ async def _with_a_password(
     if member.status == "disabled":
         raise HTTPException(403, DISABLED.format(email=member.email, org=member.org))
     if member.status == "invited":
-        seated = await members.join(member.org, member.id, known)
+        # Seated with the password they have only once the address is PROVED theirs (0048): a
+        # password chosen through a link an admin handed over could be anybody's, and an
+        # invited row seated on it was the row the wrong person walked into.
+        seated = (
+            await members.join(member.org, member.id, known)
+            if await members.verified(member.email)
+            else None
+        )
         if seated is None:
             raise HTTPException(403, NOT_YET.format(email=member.email))
         member = seated

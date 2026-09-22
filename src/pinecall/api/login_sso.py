@@ -15,7 +15,6 @@ from pinecall.api._deps import (
     OrgsDep,
     SettingsDep,
     ThrottleDep,
-    an_org,
 )
 from pinecall.api.login import A_BROWSER, DISABLED, TOO_MANY, the_client
 from pinecall.api.sso import (
@@ -99,10 +98,12 @@ async def sign_in(
     pairing: str | None = PAIRING,
 ) -> RedirectResponse:
     """302 to the org's provider, carrying this sign-in's state, nonce and PKCE challenge."""
-    owner = await an_org(org, orgs)
-    wired = await sso.of(owner.id)
-    if wired is None:
-        raise HTTPException(404, NO_SSO_HERE.format(org=owner.slug))
+    # One 404 whether the org is unwired or was never made: this door takes no key, and two
+    # sentences would let a stranger walk the box's org slugs one request at a time.
+    owner = await orgs.find(org)
+    wired = None if owner is None else await sso.of(owner.id)
+    if owner is None or wired is None:
+        raise HTTPException(404, NO_SSO_HERE.format(org=org))
     if not throttle.allowed(f"{the_client(request)} sso/{owner.slug}"):
         raise HTTPException(429, TOO_MANY_SIGN_INS)
     provider = await the_provider(http, wired.issuer)
@@ -234,8 +235,9 @@ async def _seated(
             raise HTTPException(403, DISABLED.format(email=member.email, org=org.slug))
         # A person who just proved who they are at their org's OWN provider has accepted their
         # invitation: the link would only buy them a password, and this org signs in without one.
-        # They keep no password, so `required` costs them nothing and the row is simply active.
-        return member if member.status == "active" else await _activated(members, org, member)
+        # They keep no password, so `required` costs them nothing and the row is simply active —
+        # and verified, on the provider's word (0048), whatever it was before.
+        return await _activated(members, org, member)
     if wired.role is None:
         raise HTTPException(403, NOBODY_HERE.format(org=org.slug, email=email))
     # A member is a seat whoever it was made by, so the plan is asked here exactly as the invite
@@ -249,13 +251,12 @@ async def _seated(
     )
     if invited is None:
         raise HTTPException(403, NOBODY_HERE.format(org=org.slug, email=email))
-    member = invited.member
-    return member if member.status == "active" else await _activated(members, org, member)
+    return await _activated(members, org, invited.member)
 
 
 async def _activated(members: Members, org: Org, member: Member) -> Member:
-    """The row made active, with no password on it: the provider is how this person signs in."""
-    seated = await members.update(org.id, member.id, status="active")
+    """The row active and verified, with no password on it: the provider is how they sign in."""
+    seated = await members.vouched_for(org.id, member.id)
     if seated is None:
         raise HTTPException(403, NOBODY_HERE.format(org=org.slug, email=member.email))
     return seated

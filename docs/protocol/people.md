@@ -6,7 +6,9 @@ where its gateway opens one.
 
 An org's people are rows, not shared keys. A key holder invites one — `POST /v1/members` with
 `{email, name, role, agents?, production?}` answers `201` with the member, a one-use `token`, shown once and
-dead in a week, and `mailed` (below: whether the link was also posted to them) — and the person accepts at `POST /v1/invitations/{token}` with `{password,
+dead in a week — in the answer only for an address that is **this org's alone**; for somebody who is
+also another org's here it is `null` and the link is posted to them, because a link buys the
+person's ONE password (below) — and `mailed` (below: whether the link was also posted to them) — and the person accepts at `POST /v1/invitations/{token}` with `{password,
 device?}` (no key at that door; `min_password` characters at least — `PINECALL_MIN_PASSWORD`, 8 unless the operator set it, below — argon2id at rest) — which is what the
 console's own card at `/invitations/{token}` does when the link is opened in a browser — and that
 makes them `active` and answers their **first key**, in the one shape a key travels in: `{key, key_id, org,
@@ -15,6 +17,16 @@ their role: `qa` · `supervisor` · `manager` · `admin` · `developer` (`types/
 /v1/members` lists them, each saying `production`; `PATCH /v1/members/{id}` replaces `role`,
 `agents`, `status` or `production` — `disabled` revokes every key of theirs and refuses their
 login, `active` re-enables one who had a password and never activates one still invited.
+
+**A key grants what it holds** (`auth/granting.py`), at the invitation, at the PATCH and at the
+role `PUT /v1/org/sso` seats a stranger with. A role whose preset opens a door the asking key does
+not is `403 this key does not open everything <role> would: it opens …, so it cannot grant <role>`
+— a manager seats `qa`, `supervisor` and `manager`, never a `developer` or an `admin`.
+`production: true` from a key with no production access is `403 <name> has no production access,
+and cannot give it: an admin does`. Your own row is not yours to raise: `role` or `production` on
+it is `409 you cannot change your own role or production access: another admin of this org does`
+(`agents` still is). A key that names nobody — a server's token, the box's own, an operator's
+visit — grants what it is asked to.
 
 **Removing is for good, where disabling is for now.** `DELETE /v1/members/{id}` (`team`) answers
 `204`: every key of theirs is revoked FIRST, so there is no moment a removed person's key opens a
@@ -33,12 +45,21 @@ twin is `DELETE /v1/ops/orgs/{org}/members/{id}`, under the same rules less "you
 trimmed and lower-cased — `JP@Cloudacio.com ` and `jp@cloudacio.com` are one login — and an org is
 a row of theirs: `members` holds one per (org, email), and a second org is a second row carrying the
 same hash (`auth/members.py`). So inviting an email that already has a password anywhere on this
-box does not send a link: the row is made **`active`** at once, with the password they have, and
-`201` answers the member with `token` and `expires_at` null — they sign in as they always do, and
-the new org appears in their org switch. An email that has accepted nowhere is invited as above, and
-an email already accepted in THIS org is `409`. Accepting an invitation sets the password on every
-row of that email that has one, so a password chosen in one org is the password in all of them; a
-row still invited when the person already has a password is seated at their first login to it.
+box **and is verified** does not send a link: the row is made **`active`** at once, with the
+password they have, and `201` answers the member with `token` and `expires_at` null — they sign in
+as they always do, and the new org appears in their org switch. An email that has accepted nowhere,
+or is not verified, is invited as above, and an email already accepted in THIS org is `409`.
+Accepting an invitation sets the password on every row of that email that has one, so a password
+chosen in one org is the password in all of them; a row still invited when the person already has
+a password is seated at their first login to it — once verified, else `403 … has not accepted
+their invitation yet`.
+
+**An address is verified** (`members.verified_at`, `0048`; `verified` on every member the doors
+answer) once somebody other than an admin proved it: they accepted a link that travelled by mail
+alone (an invitation's or a reset's whose `token` was not in the answer), an identity provider
+named them (the org's own, or Google box-wide), or the box's operator invited them
+(`POST /v1/ops/orgs/{org}/members`). A link handed to an admin in the answer proves nothing about
+who opens it, and a sign-up proves nothing either.
 
 An invitation takes a **seat**, and where the org's plan caps them the door answers `429` with the
 quota's own sentence and makes no row. A seat is held by everybody the org has not disabled —
@@ -123,7 +144,9 @@ minute is `429`.
 **A forgotten password is handed back by a one-use link**, which an admin issues or the person
 asks for. `POST /v1/members/{id}/reset` (`team`) answers `201 {member, token, expires_at, mailed}`:
 a link like an invitation, shown once, dead in a week, that spends every older link of that
-member. The person opens it and chooses a password at the very door an invitation is accepted at,
+member — and, like an invitation's, in the answer only for a person who is this org's alone: one
+who is also another org's has it posted to them and `token` null here, because it sets their one
+password everywhere. The person opens it and chooses a password at the very door an invitation is accepted at,
 `POST /v1/invitations/{token} {password}`, and the password is theirs in every org, as always.
 Only an **active** member is reset — `409` for one still invited (their invitation is the link) or
 disabled — and a link issued before somebody was disabled opens nothing. Where the box can send
@@ -196,8 +219,10 @@ the email, answering `Quotas`) and writes the answer in the same breath the org 
 such package — a box of its own — the answer is no limit and no row, the same as `orgs add`. A
 plan, a trial, a price: those live in the package that charges, never here. Refusals: `403` where sign-ups are shut, naming the setting; `409` a slug taken; `400` a bad slug,
 email or a short password — nothing half-made — `401 nobody answers to that email and password`
-for an email that has a password on this box and a password that is not it; and `429` the sixth
-sign-up from one place in a minute.
+for an email that has a password on this box and a password that is not it; `409 <email> was
+invited to an org on this box: accept that invitation first, …` for an address invited somewhere
+and still passwordless, since a sign-up would choose that person's one password for them; and
+`429` the sixth sign-up from one place in a minute.
 
 The console is served by this gateway, so it is the same origin as every door it uses, and the
 sign-up is **its** screen (`/signup`): a site somewhere else links to it rather than posting here.

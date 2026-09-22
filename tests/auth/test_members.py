@@ -103,3 +103,48 @@ async def test_removing_takes_the_row_and_its_links_and_stays_within_the_org() -
     assert await members.remove(ORG, invited.member.id) is False, "gone is gone"
     assert await members.listed(ORG) == () and await members.seated(ORG) == 0
     assert await members.accept(invited.token, A_HASH) is None, "the link went with the row"
+
+
+async def test_only_a_vouched_link_proves_the_address_and_only_a_proved_one_is_seated_at_once() -> (
+    None
+):
+    """A link an admin was handed says nothing about who opened it; one that came by mail does."""
+    members = MemoryMembers()
+    handed = await members.invite(ORG, "jp@cloudacio.com", "JP", "developer", [])
+    assert handed is not None and handed.token is not None
+    accepted = await members.accept(handed.token, A_HASH)
+    assert accepted is not None and accepted.verified is False
+    assert await members.verified("jp@cloudacio.com") is False
+    # Known password, unproved address: a second org invites JP like anybody, with a link.
+    elsewhere = await members.invite("tienda", "jp@cloudacio.com", "JP", "qa", [], vouched=True)
+    assert elsewhere is not None and elsewhere.token is not None
+    assert elsewhere.member.status == "invited"
+    # That link came by mail alone: accepting it proves the address, on that row.
+    proved = await members.accept(elsewhere.token, "$argon2id$chosen-by-jp")
+    assert proved is not None and proved.verified is True
+    assert await members.verified("JP@cloudacio.com ") is True, "the address, however typed"
+    # And from here a third org seats JP at once, active and verified, on the password they have.
+    third = await members.invite("norte", "jp@cloudacio.com", "JP", "qa", [])
+    assert third is not None and third.token is None
+    assert (third.member.status, third.member.verified) == ("active", True)
+    kept = await members.by_email("norte", "jp@cloudacio.com")
+    assert kept is not None and kept.password_hash == "$argon2id$chosen-by-jp"
+
+
+async def test_a_provider_vouching_seats_and_proves_a_row_and_never_a_disabled_one() -> None:
+    members = MemoryMembers()
+    invited = await members.invite(ORG, "nico@tiendasur.uy", "Nico", "developer", [])
+    assert invited is not None
+    seated = await members.vouched_for(ORG, invited.member.id)
+    assert seated is not None and (seated.status, seated.verified) == ("active", True)
+    assert await members.vouched_for("tienda", invited.member.id) is None, "fenced by the org"
+    await members.update(ORG, invited.member.id, status="disabled")
+    assert await members.vouched_for(ORG, invited.member.id) is None
+    # A reset's link vouches the same way an invitation's does, when it went by mail alone.
+    ana = await members.invite(ORG, "ana@clinica.uy", "Ana", "qa", [])
+    assert ana is not None and ana.token is not None
+    await members.accept(ana.token, A_HASH)
+    reset = await members.reset(ORG, ana.member.id, vouched=True)
+    assert reset is not None and reset.token is not None
+    again = await members.accept(reset.token, "$argon2id$new")
+    assert again is not None and again.verified is True

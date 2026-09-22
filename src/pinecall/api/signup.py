@@ -37,6 +37,14 @@ NOT_HERE = (
 TAKEN = "{slug} is taken: pick another name for the org"
 TOO_MANY = "too many sign-ups from here: try again in a minute"
 
+# The address has a row on this box and no password yet: somebody invited it and the person has
+# not accepted. A sign-up here would choose that person's password FOR them — one person, one
+# password — and the org that invited them would seat whoever typed it at their first login.
+ALREADY_INVITED = (
+    "{email} was invited to an org on this box: accept that invitation first, then sign up with "
+    "the password you chose there"
+)
+
 # The label of the first key and the seat it names: the door it came through.
 SIGNED_UP = "signup"
 
@@ -91,6 +99,8 @@ async def signup(
     known = await members.a_persons_password(said.email)
     if known is not None and not passwords.matches(said.password, known):
         raise HTTPException(401, NOBODY_ANYWHERE)
+    if known is None and await members.orgs_of(said.email):
+        raise HTTPException(409, ALREADY_INVITED.format(email=said.email))
     org = await orgs.create(slug, said.name or said.org)
     if org is None:
         raise HTTPException(409, TAKEN.format(slug=slug))

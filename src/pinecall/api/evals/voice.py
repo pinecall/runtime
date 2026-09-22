@@ -90,7 +90,9 @@ async def a_voice_call(
     # the config the agent runs on, in the corner of the socket the call is dispatched to.
     speaking = Speaking(keys=keys, declared=declared)
     held = registry.of(key.env, said.agent, held_by(key))
-    if held is not None:
+    # A slug is one org's, so a socket holding it may be another tenant's: its declaration —
+    # the voice, the language — is not this key's to read, and the call runs bare instead.
+    if held is not None and held.org == key.org:
         running = await tuned_for(kept, key.org, key.env, held_by(key), said.agent, held.config)
         speaking = Speaking(
             language=running.config.language,

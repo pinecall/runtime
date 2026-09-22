@@ -13,6 +13,11 @@ from pinecall.auth.members import Kept, a_member_id, a_member_of_row, an_address
 from pinecall.log.store import Pool
 from pinecall.types import Member, MemberStatus, Role
 
+# Every column a Member is read from, spelled once: each SELECT and each RETURNING below hands
+# back a whole row, so a column added to the shape is added here and nowhere else.
+_A_ROW = """id, org, email, name, role, agents, status, operator, production, password_hash,
+            created_at, verified_at"""
+
 # (org, email) is UNIQUE, so a second invite of an accepted member is the conflict this INSERT
 # steps around: the row is read first and the decision made in Python, where the sentence is.
 _INSERT = """
@@ -20,51 +25,42 @@ INSERT INTO members (id, org, email, name, role, agents, status, production)
 VALUES ($1, $2, $3, $4, $5, $6, 'invited', $7)
 """
 
-_LISTED = """
-SELECT id, org, email, name, role, agents, status, operator, production, password_hash, created_at
-  FROM members
- WHERE org = $1
- ORDER BY created_at, id
-"""
+_LISTED = f"SELECT {_A_ROW} FROM members WHERE org = $1 ORDER BY created_at, id"
 
 # A seat is held by everybody the org has not disabled. The count is a query over the rows and
 # never a counter column: the rows are the truth and a number kept beside them drifts from it.
 _SEATED = "SELECT count(*) AS seated FROM members WHERE org = $1 AND status <> 'disabled'"
 
-_FIND = """
-SELECT id, org, email, name, role, agents, status, operator, production, password_hash, created_at
-  FROM members
- WHERE org = $1 AND id = $2
-"""
+_FIND = f"SELECT {_A_ROW} FROM members WHERE org = $1 AND id = $2"
 
-_BY_EMAIL = """
-SELECT id, org, email, name, role, agents, status, operator, production, password_hash, created_at
-  FROM members
- WHERE org = $1 AND email = $2
-"""
+_BY_EMAIL = f"SELECT {_A_ROW} FROM members WHERE org = $1 AND email = $2"
 
 # COALESCE is "a field left None keeps what it had", in the table's own words.
-_UPDATE = """
+_UPDATE = f"""
 UPDATE members
    SET role = COALESCE($3, role), agents = COALESCE($4, agents), status = COALESCE($5, status),
        production = COALESCE($6, production)
  WHERE org = $1 AND id = $2
-RETURNING id, org, email, name, role, agents, status, operator, production, password_hash,
-          created_at
+RETURNING {_A_ROW}
 """
 
 # A disabled member stays disabled: a link issued before they were is spent and opens nothing.
-_ACTIVATE = """
-UPDATE members SET status = 'active', password_hash = $2 WHERE id = $1 AND status <> 'disabled'
-RETURNING id, org, email, name, role, agents, status, operator, production, password_hash,
-          created_at
+# `verified_at` is written when the link was vouched for (0048) and kept when it already was.
+_ACTIVATE = f"""
+UPDATE members
+   SET status = 'active', password_hash = $2,
+       verified_at = CASE WHEN $3 THEN COALESCE(verified_at, now()) ELSE verified_at END
+ WHERE id = $1 AND status <> 'disabled'
+RETURNING {_A_ROW}
 """
 
-# A person who already exists on this box joins a second org seated: the row is active from the
-# start and carries the hash they already have, so there is no link and no second password.
+# A person who already exists on this box — and whose address is PROVED theirs — joins a second
+# org seated: the row is active from the start, verified, and carries the hash they already have,
+# so there is no link and no second password.
 _INSERT_SEATED = """
-INSERT INTO members (id, org, email, name, role, agents, status, password_hash, production)
-VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $8)
+INSERT INTO members (id, org, email, name, role, agents, status, password_hash, production,
+                     verified_at)
+VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $8, now())
 """
 
 # The newest hash any row of this email holds: the person's password, whichever org chose it.
@@ -76,12 +72,10 @@ SELECT password_hash
  LIMIT 1
 """
 
-_ORGS_OF = """
-SELECT id, org, email, name, role, agents, status, operator, production, password_hash, created_at
-  FROM members
- WHERE email = $1
- ORDER BY created_at, id
-"""
+_ORGS_OF = f"SELECT {_A_ROW} FROM members WHERE email = $1 ORDER BY created_at, id"
+
+# Whether anybody other than an admin has proved this address: one row of theirs says when.
+_VERIFIED = "SELECT 1 FROM members WHERE email = $1 AND verified_at IS NOT NULL LIMIT 1"
 
 # One person, one password: a password chosen at an invitation lands on every row of theirs
 # that has one. The rows still invited keep NULL — they are seated at login (`_JOIN`).
@@ -91,19 +85,25 @@ UPDATE members SET password_hash = $2 WHERE email = $1 AND password_hash IS NOT 
 
 # A row invited before the person existed, seated at their first login to this org with the
 # password they already have: fenced by the org and by the standing, so it seats nobody twice.
-_JOIN = """
+_JOIN = f"""
 UPDATE members SET status = 'active', password_hash = $3
  WHERE org = $1 AND id = $2 AND status = 'invited'
-RETURNING id, org, email, name, role, agents, status, operator, production, password_hash,
-          created_at
+RETURNING {_A_ROW}
+"""
+
+# An identity provider named the address: the row is active and proved, with no password on it,
+# and a disabled member stays disabled here as everywhere.
+_VOUCHED_FOR = f"""
+UPDATE members SET status = 'active', verified_at = COALESCE(verified_at, now())
+ WHERE org = $1 AND id = $2 AND status <> 'disabled'
+RETURNING {_A_ROW}
 """
 
 # The box's own write, and the only one that is not the org's: fenced by the org like every other
 # read, so an id from one tenant cannot name a member of another.
-_MAKE_OPERATOR = """
+_MAKE_OPERATOR = f"""
 UPDATE members SET operator = $3 WHERE org = $1 AND id = $2
-RETURNING id, org, email, name, role, agents, status, operator, production, password_hash,
-          created_at
+RETURNING {_A_ROW}
 """
 
 # Fenced by the org like every other statement here. The invitations go with the row by their own
@@ -111,17 +111,20 @@ RETURNING id, org, email, name, role, agents, status, operator, production, pass
 # key's subject, a dial's asked_by, a log entry — keeps the id and simply names nobody.
 _REMOVE = "DELETE FROM members WHERE org = $1 AND id = $2 RETURNING id"
 
-_INVITE = "INSERT INTO invitations (token_hash, member, expires_at) VALUES ($1, $2, $3)"
+_INVITE = """
+INSERT INTO invitations (token_hash, member, expires_at, vouched) VALUES ($1, $2, $3, $4)
+"""
 
 # A re-invite spends every token still open for the member: the newest link is the only link.
 _SPEND_OPEN = "UPDATE invitations SET spent_at = now() WHERE member = $1 AND spent_at IS NULL"
 
 # Spent atomically, as one UPDATE with its WHERE: two browsers opening the same link at once get
-# one member and one 404, never two members.
+# one member and one 404, never two members. It answers whether the link was vouched for, which
+# is what decides if the row it activates is verified.
 _SPEND = """
 UPDATE invitations SET spent_at = now()
  WHERE token_hash = $1 AND spent_at IS NULL AND expires_at > now()
-RETURNING member
+RETURNING member, vouched
 """
 
 
@@ -140,6 +143,7 @@ class PostgresMembers:
         agents: Iterable[str],
         *,
         production: bool = False,
+        vouched: bool = False,
     ) -> Invited | None:
         """The row when there is none yet, then the token; a still-invited member gets a new one."""
         email = an_address(email)
@@ -157,8 +161,8 @@ class PostgresMembers:
                 production=production,
             )
             known = await self.a_persons_password(email)
-            if known is not None:
-                member = replace(member, status="active")
+            if known is not None and await self.verified(email):
+                member = replace(member, status="active", verified=True)
                 await self._pool.execute(
                     _INSERT_SEATED,
                     member.id,
@@ -177,21 +181,15 @@ class PostgresMembers:
         else:
             member = kept.member
             await self._pool.execute(_SPEND_OPEN, member.id)
-        token = a_token()
-        expires_at = datetime.fromtimestamp(time.time() + INVITATION_TTL_S, UTC)
-        await self._pool.execute(_INVITE, fingerprint(token), member.id, expires_at)
-        return Invited(member=member, token=token, expires_at=expires_at.isoformat())
+        return await self._a_link_for(member, vouched)
 
-    async def reset(self, org: str, id: str) -> Invited | None:
+    async def reset(self, org: str, id: str, *, vouched: bool = False) -> Invited | None:
         """The member read, every open link of theirs spent, and a new one written."""
         found = await self.find(org, id)
         if found is None or found.status != "active":
             return None
         await self._pool.execute(_SPEND_OPEN, id)
-        token = a_token()
-        expires_at = datetime.fromtimestamp(time.time() + INVITATION_TTL_S, UTC)
-        await self._pool.execute(_INVITE, fingerprint(token), id, expires_at)
-        return Invited(member=found, token=token, expires_at=expires_at.isoformat())
+        return await self._a_link_for(found, vouched)
 
     async def accept(self, token: str, password_hash: str) -> Member | None:
         """One UPDATE spends the token and names the member; a second makes them active; a
@@ -199,7 +197,9 @@ class PostgresMembers:
         spent = await self._pool.fetchrow(_SPEND, fingerprint(token))
         if spent is None:
             return None
-        row = await self._pool.fetchrow(_ACTIVATE, str(spent["member"]), password_hash)
+        row = await self._pool.fetchrow(
+            _ACTIVATE, str(spent["member"]), password_hash, bool(spent["vouched"])
+        )
         if row is None:
             return None
         member = a_member_of_row(row)
@@ -217,9 +217,18 @@ class PostgresMembers:
         email = an_address(email)
         return tuple(a_member_of_row(row) for row in await self._pool.fetch(_ORGS_OF, email))
 
+    async def verified(self, email: str) -> bool:
+        """One read across the orgs: whether any row of the address was proved."""
+        return await self._pool.fetchrow(_VERIFIED, an_address(email)) is not None
+
     async def join(self, org: str, id: str, password_hash: str) -> Member | None:
         """One UPDATE, fenced by the org and by the standing."""
         row = await self._pool.fetchrow(_JOIN, org, id, password_hash)
+        return None if row is None else a_member_of_row(row)
+
+    async def vouched_for(self, org: str, id: str) -> Member | None:
+        """One UPDATE, fenced by the org; a disabled row answers None."""
+        row = await self._pool.fetchrow(_VOUCHED_FOR, org, id)
         return None if row is None else a_member_of_row(row)
 
     async def listed(self, org: str) -> tuple[Member, ...]:
@@ -274,3 +283,10 @@ class PostgresMembers:
     async def remove(self, org: str, id: str) -> bool:
         """One DELETE, fenced by the org; the row it returns says whether one went."""
         return await self._pool.fetchrow(_REMOVE, org, id) is not None
+
+    async def _a_link_for(self, member: Member, vouched: bool) -> Invited:
+        """One token for this member, a week long, its fingerprint and its standing in the table."""
+        token = a_token()
+        expires_at = datetime.fromtimestamp(time.time() + INVITATION_TTL_S, UTC)
+        await self._pool.execute(_INVITE, fingerprint(token), member.id, expires_at, vouched)
+        return Invited(member=member, token=token, expires_at=expires_at.isoformat())

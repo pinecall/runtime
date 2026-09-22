@@ -184,7 +184,8 @@ together. Every row written before `0024` reads as production's, the org's own.
 
 **An admin can open a developer's copy.** The corners are private by construction, and a
 corner nobody can look into is one nobody can help with. So a key that sees every corner (`team`
-— an admin's, the operator's) may send `pinecall-corner: <member id>` on any HTTP door, and that
+**and** `app` — an admin's, the box's own; a manager opens `team` alone and a developer's sandbox
+is not the floor's to open) may send `pinecall-corner: <member id>` on any HTTP door, and that
 request is answered in that member's sandbox corner (`auth/corner.py`, `in_the_corner_asked`): their
 agents, their line, their calls, as the console draws them when an admin opens one. Only in the
 sandbox — production has no corners to open — and only into an active member of the key's own
@@ -231,15 +232,27 @@ scopes of their role (`qa` · `supervisor` · `manager` · `admin` · `developer
 as `subject`. **What they may do in production is a switch on their row**, `production`, that an
 admin sets (`PATCH /v1/members/{id}`; an admin always has it): with it their one key acts in
 production too, `app` included, whenever a request says `pinecall-env: production`; without it that
-request is `403`. Disabling them keeps the row, revokes every key of theirs and refuses their login. A
+request is `403`. Disabling them keeps the row, revokes every key of theirs and refuses their login.
+**A key grants what it holds** (`auth/granting.py`): whoever invites or re-roles somebody hands
+out no role whose preset opens a door their own key does not, no production access they lack,
+and nothing on their own row — the refusals are `protocol/people.md`. A
 browser never carries a key in a URL: a key holder mints a one-use code (`POST /v1/login/codes`)
 and the browser spends it for a key of its own.
 
 **A person is their email, and may belong to several orgs.** The email is kept trimmed and
 lower-cased, and it has one password on the box: each org is a row of theirs carrying the same
 hash, and accepting an invitation sets it on every row that has one. So inviting somebody who
-already has a password here seats them `active` at once — no link, nothing to accept — and the
-operator's `orgs invite` says so instead of printing one. A login that names no org lands in the
+already has a password here — **and whose address is verified** — seats them `active` at once, no
+link, nothing to accept — and the operator's `orgs invite` says so instead of printing one. An
+address is verified (`members.verified_at`, `0048`) once somebody other than an admin proved it:
+they accepted a link that travelled by mail alone, an identity provider named them, or the
+operator invited them. A link an admin was handed proves nothing about who opened it, so a person
+known only through one is invited again like a newcomer, and an invited row of theirs is not
+seated at login: before this, whoever chose an address's password first was seated wherever that
+address was invited next. And because the link chooses the one
+password every org of theirs opens with, an org's admin is handed an invitation's or a reset's
+link only for a person who is that org's alone; for anybody who is also another org's it is
+posted to the person and to nobody else. The operator's door hands it over always. A login that names no org lands in the
 oldest org that has not disabled them; the console's org switch lists the rest
 (`GET /v1/login/orgs`) and mints the same person's key in the one picked (`POST /v1/login/org`),
 where their row there says whether production opens. A server's token names nobody and opens its
@@ -364,7 +377,7 @@ on any HTTP door that takes a key — the scoped doors and every read of a log �
 in that member's sandbox corner instead of the key's own (`auth/corner.py`): their agents, their
 line, their calls. It is what the sandbox's console sends when an admin opens a developer's copy; production's
 console has one corner and nothing to open. Only a key
-that sees every corner may send it (`team`), only in the sandbox — production has one corner — and
+that sees every corner may send it (`team` and `app`), only in the sandbox — production has one corner — and
 only naming an active member of the key's own org; otherwise `403 only a key that sees every corner
 opens a colleague's, and only in the sandbox`, or `403 no active member of this org answers to that
 corner`. A header naming the key's own person is the key's own corner. The sockets do not read it:

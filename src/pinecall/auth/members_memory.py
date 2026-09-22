@@ -24,6 +24,8 @@ class _Invitation:
     member: str
     expires_at: float
     spent: bool = False
+    # Whether accepting it proves the address: it travelled by mail alone, or the box issued it.
+    vouched: bool = False
 
 
 class MemoryMembers:
@@ -50,6 +52,7 @@ class MemoryMembers:
         agents: Iterable[str],
         *,
         production: bool = False,
+        vouched: bool = False,
     ) -> Invited | None:
         """One row per (org, email); a second invite of one still invited replaces the token."""
         email = an_address(email)
@@ -67,19 +70,17 @@ class MemoryMembers:
                 production=production,
             )
             known = await self.a_persons_password(email)
-            if known is not None:
-                member = replace(member, status="active")
+            # Seated with the password they have only when the address is PROVED theirs: a
+            # password somebody chose through a handed link says nothing about who chose it.
+            if known is not None and await self.verified(email):
+                member = replace(member, status="active", verified=True)
                 self._rows[member.id] = _Row(member, known, an_instant(self._clock()))
                 return Invited(member=member, token=None, expires_at=None)
             self._rows[member.id] = _Row(member, None, an_instant(self._clock()))
         else:
             member = kept.member
-            for hashed, invitation in self._invitations.items():
-                if invitation.member == member.id and not invitation.spent:
-                    self._invitations[hashed] = replace(invitation, spent=True)
-        token, expires_at = a_token(), self._clock() + INVITATION_TTL_S
-        self._invitations[fingerprint(token)] = _Invitation(member.id, expires_at)
-        return Invited(member=member, token=token, expires_at=an_instant(expires_at))
+            self._spend_every_open_link_of(member.id)
+        return self._a_link_for(member, vouched)
 
     async def accept(self, token: str, password_hash: str) -> Member | None:
         """Spend the token, then make the member active with this password, everywhere."""
@@ -91,7 +92,9 @@ class MemoryMembers:
         row = self._rows[invitation.member]
         if row.member.status == "disabled":
             return None
-        member = replace(row.member, status="active")
+        member = replace(
+            row.member, status="active", verified=row.member.verified or invitation.vouched
+        )
         self._rows[member.id] = replace(row, member=member, password_hash=password_hash)
         self._password_everywhere(member.email, password_hash)
         return member
@@ -110,6 +113,10 @@ class MemoryMembers:
         email = an_address(email)
         return tuple(row.member for row in self._rows.values() if row.member.email == email)
 
+    async def verified(self, email: str) -> bool:
+        """Whether any row of this address was proved to be this person's."""
+        return any(row.verified for row in await self.orgs_of(email))
+
     async def join(self, org: str, id: str, password_hash: str) -> Member | None:
         """The invited row seated active with the password the person already has."""
         found = await self.find(org, id)
@@ -117,6 +124,15 @@ class MemoryMembers:
             return None
         member = replace(found, status="active")
         self._rows[id] = replace(self._rows[id], member=member, password_hash=password_hash)
+        return member
+
+    async def vouched_for(self, org: str, id: str) -> Member | None:
+        """Active and verified on a provider's word; a disabled member stays disabled."""
+        found = await self.find(org, id)
+        if found is None or found.status == "disabled":
+            return None
+        member = replace(found, status="active", verified=True)
+        self._rows[id] = replace(self._rows[id], member=member)
         return member
 
     def _password_everywhere(self, email: str, password_hash: str) -> None:
@@ -170,17 +186,13 @@ class MemoryMembers:
         self._rows[id] = replace(self._rows[id], member=member)
         return member
 
-    async def reset(self, org: str, id: str) -> Invited | None:
+    async def reset(self, org: str, id: str, *, vouched: bool = False) -> Invited | None:
         """Every open link of theirs spent, and a new one, for a member who is active."""
         found = await self.find(org, id)
         if found is None or found.status != "active":
             return None
-        for hashed, invitation in self._invitations.items():
-            if invitation.member == id and not invitation.spent:
-                self._invitations[hashed] = replace(invitation, spent=True)
-        token, expires_at = a_token(), self._clock() + INVITATION_TTL_S
-        self._invitations[fingerprint(token)] = _Invitation(id, expires_at)
-        return Invited(member=found, token=token, expires_at=an_instant(expires_at))
+        self._spend_every_open_link_of(id)
+        return self._a_link_for(found, vouched)
 
     async def make_operator(self, org: str, id: str, operator: bool) -> Member | None:
         """The same one column, over a dict."""
@@ -202,3 +214,15 @@ class MemoryMembers:
             if invitation.member != id
         }
         return True
+
+    def _spend_every_open_link_of(self, member: str) -> None:
+        """The newest link is the only link: a re-invite or a reset spends the ones before it."""
+        for hashed, invitation in self._invitations.items():
+            if invitation.member == member and not invitation.spent:
+                self._invitations[hashed] = replace(invitation, spent=True)
+
+    def _a_link_for(self, member: Member, vouched: bool) -> Invited:
+        """One token for this member, good for a week, remembered by its fingerprint."""
+        token, expires_at = a_token(), self._clock() + INVITATION_TTL_S
+        self._invitations[fingerprint(token)] = _Invitation(member.id, expires_at, vouched=vouched)
+        return Invited(member=member, token=token, expires_at=an_instant(expires_at))

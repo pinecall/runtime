@@ -49,12 +49,13 @@ async def accepted(stranger: httpx.AsyncClient, token: str) -> dict[str, Any]:
 
 
 async def test_a_person_invited_into_a_second_org_is_seated_at_once_with_no_second_password(
-    tenant_http: httpx.AsyncClient,
     ops_http: httpx.AsyncClient,
     stranger: httpx.AsyncClient,
     orgs: MemoryOrgs,
 ) -> None:
-    first = await invited_here(tenant_http, role="developer")
+    # Invited by the operator, whose link vouches for the address (0048): a link the clinic's
+    # admin was handed would prove nothing, and the second org would invite JP like anybody.
+    first = await invited_there(ops_http, A_RECORD.org, role="developer")
     await accepted(stranger, first["token"])
     other = await a_second_org(orgs)
 
@@ -99,29 +100,30 @@ async def test_a_row_invited_before_the_person_existed_is_seated_at_their_first_
     orgs: MemoryOrgs,
 ) -> None:
     # Invited into both orgs first, then accepted in one: the other row is still `invited`, with
-    # a link the person never needs to open.
+    # a link the person never needs to open. The box hands its link over; the clinic's admin is
+    # handed none for somebody pending elsewhere — that link would choose JP's one password.
     other = await a_second_org(orgs)
     there = await invited_there(ops_http, other)
     assert there["token"] is not None
     here = await invited_here(tenant_http)
-    await accepted(stranger, here["token"])
+    assert here["token"] is None and here["member"]["status"] == "invited"
+    await accepted(stranger, there["token"])
 
     signed = await stranger.post(
-        LOGIN, json={"org": "cloudacio", "email": JP["email"], "password": A_PASSWORD}
+        LOGIN, json={"org": A_RECORD.org, "email": JP["email"], "password": A_PASSWORD}
     )
 
     assert signed.status_code == 200, signed.text
-    listed = (await ops_http.get(f"/v1/ops/orgs/{other}/members")).json()["members"]
+    listed = (await tenant_http.get(MEMBERS)).json()["members"]
     assert [m["status"] for m in listed] == ["active"]
 
 
 async def test_the_console_lists_the_persons_orgs_and_switches_with_a_key_for_the_same_person(
-    tenant_http: httpx.AsyncClient,
     ops_http: httpx.AsyncClient,
     stranger: httpx.AsyncClient,
     orgs: MemoryOrgs,
 ) -> None:
-    first = await invited_here(tenant_http, role="developer")
+    first = await invited_there(ops_http, A_RECORD.org, role="developer")  # vouched: verified
     signed = await accepted(stranger, first["token"])
     other = await a_second_org(orgs)
     await invited_there(ops_http, other, role="qa")
@@ -154,14 +156,13 @@ async def test_a_machine_key_names_nobody_and_has_no_org_to_switch_to(
 
 
 async def test_a_password_chosen_at_an_invitation_is_the_persons_password_everywhere(
-    tenant_http: httpx.AsyncClient,
     ops_http: httpx.AsyncClient,
     stranger: httpx.AsyncClient,
     orgs: MemoryOrgs,
 ) -> None:
     # Seated into the second org on the first password; a re-invite here spends a NEW password
     # at acceptance, and the second org opens with the new one and not the old.
-    first = await invited_here(tenant_http)
+    first = await invited_there(ops_http, A_RECORD.org)  # vouched: verified
     await accepted(stranger, first["token"])
     await invited_there(ops_http, await a_second_org(orgs))
     again = await ops_http.post(f"/v1/ops/orgs/{A_RECORD.org}/members", json=JP)

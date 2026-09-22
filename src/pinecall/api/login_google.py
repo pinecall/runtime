@@ -136,12 +136,11 @@ async def _the_person_home(members: Members, sso: Sso | None, email: str) -> Mem
     allowed = [row for row in standing if not await only_with_the_provider(sso, row.org)]
     if not allowed:
         raise HTTPException(403, THEIR_OWN_PROVIDER.format(email=email, org=standing[0].org))
+    # Google named the address, which is what proves it (0048): every standing row of theirs is
+    # verified, and an invited one seated, on that word.
     seated: list[Member] = []
     for row in allowed:
-        if row.status == "active":
-            seated.append(row)
-            continue
-        member = await members.update(row.org, row.id, status="active")
+        member = await members.vouched_for(row.org, row.id)
         seated.append(row if member is None else member)
     return seated[0]
 

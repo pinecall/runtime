@@ -39,6 +39,9 @@ class Members(Protocol):
     # second org is a second row with the same hash, and the hash changes everywhere at once.
     # No migration carried this: 0014's schema already holds a hash per row, and the rule is
     # kept here, in the four verbs that read and write it (2026-09-16).
+    # `vouched` is whether accepting the token PROVES the address (0048): true when the link only
+    # ever travels by mail, or the box's operator issued it; false for a link the answer handed
+    # to an admin, which proves nothing about who opens it.
     async def invite(
         self,
         org: str,
@@ -48,16 +51,26 @@ class Members(Protocol):
         agents: Iterable[str],
         *,
         production: bool = False,
+        vouched: bool = False,
     ) -> Invited | None:
         """A new member with a one-use token, or a fresh token for one still invited. An email
-        that already has a password on this box is seated ACTIVE with it, and no token is made.
-        None when the email already belongs to a member of THIS org who accepted."""
+        that already has a password on this box AND is verified is seated ACTIVE with it, and no
+        token is made. None when the email already belongs to a member of THIS org who accepted."""
         ...
 
     async def accept(self, token: str, password_hash: str) -> Member | None:
         """The invitation spent and the member active with this password, which becomes the
-        person's password in every org of theirs. None when no open, unexpired invitation
-        answers to the token."""
+        person's password in every org of theirs — and the row verified when the invitation was
+        vouched. None when no open, unexpired invitation answers to the token."""
+        ...
+
+    async def verified(self, email: str) -> bool:
+        """Whether some row of this address has been proved to be this person's."""
+        ...
+
+    async def vouched_for(self, org: str, id: str) -> Member | None:
+        """An identity provider named this address: the row active and verified, with no password
+        on it. None when no member of this org answers to the id, or they are disabled."""
         ...
 
     async def a_persons_password(self, email: str) -> str | None:
@@ -112,7 +125,7 @@ class Members(Protocol):
     # it chooses a new password through the very door an invitation is accepted at. Only an
     # ACTIVE member is reset; the newest link is the only link, and a member disabled after it was
     # issued is not re-activated by it.
-    async def reset(self, org: str, id: str) -> Invited | None:
+    async def reset(self, org: str, id: str, *, vouched: bool = False) -> Invited | None:
         """A one-use link that sets this active member's password. None when not active here."""
         ...
 
@@ -168,6 +181,7 @@ def a_member_of_row(row: Any) -> Member:
         status=_a_status(str(row["status"])),
         operator=bool(row["operator"]),
         production=bool(row["production"]),
+        verified=row["verified_at"] is not None,
     )
 
 

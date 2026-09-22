@@ -10,9 +10,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.requests import HTTPConnection
 
 from pinecall._settings import Settings
-from pinecall.api._deps import OrgsDep, SettingsDep, TeamKeyDep, an_org, held
+from pinecall.api._deps import MembersDep, OrgsDep, SettingsDep, TeamKeyDep, an_org, held
 from pinecall.api._gateway import where_this_gateway_answers
 from pinecall.api._operator import an_operator
+from pinecall.api._seating import may_grant
 from pinecall.api.orgs import NO_BODY
 from pinecall.auth.openid import OpenIdRefused, configuration
 from pinecall.auth.sso import Handshakes
@@ -120,11 +121,15 @@ async def wire(
     key: TeamKeyDep,
     sso: KeptSsoDep,
     http: HttpDep,
+    members: MembersDep,
     settings: SettingsDep,
     request: Request,
 ) -> Any:
     """Wire this org to its provider, replacing what it had; 400 for an issuer nobody answers."""
     wanted = _a_configuration(said, key.org)
+    # The role a stranger at the provider is seated with is a role this key hands out: a manager
+    # who could seat every address of a domain as admin would be a manager making admins.
+    await may_grant(key, members, wanted.role, None)
     try:
         await configuration(http, wanted.issuer)
     except OpenIdRefused as refused:

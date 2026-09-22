@@ -1,5 +1,7 @@
 """A member's password: argon2id at rest, verified in constant time, and never anything else."""
 
+import secrets
+
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 
@@ -29,9 +31,17 @@ def hashed(password: str, at_least: int) -> str:
     return _HASHER.hash(password)
 
 
-def matches(password: str, kept: str) -> bool:
-    """Whether the password is the one hashed. Wrong, or a hash that is not one: both are False."""
+# The hash a door checks a password against when NOBODY answers to the address: argon2id over a
+# secret this process made up at startup and never wrote down. It never matches, and it costs
+# exactly what a real one costs — a door that answered a stranger's email in a microsecond and a
+# member's in a hundred milliseconds told the stranger which addresses are members, one at a time.
+_NOBODYS = _HASHER.hash(secrets.token_urlsafe(32))
+
+
+def matches(password: str, kept: str | None) -> bool:
+    """Whether the password is the one hashed. Wrong, a hash that is not one, or nobody's (None):
+    all three are False, and all three take as long as a right answer."""
     try:
-        return _HASHER.verify(kept, password)
+        return _HASHER.verify(_NOBODYS if kept is None else kept, password) and kept is not None
     except (VerifyMismatchError, VerificationError, InvalidHashError):
         return False

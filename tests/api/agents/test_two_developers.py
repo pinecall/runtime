@@ -297,15 +297,16 @@ async def test_a_reader_who_sees_the_team_gets_one_row_per_corner_saying_whose()
     assert {held.slug for held in every} == {AGENT}
 
 
-def test_who_sees_every_corner_is_whoever_may_see_who_the_team_is() -> None:
-    """An admin and a manager open `team`; a developer does not, and sees their own corner."""
+def test_who_sees_every_corner_opens_the_team_and_holds_an_agent() -> None:
+    """An admin opens `team` and `app`; a manager opens `team` alone and a developer `app` alone,
+    and a developer's sandbox is neither the floor's nor a colleague's to open."""
     admin = KeyRecord(key_id="k_1", org=ORG, env=SANDBOX, scopes=ROLE_SCOPES["admin"])
     manager = KeyRecord(key_id="k_2", org=ORG, env=SANDBOX, scopes=ROLE_SCOPES["manager"])
     developer = KeyRecord(key_id="k_3", org=ORG, env=SANDBOX, scopes=ROLE_SCOPES["developer"])
 
     seen = (sees_every_corner(admin), sees_every_corner(manager), sees_every_corner(developer))
 
-    assert seen == (True, True, False)
+    assert seen == (True, False, False)
 
 
 async def test_a_developers_phone_dialling_the_production_number_reaches_their_copy() -> None:

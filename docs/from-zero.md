@@ -281,7 +281,7 @@ served at is the world it shows.
 
 The sandbox holds **one agent per person**: two developers each run `clinica-norte` and neither
 takes the other's. What each reaches — the sandbox's console, `chat`, the config door, a suite — is their own
-socket. A key that opens `team` (an admin's, the box operator's) is answered every member's corner,
+socket. A key that opens `team` and `app` (an admin's, the box's own) is answered every member's corner,
 each row saying whose:
 
 ```console

@@ -108,3 +108,30 @@ async def test_removing_deletes_the_row_and_cascades_to_its_links_within_the_org
         "SELECT count(*) AS links FROM invitations WHERE member = $1", invited.member.id
     )
     assert left is not None and int(left["links"]) == 0
+
+
+async def test_a_vouched_link_proves_the_address_and_a_proved_person_is_seated_at_once(
+    pool: Pool, org: str
+) -> None:
+    """0048, through the two tables: `invitations.vouched` into `members.verified_at`."""
+    members = PostgresMembers(pool)
+    email = f"jp-{uuid4().hex[:8]}@cloudacio.com"
+    handed = await members.invite(org, email, "JP", "developer", [])
+    assert handed is not None and handed.token is not None
+    accepted = await members.accept(handed.token, A_HASH)
+    assert accepted is not None and accepted.verified is False
+    assert await members.verified(email) is False
+    other = await PostgresOrgs(pool).create(f"org-{uuid4().hex[:12]}", "Other")
+    assert other is not None
+    # Unproved: the second org gets an invited row and a link, never a seat on that password.
+    elsewhere = await members.invite(other.id, email, "JP", "qa", [], vouched=True)
+    assert elsewhere is not None and elsewhere.token is not None
+    assert elsewhere.member.status == "invited"
+    proved = await members.accept(elsewhere.token, "$argon2id$chosen")
+    assert proved is not None and proved.verified is True
+    assert await members.verified(email) is True
+    # A provider's word does the same, and never revives a disabled row.
+    vouched = await members.vouched_for(org, accepted.id)
+    assert vouched is not None and vouched.verified is True
+    await members.update(org, accepted.id, status="disabled")
+    assert await members.vouched_for(org, accepted.id) is None

@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 from pinecall.api.login import A_BROWSER, WITH_THE_PROVIDER
-from pinecall.api.login_sso import NO_HANDSHAKE, THE_CARD, THE_CONSOLE
+from pinecall.api.login_sso import NO_HANDSHAKE, NO_SSO_HERE, THE_CARD, THE_CONSOLE
 from pinecall.auth import passwords
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.openid import SCOPE
@@ -62,6 +62,17 @@ async def wired(sso: Sso, *, role: Role | None = None, required: bool = False) -
             required=required,
         )
     )
+
+
+async def test_the_door_says_one_404_for_an_org_wired_to_nothing_and_for_an_org_that_is_not(
+    stranger: httpx.AsyncClient,
+) -> None:
+    """No key at this door, so two sentences would let a stranger walk the box's org slugs."""
+    unwired = await stranger.get(f"{SIGN_IN}?org={AN_ORG.slug}")
+    nobodys = await stranger.get(f"{SIGN_IN}?org=nobodys")
+    assert unwired.status_code == nobodys.status_code == 404
+    assert unwired.json()["detail"] == NO_SSO_HERE.format(org=AN_ORG.slug)
+    assert nobodys.json()["detail"] == NO_SSO_HERE.format(org="nobodys")
 
 
 async def sent_to_the_provider(

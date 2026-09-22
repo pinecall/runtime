@@ -80,6 +80,13 @@ class Member:
     # like, push its base. The org's admin gives it; an admin always has it (`opens_production`).
     # Read at every request that asks for production, so taking it away closes the next one.
     production: bool = False
+    # Whether this address has been PROVED to be this person's, on this row: they accepted a link
+    # that travelled by mail alone, an identity provider vouched for them, or the box's operator
+    # issued the invitation. A link an admin handed over proves nothing about the address. A
+    # person is seated in a second org without a link — and an invited row of theirs is seated at
+    # login — only when some row of theirs says so (0048): before it, whoever had chosen the
+    # address's password first was seated wherever that address was invited next.
+    verified: bool = False
 
     def __post_init__(self) -> None:
         if not self.id or not self.org:

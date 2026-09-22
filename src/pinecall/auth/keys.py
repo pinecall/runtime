@@ -12,6 +12,7 @@ from typing import Any, Protocol
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
 from pinecall.types import (
+    HOLDING,
     KEY_SCOPES,
     PRODUCTION,
     THE_FLEET,
@@ -128,10 +129,12 @@ def held_by(record: KeyRecord) -> str | None:
 # The other half of the same question. `held_by` says which corner this key WORKS in; this says
 # whether it may look into everybody else's. Nobody could, which meant a tenant's admin had no way
 # to tell what their developers were running and the box operator had none either — and a corner
-# nobody can see is a corner nobody can help with.
+# nobody can see is a corner nobody can help with. It takes BOTH the team's door and the agent's
+# own (`app`): `team` alone is a manager's, who runs the floor and holds no agent, and a
+# developer's sandbox — their calls, their memory, their copy — is not the floor's to open.
 def sees_every_corner(record: KeyRecord) -> bool:
-    """Whether this key is the org's eyes — an admin's, the operator's — and not one person's."""
-    return THE_TEAM in record.scopes
+    """Whether this key is the org's eyes — an admin's, the box's own — and not one person's."""
+    return THE_TEAM in record.scopes and HOLDING in record.scopes
 
 
 # The third question, and the one the worker asks. A tenant's key works in one corner and no door
