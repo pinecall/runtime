@@ -67,9 +67,7 @@ async def production(wired: None) -> AsyncIterator[httpx.AsyncClient]:  # noqa: 
 async def test_a_supervisor_sets_the_teams_words_and_the_next_call_says_them(
     carla: httpx.AsyncClient, ana: httpx.AsyncClient, registry: Registry
 ) -> None:
-    await registry.register(
-        "app_ci", A_RECORD.org, SANDBOX, AGENT, [defs.Route(channel="web", number=None)]
-    )
+    await registry.register("app_ci", A_RECORD.org, SANDBOX, AGENT)
     await registry.configure("app_ci", SANDBOX, AGENT, defs.AgentConfig(language="es"))
     put = await carla.put(LEXICON, json={"lexicon": WORDS, "note": "said wrong all morning"})
     assert put.status_code == 200, put.text

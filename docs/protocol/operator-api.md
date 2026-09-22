@@ -40,22 +40,18 @@ restarted, and nothing is deployed.
 
 ### `GET /v1/ops/routes?org=<id or slug>`
 
-Every door the org answers now, in the worker's order, each naming the table that put it there.
+Every door the org answers now, in the worker's order. A door is a row in this table and there is
+no other kind: a class declares none, and the widget is not a door — every agent is on the web.
 
 ```json
 [
-  { "route": { "org": "default", "agent": "tienda-sur", "channel": "phone",
-               "number": "+59829000000", "label": null, "env": "production",
-               "managed": false },
-    "source": "operator" },
-  { "route": { "org": "default", "agent": "clinica-norte", "channel": "web",
-               "number": null, "label": null, "env": "production", "managed": false },
-    "source": "app" }
+  { "org": "default", "agent": "tienda-sur", "channel": "phone",
+    "number": "+59829000000", "label": null, "env": "production", "managed": false }
 ]
 ```
 
-`source` is `operator` for a row in this table, `app` for one a connected socket declared. `?env=`
-names the world, `production` when left out; the worker's `GET /v1/routes` answers its key's.
+`?env=` names the world, `production` when left out; the worker's `GET /v1/routes` answers its
+key's, in the same shape.
 
 ### `POST /v1/ops/routes`
 

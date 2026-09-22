@@ -22,7 +22,6 @@ pytestmark = pytest.mark.unit
 # declaration the consent rule has nothing to look at and answers `undeclared`.
 THE_GOLDENS_AGENT = AgentConfig(
     slug="clinica-norte",
-    channels=frozenset({"phone"}),
     tools=(
         ToolSpec(
             name="find_slots",
@@ -133,7 +132,7 @@ async def test_a_call_nobody_declared_a_tool_for_breaks_rather_than_reading_as_a
     golden: list[Entry],
 ) -> None:
     """A check that could not look must never read as proof: the reason says how to fix it."""
-    undeclared = AgentConfig(slug="clinica-norte", channels=frozenset({"phone"}))
+    undeclared = AgentConfig(slug="clinica-norte")
     consent = _judged((await a_score(golden, undeclared, NO_BUDGET)).judges, "consent")
     assert consent.verdict == "broken"
     assert "not one declared side effect" in consent.reason

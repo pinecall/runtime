@@ -40,7 +40,7 @@ def a_golden(**written: Any) -> Golden:
 
 def a_call_of(golden: Golden) -> TextSession:
     """The call that golden opens, on a model nobody in this file ever reaches."""
-    config = AgentConfig(slug=AGENT, channels=frozenset({"web"}))
+    config = AgentConfig(slug=AGENT)
     logs = Logs(MemoryStore())
     lookups = Lookups(
         None, None, logs, Live(), partial(keys_brought_by, None), *a_plan(logs, the_tenants())

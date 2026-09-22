@@ -23,12 +23,9 @@ ANA = "+34600000001"
 
 REMEMBERS = AgentConfig(
     slug="clinica-norte",
-    channels=frozenset({"phone"}),
     memory=MemoryPolicy(remember=("preference",)),
 )
-SEARCHES = AgentConfig(
-    slug="clinica-norte", channels=frozenset({"phone"}), bases=(Docs(base="clinica", k=4),)
-)
+SEARCHES = AgentConfig(slug="clinica-norte", bases=(Docs(base="clinica", k=4),))
 BOTH = replace(REMEMBERS, bases=(Docs(base="clinica", k=4),))
 
 

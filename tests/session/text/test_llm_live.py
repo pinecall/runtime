@@ -31,7 +31,7 @@ async def test_haiku_answers_and_the_metrics_carry_what_the_provider_reported() 
         route=Route(org="clinica", agent=AGENT, channel="web", number=None),
         today=date.today(),
     )
-    config = AgentConfig(slug=AGENT, channels=frozenset({"web"}))
+    config = AgentConfig(slug=AGENT)
     model = models_for(load_settings())(HAIKU, NO_ORG_KEYS)
     session = TextSession(context, config, CallLog(store, AGENT, A_CALL), model)
     await session.start()

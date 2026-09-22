@@ -48,9 +48,7 @@ async def declared(
     registry: Registry, tuning: MemoryTuning, memory: MemoryPolicy | None = CLARAS_MEMORY
 ) -> None:
     """The clinic on its socket, and the policy the goldens are judged against set in its world."""
-    await registry.register(
-        AN_OWNER, A_RECORD.org, PRODUCTION, AGENT, [defs.Route(channel="web", number=None)]
-    )
+    await registry.register(AN_OWNER, A_RECORD.org, PRODUCTION, AGENT)
     await registry.configure(AN_OWNER, PRODUCTION, AGENT, defs.AgentConfig(tools=[A_TOOL]))
     if memory is not None:
         await tuning.put(

@@ -5,7 +5,7 @@ import pytest
 from pinecall.api.agents.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
-from pinecall.types import PRODUCTION, SANDBOX, DeclarationRefused
+from pinecall.types import PRODUCTION, SANDBOX
 from pinecall.types.channel import Channel
 from pinecall_protocol import defs
 
@@ -23,8 +23,8 @@ def a_door(channel: Channel, number: str | None = None) -> defs.Route:
 async def test_the_same_slug_is_held_once_in_each_world_and_neither_sees_the_other() -> None:
     """A laptop's `pinecall start` on a dev key and the box's on a production key are two agents."""
     registry = Registry(Logs(MemoryStore()))
-    await registry.register(A_SOCKET, "madrid", PRODUCTION, "clinica-norte", [a_door("web")])
-    await registry.register(ANOTHER_SOCKET, "madrid", SANDBOX, "clinica-norte", [a_door("web")])
+    await registry.register(A_SOCKET, "madrid", PRODUCTION, "clinica-norte")
+    await registry.register(ANOTHER_SOCKET, "madrid", SANDBOX, "clinica-norte")
     deployed, written = (
         registry.of(PRODUCTION, "clinica-norte"),
         registry.of(SANDBOX, "clinica-norte"),
@@ -39,8 +39,8 @@ async def test_the_same_slug_is_held_once_in_each_world_and_neither_sees_the_oth
 
 async def test_a_configure_in_one_world_leaves_the_other_worlds_declaration_alone() -> None:
     registry = Registry(Logs(MemoryStore()))
-    await registry.register(A_SOCKET, "madrid", PRODUCTION, "clinica-norte", [a_door("web")])
-    await registry.register(ANOTHER_SOCKET, "madrid", SANDBOX, "clinica-norte", [a_door("web")])
+    await registry.register(A_SOCKET, "madrid", PRODUCTION, "clinica-norte")
+    await registry.register(ANOTHER_SOCKET, "madrid", SANDBOX, "clinica-norte")
     await registry.configure(
         ANOTHER_SOCKET, SANDBOX, "clinica-norte", defs.AgentConfig(language="es-UY")
     )
@@ -49,27 +49,24 @@ async def test_a_configure_in_one_world_leaves_the_other_worlds_declaration_alon
     assert deployed.config.language is None
 
 
-async def test_a_development_key_cannot_claim_a_production_door() -> None:
-    """A number rings in one place: the world that holds it is named in the refusal."""
+# A number ringing in one place is the TABLE's rule now — one row per number per org, by its own
+# primary key — and not a claim a socket makes. A sandbox copy of an agent holds no door at all,
+# so it takes nothing from production and is refused nothing.
+async def test_a_sandbox_copy_takes_no_door_from_the_one_in_production() -> None:
     registry = Registry(Logs(MemoryStore()))
-    await registry.register(
-        A_SOCKET, "madrid", PRODUCTION, "clinica-norte", [a_door("phone", A_NUMBER)]
-    )
-    with pytest.raises(
-        DeclarationRefused, match="already answers for agent clinica-norte in production"
-    ):
-        await registry.register(
-            ANOTHER_SOCKET, "madrid", SANDBOX, "clinica-norte", [a_door("phone", A_NUMBER)]
-        )
-    answering = registry.at("phone", A_NUMBER)
-    assert answering is not None
-    assert answering.env == PRODUCTION
+    await registry.register(A_SOCKET, "madrid", PRODUCTION, "clinica-norte")
+    await registry.register(ANOTHER_SOCKET, "madrid", SANDBOX, "clinica-norte")
+
+    deployed = registry.of(PRODUCTION, "clinica-norte")
+    sandboxed = registry.of(SANDBOX, "clinica-norte")
+    assert deployed is not None and deployed.env == PRODUCTION
+    assert sandboxed is not None and sandboxed.env == SANDBOX
 
 
 async def test_a_socket_leaving_one_world_frees_nothing_in_the_other() -> None:
     registry = Registry(Logs(MemoryStore()))
-    await registry.register(A_SOCKET, "madrid", PRODUCTION, "clinica-norte", [a_door("web")])
-    await registry.register(ANOTHER_SOCKET, "madrid", SANDBOX, "clinica-norte", [a_door("web")])
+    await registry.register(A_SOCKET, "madrid", PRODUCTION, "clinica-norte")
+    await registry.register(ANOTHER_SOCKET, "madrid", SANDBOX, "clinica-norte")
     assert (await registry.release(ANOTHER_SOCKET)) == frozenset({"clinica-norte"})
     assert registry.of(SANDBOX, "clinica-norte") is None
     assert registry.of(PRODUCTION, "clinica-norte") is not None
@@ -78,12 +75,8 @@ async def test_a_socket_leaving_one_world_frees_nothing_in_the_other() -> None:
 async def test_the_register_says_which_world_and_the_org_counts_the_slug_once() -> None:
     """agent.registered carries env; an agent held in both worlds is one agent to the quota."""
     registry = Registry(Logs(MemoryStore()))
-    deployed = await registry.register(
-        A_SOCKET, "madrid", PRODUCTION, "clinica-norte", [a_door("web")]
-    )
-    written = await registry.register(
-        ANOTHER_SOCKET, "madrid", SANDBOX, "clinica-norte", [a_door("web")]
-    )
+    deployed = await registry.register(A_SOCKET, "madrid", PRODUCTION, "clinica-norte")
+    written = await registry.register(ANOTHER_SOCKET, "madrid", SANDBOX, "clinica-norte")
     assert (deployed.data["env"], written.data["env"]) == (PRODUCTION, SANDBOX)
     assert {held.slug for held in registry.holding("madrid")} == {"clinica-norte"}
 
@@ -91,13 +84,13 @@ async def test_the_register_says_which_world_and_the_org_counts_the_slug_once() 
 async def test_the_declaration_a_slug_alone_names_is_productions_when_it_is_held_there() -> None:
     """The sink knows an entry's agent and no world: it reads the deployed declaration first."""
     registry = Registry(Logs(MemoryStore()))
-    await registry.register(ANOTHER_SOCKET, "madrid", SANDBOX, "clinica-norte", [a_door("web")])
+    await registry.register(ANOTHER_SOCKET, "madrid", SANDBOX, "clinica-norte")
     await registry.configure(
         ANOTHER_SOCKET, SANDBOX, "clinica-norte", defs.AgentConfig(language="es-UY")
     )
     written = registry.declared("clinica-norte")
     assert written is not None and written.language == "es-UY"
-    await registry.register(A_SOCKET, "madrid", PRODUCTION, "clinica-norte", [a_door("web")])
+    await registry.register(A_SOCKET, "madrid", PRODUCTION, "clinica-norte")
     deployed = registry.declared("clinica-norte")
     assert deployed is not None and deployed.language is None
     assert registry.declared("nobody") is None
@@ -107,8 +100,8 @@ async def test_a_socket_leaving_writes_agent_detached_saying_whether_anybody_is_
     """The other half of register: which socket, which world, whether the agent is still held."""
     store = MemoryStore()
     registry = Registry(Logs(store))
-    await registry.register(A_SOCKET, "madrid", PRODUCTION, "clinica-norte", [a_door("web")])
-    await registry.register(ANOTHER_SOCKET, "madrid", PRODUCTION, "clinica-norte", [a_door("web")])
+    await registry.register(A_SOCKET, "madrid", PRODUCTION, "clinica-norte")
+    await registry.register(ANOTHER_SOCKET, "madrid", PRODUCTION, "clinica-norte")
     await registry.release(ANOTHER_SOCKET)
     await registry.release(A_SOCKET)
     written = [

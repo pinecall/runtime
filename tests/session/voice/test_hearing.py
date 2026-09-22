@@ -12,7 +12,6 @@ pytestmark = pytest.mark.unit
 
 CLARA = AgentConfig(
     slug="clinica-norte",
-    channels=frozenset({"phone"}),
     hears=("Clínica Norte", "doctora Vidal"),
 )
 

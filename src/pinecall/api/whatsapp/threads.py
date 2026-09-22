@@ -146,7 +146,7 @@ class Threads:
     # either way, because a webhook that answers 4xx is a webhook Meta disables.
     async def _opened(self, doors: Doors, inbound: Inbound) -> Thread | None:
         """One new call for this contact, or None and a line saying why there is none."""
-        route = await answering(doors.routes, doors.registry, inbound.number)
+        route = await answering(doors.routes, inbound.number)
         if route is None:
             return None
         held = doors.registry.taking(route.env, route.agent)

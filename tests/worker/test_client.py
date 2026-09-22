@@ -28,7 +28,6 @@ pytestmark = pytest.mark.unit
 CLINICA = Route(org="pinecall", agent="clinica-norte", channel="phone", number="+59891111")
 CLARA = AgentConfig(
     slug="clinica-norte",
-    channels=frozenset({"phone"}),
     tools=(ToolSpec(name="find_slot", description="Free slots", parameters={"type": "object"}),),
 )
 

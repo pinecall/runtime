@@ -10,7 +10,7 @@ from pinecall.api._live import Live
 from pinecall.api.agents.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
-from pinecall.types import PRODUCTION, CallContext, Route
+from pinecall.types import PRODUCTION, CallContext
 from pinecall.worker.client import Gateway, GatewayRefused
 from pinecall_protocol import defs
 from pinecall_protocol.events import ToolCall
@@ -34,9 +34,7 @@ A_LAYOUT = [
 
 async def declared(registry: Registry) -> None:
     """The clinic, registered and configured the way its app socket would have done it."""
-    await registry.register(
-        AN_OWNER, A_RECORD.org, PRODUCTION, AGENT, [defs.Route(channel="web", number=None)]
-    )
+    await registry.register(AN_OWNER, A_RECORD.org, PRODUCTION, AGENT)
     await registry.configure(
         AN_OWNER, PRODUCTION, AGENT, defs.AgentConfig(prompt=A_LAYOUT, tools=[A_TOOL])
     )
@@ -46,11 +44,12 @@ def a_context(org: str = A_RECORD.org) -> CallContext:
     return a_call_on(CALL, org)
 
 
-async def test_the_routes_are_the_fleets_own_doors_as_the_domain_holds_them(
+async def test_the_routes_are_the_rows_of_the_corner_and_holding_an_agent_adds_none(
     worker_gateway: Gateway, registry: Registry
 ) -> None:
+    """A door is a row an operator typed; a socket brings none, and the widget is not a door."""
     await declared(registry)
-    assert await worker_gateway.routes() == (Route(org="clinica", agent=AGENT, channel="web"),)
+    assert await worker_gateway.routes() == ()
 
 
 async def test_an_agents_config_comes_back_whole_and_an_unknown_one_is_a_refusal(

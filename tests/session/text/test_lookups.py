@@ -24,7 +24,6 @@ A_VIEW = "The caller is Ana. Two slots are free."
 
 REMEMBERS = AgentConfig(
     slug=AGENT,
-    channels=frozenset({"web"}),
     memory=MemoryPolicy(remember=("preference",)),
     bases=(Docs(base="clinica", k=4),),
 )

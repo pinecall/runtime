@@ -380,8 +380,8 @@ as it is written, so what to resume from is that log and its `seq`. A turn is ne
 take a key with `calls`; a room token reads its one call and neither of these. Beside them,
 `GET /v1/usage?after=&limit=` is the org's own metered rows, totals and cursor (`usage`), the
 tenant's read of what the operator's `/v1/ops/usage` pages; and `GET /v1/numbers` is every door
-the org answers in the key's world, each saying whether an operator typed it or an app declared
-it (`numbers`). `GET /v1/keys` (any key) is the org's tokens by fingerprint, never a key: every
+the org answers in the key's world (`numbers`) — every one of them a row somebody typed, because
+a class declares no doors and the widget is not one. `GET /v1/keys` (any key) is the org's tokens by fingerprint, never a key: every
 server's, and the asker's own person keys — every person's with `keys` — each `{fingerprint, label, kind: person|server, env (null for a person's), name, created_by, created_at, last_used_at, revoked_at, scopes}`.
 `POST /v1/keys {label, env}` makes a **server's token**, on a person's key with `app` (`403` on any other; production only with production access): `app` · `calls` · `talk` · `knowledge` · `evals`, `pc_live_…` or `pc_test_…`, answered in the clear the once, and it outlives the person who made it.
 `POST /v1/keys/{fingerprint}/revoke` stops your own key, a token you made, or any with `keys`; anything else is `404` like nobody's.

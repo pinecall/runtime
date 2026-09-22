@@ -19,7 +19,7 @@ from tests.session.voice.silence import FakeKit
 
 pytestmark = pytest.mark.unit
 
-CLARA = AgentConfig(slug="clinica-norte", channels=frozenset({"phone", "web"}))
+CLARA = AgentConfig(slug="clinica-norte")
 
 
 async def test_a_spoken_call_is_built_with_the_ears_and_the_voice_the_agent_asked_for() -> None:
@@ -79,7 +79,6 @@ async def test_the_model_never_runs_before_the_turn_is_in_on_either_channel() ->
 async def test_what_it_takes_to_cut_the_agent_off_is_the_agents_own_declaration() -> None:
     config = AgentConfig(
         slug="clinica-norte",
-        channels=frozenset({"phone"}),
         turn=Turn(min_interruption_words=3, endpointing_ms=400),
     )
     handling = _turns(a_call_on(config, _a_kit(), "phone"))

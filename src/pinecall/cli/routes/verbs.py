@@ -113,12 +113,10 @@ async def add_route(
     *,
     env: str = PRODUCTION,
 ) -> int:
-    """The number, and the agent that loses it when one was answering there already."""
+    """One number to one agent. A number already answering somewhere moves: this is an upsert."""
     said = {"org": org, "number": number, "agent": agent, "channel": channel, "env": env}
-    answer = await operator.post(OPS_ROUTES, said)
+    await operator.post(OPS_ROUTES, said)
     print(f"{number} {channel} → {agent} in org {org} · {env}", file=out)
-    if overridden := answer.get("overrides"):
-        print(f"agent {overridden} declared {number} too, and no longer answers it", file=out)
     return 0
 
 
@@ -155,15 +153,9 @@ def _read_the_file(path: Path) -> list[dict[str, Any]]:
     return cast("list[dict[str, Any]]", read)
 
 
-def _row_of(door: dict[str, Any]) -> tuple[str, ...]:
-    """One door as a person reads it: the number, the channel, who answers, and who said so."""
-    route: dict[str, Any] = door["route"]
-    return (
-        str(route.get("number") or "—"),
-        str(route["channel"]),
-        str(route["agent"]),
-        str(door["source"]),
-    )
+def _row_of(route: dict[str, Any]) -> tuple[str, ...]:
+    """One door as a person reads it: the number, the channel, and who answers there."""
+    return (str(route.get("number") or "—"), str(route["channel"]), str(route["agent"]))
 
 
 # ── the plumbing every verb shares ──────────────────────────────────────────────

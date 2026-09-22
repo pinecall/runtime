@@ -45,8 +45,8 @@ def a_registry() -> Registry:
 async def test_each_developer_holds_their_own_and_neither_takes_the_others() -> None:
     """The whole point: before this, the second `pinecall start` replaced the first."""
     registry = a_registry()
-    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("web")], holder=BERNA)
-    await registry.register(CARLAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("web")], holder=CARLA)
+    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, holder=BERNA)
+    await registry.register(CARLAS_SOCKET, ORG, SANDBOX, AGENT, holder=CARLA)
 
     bernas = registry.of(SANDBOX, AGENT, BERNA)
     carlas = registry.of(SANDBOX, AGENT, CARLA)
@@ -57,7 +57,7 @@ async def test_each_developer_holds_their_own_and_neither_takes_the_others() -> 
 async def test_a_developer_holding_none_falls_back_to_the_orgs_own() -> None:
     """A sandbox key that names nobody — CI's — holds the corner everybody else falls into."""
     registry = a_registry()
-    await registry.register(CI, ORG, SANDBOX, AGENT, [a_door("web")])
+    await registry.register(CI, ORG, SANDBOX, AGENT)
 
     held = registry.of(SANDBOX, AGENT, BERNA)
     assert held is not None and held.owner == CI
@@ -65,8 +65,8 @@ async def test_a_developer_holding_none_falls_back_to_the_orgs_own() -> None:
 
 async def test_their_own_wins_over_the_orgs_own() -> None:
     registry = a_registry()
-    await registry.register(CI, ORG, SANDBOX, AGENT, [a_door("web")])
-    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("web")], holder=BERNA)
+    await registry.register(CI, ORG, SANDBOX, AGENT)
+    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, holder=BERNA)
 
     held = registry.of(SANDBOX, AGENT, BERNA)
     assert held is not None and held.owner == BERNAS_SOCKET
@@ -77,12 +77,12 @@ async def test_their_own_wins_over_the_orgs_own() -> None:
 async def test_production_has_one_corner_and_a_laptop_is_not_in_it() -> None:
     """A person's key holds no `app` in production, so the only holder there is the box's."""
     registry = a_registry()
-    await registry.register(THE_BOX, ORG, PRODUCTION, AGENT, [a_door("phone", A_PROD_NUMBER)])
-    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("web")], holder=BERNA)
+    await registry.register(THE_BOX, ORG, PRODUCTION, AGENT)
+    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, holder=BERNA)
 
     deployed = registry.of(PRODUCTION, AGENT)
     assert deployed is not None and deployed.owner == THE_BOX
-    assert registry.at("phone", A_PROD_NUMBER) == deployed
+    assert registry.of(SANDBOX, AGENT, BERNA) is not None
 
 
 async def test_the_sandbox_number_is_the_orgs_and_starting_later_does_not_take_it() -> None:
@@ -92,13 +92,9 @@ async def test_the_sandbox_number_is_the_orgs_and_starting_later_does_not_take_i
     dial the sandbox number to test and it would answer in Carla's scrollback.
     """
     registry = a_registry()
-    await registry.register(
-        BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=BERNA
-    )
+    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, holder=BERNA)
     # Not refused: it is the same agent in the same world, and a corner does not own a number.
-    await registry.register(
-        CARLAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=CARLA
-    )
+    await registry.register(CARLAS_SOCKET, ORG, SANDBOX, AGENT, holder=CARLA)
 
     taking = registry.taking(SANDBOX, AGENT)
     assert taking is not None and taking.owner == BERNAS_SOCKET
@@ -108,12 +104,8 @@ async def test_the_sandbox_number_is_the_orgs_and_starting_later_does_not_take_i
 async def test_a_developer_calling_from_their_own_phone_reaches_their_own_agent() -> None:
     """The point of it: no claim, no coordination, and three of them testing at once."""
     registry = a_registry()
-    await registry.register(
-        BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=BERNA
-    )
-    await registry.register(
-        CARLAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=CARLA
-    )
+    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, holder=BERNA)
+    await registry.register(CARLAS_SOCKET, ORG, SANDBOX, AGENT, holder=CARLA)
     registry.calls_from(SANDBOX, BERNAS_PHONE, BERNA)
     registry.calls_from(SANDBOX, CARLAS_PHONE, CARLA)
 
@@ -127,12 +119,8 @@ async def test_a_developer_calling_from_their_own_phone_reaches_their_own_agent(
 async def test_a_number_nobody_claimed_falls_back_to_the_line() -> None:
     """A customer, a colleague's phone, a test from somewhere else: somebody still has to answer."""
     registry = a_registry()
-    await registry.register(
-        BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=BERNA
-    )
-    await registry.register(
-        CARLAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=CARLA
-    )
+    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, holder=BERNA)
+    await registry.register(CARLAS_SOCKET, ORG, SANDBOX, AGENT, holder=CARLA)
     registry.calls_from(SANDBOX, CARLAS_PHONE, CARLA)
 
     taking = registry.taking(SANDBOX, AGENT, A_STRANGERS_PHONE)
@@ -143,9 +131,7 @@ async def test_a_number_nobody_claimed_falls_back_to_the_line() -> None:
 async def test_a_registered_number_whose_developer_is_not_running_this_agent_falls_back() -> None:
     """A setting made last week must not send a call to nobody: Carla is registered and away."""
     registry = a_registry()
-    await registry.register(
-        BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=BERNA
-    )
+    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, holder=BERNA)
     registry.calls_from(SANDBOX, CARLAS_PHONE, CARLA)
 
     taking = registry.taking(SANDBOX, AGENT, CARLAS_PHONE)
@@ -156,9 +142,7 @@ async def test_a_registered_number_whose_developer_is_not_running_this_agent_fal
 async def test_a_number_reaches_whatever_agent_that_developer_is_holding() -> None:
     """A phone is a person's, not an agent's: they say it once and it works on every agent."""
     registry = a_registry()
-    await registry.register(
-        CARLAS_SOCKET, ORG, SANDBOX, "otra-tienda", [a_door("web")], holder=CARLA
-    )
+    await registry.register(CARLAS_SOCKET, ORG, SANDBOX, "otra-tienda", holder=CARLA)
     registry.calls_from(SANDBOX, CARLAS_PHONE, CARLA)
 
     taking = registry.taking(SANDBOX, "otra-tienda", CARLAS_PHONE)
@@ -168,7 +152,7 @@ async def test_a_number_reaches_whatever_agent_that_developer_is_holding() -> No
 
 async def test_a_developer_stops_answering_their_own_calls_and_is_told_which_they_were() -> None:
     registry = a_registry()
-    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("web")], holder=BERNA)
+    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, holder=BERNA)
     registry.calls_from(SANDBOX, BERNAS_PHONE, BERNA)
 
     forgot = registry.forget_calls_from(SANDBOX, BERNA)
@@ -179,7 +163,7 @@ async def test_a_developer_stops_answering_their_own_calls_and_is_told_which_the
 
 async def test_production_routes_by_nobodys_phone_because_it_has_one_corner() -> None:
     registry = a_registry()
-    await registry.register(THE_BOX, ORG, PRODUCTION, AGENT, [a_door("phone", A_PROD_NUMBER)])
+    await registry.register(THE_BOX, ORG, PRODUCTION, AGENT)
 
     taking = registry.taking(PRODUCTION, AGENT, BERNAS_PHONE)
 
@@ -188,12 +172,8 @@ async def test_production_routes_by_nobodys_phone_because_it_has_one_corner() ->
 
 async def test_the_second_developer_claims_the_line_and_then_it_is_theirs() -> None:
     registry = a_registry()
-    await registry.register(
-        BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=BERNA
-    )
-    await registry.register(
-        CARLAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=CARLA
-    )
+    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, holder=BERNA)
+    await registry.register(CARLAS_SOCKET, ORG, SANDBOX, AGENT, holder=CARLA)
 
     took = registry.take_the_line(SANDBOX, AGENT, CARLA)
 
@@ -205,9 +185,7 @@ async def test_the_second_developer_claims_the_line_and_then_it_is_theirs() -> N
 async def test_a_line_is_refused_to_somebody_holding_no_app_that_would_answer_it() -> None:
     """A ring lands on the line: handing it to a corner with no app in it would drop the call."""
     registry = a_registry()
-    await registry.register(
-        BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=BERNA
-    )
+    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, holder=BERNA)
 
     with pytest.raises(Exception, match="is not held in sandbox"):
         registry.take_the_line(SANDBOX, AGENT, CARLA)
@@ -222,7 +200,6 @@ async def test_a_console_is_never_handed_a_line_it_would_not_pick_up() -> None:
         ORG,
         SANDBOX,
         AGENT,
-        [a_door("phone", A_DEV_NUMBER)],
         holder=CARLA,
         takes_unclaimed=False,
     )
@@ -234,12 +211,8 @@ async def test_a_console_is_never_handed_a_line_it_would_not_pick_up() -> None:
 async def test_the_line_is_handed_on_when_the_terminal_holding_it_closes() -> None:
     """Not "the newest wins": it happens only when the corner that HAD the line went away."""
     registry = a_registry()
-    await registry.register(
-        BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=BERNA
-    )
-    await registry.register(
-        CARLAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=CARLA
-    )
+    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, holder=BERNA)
+    await registry.register(CARLAS_SOCKET, ORG, SANDBOX, AGENT, holder=CARLA)
 
     await registry.release(BERNAS_SOCKET)
 
@@ -250,9 +223,7 @@ async def test_the_line_is_handed_on_when_the_terminal_holding_it_closes() -> No
 
 async def test_nobody_holds_the_line_once_the_last_terminal_closes() -> None:
     registry = a_registry()
-    await registry.register(
-        BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=BERNA
-    )
+    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, holder=BERNA)
 
     await registry.release(BERNAS_SOCKET)
 
@@ -263,8 +234,8 @@ async def test_nobody_holds_the_line_once_the_last_terminal_closes() -> None:
 async def test_who_else_could_take_it_is_every_other_corner_newest_first() -> None:
     """What the second developer's terminal prints, so a claim is a thing you can see to make."""
     registry = a_registry()
-    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("web")], holder=BERNA)
-    await registry.register(CARLAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("web")], holder=CARLA)
+    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, holder=BERNA)
+    await registry.register(CARLAS_SOCKET, ORG, SANDBOX, AGENT, holder=CARLA)
 
     waiting = registry.waiting_for_the_line(SANDBOX, AGENT)
 
@@ -274,7 +245,7 @@ async def test_who_else_could_take_it_is_every_other_corner_newest_first() -> No
 async def test_production_has_one_corner_and_it_is_the_line() -> None:
     """The concept costs production nothing: the box holds the only corner there is."""
     registry = a_registry()
-    await registry.register(THE_BOX, ORG, PRODUCTION, AGENT, [a_door("phone", A_PROD_NUMBER)])
+    await registry.register(THE_BOX, ORG, PRODUCTION, AGENT)
 
     assert registry.line_for(PRODUCTION, AGENT) is None
     assert registry.has_a_line(PRODUCTION, AGENT) is True
@@ -282,27 +253,11 @@ async def test_production_has_one_corner_and_it_is_the_line() -> None:
     assert taking is not None and taking.owner == THE_BOX
 
 
-async def test_a_door_another_agent_holds_is_still_refused() -> None:
-    registry = a_registry()
-    await registry.register(
-        BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("phone", A_DEV_NUMBER)], holder=BERNA
-    )
-    with pytest.raises(Exception, match="already answers for agent"):
-        await registry.register(
-            CARLAS_SOCKET,
-            ORG,
-            SANDBOX,
-            "otra-tienda",
-            [a_door("phone", A_DEV_NUMBER)],
-            holder=CARLA,
-        )
-
-
 async def test_a_listing_shows_one_row_per_slug_and_prefers_the_readers_own() -> None:
     """What a console draws and what the agent quota counts: a slug, not a process."""
     registry = a_registry()
-    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("web")], holder=BERNA)
-    await registry.register(CARLAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("web")], holder=CARLA)
+    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, holder=BERNA)
+    await registry.register(CARLAS_SOCKET, ORG, SANDBOX, AGENT, holder=CARLA)
 
     bernas = registry.holding(ORG, SANDBOX, BERNA)
     assert [held.owner for held in bernas] == [BERNAS_SOCKET]
@@ -312,8 +267,8 @@ async def test_a_listing_shows_one_row_per_slug_and_prefers_the_readers_own() ->
 
 async def test_one_leaving_leaves_the_other_holding() -> None:
     registry = a_registry()
-    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("web")], holder=BERNA)
-    await registry.register(CARLAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("web")], holder=CARLA)
+    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, holder=BERNA)
+    await registry.register(CARLAS_SOCKET, ORG, SANDBOX, AGENT, holder=CARLA)
 
     await registry.release(BERNAS_SOCKET)
 
@@ -332,9 +287,9 @@ def test_the_corner_a_key_works_in_is_its_person_in_sandbox_and_nobody_in_produc
 async def test_a_reader_who_sees_the_team_gets_one_row_per_corner_saying_whose() -> None:
     """The admin's page: collapsing the two would hide the very thing they opened it for."""
     registry = a_registry()
-    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("web")], holder=BERNA)
-    await registry.register(CARLAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("web")], holder=CARLA)
-    await registry.register(CI, ORG, SANDBOX, AGENT, [a_door("web")])
+    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, holder=BERNA)
+    await registry.register(CARLAS_SOCKET, ORG, SANDBOX, AGENT, holder=CARLA)
+    await registry.register(CI, ORG, SANDBOX, AGENT)
 
     every = registry.holding(ORG, SANDBOX, BERNA, every_corner=True)
 
@@ -357,8 +312,8 @@ async def test_a_developers_phone_dialling_the_production_number_reaches_their_c
     """Testing on the line customers use: Berna's phone reaches Berna's laptop, everybody else
     reaches the box — the same number, dialled from two phones."""
     registry = a_registry()
-    await registry.register(THE_BOX, ORG, PRODUCTION, AGENT, [a_door("phone", A_PROD_NUMBER)])
-    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, [a_door("web")], holder=BERNA)
+    await registry.register(THE_BOX, ORG, PRODUCTION, AGENT)
+    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, holder=BERNA)
     registry.calls_from(SANDBOX, BERNAS_PHONE, BERNA)
 
     assert a_developers_own(registry, ORG, AGENT, BERNAS_PHONE) == BERNA
@@ -368,10 +323,8 @@ async def test_a_developers_phone_dialling_the_production_number_reaches_their_c
 async def test_a_developer_not_holding_the_agent_leaves_their_own_calls_in_production() -> None:
     """A phone said to be theirs last week, and nothing running today: production answers."""
     registry = a_registry()
-    await registry.register(THE_BOX, ORG, PRODUCTION, AGENT, [a_door("phone", A_PROD_NUMBER)])
-    await registry.register(
-        BERNAS_SOCKET, ORG, SANDBOX, "otro-agente", [a_door("web")], holder=BERNA
-    )
+    await registry.register(THE_BOX, ORG, PRODUCTION, AGENT)
+    await registry.register(BERNAS_SOCKET, ORG, SANDBOX, "otro-agente", holder=BERNA)
     registry.calls_from(SANDBOX, BERNAS_PHONE, BERNA)
 
     assert a_developers_own(registry, ORG, AGENT, BERNAS_PHONE) is None
@@ -379,9 +332,7 @@ async def test_a_developer_not_holding_the_agent_leaves_their_own_calls_in_produ
 
 async def test_a_developer_of_another_org_never_takes_this_orgs_production_calls() -> None:
     registry = a_registry()
-    await registry.register(
-        BERNAS_SOCKET, "otra-org", SANDBOX, AGENT, [a_door("web")], holder=BERNA
-    )
+    await registry.register(BERNAS_SOCKET, "otra-org", SANDBOX, AGENT, holder=BERNA)
     registry.calls_from(SANDBOX, BERNAS_PHONE, BERNA)
 
     assert a_developers_own(registry, ORG, AGENT, BERNAS_PHONE) is None

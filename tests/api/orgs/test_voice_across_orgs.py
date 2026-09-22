@@ -10,6 +10,7 @@ import pytest
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import MemoryKeys
 from pinecall.log.store import MemoryStore
+from pinecall.routes.table import MemoryRoutes
 from pinecall.types import DEFAULT_ORG, PRODUCTION, SANDBOX, THE_FLEET, CallContext, Route
 from pinecall.worker.client import Gateway, GatewayRefused
 from pinecall_protocol import defs
@@ -47,16 +48,18 @@ async def a_clinic_worker(wired: None, keys: MemoryKeys) -> AsyncIterator[Gatewa
     await http.aclose()
 
 
-async def two_orgs_holding(registry: Registry) -> None:
+# The doors are the table's and the sockets are the registry's, which is the whole shape of this
+# now: a number is a row an operator typed, and the widget is not a door — the clinic answers on
+# the web in both corners and has no row at all.
+async def two_orgs_holding(registry: Registry, table: MemoryRoutes | None = None) -> None:
     """The clinic on the web in production and in Carla's sandbox corner; the shop on a number."""
-    a_widget = [defs.Route(channel="web", number=None)]
-    await registry.register("app_clinic", CLINICA, PRODUCTION, AGENT, a_widget)
+    if table is not None:
+        await table.put(Route(org=TIENDA, agent=SHOP, channel="phone", number=A_NUMBER))
+    await registry.register("app_clinic", CLINICA, PRODUCTION, AGENT)
     await registry.configure("app_clinic", PRODUCTION, AGENT, defs.AgentConfig(language="es-ES"))
-    await registry.register("app_carla", CLINICA, SANDBOX, AGENT, a_widget, holder=CARLA)
+    await registry.register("app_carla", CLINICA, SANDBOX, AGENT, holder=CARLA)
     await registry.configure("app_carla", SANDBOX, AGENT, defs.AgentConfig(language="es-UY"))
-    await registry.register(
-        "app_shop", TIENDA, PRODUCTION, SHOP, [defs.Route(channel="phone", number=A_NUMBER)]
-    )
+    await registry.register("app_shop", TIENDA, PRODUCTION, SHOP)
     await registry.configure("app_shop", PRODUCTION, SHOP, defs.AgentConfig(language="es-ES"))
 
 
@@ -73,26 +76,22 @@ def a_call(call: str, route: Route, holder: str | None = None) -> CallContext:
 
 
 async def test_the_fleet_reads_each_orgs_doors_by_naming_the_corner(
-    the_fleet: Gateway, registry: Registry
+    the_fleet: Gateway, registry: Registry, routes: MemoryRoutes
 ) -> None:
-    await two_orgs_holding(registry)
-    assert await the_fleet.routes(org=CLINICA, env=PRODUCTION) == (
-        Route(org=CLINICA, agent=AGENT, channel="web"),
-    )
+    await two_orgs_holding(registry, routes)
+    # The clinic answers on the web and the web is not a door: it has no row, in either corner.
+    assert await the_fleet.routes(org=CLINICA, env=PRODUCTION) == ()
+    assert await the_fleet.routes(org=CLINICA, env=SANDBOX, holder=CARLA) == ()
     assert await the_fleet.routes(org=TIENDA, env=PRODUCTION) == (
         Route(org=TIENDA, agent=SHOP, channel="phone", number=A_NUMBER),
-    )
-    # Carla's corner of the sandbox, which nobody's key but hers and the fleet's can name.
-    assert await the_fleet.routes(org=CLINICA, env=SANDBOX, holder=CARLA) == (
-        Route(org=CLINICA, agent=AGENT, channel="web", env=SANDBOX),
     )
 
 
 async def test_a_number_on_the_boxs_own_trunk_is_found_across_every_org(
-    the_fleet: Gateway, registry: Registry
+    the_fleet: Gateway, registry: Registry, routes: MemoryRoutes
 ) -> None:
     """A phone call whose dispatch named no org: the number dialled says whose it is."""
-    await two_orgs_holding(registry)
+    await two_orgs_holding(registry, routes)
     assert await the_fleet.routes(number=A_NUMBER, channel="phone") == (
         Route(org=TIENDA, agent=SHOP, channel="phone", number=A_NUMBER),
     )
@@ -138,12 +137,12 @@ async def test_the_fleet_opens_a_sandbox_call_in_the_corner_the_dispatch_named(
 
 
 async def test_a_tenants_key_names_no_corner_but_its_own(
-    a_clinic_worker: Gateway, registry: Registry
+    a_clinic_worker: Gateway, registry: Registry, routes: MemoryRoutes
 ) -> None:
     """keys.md's sentence, held: a tenant that could ask for another org's routes could route a
     call into another org's agent. Only the fleet scope may, and the tenant has none."""
-    await two_orgs_holding(registry)
-    assert await a_clinic_worker.routes() == (Route(org=CLINICA, agent=AGENT, channel="web"),)
+    await two_orgs_holding(registry, routes)
+    assert await a_clinic_worker.routes() == ()
     for asking in (
         a_clinic_worker.routes(org=TIENDA),
         a_clinic_worker.routes(env=SANDBOX, holder=CARLA),

@@ -53,7 +53,6 @@ async def declared(registry: Registry, tuning: MemoryTuning) -> None:
         A_RECORD.org,
         PRODUCTION,
         AGENT,
-        [defs.Route(channel="phone", number="+34910000000")],
     )
     await registry.configure(AN_OWNER, PRODUCTION, AGENT, defs.AgentConfig(language="es"))
     await tuning.put(

@@ -11,7 +11,6 @@ from pinecall.log.store import MemoryStore
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.routes.table import MemoryRoutes
 from pinecall.types import PRODUCTION, Route
-from pinecall_protocol import defs
 from tests.api.conftest import A_RECORD, AGENT, AN_ORG
 from tests.api.orgs.test_two_orgs_never_cross import ANOTHER_ORG
 
@@ -29,9 +28,7 @@ def orgs() -> MemoryOrgs:
 
 async def held(registry: Registry) -> None:
     """The agent's app, holding it, exactly as its socket would have claimed it."""
-    await registry.register(
-        AN_OWNER, A_RECORD.org, PRODUCTION, AGENT, [defs.Route(channel="web", number=None)]
-    )
+    await registry.register(AN_OWNER, A_RECORD.org, PRODUCTION, AGENT)
 
 
 async def written(store: MemoryStore, *calls: str) -> None:

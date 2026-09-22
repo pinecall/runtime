@@ -46,9 +46,7 @@ async def load_the_golden(store: MemoryStore) -> int:
 
 async def declare_the_golden_agent(registry: Registry) -> None:
     """Register and configure the agent, so the sink can read what it said about its state."""
-    await registry.register(
-        owner=AN_OWNER, org="clinica", env=PRODUCTION, slug=THE_AGENT, routes=[]
-    )
+    await registry.register(owner=AN_OWNER, org="clinica", env=PRODUCTION, slug=THE_AGENT)
     await registry.configure(
         AN_OWNER,
         PRODUCTION,

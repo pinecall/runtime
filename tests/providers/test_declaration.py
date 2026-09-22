@@ -8,7 +8,7 @@ from pinecall_protocol import defs
 
 pytestmark = pytest.mark.unit
 
-CLARA = AgentConfig(slug="clinica-norte", channels=frozenset({"web"}))
+CLARA = AgentConfig(slug="clinica-norte")
 
 
 def test_the_language_the_layout_and_the_search_land_as_the_domain_holds_them() -> None:

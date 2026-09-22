@@ -10,10 +10,8 @@ from pydantic import TypeAdapter
 from pinecall.api._corner import CornerDep
 from pinecall.api._deps import AppKeyDep, OrgsDep, RoutesDep, an_org
 from pinecall.api._operator import an_operator
-from pinecall.api.agents.registry import RegistryDep
 from pinecall.auth.corner import NOT_YOUR_CORNER
 from pinecall.auth.keys import is_the_fleets
-from pinecall.routes import answering
 from pinecall.types import PRODUCTION, Channel, DeclarationRefused, Env, Route
 from pinecall_protocol import WireModel
 
@@ -27,10 +25,6 @@ operator = APIRouter(prefix="/v1/ops", dependencies=[Depends(an_operator)])
 # The hop carries the domain object itself, adapted by pydantic — the same adapter
 # worker/client.py validates it back through. See docs/decisions/worker.md.
 ROUTES: TypeAdapter[tuple[Route, ...]] = TypeAdapter(tuple[Route, ...])
-ANSWERING: TypeAdapter[tuple[answering.Answering, ...]] = TypeAdapter(
-    tuple[answering.Answering, ...]
-)
-
 # A removed route has nothing to say back. cli/operator.py names the same number on its own
 # side, because the CLI may not import the gateway: they are two processes, as often as two boxes.
 NO_BODY = 204
@@ -68,7 +62,6 @@ class Wanted(WireModel):
 async def routes(
     key: AppKeyDep,
     corner: CornerDep,
-    registry: RegistryDep,
     table: RoutesDep,
     number: Annotated[str | None, Query(description="the fleet's: the number dialled")] = None,
     channel: Annotated[Channel | None, Query(description="the fleet's: its channel")] = None,
@@ -77,35 +70,30 @@ async def routes(
     if number is not None or channel is not None:
         if not is_the_fleets(key) or number is None or channel is None:
             raise HTTPException(403, NOT_YOUR_CORNER)
-        door = await answering.at(channel, number, registry, table)
-        return [] if door is None else [_as_json(door.route)]
-    answered = await answering.answered(corner.org, corner.env, registry, table, corner.holder)
-    return list(ROUTES.dump_python(tuple(door.route for door in answered), mode="json"))
+        door = await table.at(channel, number)
+        return [] if door is None else [_as_json(door)]
+    answered = await table.of_org(corner.org, corner.env)
+    return list(ROUTES.dump_python(tuple(answered), mode="json"))
 
 
 @operator.get("/routes")
 async def listed(
-    registry: RegistryDep, table: RoutesDep, orgs: OrgsDep, org: str = ORG, env: Env = ENV
+    table: RoutesDep, orgs: OrgsDep, org: str = ORG, env: Env = ENV
 ) -> list[dict[str, Any]]:
-    """The same doors the worker is given, each saying which of the two tables put it there."""
+    """The same doors the worker is given: every row this org answers at in this world."""
     owner = await an_org(org, orgs)
-    return list(
-        ANSWERING.dump_python(await answering.answered(owner.id, env, registry, table), mode="json")
-    )
+    return list(ROUTES.dump_python(tuple(await table.of_org(owner.id, env)), mode="json"))
 
 
+# Nothing is ever taken from anybody any more: a door was a row or a class's declaration, and the
+# row outranked the declaration, so `add` said whose door it had just moved. A class declares none
+# now, so a number moves from one row to another and the row itself is the whole answer.
 @operator.post("/routes")
-async def add(
-    said: Wanted, registry: RegistryDep, table: RoutesDep, orgs: OrgsDep
-) -> dict[str, Any]:
-    """Add the number or move it, and say which agent it was taken from, if it was taken."""
+async def add(said: Wanted, table: RoutesDep, orgs: OrgsDep) -> dict[str, Any]:
+    """Add the number or move it. One row per number per org: this is an upsert."""
     route = _a_route(said, (await an_org(said.org, orgs)).id)
     await table.put(route)
-    taken_from = [
-        lost.agent
-        for _, lost in answering.overridden([route], registry.routes(route.org, route.env))
-    ]
-    return {"route": _as_json(route), "overrides": taken_from[0] if taken_from else None}
+    return {"route": _as_json(route)}
 
 
 @operator.delete("/routes/{number}", status_code=NO_BODY)

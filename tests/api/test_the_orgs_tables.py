@@ -12,8 +12,8 @@ from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.world import ENV_HEADER
 from pinecall.log.store import MemoryStore
-from pinecall.types import PRODUCTION, SANDBOX, Member
-from pinecall_protocol import defs
+from pinecall.routes.table import MemoryRoutes
+from pinecall.types import PRODUCTION, SANDBOX, Member, Route
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, Json
 from tests.api.talking import got
 from tests.log.test_usage import A_SUMMARY
@@ -91,22 +91,16 @@ async def test_usage_is_the_orgs_own_rows_and_totals_and_a_cursor(
     assert (empty["rows"], empty["totals"], empty["next"]) == ([], None, None)
 
 
-async def test_numbers_are_the_orgs_doors_in_the_world_asked_with_their_source(
-    gateway: TestClient, registry: Registry
+async def test_numbers_are_the_orgs_rows_in_the_world_asked(
+    gateway: TestClient, registry: Registry, routes: MemoryRoutes
 ) -> None:
-    await registry.register(
-        "app_1",
-        A_RECORD.org,
-        PRODUCTION,
-        AGENT,
-        [defs.Route(channel="phone", number="+34910000000")],
-    )
+    """A door is a row somebody typed, in one world: holding an agent puts none in either."""
+    await registry.register("app_1", A_RECORD.org, PRODUCTION, AGENT)
+    await routes.put(Route(org=A_RECORD.org, agent=AGENT, channel="phone", number="+34910000000"))
     assert listed(gateway, "/v1/numbers", ANAS_KEY)[1] == [], "the sandbox has no number"
     status, doors = listed(gateway, "/v1/numbers", ANAS_KEY, PRODUCTION)
     assert status == 200
-    assert [(door["route"]["number"], door["source"]) for door in doors] == [
-        ("+34910000000", "app")
-    ]
+    assert [door["route"]["number"] for door in doors] == ["+34910000000"]
 
 
 def test_the_tables_ask_their_own_scope(gateway: TestClient) -> None:

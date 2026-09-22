@@ -14,7 +14,6 @@ from pinecall.api.agents import dev
 from pinecall.api.agents.registry import Registry
 from pinecall.log.entry import Entry
 from pinecall.types import PRODUCTION
-from pinecall_protocol import defs
 from pinecall_protocol.commands import DevAnswer, DevRefusal
 from tests.api.conftest import A_RECORD, AGENT
 
@@ -41,7 +40,6 @@ async def holding(registry: Registry, live: Live, takes_unclaimed: bool = True) 
         A_RECORD.org,
         PRODUCTION,
         AGENT,
-        [defs.Route(channel="web", number=None)],
         takes_unclaimed=takes_unclaimed,
     )
     socket = _AnAppSocket()

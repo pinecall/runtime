@@ -15,7 +15,6 @@ from pinecall.routes.dispatching import MemoryDispatches, metadata_of
 from pinecall.routes.table import MemoryRoutes
 from pinecall.types import DialPolicy, OutboundTrunk, Route
 from pinecall.types.dispatch import DIAL_KEY, DIRECTION_KEY, ORG_KEY
-from pinecall_protocol import defs
 from tests.api.conftest import A_RECORD, AGENT
 
 pytestmark = pytest.mark.unit
@@ -74,7 +73,6 @@ async def somebody_holding_it(registry: Registry) -> None:
         org=A_RECORD.org,
         env="production",
         slug=AGENT,
-        routes=[defs.Route(channel="phone", number=OURS)],
     )
 
 

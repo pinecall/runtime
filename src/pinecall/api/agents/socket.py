@@ -262,7 +262,9 @@ NOT_THIS_SOCKET = (
 
 @handles("agent.register")
 async def register(socket: Socket, command: Command) -> None:
-    """This socket speaks for this agent and answers these doors, or it is told why not."""
+    """This socket speaks for this agent, or it is told why not. It brings no doors with it:
+    `routes` is still on the wire so an app on an older package registers, and is not read —
+    a door is a row an operator typed (api/numbers.py), and the widget is not a door."""
     wanted = asked(command, AgentRegister)
     socket.processes.named(socket.id, wanted.host)
     # One more agent for this org, unless it already holds this one: a socket correcting its own
@@ -277,7 +279,6 @@ async def register(socket: Socket, command: Command) -> None:
         env=socket.env,
         holder=socket.holder,
         slug=command.agent,
-        routes=wanted.routes,
         sdk=wanted.sdk,
         takes_unclaimed=wanted.takes_unclaimed,
     )

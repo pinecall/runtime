@@ -12,7 +12,6 @@ from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.routes.table import MemoryRoutes
 from pinecall.types import PRODUCTION, SANDBOX, Member, Route
-from pinecall_protocol import defs
 from tests.api.conftest import A_RECORD, AGENT, over_the_asgi_app
 
 pytestmark = pytest.mark.unit
@@ -72,7 +71,6 @@ async def running(registry: Registry, socket: str, holder: str) -> None:
         A_RECORD.org,
         SANDBOX,
         AGENT,
-        [defs.Route(channel="phone", number=A_DEV_NUMBER)],
         holder=holder,
     )
 
@@ -272,7 +270,6 @@ async def test_a_production_key_is_never_told_the_line_is_its_own(
         A_RECORD.org,
         PRODUCTION,
         AGENT,
-        [defs.Route(channel="phone", number=THE_REAL_NUMBER)],
     )
 
     said = (await the_boxs.get(LINE)).json()

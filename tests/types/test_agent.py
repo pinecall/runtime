@@ -32,14 +32,6 @@ def test_an_agent_is_named_by_its_slug() -> None:
             an_agent(slug=slug)
 
 
-def test_channels_are_the_three_doors() -> None:
-    three = frozenset({"phone", "web", "whatsapp"})
-    assert an_agent(channels=three).channels == three
-    assert an_agent().channels == frozenset()
-    with pytest.raises(DeclarationRefused, match=r"unknown channels \['sms'\]"):
-        an_agent(channels=frozenset({"sms"}))
-
-
 def test_the_prompt_is_the_default_layout_until_the_app_declares_one() -> None:
     assert an_agent().prompt == DEFAULT_LAYOUT
     faq = (PromptBlock("identity", "static"), PromptBlock("faq", "static"))
@@ -102,7 +94,6 @@ def test_a_memory_policy_says_what_to_keep_and_what_never() -> None:
 def test_a_whole_declaration_holds_together() -> None:
     agent = an_agent(
         name="Clínica Norte",
-        channels=frozenset({"phone", "web"}),
         language="es-ES",
         knowledge="# Clínica Norte\nHorario de 9 a 20.",
         bases=(Docs("clinica"),),

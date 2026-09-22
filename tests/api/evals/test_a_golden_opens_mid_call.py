@@ -29,7 +29,7 @@ THE_WORDS = "Clínica Norte, buenos días."
 def a_call_of(greeting: Greeting) -> tuple[TextSession, MemoryStore]:
     """The call a golden opens for an agent that greets every real caller it answers."""
     golden = Golden.model_validate({"name": "ofrece-las-horas-del-martes", "input": ["hola"]})
-    config = AgentConfig(slug=AGENT, channels=frozenset({"web"}), greeting=greeting)
+    config = AgentConfig(slug=AGENT, greeting=greeting)
     store = MemoryStore()
     logs = Logs(store)
     lookups = Lookups(

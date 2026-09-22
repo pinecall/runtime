@@ -24,9 +24,8 @@ AN_OWNER = "app_the_spending_tests"
 
 
 async def held(registry: Registry) -> None:
-    """The clinic on its web door, as its app socket would have registered it."""
-    a_web_door = defs.Route(channel="web", number=None)
-    await registry.register(AN_OWNER, A_RECORD.org, PRODUCTION, AGENT, [a_web_door])
+    """The clinic, held by its app socket. Every agent is on the web: there is no door to hold."""
+    await registry.register(AN_OWNER, A_RECORD.org, PRODUCTION, AGENT)
     await registry.configure(AN_OWNER, PRODUCTION, AGENT, defs.AgentConfig(language="es"))
 
 

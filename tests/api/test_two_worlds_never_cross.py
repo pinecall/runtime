@@ -10,6 +10,7 @@ from starlette.testclient import TestClient, WebSocketTestSession
 
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.orgs.table import MemoryOrgs
+from pinecall.routes.table import MemoryRoutes
 from pinecall.types import PRODUCTION, ROLE_SCOPES, SANDBOX, Quotas, Route
 from pinecall.worker.client import CONTEXT
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS, CHAT, over_the_asgi_app
@@ -63,13 +64,13 @@ def test_each_key_sees_the_agent_held_in_its_own_world_and_the_register_says_whi
     assert agents_seen_by(gateway, A_KEY) == []
 
 
-def test_the_sandbox_key_is_refused_the_number_the_box_answers(gateway: TestClient) -> None:
-    """A number rings in one place, and the refusal names the world that holds it."""
+# A number rings in one place because the TABLE holds one row per number per org, by its own
+# primary key — never because a socket claimed it. A laptop declaring the box's number claims
+# nothing and is refused nothing: what it declares is read by nobody.
+def test_the_sandbox_key_declaring_the_boxs_number_takes_nothing(gateway: TestClient) -> None:
     with an_app_on(gateway, A_KEY) as deployed, an_app_on(gateway, A_DEV_KEY) as written:
         assert holding(deployed, a_door("phone", A_NUMBER))["type"] == "agent.registered"
-        refused = holding(written, a_door("phone", A_NUMBER))
-    assert refused["type"] == "error"
-    assert f"already answers for agent {AGENT} in production" in refused["data"]["message"]
+        assert holding(written, a_door("phone", A_NUMBER))["type"] == "agent.registered"
 
 
 def test_whoami_says_which_world_the_key_opens(gateway: TestClient) -> None:
@@ -80,17 +81,18 @@ def test_whoami_says_which_world_the_key_opens(gateway: TestClient) -> None:
 
 
 async def test_the_worker_reads_the_doors_of_its_own_world_and_no_other(
-    gateway: TestClient,
+    gateway: TestClient, routes: MemoryRoutes
 ) -> None:
-    """GET /v1/routes on the laptop's key answers the laptop's doors, and never the box's number."""
+    """GET /v1/routes is the table in the key's own world: one world's row is not the other's."""
     with an_app_on(gateway, A_KEY) as deployed, an_app_on(gateway, A_DEV_KEY) as written:
-        holding(deployed, a_door("phone", A_NUMBER))
+        holding(deployed)
         holding(written)
+        await routes.put(Route(org=A_RECORD.org, agent=AGENT, channel="phone", number=A_NUMBER))
         async with over_the_asgi_app(f"Bearer {A_DEV_KEY}") as laptop:
             answered = (await laptop.get("/v1/routes")).json()
         async with over_the_asgi_app(f"Bearer {A_KEY}") as box:
             deployed_doors = (await box.get("/v1/routes")).json()
-    assert [(route["channel"], route["env"]) for route in answered] == [("web", SANDBOX)]
+    assert answered == []
     assert [(route["channel"], route["env"]) for route in deployed_doors] == [("phone", PRODUCTION)]
 
 
@@ -203,7 +205,13 @@ class TestATeamInOneWorld:
             status, said = minted(gateway, {"agent": AGENT}, bearer=CARLAS_KEY)
             assert status == 404, said
 
-    def test_a_developer_reads_the_routes_their_own_run_declared(self, gateway: TestClient) -> None:
+    async def test_a_developer_reads_the_rows_of_their_own_world(
+        self, gateway: TestClient, routes: MemoryRoutes
+    ) -> None:
+        """What a developer's run declares is read by nobody; what the org's table says is read."""
+        await routes.put(
+            Route(org=A_RECORD.org, agent=AGENT, channel="phone", number=A_NUMBER, env=SANDBOX)
+        )
         with an_app_on(gateway, BERNAS_KEY) as bernas:
             holding(bernas, a_door("phone", A_NUMBER))
             handle: Any = gateway

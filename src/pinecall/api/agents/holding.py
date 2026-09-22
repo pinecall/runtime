@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from pinecall.api.agents.doors import Agent
 from pinecall.log.entry import Entry
-from pinecall.types import AgentConfig, Env, Route
+from pinecall.types import AgentConfig, Env
 
 # A socket's id is minted, not id(websocket): it travels to the app in agent.registered and comes
 # back on `?app=`, and CPython reuses an address the moment the object at it is collected — a
@@ -46,7 +46,6 @@ class Registration:
     # that world's, and call.started says so.
     env: Env
     owner: SocketId
-    routes: tuple[Route, ...]
     config: AgentConfig
     # Whose corner of `env` this is: the member in the sandbox, nobody in production and nobody
     # for a sandbox key that names none. See `Held` above. Last with the defaulted fields

@@ -30,7 +30,6 @@ def _held() -> Registration:
         org="default",
         env=PRODUCTION,
         owner=A_SOCKET,
-        routes=(Route(org="default", agent=AGENT, channel="web", number=None),),
         config=AgentConfig(slug=AGENT),
     )
 

@@ -1,52 +1,56 @@
-"""Which route answers a WhatsApp number when the agent declares more than one door on it."""
+"""Which route answers a WhatsApp number: a row an operator typed, and nothing else."""
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 
-from pinecall.api.agents.registry import Registry
 from pinecall.routes.table import MemoryRoutes
-from pinecall.types import PRODUCTION
+from pinecall.types import PRODUCTION, Route
 from pinecall.whatsapp.routing import answering
-from pinecall_protocol import defs
 from tests.api.conftest import A_RECORD, AGENT
-from tests.api.whatsapp.conftest import AN_APP, THE_CLINICS_NUMBER
+from tests.api.whatsapp.conftest import THE_CLINICS_NUMBER
 
 pytestmark = pytest.mark.unit
 
 
-# The clinic's own declaration: phone first, WhatsApp second, both on the one number the clinic
-# has. The first live signed body found the phone route answering a WhatsApp message.
-async def test_an_agent_with_a_phone_and_a_whatsapp_on_one_number_answers_whatsapp_by_the_door(
-    registry: Registry, routes: MemoryRoutes
-) -> None:
-    await registry.register(
-        AN_APP,
-        A_RECORD.org,
-        PRODUCTION,
-        AGENT,
+# A door is the channel AND the number, which is what a clinic with its phone and its WhatsApp on
+# one number needs: the first live signed body found the phone route answering a WhatsApp message.
+async def test_a_number_that_answers_both_is_two_rows_and_whatsapp_reads_its_own() -> None:
+    table = MemoryRoutes(
         [
-            defs.Route(channel="phone", number=THE_CLINICS_NUMBER),
-            defs.Route(channel="whatsapp", number=THE_CLINICS_NUMBER),
-            defs.Route(channel="web", number=None),
-        ],
+            Route(org=A_RECORD.org, agent=AGENT, channel="phone", number=THE_CLINICS_NUMBER),
+            Route(org=A_RECORD.org, agent=AGENT, channel="whatsapp", number=THE_CLINICS_NUMBER),
+        ]
     )
 
-    route = await answering(routes, registry, THE_CLINICS_NUMBER)
+    route = await answering(table, THE_CLINICS_NUMBER)
 
     assert route is not None
     assert route.door == ("whatsapp", THE_CLINICS_NUMBER)
 
 
-async def test_an_agent_with_only_a_phone_on_that_number_answers_no_whatsapp(
-    registry: Registry, routes: MemoryRoutes
+async def test_a_number_with_only_a_phone_row_answers_no_whatsapp(
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    await registry.register(
-        AN_APP,
-        A_RECORD.org,
-        PRODUCTION,
-        AGENT,
-        [defs.Route(channel="phone", number=THE_CLINICS_NUMBER)],
+    """And says what to type: Meta gets its 200 either way, so a silence here is for good."""
+    table = MemoryRoutes(
+        [Route(org=A_RECORD.org, agent=AGENT, channel="phone", number=THE_CLINICS_NUMBER)]
     )
 
-    assert await answering(routes, registry, THE_CLINICS_NUMBER) is None
+    with caplog.at_level(logging.WARNING):
+        assert await answering(table, THE_CLINICS_NUMBER) is None
+
+    assert THE_CLINICS_NUMBER in caplog.text
+    assert "routes add" in caplog.text
+
+
+async def test_a_number_nobody_typed_answers_nothing() -> None:
+    assert await answering(MemoryRoutes(), THE_CLINICS_NUMBER) is None
+
+
+def test_the_world_a_row_names_is_the_world_the_thread_runs_in() -> None:
+    """A door is one agent's in one world: the row carries it, and the message follows the row."""
+    row = Route(org=A_RECORD.org, agent=AGENT, channel="whatsapp", number=THE_CLINICS_NUMBER)
+    assert row.env == PRODUCTION

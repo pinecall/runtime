@@ -5,7 +5,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Literal, get_args
 
-from pinecall.types.channel import CHANNELS, Channel
 from pinecall.types.knowledge import Docs, MemoryPolicy
 from pinecall.types.prompt import DEFAULT_LAYOUT, PromptBlock
 from pinecall.types.refused import DeclarationRefused
@@ -114,7 +113,6 @@ class AgentConfig:
     """What an app declared about one agent, resolved: the runtime reads this and asks no more."""
 
     slug: str
-    channels: frozenset[Channel] = frozenset()
     name: str | None = None
     prompt: tuple[PromptBlock, ...] = DEFAULT_LAYOUT
     greeting: Greeting | None = None
@@ -157,8 +155,6 @@ class AgentConfig:
             raise DeclarationRefused(
                 f"an agent's slug is lowercase words joined by dashes, not {self.slug!r}"
             )
-        if unknown := self.channels - CHANNELS:
-            raise DeclarationRefused(f"agent {self.slug}: unknown channels {sorted(unknown)}")
         names = [tool.name for tool in self.tools]
         if repeated := {name for name in names if names.count(name) > 1}:
             raise DeclarationRefused(f"agent {self.slug}: tool names repeat: {sorted(repeated)}")

@@ -203,13 +203,14 @@ async def test_letting_a_number_go_removes_the_route_and_the_admission_but_not_t
     assert (await tenant_http.delete(f"/v1/numbers/{ABAI}")).status_code == 404
 
 
-async def test_the_numbers_listing_names_the_source_of_each_door(
+async def test_the_numbers_listing_is_the_rows_and_there_is_no_other_table(
     tenant_http: httpx.AsyncClient,
 ) -> None:
+    """Every door is a row somebody typed: nothing here says which table, because there is one."""
     await brought(tenant_http)
     await tenant_http.post("/v1/numbers", json={"number": ABAI, "agent": AGENT})
     listed = (await tenant_http.get("/v1/numbers")).json()
-    assert [(door["route"]["number"], door["source"]) for door in listed] == [(ABAI, "operator")]
+    assert [(door["route"]["number"], door["route"]["agent"]) for door in listed] == [(ABAI, AGENT)]
 
 
 # An org buys ONE number. Pointing it at the sandbox for an afternoon is how a team tries a new

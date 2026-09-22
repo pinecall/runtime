@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
+from collections.abc import Sequence
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, HTTPException, Query
@@ -23,8 +25,11 @@ from pinecall.auth.members import Members
 from pinecall.types import (
     PRODUCTION,
     SANDBOX,
+    THE_WIDGET,
     AgentConfig,
+    Channel,
     DeclarationRefused,
+    Route,
     an_e164,
     is_a_deployment,
 )
@@ -67,17 +72,22 @@ async def config(
 # durable history of one is its own log, which the console already reads by slug. The envelope is
 # the protocol's (protocol/schema/rest.json), so the console parses it with a generated schema.
 @router.get("/v1/agents")
-async def agents(key: CallsKeyDep, registry: RegistryDep, members: MembersDep) -> AgentList:
+async def agents(
+    key: CallsKeyDep, registry: RegistryDep, members: MembersDep, table: RoutesDep
+) -> AgentList:
     """The org's agents in the key's world, by slug, in the order their sockets claimed them."""
     # Whose copies are listed is the key's own answer: a key that opens `team` — an admin's, the
     # operator's — sees every member's sandbox corner, and every row says whose it is. A developer
     # sees their corner and the org's, which is what they can open anyway.
     held = registry.holding(key.org, key.env, held_by(key), every_corner=sees_every_corner(key))
+    # The doors each one answers, which is a fact about the org's table and not about the class:
+    # every agent is on the web, and a number is a row somebody typed (api/numbers.py).
+    doors = _doors_of(await table.of_org(key.org, key.env))
     return AgentList(
         agents=[
             HeldAgent(
                 slug=one.slug,
-                channels=sorted(one.config.channels),
+                channels=sorted(doors[one.slug] | {THE_WIDGET}),
                 holder=None
                 if one.holder is None
                 else await named_holder(key.org, one.holder, members),
@@ -243,3 +253,11 @@ def a_developers_own(registry: Registry, org: str, slug: str, caller: str) -> st
     if held is None or held.holder is None or held.org != org:
         return None
     return held.holder if caller in registry.calling(SANDBOX, held.holder) else None
+
+
+def _doors_of(routes: Sequence[Route]) -> dict[str, set[Channel]]:
+    """Every channel the org's rows give each agent, by slug: a listing reads them all at once."""
+    doors: dict[str, set[Channel]] = defaultdict(set)
+    for route in routes:
+        doors[route.agent].add(route.channel)
+    return doors

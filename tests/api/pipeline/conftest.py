@@ -31,9 +31,7 @@ async def declared(
     registry: Registry, tuning: MemoryTuning, greeting: Greeting | None = None
 ) -> None:
     """The clinic on air: a socket holding it; its voice, model and opening set in production."""
-    await registry.register(
-        AN_OWNER, A_RECORD.org, PRODUCTION, AGENT, [defs.Route(channel="web", number=None)]
-    )
+    await registry.register(AN_OWNER, A_RECORD.org, PRODUCTION, AGENT)
     await registry.configure(AN_OWNER, PRODUCTION, AGENT, defs.AgentConfig(language="es"))
     await tuning.put(
         A_RECORD.org,

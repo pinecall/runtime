@@ -7,7 +7,6 @@ from pinecall.api.agents.registry import Registry
 from pinecall.types import PRODUCTION
 from pinecall.worker import router
 from pinecall.worker.client import Gateway
-from pinecall_protocol import defs
 from tests.api.conftest import A_KEY, A_RECORD
 
 pytestmark = pytest.mark.unit
@@ -19,11 +18,18 @@ CLINICA = "clinica-norte"
 TIENDA = "tienda-sur"
 
 
-async def declared(registry: Registry, agent: str = CLINICA, number: str = NUMBER) -> None:
-    """The agent's app, holding one phone door, exactly as its socket would have claimed it."""
-    await registry.register(
-        AN_OWNER, A_RECORD.org, PRODUCTION, agent, [defs.Route(channel="phone", number=number)]
+async def holding(registry: Registry, agent: str = CLINICA) -> None:
+    """The agent's app on its socket. It claims no door: a door is a row an operator typed."""
+    await registry.register(AN_OWNER, A_RECORD.org, PRODUCTION, agent)
+
+
+async def typed(ops_http: httpx.AsyncClient, agent: str, number: str = NUMBER) -> None:
+    """One door, the only way there is to make one: an operator types it."""
+    answer = await ops_http.post(
+        OPS_ROUTES,
+        json={"org": A_RECORD.org, "number": number, "agent": agent, "channel": "phone"},
     )
+    assert answer.status_code == httpx.codes.OK
 
 
 def arrived(number: str = NUMBER) -> router.Arrival:
@@ -37,69 +43,60 @@ async def test_a_route_added_while_a_worker_runs_answers_the_next_job_with_nobod
     worker_gateway: Gateway, ops_http: httpx.AsyncClient, registry: Registry
 ) -> None:
     """Criterion 1: the same worker, the same process, two jobs, two different agents."""
-    await declared(registry)
+    await holding(registry)
+    await typed(ops_http, CLINICA)
     first = router.resolve(arrived(), await worker_gateway.routes())
     assert first.agent == CLINICA
 
-    moved = await ops_http.post(
-        OPS_ROUTES,
-        json={"org": A_RECORD.org, "number": NUMBER, "agent": TIENDA, "channel": "phone"},
-    )
-    assert moved.status_code == httpx.codes.OK
-    assert moved.json()["overrides"] == CLINICA
+    await typed(ops_http, TIENDA)
 
     second = router.resolve(arrived(), await worker_gateway.routes())
     assert second.agent == TIENDA
 
 
-async def test_the_worker_reads_the_union_and_keeps_every_door_no_operator_typed(
-    worker_gateway: Gateway, registry: Registry
+async def test_the_worker_reads_every_row_of_its_corner_and_no_widget(
+    worker_gateway: Gateway, ops_http: httpx.AsyncClient, registry: Registry
 ) -> None:
-    """One org, two doors: the typed one and the declared one both reach the worker."""
-    await declared(registry)
-    await registry.register(
-        AN_OWNER, A_RECORD.org, PRODUCTION, TIENDA, [defs.Route(channel="web", number=None)]
-    )
+    """One org, two rows, and the agent that answers only on the web has nothing here to read."""
+    await holding(registry)
+    await holding(registry, TIENDA)
+    await typed(ops_http, CLINICA)
+    await typed(ops_http, TIENDA, "+59829000009")
+
     answered = await worker_gateway.routes()
+
     assert {(route.agent, route.channel) for route in answered} == {
         (CLINICA, "phone"),
-        (TIENDA, "web"),
+        (TIENDA, "phone"),
     }
 
 
-async def test_the_operator_is_shown_which_table_answers_each_door(
+async def test_the_operator_is_shown_every_row_of_the_org(
     ops_http: httpx.AsyncClient, registry: Registry
 ) -> None:
-    """`routes list` is this door: the same doors the worker gets, each naming its source."""
-    await declared(registry)
-    await ops_http.post(
-        OPS_ROUTES,
-        json={
-            "org": A_RECORD.org,
-            "number": "+59829000009",
-            "agent": TIENDA,
-            "channel": "phone",
-        },
-    )
+    """`routes list` is this door: the same doors the worker gets, and there is one table now."""
+    await holding(registry)
+    await typed(ops_http, TIENDA, "+59829000009")
+
     listed = await ops_http.get(OPS_ROUTES, params={"org": A_RECORD.org})
-    assert [(door["route"]["agent"], door["source"]) for door in listed.json()] == [
-        (TIENDA, "operator"),
-        (CLINICA, "app"),
+
+    assert [(route["agent"], route["number"]) for route in listed.json()] == [
+        (TIENDA, "+59829000009")
     ]
 
 
-async def test_removing_a_route_gives_the_number_back_to_whoever_declared_it(
+async def test_removing_a_route_leaves_the_number_answering_nowhere(
     worker_gateway: Gateway, ops_http: httpx.AsyncClient, registry: Registry
 ) -> None:
-    """The row is the override; with it gone, the app's declaration answers again."""
-    await declared(registry)
-    await ops_http.post(
-        OPS_ROUTES,
-        json={"org": A_RECORD.org, "number": NUMBER, "agent": TIENDA, "channel": "phone"},
-    )
+    """A row was the only thing answering it, so a number taken out rings nowhere at all."""
+    await holding(registry)
+    await typed(ops_http, CLINICA)
+
     removed = await ops_http.delete(f"{OPS_ROUTES}/{NUMBER}", params={"org": A_RECORD.org})
+
     assert removed.status_code == httpx.codes.NO_CONTENT
-    assert router.resolve(arrived(), await worker_gateway.routes()).agent == CLINICA
+    with pytest.raises(router.NoRoute):
+        router.resolve(arrived(), await worker_gateway.routes())
 
 
 async def test_removing_a_number_nobody_typed_is_a_refusal_and_never_a_quiet_success(

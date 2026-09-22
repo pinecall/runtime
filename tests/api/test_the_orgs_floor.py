@@ -16,7 +16,6 @@ from pinecall.api.floor import events
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import ORG_EVENTS, Logs
 from pinecall.types import PRODUCTION
-from pinecall_protocol import defs
 from tests.api.calls.test_listing import OVER, RINGING, UP
 from tests.api.conftest import A_READER, A_RECORD, AGENT
 from tests.api.talking import got
@@ -80,9 +79,7 @@ async def test_a_register_and_a_call_reach_the_orgs_feed_and_a_turn_does_not(
     logs: Logs, registry: Registry
 ) -> None:
     feed = logs.feed(A_RECORD.org).subscribe()
-    await registry.register(
-        "app_1", A_RECORD.org, PRODUCTION, AGENT, [defs.Route(channel="web", number=None)]
-    )
+    await registry.register("app_1", A_RECORD.org, PRODUCTION, AGENT)
     await logs.owned("CA_1", AGENT, A_RECORD.org)
     log = logs.writing("CA_1", AGENT)
     await log.append("call.ringing", dict(RINGING))
@@ -115,9 +112,7 @@ async def test_the_events_door_streams_the_feed_as_sse_from_now_on(
     # starlette types the body as either flavour of iterable; this door streams text, always.
     chunks = aiter(cast("AsyncIterable[str]", answer.body_iterator))
     assert (await anext(chunks)).startswith("retry:")
-    await registry.register(
-        "app_1", A_RECORD.org, PRODUCTION, AGENT, [defs.Route(channel="web", number=None)]
-    )
+    await registry.register("app_1", A_RECORD.org, PRODUCTION, AGENT)
     frame = await asyncio.wait_for(anext(chunks), 2)
     lines = frame.strip().splitlines()
     assert lines[1] == "event: agent.registered"

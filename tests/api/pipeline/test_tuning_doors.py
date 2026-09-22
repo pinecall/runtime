@@ -94,9 +94,7 @@ async def ci(wired: None) -> AsyncIterator[httpx.AsyncClient]:  # noqa: ARG001
 
 async def in_the_sandbox(registry: Registry) -> None:
     """The clinic on air in the org's own sandbox corner, as CI's process would hold it."""
-    await registry.register(
-        "app_ci", A_RECORD.org, SANDBOX, AGENT, [defs.Route(channel="web", number=None)]
-    )
+    await registry.register("app_ci", A_RECORD.org, SANDBOX, AGENT)
     await registry.configure(
         "app_ci",
         SANDBOX,

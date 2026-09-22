@@ -45,6 +45,12 @@ async def test_a_job_that_names_no_persona_is_a_call_nobody_is_playing() -> None
     assert arrival.persona is None
 
 
+async def test_a_dispatched_simulation_carries_the_callers_own_rule_for_the_call() -> None:
+    said = {"agent": "tienda-sur", "persona": "homeowner", "accepts_when": "a price"}
+    arrival = await _arrival(a_job(metadata=said), _a_seat())
+    assert (arrival.accepts_when, arrival.declines_when) == ("a price", None)
+
+
 # THE bug: livekit fills `job.participant` for a publisher job and leaves it empty for a room job,
 # which is what a SIP dispatch rule creates — so a real INVITE only routes if the number is read
 # off the seat in the room. Every job in this file has an empty participant, this one included.

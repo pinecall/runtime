@@ -240,7 +240,6 @@ def a_config(
     """The clinic as a session runs it for these tests: a base to search, a policy to keep."""
     return AgentConfig(
         slug=AGENT,
-        channels=frozenset({"phone", "web"}),
         llm=Model(provider="anthropic", model="claude-haiku"),
         bases=bases,
         memory=memory,

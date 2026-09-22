@@ -7,6 +7,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **A persona says how it is played and when it accepts the call — and a judge reads the call by
+  it.** `agent_personas` gains `llm`, `tts`, `voice`, `accepts_when` and `declines_when`
+  (migration `0047`). The three knobs are the agent's own words, read by `providers/tuning.py` and
+  refused with a 422 at `PUT /v1/personas/{name}` for a vendor or a voice this box does not have;
+  `POST /v1/evals/caller` and `/v1/evals/voice` play the caller on that model and read its lines in
+  that voice, and unset is what it always was. The rule rides the dispatch (or the chat door) onto
+  `call.started`, and a new ring-4 judge, `persona`, reads the finished call against it at hang-up:
+  `held` is the caller accepting, `broken` declining. The model playing the caller is never told it.
 - **A box may answer to a SECOND name, and its console is the sandbox's.** `PINECALL_SANDBOX_DOMAIN`
   in `box.env`: the same gateway, the same doors and the same bundle, with two things different at
   that name — the page marks itself the sandbox's (`<meta name="pinecall-world">`, which the console
@@ -33,6 +41,15 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   neither waits for a deploy. `pinecall agent set --record on|off`.
 
 ### Changed
+- **A door is a row an operator typed, and a class declares none.** A door was born two ways — a
+  row in `routes`, and a field on the tenant's class that travelled with `agent.register` — and
+  only the row could be moved, dropped or reassigned. The declared half is gone: `agent.register`
+  still carries `routes` so an app on an older package registers, and the gateway reads none of
+  it. With it go the door map the registry kept, the precedence between the two tables, and the
+  refusals that came out of it (a number claimed by a second socket, a sandbox copy refused
+  production's number) — one row per number per org is the table's own primary key now.
+  `GET /v1/numbers`, `GET /v1/ops/routes` and `pinecall-runtime routes list` answer rows, with no
+  `source` beside them, and `POST /v1/ops/routes` no longer says whose door it took.
 - **The widget is not a door any more: every agent is on the web.** A `web` route was a thing only
   a CLASS could declare — the routes table refuses a row with no number, by three separate guards
   — so `POST /v1/tokens` demanded a declaration nobody could type, and a browser could not talk to

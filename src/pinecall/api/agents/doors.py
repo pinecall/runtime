@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-
-from pinecall.providers import declaration
-from pinecall.types import DeclarationRefused, Env, Route
+from pinecall.types import Env
 
 # One world and one slug: what a dialled door answers for, and what a listing shows once.
 type Agent = tuple[Env, str]
@@ -15,11 +12,11 @@ type Door = tuple[str, str | None]
 
 
 class Doors:
-    """Every dialled door this process answers, and which corner of a world picks each ring up.
+    """Which corner of a world picks up an agent's ring, and whose phone dials in.
 
-    Two tables with one subject. `_at` is the public side: a number exists once in a world and
-    answers for one agent, whoever is holding it — which is why it is keyed by the world and the
-    slug and by nobody's corner.
+    WHICH agent answers a door is not here and is not this process's to remember: a door is a row
+    in `routes` that an operator typed, and it outlives every socket. What is here only ever makes
+    sense beside a live socket.
 
     `_line` is who picks up. Nobody's corner in production, where what is deployed is the only
     holder there is. In the sandbox the developer who has the LINE: an org shares one sandbox
@@ -30,41 +27,8 @@ class Doors:
     """
 
     def __init__(self) -> None:
-        self._at: dict[Door, Agent] = {}
         self._line: dict[Agent, str | None] = {}
         self._calling: dict[tuple[Env, str], str] = {}
-
-    # ── the public side ─────────────────────────────────────────────────────────
-
-    def at(self, door: Door) -> Agent | None:
-        """Which agent answers here, in whichever world claimed it. None when nobody does."""
-        return self._at.get(door)
-
-    # The web route is deliberately left out: see docs/decisions/routes.md. Every agent's widget
-    # would be the one door ("web", None), and the second agent of a fleet would be refused it.
-    def answered_by(self, agent: Agent, routes: Sequence[Route]) -> None:
-        """These are the doors this agent answers now, and none of the ones it used to."""
-        wanted = {route.door for route in declaration.dialled(routes)}
-        for door in [door for door, answered in self._at.items() if answered == agent]:
-            if door not in wanted:
-                del self._at[door]
-        for door in wanted:
-            self._at[door] = agent
-
-    def refuse_a_taken_one(self, agent: Agent, routes: Sequence[Route]) -> None:
-        """A number answers for one agent in one world at a time, and never twice in a register."""
-        _, slug = agent
-        claimed: set[Door] = set()
-        for route in declaration.dialled(routes):
-            if route.door in claimed:
-                raise DeclarationRefused(f"agent {slug} claims the door {said(route)} twice")
-            claimed.add(route.door)
-            taken = self._at.get(route.door)
-            if taken is not None and taken != agent:
-                taken_env, taken_slug = taken
-                raise DeclarationRefused(
-                    f"the door {said(route)} already answers for agent {taken_slug} in {taken_env}"
-                )
 
     # ── whose terminal it rings in ──────────────────────────────────────────────
 
@@ -129,8 +93,3 @@ class Doors:
                 if world == env and whose == holder
             )
         )
-
-
-def said(route: Route) -> str:
-    """A door, for a person: 'phone +34910000000'. Only a dialled door is ever refused."""
-    return f"{route.channel} {route.number}"

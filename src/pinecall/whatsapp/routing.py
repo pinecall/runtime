@@ -1,10 +1,9 @@
-"""Which agent answers a WhatsApp number, when the two tables that could say so disagree."""
+"""Which agent answers a WhatsApp number: the row an operator typed, and there is no other."""
 
 from __future__ import annotations
 
 import logging
 
-from pinecall.routes.answering import Declaring
 from pinecall.routes.table import Routes
 from pinecall.types import Channel, Route
 
@@ -21,24 +20,11 @@ NO_ROUTE = (
 )
 
 
-# The same rule GET /v1/routes reads the two tables under, asked here from the other side: an
-# inbound message knows its number and nothing else. The operator's row outranks a declaration,
-# because `routes add` moving a number with no deploy is the whole point of the verb.
-# See docs/decisions/routes.md.
-async def answering(routes: Routes, registry: Declaring, number: str) -> Route | None:
-    """Who takes a message at this number: the operator's row first, the app's declaration after."""
+# A door is a row somebody typed and nothing else: a class declares no doors, so there is no
+# second table to disagree with this one and no precedence to work out (docs/decisions/routes.md).
+async def answering(routes: Routes, number: str) -> Route | None:
+    """Who takes a message at this number, or None and the line that says what to type."""
     typed = await routes.at(WHATSAPP, number)
-    if typed is not None:
-        return typed
-    declared = registry.at(WHATSAPP, number)
-    # By the DOOR and never by the number alone: Clínica Norte declares its phone and its WhatsApp
-    # on the same number, and the phone route came first in its list — a WhatsApp call opened
-    # through it was refused by the contract on the first signed body a live gateway ever received.
-    at_that_number = (
-        next((route for route in declared.routes if route.door == (WHATSAPP, number)), None)
-        if declared is not None
-        else None
-    )
-    if at_that_number is None:
+    if typed is None:
         logger.warning(NO_ROUTE, number, number)
-    return at_that_number
+    return typed

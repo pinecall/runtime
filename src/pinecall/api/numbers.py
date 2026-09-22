@@ -17,9 +17,7 @@ from pinecall.api._deps import (
     TrunksDep,
     TwilioDep,
 )
-from pinecall.api.agents.registry import RegistryDep
 from pinecall.auth.keys import KeyRecord
-from pinecall.routes import answering
 from pinecall.routes.table import Routes
 from pinecall.routes.trunks import NO_LIVEKIT, Trunks
 from pinecall.routes.twilio import (
@@ -143,16 +141,13 @@ async def take_back(key: NumbersKeyDep, carriers: KeptCarriersDep) -> None:
 # ── the numbers ─────────────────────────────────────────────────────────────────
 
 
-# The same doors the worker is given, each saying which table put it there, in the key's world —
-# read with `numbers` and not with the worker's `app`, because a person who manages the org's
-# numbers is not the process that answers them.
+# The same doors the worker is given, in the key's world — read with `numbers` and not with the
+# worker's `app`, because a person who manages the org's numbers is not the process that answers
+# them. Every door is a row: a class declares none, and the widget is not a door at all.
 @router.get("/v1/numbers")
-async def numbers(
-    key: NumbersKeyDep, registry: RegistryDep, table: RoutesDep
-) -> list[dict[str, Any]]:
-    """Every door the org answers in the key's world, and whether an operator typed it."""
-    answered = await answering.answered(key.org, key.env, registry, table)
-    return [{"route": as_json(door.route), "source": door.source} for door in answered]
+async def numbers(key: NumbersKeyDep, table: RoutesDep) -> list[dict[str, Any]]:
+    """Every door the org answers in the key's world."""
+    return [{"route": as_json(route)} for route in await table.of_org(key.org, key.env)]
 
 
 @router.get("/v1/numbers/available")

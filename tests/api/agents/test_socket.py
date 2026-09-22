@@ -51,7 +51,9 @@ def test_a_fake_app_registers_and_is_told_so(gateway: TestClient) -> None:
     assert entry["agent"] == "clinica-norte"
     assert entry["call"] is None
     assert entry["seq"] == 1
-    assert entry["data"]["routes"] == [{"channel": "phone", "number": "+34910000000"}]
+    # And it answers at no door, whatever the frame said: a door is a row an operator typed, and
+    # `routes` is still on the wire only so an app on an older package registers at all.
+    assert entry["data"]["routes"] == []
 
 
 def test_the_register_is_written_to_the_agents_own_log(
@@ -103,14 +105,19 @@ def test_a_reconnect_after_a_disconnect_takes_the_slug_back(gateway: TestClient)
         assert again.receive_json()["type"] == "agent.registered"
 
 
-def test_two_agents_at_the_same_door_are_refused(gateway: TestClient) -> None:
+# A number answered for one agent because one SOCKET had claimed it, which is why the refusal
+# lived here. A number is a row now, one per org by the table's own key, and a register claims
+# nothing: two apps declaring the same number both register, and neither answers it.
+def test_a_door_on_the_wire_claims_nothing_and_two_apps_may_send_the_same_one(
+    gateway: TestClient,
+) -> None:
     with open_socket(gateway) as socket:
         socket.send_json(a_register("clinica-norte", a_door("phone", "+34910000000")))
         assert socket.receive_json()["type"] == "agent.registered"
         socket.send_json(a_register("clinica-sur", a_door("phone", "+34910000000")))
-        refusal = socket.receive_json()
-    assert refusal["data"]["code"] == "refused"
-    assert "already answers for agent clinica-norte" in refusal["data"]["message"]
+        second = socket.receive_json()
+    assert second["type"] == "agent.registered"
+    assert second["data"]["routes"] == []
 
 
 def test_two_agents_with_a_web_door_register_on_one_gateway(gateway: TestClient) -> None:
@@ -121,14 +128,6 @@ def test_two_agents_with_a_web_door_register_on_one_gateway(gateway: TestClient)
         held = [first.receive_json(), second.receive_json()]
     assert [entry["type"] for entry in held] == ["agent.registered", "agent.registered"]
     assert [entry["agent"] for entry in held] == ["clinica-norte", "tienda-sur"]
-
-
-def test_a_web_route_that_brings_a_number_is_refused_by_the_contract(gateway: TestClient) -> None:
-    with open_socket(gateway) as socket:
-        socket.send_json(a_register("clinica-norte", a_door("web", "+34910000000")))
-        refusal = socket.receive_json()
-    assert refusal["data"]["code"] == "refused"
-    assert "answers at no number" in refusal["data"]["message"]
 
 
 # ── configure ───────────────────────────────────────────────────────────────────

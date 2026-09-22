@@ -17,7 +17,6 @@ from pinecall.api.whatsapp.threads import Thread, Threads
 from pinecall.routes.table import Routes
 from pinecall.types import PRODUCTION, Route
 from pinecall.whatsapp.signing import SIGNATURE_HEADER
-from pinecall_protocol import defs
 from tests.api.conftest import (
     A_KEY,
     A_RECORD,
@@ -163,17 +162,13 @@ AN_APP = "app_holding_the_clinic"
 
 
 async def the_clinic_answers_at_the_number(
-    registry: Registry, routes: Routes, typed: bool = True, declared: bool = False
+    registry: Registry, routes: Routes, typed: bool = True
 ) -> None:
-    """The clinic held by an app socket, reachable at the number Meta will deliver to."""
-    door = defs.Route(channel="whatsapp", number=THE_CLINICS_NUMBER if declared else None)
-    await registry.register(
-        AN_APP,
-        A_RECORD.org,
-        PRODUCTION,
-        AGENT,
-        [door if declared else defs.Route(channel="web", number=None)],
-    )
+    """The clinic held by an app socket, reachable at the number Meta will deliver to.
+
+    `typed` is the whole of it now: a door is a row, and a socket holding the agent is what makes
+    somebody answer the call the row routes."""
+    await registry.register(AN_APP, A_RECORD.org, PRODUCTION, AGENT)
     if typed:
         await routes.put(the_operators_row(AGENT))
 

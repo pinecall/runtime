@@ -79,8 +79,10 @@ def test_each_org_lists_its_own_agents_and_routes_and_nobody_elses(gateway: Test
         assert holding(theirs, ANOTHER_AGENT, theirs_door)["type"] == "agent.registered"
         assert agents_seen_by(gateway, A_KEY) == [AGENT]
         assert agents_seen_by(gateway, ANOTHER_KEY) == [ANOTHER_AGENT]
-        assert routes_seen_by(gateway, A_KEY) == [AGENT]
-        assert routes_seen_by(gateway, ANOTHER_KEY) == [ANOTHER_AGENT]
+        # And the doors: neither org has a row, because a door is a row somebody typed and
+        # holding an agent types none. What each key sees of the other's table is nothing either.
+        assert routes_seen_by(gateway, A_KEY) == []
+        assert routes_seen_by(gateway, ANOTHER_KEY) == []
 
 
 def test_a_slug_one_org_registered_is_refused_to_the_other(gateway: TestClient) -> None:

@@ -30,7 +30,7 @@ def a_session(store: MemoryStore, llm: FakeLLM, opening: Greeting | None) -> Tex
         route=Route(org="clinica", agent=AGENT, channel="web", number=None),
         today=A_TUESDAY,
     )
-    config = AgentConfig(slug=AGENT, channels=frozenset({"web"}), greeting=opening)
+    config = AgentConfig(slug=AGENT, greeting=opening)
     return TextSession(context, config, CallLog(store, AGENT, A_CALL), llm)
 
 

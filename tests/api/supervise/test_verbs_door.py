@@ -55,9 +55,7 @@ async def a_live_call(
 ) -> None:
     """The clinic held by its app socket, and a call of it up to the caller's first turn."""
     if registry.of(PRODUCTION, AGENT) is None:
-        await registry.register(
-            AN_OWNER, A_RECORD.org, PRODUCTION, AGENT, [defs.Route(channel="web", number=None)]
-        )
+        await registry.register(AN_OWNER, A_RECORD.org, PRODUCTION, AGENT)
     # The claim the open door makes, and what says whose call this is: a verb is refused by the
     # log's own org, never by who is holding the agent's socket at the moment it is sent.
     await store.owned(call, AGENT, A_RECORD.org, PRODUCTION, "")

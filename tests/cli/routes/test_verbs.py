@@ -17,7 +17,6 @@ from pinecall.cli.routes.verbs import (
     seed_routes,
 )
 from pinecall.types import PRODUCTION
-from pinecall_protocol import defs
 from tests.api.conftest import A_RECORD
 
 pytestmark = pytest.mark.unit
@@ -47,32 +46,30 @@ async def test_list_says_so_when_the_org_answers_nothing_at_all(operator: Operat
     assert out.getvalue().strip() == f"no routes in org {ORG} in production"
 
 
-async def test_add_prints_the_route_and_names_the_agent_it_took_the_number_from(
-    operator: Operator, registry: Registry
-) -> None:
-    """The loss is never silent, and the operator reads it in the terminal that caused it."""
-    await registry.register(
-        AN_OWNER, ORG, PRODUCTION, CLINICA, [defs.Route(channel="phone", number=NUMBER)]
-    )
+async def test_add_prints_the_door_it_wrote(operator: Operator) -> None:
     out = printed()
     assert await add_route(ORG, NUMBER, TIENDA, "phone", operator, out) == 0
-    said = out.getvalue()
-    assert f"{NUMBER} phone → {TIENDA}" in said
-    assert f"agent {CLINICA} declared {NUMBER} too" in said
+    assert f"{NUMBER} phone → {TIENDA}" in out.getvalue()
 
 
-async def test_list_shows_the_typed_row_and_the_declared_door_with_their_sources(
-    operator: Operator, registry: Registry
-) -> None:
-    """One table for the reader: what an operator typed, and what an app is holding."""
-    await registry.register(
-        AN_OWNER, ORG, PRODUCTION, CLINICA, [defs.Route(channel="web", number=None)]
-    )
+# One number, one row, and `add` over it is a move: there is no second table to take it from and
+# no app to lose it, because a class declares no doors.
+async def test_add_over_a_number_that_answers_somewhere_moves_it(operator: Operator) -> None:
+    await add_route(ORG, NUMBER, CLINICA, "phone", operator, printed())
+    await add_route(ORG, NUMBER, TIENDA, "phone", operator, printed())
+    out = printed()
+    await list_routes(ORG, operator, out)
+    assert [line.split() for line in out.getvalue().splitlines()] == [[NUMBER, "phone", TIENDA]]
+
+
+async def test_list_shows_every_row_of_the_org(operator: Operator, registry: Registry) -> None:
+    """An agent an app is holding adds nothing here: holding an agent types no door."""
+    await registry.register(AN_OWNER, ORG, PRODUCTION, CLINICA)
     await add_route(ORG, NUMBER, TIENDA, "phone", operator, printed())
     out = printed()
     await list_routes(ORG, operator, out)
     rows = [line.split() for line in out.getvalue().splitlines()]
-    assert rows == [[NUMBER, "phone", TIENDA, "operator"], ["—", "web", CLINICA, "app"]]
+    assert rows == [[NUMBER, "phone", TIENDA]]
 
 
 async def test_rm_takes_the_number_back_and_a_number_nobody_typed_is_a_refusal(
@@ -104,7 +101,7 @@ async def test_seed_applies_every_route_in_the_file_and_a_missing_file_is_an_err
     assert await seed_routes(seed, operator, printed()) == 0
     listed = await operator.get(OPS_ROUTES, org=ORG)
     # The second row named no channel: a number answers the phone unless somebody says else.
-    assert [door["route"]["channel"] for door in listed] == ["phone", "phone"]
+    assert [route["channel"] for route in listed] == ["phone", "phone"]
 
     out = printed()
     assert await seed_routes(tmp_path / "nowhere.json", operator, out) == 1

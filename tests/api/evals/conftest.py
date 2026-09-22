@@ -63,9 +63,7 @@ async def serving(
     owner: str = AN_OWNER,
 ) -> None:
     """One app holding one agent on its own web door, as a register would have left it."""
-    await registry.register(
-        owner, A_RECORD.org, PRODUCTION, slug, [defs.Route(channel="web", number=None)]
-    )
+    await registry.register(owner, A_RECORD.org, PRODUCTION, slug)
     await registry.configure(
         owner,
         PRODUCTION,
@@ -129,11 +127,13 @@ def suite_http(
     runner: Runner,
     eval_runs: MemoryRuns,
     keys_asked: list[ProviderKeys],
+    models_asked: list[Model | None],
 ) -> httpx.AsyncClient:
     """The keyed client with a scripted model behind it, and the run's own two resources."""
 
-    def llms(_declared: Model | None, keys: ProviderKeys) -> Chat:
-        """Whatever the agent declared, this test's one scripted model answers."""
+    def llms(declared: Model | None, keys: ProviderKeys) -> Chat:
+        """Whatever was declared is remembered, and this test's one scripted model answers."""
+        models_asked.append(declared)
         keys_asked.append(keys)
         return llm
 
