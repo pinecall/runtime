@@ -11,7 +11,7 @@ from livekit.agents import get_job_context
 from livekit.agents import stt as recognition
 from livekit.agents.types import TimedString
 from livekit.agents.voice import AgentSession
-from livekit.agents.voice.events import CloseReason, EventTypes, FunctionToolsExecutedEvent
+from livekit.agents.voice.events import EventTypes, FunctionToolsExecutedEvent
 
 from pinecall._settings import Budgets
 from pinecall.log import NOTHING_SAID, hashed_prompt
@@ -23,13 +23,17 @@ from pinecall.session.remembering import NoRememberer, Rememberer, remembered_wi
 from pinecall.session.scoring import Scorer, unjudged
 from pinecall.session.voice import commands, hearing
 from pinecall.session.voice.agent import VoiceAgent
+from pinecall.session.voice.attending import Attending
 from pinecall.session.voice.barge_in import is_a_backchannel
+from pinecall.session.voice.ending import TheEnding
 from pinecall.session.voice.events import Events
-from pinecall.session.voice.hanging_up import HOW_IT_ENDED, a_way_to_hang_up
+from pinecall.session.voice.hanging_up import a_way_to_hang_up
 from pinecall.session.voice.hold import HoldMusic
+from pinecall.session.voice.line import Line
 from pinecall.session.voice.metrics import Meters
-from pinecall.session.voice.platform import Platform
-from pinecall.session.voice.room import DataChannel, Facts, Holding
+from pinecall.session.voice.platform import Platform, PlatformRefused
+from pinecall.session.voice.recording import Recorder
+from pinecall.session.voice.room import DataChannel, Facts, Holding, Trunks
 from pinecall.session.voice.supervising import Supervising
 from pinecall.session.voice.tools import Tools
 from pinecall.session.voice.writing import Writing
@@ -40,14 +44,10 @@ from pinecall_protocol.events import (
     CallEnded,
     CallScore,
     CallSummary,
-    Custom,
     ErrorEvent,
     PromptChanged,
-    StateChanged,
-    ToolCall,
     ToolsChanged,
 )
-from pinecall_protocol.room import EventReceived
 
 # The session's event that says the tool outputs are about to enter the history, and the one that
 # says why the session closed. Named once, beside the subscribe and the unsubscribe, and typed as
@@ -81,6 +81,8 @@ class VoiceBridge:
         self._rememberer = rememberer
         self._budgets = budgets
         self.writing = Writing(platform, context.call)
+        # Every way this call can end, and the one place that remembers which it was.
+        self.ending = TheEnding(lambda: self._live, self.writing)
         self.meters = Meters(self.writing)
         # The platform's own two tools are declared beside the app's, so the model sees one list
         # and the `tools` block describes one list: session/lookups.py. Built before the
@@ -89,15 +91,16 @@ class VoiceBridge:
         self.lookups = TurnLookups(
             lookup, context.call, context.remembered_as, config, budgets.voice_lookup_ms
         )
-        self.events = Events(self.writing, self.meters, self, self.lookups)
+        self.events = Events(self.writing, self.meters, self.ending, self.lookups)
         self.tools = Tools(config, platform, context.call, self.writing.emit)
+        self.recorder = Recorder(config, context, self.writing, self._tell_the_ears)
         self.blocks = Blocks(config.prompt, _the_file_it_ships_with(config))
         self._agent = VoiceAgent(
             blocks=self.blocks,
             tools=[
                 *self.tools.declared_tools,
                 *self.lookups.declared_tools,
-                *a_way_to_hang_up(config, self),
+                *a_way_to_hang_up(config, self.ending),
             ],
             speaking=self,
             lookups=self.lookups,
@@ -106,12 +109,12 @@ class VoiceBridge:
         # Built in opened(), because it needs the session and because who holds the line has
         # to survive between a takeover and the release that answers it.
         self._supervising: Supervising | None = None
+        self._line: Line | None = None
+        self._attending: Attending | None = None
         self._holding: Holding | None = None
         self._facts: Facts | None = None
         self._datachannel: DataChannel | None = None
         self._started_at = time.time()
-        self._ended: tuple[defs.EndReason, defs.EndedBy] | None = None
-        self._closed_for: CloseReason | None = None
 
     # ── the Bridge the worker holds ─────────────────────────────────────────────
 
@@ -123,13 +126,27 @@ class VoiceBridge:
     async def opened(self, live: AgentSession[None]) -> None:
         """The session is built and about to start: subscribe to it, and write call.started."""
         self._live = live
-        self._supervising = Supervising(live, self._agent, self.writing, self)
         self.writing.open()
         self.events.watch(live)
         self.meters.watch(live)
         self._hold_the_room()
+        # The line and the ask: what call.hold, call.attention and a supervisor taking over all
+        # act on. The melody is asked for when the line is held, because its track is published
+        # later, once the room is live.
+        self._line = Line(live, self.writing, lambda: self.tools.hold)
+        self._attending = Attending(self._line, self.writing)
+        # After the room, because a transfer asked for at the desk is cold or warm by what is in
+        # it: a caller on a SIP leg is sent on, a caller in a browser has somebody dialled in.
+        self._supervising = Supervising(
+            live, self._agent, self.writing, self.ending, self._holding, self._attending
+        )
+        # A tool that comes back while a supervisor is holding the line leaves the model nothing
+        # to say: they are speaking, and a reply generated over them would enter the history as
+        # words the caller never heard.
+        self.tools.a_person_has_the_line = self._taken
+
         live.on(TOOLS_EXECUTED, self._tools_executed)  # pyright: ignore[reportUnknownMemberType] — livekit's callback is `(...) -> Unknown`
-        live.on(CLOSED, self._session_closed)  # pyright: ignore[reportUnknownMemberType] — livekit's callback is `(...) -> Unknown`
+        live.on(CLOSED, self.ending.session_closed)  # pyright: ignore[reportUnknownMemberType] — livekit's callback is `(...) -> Unknown`
         await self.writing.emit(
             "call.started",
             started(self.context, self.context.route.number or self.config.slug, self._started_at),
@@ -149,13 +166,15 @@ class VoiceBridge:
         if live is not None:
             await live.aclose()
             live.off(TOOLS_EXECUTED, self._tools_executed)  # pyright: ignore[reportUnknownMemberType] — livekit's callback is `(...) -> Unknown`
-            live.off(CLOSED, self._session_closed)  # pyright: ignore[reportUnknownMemberType] — livekit's callback is `(...) -> Unknown`
+            live.off(CLOSED, self.ending.session_closed)  # pyright: ignore[reportUnknownMemberType] — livekit's callback is `(...) -> Unknown`
         self.events.stop()
         self.meters.stop()
+        if self._attending is not None:
+            self._attending.close()
         for watching in (self._facts, self._datachannel):
             if watching is not None:
                 watching.stop()
-        ended, by = self._how_it_ended()
+        ended, by = self.ending.how_it_ended()
         ended_at = time.time()
         duration = ended_at - self._started_at
         await self.writing.emit(
@@ -227,7 +246,16 @@ class VoiceBridge:
         """One protocol command onto this call: the session, the prompt, or the ending."""
         if self._live is None:
             raise ProtocolError(f"{command.type}: the call has no session yet")
-        applying = commands.Applying(self._live, self, self, self, self._holding, self._supervising)
+        applying = commands.Applying(
+            self._live,
+            self,
+            self.ending,
+            self.recorder,
+            self._holding,
+            self._supervising,
+            self._line,
+            self._attending,
+        )
         await commands.apply(applying, command)
 
     # The static blocks are livekit's instructions, rewritten only when their joined text moved:
@@ -248,14 +276,20 @@ class VoiceBridge:
         visible = self.tools.visibility.narrow(tools)
         await self.writing.emit("tools.changed", ToolsChanged(visible=list(visible)))
 
-    # ── what the app writes into the log through this call ──────────────────────
+    # Asked of the gateway the first time a verb dials a second leg — a warm transfer, an invite —
+    # and never on a call that dials none, which is almost all of them. A gateway that refuses
+    # costs the verb its trunk and nothing else: it says so in the log, by name, like any refusal.
+    async def _outbound_trunk(self) -> str | None:
+        """The trunk this org dials out through, or None when it has none to dial through."""
+        route = self.context.route
+        try:
+            return await self.platform.outbound_trunk(
+                route.agent, org=route.org, env=route.env, holder=self.context.holder
+            )
+        except PlatformRefused:
+            return None
 
-    async def set_state(self, state: Mapping[str, Any], changed: Sequence[str]) -> None:
-        """state.set: the app's state moved, and the whole of it goes into this call's log."""
-        await self.writing.emit(
-            "state.changed", StateChanged(state=dict(state), changed=list(changed))
-        )
-        self._tell_the_ears(state)
+    # ── what the app writes into the log through this call ──────────────────────
 
     # The class already knows who it is talking to, so the ears are told: the patient's name the
     # moment a tool identified them, the doctor the moment one is chosen. That is the half a
@@ -267,49 +301,6 @@ class VoiceBridge:
         if live is None or not hearing.takes_keyterms(live.stt):  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
             return
         live.update_options(keyterms=hearing.words(self.config, state))
-
-    async def receives(self, name: str, data: Mapping[str, Any]) -> None:
-        """call.event: a declared fact from the tenant's backend; an undeclared one is refused."""
-        if not self.config.accepts(name, "app"):
-            raise ProtocolError(
-                f"agent {self.config.slug} never declared the event {name!r} from the app: "
-                f"declare it in agent.configure before sending it"
-            )
-        await self.writing.emit(
-            "event.received", EventReceived(name=name, data=dict(data), source="app")
-        )
-
-    async def log_custom(self, name: str, data: Mapping[str, Any]) -> None:
-        """call.log: a line of the app's own, with a seq like everything else."""
-        await self.writing.emit("custom", Custom(name=name, data=dict(data)))
-
-    # The caller's leg leaves the room as soon as the far end takes the call, and a session that
-    # only saw them go would close as PARTICIPANT_DISCONNECTED — `caller_hung_up`, which is not what
-    # happened. Nothing is ended here: the transfer already took the caller away.
-    def transferred(self) -> None:
-        """A cold transfer took: the call ends as transferred, whatever closes the session."""
-        self._ended = ("transferred", "agent")
-
-    # The same move as `transferred`, for the other thing that ends a call without our asking:
-    # livekit's end_call tool closes the session itself, as USER_INITIATED, which HOW_IT_ENDED
-    # would read as `drained` by the platform. Written down before the shutdown, so the log says
-    # what happened and not what the close reason looked like. hanging_up.py holds the why.
-    def ended_by_the_model(self) -> None:
-        """The model called end_call: this call ended because the agent decided it had."""
-        self._ended = ("agent_hung_up", "agent")
-
-    async def a_platform_tool_ran(self, called: ToolCall, result: defs.ToolResult) -> None:
-        """The log has every tool the model reached for, livekit's own end_call included."""
-        await self.writing.emit("tool.call", called)
-        await self.writing.emit("tool.result", result)
-
-    # `by` is the agent unless a supervisor's `end` says so, and that verb alone asks `at_once`.
-    async def hangup(
-        self, reason: defs.EndReason, by: defs.EndedBy = "agent", *, at_once: bool = False
-    ) -> None:
-        """call.hangup: the call ends now, and the log will say whose doing it was."""
-        self._ended = (reason, by)
-        self._shut_down(reason, at_once=at_once)
 
     # ── the room ────────────────────────────────────────────────────────────────
 
@@ -323,7 +314,11 @@ class VoiceBridge:
         if job is None:
             return
         self._holding = Holding(
-            room=job.room, api=job.api, writing=self.writing, channel=self.context.channel
+            room=job.room,
+            api=job.api,
+            writing=self.writing,
+            channel=self.context.channel,
+            trunks=Trunks(self._outbound_trunk),
         )
         self._facts = Facts(self.writing, self.context.channel, self.context.caller)
         self._facts.watch(job.room)
@@ -334,14 +329,6 @@ class VoiceBridge:
 
     # ── what the session tells us on the way ────────────────────────────────────
 
-    # Nobody hung up: a component answered something that will not change — a voice that does not
-    # exist, a key that is not accepted — and every second spent retrying it is a caller hearing an
-    # apology for silence. The log already has the one error entry that says which.
-    def ends_for(self, cause: str) -> None:
-        """A component failed for good: the call ends now, as the error nobody could answer."""
-        self._ended = ("error", "platform")
-        self._shut_down(cause)
-
     # Nothing to speak here any more: a read-back is said inside the tool that earned it
     # (tools.py), which is where livekit documents speaking around a tool and the only point at
     # which the model has not yet written its account of the result. Kept as the place that
@@ -351,28 +338,9 @@ class VoiceBridge:
         for output in event.function_call_outputs:
             self.tools.read_backs.pop(output.call_id, None)
 
-    def _session_closed(self, event: object) -> None:
-        """Why livekit closed the session, kept for call.ended."""
-        reason = getattr(event, "reason", None)
-        if isinstance(reason, CloseReason):
-            self._closed_for = reason
-
-    def _how_it_ended(self) -> tuple[defs.EndReason, defs.EndedBy]:
-        """Who ended the call: the agent when it hung up, else whatever closed the session."""
-        if self._ended is not None:
-            return self._ended
-        if self._closed_for is not None:
-            return HOW_IT_ENDED[self._closed_for]
-        return ("error", "platform")
-
-    # The job is what ends a call: the session alone leaves the room open and the worker waiting.
-    def _shut_down(self, reason: str, *, at_once: bool = False) -> None:
-        """Take the session and the job down together, whoever decided the call was over."""
-        if self._live is not None:
-            self._live.shutdown(drain=not at_once)
-        job = get_job_context(required=False)
-        if job is not None:
-            job.shutdown(reason=reason)
+    def _taken(self) -> bool:
+        """Whether a person at the desk is holding this line right now."""
+        return self._supervising is not None and self._supervising.taken_by is not None
 
     def _has_the_floor(self) -> bool:
         """Whether the agent is speaking: a caller landing on it, a tool that must wait for it."""

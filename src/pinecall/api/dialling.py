@@ -9,10 +9,11 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import Field
 
-from pinecall.api._deps import AdmissionDep, LogsDep, RoutesDep, TalkKeyDep
-from pinecall.api._placing import DispatchesDep, GuardsDep, KeptOutboundTrunksDep
+from pinecall.api._corner import CornerDep
+from pinecall.api._deps import AdmissionDep, DeclarationKeyDep, LogsDep, RoutesDep, TalkKeyDep
+from pinecall.api._placing import DispatchesDep, GuardsDep, KeptOutboundTrunksDep, OutboundTrunksDep
 from pinecall.api._serving import ServingDep
-from pinecall.api.agents.registry import RegistryDep
+from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.auth.keys import KeyRecord, held_by
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import QuotaExhausted
@@ -197,3 +198,26 @@ async def _never_rang(logs: Logs, context: CallContext, slug: str) -> None:
     await log.append("call.ended", encode(ended))
     await log.seal()
     logs.forget(context.call)
+
+
+# ── the worker's: which trunk a second leg on a live call is dialled out through ─────────────────
+
+
+# A warm transfer and room.invite both dial a number INTO the call's room, and the trunk that does
+# it is the org's own — the same one this door's neighbour places a call with. The worker asks for
+# it only when a verb wants one, so a box with no vault key and an org with no carrier answer the
+# same way they refuse a dial: null, and the verb says so in the call's log by name.
+@router.get("/v1/agents/{slug}/outbound-trunk")
+async def outbound_trunk(
+    slug: str,
+    key: DeclarationKeyDep,  # noqa: ARG001 — the scope is asked here; the corner says where
+    corner: CornerDep,
+    registry: RegistryDep,
+    trunks: OutboundTrunksDep,
+) -> dict[str, str | None]:
+    """The SFU's id for this org's outbound trunk, or null when it has none to dial through."""
+    held = registry.of(corner.env, slug, corner.holder)
+    if held is None or held.org != corner.org:
+        raise HTTPException(404, NO_AGENT.format(slug=slug))
+    trunk = None if trunks is None else await trunks.of(corner.org)
+    return {"trunk": None if trunk is None else trunk.trunk_id}

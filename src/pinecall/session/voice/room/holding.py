@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from livekit import rtc
 from livekit.api import LiveKitAPI
 
+from pinecall.session.voice.room.trunks import NO_TRUNK, Trunks
 from pinecall.session.voice.writing import Writing
 from pinecall.types import Channel
 from pinecall.types.json import JsonObject
@@ -31,8 +32,8 @@ class Holding:
     writing: Writing
     # Which door this call came in through: only a phone has a SIP leg for a verb to act on.
     channel: Channel
-    # The outbound SIP trunk a second leg dials through, when the deployment has one.
-    trunk: str | None = None
+    # Where a second leg is dialled out through, asked for the first time a verb wants one.
+    trunks: Trunks = NO_TRUNK
 
     async def publish(self, topic: str, payload: JsonObject, to: Sequence[str] = ()) -> int:
         """One JSON message on the DataChannel, to these identities or to the room; its size."""

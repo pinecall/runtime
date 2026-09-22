@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any, cast
 
 from livekit.agents import llm as agents
 from livekit.agents.llm import ToolError
+from livekit.agents.llm.tool_context import StopResponse
 from livekit.agents.voice import RunContext
 
 from pinecall.log import as_text
@@ -23,6 +24,11 @@ from pinecall_protocol.events import ToolCall
 # What a template names: {{slot.when}} reads `when` of the `slot` argument. A name nobody filled
 # is left as it was written, so a half-rendered sentence is visible instead of silently empty.
 _A_PLACEHOLDER = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
+
+
+def _nobody() -> bool:
+    """Nobody is holding the line: what a call with no supervision on it answers."""
+    return False
 
 
 class Tools:
@@ -46,6 +52,9 @@ class Tools:
         # belongs to the tool call that earned it and to nothing else.
         self.read_backs: dict[str, str] = {}
         self.visibility = Visibility(config)
+        # Whether a person is holding the line right now. The bridge sets it once supervision
+        # exists; until then nobody is, which is what every call starts as.
+        self.a_person_has_the_line: Callable[[], bool] = _nobody
 
     # Every declared tool, once, for the life of the call: a tools.set moves `visibility` and
     # never livekit's tool list, because a re-declared tool throws the provider's whole cache away.
@@ -112,6 +121,12 @@ class Tools:
             said = self.read_backs.pop(use.call_id, None)
             if said is not None:
                 await read_back(context.session, said)
+            # A supervisor took the line while this tool ran — the ask for a person is the tool
+            # that does it — and the model must not answer over them. The result is in the
+            # history and in the log; the reply to it is what is dropped. StopResponse is
+            # livekit's own word for a tool whose output wants no reply.
+            if self.a_person_has_the_line():
+                raise StopResponse
             return text
 
         schema: dict[str, Any] = {

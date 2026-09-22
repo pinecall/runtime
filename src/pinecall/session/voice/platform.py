@@ -1,4 +1,4 @@
-"""What a spoken call asks of the platform, and all it asks: write, run a tool, read back."""
+"""What a spoken call asks of the platform: write, run a tool, read back, dial a second leg."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from typing import Protocol
 
 from pinecall._exceptions import PinecallError
+from pinecall.types import Env
 from pinecall.types.json import JsonObject
 from pinecall_protocol.defs import ToolResult
 from pinecall_protocol.events import ToolCall
@@ -19,7 +20,7 @@ class PlatformRefused(PinecallError):
 # nothing of transports, and a test scripts a platform in memory with a live tail, which no HTTP
 # fake could do as plainly. worker/client.py is the one implementation that leaves the process.
 class Platform(Protocol):
-    """The doors a spoken call knocks on: one write, one tool, and the log read back three ways."""
+    """The doors a spoken call knocks on: one write, one tool, one trunk, the log read back."""
 
     async def append(
         self, call: str, type: str, data: JsonObject, ephemeral: bool | None = None
@@ -29,6 +30,12 @@ class Platform(Protocol):
 
     async def tool(self, call: str, agent: str, wanted: ToolCall, timeout_s: float) -> ToolResult:
         """One tool through the app's own process and back, or PlatformRefused."""
+        ...
+
+    async def outbound_trunk(
+        self, slug: str, *, org: str, env: Env, holder: str | None
+    ) -> str | None:
+        """The trunk a second leg is dialled into this call's room through, when the org has one."""
         ...
 
     async def state(self, call: str) -> tuple[JsonObject, int]:

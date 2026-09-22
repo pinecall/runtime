@@ -138,6 +138,7 @@ ASKS_NOTHING_OR_ASKS_INSIDE: dict[str, str] = {
 OPENS_TO_EITHER: dict[str, frozenset[str]] = {
     "GET /v1/agents/{slug}/config": frozenset({"app", "calls"}),
     "GET /v1/agents/{slug}/hold-audio": frozenset({"app", "calls"}),
+    "GET /v1/agents/{slug}/outbound-trunk": frozenset({"app", "calls"}),
     "GET /v1/agents/{slug}/hold-audio/audio": frozenset({"app", "calls"}),
     # An agent's settings and the org's lexicon are read and set by the developer's key and by the
     # floor's: `pipeline` may move a vendor, `words` may set the opening, the lexicon and what is

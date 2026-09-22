@@ -16,7 +16,7 @@ from livekit.agents.voice.events import CloseReason
 from livekit.agents.voice.turn import TurnHandlingOptions
 
 from pinecall.session.voice import VoiceBridge, a_bridge
-from pinecall.session.voice.voice import HOW_IT_ENDED
+from pinecall.session.voice.hanging_up import HOW_IT_ENDED
 from pinecall_protocol.defs import ToolResult
 from tests.session.fake_llm import FakeLLM, Scripted, a_call
 from tests.session.voice.fakes import BOOK, CLARA, Recording
@@ -58,7 +58,7 @@ async def test_the_ears_are_told_the_names_the_state_is_holding_the_moment_it_mo
     # Not started: the keyterms a session holds are the detector's, and it is asked before the
     # first turn as readily as after one (agent_session.py:777-779, 1366).
     await bridge.opened(live)
-    await bridge.set_state({"patient": {"name": "Ana García"}}, ["patient"])
+    await bridge.recorder.set_state({"patient": {"name": "Ana García"}}, ["patient"])
     assert live.keyterms == ["Clínica Norte", "Ana García"]
 
 
@@ -71,7 +71,7 @@ async def test_ears_with_no_keyterms_door_are_never_told_anything() -> None:
         llm=FakeLLM(), stt=SilentEars(), vad=None, turn_handling=BY_HAND
     )
     await bridge.opened(live)
-    await bridge.set_state({"patient": {"name": "Ana García"}}, ["patient"])
+    await bridge.recorder.set_state({"patient": {"name": "Ana García"}}, ["patient"])
     assert live.keyterms == []
 
 

@@ -12,7 +12,7 @@ from livekit import rtc
 from livekit.api import LiveKitAPI
 from livekit.protocol.sip import SIPTransferStatus, TransferSIPParticipantResponse
 
-from pinecall.session.voice.room import Holding
+from pinecall.session.voice.room import Holding, Trunks
 from pinecall.session.voice.room.datachannel import DATA
 from pinecall.session.voice.room.facts import CONNECTION, JOINED, LEFT, SPEAKERS
 from pinecall.session.voice.writing import Writing
@@ -60,6 +60,11 @@ class FakeParticipant:
     )
     disconnect_reason: int | None = None
     published: list[Published] = field(default_factory=list[Published])
+    tones: list[tuple[int, str]] = field(default_factory=list[tuple[int, str]])
+
+    async def publish_dtmf(self, *, code: int, digit: str) -> None:
+        """LocalParticipant.publish_dtmf, recorded instead of sent down the leg."""
+        self.tones.append((code, digit))
 
     async def publish_data(
         self, payload: bytes, *, topic: str = "", destination_identities: list[str] | None = None
@@ -253,7 +258,7 @@ def a_held_room(
         api=cast("LiveKitAPI", served),
         writing=writing,
         channel=channel,
-        trunk=trunk,
+        trunks=Trunks.known(trunk),
     )
     return Held(holding, room, served, recording)
 

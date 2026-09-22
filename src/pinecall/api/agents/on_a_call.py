@@ -12,19 +12,29 @@ from pinecall_protocol import Command
 from pinecall_protocol.commands import (
     AgentReply,
     AgentSay,
+    CallAttention,
+    CallCallback,
     CallEvent,
     CallHangup,
     CallLog,
+    CallTransfer,
     PromptSet,
     SessionConfigure,
     StateSet,
     ToolsSet,
 )
-from pinecall_protocol.events import AgentConfigured
+from pinecall_protocol.events import AgentConfigured, CallTransferred
 
 # A command that names a call this process is not running is not a bad command: it is a command
 # that arrived late, or on the wrong node. The app hears which, in the protocol's own words.
 NO_SESSION = "no_session"
+
+# What a verb of the line answers on a written conversation. A chat has no audio to hold, no leg
+# to send anywhere and no tones to send down one, so each is refused by name — and the one thing
+# that DOES work on a thread is named, because the app asking for a transfer wants a person.
+NO_LINE = (
+    "{type}: a written conversation has no line — call.attention asks a person to take this one"
+)
 
 type CallHandler = Callable[[Command, TextSession], Awaitable[None]]
 
@@ -137,6 +147,50 @@ async def write_a_line(command: Command, session: TextSession) -> None:
     """A line of the app's own in the call's log, with a seq like everything else."""
     line = asked(command, CallLog)
     await session.log_custom(line.name, line.data)
+
+
+# The three verbs of a spoken line. On a call this gateway does not run they are held for the
+# worker, exactly as every other command is; here, on a thread, they are refused by name.
+@in_a_call("call.hold")
+async def hold_the_line(command: Command, session: TextSession) -> None:  # noqa: ARG001 — the shape
+    """Put the caller on hold: a thread has nothing to hold, and says so."""
+    raise DeclarationRefused(NO_LINE.format(type=command.type))
+
+
+@in_a_call("call.unhold")
+async def give_the_line_back(command: Command, session: TextSession) -> None:  # noqa: ARG001
+    """Take the caller off hold: a thread was never holding anybody."""
+    raise DeclarationRefused(NO_LINE.format(type=command.type))
+
+
+@in_a_call("call.dtmf")
+async def send_tones(command: Command, session: TextSession) -> None:  # noqa: ARG001
+    """Touch tones down the line: a thread has no line to send them down."""
+    raise DeclarationRefused(NO_LINE.format(type=command.type))
+
+
+# The refusal is the OUTCOME here and not a refusal frame: whoever asked for a transfer is waiting
+# for `call.transferred` to say how it went, and "nothing was attempted" is how it went.
+@in_a_call("call.transfer")
+async def transfer_the_call(command: Command, session: TextSession) -> None:
+    """Send the caller on: a thread has no line, so nothing moves and the log says why."""
+    wanted = asked(command, CallTransfer)
+    await session.emit(
+        "call.transferred",
+        CallTransferred(to=wanted.to, mode=None, ok=False, error=NO_LINE.format(type=command.type)),
+    )
+
+
+@in_a_call("call.attention")
+async def ask_for_a_person(command: Command, session: TextSession) -> None:
+    """The thread waits for a supervisor to take it, and the model answers nothing meanwhile."""
+    await session.attending.asked(asked(command, CallAttention))
+
+
+@in_a_call("call.callback")
+async def call_them_back(command: Command, session: TextSession) -> None:
+    """The caller asked to be rung back: the number goes in the log for the app to read and dial."""
+    await session.call_back(asked(command, CallCallback))
 
 
 @in_a_call("call.hangup")

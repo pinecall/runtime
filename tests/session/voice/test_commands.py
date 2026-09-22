@@ -10,12 +10,16 @@ from livekit.agents.types import NOT_GIVEN
 
 from pinecall.session.voice import commands
 from pinecall_protocol import Command, ProtocolError, defs
+from pinecall_protocol.commands import CallCallback
 
 pytestmark = pytest.mark.unit
 
 
 class Session:
     """livekit's AgentSession, as far as the appliers reach it."""
+
+    # What the appliers that wait for the floor read; a scripted session is never speaking.
+    agent_state = "listening"
 
     def __init__(self) -> None:
         self.said: list[tuple[str, Any]] = []
@@ -47,10 +51,14 @@ class End:
 
     def __init__(self) -> None:
         self.reasons: list[str] = []
+        self.ended_by: list[tuple[defs.EndedBy, bool]] = []
         self.transfers = 0
 
-    async def hangup(self, reason: defs.EndReason) -> None:
+    async def hangup(
+        self, reason: defs.EndReason, by: defs.EndedBy = "agent", *, at_once: bool = False
+    ) -> None:
         self.reasons.append(reason)
+        self.ended_by.append((by, at_once))
 
     def transferred(self) -> None:
         self.transfers += 1
@@ -63,6 +71,7 @@ class Recorded:
         self.states: list[tuple[dict[str, Any], list[str]]] = []
         self.events: list[tuple[str, dict[str, Any]]] = []
         self.lines: list[tuple[str, dict[str, Any]]] = []
+        self.callbacks: list[CallCallback] = []
 
     async def set_state(self, state: Mapping[str, Any], changed: Sequence[str]) -> None:
         """state.set: the whole state, and what moved in it."""
@@ -75,6 +84,10 @@ class Recorded:
     async def log_custom(self, name: str, data: Mapping[str, Any]) -> None:
         """call.log: a line of the app's own."""
         self.lines.append((name, dict(data)))
+
+    async def call_back(self, wanted: CallCallback) -> None:
+        """call.callback: the number to ring back, and what it is about."""
+        self.callbacks.append(wanted)
 
 
 def a_command(type: str, data: dict[str, Any]) -> Command:

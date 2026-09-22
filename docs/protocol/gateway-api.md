@@ -6,9 +6,8 @@ nothing else — so an app written against this document in any language is a fi
 
 The operator's half (`/v1/ops/*`, orgs, quotas, routes, usage) is [operator-api.md](operator-api.md)
 and takes a different key; who a key belongs to at all is [../multi-tenancy.md](../multi-tenancy.md),
-and the terminal that issues one is [../the-runtime-cli.md](../the-runtime-cli.md). Every wire shape
-named below is generated from the schema into the **protocol** repo's `docs/` (`events.md`, `commands.md`,
-`shapes.md`); the terminal that speaks all of it is **agents**' `docs/the-cli.md`.
+and the terminal that issues one is [../the-runtime-cli.md](../the-runtime-cli.md). Every wire shape named
+below is generated from the schema into **protocol**'s `docs/`; the terminal is **agents**' `docs/the-cli.md`.
 
 ## The shape of it
 
@@ -126,6 +125,7 @@ The commands below are **call-scoped**: they carry `"call": "<id>"` and are refu
 | `call.event` | hand the agent a fact from your backend mid-call; lands as `event.received` |
 | `call.log` | write a line of your own into the call's log; lands as `custom` |
 | `call.hangup` | end the call; `call.ended` follows with `agent_hung_up` |
+| `call.transfer` · `call.attention` · `call.hold` · `.unhold` · `call.dtmf` · `call.callback` | **the line**: send the caller on, ask for a person, hold them, tones, a call back — [the-line.md](the-line.md) |
 | `tool.result` | **the answer to a `tool.call`** — see below |
 
 ### Tools: the round trip

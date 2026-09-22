@@ -26,7 +26,7 @@ This runtime does not implement a conversation. LiveKit does, and the line is dr
 | LiveKit provides | used by | as |
 |---|---|---|
 | **livekit-server**, the SFU: rooms, participants, tracks, the agent dispatch | the box (a container), both processes over its API | `infra/box/containers/pinecall-livekit.container`, `livekit.yaml` |
-| **livekit-sip**: a carrier's trunk as a room participant | the box; `session/voice/sip.py`, `room/invite.py`, `transfer.py` | `CreateSIPParticipantRequest`, a REFER for a cold transfer |
+| **livekit-sip**: a carrier's trunk as a room participant | the box; `session/voice/sip.py`, `room/invite.py`, `room/dtmf.py`, `transfer.py`, `bridging.py` | a REFER for a cold transfer, `CreateSIPParticipantRequest` for a warm one — the person dialled into the call's own room — and `publish_dtmf` for the tones |
 | **`livekit.agents.AgentServer`**: the worker process, its job processes, the load it reports | `worker/main.py` | one server, one `rtc_session`, `load_fnc` |
 | **`JobContext`**, **`JobProcess`**: one job, one process, prewarm | `worker/main.py`, `worker/entry.py` | `ctx.connect()`, `ctx.room` |
 | **`AgentSession`** + **`Agent`**: the conversation — VAD, turn detection, STT → LLM → TTS, interruption, the chat context | `session/voice/session.py`, `session/text/session.py`, `session/*/agent.py` | one session per call, ours subclassing `Agent` for the prompt's blocks |
@@ -102,7 +102,7 @@ log's entry IS the wire's envelope (`log/entry.py`). The fifty-odd entry types, 
 
 | family | types |
 |---|---|
-| the call | `call.started` `call.ringing` `call.dialing` `call.line` `call.log` `call.event` `call.ended` `call.summary` `call.score` |
+| the call | `call.started` `call.ringing` `call.dialing` `call.line` `call.log` `call.event` `call.ended` `call.summary` `call.score` `call.transferred` `callback.requested` · and `attention.requested` `.answered`, the agent asking for a person: the caller holds until a supervisor takes the line or the wait runs out (`session/attention.py`, `session/*/attending.py`) |
 | the turns | `turn.user` `turn.agent` (each carrying livekit's ChatMessage metrics) |
 | the tools | `tool.call` `tool.result` · the gate: `confirm.request` `confirm.granted` `confirm.declined` |
 | the metrics, one per typed block | `metrics.llm` `.stt` `.tts` `.vad` `.eou` `.eot` `.interruption` `.realtime` `.avatar` — every field livekit measures, joined by `speech_id` |
@@ -110,7 +110,7 @@ log's entry IS the wire's envelope (`log/entry.py`). The fifty-odd entry types, 
 | the state | `state.changed` (the tenant's fields, by Visibility) · `memory.ops` |
 | the agent's own log `@slug` | `agent.register` `agent.registered` `agent.configure` `agent.configured` |
 | the two voices | `user.state` `user.transcript` `agent.state` `agent.transcript` — an `agent.transcript` entry is one **delta**, never the reply so far: in a voice call one word with the seconds the voice aligned it to, in a written call one model token; `reduce.py` joins every delta since the last `turn.agent` into `live.agent` |
-| **commands** (app → call) | `agent.say` `agent.reply` `state.set` `session.configure` `call.hangup` `call.transfer` `call.hold` `.unhold` `call.mute` `.unmute` `call.dtmf` `call.dial` `room.invite` `room.send` `participant.mute` `participant.remove` |
+| **commands** (app → call) | `agent.say` `agent.reply` `state.set` `session.configure` `call.hangup` `call.transfer` `call.attention` `call.callback` `call.hold` `.unhold` `call.dtmf` `call.dial` `room.invite` `room.send` `participant.mute` `participant.remove` — and `call.mute` `.unmute`, which are in the wire and have no runtime |
 
 Two **projections** decide what leaves the platform (`log/projection.py`, `auth/scopes.py`, the
 only two places that spell them): **public** — what a participant in the room may see: the

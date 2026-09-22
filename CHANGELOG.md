@@ -6,6 +6,20 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 
 ## [Unreleased]
 
+### Added
+- **The line's six commands run.** `call.transfer` sends a phone caller on with a REFER, or dials
+  the destination into a browser caller's own room over the org's outbound trunk and falls silent
+  once they answer; `call.attention` puts the caller on hold until a supervisor takes the line or
+  the wait the app asked for runs out; `call.hold` · `call.unhold` hold the line with the melody;
+  `call.dtmf` sends touch tones down the caller's leg; `call.callback` writes the number to ring
+  back into the call's log, which `GET /v1/callbacks` already lists. A written conversation refuses
+  the ones that need a line, by name, and asks for a person instead. `docs/protocol/the-line.md`.
+- **`GET /v1/agents/{slug}/outbound-trunk`**, the worker's: the trunk a second leg on a live call
+  is dialled through. `room.invite` never dialled anybody before it — the call was built with no
+  trunk at all — and a warm transfer needs the same one.
+- **A tool that answers while a supervisor holds the line produces no reply**, spoken or written:
+  the result is in the log and in the history, and the model does not talk over the person.
+
 ### Security
 - **A key grants what it holds.** `team` opened every role to whoever held it: a manager could
   invite an admin, PATCH a colleague or their own row to one, or wire SSO seating a whole domain as

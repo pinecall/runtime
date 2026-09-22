@@ -94,6 +94,7 @@ that colleague's corner.
 | `GET` | `/v1/agents/{slug}/rings-for?caller=` | whose sandbox copy a production ring from this phone belongs to, or null: production's — the worker's, `app` |
 | `GET` | `/v1/agents/{slug}/hold-audio` | the worker's: what the call being built plays while a tool runs, in the call's corner (`?org=&env=&holder=`) — `app` or `calls` |
 | `GET` | `/v1/agents/{slug}/hold-audio/audio` | the worker's: the clip's bytes, fetched once per box per hash and kept on disk; `404` when the agent plays none — `app` or `calls` |
+| `GET` | `/v1/agents/{slug}/outbound-trunk` | the worker's: the trunk a second leg on a live call is dialled through — a warm transfer, `room.invite` — `{trunk}` or `{trunk: null}` when the org has none — `app` or `calls` |
 | `GET` | `/v1/agents/{slug}/sessions` | one line per call, in the reader's corner — the same filters |
 | `GET` | `/v1/agents/{slug}/calls` | every call of the agent, as a log |
 | `GET` | `/v1/calls/{call}/events` | one call's log: a page, or SSE |

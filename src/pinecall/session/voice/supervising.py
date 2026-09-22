@@ -13,7 +13,10 @@ from pinecall.session.supervising import (
     NOBODY_HOLDS,
     THE_SUPERVISOR,
 )
+from pinecall.session.voice import transfer
+from pinecall.session.voice.attending import Attending
 from pinecall.session.voice.commands import Ending
+from pinecall.session.voice.room.holding import Holding
 from pinecall.session.voice.writing import Writing
 from pinecall_protocol import ProtocolError, verbs
 from pinecall_protocol.commands import CallTransfer, SupervisorVerb
@@ -35,12 +38,20 @@ class Supervising:
     """The desk's hand on a live call: who is holding the line, and what each verb does."""
 
     def __init__(
-        self, live: AgentSession[None], agent: Agent, writing: Writing, ending: Ending
+        self,
+        live: AgentSession[None],
+        agent: Agent,
+        writing: Writing,
+        ending: Ending,
+        holding: Holding | None = None,
+        attending: Attending | None = None,
     ) -> None:
         self._live = live
         self._agent = agent
         self._writing = writing
         self._ending = ending
+        self._holding = holding
+        self._attending = attending
         self.taken_by: Supervisor | None = None
 
     # The transfer is the one verb this class does not finish itself: `call.transfer` already has
@@ -62,12 +73,21 @@ class Supervising:
             case verbs.EndVerb():
                 await self._end(by, verb.reason)
             case verbs.TransferVerb():
-                await self._writing.emit(
-                    "supervisor.transferred",
-                    SupervisorTransferred(by=by, to=verb.to, mode=verb.mode),
-                )
-                return CallTransfer(to=verb.to, mode=verb.mode)
+                return await self._transfer(by, verb)
         return None
+
+    # A desk that names no mode is asking for whatever this call can do, and the entry has to say
+    # which before the transfer runs: an auditor reading `supervisor.transferred` learns the caller
+    # was sent on or that somebody was dialled in to them, and those are two different calls.
+    async def _transfer(self, by: Supervisor, verb: verbs.TransferVerb) -> CallTransfer:
+        """transfer: the entry with the mode this call really uses, then the transfer applier."""
+        wanted = CallTransfer(to=verb.to, mode=verb.mode)
+        held = self._holding
+        mode = verb.mode if held is None else await transfer.the_mode(held, wanted)
+        await self._writing.emit(
+            "supervisor.transferred", SupervisorTransferred(by=by, to=verb.to, mode=mode)
+        )
+        return CallTransfer(to=verb.to, mode=mode)
 
     # ── the six verbs ───────────────────────────────────────────────────────────
 
@@ -92,6 +112,9 @@ class Supervising:
         if self.taken_by is not None:
             raise ProtocolError(ALREADY_HELD.format(id=self.taken_by.id))
         await self._writing.emit("supervisor.took_over", SupervisorTookOver(by=by))
+        # A caller waiting for a person just got one: the ask is answered and the melody stops.
+        if self._attending is not None:
+            await self._attending.taken_by(by)
         await self._cut_the_sentence()
         # Deaf as well as mute: what the agent cannot hear, it cannot later claim to remember, and
         # a history with the human's half missing is the one a release must not paper over.

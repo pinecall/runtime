@@ -158,6 +158,21 @@ class Gateway:
             raise GatewayRefused(f"GET {path}: {answer.status_code} {answer.text}")
         return answer.content
 
+    async def outbound_trunk(
+        self,
+        slug: str,
+        *,
+        org: str | None = None,
+        env: Env | None = None,
+        holder: str | None = None,
+    ) -> str | None:
+        """The trunk a second leg is dialled out through; None when this org has none."""
+        said = await self._read(
+            "GET", f"/v1/agents/{slug}/outbound-trunk", params=_whose(org, env, holder)
+        )
+        trunk = cast("dict[str, object]", said).get("trunk") if isinstance(said, dict) else None
+        return trunk if isinstance(trunk, str) and trunk else None
+
     async def rings_for(self, slug: str, *, org: str, caller: str) -> str | None:
         """The developer whose sandbox copy takes this production ring, or None: production's."""
         said = await self._read(

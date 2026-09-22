@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from livekit.agents.llm import ToolError
+from livekit.agents.llm.tool_context import StopResponse
 
 from pinecall.log import as_text
 from pinecall.session.declaring import ToolUse
@@ -34,6 +35,11 @@ class Running:
         text, failed = await self.through_app(call)
         if failed:  # is_error is what the model reads a failure as, and livekit sets it from this
             raise ToolError(text)
+        # A supervisor took the thread while this tool ran — the ask for a person is the tool
+        # that does it — and the model must not write over them. The result is in the log and in
+        # the history; the reply to it is what is dropped.
+        if self._session.taken_by is not None:
+            raise StopResponse
         return text
 
     async def through_app(self, call: ToolUse) -> tuple[str, bool]:

@@ -3,7 +3,7 @@
 from collections.abc import Callable, Iterable
 from typing import Any
 
-from pinecall.log import room
+from pinecall.log import people, room
 from pinecall_protocol import ProtocolError, WireModel, events, metrics
 from pinecall_protocol.codec import encode, event_of
 from pinecall_protocol.defs import ToolResult
@@ -14,13 +14,11 @@ from pinecall_protocol.state import (
     Confirm,
     CustomNote,
     Gap,
-    Handoff,
     LiveTranscript,
     LoggedError,
     PromptBlockState,
     State,
     ToolRun,
-    TransferState,
     UserTurn,
 )
 
@@ -73,6 +71,7 @@ def initial_state() -> State:
         "held": False,
         "muted": False,
         "transfer": None,
+        "attention": None,
         "usage": [],
         "cost": None,
         "routes": [],
@@ -170,13 +169,7 @@ def _on_call_ended(state: State, data: events.CallEnded) -> None:
     state.ended_at = data.ended_at
     state.end_reason = data.reason
     state.live = LiveTranscript(user=None, agent=None)
-
-
-def _on_call_transferred(state: State, data: events.CallTransferred) -> None:
-    asked_by = state.transfer.by if state.transfer is not None else "agent"
-    state.transfer = TransferState(
-        to=data.to, mode=data.mode, status="done" if data.ok else "failed", by=asked_by
-    )
+    people.lapse_on_the_end(state)
 
 
 def _on_call_line(state: State, data: events.CallLine) -> None:
@@ -317,19 +310,7 @@ def _settle_confirm(state: State, call_id: str, verdict: dict[str, Any]) -> None
         state.confirms[index] = state.confirms[index].model_copy(update=verdict)
 
 
-# ── supervision, the agent, markers ─────────────────────────────────────────────
-
-
-def _on_supervisor_took_over(state: State, data: events.SupervisorTookOver) -> None:
-    state.handoff = Handoff(active=True, by=data.by)
-
-
-def _on_supervisor_released(state: State, _released: events.SupervisorReleased) -> None:
-    state.handoff = Handoff(active=False, by=None)
-
-
-def _on_supervisor_transferred(state: State, data: events.SupervisorTransferred) -> None:
-    state.transfer = TransferState(to=data.to, mode=data.mode, status="requested", by="supervisor")
+# ── the agent, markers ──────────────────────────────────────────────────────────
 
 
 def _on_agent_registered(state: State, data: events.AgentRegistered) -> None:
@@ -360,13 +341,13 @@ def _last_index[T](items: list[T], matches: Callable[[T], bool]) -> int | None:
 
 # Events missing here change nothing a reader keeps: supervisor.said and .whispered land as turns
 # and prompt changes, supervisor.ended as call.ended; agent.configured, pong and log.caught_up
-# say nothing about the call. The room's facts fold in room.py and register here.
+# say nothing about the call. The room's facts fold in room.py, a person's part in people.py, and
+# both register here.
 HANDLERS: dict[str, Handler] = {
     "call.ringing": _on_call_ringing,
     "call.dialing": _on_call_dialing,
     "call.started": _on_call_started,
     "call.ended": _on_call_ended,
-    "call.transferred": _on_call_transferred,
     "call.line": _on_call_line,
     "call.summary": _on_call_summary,
     "user.state": _on_user_state,
@@ -383,13 +364,11 @@ HANDLERS: dict[str, Handler] = {
     "confirm.request": _on_confirm_request,
     "confirm.granted": _on_confirm_granted,
     "confirm.declined": _on_confirm_declined,
-    "supervisor.took_over": _on_supervisor_took_over,
-    "supervisor.released": _on_supervisor_released,
-    "supervisor.transferred": _on_supervisor_transferred,
     "agent.registered": _on_agent_registered,
 }
 HANDLERS.update({f"metrics.{block}": _on_metrics for block in CollectedMetrics.model_fields})
 HANDLERS.update(room.HANDLERS)
+HANDLERS.update(people.HANDLERS)
 
 HANDLERS_WITH_ENTRY: dict[str, HandlerWithEntry] = {
     "tool.call": _on_tool_call,
@@ -398,3 +377,4 @@ HANDLERS_WITH_ENTRY: dict[str, HandlerWithEntry] = {
     "custom": _on_custom,
 }
 HANDLERS_WITH_ENTRY.update(room.HANDLERS_WITH_ENTRY)
+HANDLERS_WITH_ENTRY.update(people.HANDLERS_WITH_ENTRY)

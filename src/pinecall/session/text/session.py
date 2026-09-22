@@ -17,6 +17,7 @@ from pinecall.providers import prices
 from pinecall.providers.models import Chat
 from pinecall.session import clock, greeting
 from pinecall.session.asking import Asking, NotAsking
+from pinecall.session.callbacks import a_callback
 from pinecall.session.declaring import declared
 from pinecall.session.first_entries import started
 from pinecall.session.knowing import a_line_for_the_file_it_ships_with
@@ -24,12 +25,13 @@ from pinecall.session.lookups import Lookup, NoLookup, TurnLookups
 from pinecall.session.remembering import NoRememberer, Rememberer, remembered_within
 from pinecall.session.scoring import Scorer, unjudged
 from pinecall.session.text.agent import TextAgent, remembered
+from pinecall.session.text.attending import Attending
 from pinecall.session.text.measure import Reply, usage_rows
 from pinecall.session.text.running import Running
 from pinecall.session.text.turns import Turns
 from pinecall.types import AgentConfig, Blocks, CallContext
 from pinecall_protocol import WireModel, defs, encode
-from pinecall_protocol.commands import StateSet
+from pinecall_protocol.commands import CallCallback, StateSet
 from pinecall_protocol.defs import EndedBy, Supervisor
 from pinecall_protocol.events import (
     CallEnded,
@@ -81,6 +83,9 @@ class TextSession:
         # Who at the desk is holding this thread, when somebody is: it has to survive between two
         # commands, because a takeover and the release that answers it are minutes apart.
         self.taken_by: Supervisor | None = None
+        # The agent's ask for a person, when it made one: while it is open the model answers
+        # nothing, the same quiet a takeover puts the thread in.
+        self.attending = Attending(self)
         self._log = log
         self._gone: set[Watcher] = set()
         self._blocks = Blocks(config.prompt, _the_file_it_ships_with(config))
@@ -182,6 +187,7 @@ class TextSession:
         if self._ended:
             return
         self._ended = True
+        self.attending.close()
         # Closed first, while the activity can still schedule its own on_exit: closing it after
         # the log is sealed abandons that coroutine. Nothing below needs the model any more.
         await self.live.aclose()
@@ -240,10 +246,10 @@ class TextSession:
             "turn.user",
             UserTurnEnded(speech_id=speech, text=text, metrics=UserTurnMetrics()),
         )
-        # A human holds the thread: the words are in the log, and the model neither answers them
-        # nor keeps them — it did not hear them, the same rule a spoken takeover goes deaf under.
-        # See docs/decisions/supervise.md.
-        if self.taken_by is not None:
+        # A human holds the thread, or is being waited for: the words are in the log, and the
+        # model neither answers them nor keeps them — it did not hear them, the same rule a spoken
+        # takeover goes deaf under. See docs/decisions/supervise.md.
+        if self.taken_by is not None or self.attending.open:
             return
         await self.turns.answer(speech, arrived, heard=text)
 
@@ -307,6 +313,10 @@ class TextSession:
             said["cause"] = self.cause
             self.cause = None
         return await self.emit("state.changed", StateChanged(**said))
+
+    async def call_back(self, wanted: CallCallback) -> Entry:
+        """call.callback: the number to ring back and what it is about, into this call's log."""
+        return await self.emit("callback.requested", a_callback(self.context, wanted))
 
     async def log_custom(self, name: str, data: Mapping[str, Any]) -> Entry:
         """call.log: a line of the app's own, with a seq like everything else."""

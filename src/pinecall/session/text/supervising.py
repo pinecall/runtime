@@ -75,6 +75,8 @@ async def _take_over(session: TextSession, by: Supervisor) -> None:
     if session.taken_by is not None:
         raise ProtocolError(ALREADY_HELD.format(id=session.taken_by.id))
     await session.emit("supervisor.took_over", SupervisorTookOver(by=by))
+    # A contact waiting for a person just got one: the ask is answered by the same verb.
+    await session.attending.taken_by(by)
     session.taken_by = by
 
 
