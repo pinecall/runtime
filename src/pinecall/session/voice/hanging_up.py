@@ -23,7 +23,8 @@ WHILE_GREETING_IT_IS_HIDDEN = True
 
 # Deleting the room is what ends the caller's SIP leg: a room that outlives the agent leaves the
 # person on the line listening to nothing. livekit's default, kept, and named here because the
-# other value is what a WARM transfer would want and we do not do warm transfers.
+# other value is what a call bridged to a person would want — and that ending is bridging.py's,
+# which never goes through this tool: a bridged agent is mute and calls nothing.
 THE_ROOM_GOES_WITH_IT = True
 
 # livekit's tool answers the model "say goodbye to the user" and lets it generate one more reply

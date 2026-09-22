@@ -40,13 +40,14 @@ class Attending:
         await self._line.hold()
         self._waiting = asyncio.ensure_future(self._until(wanted.wait_s))
 
+    # Whether or not an ask was open: a caller on a plain hold whose line a supervisor takes is
+    # with a person now, and the melody has to stop for them exactly the same.
     async def taken_by(self, by: Supervisor) -> None:
-        """A supervisor took the line: the ask is answered, and the melody stops for them."""
-        if not self.open:
-            return
-        self._stop_counting()
-        self.open = False
-        await self._writing.emit("attention.answered", AttentionAnswered(ok=True, by=by))
+        """A supervisor took the line: the ask, if one was open, is answered; any hold ends."""
+        if self.open:
+            self._stop_counting()
+            self.open = False
+            await self._writing.emit("attention.answered", AttentionAnswered(ok=True, by=by))
         # The takeover has the line deaf and mute already, and is about to say so itself.
         await self._line.unhold(speaks_again=False)
 

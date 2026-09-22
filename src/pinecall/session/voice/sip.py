@@ -73,8 +73,8 @@ def _could_still_arrive(room: rtc.Room, channel: Channel | None) -> bool:
 
 
 # The caller is the phone that was already seated when the agent arrived, so the room's own order
-# is the answer. A second leg is `room.invite`'s, and a call holding both is a warm transfer —
-# out of scope, and said so in docs/decisions/sip.md.
+# is the answer. A second leg is `room.invite`'s or a warm transfer's (transfer.py), and it is
+# never the one a REFER or a tone is meant for.
 def _a_phone_in(room: rtc.Room) -> rtc.RemoteParticipant | None:
     """The first participant livekit seated through SIP, in the order the room lists them."""
     for participant in room.remote_participants.values():

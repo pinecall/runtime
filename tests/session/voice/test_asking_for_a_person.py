@@ -65,3 +65,21 @@ async def test_a_wait_nobody_answered_gives_the_agent_the_caller_back() -> None:
     assert (answered.data["ok"], answered.data["by"]) == (False, None)
     assert "nobody took the line" in answered.data["error"]
     assert (held.live.output.enabled, held.live.input.enabled) == (True, True)
+
+
+async def test_a_supervisor_taking_a_line_on_plain_hold_ends_the_hold_for_them() -> None:
+    held = Held()
+    supervising = Supervising(
+        held.live,  # pyright: ignore[reportArgumentType]
+        ScriptedAgent(),  # pyright: ignore[reportArgumentType]
+        held.writing,
+        Ended(),
+        None,
+        held.attending,
+    )
+    await held.applied("call.hold")
+    await supervising.apply(SupervisorVerb(by=ANA, verb=verbs.TakeoverVerb(verb="takeover")))
+    await held.writing.flushed()
+    assert held.recording.of("attention.answered") == []
+    assert [line.data["held"] for line in held.recording.of("call.line")] == [True, False]
+    assert (held.live.output.enabled, held.live.input.enabled) == (False, False)

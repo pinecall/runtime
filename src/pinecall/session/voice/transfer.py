@@ -39,11 +39,12 @@ LEG_PREFIX = "sip_"
 # own default is 30s; a caller holding notices 30s.
 RINGING_S = 25.0
 
-# How long the line waits for the agent to finish the sentence that announced the transfer. The
-# announcement and the tool call arrive in one reply — the model says "I am putting you through"
-# and calls the verb in the same breath — so moving the line at once cuts the caller off
-# mid-word, which they hear as a dropped call. Bounded: a sentence that never ends must not hold
-# a transfer forever.
+# How long the line waits for the agent to finish the sentence that announced the transfer. A
+# transfer asked for from inside a tool has already waited: the tool itself does not run until
+# the words before it are played out (tools.py). This is for the one sent outside a tool — the
+# app's own code, a supervisor at the desk — while the agent happens to be mid-sentence: moving
+# the line then cuts the caller off mid-word, which they hear as a dropped call. Bounded: a
+# sentence that never ends must not hold a transfer forever.
 THE_ANNOUNCEMENT_S = 12.0
 A_GLANCE_S = 0.1
 
