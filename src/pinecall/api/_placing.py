@@ -67,7 +67,6 @@ async def kept_outbound_trunks(
     return trunks
 
 
-OutboundTrunksDep = Annotated["OutboundTrunks | None", Depends(the_outbound_trunks)]
 OutboundDep = Annotated["Outbound | None", Depends(the_outbound)]
 DispatchesDep = Annotated["Dispatches | None", Depends(the_dispatches)]
 GuardsDep = Annotated[Guards, Depends(the_guards)]

@@ -11,7 +11,7 @@ from pydantic import Field
 
 from pinecall.api._corner import CornerDep
 from pinecall.api._deps import AdmissionDep, DeclarationKeyDep, LogsDep, RoutesDep, TalkKeyDep
-from pinecall.api._placing import DispatchesDep, GuardsDep, KeptOutboundTrunksDep, OutboundTrunksDep
+from pinecall.api._placing import DispatchesDep, GuardsDep, KeptOutboundTrunksDep, OutboundDep
 from pinecall.api._serving import ServingDep
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.auth.keys import KeyRecord, held_by
@@ -205,19 +205,20 @@ async def _never_rang(logs: Logs, context: CallContext, slug: str) -> None:
 
 # A warm transfer and room.invite both dial a number INTO the call's room, and the trunk that does
 # it is the org's own — the same one this door's neighbour places a call with. The worker asks for
-# it only when a verb wants one, so a box with no vault key and an org with no carrier answer the
-# same way they refuse a dial: null, and the verb says so in the call's log by name.
+# it only when a verb wants one, and it is asked of the SFU by name and not read off the row: the
+# row is the provisioning's memory, the SFU is what exists, and a row naming a trunk the SFU lost
+# is the 404 a caller heard on 2026-09-22. No SFU, no carrier, no trunk: null, and the verb says
+# so in the call's log by name.
 @router.get("/v1/agents/{slug}/outbound-trunk")
 async def outbound_trunk(
     slug: str,
     key: DeclarationKeyDep,  # noqa: ARG001 — the scope is asked here; the corner says where
     corner: CornerDep,
     registry: RegistryDep,
-    trunks: OutboundTrunksDep,
+    sfu: OutboundDep,
 ) -> dict[str, str | None]:
     """The SFU's id for this org's outbound trunk, or null when it has none to dial through."""
     held = registry.of(corner.env, slug, corner.holder)
     if held is None or held.org != corner.org:
         raise HTTPException(404, NO_AGENT.format(slug=slug))
-    trunk = None if trunks is None else await trunks.of(corner.org)
-    return {"trunk": None if trunk is None else trunk.trunk_id}
+    return {"trunk": None if sfu is None else await sfu.standing(corner.org)}

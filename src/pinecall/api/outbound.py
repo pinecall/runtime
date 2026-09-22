@@ -45,6 +45,10 @@ CARRIER_CHANGED = (
     "the outbound trunk was provisioned for a {was} carrier and this org's carrier is {now} now:"
     " POST /v1/carrier/outbound again"
 )
+NOT_ON_THE_SFU = (
+    "the outbound trunk was provisioned and the media plane no longer has it: the gateway rebuilds"
+    " it when it starts, or POST /v1/carrier/outbound again"
+)
 CREDENTIALS_LOST = (
     "credential list {name} already stands on account {account} and this box no longer holds its"
     " password: delete that credential list in Twilio's console and run this again"
@@ -64,7 +68,8 @@ async def outbound(
     carrier = await carriers.of(key.org)
     numbers = await own_numbers(table, key.org)
     kept = await trunks.of(key.org)
-    missing = _what_is_missing(carrier, numbers, kept, sfu)
+    standing = None if sfu is None or kept is None else await sfu.standing(key.org)
+    missing = _what_is_missing(carrier, numbers, kept, sfu, standing)
     policy = await guards.policy_of(key.org)
     return {
         "ready": not missing,
@@ -131,11 +136,14 @@ async def provision(
     }
 
 
+# `standing` is the SFU's own answer for the org's trunk, asked because the row alone lied once:
+# a media plane that lost its trunks read `ready` for a week nobody could dial through.
 def _what_is_missing(
     carrier: Carrier | None,
     numbers: tuple[str, ...],
     kept: OutboundTrunk | None,
     sfu: Outbound | None,
+    standing: str | None = None,
 ) -> list[str]:
     """One sentence per thing still to do, in the order somebody would do them."""
     missing: list[str] = []
@@ -151,6 +159,8 @@ def _what_is_missing(
         missing.append(NO_TRUNK_YET)
     elif carrier is not None and kept.kind != carrier.kind:
         missing.append(CARRIER_CHANGED.format(was=kept.kind, now=carrier.kind))
+    elif sfu is not None and standing is None:
+        missing.append(NOT_ON_THE_SFU)
     return missing
 
 

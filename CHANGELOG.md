@@ -6,6 +6,17 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 
 ## [Unreleased]
 
+### Fixed
+- **A media plane that lost its trunks gets them back, and says so.** livekit-sip keeps every
+  trunk and dispatch rule in Redis; the box ran Redis with no volume and no persistence, and on
+  2026-09-22 a recreated container came up empty — three numbers stopped ringing, every dial and
+  every warm transfer answered `requested sip trunk does not exist`, and `GET /v1/carrier/outbound`
+  still read `ready`. Now: Redis persists (`pinecall-redis.volume`, `--appendonly yes`); the
+  gateway asks the SFU for every trunk the tables describe at each start (`api/rebuilding.py`,
+  per org, nothing doubled) and refreshes the row of an outbound trunk that came back under a new
+  id; the worker's `outbound-trunk` door and the carrier's `ready` ask the SFU by name instead of
+  trusting the row.
+
 ### Added
 - **The line's six commands run.** `call.transfer` sends a phone caller on with a REFER, or dials
   the destination into a browser caller's own room over the org's outbound trunk and falls silent

@@ -26,7 +26,7 @@ This runtime does not implement a conversation. LiveKit does, and the line is dr
 | LiveKit provides | used by | as |
 |---|---|---|
 | **livekit-server**, the SFU: rooms, participants, tracks, the agent dispatch | the box (a container), both processes over its API | `infra/box/containers/pinecall-livekit.container`, `livekit.yaml` |
-| **livekit-sip**: a carrier's trunk as a room participant | the box; `session/voice/sip.py`, `room/invite.py`, `room/dtmf.py`, `transfer.py`, `bridging.py` | a REFER for a cold transfer, `CreateSIPParticipantRequest` for a warm one — the person dialled into the call's own room — and `publish_dtmf` for the tones |
+| **livekit-sip**: a carrier's trunk as a room participant | the box; `session/voice/sip.py`, `room/invite.py`, `room/dtmf.py`, `transfer.py`, `bridging.py`; `api/rebuilding.py` asks the SFU for every trunk the tables know at each gateway start, because livekit-sip keeps them in Redis and a Redis that came up empty took every number with it | a REFER for a cold transfer, `CreateSIPParticipantRequest` for a warm one — the person dialled into the call's own room — and `publish_dtmf` for the tones |
 | **`livekit.agents.AgentServer`**: the worker process, its job processes, the load it reports | `worker/main.py` | one server, one `rtc_session`, `load_fnc` |
 | **`JobContext`**, **`JobProcess`**: one job, one process, prewarm | `worker/main.py`, `worker/entry.py` | `ctx.connect()`, `ctx.room` |
 | **`AgentSession`** + **`Agent`**: the conversation — VAD, turn detection, STT → LLM → TTS, interruption, the chat context | `session/voice/session.py`, `session/text/session.py`, `session/*/agent.py` | one session per call, ours subclassing `Agent` for the prompt's blocks |

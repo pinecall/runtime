@@ -20,6 +20,7 @@ from pinecall.api.agents.processes import Processes
 from pinecall.api.agents.registry import Registry
 from pinecall.api.evals.runner import Runner
 from pinecall.api.reaping import Reaper, reaping
+from pinecall.api.rebuilding import reconciled
 from pinecall.api.whatsapp.threads import Threads
 from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import NO_KEYS_TABLE, keys_for
@@ -231,9 +232,15 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # api/reaping.py. It needs the SFU to tell a dead call from a quiet one, so a gateway with no
     # LiveKit pair runs none — and one with no pair has no spoken call to reap either.
     reaper = _a_reaper(settings, gateway)
+    # And the one thing it does for the media plane: ask it, once, for every trunk the tables say
+    # exists. A Redis that came up empty took every number with it and nothing said so
+    # (2026-09-22); this is what says so, and puts them back. api/rebuilding.py.
+    rebuilding = _a_rebuild(gateway)
     try:
         yield
     finally:
+        if rebuilding is not None:
+            await _cancelled(rebuilding)
         if reaper is not None:
             await _cancelled(reaper)
         await http.aclose()
@@ -258,6 +265,34 @@ def _a_reaper(settings: Settings, gateway: FastAPI) -> asyncio.Task[None] | None
         return None
     reaper = Reaper(gateway.state.store, gateway.state.logs, rooms, gateway.state.live)
     return asyncio.ensure_future(reaping(reaper))
+
+
+# In the background, because a gateway that waited for the SFU before opening would refuse every
+# door while livekit came up beside it — and the deploy's health check knocks on those doors.
+def _a_rebuild(gateway: FastAPI) -> asyncio.Task[None] | None:
+    """The SIP side asked for again, started; None when this process holds no carrier tables."""
+    state = gateway.state
+    if state.carriers is None or state.trunks is None:
+        return None
+
+    async def rebuilt() -> None:
+        found = await reconciled(
+            state.orgs,
+            state.carriers,
+            state.routes,
+            state.trunks,
+            state.outbound_trunks,
+            state.outbound,
+        )
+        logger.info(
+            "the SIP side stands: %d org(s) with a trunk in, %d out, %d renumbered, %d refused",
+            len(found.inbound),
+            len(found.outbound),
+            len(found.renumbered),
+            len(found.refused),
+        )
+
+    return asyncio.ensure_future(rebuilt())
 
 
 async def _cancelled(task: asyncio.Task[None]) -> None:

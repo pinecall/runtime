@@ -10,6 +10,8 @@ from typing import Protocol
 from livekit import api
 
 from pinecall._settings import Settings
+from pinecall.routes.twilio import TWILIO_SIGNALLING
+from pinecall.types import Carrier, TwilioAccount
 from pinecall.types.dispatch import ORG_KEY, WORKER_NAME
 
 # One inbound trunk per org and one rule on it, named so a person reading the SFU's lists knows
@@ -23,6 +25,17 @@ NO_LIVEKIT = (
     "this gateway has no LIVEKIT_API_KEY and LIVEKIT_API_SECRET: it cannot admit a number on the"
     " media plane"
 )
+
+
+# What the org's inbound trunk lets through, read off its carrier: Twilio's signalling networks
+# and no password, or a SIP peer's own networks and the credentials it registers with. One
+# reading, because an import and a rebuild after a wiped SFU must fence the trunk the same way.
+def fence_of(carrier: Carrier) -> tuple[tuple[str, ...], tuple[str, str] | None]:
+    """The networks an INVITE may come from, and the SIP auth the trunk asks for, if any."""
+    if isinstance(carrier.account, TwilioAccount):
+        return TWILIO_SIGNALLING, None
+    peer = carrier.account
+    return peer.addresses, (peer.username, peer.password)
 
 
 class Trunks(Protocol):

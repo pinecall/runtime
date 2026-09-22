@@ -683,7 +683,7 @@ internet ──────► │
                         ├── pinecall-postgres   the log, the orgs, the keys, the routes
                         ├── pinecall-livekit    the media plane, :7880 on loopback
                         ├── pinecall-sip        a telephone's way in
-                        ├── pinecall-redis      a bus, not a store
+                        ├── pinecall-redis      the bus, and where livekit-sip keeps its trunks
                         └── pinecall-tei        what embeds, when it is this box's job
                  pinecall-worker ── answers a call with audio, dials the gateway by name
 ```

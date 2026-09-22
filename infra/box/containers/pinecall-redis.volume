@@ -1,0 +1,5 @@
+# Where LiveKit's SIP side lives: every trunk and every dispatch rule the gateway provisions is a
+# key in this Redis, and a Redis recreated without it comes up with none of them. 2026-09-22: three
+# numbers stopped ringing and every dial answered "requested sip trunk does not exist".
+[Volume]
+VolumeName=pinecall-redis

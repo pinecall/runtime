@@ -1,11 +1,15 @@
-# The bus the two LiveKit services meet over. No persistence: it holds nothing worth keeping.
+# The bus the two LiveKit services meet over — and the store livekit-sip keeps its trunks and
+# dispatch rules in, which is why it persists: a Redis that came up empty (2026-09-22, recreated
+# with no volume) took every number and every outbound trunk with it. The gateway rebuilds the SIP
+# side from its tables at every start (api/rebuilding.py); this is so it rarely has to.
 [Unit]
 Description=Pinecall media plane: redis
 
 [Container]
 ContainerName=pinecall-redis
 Image=docker.io/library/redis:8.10.1-alpine
-Exec=redis-server --save "" --appendonly no
+Exec=redis-server --save 60 1 --appendonly yes
+Volume=pinecall-redis.volume:/data
 Network=pinecall.network
 HealthCmd=redis-cli ping
 HealthInterval=5s

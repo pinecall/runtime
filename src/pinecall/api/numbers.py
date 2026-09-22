@@ -19,9 +19,8 @@ from pinecall.api._deps import (
 )
 from pinecall.auth.keys import KeyRecord
 from pinecall.routes.table import Routes
-from pinecall.routes.trunks import NO_LIVEKIT, Trunks
+from pinecall.routes.trunks import NO_LIVEKIT, Trunks, fence_of
 from pinecall.routes.twilio import (
-    TWILIO_SIGNALLING,
     TwilioApi,
     TwilioNumber,
     TwilioRefused,
@@ -298,11 +297,7 @@ async def on_the_sfu(
     trunks: Trunks, carrier: Carrier, route: Route, steps: list[str], dry: bool
 ) -> None:
     """The org's inbound trunk on LiveKit with the number admitted, and its rule."""
-    if isinstance(carrier.account, TwilioAccount):
-        allowed, auth = TWILIO_SIGNALLING, None
-    else:
-        peer = carrier.account
-        allowed, auth = peer.addresses, (peer.username, peer.password)
+    allowed, auth = fence_of(carrier)
     steps.append(
         f"livekit  inbound trunk pinecall-{carrier.org}: +{route.number}, from {len(allowed)} "
         f"networks{' with SIP auth' if auth else ''}; one room per caller"
