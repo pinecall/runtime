@@ -52,8 +52,8 @@ UV_SYNC = sudo -u pinecall env UV_PROJECT_ENVIRONMENT=/opt/pinecall/venv UV_CACH
 
 deploy: console sync install restart doctor
 
-# The console into src/pinecall/gateway/console, from the agents checkout beside this one (or
-# PINECALL_AGENTS). The sync below carries it; the gateway serves it at `/`.
+# The console into src/pinecall/gateway/console, from the console checkout beside this one (or
+# PINECALL_CONSOLE). The sync below carries it; the gateway serves it at `/`.
 console:
 	scripts/console
 

@@ -207,8 +207,8 @@ livekit-server that stops routing to a worker at 0.7 of what it reports (`worker
 
 **The bridge** hooks livekit's session and turns its life into entries: `events.py` (every
 transcript, state, turn, error → an entry), `metrics.py` (every measured block), `writing.py`
-(the entries, in order, to the gateway), `tools.py` (every declared tool as livekit runs one: out to the app's process, the
-answer back), `hearing.py` (the keyterms the ears are told to expect: the words the agent
+(the entries, in order, to the gateway), `tools.py` (every declared tool, once its announcement has played: out to the app's
+process, the answer back, a `confirm` receipt heard before the model replies), `hearing.py` (the keyterms the ears are told to expect: the words the agent
 declared and the names its state holds), `barge_in.py` (two words cut the agent off, never two
 words of agreement), `supervising.py` (the six desk verbs), `commands.py` (say, reply, rewrite the
 prompt, stop), `dead_end.py` (a failure whose cause cannot change ends the call instead of

@@ -78,7 +78,7 @@ The upgrade carries the key on the header. Then the app sends **commands** and r
 | command | what it does |
 |---|---|
 | `agent.register` | this socket speaks for this agent, and answers these doors (`routes`, `sdk`, `takes_unclaimed`). Answers `agent.registered`, whose `app` is **this socket's id** |
-| `agent.configure` | what the agent IS: the tool list, the voice, the models, the language, the greeting, the state fields it declares. Only the fields you send change. Answers `agent.configured` |
+| `agent.configure` | what the agent IS: the tool list, the language, the prompt's layout, the state fields it declares. Only the fields you send change. The environment — the voice, the models, the greeting, when to hang up, memory, the bases — is the world's, set at `PUT /v1/agents/{slug}/settings` ([§5](#5-the-knobs-the-knowledge-the-memory)); sent here it is not read. Answers `agent.configured` |
 | `ping` | answers `pong` with the gateway's clock |
 
 What only the process in the agent's directory can do — a written call to its class, its goldens,
@@ -175,13 +175,14 @@ const ws = new WebSocket(`${process.env.PINECALL_URL.replace("http", "ws")}/v1/a
 const send = (type, data, call = null) =>
   ws.send(JSON.stringify({ type, agent: AGENT, call, id: String(Date.now()), data }));
 
-// What the agent IS. Declared once, for every call this socket takes.
+// What the agent IS. Declared once, for every call this socket takes. How it opens the call —
+// `greeting: { say: "Clínica Norte, ¿en qué puedo ayudarle?" }` — is the world's: it goes in
+// PUT /v1/agents/{slug}/settings, and a greeting sent here is not read.
 ws.on("open", () => {
   send("agent.register", { routes: [{ channel: "web", number: null }], sdk: "mine/0.1" });
   send("agent.configure", {
     config: {
       language: "es-ES",
-      greeting: { say: "Clínica Norte, ¿en qué puedo ayudarle?" },
       tools: [FREE_SLOTS],
     },
   });
