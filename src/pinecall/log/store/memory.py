@@ -292,6 +292,7 @@ class MemoryStore:
                 started_at=log.started_at or 0.0,
                 last_at=log.entries[-1].ts if log.entries else (log.started_at or 0.0),
                 spoken=log.facts.spoken,
+                started=any(entry.type == "call.started" for entry in log.entries),
             )
             for call, log in self._calls.items()
             if not log.sealed and log.facts is not None

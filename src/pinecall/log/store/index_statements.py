@@ -58,14 +58,22 @@ where f.call = any($1::text[])
 # scan is over the head rows that are still open, which is the live floor plus whatever a dead
 # worker left behind — tens of rows on a busy box — and `max(entry.ts)` reads one call's entries
 # through the log's own (call, seq) index. Oldest first, so a backlog is worked from the far end.
+# Spoken, or never started. A call that rang and never reached `call.started` — a widget visit
+# whose job never came up — is no text session in progress, because a text session writes
+# call.started the moment it opens; so it is the reaper's too, and until it was, one such call sat
+# on the console as `ringing` for thirteen days (call_7d56617c…, 2026-09-09). Its facts row may be
+# missing altogether, which is why the join is a left one.
 UNSEALED_SPOKEN = """
 select head.log as call, head.agent,
        coalesce(head.started_at, 0) as started_at,
        coalesce(max(entry.ts), head.started_at, 0) as last_at
 from call_log_head head
-join call_facts f on f.call = head.log
+left join call_facts f on f.call = head.log
 left join call_log entry on entry.call = head.log
-where head.call is not null and not head.sealed and f.spoken
+where head.call is not null and not head.sealed
+  and (coalesce(f.spoken, false)
+       or not exists (select 1 from call_log began
+                       where began.call = head.log and began.type = 'call.started'))
 group by head.log, head.agent, head.started_at
 having coalesce(max(entry.ts), head.started_at, 0) < $1
 order by last_at

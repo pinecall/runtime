@@ -157,7 +157,7 @@ class CallIndex(Protocol):
     # process that runs it (api/whatsapp/threads.py) — and quiet only, which is what makes the
     # answer short whatever the store holds.
     async def unsealed_spoken(self, quiet_since: float, limit: int) -> list[Unsealed]:
-        """Every spoken call whose log is unsealed and has said nothing since `quiet_since`."""
+        """Every spoken or never-started call, its log unsealed and quiet since `quiet_since`."""
         ...
 
     async def found(self, org: str, env: str, holder: str, wanted: Wanted, limit: int) -> Found:

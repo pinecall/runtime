@@ -63,12 +63,15 @@ class StillOpen:
     started_at: float
     last_at: float
     spoken: bool
+    # Whether the call ever reached `call.started`. One that never did is no text session in
+    # progress, so the reaper takes it whatever channel it rang on (index_statements.py).
+    started: bool = True
 
 
 def unsealed_spoken(calls: Iterable[StillOpen], quiet_since: float, limit: int) -> list[Unsealed]:
-    """The spoken ones that have said nothing since then, quietest first — as the statement does."""
+    """The spoken or never-started ones that have said nothing since then, quietest first."""
     quiet = sorted(
-        (one for one in calls if one.spoken and one.last_at < quiet_since),
+        (one for one in calls if (one.spoken or not one.started) and one.last_at < quiet_since),
         key=lambda one: (one.last_at, one.call),
     )
     return [

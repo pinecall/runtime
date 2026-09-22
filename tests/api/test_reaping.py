@@ -166,6 +166,24 @@ async def test_a_written_call_is_not_the_reapers_business(
     assert not (await store.since(call))[-1].type.startswith("call.end")
 
 
+async def test_a_web_call_that_rang_and_never_started_is_sealed_once_its_room_is_gone(
+    reaper: Reaper, store: MemoryStore
+) -> None:
+    """No job came up for it, so no room opened and it is not spoken — and it is no chat either,
+    because a chat writes call.started as it opens. It used to ring on the console for ever."""
+    call = "CA_rang_on_the_web"
+    await store.owned(call, THE_AGENT, A_RECORD.org, "production", "")
+    await store.append(
+        call, THE_AGENT, "call.ringing", {"channel": "web", "from": "web_1", "to": ""}
+    )
+    assert await reaper.a_pass(AN_HOUR_LATER) == [call]
+    assert [entry.type for entry in await store.since(call)][-3:] == [
+        "call.ended",
+        "call.summary",
+        "call.score",
+    ]
+
+
 async def test_a_worker_that_wrote_call_ended_and_died_is_finished_from_there(
     reaper: Reaper, store: MemoryStore
 ) -> None:
