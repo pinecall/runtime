@@ -39,10 +39,12 @@ class Ended:
     """The Ending the end verb reaches: the reason, and whose doing the log will say it was."""
 
     def __init__(self) -> None:
-        self.hangups: list[tuple[EndReason, EndedBy]] = []
+        self.hangups: list[tuple[EndReason, EndedBy, bool]] = []
 
-    async def hangup(self, reason: EndReason, by: EndedBy = "agent") -> None:
-        self.hangups.append((reason, by))
+    async def hangup(
+        self, reason: EndReason, by: EndedBy = "agent", *, at_once: bool = False
+    ) -> None:
+        self.hangups.append((reason, by, at_once))
 
     def transferred(self) -> None:
         raise AssertionError("no verb in this file transfers")
@@ -193,7 +195,9 @@ async def test_the_end_verb_hangs_up_as_the_supervisor_and_never_as_the_agent(de
     assert (
         desk.recording.of("supervisor.ended")[0].data["reason"] == "El cliente pidió hablar mañana."
     )
-    assert desk.ending.hangups == [("supervisor_ended", "supervisor")]
+    # At once: Stop pressed mid-sentence, or while a slow model is still writing, must not wait for
+    # either to finish — the desk pressed it twice and thrice while the call drained.
+    assert desk.ending.hangups == [("supervisor_ended", "supervisor", True)]
 
 
 async def test_a_supervise_verb_on_a_call_with_no_session_is_refused_by_name() -> None:

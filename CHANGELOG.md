@@ -98,6 +98,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   is unchanged — it is where they land.
 
 ### Fixed
+- **A supervisor's Stop hangs up at once.** The `end` verb reached livekit's `shutdown()`, which
+  drains by default: the sentence playing was finished and a reply still being generated was
+  generated and spoken first, so a Stop pressed while a slow model was thinking waited the whole
+  turn out and was pressed again. `Ending.hangup(at_once=True)` interrupts instead; an app's own
+  `call.hangup` still drains, so a goodbye it queued is heard. `session/voice/supervising.py`.
 - **A tool runs after the line that announced it, and its receipt is heard before the model
   replies.** The model emits "voy a reservar" and the `book` call in one response, and livekit
   starts the tool under that very line: the booking was made before the caller had heard it would

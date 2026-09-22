@@ -82,8 +82,10 @@ class Recording(Protocol):
 class Ending(Protocol):
     """How this call ends, as the bridge does it: the two entries, then the log is sealed."""
 
-    async def hangup(self, reason: EndReason, by: EndedBy = "agent") -> None:
-        """The call ended, and call.ended says whose doing it was."""
+    async def hangup(
+        self, reason: EndReason, by: EndedBy = "agent", *, at_once: bool = False
+    ) -> None:
+        """The call ended, and call.ended says whose doing it was; at_once cuts what plays."""
         ...
 
     def transferred(self) -> None:

@@ -113,9 +113,9 @@ class Supervising:
         self._live.generate_reply(instructions=A_RELEASE)
 
     async def _end(self, by: Supervisor, reason: str | None) -> None:
-        """end: the desk hangs up, and call.ended says a supervisor did it."""
+        """end: the desk hangs up now — mid-sentence, mid-thought — and call.ended says who did."""
         await self._writing.emit("supervisor.ended", SupervisorEnded(by=by, reason=reason))
-        await self._ending.hangup(BY_A_SUPERVISOR, THE_SUPERVISOR)
+        await self._ending.hangup(BY_A_SUPERVISOR, THE_SUPERVISOR, at_once=True)
 
     # ── the two livekit calls both a whisper and a release make ─────────────────
 

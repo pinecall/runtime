@@ -130,8 +130,10 @@ def _a_writing() -> Writing:
 class _NothingEnds:
     """The Ending: no verb in this golden hangs up, and one that tried would say so loudly."""
 
-    async def hangup(self, reason: EndReason, by: EndedBy = "agent") -> None:
-        raise AssertionError(f"a whisper must not end the call ({reason}, {by})")
+    async def hangup(
+        self, reason: EndReason, by: EndedBy = "agent", *, at_once: bool = False
+    ) -> None:
+        raise AssertionError(f"a whisper must not end the call ({reason}, {by}, {at_once})")
 
     def transferred(self) -> None:
         raise AssertionError("a whisper transfers nothing")

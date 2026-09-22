@@ -303,12 +303,13 @@ class VoiceBridge:
         await self.writing.emit("tool.call", called)
         await self.writing.emit("tool.result", result)
 
-    # `by` is the agent unless somebody says otherwise: a supervisor's `end` verb is the one
-    # caller of this that did not come from the agent's own turn, and call.ended must say so.
-    async def hangup(self, reason: defs.EndReason, by: defs.EndedBy = "agent") -> None:
+    # `by` is the agent unless a supervisor's `end` says so, and that verb alone asks `at_once`.
+    async def hangup(
+        self, reason: defs.EndReason, by: defs.EndedBy = "agent", *, at_once: bool = False
+    ) -> None:
         """call.hangup: the call ends now, and the log will say whose doing it was."""
         self._ended = (reason, by)
-        self._shut_down(reason)
+        self._shut_down(reason, at_once=at_once)
 
     # ── the room ────────────────────────────────────────────────────────────────
 
@@ -364,12 +365,11 @@ class VoiceBridge:
             return HOW_IT_ENDED[self._closed_for]
         return ("error", "platform")
 
-    # The job is what ends a call, and livekit hands the job to whoever runs inside it. Ending the
-    # session alone would leave the room open and the worker waiting on nobody.
-    def _shut_down(self, reason: str) -> None:
+    # The job is what ends a call: the session alone leaves the room open and the worker waiting.
+    def _shut_down(self, reason: str, *, at_once: bool = False) -> None:
         """Take the session and the job down together, whoever decided the call was over."""
         if self._live is not None:
-            self._live.shutdown()
+            self._live.shutdown(drain=not at_once)
         job = get_job_context(required=False)
         if job is not None:
             job.shutdown(reason=reason)
