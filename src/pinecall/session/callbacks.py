@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from typing import Literal
 
 from pinecall.types import CallContext, Contact
 from pinecall_protocol import defs
@@ -11,7 +12,7 @@ from pinecall_protocol.events import CallbackRequested
 
 # What `via` says about a request the agent itself took, beside the widget's and the overflow
 # agent's: this one was asked for out loud, on a call somebody was already having.
-BY_THE_AGENT = "agent"
+BY_THE_AGENT: Literal["agent"] = "agent"
 
 
 def a_callback(context: CallContext, wanted: CallCallback) -> CallbackRequested:

@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from livekit import rtc
 from livekit.agents.voice import AgentSession
 
+from pinecall.session.voice.room.facts import LEFT
 from pinecall.session.voice.room.holding import Holding
 from pinecall_protocol.defs import EndReason
 
@@ -22,9 +23,6 @@ logger = logging.getLogger(__name__)
 # How a call that ended after a warm transfer reads, whoever put the phone down first: the caller
 # was handed to a person and the conversation was theirs from then on.
 TRANSFERRED: EndReason = "transferred"
-
-# livekit's own event for a seat leaving the room.
-LEFT = "participant_disconnected"
 
 
 # A warm transfer does not move the caller anywhere: the person is dialled INTO the room and the
