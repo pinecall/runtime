@@ -87,7 +87,7 @@ async def agents(
         agents=[
             HeldAgent(
                 slug=one.slug,
-                channels=sorted(doors[one.slug] | {THE_WIDGET}),
+                channels=sorted(doors[one.slug] | ON_THE_WEB),
                 holder=None
                 if one.holder is None
                 else await named_holder(key.org, one.holder, members),
@@ -253,6 +253,10 @@ def a_developers_own(registry: Registry, org: str, slug: str, caller: str) -> st
     if held is None or held.holder is None or held.org != org:
         return None
     return held.holder if caller in registry.calling(SANDBOX, held.holder) else None
+
+
+# Every agent answers the widget, whatever rows the org typed: the one door no table holds.
+ON_THE_WEB: frozenset[Channel] = frozenset({THE_WIDGET})
 
 
 def _doors_of(routes: Sequence[Route]) -> dict[str, set[Channel]]:
