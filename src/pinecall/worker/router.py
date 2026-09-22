@@ -116,21 +116,41 @@ async def arrival_of(job: jobs.Job, room: rtc.Room) -> Arrival:
 def resolve(arrival: Arrival, routes: Sequence[Route], default: str | None = None) -> Route:
     """The one route this call is for. NoRoute when the job names nothing anybody answers."""
     if arrival.agent:
-        return _of_agent(arrival.agent, arrival.channel, routes)
+        return _of_agent(arrival.agent, arrival.channel, routes, arrival.whose)
     if arrival.number:
         return _at_door(arrival.channel, arrival.number, routes)
     if default:
-        return _of_agent(default, arrival.channel, routes)
+        return _of_agent(default, arrival.channel, routes, arrival.whose)
     raise NoRoute("the job names no agent, no number was dialled, and the worker has no default")
+
+
+# There is no web door in any table and there never was one an operator could type: a number is a
+# row somebody bought and the widget is not. Every agent is on the web, so the route a widget call
+# runs on is made here out of what the dispatch already carries — the same route the chat socket
+# mints for a written visit (api/calls/chat.py). The gateway has already said whose agent it is:
+# the token door refuses one this key does not hold, and this job exists because it did not.
+def _the_widgets_own(slug: str, whose: Whose) -> Route | None:
+    """The route a browser's call runs on: this agent, in the corner the dispatch named."""
+    if not whose.org or whose.env is None:
+        return None
+    return Route(org=whose.org, agent=slug, channel=THE_WIDGET, number=None, env=whose.env)
 
 
 # Strictly the channel the call arrived on: an agent with a widget and no number does not answer
 # a phone call, and a log that said "web" about a phone call would be a lie nobody could unpick.
-def _of_agent(agent: str, channel: Channel, routes: Sequence[Route]) -> Route:
+#
+# The widget is the one channel with no door to find. A number is a row somebody bought; a browser
+# is not, and every agent is on the web — so when no row answers a widget call, the route is made
+# out of what the dispatch already carries, exactly as the chat socket mints one for a written
+# visit (api/calls/chat.py). The gateway has already said whose agent it is: the token door
+# refuses an agent this key does not hold, and this job exists because it did not.
+def _of_agent(agent: str, channel: Channel, routes: Sequence[Route], whose: Whose) -> Route:
     """The agent's own door on the channel this call arrived through."""
     for route in routes:
         if route.agent == agent and route.channel == channel:
             return route
+    if channel == THE_WIDGET and (its_own := _the_widgets_own(agent, whose)) is not None:
+        return its_own
     looked_in = sorted({f"{route.org}/{route.env}" for route in routes}) or ["no org at all"]
     raise NoRoute(
         f"agent {agent!r} answers no {channel} door this worker knows: it looked in "

@@ -12,17 +12,16 @@ from pinecall.api._deps import (
     AdmissionDep,
     FleetDep,
     LogsDep,
-    RoutesDep,
     SettingsDep,
     TalkKeyDep,
     TokensDep,
 )
 from pinecall.api._serving import ServingDep
+from pinecall.api.agents.reaching import reached_by
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.auth.keys import KeyRecord, held_by
 from pinecall.auth.scopes import a_room_token, a_visitor, secret_for
 from pinecall.orgs.admission import QuotaExhausted
-from pinecall.routes import answering
 from pinecall.tokens.ledger import TokenRecord
 from pinecall.tokens.room import a_dispatch, the_agent_a_client_named
 from pinecall.types import THE_WIDGET, DeclarationRefused, a_call_id
@@ -98,7 +97,6 @@ async def mint(
     said: Wanted,
     key: TalkKeyDep,
     registry: RegistryDep,
-    table: RoutesDep,
     tokens: TokensDep,
     settings: SettingsDep,
     admission: AdmissionDep,
@@ -108,7 +106,7 @@ async def mint(
 ) -> dict[str, Any]:
     """LiveKit's token endpoint: {server_url, participant_token}, plus the call it opens."""
     _refuse_what_is_ours_to_set(said)
-    agent = await _the_agent_the_org_answers(said, key, registry, table)
+    agent = _the_agent_the_org_holds(said, key, registry)
     await _refuse_a_full_fleet(fleet, logs, agent)
     try:
         await admission.a_call(key.org, agent, live.running(key.org))
@@ -166,21 +164,19 @@ def _refuse_what_is_ours_to_set(said: Wanted) -> None:
         raise HTTPException(400, NOT_YOUR_ATTRIBUTE.format(prefix=OUR_ATTRIBUTES))
 
 
-# Whether the org answers this agent on the web is asked of the very tables the worker will ask
-# when the job arrives (GET /v1/routes): a token for a door nobody answers is a call that dies
-# after the browser joined, so it is refused before, in the words the config door uses.
-async def _the_agent_the_org_answers(
-    said: Wanted, key: KeyRecord, registry: RegistryDep, table: RoutesDep
-) -> str:
-    """The agent the body names, if this key's org answers it on the web. 400 or 404 if not."""
+# There is no web door to hold. A number is a row somebody typed and the widget is not: every
+# agent this key opens can be talked to in a browser, which is what the org buying a number and
+# the org putting a tag on its website have never had to have in common. So what is asked here is
+# what the chat socket asks — is anybody holding this agent in my world, and is it my org's — and
+# a token for an agent nobody holds is still refused before the browser joins a room that dies.
+def _the_agent_the_org_holds(said: Wanted, key: KeyRecord, registry: RegistryDep) -> str:
+    """The agent the body names, if this key reaches it at all. 400 or 404 if not."""
     try:
         agent = said.agent or the_agent_a_client_named(said.room_config)
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused
     if agent is None:
         raise HTTPException(400, NO_AGENT_NAMED)
-    answered = await answering.answered(key.org, key.env, registry, table, held_by(key))
-    web_doors = (one.route for one in answered if one.route.channel == THE_WIDGET)
-    if not any(route.agent == agent for route in web_doors):
+    if reached_by(registry, key, agent) is None:
         raise HTTPException(404, NO_AGENT.format(slug=agent))
     return agent

@@ -157,15 +157,28 @@ def test_a_malformed_room_config_is_refused_in_the_parsers_words(gateway: TestCl
     assert status == 400 and "RoomConfiguration" in why["detail"]
 
 
-def test_an_agent_the_fleet_does_not_answer_on_the_web_is_refused(gateway: TestClient) -> None:
-    """Unknown, held by nobody, or held with a phone door only: the config door's own 404."""
+# There is no web door to hold: a number is a row somebody bought and a browser is not, so an
+# agent with a telephone and no widget is an agent you can still talk to from a page. What is
+# still refused is an agent NOBODY is holding — a token for one is a browser joining a room that
+# nothing will ever answer in.
+def test_an_agent_with_a_number_and_no_widget_is_talked_to_all_the_same(
+    gateway: TestClient,
+) -> None:
     with an_app(gateway) as app_socket:
         app_socket.send_json(a_register(AGENT, a_door("phone", "+34910000000")))
         app_socket.receive_json()
-        phone_only, why = minted(gateway, {"agent": AGENT})
-        unknown, _ = minted(gateway, {"agent": "nobody"})
-    assert (phone_only, unknown) == (404, 404)
-    assert AGENT in why["detail"]
+        phone_only, _ = minted(gateway, {"agent": AGENT})
+    assert phone_only == 201
+
+
+def test_an_agent_nobody_is_holding_is_refused(gateway: TestClient) -> None:
+    """The config door's own 404, in its own words: no app is holding that agent."""
+    with an_app(gateway) as app_socket:
+        app_socket.send_json(a_register(AGENT, a_door("web")))
+        app_socket.receive_json()
+        unknown, why = minted(gateway, {"agent": "nobody"})
+    assert unknown == 404
+    assert "nobody" in why["detail"]
 
 
 def test_the_body_may_not_set_what_is_minted_here(gateway: TestClient) -> None:

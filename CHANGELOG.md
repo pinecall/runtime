@@ -32,6 +32,16 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   corner, versioned like every other knob — one org on a box may record and another may not, and
   neither waits for a deploy. `pinecall agent set --record on|off`.
 
+### Changed
+- **The widget is not a door any more: every agent is on the web.** A `web` route was a thing only
+  a CLASS could declare — the routes table refuses a row with no number, by three separate guards
+  — so `POST /v1/tokens` demanded a declaration nobody could type, and a browser could not talk to
+  an agent whose class had not said `web = true`. It now asks what the chat socket asks: is
+  anybody holding this agent, in my world, in my org. A number is a row somebody bought; a page
+  with a tag on it is not, and the two never had to have anything in common. The worker makes the
+  widget's route out of the dispatch it already carries (`worker/router.py`), the way the chat
+  socket has always minted one.
+
 ### Removed
 - **`RECORD`.** The box-wide switch is gone: the agent says whether its calls are recorded, so a
   box that had `RECORD=0` keeps recording until each agent is told not to. `PINECALL_RECORDINGS`

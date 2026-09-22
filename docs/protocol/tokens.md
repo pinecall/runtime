@@ -29,11 +29,15 @@ client code is involved.
 ## What we put in front of LiveKit's mint — the three additions
 
 1. **The organisation check.** The door takes the org's API key (`Authorization: Bearer pc_live_…`, the server's token),
-   never a browser's, and mints only for an agent that key's fleet answers **on the web** — the
-   very tables the worker asks at `GET /v1/routes` when the job arrives. The token's `room_config`
-   is one `RoomAgentDispatch` to our worker pool, whose metadata names the agent, so the worker's
-   router resolves it without a routes lookup. An agent the fleet does not answer on the web is
-   `404` in the words the config door uses.
+   never a browser's, and mints only for an agent **somebody is holding in this key's world, in
+   this key's org** — the same two questions the chat socket asks of the same live registry. There
+   is no web door to hold: a number is a row somebody bought and a browser is not, so every agent
+   a key opens can be talked to from a page, and an agent with a telephone and no widget is one of
+   them. An agent nobody is holding is `404` in the words the config door uses, because a token
+   for one is a browser joining a room nothing will answer in. The token's `room_config` is one
+   `RoomAgentDispatch` to our worker pool, whose metadata names the agent and the corner, so the
+   worker's router resolves it without a routes lookup — the widget's route is made out of that
+   metadata (`worker/router.py`), never looked up.
 2. **The contact id, signed, and nothing PII.** `participant_metadata` — LiveKit's own claim —
    carries the org's opaque contact id (`contact` in our body) and nothing else. A name is refused
    (`participant_name`, `400`): the log would carry it. What the tenant's backend seals in
@@ -127,7 +131,7 @@ public projection (`projections.md`). A browser needs one token to speak and to 
 | `400` | no agent named either way; a scope this door does not mint; `room_name`, `participant_name` or `participant_metadata` present; a `pinecall.` attribute; a `room_config` that is not one, in the parser's words |
 | `401` | no key, or not a key of ours |
 | `403` | a key that does not hold `talk` |
-| `404` | the key's org does not answer that agent on the web |
+| `404` | nobody is holding that agent in the key's org and world |
 | `422` | a `ttl_s` outside 1–600, or a body key nobody declared |
 | `429` | one of the org's quotas admits no more calls, in the quota's own sentence |
 | `503` | every worker of the fleet is full: `fleet.full` in the agent's log first, and a sentence naming `POST /v1/callbacks` |

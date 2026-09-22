@@ -93,12 +93,42 @@ async def test_a_job_that_names_nobody_and_has_no_default_is_refused_by_name() -
 
 
 async def test_an_agent_answers_only_on_the_channel_the_call_arrived_through() -> None:
+    """A dispatch that names no corner cannot be a widget call of ours: the gateway writes those."""
     named = a_job(metadata={"agent": "tienda-sur"})
     dialled = await _arrival(named, _a_seat())
     written = await _arrival(named, a_connected_room(a_widget()))
     assert router.resolve(dialled, ROUTES) == TIENDA_PHONE
     with pytest.raises(router.NoRoute):
         router.resolve(written, ROUTES)
+
+
+# A number is a row somebody bought and the widget is not: there is no web door in any table, and
+# every agent is on the web. So a browser's call carries its own route — this agent, in the corner
+# the dispatch named — and an agent with a telephone and no widget answers a page all the same.
+async def test_a_browsers_call_needs_no_door_and_runs_in_the_corner_the_dispatch_named() -> None:
+    named = a_job(
+        metadata={"agent": "tienda-sur", "org": "tienda", "env": "sandbox", "holder": "m_1"}
+    )
+    arrival = await _arrival(named, a_connected_room(a_widget()))
+
+    route = router.resolve(arrival, ROUTES)
+
+    assert (route.org, route.env, route.agent, route.channel) == (
+        "tienda",
+        "sandbox",
+        "tienda-sur",
+        "web",
+    )
+    assert route.number is None
+
+
+async def test_a_row_for_the_web_still_wins_over_the_one_a_dispatch_would_make() -> None:
+    """What a table says is what answers, here as everywhere: the made-up route is the last word."""
+    named = a_job(metadata={"agent": "tienda-sur", "org": "somebody-else", "env": "production"})
+    arrival = await _arrival(named, a_connected_room(a_widget()))
+    web = Route(org="tienda", agent="tienda-sur", channel="web", env="sandbox")
+
+    assert router.resolve(arrival, [*ROUTES, web]) == web
 
 
 async def test_a_number_nobody_answers_is_refused_and_the_message_names_it() -> None:
