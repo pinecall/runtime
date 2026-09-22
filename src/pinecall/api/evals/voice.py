@@ -22,6 +22,8 @@ from pinecall.evals.speech import Speaking
 from pinecall.log.replay import whole
 from pinecall.orgs.vault import keys_brought_by
 from pinecall.providers.models import NoProvider
+from pinecall.providers.tuning import the_llm, the_voice
+from pinecall.types import DeclarationRefused
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -72,14 +74,21 @@ async def a_voice_call(
 ) -> Called:
     """Dispatch the agent into a room, put the persona on the line out loud, and hang up."""
     keys = await keys_brought_by(vault, key.org)
+    # The model that plays the caller and the voice it speaks in are the persona's own three
+    # knobs, read by the agent's own parser; a persona that set none is played as every caller
+    # was. The door that wrote the persona refused a typo already, so a refusal here is a row
+    # written before this build knew the word.
     try:
-        llm = llms(None, keys)
+        llm = llms(the_llm(said.persona.llm), keys)
+        declared = the_voice(said.persona.tts, said.persona.voice)
+    except DeclarationRefused as refused:
+        raise HTTPException(422, str(refused)) from refused
     except NoProvider as missing:
         raise HTTPException(503, NO_MODEL.format(missing=missing)) from missing
     line = Line(interferer_db=said.interferer_db, packet_loss=said.packet_loss)
     # The caller speaks the agent's language in a voice the agent does not have: both read off
     # the config the agent runs on, in the corner of the socket the call is dispatched to.
-    speaking = Speaking(keys=keys)
+    speaking = Speaking(keys=keys, declared=declared)
     held = registry.of(key.env, said.agent, held_by(key))
     if held is not None:
         running = await tuned_for(kept, key.org, key.env, held_by(key), said.agent, held.config)
@@ -87,6 +96,7 @@ async def a_voice_call(
             language=running.config.language,
             agents_voice=None if running.config.voice is None else running.config.voice.voice_id,
             keys=keys,
+            declared=declared,
         )
 
     # The conversation so far is read off the call's own log rather than kept a second time here:
@@ -124,6 +134,9 @@ async def a_voice_call(
             # this name is all that reaches it. Without it a spoken simulation was a call like
             # any other and the Personas screen could not find its own runs.
             persona=said.persona.name or None,
+            # And the caller's own rule for the call, by the same road, for the judge at hang-up.
+            accepts_when=said.persona.accepts_when or None,
+            declines_when=said.persona.declines_when or None,
             org=key.org,
             env=key.env,
             holder=held_by(key),

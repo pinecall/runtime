@@ -37,6 +37,7 @@ def a_case(
         knowledge=tuple(knowledge or ()),
         states=tuple(read.states),
         summary=read.summary,
+        persona_rule=read.rule,
     )
 
 
@@ -64,6 +65,7 @@ class _Read:
         self.call = next((entry.call for entry in entries if entry.call is not None), "")
         self.agent = entries[0].agent if entries else ""
         self.summary: dict[str, Any] | None = None
+        self.rule: tuple[str, str] | None = None
         self.gate: list[GateLine] = []
         self.arrived: list[Arrived] = []
         self.states: list[Mapping[str, Any]] = []
@@ -105,6 +107,8 @@ class _Read:
                 )
             elif isinstance(data, events.CallSummary):
                 self.summary = data.model_dump(mode="json", by_alias=True)
+            elif isinstance(data, events.CallStarted):
+                self.rule = _the_rule_on(data)
             elif entry.type in CONFIRMATIONS:
                 self.gate.append(_a_confirmation(entry.seq, cast("GateKind", entry.type), data))
             elif entry.type.startswith("metrics."):
@@ -166,6 +170,15 @@ class _Read:
             tool=data.name,
             side_effect=spec.side_effect if spec else None,
         )
+
+
+# The caller's own rule rides the call's first entry (session/first_entries.py), so a judge reads
+# what the caller was when the call was made, however its row reads by the time it is judged. A
+# person on the phone wrote none, and neither did every simulation before the row could hold one.
+def _the_rule_on(data: events.CallStarted) -> tuple[str, str] | None:
+    """When the caller on this call accepts it and when it declines it; None when nobody said."""
+    accepts_when, declines_when = data.accepts_when or "", data.declines_when or ""
+    return (accepts_when, declines_when) if accepts_when or declines_when else None
 
 
 def _a_confirmation(seq: int, kind: GateKind, data: object) -> GateLine:

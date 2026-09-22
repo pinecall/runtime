@@ -14,9 +14,11 @@ from pinecall._exceptions import PinecallError
 from pinecall.session.voice import sip
 from pinecall.types import ENVS, PRODUCTION, SANDBOX, THE_WIDGET, Channel, Direction, Env, Route
 from pinecall.types.dispatch import (
+    ACCEPTS_KEY,
     AGENT_KEY,
     APP_KEY,
     CALLER_KEY,
+    DECLINES_KEY,
     DIRECTION_KEY,
     DIVERTED_KEY,
     ENV_KEY,
@@ -60,8 +62,11 @@ class Arrival:
     app: str | None = None
     # Which eval run opened this call, when one did. A spoken golden's call starts mid-conversation.
     run: str | None = None
-    # Which synthetic caller a model is playing on it, when a spoken simulation named one.
+    # Which synthetic caller a model is playing on it, when a spoken simulation named one — and
+    # that caller's own rule for the call, when it wrote one, for the judge at hang-up.
     persona: str | None = None
+    accepts_when: str | None = None
+    declines_when: str | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict[str, Any])
     whose: Whose = field(default_factory=Whose)
 
@@ -105,6 +110,8 @@ async def arrival_of(job: jobs.Job, room: rtc.Room) -> Arrival:
         app=_text(said.get(APP_KEY)) or None,
         run=_text(said.get(RUN_KEY)) or None,
         persona=_text(said.get(PERSONA_KEY)) or None,
+        accepts_when=_text(said.get(ACCEPTS_KEY)) or None,
+        declines_when=_text(said.get(DECLINES_KEY)) or None,
         metadata=said,
         whose=whose(job),
     )

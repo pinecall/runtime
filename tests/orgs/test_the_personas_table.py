@@ -108,6 +108,37 @@ async def test_the_state_of_a_caller_the_business_knows_survives_the_column(
     assert one["state"] == state
 
 
+async def test_how_a_caller_is_played_and_when_it_accepts_survive_the_columns(
+    pool: Pool, org: str
+) -> None:
+    kept = Personas(pool)
+    played = {
+        "llm": "anthropic/claude-haiku-4-5",
+        "tts": "cartesia/sonic-3",
+        "voice": "a-uuid",
+        "accepts_when": "a price for Friday",
+        "declines_when": "a call back",
+    }
+
+    [one] = await kept.put(org, "played", **dana(**played))
+
+    assert {field: one[field] for field in played} == played
+
+
+async def test_a_caller_written_before_it_could_say_so_is_played_by_the_runtime(
+    pool: Pool, org: str
+) -> None:
+    """0047's defaults: NULL knobs are the runtime's choice, and an empty rule judges nothing."""
+    await pool.execute(
+        "INSERT INTO agent_personas (org, name, goal, style) VALUES ($1, 'old', 'g', 's')", org
+    )
+
+    [one] = await Personas(pool).of(org)
+
+    assert (one["llm"], one["tts"], one["voice"]) == (None, None, None)
+    assert (one["accepts_when"], one["declines_when"]) == ("", "")
+
+
 async def test_writing_the_same_name_replaces_it_and_never_doubles_it(pool: Pool, org: str) -> None:
     kept = Personas(pool)
     await kept.put(org, "homeowner", **DANA)

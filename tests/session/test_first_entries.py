@@ -1,5 +1,6 @@
 """The first entries of a call: which door it came through, which run opened it, which world."""
 
+from dataclasses import replace
 from datetime import date
 
 import pytest
@@ -65,3 +66,15 @@ def test_the_two_ends_swap_with_the_direction() -> None:
 def test_only_a_call_we_placed_says_who_asked_for_it() -> None:
     _, offered = arrived(a_context(PRODUCTION), A_NUMBER)
     assert "asked_by" not in offered.model_dump()
+
+
+# The `persona` judge reads the caller's rule off THIS entry at hang-up, so a call is judged by what
+# the caller was when it was made — and a person's call carries none, and gets no such judge.
+def test_call_started_carries_the_callers_own_rule_and_a_persons_call_carries_none() -> None:
+    ruled = replace(
+        a_context(PRODUCTION), persona="homeowner", accepts_when="a price", declines_when="later"
+    )
+    written = started(ruled, A_NUMBER, 1.5)
+    assert (written.accepts_when, written.declines_when) == ("a price", "later")
+    nobody = started(a_context(PRODUCTION), A_NUMBER, 1.5)
+    assert (nobody.accepts_when, nobody.declines_when) == (None, None)

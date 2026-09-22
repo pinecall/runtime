@@ -3,6 +3,7 @@
 import httpx
 import pytest
 
+from pinecall.types import Model
 from tests.session.fake_llm import FakeLLM, Scripted, a_call
 
 pytestmark = pytest.mark.unit
@@ -97,6 +98,44 @@ async def test_a_caller_who_said_nothing_at_all_has_hung_up(
     answered = await suite_http.post(DOOR, json={"persona": APURADO, "turns_left": 3})
 
     assert answered.json() == {"say": "", "hangup": True}
+
+
+# Which model improvises the caller is the persona's own `llm`, in the agent's own three forms;
+# a persona that names none is played by the box's default, as every caller was.
+async def test_the_model_the_persona_names_is_the_model_that_plays_it(
+    suite_http: httpx.AsyncClient, llm: FakeLLM, models_asked: list[Model | None]
+) -> None:
+    llm.script = [said("hola"), said("hola")]
+    played = {**APURADO, "llm": "openai/gpt-5"}
+
+    await suite_http.post(DOOR, json={"persona": played, "turns_left": 3})
+    await suite_http.post(DOOR, json={"persona": APURADO, "turns_left": 3})
+
+    assert models_asked == [Model(provider="openai", model="gpt-5"), None]
+
+
+async def test_a_model_this_build_has_no_vendor_for_is_a_422_before_anything_is_asked(
+    suite_http: httpx.AsyncClient, llm: FakeLLM
+) -> None:
+    played = {**APURADO, "llm": "openai-but-misspelt/gpt-5"}
+
+    answered = await suite_http.post(DOOR, json={"persona": played, "turns_left": 3})
+
+    assert answered.status_code == 422
+    assert "no llm vendor named" in answered.json()["detail"]
+    assert llm.asked == []
+
+
+# The rule is the judge's and never the player's: a caller told its own pass mark plays to it.
+async def test_the_callers_own_rule_is_never_told_to_the_model_playing_it(
+    suite_http: httpx.AsyncClient, llm: FakeLLM
+) -> None:
+    llm.script = [said("hola")]
+    ruled = {**APURADO, "accepts_when": "SECRET-ACCEPT", "declines_when": "SECRET-DECLINE"}
+
+    await suite_http.post(DOOR, json={"persona": ruled, "turns_left": 3})
+
+    assert "SECRET" not in llm.asked[0].system
 
 
 async def test_a_model_that_called_nothing_is_a_502_and_not_a_line_nobody_said(

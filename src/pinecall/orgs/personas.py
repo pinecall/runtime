@@ -24,7 +24,8 @@ class NameTaken(PinecallError):
 
 
 _LIST = """
-SELECT name, about, goal, style, facts, state, author, set_at
+SELECT name, about, goal, style, facts, state, llm, tts, voice, accepts_when, declines_when,
+       author, set_at
   FROM agent_personas
  WHERE org = $1
  ORDER BY name
@@ -40,14 +41,20 @@ WITH gone AS (
           WHERE org = $1 AND name = $9 AND $9 <> $2
       RETURNING name
 )
-INSERT INTO agent_personas (org, name, about, goal, style, facts, state, author, set_at)
-     VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, now())
+INSERT INTO agent_personas (org, name, about, goal, style, facts, state, author, set_at,
+                            llm, tts, voice, accepts_when, declines_when)
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, now(), $10, $11, $12, $13, $14)
 ON CONFLICT (org, name)
   DO UPDATE SET about = EXCLUDED.about,
                 goal = EXCLUDED.goal,
                 style = EXCLUDED.style,
                 facts = EXCLUDED.facts,
                 state = EXCLUDED.state,
+                llm = EXCLUDED.llm,
+                tts = EXCLUDED.tts,
+                voice = EXCLUDED.voice,
+                accepts_when = EXCLUDED.accepts_when,
+                declines_when = EXCLUDED.declines_when,
                 author = EXCLUDED.author,
                 set_at = now()
 """
@@ -82,12 +89,18 @@ class Personas:
         state: Mapping[str, Any],
         author: str,
         was: str | None = None,
+        llm: str | None = None,
+        tts: str | None = None,
+        voice: str | None = None,
+        accepts_when: str = "",
+        declines_when: str = "",
     ) -> list[dict[str, Any]]:
         """The caller written whole — new, replaced, or renamed from `was` — and the list after.
 
         A rename is refused before it is written — nobody wrote `was`, or somebody else holds the
         new name — and then it is ONE statement, so no cut leaves the org with both names.
-        Nothing is merged: what the page sent IS the caller.
+        Nothing is merged: what the page sent IS the caller. The three knobs are NULL when unset
+        — the runtime's choice — and the two rules are empty when the caller judges nothing.
         """
         if was is not None and was != name:
             if await self.named(org, was) is None:
@@ -105,6 +118,11 @@ class Personas:
             json.dumps(dict(state)),
             author,
             was,
+            llm,
+            tts,
+            voice,
+            accepts_when,
+            declines_when,
         )
         return await self.of(org)
 
@@ -126,9 +144,19 @@ def _a_persona(row: Mapping[str, Any]) -> dict[str, Any]:
         "style": str(row["style"]),
         "facts": {str(what): str(said) for what, said in _an_object(row["facts"]).items()},
         "state": _an_object(row["state"]),
+        "llm": _a_knob(row["llm"]),
+        "tts": _a_knob(row["tts"]),
+        "voice": _a_knob(row["voice"]),
+        "accepts_when": str(row["accepts_when"]),
+        "declines_when": str(row["declines_when"]),
         "author": str(row["author"]),
         "set_at": row["set_at"].timestamp(),
     }
+
+
+def _a_knob(value: Any) -> str | None:
+    """One of the three knobs as the wire says it: the word that was set, or None for unset."""
+    return None if value is None or value == "" else str(value)
 
 
 def _an_object(value: Any) -> dict[str, Any]:
@@ -164,6 +192,11 @@ class MemoryPersonas(Personas):
         state: Mapping[str, Any],
         author: str,
         was: str | None = None,
+        llm: str | None = None,
+        tts: str | None = None,
+        voice: str | None = None,
+        accepts_when: str = "",
+        declines_when: str = "",
     ) -> list[dict[str, Any]]:
         """The caller written whole, renamed from `was` when it is one, and the list after."""
         held = self._kept.setdefault(org, {})
@@ -180,6 +213,11 @@ class MemoryPersonas(Personas):
             "style": style,
             "facts": dict(facts),
             "state": dict(state),
+            "llm": _a_knob(llm),
+            "tts": _a_knob(tts),
+            "voice": _a_knob(voice),
+            "accepts_when": accepts_when,
+            "declines_when": declines_when,
             "author": author,
             "set_at": time.time(),
         }

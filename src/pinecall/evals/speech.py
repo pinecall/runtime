@@ -1,4 +1,4 @@
-"""A simulated caller's own voice: ElevenLabs through livekit's plugin, as PCM at a room's rate."""
+"""A simulated caller's own voice, at a vendor through livekit's plugin, as PCM at a room's rate."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from pinecall._settings import Settings
 from pinecall.providers import tts
 from pinecall.providers.registry import Asked, Speech
 from pinecall.types import NO_ORG_KEYS, ProviderKeys
+from pinecall.types import Voice as DeclaredVoice
 
 # The rate everything downstream is written for: LiveKit's own examples publish at 48 kHz mono.
 # Every line comes back at this rate, whatever the vendor sent, so a caller's track can be opened
@@ -22,7 +23,8 @@ CHANNELS = 1
 # "saying release" (2026-09-19, maravilla). The same vendor the agent speaks with, through the same
 # vendor file, in a voice that is NOT one an agent is given: two premade ElevenLabs voices, checked
 # with GET /v1/voices/<id>, none of them curated in providers/tts/voices.py. The second is for the
-# agent that speaks in the first, so the two sides of a call are never one voice.
+# agent that speaks in the first, so the two sides of a call are never one voice. These are what
+# a caller that declared no voice of its own speaks in (`Speaking.declared`).
 VENDOR = "elevenlabs"
 CALLER_VOICES = (
     "nPczCjzI2devNBz1zQrb",  # Brian: male, American
@@ -49,6 +51,10 @@ class Speaking:
     agents_voice: str | None = None
     # The org's own keys when it brought any; empty is the box's.
     keys: ProviderKeys = NO_ORG_KEYS
+    # The voice the persona declared for itself — its `tts` and `voice`, read by the agent's own
+    # parser (providers/tuning.py:the_voice) — when it declared one. Then that vendor, that model
+    # and that id speak, whatever the agent speaks in; None is a premade the agent does not have.
+    declared: DeclaredVoice | None = None
 
 
 def a_callers_voice(agents_voice: str | None) -> str:
@@ -65,16 +71,38 @@ class Voice:
     """
 
     def __init__(
-        self, settings: Settings, *, voice_id: str, language: str | None, keys: ProviderKeys
+        self,
+        settings: Settings,
+        *,
+        voice_id: str | None,
+        language: str | None,
+        keys: ProviderKeys,
+        vendor: str = VENDOR,
+        model: str | None = None,
     ) -> None:
         self._speech: Speech = tts.VENDORS.build(
-            VENDOR,
-            Asked(settings=settings, voice_id=voice_id, language=_primary(language), keys=keys),
+            vendor,
+            Asked(
+                settings=settings,
+                model=model,
+                voice_id=voice_id,
+                language=_primary(language),
+                keys=keys,
+            ),
         )
 
     @classmethod
     def of_the_caller(cls, settings: Settings, speaking: Speaking) -> Voice:
-        """The caller's voice: the agent's language, a voice the agent does not have."""
+        """The caller's voice: the one it declared, else a premade the agent does not have."""
+        if speaking.declared is not None:
+            return cls(
+                settings,
+                vendor=speaking.declared.provider,
+                model=speaking.declared.model,
+                voice_id=speaking.declared.voice_id,
+                language=speaking.language,
+                keys=speaking.keys,
+            )
         return cls(
             settings,
             voice_id=a_callers_voice(speaking.agents_voice),

@@ -115,6 +115,53 @@ async def test_a_name_that_is_not_a_name_is_refused(
     assert refused.status_code == 422
 
 
+async def test_a_caller_that_says_how_it_is_played_and_when_it_accepts_comes_back_saying_it(
+    tenant_http: httpx.AsyncClient,
+) -> None:
+    played = {
+        "llm": "anthropic/claude-haiku-4-5",
+        "tts": "elevenlabs",
+        "voice": "carolina",
+        "accepts_when": "they gave a price for Friday",
+        "declines_when": "they asked to be called back",
+    }
+
+    [one] = (await tenant_http.put(f"{PERSONAS}/homeowner", json={**DANA, **played})).json()[
+        "personas"
+    ]
+
+    assert {field: one[field] for field in played} == played
+
+
+async def test_a_caller_that_says_nothing_about_it_is_played_as_every_caller_is(
+    tenant_http: httpx.AsyncClient,
+) -> None:
+    [one] = (await tenant_http.put(f"{PERSONAS}/homeowner", json=DANA)).json()["personas"]
+
+    assert (one["llm"], one["tts"], one["voice"]) == (None, None, None)
+    assert (one["accepts_when"], one["declines_when"]) == ("", "")
+
+
+# The agent's own knobs, refused for the agent's own typos: the page says so on save, rather than
+# the caller's first line dying at the vendor with a 1008 halfway through a run.
+@pytest.mark.parametrize(
+    ("knob", "said"),
+    [
+        ({"llm": "openai-but-misspelt/gpt-5"}, "no llm vendor named"),
+        ({"tts": "elevenlabz/eleven_v3"}, "no tts vendor named"),
+        ({"voice": "carolinaa"}, "no voice named 'carolinaa'"),
+    ],
+)
+async def test_a_model_or_a_voice_this_build_does_not_have_is_refused_when_it_is_written(
+    tenant_http: httpx.AsyncClient, knob: dict[str, str], said: str
+) -> None:
+    refused = await tenant_http.put(f"{PERSONAS}/homeowner", json={**DANA, **knob})
+
+    assert refused.status_code == 422
+    assert said in refused.json()["detail"]
+    assert (await tenant_http.get(PERSONAS)).json() == {"personas": []}
+
+
 async def test_one_dropped_is_gone_and_a_name_nobody_wrote_is_a_404(
     tenant_http: httpx.AsyncClient,
 ) -> None:

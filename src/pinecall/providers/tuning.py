@@ -46,9 +46,9 @@ def tuned(declared: AgentConfig, tuning: Tuning, lexicon: Lexicon) -> AgentConfi
     return dataclasses.replace(
         declared,
         greeting=tuning.greeting,
-        voice=_voice(tuning),
+        voice=the_voice(tuning.tts, tuning.voice, tuning.tts_model),
         stt=_model("stt", STT_VENDORS, tuning.stt, DEFAULT_STT),
-        llm=_model("llm", LLM_VENDORS, tuning.llm, DEFAULT_VENDOR),
+        llm=the_llm(tuning.llm),
         hangup=tuning.hangup,
         turn=tuning.turn,
         memory=tuning.memory,
@@ -71,29 +71,36 @@ def tuned(declared: AgentConfig, tuning: Tuning, lexicon: Lexicon) -> AgentConfi
 # movable as the other two: `tts = "cartesia"` moves the whole stage, and the voice written beside
 # it is then Cartesia's own id, because voice_declared takes a named vendor at its word. Nothing
 # set is no voice at all: the session speaks with this build's default vendor and its own voice.
-def _voice(tuning: Tuning) -> Voice | None:
-    """The voice the agent speaks in: the vendor, the id and the model may each be set."""
-    if tuning.voice is None and tuning.tts is None and tuning.tts_model is None:
+#
+# The same three words, through the same door, say how a synthetic caller is played
+# (orgs/personas.py, api/evals/voice.py): a persona's `tts` and `voice` are the agent's two knobs
+# and are refused for the same typos, when the caller is written and not on its first line.
+def the_voice(tts: str | None, voice: str | None, tts_model: str | None = None) -> Voice | None:
+    """The voice a tuning or a persona names: the vendor, the id and the model may each be set."""
+    if voice is None and tts is None and tts_model is None:
         return None
-    vendor, model = _speaking(tuning)
-    return Voice(provider=vendor, model=model, voice_id=_voice_id(tuning, vendor))
+    vendor, model = _speaking(tts, tts_model)
+    return Voice(provider=vendor, model=model, voice_id=_voice_id(voice, vendor))
 
 
 # `tts` carries the same two forms the other model knobs do, and `tts_model` is the older way to
 # say the half after the slash. Both are read, the explicit `tts_model` wins, and a vendor named
 # in neither is whatever the app declared.
-def _speaking(tuning: Tuning) -> tuple[str, str | None]:
+def _speaking(tts: str | None, tts_model: str | None) -> tuple[str, str | None]:
     """Which vendor speaks and with which model, out of the two knobs that can say so."""
-    vendor, model = (
-        the_vendor_and_the_model(tuning.tts, DEFAULT_TTS) if tuning.tts else (DEFAULT_TTS, "")
-    )
+    vendor, model = the_vendor_and_the_model(tts, DEFAULT_TTS) if tts else (DEFAULT_TTS, "")
     _refuse_an_unknown_vendor("tts", TTS_VENDORS, vendor)
-    return vendor, _a_voice_model(vendor, tuning.tts_model or model or None)
+    return vendor, _a_voice_model(vendor, tts_model or model or None)
 
 
-def _voice_id(tuning: Tuning, vendor: str) -> str | None:
+def _voice_id(voice: str | None, vendor: str) -> str | None:
     """What the vendor is sent: the table's id for the name asked, or nothing when none was."""
-    return None if tuning.voice is None else voice_declared(tuning.voice, vendor, None).voice_id
+    return None if voice is None else voice_declared(voice, vendor, None).voice_id
+
+
+def the_llm(asked: str | None) -> Model | None:
+    """The model that decides, as a tuning or a persona names it; None when nothing was set."""
+    return _model("llm", LLM_VENDORS, asked, DEFAULT_VENDOR)
 
 
 def _model(

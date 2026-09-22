@@ -26,6 +26,7 @@ from pinecall.api.agents import on_a_call as commands
 from pinecall.api.agents.holding import SocketId
 from pinecall.api.agents.registry import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, Registry, RegistryDep
 from pinecall.api.calls.opening import a_text_call
+from pinecall.api.personas import the_personas
 from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
 from pinecall.auth.keys import KeyRecord, held_by, not_opening
 from pinecall.auth.scopes import a_visitor
@@ -113,7 +114,9 @@ async def chat(
     try:
         opened = await a_text_call(
             held,
-            a_call_from(websocket, held.org, held.env, slug),
+            a_call_from(
+                websocket, held.org, held.env, slug, await _the_rule_of(websocket, held.org)
+            ),
             tuning,
             vault,
             llms,
@@ -198,8 +201,15 @@ async def _every_turn(websocket: WebSocket, session: TextSession) -> None:
         return
 
 
-def a_call_from(websocket: WebSocket, org: str, env: Env, slug: str) -> CallContext:
+def a_call_from(
+    websocket: WebSocket,
+    org: str,
+    env: Env,
+    slug: str,
+    rule: tuple[str | None, str | None] = (None, None),
+) -> CallContext:
     """One call, minted here: the id, who the caller is, and the door they came through."""
+    accepts_when, declines_when = rule
     # A web caller is nobody yet: the visitor id travels as the calling side, which is what
     # call.started carries as `from`. Both ids are the shapes the token door mints too.
     return CallContext(
@@ -213,9 +223,26 @@ def a_call_from(websocket: WebSocket, org: str, env: Env, slug: str) -> CallCont
         # caller. It rides call.started and is projected into call_facts from there, which is what
         # the Personas screen reads a caller's own runs off. A person's chat names none.
         persona=websocket.query_params.get("persona") or None,
+        accepts_when=accepts_when,
+        declines_when=declines_when,
         route=Route(org=org, agent=slug, channel=THE_WIDGET, number=None, env=env),
         today=date.today(),
     )
+
+
+# The spoken door is handed the whole persona and puts its rule on the dispatch; this one is handed
+# a name, so the rule is read off the org's own list here, in-process, as the call opens. It lands
+# on call.started by the same field, and the judge at hang-up cannot tell the two doors apart. A
+# name nobody wrote is a call with no rule, as it was: the caller still runs, and nobody judges it.
+async def _the_rule_of(websocket: WebSocket, org: str) -> tuple[str | None, str | None]:
+    """When the caller being played accepts the call, and when it declines it; none for a person."""
+    name = websocket.query_params.get("persona")
+    if not name:
+        return None, None
+    one = await the_personas(websocket).named(org, name)
+    if one is None:
+        return None, None
+    return one["accepts_when"] or None, one["declines_when"] or None
 
 
 # A number identifies a caller by itself; a web visitor is nobody until somebody says who they

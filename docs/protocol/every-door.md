@@ -106,7 +106,7 @@ that colleague's corner.
 | `GET` | `/v1/routes` | the numbers and doors your org answers |
 | `PUT`·`DELETE`·`GET` | `/v1/provider-keys[/{vendor}]` | the org's own vendor accounts — `providers` |
 | `GET` | `/v1/providers` | every vendor this build runs, which are ready on this box and which want a key, the vendor each stage runs on when nobody chose (`defaults`), the models this build vouches for under `<modality>/<vendor>` (`models`) and the curated voices — `providers` |
-| `GET` | `/v1/personas` · `PUT`·`DELETE …/{name}` | the org's synthetic callers — a goal, a manner, the facts they may state — one list an org, whichever agent and whichever world asks; `evals` |
+| `GET` | `/v1/personas` · `PUT`·`DELETE …/{name}` | the org's synthetic callers — a goal, a manner, the facts they may state, how they are played (`llm` · `tts` · `voice`, the agent's own three words, `422` for one this box does not have) and when they accept the call (`accepts_when` · `declines_when`, which the `persona` judge reads at hang-up) — one list an org, whichever agent and whichever world asks; `evals` |
 | `GET` | `/v1/personas/{name}/runs?limit=&before=` | that caller's simulations in the key's corner, newest first: the call, the agent, when, its turns, how it ended, its outcome, what it cost and how the judges answered. Paged as the sessions list is; `404` for a name this org never wrote — `evals` |
 | `PUT`·`GET`·`DELETE` | `/v1/knowledge[/{base}]` · `POST …/eval` · `GET /v1/knowledge/attached` · `GET`·`PUT`·`DELETE …/{base}/files/{path}` | the bases the agent searches, in the request's world — production's pushed there directly; a push answers the chunks it made; which agents read which; a base's files listed, read, put and taken out one at a time |
 | `GET`·`DELETE` | `/v1/contacts/{contact}/memory` · `POST /v1/contacts/memory/eval` | what it keeps about a person, in the key's world |
@@ -117,7 +117,7 @@ that colleague's corner.
 | `DELETE` | `/v1/memory/facts/{id}` | end one fact, bi-temporally: the row stays, superseded — `memory` |
 | `POST` | `/v1/agents/{slug}/memory/extraction` | what a hang-up makes of a call |
 | `POST` | `/v1/evals/run` · `GET /v1/evals/runs[/{id}]` · `POST /v1/evals/replay/{call}` · `/v1/evals/judge/{call}` | the suites, ring 3, and the judges over a finished call nobody judged |
-| `POST` | `/v1/evals/caller` · `/v1/evals/voice` | the improvising caller, and a spoken eval |
+| `POST` | `/v1/evals/caller` · `/v1/evals/voice` | the improvising caller — on the persona's own `llm` when it set one — and a spoken eval, in the persona's own `tts` and `voice` when it set them; `422` for a word this box does not have |
 | `POST` | `/v1/calls` · `/v1/calls/{call}/events` · `/sealed` · `/tools` · `/lookup` · `/remember` · `GET /commands` | the worker's own doors; `/lookup` is also the app's own `this.knowledge.search` — `app` |
 | `POST`·`GET` | `/v1/fleet/heartbeat` · `/v1/fleet/standing` | the fleet's: what a worker holds, and whether all are full. A key holding `app` AND `fleet` — what the box mints for its worker |
 | `GET`·`POST` | `/v1/whatsapp/webhook` | Meta's |

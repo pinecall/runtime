@@ -1,9 +1,12 @@
-"""The caller's voice: a person's, never the agent's, and always at the room's rate."""
+"""The caller's voice: its own when it declared one, never the agent's, at the room's rate."""
 
 import pytest
 
+from pinecall._settings import Settings
 from pinecall.evals import speech
+from pinecall.providers.registry import Asked
 from pinecall.providers.tts.voices import VOICES
+from pinecall.types import Voice as DeclaredVoice
 
 pytestmark = pytest.mark.unit
 
@@ -41,3 +44,43 @@ def test_no_caller_voice_is_one_an_agent_is_given_by_name() -> None:
     curated = {voice.voice_id for voice in VOICES.values()}
 
     assert not curated & {*speech.CALLER_VOICES, speech.A_TELEVISION_VOICE}
+
+
+# A persona that declared a voice speaks in it — its vendor, its model, its id — whatever the
+# agent speaks in; one that declared none gets the premade the agent does not have, as before.
+def test_a_persona_that_declared_its_voice_speaks_in_it(monkeypatch: pytest.MonkeyPatch) -> None:
+    built = _the_builds(monkeypatch)
+    declared = DeclaredVoice(provider="cartesia", model="sonic-3", voice_id="a-uuid")
+
+    speech.Voice.of_the_caller(Settings(), speech.Speaking(language="es", declared=declared))
+
+    [(vendor, asked)] = built
+    assert (vendor, asked.model, asked.voice_id, asked.language) == (
+        "cartesia",
+        "sonic-3",
+        "a-uuid",
+        "es",
+    )
+
+
+def test_a_persona_that_declared_none_speaks_in_a_voice_the_agent_does_not_have(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    built = _the_builds(monkeypatch)
+
+    speech.Voice.of_the_caller(Settings(), speech.Speaking(agents_voice=speech.CALLER_VOICES[0]))
+
+    [(vendor, asked)] = built
+    assert (vendor, asked.voice_id) == (speech.VENDOR, speech.CALLER_VOICES[1])
+
+
+def _the_builds(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, Asked]]:
+    """Every voice the caller asked the vendor table for, and nothing reaching a vendor."""
+    built: list[tuple[str, Asked]] = []
+
+    def build(vendor: str, asked: Asked) -> object:
+        built.append((vendor, asked))
+        return object()
+
+    monkeypatch.setattr(speech.tts.VENDORS, "build", build)
+    return built

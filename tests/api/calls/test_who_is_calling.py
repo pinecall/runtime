@@ -49,6 +49,21 @@ def test_a_persons_chat_names_no_persona_because_nobody_is_playing_anybody() -> 
     assert said.persona is None
 
 
+# And the rule the persona wrote for the call rides the same context to call.started, where the
+# `persona` judge reads it at hang-up — read off the org's list by the door, handed in here.
+def test_a_played_caller_carries_its_own_rule_and_a_person_carries_none() -> None:
+    ruled = a_call_from(
+        _asked({"agent": AGENT, "persona": "homeowner"}),
+        "clinica",
+        PRODUCTION,
+        AGENT,
+        ("a price", None),
+    )
+    nobody = a_call_from(_asked({"agent": AGENT}), "clinica", PRODUCTION, AGENT)
+    assert (ruled.accepts_when, ruled.declines_when) == ("a price", None)
+    assert (nobody.accepts_when, nobody.declines_when) == (None, None)
+
+
 class _QueryOnly:
     """A socket with nothing but its query string, which is all the context minting reads."""
 

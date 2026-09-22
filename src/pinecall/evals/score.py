@@ -17,6 +17,7 @@ from pinecall.evals.case import Case
 from pinecall.evals.judges.consent import ConsentJudge
 from pinecall.evals.judges.grounded import EXTRACTORS, GroundedJudge, evidence_of
 from pinecall.evals.judges.model import Counted, a_judge
+from pinecall.evals.judges.persona import persona_judge_of
 from pinecall.evals.judges.policy import PolicyJudge
 from pinecall.evals.judges.promises import promises_of
 from pinecall.evals.verdicts import a_judgment, nobody_asked
@@ -96,17 +97,21 @@ class JudgedWhen:
         return await self.score(entries, config)
 
 
-# The policies are the tenant's rules, and a live call carries its own evidence for these two.
+# The policies are the tenant's rules, and a live call carries its own evidence for these three.
 # `register` (evals/judges/register.py) waits on a declaration the agent does not carry — the
 # register the business asked for is not on AgentConfig; whoever declares it adds the line here.
-# Inventing it would judge a rule nobody wrote down.
+# Inventing it would judge a rule nobody wrote down. The fourth is the CALLER's rule, and only a
+# synthetic caller writes one: a person on the phone is judged by the first three alone.
 def _the_judges_of(case: Case) -> list[Evaluator]:
     """Every judge a live call carries its own evidence for, in the order they are declared."""
-    return [
+    panel: list[Evaluator] = [
         ConsentJudge(case.gate),
         GroundedJudge(EXTRACTORS, evidence_of(case)),
         promises_of(case),
     ]
+    if (persona := persona_judge_of(case)) is not None:
+        panel.append(persona)
+    return panel
 
 
 # The tally of the questions actually put to a model, and livekit's own collector behind it fed by

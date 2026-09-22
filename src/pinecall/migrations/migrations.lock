@@ -8,4 +8,4 @@
 # nothing at or below it: those have run on databases that keep their sha256, so they may never
 # be edited — the fix for an old migration is a new migration, and a gate that failed on them
 # would be a gate demanding something forbidden.
-0046_the_persona_on_a_call.sql
+0047_the_persona_speaks_and_judges.sql

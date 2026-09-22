@@ -21,6 +21,13 @@ RUN_KEY = "run"
 # the WORKER writes call.started, so the name travels the only road there is between them. The
 # same fact rides the call's first entry on the wire, exactly as `run` does.
 PERSONA_KEY = "persona"
+# When that caller accepts the call and when it declines it, in the persona's own words, by the
+# same road and for the same reason: the `persona` judge reads them off call.started at hang-up
+# (evals/judges/persona.py), and the worker writes that entry. Carried on the call rather than
+# read off the row when it ends, so a persona edited mid-run judges the call it made, not the
+# next one — LiveKit's own simulations carry `agent_expectations` on the dispatch the same way.
+ACCEPTS_KEY = "accepts_when"
+DECLINES_KEY = "declines_when"
 # Which app socket is to serve this call, when the dispatch has a reason to name one: a spoken
 # eval run does, because the goldens and their seeded state live in the terminal that asked for
 # the run, and that socket takes no unclaimed calls. Absent, the gateway picks as it always has.

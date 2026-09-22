@@ -54,6 +54,12 @@ class CallContext:
     # when nobody is playing anybody. It rides call.started beside `run` and is projected into
     # call_facts from there: it is what the Personas screen reads a caller's own runs off.
     persona: str | None = None
+    # That caller's own rule for the call — when it hangs up satisfied, when unsatisfied — as the
+    # persona said it when the call opened, and None for a call nobody wrote one for. It rides
+    # call.started beside the name, so the `persona` judge at hang-up, and any judging later,
+    # read the rule the call was made under rather than whatever the row says by then.
+    accepts_when: str | None = None
+    declines_when: str | None = None
     # Whose corner of the world the call is for, as the dispatch that opened it said: a developer
     # in the sandbox, nobody's — the org's own — in production or when nothing said. The org and
     # the world are the route's; this is the third coordinate, and the worker carries it to the

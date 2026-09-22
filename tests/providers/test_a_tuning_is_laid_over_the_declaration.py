@@ -6,7 +6,7 @@ import pytest
 
 from pinecall.providers.tts.elevenlabs import DEFAULT_MODEL
 from pinecall.providers.tts.voices import VOICES
-from pinecall.providers.tuning import NOT_RUN_HERE, tuned
+from pinecall.providers.tuning import NOT_RUN_HERE, the_llm, the_voice, tuned
 from pinecall.types import (
     AgentConfig,
     DeclarationRefused,
@@ -89,3 +89,16 @@ def test_the_lexicon_is_the_agents_says_and_hears() -> None:
     config = tuned(DECLARED, Tuning(), words)
     assert config.says == {"Vidal": "vidál", "GSA": "G S A"}
     assert config.hears == ("GSA", "Vidal")
+
+
+# The same parser reads a synthetic caller's three knobs (api/personas.py, api/evals/voice.py),
+# so a persona's `llm` and `voice` mean exactly what the agent's do, and unset is unset.
+def test_a_persona_names_its_model_and_its_voice_in_the_agents_own_words() -> None:
+    model = the_llm("openai/gpt-5")
+    assert model is not None and (model.provider, model.model) == ("openai", "gpt-5")
+    voice = the_voice(None, "mateo")
+    assert voice is not None and (voice.provider, voice.voice_id) == (
+        "elevenlabs",
+        VOICES["mateo"].voice_id,
+    )
+    assert (the_llm(None), the_voice(None, None)) == (None, None)

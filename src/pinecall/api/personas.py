@@ -10,6 +10,8 @@ from starlette.requests import HTTPConnection
 from pinecall.api._deps import EvalsKeyDep, held
 from pinecall.auth.corner import author_of
 from pinecall.orgs.personas import NameTaken, NoSuchPersona, Personas
+from pinecall.providers.tuning import the_llm, the_voice
+from pinecall.types import DeclarationRefused
 from pinecall_protocol.rest import Persona, PersonaList, PersonaPut
 
 router = APIRouter()
@@ -48,6 +50,7 @@ async def put_persona(
 ) -> PersonaList:
     """The caller written whole — new, replaced, or renamed from `was` — and the list after."""
     _a_name(name)
+    llm, tts, voice = _played_as(said)
     try:
         written = await kept.put(
             key.org,
@@ -59,6 +62,11 @@ async def put_persona(
             state=said.state or {},
             author=author_of(key),
             was=said.was,
+            llm=llm,
+            tts=tts,
+            voice=voice,
+            accepts_when=said.accepts_when or "",
+            declines_when=said.declines_when or "",
         )
     except NoSuchPersona as nobody:
         raise HTTPException(404, str(nobody)) from nobody
@@ -74,6 +82,21 @@ async def drop_persona(name: str, key: EvalsKeyDep, kept: PersonasDep) -> Person
         return PersonaList(personas=[Persona(**one) for one in await kept.drop(key.org, name)])
     except NoSuchPersona as nobody:
         raise HTTPException(404, str(nobody)) from nobody
+
+
+# The three knobs are the agent's own — `pinecall agent set --llm`, `--tts`, `--voice` — read by
+# the same parser, and refused HERE for the same typos: a vendor this build has no file for, a
+# voice name nobody curated. The alternative was `carolinaa` reaching the vendor on the caller's
+# first line and the run dying with a 1008 instead of the page saying so on save. Empty is unset.
+def _played_as(said: PersonaPut) -> tuple[str | None, str | None, str | None]:
+    """The model, the vendor and the voice as the table keeps them, or 422 in the parser's words."""
+    llm, tts, voice = said.llm or None, said.tts or None, said.voice or None
+    try:
+        the_llm(llm)
+        the_voice(tts, voice)
+    except DeclarationRefused as refused:
+        raise HTTPException(422, str(refused)) from refused
+    return llm, tts, voice
 
 
 def _a_name(name: str) -> None:

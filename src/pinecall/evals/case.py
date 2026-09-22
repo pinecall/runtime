@@ -85,6 +85,10 @@ class Case:
     states: tuple[Mapping[str, Any], ...] = ()
     # `call.summary` verbatim: the outcome, the usage rows and what the call cost. Never recomputed.
     summary: Mapping[str, Any] | None = None
+    # The synthetic caller's own rule for this call, off `call.started`: when it accepts the call
+    # and when it declines it, either half possibly empty. None is a call nobody wrote one for —
+    # a person's, or a simulation's from before the persona could say — and no `persona` judge.
+    persona_rule: tuple[str, str] | None = None
 
     # Every judge — ours and livekit's own eight — is handed a ChatContext and nothing else
     # (evals/evaluation.py:25-31). The turns above are the truth; this is the view of them the

@@ -139,3 +139,21 @@ def test_every_state_the_call_was_in_comes_out_whole_and_in_order() -> None:
     # The last one carries the booking the last tool wrote, and the patient it never touched.
     assert states[-1]["booking"] == "BK-5521"
     assert states[-1]["patient"] == {"id": "P-2231", "name": "Marta Ruiz"}
+
+
+# The caller's own rule rides the call's first entry, so the case reads it from there: a judge
+# later sees the caller as it was when the call was made. A person's call, like the golden's, has
+# none.
+def test_the_callers_own_rule_comes_off_call_started_and_a_persons_call_has_none() -> None:
+    entries = the_golden_call()
+    ruled = [
+        entry.model_copy(
+            update={"data": {**entry.data, "accepts_when": "a price", "declines_when": ""}}
+        )
+        if entry.type == "call.started"
+        else entry
+        for entry in entries
+    ]
+
+    assert a_case(entries).persona_rule is None
+    assert a_case(ruled).persona_rule == ("a price", "")

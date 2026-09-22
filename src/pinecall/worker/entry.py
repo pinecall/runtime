@@ -273,6 +273,8 @@ def a_call(call: str, arrival: router.Arrival, route: Route) -> CallContext:
         metadata=arrival.metadata,
         run=arrival.run,
         persona=arrival.persona,
+        accepts_when=arrival.accepts_when,
+        declines_when=arrival.declines_when,
         holder=arrival.whose.holder,
     )
 

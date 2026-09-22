@@ -62,6 +62,19 @@ class Persona(WireModel):
     # use these and to invent nothing beside them, which is what makes a simulated call repeatable
     # in the only way an improvised one can be.
     facts: dict[str, Any] = Field(default_factory=dict[str, Any])
+    # How they are played, in the three words the agent's own settings use (providers/tuning.py):
+    # which model improvises them, which vendor reads their lines, in which voice. None is the
+    # runtime's choice — the box's default model, a premade the agent does not have — which is
+    # what every caller was until the row could say otherwise (migration 0047).
+    llm: str | None = None
+    tts: str | None = None
+    voice: str | None = None
+    # When they hang up satisfied, and when unsatisfied, in their own words. Neither reaches the
+    # model playing them — a caller told its own pass mark plays to it — they are the rule the
+    # `persona` judge reads the finished call against (evals/judges/persona.py), carried on the
+    # call's own call.started so the judge sees the caller as it was when the call was made.
+    accepts_when: str = ""
+    declines_when: str = ""
 
 
 class Spoken(WireModel):
