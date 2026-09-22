@@ -98,12 +98,18 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   is unchanged — it is where they land.
 
 ### Fixed
-- **The hold melody no longer starts under the agent's own voice.** A tool begins while the line
-  announcing it is still being spoken — the model emits its text and its tool call in one response
-  — and the melody was counted from the tool, so it came up over the voice every time. It waits
-  for the floor now and looks again after its grace. The tool itself cannot wait: the turn does not
-  finish until the tool returns, which is why livekit raises on `SpeechHandle.wait_for_playout()`
-  called from inside the tool that owns it.
+- **A tool runs after the line that announced it, and its receipt is heard before the model
+  replies.** The model emits "voy a reservar" and the `book` call in one response, and livekit
+  starts the tool under that very line: the booking was made before the caller had heard it would
+  be, and the log read `tool.call` before the turn. The tool's own speech cannot be awaited from
+  inside it, but the step's words can — `RunContext.wait_for_playout()`, the way livekit's own
+  error points at — so the announcement plays out, then the tool runs, then the melody (after its
+  grace, and never under the voice). And the confirm read-back is now awaited inside the tool:
+  `say()` joins a sentence to the history only once its audio has played, while the reply to a
+  tool result is generated the instant the tool returns, so a receipt fired and forgotten was not
+  in the history the model answered from and it said the booking a second time, in other words
+  ("Reservado: el miércoles…" and then "Su cita queda confirmada para el miércoles…"). One turn,
+  one receipt, one reply that continues from it. `session/voice/tools.py`, `reading_back.py`.
 - **The agent no longer answers its own questions.** livekit's preemptive generation is off for a
   spoken call as well as a written one. With it on, a caller's end-of-turn landing inside a
   tool's execution window starts a whole new reply before the tool has answered, on a context

@@ -135,12 +135,22 @@ async def test_the_read_back_lands_after_the_output_and_before_the_callers_next_
     await _settled(live)
     await live.generate_reply(user_input="gracias")
     await bridge.closed("the test hung up")
-    items = live.history.items
-    kinds = [_kind(item) for item in items]
-    output_at = kinds.index("output:bk_1")
-    read_back_at = kinds.index("assistant:Le reservé el turno de las 10:15, referencia A7.")
-    thanks_at = kinds.index("user:gracias")
-    assert output_at < read_back_at < thanks_at
+    receipt = "Le reservé el turno de las 10:15, referencia A7."
+    kinds = [_kind(item) for item in live.history.items]
+    # In livekit's own list the receipt is stamped when its audio began, which is before the tool
+    # returned — it is heard out inside the tool — so it sits between the call and the output.
+    assert (
+        kinds.index("call:bk_1") < kinds.index(f"assistant:{receipt}") < kinds.index("user:gracias")
+    )
+    # What the model reads is grouped by call_id on every provider
+    # (llm/_provider_format/utils.py:group_tool_calls): the output first, then the receipt.
+    messages = cast("list[dict[str, Any]]", live.history.to_provider_format("anthropic")[0])  # pyright: ignore[reportUnknownMemberType] — livekit types the dicts as Unknown
+    wire = [_block(message["role"], block) for message in messages for block in message["content"]]
+    assert (
+        wire.index("tool_result:bk_1")
+        < wire.index(f"assistant:{receipt}")
+        < wire.index("user:gracias")
+    )
     assert not recording.of("confirm.request")
     assert "Le reservé el turno de las 10:15, referencia A7." in [
         turn.data["text"] for turn in recording.of("turn.agent")
@@ -232,6 +242,15 @@ def _kind(item: agents.ChatItem) -> str:
     if isinstance(item, agents.FunctionCallOutput):
         return f"output:{item.call_id}"
     return type(item).__name__
+
+
+def _block(role: str, block: dict[str, Any]) -> str:
+    """One block as the provider reads it, labelled the way _kind labels a history item."""
+    if block["type"] == "tool_use":
+        return f"call:{block['id']}"
+    if block["type"] == "tool_result":
+        return f"tool_result:{block['tool_use_id']}"
+    return f"{role}:{block.get('text', '')}"
 
 
 def _final(text: str) -> recognition.SpeechEvent:

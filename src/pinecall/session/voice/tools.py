@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from typing import Any, cast
 
 from livekit.agents import llm as agents
@@ -34,13 +34,9 @@ class Tools:
         platform: Platform,
         call: str,
         emit: Emit,
-        speaking: Callable[[], bool] | None = None,
         hold: HoldMusic | None = None,
     ) -> None:
         self._config = config
-        # Whether the agent has the floor. A tool waits for it, so what was announced happens
-        # after the announcement rather than under it.
-        self.speaking = speaking or (lambda: False)
         # What the caller hears while a tool runs: nothing until the worker gives it a room.
         self.hold = hold or HoldMusic()
         self._platform = platform
@@ -95,22 +91,27 @@ class Tools:
                 arguments=dict(raw_arguments),
                 speech_id=context.speech_handle.id,
             )
-            # The tool cannot wait for the agent to finish its line, and it is worth writing
-            # down why, because it is the obvious thing to try. The model emits its text and its
-            # tool call in ONE response, so livekit begins the tool the instant the call arrives on
-            # the stream — while the line announcing it is still being spoken, and often before the
-            # first audio has even played. And the turn does not FINISH until the tool returns, so
-            # anything waiting here for the speech to end is waiting on itself: livekit raises on
-            # `SpeechHandle.wait_for_playout()` called from inside the tool that owns it, with that
-            # exact reason. What can be fixed is what is heard — the melody waits for the floor
-            # (hold.py) — and what is read, which the console draws at the speech's own start.
+            # NOT while the agent is talking. The model emits its text and its tool call in ONE
+            # response, so livekit begins the tool the instant the call arrives on the stream —
+            # while the line announcing it is still being spoken, and often before its first
+            # audio has played. The tool's own SpeechHandle cannot be awaited from in here (the
+            # turn does not finish until the tool returns; `wait_for_playout()` raises with that
+            # reason), but the STEP can: `RunContext.wait_for_playout()` waits for exactly the
+            # words spoken before this tool (voice/events.py:103), and livekit's own error names it
+            # as the way. So the announcement is heard, THEN the thing announced happens — and the
+            # log reads in that order too, because the turn is written when its playout ends.
+            await context.wait_for_playout()
             # The melody covers the round trip and nothing after it: it has stopped before the
             # read-back is said, so the caller never hears the sentence over the music.
             async with self.hold.playing():
                 text = await self.ran(spec, use)
+            # Heard out before the tool returns: the reply to this result is generated the instant
+            # it does, from the history as it stands, and the receipt joins the history only once
+            # its audio has played (reading_back.py). Returned earlier, the model answered the
+            # result never having seen the receipt, and said the booking a second time.
             said = self.read_backs.pop(use.call_id, None)
             if said is not None:
-                read_back(context.session, said)
+                await read_back(context.session, said)
             return text
 
         schema: dict[str, Any] = {
