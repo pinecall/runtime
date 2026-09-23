@@ -15,8 +15,8 @@ SHIPPED="src/pinecall/gateway"
 # the other half of this and the two are read together. `admin/` is swept away because a box
 # deployed before the operator's page was removed still carries it, and a stale bundle served by
 # nobody is a bundle somebody finds.
-BUILT="$CONSOLE/dist"
-pnpm --dir "$CONSOLE" exec vite build --logLevel error
+BUILT="$CONSOLE/apps/console/dist"
+pnpm --dir "$CONSOLE/apps/console" exec vite build --logLevel error
 [ -f "$BUILT/index.html" ] || { echo "vite built no page at $BUILT" >&2; exit 1; }
 rm -rf "${SHIPPED:?}/console" "${SHIPPED:?}/admin"
 mkdir -p "$SHIPPED"
