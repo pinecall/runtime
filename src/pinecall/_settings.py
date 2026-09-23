@@ -305,6 +305,13 @@ class Settings(VendorKeys):
         default="",
         description="Packages that plug a policy into the runtime's points, comma separated.",
     )
+    # Pinecall's own mobile app calls /v1 from a WebView whose origin is not this box's, and its
+    # two origins are always let in (api/app_origins.py). These are the ones a person adds, one by
+    # one — the app's dev server on a laptop — and never a wildcard. docs/protocol/people.md.
+    app_origins: str = Field(
+        default="",
+        description="Origins besides the mobile app's two that may call /v1, comma separated.",
+    )
     # The org's own key, as `keys issue` printed it: what the WORKER knocks at its gateway with,
     # minted once by pinecall-worker-key.service and kept in the credstore. It was
     # PINECALL_API_KEY — this credential, a key source in the v2 CLI and the variable v1's SDK

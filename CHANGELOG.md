@@ -6,6 +6,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 
 ## [Unreleased]
 
+### Added
+- **The mobile app may call `/v1` from its WebView.** `capacitor://localhost` and
+  `https://localhost` get their origin echoed with `Vary: Origin` and their preflight answered;
+  `PINECALL_APP_ORIGINS` adds a dev server, comma separated. Any other origin still gets no CORS
+  header, and nothing says `Allow-Credentials`.
+
 ### Security
 - **A leg dialled into a live call passes the org's dial guards.** A warm transfer and
   `room.invite` go out on the org's own carrier, and until now neither passed the fences

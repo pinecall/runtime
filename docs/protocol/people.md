@@ -226,9 +226,21 @@ and still passwordless, since a sign-up would choose that person's one password 
 
 The console is served by this gateway, so it is the same origin as every door it uses, and the
 sign-up is **its** screen (`/signup`): a site somewhere else links to it rather than posting here.
-That is why no door of this runtime sends a CORS header — there is no legitimate cross-origin
-caller. The one answer that carries one is not a door: the widget script at
-`/widget/pinecall-widget.js`, which any site loads from the gateway.
+So no page on the web has a reason to call a door from elsewhere, and no page is let: a CORS
+header goes to exactly one caller, **Pinecall's own mobile app** — a supervisor's WebView, whose
+origin is `capacitor://localhost` on iOS and `https://localhost` on Android and never this box's.
+Those two origins are always allowed; `PINECALL_APP_ORIGINS` adds more, comma separated, and is
+for the app's dev server (`http://localhost:5173`) on a laptop — unset, there are only the two. An
+allowed origin gets itself echoed in `Access-Control-Allow-Origin` with `Vary: Origin`, on every
+`/v1` door including the SSE streams, and its preflight is told `GET POST PUT PATCH DELETE`, the
+headers `authorization`, `content-type`, `pinecall-env`, `pinecall-corner`, `last-event-id`,
+`accept`, and ten minutes of `Max-Age` (`api/app_origins.py`). Any other origin gets no CORS header
+at all, preflight included, and its browser refuses as before. **A list and not `*`**, because a
+person's key in a page anywhere is a key some page anywhere can be written to steal; a list names
+the one app that holds one. **No `Allow-Credentials`**, because the key travels as a bearer header
+the app sets itself and never as a cookie a browser would send on its own. The other answer that
+carries a CORS header is not a door: the widget script at `/widget/pinecall-widget.js`, which any
+site loads from the gateway with `*`.
 
 ## Signing a terminal in
 

@@ -30,6 +30,7 @@ own name, so the SDK that reads `ANTHROPIC_API_KEY` by itself and this runtime a
 | `PINECALL_DOMAIN` | the box's public name: where a carrier sends a call for a number a tenant imports. Unset, nothing imports |
 | `PINECALL_WORKER_HTTP_PORT` | where the worker's own health server binds, on loopback: 8082 unless set |
 | `PINECALL_SIGNUP` · `PINECALL_CLOUD` · `PINECALL_EXTENSIONS` | whether a stranger may make an org here (off unless set); Pinecall's hosted gateway; packages that plug a policy into the runtime, comma separated |
+| `PINECALL_APP_ORIGINS` | origins besides the mobile app's own two (`capacitor://localhost`, `https://localhost`) that may call `/v1` from a browser, comma separated — the app's dev server on a laptop. Unset, only the two; never `*` ([people.md](protocol/people.md)) |
 | `PINECALL_MIN_PASSWORD` | how short a member's password may be: 8 unless set, `0` for no rule |
 | `PINECALL_JUDGE_CEILING_EUR` | what judging one call may spend on a model. Zero: no judge asks |
 | `PINECALL_VOICE_LOOKUP_BUDGET_MS` · `PINECALL_TEXT_LOOKUP_BUDGET_MS` · `PINECALL_REMEMBER_BUDGET_S` | how long a turn waits for recall and search, and a hang-up for memory |

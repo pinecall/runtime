@@ -124,7 +124,7 @@ that colleague's corner.
 | `GET`·`POST` | `/v1/whatsapp/webhook` | Meta's |
 | `GET` | `/.well-known/pinecall` | what this gateway is before anybody holds a key: version, `cloud`, `signup`, `min_password`, `mail`, `brand`, `google` — no key |
 | `GET` | `/` | the console — no key to load, it proves its own |
-| `GET` | `/widget/pinecall-widget.js` | the widget, for any site to load: `Access-Control-Allow-Origin: *`, the one CORS answer |
+| `GET` | `/widget/pinecall-widget.js` | the widget, for any site to load: `Access-Control-Allow-Origin: *`, the one answer to any origin; under `/v1` only the mobile app's origins are echoed ([people.md](people.md)) |
 | | `/v1/ops/*` | the operator's: the box's own key, or the key of a person the box made an operator — [operator-api.md](operator-api.md) |
 
 `GET /openapi.json` is the generated schema of all of it — with `/v1/docs` and `/v1/redoc`, the two

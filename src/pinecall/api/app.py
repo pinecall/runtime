@@ -18,6 +18,7 @@ from pinecall.api._live import Live
 from pinecall.api._refusals import refusals_answered_by
 from pinecall.api.agents.processes import Processes
 from pinecall.api.agents.registry import Registry
+from pinecall.api.app_origins import AppOrigins
 from pinecall.api.evals.runner import Runner
 from pinecall.api.reaping import Reaper, reaping
 from pinecall.api.rebuilding import reconciled
@@ -349,3 +350,7 @@ app.include_router(pages.router)
 # What every door above answers when the embedder refuses or the rows were written by another
 # model: a status and the refusal's own sentence, in one table (api/_refusals.py).
 refusals_answered_by(app)
+
+# The one caller of a door from another origin: Pinecall's own mobile app, by an allowlist and
+# only under /v1 (api/app_origins.py). Every other origin is answered exactly as it was before.
+app.add_middleware(AppOrigins)

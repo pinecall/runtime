@@ -12,7 +12,7 @@ below is generated from the schema into **protocol**'s `docs/`; the terminal is 
 ## The shape of it
 
 A gateway is an API at `/v1`, and beside it serves the console at `/` and the widget at `/widget/pinecall-widget.js` — the one answer carrying `Access-Control-Allow-Origin: *`
-(`api/pages.py`). That console holds a person's scoped key (§8) and shows production; the sandbox's is the same page served at the box's second name, where a request asking for production is refused (`auth/world.py`).
+(`api/pages.py`); `/v1` echoes only the mobile app's origins (`api/app_origins.py`, [people.md](people.md)). That console holds a person's scoped key (§8) and shows production; the sandbox's is the same page served at the box's second name, where a request asking for production is refused (`auth/world.py`).
 Three kinds of connection, and only three:
 
 | | what it is | who opens it |
