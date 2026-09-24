@@ -108,6 +108,14 @@ row unsealed. It is **taken up** the next time it is spoken to (`api/calls/takin
 - **WhatsApp**: the contact's next message finds their newest call with the agent still open, and
   goes on it. One that went a whole idle period (two hours) without a word while nobody was
   watching is ended then, as it would have been, and the message opens a new call.
+- **A WhatsApp message nobody can answer yet** — it arrived in the seconds no app held the agent,
+  a deploy or the gateway starting — is never dropped. It is written onto the agent's own log as
+  `message.waiting` and answered, in order, the moment a socket holds the agent again (the gateway
+  looks every two seconds, and a new message from the same person brings theirs along first);
+  `message.taken` says on which call. The log is the queue, so a second restart loses none: a
+  gateway that starts reads back what is still waiting. One older than WhatsApp's 24-hour
+  customer-service window can no longer be answered with free text, and is let go with
+  `message.taken` naming no call.
 
 Taken up, the session is rebuilt from the log — the conversation as the model reads it (turns,
 tools and what they returned), the state, the numbering — no quota is asked again and nothing is

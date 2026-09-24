@@ -39,6 +39,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   A written call (`WS /v1/chat`, WhatsApp), which runs in the gateway, is taken up from its log
   after a restart instead of being lost: `?call=<id>` on the chat socket, and a WhatsApp contact's
   next message goes on their open call, history and state whole.
+  A WhatsApp message that arrives while no app holds its agent is no longer dropped: it waits on
+  the agent's log (`message.waiting`, protocol 0.6.7) and is answered, in order, once a socket
+  holds the agent again; `message.taken` closes it.
   `docs/protocol/a-deploy-never-cuts-a-call.md`.
 
 ### Security

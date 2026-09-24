@@ -17,6 +17,7 @@ from pinecall.api.agents.holding import Registration
 from pinecall.api.calls.opening import a_text_call
 from pinecall.api.calls.taking_up import taken_up
 from pinecall.api.whatsapp.doors import Doors
+from pinecall.api.whatsapp.waiting import Waiting, WaitingRoom
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.providers.models import NoProvider
 from pinecall.providers.registry import Asked, a_key
@@ -42,9 +43,6 @@ WINDOW_SECONDS = 24 * 60 * 60
 # Only text is read here. A voice note, an image or a location is acknowledged and dropped: it
 # must not open a session that would then answer a message nobody could read.
 ONLY_TEXT = "whatsapp: a %s from %s was dropped — only text is read here"
-
-# The agent a route names is not being held by any app socket right now, so nothing can answer.
-NOBODY_SERVING = "whatsapp: no app is holding agent %s, so %s is unanswered"
 
 # The agent is held, and the call still cannot open: no key for the model it declared, no WhatsApp
 # token in either the org or the box, or the org is past a quota. Refused at the door, before the
@@ -128,6 +126,8 @@ class Threads:
     def __init__(self, idle_seconds: float = IDLE_SECONDS) -> None:
         self._open: dict[tuple[str, str], Thread] = {}
         self._idle_seconds = idle_seconds
+        # What reached a number while nobody held its agent: kept, and answered when somebody does.
+        self.waiting = WaitingRoom(WINDOW_SECONDS)
 
     def of(self, number: str, wa_id: str) -> Thread | None:
         """The thread this pair is talking on, or None when nobody has written yet."""
@@ -142,6 +142,10 @@ class Threads:
             return
         thread = self.of(inbound.number, inbound.wa_id) or await self._opened(doors, inbound)
         if thread is not None:
+            # What they wrote while nobody could answer goes first, in order, whoever reaches it.
+            for kept in self.waiting.of(inbound.number, inbound.wa_id):
+                thread.heard(kept.inbound.text or "")
+                await self.waiting.taken(doors.logs, kept, thread.session.call)
             thread.heard(inbound.text)
 
     # The chat door's steps, in the chat door's order, with the agent found by the DOOR rather
@@ -154,7 +158,9 @@ class Threads:
             return None
         held = doors.registry.taking(route.env, route.agent)
         if held is None:
-            logger.warning(NOBODY_SERVING, route.agent, inbound.number)
+            # A deploy, a gateway just restarted: nobody holds the agent for a few seconds, and a
+            # person who wrote in those seconds is kept waiting, never dropped.
+            await self.waiting.kept(doors.logs, route, inbound)
             return None
         going = await self._taken_up(doors, inbound, route, held)
         if going is not None:
@@ -246,6 +252,15 @@ class Threads:
         session.watch(sending(session, doors.graph, token, thread.phone_number_id, inbound.wa_id))
         self._open[(inbound.number, inbound.wa_id)] = thread
         return thread
+
+    async def answering(self, doors: Doors, waiting: Waiting) -> str | None:
+        """A kept message onto its thread, now somebody holds the agent: the call it went on."""
+        inbound = waiting.inbound
+        thread = self.of(inbound.number, inbound.wa_id) or await self._opened(doors, inbound)
+        if thread is None or waiting not in self.waiting.of(inbound.number, inbound.wa_id):
+            return None
+        thread.heard(inbound.text or "")
+        return thread.session.call
 
     def _forgetting(self, doors: Doors) -> Closing:
         """How a thread of this table ends itself: the log sealed, and the row dropped."""

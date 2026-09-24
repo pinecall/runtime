@@ -22,6 +22,7 @@ from pinecall.api.app_origins import AppOrigins
 from pinecall.api.evals.runner import Runner
 from pinecall.api.reaping import Reaper, reaping
 from pinecall.api.rebuilding import reconciled
+from pinecall.api.whatsapp.answering import a_waiting_room
 from pinecall.api.whatsapp.threads import Threads
 from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import NO_KEYS_TABLE, keys_for
@@ -237,9 +238,13 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # exists. A Redis that came up empty took every number with it and nothing said so
     # (2026-09-22); this is what says so, and puts them back. api/rebuilding.py.
     rebuilding = _a_rebuild(gateway)
+    # And the WhatsApp messages that reached a number while nobody held its agent — a deploy, this
+    # very restart — are kept on the log and answered once somebody does: api/whatsapp/waiting.py.
+    waiting = await a_waiting_room(gateway.state)
     try:
         yield
     finally:
+        await _cancelled(waiting)
         if rebuilding is not None:
             await _cancelled(rebuilding)
         if reaper is not None:
