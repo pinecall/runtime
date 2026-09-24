@@ -265,6 +265,17 @@ async def test_a_call_says_which_corner_it_was_opened_in(
     assert corner is not None and corner.is_in(org, "sandbox", "m_dev") and corner.agent == agent
 
 
+async def test_a_corner_says_whether_its_head_row_is_sealed_and_when_it_started(
+    store: Indexing, org: str, agent: str
+) -> None:
+    live = await a_call(store, org, agent, ended=False)
+    over = await a_call(store, org, agent)
+    still = await store.corner_of_call(live)
+    done = await store.corner_of_call(over)
+    assert still is not None and not still.sealed and still.started_at is not None
+    assert done is not None and done.sealed
+
+
 def test_a_verdict_nobody_settled_is_no_score() -> None:
     skipped = CallFacts(call="CA_1", judged=0, held=0, passed=None)
     assert (skipped.score_row, skipped.flags) == (None, [])

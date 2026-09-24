@@ -205,6 +205,8 @@ class MemoryStore:
             log.facts.agent,
             log.config_version,
             log.lexicon_version,
+            log.sealed,
+            log.started_at,
         )
 
     async def facts_of(self, calls: Sequence[str]) -> dict[str, CallFacts]:

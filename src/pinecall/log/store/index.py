@@ -25,6 +25,10 @@ class CallCorner:
     # nothing, and for every call from before the columns.
     config_version: int | None = None
     lexicon_version: int | None = None
+    # Whether the head row is sealed, and when the call's first entry landed: what a gateway that
+    # forgot a live call reads to know it is still live, and which day it opened on.
+    sealed: bool = False
+    started_at: float | None = None
 
     def is_in(self, org: str, env: str, holder: str) -> bool:
         """Whether this call is in that corner."""

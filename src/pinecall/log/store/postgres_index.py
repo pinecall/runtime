@@ -93,6 +93,8 @@ class PostgresIndex:
             str(row["agent"] or ""),
             row["config_version"],
             row["lexicon_version"],
+            bool(row["sealed"]),
+            row["started_at"],
         )
 
     async def facts_of(self, calls: Sequence[str]) -> dict[str, CallFacts]:
