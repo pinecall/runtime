@@ -5,7 +5,7 @@ from typing import Literal, get_args
 
 from pinecall.types.refused import DeclarationRefused
 
-type Scope = Literal["talk", "chat", "observe", "supervise", "participate"]
+type Scope = Literal["talk", "chat", "observe", "supervise", "participate", "read"]
 
 SCOPES: frozenset[str] = frozenset(get_args(Scope.__value__))
 
@@ -24,6 +24,15 @@ NAME_ATTRIBUTE = "pinecall.name"
 # a tenant may ask for: a token that lives longer is a door left open on a page nobody is on.
 ONE_VISIT_TTL_S = 60
 LONGEST_VISIT_TTL_S = 600
+
+# A read token is minted beside a talk or chat token and beside a dial, for the page to follow that
+# one call's log and play its recording, before and after it ends. It opens no room. Four hours is
+# longer than any call, and short enough that a link copied out of a page is dead by tomorrow.
+READ_TTL_S = 4 * 60 * 60
+
+# The projection a read token was minted for, as an attribute of the token: a tenant's server
+# chooses it when it mints (`log` on POST /v1/tokens), the page cannot.
+PROJECTION_ATTRIBUTE = "pinecall.projection"
 
 
 @dataclass(frozen=True)
@@ -101,6 +110,18 @@ GRANTS: dict[str, Grant] = {
         own_call_only=False,
         single_use=False,
         ttl_s=None,
+    ),
+    # A read token follows one call's log and plays its recording, and does nothing else: no
+    # room, no verbs. The page holds it for the length of a call and after.
+    "read": Grant(
+        "read",
+        connects=False,
+        audio=False,
+        reads_log=True,
+        sends_verbs=False,
+        own_call_only=True,
+        single_use=False,
+        ttl_s=READ_TTL_S,
     ),
     "participate": Grant(
         "participate",

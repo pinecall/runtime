@@ -86,6 +86,7 @@ LiveKit's body, plus ours. Every field is optional but the agent, which may be n
 | `contact` | ours | the org's opaque id for the person. Becomes `participant_metadata`. Never a phone number, never a name |
 | `metadata` | ours | JSON the backend seals into the call. It rides the signed dispatch and reaches the worker as the call's metadata |
 | `ttl_s` | ours | how long the token lives: 60 by default, 600 at most (`422` past it). One dispatch opens one call whatever the TTL; a join into that call while it is live is bounded by the TTL alone (addition 3) — so a minute, unless the page has a reason |
+| `log` | ours | what the answer's `log_token` reads the call through: `public` (default) or `tenant` — the tools, the latency, the cost, a `pii` field masked. The tenant's server chooses; the page cannot |
 | `participant_identity` | LiveKit's | who the browser joins as; minted as `web_<12 hex>` when absent. It is the call's `from` in the log |
 | `participant_attributes` | LiveKit's | published to the room verbatim; the `pinecall.` prefix is ours and refused |
 | `room_config` | LiveKit's | read for the agent a stock client named; the room config the token carries is ours (below) |
@@ -93,17 +94,19 @@ LiveKit's body, plus ours. Every field is optional but the agent, which may be n
 | `participant_name` | LiveKit's | **refused**, `400`: a name is PII |
 | `participant_metadata` | LiveKit's | **refused**, `400`: it carries the contact id; send `contact` |
 
-The answer is LiveKit's, with one field more that every client SDK ignores:
+The answer is LiveKit's, with two fields more that every client SDK ignores:
 
 ```json
 { "server_url": "wss://livekit.clinica.example",
   "participant_token": "eyJhbGciOi…",
-  "call": "call_5f1c…" }
+  "call": "call_5f1c…",
+  "log_token": "eyJhbGciOi…" }
 ```
 
 `server_url` is `LIVEKIT_PUBLIC_URL` when the box sets one and `LIVEKIT_URL` otherwise — a box
 reaches its LiveKit on localhost and a browser cannot. `call` is the room the token opens and the
 id its log will have, so the backend that minted it can watch the call without decoding a JWT.
+`log_token` is the page's own reader of that call — below.
 
 ## What the token says
 
@@ -123,6 +126,23 @@ Read back with LiveKit's own `TokenVerifier`:
 The same string reads the call's log: `GET /v1/calls/{call}/events?token=…` and
 `GET /v1/calls/{call}/state?token=…` accept it as the guest reader of that one call, through the
 public projection (`projections.md`). A browser needs one token to speak and to watch its own call.
+
+## The log token
+
+The participant token dies in a minute; a call lasts longer, and a page shows it after it ends.
+`log_token` is what the page follows the call with, and it needs no relay on the tenant's server:
+
+| claim | value |
+|---|---|
+| `video.room` | the call id — and `room_join`, `can_publish`, `can_subscribe`, `can_publish_data` all false: it opens no room |
+| `attributes["pinecall.scope"]` | `read` |
+| `attributes["pinecall.projection"]` | the `log` the mint asked for |
+| `exp` | now plus four hours |
+
+It reads `GET /v1/calls/{call}/events`, `/state` and `/recording` of that one call, as `?token=`
+or as the bearer, through the projection it names — before the call ends and after, until it
+expires. Another call is `403`, an agent's log is `403`, and a supervise verb is `403`: it reads,
+and never steers. `POST /v1/agents/{slug}/dial` answers one too, with the same `log`.
 
 ## Refusals
 

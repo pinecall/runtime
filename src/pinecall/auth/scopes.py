@@ -7,7 +7,7 @@ import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any
+from typing import Any, cast, get_args
 
 import jwt
 from livekit.api import AccessToken, TokenVerifier, VideoGrants
@@ -19,6 +19,7 @@ from pinecall.types.token import (
     BOUND_TO_ONE_CALL,
     GRANTS,
     NAME_ATTRIBUTE,
+    PROJECTION_ATTRIBUTE,
     SCOPE_ATTRIBUTE,
     SUBJECT_ATTRIBUTE,
     grant_for,
@@ -39,6 +40,9 @@ PROJECTION_OF: dict[str, Projection] = {
 
 # An API key IS the tenant: observe, supervise and the dev key all read the tenant's own log.
 KEY_PROJECTION: Projection = "tenant"
+
+# The projections a token may name, as the wire spells them.
+PROJECTIONS: tuple[str, ...] = get_args(Projection.__value__)
 
 # A call token IS a LiveKit room token whose room is the call. One format for text and for voice:
 # the string that joins the room is the string that reads the call's log over SSE, so there is one
@@ -84,6 +88,9 @@ class CallToken:
     # The person the seat was minted for, when a person's key minted it: the member's id, name.
     subject: str | None = None
     name: str | None = None
+    # The projection a read token was minted for; None for every other scope, whose projection
+    # is its grant's.
+    projection: Projection | None = None
 
 
 def is_a_jwt(bearer: str) -> bool:
@@ -126,6 +133,9 @@ def a_call_token(token: str, secret: LivekitKeys) -> CallToken | None:
     # token is not on that list either: a listener hears the room and reads nothing.
     if not room or scope not in BOUND_TO_ONE_CALL:
         return None
+    projection = attributes.get(PROJECTION_ATTRIBUTE)
+    if projection not in (None, *PROJECTIONS):
+        return None
     return CallToken(
         call=room,
         scope=scope,
@@ -133,6 +143,7 @@ def a_call_token(token: str, secret: LivekitKeys) -> CallToken | None:
         identity=claims.identity or None,
         subject=attributes.get(SUBJECT_ATTRIBUTE) or None,
         name=attributes.get(NAME_ATTRIBUTE) or None,
+        projection=cast("Projection | None", projection),
     )
 
 
@@ -155,6 +166,17 @@ class Reader:
     # written down as. None for an org's own key and for a visitor.
     subject: str | None = None
     name: str | None = None
+    # The scope a token was minted with; None for a key.
+    scope: str | None = None
+
+    # A key steers when it opens the verbs (the door checks which), and a token only when its
+    # scope's grant says so: a visitor's token and a page's read token read the call, never steer.
+    @property
+    def steers(self) -> bool:
+        """Whether this reader may send the supervise verbs at all."""
+        return self.key is not None or (
+            self.scope is not None and grant_for(self.scope).sends_verbs
+        )
 
 
 async def a_reader(bearer: str, keys: Keys, secret: LivekitKeys | None) -> Reader | None:
@@ -164,11 +186,12 @@ async def a_reader(bearer: str, keys: Keys, secret: LivekitKeys | None) -> Reade
         if granted is None:
             return None
         return Reader(
-            projection=PROJECTION_OF[granted.scope],
+            projection=granted.projection or PROJECTION_OF[granted.scope],
             call=granted.call,
             viewer=granted.identity,
             subject=granted.subject,
             name=granted.name,
+            scope=granted.scope,
         )
     record = await keys.verify(bearer)
     if record is None:
@@ -205,6 +228,31 @@ def a_room_token(
     if room_config is not None:
         token = token.with_room_config(room_config)
     return token.to_jwt()
+
+
+# The read token: one call's log and its recording, for as long as a page shows the call. Its grant
+# names the room — the call — and does not let it join, so LiveKit refuses it at the media plane
+# and every door of ours reads the call it is bound to exactly as it reads a room token's.
+def a_log_token(
+    call: str, projection: Projection, secret: LivekitKeys, identity: str | None = None
+) -> str:
+    """A token that reads that call's log, through that projection, and opens nothing else."""
+    return (
+        AccessToken(secret.api_key, secret.api_secret)
+        .with_identity(identity or a_visitor())
+        .with_grants(
+            VideoGrants(
+                room=call,
+                room_join=False,
+                can_publish=False,
+                can_subscribe=False,
+                can_publish_data=False,
+            )
+        )
+        .with_ttl(timedelta(seconds=grant_for("read").ttl_s or 0))
+        .with_attributes({SCOPE_ATTRIBUTE: "read", PROJECTION_ATTRIBUTE: projection})
+        .to_jwt()
+    )
 
 
 def grants_of(scope: str, call: str) -> VideoGrants:

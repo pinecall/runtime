@@ -186,7 +186,7 @@ serves it, `contact=<id>` to say who is calling (memory files the call under it)
 `caller=<id>` for the `from` on `call.started`.
 
 `POST /v1/tokens` takes `{agent, scope, contact?, ttl_s?, metadata?, participant_identity?}` and
-answers `{server_url, participant_token, call}` — or **`503`** when every worker of the fleet is
+answers `{server_url, participant_token, call, log_token}` — the last one the page's reader of that call, for as long as it shows it ([tokens.md](tokens.md)) — or **`503`** when every worker of the fleet is
 full, with the numbers and the way out in the sentence (`every seat of the fleet is taken: 12
 calls on 3 workers. Offer a call back — POST /v1/callbacks with the number — or try again in a
 minute.`) and `fleet.full` in the agent's log. Your page offers the visitor a call back **before**
@@ -222,7 +222,7 @@ curl -H "authorization: Bearer $KEY" -H "accept: text/event-stream" \
 | `limit` | up to 500 entries per page |
 | `types` | `turn.user,turn.agent` — only those |
 | `durable` | `1` drops the ephemeral entries (interim transcripts, VAD) |
-| `token` | a room token, for a browser that cannot set a header |
+| `token` | a room token or the `log_token` a mint answered, for a browser that cannot set a header |
 
 `next` is the last seq the page **read**, not the last it kept, so a page whose every entry was
 filtered still moves you forward. `null` means you have reached the end of what is written.

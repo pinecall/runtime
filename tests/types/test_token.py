@@ -11,6 +11,7 @@ from pinecall.types.token import (
     LONGEST_VISIT_TTL_S,
     MINTED_FOR_A_VISIT,
     ONE_VISIT_TTL_S,
+    READ_TTL_S,
     READS_ITS_OWN_CALL,
     SCOPES,
 )
@@ -19,7 +20,7 @@ pytestmark = pytest.mark.unit
 
 
 def test_token_scopes_are_a_closed_set() -> None:
-    assert SCOPES == {"talk", "chat", "observe", "supervise", "participate"}
+    assert SCOPES == {"talk", "chat", "observe", "supervise", "participate", "read"}
     assert set(GRANTS) == SCOPES == set(get_args(Scope.__value__))
     assert all(GRANTS[scope].scope == scope for scope in SCOPES)
     with pytest.raises(DeclarationRefused, match="not a token scope"):
@@ -38,7 +39,7 @@ def test_talk_reads_the_one_call_it_opens_so_a_browser_needs_one_token() -> None
     """The participate grant rides the talk token: one string to speak and to watch its own call."""
     talk = grant_for("talk")
     assert talk.reads_log and talk.own_call_only
-    assert READS_ITS_OWN_CALL == {"talk", "chat", "participate"}
+    assert READS_ITS_OWN_CALL == {"talk", "chat", "participate", "read"}
     assert MINTED_FOR_A_VISIT == {"talk", "chat"}
 
 
@@ -81,3 +82,11 @@ def test_a_grant_is_data_nobody_edits_at_runtime() -> None:
     any_field: str = "sends_verbs"
     with pytest.raises(FrozenInstanceError):
         setattr(grant_for("observe"), any_field, True)
+
+
+def test_read_follows_one_call_for_hours_and_opens_no_room_and_steers_nothing() -> None:
+    read = grant_for("read")
+    assert read.reads_log and read.own_call_only and not read.single_use
+    assert not read.connects and not read.audio and not read.hears and not read.sends_verbs
+    assert read.ttl_s == READ_TTL_S == 4 * 60 * 60
+    assert "read" not in MINTED_FOR_A_VISIT

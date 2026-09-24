@@ -32,6 +32,10 @@ NO_LIVE_CALL = "no live call {call!r} on this gateway"
 # operator debug a permission as if it were a routing bug.
 NOT_YOUR_CALL = "that call belongs to another org"
 
+# A token bound to this call whose grant sends no verbs — a visitor's talk or chat token, a page's
+# read token — reads the call and never steers it; only a supervise token and a key do.
+READS_ONLY = "this token reads the call and sends no verb: steering it takes a supervise token"
+
 # The scope a key steers a call with. A supervise TOKEN was minted at a door that already asked
 # it, so the token's grant is the whole of its right; a key is asked here, at both verb doors.
 STEERS = "supervise"
@@ -95,6 +99,9 @@ async def aimed(
     verb: verbs.Verb,
 ) -> None:
     """This verb onto that call's worker, or a VerbRefused saying why it will not go."""
+    # Authority first: a bearer that may not steer learns nothing, not even whether the call lives.
+    if not reader.steers:
+        raise VerbRefused(403, READS_ONLY)
     snapshot = await snapshots.of(call)
     if snapshot is None:
         raise VerbRefused(404, NO_LIVE_CALL.format(call=call))

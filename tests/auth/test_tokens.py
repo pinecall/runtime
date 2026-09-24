@@ -13,6 +13,7 @@ from pinecall.auth.scopes import (
     THE_MICROPHONE,
     LivekitKeys,
     a_call_token,
+    a_log_token,
     a_reader,
     a_room_token,
     grants_of,
@@ -158,3 +159,29 @@ async def test_a_call_token_at_the_same_door_reads_its_own_call_as_a_guest(scope
     reader = await a_reader(token, MemoryKeys(), THE_PAIR)
     assert reader is not None and reader.projection == PROJECTION_OF[scope] == "public"
     assert reader.call == A_CALL and reader.viewer == "web_abc123abc123"
+
+
+def test_a_log_token_reads_its_call_through_the_projection_it_was_minted_for() -> None:
+    granted = a_call_token(a_log_token(A_CALL, "tenant", THE_PAIR), THE_PAIR)
+    assert granted is not None and granted.call == A_CALL and granted.scope == "read"
+    assert granted.projection == "tenant"
+    assert granted.expires_at > time.time() + 3 * 60 * 60
+
+
+def test_a_log_token_opens_no_room() -> None:
+    claims = TokenVerifier(THE_PAIR.api_key, THE_PAIR.api_secret).verify(
+        a_log_token(A_CALL, "public", THE_PAIR)
+    )
+    assert claims.video is not None and claims.video.room == A_CALL
+    assert not claims.video.room_join and not claims.video.can_publish
+    assert not claims.video.can_subscribe and not claims.video.can_publish_data
+
+
+async def test_a_reader_from_a_log_token_reads_and_never_steers() -> None:
+    reader = await a_reader(a_log_token(A_CALL, "tenant", THE_PAIR), MemoryKeys(), THE_PAIR)
+    assert reader is not None and reader.call == A_CALL and reader.projection == "tenant"
+    assert not reader.steers
+    visitor = await a_reader(a_token(scope="talk"), MemoryKeys(), THE_PAIR)
+    assert visitor is not None and not visitor.steers
+    desk = await a_reader(a_token(scope="supervise"), MemoryKeys(), THE_PAIR)
+    assert desk is not None and desk.steers

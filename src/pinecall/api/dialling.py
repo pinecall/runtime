@@ -10,11 +10,19 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import Field
 
 from pinecall.api._corner import CornerDep
-from pinecall.api._deps import AdmissionDep, DeclarationKeyDep, LogsDep, RoutesDep, TalkKeyDep
+from pinecall.api._deps import (
+    AdmissionDep,
+    DeclarationKeyDep,
+    LogsDep,
+    RoutesDep,
+    SettingsDep,
+    TalkKeyDep,
+)
 from pinecall.api._placing import DispatchesDep, GuardsDep, KeptOutboundTrunksDep, OutboundDep
 from pinecall.api._serving import ServingDep
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.auth.keys import KeyRecord, held_by
+from pinecall.auth.scopes import a_log_token, secret_for
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.orgs.guards import Asking, DialRefused
@@ -23,6 +31,7 @@ from pinecall.routes.table import Routes
 from pinecall.session.first_entries import arrived
 from pinecall.types import CallContext, DeclarationRefused, Route, a_call_id, an_e164
 from pinecall_protocol import WireModel, encode
+from pinecall_protocol.defs import Projection
 from pinecall_protocol.events import CallEnded
 
 router = APIRouter()
@@ -60,6 +69,8 @@ class WantedCall(WireModel):
     to: str
     # One of the agent's own numbers in this world. Unsaid, the first door it answers at.
     shown: str | None = Field(default=None, alias="from")
+    # What the answer's log_token reads the call through, as POST /v1/tokens takes it.
+    log: Projection = "public"
 
 
 @router.post("/v1/agents/{slug}/dial", status_code=PLACED)
@@ -75,6 +86,7 @@ async def dial(
     admission: AdmissionDep,
     live: ServingDep,
     logs: LogsDep,
+    settings: SettingsDep,
 ) -> dict[str, Any]:
     """Place a call as this agent: the guards, the log, and a job in a room named by the call."""
     if dispatches is None:
@@ -134,6 +146,7 @@ async def dial(
         "to": allowed.destination.number,
         "from": shown,
         "env": key.env,
+        "log_token": a_log_token(call, said.log, secret_for(settings)),
     }
 
 

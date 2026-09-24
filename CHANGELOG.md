@@ -26,9 +26,15 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   (`POST /v1/calls/{call}/reopened`), so appends, the command stream and tools go on.
   `agent.drain` lets a process that is leaving hand its calls on first and take no new one;
   `agent.draining` says how many went where.
+  `POST /v1/tokens` and `…/dial` answer a `log_token`: a `read` token that follows that one
+  call's log and recording for four hours, through the projection the tenant's server asked
+  (`log`), and opens no room — a page needs no relay.
   `docs/protocol/a-deploy-never-cuts-a-call.md`.
 
 ### Security
+- **A token that does not steer sends no verb.** A visitor's `talk` or `chat` token was admitted
+  by `POST /v1/calls/{call}/verbs` and `WS /v1/attach` for its own call; only a key and a
+  `supervise` token are now, and the refusal comes before the call is looked up.
 - **A leg dialled into a live call passes the org's dial guards.** A warm transfer and
   `room.invite` go out on the org's own carrier, and until now neither passed the fences
   `POST /v1/agents/{slug}/dial` passes: an agent with a number in its class dialled as often as it

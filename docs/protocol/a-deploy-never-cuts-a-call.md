@@ -81,3 +81,12 @@ The gateway checks the call's head row — it exists, it is the key's org's, it 
 if it has) — and serves the call as it was: no quota asked, no token spent, no second
 `call.ringing`. The socket holding the agent hears `call.attached`. The worker's command stream,
 cut by the restart, is opened again the same way.
+
+## The page
+
+A page follows its call's log with the `log_token` its server's mint (or dial) answered
+([tokens.md](tokens.md)), straight from the gateway, and plays the recording with it at the end.
+Nothing on the tenant's server remembers which calls it opened, so the tenant's server restarting
+touches no call a page is showing. A gateway restarting cuts the page's stream; it reconnects with
+`Last-Event-ID` and misses nothing (§3 of [gateway-api.md](gateway-api.md)).
+

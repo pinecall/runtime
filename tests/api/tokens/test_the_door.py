@@ -93,7 +93,7 @@ async def test_the_answer_is_livekits_shape_and_livekits_own_verifier_reads_the_
             },
         )
     assert status == 201, said
-    assert set(said) == {"server_url", "participant_token", "call"}
+    assert set(said) == {"server_url", "participant_token", "call", "log_token"}
     assert said["server_url"] == Settings().livekit_url
     claims = TokenVerifier(A_LIVEKIT.api_key, A_LIVEKIT.api_secret).verify(
         said["participant_token"]

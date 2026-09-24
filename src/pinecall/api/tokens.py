@@ -20,13 +20,14 @@ from pinecall.api._serving import ServingDep
 from pinecall.api.agents.reaching import reached_by
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.auth.keys import KeyRecord, held_by
-from pinecall.auth.scopes import a_room_token, a_visitor, secret_for
+from pinecall.auth.scopes import a_log_token, a_room_token, a_visitor, secret_for
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.tokens.ledger import TokenRecord
 from pinecall.tokens.room import a_dispatch, the_agent_a_client_named
 from pinecall.types import THE_WIDGET, DeclarationRefused, a_call_id
 from pinecall.types.token import LONGEST_VISIT_TTL_S, MINTED_FOR_A_VISIT, ONE_VISIT_TTL_S
 from pinecall_protocol import WireModel, encode
+from pinecall_protocol.defs import Projection
 from pinecall_protocol.events import FleetFull
 
 router = APIRouter()
@@ -77,6 +78,9 @@ class Wanted(WireModel):
     # dispatch, and a browser can read it there and alter none of it.
     metadata: dict[str, Any] = Field(default_factory=dict)
     ttl_s: int = Field(default=ONE_VISIT_TTL_S, ge=1, le=LONGEST_VISIT_TTL_S)
+    # What the page's log_token reads the call through: the public projection unless the tenant's
+    # server says its page draws the tenant's — the tools, the latency, the cost.
+    log: Projection = "public"
     # ── LiveKit's ────────────────────────────────────────────────────────────
     participant_identity: str | None = None
     participant_attributes: dict[str, str] = Field(default_factory=dict)
@@ -140,6 +144,7 @@ async def mint(
         "server_url": settings.livekit_public_url or settings.livekit_url,
         "participant_token": token,
         "call": call,
+        "log_token": a_log_token(call, said.log, secret_for(settings), visitor),
     }
 
 
