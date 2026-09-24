@@ -67,6 +67,8 @@ class Unsealed:
     agent: str
     started_at: float
     last_at: float
+    # The door it came through, for a written call: how long it may go quiet depends on it.
+    channel: str | None = None
 
 
 @dataclass(frozen=True)
@@ -162,6 +164,13 @@ class CallIndex(Protocol):
     # answer short whatever the store holds.
     async def unsealed_spoken(self, quiet_since: float, limit: int) -> list[Unsealed]:
         """Every spoken or never-started call, its log unsealed and quiet since `quiet_since`."""
+        ...
+
+    # The other half: a written call runs in the gateway's own process, which ends it when it is
+    # over — unless the process went first. A restart leaves it open for its caller to come back
+    # to (api/calls/taking_up.py); one nobody came back to is the reaper's, past its channel's wait.
+    async def unsealed_written(self, quiet_since: float, limit: int) -> list[Unsealed]:
+        """Every started, unspoken call, its log unsealed and quiet since then, with its channel."""
         ...
 
     async def found(self, org: str, env: str, holder: str, wanted: Wanted, limit: int) -> Found:

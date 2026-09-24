@@ -1,4 +1,4 @@
-"""Which rooms the SFU still has: the one question the reaper asks it, and how it is asked."""
+"""Which rooms an agent is still in: the one question the reaper asks the SFU, and how."""
 
 import pytest
 
@@ -8,11 +8,21 @@ from pinecall.routes.rooms import AT_MOST, LivekitRooms, MemoryRooms, in_batches
 pytestmark = pytest.mark.unit
 
 
-async def test_a_room_that_is_there_answers_and_one_that_is_not_is_simply_absent() -> None:
-    """The absence IS the answer: livekit deletes an empty room, so a gone room is a gone call."""
+async def test_only_a_room_an_agent_is_in_answers() -> None:
+    """A room with only people left in it is not a call anybody is running."""
+    rooms = MemoryRooms(["call_live"], agentless=["call_people_only"])
+    assert await rooms.with_an_agent(["call_live", "call_people_only", "call_gone"]) == {
+        "call_live"
+    }
+    assert await rooms.with_an_agent([]) == set()
+
+
+async def test_a_room_closed_is_gone_whoever_was_in_it() -> None:
     rooms = MemoryRooms(["call_live"])
-    assert await rooms.still_open(["call_live", "call_gone"]) == {"call_live"}
-    assert await rooms.still_open([]) == set()
+    await rooms.closed("call_live")
+    await rooms.closed("call_gone")
+    assert await rooms.with_an_agent(["call_live"]) == set()
+    assert rooms.taken_down == ["call_live", "call_gone"]
 
 
 def test_the_names_are_asked_for_in_batches_so_a_hundred_calls_are_one_round_trip() -> None:

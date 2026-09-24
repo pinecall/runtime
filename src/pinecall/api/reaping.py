@@ -1,4 +1,4 @@
-"""The reaper: a spoken call whose room the SFU no longer has, ended here so its log can seal."""
+"""The reaper: a call in a room no agent is in any more, ended here so its log can seal."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import time
 from dataclasses import dataclass
 
 from pinecall.api._serving import Serving
+from pinecall.api.whatsapp.threads import IDLE_SECONDS
 from pinecall.log import NOTHING_SAID, reduce
 from pinecall.log.logs import CallLog
 from pinecall.log.store import LogSealed
@@ -15,6 +16,7 @@ from pinecall.log.store.index import CallIndex, Unsealed
 from pinecall.log.writers import Logs
 from pinecall.providers import prices
 from pinecall.routes.rooms import Rooms
+from pinecall.whatsapp.routing import WHATSAPP
 from pinecall_protocol import defs, encode
 from pinecall_protocol.events import CallEnded, CallScore, CallSummary
 from pinecall_protocol.state import AgentTurn, State
@@ -47,6 +49,8 @@ AT_MOST = 100
 # emptied, the SFU deleted it — so the reaper says the same word rather than inventing one.
 # `error` would blame a fault nobody saw, and `timeout` is the written thread's own ending.
 DRAINED: defs.EndReason = "drained"
+# And a written call nobody came back to ends the way a written thread ends by itself.
+WENT_QUIET: defs.EndReason = "timeout"
 BY_THE_PLATFORM: defs.EndedBy = "platform"
 
 # Why there is no verdict. A judge reads a call through the session that ran it, and there is none
@@ -57,7 +61,7 @@ NOT_JUDGED = (
     "log: there was no session left to judge"
 )
 
-REAPED = "sealed %s: its room is gone from the SFU and it has said nothing for %.0f s"
+REAPED = "sealed %s: no agent is in its room and it has said nothing for %.0f s"
 
 
 # Everything a normal ending writes, in the order it writes it. A log that already has one of them
@@ -78,31 +82,47 @@ class Reaper:
     live: Serving
 
     async def a_pass(self, now: float) -> list[str]:
-        """One tick: the quiet open calls, the rooms the SFU still has, and the rest are sealed."""
-        quiet = await self.index.unsealed_spoken(now - QUIET_S, AT_MOST)
-        if not quiet:
-            return []
-        standing = await self.rooms.still_open([one.call for one in quiet])
-        orphans = [one for one in quiet if one.call not in standing]
+        """One tick: the quiet open calls nobody runs — no agent in the room, no process on the
+        written call — and each is sealed."""
         sealed: list[str] = []
-        for orphan in orphans:
-            if await self._sealed(orphan, now):
+        quiet = await self.index.unsealed_spoken(now - QUIET_S, AT_MOST)
+        standing: set[str] = set()
+        if quiet:
+            standing = await self.rooms.with_an_agent([one.call for one in quiet])
+        for orphan in (one for one in quiet if one.call not in standing):
+            if await self._sealed(orphan, now, DRAINED):
+                sealed.append(orphan.call)
+        for orphan in await self.index.unsealed_written(now - QUIET_S, AT_MOST):
+            if self._left(orphan, now) and await self._sealed(orphan, now, WENT_QUIET):
                 sealed.append(orphan.call)
         return sealed
+
+    # A written call this process is running ends itself. One it is not — its process restarted
+    # under it — waits for its caller to come back and take it up, as long as its door waits for
+    # anybody: a WhatsApp thread two hours, a chat socket the few minutes a client redials for.
+    def _left(self, orphan: Unsealed, now: float) -> bool:
+        """Whether nobody runs this written call and it has been quiet past its door's patience."""
+        if self.live.org_of(orphan.call) is not None:
+            return False
+        patience = IDLE_SECONDS if orphan.channel == WHATSAPP else QUIET_S
+        return now - orphan.last_at >= patience
 
     # A second gateway may be on the same tick: whichever one writes `call.score` first seals the
     # log, and the store refuses every later append with LogSealed. So the loser writes nothing
     # past that point and says nothing about it — the call is ended, which is all this was for.
-    async def _sealed(self, orphan: Unsealed, now: float) -> bool:
+    async def _sealed(self, orphan: Unsealed, now: float, reason: defs.EndReason) -> bool:
         """End this call's log where its own worker stopped. False when somebody else got there."""
         log = self.logs.writing(orphan.call, orphan.agent)
         try:
             entries = await log.whole()
-            await _finished(log, orphan, reduce(entries), {entry.type for entry in entries})
+            state = reduce(entries)
+            await _finished(log, orphan, state, {entry.type for entry in entries}, reason)
         except LogSealed:
             return False
         self.logs.forget(orphan.call)
         self.live.close(orphan.call)
+        # Whoever is still in the room — a caller's tab, a supervisor's seat — is told it is over.
+        await self.rooms.closed(orphan.call)
         logger.warning(REAPED, orphan.call, now - orphan.last_at)
         return True
 
@@ -110,7 +130,9 @@ class Reaper:
 # The clock is the LAST thing the call said and never `now`: a call whose worker died at nine and
 # is reaped at noon lasted until nine. Reading `now` here would put three hours of silence into
 # the duration, and from there into the minutes an org is metered on.
-async def _finished(log: CallLog, orphan: Unsealed, state: State, written: set[str]) -> None:
+async def _finished(
+    log: CallLog, orphan: Unsealed, state: State, written: set[str], reason: defs.EndReason
+) -> None:
     """The three entries a call ends with, minus whatever its worker already managed to write."""
     duration = max(orphan.last_at - orphan.started_at, 0.0)
     if ENDED not in written:
@@ -118,7 +140,7 @@ async def _finished(log: CallLog, orphan: Unsealed, state: State, written: set[s
             ENDED,
             encode(
                 CallEnded(
-                    reason=DRAINED,
+                    reason=reason,
                     ended_by=BY_THE_PLATFORM,
                     ended_at=orphan.last_at,
                     duration_s=duration,
@@ -133,7 +155,7 @@ async def _finished(log: CallLog, orphan: Unsealed, state: State, written: set[s
             SUMMARY,
             encode(
                 CallSummary(
-                    reason=DRAINED,
+                    reason=reason,
                     outcome=_last_said(state),
                     duration_s=duration,
                     turns=len(state.turns),

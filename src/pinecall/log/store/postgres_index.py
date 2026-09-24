@@ -40,6 +40,7 @@ from pinecall.log.store.index_statements import (
     SPENT_BETWEEN,
     THREADS,
     UNSEALED_SPOKEN,
+    UNSEALED_WRITTEN,
 )
 
 
@@ -101,6 +102,20 @@ class PostgresIndex:
         """The facts of each of these calls that has a row."""
         rows: Sequence[Any] = await self._pool.fetch(FACTS_OF, list(calls))
         return {str(row["call"]): facts_of_row(row) for row in rows}
+
+    async def unsealed_written(self, quiet_since: float, limit: int) -> list[Unsealed]:
+        """One pass over the written calls still open, oldest silence first."""
+        rows: Sequence[Any] = await self._pool.fetch(UNSEALED_WRITTEN, quiet_since, limit)
+        return [
+            Unsealed(
+                call=str(row["call"]),
+                agent=str(row["agent"] or ""),
+                started_at=float(row["started_at"]),
+                last_at=float(row["last_at"]),
+                channel=row["channel"],
+            )
+            for row in rows
+        ]
 
     async def unsealed_spoken(self, quiet_since: float, limit: int) -> list[Unsealed]:
         """One pass over the head rows that are still open, oldest silence first."""

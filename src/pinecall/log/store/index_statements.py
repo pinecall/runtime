@@ -80,6 +80,25 @@ order by last_at
 limit $2
 """
 
+# A written call its process never finished: started, unspoken, open, quiet. Its channel rides
+# along, because how long a written call may go quiet is its door's (api/reaping.py).
+UNSEALED_WRITTEN = """
+select head.log as call, head.agent,
+       coalesce(head.started_at, 0) as started_at,
+       coalesce(max(entry.ts), head.started_at, 0) as last_at,
+       f.channel
+from call_log_head head
+join call_facts f on f.call = head.log
+left join call_log entry on entry.call = head.log
+where head.call is not null and not head.sealed and not coalesce(f.spoken, false)
+  and exists (select 1 from call_log began
+               where began.call = head.log and began.type = 'call.started')
+group by head.log, head.agent, head.started_at, f.channel
+having coalesce(max(entry.ts), head.started_at, 0) < $1
+order by last_at
+limit $2
+"""
+
 # The corner's calls that match, the same WHERE twice: once counted, once paged. A NULL parameter
 # is "any"; `$6` is the words as a LIKE pattern already escaped, `$7` their digits. Rows with no
 # facts yet are listed when nothing but the agent is asked, as the plain list always listed them.

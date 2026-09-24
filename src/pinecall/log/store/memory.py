@@ -214,6 +214,10 @@ class MemoryStore:
         kept = {call: self._calls[call].facts for call in calls if call in self._calls}
         return {call: facts for call, facts in kept.items() if facts is not None}
 
+    async def unsealed_written(self, quiet_since: float, limit: int) -> list[Unsealed]:
+        """The written calls this store never finished, as memory_index.py answers them."""
+        return memory_index.unsealed_written(self._still_open(), quiet_since, limit)
+
     async def unsealed_spoken(self, quiet_since: float, limit: int) -> list[Unsealed]:
         """Every org's spoken calls still open and quiet since then, the quietest first."""
         return memory_index.unsealed_spoken(self._still_open(), quiet_since, limit)
@@ -294,6 +298,7 @@ class MemoryStore:
                 started_at=log.started_at or 0.0,
                 last_at=log.entries[-1].ts if log.entries else (log.started_at or 0.0),
                 spoken=log.facts.spoken,
+                channel=log.facts.channel,
                 started=any(entry.type == "call.started" for entry in log.entries),
             )
             for call, log in self._calls.items()

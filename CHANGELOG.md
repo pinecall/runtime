@@ -42,6 +42,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   A WhatsApp message that arrives while no app holds its agent is no longer dropped: it waits on
   the agent's log (`message.waiting`, protocol 0.6.7) and is answered, in order, once a socket
   holds the agent again; `message.taken` closes it.
+  The reaper ends a call in a room once no **agent** is in it — people left in a room (a caller's
+  open tab, a supervisor) kept a dead call live for hours — and takes the room down; and it ends a
+  written call no process runs once it has been quiet past its door's wait.
   `docs/protocol/a-deploy-never-cuts-a-call.md`.
 
 ### Security

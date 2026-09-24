@@ -13,7 +13,9 @@ from pinecall.api.reaping import NOT_JUDGED, QUIET_S, Reaper, reaping
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.routes.rooms import MemoryRooms
+from pinecall.types import AgentConfig
 from tests.api.conftest import A_RECORD
+from tests.api.talking import a_context as a_call_on
 from tests.api.talking import got
 
 pytestmark = pytest.mark.unit
@@ -59,8 +61,8 @@ def rooms() -> MemoryRooms:
 
 
 @pytest.fixture
-def reaper(store: MemoryStore, logs: Logs, rooms: MemoryRooms) -> Reaper:
-    return Reaper(store, logs, rooms, Live())
+def reaper(store: MemoryStore, logs: Logs, rooms: MemoryRooms, live: Live) -> Reaper:
+    return Reaper(store, logs, rooms, live)
 
 
 async def a_call(
@@ -124,16 +126,27 @@ async def test_a_call_whose_room_is_gone_is_ended_as_drained_and_sealed(
     assert await store.unsealed_spoken(AN_HOUR_LATER, 10) == [], "the log is sealed"
 
 
-async def test_a_call_whose_room_the_sfu_still_has_is_left_alone(
+async def test_a_call_with_an_agent_still_in_its_room_is_left_alone(
     reaper: Reaper, store: MemoryStore, rooms: MemoryRooms
 ) -> None:
-    """A caller can be silent for an hour. While they are, the room is there and this is not it."""
+    """A caller can be silent for an hour. While they are, the agent is there and this is not it."""
     call = await a_call(store, "CA_quiet_but_live")
     rooms.open.add(call)
     written = [entry.type for entry in await store.since(call)]
     assert await reaper.a_pass(AN_HOUR_LATER) == []
     assert [entry.type for entry in await store.since(call)] == written, "not a word was added"
     assert [one.call for one in await store.unsealed_spoken(AN_HOUR_LATER, 10)] == [call]
+
+
+async def test_a_room_only_people_are_left_in_is_nobodys_call_and_is_closed(
+    reaper: Reaper, store: MemoryStore, rooms: MemoryRooms
+) -> None:
+    """The job was killed; the caller's tab and a supervisor's seat kept the room up for hours."""
+    call = await a_call(store, "CA_people_but_no_agent")
+    rooms.agentless.add(call)
+    assert await reaper.a_pass(AN_HOUR_LATER) == [call]
+    assert [entry.type for entry in await store.since(call)][-1] == "call.score"
+    assert rooms.taken_down == [call], "whoever was left in the room is told it is over"
 
 
 async def test_a_call_that_has_only_just_gone_quiet_is_left_alone(
@@ -155,15 +168,44 @@ async def test_a_call_that_ended_properly_is_never_looked_at(
     assert await store.since(call) == before
 
 
-async def test_a_written_call_is_not_the_reapers_business(
+async def a_written_call(store: MemoryStore, call: str, channel: str) -> str:
+    """A chat or a WhatsApp thread: no room, started, run by a gateway that may have restarted."""
+    await store.owned(call, THE_AGENT, A_RECORD.org, "production", "")
+    await store.append(call, THE_AGENT, "call.started", {"channel": channel, "from": "+34600"})
+    return call
+
+
+async def test_a_written_call_this_process_runs_is_left_to_end_itself(
+    reaper: Reaper, store: MemoryStore, logs: Logs, live: Live
+) -> None:
+    call = await a_written_call(store, "CA_chat_running", "web")
+    live.serve(
+        call,
+        THE_AGENT,
+        A_RECORD.org,
+        logs.writing(call, THE_AGENT),
+        None,
+        context=a_call_on(call, A_RECORD.org),
+        config=AgentConfig(slug=THE_AGENT),
+    )
+    assert await reaper.a_pass(AN_HOUR_LATER) == []
+
+
+async def test_a_chat_nobody_came_back_to_after_a_restart_ends_when_the_client_gave_up(
     reaper: Reaper, store: MemoryStore
 ) -> None:
-    """A chat or a WhatsApp thread has no room and idles out where it runs. It is never spoken."""
-    call = "CA_written"
-    await store.owned(call, THE_AGENT, A_RECORD.org, "production", "")
-    await store.append(call, THE_AGENT, "call.started", {"channel": "whatsapp", "from": "+34600"})
-    assert await reaper.a_pass(AN_HOUR_LATER) == []
-    assert not (await store.since(call))[-1].type.startswith("call.end")
+    call = await a_written_call(store, "CA_chat_left", "web")
+    assert await reaper.a_pass(AN_HOUR_LATER) == [call]
+    ended = [e.data for e in await store.since(call) if e.type == "call.ended"]
+    assert (ended[0]["reason"], ended[0]["ended_by"]) == ("timeout", "platform")
+
+
+async def test_a_whatsapp_thread_nobody_runs_waits_its_two_hours_for_the_contact(
+    reaper: Reaper, store: MemoryStore
+) -> None:
+    call = await a_written_call(store, "CA_thread_left", "whatsapp")
+    assert await reaper.a_pass(AN_HOUR_LATER) == [], "the contact may still write"
+    assert await reaper.a_pass(AN_HOUR_LATER + 2 * 60 * 60) == [call]
 
 
 async def test_a_web_call_that_rang_and_never_started_is_sealed_once_its_room_is_gone(

@@ -121,6 +121,18 @@ Taken up, the session is rebuilt from the log — the conversation as the model 
 tools and what they returned), the state, the numbering — no quota is asked again and nothing is
 said; the app's socket hears `call.attached` and sends its prompt and tools again.
 
+## A call nobody is running
+
+A call can still lose everybody who could end it: a worker killed with no time to drain, a written
+call whose caller never came back. The gateway's reaper (`api/reaping.py`) looks every minute:
+
+- **A call in a room** is running while an **agent** is in its room. A room with only people left
+  in it — the caller's tab still open, a supervisor's seat — is nobody's call: after five quiet
+  minutes it is ended as `drained`, and the room is taken down, so whoever is still in it is told.
+- **A written call** is running while a gateway process serves it. One that no process serves —
+  its gateway restarted and its caller never came back — is ended as `timeout` once it has been
+  quiet as long as its door waits: five minutes for a chat, two hours for a WhatsApp thread.
+
 ## The page
 
 A page follows its call's log with the `log_token` its server's mint (or dial) answered
