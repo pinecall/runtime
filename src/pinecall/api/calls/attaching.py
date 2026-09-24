@@ -1,0 +1,47 @@
+"""A live call bound to whichever socket now holds its agent: call.attached, then its tools."""
+
+from __future__ import annotations
+
+from pinecall.api._live import Live
+from pinecall.api.agents.holding import Held, SocketId
+from pinecall.log.entry import Entry
+from pinecall.types.json import JsonObject
+
+# The entries a socket that takes a call over is rebuilt from. The prompt is not among them: the
+# log keeps only its hash (prompt.changed), and the socket sends its whole prompt again anyway.
+STARTED = "call.started"
+STATE = "state.changed"
+
+
+# A call is its agent's, never a socket's. When the socket serving it drains or dies, or the
+# gateway that knew which socket it was restarts, the next socket holding the agent takes it here,
+# and the log says so: call.attached, written before anything else reaches that socket.
+async def attached(live: Live, call: str, app: SocketId) -> Entry | None:
+    """This socket serves the call from now on: told how it started and where it stands."""
+    served = live.attach(call, app)
+    if served is None:
+        return None
+    entries = await served.log.whole()
+    started: JsonObject = {}
+    state: JsonObject = {}
+    for entry in entries:
+        if entry.type == STARTED:
+            started = entry.data
+        elif entry.type == STATE:
+            state = entry.data.get("state", {})
+    seq = await served.log.latest_seq()
+    said = await served.log.append(
+        "call.attached", {"app": app, "started": started, "state": state, "seq": seq}
+    )
+    # A tool the model is still waiting on went down the socket that left: this one is asked
+    # again, with the entry the log kept, so its tool.result lands on the call_id already waiting.
+    # Into the same queue the call.attached went into, so the socket hears them in that order.
+    for waiting in live.pending_tools(call):
+        served.entries.offer(waiting)
+    return said
+
+
+async def parked_calls_of(live: Live, held: Held, app: SocketId) -> list[str]:
+    """Every live call of that agent nobody serves, to the socket that just registered it."""
+    taken = [call for call in live.parked(*held) if await attached(live, call, app) is not None]
+    return taken

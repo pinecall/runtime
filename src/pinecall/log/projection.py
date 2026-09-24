@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from pinecall.log.pii import MASK
+from pinecall.log.pii import LEARNED_FROM, MASK
 from pinecall.types.agent import AgentConfig, Visibility
 from pinecall_protocol.defs import Projection
 
@@ -199,7 +199,7 @@ def _public_state_change(data: Json, declarations: AgentConfig | None) -> Json:
 def _tenant_data(entry: Json, declarations: AgentConfig | None) -> Json:
     """Everything, with the fields the app declared `pii` masked wherever a state travels."""
     data: Json = entry["data"]
-    if entry["type"] == "state.changed":
+    if entry["type"] in LEARNED_FROM:
         return {**data, "state": _masked(data.get("state", {}), declarations)}
     if entry["type"] == "log.gap" and data.get("snapshot") is not None:
         return {**data, "snapshot": project_state(data["snapshot"], TENANT, declarations)}

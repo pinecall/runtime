@@ -12,7 +12,6 @@ from fastapi import HTTPException
 from starlette.testclient import TestClient
 
 from pinecall.api._live import Live
-from pinecall.api.agents.holding import Send
 from pinecall.api.agents.registry import Registry
 from pinecall.api.calls import commands as door
 from pinecall.log.entry import Entry
@@ -21,7 +20,7 @@ from pinecall.worker.client import CONTEXT, Gateway
 from pinecall_protocol import Command, defs
 from pinecall_protocol.events import ToolCall
 from tests.api.conftest import A_KEY, A_RECORD, AGENT
-from tests.api.talking import a_frame, an_app, declared
+from tests.api.talking import a_frame, an_app, collecting, declared, until
 from tests.api.test_worker_doors import AN_OWNER, CALL, a_context
 from tests.api.test_worker_doors import declared as registered
 
@@ -68,11 +67,11 @@ async def test_a_tool_of_that_call_travels_down_the_same_socket_the_entries_arri
 ) -> None:
     await registered(registry)
     heard: list[Entry] = []
-    live.connect(AN_OWNER, _collecting(heard))
+    live.connect(AN_OWNER, collecting(heard))
     await worker_gateway.opened(a_context(), AGENT)
     wanted = ToolCall(call_id="tu_1", name="find_slots", arguments={"day": "martes"})
     asking = asyncio.ensure_future(worker_gateway.tool(CALL, AGENT, wanted, timeout_s=1))
-    await _until(heard, "tool.call")
+    await until(heard, "tool.call")
     assert live.answered(CALL, defs.ToolResult(call_id="tu_1", name="find_slots", output="10:15"))
     assert (await asking).output == "10:15"
     assert [entry.type for entry in heard] == ["call.ringing", "tool.call", "tool.result"]
@@ -196,21 +195,3 @@ def _reading(said: str) -> Gateway:
     """The worker's own client with that stream behind it and no socket anywhere."""
     transport = httpx.MockTransport(lambda _request: httpx.Response(200, text=said))
     return Gateway(httpx.AsyncClient(transport=transport, base_url="http://gateway.test"))
-
-
-def _collecting(heard: list[Entry]) -> Send:
-    """An app socket as the live memory holds one: every entry of its calls, as they are written."""
-
-    async def send(entry: Entry) -> None:
-        heard.append(entry)
-
-    return send
-
-
-async def _until(heard: list[Entry], type: str) -> None:
-    """Wait for one entry type to reach the app, so the test answers the tool it has asked for."""
-    for _ in range(200):
-        if any(entry.type == type for entry in heard):
-            return
-        await asyncio.sleep(0.005)
-    raise AssertionError(f"{type} never reached the app socket")

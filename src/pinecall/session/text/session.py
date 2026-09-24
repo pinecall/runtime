@@ -322,6 +322,10 @@ class TextSession:
         """call.log: a line of the app's own, with a seq like everything else."""
         return await self.emit("custom", Custom(name=name, data=dict(data)))
 
+    def pending_tools(self) -> tuple[Entry, ...]:
+        """The tool.call entries of this call still waiting for the app's answer."""
+        return self.running.calls.pending()
+
     def tool_answered(self, result: defs.ToolResult) -> bool:
         """tool.result from the app: hand it to whoever is waiting. False when nobody was."""
         return self.running.calls.answered(result)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Annotated
 
 from fastapi import Depends
@@ -16,17 +16,18 @@ from pinecall.log.logs import CallLog
 from pinecall.lookups import OpenCall
 from pinecall.session.pending import ToolCalls
 from pinecall.session.text.session import TextSession
-from pinecall.types import AgentConfig, CallContext
+from pinecall.types import AgentConfig, CallContext, Env
 from pinecall_protocol import Command
 from pinecall_protocol.commands import DevAnswer
 from pinecall_protocol.defs import ToolResult
 
 
-# One call the app is being shown, whichever process runs it: the app socket it was bound to when
-# it opened, the subscription that carries its entries down that socket, and the queue a command
-# waits in for the worker that will apply it. `None` in that queue is the call ending, which is the
-# only way the worker's stream stops. The context and the config are what the door that opened
-# the call knew of it, kept so a lookup and a hang-up can ask whose contact and which base it is.
+# One call the app is being shown, whichever process runs it: the app socket serving it now (None
+# while it is parked, waiting for one), the subscription that carries its entries down that
+# socket, and the queue a command waits in for the worker that will apply it. `None` in that
+# queue is the call ending, which is the only way the worker's stream stops. The context and the
+# config are what the door that opened the call knew of it, kept so a lookup and a hang-up can ask
+# whose contact and which base it is.
 @dataclass(frozen=True)
 class Served:
     """A live call from the app socket's side: whose it is, what it is fed, what it asked for."""
@@ -34,6 +35,8 @@ class Served:
     agent: str
     org: str
     app: SocketId | None
+    # The call's log, kept so the entries can be subscribed to again for the next socket.
+    log: CallLog
     entries: Subscription
     commands: asyncio.Queue[Command | None]
     context: CallContext
@@ -68,7 +71,7 @@ class Live:
         self._apps[owner] = send
 
     def disconnect(self, owner: SocketId) -> None:
-        """The app socket is gone. Its calls keep running until the caller hangs up."""
+        """The app socket is gone. Its calls keep running, parked until a socket adopts them."""
         self._apps.pop(owner, None)
 
     # ── the console's asks of an app ────────────────────────────────────────────
@@ -122,20 +125,25 @@ class Live:
         """Every entry of this call to the ONE app socket its door chose, for the whole call."""
         if call in self._served:
             return
-        # Which socket is the door's answer, never this table's: `registry.serving()` decided it
-        # once, and nothing here ever resolves an agent to a socket again — so a register that
-        # lands mid-call cannot move a live conversation. See docs/decisions/dispatch.md.
+        # Which socket is the door's answer, never this table's: `registry.serving()` decided it,
+        # and the only thing that moves a live call to another socket is api/calls/attaching.py,
+        # which writes call.attached so the log says who serves it from then on.
         entries = log.subscribe()
         self._served[call] = Served(
             agent=agent,
             org=org,
             app=app,
+            log=log,
             entries=entries,
             commands=asyncio.Queue(),
             context=context,
             config=config,
             holder=holder,
         )
+        self._feed(entries, app)
+
+    def _feed(self, entries: Subscription, app: SocketId | None) -> None:
+        """Pump a call's entries down that socket; close them when it is not open here."""
         send = None if app is None else self._apps.get(app)
         if send is None:
             entries.close()
@@ -143,6 +151,53 @@ class Live:
         pump = asyncio.ensure_future(_feeding(entries, send))
         self._pumps.add(pump)
         pump.add_done_callback(self._pumps.discard)
+
+    def served(self, call: str) -> Served | None:
+        """The call as this process serves it, or None when it serves no call by that id."""
+        return self._served.get(call)
+
+    # Synchronous, so the claim is made before anything awaits: two doors that both find a call
+    # parked cannot both attach it. A socket already serving it is no change, and answers None.
+    def attach(self, call: str, app: SocketId | None) -> Served | None:
+        """Serve a live call from this socket from now on (None parks it); None if nothing moved."""
+        served = self._served.get(call)
+        if served is None or served.app == app:
+            return None
+        served.entries.close()
+        moved = replace(served, app=app, entries=served.log.subscribe())
+        self._served[call] = moved
+        self._feed(moved.entries, app)
+        return moved
+
+    def park(self, owner: SocketId) -> list[str]:
+        """Every call this socket served, parked: served by nobody until a socket adopts it."""
+        calls = self.bound_to(owner)
+        for call in calls:
+            self.attach(call, None)
+        return calls
+
+    def bound_to(self, owner: SocketId) -> list[str]:
+        """The calls this socket serves right now."""
+        return [call for call, served in self._served.items() if served.app == owner]
+
+    def parked(self, env: Env, holder: str | None, agent: str) -> list[str]:
+        """The live calls of that agent, in that corner, that no socket serves."""
+        return [
+            call
+            for call, served in self._served.items()
+            if served.app is None
+            and served.agent == agent
+            and served.holder == holder
+            and served.context.env == env
+        ]
+
+    def pending_tools(self, call: str) -> tuple[Entry, ...]:
+        """The tool.call entries of this call still waiting for the app, whoever runs the call."""
+        session = self._sessions.get(call)
+        if session is not None:
+            return session.pending_tools()
+        waiting = self._waiting.get(call)
+        return () if waiting is None else waiting.pending()
 
     # The concurrent-calls quota counts THIS: calls served by this process right now, whatever
     # runs them. A head row never sealed — a worker that died — would count for ever; a served
@@ -224,7 +279,7 @@ class Live:
         return None if served is None else served.commands
 
     def app_of(self, call: str) -> SocketId | None:
-        """The app socket this call was bound to when it opened. Nothing ever moves it."""
+        """The app socket serving this call now: the one it opened on, or the last to adopt it."""
         served = self._served.get(call)
         return None if served is None else served.app
 

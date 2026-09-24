@@ -12,6 +12,7 @@ from pinecall.api.agents.handlers import Socket, asked, handles
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.auth.corner import Corner, corner_of
 from pinecall.auth.keys import is_the_fleets
+from pinecall.log.entry import Entry
 from pinecall.session.declaring import ToolUse
 from pinecall_protocol import Command, WireModel, defs, encode
 from pinecall_protocol.events import ToolCall
@@ -58,9 +59,9 @@ async def run_a_tool(
     # The codec's own encoding, and not exclude_none: a method that returned null sent `output:
     # null`, and that is a fact of the call. Dropping it left `tool.result` without an output at
     # all, indistinguishable from a method that returned nothing (2026-09-08, the first talk call).
-    async def emit(type: str, event: WireModel) -> None:
+    async def emit(type: str, event: WireModel) -> Entry:
         """Append the entry. The app hears it because the call is served (api/_live.py)."""
-        await log.append(type, encode(event))
+        return await log.append(type, encode(event))
 
     use = ToolUse(call_id=wanted.call_id, name=wanted.name, arguments=dict(wanted.arguments))
     result = await live.waiting(call, held.config).ran(use, wanted.speech_id or "", emit)

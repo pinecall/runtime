@@ -17,9 +17,10 @@ MASK = "***"
 # This is the mistake the references made, and the reason this rule is a constant and not a habit.
 UNTOUCHED: tuple[str, ...] = ("turn.", "metrics.", "user.transcript", "agent.transcript")
 
-# The entry the masker learns from instead of masking: the app's state is the tenant's own console,
-# and the tenant projection masks it at the sink, where the token says who is reading.
-LEARNED_FROM = "state.changed"
+# The entries the masker learns from instead of masking: the app's state is the tenant's own
+# console, and the tenant projection masks it at the sink, where the token says who is reading.
+# call.attached carries that same state to the socket that takes a call over, which needs it whole.
+LEARNED_FROM = ("state.changed", "call.attached")
 
 # A learned value shorter than this would mask the alphabet: "P" appears in every other word.
 SHORTEST_LEARNED_VALUE = 3
@@ -40,7 +41,7 @@ class Masker:
         """The entry's data as it should be written. state.changed teaches; everything else pays."""
         if type.startswith(UNTOUCHED) or not data:
             return data
-        if type == LEARNED_FROM:
+        if type in LEARNED_FROM:
             self.learn(_values_under(data.get("state", {}), self._state_fields))
             return data
         named = self._names_in(type, data)

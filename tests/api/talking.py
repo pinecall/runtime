@@ -1,5 +1,6 @@
 """How a test talks to the gateway: the frames, the sockets, the reads, and one call in and out."""
 
+import asyncio
 from collections.abc import Mapping, Sequence
 from datetime import date
 from typing import Any
@@ -7,7 +8,9 @@ from urllib.parse import quote
 
 from starlette.testclient import TestClient, WebSocketTestSession
 
+from pinecall.api.agents.holding import Send
 from pinecall.auth.world import ENV_HEADER
+from pinecall.log.entry import Entry
 from pinecall.types import CallContext, Route
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS, CHAT, Json
 
@@ -149,3 +152,21 @@ def a_call_the_app_ends(gateway: TestClient, app_socket: WebSocketTestSession) -
         call: str = started["call"]
         hung_up_by_the_app(app_socket, call)
         return call
+
+
+def collecting(heard: list[Entry]) -> Send:
+    """An app socket as the live memory holds one: every entry of its calls, as they are written."""
+
+    async def send(entry: Entry) -> None:
+        heard.append(entry)
+
+    return send
+
+
+async def until(heard: list[Entry], type: str) -> None:
+    """Wait for one entry type to reach the app, so the test answers the tool it has asked for."""
+    for _ in range(200):
+        if any(entry.type == type for entry in heard):
+            return
+        await asyncio.sleep(0.005)
+    raise AssertionError(f"{type} never reached the app socket")

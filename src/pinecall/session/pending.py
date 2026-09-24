@@ -6,6 +6,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from pinecall.log.entry import Entry
 from pinecall.session.declaring import ToolUse
 from pinecall.types import AgentConfig, ToolSpec
 from pinecall_protocol import WireModel, defs
@@ -13,6 +14,10 @@ from pinecall_protocol.events import ToolCall
 
 # The session's own hand on the log: whoever runs a tool writes its two entries with this.
 type Emit = Callable[[str, WireModel], Awaitable[Any]]
+
+# A tool's round trip is written by the side that holds the log, and it keeps the tool.call entry
+# the log handed back: that entry is what a socket taking the call over is sent again.
+type Writes = Callable[[str, WireModel], Awaitable[Entry]]
 
 
 # The app's process runs the tool and answers with tool.result over its own socket; between the two
@@ -24,10 +29,31 @@ class ToolCalls:
     def __init__(self, config: AgentConfig) -> None:
         self._config = config
         self._waiting: dict[str, asyncio.Future[defs.ToolResult]] = {}
+        # One round trip per call_id, whoever asks: a worker that asks again because the gateway
+        # went away mid-request awaits the round trip already running, and writes nothing twice.
+        self._running: dict[str, asyncio.Future[defs.ToolResult]] = {}
+        # The tool.call entries that went out and are still unanswered, by call_id: what a socket
+        # that takes the call over is sent again, with the seq the log gave them.
+        self._sent: dict[str, Entry] = {}
 
-    async def ran(self, call: ToolUse, speech: str, emit: Emit) -> defs.ToolResult:
+    async def ran(self, call: ToolUse, speech: str, emit: Writes) -> defs.ToolResult:
         """One tool out to the app and its result back, both entries written on the way."""
-        await emit(
+        running = self._running.get(call.call_id)
+        if running is None:
+            running = asyncio.ensure_future(self._round_trip(call, speech, emit))
+            self._running[call.call_id] = running
+            running.add_done_callback(lambda _: self._running.pop(call.call_id, None))
+        # Shielded: the request that started it may be the one that went away, and the tool.call
+        # it wrote is still waiting for the app's answer.
+        return await asyncio.shield(running)
+
+    def pending(self) -> tuple[Entry, ...]:
+        """The tool.call entries still waiting for the app, in the order the log wrote them."""
+        return tuple(sorted(self._sent.values(), key=lambda entry: entry.seq))
+
+    async def _round_trip(self, call: ToolUse, speech: str, emit: Writes) -> defs.ToolResult:
+        """The tool.call written, the app's answer awaited, the tool.result written."""
+        sent = await emit(
             "tool.call",
             ToolCall(
                 call_id=call.call_id,
@@ -36,7 +62,11 @@ class ToolCalls:
                 speech_id=speech,
             ),
         )
-        result = await self.awaited(call.call_id, call.name)
+        self._sent[call.call_id] = sent
+        try:
+            result = await self.awaited(call.call_id, call.name)
+        finally:
+            self._sent.pop(call.call_id, None)
         await emit("tool.result", result)
         return result
 
