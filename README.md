@@ -96,7 +96,8 @@ credential for the repository and is never told which cloud it is on.
                    ../agents and ../widget) · rsync the checkout · `make -C infra/box install` (the
                    packages, every unit and container file, the fence, the role) · `uv sync
                    --frozen` as the service user · restart, gateway first and the worker once
-                   the gateway answers through Caddy · the doctor, last
+                   the gateway answers through Caddy — live calls go on through both · the
+                   doctor, last
 4. your key        minted on the box on first start, encrypted, printed nowhere — read it once:
                    sudo systemd-creds decrypt --name=PINECALL_OPERATOR_KEY \
                         /etc/credstore.encrypted/PINECALL_OPERATOR_KEY -

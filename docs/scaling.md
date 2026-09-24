@@ -77,6 +77,14 @@ is shut down and seals its log as `drained`. systemd gives it **fifteen minutes*
 (`TimeoutStopSec=900`) where its default 90 s would cut a call mid-sentence. `make deploy` restarts
 the gateway first and the worker only once the gateway answers, so no call rings into the gap.
 
+The gateway drains nothing, because it holds nothing a call cannot get back. It stops in seconds
+(uvicorn's `timeout_graceful_shutdown` of 5 s, `TimeoutStopSec=30`), and while it is away each
+worker asks again — the call's entries, a tool, its command stream — on a backoff; the first door
+that answers `404` for a call the worker holds is told the call again (`POST
+/v1/calls/{call}/reopened`), and the app's socket, reconnecting, hears `call.attached`. A caller in
+the middle of a sentence hears nothing of it: the audio is LiveKit's and the worker's.
+[protocol/a-deploy-never-cuts-a-call.md](protocol/a-deploy-never-cuts-a-call.md) is the whole of it.
+
 ## Cordon: the graceful shrink
 
 `pinecall-runtime fleet cordon <worker>` is the drain an operator asks for. The worker learns on its

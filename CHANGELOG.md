@@ -32,6 +32,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   The worker asks the gateway again while it is away — unreachable or `5xx` — on a backoff:
   every entry of the log, the seal, a tool within its deadline, and the command stream; before, a
   restart dropped the entries and closed the command stream for the rest of the call.
+  The gateway stops in seconds: uvicorn waits 5 s for the requests in flight, and its unit has
+  `TimeoutStopSec=30`.
   `docs/protocol/a-deploy-never-cuts-a-call.md`.
 
 ### Security

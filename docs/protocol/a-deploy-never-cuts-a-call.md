@@ -82,6 +82,9 @@ if it has) — and serves the call as it was: no quota asked, no token spent, no
 `call.ringing`. The socket holding the agent hears `call.attached`. The worker's command stream,
 cut by the restart, is opened again the same way.
 
+The gateway itself stops in seconds — uvicorn gives the requests in flight five, systemd kills at
+thirty — because it drains nothing: nothing it held is lost to the call.
+
 While the gateway is away — between the old process stopping and the new one answering — the
 worker asks again rather than giving up: an entry of the log, the seal, a tool, and the command
 stream, each on a backoff from half a second doubling to five, for as long as the gateway answers

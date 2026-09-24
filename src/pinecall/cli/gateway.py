@@ -14,6 +14,11 @@ APP = "pinecall.api.app:app"
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8080
 
+# A stop waits this long for the requests in flight and then closes what is left — the log streams
+# and the app sockets, which reconnect. The gateway drains no call: every live call is told again by
+# its worker and adopted by its app's socket when this process, or the next, answers.
+GRACEFUL_S = 5
+
 
 def configure(parser: argparse.ArgumentParser) -> None:
     """No verbs: the gateway is one process, and its flags arrive with the process."""
@@ -32,5 +37,6 @@ def run(arguments: argparse.Namespace) -> int:
         port=arguments.port,
         reload=arguments.reload,
         log_level=settings.log_level.lower(),
+        timeout_graceful_shutdown=GRACEFUL_S,
     )
     return 0

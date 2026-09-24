@@ -94,6 +94,9 @@ ExecStartPre=/opt/pinecall/venv/bin/pinecall-runtime migrate up
 ExecStart=/opt/pinecall/venv/bin/pinecall-runtime gateway --host 127.0.0.1 --port 8080
 Restart=always
 RestartSec=3
+# The gateway drains no call — every live call is rebuilt when its worker says it again — so a stop
+# needs only uvicorn's five seconds for the requests in flight; this is systemd's line past them.
+TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
