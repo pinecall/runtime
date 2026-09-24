@@ -1,6 +1,8 @@
-"""The origins Pinecall's own mobile app calls the /v1 doors from, and the CORS answer they get."""
+"""Who may call /v1 from a browser: the mobile app on every door, any page on a call's own reads."""
 
 from __future__ import annotations
+
+import re
 
 from starlette.datastructures import Headers
 from starlette.middleware.cors import CORSMiddleware
@@ -30,6 +32,15 @@ HEADERS = (
 # How long a browser may keep a preflight's yes: ten minutes, one per door per session in practice.
 MAX_AGE_S = 600
 
+# A tenant's page follows its visitor's call straight from here, with the log token its server was
+# minted (api/tokens.py): the call's log, its folded state, its recording. Those three answer ANY
+# origin, because what opens them is the bearer the page brings — a token for that one call — and
+# never a cookie: a page on another site reads nothing it did not bring the token for. GET only,
+# no credentials, and the headers a player seeks with and a stream resumes with.
+A_CALLS_READS = re.compile(r"^/v1/calls/[^/]+/(events|state|recording)$")
+READ_HEADERS = ("authorization", "last-event-id", "accept", "range")
+READ_EXPOSED = ("content-range", "accept-ranges", "content-length")
+
 
 def origins_allowed(settings: Settings) -> tuple[str, ...]:
     """The app's two WebViews, then every origin PINECALL_APP_ORIGINS names, each once."""
@@ -55,6 +66,9 @@ class AppOrigins:
             return
         origin = Headers(scope=scope).get("origin")
         allowed = origins_allowed(a_settings(HTTPConnection(scope))) if origin else ()
+        if origin and origin not in allowed and A_CALLS_READS.match(str(scope["path"])):
+            await _any_page(self.app)(scope, receive, send)
+            return
         if origin not in allowed:
             await self.app(scope, receive, send)
             return
@@ -66,3 +80,15 @@ class AppOrigins:
             max_age=MAX_AGE_S,
         )
         await cors(scope, receive, send)
+
+
+def _any_page(app: ASGIApp) -> CORSMiddleware:
+    """CORS for a call's reads: any origin, GET, no credentials."""
+    return CORSMiddleware(
+        app,
+        allow_origins=("*",),
+        allow_methods=("GET",),
+        allow_headers=READ_HEADERS,
+        expose_headers=READ_EXPOSED,
+        max_age=MAX_AGE_S,
+    )

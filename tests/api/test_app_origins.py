@@ -161,3 +161,42 @@ def test_the_widget_keeps_its_star_whoever_asks(
     for origin in (IOS, A_STRANGER):
         _, headers = asked(gateway, "GET", "/widget/pinecall-widget.js", {"Origin": origin})
         assert cors_of(headers) == {"access-control-allow-origin": "*"}
+
+
+# ── a tenant's page, reading its visitor's call ─────────────────────────────────
+
+
+@pytest.mark.parametrize("door", ["events", "state", "recording"])
+def test_any_page_may_read_a_calls_own_doors_with_a_bearer_and_no_credentials(
+    gateway: TestClient, door: str
+) -> None:
+    path = f"/v1/calls/{CALL}/{door}"
+    asking = {
+        "Access-Control-Request-Method": "GET",
+        "Access-Control-Request-Headers": "authorization, last-event-id",
+    }
+    status, preflight = asked(gateway, "OPTIONS", path, {"Origin": A_STRANGER, **asking})
+    assert status == 200
+    assert preflight["access-control-allow-origin"] == "*"
+    assert "access-control-allow-credentials" not in preflight
+    _, read = asked(gateway, "GET", path, {**BEARER, "Origin": A_STRANGER})
+    assert read["access-control-allow-origin"] == "*"
+
+
+def test_a_page_may_not_write_to_a_call_or_read_anything_else(gateway: TestClient) -> None:
+    for path in (
+        f"/v1/calls/{CALL}/verbs",
+        f"/v1/calls/{CALL}/events/extra",
+        WHOAMI,
+        "/v1/agents/x/calls",
+    ):
+        _, answer = asked(gateway, "GET", path, {**BEARER, "Origin": A_STRANGER})
+        assert cors_of(answer) == {}, path
+    asking = {"Access-Control-Request-Method": "POST"}
+    _, preflight = asked(
+        gateway, "OPTIONS", f"/v1/calls/{CALL}/events", {"Origin": A_STRANGER, **asking}
+    )
+    assert (
+        "access-control-allow-methods" not in preflight
+        or "POST" not in preflight["access-control-allow-methods"]
+    )

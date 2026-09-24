@@ -142,7 +142,10 @@ The participant token dies in a minute; a call lasts longer, and a page shows it
 It reads `GET /v1/calls/{call}/events`, `/state` and `/recording` of that one call, as `?token=`
 or as the bearer, through the projection it names — before the call ends and after, until it
 expires. Another call is `403`, an agent's log is `403`, and a supervise verb is `403`: it reads,
-and never steers. `POST /v1/agents/{slug}/dial` answers one too, with the same `log`.
+and never steers. Those three doors answer a page on **any origin** (CORS `*`, `GET`, no
+credentials — `Authorization`, `Last-Event-ID` and `Range` may be sent): what opens them is the
+token the page brings, never a cookie, so a page on another site reads nothing it did not bring the
+token for. Every other door answers only the origins `api/app_origins.py` names. `POST /v1/agents/{slug}/dial` answers one too, with the same `log`.
 
 ## Refusals
 

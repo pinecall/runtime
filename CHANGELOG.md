@@ -29,6 +29,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `POST /v1/tokens` and `…/dial` answer a `log_token`: a `read` token that follows that one
   call's log and recording for four hours, through the projection the tenant's server asked
   (`log`), and opens no room — a page needs no relay.
+  A call's three reads — `/events`, `/state`, `/recording` — answer CORS for any origin (GET,
+  no credentials), so a tenant's page on its own domain reads them with that token.
   The worker asks the gateway again while it is away — unreachable or `5xx` — on a backoff:
   every entry of the log, the seal, a tool within its deadline, and the command stream; before, a
   restart dropped the entries and closed the command stream for the rest of the call.

@@ -98,7 +98,8 @@ and the connection cut before the gateway said so — may be written twice; one 
 ## The page
 
 A page follows its call's log with the `log_token` its server's mint (or dial) answered
-([tokens.md](tokens.md)), straight from the gateway, and plays the recording with it at the end.
+([tokens.md](tokens.md)), straight from the gateway — the call's reads answer any origin — and
+plays the recording with it at the end.
 Nothing on the tenant's server remembers which calls it opened, so the tenant's server restarting
 touches no call a page is showing. A gateway restarting cuts the page's stream; it reconnects with
 `Last-Event-ID` and misses nothing (§3 of [gateway-api.md](gateway-api.md)).
