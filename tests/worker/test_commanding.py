@@ -53,12 +53,14 @@ def a_gateway(*answers: httpx.Response | None) -> tuple[Gateway, list[str]]:
     return Gateway(httpx.AsyncClient(transport=transport, base_url="http://gw.test")), asked
 
 
-async def test_a_lost_command_stream_is_opened_again_and_a_clean_end_is_not() -> None:
-    gateway, asked = a_gateway(None, httpx.Response(502), httpx.Response(200, text=A_SAY))
+async def test_a_command_stream_that_ends_is_opened_again_until_the_gateway_refuses() -> None:
+    """Cut, or ended cleanly by a gateway stopping with grace: both are the gateway going away."""
+    over = httpx.Response(409, json={"detail": "over"})
+    gateway, asked = a_gateway(None, httpx.Response(502), httpx.Response(200, text=A_SAY), over)
     bridge = Applied()
     await commanding.served(gateway, bridge, CALL)
     assert [command.type for command in bridge.applied] == ["agent.say"]
-    assert len(asked) == 3
+    assert len(asked) == 4
 
 
 async def test_a_command_stream_the_gateway_refuses_is_not_asked_again() -> None:

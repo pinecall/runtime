@@ -192,6 +192,11 @@ async def _drained(body: AsyncIterable[Any]) -> str:
 
 
 def _reading(said: str) -> Gateway:
-    """The worker's own client with that stream behind it and no socket anywhere."""
-    transport = httpx.MockTransport(lambda _request: httpx.Response(200, text=said))
+    """The worker's own client with that stream behind it, then a call that is over."""
+    answers = iter([httpx.Response(200, text=said)])
+
+    def answering(_request: httpx.Request) -> httpx.Response:
+        return next(answers, httpx.Response(409, json={"detail": "over"}))
+
+    transport = httpx.MockTransport(answering)
     return Gateway(httpx.AsyncClient(transport=transport, base_url="http://gateway.test"))

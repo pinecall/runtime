@@ -32,18 +32,18 @@ class Applying(Protocol):
 # One stream per call, opened once the bridge exists so that the first prompt.set has somewhere to
 # land, and read in order: the app's commands are applied in the order the app sent them.
 #
-# The stream ends cleanly when the call is sealed, and that is the only clean end. Cut — the gateway
-# restarting — it is opened again on a capped backoff for as long as the gateway is away; a 4xx is
-# the gateway saying the call is not there to read, and that is the end of it.
+# This loop is cancelled by the job that seals the call (worker/entry.py, `letting_go`), so a stream
+# that ends while the loop is still running — cleanly, as a gateway stopping with grace ends it, or
+# cut — is never the call ending: it is the gateway going away, and the stream is opened again on a
+# capped backoff. A 4xx is the gateway's answer — the call is over, or not here — and the end.
 async def served(gateway: Gateway, bridge: Applying, call: str) -> None:
-    """Every command the app sends for this call, until the gateway seals it or lets go."""
+    """Every command the app sends for this call, until the job lets go or the gateway refuses."""
     waits = delays()
     while True:
         try:
             async for command in gateway.commands(call):
                 waits = delays()
                 await _applied(gateway, bridge, call, command)
-            return
         except GatewayRefused as refused:
             if not away(refused):
                 logger.warning("call %s: no commands will arrive (%s)", call, refused)

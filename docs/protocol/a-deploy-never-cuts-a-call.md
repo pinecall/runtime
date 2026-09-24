@@ -88,7 +88,9 @@ thirty — because it drains nothing: nothing it held is lost to the call.
 While the gateway is away — between the old process stopping and the new one answering — the
 worker asks again rather than giving up: an entry of the log, the seal, a tool, and the command
 stream, each on a backoff from half a second doubling to five, for as long as the gateway answers
-nothing or a `5xx`. A `4xx` is an answer and is never asked again. A tool is asked again only within
+nothing or a `5xx`. The command stream is opened again whenever it ends while the call runs — cut,
+or ended cleanly by a gateway stopping with grace — because the worker itself is what seals the
+call, and it closes that stream when it does. A `4xx` is an answer and is never asked again. A tool is asked again only within
 its own deadline, which the model is waiting on; a seal within thirty seconds, after which the
 reaper seals the call once its room is gone. An entry whose answer was lost in flight — written,
 and the connection cut before the gateway said so — may be written twice; one is never lost.
