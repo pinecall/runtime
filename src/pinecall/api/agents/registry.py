@@ -15,7 +15,7 @@ from pinecall.log.entry import Entry
 from pinecall.providers import declaration
 from pinecall.types import PRODUCTION, AgentConfig, DeclarationRefused, Env, is_a_deployment
 from pinecall_protocol import WireModel, defs, encode
-from pinecall_protocol.events import AgentConfigured, AgentDetached
+from pinecall_protocol.events import AgentConfigured, AgentDetached, AgentDraining
 
 # The type only, and never at import time: api/calls/ reads this module through the sink, so
 # naming its package here for real would close the circle. See docs/decisions/api.md.
@@ -278,6 +278,26 @@ class Registry:
         configured = AgentConfigured(changed=list(declaration.changed_by(wire)))
         return await self._append(slug, "agent.configured", configured)
 
+    # A process leaving on purpose — a deploy — says so before it goes: it keeps holding the agent,
+    # so the tools it is still running answer, and every door that hands out a call skips it.
+    def drain(self, owner: SocketId, env: Env, slug: str) -> Registration:
+        """This socket is handed no new call of this agent; it holds it until it closes."""
+        held = self.on(env, slug, owner)
+        if held is None:
+            raise DeclarationRefused(
+                f"agent {slug} is not registered on this socket: register it before draining it"
+            )
+        draining = dataclasses.replace(held, draining=True)
+        self._replace(draining)
+        return draining
+
+    async def drained(
+        self, owner: SocketId, env: Env, slug: str, handed: int, parked: int
+    ) -> Entry:
+        """agent.draining on the agent's log, once the socket's live calls have moved."""
+        said = AgentDraining(app=owner, env=env, handed=handed, parked=parked)
+        return await self._append(slug, "agent.draining", said, env)
+
     # The other half of register, and written down like it: a console reading the floor saw
     # processes arrive and never leave until agent.detached said so — which socket, which world,
     # and whether the agent is held there by anybody still.
@@ -329,7 +349,7 @@ class Registry:
         # Alone, nobody claims anything: the first corner to hold the agent answers its ring, and
         # every corner after it has to say so. A console takes no call it did not open, so it is
         # never handed a line it would not pick up.
-        if claim.takes_unclaimed:
+        if claim.takes_unclaimed and not claim.draining:
             self._doors.take_if_free(claim.agent, claim.holder)
         self._owned.setdefault(claim.owner, set()).add(claim.held_as)
 
@@ -341,7 +361,8 @@ class Registry:
     def _takes_unclaimed(self, name: Held) -> Registration | None:
         """The newest holder of this name that answers a call nobody named. None when there is no
         such socket, which is what refuses a call into a terminal that only serves its own."""
-        return next((h for h in reversed(self._agents.get(name, ())) if h.takes_unclaimed), None)
+        holding = reversed(self._agents.get(name, ()))
+        return next((h for h in holding if h.takes_unclaimed and not h.draining), None)
 
     def _the_next_corner_answers(self, env: Env, slug: str) -> None:
         """With the line free, the newest corner that takes an unclaimed call picks it up."""

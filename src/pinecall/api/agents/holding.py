@@ -58,6 +58,9 @@ class Registration:
     # The order this process accepted the claim in. Two corners of one world may hold the same
     # slug, so "the newest holder" of a shared door has to be a number and not a dict's order.
     claimed: int = 0
+    # The process said it is leaving (agent.drain): it still holds the agent, so its tools in
+    # flight answer, and it is handed no call from now on.
+    draining: bool = False
 
     @property
     def held_as(self) -> Held:

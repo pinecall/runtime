@@ -24,6 +24,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   waiting (protocol 0.6.6). A tool asked while nobody holds the agent waits its own timeout
   instead of a 409. A gateway that restarted is told each live call again by its worker
   (`POST /v1/calls/{call}/reopened`), so appends, the command stream and tools go on.
+  `agent.drain` lets a process that is leaving hand its calls on first and take no new one;
+  `agent.draining` says how many went where.
   `docs/protocol/a-deploy-never-cuts-a-call.md`.
 
 ### Security

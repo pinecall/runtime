@@ -40,6 +40,24 @@ class; its state is restored from `state`, and `onCall` does not run again.
 `call.attached` is in the log, so a reader sees when a call changed hands and to whom. The public
 projection drops it; the tenant projection masks its `state` as it masks `state.changed`'s.
 
+## A process that leaves on purpose
+
+A deploy stops the old process and starts the new one. The old one says so first, for every agent
+it holds:
+
+```jsonc
+// → the command
+{"type": "agent.drain", "agent": "clinica-norte", "call": null, "id": "9", "data": {}}
+// ← the answer, written to the agent's log once its calls have moved
+{"type": "agent.draining", "data": {"app": "app_9f…", "env": "production", "handed": 1, "parked": 1}}
+```
+
+From then on the socket is handed no new call, and each call it served went to the socket that
+would take a new one (`handed`) or waits for the next process that registers the agent (`parked`).
+It still holds the agent, so the tools it is running answer; it is sent no new one. It closes once
+they have, and `agent.detached` follows as always. `pinecall start` does this on `SIGTERM` and
+`SIGINT`: the process needs a few seconds of grace between the signal and the kill.
+
 ## A tool asked while nobody holds the agent
 
 A tool the worker asks while the call is parked is written as `tool.call` and **waits** its own

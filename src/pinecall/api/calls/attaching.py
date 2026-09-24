@@ -61,4 +61,6 @@ async def handed_on(live: Live, registry: Registry, calls: list[str]) -> tuple[i
         serving = registry.serving(env, served.agent, None, holder)
         if serving is not None and await attached(live, call, serving.owner) is not None:
             handed += 1
+        else:
+            live.attach(call, None)
     return handed, len(calls) - handed

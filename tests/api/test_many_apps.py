@@ -214,6 +214,40 @@ def test_the_next_process_to_register_the_agent_takes_the_calls_the_last_one_lef
         assert live.app_of(CALL) == arriving_app
 
 
+def test_a_process_that_drains_hands_its_call_to_the_other_and_says_how_many(
+    gateway: TestClient, live: Live
+) -> None:
+    """agent.drain: the call moves before the process goes, and it is handed no new one."""
+    with an_app(gateway) as older:
+        older_app = holding(older)
+        with an_app(gateway) as leaving:
+            holding(leaving)
+            assert posted(gateway, "/v1/calls", an_opening())[0] == 204
+            assert heard(leaving) == "call.ringing"
+            leaving.send_json(a_frame("agent.drain", AGENT, {}))
+            drained: dict[str, Any] = leaving.receive_json()
+            assert drained["type"] == "agent.draining"
+            assert (drained["data"]["handed"], drained["data"]["parked"]) == (1, 0)
+            assert heard(older) == "call.attached"
+            assert live.app_of(CALL) == older_app
+
+
+def test_a_process_that_drains_alone_parks_its_call_for_the_next_one(
+    gateway: TestClient, live: Live
+) -> None:
+    """Nobody else holds the agent: the call waits for the process that is starting."""
+    with an_app(gateway) as leaving:
+        holding(leaving)
+        assert posted(gateway, "/v1/calls", an_opening())[0] == 204
+        assert heard(leaving) == "call.ringing"
+        leaving.send_json(a_frame("agent.drain", AGENT, {}))
+        drained: dict[str, Any] = leaving.receive_json()
+        assert (drained["data"]["handed"], drained["data"]["parked"]) == (0, 1)
+        assert live.app_of(CALL) is None
+        refused, _ = posted(gateway, "/v1/calls", an_opening())
+        assert refused == 409, "a draining process was handed a new call"
+
+
 # ── what a test says to the doors ───────────────────────────────────────────────
 
 

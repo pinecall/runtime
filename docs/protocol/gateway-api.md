@@ -72,13 +72,14 @@ The upgrade carries the key on the header. Then the app sends **commands** and r
  "ephemeral": false, "data": {"app": "app_9f…", "routes": […], "env": "production"}}
 ```
 
-### The three commands that open the shop
+### The commands that open the shop, and close it
 
 | command | what it does |
 |---|---|
 | `agent.register` | this socket speaks for this agent, and answers these doors (`routes`, `sdk`, `takes_unclaimed`). Answers `agent.registered`, whose `app` is **this socket's id** |
 | `agent.configure` | what the agent IS: the tool list, the language, the prompt's layout, the state fields it declares. Only the fields you send change. The environment — the voice, the models, the greeting, when to hang up, memory, the bases — is the world's, set at `PUT /v1/agents/{slug}/settings` ([§5](#5-the-knobs-the-knowledge-the-memory)); sent here it is not read. Answers `agent.configured` |
 | `ping` | answers `pong` with the gateway's clock |
+| `agent.drain` | this process is leaving: it is handed no new call, and the calls it serves go to another socket holding the agent or wait for the next one. Answers `agent.draining` with how many were `handed` and `parked` — [a-deploy-never-cuts-a-call.md](a-deploy-never-cuts-a-call.md) |
 
 What only the process in the agent's directory can do — a written call to its class, its goldens,
 its knowledge folder, a simulated caller on the class it holds — a console asks the gateway for, and

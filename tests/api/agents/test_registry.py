@@ -211,3 +211,26 @@ async def test_nobody_serves_a_call_of_an_agent_only_such_sockets_hold() -> None
     registry = Registry(Logs(MemoryStore()))
     await registry.register(A_SOCKET, "madrid", PRODUCTION, "clinica-norte", takes_unclaimed=False)
     assert registry.serving(PRODUCTION, "clinica-norte", None) is None
+
+
+async def test_a_draining_socket_is_skipped_for_a_new_call_and_still_holds_its_agent() -> None:
+    registry = Registry(Logs(MemoryStore()))
+    await registry.register(A_SOCKET, "madrid", PRODUCTION, "clinica-norte")
+    await registry.register(ANOTHER_SOCKET, "madrid", PRODUCTION, "clinica-norte")
+    registry.drain(ANOTHER_SOCKET, PRODUCTION, "clinica-norte")
+    serving = registry.serving(PRODUCTION, "clinica-norte", None)
+    assert serving is not None and serving.owner == A_SOCKET
+    assert registry.on(PRODUCTION, "clinica-norte", ANOTHER_SOCKET) is not None
+
+
+async def test_the_last_socket_draining_leaves_no_one_to_take_a_new_call() -> None:
+    registry = Registry(Logs(MemoryStore()))
+    await registry.register(A_SOCKET, "madrid", PRODUCTION, "clinica-norte")
+    registry.drain(A_SOCKET, PRODUCTION, "clinica-norte")
+    assert registry.serving(PRODUCTION, "clinica-norte", None) is None
+
+
+async def test_draining_an_agent_this_socket_does_not_hold_is_refused() -> None:
+    registry = Registry(Logs(MemoryStore()))
+    with pytest.raises(DeclarationRefused, match="not registered on this socket"):
+        registry.drain(A_SOCKET, PRODUCTION, "clinica-norte")

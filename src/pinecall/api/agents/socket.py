@@ -294,6 +294,19 @@ async def register(socket: Socket, command: Command) -> None:
         await parked_calls_of(socket.live, (socket.env, socket.holder, command.agent), socket.id)
 
 
+# A deploy is one process leaving and another arriving. The leaving one says so first, and its calls
+# go to the socket that would take a new call of the agent — another process already running — or
+# wait, parked, for the one that is starting. It keeps the agent until its socket closes, so the
+# tools it is still running answer; it is sent no new tool, because it serves no call any more.
+@handles("agent.drain")
+async def drain(socket: Socket, command: Command) -> None:
+    """Hand this socket's calls on and answer agent.draining with how many went where."""
+    socket.registry.drain(socket.id, socket.env, command.agent)
+    handed, parked = await handed_on(socket.live, socket.registry, socket.live.bound_to(socket.id))
+    entry = await socket.registry.drained(socket.id, socket.env, command.agent, handed, parked)
+    await socket.send(entry)
+
+
 # What the agent reads is refused HERE, where the app is declaring itself, and not in a call where
 # a turn would find nothing: the same rule that refuses a voice nobody curated. Two sentences, each
 # naming the verb that fixes it. A class that searches its bases itself — `this.knowledge.search` —

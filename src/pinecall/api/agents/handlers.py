@@ -45,6 +45,10 @@ class Live(Protocol):
         """Serve a live call from this socket from now on (None parks it); None if nothing moved."""
         ...
 
+    def bound_to(self, owner: SocketId) -> list[str]:
+        """The calls this socket serves right now."""
+        ...
+
     def park(self, owner: SocketId) -> list[str]:
         """Every call this socket served, parked: served by nobody until a socket adopts it."""
         ...
