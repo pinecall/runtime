@@ -31,7 +31,7 @@ that colleague's corner.
 | `GET` | `/v1/insights?day=` | one day of the reader's corner — calls, resolved rate, median e2e, spend, doors, agents — and the month's budget, UTC — `calls` |
 | `GET` · `PUT` | `/v1/org/judging` | whether the org's calls are judged at hang-up, and the box's ceiling; turned with `usage` |
 | `GET` | `/v1/calls/{call}/judging` | the worker's, at hang-up: whether that call's org judges — `app` |
-| `GET` | `/v1/events` | SSE, live only: the org's floor changing — an agent held, a call ringing, up, over |
+| `GET` | `/v1/events` | SSE, live only: the org's floor changing — an agent held, a call ringing, up, over, a call asking for a person, a person on the line |
 | `GET` | `/v1/members` · `POST` | the org's people; invite one, the token once and `mailed` — or none, for a person who already has a password here: seated at once |
 | `PATCH` | `/v1/members/{id}` | role, agents, standing, `production`; disabled revokes their keys; `409` taking production from an admin |
 | `DELETE` | `/v1/members/{id}` | out of the org for good: keys revoked, row and links gone, the seat free — `team`; `409` for yourself and for the last active admin |
@@ -62,6 +62,7 @@ that colleague's corner.
 | `POST` | `/v1/ops/mail/test` | **the box's own**: one letter through the box's mailbox, waited for — `{sent, error}` |
 | `GET` | `/v1/ops/signin` | **the box's own**: every box-wide provider — `{google: {configured, client_id, redirect_uri}}` |
 | `PUT` · `DELETE` | `/v1/ops/signin/google` | **the box's own**: the OAuth client at Google, its secret sealed; Google's discovery checked before anything is kept |
+| `GET` | `/v1/ops/events` | **the box's own**: SSE, live only — every org's floor at once, each frame `{org, entry}`. [the-boxs-floor.md](the-boxs-floor.md) |
 | `GET` · `PUT` | `/v1/ops/brand` | **the box's own**: what the letters and the sign-in page are called and painted with — `{name, logo_url, accent}` |
 | `GET` | `/v1/ops/orgs/{org}/sso` | **the box's own**: which provider one org signs in with, never its secret |
 | `PUT` | `/v1/ops/orgs/{org}/sso/required` | **the box's own**: the break-glass — a password opens that org again while its provider is down. Never the other way |

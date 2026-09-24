@@ -309,7 +309,7 @@ Each of these is one rule in one place, and they are the whole of the isolation:
 | a quota | `Admission` folds the org's own usage out of the log before every call and every register |
 
 The operator's key crosses those lines by design — it is the box's own — and it is the only thing
-that does. It opens `/v1/ops/*` and no tenant door: an ops key cannot read a call. A person the
+that does. It opens `/v1/ops/*` and no tenant door: an ops key reads no call's log, and hears every org's floor at `/v1/ops/events`. A person the
 box made an operator crosses them as themselves: their own key opens `/v1/ops/*` too, and the
 console's org switch lets them into any org (`POST /v1/login/org`) on a key whose `subject` is
 `operator:<email>` — no member row there, no seat, and every dial or verb of theirs attributable

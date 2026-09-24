@@ -376,9 +376,9 @@ Before anybody picks an agent: `GET /v1/sessions?limit=&q=&agent=&channel=&befor
 list, the rows `GET /v1/agents/{slug}/sessions` draws, newest first across the org (`agent` on each
 row says whose) — and, like that door, the reader's corner's alone. `GET /v1/events` is the floor changing, as SSE from now on and nothing before:
 `agent.registered` when a process holds an agent, `call.ringing` · `call.dialing` ·
-`call.started` · `call.ended` as calls arrive and go — each the very entry of its own log, tapped
+`call.started` · `call.ended` as calls arrive and go, `attention.requested` · `attention.answered` as one waits on a person, `supervisor.took_over` · `supervisor.released` as a person takes the line and lets it go — each the very entry of its own log, tapped
 as it is written, so what to resume from is that log and its `seq`. A turn is never on it. Both
-take a key with `calls`; a room token reads its one call and neither of these. Beside them,
+take a key with `calls`; a room token reads its one call and neither of these. The operator hears every org's floor at once at `GET /v1/ops/events` ([the-boxs-floor.md](the-boxs-floor.md)). Beside them,
 `GET /v1/usage?after=&limit=` is the org's own metered rows, totals and cursor (`usage`), the
 tenant's read of what the operator's `/v1/ops/usage` pages; and `GET /v1/numbers` is every door
 the org answers in the key's world (`numbers`) — every one of them a row somebody typed, because

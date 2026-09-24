@@ -5,7 +5,7 @@ ones a worker, an app or a browser uses. It is a **public contract**: everything
 is in this repo; everything needed to charge for it lives outside, in `pinecall/cloud`, and only
 ever reaches a runtime through this API. Nothing here prices anything, and nothing here is private.
 The model underneath — what an org is, what a key IS, how a tenant is given one — is
-[../multi-tenancy.md](../multi-tenancy.md), and the verbs are [../the-runtime-cli.md](../the-runtime-cli.md). What the operator configures about the **box itself** — its mail, its brand, a box-wide "Continue with Google" — is [the-box.md](the-box.md).
+[../multi-tenancy.md](../multi-tenancy.md), and the verbs are [../the-runtime-cli.md](../the-runtime-cli.md). What the operator configures about the **box itself** — its mail, its brand, a box-wide "Continue with Google" — is [the-box.md](the-box.md); every org's floor on one stream is [the-boxs-floor.md](the-boxs-floor.md).
 
 ## Authentication
 

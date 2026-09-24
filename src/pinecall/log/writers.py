@@ -11,8 +11,9 @@ from pinecall.log.store import Store
 from pinecall.types import Versions
 
 # What an org's own stream carries: the moments a floor changes shape, and nothing said on a
-# call. An agent held or let go, a call arriving, up, and over — each already an entry of some
-# log; the feed is those same entries, tapped as they are written, never a second record.
+# call. An agent held or let go, a call arriving, up, and over, a call waiting on a person and a
+# person on the line — each already an entry of some log; the feed is those same entries, tapped
+# as they are written, never a second record.
 ORG_EVENTS: frozenset[str] = frozenset(
     {
         "agent.registered",
@@ -21,6 +22,10 @@ ORG_EVENTS: frozenset[str] = frozenset(
         "call.dialing",
         "call.started",
         "call.ended",
+        "attention.requested",
+        "attention.answered",
+        "supervisor.took_over",
+        "supervisor.released",
     }
 )
 
@@ -38,6 +43,8 @@ class Logs:
         self._call_fanouts: dict[str, Fanout] = {}
         self._agent_fanouts: dict[str, Fanout] = {}
         self._feeds: dict[str, Fanout] = {}
+        # Every org's floor at once, for the operator: one fanout for the box, never pruned.
+        self._box = Fanout()
 
     def writing(self, call: str, agent: str) -> CallLog:
         """The log a session appends to: kept, so `sealed` is one fact and readers hear it live."""
@@ -101,13 +108,21 @@ class Logs:
         self._prune(self._feeds)
         return _fanout_of(self._feeds, org)
 
+    def box(self) -> Fanout:
+        """What the operator subscribes to: every ORG_EVENTS entry of every org the box holds."""
+        return self._box
+
     # Whose log it is lives on the head row: asked per tapped entry, which is rare — a floor
     # changes shape a few times a minute, a call says a hundred things.
+    # The box's feed takes the entry as it is: an entry names no org, so its reader asks the store
+    # again whose it is — the same question, a few times a minute — rather than wrap it here.
     async def _fed(self, entry: Entry) -> None:
-        """Publish an entry about the org onto the org's feed, when somebody is reading it."""
+        """Publish an entry about an org onto the box's feed and, when read, the org's own."""
         if entry.type not in ORG_EVENTS:
             return
         org = await self._store.owner(entry.call, entry.agent)
+        if org is not None:
+            self._box.publish(entry)
         feed = None if org is None else self._feeds.get(org)
         if feed is not None:
             feed.publish(entry)

@@ -232,23 +232,32 @@ def sse(
     ends_at: str | None = TERMINAL_EVENT,
 ) -> StreamingResponse:
     """The same entries as a stream that stays open, and ends where its log does — if it ends."""
-    return StreamingResponse(
-        _body(entries, project, reader, ends_at), media_type=SSE, headers=SSE_HEADERS
-    )
+    return a_stream(_projected(entries, project, reader, ends_at))
 
 
-async def _body(
-    entries: AsyncIterator[Entry], project: Project, reader: Reader, ends_at: str | None
-) -> AsyncIterator[str]:
-    """retry first, then a frame per entry, a ping when it is quiet, and stop at the last event."""
+# Any SSE door of this gateway, whatever it says per entry: a door that projects for a tenant and
+# the operator's, which wraps each entry with its org, write the same frames on the same clock.
+def a_stream(said: AsyncIterator[tuple[Entry, JsonObject]]) -> StreamingResponse:
+    """Each entry and what it says, as SSE: retry first, a frame each, a ping when it is quiet."""
+    return StreamingResponse(_frames(said), media_type=SSE, headers=SSE_HEADERS)
+
+
+async def _frames(said: AsyncIterator[tuple[Entry, JsonObject]]) -> AsyncIterator[str]:
+    """retry first, then a frame per entry and a ping whenever nothing came for a while."""
     yield f"retry: {RETRY_MS}\n\n"
-    async for entry in paced(entries, PING_SECONDS):
-        if entry is None:
-            yield ": ping\n\n"
-            continue
+    async for one in paced(said, PING_SECONDS):
+        yield ": ping\n\n" if one is None else _frame(*one)
+
+
+async def _projected(
+    entries: AsyncIterator[Entry], project: Project, reader: Reader, ends_at: str | None
+) -> AsyncIterator[tuple[Entry, JsonObject]]:
+    """What this reader may see of each entry, stopping at the last event even when it was not
+    theirs to see: the log is over either way."""
+    async for entry in entries:
         said = project(entry, reader)
         if said is not None:
-            yield _frame(entry, said)
+            yield entry, said
         if entry.type == ends_at:
             return
 

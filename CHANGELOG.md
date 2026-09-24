@@ -7,6 +7,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **The org's floor tells when a call wants a person.** `GET /v1/events` now also carries
+  `attention.requested` · `attention.answered` and `supervisor.took_over` · `supervisor.released`.
+- **`GET /v1/ops/events`, the box's floor.** The operator's SSE: every org's floor on one stream,
+  each frame `{org, entry}` (protocol `BoxEvent`, 0.6.6), live only. What a notifier serving the
+  whole box reads, where one org's key would need a stream per org.
 - **The mobile app may call `/v1` from its WebView.** `capacitor://localhost` and
   `https://localhost` get their origin echoed with `Vary: Origin` and their preflight answered;
   `PINECALL_APP_ORIGINS` adds a dev server, comma separated. Any other origin still gets no CORS
