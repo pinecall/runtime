@@ -10,7 +10,7 @@ import httpx
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from pinecall.fleet import Heartbeat, Standing
-from pinecall.session.voice.platform import Dialled, PlatformRefused
+from pinecall.session.voice.platform import Dialled
 from pinecall.types import (
     AgentConfig,
     CallContext,
@@ -21,22 +21,19 @@ from pinecall.types import (
     Route,
 )
 from pinecall.types.json import JsonObject
+from pinecall.worker.hop import (
+    NOT_FOUND,
+    TAIL_TIMEOUT,
+    TIMEOUT_S,
+    GatewayRefused,
+    read,
+    streamed,
+)
 from pinecall_protocol import Command
 from pinecall_protocol.defs import ToolResult
 from pinecall_protocol.events import ToolCall
 from pinecall_protocol.rest import Judging
 
-# A call is not worth waiting on a control plane for: the caller is on the line.
-TIMEOUT_S = 5.0
-
-# GET /v1/calls/{call}/events is one door with two flavours, and Accept is what picks the stream:
-# a page otherwise. The gateway spells the same media type at its sink.
-EVENT_STREAM = "text/event-stream"
-
-# A stream on a quiet call carries a comment every 25 s and an entry whenever there is one; the
-# read side waits for either as long as the call lasts, and only the connect is on the clock.
-# remember() is on the same clock: the session bounds it by its own budget and cancels the wait.
-TAIL_TIMEOUT = httpx.Timeout(TIMEOUT_S, read=None)
 # A clip is a few hundred kilobytes, fetched once per box and then kept by its hash.
 HOLD_AUDIO_TIMEOUT_S = 15.0
 
@@ -62,15 +59,14 @@ STANDING: TypeAdapter[Standing] = TypeAdapter(Standing)
 JUDGING: TypeAdapter[Judging] = TypeAdapter(Judging)
 
 
-class GatewayRefused(PlatformRefused):
-    """The gateway answered anything but yes; the call ends before the caller has spoken."""
-
-
 class Gateway:
     """Everything the worker knows it asked here: the routes, an agent's config, the call's log."""
 
     def __init__(self, http: httpx.AsyncClient) -> None:
         self._http = http
+        # What each call was opened with, until it is sealed: a gateway that restarted forgot the
+        # call, and this is what it is told again (POST /v1/calls/{call}/reopened).
+        self._opened: dict[str, JsonObject] = {}
 
     # The three doors that name WHOSE: the worker holds one key for every org, so each is asked
     # with the corner the dispatch named — the org, the world, the holder — and the gateway answers
@@ -196,13 +192,14 @@ class Gateway:
         if app is not None:
             said["app"] = app
         await self._read("POST", "/v1/calls", said)
+        self._opened[context.call] = said
 
     async def append(
         self, call: str, type: str, data: Mapping[str, Any], ephemeral: bool | None = None
     ) -> None:
         """One entry of this call, with the seq the gateway stamps: the log is written there."""
         said = {"type": type, "data": dict(data), "ephemeral": ephemeral}
-        await self._read("POST", f"/v1/calls/{call}/events", said)
+        await self._on_the_call(call, "POST", f"/v1/calls/{call}/events", said)
 
     async def tool(self, call: str, agent: str, wanted: ToolCall, timeout_s: float) -> ToolResult:
         """One tool out to the app's own process and its result back, through the gateway."""
@@ -211,12 +208,13 @@ class Gateway:
         # The tool's own deadline plus the hop, never the control plane's five seconds: the
         # gateway answers a slow app with a lapsed result at exactly timeout_s, and a client that
         # gave up first would turn that sentence the model can read into a dead connection.
-        answer = await self._read("POST", path, said, timeout=timeout_s + TIMEOUT_S)
+        answer = await self._on_the_call(call, "POST", path, said, timeout=timeout_s + TIMEOUT_S)
         return RESULT.validate_python(answer)
 
     async def sealed(self, call: str) -> None:
         """The call is over and nothing more will be written to it."""
-        await self._read("POST", f"/v1/calls/{call}/sealed")
+        await self._on_the_call(call, "POST", f"/v1/calls/{call}/sealed")
+        self._opened.pop(call, None)
 
     # ── the fleet's two doors ───────────────────────────────────────────────────
 
@@ -254,7 +252,7 @@ class Gateway:
         said: JsonObject = {"tool": tool, "input": dict(input)}
         if speech_id is not None:
             said["speech_id"] = speech_id
-        answer = await self._read("POST", f"/v1/calls/{call}/lookup", said)
+        answer = await self._on_the_call(call, "POST", f"/v1/calls/{call}/lookup", said)
         return dict(answer["output"])
 
     # Asked at hang-up, before a judge may spend on a model. A gateway that cannot be asked is a
@@ -262,14 +260,16 @@ class Gateway:
     async def judging(self, call: str) -> bool:
         """Whether the org this call belongs to judges its calls at hang-up."""
         try:
-            said = JUDGING.validate_python(await self._read("GET", f"/v1/calls/{call}/judging"))
+            asked = await self._on_the_call(call, "GET", f"/v1/calls/{call}/judging")
+            said = JUDGING.validate_python(asked)
         except (GatewayRefused, ValidationError):
             return True
         return said.on
 
     async def remember(self, call: str) -> int:
         """The gateway reads the call's turns off its log and writes what memory keeps."""
-        said = await self._read("POST", f"/v1/calls/{call}/remember", {}, timeout=TAIL_TIMEOUT)
+        path = f"/v1/calls/{call}/remember"
+        said = await self._on_the_call(call, "POST", path, {}, timeout=TAIL_TIMEOUT)
         return int(said["ops"])
 
     # The worker writes the log and never learns a seq: the gateway numbers it. What a browser in
@@ -303,24 +303,16 @@ class Gateway:
     # them over on the same SSE the log is read on. See docs/decisions/voice-bridge.md.
     async def commands(self, call: str) -> AsyncIterator[Command]:
         """Every command the app sent for this call, in order, until the call is sealed."""
-        async for frame in self._streamed(f"/v1/calls/{call}/commands"):
-            yield COMMAND.validate_python(frame)
-
-    async def _streamed(self, path: str) -> AsyncIterator[JsonObject]:
-        """One server-sent stream, message by message, for as long as the gateway holds it open."""
-        headers = {"Accept": EVENT_STREAM}
+        path = f"/v1/calls/{call}/commands"
         try:
-            async with self._http.stream("GET", path, headers=headers, timeout=TAIL_TIMEOUT) as s:
-                if s.status_code >= httpx.codes.BAD_REQUEST:
-                    raise GatewayRefused(f"GET {path}: {s.status_code}")
-                async for frame in server_sent_events(s.aiter_lines()):
-                    yield frame
-        except httpx.HTTPError as unreachable:
-            raise GatewayRefused(f"GET {path}: {unreachable}") from unreachable
-
-    async def aclose(self) -> None:
-        """Close the connection pool the process opened once."""
-        await self._http.aclose()
+            async for frame in self._streamed(path):
+                yield COMMAND.validate_python(frame)
+            return
+        except GatewayRefused as refused:
+            if not await self._reopened(call, refused):
+                raise
+        async for frame in self._streamed(path):
+            yield COMMAND.validate_python(frame)
 
     async def _read(
         self,
@@ -330,17 +322,43 @@ class Gateway:
         timeout: float | httpx.Timeout | None = None,
         params: Mapping[str, str] | None = None,
     ) -> Any:
-        """One request, and the body of the answer. Anything but a 2xx is a refusal by name."""
-        waiting = TIMEOUT_S if timeout is None else timeout
+        """One request on this worker's connection pool."""
+        return await read(self._http, method, path, said, timeout, params)
+
+    def _streamed(self, path: str) -> AsyncIterator[JsonObject]:
+        """One server-sent stream on this worker's connection pool."""
+        return streamed(self._http, path)
+
+    async def aclose(self) -> None:
+        """Close the connection pool the process opened once."""
+        await self._http.aclose()
+
+    # Every door that names a call answers 404 for a call the gateway is not serving. When this
+    # worker opened that call, the gateway is the one that forgot it — it restarted — so it is told
+    # again what the call is, once, and the request is asked again.
+    async def _on_the_call(
+        self,
+        call: str,
+        method: str,
+        path: str,
+        said: Any = None,
+        timeout: float | httpx.Timeout | None = None,
+    ) -> Any:
+        """One request about a call this worker holds, reopened once if the gateway forgot it."""
         try:
-            answer = await self._http.request(
-                method, path, json=said, timeout=waiting, params=params or None
-            )
-        except httpx.HTTPError as unreachable:
-            raise GatewayRefused(f"{method} {path}: {unreachable}") from unreachable
-        if answer.status_code >= httpx.codes.BAD_REQUEST:
-            raise GatewayRefused(f"{method} {path}: {answer.status_code} {answer.text}")
-        return answer.json() if answer.content else None
+            return await self._read(method, path, said, timeout)
+        except GatewayRefused as refused:
+            if not await self._reopened(call, refused):
+                raise
+        return await self._read(method, path, said, timeout)
+
+    async def _reopened(self, call: str, refused: GatewayRefused) -> bool:
+        """Whether that refusal was a gateway that forgot this call, now told it again."""
+        opened = self._opened.get(call)
+        if refused.status != NOT_FOUND or opened is None:
+            return False
+        await self._read("POST", f"/v1/calls/{call}/reopened", opened)
+        return True
 
 
 def _whose(org: str | None, env: Env | None, holder: str | None) -> dict[str, str]:
@@ -352,9 +370,6 @@ def _whose(org: str | None, env: Env | None, holder: str | None) -> dict[str, st
     }
 
 
-# The reader the gateway's sink writes for: `id:` is the seq, `event:` the type, and `data:` the
-# entry as JSON, which already carries both — so the data line is the whole message and the rest is
-# the browser's business. A comment line is the gateway keeping the connection warm.
 # The gateway's refusals carry the sentence in `detail`, and the whole body is what the client
 # raises with. The verb writes ONE line in the caller's log, so it writes the sentence a person
 # can act on — "org … has placed 6 of its 6 outbound calls a minute" — and not the JSON around it.
@@ -371,18 +386,6 @@ def _the_detail_of(refusal: str) -> str:
         return refusal
     detail = cast("dict[str, object]", said).get("detail")
     return detail if isinstance(detail, str) and detail else refusal
-
-
-async def server_sent_events(lines: AsyncIterator[str]) -> AsyncIterator[JsonObject]:
-    """Each SSE message's data, decoded, in the order the stream carried them."""
-    data: list[str] = []
-    async for line in lines:
-        line = line.rstrip("\r\n")
-        if line.startswith("data:"):
-            data.append(line[5:].lstrip(" "))
-        elif not line and data:
-            yield json.loads("\n".join(data))
-            data = []
 
 
 def reaching(base_url: str, key: str = "") -> Gateway:

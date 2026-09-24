@@ -13,7 +13,8 @@ from pinecall.api.agents.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.types import CallContext, Quotas, Route
-from pinecall.worker.client import Gateway, GatewayRefused
+from pinecall.worker.client import Gateway
+from pinecall.worker.hop import GatewayRefused
 from tests.api.conftest import A_KEY, A_RECORD, AGENT
 from tests.api.talking import a_caller, a_door, a_register, an_app, entry_until
 from tests.api.test_worker_doors import declared

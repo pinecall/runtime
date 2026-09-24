@@ -12,7 +12,8 @@ from pinecall.auth.keys import MemoryKeys
 from pinecall.log.store import MemoryStore
 from pinecall.routes.table import MemoryRoutes
 from pinecall.types import DEFAULT_ORG, PRODUCTION, SANDBOX, THE_FLEET, CallContext, Route
-from pinecall.worker.client import Gateway, GatewayRefused
+from pinecall.worker.client import Gateway
+from pinecall.worker.hop import GatewayRefused
 from pinecall_protocol import defs
 from tests.api.conftest import A_RECORD, AGENT, over_the_asgi_app
 

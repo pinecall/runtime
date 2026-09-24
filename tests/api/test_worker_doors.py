@@ -11,7 +11,8 @@ from pinecall.api.agents.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.types import PRODUCTION, CallContext
-from pinecall.worker.client import Gateway, GatewayRefused
+from pinecall.worker.client import Gateway
+from pinecall.worker.hop import GatewayRefused
 from pinecall_protocol import defs
 from pinecall_protocol.events import ToolCall
 from tests.api.conftest import A_RECORD, AGENT
@@ -157,8 +158,17 @@ async def test_a_tool_nobody_answers_lapses_at_its_own_deadline_and_says_so(
 async def test_a_tool_of_an_agent_no_app_holds_is_a_refusal_not_a_wait(
     worker_gateway: Gateway,
 ) -> None:
+    await worker_gateway.opened(a_context(), AGENT)
     wanted = ToolCall(call_id="tu_3", name="find_slots", arguments={})
     with pytest.raises(GatewayRefused, match="409"):
+        await worker_gateway.tool(CALL, AGENT, wanted, timeout_s=1)
+
+
+async def test_a_tool_of_a_call_this_gateway_never_opened_is_not_found(
+    worker_gateway: Gateway,
+) -> None:
+    wanted = ToolCall(call_id="tu_4", name="find_slots", arguments={})
+    with pytest.raises(GatewayRefused, match="404"):
         await worker_gateway.tool(CALL, AGENT, wanted, timeout_s=1)
 
 

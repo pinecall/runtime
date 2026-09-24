@@ -12,7 +12,8 @@ from pinecall.auth.keys import MemoryKeys
 from pinecall.fleet import Heartbeat
 from pinecall.log.store import MemoryStore
 from pinecall.types import DEFAULT_ORG, PRODUCTION, THE_FLEET
-from pinecall.worker.client import Gateway, GatewayRefused
+from pinecall.worker.client import Gateway
+from pinecall.worker.hop import GatewayRefused
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, over_the_asgi_app
 
 pytestmark = pytest.mark.unit

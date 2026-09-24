@@ -12,7 +12,8 @@ from pinecall.tokens.ledger import MemoryTokens, TokenRecord
 from pinecall.tokens.spending import TOKEN_SPENT
 from pinecall.types import PRODUCTION, CallContext, Route
 from pinecall.types.dispatch import AGENT_KEY, SCOPE_KEY
-from pinecall.worker.client import Gateway, GatewayRefused
+from pinecall.worker.client import Gateway
+from pinecall.worker.hop import GatewayRefused
 from pinecall_protocol import defs
 from tests.api.conftest import A_RECORD, AGENT
 from tests.api.test_worker_doors import a_context

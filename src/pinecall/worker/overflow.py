@@ -15,8 +15,9 @@ from pinecall._settings import Settings, load_settings
 from pinecall.fleet import HEARTBEAT_S
 from pinecall.types.dispatch import WORKER_NAME
 from pinecall.worker import router
-from pinecall.worker.client import Gateway, GatewayRefused
+from pinecall.worker.client import Gateway
 from pinecall.worker.entry import Worker, a_call
+from pinecall.worker.hop import GatewayRefused
 from pinecall.worker.main import a_worker
 
 logger = logging.getLogger(__name__)

@@ -11,7 +11,8 @@ from typing import Any
 from livekit.agents import AgentServer
 
 from pinecall.fleet import HEARTBEAT_S, Heartbeat
-from pinecall.worker.client import Gateway, GatewayRefused
+from pinecall.worker.client import Gateway
+from pinecall.worker.hop import GatewayRefused
 
 logger = logging.getLogger(__name__)
 

@@ -6,10 +6,19 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import AdmissionDep, AppKeyDep, LogsDep, TokensDep, TuningDep
+from pinecall.api._deps import (
+    AdmissionDep,
+    AppKeyDep,
+    CallIndexDep,
+    LogsDep,
+    TokensDep,
+    TuningDep,
+)
+from pinecall.api._live import LiveDep
 from pinecall.api._serving import Serving, ServingDep
 from pinecall.api.agents.registry import NO_UNCLAIMED, NOT_THAT_APP, RegistryDep
 from pinecall.api.agents.tuned import tuned_for
+from pinecall.api.calls.attaching import attached
 from pinecall.api.calls.events import NOTHING_MORE
 from pinecall.api.calls.opening import how_it_arrived, who_serves
 from pinecall.auth.keys import KeyRecord, held_by, is_the_fleets
@@ -17,7 +26,7 @@ from pinecall.log.logs import CallLog
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.tokens.spending import spent
-from pinecall.types import AgentConfig, CallContext
+from pinecall.types import AgentConfig, CallContext, Env
 from pinecall_protocol import WireModel
 from pinecall_protocol.registry import EVENTS
 
@@ -38,6 +47,10 @@ NOT_THIS_ENV = "this key opens {key}, and that call's route answers in {route}"
 # Nothing was ever opened under this id here. 404, not 409: from the writer's side the call does
 # not exist on this gateway at all, and the fix is to open it, not to retry.
 NOT_OPEN = "this gateway is not writing call {call!r}: open it with POST /v1/calls first"
+
+# A call whose head row sealed takes nothing more, and a worker still holding it is holding a call
+# the reaper already closed: it has nothing to reopen.
+SEALED = "call {call!r} is over: nothing more can be written to it"
 
 
 class Opening(WireModel):
@@ -74,16 +87,7 @@ async def opened(
 ) -> None:
     """A call started: open its log, put it on the app's socket, and write how it arrived."""
     context = said.context
-    # A tenant's worker opens its own org's calls; the fleet's opens every org's, by the call.
-    fleet = is_the_fleets(key)
-    if not fleet and context.route.org != key.org:
-        raise HTTPException(status_code=403, detail=NOT_THIS_ORG)
-    if not fleet and context.env != key.env:
-        raise HTTPException(
-            status_code=403, detail=NOT_THIS_ENV.format(key=key.env, route=context.env)
-        )
-    org, env = context.route.org, context.env
-    holder = context.holder if fleet else held_by(key)
+    org, env, holder = _whose_call(key, context)
     # A call a token opened is opened once: the second dispatch with the same token is refused
     # here, before a log exists for it, with the reason in the agent's own log.
     await spent(context, said.agent, tokens, logs)
@@ -135,6 +139,54 @@ async def opened(
     await how_it_arrived(log, context, said.agent)
 
 
+# A gateway that restarted forgot every call it was serving; the worker still holds each one, with
+# the very context it opened it with. It says so here, and the call is served again as it was —
+# no quota, no token, no call.ringing: the call was admitted once, and its log already says how it
+# arrived. The socket holding the agent now is told with call.attached.
+@router.post("/v1/calls/{call}/reopened", status_code=NOTHING_MORE)
+async def reopened(
+    call: str,
+    said: Opening,
+    key: AppKeyDep,
+    logs: LogsDep,
+    index: CallIndexDep,
+    registry: RegistryDep,
+    live: LiveDep,
+    tuning: TuningDep,
+) -> None:
+    """A call this gateway forgot and the worker did not: served again from the worker's context."""
+    context = said.context
+    org, env, holder = _whose_call(key, context)
+    if call != context.call:
+        raise HTTPException(status_code=400, detail=f"the context is call {context.call!r}")
+    if live.served(call) is not None:
+        return
+    corner = await index.corner_of_call(call)
+    if corner is None:
+        raise HTTPException(status_code=404, detail=NOT_OPEN.format(call=call))
+    if corner.org != org:
+        raise HTTPException(status_code=403, detail=NOT_THIS_ORG)
+    if corner.sealed:
+        raise HTTPException(status_code=409, detail=SEALED.format(call=call))
+    serving = registry.serving(env, said.agent, None, holder)
+    resolved = None
+    if serving is not None:
+        resolved = await tuned_for(tuning, org, env, serving.holder, said.agent, serving.config)
+    config = AgentConfig(slug=said.agent) if resolved is None else resolved.config
+    live.serve(
+        call,
+        said.agent,
+        org,
+        logs.writing(call, said.agent),
+        None,
+        context=context,
+        config=config,
+        holder=holder if serving is None else serving.holder,
+    )
+    if serving is not None:
+        await attached(live, call, serving.owner)
+
+
 @router.post("/v1/calls/{call}/events", status_code=NOTHING_MORE)
 async def append(
     call: str, said: Appending, key: AppKeyDep, logs: LogsDep, live: ServingDep
@@ -153,6 +205,19 @@ async def sealed(call: str, key: AppKeyDep, logs: LogsDep, live: ServingDep) -> 
     await _the_open_log(logs, call).seal()
     logs.forget(call)
     live.close(call)
+
+
+# A tenant's worker opens its own org's calls; the fleet's opens every org's, by the call.
+def _whose_call(key: KeyRecord, context: CallContext) -> tuple[str, Env, str | None]:
+    """The org, the world and the corner a worker's call is opened in, or 403 naming why not."""
+    fleet = is_the_fleets(key)
+    if not fleet and context.route.org != key.org:
+        raise HTTPException(status_code=403, detail=NOT_THIS_ORG)
+    if not fleet and context.env != key.env:
+        raise HTTPException(
+            status_code=403, detail=NOT_THIS_ENV.format(key=key.env, route=context.env)
+        )
+    return context.route.org, context.env, context.holder if fleet else held_by(key)
 
 
 # The org was said once, at the door that opened the call, and the process kept it: the check

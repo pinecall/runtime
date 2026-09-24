@@ -10,6 +10,7 @@ from pinecall.api._deps import AppKeyDep, LogsDep
 from pinecall.api._live import LiveDep
 from pinecall.api.agents.handlers import Socket, asked, handles
 from pinecall.api.agents.registry import RegistryDep
+from pinecall.api.calls.worker_doors import NOT_OPEN
 from pinecall.auth.corner import Corner, corner_of
 from pinecall.auth.keys import is_the_fleets
 from pinecall.log.entry import Entry
@@ -19,8 +20,9 @@ from pinecall_protocol.events import ToolCall
 
 router = APIRouter()
 
-# The worker asked for a tool of an agent no socket speaks for: the app is gone, or it never
-# registered here. The caller is on a line, so this is an answer and not a wait.
+# The worker asked for a tool of an agent nobody in this org ever held here: it never registered.
+# The caller is on a line, so this is an answer and not a wait. An app that is only between two
+# processes — a deploy — is waited for instead.
 NO_APP = "no app is holding agent {agent}: register it before its calls run tools"
 
 # A tool.result that answers nothing: it lapsed, it was answered once already, or the call it
@@ -46,15 +48,25 @@ async def run_a_tool(
     live: LiveDep,
 ) -> dict[str, Any]:
     """A worker's tool call through the app's own process and back, with both entries logged."""
+    # A call this gateway does not serve is one it forgot — it restarted — and the worker, which
+    # still holds the call, reopens it on this 404 and asks again.
+    served = live.served(call)
+    if served is None:
+        raise HTTPException(status_code=404, detail=NOT_OPEN.format(call=call))
     # Whose app the tool goes out to: the key's own corner for a tenant's worker, and for the
     # fleet's the corner of the CALL — said once when it was opened, and kept by this process.
     whose = corner_of(key)
-    if is_the_fleets(key) and (opened := live.the_call(call)) is not None:
-        whose = Corner(opened.org, opened.context.env, opened.holder)
+    if is_the_fleets(key):
+        whose = Corner(served.org, served.context.env, served.holder)
     held = registry.of(whose.env, agent, whose.holder)
-    if held is None or held.org != whose.org:
+    if held is not None and held.org != whose.org:
         raise HTTPException(status_code=409, detail=NO_APP.format(agent=agent))
-    log = logs.writing(call, agent)
+    # Nobody holds it right now, but somebody did: the process is being deployed. The tool.call is
+    # written and waits its own timeout for the next socket, which is sent it with call.attached.
+    if held is None and await logs.owner(None, agent) != whose.org:
+        raise HTTPException(status_code=409, detail=NO_APP.format(agent=agent))
+    config = served.config if held is None else held.config
+    log = served.log
 
     # The codec's own encoding, and not exclude_none: a method that returned null sent `output:
     # null`, and that is a fact of the call. Dropping it left `tool.result` without an output at
@@ -64,7 +76,7 @@ async def run_a_tool(
         return await log.append(type, encode(event))
 
     use = ToolUse(call_id=wanted.call_id, name=wanted.name, arguments=dict(wanted.arguments))
-    result = await live.waiting(call, held.config).ran(use, wanted.speech_id or "", emit)
+    result = await live.waiting(call, config).ran(use, wanted.speech_id or "", emit)
     return result.model_dump(mode="json")
 
 

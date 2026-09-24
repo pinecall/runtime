@@ -7,7 +7,8 @@ from typing import Protocol
 
 from pinecall._exceptions import PinecallError
 from pinecall.log import REFUSED
-from pinecall.worker.client import Gateway, GatewayRefused
+from pinecall.worker.client import Gateway
+from pinecall.worker.hop import GatewayRefused
 from pinecall_protocol import Command, encode
 from pinecall_protocol.events import ErrorEvent
 

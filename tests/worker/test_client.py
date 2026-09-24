@@ -15,12 +15,11 @@ from pinecall.types import AgentConfig, CallContext, Route, ToolSpec
 from pinecall.worker.client import (
     CONFIG,
     CONTEXT,
-    EVENT_STREAM,
     ROUTES,
     Gateway,
-    GatewayRefused,
     reaching,
 )
+from pinecall.worker.hop import EVENT_STREAM, GatewayRefused
 from tests.worker.fakes import Seen, a_gateway
 
 pytestmark = pytest.mark.unit
