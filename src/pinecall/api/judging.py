@@ -12,7 +12,7 @@ from pinecall.api._deps import (
     UsageKeyDep,
 )
 from pinecall.api._live import LiveDep
-from pinecall.api.calls.events import NOT_OPEN
+from pinecall.api.calls.worker_doors import NOT_OPEN
 from pinecall.auth.keys import is_the_fleets
 from pinecall_protocol.rest import Judging, JudgingWanted
 

@@ -56,7 +56,17 @@ from pinecall.api import (
 from pinecall.api.agents import dev, socket
 from pinecall.api.agents import endpoints as agents
 from pinecall.api.agents import provider_keys as agents_provider_keys
-from pinecall.api.calls import chat, commands, events, listing, lookup, recording, state, tools
+from pinecall.api.calls import (
+    chat,
+    commands,
+    events,
+    listing,
+    lookup,
+    recording,
+    state,
+    tools,
+    worker_doors,
+)
 from pinecall.api.evals import caller, judge, replay, runs, voice
 from pinecall.api.supervise import verbs
 from pinecall.api.whatsapp import webhook
@@ -72,6 +82,7 @@ DOORS: tuple[APIRouter, ...] = (
     personas.router,
     persona_runs.router,
     events.router,
+    worker_doors.router,
     state.router,
     listing.router,
     recording.router,
