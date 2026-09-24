@@ -53,6 +53,26 @@ async def a_text_call(
     budgets: Budgets,
 ) -> TextCall:
     """The config, whose keys, the model and the quota — then the session, unstarted."""
+    return await a_text_session(
+        held, context, tuning, vault, llms, logs, lookups, budgets, admission, running
+    )
+
+
+# The same session, for a call that was admitted once already and is only being taken up again —
+# its gateway restarted and forgot it (api/calls/taking_up.py): no quota is asked a second time.
+async def a_text_session(
+    held: Registration,
+    context: CallContext,
+    tuning: TuningStore,
+    vault: Vault | None,
+    llms: Models,
+    logs: Logs,
+    lookups: Lookups,
+    budgets: Budgets,
+    admission: Admission,
+    running: int | None,
+) -> TextCall:
+    """The config, whose keys, the model — and the quota, unless `running` is None — unstarted."""
     # What the org set is on this call too: a text call reads the config through the same
     # resolving function the worker's config door reads it through, in the corner that serves it.
     resolved = await tuned_for(tuning, held.org, held.env, held.holder, held.slug, held.config)
@@ -64,7 +84,8 @@ async def a_text_call(
     # refuses the call at the door rather than dying in the middle of somebody's turn.
     llm = llms(config.llm, brought)
     # The org's quotas, also before: credits.exhausted lands in the agent's log either way.
-    await admission.a_call(held.org, held.slug, running)
+    if running is not None:
+        await admission.a_call(held.org, held.slug, running)
     # logs.writing() keeps the log, so every SSE reader of this call is already subscribed to it.
     # And the judge: a session judges nothing itself, so whoever opens a call hands it one.
     # This is that place for a written call, as `worker/main.py` is for a spoken one.

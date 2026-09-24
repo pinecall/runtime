@@ -27,6 +27,7 @@ from pinecall.session.scoring import Scorer, unjudged
 from pinecall.session.text.agent import TextAgent, remembered
 from pinecall.session.text.attending import Attending
 from pinecall.session.text.measure import Reply, usage_rows
+from pinecall.session.text.resuming import taken_up
 from pinecall.session.text.running import Running
 from pinecall.session.text.turns import Turns
 from pinecall.types import AgentConfig, Blocks, CallContext
@@ -92,6 +93,8 @@ class TextSession:
         self._state: dict[str, Any] = {}
         self._speeches = 0
         self._started_at = time.time()
+        # When the call last wrote anything before this session took it up; now, for a new one.
+        self.quiet_since = self._started_at
         self._ended = False
         self.turns = Turns(self)
         self.running = Running(self, config)
@@ -181,6 +184,22 @@ class TextSession:
             say=lambda text, _interruptible: self.say(text),
             reply=lambda instructions, _interruptible: self.reply(instructions),
         )
+
+    # The gateway that ran this call restarted and forgot it; its log did not. The session starts
+    # again as the log left it — the history the model reads, the state, the counters — and says
+    # nothing: no call.started, no greeting, because the caller is mid-conversation.
+    async def resume(self, entries: Sequence[Entry]) -> None:
+        """A call this process forgot, taken up where its log left it."""
+        taken = taken_up(entries)
+        await self.live.start(  # pyright: ignore[reportUnknownMemberType]
+            self.text_agent, record=False
+        )
+        self._state = taken.state
+        self._speeches = taken.speeches
+        self.turns.count, self.turns.last = taken.turns, taken.last
+        self._started_at = taken.started_at or self._started_at
+        self.quiet_since = taken.last_at
+        await remembered(self.text_agent, *clock.dated(self.context.today), *taken.history)
 
     async def hangup(self, reason: defs.EndReason, by: EndedBy) -> None:
         """The last three entries of the call, then the log is sealed. Twice is once."""

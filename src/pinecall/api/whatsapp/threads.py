@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from datetime import date
 from typing import Annotated
@@ -12,7 +13,9 @@ from fastapi import Depends
 from starlette.requests import HTTPConnection
 
 from pinecall.api._deps import held
+from pinecall.api.agents.holding import Registration
 from pinecall.api.calls.opening import a_text_call
+from pinecall.api.calls.taking_up import taken_up
 from pinecall.api.whatsapp.doors import Doors
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.providers.models import NoProvider
@@ -153,6 +156,9 @@ class Threads:
         if held is None:
             logger.warning(NOBODY_SERVING, route.agent, inbound.number)
             return None
+        going = await self._taken_up(doors, inbound, route, held)
+        if going is not None:
+            return going
         try:
             opened = await a_text_call(
                 held,
@@ -194,6 +200,50 @@ class Threads:
         # here on reaches the contact, and nothing has to remember to send it too.
         session.watch(sending(session, doors.graph, token, thread.phone_number_id, inbound.wa_id))
         await session.start()
+        self._open[(inbound.number, inbound.wa_id)] = thread
+        return thread
+
+    # This process has no thread for the contact, but the gateway may have had one before it
+    # restarted: their newest call with the agent, still open, is taken up from its log with the
+    # idle clock it had left. One that went quiet for a whole idle period while nobody was
+    # watching ends now, as it would have, and the message opens a new call.
+    async def _taken_up(
+        self, doors: Doors, inbound: Inbound, route: Route, held: Registration
+    ) -> Thread | None:
+        """The contact's conversation this gateway forgot, going again; None when there is none."""
+        newest = await doors.index.calls_with(
+            held.org, route.env, held.holder or "", route.agent, inbound.caller, 1
+        )
+        if not newest:
+            return None
+        try:
+            opened = await taken_up(
+                newest[0],
+                held,
+                _a_context(route, inbound),
+                doors.index,
+                doors.logs,
+                doors.live,
+                doors.tuning,
+                doors.vault,
+                doors.llms,
+                doors.lookups,
+                doors.settings.budgets,
+                doors.admission,
+            )
+            if opened is None:
+                return None
+            token = a_key(WHATSAPP, Asked(settings=doors.settings, keys=opened.keys))
+        except NoProvider as refused:
+            logger.warning(NOT_ANSWERED, route.agent, inbound.number, refused)
+            return None
+        session = opened.session
+        left = self._idle_seconds - (time.time() - session.quiet_since)
+        thread = Thread(session, inbound.phone_number_id, self._forgetting(doors), max(left, 0.0))
+        if left <= 0:
+            await self._forgetting(doors)(thread, WENT_QUIET)
+            return None
+        session.watch(sending(session, doors.graph, token, thread.phone_number_id, inbound.wa_id))
         self._open[(inbound.number, inbound.wa_id)] = thread
         return thread
 

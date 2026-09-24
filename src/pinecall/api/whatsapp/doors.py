@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pinecall._settings import Settings
 from pinecall.api._live import Live
 from pinecall.api.agents.registry import Registry
+from pinecall.log.store.index import CallIndex
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
@@ -36,3 +37,6 @@ class Doors:
     live: Live
     graph: Graph
     lookups: Lookups
+    # The contact's calls, asked when this process has no thread for them: after a restart, the
+    # conversation they are in is found here and taken up rather than started again.
+    index: CallIndex

@@ -95,6 +95,24 @@ its own deadline, which the model is waiting on; a seal within thirty seconds, a
 reaper seals the call once its room is gone. An entry whose answer was lost in flight — written,
 and the connection cut before the gateway said so — may be written twice; one is never lost.
 
+## A written call
+
+A voice call — in a browser or on the phone — runs in a worker, and a web chat through
+`@pinecall/room` joins the same kind of room: all of them go on through a gateway restart as above.
+A call written over `WS /v1/chat` (`pinecall chat`, the console) or on WhatsApp runs in the
+gateway's own process, and a restart ends its session — never the call, whose log is whole and head
+row unsealed. It is **taken up** the next time it is spoken to (`api/calls/taking_up.py`):
+
+- **`WS /v1/chat?call=<id>`**: the caller's socket dropped with the gateway, and it dials again
+  naming the call. `pinecall chat` and the console do that by themselves, for about a minute.
+- **WhatsApp**: the contact's next message finds their newest call with the agent still open, and
+  goes on it. One that went a whole idle period (two hours) without a word while nobody was
+  watching is ended then, as it would have been, and the message opens a new call.
+
+Taken up, the session is rebuilt from the log — the conversation as the model reads it (turns,
+tools and what they returned), the state, the numbering — no quota is asked again and nothing is
+said; the app's socket hears `call.attached` and sends its prompt and tools again.
+
 ## The page
 
 A page follows its call's log with the `log_token` its server's mint (or dial) answered

@@ -183,7 +183,11 @@ Thirty lines and one dependency, no Pinecall package: [the-smallest-app.md](the-
 
 `WS /v1/chat` takes three more query parameters: `app=<socket id>` to name which of your processes
 serves it, `contact=<id>` to say who is calling (memory files the call under it), and
-`caller=<id>` for the `from` on `call.started`.
+`caller=<id>` for the `from` on `call.started`. A written call runs in the gateway's own process;
+`call=<id>` is a caller coming back to one whose gateway restarted under it: the call is taken up
+from its log — its history, its state — and goes on, with no second `call.started` and no greeting.
+A call that is over, or not this agent's, is refused in a sentence
+([a-deploy-never-cuts-a-call.md](a-deploy-never-cuts-a-call.md)).
 
 `POST /v1/tokens` takes `{agent, scope, contact?, ttl_s?, metadata?, participant_identity?}` and
 answers `{server_url, participant_token, call, log_token}` — the last one the page's reader of that call, for as long as it shows it ([tokens.md](tokens.md)) — or **`503`** when every worker of the fleet is

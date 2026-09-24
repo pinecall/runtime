@@ -36,6 +36,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   restart dropped the entries and closed the command stream for the rest of the call.
   The gateway stops in seconds: uvicorn waits 5 s for the requests in flight, and its unit has
   `TimeoutStopSec=30`.
+  A written call (`WS /v1/chat`, WhatsApp), which runs in the gateway, is taken up from its log
+  after a restart instead of being lost: `?call=<id>` on the chat socket, and a WhatsApp contact's
+  next message goes on their open call, history and state whole.
   `docs/protocol/a-deploy-never-cuts-a-call.md`.
 
 ### Security

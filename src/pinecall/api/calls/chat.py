@@ -11,6 +11,7 @@ from starlette.websockets import WebSocketState
 
 from pinecall.api._deps import (
     AdmissionDep,
+    CallIndexDep,
     KeysDep,
     LlmsDep,
     LogsDep,
@@ -23,9 +24,10 @@ from pinecall.api._deps import (
 )
 from pinecall.api._live import Live, LiveDep
 from pinecall.api.agents import on_a_call as commands
-from pinecall.api.agents.holding import SocketId
+from pinecall.api.agents.holding import Registration, SocketId
 from pinecall.api.agents.registry import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, Registry, RegistryDep
 from pinecall.api.calls.opening import a_text_call
+from pinecall.api.calls.taking_up import taken_up
 from pinecall.api.personas import the_personas
 from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
 from pinecall.auth.keys import KeyRecord, held_by, not_opening
@@ -43,6 +45,10 @@ from pinecall_protocol import encode
 __all__ = ["commands", "router"]
 
 logger = logging.getLogger(__name__)
+
+# A caller asked to come back to a call that cannot be taken up: it ended, or it is another agent's.
+NOT_TAKEN_UP = "call {call} cannot be taken up: it is over, or not this agent's — open a new one"
+
 router = APIRouter()
 
 # A caller who came with the key and named an agent nobody is holding. The socket is accepted only
@@ -78,6 +84,7 @@ async def chat(
     lookups: LookupsDep,
     settings: SettingsDep,
     members: MembersDep,
+    index: CallIndexDep,
 ) -> None:
     """One caller, one text call: they send {text}, they receive every entry of their own call."""
     try:
@@ -106,6 +113,25 @@ async def chat(
         await websocket.accept()
         await websocket.close(
             code=POLICY_VIOLATION, reason=as_a_close_reason(why.format(slug=slug))
+        )
+        return
+    # `?call=` is a caller coming back to a call whose gateway restarted under it: the call is
+    # taken up from its log, not opened again, and the caller reads on from where it was.
+    again = websocket.query_params.get("call")
+    if again:
+        await _taken_up(
+            websocket,
+            again,
+            held,
+            index,
+            logs,
+            live,
+            tuning,
+            vault,
+            llms,
+            lookups,
+            settings,
+            admission,
         )
         return
     # Everything a text call needs before its first word, in the one order both text doors take
@@ -179,6 +205,62 @@ async def _talk(
     live.open(session)
     try:
         await session.start()
+    except BaseException:
+        live.close(session.call)
+        logs.forget(session.call)
+        raise
+    await _talking(websocket, session, live, logs)
+
+
+# A call taken up is a call already going: nothing is started, nothing said, and the caller's next
+# frame is its next turn. One that is not there to take up — over, or not this agent's — is
+# refused in a sentence, and the caller opens a new one.
+async def _taken_up(
+    websocket: WebSocket,
+    call: str,
+    held: Registration,
+    index: CallIndexDep,
+    logs: Logs,
+    live: Live,
+    tuning: TuningDep,
+    vault: VaultDep,
+    llms: LlmsDep,
+    lookups: LookupsDep,
+    settings: SettingsDep,
+    admission: AdmissionDep,
+) -> None:
+    """The caller back on a call its gateway forgot, or a close saying why not."""
+    await websocket.accept()
+    context = a_call_from(websocket, held.org, held.env, held.slug)
+    try:
+        opened = await taken_up(
+            call,
+            held,
+            context,
+            index,
+            logs,
+            live,
+            tuning,
+            vault,
+            llms,
+            lookups,
+            settings.budgets,
+            admission,
+            _sending(websocket),
+        )
+    except NoProvider as missing:
+        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(str(missing)))
+        return
+    if opened is None:
+        reason = as_a_close_reason(NOT_TAKEN_UP.format(call=call))
+        await websocket.close(code=POLICY_VIOLATION, reason=reason)
+        return
+    await _talking(websocket, opened.session, live, logs)
+
+
+async def _talking(websocket: WebSocket, session: TextSession, live: Live, logs: Logs) -> None:
+    """Every frame the caller sends is one turn, until they go; then the call is over."""
+    try:
         await _every_turn(websocket, session)
         await session.hangup("caller_hung_up", "caller")
     finally:
