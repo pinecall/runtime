@@ -9,6 +9,7 @@ import pytest
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+from pinecall.api.calls.chat import hung_up_by
 from pinecall.log.writers import Logs
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, CHAT
 from tests.api.talking import an_app, declared, entry_until
@@ -80,3 +81,12 @@ async def test_a_call_that_is_over_is_not_taken_up(gateway: TestClient, logs: Lo
         with coming_back(gateway) as caller, pytest.raises(WebSocketDisconnect) as closed:
             caller.receive_json()
     assert "cannot be taken up" in str(closed.value.reason)
+
+
+# Starlette's TestClient cancels the door the moment its socket closes, so neither ending can be
+# watched through it; the rule is what is tested, and the box is where the whole of it was run.
+@pytest.mark.parametrize(
+    ("code", "hung_up"), [(1012, False), (1000, True), (1001, True), (1006, True)]
+)
+def test_only_a_gateway_stopping_is_not_the_caller_hanging_up(code: int, hung_up: bool) -> None:
+    assert hung_up_by(code) is hung_up

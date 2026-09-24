@@ -46,6 +46,10 @@ __all__ = ["commands", "router"]
 
 logger = logging.getLogger(__name__)
 
+# What uvicorn closes every WebSocket with when the server stops (RFC 6455's 1012, "service
+# restart"): the one close a caller never sends.
+SERVICE_RESTART = 1012
+
 # A caller asked to come back to a call that cannot be taken up: it ended, or it is another agent's.
 NOT_TAKEN_UP = "call {call} cannot be taken up: it is over, or not this agent's — open a new one"
 
@@ -261,16 +265,19 @@ async def _taken_up(
 async def _talking(websocket: WebSocket, session: TextSession, live: Live, logs: Logs) -> None:
     """Every frame the caller sends is one turn, until they go; then the call is over."""
     try:
-        await _every_turn(websocket, session)
-        await session.hangup("caller_hung_up", "caller")
+        # A gateway stopping closes every socket with 1012 before it goes: that is not the caller
+        # hanging up, and the call is left open, for the next process to take up when they are back.
+        if not await _every_turn(websocket, session):
+            await session.hangup("caller_hung_up", "caller")
     finally:
         live.close(session.call)
         # The log is sealed and its readers have finished; nothing more will ever be appended.
         logs.forget(session.call)
 
 
-async def _every_turn(websocket: WebSocket, session: TextSession) -> None:
-    """Every frame the caller sends is one turn, until the caller is gone."""
+async def _every_turn(websocket: WebSocket, session: TextSession) -> bool:
+    """Every frame the caller sends is one turn, until the caller is gone. True when it was the
+    gateway that went — stopping — and not the caller."""
     # A send to a caller who already left flips starlette's application_state under us — the
     # session drops that watcher — and the next receive would be a RuntimeError instead of a
     # disconnect. So the state is read before every receive, and either way of leaving ends here.
@@ -279,8 +286,14 @@ async def _every_turn(websocket: WebSocket, session: TextSession) -> None:
             text = _said(await websocket.receive_json())
             if text:
                 await session.hears(text)
-    except WebSocketDisconnect:
-        return
+    except WebSocketDisconnect as gone:
+        return not hung_up_by(gone.code)
+    return False
+
+
+def hung_up_by(code: int) -> bool:
+    """Whether a socket that closed with this code was the caller leaving — anything but 1012."""
+    return code != SERVICE_RESTART
 
 
 def a_call_from(
