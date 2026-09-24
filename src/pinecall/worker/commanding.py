@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Protocol
 
@@ -9,6 +10,7 @@ from pinecall._exceptions import PinecallError
 from pinecall.log import REFUSED
 from pinecall.worker.client import Gateway
 from pinecall.worker.hop import GatewayRefused
+from pinecall.worker.retrying import away, delays
 from pinecall_protocol import Command, encode
 from pinecall_protocol.events import ErrorEvent
 
@@ -29,13 +31,24 @@ class Applying(Protocol):
 
 # One stream per call, opened once the bridge exists so that the first prompt.set has somewhere to
 # land, and read in order: the app's commands are applied in the order the app sent them.
+#
+# The stream ends cleanly when the call is sealed, and that is the only clean end. Cut — the gateway
+# restarting — it is opened again on a capped backoff for as long as the gateway is away; a 4xx is
+# the gateway saying the call is not there to read, and that is the end of it.
 async def served(gateway: Gateway, bridge: Applying, call: str) -> None:
     """Every command the app sends for this call, until the gateway seals it or lets go."""
-    try:
-        async for command in gateway.commands(call):
-            await _applied(gateway, bridge, call, command)
-    except GatewayRefused as unreachable:
-        logger.warning("call %s: no commands will arrive (%s)", call, unreachable)
+    waits = delays()
+    while True:
+        try:
+            async for command in gateway.commands(call):
+                waits = delays()
+                await _applied(gateway, bridge, call, command)
+            return
+        except GatewayRefused as refused:
+            if not away(refused):
+                logger.warning("call %s: no commands will arrive (%s)", call, refused)
+                return
+        await asyncio.sleep(next(waits))
 
 
 async def _applied(gateway: Gateway, bridge: Applying, call: str, command: Command) -> None:

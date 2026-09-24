@@ -56,8 +56,9 @@ class Writing:
             )
 
     # A platform that refuses one entry must not end the call: the caller is on the line and the
-    # rest of the log is still worth writing. What it refused is remembered and said once, at the
-    # close, so an operator reading the process log knows how much of this call's log is missing.
+    # rest of the log is still worth writing. A gateway that is only away — restarting — is waited
+    # out by the worker's client (worker/retrying.py), so what lands here is a real no, a 4xx: it
+    # is remembered and said once, at the close, so an operator knows how much of the log is missing.
     async def _drain(self) -> None:
         """One entry at a time, in order, for as long as the call lasts."""
         while True:

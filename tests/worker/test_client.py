@@ -12,6 +12,7 @@ from pinecall.session.lookups import Lookup
 from pinecall.session.remembering import Rememberer
 from pinecall.session.voice.platform import Platform
 from pinecall.types import AgentConfig, CallContext, Route, ToolSpec
+from pinecall.worker import retrying
 from pinecall.worker.client import (
     CONFIG,
     CONTEXT,
@@ -150,7 +151,7 @@ async def test_a_gateway_that_is_not_there_is_a_refusal_and_never_a_traceback() 
 
     gateway = Gateway(httpx.AsyncClient(transport=httpx.MockTransport(unreachable)))
     with pytest.raises(GatewayRefused, match="connection refused"):
-        await gateway.sealed("call_1")
+        await gateway.agent("clinica-norte")
 
 
 def test_the_key_travels_as_a_bearer_header_and_never_in_the_url() -> None:
@@ -237,3 +238,23 @@ async def test_a_refused_tail_is_a_refusal_naming_the_call() -> None:
     )
     with pytest.raises(GatewayRefused, match="GET /v1/calls/call_1/events"):
         _ = [entry async for entry in gateway.tail("call_1", 0)]
+
+
+async def test_an_append_is_asked_again_while_the_gateway_is_away_and_lands_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def slept(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(retrying.asyncio, "sleep", slept)
+    answers = iter([httpx.Response(503), httpx.Response(502), httpx.Response(204)])
+    asked: list[str] = []
+
+    def answering(request: httpx.Request) -> httpx.Response:
+        asked.append(request.url.path)
+        return next(answers)
+
+    transport = httpx.MockTransport(answering)
+    gateway = Gateway(httpx.AsyncClient(transport=transport, base_url="http://gw.test"))
+    await gateway.append("call_1", "turn.user", {"text": "hola"})
+    assert asked == ["/v1/calls/call_1/events"] * 3

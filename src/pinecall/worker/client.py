@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import AsyncIterator, Mapping
 from typing import Any, Literal, cast
 
@@ -28,11 +27,17 @@ from pinecall.worker.hop import (
     GatewayRefused,
     read,
     streamed,
+    the_detail_of,
 )
+from pinecall.worker.retrying import again
 from pinecall_protocol import Command
 from pinecall_protocol.defs import ToolResult
 from pinecall_protocol.events import ToolCall
 from pinecall_protocol.rest import Judging
+
+# A seal is asked again while the gateway is away, well inside the job's own SEALING_S: a call the
+# worker could not seal is sealed by the gateway's reaper once its room is gone (api/reaping.py).
+SEALED_WITHIN_S = 30.0
 
 # A clip is a few hundred kilobytes, fetched once per box and then kept by its hash.
 HOLD_AUDIO_TIMEOUT_S = 15.0
@@ -172,7 +177,7 @@ class Gateway:
         try:
             said = await self._read("GET", f"/v1/agents/{slug}/outbound-trunk", params=asked)
         except GatewayRefused as refused:
-            return Dialled(refused=_the_detail_of(str(refused)))
+            return Dialled(refused=the_detail_of(str(refused)))
         trunk = cast("dict[str, object]", said).get("trunk") if isinstance(said, dict) else None
         return Dialled(trunk=trunk if isinstance(trunk, str) and trunk else None)
 
@@ -199,7 +204,9 @@ class Gateway:
     ) -> None:
         """One entry of this call, with the seq the gateway stamps: the log is written there."""
         said = {"type": type, "data": dict(data), "ephemeral": ephemeral}
-        await self._on_the_call(call, "POST", f"/v1/calls/{call}/events", said)
+        path = f"/v1/calls/{call}/events"
+        # Asked again for as long as the gateway is away: an entry dropped is a hole in the log.
+        await again(lambda: self._on_the_call(call, "POST", path, said), within_s=None, what=path)
 
     async def tool(self, call: str, agent: str, wanted: ToolCall, timeout_s: float) -> ToolResult:
         """One tool out to the app's own process and its result back, through the gateway."""
@@ -208,12 +215,22 @@ class Gateway:
         # The tool's own deadline plus the hop, never the control plane's five seconds: the
         # gateway answers a slow app with a lapsed result at exactly timeout_s, and a client that
         # gave up first would turn that sentence the model can read into a dead connection.
-        answer = await self._on_the_call(call, "POST", path, said, timeout=timeout_s + TIMEOUT_S)
+        waiting = timeout_s + TIMEOUT_S
+        # A tool is one round trip per call_id at the gateway, so asking again writes nothing twice;
+        # it is asked again only within its own deadline, which the model is waiting on.
+        answer = await again(
+            lambda: self._on_the_call(call, "POST", path, said, timeout=waiting),
+            within_s=waiting,
+            what=path,
+        )
         return RESULT.validate_python(answer)
 
     async def sealed(self, call: str) -> None:
         """The call is over and nothing more will be written to it."""
-        await self._on_the_call(call, "POST", f"/v1/calls/{call}/sealed")
+        path = f"/v1/calls/{call}/sealed"
+        await again(
+            lambda: self._on_the_call(call, "POST", path), within_s=SEALED_WITHIN_S, what=path
+        )
         self._opened.pop(call, None)
 
     # ── the fleet's two doors ───────────────────────────────────────────────────
@@ -368,24 +385,6 @@ def _whose(org: str | None, env: Env | None, holder: str | None) -> dict[str, st
         for name, value in (("org", org), ("env", env), ("holder", holder))
         if value is not None
     }
-
-
-# The gateway's refusals carry the sentence in `detail`, and the whole body is what the client
-# raises with. The verb writes ONE line in the caller's log, so it writes the sentence a person
-# can act on — "org … has placed 6 of its 6 outbound calls a minute" — and not the JSON around it.
-def _the_detail_of(refusal: str) -> str:
-    """The `detail` of a refused answer, or the refusal as it came when there is none."""
-    opened = refusal.find("{")
-    if opened == -1:
-        return refusal
-    try:
-        said: object = json.loads(refusal[opened:])
-    except ValueError:
-        return refusal
-    if not isinstance(said, dict):
-        return refusal
-    detail = cast("dict[str, object]", said).get("detail")
-    return detail if isinstance(detail, str) and detail else refusal
 
 
 def reaching(base_url: str, key: str = "") -> Gateway:

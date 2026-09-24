@@ -82,6 +82,14 @@ if it has) — and serves the call as it was: no quota asked, no token spent, no
 `call.ringing`. The socket holding the agent hears `call.attached`. The worker's command stream,
 cut by the restart, is opened again the same way.
 
+While the gateway is away — between the old process stopping and the new one answering — the
+worker asks again rather than giving up: an entry of the log, the seal, a tool, and the command
+stream, each on a backoff from half a second doubling to five, for as long as the gateway answers
+nothing or a `5xx`. A `4xx` is an answer and is never asked again. A tool is asked again only within
+its own deadline, which the model is waiting on; a seal within thirty seconds, after which the
+reaper seals the call once its room is gone. An entry whose answer was lost in flight — written,
+and the connection cut before the gateway said so — may be written twice; one is never lost.
+
 ## The page
 
 A page follows its call's log with the `log_token` its server's mint (or dial) answered

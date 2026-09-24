@@ -29,6 +29,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `POST /v1/tokens` and `…/dial` answer a `log_token`: a `read` token that follows that one
   call's log and recording for four hours, through the projection the tenant's server asked
   (`log`), and opens no room — a page needs no relay.
+  The worker asks the gateway again while it is away — unreachable or `5xx` — on a backoff:
+  every entry of the log, the seal, a tool within its deadline, and the command stream; before, a
+  restart dropped the entries and closed the command stream for the rest of the call.
   `docs/protocol/a-deploy-never-cuts-a-call.md`.
 
 ### Security
