@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from pinecall.api._live import Live
+from pinecall.api.agents.handlers import Live
 from pinecall.api.agents.holding import Held, SocketId
+from pinecall.api.agents.registry import Registry
 from pinecall.log.entry import Entry
 from pinecall.types.json import JsonObject
 
@@ -45,3 +46,19 @@ async def parked_calls_of(live: Live, held: Held, app: SocketId) -> list[str]:
     """Every live call of that agent nobody serves, to the socket that just registered it."""
     taken = [call for call in live.parked(*held) if await attached(live, call, app) is not None]
     return taken
+
+
+# The rule a socket that leaves is held to, whether it closed or drained: each of its calls goes to
+# the socket that would take a new call of that agent in that corner, or waits for one, parked.
+async def handed_on(live: Live, registry: Registry, calls: list[str]) -> tuple[int, int]:
+    """Those calls to whoever serves their agent now: how many were handed, how many wait."""
+    handed = 0
+    for call in calls:
+        served = live.served(call)
+        if served is None:
+            continue
+        env, holder = served.context.env, served.holder
+        serving = registry.serving(env, served.agent, None, holder)
+        if serving is not None and await attached(live, call, serving.owner) is not None:
+            handed += 1
+    return handed, len(calls) - handed

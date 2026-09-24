@@ -169,20 +169,49 @@ def test_a_worker_opening_a_call_on_an_agent_only_consoles_hold_is_refused(
 # ── when the socket serving a call goes away ────────────────────────────────────
 
 
-def test_the_other_socket_does_not_inherit_a_call_whose_app_went_away(
+def test_the_socket_left_standing_takes_over_the_call_and_hears_call_attached(
     gateway: TestClient, live: Live
 ) -> None:
-    """The call keeps running with nobody listening on the app side, exactly as it did before."""
+    """A call is its agent's: the process that answered it went, and the one left has it."""
     with an_app(gateway) as older:
-        holding(older)
+        older_app = holding(older)
         with an_app(gateway) as newest:
-            newest_app = holding(newest)
+            holding(newest)
             assert posted(gateway, "/v1/calls", an_opening())[0] == 204
             assert heard(newest) == "call.ringing"
-        # The app that took the call is gone. The call is not: its log still takes an entry.
+        assert heard(older) == "call.attached"
         assert posted(gateway, f"/v1/calls/{CALL}/events", a_started())[0] == 204
-        assert live.app_of(CALL) == newest_app
-        assert heard_nothing(older), "the socket left standing inherited a call it never took"
+        assert heard(older) == "call.started"
+        assert live.app_of(CALL) == older_app
+
+
+def test_a_console_left_standing_takes_no_call_whose_app_went_away(
+    gateway: TestClient, live: Live
+) -> None:
+    """A console never takes a call nobody named, and a call its process left is nobody's."""
+    with an_app(gateway) as console:
+        holding(console, takes_unclaimed=False)
+        with an_app(gateway) as server:
+            holding(server)
+            assert posted(gateway, "/v1/calls", an_opening())[0] == 204
+            assert heard(server) == "call.ringing"
+        assert posted(gateway, f"/v1/calls/{CALL}/events", a_started())[0] == 204
+        assert live.app_of(CALL) is None
+        assert heard_nothing(console), "a console adopted a live call"
+
+
+def test_the_next_process_to_register_the_agent_takes_the_calls_the_last_one_left(
+    gateway: TestClient, live: Live
+) -> None:
+    """A deploy: the only process goes, the call waits parked, and the next one to arrive has it."""
+    with an_app(gateway) as leaving:
+        holding(leaving)
+        assert posted(gateway, "/v1/calls", an_opening())[0] == 204
+        assert heard(leaving) == "call.ringing"
+    assert live.app_of(CALL) is None
+    with an_app(gateway) as arriving:
+        arriving_app = holding_and_hearing(arriving)
+        assert live.app_of(CALL) == arriving_app
 
 
 # ── what a test says to the doors ───────────────────────────────────────────────
@@ -269,3 +298,11 @@ def test_a_dial_over_the_app_socket_is_sent_to_the_door_that_places_calls(
         refused = entry_until(app_socket, "error")
         assert refused["data"]["code"] == "no_handler"
         assert "POST /v1/agents/{slug}/dial" in refused["data"]["message"]
+
+
+def holding_and_hearing(app_socket: WebSocketTestSession) -> str:
+    """A socket registering the clinic while a call of it waits: call.attached comes first."""
+    app_socket.send_json(a_register(AGENT, a_door("web")))
+    registered: dict[str, Any] = app_socket.receive_json()
+    assert heard(app_socket) == "call.attached"
+    return str(registered["data"]["app"])

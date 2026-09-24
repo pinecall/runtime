@@ -17,6 +17,15 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `PINECALL_APP_ORIGINS` adds a dev server, comma separated. Any other origin still gets no CORS
   header, and nothing says `Allow-Credentials`.
 
+### Changed
+- **A restart never cuts a call.** A call is its agent's, not the socket's that answered it: when
+  that socket goes, the call is handed to the socket that would take a new call of the agent, or
+  parked for the next process that registers it, which hears `call.attached` and every tool still
+  waiting (protocol 0.6.6). A tool asked while nobody holds the agent waits its own timeout
+  instead of a 409. A gateway that restarted is told each live call again by its worker
+  (`POST /v1/calls/{call}/reopened`), so appends, the command stream and tools go on.
+  `docs/protocol/a-deploy-never-cuts-a-call.md`.
+
 ### Security
 - **A leg dialled into a live call passes the org's dial guards.** A warm transfer and
   `room.invite` go out on the org's own carrier, and until now neither passed the fences

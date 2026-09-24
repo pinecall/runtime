@@ -8,6 +8,7 @@ from typing import Annotated, Any, Protocol
 from fastapi import Depends
 
 from pinecall.api._deps import what_is_live
+from pinecall.api._live import Served
 from pinecall.api.agents.holding import Send, SocketId
 from pinecall.api.agents.processes import Processes
 from pinecall.api.agents.registry import Registry
@@ -34,6 +35,26 @@ class Live(Protocol):
 
     def disconnect(self, owner: SocketId) -> None:
         """The app socket is gone."""
+        ...
+
+    def served(self, call: str) -> Served | None:
+        """The call as this process serves it, or None when it serves no call by that id."""
+        ...
+
+    def attach(self, call: str, app: SocketId | None) -> Served | None:
+        """Serve a live call from this socket from now on (None parks it); None if nothing moved."""
+        ...
+
+    def park(self, owner: SocketId) -> list[str]:
+        """Every call this socket served, parked: served by nobody until a socket adopts it."""
+        ...
+
+    def parked(self, env: Env, holder: str | None, agent: str) -> list[str]:
+        """The live calls of that agent, in that corner, that no socket serves."""
+        ...
+
+    def pending_tools(self, call: str) -> tuple[Entry, ...]:
+        """The tool.call entries of this call still waiting for the app."""
         ...
 
     def of(self, call: str | None) -> Any:

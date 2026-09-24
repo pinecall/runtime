@@ -23,6 +23,7 @@ from pinecall.api.agents.holding import SocketId, a_socket_id
 from pinecall.api.agents.processes import Process, Processes, ProcessesDep
 from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.api.agents.tuned import tuned_for
+from pinecall.api.calls.attaching import handed_on, parked_calls_of
 from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
 from pinecall.auth.corner import author_of
 from pinecall.auth.keys import KeyRecord, held_by, not_opening
@@ -100,9 +101,13 @@ async def apps(
     except WebSocketDisconnect:
         pass
     finally:
+        # Its calls go on: parked, then handed to whoever holds the agent now, or left to wait for
+        # the next process that registers it — a deploy is a socket leaving and another arriving.
         live.disconnect(socket.id)
         processes.closed(socket.id)
+        parked = live.park(socket.id)
         await registry.release(socket.id)
+        await handed_on(live, registry, parked)
 
 
 class AppSocket:
@@ -283,6 +288,10 @@ async def register(socket: Socket, command: Command) -> None:
         takes_unclaimed=wanted.takes_unclaimed,
     )
     await socket.send(entry)
+    # The calls of this agent that the last process left behind are this one's now. A console
+    # takes none: it never takes a call nobody named, and a live call is nobody's to name.
+    if wanted.takes_unclaimed:
+        await parked_calls_of(socket.live, (socket.env, socket.holder, command.agent), socket.id)
 
 
 # What the agent reads is refused HERE, where the app is declaring itself, and not in a call where
