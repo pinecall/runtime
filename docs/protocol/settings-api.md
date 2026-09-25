@@ -75,6 +75,13 @@ one is refused by name —, `memory {remember, forget}`,
 a boolean and not a flag: `false` is a corner saying no and is heard over the corner below, while
 leaving it out is a corner that never said and falls through to one that did (unset anywhere, a
 call is recorded) —
+`max_duration_s` — the longest a **voice** call of the agent runs, in seconds: `0` is no limit,
+otherwise 60 to 3600, and unset anywhere it is 600. A minute before it the agent is told to close
+(an instruction the caller never hears, as a whisper is), and at it the call ends after the sentence
+being said, as `timeout` by the `platform` (`session/voice/closing_time.py`); the clock is kept even
+while a person holds the line. A written conversation — WhatsApp, the widget's chat — is never cut
+by it. A dialled call is also held to the org's own `max_duration_s` (operator-api.md), whichever
+comes first —
 `knowledge` — what the agent knows by heart, in Markdown: the business as the org describes it,
 read whole into the static knowledge block of every call, cached ahead of everything, and set by
 the floor (`words`) without a deploy — and `bases [{base, mode, k, min_score}]`, the RAG: every

@@ -60,8 +60,20 @@ TUNING: TypeAdapter[Tuning] = TypeAdapter(Tuning)
 # a move of the pipeline and is refused by name like any other.
 # `record` is not a stage of the pipeline and sits in this list anyway: whether a call keeps its
 # audio is the org's to decide and nobody's to change from the floor, which is exactly what this
-# list is for. One list, so there is one place to look for what a words key cannot move.
-PIPELINE_ONLY = ("voice", "tts", "tts_model", "stt", "llm", "hangup", "turn", "bases", "record")
+# list is for, and so does how long a voice call may run. One list, so there is one place to look
+# for what a words key cannot move.
+PIPELINE_ONLY = (
+    "voice",
+    "tts",
+    "tts_model",
+    "stt",
+    "llm",
+    "hangup",
+    "turn",
+    "bases",
+    "record",
+    "max_duration_s",
+)
 NOT_WORDS = "{fields}: the pipeline's, and {refusal}"
 
 NO_SUCH_VERSION = "no version {version} in this corner of {slug}"

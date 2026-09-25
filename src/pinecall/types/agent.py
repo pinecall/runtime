@@ -106,6 +106,29 @@ class Hangup:
     when: str = ""
 
 
+# The longest a voice call of an agent runs when its org set nothing, and the most it may be set to.
+# Ten minutes, the same as the operator's outbound ceiling (LONGEST_CALL_S): a call left talking to
+# nobody — a line left open, a loop of two machines — ends on its own. Zero is the org's choice of
+# no limit; anything else is a minute at least, since a shorter call could not say goodbye.
+LONGEST_VOICE_CALL_S = 600
+SHORTEST_LIMIT_S = 60
+LONGEST_LIMIT_S = 3600
+NO_LIMIT = 0
+LIMIT_OUT_OF_RANGE = (
+    "max_duration_s {asked}: 0 for no limit, or {shortest} to {longest} seconds (1 to 60 minutes)"
+)
+
+
+def a_limit_checked(seconds: int) -> None:
+    """Refuse a voice call's ceiling that is neither no limit nor a minute to an hour."""
+    if seconds != NO_LIMIT and not SHORTEST_LIMIT_S <= seconds <= LONGEST_LIMIT_S:
+        raise DeclarationRefused(
+            LIMIT_OUT_OF_RANGE.format(
+                asked=seconds, shortest=SHORTEST_LIMIT_S, longest=LONGEST_LIMIT_S
+            )
+        )
+
+
 # Field names agree with the wire's AgentConfig, so the gateway maps one onto the other by name;
 # tests/types/test_wire_agreement.py holds them to it.
 @dataclass(frozen=True)
@@ -139,6 +162,9 @@ class AgentConfig:
     # Whether this agent's calls keep their audio. The world's (Tuning.record), never the class's;
     # the box records the whole room, so what is kept is what everybody on the call heard.
     record: bool = True
+    # The longest a voice call runs, in seconds; 0 is no limit. The world's (Tuning.max_duration_s),
+    # never the class's; the worker's clock keeps it (session/voice/closing_time.py).
+    max_duration_s: int = LONGEST_VOICE_CALL_S
     tools: tuple[ToolSpec, ...] = ()
     state_fields: Mapping[str, Visibility] = field(default_factory=dict[str, Visibility])
     # The panel the agent draws beside a conversation, by the name a person reads over it. Only

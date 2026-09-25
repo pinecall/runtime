@@ -290,6 +290,9 @@ async def test_a_words_key_is_refused_a_vendor_by_name_and_the_scope_it_lacks(
     # Taking the bases out is a move of the pipeline like any other, now that it can be said.
     detached = await carla.put(SETTINGS, json={"config": {"bases": []}})
     assert detached.status_code == 403 and detached.json()["detail"].startswith("bases: ")
+    # How long a voice call may run is the org's to decide, not the floor's.
+    longer = await carla.put(SETTINGS, json={"config": {"max_duration_s": 3600}})
+    assert longer.status_code == 403 and longer.json()["detail"].startswith("max_duration_s: ")
 
 
 # ── history, diff, rollback ─────────────────────────────────────────────────────
@@ -330,3 +333,14 @@ async def test_a_vendor_this_build_has_no_file_for_is_refused_before_it_is_kept(
     refused = await ana.put(SETTINGS, json={"config": {"llm": "misspelt/gpt-5"}})
     assert refused.status_code == 400 and "no llm vendor named" in refused.json()["detail"]
     assert (await ana.get(SETTINGS)).json()["yours"] is None
+
+
+async def test_a_voice_calls_limit_is_kept_and_one_out_of_range_is_refused_by_the_shape(
+    ana: httpx.AsyncClient,
+) -> None:
+    kept = await ana.put(SETTINGS, json={"config": {"max_duration_s": 900}})
+    assert kept.status_code == 200, kept.text
+    assert kept.json()["yours"]["config"]["max_duration_s"] == 900
+    refused = await ana.put(SETTINGS, json={"config": {"max_duration_s": 30}})
+    assert refused.status_code == 400
+    assert "0 for no limit, or 60 to 3600 seconds" in refused.json()["detail"]

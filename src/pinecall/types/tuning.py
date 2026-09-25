@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from pinecall.types.agent import Greeting, Hangup, Turn, pronunciations_checked
+from pinecall.types.agent import Greeting, Hangup, Turn, a_limit_checked, pronunciations_checked
 from pinecall.types.knowledge import Docs, MemoryPolicy
 from pinecall.types.refused import DeclarationRefused
 
@@ -45,6 +45,9 @@ class Tuning:
     # (orgs/resolving.py), so a plain False would be indistinguishable from unset and the corner
     # below would never be heard.
     record: bool | None = None
+    # The longest a voice call of this agent runs, in seconds; 0 is no limit, None is the runtime's
+    # ten minutes. A written conversation is never cut by it.
+    max_duration_s: int | None = None
     # What the agent knows by heart, in Markdown — the business as the org describes it — read
     # whole into the static knowledge block of every call. The floor's to write (`words`).
     knowledge: str | None = None
@@ -59,6 +62,8 @@ class Tuning:
             value: str | None = getattr(self, name)
             if value is not None and not value.strip():
                 raise DeclarationRefused(BLANK.format(field=name))
+        if self.max_duration_s is not None:
+            a_limit_checked(self.max_duration_s)
 
 
 # The org's words, laid over every agent's own: a brand, a surname, an acronym is the same word
