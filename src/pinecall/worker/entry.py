@@ -16,10 +16,11 @@ from livekit.agents.voice import Agent, AgentSession
 from livekit.agents.voice.room_io import RoomOptions
 
 from pinecall.session import clock, greeting
-from pinecall.session.voice import session
+from pinecall.session.voice import closing_time, session
 from pinecall.session.voice.kit import Kit
 from pinecall.session.voice.platform import Platform
 from pinecall.types import AgentConfig, CallContext, Route
+from pinecall.types.agent import NO_LIMIT
 from pinecall.types.dispatch import DIAL_KEY, SCOPE_KEY, WRITTEN_SCOPE, Handover
 from pinecall.worker import commanding, dialling, egress, recordings, router, seat
 from pinecall.worker.client import Gateway
@@ -56,8 +57,8 @@ class Bridge(Protocol):
         """The room is live: what plays into it while a tool runs, or None for nothing."""
         ...
 
-    async def closing_time(self) -> None:
-        """A voice call is live: warn the agent before its limit, and end the call at it."""
+    async def closing_time(self, limit_s: int) -> None:
+        """The call is live: warn the agent before `limit_s`, and end the call at it."""
         ...
 
 
@@ -138,7 +139,7 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     context = a_call(ctx.room.name or ctx.job.id, arrival, route)
     # What the dispatch named wins over the flag this process was started with: a spoken eval
     # run has to reach the terminal holding its goldens, and that socket takes no unclaimed call.
-    await worker.gateway.opened(context, route.agent, arrival.app or worker.app)
+    seconds_left = await worker.gateway.opened(context, route.agent, arrival.app or worker.app)
     took("opened")
     # A call this box PLACED is dialled here, by the job that will answer on it, and before there
     # is a session to say anything into an empty room. It waits for the far end to pick up, which
@@ -212,9 +213,12 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     commands = asyncio.ensure_future(commanding.served(worker.gateway, bridge, context.call))
     ctx.add_shutdown_callback(letting_go(commands))
     # A voice call has the agent's limit on it — the phone and the widget's voice, never a written
-    # visit, which is the same test a_session builds its ears by (session/voice/session.py).
-    if route.channel in session.CHANNELS_THAT_LISTEN and not typed:
-        closing = asyncio.ensure_future(bridge.closing_time())
+    # visit, which is the same test a_session builds its ears by (session/voice/session.py). And
+    # any call, a written visit too, ends when the org's minutes do: minutes are the call's length.
+    spoken = route.channel in session.CHANNELS_THAT_LISTEN and not typed
+    limit_s = closing_time.the_ceiling(config.max_duration_s if spoken else NO_LIMIT, seconds_left)
+    if limit_s != NO_LIMIT:
+        closing = asyncio.ensure_future(bridge.closing_time(limit_s))
         ctx.add_shutdown_callback(letting_go(closing))
 
 

@@ -30,6 +30,19 @@ class Replies(Protocol):
 Sleep = Callable[[float], Awaitable[None]]
 
 
+# Two limits can end a call and the clock keeps whichever comes first: the agent's own
+# (max_duration_s, a voice call's), and what is left of the org's minutes, which admission answered
+# at the open (orgs/admission.py:a_call) and which holds a written visit too. One clock, so the
+# agent is warned a minute before the call ends whichever of the two ends it.
+def the_ceiling(agents_limit_s: int, seconds_left: int | None) -> int:
+    """The limit this call is kept to, in seconds; NO_LIMIT when neither limit is set."""
+    if seconds_left is None:
+        return agents_limit_s
+    if agents_limit_s == NO_LIMIT:
+        return seconds_left
+    return min(agents_limit_s, seconds_left)
+
+
 # Counted from the moment the session is live, which is when call.started was written: the caller
 # is on the line from there. The end drains the sentence being said (at_once=False) and is written
 # as `timeout` by the `platform` — the words EndReason and EndedBy already have for it. The limit

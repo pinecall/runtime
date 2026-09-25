@@ -54,7 +54,7 @@ def test_a_call_the_worker_opened_arrives_on_the_app_socket_that_holds_its_agent
 ) -> None:
     with an_app(gateway) as app_socket:
         declared(app_socket)
-        assert _posted(gateway, "/v1/calls", _an_opening()) == 204
+        assert _posted(gateway, "/v1/calls", _an_opening()) == 200
         assert _posted(gateway, f"/v1/calls/{CALL}/events", _an_entry("call.started")) == 204
         assert [_heard(app_socket), _heard(app_socket)] == ["call.ringing", "call.started"]
 

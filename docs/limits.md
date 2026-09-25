@@ -38,7 +38,14 @@ The whole set is replaced at once, and a limit left out is **no limit**. The met
 the log — there is no counter table to drift — and the gate runs before a call opens, before an
 agent registers, before memory writes a fact, and before an invitation makes a row: `seats` is
 what a plan sells a team by, counted as everybody the org has not disabled. A tenant over one is refused with a sentence and
-`credits.exhausted` in their own log; nothing is cut mid-call.
+`credits.exhausted` in their own log.
+
+A call opened with minutes left does not outrun them: the open door answers the worker how many
+seconds are left, and the call is kept to the lesser of that and the agent's own `max_duration_s`
+on the one clock that ends it — the agent told to close a minute before, the call ended as
+`timeout` by the `platform`, a written visit in the browser included. Calls open at once each
+count from the same minutes, so `concurrent_calls` is what keeps a trial from spending them twice;
+the next call is refused with `credits.exhausted`.
 
 `llm_tokens` counts what the org's models read and wrote, input and output together, as each
 `call.summary` reports them — the box's keys and the org's own alike. A **written** conversation

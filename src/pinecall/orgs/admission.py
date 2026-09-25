@@ -58,17 +58,25 @@ class Admission:
         self._meter = meter
         self._logs = logs
 
-    async def a_call(self, org: str, agent: str, running: int) -> None:
-        """May this org open one more call for this agent, with `running` calls open already."""
+    # Admission runs at the open, so a call opened with one minute left would otherwise run on for
+    # twenty. The answer is how long this one may last by the org's minutes — None when they are
+    # not limited — and the worker ends it there on the agent's own clock
+    # (session/voice/closing_time.py). Never zero, which that clock reads as no limit: a call
+    # admitted at all is admitted for at least a second.
+    async def a_call(self, org: str, agent: str, running: int) -> int | None:
+        """May this org open one more call for this agent — and for how many seconds at most."""
         quotas = await self._orgs.quotas_of(org)
         await self._refuse_past(org, agent, quotas, "concurrent_calls", running)
         if quotas.minutes is None and quotas.messages is None and quotas.llm_tokens is None:
-            return
+            return None
         totals = await self._meter.totals(org)
         await self._refuse_past(org, agent, quotas, "minutes", totals.minutes)
         await self._refuse_past(org, agent, quotas, "messages", totals.messages)
         tokens = totals.input_tokens + totals.output_tokens
         await self._refuse_past(org, agent, quotas, "llm_tokens", tokens)
+        if quotas.minutes is None:
+            return None
+        return max(1, int((quotas.minutes - totals.minutes) * 60))
 
     # A written conversation opens once and may then run for hours, and the Meter folds a call
     # only at its call.summary, when it has hung up. So a chat is asked again before each turn

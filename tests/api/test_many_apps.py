@@ -88,7 +88,7 @@ def test_a_call_the_worker_opened_claims_a_socket_the_very_same_way(
     with an_app(gateway) as older, an_app(gateway) as newest:
         older_app = holding(older)
         holding(newest)
-        assert posted(gateway, "/v1/calls", an_opening(older_app))[0] == 204
+        assert posted(gateway, "/v1/calls", an_opening(older_app))[0] == 200
         assert heard(older) == "call.ringing"
         assert live.app_of(CALL) == older_app
         assert heard_nothing(newest), "the newest socket was fed a call the worker gave away"
@@ -177,7 +177,7 @@ def test_the_socket_left_standing_takes_over_the_call_and_hears_call_attached(
         older_app = holding(older)
         with an_app(gateway) as newest:
             holding(newest)
-            assert posted(gateway, "/v1/calls", an_opening())[0] == 204
+            assert posted(gateway, "/v1/calls", an_opening())[0] == 200
             assert heard(newest) == "call.ringing"
         assert heard(older) == "call.attached"
         assert posted(gateway, f"/v1/calls/{CALL}/events", a_started())[0] == 204
@@ -193,7 +193,7 @@ def test_a_console_left_standing_takes_no_call_whose_app_went_away(
         holding(console, takes_unclaimed=False)
         with an_app(gateway) as server:
             holding(server)
-            assert posted(gateway, "/v1/calls", an_opening())[0] == 204
+            assert posted(gateway, "/v1/calls", an_opening())[0] == 200
             assert heard(server) == "call.ringing"
         assert posted(gateway, f"/v1/calls/{CALL}/events", a_started())[0] == 204
         assert live.app_of(CALL) is None
@@ -206,7 +206,7 @@ def test_the_next_process_to_register_the_agent_takes_the_calls_the_last_one_lef
     """A deploy: the only process goes, the call waits parked, and the next one to arrive has it."""
     with an_app(gateway) as leaving:
         holding(leaving)
-        assert posted(gateway, "/v1/calls", an_opening())[0] == 204
+        assert posted(gateway, "/v1/calls", an_opening())[0] == 200
         assert heard(leaving) == "call.ringing"
     assert live.app_of(CALL) is None
     with an_app(gateway) as arriving:
@@ -222,7 +222,7 @@ def test_a_process_that_drains_hands_its_call_to_the_other_and_says_how_many(
         older_app = holding(older)
         with an_app(gateway) as leaving:
             holding(leaving)
-            assert posted(gateway, "/v1/calls", an_opening())[0] == 204
+            assert posted(gateway, "/v1/calls", an_opening())[0] == 200
             assert heard(leaving) == "call.ringing"
             leaving.send_json(a_frame("agent.drain", AGENT, {}))
             drained: dict[str, Any] = leaving.receive_json()
@@ -238,7 +238,7 @@ def test_a_process_that_drains_alone_parks_its_call_for_the_next_one(
     """Nobody else holds the agent: the call waits for the process that is starting."""
     with an_app(gateway) as leaving:
         holding(leaving)
-        assert posted(gateway, "/v1/calls", an_opening())[0] == 204
+        assert posted(gateway, "/v1/calls", an_opening())[0] == 200
         assert heard(leaving) == "call.ringing"
         leaving.send_json(a_frame("agent.drain", AGENT, {}))
         drained: dict[str, Any] = leaving.receive_json()

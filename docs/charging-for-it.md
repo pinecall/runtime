@@ -121,8 +121,6 @@ Said here so a layer is not built on a mechanism that does not exist:
   cannot yet leave out what the org paid itself.
 - **Periods.** The quotas are counted over the org's whole life. A monthly allowance is your layer
   replacing the row when the month turns.
-- **A call cut when its minutes run out.** Admission refuses a call that would open past the
-  limit; one already open runs on (an agent's own `max_duration_s` still ends it).
 - **A suspension of its own.** Suspending an org is replacing its row with zeros.
 - **The console's meter and upgrade link** (`PINECALL_BILLING_URL`).
 - **The deploy installing your package.** Until it does, a package outside the lock is removed by

@@ -74,7 +74,7 @@ class Appending(WireModel):
 # The log exists before the media does: a console holding an agent open sees the call arrive on
 # the very fanout the worker will publish on. call.started stays the worker's to write — it is
 # the moment the caller and the agent can hear each other, and only the session knows it.
-@router.post("/v1/calls", status_code=NOTHING_MORE)
+@router.post("/v1/calls")
 async def opened(
     said: Opening,
     key: AppKeyDep,
@@ -84,8 +84,8 @@ async def opened(
     tokens: TokensDep,
     admission: AdmissionDep,
     tuning: TuningDep,
-) -> None:
-    """A call started: open its log, put it on the app's socket, and write how it arrived."""
+) -> dict[str, int | None]:
+    """A call started: its log open, the app's socket serving it, and the seconds it may last."""
     context = said.context
     org, env, holder = _whose_call(key, context)
     # A call a token opened is opened once: the second dispatch with the same token is refused
@@ -94,7 +94,7 @@ async def opened(
     # The org's quotas, against the calls open here and what its log says it has consumed. The
     # refusal is in the agent's log before the worker hears the 429, and the sentence is the same.
     try:
-        await admission.a_call(org, said.agent, live.running(org))
+        seconds_left = await admission.a_call(org, said.agent, live.running(org))
     except QuotaExhausted as refused:
         raise HTTPException(429, str(refused)) from refused
     # Which process serves this call is asked here exactly as the chat door asks it, of the same
@@ -137,6 +137,8 @@ async def opened(
         holder=corner,
     )
     await how_it_arrived(log, context, said.agent)
+    # What is left of the org's minutes, for the worker to end this call at: null is no limit.
+    return {"seconds_left": seconds_left}
 
 
 # A gateway that restarted forgot every call it was serving; the worker still holds each one, with

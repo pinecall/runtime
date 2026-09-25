@@ -48,9 +48,10 @@ class CountingBridge:
         """What this call plays while a tool runs, noted."""
         self.melody = melody
 
-    async def closing_time(self) -> None:
-        """The voice call's clock, started."""
+    async def closing_time(self, limit_s: int) -> None:
+        """The call's clock, started at this limit."""
         self.clock_started = True
+        self.clock_limit_s = limit_s
 
 
 # The participant is left empty on purpose: livekit fills it for a publisher job, and every job

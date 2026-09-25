@@ -76,3 +76,21 @@ async def test_a_person_on_the_line_is_not_talked_over_and_the_limit_still_holds
 async def test_no_limit_keeps_no_clock() -> None:
     live, ended, clock = await _kept(0)
     assert (clock.slept, live.told, ended.calls) == ([], [], [])
+
+
+# ── which limit the clock keeps ─────────────────────────────────────────────────
+
+
+def test_the_ceiling_is_the_agents_own_when_the_orgs_minutes_are_not_limited() -> None:
+    assert closing_time.the_ceiling(600, None) == 600
+
+
+def test_the_orgs_minutes_end_the_call_first_when_fewer_are_left_than_the_agents_limit() -> None:
+    assert closing_time.the_ceiling(600, 90) == 90
+    assert closing_time.the_ceiling(600, 3_000) == 600
+
+
+def test_an_agent_with_no_limit_still_ends_where_the_orgs_minutes_do() -> None:
+    """A written visit is handed no limit of its own, and minutes still are its length."""
+    assert closing_time.the_ceiling(0, 45) == 45
+    assert closing_time.the_ceiling(0, None) == 0

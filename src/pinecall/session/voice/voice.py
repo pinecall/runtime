@@ -155,12 +155,10 @@ class VoiceBridge:
         )
         await a_line_for_the_file_it_ships_with(self.blocks, self.writing.emit)
 
-    async def closing_time(self) -> None:
-        """The agent's limit on this voice call, kept: warned a minute before, ended at it."""
+    async def closing_time(self, limit_s: int) -> None:
+        """This call's limit, kept: the agent warned a minute before it, the call ended at it."""
         if self._live is not None:
-            await closing_time.keep(
-                self.config.max_duration_s, self._live, self.ending, self._taken
-            )
+            await closing_time.keep(limit_s, self._live, self.ending, self._taken)
 
     async def holding(self, melody: Path | None) -> None:
         """The room is live: what the caller hears while a tool runs, or None for nothing."""

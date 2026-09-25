@@ -7,6 +7,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **A call never outruns the org's minutes.** `POST /v1/calls` answers the worker
+  `{"seconds_left": n | null}` (it answered `204`), and the worker keeps the call to the lesser
+  of that and the agent's `max_duration_s`, on the same clock: warned a minute before, ended as
+  `timeout` by the `platform`. A browser's written visit is held to the minutes too. A call
+  opened with one minute left used to run as long as it liked.
 - **An LLM token quota, and a written conversation held to its quotas on every turn.**
   `orgs quota --llm-tokens n` (`llm_tokens` on the ops quotas door, migration 0051): what the
   org's models read and wrote, input and output together. A chat or a WhatsApp thread is asked

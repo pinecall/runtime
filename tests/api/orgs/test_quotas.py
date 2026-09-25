@@ -76,6 +76,24 @@ async def test_a_quota_of_n_minutes_refuses_the_call_after_them_with_a_429_that_
     assert await the_refusal_in(store) == {"org": ORG, "quota": "minutes", "used": 2.0, "limit": 2}
 
 
+async def test_the_open_door_answers_what_is_left_of_the_orgs_minutes_in_seconds(
+    worker_gateway: Gateway, registry: Registry, orgs: MemoryOrgs, store: MemoryStore
+) -> None:
+    """Admission runs at the open: the worker ends the call where the minutes run out."""
+    await declared(registry)
+    await orgs.set_quotas(ORG, Quotas(minutes=2))
+    await spent(store, "CA_first", 1.5)
+    assert await worker_gateway.opened(a_call("CA_second"), AGENT) == 30
+
+
+async def test_an_org_whose_minutes_nobody_limited_is_answered_no_ceiling(
+    worker_gateway: Gateway, registry: Registry, orgs: MemoryOrgs
+) -> None:
+    await declared(registry)
+    await orgs.set_quotas(ORG, Quotas(messages=100))
+    assert await worker_gateway.opened(a_call("CA_one"), AGENT) is None
+
+
 async def test_an_org_nobody_limited_is_never_refused(
     worker_gateway: Gateway, registry: Registry, store: MemoryStore
 ) -> None:

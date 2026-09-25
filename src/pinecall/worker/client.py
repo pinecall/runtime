@@ -187,15 +187,17 @@ class Gateway:
         )
         return RingsFor.model_validate(said).handover()
 
-    async def opened(self, context: CallContext, agent: str, app: str | None = None) -> None:
-        """A call started: the gateway opens its log and every reader of it is subscribed."""
+    async def opened(self, context: CallContext, agent: str, app: str | None = None) -> int | None:
+        """A call started: its log opened, and the seconds the org's minutes leave it, or None."""
         said: JsonObject = {"agent": agent, "context": CONTEXT.dump_python(context, mode="json")}
         # Which app socket serves this call, when the process that started the worker named one:
         # `pinecall talk` does, so a @tool breakpoint lands in the terminal it was typed in.
         if app is not None:
             said["app"] = app
-        await self._read("POST", "/v1/calls", said)
+        answer = await self._read("POST", "/v1/calls", said)
         self._opened[context.call] = said
+        # A gateway older than the ceiling answered 204, which is no limit.
+        return None if answer is None else answer.get("seconds_left")
 
     async def append(
         self, call: str, type: str, data: Mapping[str, Any], ephemeral: bool | None = None
