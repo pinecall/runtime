@@ -34,8 +34,8 @@ async def attached(live: Live, call: str, app: SocketId) -> Entry | None:
             started = entry.data
         elif entry.type == STATE:
             state = entry.data.get("state", {})
-        elif entry.type == CLAIMED:
-            claimed = str(entry.data.get("code"))
+        elif entry.type == CLAIMED and isinstance(entry.data.get("code"), str):
+            claimed = str(entry.data["code"])
     seq = await served.log.latest_seq()
     said = await served.log.append(
         "call.attached",
