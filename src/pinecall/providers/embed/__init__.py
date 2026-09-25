@@ -36,13 +36,14 @@ class Defaults:
 
 # TEI's base URL is TEI_URL, which a box already sets and a compose file already serves, so its
 # row leaves it empty and `base_url_of` reads the older name. Perplexity's default is the
-# CONTEXTUAL model, because a base pushed with it is the better base; OpenRouter serves the flat
+# CONTEXTUAL model, and its larger one — the 4b, cut to the columns' 1024 — because a base pushed
+# with it is the better base; OpenRouter serves the flat
 # model only — it answers `does not exist` at the contextual door — so its default is the flat one.
 DEFAULTS: dict[EmbedProvider, Defaults] = {
     "tei": Defaults(vendor="TEI", model="BAAI/bge-m3", base_url=""),
     "perplexity": Defaults(
         vendor="Perplexity",
-        model="pplx-embed-context-v1-0.6b",
+        model="pplx-embed-context-v1-4b",
         base_url="https://api.perplexity.ai/v1",
         key_field="perplexity_api_key",
     ),

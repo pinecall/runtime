@@ -24,7 +24,7 @@ from pinecall.providers.embedder import DIMENSIONS, Embedder, EmbedderUnreachabl
 pytestmark = pytest.mark.unit
 
 BASE = "https://api.perplexity.test/v1"
-CONTEXT_MODEL = "pplx-embed-context-v1-0.6b"
+CONTEXT_MODEL = "pplx-embed-context-v1-4b"
 FLAT_MODEL = "pplx-embed-v1-0.6b"
 
 # What either door answers a chunk with, unless a test asks for another width.
@@ -110,7 +110,8 @@ async def test_every_door_stores_at_unit_length_because_every_one_answers_unnorm
     assert math.isclose(sum(value * value for value in vector), 1.0, rel_tol=1e-9)
 
 
-async def test_the_contextual_door_sends_a_document_as_one_input_and_asks_for_int8() -> None:
+async def test_the_contextual_door_asks_for_int8_at_1024() -> None:
+    """The 4b answers 2560 wide unless it is asked for the columns' width: it is always asked."""
     embedder, seen = an_embedder()
     await embedder.embed_documents([["uno", "dos", "tres"]])
     assert [request.url.path for request in seen] == [f"/v1{CONTEXTUALIZED}"]
@@ -118,6 +119,7 @@ async def test_the_contextual_door_sends_a_document_as_one_input_and_asks_for_in
         "model": CONTEXT_MODEL,
         "input": [["uno", "dos", "tres"]],
         "encoding_format": "base64_int8",
+        "dimensions": DIMENSIONS,
     }
 
 

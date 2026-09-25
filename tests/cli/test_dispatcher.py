@@ -112,6 +112,7 @@ def test_every_group_says_in_one_line_what_it_is() -> None:
         "keys",
         "providers",
         "fleet",
+        "memory",
         "migrate",
         "doctor",
         "box",

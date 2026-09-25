@@ -50,7 +50,7 @@ embedder answering, a lookup finds nothing and the push says so.
 
 ```
 EMBED_PROVIDER=tei                       who embeds: tei · perplexity · openrouter
-EMBED_MODEL=                             unset: BAAI/bge-m3 · pplx-embed-context-v1-0.6b ·
+EMBED_MODEL=                             unset: BAAI/bge-m3 · pplx-embed-context-v1-4b ·
                                          perplexity/pplx-embed-v1-0.6b, by provider
 EMBED_BASE_URL=                          unset: the provider's own door, and TEI_URL for TEI
 PERPLEXITY_API_KEY=                      the two hosted ones. Perplexity's default model is

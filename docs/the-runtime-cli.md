@@ -18,7 +18,7 @@ Three different things, and knowing which is which saves an afternoon:
 |---|---|
 | `gateway` · `worker` · `box` · `doctor` · `providers` | this machine (`box peer` also an instance's gateway, on its ops key) |
 | `sandbox` | **two Postgres databases**, production's and the sandbox's, out of their instances' stores |
-| `migrate` · `sessions` | **Postgres**, straight, over `DATABASE_URL` |
+| `migrate` · `sessions` · `memory` | **Postgres**, straight, over `DATABASE_URL` (`memory reembed` also the box's embedder: infra/box/README.md, "The embedder") |
 | `init` · `orgs` · `keys` · `routes` · `fleet` | **a running gateway**, over `/v1/ops/*` with `PINECALL_OPS_KEY` — and `fleet loop`, a cloud's own CLI beside it |
 
 So `keys issue` on a box whose gateway is down is refused by the client, not by the table, and

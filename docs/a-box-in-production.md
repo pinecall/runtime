@@ -124,7 +124,7 @@ env: no .env — environment only · world production · fleet pinecall
 ✓ provider keys answer  ANTHROPIC_API_KEY · OPENAI_API_KEY · SONIOX_API_KEY · DEEPGRAM_API_KEY · ELEVEN_API_KEY
 ✓ livekit               http://127.0.0.1:7880/ — HTTP 200
 ✓ postgres              postgresql://pinecall@127.0.0.1:5432/pinecall — vector, pg_textsearch
-✓ embedder              perplexity · pplx-embed-context-v1-0.6b — https://api.perplexity.ai/v1 — a word embedded, 1024 wide
+✓ embedder              perplexity · pplx-embed-context-v1-4b — https://api.perplexity.ai/v1 — a word embedded, 1024 wide
 ! mail                  not configured — set it at PUT /v1/ops/mail (Box settings), or set PINECALL_SMTP_URL and PINECALL_MAIL_FROM, to mail invitations and password resets; …
 ! lk                    not installed — curl -sSL https://get.livekit.io/cli | bash (lk docs · lk sip · lk dispatch)
 

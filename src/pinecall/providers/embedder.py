@@ -8,7 +8,8 @@ from pgvector import HalfVector
 from pinecall._exceptions import PinecallError
 
 # bge-m3's width, which is the width the migrations declare: halfvec(1024) on facts and chunks.
-# Perplexity's two embedders answer at the same 1024, which is why they can be swapped in at all.
+# Perplexity's contextual door is asked for the same 1024 (Matryoshka: the 4b is 2560 unasked),
+# which is why they can be swapped in at all.
 # An embedder of another width would write vectors no index can read, so it is refused by name.
 DIMENSIONS = 1024
 

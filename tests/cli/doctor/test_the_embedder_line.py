@@ -76,7 +76,7 @@ def test_a_hosted_embedder_with_no_key_is_named_by_its_variable_and_never_knocke
     embedder = _the_embedder(probes_that_answer())
     assert not embedder.ok
     assert embedder.advisory
-    assert "perplexity · pplx-embed-context-v1-0.6b" in embedder.detail
+    assert "perplexity · pplx-embed-context-v1-4b" in embedder.detail
     assert "no PERPLEXITY_API_KEY" in embedder.detail
 
 

@@ -228,7 +228,7 @@ class Settings(VendorKeys):
         default=None,
         validation_alias="EMBED_MODEL",
         description=(
-            "The embedding model. Unset: BAAI/bge-m3 · pplx-embed-context-v1-0.6b · "
+            "The embedding model. Unset: BAAI/bge-m3 · pplx-embed-context-v1-4b · "
             "perplexity/pplx-embed-v1-0.6b, by provider."
         ),
     )

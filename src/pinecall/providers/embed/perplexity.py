@@ -21,8 +21,8 @@ from pinecall.providers.embedder import (
 )
 from pinecall.types.counting import estimated_tokens
 
-# What tells the two models apart, and it is the model's own name: `pplx-embed-context-v1-0.6b`
-# reads a document's chunks together, `pplx-embed-v1-0.6b` reads each text alone. Nothing else in
+# What tells the two models apart, and it is the model's own name: `pplx-embed-context-v1-4b`
+# reads a document's chunks together, `pplx-embed-v1-4b` reads each text alone. Nothing else in
 # the configuration says which door to knock at, so nothing else can disagree with the name.
 CONTEXTUAL = "-context-"
 
@@ -72,7 +72,7 @@ class PerplexityEmbedder:
 
     @property
     def dimensions(self) -> int:
-        """1024, which both models answer at and every halfvec column is declared at."""
+        """1024, which the contextual door is asked for and every halfvec column is declared at."""
         return DIMENSIONS
 
     @property
@@ -126,9 +126,10 @@ class PerplexityEmbedder:
     # similarity's clothes. So `at_unit_length` is on both paths, and it is idempotent.
     async def _window(self, window: list[str]) -> list[list[float]]:
         """One window of one document: int8 in base64, decoded as declared, at unit length."""
-        body = await self._asked(
-            CONTEXTUALIZED, {"input": [window], "encoding_format": SIGNED_BYTES}
-        )
+        # `dimensions` is Matryoshka: the 4b answers 2560 wide unless asked, the 0.6b 1024, and
+        # both cut to the columns' width when asked — so one width holds either model.
+        said = {"input": [window], "encoding_format": SIGNED_BYTES, "dimensions": DIMENSIONS}
+        body = await self._asked(CONTEXTUALIZED, said)
         rows = embeddings_under(body, of_the_first_document=True)
         return self._as_many_as(
             [at_unit_length(row) for row in rows], asked=len(window), door=CONTEXTUALIZED

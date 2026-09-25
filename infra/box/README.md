@@ -354,18 +354,22 @@ door it cannot open — and back again by emptying the same line:
 printf '%s' 'pplx-…' | make secret NAME=PERPLEXITY_API_KEY
 make ssh                     # sudoedit /etc/pinecall/box.env → EMBED_PROVIDER=perplexity
 make deploy                  # which ends with the one command that proves it, `make doctor`:
-#  ✓ embedder  perplexity · pplx-embed-context-v1-0.6b — https://api.perplexity.ai/v1 — a word embedded, 1024 wide
+#  ✓ embedder  perplexity · pplx-embed-context-v1-4b — https://api.perplexity.ai/v1 — a word embedded, 1024 wide
 #  ✓ embedder  tei · BAAI/bge-m3 — http://127.0.0.1:8081 — a word embedded, 1024 wide
 ```
 
 **A vector is comparable only to vectors of the same model**, and the line above changes the
-model: `tei` embeds with `BAAI/bge-m3`, `perplexity` with `pplx-embed-context-v1-0.6b` unless
-`EMBED_MODEL` says otherwise. After the switch, `knowledge.search` refuses every base the old model
+model: `tei` embeds with `BAAI/bge-m3`, `perplexity` with `pplx-embed-context-v1-4b` — its larger
+contextual model, asked for 1024 wide (Matryoshka; it answers 2560 unasked) so it fits the columns
+— unless `EMBED_MODEL` says otherwise. After the switch, `knowledge.search` refuses every base the old model
 pushed — `409`, `base <name> was pushed with <old>; this gateway embeds with <new>: push it again`
 — until the project that owns it pushes it again (`pinecall knowledge push`, from each project);
 in a call, a lookup on such a base is skipped and said in the call's log (`search_skipped`). A
-contact's facts are not re-embedded either: the dense branch of a recall filters on the `model`
-column, so an older fact is recalled by its words (BM25) alone.
+contact's facts are not re-embedded by the switch: the dense branch of a recall filters on the
+`model` column, so an older fact is recalled by its words (BM25) alone until
+`pinecall-runtime memory reembed` writes its vector again from its text — once, on the hub, after
+the deploy (`make ssh`, then the verb as the units see the instance), and a second run writes
+nothing.
 
 On a **hub** that line is the verdict and not advice: a hub answers the knowledge pushes, so an
 embedder down there fails the deploy, naming what to type — `systemctl start pinecall-tei`, or

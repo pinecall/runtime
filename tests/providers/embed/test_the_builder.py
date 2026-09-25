@@ -43,7 +43,7 @@ def test_perplexity_defaults_to_the_contextual_model_at_its_own_door(
     embedder = embedder_for(settings, a_client())
     assert isinstance(embedder, PerplexityEmbedder)
     assert embedder.reads_the_neighbours
-    assert model_of(settings) == "pplx-embed-context-v1-0.6b"
+    assert model_of(settings) == "pplx-embed-context-v1-4b"
     assert base_url_of(settings) == "https://api.perplexity.ai/v1"
     assert vendor_of(settings) == "Perplexity"
 

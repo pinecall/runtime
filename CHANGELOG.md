@@ -7,6 +7,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Changed
+- **The box embeds with Perplexity's larger model.** `EMBED_PROVIDER=perplexity` now defaults to
+  `pplx-embed-context-v1-4b`, asked for 1024 wide (Matryoshka) so it fits the columns: every base
+  another model pushed answers `409` until its project pushes it again, and
+  `pinecall-runtime memory reembed` writes the contacts' facts again with it.
 - **A sign-up proves its email before any org exists.** `POST /v1/signup` now keeps the sign-up in
   memory, mails a six-digit code through the box's own mail and answers `202` (`503` when the box
   cannot send); `POST /v1/signup/verify {email, code}` makes the org and answers what the door
