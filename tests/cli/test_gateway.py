@@ -1,4 +1,4 @@
-"""`pinecall-runtime gateway`: uvicorn over the app, and a stop that waits for what is in flight."""
+"""`pinecall-runtime gateway`: uvicorn over the app, bound where its URL says, stopped gently."""
 
 from __future__ import annotations
 
@@ -12,14 +12,56 @@ from pinecall.cli import gateway
 pytestmark = pytest.mark.unit
 
 
-def test_the_gateway_is_run_with_a_graceful_stop(monkeypatch: pytest.MonkeyPatch) -> None:
+def ran_with(
+    monkeypatch: pytest.MonkeyPatch, url: str, *, host: str | None = None, port: int | None = None
+) -> dict[str, Any]:
+    """What uvicorn was handed, for a gateway whose instance says `url` and flags say these."""
     ran: dict[str, Any] = {}
 
     def run(app: str, **said: Any) -> None:
         ran.update(said, app=app)
 
     monkeypatch.setattr(gateway.uvicorn, "run", run)
-    arguments = argparse.Namespace(host="127.0.0.1", port=8080, reload=False)
+    monkeypatch.setenv("PINECALL_GATEWAY_URL", url)
+    arguments = argparse.Namespace(host=host, port=port, reload=False)
     assert gateway.run(arguments) == 0
+    return ran
+
+
+def test_the_gateway_is_run_with_a_graceful_stop(monkeypatch: pytest.MonkeyPatch) -> None:
+    ran = ran_with(monkeypatch, "http://127.0.0.1:8080")
     assert ran["app"] == gateway.APP
     assert ran["timeout_graceful_shutdown"] == gateway.GRACEFUL_S == 5
+
+
+def test_a_gateway_told_nothing_binds_the_host_and_port_of_its_own_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ran = ran_with(monkeypatch, "http://127.0.0.1:8180")
+    assert (ran["host"], ran["port"]) == ("127.0.0.1", 8180)
+
+
+def test_a_flag_wins_over_its_half_of_the_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    ran = ran_with(monkeypatch, "http://127.0.0.1:8180", host="0.0.0.0")  # noqa: S104 — said on purpose
+    assert (ran["host"], ran["port"]) == ("0.0.0.0", 8180)  # noqa: S104
+
+
+def test_both_flags_need_no_url_a_gateway_could_bind(monkeypatch: pytest.MonkeyPatch) -> None:
+    ran = ran_with(monkeypatch, "https://box.example.com", host="127.0.0.1", port=9000)
+    assert (ran["host"], ran["port"]) == ("127.0.0.1", 9000)
+
+
+@pytest.mark.parametrize(
+    "url", ["http://[::1]:8280", "http://localhost:8080", "http://127.0.0.2:8380"]
+)
+def test_every_spelling_of_loopback_is_bound(url: str) -> None:
+    assert gateway.the_address_of(url)[1] in {8080, 8280, 8380}
+
+
+@pytest.mark.parametrize(
+    "url", ["https://box.example.com", "http://10.0.0.4:8080", "http://127.0.0.1", "http://:x"]
+)
+def test_a_url_with_no_loopback_port_is_refused_in_one_sentence(url: str) -> None:
+    with pytest.raises(gateway.NotBindable) as refused:
+        gateway.the_address_of(url)
+    assert str(refused.value) == gateway.NOT_HERE.format(variable="PINECALL_GATEWAY_URL", url=url)

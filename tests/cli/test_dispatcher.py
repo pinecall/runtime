@@ -88,10 +88,10 @@ def test_every_sessions_verb_is_wired_to_its_own_function(verb: str, runs: objec
     assert arguments.run is runs
 
 
-def test_the_gateway_group_is_wired_to_the_server_with_its_defaults() -> None:
+def test_the_gateway_group_is_wired_to_the_server_and_leaves_the_address_to_its_url() -> None:
     arguments = build_parser().parse_args(["gateway"])
     assert arguments.run is gateway.run
-    assert (arguments.host, arguments.port) == (gateway.DEFAULT_HOST, gateway.DEFAULT_PORT)
+    assert (arguments.host, arguments.port) == (None, None)
 
 
 def test_the_doctor_group_is_wired_to_the_doctor_module() -> None:
@@ -127,7 +127,7 @@ def test_the_quota_verb_has_one_flag_per_quota_and_the_flags_are_the_wires_names
 
 
 def test_keys_issue_takes_the_fleet_scope_the_worker_key_unit_types() -> None:
-    """`--scope fleet` is minted here and nowhere else: infra/box/pinecall-worker-key.service."""
+    """`--scope fleet` is minted here and nowhere else: infra/box/pinecall-worker-key@.service."""
     typed = ["keys", "issue", "--org", "default", "--scope", "fleet", "--scope", "app"]
     assert build_parser().parse_args(typed).scope == ["fleet", "app"]
 

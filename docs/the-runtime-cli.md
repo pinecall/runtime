@@ -53,11 +53,14 @@ Run twice, it carries on to the person, not stopping at the org. A second tenant
 ## `gateway`
 
 ```
-pinecall-runtime gateway [--host 0.0.0.0] [--port 8080] [--reload]
+pinecall-runtime gateway [--host 127.0.0.1] [--port 8080] [--reload]
 ```
 
 The control plane: HTTP and WebSocket, one process, the whole API of
-[protocol/gateway-api.md](protocol/gateway-api.md). It needs, at the least, one key of each provider
+[protocol/gateway-api.md](protocol/gateway-api.md). With neither flag it binds the host and port of
+its own `PINECALL_GATEWAY_URL` — `http://127.0.0.1:8080` unless the instance says otherwise — so an
+instance's address is one variable, the one its worker asks too; a URL that is not loopback or
+names no port is refused in one sentence, and a flag wins over its half of the URL. It needs, at the least, one key of each provider
 role and `DATABASE_URL` with the schema applied — a laptop as much as a box, because a key is
 verified against the `api_keys` table and there is nowhere else it could be. With no database the
 gateway says so at startup and answers every keyed door 503 with the same sentence. `--reload`
@@ -184,7 +187,7 @@ production key, the default. `--scope`, repeatable, is what the key may do (`app
 `pipeline` · `words` — the org's lexicon — · `knowledge` · `memory` · `evals` · `numbers` ·
 `keys` — the org's own API keys — · `providers` — the vendor keys it brought — · `team` · `usage`
 · `fleet`); left out is every scope
-but `fleet`, the box's own worker's, minted only when typed (`pinecall-worker-key.service` types
+but `fleet`, the box's own worker's, minted only when typed (`pinecall-worker-key@.service` types
 it). An org makes its servers' tokens without the operator, in its console (`POST /v1/keys`); these
 verbs are the box's way in, on `PINECALL_OPS_KEY`. `--subject` and `--name` make it a person's key
 (`pc_…`), which acts in the world of the instance it knocks at as any person's — `--env` says
@@ -323,8 +326,12 @@ A vendor an org brought of its own is `orgs provider-key`, above; this table is 
 ## `box`
 
 ```
-pinecall-runtime box secrets [--into /etc/credstore.encrypted]
-pinecall-runtime box secret <NAME> [--into …]        # the value on stdin
+pinecall-runtime box secrets [--instance <name>] [--into /etc/credstore.encrypted]
+pinecall-runtime box secret <NAME> [--instance <name>] [--into …]   # the value on stdin
+pinecall-runtime box instance <name> --world production|sandbox --domain <host> [--port N]
+                              [--fleet F] [--identity URL] [--elsewhere URL]
+                              [--max-jobs N] [--idle-processes N] [--force]
+pinecall-runtime box database                          # as pinecall-db@<name> runs it
 ```
 
 `secrets` generates, once, everything a box makes for itself and nobody issues to it: the LiveKit
@@ -334,6 +341,28 @@ only what is missing is made. `secret` keeps one secret you bring under its own 
 stdin: a provider key, WhatsApp's token. Both write systemd encrypted credentials, which is why the
 runtime reads `CREDENTIALS_DIRECTORY` as a source of settings: on a box a secret is a file the unit
 decrypts, not a line in an environment file.
+
+**An instance** is one runtime on the box — its gateway, worker, database, fleet and keys — and is
+two things: `/etc/pinecall/instances/<name>.env` and `/etc/pinecall/instances/<name>.credstore/`
+([infra/box/README.md](../infra/box/README.md), "An instance"). `instance` writes the first, every
+variable of it, an unset one as `NAME=` so a line box.env still carries never becomes this
+instance's: the world, the fleet (`pinecall` for `production`, else `pinecall-<name>`), the domain,
+`PINECALL_GATEWAY_URL` on loopback (8080 for `production`, else the next hundred no other
+instance's file holds — 8180, 8280 — checked against every other file), the worker's health port
+two above it, `PINECALL_RECORDINGS` under `/var/lib/pinecall/recordings/<name>` (made `2770
+pinecall:pinecall-media`), identity, elsewhere, and the worker's two knobs. It refuses a name that
+is not a slug of at most 32, a port another instance holds, a sandbox with no `--identity` (it
+would never start), and a file that is already there unless `--force`. `secrets --instance <name>`
+draws that instance's own three — `DATABASE_URL` on a role and database of its own,
+`pinecall_<name>` (a dash becomes `_`), `PINECALL_OPS_KEY`, `PINECALL_VAULT_KEY` — into its store,
+never rewriting one; no LiveKit pair and no `media.env`, which are the box's, and no worker key,
+which `pinecall-worker-key@<name>` mints. `production` is refused there: its database is the
+container's own, so its three are the box's first draw, which `make install` copies into its
+store. `secret --instance <name>` puts one you bring into that store instead of the box's.
+`database` is what `pinecall-db@<name>` runs as root: if the database its `DATABASE_URL` names is
+missing, it makes the role, the database owned by it, takes `CONNECT` on every database from
+`PUBLIC` — so each role reaches its own and no other — and creates `vector` and `pg_textsearch` in
+it; where the database is there, production's always, it does nothing.
 
 ---
 

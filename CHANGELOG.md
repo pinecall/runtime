@@ -7,6 +7,16 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **`pinecall-runtime box instance <name> --world … --domain …`** writes one instance's env file,
+  `/etc/pinecall/instances/<name>.env`, every variable in it (an unset one as `NAME=`): its world,
+  its fleet (`pinecall-<name>`, `pinecall` for `production`), its loopback URL on the next free
+  hundred (8180, 8280…; 8080 for `production`), its worker's port two above, its recordings under
+  `/var/lib/pinecall/recordings/<name>`. It refuses a name that is not a slug, a port another
+  instance holds, a sandbox with no `--identity`, and a file that is there unless `--force`.
+  `box secrets --instance <name>` draws that instance's own `DATABASE_URL` (role and database
+  `pinecall_<name>`), ops key and vault key into `/etc/pinecall/instances/<name>.credstore/`, and
+  `box secret NAME --instance <name>` keeps one there; `box database` makes an instance's database,
+  its role and its walls once.
 - **An instance is one world: `PINECALL_WORLD`, `production` unless it says `sandbox`** — a box
   that runs one instance is production, as every box was, and the sandbox is said on purpose by
   its own instance's environment file. A sandbox instance with no `PINECALL_IDENTITY_URL` is
@@ -56,6 +66,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   is meant to answer, and nothing moves it to the other world.
 
 ### Changed
+- **`pinecall-runtime gateway` binds its own `PINECALL_GATEWAY_URL`** when given no `--host` and
+  `--port`: `127.0.0.1:8080` unless the instance says otherwise, where it was `0.0.0.0:8080`. A
+  URL that is not loopback or names no port is refused in one sentence; `--host 0.0.0.0` is still
+  there for a laptop that wants its gateway on the LAN.
 - **`POST /v1/numbers/buy` is production's**: on a sandbox instance it is `404`, naming
   `PINECALL_ELSEWHERE_URL`, before the box's Twilio account is asked anything — the account and
   its trunk are production's, and whether a sandbox may spend them is not decided yet.

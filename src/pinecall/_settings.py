@@ -252,10 +252,11 @@ class Settings(VendorKeys):
     # ── The worker: which gateway it asks, and on whose behalf ──────────────────
     # Read in the JOB process, never the parent: livekit runs a call in a process of its own and
     # hands it the entrypoint by name, so a flag parsed in the parent never reaches it — the
-    # environment is the one thing the child inherits.
+    # environment is the one thing the child inherits. The gateway itself binds this URL's host and
+    # port (cli/gateway.py), so an instance's address is said once, in its env file.
     gateway_url: str = Field(
         default="http://127.0.0.1:8080",
-        description="The gateway a worker's job asks. Read in the job process, never the parent.",
+        description="The instance's gateway: where it binds, on loopback, and what a worker asks.",
     )
     agent: str | None = Field(
         default=None,
@@ -355,7 +356,7 @@ class Settings(VendorKeys):
         description="Origins besides the mobile app's two that may call /v1, comma separated.",
     )
     # The org's own key, as `keys issue` printed it: what the WORKER knocks at its gateway with,
-    # minted once by pinecall-worker-key.service and kept in the credstore. It was
+    # minted once by pinecall-worker-key@.service into its instance's own credstore. It was
     # PINECALL_API_KEY — this credential, a key source in the v2 CLI and the variable v1's SDK
     # exports, all at once, so a laptop with v1's export still live silently registered agents
     # into whatever org THAT key named. A name of its own ends the collision.

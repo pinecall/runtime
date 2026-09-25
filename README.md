@@ -180,7 +180,7 @@ they arrive as systemd credentials — and need a LiveKit server, a Postgres 17 
 
 | verb | what |
 |---|---|
-| `gateway [--host] [--port] [--reload]` | the control plane, on 8080 |
+| `gateway [--host] [--port] [--reload]` | the control plane, on the loopback host and port of its own `PINECALL_GATEWAY_URL` (8080 unless the instance says) |
 | `worker dev` · `worker start` | the fleet, with livekit's own flags passed through; each heartbeats to the gateway |
 | `worker overflow` | the hub's one worker that is never full: a sentence and a call back when every other is |
 | `worker talk` | one call served by THIS terminal — a `@tool` breakpoint lands where you typed |
@@ -193,8 +193,10 @@ they arrive as systemd credentials — and need a LiveKit server, a Postgres 17 
 | `init --email --person [--org]` | the first org and its first admin, made an operator of this box, on a runtime nobody has used yet |
 | `migrate up [--post]` · `migrate status` · `migrate plan` | the schema, numbered SQL, applied in order. `up` says which database first, takes an advisory lock, and holds every migration to 5 s; a `.post.sql` is named and never run at startup, so `--post` is how an index on a big table gets built. `status` asks the database, `plan` touches nothing |
 | `doctor [--mail-to <address>]` | its first line names the .env read, the instance's world and its fleet; then keys present · keys answer · livekit · postgres · embedder · mail · lk — one line each, and what is down first; the mail line says which mailbox — stored by the operator at `PUT /v1/ops/mail`, or the environment's; `--mail-to` posts one test letter through that same mailbox and says what the server said |
-| `box secrets` | every secret a box makes for itself, once; run twice rotates nothing |
-| `box secret <NAME>` | one secret you bring, from stdin, replaced in place |
+| `box secrets [--instance <name>]` | every secret a box makes for itself, once — or one instance's own three; run twice rotates nothing |
+| `box secret <NAME> [--instance <name>]` | one secret you bring, from stdin, replaced in place — in the box's store, or one instance's |
+| `box instance <name> --world --domain [--port --fleet --identity --elsewhere --max-jobs --idle-processes --force]` | one more instance of the runtime on this box: its env file, every variable written, the next free hundred for its ports; never over a file unasked |
+| `box database` | what `pinecall-db@<name>` runs: the instance's database, its role and its walls, made once |
 | `fleet list · cordon · uncordon · loop` | the workers as the hub hears them, the graceful shrink, and the loop that keeps `busy` at the target over any cloud |
 | `providers [--does llm\|stt\|tts]` | every vendor this build runs, as a table — the last line counts them: what each does, whether this box has its plugin and its key, the variable a key goes under, and every other word the vendor answers to. Reads the catalog and this process's settings; asks nothing of anybody, so it answers on a box that is down. Never a key |
 | `orgs list · add · invite · operator · remove-member · move · rm · quota · dialling · provider-key · sso` | the tenants: a person invited (no link for somebody who already has a password on this box: they are seated at once), a person made an operator of the box, a person removed from an org for good (keys revoked, the seat free; refused for its last active admin), an agent moved to the org it belongs to, their quotas (`--minutes --messages --agents --concurrent-calls --memory-facts --knowledge-chunks --numbers --seats`, the whole set at once; a flag left out is no limit and `0` refuses everything; `--budget-eur` beside them is shown, never refused), what it may dial out (`--dial-anywhere --per-minute --per-day --max-duration-s`, the whole set; a guard left out goes back to the code's default), the vendor keys an org brings, which identity provider an org signs in with (`orgs sso <org>`, and `--off` the break-glass that lets a password open it again while that provider is down) |

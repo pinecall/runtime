@@ -5,7 +5,18 @@ from pathlib import Path
 
 import pytest
 
-from pinecall.cli.box.verbs import KEPT, MADE, generated, keep_secret, make_secrets
+from pinecall.cli import build_parser
+from pinecall.cli.box.instance import InstanceRefused
+from pinecall.cli.box.verbs import (
+    KEPT,
+    MADE,
+    THE_BOXS_OWN,
+    generated,
+    instance_secrets,
+    keep_secret,
+    make_secrets,
+    run_secrets,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -97,3 +108,47 @@ def test_a_brought_secret_is_kept_under_its_name_and_an_empty_one_is_refused(
         keep_secret("ANTHROPIC_API_KEY", "", tmp_path, StringIO(), a_recording_encrypt(written))
         == 2
     )
+
+
+# ── an instance's own ────────────────────────────────────────────────────────────
+
+INSTANCES_OWN = ["DATABASE_URL", "PINECALL_OPS_KEY", "PINECALL_VAULT_KEY"]
+
+
+def test_an_instance_draws_its_three_on_a_role_of_its_own_and_nothing_of_the_boxs() -> None:
+    drawn = instance_secrets("staging-eu")
+    assert list(drawn) == INSTANCES_OWN
+    assert drawn["DATABASE_URL"].startswith("postgresql://pinecall_staging_eu:")
+    assert drawn["DATABASE_URL"].endswith("@127.0.0.1:5432/pinecall_staging_eu")
+    assert drawn["PINECALL_OPS_KEY"] != generated()["PINECALL_OPS_KEY"]
+
+
+def test_an_instances_store_is_made_once_and_kept_after(tmp_path: Path) -> None:
+    first: dict[str, str] = {}
+    assert (
+        make_secrets(tmp_path, StringIO(), a_recording_encrypt(first), instance_secrets("a")) == 0
+    )
+    assert list(first) == INSTANCES_OWN
+    again: dict[str, str] = {}
+    said = StringIO()
+    make_secrets(tmp_path, said, a_recording_encrypt(again), instance_secrets("a"))
+    assert again == {}
+    assert said.getvalue().splitlines() == [KEPT.format(name=name) for name in INSTANCES_OWN]
+
+
+def test_productions_are_never_drawn_they_are_the_boxs_own(tmp_path: Path) -> None:
+    arguments = build_parser().parse_args(
+        ["box", "secrets", "--instance", "production", "--into", str(tmp_path)]
+    )
+    with pytest.raises(InstanceRefused) as refused:
+        run_secrets(arguments)
+    assert str(refused.value) == THE_BOXS_OWN.format(store=tmp_path)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_an_instance_that_is_not_a_name_gets_no_store(tmp_path: Path) -> None:
+    arguments = build_parser().parse_args(
+        ["box", "secrets", "--instance", "../etc", "--into", str(tmp_path)]
+    )
+    with pytest.raises(InstanceRefused):
+        run_secrets(arguments)
