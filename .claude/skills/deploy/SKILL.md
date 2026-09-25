@@ -31,7 +31,10 @@ cloud-init made. Nothing on the box can clone; nothing here uses shipway. The bo
   `DATABASE_URL` is the container's own password, from the box's first draw, which `make converge`
   copies. A second draw is a DSN that opens nothing.
 - Write "sandbox" (or any instance's name, port or domain) into a unit file. An instance is its
-  env file; a unit is a template.
+  env file; a unit is a template. A peer key is loaded by the drop-in `converge` writes
+  (`pinecall-gateway@<name>.service.d/peers.conf`), never by the template.
+- Name `PINECALL_SANDBOX_URL` in production's file before the sandbox's gateway has come up once:
+  `converge` cannot mint the key it needs, and stops the deploy (production would refuse to start).
 
 ## The path
 
@@ -67,6 +70,26 @@ then `make instance`, then the name in `PINECALL_INSTANCES`, then the deploy. A 
 no file or no secrets stops the deploy at `converge` with the verb that makes it — nothing was
 changed. Taking a name out of the list takes its site off Caddy and stops its units on the next
 deploy; its files and database stay.
+
+## The pair: a developer's own phone across the two (peers)
+
+Once the sandbox's gateway has come up once, production names it and the next deploy makes the
+pair — `converge` runs `box peer --among …`, minting at each gateway already running the key the
+other keeps (`PINECALL_SANDBOX_KEY` in production's store, `PINECALL_PEER_KEY` in the sandbox's),
+writes each gateway's drop-in, and refuses a production that names its sandbox without its key:
+
+```bash
+make instance NAME=production WORLD=production DOMAIN=<domain> \
+              ELSEWHERE=https://sandbox.<domain> SANDBOX=https://sandbox.<domain> FORCE=1
+make deploy   # "kept PINECALL_SANDBOX_KEY …" and "kept PINECALL_PEER_KEY …" in converge's output
+```
+
+Proof of the pair: a call from a phone a developer said is theirs (`pinecall line
+from`) while they run `pinecall start` rings in their terminal — its log on the sandbox with
+`diverted_from: production` — and production's journal says `rings in m_…'s copy, on the fleet
+pinecall-sandbox`; any other phone reaches production. A sandbox that does not answer is one
+WARNING in production's gateway journal and the call stays there. Two boxes: `make peer FROM= INTO=
+INTO_BOX=` (infra/box/README.md, "Peers").
 
 ## The first deploy with instances, on a box born before them
 

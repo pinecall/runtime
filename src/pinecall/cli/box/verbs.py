@@ -1,29 +1,23 @@
-"""`pinecall-runtime box`: a box's secrets, its instances, and each instance's own database."""
+"""`pinecall-runtime box`: a box's secrets, its instances, their databases, and their peer keys."""
 
 import argparse
 import base64
 import secrets
-import subprocess
 import sys
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TextIO
 
-from pinecall.cli.box import database, instance
+from pinecall.cli.box import database, instance, peer
+from pinecall.cli.box.credentials import Encrypt, encrypt_with_systemd
 from pinecall.cli.box.instance import THE_FIRST, InstanceRefused, a_name, credstore_of, database_of
 
 PURPOSE: str = "the box: its instances, and their secrets as encrypted systemd credentials"
-VERBS: tuple[str, ...] = ("secrets", "secret", "instance", "database")
+VERBS: tuple[str, ...] = ("secrets", "secret", "instance", "database", "peer")
 
 # Where `ImportCredential=` looks, and the one place a box's secrets live: one file per name,
 # encrypted under the machine's own key (and its TPM, when it has one), decrypted by systemd into
 # the private credentials directory of the unit that asked. Never a .env file, never a dump.
 CREDSTORE = Path("/etc/credstore.encrypted")
-
-# The file is named EXACTLY as the credential, with no extension: systemd refuses a credential
-# whose embedded name is not its filename ("does not match filename 'X.cred', refusing"), which
-# was measured on a box on 2026-09-09 and is not in the manual.
-SYSTEMD_CREDS = "systemd-creds"
 
 MADE = "made {name}"
 KEPT = "kept {name} — it was already there, and this verb never rewrites a secret"
@@ -61,6 +55,9 @@ def configure(parser: argparse.ArgumentParser) -> None:
     )
     database.configure(
         verbs.add_parser("database", help="make this instance's database, if it is missing")
+    )
+    peer.configure(
+        verbs.add_parser("peer", help="a fleet key of one instance, kept in another's store")
     )
     parser.set_defaults(run=lambda arguments: _print_the_verbs(parser, arguments))  # pyright: ignore[reportUnknownLambdaType] — argparse's Namespace
 
@@ -135,7 +132,7 @@ def _guarding(database: str, password: str) -> dict[str, str]:
 def make_secrets(
     into: Path,
     out: TextIO = sys.stdout,
-    encrypt: "Encrypt | None" = None,
+    encrypt: Encrypt | None = None,
     drawn: dict[str, str] | None = None,
 ) -> int:
     """Make what is missing and keep what is there: this verb run twice rotates nothing."""
@@ -150,7 +147,7 @@ def make_secrets(
 
 
 def keep_secret(
-    name: str, value: str, into: Path, out: TextIO = sys.stdout, encrypt: "Encrypt | None" = None
+    name: str, value: str, into: Path, out: TextIO = sys.stdout, encrypt: Encrypt | None = None
 ) -> int:
     """One brought secret, kept under its name. A second `secret` of the same name replaces it."""
     if not value:
@@ -162,22 +159,6 @@ def keep_secret(
     (encrypt or encrypt_with_systemd)(name, value, into)
     print(MADE.format(name=name), file=out)
     return 0
-
-
-type Encrypt = Callable[[str, str, Path], None]
-
-
-# The value travels on systemd-creds' stdin and lands encrypted; it is on no command line and in
-# no file in the clear, not even for the instant between the two. `--with-key=auto` is the host's
-# key sealed to the TPM where the machine has one, and the host's key alone where it does not.
-def encrypt_with_systemd(name: str, value: str, into: Path) -> None:
-    """`systemd-creds encrypt --name=<name> - <into>/<name>`, the value on stdin."""
-    into.mkdir(mode=0o700, parents=True, exist_ok=True)
-    subprocess.run(  # noqa: S603 — every argument is ours, and the secret is on stdin
-        [SYSTEMD_CREDS, "encrypt", "--with-key=auto", f"--name={name}", "-", str(into / name)],
-        input=value.encode("utf-8"),
-        check=True,
-    )
 
 
 def _print_the_verbs(parser: argparse.ArgumentParser, _arguments: Any) -> int:

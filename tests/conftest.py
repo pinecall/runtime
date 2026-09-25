@@ -43,6 +43,7 @@ pytest_plugins = [
     "tests.api.mailing",
     "tests.api.carriers",
     "tests.api.policy",
+    "tests.api.peering",
 ]
 
 

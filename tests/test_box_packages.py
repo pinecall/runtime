@@ -337,6 +337,23 @@ def test_an_instance_draws_every_secret_of_its_own_but_the_one_its_worker_key_un
     )
 
 
+# A peer key is loaded by a drop-in the manifest writes from what the store holds, never by the
+# template: a path that is missing fails the start, and most instances hold no peer key at all.
+def test_a_gateway_loads_the_peer_keys_its_store_holds_and_no_template_names_one() -> None:
+    from pinecall.cli.box.peer import PEER_SECRETS
+
+    assert _make_variable("PEER_SECRETS").split() == list(PEER_SECRETS)
+    for unit in BOX.glob("*.service"):
+        assert not set(PEER_SECRETS) & set(re.findall(r"=(PINECALL_\w+):", unit.read_text()))
+    plan = what_a_box_installs(role="hub", instances="production sandbox")
+    assert "box peer --among production sandbox" in plan
+    assert "pinecall-gateway@$name.service.d" in plan
+
+
+def test_a_worker_box_mints_no_peer_key_it_has_no_gateway_to_load_it_into() -> None:
+    assert "box peer" not in what_a_box_installs(role="worker", instances="production sandbox")
+
+
 def test_the_caddy_snippet_proxies_each_site_to_its_own_port_and_the_sfu_to_the_one() -> None:
     caddyfile = (BOX / "caddy" / "Caddyfile").read_text()
     assert "reverse_proxy 127.0.0.1:{args[0]}" in caddyfile

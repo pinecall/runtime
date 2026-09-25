@@ -75,26 +75,38 @@ it everywhere: the sentence names that trunk, and nothing is written anywhere; `
 
 There is no door that moves a number to the other world. Each world is an instance of its own —
 its own gateway, database and worker — and a number is imported into one of them, whose routes,
-trunk and fleet answer it. To try an agent on the real line, a team imports the number where it
-means to answer it; the carrier lists one pool for both, and the import refuses a number the
-other instance already carries (above).
+trunk and fleet answer it; the carrier lists one pool for both, and the import refuses a number the
+other instance already carries (above). To try an agent on the real line, nobody moves anything:
+the developer says which phone is theirs and holds the agent in the sandbox (next).
 
 Whose corner a ring lands in, once a world is answering it, is the caller's phone and then the
 **line** — [gateway-api.md](gateway-api.md) §3.
 
 **A number in production still reaches a developer's own phone's sandbox copy.** One developer
-testing needs no number of their own. A phone call to a production number that no dispatch aimed is asked about first (`GET
-/v1/agents/{slug}/rings-for?caller=`, the worker's question): when the phone dialling is one a
-developer registered with `pinecall line from` (`PUT /v1/line/from`) and they are holding that
-agent in the sandbox, in this org, the call is built in their sandbox corner and its log says
-`diverted_from: production`. Every other caller reaches production, and so does that phone the
-moment the developer stops holding the agent — or whenever the gateway cannot be asked.
+testing needs no number of their own: `pinecall line from <their phone>` and `pinecall start`, and a
+call from that phone to the production number is handed to their copy; every other caller reaches
+production. The trunk and the rule stay production's. Production's worker asks its gateway (`GET
+/v1/agents/{slug}/rings-for?caller=&org=`) about every phone call to a production number that no
+dispatch aimed; production answers from its own claims, and when it has none asks its sandbox the
+same door on the fleet key the sandbox minted for it (`PINECALL_SANDBOX_URL`, `PINECALL_SANDBOX_KEY`).
+The answer is `{holder, fleet}`: the developer, and the fleet that holds their corner. The worker
+then **hands the room over** instead of answering it — `create_dispatch` into the same room, to
+that fleet, with the metadata any dispatch carries (`org`, `env: sandbox`, `holder`, `agent`,
+`caller`, `direction`) and `diverted_from: production` — and ends its own job before anything of
+the call was opened. The caller's SIP leg is a participant of its own and stays through both; the
+sandbox's worker takes the dispatch like any other, builds the call on the number it rang, in that
+developer's corner, and writes the sandbox's log. A sandbox that does not answer within two
+seconds, or refuses, leaves the call in production (one WARNING line), as does a dispatch the SFU
+refuses, and as does that phone the moment the developer stops holding the agent.
 
 Which numbers those are, a developer's key cannot read off `GET /v1/numbers`: that door answers the
 key's own world, to a key that opens `numbers`. `GET /v1/line/numbers` (`app`, a key naming a
 person, the sandbox) answers `{calling, numbers}` — the phones this person said are theirs, and
 the org's production phone numbers with the agent each reaches — and nothing else about a route.
-It is what the sandbox console's Phone testing screen reads.
+The rows are production's, so the sandbox reads them at production (`GET /v1/routes?org=&env=
+production`) on the fleet key production minted for it (`PINECALL_PEER_KEY`): `503` naming `box
+peer` while it holds none, `502` when production does not answer. It is what the sandbox console's
+Phone testing screen reads.
 
 ## Letting one go — `DELETE /v1/numbers/{number}`
 

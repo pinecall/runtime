@@ -16,7 +16,7 @@ Three different things, and knowing which is which saves an afternoon:
 
 | group | speaks to |
 |---|---|
-| `gateway` · `worker` · `box` · `doctor` · `providers` | this machine |
+| `gateway` · `worker` · `box` · `doctor` · `providers` | this machine (`box peer` also an instance's gateway, on its ops key) |
 | `migrate` · `sessions` | **Postgres**, straight, over `DATABASE_URL` |
 | `init` · `orgs` · `keys` · `routes` · `fleet` | **a running gateway**, over `/v1/ops/*` with `PINECALL_OPS_KEY` — and `fleet loop`, a cloud's own CLI beside it |
 
@@ -329,9 +329,11 @@ A vendor an org brought of its own is `orgs provider-key`, above; this table is 
 pinecall-runtime box secrets [--instance <name>] [--into /etc/credstore.encrypted]
 pinecall-runtime box secret <NAME> [--instance <name>] [--into …]   # the value on stdin
 pinecall-runtime box instance <name> --world production|sandbox --domain <host> [--port N]
-                              [--fleet F] [--identity URL] [--elsewhere URL]
+                              [--fleet F] [--identity URL] [--elsewhere URL] [--sandbox URL]
                               [--max-jobs N] [--idle-processes N] [--force]
 pinecall-runtime box database                          # as pinecall-db@<name> runs it
+pinecall-runtime box peer --from <instance> --into <instance> [--force]
+pinecall-runtime box peer --among <instance>…          # as `make converge` runs it
 ```
 
 `secrets` generates, once, everything a box makes for itself and nobody issues to it: the LiveKit
@@ -350,7 +352,8 @@ instance's: the world, the fleet (`pinecall` for `production`, else `pinecall-<n
 `PINECALL_GATEWAY_URL` on loopback (8080 for `production`, else the next hundred no other
 instance's file holds — 8180, 8280 — checked against every other file), the worker's health port
 two above it, `PINECALL_RECORDINGS` under `/var/lib/pinecall/recordings/<name>` (made `2770
-pinecall:pinecall-media`), identity, elsewhere, and the worker's two knobs. It refuses a name that
+pinecall:pinecall-media`), identity, elsewhere, production's `--sandbox` (the URL it asks whose a
+ring is), and the worker's two knobs. It refuses a name that
 is not a slug of at most 32, a port another instance holds, a sandbox with no `--identity` (it
 would never start), and a file that is already there unless `--force`. `secrets --instance <name>`
 draws that instance's own three — `DATABASE_URL` on a role and database of its own,
@@ -363,6 +366,16 @@ store. `secret --instance <name>` puts one you bring into that store instead of 
 missing, it makes the role, the database owned by it, takes `CONNECT` on every database from
 `PUBLIC` — so each role reaches its own and no other — and creates `vector` and `pg_textsearch` in
 it; where the database is there, production's always, it does nothing.
+
+`peer`, as root, gives two instances their trust in each other (infra/box/README.md, "Peers"):
+it mints a fleet key at `--from`'s gateway — its `PINECALL_GATEWAY_URL`, its ops key decrypted out
+of its store, org `default`, scopes `fleet` and `app`, labelled `peer-for-<into>`, in `--from`'s
+world — and encrypts it into `--into`'s store under the name that says what it opens:
+`PINECALL_SANDBOX_KEY` when `--from` is a sandbox, `PINECALL_PEER_KEY` when it is production. A key
+already kept is refused without `--force` (and one forced over stays live at `--from` until `keys
+revoke`). `--among` is every pair among those instances — a production whose `PINECALL_SANDBOX_URL`
+host is another one's `PINECALL_DOMAIN`, both ways — minting only what is missing, and saying and
+skipping a gateway that does not answer yet.
 
 ---
 

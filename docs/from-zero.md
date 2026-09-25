@@ -169,8 +169,7 @@ refused, not that the command is wrong.
 
 Open the invitation link and set a password. That browser now holds a key of its own — Berna's,
 an admin's, and an admin always opens production — and this gateway's console shows production,
-and only production. What a laptop runs is in the sandbox, and is watched at the gateway's SECOND
-name (§6) — on a laptop, the same gateway asked as `127.0.0.1` instead of `localhost`.
+which on a laptop is the only instance there is (§6): what the laptop runs is watched there too.
 
 ## 5. Sign a terminal in, and link the project
 
@@ -195,17 +194,18 @@ which of your orgs the project is and writes your key for that org into the proj
 another org is a second folder with its own `.env`, and nothing is ever switched. `link` signs
 the machine in first when it is not, so on a new laptop it is the one command to type.
 
-**It is the person's key, not a world's.** Each request names its world with the `pinecall-env`
-header, and one that names none runs in the sandbox — a laptop is where things are written. The
-same key reaches production only while the person's row opens it (below).
+**It is the person's key, not a world's.** Each request names the world it believes it is
+talking to with the `pinecall-env` header, and an instance of the other world refuses it. On a
+gateway of one instance every verb runs there; the key acts in production only while the
+person's row opens it (below).
 
 Every verb reads `PINECALL_KEY` and `PINECALL_URL` from the process's environment, else from the
 nearest `.env` up from where it runs:
 
 ```console
 $ pinecall whoami
-gateway http://127.0.0.1:8080 · key from .env
-org default · key k_29c915320fcf · sandbox · berna-air · production: yes
+gateway http://127.0.0.1:8080 · key from .env · production (the only instance)
+org default · key k_29c915320fcf · production · berna-air · production: yes
 ```
 
 `--prod` on any verb names production for that one command, and the gateway lets it through only
@@ -218,9 +218,9 @@ console (Tokens ▸ New server token) goes into its secrets as `PINECALL_KEY`.
 
 ```console
 $ pinecall start
-clinica-norte · default · sandbox · connected to http://127.0.0.1:8080 · key from .env · tools 5 · doors phone +34910000000, whatsapp +34910000000, web
-console  your box's sandbox console is at its second name (PINECALL_SANDBOX_DOMAIN on the box)
-line     rings in this terminal
+clinica-norte · default · production · connected to http://127.0.0.1:8080 · key from .env · tools 5
+console  http://127.0.0.1:8080/a/clinica-norte?login=lc_…   (opens within five minutes, once)
+doors    web · phone +34910000000 · whatsapp +34910000000
 ```
 
 One line, and it says the four things that decide where you are: the agent, **whose org**, **which
@@ -230,14 +230,10 @@ else on this side: the gateway serves its console at `http://localhost:8080`.
 An instance is one world, and a laptop's is production unless its `.env` says otherwise
 (`PINECALL_WORLD`): a sandbox instance asks a production one who a person is
 (`PINECALL_IDENTITY_URL`), and a laptop on its own has nobody to ask. On a box, production and the sandbox are two instances of this same
-runtime, each with its own console and URL (`PINECALL_ELSEWHERE_URL` names the other), and the line
-above prints the sandbox's URL with a one-use code in it. The console line above is the CLI's
-wording from before the sandbox became an instance of its own.
-
-The console you sign in to with the password from §4 shows **production** and only production:
-there the page says `no agent called clinica-norte is held here`, which is true. A
-production run — a server's token, or `pinecall start --prod` by a person with production access —
-prints that console's URL with a one-use code.
+runtime, each with its own console and URL (`PINECALL_ELSEWHERE_URL` names the other): there a
+laptop's `pinecall start` registers in the sandbox, and the console line is the sandbox instance's
+own domain with a one-use code in it. `--prod` — a server's token, or a person with production
+access — is production's, and prints production's console the same way.
 
 ## 7. Talk to it
 
@@ -438,12 +434,12 @@ loud. With nobody running it: `nobody is answering clinica-norte: run \`pinecall
 
 `line from` is your own phone, and it reaches your terminal at **both** numbers. At a sandbox
 number, every call it makes lands in your corner whoever holds the line, as long as you are
-holding that agent. At the **production**
-number — the one the customers dial — the worker asks the gateway before it builds the call, and
-while you hold the agent in the sandbox your phone rings in your copy: your declaration, your
-tools, a sandbox log that says `diverted_from: production`. Every other caller reaches production.
-Stop `pinecall start` and your phone reaches production too; a gateway that cannot be asked leaves the
-call there as well.
+holding that agent. At the **production** number — the one the customers dial — production's
+worker asks before it builds the call, production asks its sandbox (the two hold a fleet key of
+each other, `pinecall-runtime box peer`), and while you hold the agent there the room is handed to
+the sandbox's fleet: your declaration, your tools, a sandbox log that says `diverted_from:
+production`. Every other caller reaches production. Stop `pinecall start` and your phone reaches
+production too; a sandbox that does not answer in two seconds leaves the call there as well.
 
 ## Numbers, and staging for nothing
 
@@ -459,16 +455,10 @@ Bring the carrier (`PUT /v1/carrier`, or the console's Numbers screen) and `impo
 carrier's trunk pointed here, the SFU's trunk admitting the number, the route — `--dry-run` prints
 those steps and writes nothing.
 
-Then the verb that is the whole reason there is no third world:
-
-```bash
-pinecall numbers move +34910000000 --env sandbox      # → the sandbox, for an afternoon
-pinecall numbers move +34910000000 --env production   # → back
-```
-
-An org buys **one** number. Pointing it at the sandbox is how a team tries a new agent on the real
-line: one row, in effect on the next call, with the carrier account and both trunks untouched. A
-move to where it already is writes nothing and says so.
+An org buys **one** number, and it is one instance's: nothing moves it between the two. Trying a
+new agent on the real line is the section above — `pinecall line from <your phone>` and `pinecall
+start` — so a call from your phone is handed to your sandbox copy and every other caller reaches
+production, with the carrier and both trunks untouched.
 
 ## The team, and the tokens
 

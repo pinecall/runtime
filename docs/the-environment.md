@@ -21,6 +21,7 @@ instances, its embedder, its fleet cloud, its mail.
 |---|---|
 | `PINECALL_WORLD` *(the instance's)* | the one world this instance is: `production` unless it says `sandbox`. A box that runs one instance is production, as every box was before there were two; the sandbox is said on purpose, by its own instance's environment file. Nothing picks a world per request |
 | `PINECALL_ELSEWHERE_URL` · `PINECALL_IDENTITY_URL` *(the instance's)* | the other instance's public URL — named in every refusal that sends a person there, marked into the console and served at `/.well-known/pinecall` — and, on a sandbox instance, production's: where people sign in. **`PINECALL_IDENTITY_URL` is required on a sandbox**, which asks production who a person is and holds no password of its own: one without it is refused at startup in one sentence |
+| `PINECALL_SANDBOX_URL` · `PINECALL_SANDBOX_KEY` · `PINECALL_PEER_KEY` *(the instance's)* | the peers ([../infra/box/README.md](../infra/box/README.md), "Peers"). On production, where its sandbox answers — asked whose a ring from a developer's own phone is — and the fleet key that sandbox minted for it, in production's store; **both or neither**, or production is refused at startup in one sentence. On a sandbox, `PINECALL_PEER_KEY`, the fleet key production minted for it, with which it reads production's numbers at `PINECALL_IDENTITY_URL`. The keys are minted by `pinecall-runtime box peer` and never typed |
 | `LIVEKIT_URL` · `LIVEKIT_API_KEY` · `LIVEKIT_API_SECRET` | the media plane both processes talk to. The secret also signs call tokens |
 | `LIVEKIT_PUBLIC_URL` | the URL a browser is told to join, when it differs |
 | `DATABASE_URL` | Postgres 17 with pgvector and pg_textsearch: the one stateful service. On a box each instance has its own database and role in the one Postgres (`pinecall` for production, `pinecall_<name>` for another), in its own credstore |
@@ -95,6 +96,9 @@ make instance NAME=sandbox WORLD=sandbox DOMAIN=sandbox.example.com \
               IDENTITY=https://box.example.com ELSEWHERE=https://box.example.com
 make ssh      # sudoedit /etc/pinecall/box.env → PINECALL_INSTANCES="production sandbox"
 make deploy   # its database, units, Caddy site; restarted and doctored after production
+make instance NAME=production WORLD=production DOMAIN=box.example.com \
+              ELSEWHERE=https://sandbox.example.com SANDBOX=https://sandbox.example.com FORCE=1
+make deploy   # the pair: each gateway gets the other's peer key
 ```
 
 `box secrets`, `box database` and `migrate up` are the units', run before a gateway opens; nobody

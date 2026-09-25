@@ -157,7 +157,7 @@ written in a unit file.** An instance is two things, and `box.env` names which e
 | | |
 |---|---|
 | `/etc/pinecall/instances/<name>.env` | its world, fleet, domain, loopback URL, worker port, recordings, identity, elsewhere and worker knobs — every one written, an unset one as `NAME=`, so a line `box.env` still carries never becomes this instance's. Read by every unit of it after `box.env`, and winning |
-| `/etc/pinecall/instances/<name>.credstore/` | 0700, root: `DATABASE_URL`, `PINECALL_OPS_KEY`, `PINECALL_VAULT_KEY`, `PINECALL_WORKER_KEY` — what it holds alone, each loaded by its units by path (`LoadCredentialEncrypted=`) |
+| `/etc/pinecall/instances/<name>.credstore/` | 0700, root: `DATABASE_URL`, `PINECALL_OPS_KEY`, `PINECALL_VAULT_KEY`, `PINECALL_WORKER_KEY` — what it holds alone, each loaded by its units by path (`LoadCredentialEncrypted=`) — and, in a pair, the other instance's peer key ("Peers") |
 | `PINECALL_INSTANCES="production sandbox"` | in `/etc/pinecall/box.env`: the names this box runs, in the order a deploy restarts and doctors them. Unset, `production` |
 
 Its units are the templates — `pinecall-db@<name>`, `pinecall-gateway@<name>`,
@@ -187,6 +187,9 @@ make ssh        # sudoedit /etc/pinecall/box.env → PINECALL_INSTANCES="product
                 #     --world production --domain box.example.com \
                 #     --elsewhere https://sandbox.example.com --force
 make deploy     # pinecall-db@sandbox makes pinecall_sandbox; both gateways, workers, doctors
+make instance NAME=production WORLD=production DOMAIN=box.example.com \
+              ELSEWHERE=https://sandbox.example.com SANDBOX=https://sandbox.example.com FORCE=1
+make deploy     # the pair: both peer keys minted, both gateways restarted with them ("Peers")
 ```
 
 `box instance` gives the next free hundred on loopback — 8180 for the gateway and 8182 for its
@@ -218,6 +221,45 @@ drop-in that handed it `box.env` go; `PINECALL_SANDBOX_DOMAIN` is read by nothin
 secrets its gateway loads by path (a worker box: its worker key) — a credential loaded by path that
 is missing fails the unit's start, where an imported one is merely absent — and a missing one stops
 the deploy with the verb that makes it, and the box keeps running what it ran.
+
+### Peers
+
+Production and its sandbox ask each other two things, and nothing else: production asks whose a
+ring from a developer's own phone is (`GET /v1/agents/{slug}/rings-for`, [../../docs/protocol/numbers.md](../../docs/protocol/numbers.md)),
+and the sandbox asks production which numbers the customers dial (`GET /v1/routes`). Each knocks
+with a **peer key**: a fleet key of the other instance (`fleet` and `app`, org `default`, labelled
+`peer-for-<name>`), minted at the other's gateway on its own ops key — in its own world, the only
+one that honours it — and kept in this one's store. The name says what it opens:
+
+| | kept in | opens | named in the env file by |
+|---|---|---|---|
+| `PINECALL_SANDBOX_KEY` | production's store | the sandbox | production's `PINECALL_SANDBOX_URL` |
+| `PINECALL_PEER_KEY` | the sandbox's store | production | the sandbox's `PINECALL_IDENTITY_URL` |
+
+**A pair is declared, not typed.** Production's file names its sandbox — `box instance production
+… --sandbox https://sandbox.example.com --force`, or `make instance … SANDBOX=… FORCE=1` — and
+`make converge` finds the pair: the listed instance whose `PINECALL_DOMAIN` is that URL's host.
+It runs `pinecall-runtime box peer --among <the listed instances>`, which mints each key that is
+missing, at the gateway already running, and never rotates one it finds; a gateway not answering
+yet — the deploy that first brings the sandbox up — is said and skipped, and the next deploy mints
+it. Then each gateway gets a drop-in,
+`/etc/systemd/system/pinecall-gateway@<name>.service.d/peers.conf`, loading by path the peer keys
+its store holds, and none when it holds none: a `LoadCredentialEncrypted=` path that is missing
+fails the start, so it cannot live in the template every instance shares. The worker loads
+nothing new — it asks its own gateway, which asks the peer. Last, the refusal production's gateway
+would make at start (`PINECALL_SANDBOX_URL` without `PINECALL_SANDBOX_KEY`, or the reverse), made
+before anything restarts: the deploy stops with the verb to run.
+
+So the pair's first day is two deploys: one that brings the sandbox up with production naming no
+sandbox yet, then production's file names it and `make deploy` again mints both keys and restarts
+both gateways with them. A key to rotate is `box peer --from … --into … --force` and a restart;
+the old one stays live at the instance that minted it until `keys revoke` (label `peer-for-…`).
+
+**A pair on two boxes** is the one thing done by hand, from the checkout:
+`make peer FROM=sandbox INTO=production INTO_BOX=deploy@203.0.113.9` mints at `FROM`'s gateway on
+`BOX`, carries the key to `INTO_BOX` the way `worker-secrets` carries one — decrypted on one end,
+encrypted on the other, through the laptop's pipe and no file — and takes it off `BOX`; then `make
+deploy` on `INTO_BOX` writes the drop-in. Without `INTO_BOX`, `make peer` is the one-box verb.
 
 ### An instance on a box of its own
 

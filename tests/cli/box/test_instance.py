@@ -37,6 +37,7 @@ def written(instances: Path, *argv: str) -> str:
         fleet=arguments.fleet,
         identity=arguments.identity,
         elsewhere=arguments.elsewhere,
+        sandbox=arguments.sandbox,
         max_jobs=arguments.max_jobs,
         idle_processes=arguments.idle_processes,
     )
@@ -59,6 +60,7 @@ def test_the_first_instance_is_production_on_8080_with_the_default_fleet(tmp_pat
         "PINECALL_RECORDINGS=/var/lib/pinecall/recordings/production",
         "PINECALL_IDENTITY_URL=",
         "PINECALL_ELSEWHERE_URL=",
+        "PINECALL_SANDBOX_URL=",
         "PINECALL_MAX_JOBS=",
         "PINECALL_IDLE_PROCESSES=",
     ]
@@ -89,6 +91,21 @@ def test_a_sandbox_beside_it_takes_the_next_hundred_and_a_fleet_of_its_own(
     assert f"PINECALL_IDENTITY_URL={PRODUCTION_URL}" in said.splitlines()
     assert f"PINECALL_ELSEWHERE_URL={PRODUCTION_URL}" in said.splitlines()
     assert "PINECALL_IDLE_PROCESSES=1" in said.splitlines()
+
+
+# Production names its sandbox once, in its own file: the URL it asks whose a ring is.
+def test_production_names_the_sandbox_it_asks_about_a_developers_phone(tmp_path: Path) -> None:
+    said = written(
+        tmp_path,
+        "production",
+        "--world",
+        "production",
+        "--domain",
+        "box.example.com",
+        "--sandbox",
+        "https://sandbox.example.com",
+    )
+    assert "PINECALL_SANDBOX_URL=https://sandbox.example.com" in said.splitlines()
 
 
 def test_a_third_skips_every_hundred_already_held(tmp_path: Path) -> None:

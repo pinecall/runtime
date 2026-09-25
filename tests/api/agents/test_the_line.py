@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from dataclasses import asdict
 
 import httpx
 import pytest
 
 from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry
+from pinecall.api.peers import the_production
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
-from pinecall.routes.table import MemoryRoutes
 from pinecall.types import PRODUCTION, SANDBOX, Member, Route
 from tests.api.conftest import A_RECORD, AGENT, over_the_asgi_app
+from tests.api.peering import A_PEER_KEY, Scripting
 from tests.api.talking import answering_in
 from tests.conftest import a_sandbox
 
@@ -236,22 +238,45 @@ TO_CALL = "/v1/line/numbers"
 THE_REAL_NUMBER = "+14176743169"
 
 
+# The numbers are production's rows, in production's database: the sandbox asks production for
+# them on the fleet key production minted for it, and answers only the phone doors.
 async def test_a_developer_reads_the_production_numbers_their_phone_can_dial(
-    bernas: httpx.AsyncClient, routes: MemoryRoutes
+    bernas: httpx.AsyncClient, other_instance: Scripting
 ) -> None:
-    await routes.put(Route(A_RECORD.org, AGENT, "phone", THE_REAL_NUMBER, env=PRODUCTION))
-    await routes.put(Route(A_RECORD.org, AGENT, "phone", A_DEV_NUMBER, env=SANDBOX))
-    await routes.put(Route("somebody-else", AGENT, "phone", "+15550000000", env=PRODUCTION))
-
+    doors = [
+        Route(A_RECORD.org, AGENT, "phone", THE_REAL_NUMBER),
+        Route(A_RECORD.org, AGENT, "web", None),
+    ]
+    production = other_instance(the_production, httpx.Response(200, json=[*map(asdict, doors)]))
     await bernas.put(A_PHONE, json={"number": BERNAS_PHONE})
 
     said = await bernas.get(TO_CALL)
 
-    assert said.status_code == 200
     assert said.json() == {
         "calling": [BERNAS_PHONE],
         "numbers": [{"number": THE_REAL_NUMBER, "agent": AGENT}],
     }
+    (asked,) = production.asked
+    assert (asked.url.path, dict(asked.url.params)) == (
+        "/v1/routes",
+        {"org": A_RECORD.org, "env": PRODUCTION},
+    )
+    assert asked.headers["Authorization"] == f"Bearer {A_PEER_KEY}"
+
+
+async def test_a_production_that_does_not_answer_is_said_and_nothing_is_made_up(
+    bernas: httpx.AsyncClient, other_instance: Scripting
+) -> None:
+    other_instance(the_production, httpx.ConnectError("nobody home"))
+    assert (await bernas.get(TO_CALL)).status_code == 502
+
+
+async def test_a_sandbox_that_holds_no_key_of_production_says_which_verb_mints_one(
+    bernas: httpx.AsyncClient,
+) -> None:
+    refused = await bernas.get(TO_CALL)
+    assert refused.status_code == 503
+    assert "box peer" in refused.json()["detail"]
 
 
 async def test_a_key_that_names_nobody_has_no_phone_to_dial_from(wired: None) -> None:  # noqa: ARG001

@@ -28,7 +28,7 @@ CONTAINERS = $(filter-out $(TEI),$(wildcard containers/*))
 # says `>=24` and Ubuntu's own is 18 — `node-repo` below puts the vendor's repository in first.
 PACKAGES = podman caddy nftables make curl nodejs
 
-.PHONY: install converge packages node-repo pnpm doctor providers
+.PHONY: install converge packages node-repo pnpm doctor providers peers
 install: packages pnpm
 	install -D -m 644 -t /etc/sysusers.d sysusers.d/pinecall.conf
 	install -D -m 644 -t /etc/tmpfiles.d tmpfiles.d/pinecall.conf
@@ -51,6 +51,7 @@ converge:
 	$(if $(filter worker,$(ROLE)),,systemctl start pinecall-secrets)
 	$(if $(and $(filter production,$(INSTANCES)),$(filter-out worker,$(ROLE))),$(MAKE) --no-print-directory production-from-box-env)
 	$(MAKE) --no-print-directory $(addprefix ready-,$(INSTANCES))
+	$(if $(filter worker,$(ROLE)),,$(MAKE) --no-print-directory peers)
 	$(if $(filter worker,$(ROLE)),,$(MAKE) --no-print-directory sites)
 	$(MAKE) --no-print-directory retire
 	$(MAKE) --no-print-directory enable-$(ROLE)
@@ -203,6 +204,7 @@ production-from-box-env:
 	  $(if $(call BOX_SAYS,PINECALL_FLEET),--fleet $(call BOX_SAYS,PINECALL_FLEET)) \
 	  $(if $(call BOX_SAYS,PINECALL_IDENTITY_URL),--identity $(call BOX_SAYS,PINECALL_IDENTITY_URL)) \
 	  $(if $(call BOX_SAYS,PINECALL_ELSEWHERE_URL),--elsewhere $(call BOX_SAYS,PINECALL_ELSEWHERE_URL)) \
+  $(if $(call BOX_SAYS,PINECALL_SANDBOX_URL),--sandbox $(call BOX_SAYS,PINECALL_SANDBOX_URL)) \
 	  $(if $(call BOX_SAYS,PINECALL_MAX_JOBS),--max-jobs $(call BOX_SAYS,PINECALL_MAX_JOBS)) \
 	  $(if $(call BOX_SAYS,PINECALL_IDLE_PROCESSES),--idle-processes $(call BOX_SAYS,PINECALL_IDLE_PROCESSES))
 	install -d -m 700 $(INSTANCES_DIR)/production.credstore
@@ -228,6 +230,36 @@ ready-%:
 	  || { echo "instance $*: no $$name in its store — pinecall-runtime box secrets --instance $*"; exit 1; }; done
 	$(if $(filter worker,$(ROLE)),,@test -n "$$($(call DOMAIN_OF,$*))" -a -n "$$($(call PORT_OF,$*))" \
 	  || { echo "instance $*: its file names no PINECALL_DOMAIN, or no port in PINECALL_GATEWAY_URL"; exit 1; })
+
+# The two instances of a pair trust each other with one fleet key each (README.md, "Peers"): a
+# production whose file names PINECALL_SANDBOX_URL, and the listed instance answering at that name.
+# Minted HERE, in converge, and not in a unit: a pair is two instances where a template's %i is
+# one, the key lands in the OTHER instance's store, and its gateway must then load it — which a
+# drop-in the manifest writes decides, before `make restart` starts anything. The gateways asked
+# are the ones already running, so the deploy that first brings a sandbox up mints nothing for it
+# (said and skipped), and the next one does. `box peer` never rotates a key it finds.
+#
+# A key is loaded by PATH, and a LoadCredentialEncrypted= path that is missing fails the unit's
+# start — so it is not in the template, where every instance on every box would need one: each
+# gateway gets a drop-in naming the peer keys its store holds, and none when it holds none. Then
+# the one refusal the settings would make at start (HalfAPair), made here before anything moves.
+PEER_SECRETS = PINECALL_SANDBOX_KEY PINECALL_PEER_KEY
+SANDBOX_URL_OF = sed -n 's|^PINECALL_SANDBOX_URL=||p' $(INSTANCES_DIR)/$(1).env
+peers:
+	$(RUNTIME) box peer --among $(INSTANCES)
+	@for name in $(INSTANCES); do store=$(INSTANCES_DIR)/$$name.credstore; \
+	  if [ -n "$$($(call SANDBOX_URL_OF,$$name))" ] && [ ! -f $$store/PINECALL_SANDBOX_KEY ]; then \
+	    echo "instance $$name names its sandbox and holds no PINECALL_SANDBOX_KEY — once that sandbox's gateway answers: make peer FROM=<the sandbox> INTO=$$name"; exit 1; fi; \
+	  loads=""; for id in $(PEER_SECRETS); do test -f $$store/$$id && loads="$$loads\nLoadCredentialEncrypted=$$id:$$store/$$id"; done; \
+	  dropin=$(SYSTEMD)/pinecall-gateway@$$name.service.d; \
+	  if [ -n "$$loads" ]; then install -d -m 755 $$dropin; printf '[Service]%b\n' "$$loads" > $$dropin/peers.conf; \
+	  else rm -f $$dropin/peers.conf; fi; done
+	systemctl daemon-reload
+
+# What the root Makefile asks the box, over ssh, when a pair's key crosses to another box.
+.PHONY: peer-secrets
+peer-secrets:
+	@echo $(PEER_SECRETS)
 
 # One Caddy site per instance, `<domain> { import pinecall <port> }`, in a directory the manifest
 # owns whole — so a file there whose name box.env no longer lists is taken away — and never in

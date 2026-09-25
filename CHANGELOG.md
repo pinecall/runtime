@@ -7,6 +7,23 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **A developer's own phone reaches their sandbox copy across the two instances.** The instances
+  trust each other with one fleet key each (`fleet` and `app`, org `default`, `peer-for-<name>`):
+  `pinecall-runtime box peer --from <instance> --into <instance> [--force]` mints it at `--from`'s
+  gateway on its ops key and encrypts it into `--into`'s store — `PINECALL_SANDBOX_KEY` when it
+  opens a sandbox, `PINECALL_PEER_KEY` when it opens production — never over one kept unasked.
+  `make converge` runs `box peer --among` for every pair on the box (a production whose new
+  `PINECALL_SANDBOX_URL` — `box instance --sandbox`, `make instance SANDBOX= FORCE=1` — is a listed
+  instance's domain), writes each gateway a drop-in loading the peer keys its store holds, and
+  stops a deploy that would start production naming its sandbox without the key; production
+  refuses to start with one of `PINECALL_SANDBOX_URL`/`PINECALL_SANDBOX_KEY` and not the other. A
+  pair on two boxes is `make peer FROM= INTO= INTO_BOX=`. Production's `GET
+  /v1/agents/{slug}/rings-for` asks its sandbox when its own claims have nobody (two seconds; not
+  answering is production's, one WARNING line), and answers `{holder, fleet}`; the worker then
+  **hands the room over** — a dispatch into the same room to that fleet, `diverted_from:
+  production` in its metadata — and ends its job before opening anything, so the call is built,
+  and logged, by the sandbox. The sandbox's `GET /v1/line/numbers` reads production's routes on
+  its peer key (`503` holding none, `502` production silent).
 - **A box runs instances, declared.** `/etc/pinecall/box.env` names them (`PINECALL_INSTANCES`,
   `production` when unset); each is `/etc/pinecall/instances/<name>.env` and `<name>.credstore/`,
   and its units are templates — `pinecall-db@`, `pinecall-gateway@`, `pinecall-worker-key@`,
@@ -80,6 +97,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   both off the box, and the sandbox's name is served by the sandbox instance's own site.
 
 ### Changed
+- **The production worker no longer rebuilds a developer's ring in their sandbox corner**: it
+  hands the room to the fleet `rings-for` names, which on a box of one instance is its own.
 - **`keys issue` mints in the instance's world.** Left out, `--env` is the gateway's own
   `PINECALL_WORLD` instead of production, and naming the other world is `400`: the sandbox
   instance's worker key came out production's at the cutover and its every heartbeat was refused.

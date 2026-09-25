@@ -118,6 +118,9 @@ it written in a unit file ([infra/box/README.md](infra/box/README.md), "An insta
 make instance NAME=sandbox WORLD=sandbox DOMAIN=sandbox.example.com \
               IDENTITY=https://box.example.com ELSEWHERE=https://box.example.com
                    then PINECALL_INSTANCES="production sandbox" in box.env, and make deploy
+make instance NAME=production … SANDBOX=https://sandbox.example.com FORCE=1
+                   then make deploy: the pair's peer keys (a developer's own phone reaches
+                   their sandbox copy)
 ```
 
 Every secret on the box is an encrypted systemd credential; there is no `.env` there. The vendors'
@@ -208,8 +211,9 @@ they arrive as systemd credentials — and need a LiveKit server, a Postgres 17 
 | `doctor [--mail-to <address>]` | its first line names the .env read, the instance's world and its fleet; then keys present · keys answer · livekit · postgres · embedder · mail · lk — one line each, and what is down first; the mail line says which mailbox — stored by the operator at `PUT /v1/ops/mail`, or the environment's; `--mail-to` posts one test letter through that same mailbox and says what the server said |
 | `box secrets [--instance <name>]` | every secret a box makes for itself, once — or one instance's own three; run twice rotates nothing |
 | `box secret <NAME> [--instance <name>]` | one secret you bring, from stdin, replaced in place — in the box's store, or one instance's |
-| `box instance <name> --world --domain [--port --fleet --identity --elsewhere --max-jobs --idle-processes --force]` | one more instance of the runtime on this box: its env file, every variable written, the next free hundred for its ports; never over a file unasked |
+| `box instance <name> --world --domain [--port --fleet --identity --elsewhere --sandbox --max-jobs --idle-processes --force]` | one more instance of the runtime on this box: its env file, every variable written, the next free hundred for its ports; never over a file unasked |
 | `box database` | what `pinecall-db@<name>` runs: the instance's database, its role and its walls, made once |
+| `box peer --from <instance> --into <instance> [--force]` · `box peer --among <instance>…` | a fleet key of one instance minted at its gateway and kept in the other's store — `PINECALL_SANDBOX_KEY` at production, `PINECALL_PEER_KEY` at the sandbox; `--among` is what `make converge` runs for every pair on the box, minting only what is missing |
 | `fleet list · cordon · uncordon · loop` | the workers as the hub hears them, the graceful shrink, and the loop that keeps `busy` at the target over any cloud |
 | `providers [--does llm\|stt\|tts]` | every vendor this build runs, as a table — the last line counts them: what each does, whether this box has its plugin and its key, the variable a key goes under, and every other word the vendor answers to. Reads the catalog and this process's settings; asks nothing of anybody, so it answers on a box that is down. Never a key |
 | `orgs list · add · invite · operator · remove-member · move · rm · quota · dialling · provider-key · sso` | the tenants: a person invited (no link for somebody who already has a password on this box: they are seated at once), a person made an operator of the box, a person removed from an org for good (keys revoked, the seat free; refused for its last active admin), an agent moved to the org it belongs to, their quotas (`--minutes --messages --agents --concurrent-calls --memory-facts --knowledge-chunks --numbers --seats`, the whole set at once; a flag left out is no limit and `0` refuses everything; `--budget-eur` beside them is shown, never refused), what it may dial out (`--dial-anywhere --per-minute --per-day --max-duration-s`, the whole set; a guard left out goes back to the code's default), the vendor keys an org brings, which identity provider an org signs in with (`orgs sso <org>`, and `--off` the break-glass that lets a password open it again while that provider is down) |

@@ -20,7 +20,7 @@ from pinecall.session.voice import session
 from pinecall.session.voice.kit import Kit
 from pinecall.session.voice.platform import Platform
 from pinecall.types import AgentConfig, CallContext, Route
-from pinecall.types.dispatch import DIAL_KEY, SCOPE_KEY, WRITTEN_SCOPE
+from pinecall.types.dispatch import DIAL_KEY, SCOPE_KEY, WRITTEN_SCOPE, Handover
 from pinecall.worker import commanding, dialling, egress, recordings, router, seat
 from pinecall.worker.client import Gateway
 from pinecall.worker.egress import Stopping
@@ -111,12 +111,14 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
         routes = await worker.gateway.routes(number=arrival.number, channel=arrival.channel)
     route = router.resolve(arrival, routes, worker.default_agent)
     # A developer testing on the real number: their own phone, dialling a production door while
-    # they hold the agent in the sandbox, is built in their copy. Everybody else is unchanged.
+    # they hold the agent in the sandbox, is handed to the fleet that holds their copy — before
+    # anything of this call is opened here: no log, no recorder, no session. Everybody else is
+    # unchanged, and so is this call when the hand-over cannot be made.
     if router.may_be_a_developers(arrival, route):
-        developer = await _a_developers(worker.gateway, route, arrival.caller)
-        arrival, route = router.diverted(arrival, route, developer)
-        whose = arrival.whose
+        handover = await _a_developers(worker.gateway, route, arrival.caller)
         took("developer")
+        if handover is not None and await _handed_over(ctx, arrival, route, handover):
+            return
     # Two doors, one wait: whose keys this call runs on is a second question about the same agent,
     # and asking it in parallel with the config costs the caller nothing. See providers/registry.py.
     # Both are asked for the route's org and world — the one the call is for — and the corner the
@@ -336,20 +338,45 @@ def sealing(
 
 # Never in the way of a real call: a gateway that cannot answer this, or answers it wrongly, leaves
 # the call in production, where it would have been without the question.
-async def _a_developers(gateway: Gateway, route: Route, caller: str) -> str | None:
-    """The developer whose sandbox copy takes this production ring, or None."""
+async def _a_developers(gateway: Gateway, route: Route, caller: str) -> Handover | None:
+    """The corner and the fleet this production ring is handed to, or None."""
     try:
-        developer = await gateway.rings_for(route.agent, org=route.org, caller=caller)
+        handover = await gateway.rings_for(route.agent, org=route.org, caller=caller)
     except Exception:  # noqa: BLE001 — any refusal is production's answer
         logger.warning(
             "could not ask whose phone is dialling %s; the call stays in production", route.agent
         )
         return None
-    if developer is not None:
+    if handover is not None:
         logger.info(
-            "a production call to %s from ···%s rings in %s's sandbox copy",
+            "a production call to %s from ···%s rings in %s's copy, on the fleet %s",
             route.agent,
             caller[-3:],
-            developer,
+            handover.holder,
+            handover.fleet,
         )
-    return developer
+    return handover
+
+
+# The dispatch first and the leaving after, so the room is never without an agent for longer than
+# livekit takes to hand the job to the other fleet: the caller's SIP leg is a participant of its
+# own and stays through both. An agent that leaves ends its job and nothing else — livekit-server
+# closes a room when its last participant leaves, and the caller has not. Nothing was opened here,
+# so there is nothing to seal. A dispatch the SFU refuses leaves the call to be answered here.
+async def _handed_over(
+    ctx: JobContext, arrival: router.Arrival, route: Route, handover: Handover
+) -> bool:
+    """Dispatch the room to the developer's fleet and end this job. False when it could not."""
+    try:
+        await ctx.api.agent_dispatch.create_dispatch(
+            router.handing_over(ctx.room.name, arrival, route, handover)
+        )
+    except Exception:  # noqa: BLE001 — whatever the SFU said, the caller is still waiting here
+        logger.warning(
+            "could not hand %s to the fleet %s; the call stays in production",
+            route.agent,
+            handover.fleet,
+        )
+        return False
+    ctx.shutdown(reason=f"handed to {handover.fleet}")
+    return True

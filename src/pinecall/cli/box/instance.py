@@ -87,6 +87,7 @@ class Instance:
     recordings: Path
     identity: str | None = None
     elsewhere: str | None = None
+    sandbox: str | None = None
     max_jobs: int | None = None
     idle_processes: int | None = None
 
@@ -104,6 +105,7 @@ class Instance:
             "recordings_root": self.recordings,
             "identity_url": self.identity,
             "elsewhere_url": self.elsewhere,
+            "sandbox_url": self.sandbox,
             "max_jobs": self.max_jobs,
             "idle_processes": self.idle_processes,
         }
@@ -125,6 +127,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--identity", help="production's URL: required for a sandbox")
     parser.add_argument("--elsewhere", help="the other world's URL, named in every refusal")
+    parser.add_argument("--sandbox", help="production's: its sandbox's URL, asked whose a ring is")
     parser.add_argument("--max-jobs", type=int, help="calls its worker holds, measured")
     parser.add_argument("--idle-processes", type=int, help="job processes its worker keeps warm")
     parser.add_argument("--force", action="store_true", help="write over the file that is there")
@@ -143,6 +146,7 @@ def run_instance(arguments: argparse.Namespace) -> int:
         fleet=arguments.fleet,
         identity=arguments.identity,
         elsewhere=arguments.elsewhere,
+        sandbox=arguments.sandbox,
         max_jobs=arguments.max_jobs,
         idle_processes=arguments.idle_processes,
     )
@@ -159,6 +163,7 @@ def declared(  # noqa: PLR0913 — one keyword per variable of the file, which i
     fleet: str | None = None,
     identity: str | None = None,
     elsewhere: str | None = None,
+    sandbox: str | None = None,
     max_jobs: int | None = None,
     idle_processes: int | None = None,
 ) -> Instance:
@@ -183,6 +188,7 @@ def declared(  # noqa: PLR0913 — one keyword per variable of the file, which i
         recordings=RECORDINGS / name,
         identity=identity,
         elsewhere=elsewhere,
+        sandbox=sandbox,
         max_jobs=max_jobs,
         idle_processes=idle_processes,
     )
@@ -245,11 +251,21 @@ def recordings_directory(path: Path) -> None:
 
 def _the_port_in(path: Path) -> int | None:
     """The port of the PINECALL_GATEWAY_URL line of an env file, if it says one."""
-    prefix = f"{variable_of('gateway_url')}="
+    url = said_in(path, "gateway_url")
+    if url is None:
+        return None
+    try:
+        return urlsplit(url).port
+    except ValueError:
+        return None
+
+
+# The file is ours and flat — `NAME=value`, one per line, no quoting — so it is read as it is
+# written, by the one variable name the settings give the field.
+def said_in(path: Path, field: str) -> str | None:
+    """What one instance's env file says of one settings field, or None when it is unset."""
+    prefix = f"{variable_of(field)}="
     for line in path.read_text().splitlines():
         if line.startswith(prefix):
-            try:
-                return urlsplit(line.removeprefix(prefix).strip()).port
-            except ValueError:
-                return None
+            return line.removeprefix(prefix).strip() or None
     return None

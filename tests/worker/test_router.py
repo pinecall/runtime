@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 import pytest
 from livekit.protocol import agent as jobs
 
 from pinecall.types import Route
+from pinecall.types.dispatch import Handover
 from pinecall.worker import router
 from tests.session.voice.room.fakes import FakeRoom, a_caller, a_connected_room, a_widget, as_a_room
 from tests.worker.fakes import a_job
@@ -228,23 +230,44 @@ def test_a_ring_to_a_production_number_is_asked_about_and_nothing_else_is() -> N
     assert not router.may_be_a_developers(a_ring(), sandbox)
 
 
-def test_a_developers_ring_is_built_in_their_sandbox_corner_and_says_where_it_rang() -> None:
-    arrival, route = router.diverted(a_ring(), CLINICA_PHONE, "m_berna")
+# The room is handed over and not rebuilt: a dispatch into the SAME room, to the fleet the answer
+# named — production never knows what the sandbox calls its workers — saying whose call it is the
+# way every dispatch of ours does, and where it rang.
+def test_a_developers_ring_is_dispatched_into_the_same_room_to_the_fleet_the_answer_named() -> None:
+    handover = Handover(holder="m_berna", fleet="pinecall-sandbox")
 
-    assert (route.env, route.org, route.agent, route.number) == (
-        "sandbox",
-        "pinecall",
-        "clinica-norte",
-        "+59891111",
+    dispatch = router.handing_over("call-+59897777_abc", a_ring(), CLINICA_PHONE, handover)
+
+    assert (dispatch.room, dispatch.agent_name) == ("call-+59897777_abc", "pinecall-sandbox")
+    assert json.loads(dispatch.metadata) == {
+        "org": "pinecall",
+        "env": "sandbox",
+        "holder": "m_berna",
+        "agent": "clinica-norte",
+        "caller": "+59897777",
+        "direction": "inbound",
+        "diverted_from": "production",
+    }
+
+
+# The other fleet's router reads that dispatch like any other, and the call is built in the
+# developer's corner on the number it RANG — which no table of that instance holds, and which a
+# sandbox number of the same agent must not stand in for.
+async def test_the_fleet_it_is_handed_to_builds_it_on_the_number_it_rang_in_the_corner_named() -> (
+    None
+):
+    handover = Handover(holder="m_berna", fleet="pinecall-sandbox")
+    dispatch = router.handing_over("call_1", a_ring(), CLINICA_PHONE, handover)
+    its_own_number = Route(
+        org="pinecall", agent="clinica-norte", channel="phone", number="+59829001199", env="sandbox"
     )
-    assert (arrival.whose.org, arrival.whose.env, arrival.whose.holder) == (
-        "pinecall",
-        "sandbox",
-        "m_berna",
+
+    arrival = await _arrival(a_job(metadata=dispatch.metadata), _a_seat(dialled="+59891111"))
+    route = router.resolve(arrival, (its_own_number,))
+
+    assert route == Route(
+        org="pinecall", agent="clinica-norte", channel="phone", number="+59891111", env="sandbox"
     )
+    assert arrival.whose == router.Whose(org="pinecall", env="sandbox", holder="m_berna")
     assert arrival.metadata["diverted_from"] == "production"
-
-
-def test_a_ring_nobody_claimed_is_left_exactly_as_it_arrived() -> None:
-    ring = a_ring()
-    assert router.diverted(ring, CLINICA_PHONE, None) == (ring, CLINICA_PHONE)
+    assert not router.may_be_a_developers(arrival, route)

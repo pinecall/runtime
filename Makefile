@@ -5,6 +5,7 @@
 #   make doctor          the runtime's doctor on the box, per instance, with its own credentials
 #   make instance NAME=sandbox WORLD=sandbox DOMAIN=sandbox.example.com IDENTITY=https://…
 #                        one more instance of the runtime on this box: its env file and its secrets
+#   make peer FROM=sandbox INTO=production    one instance's fleet key, kept in another's store
 #   make secret NAME=ELEVEN_API_KEY < the-key     one secret you bring, replaced in place
 #   make logs UNIT=worker@production    follow one unit's journal: gateway@<instance> (default
 #                        gateway@production) · worker@<instance> · caddy
@@ -52,7 +53,7 @@ RSYNC = rsync -az --delete -e "ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=y
 UV_SYNC = sudo -u pinecall env UV_PROJECT_ENVIRONMENT=/opt/pinecall/venv UV_CACHE_DIR=/opt/pinecall/.cache/uv \
           /opt/pinecall/bin/uv sync -q --frozen --project $(REMOTE)/runtime --extra runtime --extra providers
 
-.PHONY: deploy console sync install restart restart-all restart-hub restart-worker health doctor providers instance secret status logs ssh require-box
+.PHONY: deploy console sync install restart restart-all restart-hub restart-worker health doctor providers instance peer secret status logs ssh require-box
 
 deploy: console sync install restart doctor
 
@@ -176,11 +177,41 @@ providers: require-box
 #   make instance NAME=sandbox WORLD=sandbox DOMAIN=sandbox.example.com \
 #                 IDENTITY=https://box.example.com ELSEWHERE=https://box.example.com
 #
+# Production names its sandbox the same way, once the sandbox is up — SANDBOX= is the URL it asks
+# whose a ring is — and FORCE=1 writes over the file it already has:
+#
+#   make instance NAME=production WORLD=production DOMAIN=box.example.com \
+#                 ELSEWHERE=https://sandbox.example.com SANDBOX=https://sandbox.example.com FORCE=1
+#
 instance: require-box
 	@test -n "$(NAME)" -a -n "$(WORLD)" || { echo "which? make instance NAME=sandbox WORLD=sandbox DOMAIN=sandbox.example.com IDENTITY=https://…"; exit 2; }
 	$(SSH) sudo $(RUNTIME) box instance $(NAME) --world $(WORLD) --domain $(DOMAIN) \
-	  $(if $(PORT),--port $(PORT)) $(if $(IDENTITY),--identity $(IDENTITY)) $(if $(ELSEWHERE),--elsewhere $(ELSEWHERE))
+	  $(if $(PORT),--port $(PORT)) $(if $(IDENTITY),--identity $(IDENTITY)) $(if $(ELSEWHERE),--elsewhere $(ELSEWHERE)) \
+	  $(if $(SANDBOX),--sandbox $(SANDBOX)) $(if $(FORCE),--force)
 	$(if $(filter production,$(NAME)),,$(SSH) sudo $(RUNTIME) box secrets --instance $(NAME))
+
+# One pair's key by hand. A pair on one box needs nothing of this — `make deploy` mints it — but a
+# pair on two boxes does: the key is minted at FROM's gateway on BOX, into a store named for INTO
+# there, then carried to INTO_BOX the way worker-secrets carries a key — decrypted on one end,
+# encrypted on the other, through this laptop's pipe and no file — and taken off BOX. Then `make
+# deploy` on INTO_BOX, whose manifest writes the gateway's drop-in that loads it.
+#
+#   make peer FROM=sandbox INTO=production                              both on BOX
+#   make peer FROM=sandbox INTO=production INTO_BOX=deploy@203.0.113.9  INTO on another box
+#
+ISSH = ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=yes -o ConnectTimeout=20 $(INTO_BOX)
+MINTED_INTO = /etc/pinecall/instances/$(INTO).credstore
+
+peer: require-box
+	@test -n "$(FROM)" -a -n "$(INTO)" || { echo "which? make peer FROM=sandbox INTO=production [INTO_BOX=…]"; exit 2; }
+	$(SSH) sudo $(RUNTIME) box peer --from $(FROM) --into $(INTO) $(if $(FORCE),--force)
+	$(if $(INTO_BOX),@for name in $$($(SSH) make -s -C $(MANIFEST) peer-secrets); do \
+	  $(SSH) sudo test -f $(MINTED_INTO)/$$name || continue; \
+	  $(ISSH) sudo install -d -m 700 $(MINTED_INTO); \
+	  $(SSH) sudo systemd-creds decrypt --name=$$name $(MINTED_INTO)/$$name - \
+	    | $(ISSH) sudo systemd-creds encrypt --with-key=auto --name=$$name - $(MINTED_INTO)/$$name \
+	    && $(SSH) "sudo rm -f $(MINTED_INTO)/$$name; sudo rmdir --ignore-fail-on-non-empty $(MINTED_INTO)" \
+	    && echo "  kept $$name in $(MINTED_INTO) on $(INTO_BOX)"; done)
 
 # One secret you bring, replaced in place, the value on stdin and on no command line, no screen
 # and no file in the clear; the same verb on a worker box with BOX= its address. A credential is

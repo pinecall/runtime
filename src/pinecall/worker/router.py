@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import Any, cast
 
-from livekit import rtc
+from livekit import api, rtc
 from livekit.protocol import agent as jobs
 
 from pinecall._exceptions import PinecallError
@@ -26,6 +26,7 @@ from pinecall.types.dispatch import (
     ORG_KEY,
     PERSONA_KEY,
     RUN_KEY,
+    Handover,
 )
 
 # A dispatch has already named the agent, so its seat is read only if somebody is on it already.
@@ -123,11 +124,11 @@ async def arrival_of(job: jobs.Job, room: rtc.Room) -> Arrival:
 def resolve(arrival: Arrival, routes: Sequence[Route], default: str | None = None) -> Route:
     """The one route this call is for. NoRoute when the job names nothing anybody answers."""
     if arrival.agent:
-        return _of_agent(arrival.agent, arrival.channel, routes, arrival.whose)
+        return _of_agent(arrival.agent, arrival, routes)
     if arrival.number:
         return _at_door(arrival.channel, arrival.number, routes)
     if default:
-        return _of_agent(default, arrival.channel, routes, arrival.whose)
+        return _of_agent(default, arrival, routes)
     raise NoRoute("the job names no agent, no number was dialled, and the worker has no default")
 
 
@@ -143,24 +144,36 @@ def _the_widgets_own(slug: str, whose: Whose) -> Route | None:
     return Route(org=whose.org, agent=slug, channel=THE_WIDGET, number=None, env=whose.env)
 
 
+# A production ring handed to a developer's corner (`handing_over` below) rang the REAL door: the
+# number is production's row, in production's database, and no table of the instance building it
+# holds it — nor should a sandbox number of the same agent stand in for it, which is why this is
+# asked before the rows are. The route keeps the number dialled, in the corner the dispatch named.
+def _handed_over(slug: str, arrival: Arrival) -> Route | None:
+    """The route a handed-over ring runs on: the number it rang, in the developer's corner."""
+    whose = arrival.whose
+    if not arrival.metadata.get(DIVERTED_KEY) or arrival.number is None:
+        return None
+    if not whose.org or whose.env is None:
+        return None
+    return Route(
+        org=whose.org, agent=slug, channel=arrival.channel, number=arrival.number, env=whose.env
+    )
+
+
 # Strictly the channel the call arrived on: an agent with a widget and no number does not answer
 # a phone call, and a log that said "web" about a phone call would be a lie nobody could unpick.
-#
-# The widget is the one channel with no door to find. A number is a row somebody bought; a browser
-# is not, and every agent is on the web — so when no row answers a widget call, the route is made
-# out of what the dispatch already carries, exactly as the chat socket mints one for a written
-# visit (api/calls/chat.py). The gateway has already said whose agent it is: the token door
-# refuses an agent this key does not hold, and this job exists because it did not.
-def _of_agent(agent: str, channel: Channel, routes: Sequence[Route], whose: Whose) -> Route:
+def _of_agent(agent: str, arrival: Arrival, routes: Sequence[Route]) -> Route:
     """The agent's own door on the channel this call arrived through."""
+    if (handed := _handed_over(agent, arrival)) is not None:
+        return handed
     for route in routes:
-        if route.agent == agent and route.channel == channel:
+        if route.agent == agent and route.channel == arrival.channel:
             return route
-    if channel == THE_WIDGET and (its_own := _the_widgets_own(agent, whose)) is not None:
+    if arrival.channel == THE_WIDGET and (its_own := _the_widgets_own(agent, arrival.whose)):
         return its_own
     looked_in = sorted({f"{route.org}/{route.env}" for route in routes}) or ["no org at all"]
     raise NoRoute(
-        f"agent {agent!r} answers no {channel} door this worker knows: it looked in "
+        f"agent {agent!r} answers no {arrival.channel} door this worker knows: it looked in "
         f"{', '.join(looked_in)}"
     )
 
@@ -204,10 +217,25 @@ def may_be_a_developers(arrival: Arrival, route: Route) -> bool:
     )
 
 
-def diverted(arrival: Arrival, route: Route, developer: str | None) -> tuple[Arrival, Route]:
-    """The call as it is built: in that developer's sandbox corner, or unchanged when nobody's."""
-    if developer is None:
-        return arrival, route
-    whose = Whose(org=route.org, env=SANDBOX, holder=developer)
-    marked = {**arrival.metadata, DIVERTED_KEY: PRODUCTION}
-    return replace(arrival, whose=whose, metadata=marked), replace(route, env=SANDBOX)
+# The room is handed over, not the call rebuilt: the caller is already in it, the SIP trunk and
+# rule stay production's, and a job for the other fleet is dispatched into the SAME room — which is
+# how the call reaches the instance that holds the developer's corner, its gateway, its database
+# and its log. The metadata is what any dispatch of ours says, so that fleet's router reads it like
+# every other: whose (the org, the sandbox, the developer), which agent, who is calling — and where
+# it rang, which the log keeps.
+def handing_over(
+    room: str, arrival: Arrival, route: Route, handover: Handover
+) -> api.CreateAgentDispatchRequest:
+    """The dispatch that hands this production ring to the developer's corner, in the same room."""
+    said = {
+        ORG_KEY: route.org,
+        ENV_KEY: SANDBOX,
+        HOLDER_KEY: handover.holder,
+        AGENT_KEY: route.agent,
+        CALLER_KEY: arrival.caller,
+        DIRECTION_KEY: arrival.direction,
+        DIVERTED_KEY: PRODUCTION,
+    }
+    return api.CreateAgentDispatchRequest(
+        room=room, agent_name=handover.fleet, metadata=json.dumps(said, separators=(",", ":"))
+    )

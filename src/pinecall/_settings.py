@@ -104,6 +104,16 @@ class Settings(VendorKeys):
             raise NobodyToAsk(NOBODY_TO_ASK)
         return self
 
+    # The other half of a pair, said once: production names its sandbox and holds the key the
+    # sandbox's doors open to, or neither. One without the other is a developer's phone that is
+    # never asked about — or a key nobody knocks with — and nothing would say so until a call rang
+    # production that should have rung a laptop.
+    @model_validator(mode="after")
+    def _production_names_its_sandbox_with_its_key(self) -> "Settings":
+        if self.world == PRODUCTION and bool(self.sandbox_url) != bool(self.sandbox_key):
+            raise HalfAPair(HALF_A_PAIR)
+        return self
+
     # ── LiveKit: the media plane both processes talk to ─────────────────────────
     livekit_url: str = Field(
         default="ws://127.0.0.1:7880",
@@ -185,6 +195,22 @@ class Settings(VendorKeys):
     identity_url: str | None = Field(
         default=None,
         description="The gateway people sign in at: required on a sandbox, unset on production.",
+    )
+    # The two instances trust each other with one fleet key each, minted at the other's gateway
+    # (`pinecall-runtime box peer`) and kept in this one's store: the developer's-phone question
+    # (production → sandbox, `GET /v1/agents/{slug}/rings-for`) and the numbers a developer dials
+    # (sandbox → production, `GET /v1/routes`). auth/peers.py asks both.
+    sandbox_url: str | None = Field(
+        default=None,
+        description="Production's: where its sandbox answers, https://…, asked whose a ring is.",
+    )
+    sandbox_key: str | None = Field(
+        default=None,
+        description="Production's: a fleet key OF THE SANDBOX, minted by `box peer`. Never typed.",
+    )
+    peer_key: str | None = Field(
+        default=None,
+        description="The sandbox's: a fleet key OF PRODUCTION, minted by `box peer`. Never typed.",
     )
 
     # ── The services the doctor asks after: Postgres, and the embedder ─────────
@@ -457,6 +483,16 @@ NOBODY_TO_ASK = "a sandbox instance asks production who a person is: set PINECAL
 
 class NobodyToAsk(PinecallError):
     """A sandbox instance started with no PINECALL_IDENTITY_URL. Nothing runs until it has one."""
+
+
+HALF_A_PAIR = (
+    "production names its sandbox and holds that sandbox's key, or neither: set both "
+    "PINECALL_SANDBOX_URL and PINECALL_SANDBOX_KEY (`pinecall-runtime box peer`), or unset both"
+)
+
+
+class HalfAPair(PinecallError):
+    """Production started with PINECALL_SANDBOX_URL and no PINECALL_SANDBOX_KEY, or the reverse."""
 
 
 def load_settings() -> Settings:

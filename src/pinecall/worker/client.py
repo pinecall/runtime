@@ -8,6 +8,7 @@ from typing import Any, Literal, cast
 import httpx
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
+from pinecall.auth.peers import RingsFor
 from pinecall.fleet import Heartbeat, Standing
 from pinecall.session.voice.platform import Dialled
 from pinecall.types import (
@@ -19,6 +20,7 @@ from pinecall.types import (
     ProviderKeys,
     Route,
 )
+from pinecall.types.dispatch import Handover
 from pinecall.types.json import JsonObject
 from pinecall.worker.hop import (
     NOT_FOUND,
@@ -181,13 +183,12 @@ class Gateway:
         trunk = cast("dict[str, object]", said).get("trunk") if isinstance(said, dict) else None
         return Dialled(trunk=trunk if isinstance(trunk, str) and trunk else None)
 
-    async def rings_for(self, slug: str, *, org: str, caller: str) -> str | None:
-        """The developer whose sandbox copy takes this production ring, or None: production's."""
+    async def rings_for(self, slug: str, *, org: str, caller: str) -> Handover | None:
+        """The corner and the fleet this production ring is handed to, or None: production's."""
         said = await self._read(
             "GET", f"/v1/agents/{slug}/rings-for", params={"org": org, "caller": caller}
         )
-        holder = cast("dict[str, object]", said).get("holder") if isinstance(said, dict) else None
-        return holder if isinstance(holder, str) and holder else None
+        return RingsFor.model_validate(said).handover()
 
     async def opened(self, context: CallContext, agent: str, app: str | None = None) -> None:
         """A call started: the gateway opens its log and every reader of it is subscribed."""

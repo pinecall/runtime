@@ -194,17 +194,17 @@ agent's **line**: the first corner to hold it takes it, a second developer claim
 handed on when that terminal closes. Before either, the newest `pinecall start` silently took the
 others' calls. Production needs none of it: one corner, and its line is nobody's.
 
-**Except for the developer's own phone.** An org buys one number, and the line its customers
-dial is the one a developer most needs to test on. So a phone call to a **production** number that
-no dispatch aimed anywhere is asked about before it is built: the worker knocks at `GET
-/v1/agents/{slug}/rings-for?caller=` (`worker/router.py`, `may_be_a_developers`), and when the
-phone dialling is one a developer registered with `pinecall line from` while they hold that agent
-in the sandbox, in that org, the call is built in **their sandbox corner** — their declaration,
-their app socket, the keys asked for that corner, and a sandbox log whose context metadata says
-`diverted_from: production`. Every other caller of the real number reaches production, and so does
-this one whenever the question cannot be asked or is answered wrongly: a gateway that does not
-answer leaves the call where it rang. A widget visit, an outbound call, an eval run and a sandbox
-number are already where they were sent, and are never asked about.
+**Except for the developer's own phone.** The line customers dial is the one a developer most
+needs to test on. Production's worker asks its gateway about a phone call to a production number no
+dispatch aimed (`GET /v1/agents/{slug}/rings-for`), and production asks its sandbox — where
+`pinecall line from` keeps its claims — on a **peer key**: one fleet key each, minted at the other's
+gateway by `pinecall-runtime box peer` (`PINECALL_SANDBOX_KEY` at production, `PINECALL_PEER_KEY`
+at the sandbox; `infra/box/README.md`, "Peers"). When the phone is a developer's who holds that
+agent, the answer names them and the sandbox's fleet, and the worker **hands the room over**: a
+dispatch into the same room to that fleet, `diverted_from: production` in it, then it leaves; the
+sandbox builds the call in their corner, and the log is the sandbox's. Every other caller stays in
+production, and so does this one if the sandbox does not answer in two seconds. The numbers a
+developer dials come the other way, production's routes on the sandbox's key (`GET /v1/line/numbers`).
 
 **And the calls are listed by corner, not by org.** A call's head row keeps the world and the
 holder it was opened in (`0024`), and `GET /v1/sessions` and `GET /v1/agents/{slug}/sessions` list

@@ -81,7 +81,7 @@ key by a password at — are `404` on a sandbox instance, naming `PINECALL_IDENT
 | `POST` | `/v1/agents/{slug}/line` | claim it for this key's corner — `app`; 409 with no app of yours running |
 | `DELETE` | `/v1/agents/{slug}/line` | release it; whoever is still holding the agent picks it up — `app` |
 | `PUT` | `/v1/line/from` | this phone's calls reach this key's corner, in whatever agent it holds — the sandbox number's, and a production number's too — `app`, set from the sandbox only |
-| `GET` | `/v1/line/numbers` | the org's production phone numbers and the agent each reaches: what a developer's own phone dials to reach their copy — `app`, a key naming a person, from the sandbox |
+| `GET` | `/v1/line/numbers` | the org's production phone numbers and the agent each reaches: what a developer's own phone dials to reach their copy — `app`, a key naming a person, from the sandbox, which reads them at production's `/v1/routes` on its peer key |
 | `DELETE` | `/v1/line/from` | stop answering your own calls; they fall back to the line — `app` |
 | `GET` | `/v1/agents/{slug}/pipeline` | what it hears, decides and speaks with, and what that cost — [pipeline-api.md](pipeline-api.md) |
 | `GET` | `/v1/agents/{slug}/pipeline/hold-audio` | which melody it plays while a tool runs — the runtime's own, `off`, or an uploaded clip with its name, its length and its hash — `pipeline` |
@@ -96,7 +96,7 @@ key by a password at — are `404` on a sandbox instance, naming `PINECALL_IDENT
 | `GET` · `PUT` | `/v1/agents/{slug}/widget` | how the widget presents the agent — title, tagline, greeting, accent, autostart — per world; read with `talk`, set with `pipeline` |
 | `POST` | `/v1/agents/{slug}/dev/{family}/{verb}` · `?app=` | a console's ask, relayed to the app standing in the agent's directory — `chat`, `knowledge`, `memory`, `view` or `evals` by family; [dev-verbs.md](dev-verbs.md) |
 | `GET` | `/v1/agents/{slug}/provider-keys` | the org's own vendor keys, **in the clear**: the worker's door, see §6 |
-| `GET` | `/v1/agents/{slug}/rings-for?caller=` | whose sandbox copy a production ring from this phone belongs to, or null: production's — the worker's, `app` |
+| `GET` | `/v1/agents/{slug}/rings-for?caller=` | `{holder, fleet}`: whose sandbox copy a production ring from this phone belongs to and the fleet to hand the room to, or nulls: production's. Production asks its sandbox when its own table has nobody — the worker's, and the peer's, `app` |
 | `GET` | `/v1/agents/{slug}/hold-audio` | the worker's: what the call being built plays while a tool runs, in the call's corner (`?org=&env=&holder=`) — `app` or `calls` |
 | `GET` | `/v1/agents/{slug}/hold-audio/audio` | the worker's: the clip's bytes, fetched once per box per hash and kept on disk; `404` when the agent plays none — `app` or `calls` |
 | `GET` | `/v1/agents/{slug}/outbound-trunk` · `?to=&call=` | the worker's: the trunk a second leg on a live call is dialled through — a warm transfer, `room.invite`. The number passes the org's dial guards first and lands in the same ledger: `400` a shape, `429` a window; `{trunk: null}` when the org has no trunk — `app` or `calls` |

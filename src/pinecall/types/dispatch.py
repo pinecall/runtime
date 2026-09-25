@@ -1,5 +1,7 @@
 """What a dispatch says to a worker: the name the fleet answers to, and the keys of its metadata."""
 
+from dataclasses import dataclass
+
 # The name a fleet's workers register with the media plane under when the instance names none
 # (`PINECALL_FLEET`, _settings.py). Every reader takes the instance's `settings.fleet`, never this:
 # the gateway WRITES the fleet into a token's room config, a trunk's rule and a dispatch, and the
@@ -69,3 +71,14 @@ DIAL_KEY = "dial"
 # developer said the phone dialling is theirs (`pinecall line from`). The world it rang in: the
 # log of the call says it was the real number, not a sandbox one.
 DIVERTED_KEY = "diverted_from"
+
+
+# Where a production ring from a developer's own phone goes instead: into their corner, built by
+# the fleet that serves it. The fleet travels in the answer because only the instance that holds
+# the corner knows its own name — production is never told what the sandbox calls its workers.
+@dataclass(frozen=True)
+class Handover:
+    """A ring that is a developer's: whose corner takes it, and the fleet that answers there."""
+
+    holder: str
+    fleet: str

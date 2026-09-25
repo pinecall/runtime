@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from collections.abc import Sequence
 from typing import Annotated, Any, cast
@@ -16,14 +17,16 @@ from pinecall.api._deps import (
     DeclarationKeyDep,
     MembersDep,
     RoutesDep,
+    SettingsDep,
     TuningDep,
 )
 from pinecall.api.agents.registry import NO_AGENT, Registry, RegistryDep
 from pinecall.api.agents.tuned import tuned_for
+from pinecall.api.peers import ProductionDep, SandboxDep
 from pinecall.auth.keys import KeyRecord, held_by, sees_every_corner
 from pinecall.auth.members import Members
+from pinecall.auth.peers import PeerUnreachable, RingsFor
 from pinecall.types import (
-    PRODUCTION,
     SANDBOX,
     THE_WIDGET,
     AgentConfig,
@@ -33,10 +36,12 @@ from pinecall.types import (
     an_e164,
     is_a_deployment,
 )
+from pinecall.types.dispatch import Handover
 from pinecall_protocol import WireModel
 from pinecall_protocol.rest import AgentList, HeldAgent, LineHolder, TheLine
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # The hop carries the domain object itself, adapted by pydantic — the same adapter
 # worker/client.py validates it back through. See docs/decisions/worker.md.
@@ -169,15 +174,29 @@ async def forget_calls_from(key: AppKeyDep, registry: RegistryDep) -> dict[str, 
 # A developer tests on the numbers the customers call, so a developer has to be able to read them
 # — and the numbers door will not tell them: it answers the key's own world, to a key that opens
 # `numbers`, and theirs opens neither. This one answers production's phone numbers to whoever could
-# be diverted from them, and nothing else about a route.
+# be diverted from them, and nothing else about a route. They are production's rows, in
+# production's database, so the sandbox asks production for them on the key it minted for it.
+NO_PRODUCTION_TO_ASK = (
+    "this sandbox holds no key of production, so it cannot read the numbers there: "
+    "`pinecall-runtime box peer --from <production> --into <this sandbox>`"
+)
+NOT_ANSWERING = "production did not answer for its numbers: try again in a moment"
+
+
 @router.get("/v1/line/numbers")
 async def numbers_to_call(
-    key: AppKeyDep, registry: RegistryDep, table: RoutesDep
+    key: AppKeyDep, registry: RegistryDep, production: ProductionDep
 ) -> dict[str, list[Any]]:
     """The org's production numbers and the agent each reaches, and the phones this person dials
     from: what a developer's phone dials, and whether the gateway knows that phone is theirs."""
     whose = _a_person(key)
-    typed = await table.of_org(key.org, PRODUCTION)
+    if production is None:
+        raise HTTPException(503, NO_PRODUCTION_TO_ASK)
+    try:
+        typed = await production.production_routes_of(key.org)
+    except PeerUnreachable as unreachable:
+        logger.warning("line numbers: %s", unreachable)
+        raise HTTPException(502, NOT_ANSWERING) from unreachable
     return {
         "calling": list(registry.calling(key.env, whose)),
         "numbers": [
@@ -229,7 +248,14 @@ async def named_holder(org: str, holder: str | None, members: Members) -> LineHo
 
 # The worker asks this on every phone call to a production number, before it builds the session:
 # is the phone dialling a developer's, who is holding this agent in the sandbox? The fleet's key
-# names the org of the call (`?org=`); a tenant's key asks for its own. Null is production's.
+# names the org of the call (`?org=`); a tenant's key asks for its own. Nobody's is production's.
+#
+# The claims live where the developer's `pinecall start` and `pinecall line from` knock, which is
+# the sandbox's gateway, so production asks its sandbox the same door on the key the sandbox minted
+# for it when its own table has nothing. The answer names the fleet that builds the call — the
+# instance holding the corner knows its own — and the worker hands the room to it. A sandbox that
+# does not answer in time, or refuses, leaves the call where it rang: a customer's call is never
+# held up by a developer's laptop.
 @router.get("/v1/agents/{slug}/rings-for")
 async def rings_for(
     slug: str,
@@ -237,9 +263,20 @@ async def rings_for(
     key: AppKeyDep,  # noqa: ARG001 — the scope is asked here; the corner says whose org
     corner: CornerDep,
     registry: RegistryDep,
-) -> dict[str, str | None]:
-    """Whose sandbox copy a production ring from this caller belongs to, or null: production's."""
-    return {"holder": a_developers_own(registry, corner.org, slug, caller)}
+    settings: SettingsDep,
+    sandbox: SandboxDep,
+) -> RingsFor:
+    """Whose sandbox copy a production ring from this caller belongs to, or nobody's."""
+    own = a_developers_own(registry, corner.org, slug, caller)
+    if own is not None:
+        return RingsFor.of(Handover(holder=own, fleet=settings.fleet))
+    if sandbox is None:
+        return RingsFor()
+    try:
+        return RingsFor.of(await sandbox.rings_for(slug, org=corner.org, caller=caller))
+    except PeerUnreachable as unreachable:
+        logger.warning("%s: the ring stays in production", unreachable)
+        return RingsFor()
 
 
 # A developer who said which phone is theirs (`pinecall line from`) and is holding this agent in the

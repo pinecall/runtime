@@ -186,9 +186,9 @@ when measured, the CPU otherwise; livekit-server stops routing at 0.7 (`worker/l
 
 `worker/entry.py`, `answer(ctx, worker)`, is the whole job:
 
-1. `ctx.connect()` and the routes, in one wait; `worker/router.py` says who the job is for —
-   what the dispatch said, then the number dialled, then the default (`worker/seat.py`: which
-   participant is the caller).
+1. `ctx.connect()` and the routes, in one wait; `worker/router.py` says who the job is for — the dispatch, then the
+   number dialled, then the default (`worker/seat.py`: the caller). A production ring from a developer's own phone is
+   **handed over**: a dispatch into the same room to the fleet `rings-for` names (their sandbox's), and the job ends.
 2. The agent's config and the org's provider keys, in one wait, from the gateway
    (`worker/client.py`, the worker's **only** door — HTTP, the fleet's key; no database, no
    cache). Each is asked for the corner the dispatch named — the org, the world, the holder
@@ -333,7 +333,7 @@ slow hash in the tree, for the one secret a person invents), `auth/codes.py` (on
 this process's memory), `auth/throttle.py` (so many tries per name per minute at the password door),
 `orgs/sso.py` (one OpenID provider per org, its client secret under the same vault key), `orgs/mail.py` (one SMTP account per org, its password the same way, and how its last letter went), `orgs/box.py` (**what the operator configured for the box itself**, 0035: one row a setting — `brand`, `mail`, `signin.<provider>` — its one secret under the same vault key, the value merged for a standing; the table exists without a vault key, since a brand is no secret. `mail/box.py` reads the box's mailbox off it, stored over the environment's; `mail/brand.py` the brand; `api/box_mail.py`, `api/box_brand.py` are the doors, [docs/protocol/the-box.md](docs/protocol/the-box.md)),
 `auth/openid.py` (discovery, the code exchange, an id_token checked against the issuer's JWKS),
-`auth/sso.py` (the sign-ins between the redirect and the callback, one use and ten minutes) and `auth/identity.py` (what production answers about the person a spent code names, and a sandbox asking it over HTTP at `PINECALL_IDENTITY_URL`; `api/identity.py` mirrors the org and the member by production's ids, `Orgs.mirrored`, `Members.mirrored`).
+`auth/sso.py` (the sign-ins between the redirect and the callback, one use and ten minutes), `auth/identity.py` (what production answers about the person a spent code names, and a sandbox asking it over HTTP at `PINECALL_IDENTITY_URL`; `api/identity.py` mirrors the org and the member by production's ids, `Orgs.mirrored`, `Members.mirrored`) and `auth/peers.py` (the two questions one instance asks the other on a fleet key the other minted for it, `box peer`: whose a production ring is, and production's numbers; `api/peers.py`).
 `routes/answering.py`: every number an org answers at, both worlds, which the outbound trunk and
 the country fence read.
 
@@ -386,7 +386,7 @@ The core never imports a tenant; a tenant never imports LiveKit. A package earns
 
 One machine (`PINECALL_ROLE=all`), or a **hub** — gateway, SFU, SIP, Redis, Postgres, Caddy — and
 **workers** dialling it by URL; on either, **instances** (production, a sandbox), each one env file,
-one credstore and templated units: its own gateway, worker, database and keys. Declared: cloud-init,
+one credstore and templated units: its own gateway, worker, database and keys, and a peer key of the other. Declared: cloud-init,
 units, Quadlets, nftables, systemd credentials, a manifest Makefile. `infra/box/README.md`; *box*.
 Everything the product does is here, open: orgs, keys, quotas, usage, routes, the log, the vault,
 the operator API, the sign-up as a mechanism, the box. **Nothing that charges is**: no plan, no

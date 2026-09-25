@@ -364,15 +364,11 @@ pinecall numbers import +34910000000 --agent clinica-norte
 trunk pointed at this box, the SFU's trunk admitting the number, the route. It is what you read
 before letting the gateway touch a carrier account.
 
-An org buys **one** number, and that is why there is no third world:
-
-```bash
-pinecall numbers move +34910000000 --env sandbox      # try the new agent on the real line
-pinecall numbers move +34910000000 --env production   # and back
-```
-
-One row, in effect on the next call, carrier untouched. [protocol/numbers.md](protocol/numbers.md)
-is the door and its refusals.
+An org buys **one** number, and it is production's: no verb moves it to the sandbox. To try a new
+agent on the real line, the developer runs `pinecall line from <their phone>` and `pinecall start`;
+a call from that phone is handed to their sandbox copy and every other caller reaches production,
+carrier and trunks untouched — which needs the two instances' peer keys (`infra/box/README.md`,
+"Peers"). [protocol/numbers.md](protocol/numbers.md) is the door and its refusals.
 
 ## 9. Before the first call the box places
 
