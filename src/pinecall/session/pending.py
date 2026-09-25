@@ -85,9 +85,11 @@ class ToolCalls:
         waiting: asyncio.Future[defs.ToolResult] = asyncio.get_running_loop().create_future()
         self._waiting[call_id] = waiting
         timeout = self._timeout_of(name)
+        # A cancellation is the turn being cancelled, and it propagates: answering it with a
+        # lapsed result wrote a tool.result after the turn was gone (2026-09-26).
         try:
             return await asyncio.wait_for(waiting, timeout)
-        except (TimeoutError, asyncio.CancelledError):
+        except TimeoutError:
             return defs.ToolResult(
                 call_id=call_id,
                 name=name,

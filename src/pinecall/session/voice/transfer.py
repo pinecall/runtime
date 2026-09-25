@@ -46,7 +46,6 @@ RINGING_S = 25.0
 # the line then cuts the caller off mid-word, which they hear as a dropped call. Bounded: a
 # sentence that never ends must not hold a transfer forever.
 THE_ANNOUNCEMENT_S = 12.0
-A_GLANCE_S = 0.1
 
 # The caller hears a ringing tone while the far end is dialled, instead of a silence they read as
 # a dropped call. livekit plays it on the leg being transferred (sip.proto, play_dialtone).
@@ -69,12 +68,15 @@ async def the_mode(holding: Holding, wanted: CallTransfer) -> TransferMode:
 # the audio is played out.
 async def after_the_announcement(live: AgentSession[None] | None) -> None:
     """Wait for the agent to stop speaking, so a transfer never cuts the caller off mid-word."""
-    if live is None:
+    speech = None if live is None else live.current_speech
+    if speech is None:
         return
-    waited = 0.0
-    while live.agent_state == "speaking" and waited < THE_ANNOUNCEMENT_S:
-        await asyncio.sleep(A_GLANCE_S)
-        waited += A_GLANCE_S
+    # livekit's own handle says when the whole turn has played out (speech_handle.py:205); a
+    # loop glancing at agent_state every 100 ms was the same wait, coarser.
+    try:
+        await asyncio.wait_for(speech.wait_for_playout(), THE_ANNOUNCEMENT_S)
+    except TimeoutError:
+        return
 
 
 # The outcome is the wire's own `call.transferred`: whoever asked learns from the log alone. It is

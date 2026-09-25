@@ -10,7 +10,9 @@ from livekit.agents.utils import is_given
 from livekit.agents.voice import AgentSession
 from livekit.agents.voice import events as session_events
 
+from pinecall.session.errors import COMPONENT_DEAD_END, COMPONENT_FAILED
 from pinecall.session.voice.dead_end import is_a_dead_end
+from pinecall.session.voice.hold import Floor
 from pinecall.session.voice.metrics import Meters, an_end_of_utterance
 from pinecall.session.voice.writing import Writing
 from pinecall_protocol import metrics as wire
@@ -36,14 +38,6 @@ LISTENED: tuple[session_events.EventTypes, ...] = (
     "error",
 )
 
-# What a reader is told when a component of the session failed. The library's own error carries a
-# vendor's message, which is exactly what a person debugging a call wants to read.
-COMPONENT_FAILED = "component_failed"
-
-# And when the same failure will come back on every retry, which is a different thing to read: the
-# call is over, and this is the only error entry it will carry.
-COMPONENT_DEAD_END = "component_dead_end"
-
 
 class Ending(Protocol):
     """Who ends the call when a component fails for good: the bridge, and nobody else."""
@@ -66,12 +60,18 @@ class Events:
     """The session's events, turned into entries in the order livekit produced them."""
 
     def __init__(
-        self, writing: Writing, meters: Meters, ending: Ending, listening: Listening
+        self,
+        writing: Writing,
+        meters: Meters,
+        ending: Ending,
+        listening: Listening,
+        floor: Floor | None = None,
     ) -> None:
         self._writing = writing
         self._meters = meters
         self._ending = ending
         self._listening = listening
+        self._floor = floor
         self._dead_end = False
         self._live: AgentSession[None] | None = None
         self._language: str | None = None
@@ -125,6 +125,8 @@ class Events:
 
     def agent_state(self, event: session_events.AgentStateChangedEvent) -> None:
         """agent.state: warming up, waiting, hearing, generating, or playing audio."""
+        if self._floor is not None:
+            self._floor.changed(event.new_state)
         self._writing.later("agent.state", AgentStateChanged(state=event.new_state))
 
     # ── the turns ───────────────────────────────────────────────────────────────

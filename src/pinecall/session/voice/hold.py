@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable
 from pathlib import Path
 from types import TracebackType
 from typing import Any, cast
@@ -24,8 +23,6 @@ VOLUME = 0.6
 # By this point the announcement has been said and the silence is real.
 GRACE_S = 2.5
 FADE_IN_S = 0.4
-# How often the melody looks to see whether the agent has stopped talking.
-A_GLANCE_S = 0.15
 FADE_OUT_S = 0.3
 
 
@@ -34,16 +31,40 @@ FADE_OUT_S = 0.3
 # livekit's warm transfer plays its hold music to a SIP caller exactly this way. Its own
 # `thinking_sound` is NOT used: livekit sets "thinking" at the start of every reply, so that sound
 # would play through ordinary model latency on every turn, and this is for a tool and only a tool.
+# Whether the agent has the floor right now, and a way to wait until it does not. Fed by the
+# session's own agent_state events (events.py), so a melody waiting for the floor waits on the
+# event and not on a glance every 150 ms (2026-09-26).
+class Floor:
+    """The agent's floor: speaking or not, as livekit last said, and an awaitable silence."""
+
+    def __init__(self) -> None:
+        self._quiet = asyncio.Event()
+        self._quiet.set()
+
+    @property
+    def speaking(self) -> bool:
+        """Whether the agent is speaking right now."""
+        return not self._quiet.is_set()
+
+    def changed(self, state: str) -> None:
+        """agent.state moved: `speaking` takes the floor, anything else gives it back."""
+        if state == "speaking":
+            self._quiet.clear()
+        else:
+            self._quiet.set()
+
+    async def cleared(self) -> None:
+        """Wait until the agent is not speaking; at once when it is not."""
+        await self._quiet.wait()
+
+
 class HoldMusic:
     """One call's melody: silent until a tool runs, and never in the way of the call if it fails."""
 
-    def __init__(
-        self, source: Path | None = None, speaking: Callable[[], bool] | None = None
-    ) -> None:
+    def __init__(self, source: Path | None = None, floor: Floor | None = None) -> None:
         self._source = source
-        # Whether the agent has the floor right now. A melody is for a silence, and starting one
-        # under a voice is worse than either on its own.
-        self._speaking = speaking or (lambda: False)
+        # A melody is for a silence, and starting one under a voice is worse than either alone.
+        self._floor = floor or Floor()
         self._player: BackgroundAudioPlayer | None = None
         self._handle: PlayHandle | None = None
         self._running = 0
@@ -53,14 +74,12 @@ class HoldMusic:
     # already be joined, and closed with the job. A call with no job — a test, a text session — has
     # no room to play it in, and gets a melody that plays nothing.
     @classmethod
-    async def in_this_room(
-        cls, melody: Path | None, speaking: Callable[[], bool] | None = None
-    ) -> HoldMusic:
+    async def in_this_room(cls, melody: Path | None, floor: Floor | None = None) -> HoldMusic:
         """The call's melody, its track published in the job's room; silent without one."""
         job = get_job_context(required=False)
         if melody is None or job is None:
-            return cls(None, speaking)
-        hold = cls(melody, speaking)
+            return cls(None, floor)
+        hold = cls(melody, floor)
         await hold.start(job.room)
         job.add_shutdown_callback(hold.aclose)
         return hold
@@ -110,15 +129,19 @@ class HoldMusic:
     # after an announcement. It waits for the floor now: the grace is counted from the moment the
     # agent stops speaking, not from the moment the tool began.
     async def _after_grace(self) -> None:
-        while self._running > 0 and self._speaking():
-            await asyncio.sleep(A_GLANCE_S)
+        await self._floor.cleared()
         if self._running == 0:
             return
         await asyncio.sleep(GRACE_S)
         # And again, because a turn can begin speaking during the grace: livekit speaks the
         # preamble of the round that FOLLOWS a tool result while the next tool of the same reply
         # is already running.
-        if self._running == 0 or self._speaking() or self._player is None or self._source is None:
+        if (
+            self._running == 0
+            or self._floor.speaking
+            or self._player is None
+            or self._source is None
+        ):
             return
         try:
             self._handle = self._player.play(

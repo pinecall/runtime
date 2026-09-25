@@ -79,3 +79,14 @@ async def test_the_tools_still_waiting_are_the_entries_that_went_out_in_order() 
     calls.answered(defs.ToolResult(call_id="tu_2", name="find_slots", output="11:00"))
     await running[1]
     assert calls.pending() == ()
+
+
+async def test_a_cancelled_wait_is_cancelled_and_never_a_lapsed_result() -> None:
+    """The cancellation propagates; a lapsed tool.result after the turn was gone was a lie."""
+    calls = ToolCalls(AgentConfig(slug="clinica"))
+    waiting = asyncio.ensure_future(calls.awaited("tu_1", "find_slots"))
+    await settled()
+    waiting.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await waiting
+    assert calls.answered(defs.ToolResult(call_id="tu_1", name="find_slots", output="x")) is False

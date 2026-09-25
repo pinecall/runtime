@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Mapping
-from typing import Any, Literal, cast
+from functools import partial
+from typing import Any, cast
 
 import httpx
-from pydantic import BaseModel, TypeAdapter, ValidationError
+from pydantic import ValidationError
 
 from pinecall.auth.peers import RingsFor
 from pinecall.fleet import Heartbeat, Standing
@@ -36,36 +37,26 @@ from pinecall.worker.hop import (
     the_detail_of,
 )
 from pinecall.worker.retrying import again
+from pinecall.worker.wire import (
+    BEAT,
+    COMMAND,
+    CONFIG,
+    CONTEXT,
+    JUDGING,
+    KEYS,
+    LENDS,
+    RESULT,
+    ROUTES,
+    STANDING,
+    HoldAudioSaid,
+)
 from pinecall_protocol import Command
 from pinecall_protocol.defs import ToolResult
 from pinecall_protocol.events import ToolCall
-from pinecall_protocol.rest import Judging
 
 # A seal is asked again while the gateway is away, well inside the job's own SEALING_S: a call the
 # worker could not seal is sealed by the gateway's reaper once its room is gone (api/reaping.py).
 SEALED_WITHIN_S = 30.0
-
-
-class HoldAudioSaid(BaseModel):
-    """What the gateway says an agent plays while a tool runs (api/hold_audio.py)."""
-
-    played: Literal["default", "off", "custom"]
-    sha256: str | None = None
-
-
-# The hop carries the domain object itself, adapted by pydantic. The one wire-to-domain conversion
-# in the tree is providers/declaration.py, at the app's edge, and this is deliberately not a
-# second one: two processes of the same distribution exchange the class they both already hold.
-ROUTES: TypeAdapter[tuple[Route, ...]] = TypeAdapter(tuple[Route, ...])
-CONFIG: TypeAdapter[AgentConfig] = TypeAdapter(AgentConfig)
-KEYS: TypeAdapter[dict[str, str]] = TypeAdapter(dict[str, str])
-LENDS: TypeAdapter[list[str]] = TypeAdapter(list[str])
-CONTEXT: TypeAdapter[CallContext] = TypeAdapter(CallContext)
-RESULT: TypeAdapter[ToolResult] = TypeAdapter(ToolResult)
-COMMAND: TypeAdapter[Command] = TypeAdapter(Command)
-BEAT: TypeAdapter[Heartbeat] = TypeAdapter(Heartbeat)
-STANDING: TypeAdapter[Standing] = TypeAdapter(Standing)
-JUDGING: TypeAdapter[Judging] = TypeAdapter(Judging)
 
 
 class Gateway:
@@ -309,7 +300,13 @@ class Gateway:
         """Every entry above the cursor the store still has, in seq order, page by page."""
         cursor = after
         while True:
-            page = await self._read("GET", f"/v1/calls/{call}/events?after={cursor}")
+            path = f"/v1/calls/{call}/events?after={cursor}"
+            # Asked again while the gateway is away, inside the seal's own patience: a hang-up
+            # reads its verdict from this, and a gateway restarting at that moment used to be a
+            # GatewayRefused out of the shutdown callback (2026-09-26).
+            page = await again(
+                partial(self._read, "GET", path), within_s=SEALED_WITHIN_S, what=path
+            )
             # 204 is the gateway saying the call is over and the cursor is at its end.
             if page is None or page["next"] is None:
                 return

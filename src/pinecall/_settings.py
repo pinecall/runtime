@@ -42,6 +42,10 @@ class Budgets:
     voice_lookup_ms: int = 250
     text_lookup_ms: int = 3000
     remember_s: float = 8.0
+    # What the seal of a spoken call waits, in all, for its queued entries to reach the platform
+    # and its verdict to come back: well inside the job's own SEALING_S (worker/main.py), so a
+    # gateway that is away at hang-up costs the verdict and never the seal (2026-09-26).
+    seal_s: float = 20.0
 
 
 def _names(cls: type[BaseSettings], key: str) -> str:

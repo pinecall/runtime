@@ -16,6 +16,11 @@ type Scorer = Callable[[Sequence[Entry], AgentConfig], Awaitable[CallScore]]
 NOBODY_JUDGED = "no judge was given to this session"
 
 
+def nobody_judged(why: str) -> CallScore:
+    """The score a call carries when no judge could be asked, and the reason."""
+    return CallScore(judges=[], panel=[], judge_calls=0, not_judged=why)
+
+
 async def unjudged(entries: Sequence[Entry], config: AgentConfig) -> CallScore:  # noqa: ARG001
     """The verdict of a session nobody handed a judge: no verdict, and the reason there is none."""
-    return CallScore(judges=[], panel=[], judge_calls=0, not_judged=NOBODY_JUDGED)
+    return nobody_judged(NOBODY_JUDGED)

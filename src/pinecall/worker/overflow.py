@@ -57,12 +57,16 @@ class Watching:
     def __init__(self, gate: OverflowGate, gateway: Gateway) -> None:
         self._gate = gate
         self._gateway = gateway
+        # Held here: a task nothing references may be collected by Python mid-loop.
+        self._watching: asyncio.Task[None] | None = None
 
     def start_with(self, server: AgentServer) -> None:
         """Begin the moment the worker is up; end with the process."""
-        server.on(  # pyright: ignore[reportUnknownMemberType]
-            "worker_started", lambda: asyncio.create_task(self.run())
-        )
+        server.on("worker_started", self._begin)  # pyright: ignore[reportUnknownMemberType]
+
+    def _begin(self) -> None:
+        """The loop, as a task this object holds for the life of the process."""
+        self._watching = asyncio.create_task(self.run(), name="overflow-watch")
 
     async def run(self) -> None:
         """Poll until the process ends."""

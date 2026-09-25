@@ -6,7 +6,7 @@ import asyncio
 import json
 from collections.abc import AsyncIterator, Mapping
 from dataclasses import replace
-from typing import Any
+from typing import Any, override
 
 import pytest
 from livekit.agents import llm as agents
@@ -257,3 +257,21 @@ def _an_interim(text: str) -> session_events.UserInputTranscribedEvent:
 async def _the_run_comes_back() -> None:
     """Let the lookups the interim started run to completion before the turn ends."""
     await asyncio.sleep(0.05)
+
+
+async def test_a_lookup_still_running_at_hang_up_is_cancelled_with_the_call() -> None:
+    """A task nobody awaits kept asking the platform about a call that had hung up."""
+    started = asyncio.Event()
+
+    class _Slow(Answering):
+        @override
+        async def lookup(self, *args: Any, **kwargs: Any) -> Any:
+            started.set()
+            await asyncio.Event().wait()
+
+    answering = _Slow()
+    bridge = a_bridge(a_context(), REMEMBERS, Recording(), lookup=answering)
+    bridge.lookups.heard_so_far("cuánto cuesta una revisión de rutina")
+    await started.wait()
+    await bridge.lookups.close()
+    assert bridge.lookups._running is None  # pyright: ignore[reportPrivateUsage]

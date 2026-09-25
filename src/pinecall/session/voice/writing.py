@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from livekit.agents.utils.aio import cancel_and_wait
+
 from pinecall.session.voice.platform import Platform
 from pinecall_protocol import WireModel, encode
 
@@ -37,15 +39,26 @@ class Writing:
         """Write one entry from a synchronous callback: the queue is what makes this safe."""
         self._queued.put_nowait((type, event, ephemeral))
 
-    async def flushed(self) -> None:
-        """Every entry queued so far has reached the platform: the last step before the seal."""
-        await self._queued.join()
+    async def flushed(self, within_s: float | None = None) -> None:
+        """Every entry queued so far has reached the platform: the last step before the seal.
+        TimeoutError past `within_s`: the platform is away, and the entries are still queued."""
+        await asyncio.wait_for(self._queued.join(), within_s)
 
-    async def close(self) -> None:
-        """Send what is left, then stop draining: nothing may be queued after this."""
-        await self.flushed()
+    async def close(self, within_s: float | None = None) -> None:
+        """Send what is left, then stop draining: nothing may be queued after this. Past
+        `within_s` what is still queued is said, counted, and let go: a seal the gateway's own
+        reaper finishes beats a job the worker has to kill."""
+        try:
+            await self.flushed(within_s)
+        except TimeoutError:
+            logger.warning(
+                "call %s: %d entries never reached the platform within %ss",
+                self._call,
+                self._queued.qsize(),
+                within_s,
+            )
         if self._draining is not None:
-            self._draining.cancel()
+            await cancel_and_wait(self._draining)
             self._draining = None
         if self.refused:
             logger.warning(
@@ -65,6 +78,10 @@ class Writing:
             type, event, ephemeral = await self._queued.get()
             try:
                 await self._platform.append(self._call, type, encode(event), ephemeral)
+            except asyncio.CancelledError:
+                # The close gave up on the platform: this entry never landed, and is counted.
+                self.refused.append(type)
+                raise
             except Exception:  # noqa: BLE001 — every way the platform can say no is the same here
                 self.refused.append(type)
             finally:

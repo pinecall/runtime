@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Any
@@ -31,6 +32,7 @@ from pinecall.session.text.measure import Reply, tokens_spent, usage_rows
 from pinecall.session.text.resuming import taken_up
 from pinecall.session.text.running import Running
 from pinecall.session.text.turns import Turns
+from pinecall.session.written import a_written_session
 from pinecall.types import AgentConfig, Blocks, CallContext
 from pinecall_protocol import WireModel, defs, encode
 from pinecall_protocol.commands import CallCallback, StateSet
@@ -50,9 +52,8 @@ from pinecall_protocol.events import (
 from pinecall_protocol.metrics import UserTurnMetrics
 from pinecall_protocol.room import EventReceived
 
-# livekit bounds its own model→tools→model loop with this and, on the last step, forces a final
-# answer with tool_choice="none": a model that will not converge still leaves the caller a sentence.
-MAX_TOOL_STEPS = 8
+logger = logging.getLogger(__name__)
+
 
 # What a reader of this call is: the caller's chat socket, and the app's own socket.
 type Watcher = Callable[[Entry], Awaitable[None]]
@@ -120,15 +121,7 @@ class TextSession:
             # is the run that hands the holder in. session/asking.py.
             asking=asking,
         )
-        # vad=None keeps livekit from building a silero client a text call would never listen to,
-        # and "manual" turn detection is the truth of a text call: every turn is a frame the caller
-        # sent, handed to generate_reply by hand, so livekit builds no detector and warns of no VAD.
-        self.live: AgentSession[None] = AgentSession(
-            llm=llm,
-            vad=None,
-            turn_handling={"turn_detection": "manual"},
-            max_tool_steps=MAX_TOOL_STEPS,
-        )
+        self.live: AgentSession[None] = a_written_session(llm)
 
     @property
     def call(self) -> str:
@@ -162,6 +155,12 @@ class TextSession:
                 await watcher(entry)
             except Exception:  # noqa: BLE001 — a reader that went away must not break the log
                 self._gone.add(watcher)
+                logger.warning(
+                    "call %s: a watcher dropped out at %s and hears nothing more",
+                    self.context.call,
+                    entry.type,
+                    exc_info=True,
+                )
 
         return sent
 
@@ -210,6 +209,7 @@ class TextSession:
             return
         self._ended = True
         self.attending.close()
+        await self.lookups.close()
         # Closed first, while the activity can still schedule its own on_exit: closing it after
         # the log is sealed abandons that coroutine. Nothing below needs the model any more.
         await self.live.aclose()

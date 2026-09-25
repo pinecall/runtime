@@ -21,6 +21,7 @@ from pinecall.providers.registry import Ears
 from pinecall.session.voice import hearing
 from pinecall.session.voice.barge_in import MIN_WORDS
 from pinecall.session.voice.kit import Kit
+from pinecall.session.written import ONE_ANSWER_PER_TOOL, a_written_session
 from pinecall.types import AgentConfig, Brought
 from pinecall.types.channel import Channel
 
@@ -51,13 +52,6 @@ LOCAL_TURN_VERSION: inference.TurnDetectorVersions = "v1-mini"
 # The cost of turning it off is the half second. The cost of leaving it on is an agent that
 # sometimes plays both parts, which is not a latency problem and cannot be prompted away.
 SPOKEN_PREEMPTION: PreemptiveGenerationOptions = {"enabled": False}
-WRITTEN_PREEMPTION: PreemptiveGenerationOptions = {"enabled": False}
-
-# A written turn is complete the moment it arrives, so the channel says when the caller is done.
-WRITTEN_TURNS: TurnHandlingOptions = {
-    "turn_detection": "manual",
-    "preemptive_generation": WRITTEN_PREEMPTION,
-}
 
 
 # The word timings the console draws its karaoke with: left unset, livekit forwards the model's
@@ -65,23 +59,6 @@ WRITTEN_TURNS: TurnHandlingOptions = {
 # (agent_activity.py:588-594, 3014-3019). A voice that aligns nothing is not harmed by asking —
 # livekit falls back to the generated text (agent_activity.py:120-140). See livekit-words.md #19.
 ALIGNED_TRANSCRIPT = True
-
-
-# vad= is left to the session on a spoken call: undeclared, it builds livekit's own native
-# inference.VAD at min_silence 0.25 (agent_session.py:606-607, inference/vad.py:64), which is the
-# number we would have asked for. A written call passes None so that none is built at all.
-# How many times the model may be asked again after a tool answers, before it must give the turn
-# back. livekit's default is 3, and its own guidance is to "decrease it for agents whose tools
-# should rarely fire more than once per turn" (docs/agents/logic/tools/design) — which is every
-# agent on a phone line: a caller says one thing, a tool runs, the agent answers.
-#
-# At 3 the agent kept talking after it had finished. A booking on 2026-09-13 ended with "Muchas
-# gracias por llamar a Clínica Norte, ¡que vaya bien!" and then said the appointment back AGAIN,
-# unprompted, because two more generations were still owed to it. On a line that is the agent
-# carrying on after goodbye, and a caller has no way to know the call is over.
-#
-# One is the whole round: the tool answers, the model says what came back, the caller speaks next.
-ONE_ANSWER_PER_TOOL = 1
 
 
 def a_session(
@@ -95,13 +72,7 @@ def a_session(
     # (2026-09-16, the first chat from a tenant's page). No ears and no voice: the model's text
     # reaches the room as it is written.
     if channel not in CHANNELS_THAT_LISTEN or not spoken:
-        written: AgentSession[None] = AgentSession(
-            llm=built.llm,
-            vad=None,
-            turn_handling=WRITTEN_TURNS,
-            max_tool_steps=ONE_ANSWER_PER_TOOL,
-        )
-        return written
+        return a_written_session(built.llm)
     voiced: AgentSession[None] = AgentSession(
         llm=built.llm,
         stt=built.stt,

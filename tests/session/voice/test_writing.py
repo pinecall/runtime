@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+from typing import Any, override
+
 import pytest
 
 from pinecall.session.voice.writing import Writing
@@ -37,3 +40,21 @@ async def test_a_platform_that_refuses_one_entry_is_remembered_and_the_rest_stil
     await writing.close()
     assert writing.refused == ["agent.state"]
     assert [entry.data["state"] for entry in recording.entries] == ["idle"]
+
+
+class _Away(Recording):
+    """A platform that never answers an append: a gateway gone at hang-up."""
+
+    @override
+    async def append(self, *args: Any, **kwargs: Any) -> None:
+        await asyncio.Event().wait()
+
+
+async def test_a_close_past_its_budget_lets_the_queue_go_rather_than_wait_for_ever() -> None:
+    """A seal the gateway's reaper finishes beats a job the worker has to kill at SEALING_S."""
+    writing = Writing(_Away(), CALL)
+    writing.open()
+    writing.later("agent.state", AgentStateChanged(state="idle"))
+    async with asyncio.timeout(2.0):
+        await writing.close(within_s=0.05)
+    assert writing.refused == ["agent.state"], "the entry that never landed is counted as lost"

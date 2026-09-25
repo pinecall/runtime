@@ -20,7 +20,7 @@ from pinecall.providers import prices
 from pinecall.session.first_entries import started
 from pinecall.session.knowing import a_line_for_the_file_it_ships_with
 from pinecall.session.lookups import Lookup, NoLookup, TurnLookups
-from pinecall.session.remembering import NoRememberer, Rememberer, remembered_within
+from pinecall.session.remembering import NoRememberer, Rememberer
 from pinecall.session.scoring import Scorer, unjudged
 from pinecall.session.voice import closing_time, commands, hearing
 from pinecall.session.voice.agent import VoiceAgent
@@ -29,23 +29,22 @@ from pinecall.session.voice.barge_in import is_a_backchannel
 from pinecall.session.voice.ending import TheEnding
 from pinecall.session.voice.events import Events
 from pinecall.session.voice.hanging_up import a_way_to_hang_up
-from pinecall.session.voice.hold import HoldMusic
+from pinecall.session.voice.hold import Floor, HoldMusic
 from pinecall.session.voice.line import Line
 from pinecall.session.voice.metrics import Meters
 from pinecall.session.voice.platform import Dialled, Platform, PlatformRefused
 from pinecall.session.voice.recording import Recorder
 from pinecall.session.voice.room import DataChannel, Facts, Holding, Trunks
 from pinecall.session.voice.room.claiming import Claiming
+from pinecall.session.voice.sealing import Sealing
 from pinecall.session.voice.supervising import Supervising
 from pinecall.session.voice.tools import Tools
 from pinecall.session.voice.writing import Writing
 from pinecall.types import AgentConfig, Blocks, CallContext
 from pinecall.types.org import EXHAUSTED
 from pinecall_protocol import Command, ProtocolError, defs
-from pinecall_protocol.codec import decode_entry
 from pinecall_protocol.events import (
     CallEnded,
-    CallScore,
     CallSummary,
     ErrorEvent,
     PromptChanged,
@@ -80,10 +79,17 @@ class VoiceBridge:
         self.config = config
         self.platform = platform
         self.recording = recording
-        self._score = score
-        self._rememberer = rememberer
         self._budgets = budgets
         self.writing = Writing(platform, context.call)
+        self.sealing = Sealing(
+            context,
+            config,
+            platform,
+            self.writing,
+            score=score,
+            rememberer=rememberer,
+            budgets=budgets,
+        )
         # Every way this call can end, and the one place that remembers which it was.
         self.ending = TheEnding(lambda: self._live, self.writing)
         self.meters = Meters(self.writing)
@@ -94,7 +100,8 @@ class VoiceBridge:
         self.lookups = TurnLookups(
             lookup, context.call, context.remembered_as, config, budgets.voice_lookup_ms
         )
-        self.events = Events(self.writing, self.meters, self.ending, self.lookups)
+        self.floor = Floor()
+        self.events = Events(self.writing, self.meters, self.ending, self.lookups, self.floor)
         self.tools = Tools(config, platform, context.call, self.writing.emit)
         self.recorder = Recorder(config, context, self.writing, self._tell_the_ears)
         self.blocks = Blocks(config.prompt, _the_file_it_ships_with(config))
@@ -169,7 +176,7 @@ class VoiceBridge:
 
     async def holding(self, melody: Path | None) -> None:
         """The room is live: what the caller hears while a tool runs, or None for nothing."""
-        self.tools.hold = await HoldMusic.in_this_room(melody, self._has_the_floor)
+        self.tools.hold = await HoldMusic.in_this_room(melody, self.floor)
 
     # The shutdown callbacks of a job run gathered, not in order, so the session is closed here
     # first: its own close drains the last speech and adds the last turn to the history, and
@@ -191,49 +198,33 @@ class VoiceBridge:
         ended, by = self.ending.how_it_ended()
         ended_at = time.time()
         duration = ended_at - self._started_at
-        await self.writing.emit(
-            "call.ended",
-            CallEnded(reason=ended, ended_by=by, ended_at=ended_at, duration_s=duration),
-        )
-        await self._remember()
-        rows = self.meters.rows
-        await self.writing.emit(
-            "call.summary",
-            CallSummary(
-                reason=ended,
-                outcome=self.events.last_said or NOTHING_SAID,
-                duration_s=duration,
-                turns=self.events.turns,
-                usage=rows,
-                cost=prices.cost_of(rows),
-                recording=str(self.recording) if self.recording is not None else None,
-            ),
-        )
-        await self.writing.emit("call.score", await self._the_verdict_on_it())
-        await self.writing.close()
-
-    # After call.ended and before call.summary, flushed first: the platform reads the turns back
-    # off the log this process writes to, and the last one has to be there. An agent that declared
-    # no memory has nothing to remember and asks nobody. See docs/decisions/memory.md.
-    async def _remember(self) -> None:
-        """What this call taught about the contact, written by the platform; a miss is an entry."""
-        if self.config.memory is None:
-            return
-        await self.writing.flushed()
-        failed = await remembered_within(
-            self._rememberer, self.context.call, self._budgets.remember_s
-        )
-        if failed is not None:
-            await self.writing.emit("error", failed)
-
-    # A verdict is read by the seqs it names, and this process never learns one: the platform
-    # numbers the log. So the call is read back through the same door it was written to, which is
-    # the whole of what a spoken call may know about the platform. See docs/decisions/scoring.md.
-    async def _the_verdict_on_it(self) -> CallScore:
-        """This call's own log back from the platform, and what the judge makes of it."""
-        await self.writing.flushed()
-        entries = [decode_entry(raw) async for raw in self.platform.since(self.context.call, 0)]
-        return await self._score(entries, self.config)
+        # Everything below is bounded by the seal's budget and ends, whatever the platform did,
+        # with the writer closed: a gateway away at hang-up used to leave the shutdown callback
+        # raising or waiting on a queue that never drained, until SEALING_S killed the job with
+        # the log unsealed (2026-09-26). The reaper seals what this could not.
+        try:
+            await self.writing.emit(
+                "call.ended",
+                CallEnded(reason=ended, ended_by=by, ended_at=ended_at, duration_s=duration),
+            )
+            await self.sealing.remembered()
+            rows = self.meters.rows
+            await self.writing.emit(
+                "call.summary",
+                CallSummary(
+                    reason=ended,
+                    outcome=self.events.last_said or NOTHING_SAID,
+                    duration_s=duration,
+                    turns=self.events.turns,
+                    usage=rows,
+                    cost=prices.cost_of(rows),
+                    recording=str(self.recording) if self.recording is not None else None,
+                ),
+            )
+            await self.writing.emit("call.score", await self.sealing.verdict())
+        finally:
+            await self.lookups.close()
+            await self.writing.close(self._budgets.seal_s)
 
     # ── the Speaking the agent reads ────────────────────────────────────────────
 

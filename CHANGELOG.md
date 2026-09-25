@@ -57,6 +57,19 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   store once per log and not per entry; `migrate status` reads only a missing table as "nothing
   applied" and says any other refusal; a `.post.sql` opening with `-- pinecall:no-transaction`
   runs outside one, so an index can be built `CONCURRENTLY`.
+- **A spoken call seals whatever the gateway did at hang-up.** The bridge's close read the
+  verdict with no retry and waited for its queue with no limit, so a gateway away at that moment
+  left the shutdown callback raising, or waiting until the job was killed with the log unsealed.
+  The seal is bounded (`Budgets.seal_s`, 20 s), the verdict read is asked again inside it, a log
+  that never arrived is said as `not_judged`, and the writer is closed whatever happened.
+- **Two loops the worker never held.** The heartbeat and the overflow watcher were started as
+  tasks nothing referenced, which Python may collect mid-loop; they are held now.
+- A cancelled turn no longer answers its tool with a lapsed `tool.result`; a written turn whose
+  model failed writes the `error` entry the spoken one always wrote; a watcher that drops out of
+  a text call is said in the log; a call's lookups still running at hang-up are cancelled; the
+  written session is built in one place, at one answer per tool, as the spoken one always was;
+  the hold melody, a transfer's announcement and a simulated caller wait on livekit's own events
+  instead of glancing every hundred milliseconds.
 - **The judge model is closed.** A hang-up built an `anthropic.LLM` per judged call and closed
   none; a suite's run held one per run and closed it never.
 

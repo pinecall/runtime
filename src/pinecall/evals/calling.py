@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import random as randomness
 import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
@@ -17,7 +18,6 @@ from pinecall.auth.scopes import a_room_token, secret_for
 from pinecall.evals import line as degrading
 from pinecall.evals import speech
 from pinecall.evals.dispatching import a_dispatch
-from pinecall.evals.polling import until
 from pinecall.evals.speech import Speaking, Voice
 from pinecall.types import Env
 
@@ -223,12 +223,25 @@ def _a_token(call: str, settings: Settings) -> str:
 # track is what says the pipeline is live, so that is what is waited for.
 async def _until_the_agent_is_here(room: rtc.Room, call: str) -> None:
     """Wait for the dispatched job to be LISTENING, or say plainly that nobody answered."""
+    published = asyncio.Event()
 
-    async def listening() -> bool:
-        return _listening(room)
+    def heard(*_: object) -> None:
+        if _listening(room):
+            published.set()
 
-    if not await until(listening, within_s=THE_AGENT_MAY_TAKE_S):
-        raise TimeoutError(NOBODY_ANSWERED.format(call=call, seconds=THE_AGENT_MAY_TAKE_S))
+    # The room says so itself the moment a track is published (livekit's own job waits for a
+    # participant the same way); a glance every 250 ms was the same wait, later.
+    room.on("track_published", heard)  # pyright: ignore[reportUnknownMemberType] — livekit's callback is `(...) -> Unknown`
+    try:
+        if _listening(room):
+            return
+        await asyncio.wait_for(published.wait(), THE_AGENT_MAY_TAKE_S)
+    except TimeoutError:
+        raise TimeoutError(
+            NOBODY_ANSWERED.format(call=call, seconds=THE_AGENT_MAY_TAKE_S)
+        ) from None
+    finally:
+        room.off("track_published", heard)  # pyright: ignore[reportUnknownMemberType] — livekit's callback is `(...) -> Unknown`
 
 
 def _listening(room: rtc.Room) -> bool:

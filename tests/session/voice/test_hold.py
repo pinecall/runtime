@@ -10,7 +10,7 @@ import pytest
 
 from pinecall.session.hold_audio import DEFAULT
 from pinecall.session.voice import hold as holding
-from pinecall.session.voice.hold import HoldMusic
+from pinecall.session.voice.hold import Floor, HoldMusic
 
 pytestmark = pytest.mark.unit
 
@@ -41,8 +41,8 @@ class Player:
         return None
 
 
-def a_melody(player: Player, source: Path = DEFAULT, speaking: object = None) -> HoldMusic:
-    music = HoldMusic(source, speaking)  # pyright: ignore[reportArgumentType]
+def a_melody(player: Player, source: Path = DEFAULT, floor: Floor | None = None) -> HoldMusic:
+    music = HoldMusic(source, floor)
     music._player = player  # pyright: ignore[reportPrivateUsage, reportAttributeAccessIssue] — the room is livekit's to give
     return music
 
@@ -118,12 +118,13 @@ def test_the_grace_outlasts_the_line_the_agent_says_before_the_tool() -> None:
 # announcement, which is the one thing it exists to avoid.
 async def test_the_melody_waits_for_the_agent_to_stop_talking() -> None:
     player = Player()
-    talking = [True]
-    music = a_melody(player, DEFAULT, lambda: talking[0])
+    floor = Floor()
+    floor.changed("speaking")
+    music = a_melody(player, DEFAULT, floor)
 
     async with music.playing():
         await asyncio.sleep(0.10)
         assert player.played == [], "it started under the agent's own voice"
-        talking[0] = False
+        floor.changed("listening")
         await asyncio.sleep(0.20)
         assert player.played != [], "and it never started once the agent had stopped"

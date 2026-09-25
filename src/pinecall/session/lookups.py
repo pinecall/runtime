@@ -10,6 +10,7 @@ from typing import Any, Protocol, cast
 
 from livekit.agents import llm as agents
 from livekit.agents.llm import ToolError
+from livekit.agents.utils.aio import cancel_and_wait
 
 from pinecall.session.declaring import ToolUse, declared
 from pinecall.types import AgentConfig, PlatformTool, platform_tools
@@ -221,6 +222,14 @@ class TurnLookups:
     # The failure comes back as a value and is never raised: a run started while the caller was
     # still speaking may finish after the turn gave up on it, and a task nobody awaits must leave
     # its complaint in the log rather than at the garbage collector.
+    # A run started on the caller's last words, with no turn end to consume it, outlived the call:
+    # a task nobody awaits, still asking the platform for a call that has hung up (2026-09-26).
+    async def close(self) -> None:
+        """Cancel whatever is still running: the call is over and nobody will read the answer."""
+        running, self._running = self._running, None
+        if running is not None:
+            await cancel_and_wait(*running.tasks)
+
     async def _ran(self, tool: PlatformTool, query: str, speech_id: str | None) -> Answered:
         """One lookup the platform runs on the caller's words, straight from the service."""
         try:

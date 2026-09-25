@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 from typing import Protocol
 
+from pinecall.session.errors import REMEMBER_FAILED
 from pinecall_protocol.events import ErrorEvent
 
-REMEMBER_FAILED = "remember_failed"
 NOT_REMEMBERED = "memory was not written: {why}"
 
 
@@ -40,6 +40,11 @@ async def remembered_within(
     except Exception as failed:  # noqa: BLE001 — the call seals whatever memory did
         return _failed_to_remember(str(failed) or type(failed).__name__)
     return None
+
+
+def not_remembered(why: str) -> ErrorEvent:
+    """The entry a hang-up writes when memory could not be asked at all."""
+    return _failed_to_remember(why)
 
 
 def _failed_to_remember(why: str) -> ErrorEvent:

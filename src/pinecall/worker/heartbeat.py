@@ -33,14 +33,18 @@ class Heartbeats:
         self._worker = worker
         self._max_jobs = max_jobs
         self.cordoned = False
+        # Held here: a task nothing references may be collected by Python mid-loop.
+        self._beating: asyncio.Task[None] | None = None
 
     # Started on livekit's own `worker_started`, so the task lives on the loop livekit runs and
     # dies with it. Nothing here outlives run_app.
     def start_with(self) -> None:
         """Hook the heartbeat onto the server: it begins the moment the worker is up."""
-        self._server.on(  # pyright: ignore[reportUnknownMemberType]
-            "worker_started", lambda: asyncio.create_task(self.run())
-        )
+        self._server.on("worker_started", self._begin)  # pyright: ignore[reportUnknownMemberType]
+
+    def _begin(self) -> None:
+        """The loop, as a task this object holds for the life of the process."""
+        self._beating = asyncio.create_task(self.run(), name="heartbeat")
 
     async def run(self) -> None:
         """Beat until the process ends; a hub that does not answer is a warning, never a crash."""
