@@ -109,7 +109,7 @@ async def signup(
         raise HTTPException(409, TAKEN.format(slug=slug))
     # What this org may do is whoever charges for it's to say, through the point a package plugged
     # into (extensions/points.py); the runtime's own answer is no limit, and no limit is no row.
-    allowed = extensions.admitted(org, said.email)
+    allowed = extensions.admitted(org, said.email, settings.world)
     if allowed != Quotas():
         await orgs.set_quotas(org.id, allowed)
     # The org is new, so nobody holds the email yet: the invitation is minted and spent in one

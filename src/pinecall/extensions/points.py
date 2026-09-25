@@ -4,16 +4,19 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from pinecall.types import Org, Quotas
+from pinecall.types import Env, Org, Quotas
 
-# What a new org may do, decided by whoever charges for it. The runtime asks this once, at the
-# alta, and writes the answer as the org's quotas in the same breath the org is made — so an org
-# is never standing with the wrong limits. It speaks Quotas, the mechanism, and knows no word for
-# a plan: a package that charges maps its plans onto these numbers on its own side.
-type Admitting = Callable[[Org, str], Quotas]
+# What a new org may do, decided by whoever charges for it. An instance asks this whenever it
+# makes an org it did not have — production at signup, a sandbox when it first mirrors one — and
+# writes the answer as the org's quotas in the same breath the org is made, so an org is never
+# standing with the wrong limits. The world is the instance's (`PINECALL_WORLD`): one package serves
+# both, and what a new org may do in the sandbox is not what it may do in production. It speaks
+# Quotas, the mechanism, and knows no word for a plan: a package that charges maps its plans onto
+# these numbers on its own side.
+type Admitting = Callable[[Org, str, Env], Quotas]
 
 
-def unlimited(org: Org, email: str) -> Quotas:  # noqa: ARG001 — the shape every policy has
+def unlimited(org: Org, email: str, world: Env) -> Quotas:  # noqa: ARG001 — every policy's shape
     """A box of its own: an org made here may do everything, which is what no row means."""
     return Quotas()
 

@@ -19,8 +19,9 @@ from pinecall.auth.identity import REDEEM, UNREACHABLE, Identity
 from pinecall.auth.keys import MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.persons import SANDBOX_PERSONS_KEY_LIFE
+from pinecall.extensions import Extensions
 from pinecall.orgs.table import MemoryOrgs
-from pinecall.types import ROLE_SCOPES, SANDBOX, Member, Org
+from pinecall.types import ROLE_SCOPES, SANDBOX, Member, Org, Quotas
 from tests.api.talking import answering_in, at_the_console
 from tests.conftest import THE_IDENTITY
 
@@ -116,6 +117,50 @@ async def test_a_first_sign_in_mirrors_the_org_and_the_member_and_mints_a_days_k
     record = await keys.verify(signed["key"])
     assert record is not None and record.expires_at is not None
     assert before + SANDBOX_PERSONS_KEY_LIFE <= record.expires_at
+
+
+# The trial lives in the sandbox, and a sandbox org is born here by mirroring: the extension is
+# asked in the sandbox's world when the org is new to this instance, and never again after.
+async def test_an_org_new_to_the_sandbox_is_admitted_once_in_the_sandboxs_world(
+    sandbox: Settings,  # noqa: ARG001
+    production: Production,  # noqa: ARG001
+    stranger: httpx.AsyncClient,
+    orgs: MemoryOrgs,
+    extensions: Extensions,
+) -> None:
+    a_trial = Quotas(minutes=30)
+    asked: list[tuple[str, str, str]] = []
+
+    def admitted(org: Org, email: str, world: str) -> Quotas:
+        asked.append((org.slug, email, world))
+        return a_trial
+
+    extensions.admitted = admitted
+    await signed_in(stranger)
+    await signed_in(stranger)
+    assert asked == [(TIENDA.slug, BERNA.email, SANDBOX)], "once, and never on the second sign-in"
+    assert await orgs.quotas_of(TIENDA.id) == a_trial
+
+
+async def test_an_org_the_sandbox_already_held_is_never_admitted(
+    sandbox: Settings,  # noqa: ARG001
+    production: Production,  # noqa: ARG001
+    stranger: httpx.AsyncClient,
+    orgs: MemoryOrgs,
+    extensions: Extensions,
+) -> None:
+    """What the seed copied, or any org here before the trial existed, keeps what it had."""
+    await orgs.mirrored(TIENDA)
+    asked: list[str] = []
+
+    def admitted(org: Org, email: str, world: str) -> Quotas:  # noqa: ARG001
+        asked.append(org.slug)
+        return Quotas(minutes=30)
+
+    extensions.admitted = admitted
+    await signed_in(stranger)
+    assert asked == []
+    assert await orgs.quotas_of(TIENDA.id) == Quotas()
 
 
 async def test_a_second_sign_in_takes_the_role_production_says_now(

@@ -14,8 +14,9 @@ from pinecall.auth.identity import Identity, NotRedeemed
 from pinecall.auth.keys import Issued, Keys, revoked_every_key_of
 from pinecall.auth.members import Members
 from pinecall.auth.persons import a_persons_key
+from pinecall.extensions import Admitting
 from pinecall.orgs.table import Orgs
-from pinecall.types import PRODUCTION, SANDBOX
+from pinecall.types import PRODUCTION, SANDBOX, Quotas
 
 # A sandbox instance keeps no password and makes no person: whoever signs in there signed in at
 # production and carried a one-use code across. So the doors a person is made or proved at are
@@ -83,16 +84,31 @@ IdentityDep = Annotated["Identity | None", Depends(the_identity)]
 # — before a key of this sandbox's own is minted for them. A stale row of the address (a person
 # production removed and invited again) loses its keys first, as a removal does. A member
 # production disabled is mirrored disabled and loses every key here at once, not in a day.
-async def a_mirrored_key(
-    code: str, label: str, identity: Identity, orgs: Orgs, members: Members, keys: Keys
+#
+# An org this sandbox did not have is admitted here, as signup admits one at production: the
+# extension says what a new org may do in THIS world, in the same breath it is made. An org the
+# sandbox already held — a later sign-in, or one the seed copied — is never admitted again.
+async def a_mirrored_key(  # noqa: PLR0913 — the code, the label, and every store a sign-in writes
+    code: str,
+    label: str,
+    identity: Identity,
+    orgs: Orgs,
+    members: Members,
+    keys: Keys,
+    admitted: Admitting,
 ) -> Issued:
     """A sandbox key for the person production says the code names; the refusal otherwise."""
     try:
         org, member = await identity.redeem(code)
     except NotRedeemed as refused:
         raise HTTPException(refused.status, str(refused)) from refused
+    known = await orgs.find(org.id)
     if await orgs.mirrored(org) is None:
         raise HTTPException(409, SLUG_HELD_HERE.format(slug=org.slug))
+    if known is None:
+        allowed = admitted(org, member.email, SANDBOX)
+        if allowed != Quotas():
+            await orgs.set_quotas(org.id, allowed)
     stale = await members.by_email(org.id, member.email)
     if stale is not None and stale.member.id != member.id:
         await revoked_every_key_of(keys, org.id, stale.member.id)

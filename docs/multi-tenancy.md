@@ -331,37 +331,10 @@ console's org switch lets them into any org (`POST /v1/login/org`) on a key whos
 `operator:<email>` — no member row there, no seat, and every dial or verb of theirs attributable
 by address in that tenant's own log.
 
-## Provider keys, per tenant
+## Limits and provider keys
 
-By default every call runs on the **box's** vendor keys, out of its environment. An org may bring
-its own, and then every call of that org runs on its account from the next one:
-
-```bash
-# the operator, for a tenant who sent theirs
-printf %s "$KEY" | pinecall-runtime orgs provider-key set clinica elevenlabs
-pinecall-runtime orgs provider-key list clinica
-
-# or the tenant themselves, with their own org key (the `providers` scope)
-pinecall providers add elevenlabs   # reads the key from stdin, never from a flag
-```
-
-The rows are encrypted with `PINECALL_VAULT_KEY`, which lives in the box's environment and never in
-the database. A runtime without one cannot keep somebody else's secret and says so with a 503 —
-[the gateway API §6](protocol/provider-keys.md).
-
-## Quotas
-
-```bash
-pinecall-runtime orgs quota clinica --minutes 2000 --messages 5000 --agents 5 \
-                                    --concurrent-calls 10 --memory-facts 50000 \
-                                    --knowledge-chunks 20000 --numbers 1 --seats 10
-```
-
-The whole set is replaced at once, and a limit left out is **no limit**. The meter is a fold over
-the log — there is no counter table to drift — and the gate runs before a call opens, before an
-agent registers, before memory writes a fact, and before an invitation makes a row: `seats` is
-what a plan sells a team by, counted as everybody the org has not disabled. A tenant over one is refused with a sentence and
-`credits.exhausted` in their own log; nothing is cut mid-call.
+What an org may consume and keep, what a new org is allowed by the policy the box runs, and whose
+vendor keys its calls run on: [limits.md](limits.md).
 
 ## Where each thing is written
 

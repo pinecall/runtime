@@ -104,6 +104,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   both off the box, and the sandbox's name is served by the sandbox instance's own site.
 
 ### Changed
+- **Breaking for extension authors: `Admitting` takes the world, and a sandbox asks it too.** The
+  policy is `admitted(org, email, world)`; production asks it at signup, and a sandbox asks it the
+  first time it mirrors an org from production — so what a new org may do can differ per instance.
+  An org the sandbox already held is never re-admitted; with no package loaded nothing changes.
+- `docs/limits.md`: quotas and provider keys leave `multi-tenancy.md` for a page of their own.
 - **The default ears are Deepgram Flux, and Flux calls the turn.** An agent that names no `stt`
   runs `deepgram` (`flux-general-multi`, hinted with its language) instead of Soniox, and the turn
   detector is read off the vendor that runs, not the one declared: the local detector over the

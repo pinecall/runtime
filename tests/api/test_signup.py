@@ -84,10 +84,10 @@ async def test_a_policy_plugged_into_the_point_decides_what_the_new_org_may_do(
 ) -> None:
     """The runtime knows no plan; a package beside it maps one onto Quotas, and the door obeys."""
     a_trial = Quotas(minutes=45, agents=2, numbers=1)
-    seen: list[tuple[str, str]] = []
+    seen: list[tuple[str, str, str]] = []
 
-    def admitted(org: Any, email: str) -> Quotas:
-        seen.append((org.slug, email))
+    def admitted(org: Any, email: str, world: str) -> Quotas:
+        seen.append((org.slug, email, world))
         return a_trial
 
     extensions.admitted = admitted
@@ -96,7 +96,7 @@ async def test_a_policy_plugged_into_the_point_decides_what_the_new_org_may_do(
     org = await orgs.find("tienda-sur")
     assert org is not None
     assert await orgs.quotas_of(org.id) == a_trial
-    assert seen == [("tienda-sur", TIENDA["email"])]
+    assert seen == [("tienda-sur", TIENDA["email"], "production")], "asked in this instance's world"
 
 
 async def test_the_code_logs_a_browser_in_and_the_password_logs_the_person_in_after(

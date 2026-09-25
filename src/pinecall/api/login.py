@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 
 from pinecall.api._deps import (
+    ExtensionsDep,
     KeyDep,
     KeysDep,
     LoginCodesDep,
@@ -124,6 +125,7 @@ async def login(
     sso: SsoDep,
     settings: SettingsDep,
     identity: IdentityDep,
+    extensions: ExtensionsDep,
 ) -> dict[str, Any]:
     """A key for this person and this device, or a refusal that says the least it can."""
     if said.code is not None:
@@ -137,7 +139,10 @@ async def login(
         if identity is None:
             raise HTTPException(404, NO_CODE)
         label = said.device or A_BROWSER
-        return (await a_mirrored_key(said.code, label, identity, orgs, members, keys)).as_json
+        mirrored = await a_mirrored_key(
+            said.code, label, identity, orgs, members, keys, extensions.admitted
+        )
+        return mirrored.as_json
     # A password is production's to check: a sandbox keeps none, and takes a code or nothing.
     at_production(settings)
     if said.email is None or said.password is None:

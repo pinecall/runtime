@@ -393,7 +393,7 @@ the operator API, the sign-up as a mechanism, the box. **Nothing that charges is
 price, no trial, no card. The two meet at `extensions/` — named points the runtime answers itself
 until a package installed beside it registers another (`points.py`, `loading.py`,
 `PINECALL_EXTENSIONS`); today one point, what a new org may do, and it speaks `Quotas`, never a
-plan. It is how `sentry` and `getsentry` are cut: the open package holds every mechanism, the
+plan — asked per instance, in its world, when it first makes the org (signup; a sandbox's mirror). It is how `sentry` and `getsentry` are cut: the open package holds every mechanism, the
 private one plugs policy in, and the door never learns who answered. `pinecall/cloud`, private, is
 that package for our box — the trial, the plans, Stripe fed from the meter — and never ships to a
 customer, whose box runs the same code with the runtime's own answers. What spans many boxes — a
