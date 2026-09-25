@@ -68,6 +68,12 @@ class Admission:
         await self._refuse_past(org, agent, quotas, "minutes", totals.minutes)
         await self._refuse_past(org, agent, quotas, "messages", totals.messages)
 
+    # What a text call's vendors are built from reads the same row the gate reads: which of the
+    # box's keys the org is lent (orgs/vault.py:brought_by).
+    async def quotas_of(self, org: str) -> Quotas:
+        """The org's quotas, as the gate reads them."""
+        return await self._orgs.quotas_of(org)
+
     # A hang-up is judged only where the org has not turned judging off: the judges may cost a
     # model's tokens, and that is the org's to decline (api/judging.py).
     async def judges(self, org: str) -> bool:

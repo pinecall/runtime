@@ -5,7 +5,15 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import Field
 
-from pinecall.api._deps import EvalsKeyDep, LlmsDep, SettingsDep, StoreDep, TuningDep, VaultDep
+from pinecall.api._deps import (
+    EvalsKeyDep,
+    LlmsDep,
+    OrgsDep,
+    SettingsDep,
+    StoreDep,
+    TuningDep,
+    VaultDep,
+)
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.agents.tuned import tuned_for
 from pinecall.api.evals.listening import the_call_is_over, until_the_answer_lands
@@ -20,7 +28,7 @@ from pinecall.evals.caller import (
 from pinecall.evals.calling import Line, a_simulated_call
 from pinecall.evals.speech import Speaking
 from pinecall.log.replay import whole
-from pinecall.orgs.vault import keys_brought_by
+from pinecall.orgs.vault import brought_by
 from pinecall.providers.models import NoProvider
 from pinecall.providers.tuning import the_llm, the_voice
 from pinecall.types import DeclarationRefused
@@ -71,15 +79,16 @@ async def a_voice_call(
     vault: VaultDep,
     registry: RegistryDep,
     kept: TuningDep,
+    orgs: OrgsDep,
 ) -> Called:
     """Dispatch the agent into a room, put the persona on the line out loud, and hang up."""
-    keys = await keys_brought_by(vault, key.org)
+    brought = await brought_by(vault, orgs.quotas_of, key.org)
     # The model that plays the caller and the voice it speaks in are the persona's own three
     # knobs, read by the agent's own parser; a persona that set none is played as every caller
     # was. The door that wrote the persona refused a typo already, so a refusal here is a row
     # written before this build knew the word.
     try:
-        llm = llms(the_llm(said.persona.llm), keys)
+        llm = llms(the_llm(said.persona.llm), brought)
         declared = the_voice(said.persona.tts, said.persona.voice)
     except DeclarationRefused as refused:
         raise HTTPException(422, str(refused)) from refused
@@ -88,7 +97,7 @@ async def a_voice_call(
     line = Line(interferer_db=said.interferer_db, packet_loss=said.packet_loss)
     # The caller speaks the agent's language in a voice the agent does not have: both read off
     # the config the agent runs on, in the corner of the socket the call is dispatched to.
-    speaking = Speaking(keys=keys, declared=declared)
+    speaking = Speaking(brought=brought, declared=declared)
     held = registry.of(key.env, said.agent, held_by(key))
     # A slug is one org's, so a socket holding it may be another tenant's: its declaration —
     # the voice, the language — is not this key's to read, and the call runs bare instead.
@@ -97,7 +106,7 @@ async def a_voice_call(
         speaking = Speaking(
             language=running.config.language,
             agents_voice=None if running.config.voice is None else running.config.voice.voice_id,
-            keys=keys,
+            brought=brought,
             declared=declared,
         )
 

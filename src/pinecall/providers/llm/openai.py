@@ -8,7 +8,7 @@ from pinecall.providers.registry import Asked, Chat, a_key
 # The plugin's own is gpt-4.1 (openai/llm.py:92), a generation behind what a call should think on.
 DEFAULT_MODEL = "gpt-5-mini"
 # The ones providers/prices.py has a row for, behind the default.
-MODELS = (DEFAULT_MODEL, "gpt-4.1-mini", "gpt-4.1", "gpt-4o-mini")
+MODELS = (DEFAULT_MODEL, "gpt-5.4-mini", "gpt-5.4-nano", "gpt-4.1-mini", "gpt-4.1", "gpt-4o-mini")
 
 
 @VENDORS.registers("openai", models=MODELS)

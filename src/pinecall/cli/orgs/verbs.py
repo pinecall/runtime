@@ -42,6 +42,11 @@ VERBS: tuple[str, ...] = (
     "sso",
 )
 
+# The lending, beside the quotas and not one of them: nothing is counted against it.
+LENDS = "lends"
+LENDS_NOTHING = "none"
+LENDS_ALL = "every key of the box"
+
 # What a quota reads as when nobody set it. The column is still a column.
 NO_LIMIT = "—"
 
@@ -113,6 +118,12 @@ def configure(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=None,
         help="euros a calendar month, shown beside what was spent and never refused; out is none",
+    )
+    limiting.add_argument(
+        f"--{LENDS}",
+        default=None,
+        metavar="<vendor[/model],…>",
+        help="which of the box's keys it may run on: comma separated, `none` for none; out is all",
     )
     limiting.set_defaults(run=run_quota)
 
@@ -210,8 +221,21 @@ def run_remove(arguments: argparse.Namespace) -> int:
 
 def run_quota(arguments: argparse.Namespace) -> int:
     """The org's limits, replaced whole: a flag left out is no limit."""
-    limits: dict[str, int | None] = {name: getattr(arguments, name) for name in (*QUOTAS, BUDGET)}
+    limits: dict[str, Any] = {name: getattr(arguments, name) for name in (*QUOTAS, BUDGET)}
+    limits[LENDS] = a_lending_typed(arguments.lends)
     return against_the_gateway(partial(set_quota, arguments.org, limits))
+
+
+# `--lends deepgram,anthropic/claude-haiku-4-5` is those entries; `--lends none` is the empty set,
+# the org running only on its own keys; the flag left out is every one, as every limit left out is
+# no limit. The door checks each entry against the catalogue, so a typo is its sentence.
+def a_lending_typed(typed: str | None) -> list[str] | None:
+    """The lending as the door takes it, from what the operator typed."""
+    if typed is None:
+        return None
+    if typed.strip().lower() == LENDS_NOTHING:
+        return []
+    return [entry.strip() for entry in typed.split(",") if entry.strip()]
 
 
 # Replaced whole, as the quotas are — but a guard left out goes back to the code's own default and
@@ -295,13 +319,16 @@ def _said_numbers(said: Mapping[str, Any], field: str) -> tuple[str, ...]:
 
 
 async def set_quota(
-    org: str, limits: dict[str, int | None], operator: Operator, out: TextIO = sys.stdout
+    org: str, limits: dict[str, Any], operator: Operator, out: TextIO = sys.stdout
 ) -> int:
     """The limits as the door kept them, one per line, `—` for the ones left open."""
     kept = await operator.put(f"{OPS_ORGS}/{org}/quotas", limits)
     for name in (*QUOTAS, BUDGET):
         limit = kept.get(name)
         print(f"  {name:<17} {NO_LIMIT if limit is None else limit}", file=out)
+    lent = kept.get(LENDS)
+    said = LENDS_ALL if lent is None else (", ".join(lent) or LENDS_NOTHING)
+    print(f"  {LENDS:<17} {said}", file=out)
     return 0
 
 

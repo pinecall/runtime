@@ -82,6 +82,11 @@ class Quotas:
     # QUOTAS, because nothing is refused over it — no call, no push, no credits.exhausted; whoever
     # charges decides what reaching it means.
     budget_eur: int | None = None
+    # Which of the box's vendor keys the org's calls may run on where it brought none of its own:
+    # None lends every one (no row, a self-hosted box), an empty set none, a set those entries —
+    # a vendor, or `vendor/model` by prefix. Not one of QUOTAS: nothing is counted against it.
+    # What an entry means is providers/lending.py's: types/ knows no vendor (test_isolation.py).
+    lends: frozenset[str] | None = None
 
     def __post_init__(self) -> None:
         for name in QUOTAS:
@@ -117,6 +122,10 @@ class Quotas:
 # count of rows, never a counter column. The gate holds one of these and calls it ONLY when a
 # limit is set: a count is a query over a whole table, and an org nobody limited never pays for it.
 type Counting = Callable[[str], Awaitable[int]]
+
+# One org's quotas, asked of whoever holds them — the table, or the gate that reads it — by a
+# package that may not import orgs/ (lookups/) or does not hold the table (a text call's opening).
+type QuotasOf = Callable[[str], Awaitable[Quotas]]
 
 
 def a_slug(slug: str) -> str:

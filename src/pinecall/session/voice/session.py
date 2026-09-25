@@ -21,7 +21,7 @@ from pinecall.providers.registry import Ears
 from pinecall.session.voice import hearing
 from pinecall.session.voice.barge_in import MIN_WORDS
 from pinecall.session.voice.kit import Kit
-from pinecall.types import AgentConfig, ProviderKeys
+from pinecall.types import AgentConfig, Brought
 from pinecall.types.channel import Channel
 
 # The doors that carry audio. WhatsApp is written, and a session for it hears nothing: no STT, no
@@ -85,10 +85,10 @@ ONE_ANSWER_PER_TOOL = 1
 
 
 def a_session(
-    config: AgentConfig, kit: Kit, channel: Channel, keys: ProviderKeys, *, spoken: bool = True
+    config: AgentConfig, kit: Kit, channel: Channel, brought: Brought, *, spoken: bool = True
 ) -> AgentSession[None]:
     """The session livekit runs for this call: the vendors the agent asked for, and its turns."""
-    built = kit(config, keys)
+    built = kit(config, brought)
     # A written call is one nobody speaks on: a channel that never listens, or a web visit whose
     # token said `chat`. The spoken session ran for those too, and the page read the agent's words
     # at the pace a voice nobody heard was saying them, two seconds behind and billed as speech

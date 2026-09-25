@@ -11,7 +11,7 @@ from pinecall._exceptions import PinecallError
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
 from pinecall.orgs.table import DELETED_NOTHING
-from pinecall.types import NO_ORG_KEYS, ProviderKeys
+from pinecall.types import NO_ORG_KEYS, Brought, ProviderKeys, QuotasOf
 
 # What a runtime with no PINECALL_VAULT_KEY answers when asked to keep somebody's key. A 503 and
 # not a 400: the request was right and this box cannot honour it — decisions/provider-keys.md.
@@ -133,6 +133,17 @@ def vault_for(settings: Settings, pool: Pool | None) -> Vault | None:
 async def keys_brought_by(vault: Vault | None, org: str) -> ProviderKeys:
     """The org's own keys, read now: a key rotated a moment ago is the one the next call runs."""
     return NO_ORG_KEYS if vault is None else await vault.keys_of(org)
+
+
+# What a call's vendors are built from: the org's own keys and what the box lends it, read
+# together and now — a quota set a moment ago bites the next call, like the key rotated. Every
+# door that builds a model, an ear or a voice for an org asks this; only memory's embedder, which
+# runs on the box's key whatever the org is lent, asks keys_brought_by alone.
+# `quotas_of` is `Orgs.quotas_of` where a door holds the table and `Admission.quotas_of` where it
+# holds the gate, which reads the same row: one question, whoever is asked it.
+async def brought_by(vault: Vault | None, quotas_of: QuotasOf, org: str) -> Brought:
+    """The org's keys and what the box lends it, for the call about to be built."""
+    return Brought(keys=await keys_brought_by(vault, org), lends=(await quotas_of(org)).lends)
 
 
 # Shared with the carriers table (orgs/carriers.py): one vault key seals every tenant secret.

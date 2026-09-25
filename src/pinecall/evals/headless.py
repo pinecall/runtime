@@ -18,7 +18,7 @@ from pinecall.session.lookups import NoLookup, TurnLookups
 from pinecall.session.voice import session
 from pinecall.session.voice.agent import VoiceAgent
 from pinecall.session.voice.kit import kit_for
-from pinecall.types import NO_ORG_KEYS, AgentConfig, Blocks
+from pinecall.types import NOTHING_BROUGHT, AgentConfig, Blocks
 from pinecall.types.channel import Channel
 from pinecall_protocol.events import ErrorEvent
 
@@ -68,7 +68,7 @@ async def a_headless_call(
     read = settings or load_settings()
     kit = kit_for(read)
     # The box's own vendor keys: a headless call belongs to no org, so it brought none.
-    live = session.a_session(config, kit, WRITTEN, NO_ORG_KEYS)
+    live = session.a_session(config, kit, WRITTEN, NOTHING_BROUGHT)
     # The prompt arrives the way the app sends it at call start, already written into its blocks:
     # the static ones become livekit's `instructions` — the pinned item at index 0 the provider's
     # cache lands on — and the dynamic ones are read per request, after the history. Never

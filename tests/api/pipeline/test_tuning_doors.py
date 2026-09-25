@@ -11,7 +11,9 @@ from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
 from pinecall.auth.world import ENV_HEADER, NO_PRODUCTION
-from pinecall.types import BLANK, PRODUCTION, ROLE_SCOPES, SANDBOX
+from pinecall.orgs.table import MemoryOrgs
+from pinecall.orgs.vault import Vault
+from pinecall.types import BLANK, PRODUCTION, ROLE_SCOPES, SANDBOX, Quotas
 from pinecall_protocol import defs
 from tests.api.conftest import A_KEY, A_RECORD, AGENT
 from tests.api.talking import answering_in, at_the_console
@@ -330,3 +332,24 @@ async def test_a_vendor_this_build_has_no_file_for_is_refused_before_it_is_kept(
     refused = await ana.put(SETTINGS, json={"config": {"llm": "misspelt/gpt-5"}})
     assert refused.status_code == 400 and "no llm vendor named" in refused.json()["detail"]
     assert (await ana.get(SETTINGS)).json()["yours"] is None
+
+
+# A model the box does not lend the org is refused when it is PICKED, in the sentence a call would
+# refuse with — never saved to go silent on the next call. The org's own key lifts it.
+async def test_a_model_the_box_does_not_lend_is_refused_when_picked_and_its_own_key_lifts_it(
+    ana: httpx.AsyncClient, orgs: MemoryOrgs, vault: Vault | None
+) -> None:
+    lends = frozenset({"deepgram", "cartesia", "anthropic/claude-haiku-4-5"})
+    await orgs.set_quotas(A_RECORD.org, Quotas(lends=lends))
+    refused = await ana.put(SETTINGS, json={"config": {"llm": "anthropic/claude-opus-5"}})
+    assert refused.status_code == 422
+    assert "anthropic/claude-opus-5 is not lent" in refused.json()["detail"]
+    assert (await ana.get(SETTINGS)).json()["yours"] is None, "nothing was kept"
+    cheap = await ana.put(SETTINGS, json={"config": {"llm": "anthropic/claude-haiku-4-5"}})
+    assert cheap.status_code == 200, cheap.text
+    assert vault is not None
+    await vault.put(A_RECORD.org, "anthropic", "sk-the-orgs-own")
+    theirs = await ana.put(
+        SETTINGS, json={"config": {"llm": "anthropic/claude-opus-5"}, "if_version": 1}
+    )
+    assert theirs.status_code == 200, theirs.text

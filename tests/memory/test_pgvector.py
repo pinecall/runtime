@@ -4,7 +4,7 @@ import pytest
 
 from pinecall.log.store import Pool
 from pinecall.memory import PgvectorMemory, Spoken
-from pinecall.types import PRODUCTION, SANDBOX, MemoryPolicy
+from pinecall.types import NOTHING_BROUGHT, PRODUCTION, SANDBOX, MemoryPolicy
 from tests.memory.conftest import HUNG_UP, LEARNED, ScriptedModels, a_row
 from tests.vectors import HASH_MODEL
 
@@ -113,7 +113,7 @@ async def test_remember_adds_supersedes_and_invalidates_as_the_model_asked(
         at=HUNG_UP,
         policy=THE_POLICY,
         llm=None,
-        keys={},
+        brought=NOTHING_BROUGHT,
         call="CA_1",
     )
     assert len(ops) == 1 and ops[0].op == "remember" and ops[0].contact == contact
@@ -163,7 +163,7 @@ async def test_a_forget_category_never_reaches_the_table_and_a_fence_is_forgiven
         at=HUNG_UP,
         policy=THE_POLICY,
         llm=None,
-        keys={},
+        brought=NOTHING_BROUGHT,
     )
     assert [fact.text for fact in ops[0].facts] == ["prefiere que le hablen de usted"]
     assert [fact.text for fact in await memory.history(org, PRODUCTION, None, contact)] == [
@@ -185,7 +185,7 @@ async def test_a_tenant_that_named_nothing_to_remember_asks_no_model_and_writes_
         at=HUNG_UP,
         policy=MemoryPolicy(),
         llm=None,
-        keys={},
+        brought=NOTHING_BROUGHT,
     )
     assert ops[0].facts == []
     assert models.built == []
@@ -206,7 +206,7 @@ async def test_a_model_that_answers_garbage_writes_nothing_and_raises_nothing(
         at=HUNG_UP,
         policy=THE_POLICY,
         llm=None,
-        keys={},
+        brought=NOTHING_BROUGHT,
     )
     assert ops[0].facts == []
     assert await memory.history(org, PRODUCTION, None, contact) == []
@@ -249,7 +249,7 @@ async def test_a_fact_written_now_carries_the_model_that_embedded_it(
         at=HUNG_UP,
         policy=THE_POLICY,
         llm=None,
-        keys={},
+        brought=NOTHING_BROUGHT,
     )
     rows = await pool.fetch(
         "SELECT model FROM contact_memories WHERE org = $1 AND contact = $2", org, contact

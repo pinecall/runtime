@@ -38,6 +38,30 @@ agent registers, before memory writes a fact, and before an invitation makes a r
 what a plan sells a team by, counted as everybody the org has not disabled. A tenant over one is refused with a sentence and
 `credits.exhausted` in their own log; nothing is cut mid-call.
 
+## What the box lends
+
+Where an org brought no key of its own for a vendor, its calls run on the box's — and the box
+lends only what the org's quotas row says, in `lends`: **null** (no row, or nothing said) lends
+every key the box has, which is what a self-hosted box and every org nobody limited run on; an
+**empty list** lends nothing, so the org runs on its own keys alone; otherwise each entry is a
+**vendor** (`deepgram`: every model of it) or **`vendor/model`** (`anthropic/claude-haiku-4-5`:
+that model and its dated snapshots, read as a prefix — never `claude-sonnet-5`).
+
+```bash
+pinecall-runtime orgs quota tienda --minutes 30 \
+    --lends deepgram,cartesia,anthropic/claude-haiku-4-5,openai/gpt-5.4-mini,openai/gpt-5.4-nano
+pinecall-runtime orgs quota tienda --lends none      # its own keys only
+```
+
+It is read where a call's vendors are built (`providers/registry.py`, one place for the llm, the
+ears and the voice, the text path and every simulation included), against the model that will
+**run** — the one named, else the vendor's default — so a call is refused before it opens, never
+mid-turn, with the sentence that names the fix: `anthropic/claude-opus-5 is not lent to this org:
+it may run on …, or on a key of its own (pinecall providers add anthropic)`. The settings door
+says the same `422` when the model is picked. An org's own key is never refused, whatever the
+model. Judges and embeddings run on the box's keys regardless: judging is the org's to turn off,
+and an embedder is the box's by construction.
+
 ## What a new org is allowed
 
 A new org's quotas are a policy's to say, not the operator's to type. A package named in

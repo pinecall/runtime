@@ -8,6 +8,7 @@ import pytest
 from pinecall.cli.operator import Operator, OperatorRefused
 from pinecall.cli.orgs.verbs import (
     a_key_from,
+    a_lending_typed,
     add_org,
     list_orgs,
     list_provider_keys,
@@ -67,6 +68,26 @@ async def test_quota_prints_every_limit_and_a_dash_for_the_ones_left_open(
     assert "messages" in said and "—" in said
     assert "knowledge_chunks" in said and "5000" in said
     assert "memory_facts      0" in said, "zero is a limit and prints as one, never as a dash"
+    assert "lends             every key of the box" in said, "left out lends every key"
+
+
+def test_the_lending_typed_is_entries_none_is_the_empty_set_and_nothing_is_every_key() -> None:
+    assert a_lending_typed("deepgram, anthropic/claude-haiku-4-5") == [
+        "deepgram",
+        "anthropic/claude-haiku-4-5",
+    ]
+    assert a_lending_typed("none") == []
+    assert a_lending_typed(None) is None
+
+
+async def test_quota_prints_what_the_box_lends_as_the_door_kept_it(operator: Operator) -> None:
+    out = printed()
+    lending = {"lends": ["deepgram", "claude/claude-haiku-4-5"]}
+    assert await set_quota("clinica", lending, operator, out) == 0
+    assert "lends             anthropic/claude-haiku-4-5, deepgram" in out.getvalue()
+    nothing = printed()
+    assert await set_quota("clinica", {"lends": []}, operator, nothing) == 0
+    assert "lends             none" in nothing.getvalue()
 
 
 async def test_dialling_prints_the_four_guards_the_door_kept_and_no_country(

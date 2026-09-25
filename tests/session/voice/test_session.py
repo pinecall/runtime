@@ -9,10 +9,9 @@ import pytest
 from livekit.agents import inference
 from livekit.agents.voice import AgentSession
 
-from pinecall.providers.registry import NO_ORG_KEYS
 from pinecall.session.voice.barge_in import MIN_WORDS
 from pinecall.session.voice.session import a_session
-from pinecall.types import AgentConfig, Model, Turn
+from pinecall.types import NOTHING_BROUGHT, AgentConfig, Brought, Model, Turn
 from pinecall.types.channel import Channel
 from tests.session.fake_llm import FakeLLM
 from tests.session.voice.silence import FakeKit
@@ -160,18 +159,20 @@ async def test_a_sentence_that_was_cut_off_is_never_said_twice() -> None:
 
 async def test_a_written_visit_on_a_listening_channel_gets_no_ears_and_no_voice() -> None:
     """A `chat` token on the web: the model's words reach the page as written, never as speech."""
-    written = a_session(CLARA, _a_kit(), "web", {}, spoken=False)
+    written = a_session(CLARA, _a_kit(), "web", NOTHING_BROUGHT, spoken=False)
     written_legs: Any = (written.stt, written.tts)  # pyright: ignore[reportUnknownMemberType]
     assert written_legs == (None, None)
-    spoken = a_session(CLARA, _a_kit(), "web", {})
+    spoken = a_session(CLARA, _a_kit(), "web", NOTHING_BROUGHT)
     assert spoken.tts is not None  # pyright: ignore[reportUnknownMemberType]
 
 
 async def test_the_orgs_own_keys_are_handed_to_the_kit_and_go_nowhere_else() -> None:
-    """The one thing this file says about provider keys: the session passes them straight on."""
+    """The one thing this file says about provider keys: the session passes them, and what the
+    box lends, straight on."""
     kit = _a_kit()
-    a_session(CLARA, kit, "phone", {"elevenlabs": "the-orgs-own"})
-    assert kit.keys == [{"elevenlabs": "the-orgs-own"}]
+    brought = Brought(keys={"elevenlabs": "the-orgs-own"}, lends=frozenset({"cartesia"}))
+    a_session(CLARA, kit, "phone", brought)
+    assert kit.brought == [brought]
 
 
 # The session resolves every absent key of livekit's own TypedDicts, so a test reads the result as
@@ -190,7 +191,7 @@ def _stt_context(live: AgentSession[None]) -> dict[str, Any]:
 # every test here is about turns, ears and voices, so they all run as an org that brought none.
 def a_call_on(config: AgentConfig, kit: FakeKit, channel: Channel) -> AgentSession[None]:
     """One session of this suite, for an org running on the box's own keys."""
-    return a_session(config, kit, channel, NO_ORG_KEYS)
+    return a_session(config, kit, channel, NOTHING_BROUGHT)
 
 
 def _a_kit(*, keyterms: bool = False) -> FakeKit:

@@ -23,6 +23,7 @@ from pinecall.api._placing import DialPoliciesDep
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.keys import in_this_world
 from pinecall.auth.keys import ListedKey
+from pinecall.providers.lending import NotLent, a_lending
 from pinecall.types import (
     KEY_SCOPES,
     PRODUCTION,
@@ -104,6 +105,9 @@ class WantedQuotas(WireModel):
     numbers: int | None = None
     seats: int | None = None
     budget_eur: int | None = None
+    # Which of the box's keys the org may run on: absent or null lends all, [] lends nothing,
+    # else vendors and `vendor/model` entries (providers/lending.py).
+    lends: list[str] | None = None
 
 
 # ── the orgs ────────────────────────────────────────────────────────────────────
@@ -147,7 +151,7 @@ async def one(
     org = await an_org(named, orgs)
     return {
         **_as_json(org),
-        "quotas": QUOTAS.dump_python(await orgs.quotas_of(org.id)),
+        "quotas": quotas_as_json(await orgs.quotas_of(org.id)),
         "dialling": DIALLING.dump_python(await policies.of(org.id)),
         "holding": {
             "memory_facts": 0 if memory is None else await memory.kept(org.id),
@@ -236,11 +240,20 @@ async def set_quotas(named: str, said: WantedQuotas, orgs: OrgsDep) -> dict[str,
             numbers=said.numbers,
             seats=said.seats,
             budget_eur=said.budget_eur,
+            lends=None if said.lends is None else a_lending(said.lends),
         )
-    except DeclarationRefused as refused:
+    except (DeclarationRefused, NotLent) as refused:
         raise HTTPException(400, str(refused)) from refused
     await orgs.set_quotas(org.id, quotas)
-    dumped: dict[str, Any] = QUOTAS.dump_python(quotas)
+    return quotas_as_json(quotas)
+
+
+# A set has no order and JSON has no set: the lending is answered sorted, so the same row always
+# reads the same and a diff between two answers is a real one.
+def quotas_as_json(quotas: Quotas) -> dict[str, Any]:
+    """The quotas row as the operator reads it back."""
+    dumped: dict[str, Any] = QUOTAS.dump_python(quotas, mode="json")
+    dumped["lends"] = None if quotas.lends is None else sorted(quotas.lends)
     return dumped
 
 

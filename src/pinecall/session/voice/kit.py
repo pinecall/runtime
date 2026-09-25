@@ -6,9 +6,9 @@ from collections.abc import Callable
 
 from pinecall._settings import Settings
 from pinecall.providers.pipeline import Pipeline, pipeline_for
-from pinecall.types import AgentConfig, ProviderKeys
+from pinecall.types import AgentConfig, Brought
 
-type Kit = Callable[[AgentConfig, ProviderKeys], Pipeline]
+type Kit = Callable[[AgentConfig, Brought], Pipeline]
 """What one process holds: one call and it has every vendor this agent runs on."""
 
 
@@ -18,7 +18,7 @@ type Kit = Callable[[AgentConfig, ProviderKeys], Pipeline]
 def kit_for(settings: Settings) -> Kit:
     """The process's way to a pipeline: the box's keys read once, the vendors built per call."""
 
-    def a_pipeline(config: AgentConfig, keys: ProviderKeys) -> Pipeline:
-        return pipeline_for(config, settings, keys)
+    def a_pipeline(config: AgentConfig, brought: Brought) -> Pipeline:
+        return pipeline_for(config, settings, brought)
 
     return a_pipeline

@@ -123,7 +123,7 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     # and asking it in parallel with the config costs the caller nothing. See providers/registry.py.
     # Both are asked for the route's org and world — the one the call is for — and the corner the
     # dispatch named, so a sandbox call is built from the developer's own declaration.
-    config, keys, melody = await asyncio.gather(
+    config, brought, melody = await asyncio.gather(
         worker.gateway.agent(route.agent, org=route.org, env=route.env, holder=whose.holder),
         worker.gateway.provider_keys(
             route.agent, org=route.org, env=route.env, holder=whose.holder
@@ -165,7 +165,7 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     bridge = worker.bridging(context, config, worker.gateway, recording)
     # Registered before anything can fail: a call that dies mid-setup still seals its own log.
     ctx.add_shutdown_callback(sealing(worker.gateway, bridge, context.call, taping))
-    live = session.a_session(config, worker.kit, route.channel, keys, spoken=not typed)
+    live = session.a_session(config, worker.kit, route.channel, brought, spoken=not typed)
     took("session")
     await clock.seeded(bridge.agent, context.today)
     await bridge.opened(live)

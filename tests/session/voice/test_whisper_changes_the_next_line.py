@@ -13,11 +13,10 @@ from pinecall._settings import load_settings
 from pinecall.log.logs import CallLog
 from pinecall.log.store import MemoryStore
 from pinecall.providers.models import models_for
-from pinecall.providers.registry import NO_ORG_KEYS
 from pinecall.session.text.session import TextSession
 from pinecall.session.voice.supervising import Supervising
 from pinecall.session.voice.writing import Writing
-from pinecall.types import AgentConfig, CallContext, Model, Route
+from pinecall.types import NOTHING_BROUGHT, AgentConfig, CallContext, Model, Route
 from pinecall_protocol import verbs
 from pinecall_protocol.commands import SupervisorVerb
 from pinecall_protocol.defs import EndedBy, EndReason, Supervisor
@@ -89,7 +88,7 @@ async def _a_conversation_under_way() -> TextSession:
         today=date.today(),
     )
     config = AgentConfig(slug=AGENT)
-    haiku = models_for(load_settings())(HAIKU, NO_ORG_KEYS)
+    haiku = models_for(load_settings())(HAIKU, NOTHING_BROUGHT)
     session = TextSession(context, config, CallLog(store, AGENT, CALL), haiku)
     await session.start()
     await session.set_prompt("identity", CLARA)

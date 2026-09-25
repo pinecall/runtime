@@ -9,9 +9,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from starlette.requests import HTTPConnection
 
-from pinecall.api._deps import PipelineKeyDep, SettingsDep, VaultDep, held
+from pinecall.api._deps import OrgsDep, PipelineKeyDep, SettingsDep, VaultDep, held
 from pinecall.auth.throttle import Throttle
-from pinecall.orgs.vault import keys_brought_by
+from pinecall.orgs.vault import brought_by, keys_brought_by
 from pinecall.providers.registry import Asked, NoProvider
 from pinecall.providers.tts.sampling import Sample, SampleRefused, a_line_for, a_sample
 from pinecall.providers.tts.shelf import NotListed, Shelf, ShelfUnreachable
@@ -100,6 +100,7 @@ async def sample(
     vault: VaultDep,
     sampling: SamplingDep,
     sampler: SamplerDep,
+    orgs: OrgsDep,
 ) -> Response:
     """The words in that voice, as a WAV: 422 a typo, 429 too many, 503 no key, 502 no answer."""
     if not sampling.allowed(key.key_id):
@@ -115,12 +116,16 @@ async def sample(
     except DeclarationRefused as refused:
         raise HTTPException(422, str(refused)) from refused
     assert voice is not None  # the_voice answers None only when all three words are None
+    # A sample is spoken on a key, so it is spoken only on what the org may run on: its own, or
+    # what the box lends it. A listing speaks nothing and costs nothing, and lists on either.
+    brought = await brought_by(vault, orgs.quotas_of, key.org)
     asked = Asked(
         settings=settings,
         model=voice.model,
         language=said.language,
         voice_id=voice.voice_id,
-        keys=await keys_brought_by(vault, key.org),
+        keys=brought.keys,
+        lends=brought.lends,
     )
     try:
         heard = await sampler(voice.provider, asked, text)

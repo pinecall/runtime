@@ -13,7 +13,7 @@ from pinecall.log.store import MemoryStore, open_pool
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups, OpenCall
 from pinecall.orgs.table import MemoryOrgs
-from pinecall.orgs.vault import keys_brought_by
+from pinecall.orgs.vault import brought_by
 from pinecall.types import PRODUCTION, Docs, Org, Quotas
 from tests.knowledge.files import CLINICA, TARIFAS, an_org
 from tests.lookups.fakes import AGENT, CALL, OneCall, a_config, a_context, a_plan, the_tenants
@@ -69,7 +69,7 @@ async def test_a_pushed_base_answers_a_search_and_the_log_names_the_sources(
         knowledge,
         logs,
         OneCall(opened),
-        partial(keys_brought_by, None),
+        partial(brought_by, None, the_tenants().quotas_of),
         *a_plan(logs, the_tenants()),
     )
 
@@ -108,7 +108,12 @@ async def test_a_plan_that_keeps_no_chunks_finds_nothing_and_embeds_nothing(
     orgs = MemoryOrgs([Org(id=org, slug=org, name=org)])
     await orgs.set_quotas(org, Quotas(knowledge_chunks=0))
     lookups = Lookups(
-        None, knowledge, logs, OneCall(opened), partial(keys_brought_by, None), *a_plan(logs, orgs)
+        None,
+        knowledge,
+        logs,
+        OneCall(opened),
+        partial(brought_by, None, orgs.quotas_of),
+        *a_plan(logs, orgs),
     )
 
     found = await lookups.lookup(CALL, "search", {"query": "cuánto cuesta la revisión"}, "sp_1")

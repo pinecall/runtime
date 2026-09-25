@@ -153,7 +153,7 @@ _REMOVE = "DELETE FROM orgs WHERE id = $1"
 
 _QUOTAS = """
 SELECT minutes, messages, agents, concurrent_calls, memory_facts, knowledge_chunks, numbers, seats,
-       budget_eur
+       budget_eur, lends
 FROM quotas WHERE org = $1
 """
 
@@ -161,13 +161,14 @@ FROM quotas WHERE org = $1
 _SET_QUOTAS = """
 INSERT INTO quotas
     (org, minutes, messages, agents, concurrent_calls, memory_facts, knowledge_chunks, numbers,
-     seats, budget_eur, set_at)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
+     seats, budget_eur, lends, set_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())
     ON CONFLICT (org) DO UPDATE
     SET minutes = excluded.minutes, messages = excluded.messages, agents = excluded.agents,
         concurrent_calls = excluded.concurrent_calls, memory_facts = excluded.memory_facts,
         knowledge_chunks = excluded.knowledge_chunks, numbers = excluded.numbers,
-        seats = excluded.seats, budget_eur = excluded.budget_eur, set_at = now()
+        seats = excluded.seats, budget_eur = excluded.budget_eur, lends = excluded.lends,
+        set_at = now()
 """
 
 # NULL is on: every org from before 0027, and every org nobody turned it off for.
@@ -228,6 +229,7 @@ class PostgresOrgs:
             quotas.numbers,
             quotas.seats,
             quotas.budget_eur,
+            None if quotas.lends is None else sorted(quotas.lends),
         )
 
     async def judges(self, id: str) -> bool:
@@ -262,6 +264,7 @@ def _quotas(row: Any) -> Quotas:
         numbers=row["numbers"],
         seats=row["seats"],
         budget_eur=row["budget_eur"],
+        lends=None if row["lends"] is None else frozenset(row["lends"]),
     )
 
 

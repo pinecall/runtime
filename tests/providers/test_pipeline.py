@@ -8,8 +8,7 @@ from livekit.plugins import cartesia, deepgram, elevenlabs, openai
 
 from pinecall._settings import Settings
 from pinecall.providers.pipeline import Pipeline, pipeline_for
-from pinecall.providers.registry import NO_ORG_KEYS
-from pinecall.types import AgentConfig, Model, Turn, Voice
+from pinecall.types import NOTHING_BROUGHT, AgentConfig, Model, Turn, Voice
 
 pytestmark = pytest.mark.unit
 
@@ -39,7 +38,7 @@ def test_an_agent_that_declares_nothing_still_gets_a_whole_pipeline(
 ) -> None:
     """A blank declaration once silenced a whole line of calls: it warns now, per modality."""
     with caplog.at_level(logging.WARNING, logger="pinecall.providers.pipeline"):
-        built = pipeline_for(AgentConfig(slug="clinica-norte"), settings(), NO_ORG_KEYS)
+        built = pipeline_for(AgentConfig(slug="clinica-norte"), settings(), NOTHING_BROUGHT)
     assert isinstance(built.stt, deepgram.STTv2)
     assert isinstance(built.tts, cartesia.TTS)
     assert built.llm.label == "livekit.plugins.anthropic.llm.LLM"
@@ -58,7 +57,7 @@ def test_every_vendor_an_agent_names_is_the_one_it_gets() -> None:
         stt=Model(provider="deepgram", model="flux-general-multi"),
         voice=Voice(provider="elevenlabs", model="eleven_v3_conversational", voice_id="a-voice"),
     )
-    built = pipeline_for(declared, settings(), NO_ORG_KEYS)
+    built = pipeline_for(declared, settings(), NOTHING_BROUGHT)
     assert isinstance(built.llm, openai.LLM)
     assert isinstance(built.stt, deepgram.STTv2)
     assert isinstance(built.tts, elevenlabs.TTS)
@@ -69,6 +68,6 @@ def test_every_vendor_an_agent_names_is_the_one_it_gets() -> None:
 
 def test_the_agents_turn_declaration_reaches_the_ears_and_nothing_else() -> None:
     declared = AgentConfig(slug="clinica-norte", turn=Turn(endpointing_ms=650))
-    built = pipeline_for(declared, settings(), NO_ORG_KEYS)
+    built = pipeline_for(declared, settings(), NOTHING_BROUGHT)
     assert isinstance(built.stt, deepgram.STTv2)
     assert built.stt._opts.eot_timeout_ms == 650  # pyright: ignore[reportPrivateUsage]

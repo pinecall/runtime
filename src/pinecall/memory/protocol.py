@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal, Protocol
 
-from pinecall.types import Channel, Env, Fact, MemoryPolicy, Model, ProviderKeys, ToolSpec
+from pinecall.types import Brought, Channel, Env, Fact, MemoryPolicy, Model, ToolSpec
 from pinecall_protocol.defs import MemoryOp
 
 # How many facts one recall hands the model: six, which reads as what it knows about a person
@@ -66,7 +66,7 @@ class Memory(Protocol):
         at: datetime,
         policy: MemoryPolicy,
         llm: Model | None,
-        keys: ProviderKeys,
+        brought: Brought,
         call: str | None = None,
         tools: Sequence[ToolSpec] = (),
     ) -> list[MemoryOp]:

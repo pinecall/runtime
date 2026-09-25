@@ -141,3 +141,17 @@ async def test_an_orgs_provider_round_trips_and_the_secret_is_not_in_the_row(
     assert await sso.with_domain("elsewhere.test") == ()
     assert await sso.drop(org) is True
     assert await sso.drop(org) is False
+
+
+async def test_what_the_box_lends_round_trips_and_null_and_empty_stay_apart(
+    pool: Pool, org: str
+) -> None:
+    """NULL lends every key and an empty array lends none: two answers, never one."""
+    orgs = PostgresOrgs(pool)
+    trial = frozenset({"deepgram", "anthropic/claude-haiku-4-5"})
+    await orgs.set_quotas(org, Quotas(minutes=30, lends=trial))
+    assert (await orgs.quotas_of(org)).lends == trial
+    await orgs.set_quotas(org, Quotas(lends=frozenset()))
+    assert (await orgs.quotas_of(org)).lends == frozenset()
+    await orgs.set_quotas(org, Quotas())
+    assert (await orgs.quotas_of(org)).lends is None

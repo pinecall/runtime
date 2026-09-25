@@ -57,14 +57,14 @@ from pinecall.orgs.carriers import MemoryCarriers
 from pinecall.orgs.meter import Meter
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.orgs.tuning import MemoryTuning
-from pinecall.orgs.vault import MemoryVault, Vault, keys_brought_by
+from pinecall.orgs.vault import MemoryVault, Vault, brought_by
 from pinecall.orgs.widgets import MemoryWidgets
 from pinecall.providers.models import Chat, Models
 from pinecall.routes.table import MemoryRoutes
 from pinecall.routes.trunks import MemoryTrunks
 from pinecall.routes.twilio import TwilioFor
 from pinecall.tokens.ledger import MemoryTokens
-from pinecall.types import Model, Org, ProviderKeys
+from pinecall.types import Brought, Model, Org, ProviderKeys
 from pinecall.worker.client import Gateway
 from tests.api.fake_graph import FakeGraph
 from tests.session.fake_llm import FakeLLM
@@ -224,7 +224,7 @@ def lookups(
         knowledge,
         logs,
         live,
-        partial(keys_brought_by, vault),
+        partial(brought_by, vault, orgs.quotas_of),
         orgs.quotas_of,
         admission.may_remember,
     )
@@ -264,9 +264,9 @@ def keys_asked() -> list[ProviderKeys]:
 def llms(llm: FakeLLM, models_asked: list[Model | None], keys_asked: list[ProviderKeys]) -> Models:
     """The provider table: what the agent declared is remembered, and the scripted model answers."""
 
-    def ask(declared: Model | None, keys: ProviderKeys) -> Chat:
+    def ask(declared: Model | None, brought: Brought) -> Chat:
         models_asked.append(declared)
-        keys_asked.append(keys)
+        keys_asked.append(brought.keys)
         return llm
 
     return ask

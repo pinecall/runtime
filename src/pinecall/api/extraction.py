@@ -6,13 +6,13 @@ import time
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import LlmsDep, MemoryKeyDep, TuningDep, VaultDep
+from pinecall.api._deps import LlmsDep, MemoryKeyDep, OrgsDep, TuningDep, VaultDep
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.api.agents.tuned import tuned_for
 from pinecall.auth.keys import KeyRecord, held_by
 from pinecall.memory.extraction import answered
 from pinecall.memory.goldens import facts_of, judged, turns_of, undeclared
-from pinecall.orgs.vault import keys_brought_by
+from pinecall.orgs.vault import brought_by
 from pinecall.providers.models import DEFAULT_VENDOR, Chat
 from pinecall.types import AgentConfig, MemoryPolicy, Model
 from pinecall_protocol.rest import (
@@ -43,6 +43,7 @@ async def extraction(
     kept: TuningDep,
     llms: LlmsDep,
     vault: VaultDep,
+    orgs: OrgsDep,
 ) -> ExtractionRun:
     """Every case through one extraction each, and the four questions asked of what came back."""
     config = await _the_agent(slug, key, registry, kept)
@@ -53,7 +54,7 @@ async def extraction(
         if (wrong := undeclared(case, policy)) is not None:
             raise HTTPException(status_code=400, detail=wrong)
     started = time.perf_counter()
-    chat = llms(config.llm, await keys_brought_by(vault, key.org))
+    chat = llms(config.llm, await brought_by(vault, orgs.quotas_of, key.org))
     try:
         # One at a time, as the knowledge golden asks its questions: a suite is run when somebody
         # changed the prompt or the model, never on a caller's clock, and a dozen extractions at
