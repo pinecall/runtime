@@ -242,7 +242,8 @@ ready-%:
 # A key is loaded by PATH, and a LoadCredentialEncrypted= path that is missing fails the unit's
 # start — so it is not in the template, where every instance on every box would need one: each
 # gateway gets a drop-in naming the peer keys its store holds, and none when it holds none. Then
-# the one refusal the settings would make at start (HalfAPair), made here before anything moves.
+# the one refusal: a production naming a sandbox it holds no key of would ask nobody about a
+# developer's phone and say nothing, so the deploy stops here, before anything moves.
 PEER_SECRETS = PINECALL_SANDBOX_KEY PINECALL_PEER_KEY
 SANDBOX_URL_OF = sed -n 's|^PINECALL_SANDBOX_URL=||p' $(INSTANCES_DIR)/$(1).env
 peers:

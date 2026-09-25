@@ -8,9 +8,7 @@ from pydantic import ValidationError
 from pinecall._env_files import EnvFileRefused
 from pinecall._settings import (
     ENV_FILES,
-    HALF_A_PAIR,
     NOBODY_TO_ASK,
-    HalfAPair,
     NobodyToAsk,
     Settings,
     env_files_read,
@@ -240,34 +238,6 @@ def test_a_sandbox_with_nobody_to_ask_who_a_person_is_does_not_start(
     with pytest.raises(NobodyToAsk) as refused:
         load_settings()
     assert str(refused.value) == NOBODY_TO_ASK
-
-
-# Production names its sandbox and holds the key the sandbox minted for it, or neither: one alone
-# is a developer's phone nobody asks about, or a key nobody knocks with.
-@pytest.mark.parametrize(
-    "named",
-    [{"PINECALL_SANDBOX_URL": "https://sandbox.example.test"}, {"PINECALL_SANDBOX_KEY": "k"}],
-)
-def test_production_with_half_of_its_sandbox_pair_does_not_start(
-    monkeypatch: pytest.MonkeyPatch, named: dict[str, str]
-) -> None:
-    for name in ("PINECALL_WORLD", "PINECALL_SANDBOX_URL", "PINECALL_SANDBOX_KEY"):
-        monkeypatch.delenv(name, raising=False)
-    for name, value in named.items():
-        monkeypatch.setenv(name, value)
-    with pytest.raises(HalfAPair) as refused:
-        load_settings()
-    assert str(refused.value) == HALF_A_PAIR
-
-
-def test_production_with_both_halves_or_neither_starts(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("PINECALL_WORLD", raising=False)
-    monkeypatch.delenv("PINECALL_SANDBOX_URL", raising=False)
-    monkeypatch.delenv("PINECALL_SANDBOX_KEY", raising=False)
-    assert load_settings().sandbox_url is None
-    monkeypatch.setenv("PINECALL_SANDBOX_URL", "https://sandbox.example.test")
-    monkeypatch.setenv("PINECALL_SANDBOX_KEY", "a-key-the-sandbox-minted")
-    assert load_settings().sandbox_url == "https://sandbox.example.test"
 
 
 def test_the_world_is_read_and_the_fleet_is_pinecall_unless_the_instance_names_one(

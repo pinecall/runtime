@@ -23,8 +23,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `make converge` runs `box peer --among` for every pair on the box (a production whose new
   `PINECALL_SANDBOX_URL` — `box instance --sandbox`, `make instance SANDBOX= FORCE=1` — is a listed
   instance's domain), writes each gateway a drop-in loading the peer keys its store holds, and
-  stops a deploy that would start production naming its sandbox without the key; production
-  refuses to start with one of `PINECALL_SANDBOX_URL`/`PINECALL_SANDBOX_KEY` and not the other. A
+  stops a deploy that would start production naming its sandbox without the key. A
   pair on two boxes is `make peer FROM= INTO= INTO_BOX=`. Production's `GET
   /v1/agents/{slug}/rings-for` asks its sandbox when its own claims have nobody (two seconds; not
   answering is production's, one WARNING line), and answers `{holder, fleet}`; the worker then

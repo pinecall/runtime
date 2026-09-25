@@ -15,7 +15,10 @@ from pinecall.types import PRODUCTION, SANDBOX
 
 # Production asks its sandbox whose a ring is. Named by `PINECALL_SANDBOX_URL` and opened by the
 # fleet key the sandbox minted for it; a production that names no sandbox — a box of one instance
-# — has nobody to ask, and every ring is its own. The settings refuse a URL without its key.
+# — has nobody to ask, and every ring is its own. The URL is in the instance's env file, which its
+# worker, its overflow and its fleet loop read too, and the key is in the gateway's store alone:
+# so the settings hold nobody to the pair, and the manifest refuses the deploy that would start a
+# production naming a sandbox it holds no key of (infra/box/Makefile, `peers`).
 def the_sandbox(connection: HTTPConnection, settings: SettingsDep) -> Peer | None:
     """The sandbox this production asks about a developer's phone, or None: it has none."""
     if settings.world != PRODUCTION or not settings.sandbox_url or not settings.sandbox_key:

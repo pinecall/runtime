@@ -104,16 +104,6 @@ class Settings(VendorKeys):
             raise NobodyToAsk(NOBODY_TO_ASK)
         return self
 
-    # The other half of a pair, said once: production names its sandbox and holds the key the
-    # sandbox's doors open to, or neither. One without the other is a developer's phone that is
-    # never asked about — or a key nobody knocks with — and nothing would say so until a call rang
-    # production that should have rung a laptop.
-    @model_validator(mode="after")
-    def _production_names_its_sandbox_with_its_key(self) -> "Settings":
-        if self.world == PRODUCTION and bool(self.sandbox_url) != bool(self.sandbox_key):
-            raise HalfAPair(HALF_A_PAIR)
-        return self
-
     # ── LiveKit: the media plane both processes talk to ─────────────────────────
     livekit_url: str = Field(
         default="ws://127.0.0.1:7880",
@@ -483,16 +473,6 @@ NOBODY_TO_ASK = "a sandbox instance asks production who a person is: set PINECAL
 
 class NobodyToAsk(PinecallError):
     """A sandbox instance started with no PINECALL_IDENTITY_URL. Nothing runs until it has one."""
-
-
-HALF_A_PAIR = (
-    "production names its sandbox and holds that sandbox's key, or neither: set both "
-    "PINECALL_SANDBOX_URL and PINECALL_SANDBOX_KEY (`pinecall-runtime box peer`), or unset both"
-)
-
-
-class HalfAPair(PinecallError):
-    """Production started with PINECALL_SANDBOX_URL and no PINECALL_SANDBOX_KEY, or the reverse."""
 
 
 def load_settings() -> Settings:
