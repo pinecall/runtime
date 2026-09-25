@@ -94,7 +94,7 @@ async def opened(
     # The org's quotas, against the calls open here and what its log says it has consumed. The
     # refusal is in the agent's log before the worker hears the 429, and the sentence is the same.
     try:
-        seconds_left = await admission.a_call(org, said.agent, live.running(org))
+        ceiling = await admission.a_call(org, said.agent, live.running(org))
     except QuotaExhausted as refused:
         raise HTTPException(429, str(refused)) from refused
     # Which process serves this call is asked here exactly as the chat door asks it, of the same
@@ -137,8 +137,11 @@ async def opened(
         holder=corner,
     )
     await how_it_arrived(log, context, said.agent)
-    # What is left of the org's minutes, for the worker to end this call at: null is no limit.
-    return {"seconds_left": seconds_left}
+    # What is left of the org's minutes, for the worker to end this call at, and the quota they
+    # come out of, for the credits.exhausted it writes when it does: null is no limit.
+    if ceiling is None:
+        return {"seconds_left": None, "minutes": None}
+    return {"seconds_left": ceiling.seconds, "minutes": ceiling.minutes}
 
 
 # A gateway that restarted forgot every call it was serving; the worker still holds each one, with

@@ -57,8 +57,8 @@ class Bridge(Protocol):
         """The room is live: what plays into it while a tool runs, or None for nothing."""
         ...
 
-    async def closing_time(self, limit_s: int) -> None:
-        """The call is live: warn the agent before `limit_s`, and end the call at it."""
+    async def closing_time(self, clock: closing_time.Clock) -> None:
+        """The call is live: warn the agent before the clock's limit, and end the call at it."""
         ...
 
 
@@ -139,7 +139,7 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     context = a_call(ctx.room.name or ctx.job.id, arrival, route)
     # What the dispatch named wins over the flag this process was started with: a spoken eval
     # run has to reach the terminal holding its goldens, and that socket takes no unclaimed call.
-    seconds_left = await worker.gateway.opened(context, route.agent, arrival.app or worker.app)
+    ceiling = await worker.gateway.opened(context, route.agent, arrival.app or worker.app)
     took("opened")
     # A call this box PLACED is dialled here, by the job that will answer on it, and before there
     # is a session to say anything into an empty room. It waits for the far end to pick up, which
@@ -216,9 +216,9 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     # visit, which is the same test a_session builds its ears by (session/voice/session.py). And
     # any call, a written visit too, ends when the org's minutes do: minutes are the call's length.
     spoken = route.channel in session.CHANNELS_THAT_LISTEN and not typed
-    limit_s = closing_time.the_ceiling(config.max_duration_s if spoken else NO_LIMIT, seconds_left)
-    if limit_s != NO_LIMIT:
-        closing = asyncio.ensure_future(bridge.closing_time(limit_s))
+    kept = closing_time.the_clock(config.max_duration_s if spoken else NO_LIMIT, ceiling, route.org)
+    if kept.limit_s != NO_LIMIT:
+        closing = asyncio.ensure_future(bridge.closing_time(kept))
         ctx.add_shutdown_callback(letting_go(closing))
 
 

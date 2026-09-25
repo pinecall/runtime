@@ -106,7 +106,10 @@ async def a_mirrored_key(  # noqa: PLR0913 — the code, the label, and every st
     if await orgs.mirrored(org) is None:
         raise HTTPException(409, SLUG_HELD_HERE.format(slug=org.slug))
     if known is None:
-        allowed = admitted(org, member.email, SANDBOX)
+        # The sandbox's own rows of this person, before this org's is mirrored: the orgs they
+        # already brought here, which is what a policy giving one trial per person reads.
+        already = len(await members.orgs_of(member.email))
+        allowed = admitted(org, member.email, SANDBOX, already)
         if allowed != Quotas():
             await orgs.set_quotas(org.id, allowed)
     stale = await members.by_email(org.id, member.email)

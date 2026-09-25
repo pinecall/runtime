@@ -43,7 +43,9 @@ what a plan sells a team by, counted as everybody the org has not disabled. A te
 A call opened with minutes left does not outrun them: the open door answers the worker how many
 seconds are left, and the call is kept to the lesser of that and the agent's own `max_duration_s`
 on the one clock that ends it — the agent told to close a minute before, the call ended as
-`timeout` by the `platform`, a written visit in the browser included. Calls open at once each
+`timeout` by the `platform`, a written visit in the browser included. When it is the org's minutes
+that end it and not the agent's own limit, `credits.exhausted` is written on the call's log just
+before `call.ended`, so the call says why it ended. Calls open at once each
 count from the same minutes, so `concurrent_calls` is what keeps a trial from spending them twice;
 the next call is refused with `credits.exhausted`.
 
@@ -92,7 +94,8 @@ only where `billing_url` is set: a self-hosted box shows neither.
 ## What a new org is allowed
 
 A new org's quotas are a policy's to say, not the operator's to type. A package named in
-`PINECALL_EXTENSIONS` answers `admitted(org, email, world)` with the org's `Quotas`, and each
+`PINECALL_EXTENSIONS` answers `admitted(org, email, world, already)` — `already` the orgs that
+email already belongs to on this instance, so a trial can be one per person — with the org's `Quotas`, and each
 instance asks it **once, in its own world**, the moment it makes an org it did not have: production
 at signup, a sandbox the first time it mirrors the org from production. An org already there — a
 later sign-in, one the sandbox seed copied — is never admitted again. With no package loaded the

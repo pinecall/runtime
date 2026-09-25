@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import Protocol
 
 from pinecall.session.voice.commands import Ending
 from pinecall.types.agent import NO_LIMIT
+from pinecall.types.org import Ceiling
+from pinecall_protocol.events import CreditsExhausted
 
 # How long before the limit the agent is told: a minute is a goodbye and a last answer. A limit
 # shorter than two minutes is told at its half, so the warning never comes before the call began.
@@ -43,6 +46,28 @@ def the_ceiling(agents_limit_s: int, seconds_left: int | None) -> int:
     return min(agents_limit_s, seconds_left)
 
 
+@dataclass(frozen=True)
+class Clock:
+    """The limit a call is kept to, and the refusal it ends with when the org's minutes set it."""
+
+    limit_s: int
+    # Written just before the end when it is the org's minutes that end the call and not the
+    # agent's own limit: a tenant reading the call's log sees why, in the protocol's own words.
+    exhausted: CreditsExhausted | None = None
+
+
+# One place the worker asks, so the limit and the reason for it can never disagree. The minutes
+# end the call when they come first — strictly first: at a tie the agent's own limit is the reason.
+def the_clock(agents_limit_s: int, ceiling: Ceiling | None, org: str) -> Clock:
+    """The clock a call is kept on: the lesser limit, and credits.exhausted when it is the org's."""
+    seconds_left = None if ceiling is None else ceiling.seconds
+    limit_s = the_ceiling(agents_limit_s, seconds_left)
+    if ceiling is None or (agents_limit_s != NO_LIMIT and agents_limit_s <= ceiling.seconds):
+        return Clock(limit_s)
+    spent = CreditsExhausted(org=org, quota="minutes", used=ceiling.minutes, limit=ceiling.minutes)
+    return Clock(limit_s, spent)
+
+
 # Counted from the moment the session is live, which is when call.started was written: the caller
 # is on the line from there. The end drains the sentence being said (at_once=False) and is written
 # as `timeout` by the `platform` — the words EndReason and EndedBy already have for it. The limit
@@ -54,6 +79,8 @@ async def keep(
     ending: Ending,
     a_person_has_the_line: Callable[[], bool],
     sleep: Sleep = asyncio.sleep,
+    *,
+    before_the_end: Callable[[], Awaitable[None]] | None = None,
 ) -> None:
     """Warn the agent before `limit_s`, and end the call at it. Zero is no limit, and returns."""
     if limit_s == NO_LIMIT:
@@ -63,4 +90,6 @@ async def keep(
     if not a_person_has_the_line():
         live.generate_reply(instructions=CLOSING)
     await sleep(limit_s - warned_at)
+    if before_the_end is not None:
+        await before_the_end()
     await ending.hangup("timeout", "platform")

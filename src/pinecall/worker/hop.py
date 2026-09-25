@@ -10,6 +10,7 @@ import httpx
 
 from pinecall.session.voice.platform import PlatformRefused
 from pinecall.types.json import JsonObject
+from pinecall.types.org import Ceiling
 
 # A call is not worth waiting on a control plane for: the caller is on the line.
 TIMEOUT_S = 5.0
@@ -135,3 +136,12 @@ def the_detail_of(refusal: str) -> str:
         return refusal
     detail = cast("dict[str, object]", said).get("detail")
     return detail if isinstance(detail, str) and detail else refusal
+
+
+# A gateway older than the ceiling answered 204, and one whose org's minutes have no limit answers
+# null: both are no ceiling at all.
+def a_ceiling(answer: Any) -> Ceiling | None:
+    """What POST /v1/calls answered about the org's minutes, as the worker keeps it."""
+    if answer is None or answer.get("seconds_left") is None:
+        return None
+    return Ceiling(seconds=int(answer["seconds_left"]), minutes=int(answer["minutes"]))

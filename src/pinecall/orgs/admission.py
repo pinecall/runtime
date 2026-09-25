@@ -11,13 +11,13 @@ from pinecall.log.writers import Logs
 from pinecall.orgs.meter import Meter
 from pinecall.orgs.table import Orgs
 from pinecall.types import Counting, QuotaName, Quotas
+from pinecall.types.org import EXHAUSTED, Ceiling
 from pinecall_protocol import encode
 from pinecall_protocol.events import CreditsExhausted
 
-# The event the refusal is written as, into the agent's own log — which is the org's log, since
-# every agent is one org's — before the door says no. A tenant reading its log sees WHY the call
-# never rang, in the protocol's own vocabulary, and the door's 429 says the same sentence.
-EXHAUSTED = "credits.exhausted"
+# The event the refusal is written as (types/org.py), into the agent's own log — which is the org's
+# log, since every agent is one org's — before the door says no. A tenant reading its log sees WHY
+# the call never rang, in the protocol's own vocabulary, and the door's 429 says the same sentence.
 
 # The sentence, one shape for every quota: what ran out, how much was used, what the limit was.
 REFUSED = "org {org} has used {used} of its {limit} {quota}: {event}"
@@ -64,7 +64,7 @@ class Admission:
     # not limited — and the worker ends it there on the agent's own clock
     # (session/voice/closing_time.py). Never zero, which that clock reads as no limit: a call
     # admitted at all is admitted for at least a second.
-    async def a_call(self, org: str, agent: str, running: int) -> int | None:
+    async def a_call(self, org: str, agent: str, running: int) -> Ceiling | None:
         """May this org open one more call for this agent — and for how many seconds at most."""
         quotas = await self._orgs.quotas_of(org)
         await self._refuse_past(org, agent, quotas, "concurrent_calls", running)
@@ -77,7 +77,8 @@ class Admission:
         await self._refuse_past(org, agent, quotas, "llm_tokens", tokens)
         if quotas.minutes is None:
             return None
-        return max(1, int((quotas.minutes - totals.minutes) * 60))
+        seconds = max(1, int((quotas.minutes - totals.minutes) * 60))
+        return Ceiling(seconds=seconds, minutes=quotas.minutes)
 
     # A written conversation opens once and may then run for hours, and the Meter folds a call
     # only at its call.summary, when it has hung up. So a chat is asked again before each turn

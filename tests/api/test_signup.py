@@ -84,10 +84,10 @@ async def test_a_policy_plugged_into_the_point_decides_what_the_new_org_may_do(
 ) -> None:
     """The runtime knows no plan; a package beside it maps one onto Quotas, and the door obeys."""
     a_trial = Quotas(minutes=45, agents=2, numbers=1)
-    seen: list[tuple[str, str, str]] = []
+    seen: list[tuple[str, str, str, int]] = []
 
-    def admitted(org: Any, email: str, world: str) -> Quotas:
-        seen.append((org.slug, email, world))
+    def admitted(org: Any, email: str, world: str, already: int) -> Quotas:
+        seen.append((org.slug, email, world, already))
         return a_trial
 
     extensions.admitted = admitted
@@ -96,7 +96,25 @@ async def test_a_policy_plugged_into_the_point_decides_what_the_new_org_may_do(
     org = await orgs.find("tienda-sur")
     assert org is not None
     assert await orgs.quotas_of(org.id) == a_trial
-    assert seen == [("tienda-sur", TIENDA["email"], "production")], "asked in this instance's world"
+    assert seen == [("tienda-sur", TIENDA["email"], "production", 0)], (
+        "asked in this world, a first org"
+    )
+
+
+async def test_the_policy_is_told_a_second_org_of_the_same_person_is_not_their_first(
+    stranger: httpx.AsyncClient, extensions: Extensions
+) -> None:
+    """One trial per person is the policy's to decide, and this number is how it can."""
+    seen: list[int] = []
+
+    def admitted(org: Any, email: str, world: str, already: int) -> Quotas:  # noqa: ARG001
+        seen.append(already)
+        return Quotas()
+
+    extensions.admitted = admitted
+    assert (await signed_up(stranger)).status_code == 201
+    assert (await signed_up(stranger, org="tienda-norte")).status_code == 201
+    assert seen == [0, 1]
 
 
 async def test_the_code_logs_a_browser_in_and_the_password_logs_the_person_in_after(

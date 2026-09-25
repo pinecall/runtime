@@ -129,16 +129,18 @@ async def test_an_org_new_to_the_sandbox_is_admitted_once_in_the_sandboxs_world(
     extensions: Extensions,
 ) -> None:
     a_trial = Quotas(minutes=30)
-    asked: list[tuple[str, str, str]] = []
+    asked: list[tuple[str, str, str, int]] = []
 
-    def admitted(org: Org, email: str, world: str) -> Quotas:
-        asked.append((org.slug, email, world))
+    def admitted(org: Org, email: str, world: str, already: int) -> Quotas:
+        asked.append((org.slug, email, world, already))
         return a_trial
 
     extensions.admitted = admitted
     await signed_in(stranger)
     await signed_in(stranger)
-    assert asked == [(TIENDA.slug, BERNA.email, SANDBOX)], "once, and never on the second sign-in"
+    assert asked == [(TIENDA.slug, BERNA.email, SANDBOX, 0)], (
+        "once, and never on the second sign-in"
+    )
     assert await orgs.quotas_of(TIENDA.id) == a_trial
 
 
@@ -153,7 +155,7 @@ async def test_an_org_the_sandbox_already_held_is_never_admitted(
     await orgs.mirrored(TIENDA)
     asked: list[str] = []
 
-    def admitted(org: Org, email: str, world: str) -> Quotas:  # noqa: ARG001
+    def admitted(org: Org, email: str, world: str, already: int) -> Quotas:  # noqa: ARG001
         asked.append(org.slug)
         return Quotas(minutes=30)
 

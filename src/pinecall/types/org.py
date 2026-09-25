@@ -123,6 +123,22 @@ class Quotas:
         return limit == 0
 
 
+# The event a quota's refusal is written as: at a door by admission, and on a call's own log by the
+# worker whose clock the org's minutes ran out on (session/voice/closing_time.py).
+EXHAUSTED = "credits.exhausted"
+
+
+# What the org's minutes leave one call, as admission answers it at the open (orgs/admission.py):
+# the seconds, and the minutes quota they come out of — which a worker cutting the call names in
+# the credits.exhausted it writes, so the log says the org's minutes ended it and not the agent.
+@dataclass(frozen=True)
+class Ceiling:
+    """How long a call may last by the org's minutes, and the quota that says so."""
+
+    seconds: int
+    minutes: int
+
+
 # How many of a quota's thing one org keeps right now, asked of the table that keeps them — a
 # count of rows, never a counter column. The gate holds one of these and calls it ONLY when a
 # limit is set: a count is a query over a whole table, and an org nobody limited never pays for it.

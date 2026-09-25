@@ -47,15 +47,17 @@ TRIAL = Quotas(
 CLOSED = Quotas(minutes=0, messages=0, lends=frozenset())
 
 
-def admitted(org: Org, email: str, world: Env) -> Quotas:
-    """A new org: a trial in the sandbox, nothing in production until it pays."""
-    return CLOSED if world == PRODUCTION else TRIAL
+def admitted(org: Org, email: str, world: Env, already: int) -> Quotas:
+    """A person's first org: a trial in the sandbox. Production, or a second org: closed."""
+    return TRIAL if world != PRODUCTION and already == 0 else CLOSED
 
 
 def register(extensions) -> None:
     extensions.admitted = admitted
 ```
 
+`already` is how many orgs that email already belongs to on this instance, the new one not
+counted: a trial given only where it is `0` is one trial per person, not one per org they make.
 Each instance asks it **once, in its own world**, the moment it makes an org it did not have:
 production at signup (`POST /v1/signup`, when `PINECALL_SIGNUP` is on), a sandbox the first time
 it mirrors the org from production. An org already there is never asked about again. A name in

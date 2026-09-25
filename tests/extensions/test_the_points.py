@@ -31,14 +31,14 @@ def test_with_nothing_named_every_point_holds_the_runtimes_own_answer() -> None:
     """A box of its own: an org made at the alta may do everything, and no row says so."""
     extensions = extensions_from(Settings(world="production", extensions=""))
     assert extensions.admitted is unlimited
-    assert extensions.admitted(AN_ORG, "ana@clinica.uy", PRODUCTION) == Quotas()
+    assert extensions.admitted(AN_ORG, "ana@clinica.uy", PRODUCTION, 0) == Quotas()
 
 
 def test_a_named_package_is_imported_once_and_fills_the_point_it_has_a_policy_for() -> None:
     """What getsentry does to sentry: import the open one, register, and the door never knows."""
     filled: list[Extensions] = []
 
-    def a_trial(org: Org, email: str, world: Env) -> Quotas:  # noqa: ARG001 — every policy's shape
+    def a_trial(org: Org, email: str, world: Env, already: int) -> Quotas:  # noqa: ARG001
         return A_TRIAL
 
     def register(extensions: Extensions) -> None:
@@ -51,7 +51,7 @@ def test_a_named_package_is_imported_once_and_fills_the_point_it_has_a_policy_fo
     finally:
         del sys.modules["a_cloud_of_ours"]
     assert len(filled) == 1
-    assert extensions.admitted(AN_ORG, "ana@clinica.uy", SANDBOX) == A_TRIAL
+    assert extensions.admitted(AN_ORG, "ana@clinica.uy", SANDBOX, 0) == A_TRIAL
 
 
 def test_a_name_that_does_not_import_stops_the_start_rather_than_admitting_without_limits() -> None:

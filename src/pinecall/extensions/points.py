@@ -12,11 +12,13 @@ from pinecall.types import Env, Org, Quotas
 # standing with the wrong limits. The world is the instance's (`PINECALL_WORLD`): one package serves
 # both, and what a new org may do in the sandbox is not what it may do in production. It speaks
 # Quotas, the mechanism, and knows no word for a plan: a package that charges maps its plans onto
-# these numbers on its own side.
-type Admitting = Callable[[Org, str, Env], Quotas]
+# these numbers on its own side. `already` is how many orgs the person already belongs to on this
+# instance, the new one not counted: a policy that gives a trial gives it to a person's FIRST org,
+# and a second org made by the same email is a thing only this number lets it tell apart.
+type Admitting = Callable[[Org, str, Env, int], Quotas]
 
 
-def unlimited(org: Org, email: str, world: Env) -> Quotas:  # noqa: ARG001 — every policy's shape
+def unlimited(org: Org, email: str, world: Env, already: int) -> Quotas:  # noqa: ARG001 — the shape
     """A box of its own: an org made here may do everything, which is what no row means."""
     return Quotas()
 

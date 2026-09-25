@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Mapping, Sequence
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +40,7 @@ from pinecall.session.voice.supervising import Supervising
 from pinecall.session.voice.tools import Tools
 from pinecall.session.voice.writing import Writing
 from pinecall.types import AgentConfig, Blocks, CallContext
+from pinecall.types.org import EXHAUSTED
 from pinecall_protocol import Command, ProtocolError, defs
 from pinecall_protocol.codec import decode_entry
 from pinecall_protocol.events import (
@@ -155,10 +157,15 @@ class VoiceBridge:
         )
         await a_line_for_the_file_it_ships_with(self.blocks, self.writing.emit)
 
-    async def closing_time(self, limit_s: int) -> None:
+    async def closing_time(self, clock: closing_time.Clock) -> None:
         """This call's limit, kept: the agent warned a minute before it, the call ended at it."""
-        if self._live is not None:
-            await closing_time.keep(limit_s, self._live, self.ending, self._taken)
+        if self._live is None:
+            return
+        exhausted = clock.exhausted
+        written = None if exhausted is None else partial(self.writing.emit, EXHAUSTED, exhausted)
+        await closing_time.keep(
+            clock.limit_s, self._live, self.ending, self._taken, before_the_end=written
+        )
 
     async def holding(self, melody: Path | None) -> None:
         """The room is live: what the caller hears while a tool runs, or None for nothing."""

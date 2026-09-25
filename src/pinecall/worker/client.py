@@ -22,11 +22,13 @@ from pinecall.types import (
 )
 from pinecall.types.dispatch import Handover
 from pinecall.types.json import JsonObject
+from pinecall.types.org import Ceiling
 from pinecall.worker.hop import (
     NOT_FOUND,
     TAIL_TIMEOUT,
     TIMEOUT_S,
     GatewayRefused,
+    a_ceiling,
     fetched,
     found,
     read,
@@ -187,17 +189,17 @@ class Gateway:
         )
         return RingsFor.model_validate(said).handover()
 
-    async def opened(self, context: CallContext, agent: str, app: str | None = None) -> int | None:
-        """A call started: its log opened, and the seconds the org's minutes leave it, or None."""
+    async def opened(
+        self, context: CallContext, agent: str, app: str | None = None
+    ) -> Ceiling | None:
+        """A call started: its log opened, and what the org's minutes leave it, or None."""
         said: JsonObject = {"agent": agent, "context": CONTEXT.dump_python(context, mode="json")}
-        # Which app socket serves this call, when the process that started the worker named one:
-        # `pinecall talk` does, so a @tool breakpoint lands in the terminal it was typed in.
+        # The app socket `pinecall talk` named, so a @tool breakpoint lands in its terminal.
         if app is not None:
             said["app"] = app
         answer = await self._read("POST", "/v1/calls", said)
         self._opened[context.call] = said
-        # A gateway older than the ceiling answered 204, which is no limit.
-        return None if answer is None else answer.get("seconds_left")
+        return a_ceiling(answer)
 
     async def append(
         self, call: str, type: str, data: Mapping[str, Any], ephemeral: bool | None = None

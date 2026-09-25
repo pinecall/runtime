@@ -6,7 +6,16 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 
 ## [Unreleased]
 
+### Changed
+- **Breaking for extension authors: `Admitting` takes `already`**, how many orgs the email already
+  belongs to on this instance, the new one not counted: `admitted(org, email, world, already)`. A
+  policy that gives a trial could not tell a person's second org from their first, so one person
+  could make orgs for as many trials as they liked.
+
 ### Added
+- **A call the org's minutes end says so.** When the minutes, not the agent's own limit, are what
+  end a call, the worker writes `credits.exhausted` on the call's log before `call.ended`;
+  `POST /v1/calls` answers the minutes quota beside `seconds_left` for it.
 - **A box installs the policy packages it names.** `EXTENSIONS_SRC` in `deploy.local.mk` (checkouts,
   space separated): `make deploy` carries each to `/opt/pinecall/extensions/` and installs it into
   the venv with `--no-deps` after `uv sync --frozen`, which removed a package installed by hand at

@@ -14,6 +14,7 @@ from pinecall.api.agents.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.types import CallContext, Quotas, Route
+from pinecall.types.org import Ceiling
 from pinecall.worker.client import Gateway
 from pinecall.worker.hop import GatewayRefused
 from tests.api.conftest import A_KEY, A_RECORD, AGENT
@@ -83,7 +84,7 @@ async def test_the_open_door_answers_what_is_left_of_the_orgs_minutes_in_seconds
     await declared(registry)
     await orgs.set_quotas(ORG, Quotas(minutes=2))
     await spent(store, "CA_first", 1.5)
-    assert await worker_gateway.opened(a_call("CA_second"), AGENT) == 30
+    assert await worker_gateway.opened(a_call("CA_second"), AGENT) == Ceiling(seconds=30, minutes=2)
 
 
 async def test_an_org_whose_minutes_nobody_limited_is_answered_no_ceiling(

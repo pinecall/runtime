@@ -104,12 +104,14 @@ async def signup(
         raise HTTPException(401, NOBODY_ANYWHERE)
     if known is None and await members.orgs_of(said.email):
         raise HTTPException(409, ALREADY_INVITED.format(email=said.email))
+    # Counted before the org exists: the orgs this person already had here (extensions/points.py).
+    already = len(await members.orgs_of(said.email))
     org = await orgs.create(slug, said.name or said.org)
     if org is None:
         raise HTTPException(409, TAKEN.format(slug=slug))
     # What this org may do is whoever charges for it's to say, through the point a package plugged
     # into (extensions/points.py); the runtime's own answer is no limit, and no limit is no row.
-    allowed = extensions.admitted(org, said.email, settings.world)
+    allowed = extensions.admitted(org, said.email, settings.world, already)
     if allowed != Quotas():
         await orgs.set_quotas(org.id, allowed)
     # The org is new, so nobody holds the email yet: the invitation is minted and spent in one
