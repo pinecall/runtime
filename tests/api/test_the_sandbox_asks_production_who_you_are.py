@@ -13,7 +13,7 @@ import pytest
 
 from pinecall._settings import Settings
 from pinecall.api.app import app
-from pinecall.api.identity import ADDRESS_HELD_HERE, SLUG_HELD_HERE, the_identity
+from pinecall.api.identity import NOT_ACTIVE, SLUG_HELD_HERE, the_identity
 from pinecall.api.login import NO_CODE, NOT_A_MEMBER
 from pinecall.auth.identity import REDEEM, UNREACHABLE, Identity
 from pinecall.auth.keys import MemoryKeys
@@ -179,21 +179,42 @@ async def test_a_slug_an_org_of_the_sandboxs_own_holds_is_not_taken_from_it(
     assert await orgs.find("tienda") == ours
 
 
-async def test_an_address_another_row_holds_in_the_org_is_not_written_over(
+async def test_a_stale_mirror_of_the_address_goes_and_its_keys_stop(
     sandbox: Settings,  # noqa: ARG001
-    production: Production,  # noqa: ARG001
+    production: Production,
     stranger: httpx.AsyncClient,
-    orgs: MemoryOrgs,
     members: MemoryMembers,
+    keys: MemoryKeys,
 ) -> None:
     """Production removed Berna and invited her again: a new id, and the old row still here."""
-    await orgs.mirrored(TIENDA)
-    await members.mirrored(replace(BERNA, id="m_berna_before"))
+    before = replace(BERNA, id="m_berna_before")
+    production.answer = httpx.Response(200, json=redeemed(member=before))
+    old_key = (await signed_in(stranger))["key"]
+    production.answer = httpx.Response(200, json=redeemed())
+    signed = await signed_in(stranger)
+    assert signed["subject"] == BERNA.id
+    assert await members.find(TIENDA.id, before.id) is None
+    assert await keys.verify(old_key) is None, "the removed person's key opens nothing"
+
+
+async def test_a_member_production_disabled_is_mirrored_disabled_and_loses_every_key_here(
+    sandbox: Settings,  # noqa: ARG001
+    production: Production,
+    stranger: httpx.AsyncClient,
+    members: MemoryMembers,
+) -> None:
+    """At the next sign-in, not in a day: the key she already holds is 401 from then on."""
+    earlier = (await signed_in(stranger))["key"]
+    production.answer = httpx.Response(200, json=redeemed(member=replace(BERNA, status="disabled")))
     refused = await stranger.post(LOGIN, json={"code": A_CODE})
     assert (refused.status_code, refused.json()["detail"]) == (
-        409,
-        ADDRESS_HELD_HERE.format(email=BERNA.email, slug="tienda"),
+        403,
+        NOT_ACTIVE.format(email=BERNA.email, slug="tienda"),
     )
+    mirrored = await members.find(TIENDA.id, BERNA.id)
+    assert mirrored is not None and mirrored.status == "disabled"
+    async with at_the_console(earlier, SANDBOX) as berna:
+        assert (await berna.get("/v1/whoami")).status_code == 401
 
 
 async def test_the_org_switch_lists_only_the_orgs_signed_into_here(

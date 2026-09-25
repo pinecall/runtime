@@ -90,11 +90,13 @@ class Members(Protocol):
     # A sandbox instance's people are production's, mirrored at each sign-in there
     # (api/identity.py): the SAME id, so a key's subject names one person on both instances, and
     # the role, the agents and the standing as production says them now. No password — a sandbox
-    # keeps none — and verified, since production vouched for the address. A row of this org
-    # holding the address under another id is not written over.
+    # keeps none — and verified, since production vouched for the address. Every row there is a
+    # mirror, so a row of this org holding the address under ANOTHER id is a person production
+    # removed and invited again: it goes, as the removal it mirrors did (its keys are the caller's
+    # to revoke first). It cannot stay disabled beside the new one: (org, email) is UNIQUE (0014).
     async def mirrored(self, member: Member) -> Member | None:
-        """The member as production says it, inserted or updated by id. None when the address
-        is another row's in the org, or the id is a member of another org here."""
+        """The member as production says it, inserted or updated by id, over any stale row of the
+        address. None when the id is a member of another org here."""
         ...
 
     async def listed(self, org: str) -> tuple[Member, ...]:

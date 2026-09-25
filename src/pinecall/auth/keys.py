@@ -302,6 +302,15 @@ def keys_for(settings: Settings, pool: Pool | None) -> Keys | None:  # noqa: ARG
     return StandingKeys(PostgresKeys(pool), members_for(pool))
 
 
+# Disabling or removing a person at production, and a sandbox learning either from production,
+# stop every key of theirs the same way: the rows stay, revoked, because the log names them.
+async def revoked_every_key_of(keys: Keys, org: str, member: str) -> None:
+    """Every live key minted for this person, stopped. The org's machine keys are not theirs."""
+    for row in await keys.listed(org):
+        if row.subject == member and row.revoked_at is None:
+            await keys.revoke(row.fingerprint)
+
+
 def has_expired(record: KeyRecord) -> bool:
     """Whether this key's moment has passed: the memory twin's half of the lookup's WHERE."""
     return record.expires_at is not None and record.expires_at <= datetime.now(UTC)

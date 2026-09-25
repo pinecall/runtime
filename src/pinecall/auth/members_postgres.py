@@ -27,13 +27,16 @@ VALUES ($1, $2, $3, $4, $5, $6, 'invited', $7)
 
 _LISTED = f"SELECT {_A_ROW} FROM members WHERE org = $1 ORDER BY created_at, id"
 
+# A stale mirror of the address — the person production removed and invited again — goes before
+# production's row is written, or the UNIQUE (org, email) would refuse it. Two statements and no
+# transaction, on purpose: the stale row is wrong whether or not the upsert after it succeeds.
+_DISPLACED = "DELETE FROM members WHERE org = $1 AND email = $2 AND id <> $3"
+
 # Production's row, by its id: inserted with no password and verified, or its production-owned
-# fields written over — fenced by the org, and never over a row of this org holding the address
-# under another id (the WHERE, so the UNIQUE (org, email) is never what answers).
+# fields written over — fenced by the org, so an id of another org's here is refused (empty).
 _MIRRORED = f"""
 INSERT INTO members (id, org, email, name, role, agents, status, verified_at)
-SELECT $1::text, $2::text, $3::text, $4::text, $5::text, $6::text[], $7::text, now()
- WHERE NOT EXISTS (SELECT 1 FROM members WHERE org = $2 AND email = $3 AND id <> $1)
+VALUES ($1, $2, $3, $4, $5, $6, $7, now())
     ON CONFLICT (id) DO UPDATE
    SET email = excluded.email, name = excluded.name, role = excluded.role,
        agents = excluded.agents, status = excluded.status,
@@ -247,12 +250,15 @@ class PostgresMembers:
         return None if row is None else a_member_of_row(row)
 
     async def mirrored(self, member: Member) -> Member | None:
-        """One upsert; an empty RETURNING is the address or the id being somebody else's here."""
+        """The stale row of the address out, then one upsert; an empty RETURNING is the id being
+        another org's member here."""
+        email = an_address(member.email)
+        await self._pool.execute(_DISPLACED, member.org, email, member.id)
         row = await self._pool.fetchrow(
             _MIRRORED,
             member.id,
             member.org,
-            an_address(member.email),
+            email,
             member.name,
             member.role,
             sorted(member.agents),

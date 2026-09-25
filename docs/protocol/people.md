@@ -161,18 +161,18 @@ console's "Forgot your password?" says: ask an admin of your org.
 
 ## Two instances: production says who a person is
 
-A sandbox instance keeps no password and makes no person: **every door a person is made, proved or
-handed a key by a password at is production's** — on a sandbox the password login, `POST
-/v1/login/orgs`, pairing, sign-up, SSO, Google and the forgotten password are `404 this is the
-sandbox, and people sign in at <PINECALL_IDENTITY_URL>: …`. A person signs in at production and
-carries a code across; the sandbox's `POST /v1/login {code}` spends a code of its own first, else
-redeems it at production — `POST /v1/login/redeem {code}`, keyless (the code is the credential),
-answers `{org: {id, slug, name}, member: {id, email, name, role, agents, status}}`, the row **now**
-and never the production switch; `404` a code unknown or spent, `403` one a server's token or a
-visit minted or a member no longer active, `429` the sixth in a minute from one place. The sandbox
-mirrors both rows **by production's ids** (no password, the address verified) and mints a key that
-lives a day: `409` when a row of its own holds that slug or address under another id, production's
-refusal in production's status and words, `502` when production does not answer.
+A sandbox instance keeps no password and makes no person: **every door a person is made, proved,
+changed or handed a key by a password at is production's** — on a sandbox the password login and
+org picker, pairing, sign-up, SSO, Google, the forgotten password and every member door but `GET
+/v1/members` are `404 this is the sandbox, and people sign in at <PINECALL_IDENTITY_URL>: …`. A
+code minted at production crosses instead: the sandbox's `POST /v1/login {code}` spends one of its
+own, else `POST /v1/login/redeem {code}` at production — keyless, unthrottled (24 random bytes,
+spent once) — answers `{org: {id, slug, name}, member: {id, email, name, role, agents, status}}`,
+the row as it stands, `disabled` included, never the production switch (`403` for a server's or a
+visit's code, or a member removed). The sandbox mirrors both **by production's ids** (no password,
+verified; a stale row of the address loses its keys and goes) and mints a key that lives a day —
+or, for a member production disabled, revokes every key of theirs there and is `403`. `409` an org
+of its own holding the slug; production's refusals pass through; `502` production silent.
 
 ## Mail: the letters a box sends
 

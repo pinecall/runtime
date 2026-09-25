@@ -139,10 +139,10 @@ async def test_a_vouched_link_proves_the_address_and_a_proved_person_is_seated_a
     assert await members.vouched_for(org, accepted.id) is None
 
 
-async def test_a_mirrored_member_is_upserted_by_productions_id_and_never_over_another_row(
+async def test_a_mirrored_member_is_upserted_by_productions_id_over_a_stale_row_of_the_address(
     pool: Pool, org: str
 ) -> None:
-    """The same statement a sandbox runs at every sign-in: inserted, then written over, fenced."""
+    """The statements a sandbox runs at every sign-in: inserted, written over, a stale row out."""
     members = PostgresMembers(pool)
     berna = Member(
         id=f"m_{uuid4().hex[:12]}",
@@ -164,4 +164,6 @@ async def test_a_mirrored_member_is_upserted_by_productions_id_and_never_over_an
     assert kept is not None and kept.password_hash is None
     again = await members.mirrored(replace(berna, role="qa", status="disabled"))
     assert again is not None and (again.role, again.status) == ("qa", "disabled")
-    assert await members.mirrored(replace(berna, id=f"m_{uuid4().hex[:12]}")) is None
+    again_invited = replace(berna, id=f"m_{uuid4().hex[:12]}")
+    assert await members.mirrored(again_invited) is not None, "the stale row gives the address up"
+    assert [m.id for m in await members.listed(org)] == [again_invited.id]

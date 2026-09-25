@@ -178,10 +178,11 @@ async def test_mirroring_again_writes_productions_fields_over_and_keeps_the_rest
     assert [m.id for m in await members.listed(ORG)] == ["m_berna"]
 
 
-async def test_a_mirror_never_writes_over_another_rows_address_or_another_orgs_id() -> None:
+async def test_a_mirror_takes_the_address_from_a_stale_row_and_never_another_orgs_id() -> None:
+    """Every row of a sandbox is a mirror: the address under another id is a person production
+    removed and invited again, and that row goes as the removal did."""
     members = MemoryMembers()
     await members.mirrored(replace(PRODUCTIONS_BERNA, id="m_berna_before"))
-    assert await members.mirrored(PRODUCTIONS_BERNA) is None
-    ana = replace(PRODUCTIONS_BERNA, email="ana@clinica.uy")
-    assert await members.mirrored(ana) is not None
-    assert await members.mirrored(replace(ana, org="tienda")) is None
+    assert await members.mirrored(PRODUCTIONS_BERNA) is not None
+    assert [m.id for m in await members.listed(ORG)] == ["m_berna"]
+    assert await members.mirrored(replace(PRODUCTIONS_BERNA, org="tienda")) is None

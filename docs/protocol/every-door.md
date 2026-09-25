@@ -35,14 +35,14 @@ key by a password at — are `404` on a sandbox instance, naming `PINECALL_IDENT
 | `GET` · `PUT` | `/v1/org/judging` | whether the org's calls are judged at hang-up, and the box's ceiling; turned with `usage` |
 | `GET` | `/v1/calls/{call}/judging` | the worker's, at hang-up: whether that call's org judges — `app` |
 | `GET` | `/v1/events` | SSE, live only: the org's floor changing — an agent held, a call ringing, up, over, a call asking for a person, a person on the line |
-| `GET` | `/v1/members` · `POST` | the org's people; invite one, the token once and `mailed` — or none, for a person who already has a password here: seated at once |
+| `GET` | `/v1/members` · `POST` | the org's people; invite one (*production's*, as are the four below), the token once and `mailed` — or none, for a person who already has a password here: seated at once |
 | `PATCH` | `/v1/members/{id}` | role, agents, standing, `production`; disabled revokes their keys; `409` taking production from an admin |
 | `DELETE` | `/v1/members/{id}` | out of the org for good: keys revoked, row and links gone, the seat free — `team`; `409` for yourself and for the last active admin |
 | `POST` | `/v1/members/{id}/reset` | a one-use link that sets an active member's password, the token once, and `mailed` — `team` |
 | `POST` | `/v1/invitations/{token}` | accept with a password: active, and the first key |
 | `POST` | `/v1/login` | a key for a person and a device: email, password, the org when they have several (*production's*) — or a code; on a sandbox, one production minted is redeemed there, the org and member mirrored by production's ids, and the key lives a day |
 | `POST` | `/v1/login/orgs` | which orgs an email and password sign in to, minting nothing — no key, throttled like the login, *production's* |
-| `POST` | `/v1/login/redeem` | the one-use code a person carried to the sandbox, spent: `{org, member}` as production's rows say now, never the production switch — no key, throttled per place, *production's* |
+| `POST` | `/v1/login/redeem` | the one-use code a person carried to the sandbox, spent: `{org, member}` as production's rows stand, `disabled` included, never the production switch — no key, no throttle, *production's* |
 | `POST` | `/v1/login/reset` | a forgotten password: `202` whoever asks, and a one-use link mailed where one can be — no key, throttled like the login, *production's* |
 | `GET` | `/v1/login/orgs` | every org this key's person belongs to, and which one the key opens; for an operator of the box, every org there is, `member: false` and `role: "operator"` where they are none — a person's key |
 | `POST` | `/v1/login/org` | the same person's key in another org of theirs; an operator is let into ANY org on a production key with an admin's scopes, `subject` `operator:<email>`, no member row and no seat — a person's key |

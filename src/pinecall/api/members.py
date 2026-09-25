@@ -17,11 +17,12 @@ from pinecall.api._deps import (
 )
 from pinecall.api._gateway import where_this_gateway_answers
 from pinecall.api._seating import elsewhere_too, may_grant
+from pinecall.api.identity import AtProduction
 from pinecall.api.org_mail import OutboxDep
 from pinecall.api.orgs import NO_BODY
 from pinecall.auth import passwords
 from pinecall.auth.granting import NOT_YOUR_OWN_ROW
-from pinecall.auth.keys import KeyRecord, Keys
+from pinecall.auth.keys import KeyRecord, Keys, revoked_every_key_of
 from pinecall.auth.members import Members
 from pinecall.auth.persons import a_persons_key
 from pinecall.mail import Letter, Outbox, a_reset, an_invitation, where_the_card_is
@@ -36,6 +37,9 @@ from pinecall.types import (
 from pinecall.types.member import STATUSES, MemberStatus
 from pinecall_protocol import WireModel
 
+# The doors that make, change or remove a person are production's (api/identity.py): on a sandbox
+# every row is production's, mirrored at a sign-in, and a change made there would be undone by the
+# next one. The listing stays on both: it is what the sandbox knows.
 router = APIRouter()
 
 # The invitation is handed back once: the token is in this answer and hashed everywhere else.
@@ -117,7 +121,7 @@ async def listed(key: TeamKeyDep, members: MembersDep) -> dict[str, Any]:
     return {"members": [member_as_json(member) for member in await members.listed(key.org)]}
 
 
-@router.post("/v1/members", status_code=INVITED)
+@router.post("/v1/members", status_code=INVITED, dependencies=[AtProduction])
 async def invite(
     said: WantedMember,
     key: TeamKeyDep,
@@ -216,7 +220,7 @@ async def invited_into(
     }
 
 
-@router.patch("/v1/members/{id}")
+@router.patch("/v1/members/{id}", dependencies=[AtProduction])
 async def change(
     id: str, said: Changed, key: TeamKeyDep, members: MembersDep, keys: KeysDep
 ) -> dict[str, Any]:
@@ -256,7 +260,7 @@ async def change(
 # row is gone and a key of theirs still opens a door; then the row goes, its open links with it
 # (0014's CASCADE), and the seat is free because a seat is a count of rows. What the log wrote
 # about them stays readable — it names the id as text, and the id now names nobody.
-@router.delete("/v1/members/{id}", status_code=NO_BODY)
+@router.delete("/v1/members/{id}", status_code=NO_BODY, dependencies=[AtProduction])
 async def remove(id: str, key: TeamKeyDep, members: MembersDep, keys: KeysDep) -> None:
     """One person out of this org for good. 409 for yourself and for the last active admin."""
     if key.subject == id:
@@ -289,7 +293,7 @@ def _is_an_active_admin(member: Member) -> bool:
 # door an invitation is accepted at (below). Only an active member is reset — an invited one has
 # their invitation, a disabled one is enabled first — and the new link spends every older one.
 # The person may also ask for one themselves, where mail can carry it: api/forgot.py.
-@router.post("/v1/members/{id}/reset", status_code=INVITED)
+@router.post("/v1/members/{id}/reset", status_code=INVITED, dependencies=[AtProduction])
 async def reset(
     id: str,
     key: TeamKeyDep,
@@ -328,7 +332,7 @@ async def reset(
 # No key at this door: the person holding the link has none yet. What lets them in is the token,
 # one-use and a week old at most; what they leave is a password of their own, hashed; what they
 # take away is their first key, minted for them with the scopes their role presets.
-@router.post("/v1/invitations/{token}")
+@router.post("/v1/invitations/{token}", dependencies=[AtProduction])
 async def accept(
     token: str, said: Accepting, members: MembersDep, keys: KeysDep, settings: SettingsDep
 ) -> dict[str, Any]:
@@ -356,13 +360,6 @@ async def _posted(outbox: Outbox, org: str, letter: Letter | None) -> bool:
 def _by(key: KeyRecord) -> str:
     """Whose name a letter says invited or reset somebody: the person, or a machine's `An admin`."""
     return key.name or AN_ADMIN
-
-
-async def revoked_every_key_of(keys: Keys, org: str, member: str) -> None:
-    """Every live key minted for this person, stopped. The org's machine keys are not theirs."""
-    for row in await keys.listed(org):
-        if row.subject == member and row.revoked_at is None:
-            await keys.revoke(row.fingerprint)
 
 
 def _a_status(word: str) -> MemberStatus:

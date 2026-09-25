@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
@@ -10,6 +11,7 @@ import httpx
 import pytest
 
 from pinecall._settings import Settings
+from pinecall.api.app import app
 from pinecall.api.identity import SIGN_IN_THERE, the_identity
 from pinecall.auth.identity import Identity
 from pinecall.auth.keys import KeyRecord, MemoryKeys
@@ -37,11 +39,31 @@ PRODUCTIONS_DOORS: list[tuple[str, str, dict[str, str] | None]] = [
     ("GET", "/v1/login/sso/callback?code=c&state=s", None),
     ("POST", "/v1/login/sso/discover", {"email": "berna@clinica.uy"}),
     ("POST", "/v1/login/reset", {"email": "berna@clinica.uy"}),
+    # And every door that makes, changes or removes a member: every row here is a mirror.
+    ("POST", "/v1/members", {"email": "ana@clinica.uy", "name": "Ana", "role": "qa"}),
+    ("PATCH", "/v1/members/m_ana", {"role": "qa"}),
+    ("DELETE", "/v1/members/m_ana", None),
+    ("POST", "/v1/members/m_ana/reset", {}),
+    ("POST", "/v1/invitations/inv_x", {"password": "correct horse"}),
 ]
 
 # A person's key minted on the sandbox itself — `pinecall start` there — with a few hours left.
 A_SANDBOX_PERSON = "pc_berna_on_the_sandbox"
 HOURS_LEFT = datetime.now(UTC) + SANDBOX_PERSONS_KEY_LIFE / 4
+
+
+# A lifespan-less app has no httpx client to ask production over, and no door here should ask it:
+# the sandbox's identity answers the app itself, as the sign-in fixtures do (signing_in.py), and
+# fails the test if a door knocked.
+@pytest.fixture(autouse=True)
+def production_is_never_asked() -> Iterator[None]:
+    def knocked(request: httpx.Request) -> httpx.Response:
+        raise AssertionError(f"production was asked: {request.url}")
+
+    identity = Identity(httpx.AsyncClient(transport=httpx.MockTransport(knocked)), THE_IDENTITY)
+    app.dependency_overrides[the_identity] = lambda: identity
+    yield
+    app.dependency_overrides.pop(the_identity, None)
 
 
 @pytest.fixture

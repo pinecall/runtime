@@ -58,11 +58,9 @@ WITH_THE_PROVIDER = (
 # A code is spent on first use and dies in five minutes: the same answer for every way it is gone.
 NO_CODE = "no code answers to that: it was used, it expired, or it never existed"
 
-# The redemption's own refusals. A code a server's token or an operator's visit minted names no
+# The redemption's own refusal. A code a server's token or an operator's visit minted names no
 # member: there is nobody to seat on the other instance, and a visit is production's alone.
 NOT_A_PERSONS_CODE = "this code stands for a server's token or an operator's visit, not a member"
-# The throttle's sentence for a place that spends codes faster than people carry them.
-TOO_MANY_CODES = "too many codes spent from here: try again in a minute"
 
 # A login says one of two things, never both and never neither.
 ONE_OR_THE_OTHER = "log in with org, email and password, or with a code — one of the two"
@@ -187,22 +185,18 @@ async def a_code(key: KeyDep, codes: LoginCodesDep) -> dict[str, Any]:
 
 
 # Production is who says a person is a member. A person signed in here carries a code to the
-# sandbox, and the sandbox spends it HERE and seats who this answers (api/identity.py). No bearer:
+# sandbox, and the sandbox spends it HERE and mirrors who this answers (api/identity.py). No bearer:
 # the code is the credential, as at POST /v1/login. The member is read again, because a code holds
-# a snapshot of the key that minted it and the row may have changed or been disabled since; and
-# the answer is their row — the role, never the snapshot's scopes, and never the production switch.
+# a snapshot of the key that minted it and the row may have changed since — and answered as it
+# stands, `disabled` included, because a disabled person is exactly what the sandbox must learn.
+# The answer is their row: the role, never the snapshot's scopes, never the production switch.
+# No throttle: the login's exists because a password can be guessed, and a code is 24 random bytes
+# spent once; keyed by client it would count the whole sandbox gateway as one knocker.
 @router.post("/v1/login/redeem", dependencies=[AtProduction])
 async def redeem(
-    said: Redeeming,
-    request: Request,
-    orgs: OrgsDep,
-    members: MembersDep,
-    codes: LoginCodesDep,
-    throttle: ThrottleDep,
+    said: Redeeming, orgs: OrgsDep, members: MembersDep, codes: LoginCodesDep
 ) -> Redeemed:
     """Who the code's person is, as production's rows say now; the code is spent either way."""
-    if not throttle.allowed(f"{the_client(request)} redeem"):
-        raise HTTPException(429, TOO_MANY_CODES)
     record = codes.spend(said.code)
     if record is None:
         raise HTTPException(404, NO_CODE)
@@ -211,7 +205,7 @@ async def redeem(
     assert record.subject is not None
     member = await members.find(record.org, record.subject)
     org = await orgs.find(record.org)
-    if member is None or member.status != "active" or org is None:
+    if member is None or org is None:
         raise HTTPException(403, NOT_A_MEMBER)
     return Redeemed.of(org, member)
 

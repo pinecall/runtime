@@ -14,7 +14,6 @@ from pinecall.api.login import (
     NOT_A_MEMBER,
     NOT_A_PERSONS_CODE,
     ONE_OR_THE_OTHER,
-    TOO_MANY_CODES,
 )
 from pinecall.api.members import ALREADY_A_MEMBER, NO_INVITATION, NOT_BY_HAND
 from pinecall.auth.keys import MemoryKeys
@@ -296,19 +295,30 @@ async def test_a_code_a_server_token_minted_redeems_nobody(
     assert (refused.status_code, refused.json()["detail"]) == (403, NOT_A_PERSONS_CODE)
 
 
-async def test_a_member_disabled_since_the_code_was_minted_is_refused(
+async def test_a_member_disabled_since_the_code_was_minted_is_answered_disabled(
+    tenant_http: httpx.AsyncClient, stranger: httpx.AsyncClient
+) -> None:
+    """A disabled person is exactly what the sandbox must learn, so production says it."""
+    member, code = await a_persons_code(tenant_http, stranger)
+    await tenant_http.patch(f"{MEMBERS}/{member['id']}", json={"status": "disabled"})
+    redeemed = await stranger.post(REDEEM, json={"code": code})
+    assert redeemed.status_code == 200, redeemed.text
+    assert redeemed.json()["member"]["status"] == "disabled"
+
+
+async def test_a_member_removed_since_the_code_was_minted_is_nobody(
     tenant_http: httpx.AsyncClient, stranger: httpx.AsyncClient
 ) -> None:
     member, code = await a_persons_code(tenant_http, stranger)
-    await tenant_http.patch(f"{MEMBERS}/{member['id']}", json={"status": "disabled"})
+    assert (await tenant_http.delete(f"{MEMBERS}/{member['id']}")).status_code == 204
     refused = await stranger.post(REDEEM, json={"code": code})
     assert (refused.status_code, refused.json()["detail"]) == (403, NOT_A_MEMBER)
 
 
-async def test_the_sixth_redemption_from_one_place_in_a_minute_is_429(
+async def test_redeeming_is_not_throttled_a_code_cannot_be_guessed(
     stranger: httpx.AsyncClient,
 ) -> None:
-    for _ in range(TRIES_PER_WINDOW):
+    """Every sign-in to the sandbox knocks from the sandbox gateway: a per-client count of five
+    would be five sign-ins a minute for everybody."""
+    for _ in range(TRIES_PER_WINDOW + 1):
         assert (await stranger.post(REDEEM, json={"code": "lc_x"})).status_code == 404
-    throttled = await stranger.post(REDEEM, json={"code": "lc_x"})
-    assert (throttled.status_code, throttled.json()["detail"]) == (429, TOO_MANY_CODES)

@@ -10,18 +10,19 @@ from pinecall.types import SANDBOX, Env, Member, is_a_deployment
 # How long a person's key lives on a sandbox instance. Production is who says a person is a member,
 # and the sandbox only mirrors the row when a person signs in there: a member production disables
 # later has nothing to tell the sandbox, since no instance calls the other back. So a sandbox key
-# dies within a day, the console goes back to production for a new code, and that re-login reads
-# the member again and refuses a disabled one. A day, because it is a working day of `pinecall
-# start` without a second sign-in, and the longest a person production stopped still gets in.
+# dies within a day, the console goes back to production for a new code, and that re-login mirrors
+# the member again — disabled, with every key of theirs here revoked at once. A day, because it is
+# a working day of `pinecall start` without a second sign-in, and the longest a person production
+# stopped still gets in on a key they already held.
 SANDBOX_PERSONS_KEY_LIFE = timedelta(hours=24)
 
 
 # A person's key from their member row — the invitation's, a password login's, a terminal's,
-# another org's; a code spent for a browser copies the record it stood for. It carries no world:
-# the request names one (auth/world.py) and the member's row says whether production opens
-# (0039). The column still holds one, and it holds the sandbox, which is what a request that
-# names none runs in. Its scopes are the role's, whole: a person who may act
-# in production holds the agent there too, from `pinecall start --prod`.
+# another org's, a sandbox's mirror; a code spent for a browser copies the record it stood for. It
+# carries no world: it acts in the world of the instance it knocks at (auth/world.py), and the
+# member's row says whether production opens (0039). The column still holds `sandbox`, as 0039
+# wrote every person's, and nobody reads it. Its scopes are the role's, whole: a person who may
+# act in production holds the agent there too, from `pinecall start --prod`.
 async def a_persons_key(
     keys: Keys,
     member: Member,

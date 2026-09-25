@@ -187,7 +187,9 @@ production key, the default. `--scope`, repeatable, is what the key may do (`app
 but `fleet`, the box's own worker's, minted only when typed (`pinecall-worker-key.service` types
 it). An org makes its servers' tokens without the operator, in its console (`POST /v1/keys`); these
 verbs are the box's way in, on `PINECALL_OPS_KEY`. `--subject` and `--name` make it a person's key
-(`pc_…`), whose world is each request's as any person's — `--env` says nothing then.
+(`pc_…`), which acts in the world of the instance it knocks at as any person's — `--env` says
+nothing then — and **never expires, on either instance**: unlike the day a sandbox's sign-in
+lasts, it is the operator's own tool, revoked by hand.
 
 ## `routes`
 

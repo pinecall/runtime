@@ -144,12 +144,12 @@ class MemoryMembers:
     async def mirrored(self, member: Member) -> Member | None:
         """Production's fields over the row with its id, or a new row with no password."""
         email = an_address(member.email)
-        held = await self.by_email(member.org, email)
         row = self._rows.get(member.id)
-        if (held is not None and held.member.id != member.id) or (
-            row is not None and row.member.org != member.org
-        ):
+        if row is not None and row.member.org != member.org:
             return None
+        held = await self.by_email(member.org, email)
+        if held is not None and held.member.id != member.id:
+            await self.remove(member.org, held.member.id)
         if row is None:
             mirrored = replace(member, email=email, verified=True, operator=False, production=False)
             self._rows[member.id] = _Row(mirrored, None, an_instant(self._clock()))

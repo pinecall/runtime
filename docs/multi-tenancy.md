@@ -170,8 +170,9 @@ The sandbox's `POST /v1/login {code}` spends it at production (`POST /v1/login/r
 answers the org and the member as its rows say now; the sandbox mirrors both **by production's
 ids** (`api/identity.py`), so a slug and a key's subject mean one thing on both instances, and
 mints a key of its own that lives a day — nothing tells a sandbox when production disables
-somebody, so the next sign-in asks again and is refused. Every door a person is made or proved at
-is production's, `404` on a sandbox; its org switch lists the orgs signed into there.
+somebody, so a disabled person's key opens it until it expires or they sign in again, when the
+mirror learns it and revokes every key of theirs there. Every door a person is made, changed or
+proved at is production's, `404` on a sandbox; its org switch lists the orgs signed into there.
 
 Inside an instance, the registry and the routes are still namespaced by the world word (every row
 of one database carries the same one): `GET /v1/agents`, `GET /v1/routes` and every door that names

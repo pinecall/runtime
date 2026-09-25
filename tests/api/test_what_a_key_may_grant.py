@@ -8,19 +8,19 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall._settings import Settings
-from pinecall.auth.granting import NOT_YOUR_OWN_ROW, NOT_YOURS_TO_GRANT, NOT_YOURS_TO_SWITCH
+from pinecall.auth.granting import NOT_YOUR_OWN_ROW, NOT_YOURS_TO_GRANT
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
-from pinecall.types import ROLE_SCOPES, SANDBOX, Member
-from tests.api.conftest import A_KEY, A_RECORD, over_the_asgi_app
-from tests.api.talking import answering_in
+from pinecall.types import PRODUCTION, ROLE_SCOPES, SANDBOX, Member
+from tests.api.conftest import A_KEY, A_RECORD
+from tests.api.talking import at_the_console
 
 pytestmark = pytest.mark.unit
 
 MEMBERS = "/v1/members"
 
-# Marta runs the floor: `team` among her scopes, no production access, no `app`.
+# Marta runs the floor: `team` among her scopes, production access, no `app`. The member doors are
+# production's (api/identity.py), so a manager changes the team where she may act in production.
 MARTA = Member(
     id="m_marta",
     org=A_RECORD.org,
@@ -28,6 +28,7 @@ MARTA = Member(
     name="Marta",
     role="manager",
     status="active",
+    production=True,
 )
 # Diego reads finished calls, and is who Marta tries to raise.
 DIEGO = Member(
@@ -60,13 +61,11 @@ def members() -> MemoryMembers:
     return MemoryMembers([MARTA, DIEGO])
 
 
-# Marta opens no production, so she is asked at the sandbox's instance, where every member works.
 @pytest.fixture
-async def marta(wired: None, settings: Settings) -> AsyncIterator[httpx.AsyncClient]:  # noqa: ARG001
-    answering_in(SANDBOX, settings)
-    http = over_the_asgi_app(f"Bearer {A_MANAGERS_KEY}")
-    yield http
-    await http.aclose()
+async def marta(wired: None) -> AsyncIterator[httpx.AsyncClient]:  # noqa: ARG001
+    """Marta at production's console, saying the world she means."""
+    async with at_the_console(A_MANAGERS_KEY, PRODUCTION) as http:
+        yield http
 
 
 def wanted(role: str, **more: Any) -> dict[str, Any]:
@@ -88,15 +87,14 @@ async def test_a_manager_invites_a_qa_and_is_refused_an_admin_and_a_developer(
     assert sorted(row["role"] for row in listed) == ["manager", "qa", "qa"], "nothing half-made"
 
 
-async def test_a_manager_may_not_raise_a_colleague_to_admin_nor_switch_production_on(
+# Production given only by somebody who acts there is tests/auth/test_granting.py's: at a door, a
+# person with no production access is refused before the rule is asked (auth/world.py).
+async def test_a_manager_may_not_raise_a_colleague_to_admin(
     marta: httpx.AsyncClient,
 ) -> None:
     raised = await marta.patch(f"{MEMBERS}/{DIEGO.id}", json={"role": "admin"})
     assert raised.status_code == 403
     assert raised.json()["detail"] == NOT_YOURS_TO_GRANT.format(role="admin", opens=MANAGERS_OPEN)
-    switched = await marta.patch(f"{MEMBERS}/{DIEGO.id}", json={"production": True})
-    assert switched.status_code == 403
-    assert switched.json()["detail"] == NOT_YOURS_TO_SWITCH.format(name="Marta")
     # What she holds she hands out: a qa made supervisor is the floor's own business.
     within = await marta.patch(f"{MEMBERS}/{DIEGO.id}", json={"role": "supervisor"})
     assert within.status_code == 200, within.text

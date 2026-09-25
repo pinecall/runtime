@@ -32,18 +32,22 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   person keys and every server token still never expire.
 
 - **`POST /v1/login/redeem {code}`: production is the identity.** It spends a one-use code a
-  person carried to the sandbox and answers `{org, member}` as production's rows say now — the
-  role, never the key's snapshot, never the production switch; `403` for a code a server's token
-  or an operator's visit minted and for a member no longer active; throttled per place.
+  person carried to the sandbox and answers `{org, member}` as production's rows stand — the
+  role, never the key's snapshot, `disabled` included, never the production switch; `403` for a
+  code a server's token or an operator's visit minted and for a member removed. Not throttled: a
+  code is 24 random bytes spent once, and every sandbox sign-in knocks from one place.
 - **On a sandbox instance, every door a person is made or proved at is `404`**, naming
   `PINECALL_IDENTITY_URL`: the password login and `POST /v1/login/orgs`, the pairing, the sign-up,
-  SSO, Google and the forgotten password. A code of the sandbox's own still signs a browser in.
+  SSO, Google, the forgotten password, and every member door but the listing (invite, change,
+  remove, reset, accept). A code of the sandbox's own still signs a browser in.
 - **A sandbox signs a person in by asking production.** Its `POST /v1/login {code}` spends a code of
   its own first, else redeems it at `PINECALL_IDENTITY_URL`, mirrors the org and the member by
-  production's ids (no password, the address verified) and mints a key that lives a day: `409`
-  when a row of the sandbox's own holds that slug or address under another id, production's
-  refusal in its own status and words, `502` when production does not answer. Its org switch
-  lists the orgs the person signed into there.
+  production's ids (no password, the address verified) and mints a key that lives a day. A stale
+  row of the address (a person production removed and invited again) loses its keys and goes; a
+  member production disabled is mirrored disabled, every key of theirs there revoked, and `403`;
+  `409` when an org of the sandbox's own holds the slug; production's refusal in its own status
+  and words; `502` when production does not answer. Its org switch lists the orgs signed into
+  there.
 
 ### Removed
 - **`PINECALL_SANDBOX_DOMAIN` is read by nothing**: a request's `Host` no longer picks a world or
