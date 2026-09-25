@@ -30,8 +30,8 @@
 # documented way to reach a credential from a command line, ${CREDENTIALS_DIRECTORY}/<name>.
 [Unit]
 Description=Pinecall app %i (a tenant's agent, held on this box)
-Wants=network-online.target pinecall-gateway.service
-After=network-online.target pinecall-gateway.service
+Wants=network-online.target pinecall-gateway@production.service
+After=network-online.target pinecall-gateway@production.service
 
 [Service]
 User=pinecall

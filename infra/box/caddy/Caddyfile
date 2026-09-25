@@ -1,15 +1,18 @@
-# One or two names, two upstreams, and TLS for all of them: Caddy is the only thing on the box
-# that answers 443. The domain arrives as PINECALL_DOMAIN out of /etc/pinecall/box.env
-# (caddy/pinecall.conf points Caddy's unit at it), so this file is the same on every box and
-# nothing is rendered.
+# Every name of the box, two upstreams each, and TLS for all of them: Caddy is the only thing on the
+# box that answers 443. This file names no site of its own and is the same on every box; the sites
+# are one file per instance, `/etc/caddy/instances/<name>.caddy` — `<its domain> { import pinecall
+# <its port> }` — which infra/box/Makefile writes from each instance's env file on every deploy and
+# takes away when the name leaves box.env's PINECALL_INSTANCES. Nothing is rendered here, and Caddy
+# reads no environment.
 #
 # Media does NOT pass through here: WebRTC (7881/tcp, 7882/udp) and SIP (5060, 10000-10199/udp)
 # reach the host's own ports directly. A proxy in front of media is a proxy inside every call.
 
-# What a name of this box answers, whichever name it is: both consoles are the same gateway, and
-# the sandbox's name must serve every door the other does — a call joined from that page is the
-# same WebSocket to the same SFU. Written once here and imported by each site below, because two
-# copies of a routing table are two routing tables that will disagree.
+# What a name of this box answers, whichever instance it is: a call joined from any console is the
+# same WebSocket to the same SFU, and only the control plane is the instance's own. Written once
+# here and imported by each site, because two copies of a routing table are two routing tables
+# that will disagree. The argument is the instance's gateway port (the port of its
+# PINECALL_GATEWAY_URL).
 (pinecall) {
 	# LiveKit's own paths, signalling included: a browser's WebSocket is upgraded by Caddy and
 	# handed to the SFU, which is how the room token ever reaches it over TLS. /agent is the
@@ -19,17 +22,15 @@
 		reverse_proxy 127.0.0.1:7880
 	}
 
-	# Everything else is the runtime's control plane: the app socket, the log, /v1/*.
+	# Everything else is the instance's control plane: the app socket, the log, /v1/*.
 	handle {
-		reverse_proxy 127.0.0.1:8080
+		reverse_proxy 127.0.0.1:{args[0]}
 	}
 }
 
-{$PINECALL_DOMAIN} {
-	import pinecall
-}
+# One site per instance: the manifest owns this directory whole, so a file in it is an instance.
+import /etc/caddy/instances/*.caddy
 
-# The box's SECOND name, whose console is the sandbox's (caddy/sandbox.caddy, installed into
-# conf.d by infra/box/Makefile only where box.env names one). A glob that matches nothing is not
-# an error, which is how a box of one name reads this same file and serves one site.
+# Sites that are not the runtime's — the notifier's (apps/notify installs notify.caddy there) — and
+# that no runtime deploy writes or takes away. A glob that matches nothing is not an error.
 import /etc/caddy/conf.d/*.caddy

@@ -1,0 +1,41 @@
+# One instance's FLEET key, `pinecall-worker-key@<name>`, minted once for the worker on this box and
+# kept in the instance's own credstore: it is printed by nobody and read by that worker alone.
+# Issued into the instance's org default with the `fleet` scope, which is what lets one worker
+# answer every org's calls — its doors resolve by the call the dispatch named, never by this key's
+# org — and `app` and `calls` for the doors themselves. `keys issue` writes the key on stdout and its
+# words on stderr, so stdout — captured to a file only this unit can read — IS the key; root then
+# encrypts that file into the credstore and shreds it. The condition is the idempotence: a box born
+# before the scope existed re-mints by revoking the old key and removing the credential (README.md,
+# "Where the keys come from").
+[Unit]
+Description=Pinecall: instance %i's worker key, minted once
+ConditionPathExists=!/etc/pinecall/instances/%i.credstore/PINECALL_WORKER_KEY
+Requires=pinecall-gateway@%i.service
+After=pinecall-gateway@%i.service
+
+[Service]
+Type=oneshot
+User=pinecall
+Group=pinecall
+WorkingDirectory=/opt/pinecall/app
+# Its gateway's URL, out of the instance's file; and the ops key that gateway's operator doors open to.
+EnvironmentFile=/etc/pinecall/box.env
+EnvironmentFile=/etc/pinecall/instances/%i.env
+LoadCredentialEncrypted=PINECALL_OPS_KEY:/etc/pinecall/instances/%i.credstore/PINECALL_OPS_KEY
+# The key is caught in a file systemd opens for us, and `UMask=` is what makes that file 0600 —
+# StandardOutput= is set up BEFORE a RuntimeDirectory= would be created, so there is nowhere to
+# put it but /run itself, and nothing but the umask to keep it private. Measured 2026-09-09:
+# with a RuntimeDirectory the unit dies with 209/STDOUT and "No such file or directory".
+UMask=0077
+StandardOutput=file:/run/pinecall-worker-%i.key
+StandardError=journal
+ExecStart=/opt/pinecall/venv/bin/pinecall-runtime keys issue --org default --label the-worker-on-this-box --scope fleet --scope app --scope calls
+ExecStartPost=+/usr/bin/systemd-creds encrypt --with-key=auto --name=PINECALL_WORKER_KEY /run/pinecall-worker-%i.key /etc/pinecall/instances/%i.credstore/PINECALL_WORKER_KEY
+ExecStartPost=+/usr/bin/shred -u /run/pinecall-worker-%i.key
+# The gateway's socket is open a moment after its process is; a first knock that lands early is
+# knocked again.
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

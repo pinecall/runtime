@@ -14,26 +14,27 @@
 # roles/compute.instanceAdmin.v1 and roles/iam.serviceAccountUser on the account the workers run
 # as, so gcloud needs no login at all: it reads the metadata server. On AWS an instance role; on
 # Hetzner an API token in HCLOUD_TOKEN through `make secret`. The loop can also run from any
-# laptop that has the CLI: `pinecall-runtime fleet loop --cloud gcp --seats 4`.
+# laptop that has the CLI: `pinecall-runtime fleet loop --cloud gcp --seats 4`. One, and
+# production's: its workers are production's fleet; a sandbox's worker is the one on this box.
 #
 # The cloud's CLI is the vendor's package, installed by the manifest (infra/box/Makefile,
 # cloud-cli-<name>) — never Ubuntu's snap, which refuses a service user homed under /opt — and it
 # keeps its configuration where tmpfiles made room for it, not in a home it does not have.
 [Unit]
 Description=Pinecall fleet loop (adds and removes workers)
-Wants=network-online.target pinecall-gateway.service
-After=network-online.target pinecall-gateway.service
+Wants=network-online.target pinecall-gateway@production.service
+After=network-online.target pinecall-gateway@production.service
 
 [Service]
 User=pinecall
 Group=pinecall
 WorkingDirectory=/opt/pinecall/app
-Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=CLOUDSDK_CONFIG=/var/lib/pinecall/gcloud
 Environment=PYTHONUNBUFFERED=1
 EnvironmentFile=/etc/pinecall/box.env
-ImportCredential=PINECALL_OPS_KEY
+EnvironmentFile=/etc/pinecall/instances/production.env
+LoadCredentialEncrypted=PINECALL_OPS_KEY:/etc/pinecall/instances/production.credstore/PINECALL_OPS_KEY
 ImportCredential=HCLOUD_TOKEN
 ExecStart=/bin/sh -c 'exec /opt/pinecall/venv/bin/pinecall-runtime fleet loop --cloud "$PINECALL_FLEET_CLOUD" --seats "$PINECALL_FLEET_SEATS" $PINECALL_FLEET_FLAGS'
 Restart=always

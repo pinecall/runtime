@@ -1,0 +1,118 @@
+# One instance's control plane, `pinecall-gateway@<name>`: HTTP and WebSocket on the loopback
+# address of its own PINECALL_GATEWAY_URL, behind Caddy. A template, as pinecall-app@ is, so nothing
+# about any one instance — production, a sandbox, a staging — is written in this file: an instance
+# is /etc/pinecall/instances/<name>.env and <name>.credstore/, and `box instance` writes the first
+# (infra/box/README.md, "An instance"). Installed to /etc/systemd/system/ by infra/box/Makefile, and
+# enabled for every name in box.env's PINECALL_INSTANCES.
+#
+# Its secrets come two ways and never through a `PINECALL_*` glob. ImportCredential= searches ONE
+# credstore for the whole machine, so a glob there would hand this instance every other instance's
+# ops, vault and worker key the day two of them share the box. The instance's own are loaded by
+# PATH out of its own store; the box's shared ones — the SFU's pair, the vendors' keys, the box's
+# mail — are imported by name, one line each.
+[Unit]
+Description=Pinecall gateway, instance %i (control plane: apps, routes, the log)
+Requires=pinecall-postgres.service
+# The database is Wanted and not Required: a Postgres slow to answer at boot fails pinecall-db@ once
+# and it retries, where a Requires= would fail this unit on the dependency — and a job that failed
+# on a dependency is never retried by Restart=. The gateway's own migrate retries until it exists.
+Wants=network-online.target pinecall-db@%i.service
+After=network-online.target pinecall-postgres.service pinecall-livekit.service pinecall-secrets.service pinecall-db@%i.service
+
+[Service]
+User=pinecall
+Group=pinecall
+WorkingDirectory=/opt/pinecall/app
+# What is the box's and no instance's: the SFU on loopback, and where the embedder answers —
+# pinecall-tei publishes on loopback and nowhere else, as Postgres does, because this process is on
+# the HOST and resolves no container name. box.env is read after these and wins over them (a box
+# that embeds at a vendor says EMBED_PROVIDER there, and then this address is asked nothing); the
+# instance's own file is read last and wins over both — its world, fleet, domain, URL, recordings.
+# The virtualenv's own entrypoint, never `uv run`: the environment is synced by the deploy, as this
+# user, and a unit that asked uv for less than the deploy did would uninstall the other half.
+Environment=LIVEKIT_URL=ws://127.0.0.1:7880
+Environment=TEI_URL=http://127.0.0.1:8081
+EnvironmentFile=/etc/pinecall/box.env
+EnvironmentFile=/etc/pinecall/instances/%i.env
+# The instance's own, by path. Each file is named as the credential it holds, which is the name
+# sealed inside it: systemd decrypts it only under that ID (pinecall-app@.service says how).
+LoadCredentialEncrypted=DATABASE_URL:/etc/pinecall/instances/%i.credstore/DATABASE_URL
+LoadCredentialEncrypted=PINECALL_OPS_KEY:/etc/pinecall/instances/%i.credstore/PINECALL_OPS_KEY
+LoadCredentialEncrypted=PINECALL_VAULT_KEY:/etc/pinecall/instances/%i.credstore/PINECALL_VAULT_KEY
+# The box's, out of /etc/credstore.encrypted. A name that is not there is simply absent, and the
+# runtime says so at startup rather than guessing.
+ImportCredential=LIVEKIT_API_KEY
+ImportCredential=LIVEKIT_API_SECRET
+ImportCredential=PINECALL_SMTP_URL
+ImportCredential=PINECALL_WHATSAPP_APP_SECRET
+ImportCredential=PINECALL_WHATSAPP_VERIFY_TOKEN
+ImportCredential=ANTHROPIC_API_KEY
+ImportCredential=OPENAI_API_KEY
+ImportCredential=SONIOX_API_KEY
+ImportCredential=DEEPGRAM_API_KEY
+ImportCredential=ELEVEN_API_KEY
+# And every other vendor livekit ships a plugin for (providers/catalog.py). A box holds the
+# handful it runs on and no more: a credential that is not in the credstore is simply absent,
+# so these lines cost nothing until `make secret NAME=CARTESIA_API_KEY` puts one there.
+ImportCredential=ASSEMBLYAI_API_KEY
+ImportCredential=ASYNCAI_API_KEY
+ImportCredential=AZURE_SPEECH_KEY
+ImportCredential=BASETEN_API_KEY
+ImportCredential=BLAND_API_KEY
+ImportCredential=CAMB_API_KEY
+ImportCredential=CARTESIA_API_KEY
+ImportCredential=CEREBRAS_API_KEY
+ImportCredential=CLOVA_STT_SECRET_KEY
+ImportCredential=FAL_KEY
+ImportCredential=FIREWORKS_API_KEY
+ImportCredential=FISH_API_KEY
+ImportCredential=GLADIA_API_KEY
+ImportCredential=GNANI_API_KEY
+ImportCredential=GOOGLE_API_KEY
+ImportCredential=GRADIUM_API_KEY
+ImportCredential=GROQ_API_KEY
+ImportCredential=HUME_API_KEY
+ImportCredential=INWORLD_API_KEY
+ImportCredential=LMNT_API_KEY
+ImportCredential=MINIMAX_API_KEY
+ImportCredential=MISTRAL_API_KEY
+ImportCredential=MURF_API_KEY
+ImportCredential=NEUPHONIC_API_KEY
+ImportCredential=NVIDIA_API_KEY
+ImportCredential=PALABRA_API_KEY
+ImportCredential=RESEMBLE_API_KEY
+ImportCredential=RESPEECHER_API_KEY
+ImportCredential=RIME_API_KEY
+ImportCredential=SARVAM_API_KEY
+ImportCredential=SIMPLISMART_API_KEY
+ImportCredential=SLNG_API_KEY
+ImportCredential=SMALLEST_API_KEY
+ImportCredential=SPEECHIFY_API_KEY
+ImportCredential=SPEECHMATICS_API_KEY
+ImportCredential=SPITCH_API_KEY
+ImportCredential=UPLIFTAI_API_KEY
+ImportCredential=VAKYAM_API_KEY
+ImportCredential=XAI_API_KEY
+# The embedder's two, and the gateway's alone: a worker embeds nothing. Only the one this box's
+# EMBED_PROVIDER names is ever read, and on a box that runs pinecall-tei neither of them is there
+# — a credential that is not in the credstore is simply absent, which is what `tei` means.
+ImportCredential=PERPLEXITY_API_KEY
+ImportCredential=OPENROUTER_API_KEY
+ImportCredential=WHATSAPP_ACCESS_TOKEN
+ImportCredential=TWILIO_ACCOUNT_SID
+ImportCredential=TWILIO_API_KEY
+ImportCredential=TWILIO_API_SECRET
+# Postgres up, then the schema, then the doors: `podman healthcheck run` answers non-zero until
+# the database takes a connection, and a failed pre-start is retried by Restart= below. No --host
+# and no --port: the gateway binds the address its own PINECALL_GATEWAY_URL names (cli/gateway.py).
+ExecStartPre=+/usr/bin/podman healthcheck run pinecall-postgres
+ExecStartPre=/opt/pinecall/venv/bin/pinecall-runtime migrate up
+ExecStart=/opt/pinecall/venv/bin/pinecall-runtime gateway
+Restart=always
+RestartSec=3
+# The gateway drains no call — every live call is rebuilt when its worker says it again — so a stop
+# needs only uvicorn's five seconds for the requests in flight; this is systemd's line past them.
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

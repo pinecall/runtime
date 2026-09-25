@@ -36,7 +36,7 @@ So "clínica-norte does not have a key" is not a gap. It never had one, and it n
 | **room token** | a LiveKit JWT bound to ONE call | the gateway, from an org key, per visit | a browser tab, for a minute | that call's room and that call's log. See [protocol/tokens.md](protocol/tokens.md) |
 
 **And the box's worker holds a fourth kind: an org key with the `fleet` scope.** One worker
-answers every org's spoken calls, so its key cannot be one tenant's. `pinecall-worker-key.service`
+answers every org's spoken calls, so its key cannot be one tenant's. `pinecall-worker-key@.service`
 mints it into org `default` with `--scope fleet --scope app --scope calls`, and at every door the
 worker knocks — routes, an agent's config, its provider keys, opening and writing a call — that
 scope means the corner is **the call's**: the org, the world and the holder the dispatch named
@@ -141,11 +141,11 @@ A tenant writes an agent on a laptop and runs the same agent on the box, and the
 see each other: a laptop's `pinecall start` must not take the clinic's number, and the clinic's
 sessions must not fill with a developer's test calls. So **an instance is one world**
 (`PINECALL_WORLD`: production unless the instance says sandbox, which its own environment file
-does on purpose). Production and the
-sandbox are two instances of this one runtime — each its own gateway, database, worker and keys,
-each dispatching to its own fleet (`PINECALL_FLEET`) on the SFU they share — and each tells the
-other's public URL (`PINECALL_ELSEWHERE_URL`) in every sentence that sends a person there, in the
-console's marks and at `/.well-known/pinecall`. Nothing picks a world per request any more.
+does on purpose). Production and the sandbox are two instances of one runtime, side by side on a
+box ([../infra/box/README.md](../infra/box/README.md), "An instance") — each its own gateway,
+database, worker and keys, dispatching to its own fleet (`PINECALL_FLEET`) on the shared SFU — and
+each tells the other's public URL (`PINECALL_ELSEWHERE_URL`) in every sentence that sends a person
+there, in the console's marks and at `/.well-known/pinecall`. Nothing picks a world per request.
 
 **The header is an assertion** (`auth/world.py`). A client says which world it believes it is
 talking to with `pinecall-env`; a header naming the other world is `403`, with where that world

@@ -51,7 +51,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
         action="append",
         default=None,
         # EVERY scope and not a tenant's set: this verb is the one place `fleet` is minted —
-        # infra/box/pinecall-worker-key.service types it — and the ops door validates the words.
+        # infra/box/pinecall-worker-key@.service types it — and the ops door validates the words.
         choices=sorted(EVERY_SCOPE),
         metavar="<scope>",
         help="what the key may do; repeat for several, leave out for every scope but fleet",

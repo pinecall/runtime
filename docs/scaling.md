@@ -62,12 +62,17 @@ pinecall-worker-1  2     4      0.50  accepting  4s ago
 ## Workers that dial out
 
 A worker opens **one outbound connection** to the hub and asks for calls. No public address, no
-open port but ssh, no load balancer to configure (`infra/box/nftables.conf`, `pinecall-worker.service`).
+open port but ssh, no load balancer to configure (`infra/box/nftables.conf`, `pinecall-worker@.service`).
 Add a worker and it takes calls within minutes; its media goes to the hub's public UDP port, its
-control to `PINECALL_GATEWAY_URL`, and it knocks with an org key minted on the hub.
+control to `PINECALL_GATEWAY_URL`, and it knocks with an org key minted on the hub. A worker is one
+**instance's** (`pinecall-worker@<name>`): on its own box it runs from a copy of that instance's
+env file with `PINECALL_GATEWAY_URL` pointed at the hub, and the instance's fleet key copied into
+the same instance store (`make worker-secrets`) — the recipe for moving any instance off the hub
+(`infra/box/README.md`, "An instance on a box of its own").
 
 A worker on a full box (`role=all`) keeps its own health server on **loopback:8082**
-(`PINECALL_WORKER_HTTP_PORT`) — never the gateway's 8080 or the embedder's 8081, which share the machine.
+(`PINECALL_WORKER_HTTP_PORT`) — never the gateway's 8080 or the embedder's 8081, which share the machine;
+a second instance's worker takes its gateway's port plus two (8182 beside 8180).
 
 ## Deploys that drain, not cut
 

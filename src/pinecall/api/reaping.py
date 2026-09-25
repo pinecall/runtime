@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 # that is killed runs none — a deploy whose stop reached the job processes, a box that ran out of
 # memory, a machine that went — and NOTHING else in this runtime ever closes that log: three web
 # calls of 2026-09-16 were `live` on the console for thirty hours. This is the net under that.
-# The worker's own half of it is worker/main.py and infra/box/pinecall-worker.service.
+# The worker's own half of it is worker/main.py and infra/box/pinecall-worker@.service.
 
 # How long a call must have said nothing before the reaper will look at it at all. The room is the
 # decision; this is only the margin around it — the seconds between a call's log opening and its

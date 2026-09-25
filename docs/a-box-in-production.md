@@ -48,9 +48,12 @@ another), and in `box.env` your domain — twice, the second as `wss://` — and
 ```
 
 Nothing there is a secret. **The secrets are drawn on the box itself**, by
-`pinecall-secrets.service`, the first time it boots with code under it: the LiveKit keypair, the
-database password, the operator key, the vault key. They are written as encrypted systemd
-credentials, and no verb in this repository ever prints one.
+`pinecall-secrets.service`, the first time a deploy reaches it: the LiveKit keypair, the
+database password, the ops key, the vault key. They are written as encrypted systemd
+credentials, and no verb in this repository ever prints one. The first deploy makes the box one
+**instance**, `production` — `/etc/pinecall/instances/production.env` from the domain above, its
+own secrets copied beside it — and a sandbox beside it later is one more (infra/box/README.md, "An
+instance").
 
 > `/etc/pinecall/box.env` is the box's identity and the only file cloud-init writes that the
 > deploy does not. Lose it and `make deploy` stops at `sed: can't read /etc/pinecall/box.env`,
@@ -79,9 +82,11 @@ pages from the agents checkout beside this one and copies the widget from the wi
 beside it (`scripts/console`; `PINECALL_AGENTS` and `PINECALL_WIDGET` point elsewhere), all three
 served by the gateway · **sync** rsyncs two directories · **install**
 puts every file of `infra/box/` where systemd reads it, installs the packages the box is missing,
-enables the units this role owns and disables the others, and runs `uv sync` as the service user ·
-**restart** makes the box's secrets, starts the media plane, restarts the gateway, and waits for
-the domain to answer · **doctor** runs the runtime's own checks from inside the box.
+runs `uv sync` as the service user, then **converges**: makes the box's secrets, makes every
+instance `box.env` lists whole — or stops, before anything is enabled — writes each one's Caddy
+site, and enables the units this role owns and disables the others · **restart** starts the media
+plane and, instance by instance, restarts its gateway, waits for its domain to answer, restarts its
+worker · **doctor** runs the runtime's own checks from inside the box, per instance.
 
 ```console
 $ make deploy
@@ -89,16 +94,17 @@ scripts/console
 console → src/pinecall/gateway/console (4 files)
 widget → src/pinecall/gateway/widget/pinecall-widget.js
 …
-sudo make -s -C /opt/pinecall/app/runtime/infra/box install
-sudo systemctl start pinecall-secrets
-sudo systemctl start pinecall-redis pinecall-livekit pinecall-sip pinecall-postgres
-sudo systemctl restart pinecall-gateway pinecall-overflow
+sudo make -s -C /opt/pinecall/app/runtime/infra/box install && … uv sync … && sudo make -s -C /opt/pinecall/app/runtime/infra/box converge
+…
+sudo systemctl start pinecall-redis pinecall-livekit pinecall-sip pinecall-postgres pinecall-egress
+sudo systemctl stop pinecall-gateway 2>/dev/null; sudo systemctl restart pinecall-db@production pinecall-gateway@production
 curl: (56) The requested URL returned error: 502
   not yet (1/10)
 …
 healthy: https://box.example.com
-sudo systemctl restart pinecall-worker
-active active active
+sudo systemctl stop pinecall-worker 2>/dev/null; sudo systemctl restart pinecall-worker@production
+active
+sudo systemctl restart pinecall-overflow && …
 ```
 
 The 502s are the gateway coming up behind Caddy; the health check knocks ten times and says which
@@ -159,7 +165,8 @@ not set.
 ### The worker's key
 
 The worker knocks at the gateway with a key of its own, minted once on first start by
-`pinecall-worker-key.service`: org `default`, with the **`fleet`** scope. That scope is what lets
+`pinecall-worker-key@production`: org `default`, with the **`fleet`** scope, into production's own
+store. That scope is what lets
 one worker answer every org's calls — its doors resolve by the call the dispatch named, never by
 the key's org — and nothing but that unit mints it. A box born before the scope existed still
 holds a worker key without it, and every org's call but `default`'s dies with `NoRoute`. Once,
@@ -169,9 +176,9 @@ the two `keys` verbs from the checkout with the box's ops key (§6 says how):
 $ pinecall-runtime keys list --org default          # the old key's fingerprint
 $ pinecall-runtime keys revoke <that fingerprint>
 $ ssh $BOX
-$ sudo rm /etc/credstore.encrypted/PINECALL_WORKER_KEY
-$ sudo systemctl start pinecall-worker-key           # mints the new one, fleet scope and all
-$ sudo systemctl restart pinecall-worker pinecall-overflow
+$ sudo rm /etc/pinecall/instances/production.credstore/PINECALL_WORKER_KEY
+$ sudo systemctl start pinecall-worker-key@production   # mints the new one, fleet scope and all
+$ sudo systemctl restart pinecall-worker@production pinecall-overflow
 ```
 
 ### The box's mail
@@ -244,7 +251,7 @@ prints starts with `PINECALL_GATEWAY_URL`:
 
 ```console
 $ export PINECALL_GATEWAY_URL=https://box.example.com
-$ export PINECALL_OPS_KEY=$(ssh $BOX sudo systemd-creds decrypt --name=PINECALL_OPS_KEY /etc/credstore.encrypted/PINECALL_OPS_KEY -)
+$ export PINECALL_OPS_KEY=$(ssh $BOX sudo systemd-creds decrypt --name=PINECALL_OPS_KEY /etc/pinecall/instances/production.credstore/PINECALL_OPS_KEY -)
 $ uv run pinecall-runtime init --email you@example.com --person "Your Name"
 org default is already there
 m_b3796f3579fc  you@example.com  admin  runs this box
@@ -295,9 +302,9 @@ line     rings in this terminal
 One line, and it says the four things that decide where you are: the agent, **whose org**, **which
 world**, and where the key came from. A laptop's run is in the sandbox, and the sandbox is watched
 at its own instance's console — the URL above, opened signed in by `pinecall console` — while the
-production instance's page shows production, and only production. Until the sandbox instance is on
-the box (infra/box/README.md), a box has one console and it is production's. Then, in another
-terminal:
+production instance's page shows production, and only production. Until a sandbox instance is on
+the box (infra/box/README.md, "An instance"), a box has one console and it is production's. Then,
+in another terminal:
 
 ```console
 $ pinecall chat
@@ -681,22 +688,24 @@ eso: el `/admin` que existía se fue, y la ops key no se escribe en ningún nave
 ```
                  ┌─ caddy ────────── TLS, :80 :443, the only thing the internet reaches
 internet ──────► │
-                 └─ pinecall-gateway ── the API, the console and the widget, :8080 on loopback
+                 └─ pinecall-gateway@production ── the API, the console and the widget, :8080 on loopback
                         │
                         ├── pinecall-postgres   the log, the orgs, the keys, the routes
                         ├── pinecall-livekit    the media plane, :7880 on loopback
                         ├── pinecall-sip        a telephone's way in
                         ├── pinecall-redis      the bus, and where livekit-sip keeps its trunks
                         └── pinecall-tei        what embeds, when it is this box's job
-                 pinecall-worker ── answers a call with audio, dials the gateway by name
+                 pinecall-worker@production ── answers a call with audio, dials the gateway by name
 ```
 
-Every one is a systemd unit; the five containers are Quadlets. `infra/box/README.md` is the box
+Every one is a systemd unit; the five containers are Quadlets. A second instance — a sandbox — is
+another `pinecall-gateway@` and `pinecall-worker@` beside these, on its own port, its own database
+in the same Postgres, and its own name at Caddy. `infra/box/README.md` is the box
 itself, credential by credential and unit by unit.
 
 ```bash
 make status          # every unit and container, one line each
-make logs UNIT=worker
+make logs UNIT=worker@production
 make ssh
 ```
 
@@ -708,6 +717,7 @@ make ssh
 | `mkdir: cannot create directory '/opt/pinecall/app'` | it was deleted; the deploy remakes it now, older ones did not |
 | `curl: (56) … 502` ten times, then `never answered` | the gateway did not start. `make logs` |
 | `Error: parsing file ".../media.env"` | the box's own secrets are missing. `make deploy` starts `pinecall-secrets`; a reboot also does |
+| `instance production: no … — make instance …` | an instance `box.env` lists is missing its file or a secret; the deploy stopped before changing anything. The verb it names makes it |
 | `livekit — ConnectError: Connection refused` | the media plane is down. `make deploy` starts it; it never restarts one under a call |
 | `✗ provider keys answer  refused ELEVEN_API_KEY (HTTP 401)` | a dead key, not a failed deploy. Rotate it, §5, then `make restart` |
 | `no database: a key is verified against the api_keys table` | no `DATABASE_URL`, or the schema was never migrated |

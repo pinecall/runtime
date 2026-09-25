@@ -55,7 +55,7 @@ What a `503` from simulate means:
 
 ```bash
 ssh <hub> 'sudo podman logs --since 10m pinecall-livekit 2>&1 | grep -E "worker registered|job"'
-ssh <worker> "sudo journalctl -u pinecall-worker --since '$START' -o cat" \
+ssh <worker> "sudo journalctl -u pinecall-worker@production --since '$START' -o cat" \
   | grep -iE "received job|pipeline is live|error|exception" \
   | sed -E 's/(key|secret|token)[=:] *[^ ]+/\1=***/Ig'
 ```

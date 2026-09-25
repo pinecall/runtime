@@ -7,6 +7,18 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **A box runs instances, declared.** `/etc/pinecall/box.env` names them (`PINECALL_INSTANCES`,
+  `production` when unset); each is `/etc/pinecall/instances/<name>.env` and `<name>.credstore/`,
+  and its units are templates — `pinecall-db@`, `pinecall-gateway@`, `pinecall-worker-key@`,
+  `pinecall-worker@` — enabled once per name, with nothing about any instance written in a unit.
+  An instance's own `DATABASE_URL`, ops, vault and worker keys are loaded by path out of its own
+  store; the box's shared ones by name, one line each — no unit imports the `PINECALL_*` glob,
+  which would hand one instance another's keys. `pinecall-db@<name>` makes a missing database,
+  its role and its walls. Caddy gets one site per instance, `/etc/caddy/instances/<name>.caddy`,
+  from its domain and port; the Caddyfile names no site and reads no environment. `make instance
+  NAME= WORLD= DOMAIN= [PORT= IDENTITY= ELSEWHERE=]` declares one from the checkout; `make
+  restart` and `make doctor` go instance by instance (`INSTANCE=` for one), `make secret
+  INSTANCE=` writes into an instance's store, `make logs UNIT=gateway@sandbox`.
 - **`pinecall-runtime box instance <name> --world … --domain …`** writes one instance's env file,
   `/etc/pinecall/instances/<name>.env`, every variable in it (an unset one as `NAME=`): its world,
   its fleet (`pinecall-<name>`, `pinecall` for `production`), its loopback URL on the next free
@@ -64,8 +76,22 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   marks the console. The console is marked with the instance's world, `/index.html` included.
 - **`PUT /v1/numbers/{number}/env` is gone.** A number is one instance's: it is imported where it
   is meant to answer, and nothing moves it to the other world.
+- **`caddy/sandbox.caddy` and Caddy's `box.env` drop-in** (`caddy/pinecall.conf`): a deploy takes
+  both off the box, and the sandbox's name is served by the sandbox instance's own site.
 
 ### Changed
+- **`make deploy` never leaves a box that cannot start**: the manifest's second half, `make -C
+  infra/box converge`, runs once the virtualenv is built and stops the deploy — before a unit is
+  enabled or a Caddy site moves — when a listed instance lacks its file, a domain and port, or a
+  secret its units load by path. On a box born with one instance it IS the migration:
+  `production.env` from box.env's `PINECALL_DOMAIN` (and world, elsewhere, identity, fleet and the
+  worker's knobs where set), production's four secrets copied — not moved — into its store, the
+  single `pinecall-gateway`, `pinecall-worker` and `pinecall-worker-key` retired, and `make
+  restart` stopping each right before its `@production` starts. Production's recordings go to
+  `/var/lib/pinecall/recordings/production` from then on; older ones stay where the log says.
+- **`pinecall-overflow`, `pinecall-operator-key`, `pinecall-fleet` are production's**, reading
+  `instances/production.env` and production's store; `pinecall-app@` waits on
+  `pinecall-gateway@production`.
 - **`pinecall-runtime gateway` binds its own `PINECALL_GATEWAY_URL`** when given no `--host` and
   `--port`: `127.0.0.1:8080` unless the instance says otherwise, where it was `0.0.0.0:8080`. A
   URL that is not loopback or names no port is refused in one sentence; `--host 0.0.0.0` is still

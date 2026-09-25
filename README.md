@@ -97,15 +97,27 @@ credential for the repository and is never told which cloud it is on.
 3. make deploy     from this directory. `scripts/console` (the agents repo's console bundled and
                    copied in as package data, and the widget beside it; needs pnpm,
                    ../agents and ../widget) · rsync the checkout · `make -C infra/box install` (the
-                   packages, every unit and container file, the fence, the role) · `uv sync
-                   --frozen` as the service user · restart, gateway first and the worker once
-                   the gateway answers through Caddy — live calls go on through both · the
-                   doctor, last
+                   packages, every unit and container file, the fence) · `uv sync --frozen` as the
+                   service user · `make -C infra/box converge` (every instance whole, or the
+                   deploy stops; a Caddy site each; the role's units) · restart, instance by
+                   instance, gateway first and the worker once the gateway answers through
+                   Caddy — live calls go on through both · the doctor, per instance, last
 4. your key        minted on the box on first start, encrypted, printed nowhere — read it once:
                    sudo systemd-creds decrypt --name=PINECALL_OPERATOR_KEY \
                         /etc/credstore.encrypted/PINECALL_OPERATOR_KEY -
                    no such file? `sudo systemctl start pinecall-operator-key` mints one and
                    does nothing at all while the credstore already has one
+```
+
+**A box runs instances.** The first deploy makes it one, `production`. A second — the sandbox
+where agents are written, a staging — is its own gateway, worker, database, fleet and keys on the
+same media plane, declared with one verb and a line of `/etc/pinecall/box.env`, with nothing about
+it written in a unit file ([infra/box/README.md](infra/box/README.md), "An instance"):
+
+```
+make instance NAME=sandbox WORLD=sandbox DOMAIN=sandbox.example.com \
+              IDENTITY=https://box.example.com ELSEWHERE=https://box.example.com
+                   then PINECALL_INSTANCES="production sandbox" in box.env, and make deploy
 ```
 
 Every secret on the box is an encrypted systemd credential; there is no `.env` there. The vendors'
@@ -115,9 +127,9 @@ holds** — a dead one fails the deploy with its name on the screen, never a cal
 ```
 printf '%s' "$ELEVENLABS_API_KEY" | make secret NAME=ELEVEN_API_KEY     one secret, on stdin
 make restart                                                            a credential is read at start
-make doctor [MAIL_TO=you@example.com]                                   what the deploy runs last; a test letter
+make doctor [INSTANCE=sandbox] [MAIL_TO=you@example.com]                what the deploy runs last; a test letter
 make providers [DOES=tts]                                               every vendor, and what each wants
-make status · make logs UNIT=worker · make ssh
+make status · make logs UNIT=worker@production · make ssh
 ```
 
 **The first org, and who operates the box.** A box answers nobody until an org exists, and there
@@ -138,9 +150,10 @@ and no ops key typed into a browser.
 
 **A second box.** One machine is `PINECALL_ROLE=all`. To grow, the machine you have becomes the
 **hub** (`PINECALL_ROLE=hub` in its `/etc/pinecall/box.env`: gateway and media plane, no worker)
-and each new machine is a **worker** (`PINECALL_ROLE=worker`, `LIVEKIT_URL` and
-`PINECALL_GATEWAY_URL` pointing at the hub, `PINECALL_MAX_JOBS` measured on it). The hub
-copies a worker its credentials, then the worker is deployed like any box:
+and each new machine is a **worker** (`PINECALL_ROLE=worker` and `LIVEKIT_URL` pointing at the hub
+in its box.env; the hub's instance file with `PINECALL_GATEWAY_URL` pointing at the hub and
+`PINECALL_MAX_JOBS` measured on it). The hub copies a worker its credentials, then the worker is
+deployed like any box:
 
 ```
 make worker-secrets WORKER=deploy@203.0.113.9

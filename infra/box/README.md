@@ -20,21 +20,24 @@ infra/box/
 ├── livekit.yaml · sip.yaml · egress.yaml   what the three LiveKit containers mount
 ├── pinecall-secrets.service   the box's own secrets, drawn once, encrypted by systemd
 ├── pinecall-postgres-image.service   our Postgres image, built once per tag
-├── pinecall-gateway.service · pinecall-worker.service        the two processes we write
-├── pinecall-worker-key.service · pinecall-operator-key.service   two keys, minted once each
+├── pinecall-gateway@.service · pinecall-worker@.service      the two processes we write, one each
+│                              per instance ("An instance")
+├── pinecall-db@.service       an instance's database in the box's Postgres, made once
+├── pinecall-worker-key@.service      an instance's fleet key, minted once
+├── pinecall-operator-key.service     your key, production's, minted once
 ├── pinecall-overflow.service  the overflow agent, on the hub: it answers when every worker is full
 ├── pinecall-fleet.service     the fleet loop, on a hub whose box.env names a cloud (docs/scaling.md)
 ├── pinecall-app@.service      a tenant's app held here, one instance per app (docs/a-box-in-production.md §7)
-└── caddy/                     the Caddyfile and its sandbox site, and the drop-in that hands
-                               Caddy the box's names
+└── caddy/Caddyfile            the one routing table every instance's site imports with its port
 ```
 
 ## What keeps a call's audio
 
 A recording is one **room composite egress** per call, asked for by the worker the moment the room
 exists and stopped when the call ends (`worker/egress.py`). It writes
-`/var/lib/pinecall/recordings/<call>/audio.ogg`, which is the path `call.summary` points at and the
-path `GET /v1/calls/{call}/recording` serves from.
+`/var/lib/pinecall/recordings/<instance>/<call>/audio.ogg` — each instance's `PINECALL_RECORDINGS`
+is a directory of its own under the root egress mounts — which is the path `call.summary` points
+at and the path `GET /v1/calls/{call}/recording` serves from.
 
 The room, and not the session: everything anybody on the call heard is in the file — the caller,
 the agent, **the hold melody** the agent publishes beside its own voice, and **a supervisor who
@@ -110,10 +113,13 @@ Three steps, and the machine does the rest.
 make deploy
 #    rsync puts this repository and the wire beside it under /opt/pinecall/app; `make install`
 #    puts every file of infra/box/ where systemd reads it; `uv sync` builds the virtualenv as the
-#    service user. Then systemd, on its own, in this order: the secrets are drawn
-#    (pinecall-secrets), the Postgres image is built (pinecall-postgres-image), the media plane
-#    comes up (redis, livekit, sip, postgres), the gateway migrates the schema and opens, the two
-#    keys are minted (pinecall-worker-key, pinecall-operator-key), the worker registers.
+#    service user; `make converge` draws the box's secrets (pinecall-secrets), makes the one
+#    instance a fresh box has, `production` — its env file from box.env's PINECALL_DOMAIN, its
+#    three secrets copied from the box's first draw — writes its Caddy site and enables its units.
+#    Then systemd, in this order: the Postgres image is built (pinecall-postgres-image), the
+#    media plane comes up (redis, livekit, sip, postgres), pinecall-db@production finds the
+#    database the container made, the gateway migrates the schema and opens, the two keys are
+#    minted (pinecall-worker-key@production, pinecall-operator-key), the worker registers.
 
 # 3. Your key. Minted on that first start (gone? `systemctl start pinecall-operator-key`). Read it once:
 ssh <the box> sudo systemd-creds decrypt --name=PINECALL_OPERATOR_KEY /etc/credstore.encrypted/PINECALL_OPERATOR_KEY -
@@ -125,7 +131,7 @@ their names; then a restart, because a unit reads its credentials at start:
 
 ```bash
 printf '%s' 'sk-ant-…' | sudo /opt/pinecall/venv/bin/pinecall-runtime box secret ANTHROPIC_API_KEY
-sudo systemctl restart pinecall-gateway pinecall-worker
+sudo systemctl restart pinecall-gateway@production pinecall-worker@production   # or `make restart`
 ```
 
 The names are the environment's own and each unit lists which it may see (the embedder's
@@ -140,19 +146,89 @@ laptop: `scripts/console` bundles the console into `src/pinecall/gateway/console
 carries it, the gateway serves it at `/`. The rest is Python. The *box* decision page in the
 maintainer's notebook argues both.
 
-## Two names: production's console and the sandbox's
+## An instance
 
-**The gateway no longer tells the two worlds apart by the name a request arrived at.** An instance
-is one world (`PINECALL_WORLD`: production unless its environment says sandbox), and the sandbox becomes an instance of its own on this machine — its own
-gateway, database, worker and fleet, behind the second name — in the milestone that brings its
-units, env file and secrets here. Until then:
+A box runs one or more **instances** of the runtime: each its own gateway, worker, database, fleet
+and keys, sharing the media plane (LiveKit, SIP, Redis, egress), Caddy, the vendors' keys, the code
+and the virtualenv. Production is one; the sandbox — where agents are written — is another, the one
+whose file says `PINECALL_WORLD=sandbox`; a staging would be a third. **Nothing about any of them is
+written in a unit file.** An instance is two things, and `box.env` names which exist:
 
-- `/etc/pinecall/box.env` is production's with no line added; `PINECALL_ELSEWHERE_URL=
-  https://sandbox.example.com` makes every refusal and the console's switcher name the sandbox's
-  URL.
-- `PINECALL_SANDBOX_DOMAIN` is read by nothing in the runtime any more. `make install` still keys
-  `caddy/sandbox.caddy` off it, so a box that keeps the line keeps serving the second name — from
-  the production instance, marked production — until the sandbox instance replaces that site.
+| | |
+|---|---|
+| `/etc/pinecall/instances/<name>.env` | its world, fleet, domain, loopback URL, worker port, recordings, identity, elsewhere and worker knobs — every one written, an unset one as `NAME=`, so a line `box.env` still carries never becomes this instance's. Read by every unit of it after `box.env`, and winning |
+| `/etc/pinecall/instances/<name>.credstore/` | 0700, root: `DATABASE_URL`, `PINECALL_OPS_KEY`, `PINECALL_VAULT_KEY`, `PINECALL_WORKER_KEY` — what it holds alone, each loaded by its units by path (`LoadCredentialEncrypted=`) |
+| `PINECALL_INSTANCES="production sandbox"` | in `/etc/pinecall/box.env`: the names this box runs, in the order a deploy restarts and doctors them. Unset, `production` |
+
+Its units are the templates — `pinecall-db@<name>`, `pinecall-gateway@<name>`,
+`pinecall-worker-key@<name>`, `pinecall-worker@<name>` — enabled once per listed name by the role
+(a hub enables no worker; a worker box nothing but its workers). Its Caddy site is
+`/etc/caddy/instances/<name>.caddy`, `<domain> { import pinecall <port> }`, written from its file on
+every deploy; the port is its `PINECALL_GATEWAY_URL`'s, which is also the one its gateway binds. A
+name taken out of `PINECALL_INSTANCES` is taken off Caddy and its units stopped on the next deploy;
+its files and its database stay. The overflow agent, the operator's key and the fleet loop are
+production's, one each: a sandbox has no overflow and no loop — its worker is the one on this box.
+
+**Why an instance's secrets are not in `/etc/credstore.encrypted/`.** `ImportCredential=` searches
+one store for the whole machine, and the doctor's wrapper imports every entry of it: a glob or a
+wrapper over a shared store would hand the sandbox production's ops, vault and worker keys. So no
+unit imports `PINECALL_*` any more; the box's shared secrets are imported by name, one line each,
+and an instance's own are loaded by path out of its own store.
+
+**A second instance, from the checkout.** One verb writes both files, as root over ssh; the name in
+`box.env` is yours to write, because `box.env` is; the deploy does the rest:
+
+```bash
+make instance NAME=sandbox WORLD=sandbox DOMAIN=sandbox.example.com \
+              IDENTITY=https://box.example.com ELSEWHERE=https://box.example.com
+make ssh        # sudoedit /etc/pinecall/box.env → PINECALL_INSTANCES="production sandbox"
+                # and production's own file names the sandbox back, once:
+                #   sudo /opt/pinecall/venv/bin/pinecall-runtime box instance production \
+                #     --world production --domain box.example.com \
+                #     --elsewhere https://sandbox.example.com --force
+make deploy     # pinecall-db@sandbox makes pinecall_sandbox; both gateways, workers, doctors
+```
+
+`box instance` gives the next free hundred on loopback — 8180 for the gateway and 8182 for its
+worker's health server beside production's 8080 and 8082; 8081 is the embedder's and 8090 the
+notifier's — a fleet of `pinecall-<name>`, and recordings under
+`/var/lib/pinecall/recordings/<name>`, made `2770 pinecall:pinecall-media` as the root is (egress
+mounts the root, so it writes into every instance's directory). It refuses a sandbox with no
+`IDENTITY`: a sandbox asks production who a person is, and one with nobody to ask would never
+start. `box secrets --instance` draws the three; the fourth, the worker's, is minted by
+`pinecall-worker-key@<name>` from its own gateway once that answers. **Production's are never
+drawn**: its database is the one the container made at first boot, owned by the container's
+superuser, so its secrets are the box's first draw (`pinecall-secrets`) and the deploy copies them
+into its store. `pinecall-db@<name>` makes a missing database with a role of its own, takes
+`CONNECT` on every database from `PUBLIC` — each role reaches its own and no other — and creates
+both search extensions in it; production's is there, and for it the unit does nothing.
+
+**A box born with one instance** converges on its next `make deploy` and nothing is done by hand:
+`production.env` is written from `box.env`'s `PINECALL_DOMAIN` (and `PINECALL_WORLD`,
+`PINECALL_ELSEWHERE_URL`, `PINECALL_IDENTITY_URL`, `PINECALL_FLEET`, `PINECALL_MAX_JOBS`,
+`PINECALL_IDLE_PROCESSES` where it sets them) by the same verb, production's four secrets are
+**copied** — not moved — from `/etc/credstore.encrypted/` into its store (the originals stay, for a
+rollback and for the notifier, which imports the ops key there), the single `pinecall-gateway`,
+`pinecall-worker` and `pinecall-worker-key` are disabled and their files removed, and `make
+restart` stops each right before `…@production` starts. `conf.d/sandbox.caddy` and the Caddy
+drop-in that handed it `box.env` go; `PINECALL_SANDBOX_DOMAIN` is read by nothing.
+
+**The deploy never leaves a box that cannot start.** Before one unit is enabled or one site moves,
+`make converge` checks every listed instance has its file, a domain and a port in it, and the
+secrets its gateway loads by path (a worker box: its worker key) — a credential loaded by path that
+is missing fails the unit's start, where an imported one is merely absent — and a missing one stops
+the deploy with the verb that makes it, and the box keeps running what it ran.
+
+### An instance on a box of its own
+
+Moving an instance off the hub is a change of files, never of code: stand up a worker box ("Roles,
+and a second box", below), copy the instance's env file to it, and point its
+`PINECALL_GATEWAY_URL` at the hub (`https://<the instance's domain>`) — box.env's `LIVEKIT_URL`
+names the hub's SFU. `make worker-secrets WORKER=… INSTANCE=<name>` copies its worker key into the
+same path there. A whole instance — gateway and database too — on a VM of its own is that VM's
+`PINECALL_INSTANCES` naming it, with the two files copied and its DSN pointing at wherever its
+database now is ([docs/scaling.md](../../docs/scaling.md), the worker-box recipe, is the half that
+is measured).
 
 ## Roles, and a second box
 
@@ -164,18 +240,22 @@ disables the others', so a box that changes role changes it on its next deploy. 
 decided in the same file by the same rule — "The embedder", below.
 
 A worker box needs three things the hub does not put in its unit: where the SFU and the gateway
-are, and how many calls it holds.
+are, and how many calls it holds — the first in its `box.env`, the other two in the file of the
+instance whose calls it takes (production's, unless it says), copied from the hub and pointed back:
 
 ```
+# /etc/pinecall/box.env
 PINECALL_ROLE=worker
 LIVEKIT_URL=wss://box.example.com          # the hub, under TLS: Caddy carries /agent to the SFU
+# /etc/pinecall/instances/production.env — the hub's, with these two lines changed
 PINECALL_GATEWAY_URL=https://box.example.com
 PINECALL_MAX_JOBS=5                        # measured on THIS machine type — see below
 ```
 
 And its own credentials, and no others: the LiveKit keypair and the vendors' keys copied from the
-hub (`box secret`, from stdin, over ssh), and a `PINECALL_WORKER_KEY` issued there with `keys
-issue`. Never `DATABASE_URL`, never the ops key, never the vault key, and never an embedder's: a
+hub's store, and the instance's `PINECALL_WORKER_KEY` from the hub's instance store into the same
+path here (`make worker-secrets`, over ssh, printed nowhere). Never `DATABASE_URL`, never the ops
+key, never the vault key, and never an embedder's: a
 worker has no database, guards nothing, and embeds nothing. It needs no port open but ssh. It
 registers by an outbound WebSocket, LiveKit hands it jobs on that socket, and the media goes to the
 hub's public UDP port. `nftables.conf` is the same file on every role; the doors it opens that
@@ -253,17 +333,20 @@ machine retrieves.
 ## Where the secrets live
 
 Nowhere in the clear. Every secret on the box is a **systemd credential**: one file per name under
-`/etc/credstore.encrypted/`, encrypted under the machine's own key — sealed to its TPM where it
-has one — and decrypted by systemd into a private directory for the one unit that named it
-(`ImportCredential=` in each `.service`), readable by that process and by nothing down the tree.
+`/etc/credstore.encrypted/` — the box's — or under an instance's own
+`/etc/pinecall/instances/<name>.credstore/`, encrypted under the machine's own key — sealed to its
+TPM where it has one — and decrypted by systemd into a private directory for the one unit that
+named it (`ImportCredential=` by name for the box's, `LoadCredentialEncrypted=` by path for an
+instance's), readable by that process and by nothing down the tree.
 The runtime reads that directory as it reads the environment (`_settings.py`, `secrets_dir`),
 under the same names; the three containers that take a secret — livekit, sip and postgres — read
 one credential, `media.env`, as their environment file. There is no `.env` on the box, and a stolen disk is not a stolen tenant.
 
 | credential | who reads it | made by |
 |---|---|---|
-| `LIVEKIT_API_KEY` `LIVEKIT_API_SECRET` `POSTGRES_PASSWORD` `DATABASE_URL` `PINECALL_OPS_KEY` `PINECALL_VAULT_KEY` `media.env` | the units and the containers, each what it names | `pinecall-secrets.service`, once: `pinecall-runtime box secrets` |
-| `PINECALL_WORKER_KEY` — the fleet's key the worker knocks with: org default, the `fleet` scope | the worker | `pinecall-worker-key.service`, once |
+| `LIVEKIT_API_KEY` `LIVEKIT_API_SECRET` `POSTGRES_PASSWORD` `media.env` — the box's | the units and the containers, each what it names | `pinecall-secrets.service`, once: `pinecall-runtime box secrets` |
+| `DATABASE_URL` `PINECALL_OPS_KEY` `PINECALL_VAULT_KEY` — an instance's, in its own store | that instance's units | production's: drawn with the box's by `box secrets` (its database is the container's), copied into its store by `make converge`, the originals left where they were. Any other's: `box secrets --instance <name>` (`make instance`) |
+| `PINECALL_WORKER_KEY` — an instance's fleet key: its org default, the `fleet` scope | that instance's worker, and production's overflow agent | `pinecall-worker-key@<name>`, once, into the instance's store |
 | `PINECALL_OPERATOR_KEY` — yours | you, once, with `systemd-creds decrypt` | `pinecall-operator-key.service` — it mints one only while the credstore has none, so `systemctl start` it to replace one that is gone |
 | `pinecall-app-<name>.key` `pinecall-app-<name>.env` — an app held here: the org's key it knocks with, and its own secrets as dotenv lines | `pinecall-app@<name>` | that app's deploy, from its checkout |
 | the vendors' keys | the gateway and the worker | you: `pinecall-runtime box secret <NAME>` |
@@ -279,6 +362,7 @@ that name it stay readable. A vendor's key is replaced in place, from the checko
 
 ```bash
 printf '%s' "$ELEVENLABS_API_KEY" | make secret NAME=ELEVEN_API_KEY   # then: make restart
+printf '%s' "$KEY" | make secret NAME=… INSTANCE=sandbox             # one instance's own store
 make worker-secrets WORKER=deploy@<the worker>                         # a worker takes the hub's copy
 ```
 
@@ -288,14 +372,18 @@ make worker-secrets WORKER=deploy@<the worker>                         # a worke
 same list cloud-init installed at birth — a test pins the two equal, so a box born before a
 package was added converges on its next deploy), overwrites what changed and leaves what did
 not; `systemd-sysusers` and `systemd-tmpfiles` make only what is missing; the fence and systemd
-are reloaded. The runtime's units are restarted by `make restart`, the gateway first (the overflow
-agent with it) and the worker once the gateway answers. The **containers are not**: the media plane stays up through a
+are reloaded. `make converge`, once the virtualenv is built, makes every listed instance whole or
+stops the deploy ("An instance"), writes the Caddy sites and enables what the role runs. The
+runtime's units are restarted by `make restart`, instance by instance in `PINECALL_INSTANCES`'
+order: its database check and gateway first, then the health check through Caddy at that
+instance's name, then its worker; the overflow agent and the loop last. The **containers are not**: the media plane stays up through a
 deploy, and a changed `.container` takes effect on its next restart, which is yours to time —
 `sudo systemctl restart pinecall-livekit` between two calls, not during one.
 
 The last word is the doctor's. `make doctor` runs `pinecall-runtime doctor` on the box exactly as
-the units run — their user, their `box.env`, every credential in the credstore, in a transient unit
-systemd tears down on exit — and every provider key that is set is knocked at its own vendor's
+each instance's units run — their user, `box.env` and then the instance's file, the box's
+credentials by name and the instance's own by path, in a transient unit systemd tears down on exit;
+every listed instance in turn, or the one `INSTANCE=` names — and every provider key that is set is knocked at its own vendor's
 cheapest door, once. A key that expired or was pasted wrong fails the deploy right there, with its
 **name** on the screen and never its value, instead of failing a caller: the first voice call
 through the second box, 2026-09-09, found an ElevenLabs key the hub had carried dead since its
@@ -319,15 +407,12 @@ hub's Postgres or its embedder, because a worker has neither. The embedder's lin
   source in it, and stops at the one that is not there. The units never call uv at all — they run
   `/opt/pinecall/venv/bin/pinecall-runtime`, and the deploy's `uv sync` is the one place the
   environment is built.
-- **Caddy's packaged unit reads no environment file.** `{$PINECALL_DOMAIN}` is then empty, the
-  site block collapses to a bare `{ … }`, and Caddy reads it as the *global options* block:
-  `unrecognized global option: @livekit`. `caddy/pinecall.conf` is the drop-in that points it at
-  `/etc/pinecall/box.env`.
-- **A `{$VAR}` cannot be the second address of a site block.** `{$PINECALL_DOMAIN},
-  {$PINECALL_SANDBOX_DOMAIN} { … }` does not adapt — `Expected another address but had '{'` —
-  because the placeholder is read where the block's own brace is expected, and it fails the same
-  way with the variable SET. Two names are two site blocks sharing one `(pinecall)` snippet,
-  which is what `caddy/Caddyfile` does. Measured with `caddy validate`, 2026-09-21.
+- **Caddy's packaged unit reads no environment file**, so a `{$PINECALL_DOMAIN}` site address is
+  empty and the block collapses into the *global options* one — `unrecognized global option:
+  @livekit` — and a `{$VAR}` cannot be a site's second address even when set (`Expected another
+  address but had '{'`, `caddy validate`, 2026-09-21). So a site is a file the manifest writes with
+  the name in it, one per instance, each importing the one `(pinecall)` snippet with its port, and
+  the Caddyfile reads no environment at all.
 - **`StandardOutput=file:` is opened before `RuntimeDirectory=` is created**, so a unit that
   catches a key into a directory it also declares dies with `209/STDOUT` and "No such file or
   directory". The two key units write into `/run` itself and set `UMask=0077`, which is what makes
@@ -335,14 +420,15 @@ hub's Postgres or its embedder, because a worker has neither. The embedder's lin
 
 ## Where the keys come from
 
-Three, and none of them opens another's door. The *keys* decision page in the maintainer's notebook argues the split;
+Three, and none of them opens another's door — nor another instance's: each instance has its own
+ops and worker key, and the operator's is production's. The *keys* decision page in the maintainer's notebook argues the split;
 `../../docs/protocol/operator-api.md` is the contract.
 
 | key | who holds it | made by |
 |---|---|---|
-| `PINECALL_OPS_KEY` | the box — `/v1/ops/*` and nothing else. A person the box made an operator (`orgs operator`) opens the same doors with their own key | `pinecall-secrets.service`, once |
-| `PINECALL_WORKER_KEY` | the worker unit — `/v1/routes`, the app socket, the log, for EVERY org's calls | `pinecall-worker-key.service`, once: `keys issue --org default --scope fleet --scope app --scope calls`, stdout straight into `systemd-creds encrypt` |
-| `PINECALL_OPERATOR_KEY` | you — a key of org `default`, every scope but `fleet` | `pinecall-operator-key.service`, once: `keys issue --org default --label the-operator`, the same way |
+| `PINECALL_OPS_KEY` | an instance — its `/v1/ops/*` and nothing else. A person the box made an operator (`orgs operator`) opens the same doors with their own key | production's: `pinecall-secrets.service`, once; another instance's: `box secrets --instance` |
+| `PINECALL_WORKER_KEY` | an instance's worker — `/v1/routes`, the app socket, the log, for EVERY org's calls | `pinecall-worker-key@<name>`, once, into the instance's store: `keys issue --org default --scope fleet --scope app --scope calls`, stdout straight into `systemd-creds encrypt` |
+| `PINECALL_OPERATOR_KEY` | you — a key of production's org `default`, every scope but `fleet` | `pinecall-operator-key.service`, once: `keys issue --org default --label the-operator`, the same way |
 
 `migrate up` mints nothing: it runs before every start of the gateway, and a verb that runs there
 must print no secret into a journal. `keys issue` is the one place a key exists in the clear — on
@@ -374,7 +460,7 @@ uv run python ../tools/twilio_trunk.py \
 
 # 3. who answers. A ROW, never a field on the tenant's class — the routes decision, in the maintainer's notebook.
 export PINECALL_GATEWAY_URL=https://box.pinecall.io
-export PINECALL_OPS_KEY=$(ssh <the box> sudo systemd-creds decrypt --name=PINECALL_OPS_KEY /etc/credstore.encrypted/PINECALL_OPS_KEY -)
+export PINECALL_OPS_KEY=$(ssh <the box> sudo systemd-creds decrypt --name=PINECALL_OPS_KEY /etc/pinecall/instances/production.credstore/PINECALL_OPS_KEY -)
 unset PINECALL_WORKER_KEY                       # v1 exports one, and this gateway has never heard of it
 uv run pinecall-runtime routes add +1… clinica-norte
 uv run pinecall-runtime routes list

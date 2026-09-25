@@ -152,7 +152,7 @@ async def cordon(worker: str, on: bool, operator: Operator, out: TextIO = sys.st
 
 
 # A cordon is how a machine is RETIRED: it drains and exits, and the unit is written not to bring
-# a drained worker back (`RestartPreventExitStatus=3`, infra/box/pinecall-worker.service), because
+# a drained worker back (`RestartPreventExitStatus=3`, infra/box/pinecall-worker@.service), because
 # the fleet loop deletes the machine next. Said only as "it leaves", an operator cordons a box to
 # look at something, uncordons it, reads `uncordoned`, and has no worker — for thirty seconds
 # `fleet list` still says `accepting`, because that is how long a heartbeat counts (2026-09-20).

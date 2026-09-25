@@ -1,0 +1,29 @@
+# One instance's database, `pinecall-db@<name>`, made once in the box's one Postgres: a oneshot
+# before its gateway, as root, because it speaks to Postgres as the container's own superuser
+# through podman. `pinecall-runtime box database` reads the instance's DATABASE_URL and, only if the
+# database it names is missing, makes the role it names, the database owned by it, takes CONNECT on
+# every database from PUBLIC — so a role reaches its own database and no other — and creates both
+# halves of hybrid search in it (cli/box/database.py). Production's database is the one the container
+# made at first boot, so for it this does nothing, and no instance is a special case here.
+# Migrations stay the gateway's ExecStartPre=.
+[Unit]
+Description=Pinecall: instance %i's database, made once
+Requires=pinecall-postgres.service
+After=pinecall-postgres.service
+Before=pinecall-gateway@%i.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=/etc/pinecall/box.env
+EnvironmentFile=/etc/pinecall/instances/%i.env
+LoadCredentialEncrypted=DATABASE_URL:/etc/pinecall/instances/%i.credstore/DATABASE_URL
+# Postgres at boot answers a few seconds after its container starts: a first try that lands early
+# fails here and is tried again, which is why the gateway only Wants= this unit.
+ExecStartPre=/usr/bin/podman healthcheck run pinecall-postgres
+ExecStart=/opt/pinecall/venv/bin/pinecall-runtime box database
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

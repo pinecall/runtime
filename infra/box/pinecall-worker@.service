@@ -1,29 +1,29 @@
-# The fleet on the box: it answers the phone from the same machine as the SFU, which is the whole
-# point — a media hop across a datacentre is heard in every turn.
-# Installed to /etc/systemd/system/ by infra/box/Makefile, on every deploy.
+# One instance's fleet on the box, `pinecall-worker@<name>`: it answers the phone from the same
+# machine as the SFU, which is the whole point — a media hop across a datacentre is heard in every
+# turn. It registers under the instance's own PINECALL_FLEET, so two instances on one SFU never take
+# each other's calls. Installed by infra/box/Makefile; the template, its env file and its secrets
+# are pinecall-gateway@.service's, and so is why no `PINECALL_*` glob is imported here.
 [Unit]
-Description=Pinecall worker (the fleet that answers a call)
+Description=Pinecall worker, instance %i (the fleet that answers a call)
 # Wants=, not Requires=: on the hub these three are here and the worker starts after them; on a
 # box that is only a worker they do not exist, and a Wants= on a unit that is not there is
-# ignored where a Requires= would refuse to start at all. The hub's address is then
-# LIVEKIT_URL and PINECALL_GATEWAY_URL in /etc/pinecall/box.env, which wins over the
-# Environment= lines below.
-Wants=network-online.target pinecall-gateway.service pinecall-worker-key.service
-After=network-online.target pinecall-livekit.service pinecall-gateway.service pinecall-worker-key.service
+# ignored where a Requires= would refuse to start at all. The hub's address is then LIVEKIT_URL
+# and PINECALL_GATEWAY_URL in this instance's env file, which wins over every line before it.
+Wants=network-online.target pinecall-gateway@%i.service pinecall-worker-key@%i.service
+After=network-online.target pinecall-livekit.service pinecall-gateway@%i.service pinecall-worker-key@%i.service
 
 [Service]
 User=pinecall
 Group=pinecall
 WorkingDirectory=/opt/pinecall/app
 Environment=LIVEKIT_URL=ws://127.0.0.1:7880
-Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
-Environment=PINECALL_RECORDINGS=/var/lib/pinecall/recordings
 EnvironmentFile=/etc/pinecall/box.env
-# The worker knocks at the gateway with the org's own key (PINECALL_WORKER_KEY, minted once by
-# pinecall-worker-key.service), and answers calls on the box's vendor keys.
+EnvironmentFile=/etc/pinecall/instances/%i.env
+# The worker knocks at its gateway with the instance's own fleet key (PINECALL_WORKER_KEY, minted
+# once by pinecall-worker-key@<name>), and answers calls on the box's vendor keys.
+LoadCredentialEncrypted=PINECALL_WORKER_KEY:/etc/pinecall/instances/%i.credstore/PINECALL_WORKER_KEY
 ImportCredential=LIVEKIT_API_KEY
 ImportCredential=LIVEKIT_API_SECRET
-ImportCredential=PINECALL_*
 ImportCredential=ANTHROPIC_API_KEY
 ImportCredential=OPENAI_API_KEY
 ImportCredential=SONIOX_API_KEY

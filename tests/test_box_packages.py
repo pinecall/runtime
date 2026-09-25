@@ -1,4 +1,4 @@
-"""The box's manifest, read: the packages it converges on, and the units it installs by role."""
+"""The box's manifest, read: the packages it converges on, its instances, and its units by role."""
 
 import re
 import subprocess
@@ -15,8 +15,12 @@ CLOUD_INIT = BOX / "cloud-init.yaml"
 MANIFEST = BOX / "Makefile"
 FENCE = BOX / "nftables.conf"
 EMBEDDER = BOX / "containers" / "pinecall-tei.container"
-GATEWAY = BOX / "pinecall-gateway.service"
-WORKER = BOX / "pinecall-worker.service"
+GATEWAY = BOX / "pinecall-gateway@.service"
+WORKER = BOX / "pinecall-worker@.service"
+# The units every instance has one of, enabled once per name box.env lists.
+TEMPLATES = [
+    BOX / f"pinecall-{name}@.service" for name in ("db", "gateway", "worker-key", "worker")
+]
 DEV_STACK = ROOT / "infra" / "compose" / "dev.yml"
 
 # What `make install` puts under Quadlet, as the manifest's own command line reads.
@@ -37,22 +41,29 @@ def packages_the_manifest_converges() -> set[str]:
     return set(line.group(1).split())
 
 
-# `make -n` prints every command a deploy would run — the recursions into embedder-<what> and
-# enable-<role> included — and runs not one of them. A box reads its role and its embedder from
-# /etc/pinecall/box.env; on the command line they win over that file, so each test names the box
-# it is asking about rather than depending on a file this machine does not have.
+# `make -n` prints every command a deploy would run — both halves, the recursions into
+# embedder-<what> and enable-<role> included — and runs not one of them. A box reads its role, its
+# embedder and its instances from /etc/pinecall/box.env; on the command line they win over that
+# file, so each test names the box it is asking about rather than depending on a file this machine
+# does not have.
 def what_a_box_installs(
-    *, role: str = "all", embed_provider: str = "tei", fleet_cloud: str = ""
+    *,
+    role: str = "all",
+    embed_provider: str = "tei",
+    fleet_cloud: str = "",
+    instances: str = "production",
 ) -> str:
-    """Every command `make install` would run on a box of that role, with nothing run."""
+    """Every command `make install converge` would run on a box of that role, with nothing run."""
     plan = subprocess.run(
         [
             "make",
             "-n",
             "install",
+            "converge",
             f"ROLE={role}",
             f"EMBED_PROVIDER={embed_provider}",
             f"FLEET_CLOUD={fleet_cloud}",
+            f"INSTANCES={instances}",
         ],
         cwd=MANIFEST.parent,
         capture_output=True,
@@ -232,7 +243,7 @@ def test_the_overflow_agent_is_the_hubs_and_never_a_workers() -> None:
         ]
         assert any("pinecall-overflow" in line for line in enabled), role
     worker = what_a_box_installs(role="worker")
-    assert "enable -q nftables pinecall-worker" in worker
+    assert "enable -q nftables pinecall-worker@production" in worker
     assert "disable -q --now" in worker and "pinecall-overflow" in worker
 
 
@@ -256,3 +267,101 @@ def test_a_hub_that_names_a_cloud_installs_that_clouds_own_cli_and_never_the_sna
     looping = what_a_box_installs(role="hub", fleet_cloud="gcp")
     assert "google-cloud-cli" in looping
     assert "/snap/bin" not in (BOX / "pinecall-fleet.service").read_text()
+
+
+# ── instances ────────────────────────────────────────────────────────────────────
+
+
+def _enabled(plan: str) -> str:
+    """The one `systemctl enable` line of a plan: what the role turns on at boot."""
+    (line,) = [line for line in plan.splitlines() if line.startswith("systemctl enable -q")]
+    return line
+
+
+def test_every_instance_box_env_lists_gets_its_own_units_and_its_own_site() -> None:
+    plan = what_a_box_installs(role="all", instances="production sandbox")
+    enabled = _enabled(plan)
+    for unit in ("db", "gateway", "worker-key", "worker"):
+        for name in ("production", "sandbox"):
+            assert f"pinecall-{unit}@{name}" in enabled
+    assert "for name in production sandbox; do" in plan  # one Caddy site each
+    assert "ready-production ready-sandbox" in plan  # each made whole before anything is enabled
+
+
+def test_a_hub_enables_no_instances_worker_and_a_worker_no_instances_gateway() -> None:
+    hub = what_a_box_installs(role="hub", instances="production sandbox")
+    assert "pinecall-worker@sandbox" not in _enabled(hub)
+    assert "disable -q --now pinecall-worker@production pinecall-worker@sandbox" in hub
+    worker = what_a_box_installs(role="worker", instances="production sandbox")
+    assert _enabled(worker) == (
+        "systemctl enable -q nftables pinecall-worker@production pinecall-worker@sandbox"
+    )
+
+
+def test_nothing_about_any_one_instance_is_written_in_a_template() -> None:
+    """The sandbox is the instance whose env file says so, and never a line of a unit file."""
+    for template in TEMPLATES:
+        said = _without_comments(template.read_text())
+        for instance_word in ("production", "sandbox", ":8080", ":8180", "PINECALL_GATEWAY_URL="):
+            assert instance_word not in said, f"{template.name}: {instance_word}"
+        assert "EnvironmentFile=/etc/pinecall/instances/%i.env" in said
+
+
+def test_no_unit_imports_the_pinecall_glob_that_would_hand_it_another_instances_keys() -> None:
+    for unit in BOX.glob("*.service"):
+        assert "ImportCredential=PINECALL_*" not in unit.read_text(), unit.name
+
+
+def test_an_instances_own_secrets_are_loaded_by_path_and_the_rest_by_name() -> None:
+    """One list: what the units load out of an instance's store is what the manifest checks and
+    copies, and not one of those names is ever imported from the box's shared store."""
+    own = set(_make_variable("INSTANCE_SECRETS").split())
+    loaded: set[str] = set()
+    for unit in BOX.glob("*.service"):
+        text = unit.read_text()
+        for credential, path in re.findall(r"^LoadCredentialEncrypted=([^:]+):(\S+)$", text, re.M):
+            if path.startswith("/etc/pinecall/instances/"):
+                assert path.endswith(f".credstore/{credential}"), f"{unit.name}: {credential}"
+                loaded.add(credential)
+        assert not own & set(_credentials_imported_by(unit)), unit.name
+    assert loaded == own
+
+
+def test_an_instance_draws_every_secret_of_its_own_but_the_one_its_worker_key_unit_mints() -> None:
+    from pinecall.cli.box.verbs import instance_secrets
+
+    minted = re.search(r"--name=(\w+) ", (BOX / "pinecall-worker-key@.service").read_text())
+    assert minted is not None
+    assert set(instance_secrets("sandbox")) | {minted.group(1)} == set(
+        _make_variable("INSTANCE_SECRETS").split()
+    )
+
+
+def test_the_caddy_snippet_proxies_each_site_to_its_own_port_and_the_sfu_to_the_one() -> None:
+    caddyfile = (BOX / "caddy" / "Caddyfile").read_text()
+    assert "reverse_proxy 127.0.0.1:{args[0]}" in caddyfile
+    assert "reverse_proxy 127.0.0.1:7880" in caddyfile
+    assert "PINECALL_DOMAIN" not in _without_comments(caddyfile)
+    assert "import /etc/caddy/instances/*.caddy" in caddyfile
+    plan = what_a_box_installs(role="all")
+    assert "import pinecall %s" in plan
+    assert "rm -f /etc/caddy/conf.d/sandbox.caddy" in plan
+
+
+def test_the_single_units_the_templates_replaced_are_retired_not_left_enabled() -> None:
+    plan = what_a_box_installs(role="all")
+    assert "systemctl disable -q pinecall-gateway pinecall-worker pinecall-worker-key" in plan
+    for unit in ("pinecall-gateway", "pinecall-worker", "pinecall-worker-key"):
+        assert not (BOX / f"{unit}.service").exists()
+
+
+def _make_variable(name: str) -> str:
+    """One `NAME = value` line of the manifest, as written."""
+    line = re.search(rf"^{name}\s*=\s*(.+)$", MANIFEST.read_text(), re.M)
+    assert line is not None, f"infra/box/Makefile has no {name} line"
+    return line.group(1)
+
+
+def _without_comments(unit: str) -> str:
+    """A unit file or Caddyfile with its comment lines taken out: what systemd or Caddy reads."""
+    return "\n".join(line for line in unit.splitlines() if not line.lstrip().startswith("#"))

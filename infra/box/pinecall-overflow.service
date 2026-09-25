@@ -3,21 +3,24 @@
 # still reach: it tells the caller every line is busy, takes their number onto the agent's log
 # (callback.requested) and hangs up. No STT, no model — one sentence over the agent's own voice.
 # Installed to /etc/systemd/system/ by infra/box/Makefile, on every deploy; enabled on hub and all.
+# One, and production's: it takes production's fleet name and knocks with production's worker key.
+# A sandbox has no overflow — a developer's call that finds its worker full is a developer's to see.
 [Unit]
 Description=Pinecall overflow agent (answers when every worker is full)
-Wants=network-online.target pinecall-gateway.service pinecall-worker-key.service
-After=network-online.target pinecall-livekit.service pinecall-gateway.service pinecall-worker-key.service
+Wants=network-online.target pinecall-gateway@production.service pinecall-worker-key@production.service
+After=network-online.target pinecall-livekit.service pinecall-gateway@production.service pinecall-worker-key@production.service
 
 [Service]
 User=pinecall
 Group=pinecall
 WorkingDirectory=/opt/pinecall/app
 Environment=LIVEKIT_URL=ws://127.0.0.1:7880
-Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
 EnvironmentFile=/etc/pinecall/box.env
+EnvironmentFile=/etc/pinecall/instances/production.env
+# By path out of production's own store, and the shared ones by name: why, pinecall-gateway@.service.
+LoadCredentialEncrypted=PINECALL_WORKER_KEY:/etc/pinecall/instances/production.credstore/PINECALL_WORKER_KEY
 ImportCredential=LIVEKIT_API_KEY
 ImportCredential=LIVEKIT_API_SECRET
-ImportCredential=PINECALL_*
 ImportCredential=ELEVEN_API_KEY
 ImportCredential=OPENAI_API_KEY
 ImportCredential=ANTHROPIC_API_KEY

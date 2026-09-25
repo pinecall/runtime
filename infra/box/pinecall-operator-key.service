@@ -1,20 +1,22 @@
 # Your key, minted once on a fresh box and kept as a credential so it reaches no terminal, no
 # journal and no transcript. Read it exactly once, on the box:
 #   sudo systemd-creds decrypt --name=PINECALL_OPERATOR_KEY /etc/credstore.encrypted/PINECALL_OPERATOR_KEY -
-# and give it to `pinecall login <gateway>` on your laptop. Same shape as the worker's.
+# and give it to `pinecall login <gateway>` on your laptop. Same shape as the worker's. One, and
+# production's: a person is made at production, and a sandbox lets them in by asking it.
 [Unit]
 Description=Pinecall: the operator's key, minted once
 ConditionPathExists=!/etc/credstore.encrypted/PINECALL_OPERATOR_KEY
-Requires=pinecall-gateway.service
-After=pinecall-gateway.service
+Requires=pinecall-gateway@production.service
+After=pinecall-gateway@production.service
 
 [Service]
 Type=oneshot
 User=pinecall
 Group=pinecall
 WorkingDirectory=/opt/pinecall/app
-Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
-ImportCredential=PINECALL_OPS_KEY
+EnvironmentFile=/etc/pinecall/box.env
+EnvironmentFile=/etc/pinecall/instances/production.env
+LoadCredentialEncrypted=PINECALL_OPS_KEY:/etc/pinecall/instances/production.credstore/PINECALL_OPS_KEY
 # The key is caught in a file systemd opens for us, and `UMask=` is what makes that file 0600 —
 # StandardOutput= is set up BEFORE a RuntimeDirectory= would be created, so there is nowhere to
 # put it but /run itself, and nothing but the umask to keep it private. Measured 2026-09-09:

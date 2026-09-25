@@ -22,7 +22,7 @@ OPS_FLEET = "/v1/ops/fleet"
 CALLBACKS = "/v1/callbacks"
 
 
-# The fleet knocks with the key pinecall-worker-key.service mints — org default, the `fleet`
+# The fleet knocks with the key pinecall-worker-key@.service mints — org default, the `fleet`
 # scope — and that is not the tenant's key the rest of this suite holds, so one is issued here.
 @pytest.fixture
 async def fleet_gateway(wired: None, keys: MemoryKeys) -> AsyncIterator[Gateway]:  # noqa: ARG001

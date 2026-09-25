@@ -25,7 +25,7 @@ STANDING: TypeAdapter[Standing] = TypeAdapter(Standing)
 SEATS: TypeAdapter[tuple[Seat, ...]] = TypeAdapter(tuple[Seat, ...])
 TOTALS: TypeAdapter[Totals] = TypeAdapter(Totals)
 
-# The fleet knocks with the key pinecall-worker-key.service mints for the box's worker — issued
+# The fleet knocks with the key pinecall-worker-key@.service mints for the box's worker — issued
 # into org default with the `fleet` scope. A tenant's key opens every door of its own org and
 # none of the fleet's: a heartbeat it could post would be a seat it could invent. And a default
 # org key WITHOUT the scope is a person's or a machine's of that org, not the box's worker.
