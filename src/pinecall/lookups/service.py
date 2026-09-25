@@ -18,11 +18,12 @@ from pinecall.lookups.entries import a_recall, a_retrieval, a_skip
 from pinecall.memory import DEFAULT_FACTS_PER_TURN, Memory, Spoken
 from pinecall.types import (
     AgentConfig,
+    Brought,
     CallContext,
     Counting,
     PlatformTool,
-    ProviderKeys,
     Quotas,
+    QuotasOf,
 )
 from pinecall_protocol import WireModel, encode
 from pinecall_protocol.defs import MemoryOp
@@ -57,15 +58,14 @@ class Calls(Protocol):
         ...
 
 
-# Whose provider keys a hang-up's model call runs on, read at that moment and never held: the
-# same read the worker's provider-keys door makes. The vault is orgs/, which lookups may not
-# import, so the read is handed in as a function.
-type KeysOf = Callable[[str], Awaitable[ProviderKeys]]
+# Whose provider keys a hang-up's model call runs on, and what the box lends the org beside them,
+# read at that moment and never held: the same read the worker's provider-keys door makes. The
+# vault is orgs/, which lookups may not import, so the read is handed in as a function.
+type BroughtOf = Callable[[str], Awaitable[Brought]]
 
-# What the org's quotas say, and whether it may keep one more fact — both live in orgs/, which
-# lookups may not import, so they arrive as functions exactly as the vault read above does. The
-# runtime prices nothing: these two answer what a plan INCLUDES, never what it costs.
-type QuotasOf = Callable[[str], Awaitable[Quotas]]
+# What the org's quotas say (types.QuotasOf), and whether it may keep one more fact — both live in
+# orgs/, which lookups may not import, so they arrive as functions exactly as the vault read above
+# does. The runtime prices nothing: these answer what a plan INCLUDES, never what it costs.
 type MayRemember = Callable[[str, str, Counting], Awaitable[bool]]
 
 
@@ -81,7 +81,7 @@ class Lookups:
         knowledge: Knowledge | None,
         logs: Logs,
         calls: Calls,
-        keys_of: KeysOf,
+        brought_of: BroughtOf,
         quotas_of: QuotasOf,
         may_remember: MayRemember,
     ) -> None:
@@ -89,7 +89,7 @@ class Lookups:
         self._knowledge = knowledge
         self._logs = logs
         self._calls = calls
-        self._keys_of = keys_of
+        self._brought_of = brought_of
         self._quotas_of = quotas_of
         self._may_remember = may_remember
 
@@ -218,7 +218,7 @@ class Lookups:
             at=datetime.now(UTC),
             policy=policy,
             llm=opened.config.llm,
-            keys=await self._keys_of(opened.org),
+            brought=await self._brought_of(opened.org),
             call=call,
             tools=opened.config.tools,
         )

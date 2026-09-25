@@ -156,8 +156,12 @@ The whole set, replaced: a limit left out is no limit. Zero is a real limit and 
 
 ```json
 { "minutes": 1000, "agents": 5, "concurrent_calls": 10,
-  "memory_facts": 5000, "knowledge_chunks": 2000, "numbers": 1, "seats": 10, "budget_eur": 300 }
+  "memory_facts": 5000, "knowledge_chunks": 2000, "numbers": 1, "seats": 10, "budget_eur": 300,
+  "lends": ["deepgram", "cartesia", "anthropic/claude-haiku-4-5"] }
 ```
+
+`lends`: the box's vendor keys the org may run on where it brought none — `null` all, `[]` none,
+else vendors and `vendor/model` prefixes; an unknown vendor is `400` ([limits.md](../limits.md)).
 
 `budget_eur` rides the same body and is not a quota: whole euros a calendar month, both worlds,
 shown beside what was spent (`GET /v1/insights`, [console-api.md](console-api.md)); nothing is refused over it. Four of them are **flows** — what the org has consumed, or holds open right now. `minutes` is

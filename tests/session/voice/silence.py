@@ -11,7 +11,7 @@ from livekit.agents.utils import AudioBuffer
 
 from pinecall.providers.pipeline import Pipeline
 from pinecall.providers.registry import Chat
-from pinecall.types import AgentConfig, ProviderKeys
+from pinecall.types import AgentConfig, Brought
 
 # Nothing here ever opens a socket: every method a session might reach for on the way to a vendor
 # raises instead, so a test that accidentally starts talking fails loudly rather than dialling out.
@@ -64,13 +64,13 @@ class FakeKit:
 
     def __init__(self, llm: Chat, *, keyterms: bool = False) -> None:
         self.built: list[str] = []
-        self.keys: list[ProviderKeys] = []
+        self.brought: list[Brought] = []
         self.pipe = Pipeline(llm=llm, stt=SilentEars(keyterms=keyterms), tts=SilentVoice())
 
-    def __call__(self, config: AgentConfig, keys: ProviderKeys) -> Pipeline:
+    def __call__(self, config: AgentConfig, brought: Brought) -> Pipeline:
         """The three, already built: nothing here reads a key or opens a socket."""
         self.built.append(config.slug)
-        self.keys.append(keys)
+        self.brought.append(brought)
         return self.pipe
 
 

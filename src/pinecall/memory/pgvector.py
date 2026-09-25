@@ -18,12 +18,12 @@ from pinecall.providers.embedder import Embedder, as_halfvec
 from pinecall.providers.models import Models
 from pinecall.types import (
     CANDIDATES_PER_BRANCH,
+    Brought,
     Channel,
     Env,
     Fact,
     MemoryPolicy,
     Model,
-    ProviderKeys,
     ToolSpec,
     whose,
 )
@@ -185,7 +185,7 @@ class PgvectorMemory:
         at: datetime,
         policy: MemoryPolicy,
         llm: Model | None,
-        keys: ProviderKeys,
+        brought: Brought,
         call: str | None = None,
         tools: Sequence[ToolSpec] = (),
     ) -> list[MemoryOp]:
@@ -198,7 +198,7 @@ class PgvectorMemory:
                 _a_fact(row)
                 for row in await self._pool.fetch(_CURRENT, org, env, whose(holder), contact)
             ]
-            chat = self._models(llm, keys)
+            chat = self._models(llm, brought)
             try:
                 ops = await extracted(
                     chat, known=known, turns=turns, policy=policy, channel=channel, tools=tools

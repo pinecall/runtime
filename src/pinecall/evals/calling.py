@@ -151,7 +151,7 @@ async def _the_callers_voice(
     """The voice the caller's lines are read in, open for the call and let go after it."""
     async with http_context.open():
         if line.interferer_db is not None and not line.interferer:
-            television = Voice.of_a_television(settings, speaking.keys)
+            television = Voice.of_a_television(settings, speaking.brought)
             try:
                 line.interferer = await television.spoken(speech.A_TELEVISION)
             finally:

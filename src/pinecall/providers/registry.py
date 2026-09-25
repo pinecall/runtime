@@ -12,7 +12,7 @@ from livekit.agents import llm, stt, tts
 
 from pinecall._exceptions import PinecallError
 from pinecall._settings import Settings
-from pinecall.providers import catalog
+from pinecall.providers import catalog, lending
 from pinecall.providers.catalog import Modality, Provider
 from pinecall.providers.plugin import (
     NOT_INSTALLED,
@@ -62,6 +62,9 @@ class Asked:
     hears: tuple[str, ...] = ()
     # The org's own keys, when it brought any. Empty is the common case and means the box's.
     keys: ProviderKeys = NO_ORG_KEYS
+    # Which of the box's keys the org may run on where it brought none (Brought.lends): None lends
+    # all of them, which is every org nobody limited. Read once, in Vendors.build.
+    lends: frozenset[str] | None = None
 
 
 type Build[Made] = Callable[[Asked], Made]
@@ -120,10 +123,35 @@ class Vendors[Made]:
     def build(self, vendor: str, asked: Asked) -> Made:
         """The object that vendor makes: its tuned file, its plugin, or a refusal naming neither."""
         self._read_the_package()
+        self._refuse_what_is_not_lent(vendor, asked)
         row = self._rows.get(catalog.canonical(vendor))
         if row is not None:
             return row(asked)
         return cast("Made", self._out_of_the_catalog(vendor, asked))
+
+    # The one place a call's vendor is built, for every modality, so the one place what the box
+    # lends is read. An org's own key is never refused, whatever the model; on the box's key the
+    # model judged is the one that will RUN — the one asked for, else the default this build vouches
+    # for first — never the declaration alone, which names no model when it wants the default.
+    def _refuse_what_is_not_lent(self, vendor: str, asked: Asked) -> None:
+        """NoProvider, in lending's sentence, when the box does not lend what this call runs."""
+        said = self.refusal_to_run(vendor, asked.model, asked.keys, asked.lends)
+        if said is not None:
+            raise NoProvider(said)
+
+    # Public because the settings door asks it too, before anything is built: a person learns a
+    # model is not lent when they pick it, in the sentence the call would have refused with.
+    def refusal_to_run(
+        self, vendor: str, model: str | None, keys: ProviderKeys, lends: frozenset[str] | None
+    ) -> str | None:
+        """Why the box would not run this vendor's model for an org, or None: it would."""
+        name = catalog.canonical(vendor)
+        if lends is None or keys.get(name):
+            return None
+        self.read()
+        vouched = self._models.get(name, ())
+        running = model or (vouched[0] if vouched else None)
+        return None if lending.lent(lends, name, running) else lending.refusal(lends, name, running)
 
     # The catalogued path. It reaches every vendor livekit ships a plugin for, with no file here
     # and no edit when livekit adds one — providers/plugin.py reads the plugin's own signature.

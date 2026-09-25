@@ -11,15 +11,16 @@ from typing import Any
 from pinecall.log.logs import CallLog
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
-from pinecall.lookups import Lookups, MayRemember, OpenCall, QuotasOf
+from pinecall.lookups import Lookups, MayRemember, OpenCall
 from pinecall.memory import Spoken
 from pinecall.memory.protocol import FactsPage
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.meter import Meter
 from pinecall.orgs.table import MemoryOrgs
-from pinecall.orgs.vault import MemoryVault, keys_brought_by
+from pinecall.orgs.vault import MemoryVault, brought_by
 from pinecall.types import (
     AgentConfig,
+    Brought,
     CallContext,
     Channel,
     Contact,
@@ -29,8 +30,8 @@ from pinecall.types import (
     MemoryPolicy,
     Model,
     Org,
-    ProviderKeys,
     Quotas,
+    QuotasOf,
     Route,
     ToolSpec,
 )
@@ -104,7 +105,7 @@ class ScriptedMemory:
         at: datetime,  # noqa: ARG002 — the Protocol's shape
         policy: MemoryPolicy,
         llm: Model | None,
-        keys: ProviderKeys,
+        brought: Brought,
         call: str | None = None,
         tools: Sequence[ToolSpec] = (),
     ) -> list[MemoryOp]:
@@ -117,7 +118,7 @@ class ScriptedMemory:
                 "channel": channel,
                 "policy": policy,
                 "llm": llm,
-                "keys": dict(keys),
+                "keys": dict(brought.keys),
                 "call": call,
                 "tools": tuple(tools),
             }
@@ -308,7 +309,7 @@ def a_served_call(
         knowledge,
         logs,
         OneCall(opened),
-        partial(keys_brought_by, vault),
+        partial(brought_by, vault, orgs.quotas_of),
         *a_plan(logs, orgs),
     )
     return Served(lookups, store, log, memory, knowledge, orgs)

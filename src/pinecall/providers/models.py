@@ -7,7 +7,7 @@ from collections.abc import Callable
 from pinecall._settings import Settings
 from pinecall.providers import llm
 from pinecall.providers.registry import Asked, Chat, NoProvider
-from pinecall.types import Model, ProviderKeys
+from pinecall.types import Brought, Model
 
 __all__ = ["Chat", "DEFAULT_VENDOR", "Models", "NoProvider", "models_for", "vendor_of"]
 
@@ -15,8 +15,8 @@ __all__ = ["Chat", "DEFAULT_VENDOR", "Models", "NoProvider", "models_for", "vend
 # the vendor file's own business — providers/llm/anthropic.py — so no model name is written twice.
 DEFAULT_VENDOR = "anthropic"
 
-type Models = Callable[[Model | None, ProviderKeys], Chat]
-"""What the gateway holds: what an agent asked for and whose keys, and it has the model."""
+type Models = Callable[[Model | None, Brought], Chat]
+"""What the gateway holds: what an agent asked for, whose keys and what is lent, and the model."""
 
 
 # The box's keys are the PROCESS's and are closed over once here; the org's are the SESSION's and
@@ -26,9 +26,14 @@ type Models = Callable[[Model | None, ProviderKeys], Chat]
 def models_for(settings: Settings) -> Models:
     """The process's way to a model: a declaration and an org's keys in, a plugin out."""
 
-    def a_model(asked: Model | None, keys: ProviderKeys) -> Chat:
+    def a_model(asked: Model | None, brought: Brought) -> Chat:
         vendor = asked.provider if asked else DEFAULT_VENDOR
-        wanted = Asked(settings=settings, model=asked.model if asked else None, keys=keys)
+        wanted = Asked(
+            settings=settings,
+            model=asked.model if asked else None,
+            keys=brought.keys,
+            lends=brought.lends,
+        )
         return llm.VENDORS.build(vendor, wanted)
 
     return a_model

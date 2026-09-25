@@ -62,7 +62,7 @@ from pinecall.orgs.personas import personas_for
 from pinecall.orgs.sso import sso_for
 from pinecall.orgs.table import orgs_for
 from pinecall.orgs.tuning import tuning_for
-from pinecall.orgs.vault import keys_brought_by, vault_for
+from pinecall.orgs.vault import brought_by, vault_for
 from pinecall.orgs.widgets import widgets_for
 from pinecall.providers.embed import embedder_for
 from pinecall.providers.models import models_for
@@ -237,7 +237,7 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
         gateway.state.knowledge,
         gateway.state.logs,
         gateway.state.live,
-        partial(keys_brought_by, gateway.state.vault),
+        partial(brought_by, gateway.state.vault, gateway.state.orgs.quotas_of),
         gateway.state.orgs.quotas_of,
         gateway.state.admission.may_remember,
     )

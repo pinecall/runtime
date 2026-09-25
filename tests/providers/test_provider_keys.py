@@ -100,3 +100,49 @@ def test_a_catalogued_vendor_with_no_file_reads_the_orgs_key_the_same_way() -> N
     speaking = TTS_VENDORS.build("deepgram", asked)
     assert isinstance(speaking, deepgram.TTS)
     assert speaking._opts.api_key == THE_ORGS  # pyright: ignore[reportPrivateUsage]
+
+
+# ── what the box lends ──────────────────────────────────────────────────────────
+
+A_TRIAL = frozenset({"deepgram", "cartesia", "anthropic/claude-haiku-4-5"})
+
+
+def test_the_box_builds_a_lent_model_on_its_own_key() -> None:
+    asked = Asked(settings=a_box_that_read_every_key(), model="claude-haiku-4-5", lends=A_TRIAL)
+    built = LLM_VENDORS.build("anthropic", asked)
+    assert isinstance(built, anthropic.LLM)
+
+
+def test_the_box_refuses_a_model_it_does_not_lend_before_building_anything() -> None:
+    asked = Asked(settings=a_box_that_read_every_key(), model="claude-opus-5", lends=A_TRIAL)
+    with pytest.raises(NoProvider, match="anthropic/claude-opus-5 is not lent"):
+        LLM_VENDORS.build("anthropic", asked)
+
+
+def test_the_model_judged_is_the_one_that_runs_the_vendors_default_when_none_was_named() -> None:
+    """Anthropic's default is Haiku: an agent that named no model runs it, and it is lent."""
+    asked = Asked(settings=a_box_that_read_every_key(), lends=A_TRIAL)
+    assert isinstance(LLM_VENDORS.build("anthropic", asked), anthropic.LLM)
+    refused = Asked(settings=a_box_that_read_every_key(), lends=frozenset({"deepgram"}))
+    with pytest.raises(NoProvider, match="anthropic/claude-haiku-4-5-20251001 is not lent"):
+        LLM_VENDORS.build("anthropic", refused)
+
+
+def test_an_orgs_own_key_runs_any_model_whatever_the_box_lends() -> None:
+    asked = Asked(
+        settings=a_box_that_read_every_key(),
+        model="claude-opus-5",
+        keys={"anthropic": THE_ORGS},
+        lends=frozenset(),
+    )
+    built = LLM_VENDORS.build("anthropic", asked)
+    assert isinstance(built, anthropic.LLM)
+    assert built._client.api_key == THE_ORGS  # pyright: ignore[reportPrivateUsage]
+
+
+def test_ears_and_voice_are_lent_by_vendor_as_the_model_is() -> None:
+    lent_both = Asked(settings=a_box_that_read_every_key(), lends=A_TRIAL)
+    assert isinstance(STT_VENDORS.build("deepgram", lent_both), deepgram.STTv2)
+    only_ears = Asked(settings=a_box_that_read_every_key(), lends=frozenset({"deepgram"}))
+    with pytest.raises(NoProvider, match="cartesia is not lent|cartesia/.* is not lent"):
+        TTS_VENDORS.build("cartesia", only_ears)

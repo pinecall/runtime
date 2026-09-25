@@ -11,6 +11,7 @@ from pinecall.api._deps import (
     LlmsDep,
     LogsDep,
     LookupsDep,
+    OrgsDep,
     RunsDep,
     SettingsDep,
     StoreDep,
@@ -63,6 +64,7 @@ async def run_the_goldens(
     vault: VaultDep,
     lookups: LookupsDep,
     settings: SettingsDep,
+    orgs: OrgsDep,
 ) -> dict[str, Any]:
     """Every golden against the app that is holding the agent, scored, stored, and answered."""
     process = Process(
@@ -76,6 +78,7 @@ async def run_the_goldens(
         env=key.env,
         holder=held_by(key),
         vault=vault,
+        quotas_of=orgs.quotas_of,
         lookups=lookups,
         budgets=settings.budgets,
         settings=settings,

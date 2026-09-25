@@ -11,7 +11,15 @@ from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import MemoryKeys
 from pinecall.log.store import MemoryStore
 from pinecall.routes.table import MemoryRoutes
-from pinecall.types import DEFAULT_ORG, PRODUCTION, SANDBOX, THE_FLEET, CallContext, Route
+from pinecall.types import (
+    DEFAULT_ORG,
+    NOTHING_BROUGHT,
+    PRODUCTION,
+    SANDBOX,
+    THE_FLEET,
+    CallContext,
+    Route,
+)
 from pinecall.worker.client import Gateway
 from pinecall.worker.hop import GatewayRefused
 from pinecall_protocol import defs
@@ -107,7 +115,7 @@ async def test_the_fleet_builds_each_orgs_session_from_that_orgs_declaration(
     assert (
         await the_fleet.agent(AGENT, org=CLINICA, env=SANDBOX, holder=CARLA)
     ).language == "es-UY"
-    assert await the_fleet.provider_keys(SHOP, org=TIENDA, env=PRODUCTION) == {}
+    assert await the_fleet.provider_keys(SHOP, org=TIENDA, env=PRODUCTION) == NOTHING_BROUGHT
     with pytest.raises(GatewayRefused, match="404"):
         await the_fleet.agent(SHOP, org=CLINICA, env=PRODUCTION)
 

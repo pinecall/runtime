@@ -8,9 +8,8 @@ from pinecall._settings import load_settings
 from pinecall.log.logs import CallLog
 from pinecall.log.store import MemoryStore
 from pinecall.providers.models import models_for
-from pinecall.providers.registry import NO_ORG_KEYS
 from pinecall.session.text.session import TextSession
-from pinecall.types import AgentConfig, CallContext, Model, Route
+from pinecall.types import NOTHING_BROUGHT, AgentConfig, CallContext, Model, Route
 
 pytestmark = pytest.mark.needs_llm
 
@@ -32,7 +31,7 @@ async def test_haiku_answers_and_the_metrics_carry_what_the_provider_reported() 
         today=date.today(),
     )
     config = AgentConfig(slug=AGENT)
-    model = models_for(load_settings())(HAIKU, NO_ORG_KEYS)
+    model = models_for(load_settings())(HAIKU, NOTHING_BROUGHT)
     session = TextSession(context, config, CallLog(store, AGENT, A_CALL), model)
     await session.start()
     await session.set_prompt("identity", "Sos Clara. Respondé en una sola palabra.")

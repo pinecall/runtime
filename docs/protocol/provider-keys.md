@@ -14,7 +14,8 @@ bring its own account instead:
 
 No door a person reads answers with a provider key: not a value, not a prefix, not a fingerprint.
 **One door does read them back** — `GET /v1/agents/{slug}/provider-keys` answers `{"keys": {vendor:
-key}}` in the clear — and it is the worker's: an org's own keys, to the org's own process, on the
+key}, "lends": […] | null}` in the clear — the keys, and which of the box's the org is lent
+([limits.md](../limits.md)) — and it is the worker's: an org's own keys, to the org's own process, on the
 org's own key, so a spoken call runs on the account the tenant brought. It is the whole reason the
 vault exists, and a tenant's own code may call it for the same reason. A key that was lost is set
 again.

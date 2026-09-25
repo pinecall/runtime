@@ -113,6 +113,7 @@ pinecall-runtime orgs rm <org>
 pinecall-runtime orgs quota <org> [--minutes n] [--messages n] [--agents n]
                                   [--concurrent-calls n] [--memory-facts n] [--knowledge-chunks n]
                                   [--numbers n] [--seats n] [--budget-eur n]
+                                  [--lends vendor[/model],… | --lends none]
 pinecall-runtime orgs dialling <org> [--dial-anywhere | --no-dial-anywhere]
                                      [--per-minute n] [--per-day n] [--max-duration-s n]
 pinecall-runtime orgs sso <org> [--off]

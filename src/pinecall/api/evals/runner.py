@@ -33,15 +33,16 @@ from pinecall.log.store import Store
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.tuning import TuningStore
-from pinecall.orgs.vault import Vault, keys_brought_by
+from pinecall.orgs.vault import Vault, brought_by
 from pinecall.providers import declaration
 from pinecall.providers.models import Models
 from pinecall.types import (
     AgentConfig,
+    Brought,
     DeclarationRefused,
     Env,
     Model,
-    ProviderKeys,
+    QuotasOf,
     Versions,
     a_call_id,
 )
@@ -118,8 +119,10 @@ class Process:
     # drives a laptop's, and one developer's never drives another's.
     env: Env
     holder: str | None
-    # Where the org's own provider keys are kept, or None on a runtime that keeps nobody's.
+    # Where the org's own provider keys are kept, or None on a runtime that keeps nobody's, and
+    # how the org's quotas are read: which of the box's keys the run's models may use.
     vault: Vault | None
+    quotas_of: QuotasOf
     # What runs a golden's lookups and remembers its hang-up, and how long a turn waits.
     lookups: Lookups
     budgets: Budgets
@@ -175,7 +178,7 @@ async def a_run(wanted: Wanted, runner: Runner, process: Process) -> EvalRun:
     config = resolved.config
     # Whose keys this run's conversations are answered on, read once as the run opens: a run is
     # one org's, and a suite is one session — the chat socket asks the same question per call.
-    keys = await keys_brought_by(process.vault, serving.org)
+    brought = await brought_by(process.vault, process.quotas_of, serving.org)
     run = EvalRun(id=f"{A_RUN}{uuid4().hex[:12]}", agent=wanted.agent, started_at=time.time())
     async with runner.alone(run.id, wanted.agent):
         await process.runs.put(run)
@@ -183,7 +186,7 @@ async def a_run(wanted: Wanted, runner: Runner, process: Process) -> EvalRun:
             async with asyncio.timeout(A_RUN_MAY_TAKE_S):
                 judging = Judging(config)
                 run = await _every_conversation(
-                    wanted, run, config, serving, process, judging, keys, resolved.versions
+                    wanted, run, config, serving, process, judging, brought, resolved.versions
                 )
                 return await _finished(run, process)
         # Not raised: the run failed, and the row that says so — with every golden scored before
@@ -209,7 +212,7 @@ async def _every_conversation(
     serving: Registration,
     process: Process,
     judging: Judging,
-    keys: ProviderKeys,
+    brought: Brought,
     versions: Versions,
 ) -> EvalRun:
     """The run as it stands after every call has been made and judged."""
@@ -220,7 +223,7 @@ async def _every_conversation(
     for asked in models:
         running = config if asked is None else declaration.configured(config, _only_the_llm(asked))
         named = _named(running.llm)
-        llm = process.llms(running.llm, keys)
+        llm = process.llms(running.llm, brought)
         for golden in wanted.goldens:
             # Asked before the call is minted, so a golden the app will never answer is not opened
             # at all: the matrix ends where the app did, and the rest is absent rather than red.
@@ -249,7 +252,7 @@ async def _every_conversation(
                         speaking=Speaking(
                             language=config.language,
                             agents_voice=None if config.voice is None else config.voice.voice_id,
-                            keys=keys,
+                            brought=brought,
                         ),
                     )
                     if wanted.voice

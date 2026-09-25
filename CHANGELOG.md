@@ -18,6 +18,15 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   ten minutes unless the org sets otherwise, `0` for none, at most an hour. A minute before it
   the agent is told to close; at it the call ends as `timeout` by the `platform`. Inbound voice
   calls had no limit at all; a written conversation still has none.
+- **What the box lends an org.** `Quotas.lends` (migration `0050`): which of the box's vendor keys
+  an org's calls may run on where it brought none — `null` every one (today's behaviour, a
+  self-hosted box), `[]` none, else vendors and `vendor/model` prefixes
+  (`anthropic/claude-haiku-4-5` lends its snapshots and never Sonnet or Opus). Read where every
+  vendor is built, against the model that will run, so an unlent one is refused before the call
+  opens with the sentence that names `pinecall providers add`; the settings door refuses it `422`
+  when picked. `orgs quota --lends deepgram,…|none`; `PUT /v1/ops/orgs/{org}/quotas` takes and
+  answers `lends`; the worker's `GET /v1/agents/{slug}/provider-keys` answers it beside the keys.
+  OpenAI's vouched models gain `gpt-5.4-mini` and `gpt-5.4-nano`.
 - **`pinecall-runtime sandbox seed [--from-instance production] [--to-instance sandbox]`**, run
   once as root at the cutover: a new sandbox instance starts with what the sandbox was inside
   production. Both `DATABASE_URL`s come out of the two instances' stores, never a command line.

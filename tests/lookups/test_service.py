@@ -11,7 +11,7 @@ from cryptography.fernet import Fernet
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups, OpenCall
-from pinecall.orgs.vault import MemoryVault, keys_brought_by
+from pinecall.orgs.vault import MemoryVault, brought_by
 from pinecall.providers.embed.tei import DID_NOT_ANSWER
 from pinecall.providers.embedder import EmbedderUnreachable
 from pinecall.session.lookups import as_tool_result
@@ -232,7 +232,7 @@ async def test_a_gateway_with_no_tables_answers_every_lookup_with_nothing_found(
         None,
         logs,
         OneCall(opened),
-        partial(keys_brought_by, None),
+        partial(brought_by, None, the_tenants().quotas_of),
         *a_plan(logs, the_tenants()),
     )
     assert await lookups.lookup(CALL, "recall", RECALLING, None) == {"facts": []}
@@ -265,7 +265,7 @@ async def test_remember_keeps_the_user_and_agent_turns_and_hands_memory_the_orgs
         CALL,
     )
     assert asked["llm"] == a_config().llm
-    assert asked["keys"] == {"anthropic": "sk-the-clinics-own"}
+    assert asked["keys"] == {"anthropic": "sk-the-clinics-own"}, "the org's own, and lent all"
     assert asked["policy"] == a_config().memory
     assert asked["tools"] == a_config().tools
     [ops] = await served.written("memory.ops")

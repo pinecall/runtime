@@ -15,7 +15,7 @@ from pinecall.evals.goldens import Golden
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
-from pinecall.orgs.vault import keys_brought_by
+from pinecall.orgs.vault import brought_by
 from pinecall.session import clock
 from pinecall.session.text.session import TextSession
 from pinecall.types import PRODUCTION, AgentConfig
@@ -43,7 +43,12 @@ def a_call_of(golden: Golden) -> TextSession:
     config = AgentConfig(slug=AGENT)
     logs = Logs(MemoryStore())
     lookups = Lookups(
-        None, None, logs, Live(), partial(keys_brought_by, None), *a_plan(logs, the_tenants())
+        None,
+        None,
+        logs,
+        Live(),
+        partial(brought_by, None, the_tenants().quotas_of),
+        *a_plan(logs, the_tenants()),
     )
     return an_eval_call(
         golden, A_CALL, A_RUN, config, ORG, PRODUCTION, logs, FakeLLM(), lookups, Budgets()

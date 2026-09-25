@@ -5,10 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from pinecall.api._corner import CornerDep
-from pinecall.api._deps import AppKeyDep, VaultDep
+from pinecall.api._deps import AppKeyDep, OrgsDep, VaultDep
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
-from pinecall.orgs.vault import keys_brought_by
-from pinecall.types import ProviderKeys
+from pinecall.orgs.vault import brought_by
 
 router = APIRouter()
 
@@ -25,9 +24,13 @@ async def provider_keys(
     corner: CornerDep,
     registry: RegistryDep,
     vault: VaultDep,
-) -> dict[str, ProviderKeys]:
-    """The keys this org brought of its own. Empty is the common case: the box's env keys run."""
+    orgs: OrgsDep,
+) -> dict[str, object]:
+    """The keys this org brought of its own — empty is the common case: the box's env keys run —
+    and which of the box's it is lent (`lends`: null lends every one)."""
     held = registry.of(corner.env, slug, corner.holder)
     if held is None or held.org != corner.org:
         raise HTTPException(status_code=404, detail=NO_AGENT.format(slug=slug))
-    return {"keys": dict(await keys_brought_by(vault, corner.org))}
+    brought = await brought_by(vault, orgs.quotas_of, corner.org)
+    lends = None if brought.lends is None else sorted(brought.lends)
+    return {"keys": dict(brought.keys), "lends": lends}

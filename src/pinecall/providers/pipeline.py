@@ -12,7 +12,7 @@ from pinecall.providers.registry import Asked, Chat, Ears, Speech
 from pinecall.providers.stt import VENDORS as STT_VENDORS
 from pinecall.providers.tts import DEFAULT_TTS, voices
 from pinecall.providers.tts import VENDORS as TTS_VENDORS
-from pinecall.types import AgentConfig, Model, ProviderKeys, Voice
+from pinecall.types import AgentConfig, Brought, Model, Voice
 
 logger = logging.getLogger(__name__)
 
@@ -44,33 +44,40 @@ def warm_the_vendor_tables() -> None:
     TTS_VENDORS.read()
 
 
-# `keys` are the ORG'S own, fetched for this call beside the config; empty means the box's own
-# environment keys, which is what a managed install is. providers/registry.py:a_key chooses.
-def pipeline_for(config: AgentConfig, settings: Settings, keys: ProviderKeys) -> Pipeline:
+# `brought` is the ORG'S, fetched for this call beside the config: its own keys — none means the
+# box's environment keys, which is what a managed install is — and which of the box's it is lent.
+# providers/registry.py chooses the key and refuses what is not lent, before anything is built.
+def pipeline_for(config: AgentConfig, settings: Settings, brought: Brought) -> Pipeline:
     """Every vendor an agent runs on, built for this call out of what the agent declared."""
     return Pipeline(
         llm=LLM_VENDORS.build(
-            _vendor(config, "llm", config.llm, DEFAULT_VENDOR), _thinking(config, settings, keys)
+            _vendor(config, "llm", config.llm, DEFAULT_VENDOR), _thinking(config, settings, brought)
         ),
         stt=STT_VENDORS.build(
-            _vendor(config, "stt", config.stt, DEFAULT_STT), _hearing(config, settings, keys)
+            _vendor(config, "stt", config.stt, DEFAULT_STT), _hearing(config, settings, brought)
         ),
         tts=TTS_VENDORS.build(
-            _vendor(config, "tts", config.voice, DEFAULT_TTS), _speaking(config, settings, keys)
+            _vendor(config, "tts", config.voice, DEFAULT_TTS), _speaking(config, settings, brought)
         ),
     )
 
 
-def _thinking(config: AgentConfig, settings: Settings, keys: ProviderKeys) -> Asked:
+def _thinking(config: AgentConfig, settings: Settings, brought: Brought) -> Asked:
     """What the LLM is asked for: the model the agent named, or the vendor file's own."""
-    return Asked(settings=settings, keys=keys, model=config.llm.model if config.llm else None)
+    return Asked(
+        settings=settings,
+        keys=brought.keys,
+        lends=brought.lends,
+        model=config.llm.model if config.llm else None,
+    )
 
 
-def _hearing(config: AgentConfig, settings: Settings, keys: ProviderKeys) -> Asked:
+def _hearing(config: AgentConfig, settings: Settings, brought: Brought) -> Asked:
     """What the STT is asked for: the model, the language, the words, and what ends a turn."""
     return Asked(
         settings=settings,
-        keys=keys,
+        keys=brought.keys,
+        lends=brought.lends,
         model=config.stt.model if config.stt else None,
         language=config.language,
         endpointing_ms=config.turn.endpointing_ms if config.turn else None,
@@ -83,16 +90,36 @@ def _hearing(config: AgentConfig, settings: Settings, keys: ProviderKeys) -> Ask
 # The voice arrives resolved — the gateway turned the tenant's word into a vendor id when the app
 # declared itself — so the only thing left to decide here is the language a curated voice was
 # chosen for, which an agent that declared none of its own inherits.
-def _speaking(config: AgentConfig, settings: Settings, keys: ProviderKeys) -> Asked:
+def _speaking(config: AgentConfig, settings: Settings, brought: Brought) -> Asked:
     """What the TTS is asked for: which model speaks, in which voice, in which language."""
     voice = config.voice
     return Asked(
         settings=settings,
-        keys=keys,
+        keys=brought.keys,
+        lends=brought.lends,
         model=voice.model if voice else None,
         language=config.language or (voices.language_of(voice) if voice else None),
         voice_id=voice.voice_id if voice else None,
     )
+
+
+# The settings door's question, asked of the three an agent would run — the vendor it named or
+# ours, the model it named or that vendor's default — with the rule a call is built under.
+def what_is_not_lent(config: AgentConfig, brought: Brought) -> str | None:
+    """The first of its llm, ears and voice the box would not run for this org, said; else None."""
+    stages = (
+        (LLM_VENDORS, config.llm, DEFAULT_VENDOR),
+        (STT_VENDORS, config.stt, DEFAULT_STT),
+        (TTS_VENDORS, config.voice, DEFAULT_TTS),
+    )
+    for vendors, asked, ours in stages:
+        model = asked.model if asked is not None and asked.model else None
+        said = vendors.refusal_to_run(
+            vendor_running(asked, ours), model, brought.keys, brought.lends
+        )
+        if said is not None:
+            return said
+    return None
 
 
 # Public and pure, because the console's pipeline door asks the same question about an agent that

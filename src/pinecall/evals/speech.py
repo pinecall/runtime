@@ -10,7 +10,7 @@ from pinecall._settings import Settings
 from pinecall.providers import tts
 from pinecall.providers.language import primary
 from pinecall.providers.registry import Asked, Speech
-from pinecall.types import NO_ORG_KEYS, ProviderKeys
+from pinecall.types import NOTHING_BROUGHT, Brought
 from pinecall.types import Voice as DeclaredVoice
 
 # The rate everything downstream is written for: LiveKit's own examples publish at 48 kHz mono.
@@ -57,8 +57,8 @@ class Speaking:
     language: str | None = None
     # The id the agent itself speaks with, when it is known: the caller takes another one.
     agents_voice: str | None = None
-    # The org's own keys when it brought any; empty is the box's.
-    keys: ProviderKeys = NO_ORG_KEYS
+    # The org's own keys when it brought any, and what the box lends it for the rest.
+    brought: Brought = NOTHING_BROUGHT
     # The voice the persona declared for itself — its `tts` and `voice`, read by the agent's own
     # parser (providers/tuning.py:the_voice) — when it declared one. Then that vendor, that model
     # and that id speak, whatever the agent speaks in; None is a premade the agent does not have.
@@ -85,7 +85,7 @@ class Voice:
         *,
         voice_id: str | None,
         language: str | None,
-        keys: ProviderKeys,
+        brought: Brought,
         vendor: str = VENDOR,
         model: str | None = None,
     ) -> None:
@@ -96,7 +96,8 @@ class Voice:
                 model=model,
                 voice_id=voice_id,
                 language=primary(language),
-                keys=keys,
+                keys=brought.keys,
+                lends=brought.lends,
             ),
         )
 
@@ -110,19 +111,21 @@ class Voice:
                 model=speaking.declared.model,
                 voice_id=speaking.declared.voice_id,
                 language=speaking.language,
-                keys=speaking.keys,
+                brought=speaking.brought,
             )
         return cls(
             settings,
             voice_id=a_callers_voice(speaking.agents_voice, speaking.language),
             language=speaking.language,
-            keys=speaking.keys,
+            brought=speaking.brought,
         )
 
     @classmethod
-    def of_a_television(cls, settings: Settings, keys: ProviderKeys) -> Voice:
+    def of_a_television(cls, settings: Settings, brought: Brought) -> Voice:
         """The interferer's voice: a presenter nobody on the call sounds like."""
-        return cls(settings, voice_id=A_TELEVISION_VOICE, language=A_TELEVISION_LANGUAGE, keys=keys)
+        return cls(
+            settings, voice_id=A_TELEVISION_VOICE, language=A_TELEVISION_LANGUAGE, brought=brought
+        )
 
     async def spoken(self, text: str) -> bytes:
         """One line said out loud, as 16-bit mono PCM at SAMPLE_RATE."""

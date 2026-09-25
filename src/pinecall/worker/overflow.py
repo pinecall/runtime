@@ -122,7 +122,7 @@ async def answer_the_overflow(ctx: JobContext, worker: Worker, says: str) -> Non
     _, routes = await asyncio.gather(ctx.connect(), worker.gateway.routes())
     arrival = await router.arrival_of(ctx.job, ctx.room)
     route = router.resolve(arrival, routes, worker.default_agent)
-    config, keys = await asyncio.gather(
+    config, brought = await asyncio.gather(
         worker.gateway.agent(route.agent), worker.gateway.provider_keys(route.agent)
     )
     context = a_call(ctx.room.name or ctx.job.id, arrival, route)
@@ -132,7 +132,7 @@ async def answer_the_overflow(ctx: JobContext, worker: Worker, says: str) -> Non
         logger.warning("nobody joined %s in %.0fs: leaving", ctx.room.name, A_CALLER_MAY_TAKE_S)
         await ctx.api.room.delete_room(DeleteRoomRequest(room=ctx.room.name))
         return
-    voice = worker.kit(config, keys).tts
+    voice = worker.kit(config, brought).tts
     session: AgentSession[None] = AgentSession(tts=voice)
     await session.start(Agent(instructions=says), room=ctx.room)  # pyright: ignore[reportUnknownMemberType]
     await session.say(says, allow_interruptions=False)

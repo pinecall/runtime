@@ -14,7 +14,7 @@ from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.tuning import TuningStore
-from pinecall.orgs.vault import Vault, keys_brought_by
+from pinecall.orgs.vault import Vault, brought_by
 from pinecall.providers.declaration import rang
 from pinecall.providers.models import Models
 from pinecall.session.first_entries import arrived
@@ -79,7 +79,7 @@ async def a_text_session(
     config = resolved.config
     # Asked at the moment the call opens and never held for the next one: a tenant who rotated a
     # key a minute ago is answered on the new one, and an org that brought none runs on the box's.
-    brought = await keys_brought_by(vault, held.org)
+    brought = await brought_by(vault, admission.quotas_of, held.org)
     # Before anything is accepted: a process with no key for the provider the agent declared
     # refuses the call at the door rather than dying in the middle of somebody's turn.
     llm = llms(config.llm, brought)
@@ -101,7 +101,7 @@ async def a_text_session(
         rememberer=lookups,
         budgets=budgets,
     )
-    return TextCall(session=session, keys=brought, versions=resolved.versions)
+    return TextCall(session=session, keys=brought.keys, versions=resolved.versions)
 
 
 # The call's first entry, unless another door already wrote it.

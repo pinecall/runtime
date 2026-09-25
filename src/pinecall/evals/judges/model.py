@@ -14,7 +14,7 @@ from livekit.agents.types import (
 
 from pinecall._settings import Settings, load_settings
 from pinecall.providers.models import Chat, models_for
-from pinecall.types import NO_ORG_KEYS
+from pinecall.types import NOTHING_BROUGHT
 
 
 # The judge is a model like any other, so it is built the way every model in this tree is built —
@@ -31,7 +31,7 @@ from pinecall.types import NO_ORG_KEYS
 # `judge_ceiling_eur` and docs/decisions/scoring.md.
 def a_judge(settings: Settings | None = None) -> Chat:
     """The one model this package ever asks a question of, in the shape a Judge is handed."""
-    return models_for(settings or load_settings())(None, NO_ORG_KEYS)
+    return models_for(settings or load_settings())(None, NOTHING_BROUGHT)
 
 
 # What a judged assertion costs is not something livekit reports: `JudgmentResult` carries a

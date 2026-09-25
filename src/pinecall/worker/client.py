@@ -13,11 +13,11 @@ from pinecall.fleet import Heartbeat, Standing
 from pinecall.session.voice.platform import Dialled
 from pinecall.types import (
     AgentConfig,
+    Brought,
     CallContext,
     Channel,
     Env,
     PlatformTool,
-    ProviderKeys,
     Route,
 )
 from pinecall.types.dispatch import Handover
@@ -59,6 +59,7 @@ class HoldAudioSaid(BaseModel):
 ROUTES: TypeAdapter[tuple[Route, ...]] = TypeAdapter(tuple[Route, ...])
 CONFIG: TypeAdapter[AgentConfig] = TypeAdapter(AgentConfig)
 KEYS: TypeAdapter[dict[str, str]] = TypeAdapter(dict[str, str])
+LENDS: TypeAdapter[list[str]] = TypeAdapter(list[str])
 CONTEXT: TypeAdapter[CallContext] = TypeAdapter(CallContext)
 RESULT: TypeAdapter[ToolResult] = TypeAdapter(ToolResult)
 COMMAND: TypeAdapter[Command] = TypeAdapter(Command)
@@ -112,7 +113,8 @@ class Gateway:
 
     # The one answer in the runtime that carries a provider key, and it comes back only to the
     # worker holding this org's own API key — or the fleet's, asking for the org the call is for.
-    # Empty for every org that brought none of its own, which is what a managed install is.
+    # Empty keys for every org that brought none of its own, which is what a managed install is;
+    # `lends` is what the box lends it beside them, absent from a gateway older than it (all lent).
     # docs/decisions/provider-keys.md.
     async def provider_keys(
         self,
@@ -121,12 +123,16 @@ class Gateway:
         org: str | None = None,
         env: Env | None = None,
         holder: str | None = None,
-    ) -> ProviderKeys:
-        """The keys of the org this agent belongs to, for the pipeline this call is built with."""
+    ) -> Brought:
+        """What the org this agent belongs to brought and is lent, for this call's pipeline."""
         said = await self._read(
             "GET", f"/v1/agents/{slug}/provider-keys", params=_whose(org, env, holder)
         )
-        return KEYS.validate_python(said["keys"])
+        lends = said.get("lends")
+        return Brought(
+            keys=KEYS.validate_python(said["keys"]),
+            lends=None if lends is None else frozenset(LENDS.validate_python(lends)),
+        )
 
     async def hold_audio(
         self,

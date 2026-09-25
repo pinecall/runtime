@@ -14,7 +14,7 @@ from pinecall.auth.keys import MemoryKeys
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.orgs.vault import NO_VAULT_KEY, Vault
 from pinecall.providers.catalog import vendors_with_a_key
-from pinecall.types import ProviderKeys
+from pinecall.types import ProviderKeys, Quotas
 from tests.api.conftest import (
     A_KEY,
     A_LIVEKIT,
@@ -228,11 +228,24 @@ async def test_the_worker_reads_its_own_orgs_keys_and_gets_nothing_when_it_broug
     """Criterion 1 on the wire: the one response in the runtime that carries a provider key."""
     with an_app(gateway) as ours:
         holding(ours, AGENT)
-        assert got(gateway, THE_WORKERS_DOOR, A_KEY) == (200, {"keys": {}})
+        assert got(gateway, THE_WORKERS_DOOR, A_KEY) == (200, {"keys": {}, "lends": None})
         assert (await kept(ops_http)).status_code == 204
         assert got(gateway, THE_WORKERS_DOOR, A_KEY) == (
             200,
-            {"keys": {"elevenlabs": THE_ORGS_KEY}},
+            {"keys": {"elevenlabs": THE_ORGS_KEY}, "lends": None},
+        )
+
+
+async def test_the_worker_is_told_what_the_box_lends_the_org_beside_its_keys(
+    gateway: TestClient, orgs: MemoryOrgs
+) -> None:
+    """The lending rides the one door the worker reads keys at: one read, both halves."""
+    await orgs.set_quotas(AN_ORG.id, Quotas(lends=frozenset({"deepgram", "cartesia"})))
+    with an_app(gateway) as ours:
+        holding(ours, AGENT)
+        assert got(gateway, THE_WORKERS_DOOR, A_KEY) == (
+            200,
+            {"keys": {}, "lends": ["cartesia", "deepgram"]},
         )
 
 
@@ -258,9 +271,12 @@ async def test_two_orgs_on_one_gateway_each_read_their_own_row(
     with an_app(gateway) as ours, another_app(gateway) as shop:
         holding(ours, AGENT)
         holding(shop, ANOTHER_AGENT, a_door("phone", A_NUMBER))
-        assert got(gateway, THE_WORKERS_DOOR, A_KEY)[1] == {"keys": {"elevenlabs": THE_ORGS_KEY}}
+        assert got(gateway, THE_WORKERS_DOOR, A_KEY)[1] == {
+            "keys": {"elevenlabs": THE_ORGS_KEY},
+            "lends": None,
+        }
         shops = got(gateway, f"/v1/agents/{ANOTHER_AGENT}/provider-keys", ANOTHER_KEY)[1]
-        assert shops == {"keys": {"soniox": "sk-the-shops"}}
+        assert shops == {"keys": {"soniox": "sk-the-shops"}, "lends": None}
 
 
 # ── a box that was given no vault key ───────────────────────────────────────────
@@ -309,4 +325,4 @@ class TestARuntimeWithNoVaultKey:
         """A box with no vault is a whole install: every call runs on the keys of the box."""
         with an_app(gateway) as ours:
             holding(ours, AGENT)
-            assert got(gateway, THE_WORKERS_DOOR, A_KEY) == (200, {"keys": {}})
+            assert got(gateway, THE_WORKERS_DOOR, A_KEY) == (200, {"keys": {}, "lends": None})

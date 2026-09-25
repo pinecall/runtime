@@ -35,6 +35,7 @@ async def test_a_new_org_gets_a_minted_id_and_is_found_by_id_and_by_slug(
     assert by_id == by_slug
     assert by_id["quotas"] == {
         "budget_eur": None,
+        "lends": None,
         "minutes": None,
         "messages": None,
         "agents": None,
@@ -86,6 +87,7 @@ async def test_quotas_are_replaced_whole_and_a_limit_left_out_is_no_limit(
     )
     assert set_once.json() == {
         "budget_eur": None,
+        "lends": None,
         "minutes": 100,
         "messages": None,
         "agents": 3,
@@ -100,6 +102,7 @@ async def test_quotas_are_replaced_whole_and_a_limit_left_out_is_no_limit(
     )
     assert set_again.json() == {
         "budget_eur": None,
+        "lends": None,
         "minutes": None,
         "messages": 5,
         "agents": None,
@@ -113,6 +116,24 @@ async def test_quotas_are_replaced_whole_and_a_limit_left_out_is_no_limit(
     assert (kept["messages"], kept["memory_facts"]) == (5, 0), "zero is a limit, not an absence"
     negative = await ops_http.put(f"{ORGS}/{AN_ORG.slug}/quotas", json={"minutes": -1})
     assert negative.status_code == 400
+
+
+async def test_what_the_box_lends_is_kept_spelled_once_and_answered_sorted(
+    ops_http: httpx.AsyncClient,
+) -> None:
+    """None lends every key, [] none, a list those entries; a word naming no vendor is a 400."""
+    quotas = f"{ORGS}/{AN_ORG.slug}/quotas"
+    lent = await ops_http.put(quotas, json={"lends": ["deepgram", "Claude/claude-haiku-4-5"]})
+    assert lent.json()["lends"] == ["anthropic/claude-haiku-4-5", "deepgram"]
+    assert (await ops_http.get(f"{ORGS}/{AN_ORG.id}")).json()["quotas"]["lends"] == [
+        "anthropic/claude-haiku-4-5",
+        "deepgram",
+    ]
+    assert (await ops_http.put(quotas, json={"lends": []})).json()["lends"] == []
+    assert (await ops_http.put(quotas, json={})).json()["lends"] is None, "left out lends all"
+    typo = await ops_http.put(quotas, json={"lends": ["deepgramm"]})
+    assert typo.status_code == 400
+    assert "deepgramm" in typo.json()["detail"]
 
 
 async def test_removing_is_refused_while_a_live_key_or_a_route_names_the_org(

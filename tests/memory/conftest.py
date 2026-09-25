@@ -12,7 +12,7 @@ from pgvector import HalfVector
 from pinecall.log.store import Pool
 from pinecall.memory import PgvectorMemory
 from pinecall.providers.registry import Chat
-from pinecall.types import Model, ProviderKeys
+from pinecall.types import Brought, Model
 from tests.postgres import Dev
 from tests.session.fake_llm import FakeLLM, Scripted
 from tests.vectors import HASH_MODEL, HashEmbedder, a_vector
@@ -71,7 +71,7 @@ class ScriptedModels:
         self.answer = answer
         self.built: list[FakeLLM] = []
 
-    def __call__(self, asked: Model | None, keys: ProviderKeys) -> Chat:  # noqa: ARG002
+    def __call__(self, asked: Model | None, brought: Brought) -> Chat:  # noqa: ARG002
         """One fresh scripted model per call, the way the real Models builds a plugin."""
         model = FakeLLM(Scripted(chunks=(self.answer,)))
         self.built.append(model)

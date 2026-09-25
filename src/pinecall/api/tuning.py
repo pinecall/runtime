@@ -8,12 +8,22 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import TypeAdapter, ValidationError
 
-from pinecall.api._deps import CallIndexDep, CallsKeyDep, PipelineKeyDep, TuningDep, opening
+from pinecall.api._deps import (
+    CallIndexDep,
+    CallsKeyDep,
+    OrgsDep,
+    PipelineKeyDep,
+    TuningDep,
+    VaultDep,
+    opening,
+)
 from pinecall.api.agents.registry import NO_AGENT, Registry, RegistryDep
 from pinecall.auth.corner import author_of
 from pinecall.auth.keys import KeyRecord, held_by, not_opening
 from pinecall.orgs.resolving import as_json
 from pinecall.orgs.tuning import HISTORY_LIMIT, TuningStore, VersionMoved
+from pinecall.orgs.vault import brought_by
+from pinecall.providers.pipeline import what_is_not_lent
 from pinecall.providers.tuning import tuned
 from pinecall.types import (
     HOLDING,
@@ -163,10 +173,10 @@ def declared_or_bare(slug: str, key: KeyRecord, registry: Registry) -> AgentConf
         raise HTTPException(400, str(refused)) from refused
 
 
-def checked(declared: AgentConfig, wanted: Tuning, lexicon: Lexicon) -> None:
+def checked(declared: AgentConfig, wanted: Tuning, lexicon: Lexicon) -> AgentConfig:
     """Building the config IS the check: 400 in the rule's own sentence when one breaks."""
     try:
-        tuned(declared, wanted, lexicon)
+        return tuned(declared, wanted, lexicon)
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused
 
@@ -241,8 +251,14 @@ async def settings(slug: str, key: TuningKeyDep, kept: TuningDep) -> TuningAnswe
 # about the corner being written: a CLI sending the team's 3 into an empty corner of its own would
 # be refused for a version that was never there.
 @router.put("/v1/agents/{slug}/settings")
-async def set_settings(
-    slug: str, said: TuningPut, key: TuningKeyDep, registry: RegistryDep, kept: TuningDep
+async def set_settings(  # noqa: PLR0913 — the agent, the set, the key, and what it is read against
+    slug: str,
+    said: TuningPut,
+    key: TuningKeyDep,
+    registry: RegistryDep,
+    kept: TuningDep,
+    vault: VaultDep,
+    orgs: OrgsDep,
 ) -> TuningAnswer:
     """Set this agent's tuning in this key's corner, or the team's: a new version, checked first."""
     corner = corner_written(key, said.team)
@@ -251,9 +267,14 @@ async def set_settings(
         standing = await kept.newest(key.org, key.env, corner, slug)
         wanted = words_only(key, wanted, Tuning() if standing is None else standing.value)
     words = await kept.newest_lexicon(key.org, key.env, corner)
-    checked(
+    config = checked(
         declared_or_bare(slug, key, registry), wanted, Lexicon() if words is None else words.value
     )
+    # What the box does not lend this org is refused here, when it is picked, in the sentence the
+    # call would refuse with — not saved to be refused on the next call.
+    unlent = what_is_not_lent(config, await brought_by(vault, orgs.quotas_of, key.org))
+    if unlent is not None:
+        raise HTTPException(422, unlent)
     await put(kept, key, corner, slug, wanted, said.note, said.if_version)
     return await _answer(slug, key, kept)
 

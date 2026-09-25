@@ -14,7 +14,7 @@ from pinecall.api.evals.runner import Runner, the_runner
 from pinecall.evals.checks.replayed import Replayed, rebuild
 from pinecall.evals.runs import MemoryRuns
 from pinecall.providers.models import Chat
-from pinecall.types import PRODUCTION, Model, ProviderKeys
+from pinecall.types import PRODUCTION, Brought, Model, ProviderKeys
 from pinecall_protocol import decode_entries, defs
 from pinecall_protocol.envelope import Entry
 from tests.api.conftest import A_KEY, A_RECORD
@@ -131,10 +131,10 @@ def suite_http(
 ) -> httpx.AsyncClient:
     """The keyed client with a scripted model behind it, and the run's own two resources."""
 
-    def llms(declared: Model | None, keys: ProviderKeys) -> Chat:
+    def llms(declared: Model | None, brought: Brought) -> Chat:
         """Whatever was declared is remembered, and this test's one scripted model answers."""
         models_asked.append(declared)
-        keys_asked.append(keys)
+        keys_asked.append(brought.keys)
         return llm
 
     app.dependency_overrides[deps.the_llms] = lambda: llms
