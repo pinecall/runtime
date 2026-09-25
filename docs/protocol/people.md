@@ -232,23 +232,23 @@ other's URL or null — which is how a page or a CLI knows which world a URL is,
 all — with `mail`, whether "Forgot your password?" may promise an email, and with `brand`
 (`{name, logo_url, accent}`, [the-box.md](the-box.md)) what to call the box and paint it with — and with `google`, whether to draw "Continue with Google" (below).
 
-`POST /v1/signup {org, name?, email, person, password, device?}` — no key — answers `201` with the
-same key shape plus `slug`, the `member` (an `admin`, `active`, password kept — or, for an email
-that already has a password on this box, seated with that one) and a one-use `code`
-good for `/?login=<code>`, with its `code_expires_at`. **What the org may do is not this runtime's to say**: it asks the one
-point a package beside it may have plugged a policy into (`extensions.admitted`, given the org and
-the email, answering `Quotas`) and writes the answer in the same breath the org is made. With no
-such package — a box of its own — the answer is no limit and no row, the same as `orgs add`. A
-plan, a trial, a price: those live in the package that charges, never here. Refusals: `403` where sign-ups are shut, naming the setting; `409` a slug taken; `400` a bad slug,
-email or a short password — nothing half-made — `401 nobody answers to that email and password`
-for an email that has a password on this box and a password that is not it; `409 <email> was
-invited to an org on this box: accept that invitation first, …` for an address invited somewhere
-and still passwordless, since a sign-up would choose that person's one password for them; and
-`429` the sixth sign-up from one place in a minute.
+`POST /v1/signup {org, name?, email, person, password, device?}` — no key — makes **no org**: it
+keeps the sign-up in memory, mails a six-digit code by the box's own mail (`503` when it has none)
+and answers `202 {email, code_expires_at}`. `POST /v1/signup/verify {email, code, device?}` makes
+it: `201`, the key shape plus `slug`, the `member` (an active `admin`) and a one-use `code` for
+`/?login=<code>`. A code lives 15 minutes, six wrong tries burn it (`400`; an unknown address reads
+as a wrong code), and `POST /v1/signup/resend {email}` mails a new one, `202 {}` for anybody. **What
+the org may do is a policy's**: verify asks `extensions.admitted` (with the orgs that email already
+has here) and writes the `Quotas` as the org is made. The first door refuses: `403` sign-ups shut;
+`409` a slug taken (again at verify); `400` a bad slug, email or short password; `401` an email
+whose password here is another; `409` an address invited and still passwordless; `429` the sixth try
+from one place in a minute. With `PINECALL_SIGNUP_KEY` set the three doors take only `Bearer` that
+key (the bot shield's) and count the client as the last `X-Forwarded-For` entry it sends; without it
+that header is never believed.
 
-The console is served by this gateway, so it is the same origin as every door it uses, and the
-sign-up is **its** screen (`/signup`): a site somewhere else links to it rather than posting here.
-So no page on the web has a reason to call a door from elsewhere, and no page is let: a CORS
+The console is served by this gateway, the same origin as every door it uses; the sign-up page is
+the shield's, which calls here server to server with its key and needs no CORS at all. So no page
+on the web has a reason to call a door from elsewhere, and no page is let: a CORS
 header goes to exactly one caller, **Pinecall's own mobile app** — a supervisor's WebView, whose
 origin is `capacitor://localhost` on iOS and `https://localhost` on Android and never this box's.
 Those two origins are always allowed; `PINECALL_APP_ORIGINS` adds more, comma separated, and is

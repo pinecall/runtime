@@ -358,7 +358,7 @@ trunk admitting the number, the route — are [numbers.md](numbers.md).
 
 An org's people are rows, not shared keys: invited with a one-use token, active with a password of
 their own, each key minted for one person and one device (`subject`, `name`), a code a browser
-spends for a key of its own — and, where `PINECALL_SIGNUP` is on, `POST /v1/signup` makes an org
-allowed what the gateway's policy says. **A person is their email**, one password across every org, and an admin's `production` switch on their row (`POST`/`PATCH /v1/members`; an admin always has it) says whether their requests may run in production. `DELETE /v1/members/{id}` (`team`) removes one for good — keys revoked, the seat free, `409` for yourself and for the last active admin. Invitations and resets are **mailed** over generic SMTP — the box's `PINECALL_SMTP_URL`, or the org's own account at `GET/PUT/DELETE /v1/org/mail` — and a forgotten password is asked for at `POST /v1/login/reset`: [people.md](people.md).
+spends for a key of its own — and, where `PINECALL_SIGNUP` is on, `POST /v1/signup` mails a code
+and `POST /v1/signup/verify` makes the org, allowed what the gateway's policy says. **A person is their email**, one password across every org, and an admin's `production` switch on their row (`POST`/`PATCH /v1/members`; an admin always has it) says whether their requests may run in production. `DELETE /v1/members/{id}` (`team`) removes one for good — keys revoked, the seat free, `409` for yourself and for the last active admin. Invitations and resets are **mailed** over generic SMTP — the box's `PINECALL_SMTP_URL`, or the org's own account at `GET/PUT/DELETE /v1/org/mail` — and a forgotten password is asked for at `POST /v1/login/reset`: [people.md](people.md).
 
 Every door, method and path, in one table: [every-door.md](every-door.md).

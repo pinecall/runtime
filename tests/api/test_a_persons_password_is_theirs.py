@@ -11,8 +11,11 @@ import pytest
 from pinecall._settings import Settings
 from pinecall.api.signup import ALREADY_INVITED
 from pinecall.auth.keys import MemoryKeys
+from pinecall.mail.smtp import Mailbox
 from pinecall.orgs.table import MemoryOrgs
 from tests.api.conftest import A_LIVEKIT, A_RECORD, A_VAULT_KEY, AN_OPS_KEY, over_the_asgi_app
+from tests.api.mailing import A_BOX_SENDER
+from tests.mail.fake_smtp import FakeSmtp
 
 pytestmark = pytest.mark.unit
 
@@ -138,22 +141,29 @@ async def test_whoever_chose_an_addresss_password_first_is_seated_nowhere_it_is_
     assert locked_out.status_code == 401
 
 
-async def test_a_sign_up_cannot_choose_the_password_of_somebody_invited_elsewhere(
-    tenant_http: httpx.AsyncClient, stranger: httpx.AsyncClient
-) -> None:
-    pending = await invited_by(tenant_http)
-    taken = await stranger.post(
-        "/v1/signup",
-        json={
-            "org": "rival",
-            "email": JP["email"],
-            "person": "Somebody",
-            "password": "a password of somebody else's choosing",
-        },
-    )
-    assert taken.status_code == 409, taken.text
-    assert taken.json()["detail"] == ALREADY_INVITED.format(email=JP["email"])
-    # Nothing was made: JP's row is the clinic's alone, still invited, still passwordless.
-    listed = (await tenant_http.get(MEMBERS)).json()["members"]
-    assert [row["status"] for row in listed] == ["invited"]
-    assert pending["member"]["id"] == listed[0]["id"]
+# A sign-up is proved by a letter, so the stranger's door needs a box that can send one — and only
+# here: the rest of this file holds that a box with no mail says so.
+class TestASignUp:
+    @pytest.fixture
+    def the_boxs_mail(self, relay: FakeSmtp) -> Mailbox:
+        return relay.mailbox(sender=A_BOX_SENDER)
+
+    async def test_cannot_choose_the_password_of_somebody_invited_elsewhere(
+        self, tenant_http: httpx.AsyncClient, stranger: httpx.AsyncClient
+    ) -> None:
+        pending = await invited_by(tenant_http)
+        taken = await stranger.post(
+            "/v1/signup",
+            json={
+                "org": "rival",
+                "email": JP["email"],
+                "person": "Somebody",
+                "password": "a password of somebody else's choosing",
+            },
+        )
+        assert taken.status_code == 409, taken.text
+        assert taken.json()["detail"] == ALREADY_INVITED.format(email=JP["email"])
+        # Nothing was made: JP's row is the clinic's alone, still invited, still passwordless.
+        listed = (await tenant_http.get(MEMBERS)).json()["members"]
+        assert [row["status"] for row in listed] == ["invited"]
+        assert pending["member"]["id"] == listed[0]["id"]

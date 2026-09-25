@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from pinecall.mail.brand import Brand
-from pinecall.mail.layout import a_letter, button, fallback, heading, paragraph, small
+from pinecall.mail.layout import a_letter, button, code_box, fallback, heading, paragraph, small
 
 # Where the console's card that takes a password lives. An invitation and a reset are the same
 # door underneath (`POST /v1/invitations/{token}`), so they are the same link — which is why a
@@ -123,6 +123,32 @@ def a_test_message(to: str, brand: Brand = _PINECALL) -> Letter:
         subject=f"{brand.name} test message",
         text=said,
         html=a_letter(said, content, brand.name, brand),
+    )
+
+
+# The one letter sent before any org exists: it proves the address a sign-up gave, so it carries
+# a code and no link — the person is on the page that asked for it, and stays there. The code is
+# in the preheader, which an inbox's preview and a phone's notification show, and NOT in the
+# subject: the outbox writes every subject to the gateway's log (mail/outbox.py), and a code in
+# a log is a code anybody reading the journal could spend.
+def a_signup_code(to: str, code: str, person: str, brand: Brand = _PINECALL) -> Letter:
+    """The six digits that make the org a sign-up asked for."""
+    asked = f"Hi {person}, enter this code to finish setting up your {brand.name} account:"
+    dies = "This code expires in 15 minutes."
+    unbidden = f"If you did not create a {brand.name} account, ignore this email."
+    footer = f"Sent by {brand.name}"
+    content = (
+        heading("Confirm your email")
+        + paragraph(asked)
+        + code_box(code)
+        + small(dies)
+        + small(unbidden)
+    )
+    return Letter(
+        to=to,
+        subject=f"Confirm your {brand.name} email",
+        text="\n\n".join(["Confirm your email", asked, code, dies, unbidden, footer]),
+        html=a_letter(f"Your {brand.name} verification code is {code}", content, footer, brand),
     )
 
 

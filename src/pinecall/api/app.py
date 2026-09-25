@@ -29,6 +29,7 @@ from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import NO_KEYS_TABLE, keys_for
 from pinecall.auth.members import members_for
 from pinecall.auth.pairing import Pairings
+from pinecall.auth.signups import PendingSignups
 from pinecall.auth.sso import Handshakes
 from pinecall.auth.throttle import Throttle
 from pinecall.evals.runs import runs_for
@@ -131,6 +132,8 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # last two are this process's memory on purpose: a five-minute word and a one-minute count.
     gateway.state.members = members_for(pool)
     gateway.state.login_codes = LoginCodes()
+    # The sign-ups whose email has not proved itself yet: fifteen minutes each, the same memory.
+    gateway.state.signups = PendingSignups()
     # The words `pinecall login` prints, until a browser leaves a key in one. See api/pairing.py.
     gateway.state.pairings = Pairings()
     gateway.state.throttle = Throttle()

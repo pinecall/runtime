@@ -58,7 +58,8 @@ def register(extensions) -> None:
 
 `already` is how many orgs that email already belongs to on this instance, the new one not
 counted: a trial given only where it is `0` is one trial per person, not one per org they make.
-Each instance asks it **once, in its own world**, the moment it makes an org it did not have:
+A sign-up proves its address with a six-digit code first (`POST /v1/signup/verify`), so a policy
+is asked only for an email somebody answered for. Each instance asks it **once, in its own world**, the moment it makes an org it did not have:
 production at signup (`POST /v1/signup`, when `PINECALL_SIGNUP` is on), a sandbox the first time
 it mirrors the org from production. An org already there is never asked about again. A name in
 `PINECALL_EXTENSIONS` that does not import stops the gateway from starting — a box told to load a

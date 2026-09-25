@@ -365,6 +365,14 @@ class Settings(VendorKeys):
         default=None,
         description="Where this box's orgs pay, https://…; unset, the box bills nobody.",
     )
+    # The key the sign-up doors take (`Authorization: Bearer`), so that only the page that runs a
+    # bot shield in front of them can reach them — pinecall.io's, which checks Pineward and then
+    # calls here. Behind it, the client's address is the shield's `X-Forwarded-For`, and never
+    # anybody else's. Unset, the doors take whoever knocks, as a box of its own may want.
+    signup_key: str | None = Field(
+        default=None,
+        description="The Bearer key the sign-up doors take; unset, they take anybody.",
+    )
     # Packages installed beside the runtime that plug a policy into its named points: how a box
     # that charges says the numbers without the runtime learning what a plan is. extensions/.
     extensions: str = Field(

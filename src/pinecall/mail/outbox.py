@@ -63,7 +63,7 @@ class Outbox:
         """What the letters of this box are called and painted with, as the operator set it."""
         return await the_brand(self._settings)
 
-    async def mailbox_for(self, org: str) -> Mailbox | None:
+    async def mailbox_for(self, org: str | None) -> Mailbox | None:
         """The org's own mail when it wired one, else the box's, else None: nothing is sent."""
         chosen = await self._chosen(org)
         return None if chosen is None else chosen[0]
@@ -81,8 +81,9 @@ class Outbox:
     # nothing that takes a second mail server's word for it can be known while a door is still
     # answering, and a door that waited to find out would be a door blocked on somebody else's
     # network. Where it went and what came of it is the row's standing, or the box's log.
-    async def post(self, org: str, letter: Letter) -> bool:
-        """Send it in the background. False when neither the org nor the box can send at all."""
+    async def post(self, org: str | None, letter: Letter) -> bool:
+        """Send it in the background. False when neither the org nor the box can send at all.
+        No org is the box's own letter — a sign-up's code, before any org exists."""
         if await self.mailbox_for(org) is None:
             return False
         task = asyncio.ensure_future(self._posted(org, letter))
@@ -115,7 +116,7 @@ class Outbox:
     # A task nobody awaits is a task whose exception nobody reads: a refusal is recorded above, and
     # anything else — the table unreachable while recording — is said in the log here, once, with
     # its stack, rather than as asyncio's "exception was never retrieved" at garbage collection.
-    async def _posted(self, org: str, letter: Letter) -> None:
+    async def _posted(self, org: str | None, letter: Letter) -> None:
         """One background send: the outcome recorded, and nothing left to raise into the void."""
         try:
             said = await self.sent(org, letter)

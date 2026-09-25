@@ -25,6 +25,9 @@ LOGO_HEIGHT = 28
 # remote request, which is exactly what this frame does not make.
 FONT = "Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 
+# A code a person copies letter by letter: fixed-width, so a 1 and an l never look alike.
+MONO = "SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace"
+
 # 560 is the width every desktop client shows without a horizontal scrollbar, and the width a
 # phone scales down from without reflowing the card into a column of two words.
 WIDTH = 560
@@ -62,6 +65,22 @@ def button(label: str, href: str, accent: str) -> str:
         f'<a href="{escape(href, quote=True)}" style="display:inline-block;background:{accent};'
         f"color:#ffffff;font-family:{FONT};font-size:15px;font-weight:600;text-decoration:none;"
         f'padding:12px 22px;line-height:18px;border-radius:9px;">{escape(label)}</a>'
+        "</td></tr></table>"
+    )
+
+
+# The v1 letter's box: the code large, spaced and centred on the wash, the one thing the eye
+# finds. The left padding matches the letter-spacing, which a browser also adds after the last
+# digit, so the digits sit in the middle and not a little to the left of it.
+def code_box(code: str) -> str:
+    """A code to copy, alone in its own box."""
+    return (
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        'style="margin:8px 0 20px;"><tr>'
+        f'<td align="center" style="background:{WASH};border:1px solid {HAIRLINE};'
+        'border-radius:12px;padding:22px 16px;">'
+        f'<div style="font-family:{MONO};font-size:34px;line-height:1;font-weight:600;'
+        f'letter-spacing:10px;padding-left:10px;color:{INK};">{escape(code)}</div>'
         "</td></tr></table>"
     )
 

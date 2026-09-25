@@ -44,6 +44,7 @@ LoadCredentialEncrypted=PINECALL_VAULT_KEY:/etc/pinecall/instances/%i.credstore/
 ImportCredential=LIVEKIT_API_KEY
 ImportCredential=LIVEKIT_API_SECRET
 ImportCredential=PINECALL_SMTP_URL
+ImportCredential=PINECALL_SIGNUP_KEY
 ImportCredential=PINECALL_WHATSAPP_APP_SECRET
 ImportCredential=PINECALL_WHATSAPP_VERIFY_TOKEN
 ImportCredential=ANTHROPIC_API_KEY

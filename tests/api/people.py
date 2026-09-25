@@ -1,14 +1,17 @@
 """The fixtures about people: the members, the codes, the throttle, and somebody with no key."""
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 
 import httpx
 import pytest
 
+from pinecall.api._deps import the_signups
+from pinecall.api.app import app
 from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.pairing import Pairings
+from pinecall.auth.signups import PendingSignups
 from pinecall.auth.throttle import Throttle
 from pinecall.auth.visiting import StandingKeys
 from tests.api.conftest import over_the_asgi_app
@@ -35,6 +38,22 @@ def standing(keys: MemoryKeys, members: MemoryMembers) -> StandingKeys:
 def login_codes() -> LoginCodes:
     """The one-use codes minted here: none at the start of a test."""
     return LoginCodes()
+
+
+@pytest.fixture
+def signups() -> PendingSignups:
+    """The sign-ups waiting on a code: none at the start of a test."""
+    return PendingSignups()
+
+
+# Wired here, as mailing.py wires the outbox, so a test that brings its own `signups` (on its own
+# clock) is the one the doors read — the harness's conftest stays under its ceiling.
+@pytest.fixture(autouse=True)
+def the_signups_wired(signups: PendingSignups) -> Iterator[None]:
+    """The doors read this test's pending sign-ups."""
+    app.dependency_overrides[the_signups] = lambda: signups
+    yield
+    app.dependency_overrides.pop(the_signups, None)
 
 
 @pytest.fixture

@@ -14,6 +14,7 @@ from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import NO_KEYS_TABLE, KeyRecord, Keys, not_opening
 from pinecall.auth.members import Members
 from pinecall.auth.pairing import Pairings
+from pinecall.auth.signups import PendingSignups
 from pinecall.auth.throttle import Throttle
 from pinecall.auth.world import as_asked, as_itself, in_the_world_asked
 from pinecall.evals.runs import Runs
@@ -219,6 +220,11 @@ def the_members(connection: HTTPConnection) -> Members:
     return held(connection, "members")
 
 
+def the_signups(connection: HTTPConnection) -> PendingSignups:
+    """The sign-ups this process is waiting on a code for."""
+    return held(connection, "signups", PendingSignups)
+
+
 def the_login_codes(connection: HTTPConnection) -> LoginCodes:
     """The one-use codes minted here for a browser to log in with."""
     return held(connection, "login_codes", LoginCodes)
@@ -338,6 +344,7 @@ ExtensionsDep = Annotated[Extensions, Depends(the_extensions)]
 OrgsDep = Annotated[Orgs, Depends(the_orgs)]
 MembersDep = Annotated[Members, Depends(the_members)]
 LoginCodesDep = Annotated[LoginCodes, Depends(the_login_codes)]
+SignupsDep = Annotated[PendingSignups, Depends(the_signups)]
 PairingsDep = Annotated[Pairings, Depends(the_pairings)]
 ThrottleDep = Annotated[Throttle, Depends(the_throttle)]
 RoutesDep = Annotated[Routes, Depends(the_routes)]

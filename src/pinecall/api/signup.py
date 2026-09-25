@@ -1,10 +1,11 @@
-"""POST /v1/signup: a new org made by a stranger — its first admin, what it may do, the way in."""
+"""POST /v1/signup: a stranger's org, made only once a code mailed to their address comes back."""
 
 from __future__ import annotations
 
-from typing import Any
+from hmac import compare_digest
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from pinecall.api._deps import (
     ExtensionsDep,
@@ -13,15 +14,18 @@ from pinecall.api._deps import (
     MembersDep,
     OrgsDep,
     SettingsDep,
+    SignupsDep,
     ThrottleDep,
 )
 from pinecall.api.identity import AtProduction
 from pinecall.api.login import NOBODY_ANYWHERE, the_client
-from pinecall.api.members import member_as_json
+from pinecall.api.org_mail import OutboxDep
+from pinecall.api.signing_up import TAKEN, the_org_made
 from pinecall.auth import passwords
 from pinecall.auth.members import an_address
-from pinecall.auth.persons import a_persons_key
-from pinecall.types import DeclarationRefused, Member, Quotas, a_slug
+from pinecall.auth.signups import NotVerified, Refusal
+from pinecall.mail import a_signup_code
+from pinecall.types import DeclarationRefused, Member, a_slug
 from pinecall_protocol import WireModel
 
 # Production's alone (api/identity.py): a sandbox keeps no password and makes no person, so
@@ -29,6 +33,7 @@ from pinecall_protocol import WireModel
 router = APIRouter(dependencies=[AtProduction])
 
 MADE = 201
+ASKED = 202
 
 # Off unless the person who runs this gateway turned it on: a box somebody runs for their own
 # agents has an operator who makes orgs (`orgs add`) and invites people, and wants no stranger
@@ -37,8 +42,13 @@ NOT_HERE = (
     "this gateway takes no sign-ups: set PINECALL_SIGNUP to open them, or have its operator make "
     "the org and invite you"
 )
-TAKEN = "{slug} is taken: pick another name for the org"
+# A sign-up is proved by a letter, so a box that cannot send one cannot take one.
+NO_MAIL = (
+    "this gateway cannot mail a code: set PINECALL_SMTP_URL and PINECALL_MAIL_FROM, or have its "
+    "operator make the org and invite you"
+)
 TOO_MANY = "too many sign-ups from here: try again in a minute"
+NOT_THE_SHIELD = "the sign-up doors take the key of the page in front of them"
 
 # The address has a row on this box and no password yet: somebody invited it and the person has
 # not accepted. A sign-up here would choose that person's password FOR them — one person, one
@@ -48,12 +58,16 @@ ALREADY_INVITED = (
     "the password you chose there"
 )
 
-# The label of the first key and the seat it names: the door it came through.
-SIGNED_UP = "signup"
+# One sentence per reason, and an email nobody signed up with reads as a wrong code: the door
+# never says whether an address has a sign-up waiting.
+REFUSED: dict[Refusal, str] = {
+    "wrong": "that code is not valid",
+    "expired": "that code has expired: ask for a new one",
+    "burned": "too many tries: ask for a new code",
+}
 
-# The member a sign-up would make, judged before the org row exists: an email with no domain or a
-# blank name is refused with nothing created, since a member that fails after `orgs.create` would
-# leave an org nobody can enter.
+# The member a sign-up would make, judged before anything is kept: an email with no domain or a
+# blank name is refused at the first door, not after the person typed a code.
 A_PLACEHOLDER = "pending"
 
 
@@ -68,69 +82,129 @@ class Signup(WireModel):
     device: str | None = None
 
 
-@router.post("/v1/signup", status_code=MADE)
-async def signup(
+class Verifying(WireModel):
+    """The code the letter carried, for the address it was sent to."""
+
+    email: str
+    code: str
+    device: str | None = None
+
+
+class Resending(WireModel):
+    """The address whose sign-up wants a new code."""
+
+    email: str
+
+
+# Where the knock came from, for the throttle. With PINECALL_SIGNUP_KEY set, only the page that
+# holds it gets in — the one running a bot shield in front (pinecall.io checks Pineward) — and
+# the person's address is the last entry of the X-Forwarded-For it sends, which that page wrote
+# from what its own proxy saw. Without the key, a forwarded address is never believed: anybody
+# can write one, and the throttle would be theirs to spread across addresses they made up.
+def a_signup_client(request: Request, settings: SettingsDep) -> str:
+    """The client the throttle counts, once the shield's key was shown when one is set."""
+    if settings.signup_key is None:
+        return the_client(request)
+    said = request.headers.get("authorization", "")
+    bearer = said.removeprefix("Bearer ").strip() if said.startswith("Bearer ") else ""
+    if not bearer or not compare_digest(bearer, settings.signup_key):
+        raise HTTPException(401, NOT_THE_SHIELD, headers={"WWW-Authenticate": "Bearer"})
+    forwarded = request.headers.get("x-forwarded-for", "")
+    last = [one.strip() for one in forwarded.split(",") if one.strip()]
+    return last[-1] if last else the_client(request)
+
+
+ClientDep = Annotated[str, Depends(a_signup_client)]
+
+
+@router.post("/v1/signup", status_code=ASKED)
+async def signup(  # noqa: PLR0913 — the sign-up, its client, and every store it is judged against
     said: Signup,
-    request: Request,
+    client: ClientDep,
     settings: SettingsDep,
     orgs: OrgsDep,
     members: MembersDep,
-    keys: KeysDep,
-    codes: LoginCodesDep,
+    signups: SignupsDep,
     throttle: ThrottleDep,
-    extensions: ExtensionsDep,
+    outbox: OutboxDep,
 ) -> dict[str, Any]:
-    """The org made, allowed what its gateway's policy says, its admin active, their first key."""
+    """The sign-up kept and a code mailed to its address. No org exists until the code is back."""
     if not settings.signup:
         raise HTTPException(403, NOT_HERE)
+    if not await outbox.the_box_can_send():
+        raise HTTPException(503, NO_MAIL)
     # The address as every row keeps it, so `ANA@x.uy ` is Ana (auth/members.py).
-    said = said.model_copy(update={"email": an_address(said.email)})
-    if not throttle.allowed(f"{the_client(request)} signup"):
+    email = an_address(said.email)
+    if not throttle.allowed(f"{client} signup"):
         raise HTTPException(429, TOO_MANY)
     try:
         slug = a_slug(said.org)
         hashed = passwords.hashed(said.password, settings.min_password)
-        Member(
-            id=A_PLACEHOLDER, org=A_PLACEHOLDER, email=said.email, name=said.person, role="admin"
-        )
+        Member(id=A_PLACEHOLDER, org=A_PLACEHOLDER, email=email, name=said.person, role="admin")
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused
     # A person who already has a password on this box makes a second org as themselves, and only
     # with THAT password: without this check a signup naming somebody else's email was seated as
     # them, handed a key in their name, and that key minted theirs in every org they belong to
     # (POST /v1/login/org). The refusal is the login's own: it says nothing about who exists.
-    known = await members.a_persons_password(said.email)
+    known = await members.a_persons_password(email)
     if known is not None and not passwords.matches(said.password, known):
         raise HTTPException(401, NOBODY_ANYWHERE)
-    if known is None and await members.orgs_of(said.email):
-        raise HTTPException(409, ALREADY_INVITED.format(email=said.email))
-    # Counted before the org exists: the orgs this person already had here (extensions/points.py).
-    already = len(await members.orgs_of(said.email))
-    org = await orgs.create(slug, said.name or said.org)
-    if org is None:
+    if known is None and await members.orgs_of(email):
+        raise HTTPException(409, ALREADY_INVITED.format(email=email))
+    # Refused before a letter goes out; `create` asks again at verify, for a slug taken meanwhile.
+    if await orgs.find(slug) is not None:
         raise HTTPException(409, TAKEN.format(slug=slug))
-    # What this org may do is whoever charges for it's to say, through the point a package plugged
-    # into (extensions/points.py); the runtime's own answer is no limit, and no limit is no row.
-    allowed = extensions.admitted(org, said.email, settings.world, already)
-    if allowed != Quotas():
-        await orgs.set_quotas(org.id, allowed)
-    # The org is new, so nobody holds the email yet: the invitation is minted and spent in one
-    # breath, the very path a person invited later walks, and the member ends `active`.
-    invited = await members.invite(org.id, said.email, said.person, "admin", ())
-    assert invited is not None
-    # A person who already has a password on this box is seated at once and keeps it: one person,
-    # one password (auth/members.py). Anybody else spends the invitation here.
-    member = (
-        invited.member if invited.token is None else await members.accept(invited.token, hashed)
+    pending, code = signups.begin(email, slug, said.name, said.person, hashed, said.device)
+    await outbox.post(None, a_signup_code(email, code, said.person, await outbox.brand()))
+    return {"email": email, "code_expires_at": pending.expires_at}
+
+
+@router.post("/v1/signup/verify", status_code=MADE)
+async def verify(  # noqa: PLR0913 — the code, its client, and every store making an org writes
+    said: Verifying,
+    client: ClientDep,
+    settings: SettingsDep,
+    orgs: OrgsDep,
+    members: MembersDep,
+    keys: KeysDep,
+    codes: LoginCodesDep,
+    signups: SignupsDep,
+    throttle: ThrottleDep,
+    extensions: ExtensionsDep,
+) -> dict[str, Any]:
+    """The org made, allowed what its gateway's policy says, its admin active, their first key."""
+    if not settings.signup:
+        raise HTTPException(403, NOT_HERE)
+    if not throttle.allowed(f"{client} signup/verify"):
+        raise HTTPException(429, TOO_MANY)
+    taken = signups.verify(an_address(said.email), said.code.strip())
+    if isinstance(taken, NotVerified):
+        raise HTTPException(400, REFUSED[taken.reason])
+    return await the_org_made(
+        taken, said.device, settings.world, orgs, members, keys, codes, extensions
     )
-    assert member is not None
-    # The admin's own key, which opens production too: an admin always does (0039).
-    issued = await a_persons_key(keys, member, said.device or SIGNED_UP, settings.world)
-    minted = codes.mint(issued.record)
-    return {
-        **issued.as_json,
-        "slug": org.slug,
-        "member": member_as_json(member),
-        "code": minted.code,
-        "code_expires_at": minted.expires_at,
-    }
+
+
+# The same answer whatever the address: a door that said "nobody signed up as that" would be a
+# door that says who did.
+@router.post("/v1/signup/resend", status_code=ASKED)
+async def resend(
+    said: Resending,
+    client: ClientDep,
+    settings: SettingsDep,
+    signups: SignupsDep,
+    throttle: ThrottleDep,
+    outbox: OutboxDep,
+) -> dict[str, Any]:
+    """A new code for a sign-up still waiting, when there is one; the same 202 either way."""
+    if not settings.signup:
+        raise HTTPException(403, NOT_HERE)
+    if not throttle.allowed(f"{client} signup/resend"):
+        raise HTTPException(429, TOO_MANY)
+    renewed = signups.renewed(an_address(said.email))
+    if renewed is not None:
+        pending, code = renewed
+        letter = a_signup_code(pending.email, code, pending.person, await outbox.brand())
+        await outbox.post(None, letter)
+    return {}

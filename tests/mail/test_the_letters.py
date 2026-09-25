@@ -11,6 +11,7 @@ from pinecall.mail import (
     Letter,
     a_forgotten_password,
     a_reset,
+    a_signup_code,
     a_test_message,
     an_invitation,
     where_the_card_is,
@@ -157,3 +158,15 @@ def test_the_link_is_the_console_card_at_the_name_this_gateway_answers_to() -> N
     assert where_the_card_is("https://box.example.com/", "inv_abc") == (
         "https://box.example.com/invitations/inv_abc"
     )
+
+
+def test_a_signup_code_is_a_code_in_a_box_with_no_link_and_not_in_the_subject() -> None:
+    """The outbox logs every subject, so the code rides the preheader and the body only."""
+    letter = a_signup_code(TO, "042917", "Ana", Brand(name="Pinecall"))
+    assert letter.subject == "Confirm your Pinecall email"
+    assert "042917" not in letter.subject
+    assert "042917" in letter.text and "042917" in letter.html
+    assert "letter-spacing:10px" in letter.html, "the v1 box: the code large and spaced"
+    assert "Your Pinecall verification code is 042917" in letter.html, "the preheader"
+    assert "href=" not in letter.html and "http" not in letter.text
+    assert "15 minutes" in letter.text
