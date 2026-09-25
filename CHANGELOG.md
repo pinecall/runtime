@@ -14,6 +14,18 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `POST /v1/evals/replay/{call}` asks for the call in the key's corner — org, world, holder — the
   way `POST /v1/evals/judge/{call}` does, and answers another tenant's call, or a sandbox key's
   production call, with the same `404` as a typo; it answered `403` on the org alone before.
+- **An IdP's word does not point the box at its own network.** The issuer an org wires, and
+  every endpoint its configuration publishes, must be `https` at a public name: an address, a
+  `localhost`, `.local` or `.internal` name is refused naming the field, before the box knocks.
+  An id_token for several audiences must name this gateway as its authorized party (`azp`), and
+  a token door that answers no JSON is the provider's refusal, not a 500.
+- **The login throttle forgets names that stopped knocking.** Its table is keyed by what the
+  door names — the client and the email typed — so a script trying a million addresses once each
+  grew it for the life of the process; it is swept to the names of one window now.
+- **A password is hashed and verified off the event loop.** argon2id takes tens of milliseconds
+  by design, and the gateway ran it inline at login, sign-up and the invitation: every socket and
+  stream it held waited that long each time.
+- The WhatsApp webhook's verify token is compared in constant time, as the signature already was.
 
 ### Changed
 - **The box embeds with Perplexity's larger model.** `EMBED_PROVIDER=perplexity` now defaults to

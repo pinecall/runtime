@@ -168,7 +168,7 @@ async def orgs_to_sign_in_to(
         raise HTTPException(429, TOO_MANY.format(email=said.email))
     # `matches` takes as long for an address nobody has as for a wrong password (auth/passwords.py):
     # the one sentence would say nothing, and the clock must not say it instead.
-    if not passwords.matches(said.password, await members.a_persons_password(said.email)):
+    if not await passwords.matches(said.password, await members.a_persons_password(said.email)):
         raise HTTPException(401, NOBODY_ANYWHERE)
     listed: list[dict[str, Any]] = []
     for row in await members.orgs_of(said.email):
@@ -251,7 +251,7 @@ async def _with_a_password(
     # The password is the PERSON's, whichever org it was chosen in: a row of theirs still
     # invited in this org — made before they existed, or before this rule — is seated with it.
     known = await members.a_persons_password(said.email)
-    if not passwords.matches(said.password, known):
+    if not await passwords.matches(said.password, known):
         raise HTTPException(401, nobody)
     assert known is not None
     kept = await _the_row_for(said, orgs, members, sso)

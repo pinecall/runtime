@@ -338,7 +338,7 @@ async def accept(
 ) -> dict[str, Any]:
     """Spend the invitation: the member is active, and the answer is their first key, once."""
     try:
-        kept = passwords.hashed(said.password, settings.min_password)
+        kept = await passwords.hashed(said.password, settings.min_password)
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused
     member = await members.accept(token, kept)

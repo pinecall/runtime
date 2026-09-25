@@ -25,7 +25,7 @@ CLIENT_SECRET = "a-client-secret-nobody-will-ever-deploy"
 _kept: dict[str, rsa.RSAPrivateKey] = {}
 
 
-def _key() -> rsa.RSAPrivateKey:
+def signing_key() -> rsa.RSAPrivateKey:
     """The provider's signing key, made once and kept for the run."""
     if "the key" not in _kept:
         _kept["the key"] = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -72,7 +72,7 @@ class FakeIdp:
 
     def id_token(self) -> str:
         """The claims above, signed with the key the JWKS publishes."""
-        return jwt.encode(self.said, _key(), algorithm="RS256", headers={"kid": KID})
+        return jwt.encode(self.said, signing_key(), algorithm="RS256", headers={"kid": KID})
 
     def _answer(self, request: httpx.Request) -> httpx.Response:
         """The three doors, and a 404 for anything a sign-in has no business asking."""
@@ -117,5 +117,5 @@ def a_challenge(verifier: str) -> str:
 
 def _a_public_jwk() -> dict[str, Any]:
     """The signing key's public half, as a JWKS publishes it."""
-    published: dict[str, Any] = json.loads(RSAAlgorithm.to_jwk(_key().public_key()))
+    published: dict[str, Any] = json.loads(RSAAlgorithm.to_jwk(signing_key().public_key()))
     return {**published, "kid": KID, "use": "sig", "alg": "RS256"}

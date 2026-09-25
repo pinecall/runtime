@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import logging
 from typing import Annotated, Any
 
@@ -59,7 +60,7 @@ async def verify(
     """Echo Meta's challenge back, when it came with the word this box is waiting for."""
     if not settings.whatsapp_app_secret:
         raise HTTPException(503, NO_WHATSAPP)
-    if mode != "subscribe" or token != settings.whatsapp_verify_token:
+    if mode != "subscribe" or not hmac.compare_digest(token, settings.whatsapp_verify_token or ""):
         raise HTTPException(403, NOT_THE_HANDSHAKE)
     return PlainTextResponse(challenge)
 

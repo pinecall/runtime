@@ -143,7 +143,7 @@ async def signup(  # noqa: PLR0913 — the sign-up, its client, and every store 
         raise HTTPException(429, TOO_MANY)
     try:
         slug = a_slug(said.org)
-        hashed = passwords.hashed(said.password, settings.min_password)
+        hashed = await passwords.hashed(said.password, settings.min_password)
         Member(id=A_PLACEHOLDER, org=A_PLACEHOLDER, email=email, name=said.person, role="admin")
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused
@@ -152,7 +152,7 @@ async def signup(  # noqa: PLR0913 — the sign-up, its client, and every store 
     # them, handed a key in their name, and that key minted theirs in every org they belong to
     # (POST /v1/login/org). The refusal is the login's own: it says nothing about who exists.
     known = await members.a_persons_password(email)
-    if known is not None and not passwords.matches(said.password, known):
+    if known is not None and not await passwords.matches(said.password, known):
         raise HTTPException(401, NOBODY_ANYWHERE)
     if known is None and await members.orgs_of(email):
         raise HTTPException(409, ALREADY_INVITED.format(email=email))
