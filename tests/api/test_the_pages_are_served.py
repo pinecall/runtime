@@ -59,9 +59,7 @@ PRODUCTION_TOLD_OF_THE_SANDBOX = Settings(world="production", elsewhere_url=THE_
 
 
 def test_an_instance_told_of_no_other_marks_only_its_world() -> None:
-    assert (
-        pages.marks(Settings(world="sandbox")) == '<meta name="pinecall-world" content="sandbox">'
-    )
+    assert pages.marks(a_sandbox(Settings())) == '<meta name="pinecall-world" content="sandbox">'
 
 
 def test_the_page_is_marked_with_the_instances_world_and_where_the_other_console_is() -> None:

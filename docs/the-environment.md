@@ -11,8 +11,8 @@ own name, so the SDK that reads `ANTHROPIC_API_KEY` by itself and this runtime a
 
 | | |
 |---|---|
-| `PINECALL_WORLD` | **required**: the one world this instance is, `production` or `sandbox`. A process that never said is refused at startup in one sentence; nothing picks a world per request |
-| `PINECALL_ELSEWHERE_URL` · `PINECALL_IDENTITY_URL` | the other instance's public URL — named in every refusal that sends a person there, marked into the console and served at `/.well-known/pinecall` — and, on a sandbox instance, production's: where people sign in |
+| `PINECALL_WORLD` | the one world this instance is: `production` unless it says `sandbox`. A box that runs one instance is production, as every box was before there were two; the sandbox is said on purpose, by its own instance's environment file. Nothing picks a world per request |
+| `PINECALL_ELSEWHERE_URL` · `PINECALL_IDENTITY_URL` | the other instance's public URL — named in every refusal that sends a person there, marked into the console and served at `/.well-known/pinecall` — and, on a sandbox instance, production's: where people sign in. **`PINECALL_IDENTITY_URL` is required on a sandbox**, which asks production who a person is and holds no password of its own: one without it is refused at startup in one sentence |
 | `LIVEKIT_URL` · `LIVEKIT_API_KEY` · `LIVEKIT_API_SECRET` | the media plane both processes talk to. The secret also signs call tokens |
 | `LIVEKIT_PUBLIC_URL` | the URL a browser is told to join, when it differs |
 | `DATABASE_URL` | Postgres 17 with pgvector and pg_textsearch: the one stateful service |
@@ -46,7 +46,7 @@ own name, so the SDK that reads `ANTHROPIC_API_KEY` by itself and this runtime a
 cd runtime
 docker compose -f infra/compose/dev.yml up -d      # livekit · sip · redis · postgres · tei
 uv sync --extra runtime --group dev
-cp .env.example .env                               # the provider keys, and PINECALL_WORLD=sandbox
+cp .env.example .env                               # the provider keys; the instance is production
 pinecall-runtime migrate up                        # the schema, on the compose Postgres
 pinecall-runtime doctor                            # every line green before anything else
 pinecall-runtime init --org clinica \

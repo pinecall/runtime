@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from pinecall._settings import UNSAID_WORLD, load_settings
+from pinecall._settings import NOBODY_TO_ASK, load_settings
 from pinecall.cli import main
 from pinecall.cli.doctor import verbs as doctor
 from pinecall.mail import BoxMail
@@ -296,22 +296,24 @@ def test_the_first_line_says_which_instance_the_report_is_about(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("PINECALL_WORLD", "sandbox")
     monkeypatch.setenv("PINECALL_FLEET", "pinecall-sandbox")
+    monkeypatch.setenv("PINECALL_IDENTITY_URL", "https://box.example.test")
     monkeypatch.setattr(doctor, "live_probes", probes_that_answer)
     assert main(["doctor"]) == 0
     first = capsys.readouterr().out.splitlines()[0]
     assert first.endswith(" · world sandbox · fleet pinecall-sandbox")
 
 
-def test_a_box_that_never_said_its_world_is_refused_in_one_sentence(
+def test_a_sandbox_with_nobody_to_ask_who_a_person_is_is_refused_in_one_sentence(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("PINECALL_WORLD")
+    monkeypatch.setenv("PINECALL_WORLD", "sandbox")
+    monkeypatch.delenv("PINECALL_IDENTITY_URL", raising=False)
     monkeypatch.setattr(doctor, "live_probes", probes_that_answer)
     assert main(["doctor"]) == 1
-    assert capsys.readouterr().err.strip() == UNSAID_WORLD
+    assert capsys.readouterr().err.strip() == NOBODY_TO_ASK
 
 
 def test_the_livekit_cli_is_reported_with_the_path_it_was_found_at() -> None:

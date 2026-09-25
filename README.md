@@ -20,8 +20,9 @@ pip install pinecall          # or: uv add pinecall
 That is the whole install on a server: the wheel carries the gateway, the worker, the migrations
 and the console, with the widget the gateway serves at `/widget/pinecall-widget.js` — both copied
 in by `scripts/console` before a build; a gateway built without them answers those paths `404`
-with the sentence that says so. An instance is one world: `PINECALL_WORLD` (`production` or
-`sandbox`) is required, and a process that never said is refused at startup. The console it serves
+with the sentence that says so. An instance is one world: `PINECALL_WORLD`, production unless it
+says `sandbox` — which a sandbox instance does on purpose, with `PINECALL_IDENTITY_URL` naming the
+production its people sign in at. The console it serves
 at `/` shows that world; the sandbox is a second instance of the same runtime, with its own
 database, worker and fleet (`PINECALL_FLEET`), where a developer watches what they are running
 (`pinecall console` opens it), and `PINECALL_ELSEWHERE_URL` tells each where the other answers. A laptop that wants to read the code, run the example agent or bring up
@@ -33,7 +34,6 @@ command in it run in order with the output it returned.
 ```
 docker compose -f infra/compose/dev.yml up -d      livekit · sip · redis · postgres · tei
 scripts/bootstrap                                  uv sync, every extra and tool group
-PINECALL_WORLD=sandbox, in .env                    required: the one world this laptop's instance is
 uv run pinecall-runtime migrate up                 the schema; a fresh database seeds the
                                                    default org, and `keys issue` mints its key
 uv run pinecall-runtime gateway                    the control plane, on 8080

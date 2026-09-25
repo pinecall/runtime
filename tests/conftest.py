@@ -46,10 +46,9 @@ pytest_plugins = [
 ]
 
 
-# The world every test's instance is, unless the test builds another (`a_sandbox`). Set for the
-# whole process and not per test: collection already builds a Settings, the marks that keep the
-# real environment keep it too, and a subprocess a test starts inherits it.
-THE_TESTS_WORLD = "production"
+# Where every sandbox instance a test builds asks who a person is: a name nothing answers at, since
+# a test that follows a person there answers for production itself (tests/api/).
+THE_IDENTITY = "https://box.example.test"
 
 
 def pytest_configure() -> None:
@@ -59,13 +58,18 @@ def pytest_configure() -> None:
     # load_settings() and for a direct Settings() alike. The tests that are ABOUT the file ask for
     # it back, one at a time (tests/test_settings.py).
     Settings.model_config["env_file"] = None
-    pytest.MonkeyPatch().setenv("PINECALL_WORLD", THE_TESTS_WORLD)
 
 
 def a_sandbox(settings: Settings | None = None, **changed: object) -> Settings:
-    """The same settings as the sandbox's instance: its world, and the fleet it dispatches to."""
+    """The same settings as the sandbox's instance: its world, the fleet it dispatches to, and
+    the production it asks who a person is."""
     return (settings or load_settings()).model_copy(
-        update={"world": "sandbox", "fleet": "pinecall-sandbox", **changed}
+        update={
+            "world": "sandbox",
+            "fleet": "pinecall-sandbox",
+            "identity_url": THE_IDENTITY,
+            **changed,
+        }
     )
 
 

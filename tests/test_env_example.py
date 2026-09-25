@@ -40,5 +40,5 @@ def _names_in(example: str) -> list[str]:
     ]
 
 
-def test_the_world_has_no_default_and_is_written_empty_for_the_operator_to_say() -> None:
-    assert "\nPINECALL_WORLD=\n" in _example_on_disk()
+def test_the_world_is_written_as_production_which_is_what_a_box_that_says_nothing_is() -> None:
+    assert "\nPINECALL_WORLD=production\n" in _example_on_disk()

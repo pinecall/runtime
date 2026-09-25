@@ -4,8 +4,7 @@ import os
 from dataclasses import dataclass
 from typing import Literal, cast, override
 
-from pydantic import Field, ValidationError, model_validator
-from pydantic_core import ErrorDetails
+from pydantic import Field, model_validator
 from pydantic_settings import (
     BaseSettings,
     DotEnvSettingsSource,
@@ -16,7 +15,7 @@ from pydantic_settings import (
 from pinecall._env_files import ENV_FILES, as_a_refusal, env_files_read
 from pinecall._exceptions import PinecallError
 from pinecall._vendor_keys import VendorKeys
-from pinecall.types import Env
+from pinecall.types import PRODUCTION, SANDBOX, Env
 from pinecall.types.dispatch import A_FLEET_NAME, DEFAULT_FLEET
 
 # Our own knobs carry this prefix; a vendor key keeps the vendor's own name (the alias on the
@@ -95,6 +94,16 @@ class Settings(VendorKeys):
             for key, value in values.items()
         }
 
+    # The one misconfiguration worth refusing at startup: a sandbox holds no password and mints no
+    # person of its own, so one with nobody to ask could let nobody in — and would say so only at
+    # the first sign-in, as a 502 to somebody who did nothing wrong. Raised as itself, so pydantic
+    # passes the sentence through instead of wrapping it in its table.
+    @model_validator(mode="after")
+    def _a_sandbox_knows_whom_to_ask(self) -> "Settings":
+        if self.world == SANDBOX and not self.identity_url:
+            raise NobodyToAsk(NOBODY_TO_ASK)
+        return self
+
     # ── LiveKit: the media plane both processes talk to ─────────────────────────
     livekit_url: str = Field(
         default="ws://127.0.0.1:7880",
@@ -157,11 +166,12 @@ class Settings(VendorKeys):
     # ── The world: which one this instance IS, and where the other one answers ──
     # An instance is one world, with its own database, worker and keys: production answers the
     # phone, the sandbox is where agents are written. Nothing picks the world per request any more
-    # (auth/world.py holds a request's `pinecall-env` against THIS), so it has no default: a box
-    # that never said which it is would be guessing, and a guess here is a developer's test
-    # written into what a customer hears. load_settings() refuses a process that did not say.
+    # (auth/world.py holds a request's `pinecall-env` against THIS). A box that runs one instance
+    # is production, as every box was before there were two; the sandbox is said on purpose, by
+    # the environment file of its own instance.
     world: Env = Field(
-        description="Which world this instance is: production or sandbox. Required, no default.",
+        default=PRODUCTION,
+        description="Which world this instance is: production, unless it says sandbox.",
     )
     # The other instance's public URL: named in the sentence that refuses a request meant for it,
     # written into the console so its switcher links there, and served at /.well-known/pinecall.
@@ -170,10 +180,11 @@ class Settings(VendorKeys):
         description="The other world's gateway, https://…: where a refusal sends a person.",
     )
     # Where a person's identity lives: production's gateway, which the sandbox asks who a person
-    # is. Unset on production itself, which is the identity.
+    # is (auth/identity.py). Unset on production itself, which is the identity; required on a
+    # sandbox, which is refused at startup without it (below).
     identity_url: str | None = Field(
         default=None,
-        description="The gateway people sign in at, for a sandbox instance. Unset on production.",
+        description="The gateway people sign in at: required on a sandbox, unset on production.",
     )
 
     # ── The services the doctor asks after: Postgres, and the embedder ─────────
@@ -439,36 +450,20 @@ class Settings(VendorKeys):
         return init_settings, env_settings, walked, file_secret_settings
 
 
-# The one setting with no default, refused in a sentence rather than pydantic's table: every
-# process and every verb reads the settings first, so this is what a box that never said its world
-# sees, whatever it was asked to do. An EMPTY value is the same silence — it is what `.env.example`
-# writes — so it is refused the same way.
-UNSAID_WORLD = (
-    "PINECALL_WORLD is not set: an instance is one world, production or sandbox, and says which"
-)
+# Said in one sentence, by every process and every verb, since each reads the settings first.
+NOBODY_TO_ASK = "a sandbox instance asks production who a person is: set PINECALL_IDENTITY_URL"
 
 
-class WorldUnsaid(PinecallError):
-    """A process started with no PINECALL_WORLD. Nothing runs until it says which world it is."""
+class NobodyToAsk(PinecallError):
+    """A sandbox instance started with no PINECALL_IDENTITY_URL. Nothing runs until it has one."""
 
 
 def load_settings() -> Settings:
     """The environment now. No hidden global; an unopenable .env is a sentence, not a trace."""
     try:
-        # `world` has no default on purpose and the environment is what supplies it, which a type
-        # checker reading the constructor cannot see: the refusal below is the check that counts.
-        return Settings()  # type: ignore[call-arg]
+        return Settings()
     except OSError as failed:
         raise as_a_refusal(failed) from failed
-    except ValidationError as failed:
-        if any(_the_world_unsaid(error) for error in failed.errors()):
-            raise WorldUnsaid(UNSAID_WORLD) from failed
-        raise
-
-
-def _the_world_unsaid(error: ErrorDetails) -> bool:
-    """Whether this validation error is PINECALL_WORLD missing, or set to nothing."""
-    return error["loc"] == ("world",) and (error["type"] == "missing" or error["input"] == "")
 
 
 def variable_of(field: str) -> str:

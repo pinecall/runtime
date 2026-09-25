@@ -143,14 +143,13 @@ maintainer's notebook argues both.
 ## Two names: production's console and the sandbox's
 
 **The gateway no longer tells the two worlds apart by the name a request arrived at.** An instance
-is one world (`PINECALL_WORLD`, required: a gateway or worker whose environment never said is
-refused at startup), and the sandbox becomes an instance of its own on this machine — its own
+is one world (`PINECALL_WORLD`: production unless its environment says sandbox), and the sandbox becomes an instance of its own on this machine — its own
 gateway, database, worker and fleet, behind the second name — in the milestone that brings its
 units, env file and secrets here. Until then:
 
-- `/etc/pinecall/box.env` needs `PINECALL_WORLD=production` **before** the deploy that carries this
-  runtime, or nothing starts; `PINECALL_ELSEWHERE_URL=https://sandbox.example.com` makes every
-  refusal and the console's switcher name the sandbox's URL.
+- `/etc/pinecall/box.env` is production's with no line added; `PINECALL_ELSEWHERE_URL=
+  https://sandbox.example.com` makes every refusal and the console's switcher name the sandbox's
+  URL.
 - `PINECALL_SANDBOX_DOMAIN` is read by nothing in the runtime any more. `make install` still keys
   `caddy/sandbox.caddy` off it, so a box that keeps the line keeps serving the second name — from
   the production instance, marked production — until the sandbox instance replaces that site.

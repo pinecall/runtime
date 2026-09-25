@@ -140,7 +140,8 @@ own (see below). That is the whole of a tenant's authentication.
 A tenant writes an agent on a laptop and runs the same agent on the box, and the two must never
 see each other: a laptop's `pinecall start` must not take the clinic's number, and the clinic's
 sessions must not fill with a developer's test calls. So **an instance is one world**
-(`PINECALL_WORLD`, required: a process that never said is refused at startup). Production and the
+(`PINECALL_WORLD`: production unless the instance says sandbox, which its own environment file
+does on purpose). Production and the
 sandbox are two instances of this one runtime — each its own gateway, database, worker and keys,
 each dispatching to its own fleet (`PINECALL_FLEET`) on the SFU they share — and each tells the
 other's public URL (`PINECALL_ELSEWHERE_URL`) in every sentence that sends a person there, in the

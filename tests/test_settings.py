@@ -8,9 +8,9 @@ from pydantic import ValidationError
 from pinecall._env_files import EnvFileRefused
 from pinecall._settings import (
     ENV_FILES,
-    UNSAID_WORLD,
+    NOBODY_TO_ASK,
+    NobodyToAsk,
     Settings,
-    WorldUnsaid,
     env_files_read,
     load_settings,
     variable_of,
@@ -219,28 +219,32 @@ def test_an_env_file_that_cannot_be_opened_is_a_sentence_naming_it(
     assert "never skipped in silence" in str(refused.value)
 
 
-# An instance is one world and nothing picks it per request, so a process that never said which is
-# refused before it runs anything: a guess would be a developer's test written where customers are.
-def test_a_process_that_never_said_its_world_is_refused_in_one_sentence(
+# A box that runs one instance is production, as every box was before there were two: the sandbox
+# is said on purpose, by its own instance's environment file.
+def test_a_process_that_never_said_its_world_is_production(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv("PINECALL_WORLD")
-    with pytest.raises(WorldUnsaid) as refused:
-        load_settings()
-    assert str(refused.value) == UNSAID_WORLD
+    monkeypatch.delenv("PINECALL_WORLD", raising=False)
+    assert load_settings().world == "production"
 
 
-def test_a_world_written_as_nothing_is_the_same_silence(monkeypatch: pytest.MonkeyPatch) -> None:
-    """`PINECALL_WORLD=` is what `.env.example` writes, and it says no world at all."""
-    monkeypatch.setenv("PINECALL_WORLD", "")
-    with pytest.raises(WorldUnsaid):
+# A sandbox holds no password and mints no person of its own: with nobody to ask it could let
+# nobody in, and it is refused before it runs anything rather than at the first sign-in.
+def test_a_sandbox_with_nobody_to_ask_who_a_person_is_does_not_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PINECALL_WORLD", "sandbox")
+    monkeypatch.delenv("PINECALL_IDENTITY_URL", raising=False)
+    with pytest.raises(NobodyToAsk) as refused:
         load_settings()
+    assert str(refused.value) == NOBODY_TO_ASK
 
 
 def test_the_world_is_read_and_the_fleet_is_pinecall_unless_the_instance_names_one(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("PINECALL_WORLD", "sandbox")
+    monkeypatch.setenv("PINECALL_IDENTITY_URL", "https://box.example.test")
     assert (load_settings().world, load_settings().fleet) == ("sandbox", "pinecall")
     monkeypatch.setenv("PINECALL_FLEET", "pinecall-sandbox")
     assert load_settings().fleet == "pinecall-sandbox"

@@ -227,8 +227,9 @@ One line, and it says the four things that decide where you are: the agent, **wh
 world**, and where the key came from. `pinecall start` binds no port, and neither does anything
 else on this side: the gateway serves its console at `http://localhost:8080`.
 
-An instance is one world, and a laptop's is the one its `.env` says — `PINECALL_WORLD=sandbox`,
-where agents are written. On a box, production and the sandbox are two instances of this same
+An instance is one world, and a laptop's is production unless its `.env` says otherwise
+(`PINECALL_WORLD`): a sandbox instance asks a production one who a person is
+(`PINECALL_IDENTITY_URL`), and a laptop on its own has nobody to ask. On a box, production and the sandbox are two instances of this same
 runtime, each with its own console and URL (`PINECALL_ELSEWHERE_URL` names the other), and the line
 above prints the sandbox's URL with a one-use code in it. The console line above is the CLI's
 wording from before the sandbox became an instance of its own.

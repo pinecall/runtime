@@ -7,8 +7,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
-- **An instance is one world: `PINECALL_WORLD` (`production` or `sandbox`) is required**, and a
-  process whose environment never said is refused at startup in one sentence. The sandbox becomes
+- **An instance is one world: `PINECALL_WORLD`, `production` unless it says `sandbox`** — a box
+  that runs one instance is production, as every box was, and the sandbox is said on purpose by
+  its own instance's environment file. A sandbox instance with no `PINECALL_IDENTITY_URL` is
+  refused at startup in one sentence: it has nobody to ask who a person is. The sandbox becomes
   an instance of its own; `PINECALL_ELSEWHERE_URL` names the other instance's URL (in every
   refusal that sends a person there, in the console's `pinecall-elsewhere` mark, and as
   `elsewhere` beside `world` at `GET /.well-known/pinecall`), and `PINECALL_IDENTITY_URL` where a
