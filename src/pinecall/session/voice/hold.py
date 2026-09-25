@@ -20,7 +20,7 @@ VOLUME = 0.6
 # A tool that answers in a moment plays nothing: a note that starts and is cut is worse than none.
 # Two and a half seconds and not half of one, because the agent ANNOUNCES the slow tools — it says
 # "let me look that up" and the tool starts in the same breath, so a melody on a short grace comes
-# up underneath the agent's own voice and the caller hears both at once (2026-09-21, maravilla).
+# up underneath the agent's own voice and the caller hears both at once (2026-09-21, in production).
 # By this point the announcement has been said and the silence is real.
 GRACE_S = 2.5
 FADE_IN_S = 0.4

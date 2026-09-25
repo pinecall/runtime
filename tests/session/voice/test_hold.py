@@ -107,7 +107,7 @@ async def test_a_call_with_no_room_or_turned_off_plays_nothing_and_the_tool_stil
 
 # The grace is not a comfort setting: the agent ANNOUNCES the tools that take a while — "let me
 # look that up" — and starts the tool in the same breath, so a melody on a short grace comes up
-# underneath the agent's own voice and the caller hears both at once (2026-09-21, maravilla).
+# underneath the agent's own voice and the caller hears both at once (2026-09-21, in production).
 def test_the_grace_outlasts_the_line_the_agent_says_before_the_tool() -> None:
     assert DECLARED_GRACE_S >= 2.0
 

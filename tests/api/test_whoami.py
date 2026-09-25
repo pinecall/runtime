@@ -26,6 +26,7 @@ def test_the_door_names_the_org_the_key_belongs_to(gateway: TestClient) -> None:
         "scopes": sorted(KEY_SCOPES),
         "subject": None,
         "name": None,
+        "email": None,
         "operator": False,
         "visiting": False,
         "production": True,

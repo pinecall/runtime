@@ -66,7 +66,7 @@ async def test_a_line_the_golden_does_not_have_ends_the_call_without_a_wait() ->
 
 
 # The caller that spoke the moment the agent joined talked over its greeting (2026-09-19,
-# maravilla, in production). The first line waits for the opening, told that nothing is said yet.
+# in production). The first line waits for the opening, told that nothing is said yet.
 async def test_the_first_line_waits_for_the_agents_opening() -> None:
     said, waited = _Said(), _Waited()
 

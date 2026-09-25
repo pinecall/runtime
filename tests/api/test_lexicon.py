@@ -35,7 +35,7 @@ EVA = KeyRecord(
     key_id="k_eva", org=A_RECORD.org, env=SANDBOX, scopes=ROLE_SCOPES["qa"], subject="m_eva"
 )
 
-WORDS = {"said": [{"word": "GSA", "spoken": "G S A"}], "heard": ["Maravilla"]}
+WORDS = {"said": [{"word": "GSA", "spoken": "G S A"}], "heard": ["Clínica Norte"]}
 
 
 @pytest.fixture
@@ -78,7 +78,7 @@ async def test_a_supervisor_sets_the_teams_words_and_the_next_call_says_them(
     assert team["lexicon"] == WORDS
     config = (await ana.get(CONFIG)).json()
     assert config["says"] == {"GSA": "G S A"}
-    assert config["hears"] == ["Maravilla"]
+    assert config["hears"] == ["Clínica Norte"]
 
 
 async def test_a_blank_word_is_refused_in_the_shapes_own_sentence(carla: httpx.AsyncClient) -> None:

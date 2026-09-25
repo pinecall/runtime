@@ -135,6 +135,8 @@ async def test_inside_whoami_names_them_and_the_switch_and_the_ops_doors_still_o
         "Bernardo",
     )
     assert (whose["operator"], whose["visiting"]) == (True, True)
+    # One name in every org: a visitor's address comes out of the subject, a member's off the row.
+    assert whose["email"] == BERNA.email
     assert (await inside.get("/v1/members")).json() == {"members": []}, "an admin's reach"
     assert (await inside.get("/v1/ops/whoami")).json()["name"] == "Bernardo"
     listed = (await inside.get("/v1/login/orgs")).json()["orgs"]
@@ -157,7 +159,8 @@ async def test_at_home_whoami_says_operator_and_not_visiting_and_a_member_is_nei
     whose = (await operator.get("/v1/whoami")).json()
     assert (whose["operator"], whose["visiting"], whose["subject"]) == (True, False, BERNA.id)
     theirs = (await member.get("/v1/whoami")).json()
-    assert (theirs["operator"], theirs["visiting"]) == (False, False)
+    assert (theirs["operator"], theirs["visiting"], theirs["email"]) == (False, False, ANA.email)
+    assert whose["email"] == BERNA.email
     await operator.aclose()
     await member.aclose()
 

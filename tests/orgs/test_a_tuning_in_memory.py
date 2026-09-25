@@ -135,7 +135,7 @@ async def test_history_is_newest_first_and_at_reads_one_version_back() -> None:
 
 async def test_the_lexicon_is_kept_the_same_way_without_an_agent() -> None:
     kept = MemoryTuning()
-    words = Lexicon(said={"GSA": "G S A"}, heard=("Maravilla",))
+    words = Lexicon(said={"GSA": "G S A"}, heard=("Clínica Norte",))
     assert (
         await kept.put_lexicon(ORG, SANDBOX, "", words, author=ANA, note=None, if_version=None) == 1
     )

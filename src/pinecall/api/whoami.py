@@ -9,6 +9,7 @@ from pinecall.api._deps import KeyDep, KeysDep, MembersDep, OrgsDep, SettingsDep
 from pinecall.api._operator import an_operator, runs_the_box
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.keys import KeyRecord
+from pinecall.auth.members import Members
 from pinecall.auth.visiting import visiting
 from pinecall.auth.world import a_person, opens_production
 from pinecall.types import Env, is_a_deployment
@@ -39,6 +40,10 @@ class Whose(WireModel):
     # The person the key was minted for, when it is a person's; an org's own key names nobody.
     subject: str | None = None
     name: str | None = None
+    # The person's address: the one name they carry into every org they belong to, where `subject`
+    # is a member row of ONE org. What a service beside the box that serves people across orgs — a
+    # notifier holding somebody's phone — knows them by. None for a machine's key, which is nobody.
+    email: str | None = None
     # Whether this person runs the BOX: their key opens /v1/ops as well, and the console's org
     # switch lists every org there is. False for a machine's key, which is nobody.
     operator: bool = False
@@ -67,6 +72,7 @@ async def whoami(key: KeyDep, orgs: OrgsDep, members: MembersDep, keys: KeysDep)
         scopes=sorted(key.scopes),
         subject=key.subject,
         name=key.name,
+        email=await address_of(key, members),
         operator=await runs_the_box(key, members),
         visiting=visiting(key.subject) is not None,
         production=await opens_production(key, members)
@@ -117,3 +123,16 @@ async def _whose(request: Request, keys: KeysDep) -> KeyRecord | None:
         return None
     record = await keys.verify(bearer)
     return record if record is not None and record.subject is not None else None
+
+
+# A member's address is on their row; a visiting operator's is in the subject itself, since no
+# row of that org is theirs (auth/visiting.py). A machine's key has neither.
+async def address_of(key: KeyRecord, members: Members) -> str | None:
+    """The address of the person this key was minted for, or None for a key that names nobody."""
+    visitor = visiting(key.subject)
+    if visitor is not None:
+        return visitor
+    if key.subject is None:
+        return None
+    member = await members.find(key.org, key.subject)
+    return None if member is None else member.email

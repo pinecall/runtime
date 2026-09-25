@@ -36,7 +36,7 @@ def test_a_lexicon_refuses_a_blank_word_and_a_blank_spoken_form() -> None:
     with pytest.raises(DeclarationRefused, match="the lexicon"):
         Lexicon(said={"GSA": ""})
     with pytest.raises(DeclarationRefused, match="the lexicon"):
-        Lexicon(heard=("Maravilla", " "))
+        Lexicon(heard=("Clínica Norte", " "))
 
 
 def test_versions_none_is_a_corner_that_had_set_nothing() -> None:

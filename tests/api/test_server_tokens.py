@@ -102,7 +102,7 @@ def listed(gateway: TestClient, bearer: str) -> list[Json]:
 
 
 def a_token(gateway: TestClient, env: str, bearer: str = ANAS_KEY) -> Json:
-    status, said = posted(gateway, "/v1/keys", {"label": "maravilla web", "env": env}, bearer)
+    status, said = posted(gateway, "/v1/keys", {"label": "clinica-norte web", "env": env}, bearer)
     assert status == 200, said
     return said
 
@@ -117,7 +117,7 @@ def test_a_person_with_production_makes_the_token_a_server_runs_on_shown_once(
         None,
         sorted(SERVER_SCOPES),
     )
-    row = next(row for row in listed(gateway, ANAS_KEY) if row["label"] == "maravilla web")
+    row = next(row for row in listed(gateway, ANAS_KEY) if row["label"] == "clinica-norte web")
     assert (row["kind"], row["env"], row["created_by"]) == ("server", PRODUCTION, "Ana")
     assert str(said["key"]) not in str(listed(gateway, ANAS_KEY)), "only its sha256 is kept"
     assert row["fingerprint"] == fingerprint(str(said["key"]))
@@ -185,10 +185,10 @@ def test_a_revoked_token_stops_opening_the_next_door(gateway: TestClient) -> Non
 
 def test_a_token_says_when_it_was_last_used(gateway: TestClient) -> None:
     said = a_token(gateway, PRODUCTION)
-    row = next(row for row in listed(gateway, ANAS_KEY) if row["label"] == "maravilla web")
+    row = next(row for row in listed(gateway, ANAS_KEY) if row["label"] == "clinica-norte web")
     assert row["last_used_at"] is None
     got(gateway, "/v1/whoami", str(said["key"]))
-    row = next(row for row in listed(gateway, ANAS_KEY) if row["label"] == "maravilla web")
+    row = next(row for row in listed(gateway, ANAS_KEY) if row["label"] == "clinica-norte web")
     assert row["last_used_at"] is not None
 
 

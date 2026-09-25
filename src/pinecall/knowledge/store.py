@@ -129,7 +129,7 @@ RETURNING base
 # slots before the ranking said anything, whatever the third was about (measured 2026-09-20).
 #
 # The dense branch: nearest by cosine, the HNSW index's own order. The corner is JOINED and not
-# asked per candidate: as a correlated subquery it ran once per row — 537 times over maravilla's
+# asked per candidate: as a correlated subquery it ran once per row — 537 times over a tenant's
 # base, 19ms — and as a join the four columns of `knowledge_chunks_by_base` are one index
 # condition, 5ms (measured on the box, 2026-09-20).
 _NEAREST = f"""

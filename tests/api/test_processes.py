@@ -44,7 +44,7 @@ def test_two_processes_holding_one_agent_are_two_rows_each_saying_where_it_runs(
 ) -> None:
     auth = {"Authorization": f"Bearer {A_KEY}"}
     with gateway.websocket_connect(APPS, headers=auth) as server:
-        server.send_json(registering("maravilla-web-1"))
+        server.send_json(registering("clinica-norte-web-1"))
         first = server.receive_json()["data"]["app"]
         with gateway.websocket_connect(APPS, headers=auth) as laptop:
             laptop.send_json(registering("berna-air"))
@@ -78,7 +78,7 @@ def test_a_stopped_app_hears_why_and_is_gone_from_the_list(gateway: TestClient) 
 
 def test_another_orgs_app_is_not_there_to_stop_or_to_see(gateway: TestClient) -> None:
     with gateway.websocket_connect(APPS, headers={"Authorization": f"Bearer {A_KEY}"}) as mine:
-        mine.send_json(registering("maravilla-web-1"))
+        mine.send_json(registering("clinica-norte-web-1"))
         app = mine.receive_json()["data"]["app"]
         assert got(gateway, "/v1/apps", ANOTHERS_KEY)[1]["apps"] == []
         status, said = stopped(gateway, app, ANOTHERS_KEY)

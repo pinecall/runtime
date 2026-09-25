@@ -189,7 +189,7 @@ async def test_history_is_the_corners_own_newest_first_and_at_reads_one_back(
 
 async def test_the_lexicon_is_kept_the_same_way_without_an_agent(pool: Pool, org: str) -> None:
     kept = PostgresTuning(pool)
-    words = Lexicon(said={"GSA": "G S A", "Vidal": "bidál"}, heard=("Maravilla", "Naples"))
+    words = Lexicon(said={"GSA": "G S A", "Vidal": "bidál"}, heard=("Clínica Norte", "Naples"))
     assert (
         await kept.put_lexicon(org, SANDBOX, "", words, author=ANA, note=None, if_version=None) == 1
     )

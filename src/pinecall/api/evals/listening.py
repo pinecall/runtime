@@ -41,7 +41,7 @@ THE_AGENT_SAID: EventType = "turn.agent"
 THE_CALL_ENDED: EventType = "call.ended"
 
 # The opening. A caller that spoke the moment the agent joined talked over its greeting
-# (2026-09-19, maravilla, in production): the first line waits for the greeting to have been said
+# (2026-09-19, in production): the first line waits for the greeting to have been said
 # and the agent to be listening again. An agent that opens with nothing is believed after it has
 # listened this long without starting to speak, and no opening is waited for longer than the cap.
 A_SILENT_OPENING_S = 3.0
