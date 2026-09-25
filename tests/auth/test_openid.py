@@ -68,13 +68,15 @@ class _TellsOfAnInternalHost(FakeIdp):
 
 async def test_a_configuration_naming_a_private_endpoint_is_refused_naming_the_field() -> None:
     async with httpx.AsyncClient(transport=_TellsOfAnInternalHost().transport()) as http:
-        with pytest.raises(OpenIdRefused, match="token_endpoint is 'https://10.0.0.7/token'"):
+        with pytest.raises(
+            OpenIdRefused, match=re.escape("token_endpoint is 'https://10.0.0.7/token'")
+        ):
             await configuration(http, ISSUER)
 
 
 async def test_an_issuer_that_is_an_address_is_refused_before_anything_is_fetched() -> None:
     async with httpx.AsyncClient(transport=FakeIdp().transport()) as http:
-        with pytest.raises(OpenIdRefused, match="issuer is 'https://192.168.1.1'"):
+        with pytest.raises(OpenIdRefused, match=re.escape("issuer is 'https://192.168.1.1'")):
             await configuration(http, "https://192.168.1.1")
 
 
@@ -92,7 +94,7 @@ class _AnswersHtml(FakeIdp):
     """A token door that answers 200 with a page: a proxy in front of the IdP, say."""
 
     @override
-    def _exchanged(self, request: httpx.Request) -> httpx.Response:  # noqa: ARG002
+    def _exchanged(self, request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, text="<html>maintenance</html>")
 
 

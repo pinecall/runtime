@@ -21,7 +21,7 @@ SPENT: EndReason = "timeout"
 
 async def unlimited(turns: int, tokens: int) -> None:  # noqa: ARG001
     """The allowance of a session nobody limited: every turn is answered."""
-    return None
+    return
 
 
 class TurnRefused(PinecallError):

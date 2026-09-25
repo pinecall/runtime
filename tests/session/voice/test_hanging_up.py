@@ -52,10 +52,10 @@ class AnEndCall:
     """The event livekit hands on_tool_called: the run context, with the call and the speech."""
 
     class _Ctx:
-        class function_call:  # noqa: N801 — livekit's own attribute names
+        class function_call:
             call_id = "fc_1"
 
-        class speech_handle:  # noqa: N801
+        class speech_handle:
             id = "speech_9"
 
     ctx = _Ctx()

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# The checkers, cheapest first: ruff, then pyright, then mypy. Any red stops the run.
+# The checkers, cheapest first: ruff, then pyright, then mypy, then what is imported against
+# what is declared. Any red stops the run.
 # infra/tools is the operator's Python — the carrier's trunk, the SIP probe — checked to the same
 # bar under its own two config files (docs/decisions/box.md says why they differ by two rules).
 set -euo pipefail
@@ -10,5 +11,6 @@ uv run ruff check .
 uv run pyright
 uv run pyright --project infra/tools
 uv run mypy
+uv run deptry src
 # Last, because it is about what a migration does to a box and not about whether the tree parses.
 scripts/lint-migrations

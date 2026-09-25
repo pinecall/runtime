@@ -70,7 +70,7 @@ class VoiceAgent(LiveAgent):
     @override
     async def on_user_turn_completed(
         self,
-        turn_ctx: agents.ChatContext,  # noqa: ARG002 — livekit's signature
+        turn_ctx: agents.ChatContext,
         new_message: agents.ChatMessage,
     ) -> None:
         """The caller's turn is over: this turn's lookups collected, or why they did not run."""

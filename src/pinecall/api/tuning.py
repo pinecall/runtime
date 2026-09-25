@@ -251,7 +251,7 @@ async def settings(slug: str, key: TuningKeyDep, kept: TuningDep) -> TuningAnswe
 # about the corner being written: a CLI sending the team's 3 into an empty corner of its own would
 # be refused for a version that was never there.
 @router.put("/v1/agents/{slug}/settings")
-async def set_settings(  # noqa: PLR0913 — the agent, the set, the key, and what it is read against
+async def set_settings(
     slug: str,
     said: TuningPut,
     key: TuningKeyDep,

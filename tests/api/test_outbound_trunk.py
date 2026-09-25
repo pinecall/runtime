@@ -96,8 +96,10 @@ async def test_a_dry_run_is_the_plan_and_writes_nothing(
         f"trunk    pinecall-{A_RECORD.org} — created on account {A_SID}",
         f"terminal {THE_HOST} — set",
         f"login    pinecall-{A_RECORD.org} — created, its password kept under the vault key",
-        f"livekit  outbound trunk pinecall:{A_RECORD.org}:out → {THE_HOST} over auto, "
-        "showing 1 of this org's numbers with SIP auth",
+        (
+            f"livekit  outbound trunk pinecall:{A_RECORD.org}:out → {THE_HOST} over auto, "
+            "showing 1 of this org's numbers with SIP auth"
+        ),
     ]
     assert twilio_account.made == [] and outbound.trunks == {}
 

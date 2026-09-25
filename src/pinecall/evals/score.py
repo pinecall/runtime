@@ -45,7 +45,7 @@ async def a_score(
     """Every judge this call can be given, over its own log. Never raises: the log seals on it."""
     try:
         return await _judged(entries, config, settings or load_settings())
-    except Exception as broke:  # noqa: BLE001 — a judge that broke must never leave a call unsealed
+    except Exception as broke:
         logger.warning("call %s: nothing judged it", _call_of(entries), exc_info=True)
         return _nobody_judged(JUDGING_BROKE.format(broke=broke))
 
@@ -156,7 +156,7 @@ async def _settled(judge: Evaluator, chat_ctx: ChatContext) -> JudgmentResult | 
         return await judge.evaluate(  # pyright: ignore[reportUnknownMemberType]
             chat_ctx=chat_ctx, reference=None, llm=None
         )
-    except Exception as broke:  # noqa: BLE001 — a judge is dropped, never allowed to end the call
+    except Exception as broke:
         logger.warning("judge '%s' failed: %s", judge.name, broke)
         return None
 

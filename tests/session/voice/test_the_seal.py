@@ -22,7 +22,7 @@ class _NeverReadBack(Recording):
     """A platform that takes every entry and never answers the read of the log."""
 
     @override
-    async def since(self, call: str, after: int) -> AsyncIterator[JsonObject]:  # noqa: ARG002
+    async def since(self, call: str, after: int) -> AsyncIterator[JsonObject]:
         await asyncio.Event().wait()
         yield {}  # pragma: no cover — never reached
 

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Install everything: the package, both extras and every tool group. Run once after a clone.
+# Install what CI and a box install: the package, the worker's vendors, every catalogued plugin
+# and the tool group. `providers-big` — boto3, Azure, the google clients, speechmatics — is a
+# decision, not a default, and is installed by the box that runs one of them (README).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-uv sync --all-extras --all-groups
+uv sync --locked --extra runtime --extra providers --group dev
+uvx prek install 2>/dev/null || echo "prek is not installed: scripts/format and scripts/lint run by hand before a commit"

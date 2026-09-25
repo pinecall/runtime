@@ -56,7 +56,7 @@ async def test_since_never_returns_a_seq_at_or_below_the_cursor(
 ) -> None:
     for n in range(5):
         await store.append(call, agent, "custom", {"n": n})
-    for after in range(0, 7):
+    for after in range(7):
         assert all(entry.seq > after for entry in await store.since(call, after=after))
     assert [entry.seq for entry in await store.since(call, after=3)] == [4, 5]
     assert await store.since(call, after=5) == []

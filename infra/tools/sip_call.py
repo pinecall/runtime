@@ -111,8 +111,8 @@ class SipCall:
 
     def _remember_the_dialogue(self, answer: str) -> None:
         """The tag and the contact the box answered with: without them the ACK is a stray packet."""
-        tag = re.search(r"^To:.*;tag=([^\r\n;]+)", answer, re.M | re.I)
-        contact = re.search(r"^Contact:\s*<([^>]+)>", answer, re.M | re.I)
+        tag = re.search(r"^To:.*;tag=([^\r\n;]+)", answer, re.MULTILINE | re.IGNORECASE)
+        contact = re.search(r"^Contact:\s*<([^>]+)>", answer, re.MULTILINE | re.IGNORECASE)
         self._remote_tag = tag.group(1) if tag else ""
         self._target = contact.group(1) if contact else self._target
 

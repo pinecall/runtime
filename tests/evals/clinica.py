@@ -49,7 +49,7 @@ def _blocks_of(captured: str) -> dict[str, str]:
     """Each section of the page under its header, with the blank lines around it taken off."""
     headers = list(HEADER.finditer(captured))
     sections: dict[str, str] = {}
-    for found, following in zip(headers, headers[1:] + [None], strict=True):
+    for found, following in zip(headers, [*headers[1:], None], strict=True):
         closes = following.start() if following else len(captured)
         sections[found.group("name")] = captured[found.end() : closes].strip()
     return sections

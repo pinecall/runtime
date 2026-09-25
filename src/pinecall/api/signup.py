@@ -122,7 +122,7 @@ ClientDep = Annotated[str, Depends(a_signup_client)]
 
 
 @router.post("/v1/signup", status_code=ASKED)
-async def signup(  # noqa: PLR0913 — the sign-up, its client, and every store it is judged against
+async def signup(
     said: Signup,
     client: ClientDep,
     settings: SettingsDep,
@@ -165,7 +165,7 @@ async def signup(  # noqa: PLR0913 — the sign-up, its client, and every store 
 
 
 @router.post("/v1/signup/verify", status_code=MADE)
-async def verify(  # noqa: PLR0913 — the code, its client, and every store making an org writes
+async def verify(
     said: Verifying,
     client: ClientDep,
     settings: SettingsDep,

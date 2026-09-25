@@ -55,7 +55,7 @@ async def test_a_call_its_org_did_not_judge_is_judged_and_the_verdict_lands_on_i
     assert answered.status_code == 200
     body = answered.json()
     assert body["panel"] == ["consent", "grounded", "promises"]
-    assert [row["name"] for row in body["judges"]][0] == "consent"
+    assert next(row["name"] for row in body["judges"]) == "consent"
     scores = [entry for entry in await store.since(call) if entry.type == "call.score"]
     written = scores[-1].data
     assert len(scores) == 2

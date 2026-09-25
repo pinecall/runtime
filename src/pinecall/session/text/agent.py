@@ -98,7 +98,7 @@ class TextAgent(LiveAgent):
     @override
     async def on_user_turn_completed(
         self,
-        turn_ctx: agents.ChatContext,  # noqa: ARG002 — livekit's signature
+        turn_ctx: agents.ChatContext,
         new_message: agents.ChatMessage,
     ) -> None:
         """The caller's words are the query: this turn's lookups, or why they did not run."""

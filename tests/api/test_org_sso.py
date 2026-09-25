@@ -29,7 +29,7 @@ WIRED = {
 
 
 @pytest.fixture(autouse=True)
-def wiring_a_provider(sso: Sso | None, http: httpx.AsyncClient) -> None:  # noqa: ARG001
+def wiring_a_provider(sso: Sso | None, http: httpx.AsyncClient) -> None:
     """The table these doors write, and the client the PUT checks an issuer answers with."""
 
 

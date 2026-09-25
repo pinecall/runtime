@@ -66,7 +66,7 @@ async def reconciled(
                 placed.append(org.id)
                 if moved:
                     renumbered.append(org.id)
-        except Exception:  # noqa: BLE001 — one org's SFU refusal must not cost the next org's
+        except Exception:
             logger.warning("the SFU refused org %s's trunks; the rest go on", org.id, exc_info=True)
             refused.append(org.id)
     return Rebuilt(tuple(inbound), tuple(placed), tuple(renumbered), tuple(refused))

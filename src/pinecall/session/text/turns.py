@@ -92,7 +92,8 @@ class Turns:
     ) -> None:
         """One reply, run by livekit: its rounds of model and tools, and the entries they make."""
         asked = [one for one in (heard, said, instructions) if one is not None]
-        assert len(asked) == 1, "a turn is asked for one way at a time"
+        if len(asked) != 1:
+            raise ValueError("a turn is asked for one way at a time")
         reply = Reply(speech_id=speech, arrived=arrived)
         self.reply = reply
         try:

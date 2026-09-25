@@ -120,7 +120,7 @@ async def test_the_phrases_hold_on_the_very_call_the_forbidden_tool_judge_breaks
     assert (await measured(NothingWasSaidJudge(banned), case, CountingJudge())).score == 1.0
     broke = await measured(NoForbiddenToolRanJudge(["book"], case.gate), case, CountingJudge())
     assert broke.score == 0.0
-    assert "the golden forbids book, and this call ran book at seq 12" == broke.reason
+    assert broke.reason == "the golden forbids book, and this call ran book at seq 12"
 
 
 # ── the words ───────────────────────────────────────────────────────────────────

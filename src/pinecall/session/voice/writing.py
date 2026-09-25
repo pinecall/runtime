@@ -82,7 +82,7 @@ class Writing:
                 # The close gave up on the platform: this entry never landed, and is counted.
                 self.refused.append(type)
                 raise
-            except Exception:  # noqa: BLE001 — every way the platform can say no is the same here
+            except Exception:
                 self.refused.append(type)
             finally:
                 self._queued.task_done()

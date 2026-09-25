@@ -99,7 +99,7 @@ def _why_it_is_unreachable(dsn: str) -> str | None:
     """None when it answered. Otherwise the reason, as a person would read it in a terminal."""
     try:
         asyncio.run(_ask_it_for_one(dsn))
-    except Exception as failure:  # noqa: BLE001 — whatever stopped it IS the reason
+    except Exception as failure:
         message = str(failure).strip()
         return f"{type(failure).__name__}: {message}" if message else type(failure).__name__
     return None

@@ -76,7 +76,7 @@ class Sealing:
                 entries = [
                     decode_entry(raw) async for raw in self._platform.since(self._context.call, 0)
                 ]
-        except Exception as away:  # noqa: BLE001 — the seal must never wait on the judge
+        except Exception as away:
             logger.warning("call %s: not judged, %s", self._context.call, away)
             return nobody_judged(THE_LOG_NEVER_ARRIVED)
         return await self._score(entries, self._config)

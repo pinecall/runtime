@@ -1,0 +1,36 @@
+# Once a week, and on demand: every package the lock resolves, against the advisory databases.
+# Not on every push — an advisory published on a Tuesday is not the fault of the commit on
+# Wednesday, and a red gate nobody can fix by editing the tree teaches people to ignore red.
+name: audit
+
+on:
+  schedule:
+    - cron: "37 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: runtime
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: pinecall/protocol
+          path: protocol
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+      # The lock, exported whole — every extra and every group — so a vendor SDK a box installs
+      # is audited even though the gate never imports it. The protocol is the checkout next
+      # door, not a published pin, and is left out of the list; pip-audit reads the pins as they
+      # are (`--disable-pip`) instead of resolving them again.
+      - run: >
+          uv export --frozen --all-extras --all-groups --no-emit-project
+          --no-emit-package pinecall-protocol --format requirements-txt > /tmp/requirements.txt
+        working-directory: runtime
+      - run: uvx pip-audit --strict --disable-pip --requirement /tmp/requirements.txt
+        working-directory: runtime

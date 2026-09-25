@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import Field
 
 from pinecall.api._deps import (
     KeptCarriersDep,
@@ -77,7 +78,7 @@ class WantedCarrier(WireModel):
     # SIP: what the peer registers with, and the networks its calls come from.
     username: str | None = None
     password: str | None = None
-    addresses: list[str] = []
+    addresses: list[str] = Field(default_factory=list[str])
     # SIP, the other direction, every one of them optional: where the box places the INVITE, over
     # what, and what it authenticates as — the last two falling back to the pair above. A peer
     # that declares no outbound_host can be called FROM and never dialled THROUGH.
@@ -104,9 +105,11 @@ async def bring(
 ) -> None:
     """This org's carrier, replacing whatever it had. A Twilio account is opened once to check."""
     carrier = _a_carrier(key.org, said)
-    if isinstance(carrier.account, TwilioAccount):
-        if await twilio(carrier.account).verified() is None:
-            raise HTTPException(400, NOT_VERIFIED)
+    if (
+        isinstance(carrier.account, TwilioAccount)
+        and await twilio(carrier.account).verified() is None
+    ):
+        raise HTTPException(400, NOT_VERIFIED)
     await carriers.put(carrier)
 
 

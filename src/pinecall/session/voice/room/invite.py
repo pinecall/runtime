@@ -39,5 +39,5 @@ async def dialled(holding: Holding, wanted: RoomInvite) -> None:
     )
     try:
         await holding.api.sip.create_sip_participant(request)
-    except Exception as refused:  # noqa: BLE001 — every way the server says no is the same here
+    except Exception as refused:
         holding.failed(VERB, str(refused))

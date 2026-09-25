@@ -141,6 +141,6 @@ async def answering(
     while True:
         try:
             await room.answered(logs, held, answer)
-        except Exception:  # noqa: BLE001 — the loop outlives any one round
+        except Exception:
             logger.exception("whatsapp: the waiting room could not answer this round")
         await asyncio.sleep(EVERY_S)

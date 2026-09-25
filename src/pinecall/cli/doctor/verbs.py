@@ -54,7 +54,8 @@ OURS: dict[catalog.Modality, str] = {
 def the_vendor_worth_naming(modality: catalog.Modality) -> str:
     """The settings field of the vendor this runtime runs that role on when nobody chose one."""
     field = catalog.settings_field_of(OURS[modality])
-    assert field is not None, f"providers/catalog.py: {OURS[modality]} has no key to ask for"
+    if field is None:
+        raise RuntimeError(f"providers/catalog.py: {OURS[modality]} has no key to ask for")
     return field
 
 

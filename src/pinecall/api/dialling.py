@@ -202,7 +202,7 @@ async def _started(
     )
     try:
         await dispatches.started(job)
-    except Exception as refused:  # noqa: BLE001 — every way the SFU says no ends the same way
+    except Exception as refused:
         await _never_rang(logs, context, slug)
         raise HTTPException(502, DID_NOT_DIAL.format(why=refused)) from refused
 

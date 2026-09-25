@@ -93,4 +93,4 @@ def test_whatsapp_is_a_key_and_never_a_pipeline() -> None:
     """It is in the table so BYOK reads one list; nothing builds a session out of it."""
     assert catalog.named("whatsapp") is not None
     assert "whatsapp" in catalog.vendors_with_a_key()
-    assert not any("whatsapp" == row.name for job in MODALITIES for row in catalog.doing(job))
+    assert not any(row.name == "whatsapp" for job in MODALITIES for row in catalog.doing(job))

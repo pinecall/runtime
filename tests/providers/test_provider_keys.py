@@ -144,5 +144,5 @@ def test_ears_and_voice_are_lent_by_vendor_as_the_model_is() -> None:
     lent_both = Asked(settings=a_box_that_read_every_key(), lends=A_TRIAL)
     assert isinstance(STT_VENDORS.build("deepgram", lent_both), deepgram.STTv2)
     only_ears = Asked(settings=a_box_that_read_every_key(), lends=frozenset({"deepgram"}))
-    with pytest.raises(NoProvider, match="cartesia is not lent|cartesia/.* is not lent"):
+    with pytest.raises(NoProvider, match=r"cartesia is not lent|cartesia/.* is not lent"):
         TTS_VENDORS.build("cartesia", only_ears)

@@ -1,0 +1,27 @@
+# What runs before a commit lands: the same three checks a contributor runs by hand, and the one
+# generated file kept in step with its source. `uvx prek install` (or `pre-commit install`) once.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format
+        language: system
+        types_or: [python]
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix
+        language: system
+        types_or: [python]
+      - id: uv-lock
+        name: uv.lock is in step with pyproject.toml
+        entry: uv lock --check
+        language: system
+        files: ^(pyproject\.toml|uv\.lock)$
+        pass_filenames: false
+      - id: env-example
+        name: .env.example is in step with _settings.py
+        entry: bash -c 'scripts/generate-env-example && git diff --exit-code -- .env.example'
+        language: system
+        files: ^(src/pinecall/_settings\.py|\.env\.example)$
+        pass_filenames: false

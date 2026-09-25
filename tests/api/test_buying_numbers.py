@@ -64,8 +64,10 @@ async def test_a_dry_run_names_the_number_it_would_buy_and_buys_nothing(
         f"trunk    pinecall — created on account {A_SID}",
         "origin   sip:box.pinecall.io:5060;transport=udp — set",
         f"number   {A_NEW_ONE} — attached to the trunk",
-        f"livekit  inbound trunk pinecall:{A_RECORD.org}: {A_NEW_ONE}, from "
-        f"{len(TWILIO_SIGNALLING)} networks; one room per caller",
+        (
+            f"livekit  inbound trunk pinecall:{A_RECORD.org}: {A_NEW_ONE}, from "
+            f"{len(TWILIO_SIGNALLING)} networks; one room per caller"
+        ),
         f"route    {A_NEW_ONE} phone → {AGENT} in production",
     ]
     assert twilio_account.made == [] and trunks.trunks == {}

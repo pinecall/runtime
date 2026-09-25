@@ -66,5 +66,5 @@ class Line:
         """The agent's sentence cut where it stands, or nothing when there was none to cut."""
         try:
             await self._live.interrupt(force=True)
-        except Exception:  # noqa: BLE001 — a session with nothing to interrupt is not a failure
+        except Exception:
             logger.debug("nothing was playing when the line went on hold")

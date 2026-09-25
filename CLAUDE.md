@@ -9,10 +9,10 @@ file in English. What it is: [ARCHITECTURE.md](ARCHITECTURE.md). How it is deplo
 
 ```bash
 docker compose -f infra/compose/dev.yml up -d   # livekit · sip · redis · postgres · tei
-scripts/bootstrap                               # uv sync, every extra and tool group
+scripts/bootstrap                               # uv sync (runtime · providers · dev), prek hooks
 scripts/format                                  # ruff format, then the fixable lint rules
-scripts/lint                                    # ruff · pyright · mypy · squawk over unlanded migrations — the gate
-scripts/test                                    # pytest -m "unit or postgres", plus infra/tools/tests
+scripts/lint                                    # ruff · pyright · mypy · deptry · squawk over unlanded migrations — the gate
+scripts/test                                    # pytest -m "unit or postgres" + infra/tools/tests, coverage to its floor
 uv run pytest -m unit                           # ring 0: no keys, no network, SHUFFLED — three green runs, or nothing
 uv run pytest tests/cli/doctor/test_verbs.py    # one file
 uv run pinecall-runtime gateway | worker dev | migrate up | doctor

@@ -18,7 +18,7 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture(autouse=True)
-def wiring_a_provider(sso: Sso | None, http: httpx.AsyncClient) -> None:  # noqa: ARG001
+def wiring_a_provider(sso: Sso | None, http: httpx.AsyncClient) -> None:
     """The table the verb reads through the operator's door, and the client behind that door."""
 
 

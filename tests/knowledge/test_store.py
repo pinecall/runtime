@@ -141,7 +141,7 @@ async def test_a_chunk_both_branches_find_scores_one_and_min_score_drops_the_res
 ) -> None:
     await knowledge.put(org, PRODUCTION, None, THE_BASE, [CLINICA, TARIFAS])
     found = await knowledge.search(org, PRODUCTION, None, [THE_BASE], "turnos teléfono")
-    assert [chunk.heading for chunk in found][0] == "Clínica Norte › Turnos"
+    assert next(chunk.heading for chunk in found) == "Clínica Norte › Turnos"
     assert found[0].score == 1.0
     assert all(chunk.score < 0.6 for chunk in found[1:])
     assert len(found) == 4

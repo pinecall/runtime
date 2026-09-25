@@ -1,5 +1,6 @@
 """A whole text call over the real sockets: three turns, one tool round-trip, and its log."""
 
+import itertools
 from collections.abc import Callable
 from typing import Any
 
@@ -170,7 +171,7 @@ def test_the_agent_state_goes_thinking_speaking_idle_and_repeats_nothing(
     written = _a_conversation(gateway)
     states = [entry["data"]["state"] for entry in written if entry["type"] == "agent.state"]
     assert states[:3] == ["thinking", "speaking", "idle"]
-    assert all(one != next_one for one, next_one in zip(states, states[1:], strict=False))
+    assert all(one != next_one for one, next_one in itertools.pairwise(states))
 
 
 def test_the_tool_call_reaches_the_app_and_its_result_reaches_the_model(
@@ -195,7 +196,7 @@ def test_every_field_the_provider_reported_is_present_under_its_livekit_name(
     """Criterion 3, the present half: nothing the provider said is summarised away or renamed."""
     llm.script.extend(a_script())
     written = _a_conversation(gateway)
-    first = [entry for entry in written if entry["type"] == "metrics.llm"][0]["data"]
+    first = next(entry for entry in written if entry["type"] == "metrics.llm")["data"]
     assert set(LLMMetrics.model_fields) - set(first) == {"reasoning_tokens"}
     assert first["prompt_tokens"] == CACHED.prompt_tokens
     assert first["prompt_cached_tokens"] == CACHED.prompt_cached_tokens
@@ -228,7 +229,7 @@ def test_the_turn_carries_what_a_text_session_can_measure_and_nothing_audio_woul
 ) -> None:
     llm.script.extend(a_script())
     written = _a_conversation(gateway)
-    measured = [entry for entry in written if entry["type"] == "turn.agent"][0]["data"]["metrics"]
+    measured = next(entry for entry in written if entry["type"] == "turn.agent")["data"]["metrics"]
     assert measured["llm_node_ttft"] >= 0
     assert measured["e2e_latency"] >= measured["llm_node_ttft"]
     assert measured["provider_request_ids"] == ["req_1"]
@@ -272,27 +273,30 @@ def test_the_summary_carries_the_usage_rows_and_a_cost_line_in_euros(
 def test_a_chat_socket_with_no_key_never_opens(gateway: TestClient) -> None:
     with an_app(gateway) as app_socket:
         declared(app_socket, tools=(A_TOOL, ANOTHER_TOOL), events=(AN_EVENT,))
-        with pytest.raises(WebSocketDisconnect):
-            with gateway.websocket_connect(f"{CHAT}?agent={AGENT}"):
-                pass
+        with pytest.raises(WebSocketDisconnect), gateway.websocket_connect(f"{CHAT}?agent={AGENT}"):
+            pass
 
 
 def test_a_chat_socket_for_an_agent_nobody_registered_is_closed_with_a_reason(
     gateway: TestClient,
 ) -> None:
     """The caller reads a sentence naming the agent: a refusal with no words cannot be acted on."""
-    with a_caller(gateway, agent="nobody-is-here") as caller:
-        with pytest.raises(WebSocketDisconnect) as refused:
-            caller.receive_json()
+    with (
+        a_caller(gateway, agent="nobody-is-here") as caller,
+        pytest.raises(WebSocketDisconnect) as refused,
+    ):
+        caller.receive_json()
     assert refused.value.code == POLICY_VIOLATION
     assert "nobody-is-here" in refused.value.reason
 
 
 def test_a_refusal_too_long_for_a_close_frame_is_cut_rather_than_lost(gateway: TestClient) -> None:
     """A reason over 123 bytes is refused by the library, and the caller reads none at all."""
-    with a_caller(gateway, agent="a" * 200) as caller:
-        with pytest.raises(WebSocketDisconnect) as refused:
-            caller.receive_json()
+    with (
+        a_caller(gateway, agent="a" * 200) as caller,
+        pytest.raises(WebSocketDisconnect) as refused,
+    ):
+        caller.receive_json()
     assert refused.value.code == POLICY_VIOLATION
     assert len(refused.value.reason.encode()) == CLOSE_REASON_BYTES
 

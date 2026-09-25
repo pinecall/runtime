@@ -225,9 +225,11 @@ def test_the_app_socket_at_production_closes_on_a_person_it_may_not_serve_and_sa
     gateway: TestClient, said: str | None, why: str
 ) -> None:
     headers = {"Authorization": "Bearer pc_carla"} | ({} if said is None else {ENV_HEADER: said})
-    with pytest.raises(WebSocketDisconnect) as refused:
-        with gateway.websocket_connect(APPS, headers=headers) as socket:
-            socket.send_json(a_register(AGENT, a_door("web")))
-            socket.receive_json()
+    with (
+        pytest.raises(WebSocketDisconnect) as refused,
+        gateway.websocket_connect(APPS, headers=headers) as socket,
+    ):
+        socket.send_json(a_register(AGENT, a_door("web")))
+        socket.receive_json()
     assert refused.value.code == POLICY_VIOLATION
     assert refused.value.reason == as_a_close_reason(why)

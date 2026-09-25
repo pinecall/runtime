@@ -67,7 +67,7 @@ def with_losses(
     """The same packets with a share of them never sent: what the far end plays is silence."""
     if loss <= 0:
         return list(frames)
-    dice = random or randomness.Random()
+    dice = random or randomness.Random()  # noqa: S311 — noise on a line is not a secret
     return [LOST * (len(frame) // 2) if dice.random() < loss else frame for frame in frames]
 
 

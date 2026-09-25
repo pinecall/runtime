@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 from livekit import api
@@ -35,7 +35,7 @@ A_BOX = Settings(
 class FakeLiveKit:
     """LiveKitAPI as the dispatch uses it: an agent asked in, a room let go, a client closed."""
 
-    made: list[FakeLiveKit] = []
+    made: ClassVar[list[FakeLiveKit]] = []
 
     def __init__(self, *_args: object, **_kwargs: object) -> None:
         self.dispatched: list[Any] = []

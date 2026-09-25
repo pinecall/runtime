@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import tempfile
@@ -48,9 +49,13 @@ async def the_melody(
     except GatewayRefused:
         logger.warning("the hold melody of %s could not be fetched: the default plays", slug)
         return DEFAULT
+    await asyncio.to_thread(_kept_beside, cache, kept, audio)
+    return kept
+
+
+def _kept_beside(cache: Path, kept: Path, audio: bytes) -> None:
+    """Written beside and renamed, so a second job on this box never reads half a file."""
     cache.mkdir(parents=True, exist_ok=True)
-    # Written beside and renamed, so a second job on this box never reads half a file.
     part = kept.with_suffix(f".{os.getpid()}.part")
     part.write_bytes(audio)
     part.replace(kept)
-    return kept

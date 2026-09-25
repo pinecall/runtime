@@ -259,7 +259,7 @@ async def test_the_loop_runs_a_pass_before_it_ever_waits(
     """A gateway coming up after the deploy that killed the workers ends what it left behind."""
     call = await a_call(store, "CA_at_startup")
     loop = asyncio.ensure_future(reaping(reaper, every=3600.0))
-    while not (await store.since(call))[-1].type == "call.score":
+    while (await store.since(call))[-1].type != "call.score":  # noqa: ASYNC110 — a store, polled
         await asyncio.sleep(0)
     loop.cancel()
     assert await store.unsealed_spoken(AN_HOUR_LATER, 10) == []

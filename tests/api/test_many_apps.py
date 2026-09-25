@@ -73,9 +73,11 @@ def test_a_caller_naming_an_app_that_is_not_holding_the_agent_is_refused_with_a_
         holding(mine)
         neighbour.send_json(a_register(ANOTHER_AGENT, a_door("phone", A_NUMBER)))
         stranger = str(neighbour.receive_json()["data"]["app"])
-        with a_caller_asking_for(gateway, stranger) as caller:
-            with pytest.raises(WebSocketDisconnect) as refused:
-                caller.receive_json()
+        with (
+            a_caller_asking_for(gateway, stranger) as caller,
+            pytest.raises(WebSocketDisconnect) as refused,
+        ):
+            caller.receive_json()
     assert refused.value.code == POLICY_VIOLATION
     assert stranger in refused.value.reason
     assert AGENT in refused.value.reason

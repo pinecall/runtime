@@ -203,7 +203,7 @@ class PostgresStore(PostgresIndex):
         try:
             async with connection.transaction():
                 await self._fold(connection, entry.call, change)
-        except Exception:  # noqa: BLE001 — a list that says less, never a call that lost a fact
+        except Exception:
             logger.warning(
                 "call %s: its facts did not fold %s", entry.call, entry.type, exc_info=True
             )

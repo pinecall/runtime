@@ -158,7 +158,7 @@ class _Heard:
         self._timeline = timeline
         self._text = text
 
-    def __await__(self):  # noqa: ANN204 — the shape livekit gives a SpeechHandle
+    def __await__(self):
         async def played() -> None:
             self._timeline.happened.append(f"heard {self._text}")
 

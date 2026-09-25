@@ -29,14 +29,14 @@ INTO_QUADLET = "install -D -m 644 -t /etc/containers/systemd"
 
 def packages_cloud_init_installs() -> set[str]:
     """The `packages:` block, one `- name` per line, with any comment after the name dropped."""
-    block = re.search(r"^packages:\n((?:  - .*\n)+)", CLOUD_INIT.read_text(), re.M)
+    block = re.search(r"^packages:\n((?:  - .*\n)+)", CLOUD_INIT.read_text(), re.MULTILINE)
     assert block is not None, "cloud-init.yaml has no packages: block"
     return {line.strip()[2:].split("#")[0].strip() for line in block.group(1).splitlines()}
 
 
 def packages_the_manifest_converges() -> set[str]:
     """The PACKAGES line of the manifest, split on whitespace."""
-    line = re.search(r"^PACKAGES\s*=\s*(.+)$", MANIFEST.read_text(), re.M)
+    line = re.search(r"^PACKAGES\s*=\s*(.+)$", MANIFEST.read_text(), re.MULTILINE)
     assert line is not None, "infra/box/Makefile has no PACKAGES line"
     return set(line.group(1).split())
 
@@ -91,7 +91,7 @@ def test_a_tenants_app_can_be_held_on_the_box() -> None:
     assert "pinecall start --prod" in template
     assert 'set -a; . "$CREDENTIALS_DIRECTORY/pinecall-app-%i.env"' in template
     # The manager reads environment files before the credentials exist: measured, 2026-09-16.
-    assert not re.search(r"^EnvironmentFile=", template, re.M)
+    assert not re.search(r"^EnvironmentFile=", template, re.MULTILINE)
 
 
 def test_the_fence_lets_the_sip_containers_own_answers_out() -> None:
@@ -136,13 +136,13 @@ def test_the_media_plane_every_box_runs_is_installed_whatever_it_embeds_with() -
 
 def test_the_embedder_answers_on_loopback_and_opens_no_port_to_the_world() -> None:
     """The gateway reaches it as it reaches Postgres, over `lo`: the fence gains no line for it."""
-    published = re.findall(r"^PublishPort=(.+)$", EMBEDDER.read_text(), re.M)
+    published = re.findall(r"^PublishPort=(.+)$", EMBEDDER.read_text(), re.MULTILINE)
     assert published == ["127.0.0.1:8081:80"]
 
 
 def test_the_gateway_is_told_the_very_address_the_embedder_is_published_on() -> None:
     """One address, in the unit that serves it, the unit that asks and the doctor's own run."""
-    published = re.search(r"^PublishPort=(\S+):(\d+):", EMBEDDER.read_text(), re.M)
+    published = re.search(r"^PublishPort=(\S+):(\d+):", EMBEDDER.read_text(), re.MULTILINE)
     assert published is not None
     address = f"http://{published.group(1)}:{published.group(2)}"
     assert f"Environment=TEI_URL={address}" in GATEWAY.read_text()
@@ -151,7 +151,7 @@ def test_the_gateway_is_told_the_very_address_the_embedder_is_published_on() -> 
 
 def test_the_box_and_the_dev_stack_start_the_very_same_embedder() -> None:
     """One definition of what our embedder is: the same image, and the batch that fits inside it."""
-    image = re.search(r"^Image=(.+)$", EMBEDDER.read_text(), re.M)
+    image = re.search(r"^Image=(.+)$", EMBEDDER.read_text(), re.MULTILINE)
     assert image is not None
     assert image.group(1) in DEV_STACK.read_text()
     assert _arguments_the_box_starts_it_with() == _arguments_the_dev_stack_starts_it_with()
@@ -173,7 +173,7 @@ def test_the_worker_reads_no_embedder_key_at_all() -> None:
 
 def _arguments_the_box_starts_it_with() -> list[str]:
     """The Quadlet unit's Exec=, which podman appends to the image's own entrypoint."""
-    line = re.search(r"^Exec=(.+)$", EMBEDDER.read_text(), re.M)
+    line = re.search(r"^Exec=(.+)$", EMBEDDER.read_text(), re.MULTILINE)
     assert line is not None, "pinecall-tei.container has no Exec= line"
     return line.group(1).split()
 
@@ -191,7 +191,7 @@ def _arguments_the_dev_stack_starts_it_with() -> list[str]:
 
 def _credentials_imported_by(unit: Path) -> list[str]:
     """Every name a unit's ImportCredential= lines ask systemd to decrypt for that process."""
-    return re.findall(r"^ImportCredential=(.+)$", unit.read_text(), re.M)
+    return re.findall(r"^ImportCredential=(.+)$", unit.read_text(), re.MULTILINE)
 
 
 # A hub that becomes a worker must give up the media plane, and `systemctl disable` refuses a
@@ -213,23 +213,25 @@ def test_a_box_that_becomes_a_worker_stops_the_containers_it_can_no_longer_disab
 # disagreement here looks like, and it looks like that a week later, on a call somebody asks for.
 def test_the_recorder_writes_as_the_group_the_recordings_directory_belongs_to() -> None:
     recorder = (BOX / "containers" / "pinecall-egress.container").read_text()
-    group = re.search(r"^PodmanArgs=--group-add (\d+)$", recorder, re.M)
+    group = re.search(r"^PodmanArgs=--group-add (\d+)$", recorder, re.MULTILINE)
     assert group is not None
     declared = re.search(
-        r"^g\s+pinecall-media\s+(\d+)", (BOX / "sysusers.d" / "pinecall.conf").read_text(), re.M
+        r"^g\s+pinecall-media\s+(\d+)",
+        (BOX / "sysusers.d" / "pinecall.conf").read_text(),
+        re.MULTILINE,
     )
     assert declared is not None and declared.group(1) == group.group(1)
     kept = (BOX / "tmpfiles.d" / "pinecall.conf").read_text()
     # setgid, so what the recorder writes stays in the group the gateway reads as.
     assert re.search(
-        r"^d\s+/var/lib/pinecall/recordings\s+2770\s+pinecall\s+pinecall-media", kept, re.M
+        r"^d\s+/var/lib/pinecall/recordings\s+2770\s+pinecall\s+pinecall-media", kept, re.MULTILINE
     )
 
 
 def test_the_recorder_answers_on_loopback_and_opens_no_port_to_the_world() -> None:
     """Nothing knocks at it but the doctor: a recording is asked for through livekit itself."""
     recorder = (BOX / "containers" / "pinecall-egress.container").read_text()
-    assert re.findall(r"^PublishPort=(.+)$", recorder, re.M) == ["127.0.0.1:7980:7980"]
+    assert re.findall(r"^PublishPort=(.+)$", recorder, re.MULTILINE) == ["127.0.0.1:7980:7980"]
 
 
 # The overflow agent lives where the media plane is and never counts as a seat: a hub and a full
@@ -319,7 +321,9 @@ def test_an_instances_own_secrets_are_loaded_by_path_and_the_rest_by_name() -> N
     loaded: set[str] = set()
     for unit in BOX.glob("*.service"):
         text = unit.read_text()
-        for credential, path in re.findall(r"^LoadCredentialEncrypted=([^:]+):(\S+)$", text, re.M):
+        for credential, path in re.findall(
+            r"^LoadCredentialEncrypted=([^:]+):(\S+)$", text, re.MULTILINE
+        ):
             if path.startswith("/etc/pinecall/instances/"):
                 assert path.endswith(f".credstore/{credential}"), f"{unit.name}: {credential}"
                 loaded.add(credential)
@@ -374,7 +378,7 @@ def test_the_single_units_the_templates_replaced_are_retired_not_left_enabled() 
 
 def _make_variable(name: str) -> str:
     """One `NAME = value` line of the manifest, as written."""
-    line = re.search(rf"^{name}\s*=\s*(.+)$", MANIFEST.read_text(), re.M)
+    line = re.search(rf"^{name}\s*=\s*(.+)$", MANIFEST.read_text(), re.MULTILINE)
     assert line is not None, f"infra/box/Makefile has no {name} line"
     return line.group(1)
 

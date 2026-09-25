@@ -118,11 +118,13 @@ def test_an_org_never_opens_a_text_call_to_another_orgs_agent(gateway: TestClien
     """Criterion 1, the chat socket: the shop's key is closed with a sentence naming the agent."""
     with an_app(gateway) as ours:
         holding(ours, AGENT)
-        with pytest.raises(WebSocketDisconnect) as refused:
-            with gateway.websocket_connect(
+        with (
+            pytest.raises(WebSocketDisconnect) as refused,
+            gateway.websocket_connect(
                 f"/v1/chat?agent={AGENT}", headers={"Authorization": f"Bearer {ANOTHER_KEY}"}
-            ) as caller:
-                caller.receive_json()
+            ) as caller,
+        ):
+            caller.receive_json()
         assert refused.value.code == POLICY_VIOLATION
         assert AGENT in refused.value.reason and "another org" in refused.value.reason
 

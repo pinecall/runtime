@@ -153,7 +153,7 @@ def run_instance(arguments: argparse.Namespace) -> int:
     return write_instance(instance, arguments.into, force=arguments.force)
 
 
-def declared(  # noqa: PLR0913 — one keyword per variable of the file, which is the point
+def declared(
     name: str,
     world: Env,
     domain: str,

@@ -6,7 +6,16 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+build/
 dist/
+.DS_Store
+.idea/
+.vscode/
 
 # The console the gateway serves: a build the agents repo's vite wrote and scripts/console copied
 # in. Package data, never a source — the wheel carries it (pyproject), git does not.

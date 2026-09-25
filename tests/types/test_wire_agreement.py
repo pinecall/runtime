@@ -56,8 +56,8 @@ RESOLVED_AT_THE_EDGE: dict[type[WireModel], frozenset[str]] = {
 
 
 def test_the_channels_and_directions_here_are_the_wires() -> None:
-    assert CHANNELS == set(get_args(defs.Channel.__value__))
-    assert DIRECTIONS == set(get_args(defs.Direction.__value__))
+    assert set(get_args(defs.Channel.__value__)) == CHANNELS
+    assert set(get_args(defs.Direction.__value__)) == DIRECTIONS
 
 
 def test_the_quota_names_here_are_the_ones_a_refusal_may_say() -> None:

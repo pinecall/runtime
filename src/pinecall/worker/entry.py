@@ -355,7 +355,7 @@ async def _a_developers(gateway: Gateway, route: Route, caller: str) -> Handover
     """The corner and the fleet this production ring is handed to, or None."""
     try:
         handover = await gateway.rings_for(route.agent, org=route.org, caller=caller)
-    except Exception:  # noqa: BLE001 — any refusal is production's answer
+    except Exception:
         logger.warning(
             "could not ask whose phone is dialling %s; the call stays in production", route.agent
         )
@@ -384,7 +384,7 @@ async def _handed_over(
         await ctx.api.agent_dispatch.create_dispatch(
             router.handing_over(ctx.room.name, arrival, route, handover)
         )
-    except Exception:  # noqa: BLE001 — whatever the SFU said, the caller is still waiting here
+    except Exception:
         logger.warning(
             "could not hand %s to the fleet %s; the call stays in production",
             route.agent,

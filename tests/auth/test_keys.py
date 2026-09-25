@@ -208,7 +208,7 @@ HANDING_OVER = ("0017_provider_scope.sql", "0037_agent_tuning.sql")
 
 def test_the_migrations_hand_over_the_very_scopes_the_runtime_knows() -> None:
     backfilled = (MIGRATIONS / "0013_environments.sql").read_text(encoding="utf-8")
-    array = re.search(r"ARRAY\[(.*?)\]", backfilled, re.S)
+    array = re.search(r"ARRAY\[(.*?)\]", backfilled, re.DOTALL)
     assert array is not None
     handed: set[str] = set()
     for name in HANDING_OVER:

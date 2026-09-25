@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter
+from pydantic import Field
 
 from pinecall._version import __version__
 from pinecall.api._box import BoxSettingsDep
@@ -45,7 +46,7 @@ class Discovered(WireModel):
     mail: bool = False
     # What this box is called and painted with (`GET /v1/ops/brand`): a sign-in page draws the
     # operator's name, logo and accent before anybody holds a key, so it rides here.
-    brand: dict[str, Any] = {}
+    brand: dict[str, Any] = Field(default_factory=dict[str, Any])
     # Whether the sign-in page may offer "Continue with Google": the operator wired a client at
     # `PUT /v1/ops/signin/google` and this box can open its secret. The button goes to
     # `GET /v1/login/google`.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -201,7 +202,7 @@ async def _what_was_applied(connection: Any) -> set[str]:
 
 async def _apply_one(connection: Any, path: Path) -> str:
     """One migration and its record in one transaction: half a migration is never recorded."""
-    sql = path.read_text(encoding="utf-8")
+    sql = await asyncio.to_thread(path.read_text, encoding="utf-8")
     if not in_a_transaction(sql):
         await connection.execute(sql)
         await connection.execute(RECORD_MIGRATION, path.name, a_hash(path))

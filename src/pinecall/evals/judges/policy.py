@@ -28,8 +28,8 @@ class PolicyJudge(Judge):
         self,
         *,
         chat_ctx: ChatContext,
-        reference: ChatContext | None = None,  # noqa: ARG002 — nothing here compares two calls
-        llm: LLM[Any] | None = None,  # noqa: ARG002 — a hard policy asks nobody
+        reference: ChatContext | None = None,
+        llm: LLM[Any] | None = None,
     ) -> JudgmentResult:
         """The verdict, with the question that was answered hung on it as livekit hangs it."""
         result = self.decide(chat_ctx)

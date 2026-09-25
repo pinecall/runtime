@@ -33,7 +33,7 @@ class Twilio:
     @classmethod
     def from_environment(cls) -> "Twilio":
         """TWILIO_ACCOUNT_SID, plus either an API key pair or the account's auth token."""
-        environment = os.environ  # noqa: TID251 — a standalone script has no pinecall Settings
+        environment = os.environ
         account_sid = environment["TWILIO_ACCOUNT_SID"]
         key, secret = environment.get("TWILIO_API_KEY"), environment.get("TWILIO_API_SECRET")
         if key and secret:

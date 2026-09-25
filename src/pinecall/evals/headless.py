@@ -44,7 +44,7 @@ class _NoBridge:
         """Never called: a written session has no stt_node to drop a backchannel out of."""
         return True
 
-    async def skipped(self, error: ErrorEvent) -> None:  # noqa: ARG002 — nothing to look up in
+    async def skipped(self, error: ErrorEvent) -> None:
         """Never called: a ring's lookups answer at once, so none is ever skipped."""
 
 

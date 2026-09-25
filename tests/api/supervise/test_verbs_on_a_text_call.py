@@ -99,7 +99,7 @@ def test_a_whisper_never_enters_the_log_as_words_the_caller_wrote(
     written = [entry["data"]["text"] for entry in _typed(heard, "turn.user")]
     assert THE_DESK_WHISPERS not in written
     # And not as anybody's words in the history either: it is a system message of that turn alone.
-    assert all(THE_DESK_WHISPERS != said.text_content for said in llm.asked[-1].history)
+    assert all(said.text_content != THE_DESK_WHISPERS for said in llm.asked[-1].history)
 
 
 # ── takeover and release ────────────────────────────────────────────────────────

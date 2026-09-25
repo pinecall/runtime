@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import sys
 from functools import partial
@@ -129,7 +130,7 @@ async def remove_route(org: str, number: str, operator: Operator, out: TextIO = 
 
 async def seed_routes(path: Path, operator: Operator, out: TextIO = sys.stdout) -> int:
     """Every route in the file, applied in order. A file that is not there is an error, not zero."""
-    if not path.exists():
+    if not await asyncio.to_thread(path.exists):
         print(f"no such file: {path}", file=out)
         return 1
     for route in _read_the_file(path):

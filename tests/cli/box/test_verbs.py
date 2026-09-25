@@ -34,7 +34,7 @@ THE_SEVEN = [
 
 # systemd-creds is stood in for by the one thing this suite may check about it: that it was
 # handed the name, the value on stdin, and the file to write — named as the credential, no more.
-def a_recording_encrypt(written: dict[str, str]):  # noqa: ANN201 — a test double
+def a_recording_encrypt(written: dict[str, str]):
     def encrypt(name: str, value: str, into: Path) -> None:
         written[name] = value
         (into / name).write_text("ciphertext")

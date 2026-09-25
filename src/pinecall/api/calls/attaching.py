@@ -51,8 +51,7 @@ async def attached(live: Live, call: str, app: SocketId) -> Entry | None:
 
 async def parked_calls_of(live: Live, held: Held, app: SocketId) -> list[str]:
     """Every live call of that agent nobody serves, to the socket that just registered it."""
-    taken = [call for call in live.parked(*held) if await attached(live, call, app) is not None]
-    return taken
+    return [call for call in live.parked(*held) if await attached(live, call, app) is not None]
 
 
 # The rule a socket that leaves is held to, whether it closed or drained: each of its calls goes to

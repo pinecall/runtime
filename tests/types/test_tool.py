@@ -78,7 +78,7 @@ def test_a_preview_shows_at_least_one_item_and_a_timeout_is_positive() -> None:
 
 
 def test_side_effects_are_a_closed_set() -> None:
-    assert SIDE_EFFECTS == {"read", "write", "irreversible"}
+    assert {"read", "write", "irreversible"} == SIDE_EFFECTS
     with pytest.raises(DeclarationRefused, match="side_effect"):
         a_tool(side_effect="destructive")
 

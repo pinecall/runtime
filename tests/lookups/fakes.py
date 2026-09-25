@@ -162,7 +162,7 @@ class ScriptedMemory:
         org: str,  # noqa: ARG002 — the Protocol's shape
         env: Env,  # noqa: ARG002 — the Protocol's shape
         holder: str | None,  # noqa: ARG002 — the Protocol's shape
-        agent: str | None,  # noqa: ARG002 — the Protocol's shape
+        agent: str | None,
         *,
         words: str | None,
         after: str | None,
@@ -234,7 +234,7 @@ def a_context(channel: Channel = "phone", contact: Contact | None = None) -> Cal
 
 
 def a_config(
-    bases: tuple[Docs, ...] = (Docs(base="clinica", k=8),),  # noqa: B008 — frozen
+    bases: tuple[Docs, ...] = (Docs(base="clinica", k=8),),
     memory: MemoryPolicy | None = MemoryPolicy(remember=("preference",)),  # noqa: B008 — frozen
     knowledge: str | None = None,
 ) -> AgentConfig:

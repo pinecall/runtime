@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 import urllib.request
@@ -133,19 +134,17 @@ def a_login_code(gateway: str, key: str) -> str:
         data=b"{}",
         headers={"authorization": f"Bearer {key}", "content-type": "application/json"},
     )
-    with urllib.request.urlopen(asked, timeout=30) as answer:  # noqa: S310 — the gateway's own URL
+    with urllib.request.urlopen(asked, timeout=30) as answer:
         return str(json.load(answer)["code"])
 
 
 def settled(page: Page) -> None:
     """Wait for the doors this screen reads to answer and for what they drew to stop moving."""
     page.wait_for_selector(".frame", timeout=PATIENCE_MS)
-    try:
+    # The console listens on a stream, so a screen watching the floor never goes idle. It is
+    # drawn long before the wait gives up, and the settle below is what the shot waits on.
+    with contextlib.suppress(Timeout):
         page.wait_for_load_state("networkidle", timeout=IDLE_MS)
-    except Timeout:
-        # The console listens on a stream, so a screen watching the floor never goes idle. It is
-        # drawn long before the wait gives up, and the settle below is what the shot waits on.
-        pass
     page.wait_for_timeout(SETTLED_MS)
 
 

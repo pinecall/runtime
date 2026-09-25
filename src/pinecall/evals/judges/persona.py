@@ -63,7 +63,7 @@ class PersonaJudge(Judge):
         self,
         *,
         chat_ctx: ChatContext,
-        reference: ChatContext | None = None,  # noqa: ARG002 — nothing here compares two calls
+        reference: ChatContext | None = None,
         llm: LLM[Any] | None = None,
     ) -> JudgmentResult:
         """The caller's rule against the call, asked of the judge model; unanswered without one."""

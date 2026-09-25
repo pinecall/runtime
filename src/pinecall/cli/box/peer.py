@@ -121,7 +121,7 @@ class Hands:
     encrypt: Encrypt = encrypt_with_systemd
 
 
-async def peer(  # noqa: PLR0913 — the two instances, where they live, and what it touches
+async def peer(
     source: str,
     into: str,
     instances: Path = INSTANCES,

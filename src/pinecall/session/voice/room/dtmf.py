@@ -41,7 +41,7 @@ async def sent(holding: Holding, wanted: CallDtmf) -> None:
             continue
         try:
             await holding.room.local_participant.publish_dtmf(code=CODES[digit], digit=digit)
-        except Exception as refused:  # noqa: BLE001 — every way the server says no is the same
+        except Exception as refused:
             holding.failed(VERB, str(refused))
             return
         await asyncio.sleep(BETWEEN_TONES_S)

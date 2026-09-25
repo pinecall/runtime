@@ -21,7 +21,7 @@ class FakeHandle:
         self._session = session
         self._text = text
 
-    def __await__(self):  # noqa: ANN204 — the shape livekit gives a SpeechHandle
+    def __await__(self):
         async def played() -> None:
             await asyncio.sleep(0)
             self._session.history.append(self._text)

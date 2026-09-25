@@ -76,14 +76,14 @@ async def test_issue_takes_the_scopes_and_the_person_and_the_listing_shows_them(
 
 async def test_issue_refuses_the_other_world_in_the_gateways_words(operator: Operator) -> None:
     """An instance mints its own world's keys: `--env sandbox` at production is a refusal."""
-    with pytest.raises(OperatorRefused, match="400.*sandbox"):
+    with pytest.raises(OperatorRefused, match=r"400.*sandbox"):
         await issue_key(ORG, None, operator, printed(), env="sandbox")
 
 
 async def test_issue_refuses_a_world_that_is_not_one_in_the_gateways_words(
     operator: Operator,
 ) -> None:
-    with pytest.raises(OperatorRefused, match="400.*staging"):
+    with pytest.raises(OperatorRefused, match=r"400.*staging"):
         await issue_key(ORG, None, operator, printed(), env="staging")
 
 

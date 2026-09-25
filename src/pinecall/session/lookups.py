@@ -176,7 +176,7 @@ class TurnLookups:
         tool = _a_platform_tool(use.name)
         try:
             output = await self._lookup.lookup(self._call, tool, use.arguments, self._speech)
-        except Exception as failed:  # noqa: BLE001 — a lookup must never break a turn
+        except Exception as failed:
             raise ToolError(
                 NOT_LOOKED_UP.format(tool=tool, why=str(failed) or type(failed).__name__)
             ) from failed
@@ -236,7 +236,7 @@ class TurnLookups:
             return await self._lookup.lookup(
                 self._call, tool, arguments_for(tool, query, self._contact), speech_id
             )
-        except Exception as failed:  # noqa: BLE001 — a lookup must never break a turn
+        except Exception as failed:
             return failed
 
     def _what_came_back(

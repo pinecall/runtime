@@ -153,7 +153,7 @@ class TextSession:
                 return
             try:
                 await watcher(entry)
-            except Exception:  # noqa: BLE001 — a reader that went away must not break the log
+            except Exception:
                 self._gone.add(watcher)
                 logger.warning(
                     "call %s: a watcher dropped out at %s and hears nothing more",

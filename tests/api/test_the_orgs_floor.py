@@ -66,7 +66,7 @@ def test_a_room_token_reads_its_one_call_and_never_an_orgs_list(gateway: TestCli
 def test_the_feed_carries_the_floor_and_nothing_said_on_a_call() -> None:
     """The closed set: an agent held, a call arriving, up, over, waiting on a person and one on
     the line. A turn is the call's alone."""
-    assert ORG_EVENTS == {
+    assert {
         "agent.registered",
         "agent.detached",
         "call.ringing",
@@ -77,7 +77,7 @@ def test_the_feed_carries_the_floor_and_nothing_said_on_a_call() -> None:
         "attention.answered",
         "supervisor.took_over",
         "supervisor.released",
-    }
+    } == ORG_EVENTS
 
 
 async def test_a_register_and_a_call_reach_the_orgs_feed_and_a_turn_does_not(

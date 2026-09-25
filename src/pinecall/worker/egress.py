@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -58,7 +59,7 @@ async def recording_the_room(lk: api.LiveKitAPI, room: str, audio: Path) -> str 
                 ],
             )
         )
-    except Exception:  # noqa: BLE001 — a recorder that will not take the job must not take the call
+    except Exception:
         logger.warning("this call is not being recorded: the box's recorder refused", exc_info=True)
         return None
     return started.egress_id
@@ -68,11 +69,11 @@ async def and_the_file_is_written(lk: api.LiveKitAPI, egress_id: str, audio: Pat
     """Stop the recording and wait for the file: a pointer must never name one that is not there."""
     try:
         await lk.egress.stop_egress(proto.StopEgressRequest(egress_id=egress_id))
-    except Exception:  # noqa: BLE001 — the room closing stops it anyway; this only hurries it
+    except Exception:
         logger.debug("the recorder had already stopped for %s", egress_id, exc_info=True)
 
     async def written() -> bool:
-        return audio.is_file() and audio.stat().st_size > 0
+        return await asyncio.to_thread(lambda: audio.is_file() and audio.stat().st_size > 0)
 
     if await until(written, within_s=THE_FILE_MAY_TAKE_S):
         return True

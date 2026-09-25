@@ -28,6 +28,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - The WhatsApp webhook's verify token is compared in constant time, as the signature already was.
 
 ### Fixed
+- **A release builds its pages from the repositories they live in.** The publish workflow checked
+  out `pinecall/agents`, where the console once lived, and died at "no console checkout": it
+  checks out `pinecall/console` and `pinecall/widget` now, which is the layout `scripts/console`
+  reads by default.
 - **The judges see the tool calls.** The transcript a model judge reads carried the turns alone,
   so the persona judge, asked whether "the tool calls" got the caller what they came for, never
   saw a booking; it now prints each call and its answer between the turns, in livekit's words.
@@ -74,6 +78,18 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   none; a suite's run held one per run and closed it never.
 
 ### Changed
+- **The gate got stricter, and so did the install.** `scripts/lint` runs `deptry` after the type
+  checkers (what the tree imports is what `pyproject.toml` declares, both ways — `starlette`,
+  `av` and `protobuf` are declared now, having been imported by name all along) and ruff checks
+  the `RUF`, `ASYNC`, `SIM`, `C4`, `RET`, `PIE`, `PERF`, `FURB`, `ISC`, `PGH`, `LOG`, `G`, `T10`
+  and `S` families; `scripts/test` measures branch coverage and holds it to the floor in
+  `pyproject.toml`; `scripts/bootstrap` installs what CI and a box install — `runtime`,
+  `providers` and the tools — and no longer the `providers-big` SDKs, and installs the commit
+  hooks in `.pre-commit-config.yaml` when `prek` is on the machine. `uv run pytest <file>` runs
+  on one core: `-n auto` moved from `pyproject.toml` to `scripts/test`. CI runs on Python 3.12
+  and 3.13, builds the wheel on every push, caches the Postgres image between runs and keeps the
+  container's log as an artifact; every action is pinned by commit, Dependabot opens one pull
+  request a week per ecosystem, and `pip-audit` runs over the whole lock every Monday.
 - **The box embeds with Perplexity's larger model.** `EMBED_PROVIDER=perplexity` now defaults to
   `pplx-embed-context-v1-4b`, asked for 1024 wide (Matryoshka) so it fits the columns: every base
   another model pushed answers `409` until its project pushes it again, and
@@ -227,6 +243,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   there.
 
 ### Removed
+- **The `memory-graph` extra is gone.** It installed `graphiti-core` for a memory graph nothing
+  in the tree imports; the contact's facts live in pgvector, which needs no extra.
 - **`PINECALL_SANDBOX_DOMAIN` is read by nothing**: a request's `Host` no longer picks a world or
   marks the console. The console is marked with the instance's world, `/index.html` included.
 - **`PUT /v1/numbers/{number}/env` is gone.** A number is one instance's: it is imported where it

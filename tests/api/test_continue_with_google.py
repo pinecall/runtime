@@ -48,7 +48,7 @@ NICO = Member(
 
 
 @pytest.fixture(autouse=True)
-def signing_in(sso: Sso | None, http: httpx.AsyncClient, handshakes: Handshakes) -> None:  # noqa: ARG001
+def signing_in(sso: Sso | None, http: httpx.AsyncClient, handshakes: Handshakes) -> None:
     """Every test here signs in: what reaches the provider, the sign-ins, the org tables."""
 
 

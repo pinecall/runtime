@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from pinecall.api._deps import CallIndexDep, SnapshotsDep, StoreDep
 from pinecall.api.agents.registry import Registry, RegistryDep
@@ -34,6 +34,9 @@ A_SCREENFUL = 20
 # What a line says about a call: every field of the protocol's own SessionLine that the projected
 # state answers for. The row's shape is protocol/schema/rest.json and never a shape computed here.
 # The verdict and the flags are the call index's, not the state's.
+# A list is read on a key and never on a room token: the token opens one call, not a corner.
+NOT_A_KEY = "a list of calls is read on an API key, not on a call token"
+
 OF_THE_LINE = ("call", "live", "last_seq", "score", "flags")
 OF_THE_STATE = tuple(
     field.alias or name
@@ -86,7 +89,8 @@ async def a_page(
     limit: int,
 ) -> SessionList:
     """The calls that match, a page of them folded to rows, how many match, and the cursor."""
-    assert reader.key is not None  # both doors refuse a token before they ask for a page
+    if reader.key is None:  # both doors refuse a token before they ask for a page
+        raise HTTPException(401, NOT_A_KEY)
     whose = corner_of(reader.key)
     found = await index.found(whose.org, whose.env, whose.holder or "", wanted, limit)
     facts = await index.facts_of(found.calls)

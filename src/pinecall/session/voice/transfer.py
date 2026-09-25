@@ -98,7 +98,7 @@ async def sent_on(holding: Holding, wanted: CallTransfer) -> CallTransferred:
     # A dial that the far end refused arrives as livekit's SipCallError, which renders the SIP code
     # and its reason phrase in its own __str__ (api/twirp_client.py:116): the status is in the words
     # already, and every other way the server can say no reads the same to whoever asked.
-    except Exception as refused:  # noqa: BLE001 — every way the server says no is one outcome
+    except Exception as refused:
         return _stayed(wanted, f"{VERB}: {refused}", COLD)
     if answer.status != SIPTransferStatus.STS_TRANSFER_SUCCESSFUL:
         return _stayed(wanted, _did_not_take(answer), COLD)
@@ -127,7 +127,7 @@ async def dialled_in(holding: Holding, wanted: CallTransfer) -> CallTransferred:
     request.ringing_timeout.FromSeconds(int(RINGING_S))
     try:
         await holding.api.sip.create_sip_participant(request)
-    except Exception as refused:  # noqa: BLE001 — a busy phone and a dead trunk are one outcome
+    except Exception as refused:
         return _stayed(wanted, f"{VERB}: {refused}", WARM)
     return CallTransferred(to=wanted.to, mode=WARM, ok=True)
 

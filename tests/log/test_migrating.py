@@ -192,7 +192,7 @@ async def test_a_database_whose_table_predates_the_hashes_gets_the_column(postgr
 # which sends a person to `migrate up --post` for nothing (the box, 2026-09-20).
 async def test_a_run_names_only_the_post_files_this_database_has_not_run(postgres: Dev) -> None:
     schema = await a_schema(postgres)
-    post = [path for path in ordered(post=True)]
+    post = list(ordered(post=True))
     await pretend_it_ran(postgres, schema, post[0].name, a_hash(post[0]))
 
     ran = await apply_migrations(postgres.dsn, schema=schema)

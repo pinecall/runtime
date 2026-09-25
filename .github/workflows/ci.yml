@@ -25,6 +25,15 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # 3.12 is what a box runs (.python-version); 3.13 is what the classifier promises. Both, and
+    # a red on one does not cancel the other: the difference is the finding.
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    env:
+      UV_PYTHON: ${{ matrix.python }}
+      DATABASE_URL: postgresql://pinecall:pinecall@127.0.0.1:5432/pinecall
     # Most of these minutes are the Postgres image: pgvector and pg_textsearch are compiled from
     # source, because the image with both is this repository's own and is built, not published.
     #
@@ -33,15 +42,12 @@ jobs:
     # answered `sorry, too many clients already`.
     timeout-minutes: 30
 
-    env:
-      DATABASE_URL: postgresql://pinecall:pinecall@127.0.0.1:5432/pinecall
-
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: runtime
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: pinecall/protocol
           path: protocol
@@ -53,9 +59,19 @@ jobs:
       # exist`. It is started as a STEP and not as a service, because a `services:` block starts
       # before any step runs and so cannot wait for a build. The two CREATE EXTENSIONs are here
       # because no migration creates one — the same two a person types once by hand.
+      # The image is pgvector and pg_textsearch compiled from source, which was most of these
+      # minutes on every push: buildx keeps its layers in the Actions cache, keyed by content, so
+      # a push that did not touch infra/compose/postgres pulls them and compiles nothing.
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: runtime/infra/compose/postgres
+          tags: pinecall/postgres:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       - name: postgres with the two extensions the schema needs
         run: |
-          docker build -q -t pinecall/postgres:ci runtime/infra/compose/postgres
           docker run -d --name postgres -p 5432:5432 \
             -e POSTGRES_USER=pinecall -e POSTGRES_PASSWORD=pinecall -e POSTGRES_DB=pinecall \
             pinecall/postgres:ci -c max_connections=300
@@ -78,7 +94,7 @@ jobs:
             -c "CREATE EXTENSION IF NOT EXISTS vector" \
             -c "CREATE EXTENSION IF NOT EXISTS pg_textsearch"
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           enable-cache: true
           cache-dependency-glob: runtime/uv.lock
@@ -105,3 +121,19 @@ jobs:
       # ANTHROPIC_API_KEY skips itself by name rather than failing.
       - run: scripts/test
         working-directory: runtime
+
+      # The wheel is packed on every push and not first at the tag: what `uv build` leaves out
+      # (or drags in) is found on the branch, where it costs a commit and not a version number.
+      - run: uv build && uvx twine check dist/*
+        working-directory: runtime
+
+      # What a red run on the Postgres ring is debugged from, kept whether or not it was red.
+      - if: always()
+        run: docker logs postgres > runtime/postgres.log 2>&1 || true
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: evidence-py${{ matrix.python }}
+          path: |
+            runtime/postgres.log
+          if-no-files-found: ignore

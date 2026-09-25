@@ -271,9 +271,11 @@ async def test_a_supervise_token_for_another_call_never_opens_the_socket(
     await a_live_call(store, registry, live, logs)
     await a_live_call(store, registry, live, logs, call=ANOTHER_CALL)
     token = a_supervise_token(gateway, ANOTHER_CALL)
-    with pytest.raises(WebSocketDisconnect):
-        with gateway.websocket_connect(f"/v1/attach?call={THE_CALL}&token={token}"):
-            pass
+    with (
+        pytest.raises(WebSocketDisconnect),
+        gateway.websocket_connect(f"/v1/attach?call={THE_CALL}&token={token}"),
+    ):
+        pass
     assert queued(live, THE_CALL) == []
 
 

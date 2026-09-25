@@ -225,5 +225,5 @@ def test_a_stop_gives_the_calls_time_and_the_seals_time_after_them() -> None:
     assert server._shutdown_process_timeout == main.SEALING_S  # pyright: ignore[reportPrivateUsage]
     # A job that is told to shut down runs the seal: call.ended, the hang-up's memory extraction,
     # call.summary, the judges, call.score. livekit's own ten seconds does not cover it.
-    assert main.SEALING_S > load_settings().budgets.remember_s
+    assert load_settings().budgets.remember_s < main.SEALING_S
     assert main.DRAIN_S + main.SEALING_S < 900, "the unit's TimeoutStopSec"

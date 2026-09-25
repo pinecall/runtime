@@ -1,5 +1,6 @@
 """A written turn is asked for before the model answers it, with what the call has spent so far."""
 
+import re
 from datetime import date
 
 import pytest
@@ -65,7 +66,7 @@ async def test_a_refused_turn_ends_the_call_by_the_platform_and_the_model_is_nev
     session = a_session(store, model, Counting(tokens=100))
     await session.start()
     await session.hears("hola")
-    with pytest.raises(TurnRefused, match="llm_tokens: credits.exhausted"):
+    with pytest.raises(TurnRefused, match=re.escape("llm_tokens: credits.exhausted")):
         await session.hears("¿mañana?")
     assert model.requests == 1
     written = await store.since(A_CALL)

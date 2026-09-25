@@ -17,5 +17,5 @@ async def removed(holding: Holding, wanted: ParticipantRemove) -> None:
     request = RoomParticipantIdentity(room=holding.room.name, identity=wanted.identity)
     try:
         await holding.api.room.remove_participant(request)
-    except Exception as refused:  # noqa: BLE001 — every way the server says no is the same here
+    except Exception as refused:
         holding.failed(VERB, str(refused))

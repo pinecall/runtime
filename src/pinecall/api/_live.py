@@ -289,7 +289,7 @@ async def _feeding(entries: Subscription, send: Send) -> None:
     try:
         async for entry in entries:
             await send(entry)
-    except Exception:  # noqa: BLE001 — an app that went away must never break the call's log
+    except Exception:
         entries.close()
 
 

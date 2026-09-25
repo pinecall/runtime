@@ -304,7 +304,7 @@ async def test_a_fact_a_golden_held_is_recalled_by_the_two_branches_a_turn_reads
         at=HUNG_UP,
     )
     facts = await memory.recall(org, PRODUCTION, None, contact, "turno de mañana", k=2)
-    assert [fact.text for fact in facts][0] == "prefiere turnos por la mañana"
+    assert next(fact.text for fact in facts) == "prefiere turnos por la mañana"
     assert facts[0].score == 1.0
     assert len(facts) == 2, "k cuts, which is what makes a golden's recall@k a real question"
 

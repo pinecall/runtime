@@ -23,6 +23,9 @@ dependencies = [
   "pydantic>=2.7,<3",
   "pydantic-settings>=2.3,<3",
   "fastapi>=0.115,<1",
+  # fastapi's own: named because api/ imports `starlette.*` by that name in thirty files, and a
+  # package the tree imports is a package the tree declares (deptry, DEP003).
+  "starlette>=0.40,<2",
   "uvicorn[standard]>=0.30,<1",
   "httpx>=0.27,<1",
   "asyncpg>=0.29,<1",
@@ -32,6 +35,10 @@ dependencies = [
   # session's own vocabulary, so the library and the two text plugins are core, not an extra.
   "livekit-agents[anthropic,openai]>=1.8,<2",
   "livekit-api>=1.2.1",
+  # livekit-agents' own, imported by name: PyAV decodes the hold audio (session/hold_audio.py)
+  # and protobuf is what a room's egress token carries (tokens/room.py).
+  "av>=13,<19",
+  "protobuf>=5,<8",
   "pyjwt>=2.13.0",
   # Fernet, and nothing else: a tenant's own provider key is encrypted at rest under the box's
   # PINECALL_VAULT_KEY. See docs/decisions/provider-keys.md.
@@ -62,8 +69,6 @@ providers = [
 # extra installs onnxruntime and transformers, a hundred megabytes for one vendor's endpointing.
 # A box that runs one of these installs this extra on purpose; nothing else changes.
 providers-big = ["livekit-agents[aws,azure,google,speechmatics]>=1.8,<2"]
-# Graphiti is the optional memory graph; pgvector is the default and needs no extra.
-memory-graph = ["graphiti-core>=0.30,<1"]
 
 [project.scripts]
 pinecall-runtime = "pinecall.cli:main"
@@ -85,6 +90,10 @@ dev = [
   # long, an index built while writes are blocked. `.squawk.toml` says which rules the runner
   # answers instead. Rust, shipped as a wheel, so it costs nothing at import time.
   "squawk-cli>=2.65,<3",
+  # scripts/test measures branch coverage against the floor in [tool.coverage.report].
+  "pytest-cov>=7,<8",
+  # scripts/lint holds what the tree imports to what pyproject declares, both ways.
+  "deptry>=0.24,<1",
 ]
 
 [tool.uv.sources]
@@ -113,7 +122,9 @@ artifacts = ["src/pinecall/gateway/console/**", "src/pinecall/gateway/admin/**",
 testpaths = ["tests"]
 # `-p randomly` is named rather than left to the entry point: a virtualenv without the plugin
 # fails at startup instead of quietly running the suite in file order.
-addopts = "--tb=short -n auto -p randomly --strict-markers --strict-config"
+# `-n auto` lives in scripts/test, not here: `uv run pytest tests/cli/doctor/test_verbs.py` used
+# to spawn a worker per core for thirty tests.
+addopts = "--tb=short -p randomly --strict-markers --strict-config"
 xfail_strict = true
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
@@ -136,6 +147,43 @@ markers = [
   "evals: the judged suites, ring 1 and up",
 ]
 
+# ── coverage ────────────────────────────────────────────────────────────────────
+
+# Measured by scripts/test; the floor is where the unit ring alone stood when it was first
+# measured (90.7 %, 2026-09-26) and moves up with a release, never down. Branch coverage, because
+# a refusal that is never taken is exactly the line a suite forgets.
+[tool.coverage.run]
+branch = true
+source = ["pinecall"]
+omit = ["src/pinecall/cli/gateway.py", "src/pinecall/cli/worker.py"]
+
+[tool.coverage.report]
+skip_covered = true
+show_missing = true
+fail_under = 90
+
+# ── deptry ──────────────────────────────────────────────────────────────────────
+
+# What the tree imports against what pyproject declares, both ways: an import of something only
+# a dependency dragged in breaks on the day that dependency drops it, and a declared package
+# nobody imports is a wheel nobody needed.
+[tool.deptry]
+known_first_party = ["pinecall"]
+
+[tool.deptry.package_module_name_map]
+pinecall-protocol = ["pinecall_protocol"]
+livekit-agents = ["livekit"]
+livekit-api = ["livekit"]
+argon2-cffi = ["argon2"]
+pyjwt = ["jwt"]
+typing-extensions = ["typing_extensions"]
+pydantic-settings = ["pydantic_settings"]
+
+[tool.deptry.per_rule_ignores]
+# uvicorn is what `pinecall-runtime gateway` runs, never imported by name; anthropic is named in
+# the `runtime` extra only to hold it under 1.0 for livekit's plugin, which is what imports it.
+DEP002 = ["uvicorn", "typing-extensions", "anthropic"]
+
 # ── type checkers ───────────────────────────────────────────────────────────────
 
 [tool.pyright]
@@ -157,14 +205,36 @@ target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP", "ARG", "T201", "FA102", "TC004", "TID251"]
+select = [
+  "E", "F", "I", "B", "UP", "ARG", "T201", "FA102", "TC004", "TID251",
+  # 2026-09-26: what the audit measured worth adopting — each one fired on something real.
+  "RUF", "ASYNC", "SIM", "C4", "RET", "PIE", "PERF", "FURB", "ISC", "PGH", "LOG", "G", "T10", "S",
+]
+ignore = [
+  # The tree writes `›` and `—` in its strings and comments, on purpose.
+  "RUF001", "RUF002", "RUF003",
+  # A sentence that names a token is not a token: every hit is a constant's name or a message.
+  "S105", "S106",
+  # Every f-string SQL here interpolates a column list or a table name of ours; a value is $n.
+  "S608",
+  # A `timeout` parameter is how this tree hands a budget in: the caller decides, by design.
+  "ASYNC109",
+  # A loop with an await inside it is not a comprehension.
+  "PERF401",
+]
 unfixable = ["T201"]
 
 [tool.ruff.lint.per-file-ignores]
 # The CLI is the one place that speaks to a terminal.
 "src/pinecall/cli/**" = ["T201"]
 # And a maintainer's script, which is run by hand and has nowhere else to say what it wrote.
-"scripts/*.py" = ["T201"]
+"scripts/*.py" = ["T201", "S310"]
+# A test asserts, spawns the tree's own tools, and makes noise with `random`.
+"tests/**" = ["S101", "S301", "S311", "S603", "S607"]
+"infra/tools/tests/**" = ["S101"]
+# The operator's own Python: it opens fixed https URLs, binds a probe to every interface on
+# purpose, and jitters a SIP call with `random`.
+"infra/tools/**" = ["S310", "S104", "S311"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["pinecall", "pinecall_protocol", "tests"]

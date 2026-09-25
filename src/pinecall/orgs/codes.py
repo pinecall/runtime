@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import secrets
 import time
 from dataclasses import dataclass, replace
@@ -89,10 +90,8 @@ class Codes:
         """The same code once a call claims it, or as it stands after `within_s` without one."""
         taken = self._taken.get((issued.agent, issued.code))
         if taken is not None and within_s > 0:
-            try:
+            with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(taken.wait(), within_s)
-            except TimeoutError:
-                pass
         return self._issued.get((issued.agent, issued.code), issued)
 
     # Marked before the log is written, so two claims of one code in the same instant take it once.

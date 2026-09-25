@@ -110,7 +110,7 @@ class Thread:
                 self._clock.cancel()
                 await self._closing(self, SPENT)
                 return
-            except Exception:  # noqa: BLE001 — the pump outlives any one turn
+            except Exception:
                 logger.exception(TURN_FAILED, self.session.call)
             finally:
                 self._said.task_done()

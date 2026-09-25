@@ -33,7 +33,7 @@ async def muted(holding: Holding, wanted: ParticipantMute) -> None:
     )
     try:
         await holding.api.room.mute_published_track(request)
-    except Exception as refused:  # noqa: BLE001 — every way the server says no is the same here
+    except Exception as refused:
         holding.failed(VERB, str(refused))
         return
     holding.writing.later(

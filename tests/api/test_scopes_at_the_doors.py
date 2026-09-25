@@ -80,12 +80,14 @@ def test_the_app_socket_closes_a_key_without_app_and_says_why(
     gateway: TestClient, settings: Settings
 ) -> None:
     answering_in(SANDBOX, settings)
-    with pytest.raises(WebSocketDisconnect) as refused:
-        with gateway.websocket_connect(
+    with (
+        pytest.raises(WebSocketDisconnect) as refused,
+        gateway.websocket_connect(
             APPS, headers={"Authorization": f"Bearer {A_READER_KEY}"}
-        ) as socket:
-            socket.send_json(a_register(AGENT, a_door("web")))
-            socket.receive_json()
+        ) as socket,
+    ):
+        socket.send_json(a_register(AGENT, a_door("web")))
+        socket.receive_json()
     assert refused.value.code == POLICY_VIOLATION
     assert refused.value.reason == NOT_OPENED.format(scope="app", opens="calls · evals")
 
@@ -94,12 +96,14 @@ def test_the_chat_socket_closes_a_key_without_talk_and_says_why(gateway: TestCli
     with gateway.websocket_connect(APPS, headers={"Authorization": f"Bearer {AN_APP_KEY}"}) as held:
         held.send_json(a_register(AGENT, a_door("web")))
         held.receive_json()
-        with pytest.raises(WebSocketDisconnect) as refused:
-            with gateway.websocket_connect(
+        with (
+            pytest.raises(WebSocketDisconnect) as refused,
+            gateway.websocket_connect(
                 f"{CHAT}?agent={AGENT}", headers={"Authorization": f"Bearer {AN_APP_KEY}"}
-            ) as caller:
-                caller.send_json(a_frame("ping", AGENT))
-                caller.receive_json()
+            ) as caller,
+        ):
+            caller.send_json(a_frame("ping", AGENT))
+            caller.receive_json()
     assert refused.value.code == POLICY_VIOLATION
     assert refused.value.reason == NOT_OPENED.format(scope="talk", opens="app")
 

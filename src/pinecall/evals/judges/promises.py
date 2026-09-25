@@ -70,7 +70,7 @@ class PromisesJudge(Judge):
         self,
         *,
         chat_ctx: ChatContext,
-        reference: ChatContext | None = None,  # noqa: ARG002 — nothing here compares two calls
+        reference: ChatContext | None = None,
         llm: LLM[Any] | None = None,
     ) -> JudgmentResult:
         """Held when nothing was promised; otherwise the promises and the tool calls are asked."""

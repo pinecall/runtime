@@ -7,7 +7,7 @@ import pytest
 
 from pinecall.cli.init import started
 from pinecall.cli.operator import Operator
-from tests.api.conftest import (  # noqa: F401 — imported so pytest collects them here
+from tests.api.conftest import (
     admission,
     embedder,
     fleet,
@@ -55,7 +55,6 @@ __all__ = [
     "models_asked",
     "ops_http",
     "orgs",
-    "tuning",
     "registry",
     "routes",
     "settings",
@@ -63,6 +62,7 @@ __all__ = [
     "store",
     "threads",
     "tokens",
+    "tuning",
     "vault",
     "wired",
 ]

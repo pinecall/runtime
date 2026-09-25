@@ -173,9 +173,9 @@ class _AJudgeThatRaises(Judge):
     async def evaluate(
         self,
         *,
-        chat_ctx: ChatContext,  # noqa: ARG002 — it never reads the call: it never answers
-        reference: ChatContext | None = None,  # noqa: ARG002
-        llm: LLM[Any] | None = None,  # noqa: ARG002
+        chat_ctx: ChatContext,
+        reference: ChatContext | None = None,
+        llm: LLM[Any] | None = None,
     ) -> JudgmentResult:
         """Never answers."""
         raise RuntimeError("this judge cannot decide anything")

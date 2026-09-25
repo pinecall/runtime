@@ -24,7 +24,7 @@ SIGNED_UP = "signup"
 
 # Everything here happens only once the address has proved itself: an org whose email nobody
 # answered for is never a row, so a fake email leaves nothing standing and takes no slug.
-async def the_org_made(  # noqa: PLR0913 — the sign-up, and every store making an org writes
+async def the_org_made(
     pending: Pending,
     device: str | None,
     world: Env,
@@ -48,7 +48,8 @@ async def the_org_made(  # noqa: PLR0913 — the sign-up, and every store making
     # The org is new, so nobody holds the email yet: the invitation is minted and spent in one
     # breath, the very path a person invited later walks, and the member ends `active`.
     invited = await members.invite(org.id, pending.email, pending.person, "admin", ())
-    assert invited is not None
+    if invited is None:
+        raise RuntimeError(f"{pending.email} already accepted into the org it is founding")
     # A person who already has a password on this box is seated at once and keeps it: one person,
     # one password (auth/members.py). Anybody else spends the invitation with the one they chose.
     member = (
@@ -56,7 +57,8 @@ async def the_org_made(  # noqa: PLR0913 — the sign-up, and every store making
         if invited.token is None
         else await members.accept(invited.token, pending.hashed)
     )
-    assert member is not None
+    if member is None:
+        raise RuntimeError(f"the invitation just made for {pending.email} seated nobody")
     # The admin's own key, which opens production too: an admin always does (0039).
     issued = await a_persons_key(keys, member, device or pending.device or SIGNED_UP, world)
     minted = codes.mint(issued.record)

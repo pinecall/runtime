@@ -168,8 +168,12 @@ def test_the_widget_keeps_its_star_whoever_asks(
 
 @pytest.mark.parametrize(
     "path",
-    [f"/v1/calls/{CALL}/events", f"/v1/calls/{CALL}/state", f"/v1/calls/{CALL}/recording"]
-    + ["/v1/codes/0427"],
+    [
+        f"/v1/calls/{CALL}/events",
+        f"/v1/calls/{CALL}/state",
+        f"/v1/calls/{CALL}/recording",
+        "/v1/codes/0427",
+    ],
 )
 def test_any_page_may_read_a_calls_own_doors_and_a_codes_with_a_bearer_and_no_credentials(
     gateway: TestClient, path: str

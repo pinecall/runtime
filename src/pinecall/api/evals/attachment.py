@@ -72,7 +72,7 @@ class Attachment:
 
     async def _until_it_leaves(self) -> None:
         """Return when the socket is no longer holding the agent, and not before."""
-        while self.held:
+        while self.held:  # noqa: ASYNC110 — the registry is a table with no event to give
             await asyncio.sleep(WATCHED_S)
 
 

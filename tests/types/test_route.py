@@ -1,5 +1,6 @@
 """Route: a door into an agent. A number is a route, never an agent."""
 
+import re
 from typing import Any
 
 import pytest
@@ -19,7 +20,7 @@ def test_a_phone_route_answers_at_a_number_in_e164() -> None:
     main_line = Route("clinics", "clinica-norte", "phone", number="+34910000001")
     assert main_line.door == ("phone", "+34910000001")
     for number in (None, "910000001", "+34 910 000 001", "+0", "+" + "1" * 16):
-        with pytest.raises(DeclarationRefused, match="E.164"):
+        with pytest.raises(DeclarationRefused, match=re.escape("E.164")):
             Route("clinics", "clinica-norte", "phone", number=number)
 
 

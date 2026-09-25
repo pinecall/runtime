@@ -37,7 +37,7 @@ async def remembered_within(
         await asyncio.wait_for(rememberer.remember(call), budget_s)
     except TimeoutError:
         return _failed_to_remember(f"no answer within {budget_s:g} s")
-    except Exception as failed:  # noqa: BLE001 — the call seals whatever memory did
+    except Exception as failed:
         return _failed_to_remember(str(failed) or type(failed).__name__)
     return None
 

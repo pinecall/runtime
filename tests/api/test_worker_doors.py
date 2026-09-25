@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 
 import pytest
 
@@ -88,7 +89,7 @@ async def test_an_entry_the_protocol_does_not_name_is_refused(
 ) -> None:
     await declared(registry)
     await worker_gateway.opened(a_context(), AGENT)
-    with pytest.raises(GatewayRefused, match="no event is called 'bot.hummed'"):
+    with pytest.raises(GatewayRefused, match=re.escape("no event is called 'bot.hummed'")):
         await worker_gateway.append(CALL, "bot.hummed", {})
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -41,6 +42,6 @@ async def recording(call: str, reader: ReaderDep, store: StoreDep) -> FileRespon
     if not isinstance(pointer, str) or not pointer:
         raise HTTPException(404, NOT_RECORDED.format(call=call, summary=THE_SUMMARY))
     path = Path(pointer)
-    if not path.is_file():
+    if not await asyncio.to_thread(path.is_file):
         raise HTTPException(404, NOT_HERE.format(call=call, path=pointer))
     return FileResponse(path, media_type=AUDIO, filename=f"{call}.ogg")

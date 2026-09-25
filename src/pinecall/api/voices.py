@@ -21,6 +21,8 @@ from pinecall_protocol.rest import ListedVoice, VoiceSample, VoicesListed
 
 router = APIRouter()
 
+NO_VOICE_NAMED = "a sample names a voice: a curated name, a vendor and an id, or a model"
+
 WAV = "audio/wav"
 
 # Both doors ask for `pipeline`, the scope that turns the voice of an agent (api/tuning.py,
@@ -105,7 +107,7 @@ async def sample(
     """The words in that voice, as a WAV: 422 a typo, 429 too many, 503 no key, 502 no answer."""
     if not sampling.allowed(key.key_id):
         raise HTTPException(429, TOO_MANY.format(key=key.key_id, count=SAMPLES_A_MINUTE))
-    text = said.text if said.text else a_line_for(said.language)
+    text = said.text or a_line_for(said.language)
     if len(text) > TEXT_CEILING:
         raise HTTPException(422, TOO_LONG.format(length=len(text), ceiling=TEXT_CEILING))
     # The three words go through the same reading the settings door gives them, so a sample that
@@ -115,7 +117,8 @@ async def sample(
         voice = the_voice(said.tts, said.voice, said.model)
     except DeclarationRefused as refused:
         raise HTTPException(422, str(refused)) from refused
-    assert voice is not None  # the_voice answers None only when all three words are None
+    if voice is None:  # the_voice answers None only when all three words are None
+        raise HTTPException(422, NO_VOICE_NAMED)
     # A sample is spoken on a key, so it is spoken only on what the org may run on: its own, or
     # what the box lends it. A listing speaks nothing and costs nothing, and lists on either.
     brought = await brought_by(vault, orgs.quotas_of, key.org)

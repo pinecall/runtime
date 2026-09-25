@@ -33,7 +33,7 @@ command in it run in order with the output it returned.
 
 ```
 docker compose -f infra/compose/dev.yml up -d      livekit · sip · redis · postgres · tei
-scripts/bootstrap                                  uv sync, every extra and tool group
+scripts/bootstrap                                  uv sync, the worker's vendors and the tools
 uv run pinecall-runtime migrate up                 the schema; a fresh database seeds the
                                                    default org, and `keys issue` mints its key
 uv run pinecall-runtime gateway                    the control plane, on 8080
@@ -68,8 +68,8 @@ maintainer's notebook has the measurements. Development happens from the checkou
 
 ```
 scripts/format        ruff format, then the fixable lint rules
-scripts/lint          ruff, pyright strict, mypy strict
-scripts/test          pytest -m "unit or postgres": no keys, no network
+scripts/lint          ruff, pyright strict, mypy strict, deptry, squawk over unlanded migrations
+scripts/test          pytest -m "unit or postgres" with coverage: no keys, no network
 ```
 
 The wire is `pinecall-protocol`, generated in the protocol repository and resolved here as the

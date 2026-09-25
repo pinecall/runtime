@@ -120,7 +120,7 @@ class Lookups:
             if tool == "recall":
                 return await self._recalled(opened, log, quotas, query, speech_id, started)
             return await self._searched(opened, log, quotas, query, speech_id, started, k)
-        except Exception as failed:  # noqa: BLE001 — a lookup must never break a reply
+        except Exception as failed:
             logger.warning("call %s: %s did not run", opened.context.call, tool, exc_info=True)
             await _written(log, "error", a_skip(tool, str(failed) or type(failed).__name__))
             return _nothing_found(tool)

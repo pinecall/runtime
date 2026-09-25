@@ -59,5 +59,5 @@ def test_a_member_refuses_what_is_not_one_in_a_sentence(
 
 def test_a_role_is_read_off_a_word_and_a_word_that_is_none_is_refused_with_the_five() -> None:
     assert a_role("supervisor") == "supervisor"
-    with pytest.raises(DeclarationRefused, match="admin.*developer.*manager.*qa.*supervisor"):
+    with pytest.raises(DeclarationRefused, match=r"admin.*developer.*manager.*qa.*supervisor"):
         a_role("owner")

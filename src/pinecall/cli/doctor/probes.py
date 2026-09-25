@@ -112,7 +112,7 @@ async def _the_boxs_mail(settings: Settings) -> BoxMail | None:
         return await TheBoxsMail(environment, None).of()
     try:
         return await TheBoxsMail(environment, box_settings_for(settings, pool)).of()
-    except Exception:  # noqa: BLE001 — a table not there yet is the environment's turn
+    except Exception:
         return await TheBoxsMail(environment, None).of()
     finally:
         await pool.close()

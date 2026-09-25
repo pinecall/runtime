@@ -81,7 +81,7 @@ async def test_the_available_numbers_are_the_accounts_minus_the_imported(
     ]
     await tenant_http.post("/v1/numbers", json={"number": ABAI, "agent": AGENT})
     said = (await tenant_http.get("/v1/numbers/available")).json()
-    assert [(n["number"], n["imported"]) for n in said["numbers"]][0] == (ABAI, True)
+    assert next((n["number"], n["imported"]) for n in said["numbers"]) == (ABAI, True)
 
 
 async def test_a_dry_run_is_the_plan_and_writes_nothing(
@@ -101,8 +101,10 @@ async def test_a_dry_run_is_the_plan_and_writes_nothing(
         f"trunk    pinecall-{A_RECORD.org} — created on account {A_SID}",
         "origin   sip:box.pinecall.io:5060;transport=udp — set",
         f"number   {ABAI} — attached to the trunk",
-        f"livekit  inbound trunk pinecall:{A_RECORD.org}: {ABAI}, from "
-        f"{len(TWILIO_SIGNALLING)} networks; one room per caller",
+        (
+            f"livekit  inbound trunk pinecall:{A_RECORD.org}: {ABAI}, from "
+            f"{len(TWILIO_SIGNALLING)} networks; one room per caller"
+        ),
         f"route    {ABAI} phone → {AGENT} in production",
     ]
     assert twilio_account.made == [] and trunks.trunks == {}

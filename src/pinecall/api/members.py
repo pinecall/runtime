@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import Field
 
 from pinecall.api._deps import (
     AdmissionDep,
@@ -70,7 +71,7 @@ class WantedMember(WireModel):
     name: str
     role: str
     # Empty is every agent of the org.
-    agents: list[str] = []
+    agents: list[str] = Field(default_factory=list[str])
     # Whether they may act in production. An admin does whatever this says.
     production: bool = False
 

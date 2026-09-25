@@ -75,7 +75,7 @@ async def placed(livekit: api.LiveKitAPI, room: str, dialling: Dialling) -> defs
         request.max_call_duration.FromTimedelta(timedelta(seconds=dialling.max_duration_s))
     try:
         await livekit.sip.create_sip_participant(request)
-    except Exception as refused:  # noqa: BLE001 — the SIP status is what tells them apart, below
+    except Exception as refused:
         reason = how_it_failed(refused)
         logger.info("the call to %s was not answered (%s): %s", dialling.to, reason, refused)
         return reason

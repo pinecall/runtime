@@ -96,7 +96,7 @@ class HoldMusic:
         player = BackgroundAudioPlayer()
         try:
             await cast(Any, player).start(room=room)
-        except Exception:  # noqa: BLE001 — a melody that cannot start must not end a call
+        except Exception:
             logger.warning(
                 "the hold melody could not start: the call goes on without it", exc_info=True
             )
@@ -150,7 +150,7 @@ class HoldMusic:
                 ),
                 loop=True,
             )
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.warning("the hold melody could not play", exc_info=True)
 
     def _silence(self) -> None:
@@ -168,7 +168,7 @@ class HoldMusic:
             player, self._player = self._player, None
             try:
                 await player.aclose()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.debug("the hold melody's player did not close cleanly", exc_info=True)
 
 

@@ -98,7 +98,7 @@ async def test_each_run_leaves_a_pair_the_formatter_can_match_by_call_id() -> No
     calls, outputs = _calls(lookups), _outputs(lookups)
     assert [call.name for call in calls] == ["recall", "search"]
     assert [call.call_id for call in calls] == [output.call_id for output in outputs]
-    assert len(set(call.call_id for call in calls)) == 2
+    assert len({call.call_id for call in calls}) == 2
     assert all(not output.is_error for output in outputs)
 
 

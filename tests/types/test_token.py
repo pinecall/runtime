@@ -20,7 +20,7 @@ pytestmark = pytest.mark.unit
 
 
 def test_token_scopes_are_a_closed_set() -> None:
-    assert SCOPES == {"talk", "chat", "observe", "supervise", "participate", "read"}
+    assert {"talk", "chat", "observe", "supervise", "participate", "read"} == SCOPES
     assert set(GRANTS) == SCOPES == set(get_args(Scope.__value__))
     assert all(GRANTS[scope].scope == scope for scope in SCOPES)
     with pytest.raises(DeclarationRefused, match="not a token scope"):
@@ -39,8 +39,8 @@ def test_talk_reads_the_one_call_it_opens_so_a_browser_needs_one_token() -> None
     """The participate grant rides the talk token: one string to speak and to watch its own call."""
     talk = grant_for("talk")
     assert talk.reads_log and talk.own_call_only
-    assert READS_ITS_OWN_CALL == {"talk", "chat", "participate", "read"}
-    assert MINTED_FOR_A_VISIT == {"talk", "chat"}
+    assert {"talk", "chat", "participate", "read"} == READS_ITS_OWN_CALL
+    assert {"talk", "chat"} == MINTED_FOR_A_VISIT
 
 
 def test_chat_is_talk_with_no_microphone_and_it_hears() -> None:
@@ -68,7 +68,7 @@ def test_a_supervisor_publishes_audio_and_is_seen_because_a_hidden_seat_is_not_h
 
 def test_a_room_token_may_carry_the_browsers_scopes_and_the_desks_supervise_one() -> None:
     """Each is minted for ONE call and refused at every other; observe is a seat, not a read."""
-    assert BOUND_TO_ONE_CALL == READS_ITS_OWN_CALL | {"supervise"}
+    assert READS_ITS_OWN_CALL | {"supervise"} == BOUND_TO_ONE_CALL
     assert "observe" not in BOUND_TO_ONE_CALL
 
 

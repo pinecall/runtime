@@ -16,7 +16,7 @@ async def sent(holding: Holding, wanted: RoomSend) -> None:
     to = () if wanted.to is None else (wanted.to,)
     try:
         size = await holding.publish(wanted.topic, wanted.data, to)
-    except Exception as refused:  # noqa: BLE001 — every way the room says no is the same here
+    except Exception as refused:
         holding.failed(VERB, str(refused))
         return
     holding.writing.later("room.sent", RoomSent(topic=wanted.topic, to=wanted.to, bytes=size))

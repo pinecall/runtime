@@ -112,7 +112,4 @@ def _one_edit_apart(one: str, other: str) -> bool:
     shorter, longer = sorted((one, other), key=len)
     if len(shorter) == len(longer):
         return sum(a != b for a, b in zip(shorter, longer, strict=True)) == 1
-    for cut in range(len(longer)):
-        if longer[:cut] + longer[cut + 1 :] == shorter:
-            return True
-    return False
+    return any(longer[:cut] + longer[cut + 1 :] == shorter for cut in range(len(longer)))

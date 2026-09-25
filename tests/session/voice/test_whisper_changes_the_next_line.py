@@ -103,9 +103,8 @@ def _the_next_line(session: TextSession) -> asyncio.Future[str]:
 
     def added(event: Any) -> None:
         item = event.item
-        if isinstance(item, agents.ChatMessage) and item.role == "assistant":
-            if not coming.done():
-                coming.set_result(item.text_content or "")
+        if isinstance(item, agents.ChatMessage) and item.role == "assistant" and not coming.done():
+            coming.set_result(item.text_content or "")
 
     session.live.on("conversation_item_added", added)  # pyright: ignore[reportUnknownMemberType]
     return coming

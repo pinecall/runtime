@@ -9,7 +9,7 @@ from pathlib import Path
 # ring the box. This reads that set; nothing renders it.
 THE_FENCE = Path(__file__).resolve().parents[1] / "box" / "nftables.conf"
 
-A_SET = re.compile(r"set carrier_signalling \{.*?elements = \{(?P<elements>.*?)\}", re.S)
+A_SET = re.compile(r"set carrier_signalling \{.*?elements = \{(?P<elements>.*?)\}", re.DOTALL)
 A_CIDR = re.compile(r"\d{1,3}(?:\.\d{1,3}){3}/\d{1,2}")
 
 

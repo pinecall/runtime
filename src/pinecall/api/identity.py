@@ -88,7 +88,7 @@ IdentityDep = Annotated["Identity | None", Depends(the_identity)]
 # An org this sandbox did not have is admitted here, as signup admits one at production: the
 # extension says what a new org may do in THIS world, in the same breath it is made. An org the
 # sandbox already held — a later sign-in, or one the seed copied — is never admitted again.
-async def a_mirrored_key(  # noqa: PLR0913 — the code, the label, and every store a sign-in writes
+async def a_mirrored_key(
     code: str,
     label: str,
     identity: Identity,

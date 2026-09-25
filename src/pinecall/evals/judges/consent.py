@@ -45,7 +45,7 @@ class ConsentJudge(PolicyJudge):
     # livekit's items carry a `created_at` and never the log's own numbering. So the trace comes in
     # at construction and the transcript is not read at all.
     @override
-    def decide(self, chat_ctx: ChatContext) -> JudgmentResult:  # noqa: ARG002 — the gate, not the words
+    def decide(self, chat_ctx: ChatContext) -> JudgmentResult:
         """Ask the domain's rule about the gate `bridge.py` read off this call's own entries."""
         read = consent_of(self._gate)
         if read.outcome == "undeclared":

@@ -311,7 +311,7 @@ async def _the_log_of(threads: Threads, store: MemoryStore, wa_id: str = ANA) ->
 
 async def _the_thread_goes_quiet(threads: Threads, wa_id: str = ANA) -> None:
     """Let the idle clock run out, which in this suite is a twentieth of a second."""
-    while threads.of(THE_CLINICS_NUMBER, wa_id) is not None:
+    while threads.of(THE_CLINICS_NUMBER, wa_id) is not None:  # noqa: ASYNC110 — the idle clock
         await asyncio.sleep(0.01)
 
 

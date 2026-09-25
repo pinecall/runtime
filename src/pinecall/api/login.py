@@ -37,6 +37,9 @@ router = APIRouter()
 NOBODY = "no member of {org} answers to that email and password"
 # The same sentence when no org was named: a person is their email on this box, and a login
 # with no org lands in the oldest org they belong to.
+# A login by password is asked for with both, or it is a login by code and never reaches here.
+BOTH_ARE_NEEDED = "a login by password names both the email and the password"
+
 NOBODY_ANYWHERE = "nobody answers to that email and password"
 
 # The two standings that are not `active`, each with what to do about it. Said only once the
@@ -205,9 +208,8 @@ async def redeem(
     record = codes.spend(said.code)
     if record is None:
         raise HTTPException(404, NO_CODE)
-    if not a_person(record):
+    if not a_person(record) or record.subject is None:
         raise HTTPException(403, NOT_A_PERSONS_CODE)
-    assert record.subject is not None
     member = await members.find(record.org, record.subject)
     org = await orgs.find(record.org)
     if member is None or org is None:
@@ -244,17 +246,17 @@ async def _with_a_password(
 ) -> dict[str, Any]:
     """The member this email and password name, in the org named or in the oldest of theirs, and
     a key minted for them."""
-    assert said.email is not None and said.password is not None
+    if said.email is None or said.password is None:
+        raise HTTPException(400, BOTH_ARE_NEEDED)
     if not throttle.allowed(f"{client} {said.org or '*'}/{said.email}"):
         raise HTTPException(429, TOO_MANY.format(email=said.email))
     nobody = NOBODY_ANYWHERE if said.org is None else NOBODY.format(org=said.org)
     # The password is the PERSON's, whichever org it was chosen in: a row of theirs still
     # invited in this org — made before they existed, or before this rule — is seated with it.
     known = await members.a_persons_password(said.email)
-    if not await passwords.matches(said.password, known):
+    if not await passwords.matches(said.password, known) or known is None:
         raise HTTPException(401, nobody)
-    assert known is not None
-    kept = await _the_row_for(said, orgs, members, sso)
+    kept = await _the_row_for(said, said.email, orgs, members, sso)
     if kept is None:
         raise HTTPException(401, nobody)
     member = kept.member
@@ -281,23 +283,24 @@ async def _with_a_password(
     return (await a_persons_key(keys, member, said.device or LOGGED_IN, world)).as_json
 
 
-async def _the_row_for(said: Login, orgs: Orgs, members: Members, sso: Sso | None) -> Kept | None:
+async def _the_row_for(
+    said: Login, email: str, orgs: Orgs, members: Members, sso: Sso | None
+) -> Kept | None:
     """The person's row in the org named; with none named, their oldest row that is not disabled."""
-    assert said.email is not None
     if said.org is not None:
         org = await orgs.find(said.org)
-        return None if org is None else await members.by_email(org.id, said.email)
-    rows = await members.orgs_of(said.email)
+        return None if org is None else await members.by_email(org.id, email)
+    rows = await members.orgs_of(email)
     # An org that signs in with its provider is passed over here rather than refused: a person of
     # two orgs, one of them on SSO, types no org and lands in the one their password opens. When
     # every org of theirs is on a provider the loop finds none and the fallback below says so.
     for row in rows:
         if row.status != "disabled" and not await only_with_the_provider(sso, row.org):
-            return await members.by_email(row.org, said.email)
+            return await members.by_email(row.org, email)
     for row in rows:
         if row.status != "disabled":
-            return await members.by_email(row.org, said.email)
-    return None if not rows else await members.by_email(rows[0].org, said.email)
+            return await members.by_email(row.org, email)
+    return None if not rows else await members.by_email(rows[0].org, email)
 
 
 # None is a box with no vault key: it can read no client secret, so no org signs in with a
