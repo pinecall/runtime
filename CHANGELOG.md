@@ -15,7 +15,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   sandbox's people sign in. The doctor's first line says the world and the fleet.
 - **`PINECALL_FLEET` names the instance's fleet**, `pinecall` unless set: the name its workers
   register under, the one every token, dispatch and trunk rule of its gateway asks for, and the
-  prefix of every trunk and rule it names on the SFU. Two instances on one SFU set two, and
+  prefix of every trunk and rule it names on the SFU; spelled like a slug, or the process does
+  not start. Two instances on one SFU set two, and
   neither takes the other's calls. `PINECALL_IDLE_PROCESSES` keeps that many job processes warm
   (livekit's own default, one per CPU, when unset).
 - **`GET /v1/whoami` says the person's `email`.** A member's, off their row; a visiting

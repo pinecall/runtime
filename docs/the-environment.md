@@ -24,7 +24,7 @@ own name, so the SDK that reads `ANTHROPIC_API_KEY` by itself and this runtime a
 | `PINECALL_ROLE` | what this box runs: `all` · `hub` · `worker` |
 | `PINECALL_GATEWAY_URL` | the gateway a worker's job asks |
 | `PINECALL_MAX_JOBS` · `PINECALL_APP` · `PINECALL_AGENT` | what a worker takes, and for whom |
-| `PINECALL_FLEET` | the name this instance's workers register under and its gateway dispatches to, and the prefix of every trunk and rule it names on the SFU (`<fleet>:<org>`): `pinecall` unless set. Two instances on one SFU each set their own, so neither takes the other's calls |
+| `PINECALL_FLEET` | the name this instance's workers register under and its gateway dispatches to, and the prefix of every trunk and rule it names on the SFU (`<fleet>:<org>`): `pinecall` unless set, spelled like a slug (`[a-z0-9-]`, never empty), or the process does not start. Two instances on one SFU each set their own, so neither takes the other's calls |
 | `PINECALL_IDLE_PROCESSES` | how many job processes the worker keeps warm. Unset, livekit's own: one per CPU — RAM a second instance on the same CPUs spends twice |
 | `PINECALL_WORKER_NAME` · `PINECALL_OVERFLOW_SAYS` | its name in the roster (unset: the hostname), and the overflow agent's one sentence |
 | `PINECALL_RECORDINGS` · `PINECALL_EGRESS_URL` | where a call's audio lands, and where the recorder that writes it answers. **Whether** it is kept is the agent's own setting (`pinecall agent set --record`), not the box's |

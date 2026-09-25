@@ -40,12 +40,6 @@ def test_the_instances_fleet_name_reaches_livekit() -> None:
     assert server._agent_name == "pinecall-sandbox"  # pyright: ignore[reportPrivateUsage]
 
 
-def test_a_worker_with_no_fleet_name_is_refused_before_it_starts() -> None:
-    """An empty agent_name is implicit dispatch to every room in the deployment (worker.py:219)."""
-    with pytest.raises(ValueError, match="answers every room"):
-        main.a_server(load_settings().model_copy(update={"fleet": ""}))
-
-
 def test_the_warm_processes_are_the_instances_count_when_it_says_one() -> None:
     """livekit warms one per CPU by default; a second instance on the same CPUs keeps fewer."""
     server = main.a_server(load_settings().model_copy(update={"idle_processes": 1}))

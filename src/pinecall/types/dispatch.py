@@ -7,6 +7,12 @@
 # dispatch to their own workers only. In livekit's words it is the `agent_name`; in ours it is a
 # fleet's worker pool, never a tenant's agent — those are named inside the metadata below.
 DEFAULT_FLEET = "pinecall"
+# How a fleet is spelled: as a slug is, because the name ends up where only that alphabet is
+# allowed — a Twilio credential username and termination label, an SFU trunk name — and because an
+# EMPTY agent_name is implicit dispatch to every room in the deployment (livekit worker.py:219):
+# somebody else's call, answered by us. Held by Settings, so a process that spelled it wrong never
+# starts.
+A_FLEET_NAME = r"^[a-z0-9][a-z0-9-]{0,62}$"
 
 # The keys of a dispatch's metadata: written by whoever creates the dispatch — the token door for a
 # web call, the outbound verb for a call we place — and read by the worker's router, in this order

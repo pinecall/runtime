@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from pinecall._env_files import EnvFileRefused
 from pinecall._settings import (
@@ -243,3 +244,14 @@ def test_the_world_is_read_and_the_fleet_is_pinecall_unless_the_instance_names_o
     assert (load_settings().world, load_settings().fleet) == ("sandbox", "pinecall")
     monkeypatch.setenv("PINECALL_FLEET", "pinecall-sandbox")
     assert load_settings().fleet == "pinecall-sandbox"
+
+
+# The name ends up in a Twilio credential username and an SFU trunk name, and an empty one would
+# answer every room on the deployment: a process that spelled it wrong never starts.
+@pytest.mark.parametrize("spelled", ["", "Pine call", "pinecall:sandbox", "-sandbox"])
+def test_a_fleet_spelled_unlike_a_slug_is_refused_at_startup(
+    monkeypatch: pytest.MonkeyPatch, spelled: str
+) -> None:
+    monkeypatch.setenv("PINECALL_FLEET", spelled)
+    with pytest.raises(ValidationError, match="fleet"):
+        load_settings()

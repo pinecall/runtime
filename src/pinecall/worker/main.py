@@ -108,13 +108,11 @@ class Warm(TypedDict, total=False):
 # is what `worker dev` did beside a perfectly good runtime/.env — a file is not the environment.
 # Settings is the only reader of either, and livekit gets the values by its own parameters.
 # The name is the instance's fleet (`PINECALL_FLEET`): its gateway writes the same word into every
-# room config it mints. An empty agent_name means implicit dispatch to every room in the deployment
-# (worker.py:219) — somebody else's call, answered by us — so the name is never empty and this
-# module refuses one. The warm processes are livekit's own count unless the instance says one.
+# room config it mints, and Settings holds it to a slug's alphabet and never empty
+# (types/dispatch.py says why). The warm processes are livekit's own count unless the instance
+# says one.
 def a_server(settings: Settings, *, gated_by_machine_load: bool = True) -> AgentServer:
     """The process: the one entrypoint that answers a job, under the fleet name it joins by."""
-    if not settings.fleet:
-        raise ValueError("a worker joins a fleet by name: an empty agent_name answers every room")
     warm = (
         Warm()
         if settings.idle_processes is None

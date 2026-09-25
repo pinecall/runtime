@@ -17,7 +17,7 @@ from pinecall._env_files import ENV_FILES, as_a_refusal, env_files_read
 from pinecall._exceptions import PinecallError
 from pinecall._vendor_keys import VendorKeys
 from pinecall.types import Env
-from pinecall.types.dispatch import DEFAULT_FLEET
+from pinecall.types.dispatch import A_FLEET_NAME, DEFAULT_FLEET
 
 # Our own knobs carry this prefix; a vendor key keeps the vendor's own name (the alias on the
 # field), so the SDK that reads ANTHROPIC_API_KEY by itself and this class agree.
@@ -278,6 +278,7 @@ class Settings(VendorKeys):
     # also the prefix of every trunk and rule the gateway names on the SFU (routes/trunks.py).
     fleet: str = Field(
         default=DEFAULT_FLEET,
+        pattern=A_FLEET_NAME,
         description="The name this instance's workers register under and its dispatches ask for.",
     )
     # livekit prewarms one job process per CPU by default (AgentServer, worker.py:298): right for a
