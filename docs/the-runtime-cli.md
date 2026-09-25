@@ -311,7 +311,7 @@ vendor        does         standing   variable              also known as
 livekit       llm,stt,tts  ready                            inference lk
 anthropic ←   llm          ready      ANTHROPIC_API_KEY     claude
 …
-48 vendors · ours: llm anthropic · stt soniox · tts elevenlabs
+48 vendors · ours: llm anthropic · stt soniox · tts cartesia
 ```
 
 A vendor an org brought of its own is `orgs provider-key`, above; this table is the box's.

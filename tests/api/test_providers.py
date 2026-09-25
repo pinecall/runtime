@@ -12,7 +12,7 @@ async def test_the_door_answers_the_whole_catalogue(tenant_http: httpx.AsyncClie
     names = [row["name"] for row in said["providers"]]
     assert len(names) > 40
     assert {"anthropic", "elevenlabs", "soniox", "cartesia", "rime", "livekit"} <= set(names)
-    assert said["defaults"] == {"llm": "anthropic", "stt": "soniox", "tts": "elevenlabs"}
+    assert said["defaults"] == {"llm": "anthropic", "stt": "soniox", "tts": "cartesia"}
     assert "carolina" in said["voices"]
 
 

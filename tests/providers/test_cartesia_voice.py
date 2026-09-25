@@ -6,7 +6,7 @@ from livekit.plugins import cartesia
 from pinecall._settings import Settings
 from pinecall.providers.registry import Asked
 from pinecall.providers.tts import VENDORS
-from pinecall.providers.tts.cartesia import DEFAULT_MODEL
+from pinecall.providers.tts.cartesia import DEFAULT_MODEL, VOICE_FOR
 
 pytestmark = pytest.mark.unit
 
@@ -32,3 +32,9 @@ def test_a_spanish_agent_is_read_in_spanish_in_the_voice_it_chose() -> None:
 
 def test_the_models_this_build_vouches_for_are_offered_the_default_first() -> None:
     assert VENDORS.models("cartesia") == ("sonic-3", "sonic-2")
+
+
+def test_an_agent_that_chose_no_voice_is_read_by_a_native_speaker_of_its_language() -> None:
+    assert built(language="es")._opts.voice == VOICE_FOR["es"]  # pyright: ignore[reportPrivateUsage]
+    assert built(language="en")._opts.voice == VOICE_FOR["en"]  # pyright: ignore[reportPrivateUsage]
+    assert built(language="fr")._opts.voice == VOICE_FOR["en"]  # pyright: ignore[reportPrivateUsage]

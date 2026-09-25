@@ -4,7 +4,7 @@ import dataclasses
 import logging
 
 import pytest
-from livekit.plugins import deepgram, elevenlabs, openai, soniox
+from livekit.plugins import cartesia, deepgram, elevenlabs, openai, soniox
 
 from pinecall._settings import Settings
 from pinecall.providers.pipeline import Pipeline, pipeline_for
@@ -24,6 +24,7 @@ def settings() -> Settings:
         soniox_api_key=A_KEY,
         deepgram_api_key=A_KEY,
         eleven_api_key=A_KEY,
+        cartesia_api_key=A_KEY,
     )
 
 
@@ -39,12 +40,12 @@ def test_an_agent_that_declares_nothing_still_gets_a_whole_pipeline(
     with caplog.at_level(logging.WARNING, logger="pinecall.providers.pipeline"):
         built = pipeline_for(AgentConfig(slug="clinica-norte"), settings(), NO_ORG_KEYS)
     assert isinstance(built.stt, soniox.STT)
-    assert isinstance(built.tts, elevenlabs.TTS)
+    assert isinstance(built.tts, cartesia.TTS)
     assert built.llm.label == "livekit.plugins.anthropic.llm.LLM"
     assert [record.message.split(" declared no ")[1] for record in caplog.records] == [
         "llm vendor; running anthropic",
         "stt vendor; running soniox",
-        "tts vendor; running elevenlabs",
+        "tts vendor; running cartesia",
     ]
 
 

@@ -106,13 +106,19 @@ def test_a_provider_key_is_reported_by_its_variable_and_never_by_its_value() -> 
 def test_a_role_with_no_key_at_all_names_the_role_and_what_to_set(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    for speaking in ("ELEVEN_API_KEY", "SONIOX_API_KEY", "DEEPGRAM_API_KEY", "OPENAI_API_KEY"):
+    for speaking in (
+        "CARTESIA_API_KEY",
+        "ELEVEN_API_KEY",
+        "SONIOX_API_KEY",
+        "DEEPGRAM_API_KEY",
+        "OPENAI_API_KEY",
+    ):
         monkeypatch.delenv(speaking)
     down = doctor.first_failure(doctor.run_checks(load_settings(), probes_that_answer()))
     assert down is not None
     assert down.name == "provider keys"
     assert "tts" in down.detail
-    assert "ELEVEN_API_KEY" in down.detail
+    assert "CARTESIA_API_KEY" in down.detail
 
 
 def test_a_role_one_catalogued_vendor_can_answer_for_is_not_a_role_that_is_down(

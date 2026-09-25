@@ -2,7 +2,7 @@
 
 import pytest
 
-from pinecall.providers.tts.voices import VOICES, voice_declared
+from pinecall.providers.tts.voices import VOICES, vendor_of, voice_declared
 from pinecall.providers.tuning import tuned
 from pinecall.types import AgentConfig, DeclarationRefused, Lexicon, Tuning, Voice
 
@@ -49,3 +49,11 @@ def test_the_config_the_gateway_keeps_carries_an_id_and_never_a_name() -> None:
     assert kept == Voice(
         provider="elevenlabs", model="eleven_flash_v2_5", voice_id=VOICES["carolina"].voice_id
     )
+
+
+def test_a_word_that_names_its_own_vendor_speaks_there_whatever_the_default() -> None:
+    """A curated name and an ElevenLabs-shaped id kept before the default moved stay ElevenLabs'."""
+    assert vendor_of("carolina") == "elevenlabs"
+    assert vendor_of("Xb7hH8MSUJpSbSDYk0k2") == "elevenlabs"
+    assert vendor_of("de38f545-c574-44e8-9b54-a7d6fec1c6b1") == "cartesia"
+    assert vendor_of("a-word") is None

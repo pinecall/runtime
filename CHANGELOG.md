@@ -6,6 +6,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 
 ## [Unreleased]
 
+### Changed
+- **Cartesia is the voice when an agent names none**, where ElevenLabs was: `sonic-3`, and a native
+  speaker of the agent's language when it chose no voice (Spain's Marta for `es`, Katie for `en`
+  and the rest). A curated name (`carolina`) and an ElevenLabs-shaped id still speak at ElevenLabs,
+  so a voice set before the change is not refused as a Cartesia typo; a bare word that is neither
+  is now judged as a Cartesia uuid.
+
 ### Added
 - **A voice is heard before it is chosen.** `GET /v1/voices?tts=cartesia&language=es` lists the
   vendor's own voices (country and accent included, so Spain is told from Mexico), and

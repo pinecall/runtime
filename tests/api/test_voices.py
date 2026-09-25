@@ -7,6 +7,8 @@ from collections.abc import Iterator
 import httpx
 import pytest
 
+from pinecall._settings import Settings
+from pinecall.api._deps import a_settings
 from pinecall.api.app import app
 from pinecall.api.voices import the_sampler, the_shelf
 from pinecall.providers.registry import Asked
@@ -82,9 +84,11 @@ async def test_the_list_is_the_vendors_on_the_orgs_own_key(
 
 
 async def test_no_key_for_the_vendor_is_409_and_a_vendor_not_listed_is_404(
-    tenant_http: httpx.AsyncClient, heard: Heard
+    tenant_http: httpx.AsyncClient, heard: Heard, settings: Settings
 ) -> None:
     del heard
+    keyless = settings.model_copy(update={"cartesia_api_key": None})
+    app.dependency_overrides[a_settings] = lambda: keyless
     no_key = await tenant_http.get("/v1/voices", params={"tts": "cartesia"})
     assert no_key.status_code == 409
     assert "cartesia" in no_key.json()["detail"]
@@ -132,9 +136,13 @@ async def test_a_typo_is_422_and_a_vendor_that_says_no_is_502(
         "/v1/voices/sample", json={"tts": "elevenlabs", "voice": "carolin", "text": "Hi"}
     )
     assert typo.status_code == 422
+    not_a_uuid = await tenant_http.post(
+        "/v1/voices/sample", json={"tts": "cartesia", "voice": "nobody", "text": "Hola"}
+    )
+    assert not_a_uuid.status_code == 422
     heard.refuses = True
     refused = await tenant_http.post(
-        "/v1/voices/sample", json={"tts": "cartesia", "voice": "nobody", "text": "Hola"}
+        "/v1/voices/sample", json={"tts": "cartesia", "voice": MARTA, "text": "Hola"}
     )
     assert refused.status_code == 502
     assert "Not Found" in refused.json()["detail"]

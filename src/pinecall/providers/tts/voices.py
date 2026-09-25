@@ -6,13 +6,15 @@ import re
 from dataclasses import dataclass
 
 from pinecall.providers.catalog import canonical
+from pinecall.providers.tts import DEFAULT_TTS
 from pinecall.types import DeclarationRefused, Voice
 
 # A voice id as ElevenLabs writes one: twenty letters and digits, and nothing a person would type
-# as a name. It is how a tenant on that vendor writes their own voice without asking us for a row,
-# and it is ElevenLabs' shape and nobody else's — Cartesia writes a uuid, Rime a word, Hume a
-# sentence — so it is only ever consulted for ElevenLabs. See WE_KNOW_THE_SHAPE below.
+# as a name. It is how a tenant on that vendor writes their own voice without asking us for a row.
 A_VENDOR_ID = re.compile(r"^[A-Za-z0-9]{20}$")
+# And as Cartesia writes one: a uuid. Rime writes a word and Hume a sentence, so theirs are never
+# judged. See SHAPES below.
+A_UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
 
 @dataclass(frozen=True)
@@ -39,12 +41,12 @@ VOICES: dict[str, CuratedVoice] = {
     "charlie": CuratedVoice("elevenlabs", "IKne3meq5aSn9XLyUdCD", "en"),
 }
 
-# The one vendor whose id shape this file knows — and it is also the vendor a declaration that
-# named none will speak with (providers/pipeline.py, DEFAULT_TTS). Because the shape is known, a
-# word there that is neither a curated name nor an id can be refused as the typo it is, which is
-# what this table was written for: `carolina` reached ElevenLabs as a voice_id and came back 1008
-# seven times in one call. Nobody else's shape is known here, so nobody else's word is judged.
-WE_KNOW_THE_SHAPE = "elevenlabs"
+# The vendors whose id shape this file knows. For them a word that is neither a curated name nor an
+# id can be refused as the typo it is, which is what this table was written for: `carolina`
+# reached ElevenLabs as a voice_id and came back 1008 seven times in one call. A declaration that
+# named no vendor is judged as the vendor it will speak with (DEFAULT_TTS). Nobody else's shape is
+# known here, so nobody else's word is judged.
+SHAPES: dict[str, re.Pattern[str]] = {"elevenlabs": A_VENDOR_ID, "cartesia": A_UUID}
 
 # What a declaration that named no vendor is refused with. Both ways out are in the sentence,
 # because a tenant on Cartesia reading only the first half would go looking for a curated name
@@ -80,7 +82,7 @@ def known_voices() -> str:
 # have, and it refuses it while the app is declaring itself, not at the first utterance.
 def voice_declared(asked: str | None, vendor: str | None, voice_id: str | None) -> Voice:
     """A declared voice as the vendor needs it, or a refusal naming the voices this build knows."""
-    named = canonical(vendor) if vendor else ""
+    named = canonical(vendor) if vendor else (vendor_of(asked) or "")
     if voice_id:
         return Voice(provider=named, voice_id=voice_id)
     if not asked:
@@ -95,13 +97,28 @@ def voice_declared(asked: str | None, vendor: str | None, voice_id: str | None) 
     curated = VOICES.get(asked)
     if curated is not None and named in ("", curated.vendor):
         return Voice(provider=named or curated.vendor, voice_id=curated.voice_id)
-    _refuse_a_typo(asked, named or WE_KNOW_THE_SHAPE)
+    _refuse_a_typo(asked, named or DEFAULT_TTS)
     return Voice(provider=named, voice_id=asked)
 
 
+# A word that names its own vendor: a curated name is that vendor's, and an id in exactly one known
+# shape is that vendor's — an ElevenLabs id set before the default moved to Cartesia still speaks
+# at ElevenLabs rather than being judged, and refused, as a Cartesia uuid.
+def vendor_of(word: str | None) -> str | None:
+    """The vendor a voice word belongs to on its own, or None when the word does not say."""
+    if not word:
+        return None
+    curated = VOICES.get(word)
+    if curated is not None:
+        return curated.vendor
+    shaped = [vendor for vendor, shape in SHAPES.items() if shape.match(word)]
+    return shaped[0] if len(shaped) == 1 else None
+
+
 def _refuse_a_typo(asked: str, speaking: str) -> None:
-    """Judge the word only for the one vendor whose ids this file can tell from a mistake."""
-    if speaking == WE_KNOW_THE_SHAPE and not A_VENDOR_ID.match(asked):
+    """Judge the word only for a vendor whose ids this file can tell from a mistake."""
+    shape = SHAPES.get(speaking)
+    if shape is not None and not shape.match(asked):
         raise DeclarationRefused(NO_SUCH_VOICE.format(asked=asked, known=known_voices()))
 
 

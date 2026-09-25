@@ -23,6 +23,7 @@ pytestmark = pytest.mark.unit
 
 DECLARED = AgentConfig(slug="clinica-norte", language="es")
 NOTHING = Lexicon()
+A_UUID = "de38f545-c574-44e8-9b54-a7d6fec1c6b1"
 
 
 def test_nothing_set_is_the_declaration_with_every_knob_at_the_runtimes_default() -> None:
@@ -51,15 +52,17 @@ def test_a_voice_name_becomes_the_id_the_vendor_knows_and_tts_moves_the_stage() 
     named = tuned(DECLARED, Tuning(voice="mateo"), NOTHING).voice
     assert named is not None and named.voice_id == VOICES["mateo"].voice_id
     assert named.provider == "elevenlabs"
-    moved = tuned(DECLARED, Tuning(tts="cartesia/sonic-3", voice="a-uuid"), NOTHING).voice
+    moved = tuned(DECLARED, Tuning(tts="cartesia/sonic-3", voice=A_UUID), NOTHING).voice
     assert moved is not None
-    assert (moved.provider, moved.model, moved.voice_id) == ("cartesia", "sonic-3", "a-uuid")
+    assert (moved.provider, moved.model, moved.voice_id) == ("cartesia", "sonic-3", A_UUID)
+    with pytest.raises(DeclarationRefused, match="no voice named 'a-uuid'"):
+        tuned(DECLARED, Tuning(tts="cartesia", voice="a-uuid"), NOTHING)
 
 
 def test_an_elevenlabs_model_this_build_does_not_run_is_refused() -> None:
     refused = NOT_RUN_HERE.format(asked="eleven_turbo_v2_5", instead=DEFAULT_MODEL)
     with pytest.raises(DeclarationRefused, match=re.escape(refused)):
-        tuned(DECLARED, Tuning(tts_model="eleven_turbo_v2_5"), NOTHING)
+        tuned(DECLARED, Tuning(tts="elevenlabs", tts_model="eleven_turbo_v2_5"), NOTHING)
 
 
 def test_the_opening_is_the_worlds_words_or_nobodys() -> None:

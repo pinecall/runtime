@@ -13,7 +13,7 @@ from pinecall.providers.registry import NoProvider, Vendors
 from pinecall.providers.stt import VENDORS as STT_VENDORS
 from pinecall.providers.tts import VENDORS as TTS_VENDORS
 from pinecall.providers.tts.elevenlabs import a_model
-from pinecall.providers.tts.voices import voice_declared
+from pinecall.providers.tts.voices import vendor_of, voice_declared
 from pinecall.types import AgentConfig, DeclarationRefused, Lexicon, Model, Tuning, Voice
 
 # The vendor tables' own refusal, over the vendor tables' own list. The list is long now, so the
@@ -79,7 +79,7 @@ def the_voice(tts: str | None, voice: str | None, tts_model: str | None = None) 
     """The voice a tuning or a persona names: the vendor, the id and the model may each be set."""
     if voice is None and tts is None and tts_model is None:
         return None
-    vendor, model = _speaking(tts, tts_model)
+    vendor, model = _speaking(tts or vendor_of(voice), tts_model)
     return Voice(provider=vendor, model=model, voice_id=_voice_id(voice, vendor))
 
 

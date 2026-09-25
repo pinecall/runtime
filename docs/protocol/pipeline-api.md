@@ -21,7 +21,7 @@ pipeline is a live thing and there is no empty one to show.
   "greeting": { "say": "Clínica Norte, buenas.", "reply": null, "allow_interruptions": null },
   "voices": [ "…" ],
   "providers": [ … ],
-  "defaults": { "llm": "anthropic", "stt": "soniox", "tts": "elevenlabs" },
+  "defaults": { "llm": "anthropic", "stt": "soniox", "tts": "cartesia" },
   "models": { "llm/anthropic": [ "claude-haiku-4-5-20251001", "claude-sonnet-5", "claude-opus-5" ], "…": [ "…" ] },
   "calls": 12,
   "medians": [ { "name": "transcription_delay", "seconds": 0.13, "turns": 41 },

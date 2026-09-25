@@ -21,6 +21,7 @@ DEAD_SENTINEL_KEYS: dict[str, str] = {
     "SONIOX_API_KEY": "dead-sentinel",
     "DEEPGRAM_API_KEY": "dead-sentinel",
     "ELEVEN_API_KEY": "dead-sentinel",
+    "CARTESIA_API_KEY": "dead-sentinel",
     # The embedder's two, for the same reason: an operator who has a live Perplexity key exported
     # must not get a suite that reaches Perplexity, and EMBED_PROVIDER stays `tei` in ring 0.
     "PERPLEXITY_API_KEY": "pplx-dead-sentinel",
