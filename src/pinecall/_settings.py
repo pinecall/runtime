@@ -367,7 +367,7 @@ class Settings(VendorKeys):
     )
     # The key the sign-up doors take (`Authorization: Bearer`), so that only the page that runs a
     # bot shield in front of them can reach them — pinecall.io's, which checks Pineward and then
-    # calls here. Behind it, the client's address is the shield's `X-Forwarded-For`, and never
+    # calls here. Behind it, the client's address is the shield's `X-Pinecall-Client`, and never
     # anybody else's. Unset, the doors take whoever knocks, as a box of its own may want.
     signup_key: str | None = Field(
         default=None,

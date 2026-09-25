@@ -98,9 +98,14 @@ class Resending(WireModel):
 
 # Where the knock came from, for the throttle. With PINECALL_SIGNUP_KEY set, only the page that
 # holds it gets in — the one running a bot shield in front (pinecall.io checks Pineward) — and
-# the person's address is the last entry of the X-Forwarded-For it sends, which that page wrote
-# from what its own proxy saw. Without the key, a forwarded address is never believed: anybody
+# the person's address is the X-Pinecall-Client it sends, written from what its own proxy saw.
+# A header of our own and not X-Forwarded-For, which the proxy in front of this gateway (Caddy)
+# strips from a client it does not trust and rewrites as that client's address: the shield's,
+# and every person would count as one. Without the key, the header is never believed: anybody
 # can write one, and the throttle would be theirs to spread across addresses they made up.
+CLIENT_HEADER = "x-pinecall-client"
+
+
 def a_signup_client(request: Request, settings: SettingsDep) -> str:
     """The client the throttle counts, once the shield's key was shown when one is set."""
     if settings.signup_key is None:
@@ -109,9 +114,8 @@ def a_signup_client(request: Request, settings: SettingsDep) -> str:
     bearer = said.removeprefix("Bearer ").strip() if said.startswith("Bearer ") else ""
     if not bearer or not compare_digest(bearer, settings.signup_key):
         raise HTTPException(401, NOT_THE_SHIELD, headers={"WWW-Authenticate": "Bearer"})
-    forwarded = request.headers.get("x-forwarded-for", "")
-    last = [one.strip() for one in forwarded.split(",") if one.strip()]
-    return last[-1] if last else the_client(request)
+    said_by_the_shield = request.headers.get(CLIENT_HEADER, "").strip()
+    return said_by_the_shield or the_client(request)
 
 
 ClientDep = Annotated[str, Depends(a_signup_client)]

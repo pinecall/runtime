@@ -230,7 +230,7 @@ async def test_with_a_shields_key_set_the_doors_take_that_key_and_nobody_else(
     assert taken.status_code == 202, taken.text
 
 
-async def test_behind_the_key_the_throttle_counts_the_address_the_shield_forwarded(
+async def test_behind_the_key_the_throttle_counts_the_address_the_shield_says(
     stranger: httpx.AsyncClient, settings: Settings
 ) -> None:
     """Two people behind one shield are two budgets, not one."""
@@ -238,28 +238,28 @@ async def test_behind_the_key_the_throttle_counts_the_address_the_shield_forward
     as_the_shield = {"Authorization": f"Bearer {THE_SHIELDS_KEY}"}
     for n in range(TRIES_PER_WINDOW):
         said = {**TIENDA, "org": f"org-{n}", "email": f"p{n}@x.uy"}
-        headers = {**as_the_shield, "X-Forwarded-For": "203.0.113.7"}
+        headers = {**as_the_shield, "X-Pinecall-Client": "203.0.113.7"}
         assert (await stranger.post("/v1/signup", json=said, headers=headers)).status_code == 202
-    over = {**as_the_shield, "X-Forwarded-For": "203.0.113.7"}
+    over = {**as_the_shield, "X-Pinecall-Client": "203.0.113.7"}
     refused = await stranger.post("/v1/signup", json={**TIENDA, "org": "one-more"}, headers=over)
     assert (refused.status_code, refused.json()["detail"]) == (429, TOO_MANY)
-    another = {**as_the_shield, "X-Forwarded-For": "spoofed, 198.51.100.9"}
+    another = {**as_the_shield, "X-Pinecall-Client": "198.51.100.9"}
     elsewhere = await stranger.post("/v1/signup", json=TIENDA, headers=another)
-    assert elsewhere.status_code == 202, "the last entry is the shield's, and it is another person"
+    assert elsewhere.status_code == 202, "another person, as the shield says"
 
 
-async def test_without_a_key_a_forwarded_address_is_never_believed(
+async def test_without_a_key_the_shields_header_is_never_believed(
     stranger: httpx.AsyncClient,
 ) -> None:
     """Anybody can write the header: an open door throttles where the knock really came from."""
     for n in range(TRIES_PER_WINDOW):
         said = {**TIENDA, "org": f"org-{n}", "email": f"p{n}@x.uy"}
-        faked = {"X-Forwarded-For": f"203.0.113.{n}"}
+        faked = {"X-Pinecall-Client": f"203.0.113.{n}"}
         assert (await stranger.post("/v1/signup", json=said, headers=faked)).status_code == 202
     refused = await stranger.post(
         "/v1/signup",
         json={**TIENDA, "org": "one-more"},
-        headers={"X-Forwarded-For": "198.51.100.1"},
+        headers={"X-Pinecall-Client": "198.51.100.1"},
     )
     assert refused.status_code == 429
 

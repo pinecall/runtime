@@ -13,7 +13,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   answered before; `POST /v1/signup/resend` mails a new code, `202` for anybody. A code lives 15
   minutes and six wrong tries burn it. `PINECALL_SIGNUP_KEY`, when set, is the only key the three
   doors take — the bot shield in front of them — and behind it the throttle counts the
-  `X-Forwarded-For` it sends. A fake email used to make an org and a key at once.
+  `X-Pinecall-Client` it sends. A fake email used to make an org and a key at once.
 - **Breaking for extension authors: `Admitting` takes `already`**, how many orgs the email already
   belongs to on this instance, the new one not counted: `admitted(org, email, world, already)`. A
   policy that gives a trial could not tell a person's second org from their first, so one person

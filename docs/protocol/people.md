@@ -243,7 +243,7 @@ has here) and writes the `Quotas` as the org is made. The first door refuses: `4
 `409` a slug taken (again at verify); `400` a bad slug, email or short password; `401` an email
 whose password here is another; `409` an address invited and still passwordless; `429` the sixth try
 from one place in a minute. With `PINECALL_SIGNUP_KEY` set the three doors take only `Bearer` that
-key (the bot shield's) and count the client as the last `X-Forwarded-For` entry it sends; without it
+key (the bot shield's) and count the client as the `X-Pinecall-Client` it sends; without it
 that header is never believed.
 
 The console is served by this gateway, the same origin as every door it uses; the sign-up page is
