@@ -7,6 +7,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **An LLM token quota, and a written conversation held to its quotas on every turn.**
+  `orgs quota --llm-tokens n` (`llm_tokens` on the ops quotas door, migration 0051): what the
+  org's models read and wrote, input and output together. A chat or a WhatsApp thread is asked
+  `messages` and `llm_tokens` before each turn the model answers, counting what the open
+  conversation has spent so far; past either it ends as `timeout` by the `platform`, with
+  `credits.exhausted` in the agent's log and the sentence as the chat socket's close reason — one
+  open chat could otherwise run on the box's model for ever. Protocol `>=0.6.12`.
 - **Codes: a page that follows a phone call it did not place.** `POST /v1/codes` (`talk`) hands
   a tenant's server four digits, the agent's phone number and a code token; the page asks
   `GET /v1/codes/{code}?wait=1` with it and is answered `claimed` with the call and a log token

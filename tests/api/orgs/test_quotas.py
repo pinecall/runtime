@@ -6,6 +6,7 @@ from datetime import date
 from typing import Any
 
 import pytest
+from livekit.agents import llm as agents
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
@@ -20,11 +21,14 @@ from tests.api.talking import a_caller, a_door, a_register, an_app, entry_until
 from tests.api.test_worker_doors import declared
 from tests.api.tokens.test_the_door import minted
 from tests.log.test_usage import A_SUMMARY
+from tests.session.fake_llm import FakeLLM, Scripted
 
 pytestmark = pytest.mark.unit
 
 ORG = A_RECORD.org
 ANOTHER_AGENT = "clinica-sur"
+# One answer that read 80 tokens and wrote 20.
+A_HUNDRED_TOKENS = agents.CompletionUsage(completion_tokens=20, prompt_tokens=80, total_tokens=100)
 
 
 def a_call(call: str) -> CallContext:
@@ -80,6 +84,42 @@ async def test_an_org_nobody_limited_is_never_refused(
     await spent(store, "CA_long", 10_000)
     await worker_gateway.opened(a_call("CA_next"), AGENT)
     assert [entry.type for entry in await store.agent_since(AGENT)][-1] != "credits.exhausted"
+
+
+# ── tokens ──────────────────────────────────────────────────────────────────────
+
+
+async def test_an_llm_tokens_quota_refuses_the_next_call_once_the_org_has_spent_them(
+    worker_gateway: Gateway, registry: Registry, orgs: MemoryOrgs, store: MemoryStore
+) -> None:
+    """A_SUMMARY read 1200 tokens and wrote 300: both count, and 1500 is the whole quota."""
+    await declared(registry)
+    await orgs.set_quotas(ORG, Quotas(llm_tokens=1500))
+    await spent(store, "CA_first", 1.5)
+    with pytest.raises(GatewayRefused, match="1500 of its 1500 llm_tokens"):
+        await worker_gateway.opened(a_call("CA_second"), AGENT)
+    assert (await the_refusal_in(store))["quota"] == "llm_tokens"
+
+
+async def test_a_chat_is_refused_mid_conversation_once_its_own_turns_pass_the_token_quota(
+    gateway: TestClient, orgs: MemoryOrgs, store: MemoryStore, llm: FakeLLM
+) -> None:
+    """The Meter has not seen this call yet — it folds at hang-up — and it is still counted."""
+    await orgs.set_quotas(ORG, Quotas(llm_tokens=100))
+    llm.script.append(Scripted(chunks=("Hola.",), usage=A_HUNDRED_TOKENS))
+    with an_app(gateway) as app:
+        app.send_json(a_register(AGENT, a_door("web")))
+        app.receive_json()
+        with a_caller(gateway) as caller, pytest.raises(WebSocketDisconnect) as refused:
+            caller.send_json({"text": "hola"})
+            while caller.receive_json()["type"] != "turn.agent":
+                pass
+            caller.send_json({"text": "¿y mañana?"})
+            while True:
+                caller.receive_json()
+    assert "100 of its 100 llm_tokens: credits.exhausted" in refused.value.reason
+    assert llm.requests == 1
+    assert (await the_refusal_in(store))["quota"] == "llm_tokens"
 
 
 # ── calls at once ───────────────────────────────────────────────────────────────

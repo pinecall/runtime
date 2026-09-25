@@ -104,6 +104,7 @@ class WantedQuotas(WireModel):
     knowledge_chunks: int | None = None
     numbers: int | None = None
     seats: int | None = None
+    llm_tokens: int | None = None
     budget_eur: int | None = None
     # Which of the box's keys the org may run on: absent or null lends all, [] lends nothing,
     # else vendors and `vendor/model` entries (providers/lending.py).
@@ -239,6 +240,7 @@ async def set_quotas(named: str, said: WantedQuotas, orgs: OrgsDep) -> dict[str,
             knowledge_chunks=said.knowledge_chunks,
             numbers=said.numbers,
             seats=said.seats,
+            llm_tokens=said.llm_tokens,
             budget_eur=said.budget_eur,
             lends=None if said.lends is None else a_lending(said.lends),
         )

@@ -63,5 +63,6 @@ def test_the_names_are_spelled_once_and_the_dataclass_has_a_field_for_each() -> 
         "knowledge_chunks",
         "numbers",
         "seats",
+        "llm_tokens",
     )
     assert all(getattr(Quotas(), name) is None for name in QUOTAS)

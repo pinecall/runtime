@@ -62,11 +62,32 @@ class Admission:
         """May this org open one more call for this agent, with `running` calls open already."""
         quotas = await self._orgs.quotas_of(org)
         await self._refuse_past(org, agent, quotas, "concurrent_calls", running)
-        if quotas.minutes is None and quotas.messages is None:
+        if quotas.minutes is None and quotas.messages is None and quotas.llm_tokens is None:
             return
         totals = await self._meter.totals(org)
         await self._refuse_past(org, agent, quotas, "minutes", totals.minutes)
         await self._refuse_past(org, agent, quotas, "messages", totals.messages)
+        tokens = totals.input_tokens + totals.output_tokens
+        await self._refuse_past(org, agent, quotas, "llm_tokens", tokens)
+
+    # A written conversation opens once and may then run for hours, and the Meter folds a call
+    # only at its call.summary, when it has hung up. So a chat is asked again before each turn
+    # the model answers, with what THIS call has taken so far added to the org's totals: without
+    # them the check would be one whole conversation late. It answers the refusal's sentence
+    # instead of raising, because a session asks it and a session knows nothing of this package.
+    async def a_turn(self, org: str, agent: str, turns: int, tokens: int) -> str | None:
+        """Whether a call that has taken `turns` turns and `tokens` tokens may take one more."""
+        quotas = await self._orgs.quotas_of(org)
+        if quotas.messages is None and quotas.llm_tokens is None:
+            return None
+        totals = await self._meter.totals(org)
+        spent = totals.input_tokens + totals.output_tokens + tokens
+        try:
+            await self._refuse_past(org, agent, quotas, "messages", totals.messages + turns)
+            await self._refuse_past(org, agent, quotas, "llm_tokens", spent)
+        except QuotaExhausted as refused:
+            return str(refused)
+        return None
 
     # What a text call's vendors are built from reads the same row the gate reads: which of the
     # box's keys the org is lent (orgs/vault.py:brought_by).

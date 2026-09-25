@@ -29,6 +29,7 @@ type QuotaName = Literal[
     "knowledge_chunks",
     "numbers",
     "seats",
+    "llm_tokens",
 ]
 QUOTAS: tuple[QuotaName, ...] = (
     "minutes",
@@ -43,6 +44,9 @@ QUOTAS: tuple[QuotaName, ...] = (
     # The people the org may seat: invited and active together, because an invitation sent is a
     # seat taken. A disabled member keeps their row and holds none.
     "seats",
+    # The input and output tokens of every model the org's calls ran, as call.summary reports
+    # them: a FLOW like minutes, and the one a written conversation is held to on every turn.
+    "llm_tokens",
 )
 
 
@@ -77,6 +81,7 @@ class Quotas:
     knowledge_chunks: int | None = None
     numbers: int | None = None
     seats: int | None = None
+    llm_tokens: int | None = None
     # What the org's calls may cost in a calendar month, in whole euros, every world together: a
     # number a console shows beside what was spent. It is set with the quotas and is not one of
     # QUOTAS, because nothing is refused over it — no call, no push, no credits.exhausted; whoever

@@ -56,10 +56,12 @@ async def test_every_quota_round_trips_and_zero_comes_back_as_zero_and_not_as_no
             memory_facts=0,
             knowledge_chunks=5000,
             numbers=1,
+            llm_tokens=3_000_000_000,
         ),
     )
     kept = await orgs.quotas_of(org)
     assert (kept.memory_facts, kept.knowledge_chunks, kept.numbers) == (0, 5000, 1)
+    assert kept.llm_tokens == 3_000_000_000, "past an integer: the column is a bigint"
     assert kept.switched_off("memory_facts")
     assert not kept.switched_off("knowledge_chunks")
 

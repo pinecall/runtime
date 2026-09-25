@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import partial
 
 from pinecall._settings import Budgets
 from pinecall.api.agents.holding import Registration, SocketId
@@ -100,6 +101,9 @@ async def a_text_session(
         lookup=lookups,
         rememberer=lookups,
         budgets=budgets,
+        # And the org's quotas again before every turn the model answers, a taken-up call's too:
+        # one open chat must not run on past what the org may spend (orgs/admission.py:a_turn).
+        allowance=partial(admission.a_turn, held.org, held.slug),
     )
     return TextCall(session=session, keys=brought.keys, versions=resolved.versions)
 

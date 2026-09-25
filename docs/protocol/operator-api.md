@@ -155,7 +155,7 @@ sets the numbers. A self-hosted box never sets any, and an org nobody limited ha
 The whole set, replaced: a limit left out is no limit. Zero is a real limit and refuses everything.
 
 ```json
-{ "minutes": 1000, "agents": 5, "concurrent_calls": 10,
+{ "minutes": 1000, "agents": 5, "concurrent_calls": 10, "llm_tokens": 2000000,
   "memory_facts": 5000, "knowledge_chunks": 2000, "numbers": 1, "seats": 10, "budget_eur": 300,
   "lends": ["deepgram", "cartesia", "anthropic/claude-haiku-4-5"] }
 ```
@@ -164,9 +164,9 @@ The whole set, replaced: a limit left out is no limit. Zero is a real limit and 
 else vendors and `vendor/model` prefixes; an unknown vendor is `400` ([limits.md](../limits.md)).
 
 `budget_eur` rides the same body and is not a quota: whole euros a calendar month, both worlds,
-shown beside what was spent (`GET /v1/insights`, [console-api.md](console-api.md)); nothing is refused over it. Four of them are **flows** — what the org has consumed, or holds open right now. `minutes` is
+shown beside what was spent (`GET /v1/insights`, [console-api.md](console-api.md)); nothing is refused over it. Five of them are **flows** — what the org has consumed, or holds open right now. `minutes` is
 minutes of call, summed from every `call.summary` in the org's logs; `messages` is turns, both
-sides, the same way; `agents` is how many agents the org's sockets may hold at once;
+sides, and `llm_tokens` tokens in and out, the same way; `agents` how many agents it may hold;
 `concurrent_calls` is how many of its calls may be open on this gateway at once. The answer is the
 set as kept. A limit bites the **next** call and the next register: the gateway refuses with a
 `credits.exhausted` entry in the agent's own log and a `429` whose `detail` is the same sentence —
@@ -176,7 +176,7 @@ org clinica-norte has used 1000 of its 1000 minutes: credits.exhausted
 ```
 
 — on `POST /v1/calls`, on `POST /v1/tokens` (before the browser joins), on the chat socket (as the
-close reason) and on `agent.register` (as the `error` frame that follows the entry).
+close reason, and before every turn: [limits.md](../limits.md#quotas)) and on `agent.register` (the `error` frame after the entry).
 
 Four are **stocks** — how much of a table the org may keep standing: `memory_facts`, the facts memory holds about its contacts, all together (a superseded one is history and is not counted); `knowledge_chunks`, the chunks its bases hold, all together; `numbers`, the ones the box bought for it on its own carrier account; and `seats`, the people it holds — invited and active together, because an invitation sent is a seat taken, and a `disabled` member keeps their row and holds none. Same mechanism, and it is what a plan switches memory and retrieval off with: `null` is no limit, a number is a cap, and **`0` is how a plan that does not include the feature is expressed** — a `0` org keeps neither, and its `recall` and `search` tools find nothing, embed nothing and write no entry at all: a plan without a feature is not a failure and must not read as one.
 

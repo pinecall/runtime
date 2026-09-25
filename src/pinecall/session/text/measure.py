@@ -90,3 +90,10 @@ def turn_metrics(reply: Reply, e2e_latency: float, provider: str, model: str) ->
 def usage_rows(usage: AgentSessionUsage) -> list[LLMModelUsage]:
     """What the session consumed, as call.summary carries it: livekit's rows, unchanged."""
     return [row for row in as_wire_rows(usage.model_usage) if isinstance(row, LLMModelUsage)]
+
+
+# What the model has read and written on this call so far, before any call.summary exists: the
+# number a turn is held to while the conversation is still open (session/text/allowance.py).
+def tokens_spent(usage: AgentSessionUsage) -> int:
+    """Input and output tokens together, over every model row the session has collected."""
+    return sum((row.input_tokens or 0) + (row.output_tokens or 0) for row in usage_rows(usage))

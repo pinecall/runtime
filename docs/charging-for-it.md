@@ -68,9 +68,9 @@ name — install the package again after each deploy until the deploy does it it
 
 ## 2. What an org may use — quotas and lends
 
-The whole vocabulary is `Quotas` ([limits.md](limits.md)): `minutes`, `messages`, `agents`,
-`concurrent_calls`, `memory_facts`, `knowledge_chunks`, `numbers`, `seats` — `null` is no limit,
-`0` is a real one — plus `budget_eur`, shown and never enforced, and `lends`: which of the box's
+The whole vocabulary is `Quotas` ([limits.md](limits.md)): `minutes`, `messages`, `llm_tokens`,
+`agents`, `concurrent_calls`, `memory_facts`, `knowledge_chunks`, `numbers`, `seats` — `null` is
+no limit, `0` is a real one — plus `budget_eur`, shown and never enforced, and `lends`: which of the box's
 vendor keys the org's calls may run on where it brought none of its own (a vendor, or
 `vendor/model` read as a prefix; `null` all, `[]` none). An org's own key is never refused, for
 any model: bringing keys is how an org leaves your vendor bill.
@@ -123,8 +123,6 @@ Said here so a layer is not built on a mechanism that does not exist:
   replacing the row when the month turns.
 - **A call cut when its minutes run out.** Admission refuses a call that would open past the
   limit; one already open runs on (an agent's own `max_duration_s` still ends it).
-- **An LLM token quota, and a written conversation checked on every turn.** Today `messages` is
-  checked when a written conversation opens.
 - **A suspension of its own.** Suspending an org is replacing its row with zeros.
 - **The console's meter and upgrade link** (`PINECALL_BILLING_URL`).
 - **The deploy installing your package.** Until it does, a package outside the lock is removed by

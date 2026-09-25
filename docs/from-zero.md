@@ -528,6 +528,7 @@ $ pinecall-runtime orgs quota clinica --agents 5 --seats 10
   knowledge_chunks  —
   numbers           —
   seats             10
+  llm_tokens        —
   budget_eur        —
 ```
 

@@ -25,8 +25,9 @@ from pinecall.session.lookups import Lookup, NoLookup, TurnLookups
 from pinecall.session.remembering import NoRememberer, Rememberer, remembered_within
 from pinecall.session.scoring import Scorer, unjudged
 from pinecall.session.text.agent import TextAgent, remembered
+from pinecall.session.text.allowance import SPENT, Allowance, TurnRefused, unlimited
 from pinecall.session.text.attending import Attending
-from pinecall.session.text.measure import Reply, usage_rows
+from pinecall.session.text.measure import Reply, tokens_spent, usage_rows
 from pinecall.session.text.resuming import taken_up
 from pinecall.session.text.running import Running
 from pinecall.session.text.turns import Turns
@@ -71,11 +72,13 @@ class TextSession:
         rememberer: Rememberer = NoRememberer(),  # noqa: B008 — stateless, shared on purpose
         budgets: Budgets = Budgets(),  # noqa: B008 — frozen
         asking: Asking = NotAsking(),  # noqa: B008 — stateless, shared on purpose
+        allowance: Allowance = unlimited,
     ) -> None:
         self.context = context
         self.config = config
         self.llm = llm
         self._score = score
+        self._allowance = allowance
         self._rememberer = rememberer
         self._budgets = budgets
         # Where the session was when the app's next state.set arrives: running.py stamps a tool
@@ -258,6 +261,12 @@ class TextSession:
 
     async def hears(self, text: str) -> None:
         """The caller wrote something: their turn is logged, then the model answers it."""
+        # Asked before the turn is counted: a refused one is neither logged nor answered, and the
+        # call ends there, as a refused open never begins. TurnRefused tells the door to say why.
+        refused = await self._allowance(self.turns.count, tokens_spent(self.live.usage))
+        if refused is not None:
+            await self.hangup(SPENT, "platform")
+            raise TurnRefused(refused)
         arrived = time.monotonic()
         speech = self._a_speech_id()
         self.turns.count += 1

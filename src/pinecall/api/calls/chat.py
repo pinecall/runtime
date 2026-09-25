@@ -36,6 +36,7 @@ from pinecall.log.entry import Entry
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.providers.models import NoProvider
+from pinecall.session.text.allowance import TurnRefused
 from pinecall.session.text.session import TextSession, Watcher
 from pinecall.types import THE_WIDGET, CallContext, Contact, Env, Route, a_call_id
 from pinecall_protocol import encode
@@ -288,6 +289,9 @@ async def _every_turn(websocket: WebSocket, session: TextSession) -> bool:
                 await session.hears(text)
     except WebSocketDisconnect as gone:
         return not hung_up_by(gone.code)
+    except TurnRefused as refused:
+        # The session already ended the call; the caller is told why in the close, as at the open.
+        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(str(refused)))
     return False
 
 

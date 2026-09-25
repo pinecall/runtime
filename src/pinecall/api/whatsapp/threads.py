@@ -21,6 +21,7 @@ from pinecall.api.whatsapp.waiting import Waiting, WaitingRoom
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.providers.models import NoProvider
 from pinecall.providers.registry import Asked, a_key
+from pinecall.session.text.allowance import SPENT, TurnRefused
 from pinecall.session.text.session import TextSession
 from pinecall.types import CallContext, Contact, Route, a_call_id
 from pinecall.whatsapp.inbound import Inbound
@@ -101,6 +102,14 @@ class Thread:
             text = await self._said.get()
             try:
                 await self.session.hears(text)
+            except TurnRefused as refused:
+                # The org is past a quota and the session has ended the call: the thread goes with
+                # it, answering nothing, as a refused open answers nothing. The next message is
+                # asked at a new open, and refused there while the quota stays spent.
+                logger.warning(NOT_ANSWERED, self.session.agent, self.phone_number_id, refused)
+                self._clock.cancel()
+                await self._closing(self, SPENT)
+                return
             except Exception:  # noqa: BLE001 — the pump outlives any one turn
                 logger.exception(TURN_FAILED, self.session.call)
             finally:

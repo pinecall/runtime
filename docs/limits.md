@@ -30,7 +30,8 @@ the database. A runtime without one cannot keep somebody else's secret and says 
 ```bash
 pinecall-runtime orgs quota clinica --minutes 2000 --messages 5000 --agents 5 \
                                     --concurrent-calls 10 --memory-facts 50000 \
-                                    --knowledge-chunks 20000 --numbers 1 --seats 10
+                                    --knowledge-chunks 20000 --numbers 1 --seats 10 \
+                                    --llm-tokens 2000000
 ```
 
 The whole set is replaced at once, and a limit left out is **no limit**. The meter is a fold over
@@ -38,6 +39,15 @@ the log — there is no counter table to drift — and the gate runs before a ca
 agent registers, before memory writes a fact, and before an invitation makes a row: `seats` is
 what a plan sells a team by, counted as everybody the org has not disabled. A tenant over one is refused with a sentence and
 `credits.exhausted` in their own log; nothing is cut mid-call.
+
+`llm_tokens` counts what the org's models read and wrote, input and output together, as each
+`call.summary` reports them — the box's keys and the org's own alike. A **written** conversation
+is held to it, and to `messages`, on **every turn** and not only when it opens: the meter folds a
+call when it hangs up, so the turn is asked with what the open conversation has spent so far added
+to the org's totals. Past either, that turn is not answered: the call ends as `timeout` by the
+`platform`, `credits.exhausted` lands in the agent's log, the chat socket closes with the sentence
+(`org tienda has used 2000140 of its 2000000 llm_tokens: credits.exhausted`) and a WhatsApp thread
+closes answering nothing. A voice call is held to them when it opens.
 
 ## What the box lends
 

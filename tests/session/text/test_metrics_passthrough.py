@@ -7,7 +7,13 @@ from livekit.agents.metrics import LLMMetrics as Measured
 from livekit.agents.metrics.base import Metadata
 from livekit.agents.metrics.usage import AgentSessionUsage, ModelUsageCollector
 
-from pinecall.session.text.measure import Reply, llm_metrics, turn_metrics, usage_rows
+from pinecall.session.text.measure import (
+    Reply,
+    llm_metrics,
+    tokens_spent,
+    turn_metrics,
+    usage_rows,
+)
 from pinecall_protocol import encode
 from pinecall_protocol.metrics import LLMMetrics
 
@@ -95,6 +101,14 @@ def test_the_usage_rows_are_the_libraries_counts_summed_and_nothing_derived() ->
     assert row.input_cached_tokens == 2 * EVERYTHING.prompt_cached_tokens
     assert row.input_cache_creation_tokens == 2 * EVERYTHING.cache_creation_tokens
     assert row.output_tokens == 2 * EVERYTHING.completion_tokens
+
+
+def test_the_tokens_spent_are_what_the_rows_read_and_wrote_together() -> None:
+    collector = ModelUsageCollector()
+    collector.collect(EVERYTHING)
+    usage = AgentSessionUsage(model_usage=collector.flatten())
+    assert tokens_spent(usage) == EVERYTHING.prompt_tokens + EVERYTHING.completion_tokens
+    assert tokens_spent(AgentSessionUsage(model_usage=[])) == 0
 
 
 def test_the_turns_text_is_the_deltas_as_the_caller_read_them() -> None:
