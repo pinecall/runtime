@@ -130,7 +130,7 @@ key by a password at — are `404` on a sandbox instance, naming `PINECALL_IDENT
 | `POST` | `/v1/agents/{slug}/memory/extraction` | what a hang-up makes of a call |
 | `POST` | `/v1/evals/run` · `GET /v1/evals/runs[/{id}]` · `POST /v1/evals/replay/{call}` · `/v1/evals/judge/{call}` | the suites, ring 3, and the judges over a finished call nobody judged |
 | `POST` | `/v1/evals/caller` · `/v1/evals/voice` | the improvising caller — on the persona's own `llm` when it set one — and a spoken eval, in the persona's own `tts` and `voice` when it set them; `422` for a word this box does not have |
-| `POST` | `/v1/calls` · `/v1/calls/{call}/events` · `/sealed` · `/tools` · `/lookup` · `/remember` · `GET /commands` | the worker's own doors; `POST /v1/calls` answers `{"seconds_left": n \| null}`, what the org's minutes leave the call; `/lookup` is also the app's own `this.knowledge.search` — `app` |
+| `POST` | `/v1/calls` · `/v1/calls/{call}/events` · `/sealed` · `/tools` · `/lookup` · `/remember` · `GET /commands` | the worker's own doors; `POST /v1/calls` answers `{"seconds_left": n}`, what the org's minutes leave the call (null: no limit); `/lookup` is also the app's own `this.knowledge.search` — `app` |
 | `POST`·`GET` | `/v1/fleet/heartbeat` · `/v1/fleet/standing` | the fleet's: what a worker holds, and whether all are full. A key holding `app` AND `fleet` — what the box mints for its worker |
 | `GET`·`POST` | `/v1/whatsapp/webhook` | Meta's |
 | `GET` | `/.well-known/pinecall` | what this gateway is before anybody holds a key: version, `world` and `elsewhere` (the other instance's URL), `cloud`, `signup`, `min_password`, `mail`, `brand`, `google` — no key |
