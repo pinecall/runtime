@@ -24,8 +24,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ### Added
 - **A voice is heard before it is chosen.** `GET /v1/voices?tts=cartesia&language=es` lists the
   vendor's own voices (country and accent included, so Spain is told from Mexico), and
-  `POST /v1/voices/sample` answers a sentence in one of them as a WAV, timed in `Server-Timing`.
-  Both on the org's own key or the box's, behind `pipeline`.
+  `POST /v1/voices/sample` answers a sentence in one of them as a WAV, timed in `Server-Timing`,
+  over the same streaming path a call speaks on. Both on the org's own key or the box's, behind
+  `pipeline`; thirty samples a minute a key, then `429`. The shapes are the protocol's
+  (`VoicesListed`, `VoiceSample`); `text` may be left out and one line in the language is read.
+  A sample reads its three words exactly as the settings door does, so what plays is what saves.
+  The catalogue row (`GET /v1/providers`) says which vendors list their voices (`voices_listed`).
+- **A language is read once**, by livekit's own normaliser (`providers/language.py`): `es-ES`,
+  `en_US` and `spanish` are `es` and `en` to the voice shelf and to a simulated caller alike.
 - **Cartesia has a file of its own.** `sonic-3` when nobody chose a model (`sonic-2` offered too, so
   the console lists it), and the agent's language always sent: the plugin's own default is `en`,
   which read a Spanish voice's words as English.

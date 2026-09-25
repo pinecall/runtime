@@ -56,4 +56,13 @@ def test_a_word_that_names_its_own_vendor_speaks_there_whatever_the_default() ->
     assert vendor_of("carolina") == "elevenlabs"
     assert vendor_of("Xb7hH8MSUJpSbSDYk0k2") == "elevenlabs"
     assert vendor_of("de38f545-c574-44e8-9b54-a7d6fec1c6b1") == "cartesia"
+    assert vendor_of("DE38F545-C574-44E8-9B54-A7D6FEC1C6B1") == "cartesia", "an id pasted in caps"
     assert vendor_of("a-word") is None
+
+
+def test_a_curated_name_against_another_vendor_is_two_vendors_and_says_so() -> None:
+    """Not a typo whose sentence lists the very name that was typed."""
+    with pytest.raises(
+        DeclarationRefused, match="'carolina' is elevenlabs's voice, and tts is cartesia"
+    ):
+        voice_declared("carolina", "cartesia", None)

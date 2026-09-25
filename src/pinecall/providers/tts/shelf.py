@@ -9,6 +9,7 @@ import httpx
 from livekit.plugins.cartesia.constants import API_AUTH_HEADER, API_VERSION, API_VERSION_HEADER
 
 from pinecall.providers.catalog import canonical
+from pinecall.providers.language import primary
 from pinecall.providers.registry import Asked, a_key
 from pinecall.providers.tts.voices import VOICES
 
@@ -16,7 +17,10 @@ from pinecall.providers.tts.voices import VOICES
 # remembers, and it has a hundred voices in Spanish alone, so a picker that offered three names
 # would hide every one of them. ElevenLabs answers with the names this build curates, because a
 # premade is the only voice that exists in every workspace (voices.py says why). Every other vendor
-# is refused by name, and its voice is still that vendor's own id typed into the setting.
+# is refused by name, and its voice is still that vendor's own id typed into the setting. The
+# catalogue row says which is which (api/providers.py, `voices_listed`), so a screen never keeps
+# this list of its own.
+LISTED: tuple[str, ...] = ("cartesia", "elevenlabs")
 CARTESIA = "https://api.cartesia.ai"
 PAGE = 100
 # A vendor that pages forever is a bug at the vendor, not a reason to hang the screen that asked.
@@ -42,7 +46,11 @@ class ShelvedVoice:
 
 
 class ShelfUnreachable(Exception):
-    """The vendor was asked for its voices and did not answer with them."""
+    """The vendor was asked for its voices and did not answer with them: its status, or none."""
+
+    def __init__(self, message: str, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
 
 
 class NotListed(Exception):
@@ -59,11 +67,12 @@ class Shelf:
     async def voices(self, vendor: str, language: str | None, asked: Asked) -> list[ShelvedVoice]:
         """The vendor's voices in that language, on the org's key or the box's, or a refusal."""
         named = canonical(vendor)
+        wanted = primary(language)
         if named == "elevenlabs":
-            return _curated(named, language)
+            return _curated(named, wanted)
         if named != "cartesia":
             raise NotListed(NOT_LISTED.format(vendor=named))
-        return await self._cartesia_voices(language, a_key(named, asked))
+        return await self._cartesia_voices(wanted, a_key(named, asked))
 
     async def _cartesia_voices(self, language: str | None, key: str) -> list[ShelvedVoice]:
         # The vendor's `language` filter also lets through voices of other languages, so every row
@@ -72,7 +81,7 @@ class Shelf:
         after: str | None = None
         for _ in range(PAGES_AT_MOST):
             page = await self._a_cartesia_page(language, key, after)
-            shelved.extend(_a_cartesia_voice(row) for row in page.get("data", []))
+            shelved.extend(_cartesia_voices_of(page))
             after = page.get("next_page")
             if not page.get("has_more") or not after:
                 break
@@ -92,10 +101,19 @@ class Shelf:
             answer.raise_for_status()
         except httpx.HTTPStatusError as refused:
             status = refused.response.status_code
-            raise ShelfUnreachable(UNREACHABLE.format(vendor="cartesia", why=status)) from refused
+            raise ShelfUnreachable(
+                UNREACHABLE.format(vendor="cartesia", why=status), status
+            ) from refused
         except httpx.HTTPError as broke:
             raise ShelfUnreachable(UNREACHABLE.format(vendor="cartesia", why=broke)) from broke
         return answer.json()
+
+
+# A row with no id is nothing a setting could take, so it is passed over rather than answered as
+# a 500: the vendor's page is the vendor's, and one odd row must not empty the whole list.
+def _cartesia_voices_of(page: Any) -> list[ShelvedVoice]:
+    """The voices of one page, as the vendor wrote them."""
+    return [_a_cartesia_voice(row) for row in page.get("data", []) if row.get("id")]
 
 
 def _a_cartesia_voice(row: dict[str, Any]) -> ShelvedVoice:
@@ -103,7 +121,7 @@ def _a_cartesia_voice(row: dict[str, Any]) -> ShelvedVoice:
     return ShelvedVoice(
         id=str(row["id"]),
         name=str(row.get("name") or row["id"]),
-        language=str(row.get("language") or ""),
+        language=primary(str(row.get("language") or "")) or "",
         description=str(row.get("description") or ""),
         gender=str(row.get("gender") or ""),
         country=str(row.get("country") or ""),

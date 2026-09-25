@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
 import httpx
 import pytest
 
 from pinecall._settings import Settings
 from pinecall.providers.registry import Asked, NoProvider
-from pinecall.providers.tts.shelf import NotListed, Shelf, ShelfUnreachable
+from pinecall.providers.tts.shelf import PAGES_AT_MOST, NotListed, Shelf, ShelfUnreachable
 
 pytestmark = pytest.mark.unit
 
@@ -38,6 +39,10 @@ def asked() -> Asked:
     return Asked(settings=Settings(), keys={"cartesia": A_KEY})
 
 
+def one_page(*rows: Any) -> Callable[[httpx.Request], httpx.Response]:
+    return lambda _: httpx.Response(200, json={"data": list(rows), "has_more": False})
+
+
 async def test_cartesia_is_read_page_by_page_on_the_orgs_key() -> None:
     seen: list[httpx.Request] = []
 
@@ -57,13 +62,49 @@ async def test_cartesia_is_read_page_by_page_on_the_orgs_key() -> None:
     assert seen[0].url.params["language"] == "es"
 
 
-async def test_a_voice_of_another_language_the_vendor_let_through_is_dropped() -> None:
-    def served(_: httpx.Request) -> httpx.Response:
+# An agent declares `es-ES` or `en_US` as freely as `es`; the vendor files a voice under `es`. The
+# picker was empty for every locale until the two were read through one normaliser.
+async def test_a_locale_is_its_language_to_the_shelf() -> None:
+    seen: list[httpx.Request] = []
+
+    def served(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
         return httpx.Response(200, json={"data": [MARTA, SKYLAR], "has_more": False})
 
-    voices = await a_shelf(served).voices("cartesia", "es", asked())
+    voices = await a_shelf(served).voices("cartesia", "es-ES", asked())
 
     assert [voice.id for voice in voices] == [MARTA["id"]]
+    assert seen[0].url.params["language"] == "es", "the vendor is asked in its own base code"
+    assert [voice.id for voice in await a_shelf(served).voices("11labs", "en_US", asked())] == [
+        "carolina",
+        "charlie",
+        "mateo",
+    ]
+
+
+async def test_a_voice_of_another_language_the_vendor_let_through_is_dropped() -> None:
+    voices = await a_shelf(one_page(MARTA, SKYLAR)).voices("cartesia", "es", asked())
+
+    assert [voice.id for voice in voices] == [MARTA["id"]]
+
+
+async def test_a_row_with_no_id_is_passed_over_and_the_rest_still_read() -> None:
+    voices = await a_shelf(one_page({"name": "nobody"}, MARTA)).voices("cartesia", None, asked())
+
+    assert [voice.id for voice in voices] == [MARTA["id"]]
+
+
+async def test_a_vendor_that_pages_for_ever_is_read_no_further_than_the_ceiling() -> None:
+    pages = 0
+
+    def endless(_: httpx.Request) -> httpx.Response:
+        nonlocal pages
+        pages += 1
+        return httpx.Response(200, json={"data": [MARTA], "has_more": True, "next_page": "more"})
+
+    voices = await a_shelf(endless).voices("cartesia", "es", asked())
+
+    assert pages == PAGES_AT_MOST and len(voices) == PAGES_AT_MOST
 
 
 async def test_elevenlabs_answers_with_the_names_this_build_curates() -> None:
@@ -89,9 +130,19 @@ async def test_no_key_for_the_vendor_is_refused_before_it_is_asked() -> None:
         await a_shelf(never).voices("cartesia", "es", bare)
 
 
-async def test_a_vendor_that_refuses_says_so_with_its_status() -> None:
+async def test_a_vendor_that_refuses_says_so_and_keeps_its_status() -> None:
     def refused(_: httpx.Request) -> httpx.Response:
         return httpx.Response(401, json={"error": "bad key"})
 
-    with pytest.raises(ShelfUnreachable, match="401"):
+    with pytest.raises(ShelfUnreachable, match="401") as raised:
         await a_shelf(refused).voices("cartesia", "es", asked())
+    assert raised.value.status == 401
+
+
+async def test_a_vendor_that_does_not_answer_has_no_status_to_keep() -> None:
+    def broke(_: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("no route")
+
+    with pytest.raises(ShelfUnreachable, match="no route") as raised:
+        await a_shelf(broke).voices("cartesia", "es", asked())
+    assert raised.value.status is None

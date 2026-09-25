@@ -22,6 +22,7 @@ from pinecall.api.app_origins import AppOrigins
 from pinecall.api.evals.runner import Runner
 from pinecall.api.reaping import Reaper, reaping
 from pinecall.api.rebuilding import reconciled
+from pinecall.api.voices import A_MINUTE_S, SAMPLES_A_MINUTE
 from pinecall.api.whatsapp.answering import a_waiting_room
 from pinecall.api.whatsapp.threads import Threads
 from pinecall.auth.codes import LoginCodes
@@ -132,6 +133,9 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # The words `pinecall login` prints, until a browser leaves a key in one. See api/pairing.py.
     gateway.state.pairings = Pairings()
     gateway.state.throttle = Throttle()
+    # And how many voice samples each key asked for lately: a vendor's seconds, on somebody's
+    # account, with no usage row to count them (api/voices.py).
+    gateway.state.sampling = Throttle(SAMPLES_A_MINUTE, A_MINUTE_S)
     # The sign-ins out at an identity provider right now: a state, a nonce and a PKCE verifier
     # per person between the redirect and the callback. This process's memory, like the two
     # above, and for the same reason: a ten-minute word does not need a table (auth/sso.py).

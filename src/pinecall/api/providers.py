@@ -18,8 +18,10 @@ from pinecall.api._deps import ProviderKeysKeyDep, SettingsDep
 from pinecall.providers import catalog, llm, stt, tts
 from pinecall.providers.catalog import MODALITIES, Provider
 from pinecall.providers.models import DEFAULT_VENDOR
-from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS
+from pinecall.providers.pipeline import DEFAULT_STT
 from pinecall.providers.standing import READY, Standing, standing
+from pinecall.providers.tts import DEFAULT_TTS
+from pinecall.providers.tts.shelf import LISTED
 from pinecall.providers.tts.voices import voice_names
 from pinecall_protocol import WireModel
 
@@ -46,6 +48,9 @@ class ProviderRow(WireModel):
     # What installs the plugin, for the vendors this build has no plugin for yet. Empty: nothing
     # to install — `livekit` is livekit-agents itself, `whatsapp` is not a plugin at all.
     extra: str
+    # Whether GET /v1/voices lists this vendor's voices, so a picker can offer them and play one
+    # (providers/tts/shelf.py). False: its voice is the vendor's own id, typed in.
+    voices_listed: bool
 
 
 class Catalogue(WireModel):
@@ -107,4 +112,5 @@ def _a_row(row: Provider, settings: Settings) -> ProviderRow:
         ready=where == READY,
         env=row.env,
         extra=row.extra,
+        voices_listed=row.name in LISTED,
     )

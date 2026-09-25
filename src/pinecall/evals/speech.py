@@ -8,6 +8,7 @@ from livekit import rtc
 
 from pinecall._settings import Settings
 from pinecall.providers import tts
+from pinecall.providers.language import primary
 from pinecall.providers.registry import Asked, Speech
 from pinecall.types import NO_ORG_KEYS, ProviderKeys
 from pinecall.types import Voice as DeclaredVoice
@@ -66,7 +67,7 @@ class Speaking:
 
 def a_callers_voice(agents_voice: str | None, language: str | None = None) -> str:
     """The first caller voice of the call's language that is not the agent's."""
-    pair = CALLER_VOICES.get(_primary(language) or "", CALLER_VOICES["en"])
+    pair = CALLER_VOICES.get(primary(language) or "", CALLER_VOICES["en"])
     return next(voice for voice in pair if voice != agents_voice)
 
 
@@ -94,7 +95,7 @@ class Voice:
                 settings=settings,
                 model=model,
                 voice_id=voice_id,
-                language=_primary(language),
+                language=primary(language),
                 keys=keys,
             ),
         )
@@ -131,11 +132,6 @@ class Voice:
     async def aclose(self) -> None:
         """Let the plugin go: its sockets are the call's, not the process's."""
         await self._speech.aclose()
-
-
-def _primary(language: str | None) -> str | None:
-    """`es-ES`, `en_US` and `en` are one language to the vendor: the primary subtag is sent."""
-    return None if not language else language.replace("_", "-").split("-")[0].lower()
 
 
 # The vendor answers at its own rate (ElevenLabs: 22 050 or 24 000 Hz), which is brought to the

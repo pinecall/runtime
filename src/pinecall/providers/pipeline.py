@@ -10,16 +10,14 @@ from pinecall.providers.llm import VENDORS as LLM_VENDORS
 from pinecall.providers.models import DEFAULT_VENDOR
 from pinecall.providers.registry import Asked, Chat, Ears, Speech
 from pinecall.providers.stt import VENDORS as STT_VENDORS
-from pinecall.providers.tts import DEFAULT_TTS as DEFAULT_TTS
+from pinecall.providers.tts import DEFAULT_TTS, voices
 from pinecall.providers.tts import VENDORS as TTS_VENDORS
-from pinecall.providers.tts import voices
 from pinecall.types import AgentConfig, Model, ProviderKeys, Voice
 
 logger = logging.getLogger(__name__)
 
-# The vendor each modality runs when the agent named none. One name per modality — the voice's in
-# providers/tts, re-exported here beside the ears' — and which model that vendor then runs is the
-# vendor file's own business.
+# The vendor the ears run on when the agent named none; the voice's is providers/tts's, beside
+# its vendor table. Which model that vendor then runs is the vendor file's own business.
 DEFAULT_STT = "soniox"
 
 

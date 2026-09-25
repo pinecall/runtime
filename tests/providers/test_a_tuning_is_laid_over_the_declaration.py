@@ -59,6 +59,16 @@ def test_a_voice_name_becomes_the_id_the_vendor_knows_and_tts_moves_the_stage() 
         tuned(DECLARED, Tuning(tts="cartesia", voice="a-uuid"), NOTHING)
 
 
+def test_a_model_the_vendor_file_does_not_vouch_for_is_refused() -> None:
+    """`sonic-9` on Cartesia would die at the vendor on the first line; it is refused when set."""
+    with pytest.raises(
+        DeclarationRefused, match="no cartesia model 'sonic-9'; this build has sonic-3, sonic-2"
+    ):
+        tuned(DECLARED, Tuning(tts="cartesia", tts_model="sonic-9"), NOTHING)
+    kept = tuned(DECLARED, Tuning(tts="cartesia/sonic-2"), NOTHING).voice
+    assert kept is not None and kept.model == "sonic-2"
+
+
 def test_an_elevenlabs_model_this_build_does_not_run_is_refused() -> None:
     refused = NOT_RUN_HERE.format(asked="eleven_turbo_v2_5", instead=DEFAULT_MODEL)
     with pytest.raises(DeclarationRefused, match=re.escape(refused)):

@@ -8,9 +8,10 @@ from typing import Any
 from pinecall.providers import catalog
 from pinecall.providers.llm import VENDORS as LLM_VENDORS
 from pinecall.providers.models import DEFAULT_VENDOR
-from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS
+from pinecall.providers.pipeline import DEFAULT_STT
 from pinecall.providers.registry import NoProvider, Vendors
 from pinecall.providers.stt import VENDORS as STT_VENDORS
+from pinecall.providers.tts import DEFAULT_TTS
 from pinecall.providers.tts import VENDORS as TTS_VENDORS
 from pinecall.providers.tts.elevenlabs import a_model
 from pinecall.providers.tts.voices import vendor_of, voice_declared
@@ -28,6 +29,7 @@ NO_VENDOR = (
 # is that file's (INSTEAD and ALLOWED), asked through a_model() and never restated here. It is
 # ElevenLabs' rule and only ElevenLabs': a Cartesia model goes to Cartesia unexamined.
 NOT_RUN_HERE = "elevenlabs {asked} is not run here; this build speaks with {instead} — ask for that"
+NO_TTS_MODEL = "no {vendor} model {asked!r}; this build has {known}"
 
 # `anthropic/claude-haiku-4-5` names the vendor and the model; `claude-haiku-4-5` alone keeps
 # whichever vendor is already in use, and `cartesia` alone names a vendor and keeps its own default
@@ -133,13 +135,29 @@ def the_vendor_and_the_model(asked: str, in_use: str) -> tuple[str, str]:
     return in_use, said
 
 
-# The one vendor this build has an opinion about, and it is only asked about that vendor. Every
-# other TTS model is the vendor's own business: providers/plugin.py hands it over and the vendor
-# is the one that knows whether it has a model by that name.
+# A vendor with a file here vouches for its models, and ElevenLabs has one more rule of its own:
+# a model it would swap for another (its plugin's default is one this repo forbids). A vendor with
+# no file vouches for nothing — providers/plugin.py hands the word over and the vendor is the one
+# that knows whether it has a model by that name.
 def _a_voice_model(vendor: str, wanted: str | None) -> str | None:
     """The tts model, refused here when this build would have quietly spoken with another one."""
-    if wanted is None or vendor != "elevenlabs":
-        return wanted
+    if wanted is None:
+        return None
+    if vendor == "elevenlabs":
+        return _an_elevenlabs_model(wanted)
+    # A vendor with a file here vouches for its models (`sonic-3`, `sonic-2`), and a word that is
+    # none of them would die at the vendor on the first line of a call. A vendor with no file
+    # vouches for nothing, and its word is its own affair.
+    vouched = TTS_VENDORS.models(vendor)
+    if vouched and wanted not in vouched:
+        raise DeclarationRefused(
+            NO_TTS_MODEL.format(vendor=vendor, asked=wanted, known=", ".join(vouched))
+        )
+    return wanted
+
+
+def _an_elevenlabs_model(wanted: str) -> str:
+    """ElevenLabs' own reading: a model it swaps for another is refused, not swapped in silence."""
     try:
         instead = a_model(wanted)
     except NoProvider as refused:

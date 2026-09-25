@@ -9,8 +9,9 @@ from pinecall.log.latencies import medians
 from pinecall.log.store import Store
 from pinecall.providers.catalog import settings_field_of
 from pinecall.providers.models import DEFAULT_VENDOR
-from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS, vendor_running
+from pinecall.providers.pipeline import DEFAULT_STT, vendor_running
 from pinecall.providers.registry import NO_KEY
+from pinecall.providers.tts import DEFAULT_TTS
 from pinecall.providers.tts.voices import voice_names
 from pinecall.providers.tuning import tuned
 from pinecall.types import AgentConfig, Greeting, Lexicon, Model, Tuning, Voice

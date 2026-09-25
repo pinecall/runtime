@@ -38,6 +38,8 @@ async def test_a_row_says_what_the_vendor_does_and_what_it_is_also_called(
     said = (await tenant_http.get("/v1/providers")).json()
     rows = {row["name"]: row for row in said["providers"]}
     assert rows["elevenlabs"]["does"] == ["stt", "tts"]
+    assert (rows["cartesia"]["voices_listed"], rows["elevenlabs"]["voices_listed"]) == (True, True)
+    assert rows["rime"]["voices_listed"] is False, "its voice is a word typed in"
     assert "11labs" in rows["elevenlabs"]["aliases"]
     assert rows["anthropic"]["env"] == "ANTHROPIC_API_KEY"
     assert rows["anthropic"]["extra"] == "anthropic"

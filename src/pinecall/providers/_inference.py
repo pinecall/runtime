@@ -26,8 +26,8 @@ from pinecall.providers.registry import Asked, NoProvider
 VENDOR = "livekit"
 
 DEFAULT_LLM = "openai/gpt-5-mini"
-DEFAULT_STT = "auto"
-DEFAULT_TTS = "cartesia"
+DEFAULT_STT_MODEL = "auto"
+DEFAULT_TTS_MODEL = "cartesia"
 
 # Said before the call, like every other missing key, and naming both halves: Inference signs with
 # the API key AND the secret, and a box with one and not the other fails at the first token.

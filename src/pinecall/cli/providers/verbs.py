@@ -13,8 +13,9 @@ from pinecall.cli.columns import as_columns
 from pinecall.providers import catalog
 from pinecall.providers.catalog import MODALITIES, Provider
 from pinecall.providers.models import DEFAULT_VENDOR
-from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS
+from pinecall.providers.pipeline import DEFAULT_STT
 from pinecall.providers.standing import standing
+from pinecall.providers.tts import DEFAULT_TTS
 
 PURPOSE: str = "every llm, stt and tts vendor this build runs, and what each one wants"
 

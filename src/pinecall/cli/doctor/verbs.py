@@ -16,7 +16,8 @@ from pinecall.providers.embed import base_url_of, key_field_of, model_of
 from pinecall.providers.embedder import DIMENSIONS
 from pinecall.providers.knocks import KNOCKS
 from pinecall.providers.models import DEFAULT_VENDOR
-from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS
+from pinecall.providers.pipeline import DEFAULT_STT
+from pinecall.providers.tts import DEFAULT_TTS
 
 PURPOSE: str = "keys present · keys answer · livekit · egress · postgres · embedder · mail · lk"
 

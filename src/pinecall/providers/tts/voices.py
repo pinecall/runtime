@@ -14,7 +14,9 @@ from pinecall.types import DeclarationRefused, Voice
 A_VENDOR_ID = re.compile(r"^[A-Za-z0-9]{20}$")
 # And as Cartesia writes one: a uuid. Rime writes a word and Hume a sentence, so theirs are never
 # judged. See SHAPES below.
-A_UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+A_UUID = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE
+)
 
 
 @dataclass(frozen=True)
@@ -55,6 +57,7 @@ NO_VOICE = (
     "a voice is a curated name, a vendor id, or a provider and that provider's own id; "
     "this build curates: {known}"
 )
+ANOTHER_VENDORS = "{asked!r} is {whose}'s voice, and tts is {named}: name one vendor, not two"
 NO_SUCH_VOICE = (
     "no voice named {asked!r}; this build curates {known} — or name the provider beside it and "
     "the word is taken as that provider's own id"
@@ -93,10 +96,15 @@ def voice_declared(asked: str | None, vendor: str | None, voice_id: str | None) 
         )
     # A curated name still resolves when it belongs to the vendor that was named — `voice:
     # "carolina", provider: "elevenlabs"` is the same voice written twice, and refusing it would
-    # be pedantry. A curated name against ANOTHER vendor is that vendor's own word, not ours.
+    # be pedantry. A curated name against ANOTHER vendor is two vendors in one declaration, and
+    # is refused as that rather than as a typo whose sentence lists the very name that was typed.
     curated = VOICES.get(asked)
     if curated is not None and named in ("", curated.vendor):
         return Voice(provider=named or curated.vendor, voice_id=curated.voice_id)
+    if curated is not None:
+        raise DeclarationRefused(
+            ANOTHER_VENDORS.format(asked=asked, whose=curated.vendor, named=named)
+        )
     _refuse_a_typo(asked, named or DEFAULT_TTS)
     return Voice(provider=named, voice_id=asked)
 
