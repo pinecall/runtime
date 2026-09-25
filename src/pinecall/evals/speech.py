@@ -20,16 +20,23 @@ CHANNELS = 1
 
 # The caller is a person, so it speaks with a person's voice: the box's speech tool (`say`,
 # espeak-ng) was a robot the agent's ears misheard — "Dana Ruiz" came back as "Caroline" and then
-# "saying release" (2026-09-19, maravilla). The same vendor the agent speaks with, through the same
-# vendor file, in a voice that is NOT one an agent is given: two premade ElevenLabs voices, checked
-# with GET /v1/voices/<id>, none of them curated in providers/tts/voices.py. The second is for the
-# agent that speaks in the first, so the two sides of a call are never one voice. These are what
-# a caller that declared no voice of its own speaks in (`Speaking.declared`).
-VENDOR = "elevenlabs"
-CALLER_VOICES = (
-    "nPczCjzI2devNBz1zQrb",  # Brian: male, American
-    "cgSgspJ2msm6clMCkdW9",  # Jessica: female, American
-)
+# "saying release" (2026-09-19). The same vendor the agent speaks with by default, in a voice that
+# is NOT one an agent is given (providers/tts/cartesia.py, VOICE_FOR), and a native speaker of the
+# call's language: two per language, a man and a woman, the second for the agent that speaks in the
+# first, so the two sides of a call are never one voice. A language with no pair of its own is
+# called in English's. These are what a caller that declared no voice speaks in
+# (`Speaking.declared`). ElevenLabs played them until it stopped answering (2026-09-25).
+VENDOR = "cartesia"
+CALLER_VOICES: dict[str, tuple[str, str]] = {
+    "es": (
+        "13ff5deb-2591-42ad-a356-63a04e524411",  # Marcos - Steady Advisor: Spain
+        "538a8872-3799-4df5-b373-b78493b766c6",  # Blanca - Graceful Host: Spain
+    ),
+    "en": (
+        "87286a8d-7ea7-4235-a41a-dd9fa6630feb",  # Henry - Plainspoken Guy: American
+        "e8e5fffb-252c-436d-b842-8879b84445b6",  # Cathy - Coworker: American
+    ),
+}
 
 # What the sports bulletin of those calls was: a second voice, reading something nobody is listening
 # to. Spoken by the same vendor, in a third voice nobody else on the line has.
@@ -38,7 +45,7 @@ A_TELEVISION = (
     "uno en un partido disputado hasta el último minuto, y el entrenador destacó el esfuerzo de "
     "sus jugadores en la rueda de prensa posterior al encuentro."
 )
-A_TELEVISION_VOICE = "JBFqnCBsd6RMkjVDRZzb"  # George: male, British
+A_TELEVISION_VOICE = "b5aa8098-49ef-475d-89b0-c9262ecf33fd"  # Luis - News Caster: Spain
 A_TELEVISION_LANGUAGE = "es"
 
 
@@ -57,9 +64,10 @@ class Speaking:
     declared: DeclaredVoice | None = None
 
 
-def a_callers_voice(agents_voice: str | None) -> str:
-    """The first caller voice that is not the agent's."""
-    return next(voice for voice in CALLER_VOICES if voice != agents_voice)
+def a_callers_voice(agents_voice: str | None, language: str | None = None) -> str:
+    """The first caller voice of the call's language that is not the agent's."""
+    pair = CALLER_VOICES.get(_primary(language) or "", CALLER_VOICES["en"])
+    return next(voice for voice in pair if voice != agents_voice)
 
 
 class Voice:
@@ -105,7 +113,7 @@ class Voice:
             )
         return cls(
             settings,
-            voice_id=a_callers_voice(speaking.agents_voice),
+            voice_id=a_callers_voice(speaking.agents_voice, speaking.language),
             language=speaking.language,
             keys=speaking.keys,
         )

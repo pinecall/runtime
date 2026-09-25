@@ -5,6 +5,7 @@ import pytest
 from pinecall._settings import Settings
 from pinecall.evals import speech
 from pinecall.providers.registry import Asked
+from pinecall.providers.tts.cartesia import VOICE_FOR
 from pinecall.providers.tts.voices import VOICES
 from pinecall.types import Voice as DeclaredVoice
 
@@ -31,19 +32,29 @@ def test_audio_at_the_vendors_rate_comes_back_as_a_second_at_the_rooms() -> None
     )
 
 
+SPAIN = speech.CALLER_VOICES["es"]
+ENGLISH = speech.CALLER_VOICES["en"]
+
+
 def test_the_caller_speaks_in_the_first_caller_voice_when_the_agent_has_another() -> None:
-    assert speech.a_callers_voice(VOICES["carolina"].voice_id) == speech.CALLER_VOICES[0]
+    assert speech.a_callers_voice(VOICE_FOR["es"], "es") == SPAIN[0]
 
 
 def test_an_agent_that_speaks_in_the_first_caller_voice_is_called_in_the_second() -> None:
-    assert speech.a_callers_voice(speech.CALLER_VOICES[0]) == speech.CALLER_VOICES[1]
+    assert speech.a_callers_voice(SPAIN[0], "es-ES") == SPAIN[1]
+
+
+def test_a_language_with_no_pair_of_its_own_is_called_in_englishs() -> None:
+    assert speech.a_callers_voice(None, "fr") == ENGLISH[0]
+    assert speech.a_callers_voice(None) == ENGLISH[0]
 
 
 # Two sides of one call in one voice is a call nobody listening can follow.
-def test_no_caller_voice_is_one_an_agent_is_given_by_name() -> None:
-    curated = {voice.voice_id for voice in VOICES.values()}
+def test_no_caller_voice_is_one_an_agent_is_given() -> None:
+    given = {voice.voice_id for voice in VOICES.values()} | set(VOICE_FOR.values())
+    callers = {voice for pair in speech.CALLER_VOICES.values() for voice in pair}
 
-    assert not curated & {*speech.CALLER_VOICES, speech.A_TELEVISION_VOICE}
+    assert not given & {*callers, speech.A_TELEVISION_VOICE}
 
 
 # A persona that declared a voice speaks in it — its vendor, its model, its id — whatever the
@@ -68,10 +79,11 @@ def test_a_persona_that_declared_none_speaks_in_a_voice_the_agent_does_not_have(
 ) -> None:
     built = _the_builds(monkeypatch)
 
-    speech.Voice.of_the_caller(Settings(), speech.Speaking(agents_voice=speech.CALLER_VOICES[0]))
+    speaking = speech.Speaking(language="es", agents_voice=SPAIN[0])
+    speech.Voice.of_the_caller(Settings(), speaking)
 
     [(vendor, asked)] = built
-    assert (vendor, asked.voice_id) == (speech.VENDOR, speech.CALLER_VOICES[1])
+    assert (vendor, asked.voice_id) == ("cartesia", SPAIN[1])
 
 
 def _the_builds(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, Asked]]:

@@ -12,6 +12,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   and the rest). A curated name (`carolina`) and an ElevenLabs-shaped id still speak at ElevenLabs,
   so a voice set before the change is not refused as a Cartesia typo; a bare word that is neither
   is now judged as a Cartesia uuid.
+- **A simulated caller speaks with Cartesia too**, a native speaker of the call's language (Spain's
+  Marcos or Blanca for `es`, Henry or Cathy for `en` and the rest), never the agent's own voice.
 
 ### Added
 - **A voice is heard before it is chosen.** `GET /v1/voices?tts=cartesia&language=es` lists the
