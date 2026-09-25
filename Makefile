@@ -62,12 +62,13 @@ UV_SYNC = sudo -u pinecall env UV_PROJECT_ENVIRONMENT=/opt/pinecall/venv UV_CACH
 # would be gone at the next deploy and a gateway told to load it would refuse to start. --no-deps:
 # a package plugs into the runtime it is installed beside and brings no runtime of its own. Which
 # of them the gateway loads is PINECALL_EXTENSIONS in /etc/pinecall/box.env; unset here, nothing
-# of this runs and a deploy is exactly what it was.
+# of this runs and a deploy is exactly what it was. --no-config: it runs as the service user from
+# the deploy account's home, where uv would try to read that account's uv.toml and be refused.
 EXTENSIONS_SRC ?=
 EXTENSIONS      = /opt/pinecall/extensions
 EXTENSION_DIRS  = $(foreach dir,$(EXTENSIONS_SRC),$(EXTENSIONS)/$(notdir $(abspath $(dir))))
 UV_EXTENSIONS   = $(if $(EXTENSIONS_SRC),sudo -u pinecall env UV_CACHE_DIR=/opt/pinecall/.cache/uv \
-                  /opt/pinecall/bin/uv pip install -q --no-deps --reinstall \
+                  /opt/pinecall/bin/uv pip install -q --no-config --no-deps --reinstall \
                   --python /opt/pinecall/venv/bin/python $(EXTENSION_DIRS) &&)
 
 .PHONY: deploy console sync install restart restart-all restart-hub restart-worker health doctor migrate-post providers instance peer secret status logs ssh require-box
