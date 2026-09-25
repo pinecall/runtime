@@ -10,12 +10,14 @@ import pytest
 
 from pinecall.log.store.migrating import (
     MIGRATIONS_TABLE,
+    NO_TRANSACTION,
     POST_DEPLOY,
     RECORD_MIGRATION,
     SchemaRefused,
     a_hash,
     apply_migrations,
     every,
+    in_a_transaction,
     migrations_applied,
     migrations_behind,
     ordered,
@@ -216,3 +218,11 @@ async def test_what_a_database_has_run_includes_the_post_deployment_files(postgr
 
     assert post.name in done
     assert post.name not in behind, "a post file is never BEHIND: no startup run applies it"
+
+
+def test_a_file_opting_out_of_the_transaction_says_so_on_its_first_line() -> None:
+    """`create index concurrently` cannot run inside one, which is what 0026 had to give up."""
+    assert not in_a_transaction(f"{NO_TRANSACTION}\ncreate index concurrently ...;\n")
+    assert not in_a_transaction(f"\n  {NO_TRANSACTION}  \ncreate index concurrently ...;\n")
+    assert in_a_transaction("-- a comment\ncreate index ...;\n")
+    assert in_a_transaction(f"create index ...;\n{NO_TRANSACTION}\n"), "the first line, only"

@@ -64,18 +64,23 @@ class PgvectorMemory:
         as_of: datetime | None = None,
     ) -> list[Fact]:
         """Dense and BM25 over the contact's held facts, fused by rank, the best k at 0..1."""
-        vector = await self._embedded(query)
         held = (org, env, whose(holder), contact, as_of)
-        dense, sparse = await asyncio.gather(
-            self._pool.fetch(BY_VECTOR, *held, vector, await self._embedder.model()),
-            self._pool.fetch(BY_WORDS, *held, query),
-        )
+        # The words need no vector: their branch runs while the query is at the embedder, which
+        # is most of a recall's budget. One group, so the other branch is cancelled if one breaks.
+        async with asyncio.TaskGroup() as branches:
+            sparse = branches.create_task(self._pool.fetch(BY_WORDS, *held, query))
+            dense = branches.create_task(self._nearest(held, query))
         return ranked(
-            [_a_candidate(row) for row in dense],
-            [_a_candidate(row) for row in sparse],
+            [_a_candidate(row) for row in dense.result()],
+            [_a_candidate(row) for row in sparse.result()],
             now=as_of or datetime.now(UTC),
             k=k,
         )
+
+    async def _nearest(self, held: tuple[Any, ...], query: str) -> Sequence[Mapping[str, Any]]:
+        """The dense branch: the query embedded, then the rows nearest to it."""
+        vector = await self._embedded(query)
+        return await self._pool.fetch(BY_VECTOR, *held, vector, await self._embedder.model())
 
     async def remember(
         self,

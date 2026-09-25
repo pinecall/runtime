@@ -262,7 +262,8 @@ would apply, off the disk. Applying is `migrate up`, typed in full; `--schema` a
 schema of its own, how a test run owns its copy. **`--post` is the other half, never run at
 startup**: a migration is held to five seconds there, so anything slower is written as a
 `.post.sql` and applied by a person, after the deploy, with this flag — an index over a big table
-always is.
+always is. Every file runs inside one transaction; a `.post.sql` whose first line is
+`-- pinecall:no-transaction` runs outside one (`create index concurrently`) and holds that one statement.
 
 ## `doctor`
 

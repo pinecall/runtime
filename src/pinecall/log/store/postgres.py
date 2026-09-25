@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import time
 from collections.abc import Awaitable, Callable, Sequence
@@ -98,6 +99,9 @@ def _bracketed(host: str) -> str:
     return f"[{host}]" if ":" in host else host
 
 
+logger = logging.getLogger(__name__)
+
+
 class PostgresStore(PostgresIndex):
     """A Store on one pool. Seq and ts are born in append(); ephemerals get a seq and no row."""
 
@@ -153,23 +157,26 @@ class PostgresStore(PostgresIndex):
     ) -> Entry:
         """The next seq of the log, in one statement. An ephemeral gets its seq and no row."""
         ts = self._clock()
-        seq: int | None = await self._pool.fetchval(
-            APPEND, log_name(call, agent), agent, call, ts, type, ephemeral, data
-        )
-        if seq is None:
-            raise LogSealed(f"call {call} has ended: {type} cannot be appended")
-        return await self._indexed(
-            Entry(seq=seq, ts=ts, call=call, agent=agent, type=type, ephemeral=ephemeral, data=data)
-        )
+        async with self._pool.acquire() as connection, connection.transaction():
+            seq: int | None = await connection.fetchval(
+                APPEND, log_name(call, agent), agent, call, ts, type, ephemeral, data
+            )
+            if seq is None:
+                raise LogSealed(f"call {call} has ended: {type} cannot be appended")
+            entry = Entry(
+                seq=seq, ts=ts, call=call, agent=agent, type=type, ephemeral=ephemeral, data=data
+            )
+            await self._indexed(connection, entry)
+        return entry
 
     async def rescored(self, call: str, agent: str, data: JsonObject) -> Entry:
         """A verdict onto a call whose log already sealed: the one entry a sealed log takes."""
         ts = self._clock()
-        seq: int | None = await self._pool.fetchval(RESCORED, call, agent, ts, data)
-        if seq is None:
-            raise LogSealed(f"call {call} has no log to judge")
-        return await self._indexed(
-            Entry(
+        async with self._pool.acquire() as connection, connection.transaction():
+            seq: int | None = await connection.fetchval(RESCORED, call, agent, ts, data)
+            if seq is None:
+                raise LogSealed(f"call {call} has no log to judge")
+            entry = Entry(
                 seq=seq,
                 ts=ts,
                 call=call,
@@ -178,17 +185,28 @@ class PostgresStore(PostgresIndex):
                 ephemeral=False,
                 data=data,
             )
-        )
+            await self._indexed(connection, entry)
+        return entry
 
     # The fold runs AFTER the entry is written and never instead of it: a row that failed to
     # change is a list that says less, while an entry that failed to write is a call that lost a
-    # fact. So the log's statement stands alone, and the index is the second.
-    async def _indexed(self, entry: Entry) -> Entry:
-        """The entry, once its call's facts have what it said."""
+    # fact. Both on the ONE connection the append holds, inside its transaction: the head row's
+    # lock is held until the fold has landed, so two appends to one call fold in seq order — on
+    # separate pooled connections they could land the other way round, and `last_text` said the
+    # older one (2026-09-26). The fold is a savepoint of its own, so its failure rolls back the
+    # fold and never the entry.
+    async def _indexed(self, connection: Any, entry: Entry) -> None:
+        """The call's facts given what the entry said; a fold that broke is logged and dropped."""
         change = change_of(entry)
-        if entry.call is not None and change is not None:
-            await self._fold(entry.call, change)
-        return entry
+        if entry.call is None or change is None:
+            return
+        try:
+            async with connection.transaction():
+                await self._fold(connection, entry.call, change)
+        except Exception:  # noqa: BLE001 — a list that says less, never a call that lost a fact
+            logger.warning(
+                "call %s: its facts did not fold %s", entry.call, entry.type, exc_info=True
+            )
 
     async def since(self, call: str, after: int = 0, limit: int = DEFAULT_LIMIT) -> list[Entry]:
         """The call's durable entries above the cursor. Ephemerals were never written: holes."""

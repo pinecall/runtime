@@ -109,7 +109,9 @@ as sentences.
   first), and a constraint on a populated table goes in `NOT VALID` then `VALIDATE`.
 - **A migration is held to five seconds at startup.** The unit runs `migrate up` before the
   gateway opens, so anything slower is a `.post.sql` — named, never run at startup, applied by a
-  person with `migrate up --post`. An index on a big table is always one of those.
+  person with `migrate up --post`. An index on a big table is always one of those, and one built
+  `CONCURRENTLY` opens with `-- pinecall:no-transaction` and holds that ONE statement: the runner
+  wraps every other file in a transaction, which is the thing `CONCURRENTLY` cannot run inside.
 - **A test that walks `app.routes` can go vacuous on a FastAPI upgrade.** 0.141 stopped
   flattening an included router into it and puts a wrapper there (`original_router`), so
   `test_scopes_at_the_doors` found no `APIRoute` at all and pinned every door's scope over an

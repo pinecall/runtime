@@ -51,9 +51,9 @@ class PostgresIndex:
 
     _pool: Any
 
-    async def _fold(self, call: str, change: Change) -> None:
-        """One entry's change onto its call's row."""
-        await self._pool.execute(
+    async def _fold(self, run: Any, call: str, change: Change) -> None:
+        """One entry's change onto its call's row, on the connection the append holds."""
+        await run.execute(
             FACTS_CHANGED,
             call,
             change.channel,

@@ -138,6 +138,14 @@ async def test_a_second_read_at_the_same_seq_does_not_fold_the_log_again(
     third = as_the_key(gateway)
     assert folds == 2
     assert third["last_seq"] == 126
+    # An ephemeral moves the head and not the durable cursor: one more fold, then the memo again.
+    await store.append(
+        call=THE_CALL, agent=THE_AGENT, type="agent.state", data={"state": "idle"}, ephemeral=True
+    )
+    fourth = as_the_key(gateway)
+    fifth = as_the_key(gateway)
+    assert folds == 3, "a live call whose head moves on every interim never hit the memo"
+    assert fourth["last_seq"] == fifth["last_seq"]
 
 
 async def test_a_call_nobody_wrote_to_is_a_404(gateway: TestClient) -> None:
@@ -223,3 +231,14 @@ async def test_the_memo_answers_per_call(store: MemoryStore) -> None:
     assert a is not None and b is not None
     assert a.state.call == "CA_a" and b.state.call == "CA_b"
     assert await kept.of("CA_nothing") is None
+
+
+async def test_the_memo_keeps_so_many_calls_and_lets_the_oldest_go(store: MemoryStore) -> None:
+    """A scan of every call id there ever was leaves the bound behind, not all of them."""
+    kept = Snapshots(store, at_most=2)
+    for call in ("CA_a", "CA_b", "CA_c"):
+        await store.append(call=call, agent=THE_AGENT, type="agent.state", data={"state": "idle"})
+        assert await kept.of(call) is not None
+    assert kept.kept == 2
+    assert await kept.of("CA_a") is not None, "folded again, from the log: never lost"
+    assert kept.kept == 2

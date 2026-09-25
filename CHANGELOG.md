@@ -45,6 +45,18 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   invitation, remembering a call's facts, holding a golden's and writing them again with a new
   embedder are each one transaction: a failure between two statements no longer leaves a link
   spent with nobody seated, or a fact ended with its replacement never written.
+- **The reaper reads the log through its primary key.** Its two queries joined `call_log` on a
+  column no index covers and scanned the whole table every minute.
+- **A live call hits the state memo.** The memo compared the last durable seq with the store's,
+  which counts interims, so a call whose head moved on every transcript was folded whole on every
+  read; and the memo is bounded to a thousand calls, the oldest let go.
+- **An entry and its facts fold on one connection, in seq order.** Two appends to one call could
+  fold the other way round on two pooled connections, and `last_text` said the older one; a fold
+  that breaks is logged and dropped, never the entry.
+- Recall runs the BM25 branch while the query is being embedded; whose a log is is asked of the
+  store once per log and not per entry; `migrate status` reads only a missing table as "nothing
+  applied" and says any other refusal; a `.post.sql` opening with `-- pinecall:no-transaction`
+  runs outside one, so an index can be built `CONCURRENTLY`.
 - **The judge model is closed.** A hang-up built an `anthropic.LLM` per judged call and closed
   none; a suite's run held one per run and closed it never.
 

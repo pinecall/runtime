@@ -32,6 +32,12 @@ LOCK_TIMEOUT_MS = 1_000
 # waiting on one. Named by the suffix so the file itself says which it is.
 POST_DEPLOY = ".post.sql"
 
+# A post-deployment file that opens with this line runs OUTSIDE a transaction, which is the only
+# way `create index concurrently` runs at all: 0026 had to take the write lock instead. Such a
+# file holds ONE statement — Postgres runs a multi-statement string as one implicit transaction,
+# which is the very thing the marker opts out of — and is recorded once that statement is done.
+NO_TRANSACTION = "-- pinecall:no-transaction"
+
 # One number for the whole schema, so two processes starting at once do not both migrate. Any
 # constant works as long as nothing else in this database picks the same one; it is this file's.
 ADVISORY_LOCK = 0x9E3_C411
@@ -168,8 +174,9 @@ async def migrations_applied(pool: Any) -> set[str]:
     """The name of every migration this database has run, whenever it ran it."""
     try:
         rows: Sequence[Any] = await pool.fetch(APPLIED_MIGRATIONS)
-    except asyncpg.PostgresError:
-        # No table of its own yet: nothing has ever been applied.
+    except asyncpg.UndefinedTableError:
+        # No table of its own yet: nothing has ever been applied. Any other refusal — a role
+        # that may not read, a database that is not there — is said, never read as "behind".
         return set()
     return {str(row["name"]) for row in rows}
 
@@ -194,15 +201,26 @@ async def _what_was_applied(connection: Any) -> set[str]:
 
 async def _apply_one(connection: Any, path: Path) -> str:
     """One migration and its record in one transaction: half a migration is never recorded."""
+    sql = path.read_text(encoding="utf-8")
+    if not in_a_transaction(sql):
+        await connection.execute(sql)
+        await connection.execute(RECORD_MIGRATION, path.name, a_hash(path))
+        return path.name
     async with connection.transaction():
         # Inside the transaction, so they are the migration's own and end with it. A post-deploy
         # file is the one kind that is allowed to take as long as it takes.
         if not path.name.endswith(POST_DEPLOY):
             await connection.execute(f"set local statement_timeout = {STATEMENT_TIMEOUT_MS}")
         await connection.execute(f"set local lock_timeout = {LOCK_TIMEOUT_MS}")
-        await connection.execute(path.read_text(encoding="utf-8"))
+        await connection.execute(sql)
         await connection.execute(RECORD_MIGRATION, path.name, a_hash(path))
     return path.name
+
+
+def in_a_transaction(sql: str) -> bool:
+    """Whether the runner wraps this file: every file, unless its first line opts out."""
+    first = sql.lstrip().split("\n", 1)[0].strip()
+    return first != NO_TRANSACTION
 
 
 def _the_database(dsn: str) -> str:
