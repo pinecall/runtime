@@ -15,6 +15,7 @@ from pinecall.api._deps import (
     TrunksDep,
     TwilioDep,
 )
+from pinecall.api.identity import BuysAtProduction
 from pinecall.api.numbers import DRY_RUN, NO_DOMAIN, a_route, on_the_sfu, routed, trunked
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.routes.trunks import NO_LIVEKIT
@@ -43,7 +44,7 @@ class WantedPurchase(WireModel):
     channel: str = "phone"
 
 
-@router.post("/v1/numbers/buy")
+@router.post("/v1/numbers/buy", dependencies=[BuysAtProduction])
 async def bought(
     said: WantedPurchase,
     key: NumbersKeyDep,

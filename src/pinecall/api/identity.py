@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException
 from starlette.requests import HTTPConnection
 
+from pinecall._settings import Settings
 from pinecall.api._deps import SettingsDep
 from pinecall.api.sso import the_http
 from pinecall.auth.identity import Identity, NotRedeemed
@@ -22,16 +23,33 @@ from pinecall.types import PRODUCTION, SANDBOX
 SIGN_IN_THERE = "this is the sandbox, and people sign in at {identity}: it keeps no password here"
 
 
+# A number bought for an org is paid on the box's own carrier account and attached to the box's own
+# trunk (api/managed.py). Whether a sandbox may spend that account is not decided yet, so until it
+# is, buying is production's too — the same 404, naming where it is done.
+BOUGHT_THERE = "this door is production's: numbers are bought at {elsewhere}"
+
+
 # One dependency, so a door says it is production's by what it declares and never by an `if`
 # somebody could leave out of the next one. A plain function too, for the one door that is
 # production's for one of its two bodies (POST /v1/login: a password, not a code).
 def at_production(settings: SettingsDep) -> None:
     """Nothing at production; 404 naming where people sign in, anywhere else."""
+    _only_at_production(settings, SIGN_IN_THERE.format(identity=settings.identity_url))
+
+
+def buying_at_production(settings: SettingsDep) -> None:
+    """Nothing at production; 404 naming where numbers are bought, anywhere else."""
+    _only_at_production(settings, BOUGHT_THERE.format(elsewhere=settings.elsewhere_url))
+
+
+def _only_at_production(settings: Settings, refusal: str) -> None:
+    """The one test both say: this instance is production, or the door is not here."""
     if settings.world != PRODUCTION:
-        raise HTTPException(404, SIGN_IN_THERE.format(identity=settings.identity_url))
+        raise HTTPException(404, refusal)
 
 
 AtProduction = Depends(at_production)
+BuysAtProduction = Depends(buying_at_production)
 
 
 # ── a sandbox asking production who a person is ─────────────────────────────────

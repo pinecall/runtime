@@ -56,6 +56,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   is meant to answer, and nothing moves it to the other world.
 
 ### Changed
+- **`POST /v1/numbers/buy` is production's**: on a sandbox instance it is `404`, naming
+  `PINECALL_ELSEWHERE_URL`, before the box's Twilio account is asked anything — the account and
+  its trunk are production's, and whether a sandbox may spend them is not decided yet.
 - **`pinecall-env` is an assertion, no longer a choice.** A header naming the other instance's
   world is `403` with where it answers, and so is a server's token of the other world. A person's
   key with no header at production is `403` on every door that opens a scope — a client older

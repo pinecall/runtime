@@ -108,7 +108,10 @@ For an org with no carrier of its own: a number bought on the **box's** Twilio a
 to the box, then wired exactly as an import is. The gateway needs `TWILIO_ACCOUNT_SID` and
 `TWILIO_API_SECRET` (an API key's secret, with `TWILIO_API_KEY`; or the auth token) — the same
 three names `infra/tools/twilio_trunk.py` reads — or the door answers `503` and says to bring a
-carrier and import instead. The steps, in the answer's `steps`:
+carrier and import instead. It is **production's**: on a sandbox instance it is `404`, `this door
+is production's: numbers are bought at <PINECALL_ELSEWHERE_URL>`, before anything is asked — the
+box's account and the box's trunk are production's, and whether a sandbox may spend them is not
+decided yet. The steps, in the answer's `steps`:
 
 1. **buy**: Twilio's own search for one local, voice-capable number in that ISO country and area
    code (`404` when it has none there); a dry run names the number it found and pays for nothing.
