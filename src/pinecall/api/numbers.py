@@ -264,7 +264,7 @@ async def on_the_sfu(
     allowed, auth = fence_of(carrier)
     trunk = TRUNK_NAME.format(fleet=fleet, org=carrier.org)
     steps.append(
-        f"livekit  inbound trunk {trunk}: +{route.number}, from {len(allowed)} "
+        f"livekit  inbound trunk {trunk}: {route.number}, from {len(allowed)} "
         f"networks{' with SIP auth' if auth else ''}; one room per caller"
     )
     # A dialled route always has one: a_route refused a channel without a number already.

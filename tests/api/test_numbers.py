@@ -101,7 +101,7 @@ async def test_a_dry_run_is_the_plan_and_writes_nothing(
         f"trunk    pinecall-{A_RECORD.org} — created on account {A_SID}",
         "origin   sip:box.pinecall.io:5060;transport=udp — set",
         f"number   {ABAI} — attached to the trunk",
-        f"livekit  inbound trunk pinecall:{A_RECORD.org}: +{ABAI}, from "
+        f"livekit  inbound trunk pinecall:{A_RECORD.org}: {ABAI}, from "
         f"{len(TWILIO_SIGNALLING)} networks; one room per caller",
         f"route    {ABAI} phone → {AGENT} in production",
     ]
