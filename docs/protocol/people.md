@@ -92,11 +92,9 @@ slug per person, so nobody takes another's agent. **On a sandbox instance a pers
 day** — and one minted from another key (a code, a pairing, the org switch) never outlives it —
 while production's never expire; past it the key is `401`, exactly as a revoked one.
 
-**How short a password may be is the OPERATOR's, not this runtime's.** `PINECALL_MIN_PASSWORD`
-(default 8, `0` for no rule at all) is the floor, and it is carried on `GET /.well-known/pinecall`
-as `min_password` so a card can say the rule this gateway actually enforces rather than a number
-copied into a page that drifts the day somebody moves it. Every door that takes a new password —
-the invitation, the sign-up — is held to the same one.
+**How short a password may be is the OPERATOR's.** `PINECALL_MIN_PASSWORD` (default 8, `0` for
+none) is the floor every door that takes a new password is held to, and `GET /.well-known/pinecall`
+carries it as `min_password`, so a card says the rule this gateway enforces rather than a copy.
 
 `POST /v1/login` takes `{org?, email, password, device?}` and answers a key for that person
 and that device. The password is checked as the person's, whichever org it was chosen in; then
@@ -161,6 +159,18 @@ Only an **active** member is reset — `409` for one still invited (their invita
 disabled — and a link issued before somebody was disabled opens nothing. Where the box can send
 mail, the person asks for their own at `POST /v1/login/reset` (below); where it cannot, the
 console's "Forgot your password?" says: ask an admin of your org.
+
+## Two instances: production says who a person is
+
+A sandbox instance keeps no password and makes no person: **every door a person is made, proved or
+handed a key by a password at is production's**, and on a sandbox `404 this is the sandbox, and
+people sign in at <PINECALL_IDENTITY_URL>: …` — the password login, `POST /v1/login/orgs`, the
+pairing, the sign-up, SSO, Google and the forgotten password. `POST /v1/login/redeem {code}`,
+production's and keyless (the code is the credential), spends a one-use code and answers `{org:
+{id, slug, name}, member: {id, email, name, role, agents, status}}`: the row **now**, never the key
+the code remembers, never the production switch (`auth/identity.py`). `404` a code unknown, spent
+or expired; `403` one a server's token or a visit minted, or a member no longer active; `429` the
+sixth in a minute from one place.
 
 ## Mail: the letters a box sends
 
@@ -267,11 +277,7 @@ expires_at, answered}`, and never a key — so the card can say **what** it is a
 then `POST /v1/login/pairings/{code}` approves it. What that mints is the TERMINAL's own key: a
 fresh one for the same person, with their role's scopes, labelled as that machine, so it is
 revoked on its own from the Tokens screen; `pinecall start --prod` names production per request. The browser's key never travels to the terminal, and the terminal's
-never travels through the browser.
-
-**The password is typed into a page and never into a shell.** That is the point, and it is also why
-the day an org signs in with Google or SAML none of this changes: the terminal's half of the dance
-knows nothing about how the person proved who they are.
+never travels through the browser. **The password is typed into a page, never into a shell.**
 
 ## Signing in at the org's own identity provider
 

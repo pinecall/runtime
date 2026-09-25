@@ -8,12 +8,19 @@ import httpx
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.api.login import NO_CODE, NOBODY, ONE_OR_THE_OTHER
+from pinecall.api.login import (
+    NO_CODE,
+    NOBODY,
+    NOT_A_MEMBER,
+    NOT_A_PERSONS_CODE,
+    ONE_OR_THE_OTHER,
+    TOO_MANY_CODES,
+)
 from pinecall.api.members import ALREADY_A_MEMBER, NO_INVITATION, NOT_BY_HAND
 from pinecall.auth.keys import MemoryKeys
 from pinecall.auth.throttle import TRIES_PER_WINDOW
 from pinecall.types import ROLE_SCOPES
-from tests.api.conftest import A_KEY, A_RECORD, over_the_asgi_app
+from tests.api.conftest import A_KEY, A_RECORD, AN_ORG, over_the_asgi_app
 
 pytestmark = pytest.mark.unit
 
@@ -238,3 +245,70 @@ async def test_a_login_says_one_thing_or_the_other(stranger: httpx.AsyncClient) 
     assert (neither.status_code, neither.json()["detail"]) == (400, ONE_OR_THE_OTHER)
     no_code_door = await stranger.post(CODES)
     assert no_code_door.status_code == 401, "minting a code takes a key"
+
+
+# ── production redeems the code a person carried to the sandbox ─────────────────
+
+REDEEM = "/v1/login/redeem"
+
+
+async def a_persons_code(
+    tenant_http: httpx.AsyncClient, stranger: httpx.AsyncClient, **changed: Any
+) -> tuple[dict[str, Any], str]:
+    """Berna invited, accepted, and a code minted with her own key: what the console carries."""
+    said = await invited(tenant_http, **changed)
+    signed = await accepted(stranger, said["token"])
+    async with over_the_asgi_app(f"Bearer {signed['key']}") as berna:
+        minted = await berna.post(CODES)
+    assert minted.status_code == 200, minted.text
+    return said["member"], minted.json()["code"]
+
+
+async def test_a_redeemed_code_answers_the_org_and_the_member_as_their_row_says_now_and_once(
+    tenant_http: httpx.AsyncClient, stranger: httpx.AsyncClient
+) -> None:
+    """The role is read off the row at the redemption, never off the key the code remembers."""
+    member, code = await a_persons_code(tenant_http, stranger)
+    await tenant_http.patch(f"{MEMBERS}/{member['id']}", json={"role": "qa"})
+    redeemed = await stranger.post(REDEEM, json={"code": code})
+    assert redeemed.status_code == 200, redeemed.text
+    assert redeemed.json() == {
+        "org": {"id": A_RECORD.org, "slug": AN_ORG.slug, "name": AN_ORG.name},
+        "member": {
+            "id": member["id"],
+            "email": "berna@clinica.uy",
+            "name": "Berna",
+            "role": "qa",
+            "agents": ["clinica-norte"],
+            "status": "active",
+        },
+    }
+    again = await stranger.post(REDEEM, json={"code": code})
+    assert (again.status_code, again.json()["detail"]) == (404, NO_CODE)
+
+
+async def test_a_code_a_server_token_minted_redeems_nobody(
+    tenant_http: httpx.AsyncClient, stranger: httpx.AsyncClient
+) -> None:
+    """Any key may mint a code; only a member's names somebody the sandbox could seat."""
+    minted = await tenant_http.post(CODES)
+    refused = await stranger.post(REDEEM, json={"code": minted.json()["code"]})
+    assert (refused.status_code, refused.json()["detail"]) == (403, NOT_A_PERSONS_CODE)
+
+
+async def test_a_member_disabled_since_the_code_was_minted_is_refused(
+    tenant_http: httpx.AsyncClient, stranger: httpx.AsyncClient
+) -> None:
+    member, code = await a_persons_code(tenant_http, stranger)
+    await tenant_http.patch(f"{MEMBERS}/{member['id']}", json={"status": "disabled"})
+    refused = await stranger.post(REDEEM, json={"code": code})
+    assert (refused.status_code, refused.json()["detail"]) == (403, NOT_A_MEMBER)
+
+
+async def test_the_sixth_redemption_from_one_place_in_a_minute_is_429(
+    stranger: httpx.AsyncClient,
+) -> None:
+    for _ in range(TRIES_PER_WINDOW):
+        assert (await stranger.post(REDEEM, json={"code": "lc_x"})).status_code == 404
+    throttled = await stranger.post(REDEEM, json={"code": "lc_x"})
+    assert (throttled.status_code, throttled.json()["detail"]) == (429, TOO_MANY_CODES)

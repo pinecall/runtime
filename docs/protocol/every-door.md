@@ -8,7 +8,9 @@ world is `403`, as is a server's token of the other. A door that opens a scope r
 as it acts — at production a person says the header or is `403`, and production opens only with
 production access; a door that opens none (whoami, a login code, pairing, the org switch, one's own
 keys) reads it as an identity, with neither. Every HTTP door then reads `pinecall-corner: <member
-id>`: an admin's key, in the sandbox, answered in that colleague's corner.
+id>`: an admin's key, in the sandbox, answered in that colleague's corner. **Production is the
+identity**: the doors marked *production's* below — every one a person is made, proved or handed a
+key by a password at — are `404` on a sandbox instance, naming `PINECALL_IDENTITY_URL`.
 
 | | | |
 |---|---|---|
@@ -38,25 +40,26 @@ id>`: an admin's key, in the sandbox, answered in that colleague's corner.
 | `DELETE` | `/v1/members/{id}` | out of the org for good: keys revoked, row and links gone, the seat free — `team`; `409` for yourself and for the last active admin |
 | `POST` | `/v1/members/{id}/reset` | a one-use link that sets an active member's password, the token once, and `mailed` — `team` |
 | `POST` | `/v1/invitations/{token}` | accept with a password: active, and the first key |
-| `POST` | `/v1/login` | a key for a person and a device: email, password, the org when they have several — or a code |
-| `POST` | `/v1/login/orgs` | which orgs an email and password sign in to, minting nothing — no key, throttled like the login |
-| `POST` | `/v1/login/reset` | a forgotten password: `202` whoever asks, and a one-use link mailed where one can be — no key, throttled like the login |
+| `POST` | `/v1/login` | a key for a person and a device: email, password, the org when they have several (*production's*) — or a code |
+| `POST` | `/v1/login/orgs` | which orgs an email and password sign in to, minting nothing — no key, throttled like the login, *production's* |
+| `POST` | `/v1/login/redeem` | the one-use code a person carried to the sandbox, spent: `{org, member}` as production's rows say now, never the production switch — no key, throttled per place, *production's* |
+| `POST` | `/v1/login/reset` | a forgotten password: `202` whoever asks, and a one-use link mailed where one can be — no key, throttled like the login, *production's* |
 | `GET` | `/v1/login/orgs` | every org this key's person belongs to, and which one the key opens; for an operator of the box, every org there is, `member: false` and `role: "operator"` where they are none — a person's key |
 | `POST` | `/v1/login/org` | the same person's key in another org of theirs; an operator is let into ANY org on a production key with an admin's scopes, `subject` `operator:<email>`, no member row and no seat — a person's key |
 | `POST` | `/v1/login/codes` | a one-use code a key holder mints for a browser |
-| `POST` | `/v1/login/pairings` | a word a terminal prints, so a person signs it in from a browser — no key |
+| `POST` | `/v1/login/pairings` | a word a terminal prints, so a person signs it in from a browser — no key; this and the three below are *production's* |
 | `GET` | `/v1/login/pairings/{code}` | what the card is about to approve: which terminal, and whether it is answered — no key |
 | `POST` | `/v1/login/pairings/{code}` | sign that terminal in as the person this browser is — any person's key |
 | `GET` | `/v1/login/pairings/{code}/key` | the terminal collects its key, once. 202 while nobody has approved — no key |
 | `GET` · `PUT` · `DELETE` | `/v1/org/sso` | the org's OpenID provider: the issuer, the client, the domains it admits, who it seats and whether a password still opens it — `team`. The client secret goes in and never comes out; 503 with no vault key |
 | `GET` · `PUT` · `DELETE` | `/v1/org/mail` | the org's own SMTP account its letters go out through, and how the last one went — `team`. The password goes in and never comes out; 503 with no vault key |
 | `POST` | `/v1/org/mail/test` | one test letter, waited for: `{sent, error}` — `team`; 409 when nothing can send |
-| `GET` | `/v1/login/sso?org=&pairing=` | 302 to that org's provider, with state, nonce and a PKCE challenge — no key |
+| `GET` | `/v1/login/sso?org=&pairing=` | 302 to that org's provider, with state, nonce and a PKCE challenge — no key; every SSO and Google door is *production's* |
 | `GET` | `/v1/login/sso/callback?code=&state=` | the code exchanged and the id_token checked; 302 to `/?login=<code>`, so no key is ever in a URL — no key |
 | `GET` | `/v1/login/google[?pairing=]` | box-wide "Continue with Google": 302 to Google — no key, throttled like the SSO; 404 while nobody wired one |
 | `GET` | `/v1/login/google/callback?code=&state=` | the address matched against every org's members: 302 `/?login=<code>` for a member, `/?refused=<why>` for nobody — no key |
 | `POST` | `/v1/login/sso/discover` | which orgs an address's domain signs in to with a provider; says nothing about who exists — no key, throttled like the login |
-| `POST` | `/v1/signup` | where `PINECALL_SIGNUP` is on, off by default: a new org allowed what its gateway's policy says, its admin active, their first key and a login code |
+| `POST` | `/v1/signup` | *production's*; where `PINECALL_SIGNUP` is on, off by default: a new org allowed what its gateway's policy says, its admin active, their first key and a login code |
 | `GET` | `/v1/whoami` | the org as an id AND as the `slug` its people type, the key's id, its label, the world this request runs in (`env`), whether it may act in `production`, its `scopes`, whose it is (`subject`, `name`, and `email` — the one name a person carries into every org, what a service serving them across orgs knows them by), whether that person runs the box (`operator`) and whether they are inside an org they are no member of (`visiting`) |
 | `GET` | `/v1/ops/whoami` | **the box's own**: that this key is the operator's, the version, the domain, and the `name` and `org` of the person holding it — null for the box's own key; what the console's Box screens prove their key at |
 | `GET` · `PUT` · `DELETE` | `/v1/ops/mail` | **the box's own**: the mail server the box posts through, stored here over the environment's — `source` says which; never the password. [the-box.md](the-box.md) |

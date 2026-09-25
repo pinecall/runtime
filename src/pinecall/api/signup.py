@@ -15,6 +15,7 @@ from pinecall.api._deps import (
     SettingsDep,
     ThrottleDep,
 )
+from pinecall.api.identity import AtProduction
 from pinecall.api.login import NOBODY_ANYWHERE, the_client
 from pinecall.api.members import member_as_json
 from pinecall.auth import passwords
@@ -23,7 +24,9 @@ from pinecall.auth.persons import a_persons_key
 from pinecall.types import DeclarationRefused, Member, Quotas, a_slug
 from pinecall_protocol import WireModel
 
-router = APIRouter()
+# Production's alone (api/identity.py): a sandbox keeps no password and makes no person, so
+# there every door here is 404, naming where people sign in.
+router = APIRouter(dependencies=[AtProduction])
 
 MADE = 201
 

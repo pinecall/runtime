@@ -15,8 +15,10 @@ from pinecall.api._deps import (
     SettingsDep,
     ThrottleDep,
 )
+from pinecall.api.identity import AtProduction, at_production
 from pinecall.api.sso import SsoDep
 from pinecall.auth import passwords
+from pinecall.auth.identity import Redeemed
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Kept, Members
 from pinecall.auth.persons import a_persons_key, until
@@ -56,6 +58,12 @@ WITH_THE_PROVIDER = (
 # A code is spent on first use and dies in five minutes: the same answer for every way it is gone.
 NO_CODE = "no code answers to that: it was used, it expired, or it never existed"
 
+# The redemption's own refusals. A code a server's token or an operator's visit minted names no
+# member: there is nobody to seat on the other instance, and a visit is production's alone.
+NOT_A_PERSONS_CODE = "this code stands for a server's token or an operator's visit, not a member"
+# The throttle's sentence for a place that spends codes faster than people carry them.
+TOO_MANY_CODES = "too many codes spent from here: try again in a minute"
+
 # A login says one of two things, never both and never neither.
 ONE_OR_THE_OTHER = "log in with org, email and password, or with a code — one of the two"
 
@@ -85,6 +93,12 @@ class Credentials(WireModel):
 
     email: str
     password: str
+
+
+class Redeeming(WireModel):
+    """The one-use code a person carried to the other instance, and nothing else."""
+
+    code: str
 
 
 class Login(WireModel):
@@ -117,6 +131,8 @@ async def login(
         if said.org is not None or said.email is not None or said.password is not None:
             raise HTTPException(400, ONE_OR_THE_OTHER)
         return await _with_a_code(said, keys, codes, settings.world)
+    # A password is production's to check: a sandbox keeps none, and takes a code or nothing.
+    at_production(settings)
     if said.email is None or said.password is None:
         raise HTTPException(400, ONE_OR_THE_OTHER)
     return await _with_a_password(
@@ -127,7 +143,7 @@ async def login(
 # Before a person picks an org at the console's sign-in: which orgs this email and password open,
 # minting nothing. The same throttle and the same one sentence as the login itself, so a wrong
 # password says nothing about whether the email exists anywhere.
-@router.post("/v1/login/orgs")
+@router.post("/v1/login/orgs", dependencies=[AtProduction])
 async def orgs_to_sign_in_to(
     said: Credentials,
     request: Request,
@@ -159,6 +175,36 @@ async def a_code(key: KeyDep, codes: LoginCodesDep) -> dict[str, Any]:
     """A one-use code standing for this key's record, good for five minutes."""
     minted = codes.mint(key)
     return {"code": minted.code, "expires_at": minted.expires_at}
+
+
+# Production is who says a person is a member. A person signed in here carries a code to the
+# sandbox, and the sandbox spends it HERE and seats who this answers (api/identity.py). No bearer:
+# the code is the credential, as at POST /v1/login. The member is read again, because a code holds
+# a snapshot of the key that minted it and the row may have changed or been disabled since; and
+# the answer is their row — the role, never the snapshot's scopes, and never the production switch.
+@router.post("/v1/login/redeem", dependencies=[AtProduction])
+async def redeem(
+    said: Redeeming,
+    request: Request,
+    orgs: OrgsDep,
+    members: MembersDep,
+    codes: LoginCodesDep,
+    throttle: ThrottleDep,
+) -> Redeemed:
+    """Who the code's person is, as production's rows say now; the code is spent either way."""
+    if not throttle.allowed(f"{the_client(request)} redeem"):
+        raise HTTPException(429, TOO_MANY_CODES)
+    record = codes.spend(said.code)
+    if record is None:
+        raise HTTPException(404, NO_CODE)
+    if not a_person(record):
+        raise HTTPException(403, NOT_A_PERSONS_CODE)
+    assert record.subject is not None
+    member = await members.find(record.org, record.subject)
+    org = await orgs.find(record.org)
+    if member is None or member.status != "active" or org is None:
+        raise HTTPException(403, NOT_A_MEMBER)
+    return Redeemed.of(org, member)
 
 
 # The one place a key is minted FROM another key: the card that signs a terminal in

@@ -113,6 +113,7 @@ ASKS_NOTHING_OR_ASKS_INSIDE: dict[str, str] = {
     "POST /v1/login": "takes no key: it mints one",
     "POST /v1/signup": "takes no key: it makes the org that will hold one, on the cloud alone",
     "POST /v1/login/codes": "any key may mint a code for its own record",
+    "POST /v1/login/redeem": "takes no key: the code a person carried across is the credential",
     "GET /v1/login/orgs": "a person's key may list the orgs that same person belongs to",
     "POST /v1/login/orgs": "takes no key: an email and a password, throttled, mint nothing",
     "POST /v1/login/reset": "takes no key: the person who forgot their password has none",

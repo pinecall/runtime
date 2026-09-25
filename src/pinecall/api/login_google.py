@@ -9,6 +9,7 @@ from fastapi.responses import RedirectResponse
 from pinecall.api._box import BoxSettingsDep
 from pinecall.api._deps import LoginCodesDep, MembersDep, SettingsDep, ThrottleDep
 from pinecall.api.box_signin import where_the_provider_answers
+from pinecall.api.identity import AtProduction
 from pinecall.api.login import only_with_the_provider, the_client
 from pinecall.api.login_sso import (
     FOUND,
@@ -30,7 +31,9 @@ from pinecall.orgs.signin import GOOGLE, BoxSignIn
 from pinecall.orgs.sso import Sso
 from pinecall.types import Member
 
-router = APIRouter()
+# Production's alone (api/identity.py): a sandbox keeps no password and makes no person, so
+# there every door here is 404, naming where people sign in.
+router = APIRouter(dependencies=[AtProduction])
 
 # A box-wide sign-in names no org: the handshake's org is this word, and only this door's
 # callback spends a state opened with its provider (auth/sso.py, `provider`).

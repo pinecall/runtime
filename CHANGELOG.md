@@ -31,6 +31,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   code a browser spends, a terminal's pairing, the org switch — never outlives it; production's
   person keys and every server token still never expire.
 
+- **`POST /v1/login/redeem {code}`: production is the identity.** It spends a one-use code a
+  person carried to the sandbox and answers `{org, member}` as production's rows say now — the
+  role, never the key's snapshot, never the production switch; `403` for a code a server's token
+  or an operator's visit minted and for a member no longer active; throttled per place.
+- **On a sandbox instance, every door a person is made or proved at is `404`**, naming
+  `PINECALL_IDENTITY_URL`: the password login and `POST /v1/login/orgs`, the pairing, the sign-up,
+  SSO, Google and the forgotten password. A code of the sandbox's own still signs a browser in.
+
 ### Removed
 - **`PINECALL_SANDBOX_DOMAIN` is read by nothing**: a request's `Host` no longer picks a world or
   marks the console. The console is marked with the instance's world, `/index.html` included.

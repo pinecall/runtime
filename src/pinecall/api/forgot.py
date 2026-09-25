@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from pinecall.api._deps import MembersDep, OrgsDep, SettingsDep, ThrottleDep
 from pinecall.api._gateway import where_this_gateway_answers
+from pinecall.api.identity import AtProduction
 from pinecall.api.login import TOO_MANY, only_with_the_provider, the_client
 from pinecall.api.org_mail import OutboxDep
 from pinecall.api.sso import SsoDep
@@ -17,7 +18,9 @@ from pinecall.orgs.sso import Sso
 from pinecall.orgs.table import Orgs
 from pinecall_protocol import WireModel
 
-router = APIRouter()
+# Production's alone (api/identity.py): a sandbox keeps no password and makes no person, so
+# there every door here is 404, naming where people sign in.
+router = APIRouter(dependencies=[AtProduction])
 
 # Taken, and nothing else is ever said. Not whether anybody answers to the address, not whether
 # their org can send mail, not whether their org signs in with a provider instead: a door that

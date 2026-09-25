@@ -7,10 +7,13 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Response
 
 from pinecall.api._deps import KeyDep, KeysDep, MembersDep, PairingsDep, SettingsDep
+from pinecall.api.identity import AtProduction
 from pinecall.api.login import for_the_same_person
 from pinecall_protocol import WireModel
 
-router = APIRouter()
+# Production's alone (api/identity.py): a sandbox keeps no password and makes no person, so
+# there every door here is 404, naming where people sign in.
+router = APIRouter(dependencies=[AtProduction])
 
 # The same answer for a word unknown, expired, or already collected: from the asking side there
 # is nothing there, and telling them apart would say which words have existed.

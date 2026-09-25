@@ -16,6 +16,7 @@ from pinecall.api._deps import (
     SettingsDep,
     ThrottleDep,
 )
+from pinecall.api.identity import AtProduction
 from pinecall.api.login import A_BROWSER, DISABLED, TOO_MANY, the_client
 from pinecall.api.sso import (
     HandshakesDep,
@@ -40,7 +41,9 @@ from pinecall.orgs.admission import Admission, QuotaExhausted
 from pinecall.types import SANDBOX, Member, Org, OrgSso, a_domain
 from pinecall_protocol import WireModel
 
-router = APIRouter()
+# Production's alone (api/identity.py): a sandbox keeps no password and makes no person, so
+# there every door here is 404, naming where people sign in.
+router = APIRouter(dependencies=[AtProduction])
 
 # A browser is redirected, twice: out to the provider, and back to the console it came from. 302
 # both times, which is what every provider's own library sends and what a browser does with the
