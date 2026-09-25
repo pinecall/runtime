@@ -17,6 +17,7 @@ from pinecall.cli import (
     orgs,
     providers,
     routes,
+    sandbox,
     sessions,
     worker,
 )
@@ -46,6 +47,7 @@ GROUP_MODULES: dict[str, Group] = {
     "migrate": migrate,
     "doctor": doctor,
     "box": box,
+    "sandbox": sandbox,
 }
 
 GROUPS: dict[str, str] = {name: module.PURPOSE for name, module in GROUP_MODULES.items()}

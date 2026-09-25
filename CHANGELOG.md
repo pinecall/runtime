@@ -7,6 +7,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **`pinecall-runtime sandbox seed [--from-instance production] [--to-instance sandbox]`**, run
+  once as root at the cutover: a new sandbox instance starts with what the sandbox was inside
+  production. Both `DATABASE_URL`s come out of the two instances' stores, never a command line.
+  Per org that has any of them it mirrors the org by production's id (no quotas row) and copies
+  `agent_personas`, the sandbox's knowledge (`knowledge_bases`, `knowledge_files`,
+  `knowledge_chunks`, holders kept) and tuning (`agent_config`, `lexicon`), one line per table;
+  never members, keys, calls or memories. Run twice it copies nothing twice and overwrites
+  nothing; an org whose slug the sandbox holds under another id is named and left alone.
 - **A developer's own phone reaches their sandbox copy across the two instances.** The instances
   trust each other with one fleet key each (`fleet` and `app`, org `default`, `peer-for-<name>`):
   `pinecall-runtime box peer --from <instance> --into <instance> [--force]` mints it at `--from`'s

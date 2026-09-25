@@ -71,7 +71,7 @@ no file or no secrets stops the deploy at `converge` with the verb that makes it
 changed. Taking a name out of the list takes its site off Caddy and stops its units on the next
 deploy; its files and database stay.
 
-## The pair: a developer's own phone across the two (peers)
+## The pair: a developer's own phone across the two (peers, then the seed)
 
 Once the sandbox's gateway has come up once, production names it and the next deploy makes the
 pair — `converge` runs `box peer --among …`, minting at each gateway already running the key the
@@ -82,9 +82,12 @@ writes each gateway's drop-in, and refuses a production that names its sandbox w
 make instance NAME=production WORLD=production DOMAIN=<domain> \
               ELSEWHERE=https://sandbox.<domain> SANDBOX=https://sandbox.<domain> FORCE=1
 make deploy   # "kept PINECALL_SANDBOX_KEY …" and "kept PINECALL_PEER_KEY …" in converge's output
+ssh <box> 'sudo /opt/pinecall/venv/bin/pinecall-runtime sandbox seed'   # ONCE, at the cutover
 ```
 
-Proof of the pair: a call from a phone a developer said is theirs (`pinecall line
+The seed copies personas, the sandbox's knowledge and tuning corners out of production's database
+into the sandbox's (both DSNs out of the two stores, never on a command line); run twice it copies
+nothing twice. Proof of the pair: a call from a phone a developer said is theirs (`pinecall line
 from`) while they run `pinecall start` rings in their terminal — its log on the sandbox with
 `diverted_from: production` — and production's journal says `rings in m_…'s copy, on the fleet
 pinecall-sandbox`; any other phone reaches production. A sandbox that does not answer is one

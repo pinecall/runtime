@@ -17,6 +17,7 @@ Three different things, and knowing which is which saves an afternoon:
 | group | speaks to |
 |---|---|
 | `gateway` · `worker` · `box` · `doctor` · `providers` | this machine (`box peer` also an instance's gateway, on its ops key) |
+| `sandbox` | **two Postgres databases**, production's and the sandbox's, out of their instances' stores |
 | `migrate` · `sessions` | **Postgres**, straight, over `DATABASE_URL` |
 | `init` · `orgs` · `keys` · `routes` · `fleet` | **a running gateway**, over `/v1/ops/*` with `PINECALL_OPS_KEY` — and `fleet loop`, a cloud's own CLI beside it |
 
@@ -334,6 +335,7 @@ pinecall-runtime box instance <name> --world production|sandbox --domain <host> 
 pinecall-runtime box database                          # as pinecall-db@<name> runs it
 pinecall-runtime box peer --from <instance> --into <instance> [--force]
 pinecall-runtime box peer --among <instance>…          # as `make converge` runs it
+pinecall-runtime sandbox seed [--from-instance production] [--to-instance sandbox]
 ```
 
 `secrets` generates, once, everything a box makes for itself and nobody issues to it: the LiveKit
@@ -376,6 +378,17 @@ already kept is refused without `--force` (and one forced over stays live at `--
 revoke`). `--among` is every pair among those instances — a production whose `PINECALL_SANDBOX_URL`
 host is another one's `PINECALL_DOMAIN`, both ways — minting only what is missing, and saying and
 skipping a gateway that does not answer yet.
+
+`sandbox seed`, as root and once, at the cutover: a new sandbox instance starts with what the
+sandbox was inside production. Both `DATABASE_URL`s are decrypted out of the two instances' stores
+— by name, never on a command line, where a password is what `ps` shows. Per org that has any of
+them, it mirrors the org row by production's id (no quotas row: no limit is no row), then copies
+`agent_personas`, the sandbox's knowledge (`knowledge_bases`, `knowledge_files`,
+`knowledge_chunks`, holders kept) and the sandbox's tuning (`agent_config`, `lexicon`), one line
+per table with what it copied and what was already there. Never members (they arrive at their
+first sign-in), keys, calls or memories. `ON CONFLICT DO NOTHING`: run again, it copies nothing
+twice and overwrites nothing the sandbox changed; an org whose slug the sandbox holds under another
+id is named and left alone.
 
 ---
 

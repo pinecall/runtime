@@ -10,6 +10,7 @@ from pinecall.cli.fleet import verbs as fleet
 from pinecall.cli.keys import verbs as keys
 from pinecall.cli.orgs import verbs as orgs
 from pinecall.cli.routes import verbs as routes
+from pinecall.cli.sandbox import verbs as sandbox
 from pinecall.cli.sessions import verbs as sessions
 from pinecall.types import QUOTAS
 
@@ -69,6 +70,7 @@ def test_every_routes_verb_is_wired_to_its_own_function(
         ("keys", keys.VERBS),
         ("fleet", fleet.VERBS),
         ("box", box.VERBS),
+        ("sandbox", sandbox.VERBS),
     ],
 )
 def test_a_group_with_no_verb_prints_its_verbs_and_exits_zero(
@@ -113,6 +115,7 @@ def test_every_group_says_in_one_line_what_it_is() -> None:
         "migrate",
         "doctor",
         "box",
+        "sandbox",
     }
     assert all(purpose and "\n" not in purpose for purpose in GROUPS.values())
 
