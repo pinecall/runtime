@@ -21,7 +21,8 @@ The socket that takes a call over hears, before anything else of it:
 
 ```jsonc
 {"seq": 57, "call": "call_ab…", "agent": "clinica-norte", "type": "call.attached",
- "data": {"app": "app_9f…", "started": {…the call.started data…}, "state": {…}, "seq": 56}}
+ "data": {"app": "app_9f…", "started": {…the call.started data…}, "state": {…}, "seq": 56,
+          "claimed": "4821"}}
 ```
 
 | field | |
@@ -30,6 +31,7 @@ The socket that takes a call over hears, before anything else of it:
 | `started` | the call's `call.started`: who, where, when |
 | `state` | the agent's state as the call's last `state.changed` left it |
 | `seq` | the last entry of the call before it changed hands |
+| `claimed` | the code a page showed that the call claimed ([codes.md](codes.md)), or `null` |
 
 Then every `tool.call` still waiting for an answer, sent again with its own seq: the model is still
 waiting on it, and a `tool.result` with that `call_id` lands where it always would. The socket must

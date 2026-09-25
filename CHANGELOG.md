@@ -124,6 +124,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   both off the box, and the sandbox's name is served by the sandbox instance's own site.
 
 ### Changed
+- **A code's standing answers any page, and a claimed call stays claimed when it changes hands.**
+  `GET /v1/codes/{code}` takes a browser from any origin (GET, no credentials, as a call's own
+  reads do): its code token is the only thing that opens it, and `byPhone()` runs on the tenant's
+  own site. `call.attached` carries `claimed` (protocol 0.6.11), so the next process's view still
+  knows the caller is on the site. `make migrate-post [INSTANCE=]` applies the `.post.sql`
+  migrations the doctor names; a new instance runs it once.
 - **Breaking for extension authors: `Admitting` takes the world, and a sandbox asks it too.** The
   policy is `admitted(org, email, world)`; production asks it at signup, and a sandbox asks it the
   first time it mirrors an org from production — so what a new org may do can differ per instance.

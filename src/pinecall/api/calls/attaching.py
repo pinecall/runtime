@@ -12,6 +12,9 @@ from pinecall.types.json import JsonObject
 # log keeps only its hash (prompt.changed), and the socket sends its whole prompt again anyway.
 STARTED = "call.started"
 STATE = "state.changed"
+# The code a page showed that the call claimed (api/codes.py), carried so the next socket's view
+# knows the caller is also on the site instead of reading "no" until the call ends.
+CLAIMED = "call.claimed"
 
 
 # A call is its agent's, never a socket's. When the socket serving it drains or dies, or the
@@ -25,14 +28,18 @@ async def attached(live: Live, call: str, app: SocketId) -> Entry | None:
     entries = await served.log.whole()
     started: JsonObject = {}
     state: JsonObject = {}
+    claimed: str | None = None
     for entry in entries:
         if entry.type == STARTED:
             started = entry.data
         elif entry.type == STATE:
             state = entry.data.get("state", {})
+        elif entry.type == CLAIMED:
+            claimed = str(entry.data.get("code"))
     seq = await served.log.latest_seq()
     said = await served.log.append(
-        "call.attached", {"app": app, "started": started, "state": state, "seq": seq}
+        "call.attached",
+        {"app": app, "started": started, "state": state, "seq": seq, "claimed": claimed},
     )
     # A tool the model is still waiting on went down the socket that left: this one is asked
     # again, with the entry the log kept, so its tool.result lands on the call_id already waiting.

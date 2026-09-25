@@ -28,7 +28,7 @@ CONTAINERS = $(filter-out $(TEI),$(wildcard containers/*))
 # says `>=24` and Ubuntu's own is 18 — `node-repo` below puts the vendor's repository in first.
 PACKAGES = podman caddy nftables make curl nodejs
 
-.PHONY: install converge packages node-repo pnpm doctor providers peers
+.PHONY: install converge packages node-repo pnpm doctor migrate-post providers peers
 install: packages pnpm
 	install -D -m 644 -t /etc/sysusers.d sysusers.d/pinecall.conf
 	install -D -m 644 -t /etc/tmpfiles.d tmpfiles.d/pinecall.conf
@@ -107,6 +107,12 @@ AS_THE_UNITS_SEE_IT = systemd-run --quiet --pipe --wait --collect \
 # `make doctor MAIL_TO=you@example.com` also posts one test letter through the box's own mail.
 doctor:
 	$(AS_THE_UNITS_SEE_IT) $(RUNTIME) doctor $(if $(MAIL_TO),--mail-to $(MAIL_TO))
+
+# The migrations never run at startup (a `.post.sql`: a backfill, a constraint validated, an index
+# on a big table), applied by a person, as the units see the instance — its own database, its own
+# DSN. The doctor names them when one is pending; an instance made after they landed has them all.
+migrate-post:
+	$(AS_THE_UNITS_SEE_IT) $(RUNTIME) migrate up --post
 
 # Every vendor this build runs, and what each one still wants ON THIS BOX — a plugin, a key, or
 # nothing. `make providers DOES=tts` narrows it. Reads the catalog and the credentials and asks

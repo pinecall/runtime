@@ -52,7 +52,9 @@ The answer is `200`, the protocol's `CodeStanding`:
 | `expired` | `null` | `null` | draws it: "the code expired, ask for another". `200`, never `410`: it is an answer |
 
 `401` without a token of ours; `403` for a token of another code (or any other token); `404` for a
-code nobody issued. The code token itself dies with the code.
+code nobody issued. The code token itself dies with the code. Any origin may ask — GET, no
+credentials — as it may read a call's own doors: the token the page brings is the whole of what
+opens it. A call that changes hands mid-conversation carries its claim in `call.attached`.
 
 ## The claim — `POST /v1/calls/{call}/claim` and `call.claim`
 

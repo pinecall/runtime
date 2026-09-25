@@ -187,6 +187,7 @@ make ssh        # sudoedit /etc/pinecall/box.env → PINECALL_INSTANCES="product
                 #     --world production --domain box.example.com \
                 #     --elsewhere https://sandbox.example.com --force
 make deploy     # pinecall-db@sandbox makes pinecall_sandbox; both gateways, workers, doctors
+make migrate-post INSTANCE=sandbox   # once: the .post.sql migrations a new database has not run
 make instance NAME=production WORLD=production DOMAIN=box.example.com \
               ELSEWHERE=https://sandbox.example.com SANDBOX=https://sandbox.example.com FORCE=1
 make deploy     # the pair: both peer keys minted, both gateways restarted with them ("Peers")

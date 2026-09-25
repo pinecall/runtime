@@ -49,8 +49,21 @@ async def test_attaching_writes_call_attached_with_the_start_the_last_state_and_
     assert said.data["started"]["from"] == A_STARTED["from"]
     assert said.data["state"] == {"patient": "p1"}
     assert said.data["seq"] == said.seq - 1
+    assert said.data["claimed"] is None, "no page followed this call"
     await until(heard, "call.attached")
     assert live.app_of(CALL) == THE_NEXT
+
+
+async def test_a_call_that_claimed_a_code_is_handed_on_still_claimed(
+    worker_gateway: Gateway, registry: Registry, live: Live
+) -> None:
+    """The next socket's view asks whether the caller is on the site, and gets the same answer."""
+    await a_call_on_the_first_socket(worker_gateway, registry, live)
+    await worker_gateway.append(CALL, "call.started", A_STARTED)
+    await worker_gateway.append(CALL, "call.claimed", {"code": "0427", "via": "keypad"})
+    live.connect(THE_NEXT, collecting([]))
+    said = await attached(live, CALL, THE_NEXT)
+    assert said is not None and said.data["claimed"] == "0427"
 
 
 async def test_the_tools_still_waiting_are_re_sent_to_the_new_socket_with_their_seq(

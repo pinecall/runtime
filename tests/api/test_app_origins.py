@@ -166,11 +166,14 @@ def test_the_widget_keeps_its_star_whoever_asks(
 # ── a tenant's page, reading its visitor's call ─────────────────────────────────
 
 
-@pytest.mark.parametrize("door", ["events", "state", "recording"])
-def test_any_page_may_read_a_calls_own_doors_with_a_bearer_and_no_credentials(
-    gateway: TestClient, door: str
+@pytest.mark.parametrize(
+    "path",
+    [f"/v1/calls/{CALL}/events", f"/v1/calls/{CALL}/state", f"/v1/calls/{CALL}/recording"]
+    + ["/v1/codes/0427"],
+)
+def test_any_page_may_read_a_calls_own_doors_and_a_codes_with_a_bearer_and_no_credentials(
+    gateway: TestClient, path: str
 ) -> None:
-    path = f"/v1/calls/{CALL}/{door}"
     asking = {
         "Access-Control-Request-Method": "GET",
         "Access-Control-Request-Headers": "authorization, last-event-id",
@@ -187,6 +190,8 @@ def test_a_page_may_not_write_to_a_call_or_read_anything_else(gateway: TestClien
     for path in (
         f"/v1/calls/{CALL}/verbs",
         f"/v1/calls/{CALL}/events/extra",
+        "/v1/codes",
+        "/v1/codes/0427/extra",
         WHOAMI,
         "/v1/agents/x/calls",
     ):

@@ -3,6 +3,7 @@
 #   make deploy          sync the code, install the manifest, sync the environment, restart, doctor
 #   make restart         each instance's two processes, in order, with the health check between
 #   make doctor          the runtime's doctor on the box, per instance, with its own credentials
+#   make migrate-post INSTANCE=sandbox   the .post.sql migrations the doctor names, per instance
 #   make instance NAME=sandbox WORLD=sandbox DOMAIN=sandbox.example.com IDENTITY=https://…
 #                        one more instance of the runtime on this box: its env file and its secrets
 #   make peer FROM=sandbox INTO=production    one instance's fleet key, kept in another's store
@@ -53,7 +54,7 @@ RSYNC = rsync -az --delete -e "ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=y
 UV_SYNC = sudo -u pinecall env UV_PROJECT_ENVIRONMENT=/opt/pinecall/venv UV_CACHE_DIR=/opt/pinecall/.cache/uv \
           /opt/pinecall/bin/uv sync -q --frozen --project $(REMOTE)/runtime --extra runtime --extra providers
 
-.PHONY: deploy console sync install restart restart-all restart-hub restart-worker health doctor providers instance peer secret status logs ssh require-box
+.PHONY: deploy console sync install restart restart-all restart-hub restart-worker health doctor migrate-post providers instance peer secret status logs ssh require-box
 
 deploy: console sync install restart doctor
 
@@ -161,6 +162,12 @@ health: require-box
 doctor: require-box
 	@for name in $(or $(INSTANCE),$(INSTANCES_ON_THE_BOX)); do \
 	  $(SSH) sudo make -s -C $(MANIFEST) doctor INSTANCE=$$name MAIL_TO=$(MAIL_TO) || exit 1; done
+
+# What the doctor says is pending — "post-deployment migration(s) not run" — applied, one instance
+# (INSTANCE=sandbox) or every one the box lists. Never part of a deploy: a .post.sql can be long.
+migrate-post: require-box
+	@for name in $(or $(INSTANCE),$(INSTANCES_ON_THE_BOX)); do \
+	  $(SSH) sudo make -s -C $(MANIFEST) migrate-post INSTANCE=$$name || exit 1; done
 
 # Every vendor this build runs and what each one still wants on the box — a plugin, a key, or
 # nothing. `make providers DOES=tts` narrows it. It reads the catalog and the box's own

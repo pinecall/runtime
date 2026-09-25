@@ -37,7 +37,10 @@ MAX_AGE_S = 600
 # origin, because what opens them is the bearer the page brings — a token for that one call — and
 # never a cookie: a page on another site reads nothing it did not bring the token for. GET only,
 # no credentials, and the headers a player seeks with and a stream resumes with.
-A_CALLS_READS = re.compile(r"^/v1/calls/[^/]+/(events|state|recording)$")
+#
+# A code's standing (api/codes.py) is the same kind of read: the page that shows four digits asks
+# whether a call has claimed them, with the code token its server was handed and nothing else.
+A_PAGES_READS = re.compile(r"^/v1/(calls/[^/]+/(events|state|recording)|codes/[^/]+)$")
 READ_HEADERS = ("authorization", "last-event-id", "accept", "range")
 READ_EXPOSED = ("content-range", "accept-ranges", "content-length")
 
@@ -66,7 +69,7 @@ class AppOrigins:
             return
         origin = Headers(scope=scope).get("origin")
         allowed = origins_allowed(a_settings(HTTPConnection(scope))) if origin else ()
-        if origin and origin not in allowed and A_CALLS_READS.match(str(scope["path"])):
+        if origin and origin not in allowed and A_PAGES_READS.match(str(scope["path"])):
             await _any_page(self.app)(scope, receive, send)
             return
         if origin not in allowed:
@@ -83,7 +86,7 @@ class AppOrigins:
 
 
 def _any_page(app: ASGIApp) -> CORSMiddleware:
-    """CORS for a call's reads: any origin, GET, no credentials."""
+    """CORS for a page's reads — a call's, a code's: any origin, GET, no credentials."""
     return CORSMiddleware(
         app,
         allow_origins=("*",),
