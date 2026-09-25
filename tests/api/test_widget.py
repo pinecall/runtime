@@ -16,13 +16,21 @@ from tests.api.talking import answering_in, got
 pytestmark = pytest.mark.unit
 
 WIDGET = f"/v1/agents/{AGENT}/widget"
-NOTHING_SET = {"title": None, "tagline": None, "greeting": None, "accent": None, "autostart": False}
+NOTHING_SET = {
+    "title": None,
+    "tagline": None,
+    "greeting": None,
+    "accent": None,
+    "autostart": False,
+    "theme": None,
+}
 A_WIDGET = {
     "title": "Clínica Norte",
     "tagline": "Le atendemos ahora",
     "greeting": "Hola, ¿en qué le ayudo?",
     "accent": "#cd58b2",
     "autostart": True,
+    "theme": "dark",
 }
 A_TALKER_KEY = "pk_test_talks"
 A_TALKER = KeyRecord(key_id="k_talk", org=A_RECORD.org, scopes=frozenset({"talk"}))
@@ -62,6 +70,15 @@ def test_a_colour_that_could_close_a_declaration_is_refused(gateway: TestClient)
     refused = put(gateway, {**A_WIDGET, "accent": "red; background: url(x)"})
     assert refused.status_code == 400 and "CSS colour" in refused.json()["detail"]
     assert put(gateway, {**A_WIDGET, "greeting": "x" * 501}).status_code == 400
+
+
+def test_a_theme_is_auto_light_or_dark(gateway: TestClient) -> None:
+    assert put(gateway, {**A_WIDGET, "theme": "sepia"}).status_code == 422
+
+
+def test_a_console_that_predates_the_theme_sets_the_widgets_default(gateway: TestClient) -> None:
+    older = {field: value for field, value in A_WIDGET.items() if field != "theme"}
+    assert put(gateway, older).json() == {**older, "theme": None}
 
 
 def test_setting_takes_pipeline(gateway: TestClient) -> None:

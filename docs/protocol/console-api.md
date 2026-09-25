@@ -217,16 +217,18 @@ entry a sealed log takes (`Store.rescored`): the list, the day and `usage` read 
 ## 7. The widget's settings
 
 `GET /v1/agents/{slug}/widget` (`talk`) and `PUT /v1/agents/{slug}/widget` (`pipeline`) read and
-replace `{title, tagline, greeting, accent, autostart}` — how `<pinecall-widget>` presents the agent,
+replace `{title, tagline, greeting, accent, autostart, theme}` — how `<pinecall-widget>` presents the agent,
 kept per org, **world** and agent (0029), so a sandbox copy is tried with other words than the site
 shows. Reading takes `talk` because whoever mints the widget's token may read what it shows;
 writing takes `pipeline`, the scope that already turns what a caller meets first — the greeting, the
-voice. `PUT` is the whole set: a `null` is the widget's own default, and `autostart` false. `400`
+voice. `PUT` is the whole set: a `null` is the widget's own default, and `autostart` false; `theme`
+is `auto`, `light` or `dark` (`422` otherwise), and left out of the body it is `null`, which the
+widget draws as `auto` — so a console that predates it still saves. `400`
 when a field is too long (`title` 80, `tagline` 160, `greeting` 500, `accent` 40) or `accent` is not
 a CSS colour — `#cd58b2`, `rebeccapurple`, `rgb(205 88 178)` — since the widget sets it as a CSS
 variable. The gateway keeps them and does not inject them: a console writes them into the snippet
 it copies, as attributes (`name` ← `title`, `--pc-accent` ← `accent`), and the widget's README says
-what `greeting` and `autostart` do.
+what `greeting`, `autostart` and `theme` do.
 
 ## 8. Signing in, and a forgotten password
 

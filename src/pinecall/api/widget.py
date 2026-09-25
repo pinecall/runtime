@@ -44,6 +44,7 @@ async def set_the_widget(
             greeting=said.greeting,
             accent=said.accent,
             autostart=said.autostart,
+            theme=said.theme,
         )
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused
@@ -58,4 +59,5 @@ def _as_the_wire(widget: Widget) -> WidgetSettings:
         greeting=widget.greeting,
         accent=widget.accent,
         autostart=widget.autostart,
+        theme=widget.theme,
     )

@@ -107,7 +107,7 @@ async def test_an_org_is_judged_until_somebody_turns_it_off(pool: Pool, org: str
 async def test_a_widget_round_trips_per_world(pool: Pool, org: str) -> None:
     widgets = PostgresWidgets(pool)
     assert await widgets.of(org, "production", "clinica") == Widget()
-    kept = Widget(title="Clínica", greeting="Hola", accent="#cd58b2", autostart=True)
+    kept = Widget(title="Clínica", greeting="Hola", accent="#cd58b2", autostart=True, theme="dark")
     await widgets.put(org, "production", "clinica", kept)
     await widgets.put(org, "production", "clinica", kept)
     assert await widgets.of(org, "production", "clinica") == kept

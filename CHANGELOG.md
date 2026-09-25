@@ -24,6 +24,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   could make orgs for as many trials as they liked.
 
 ### Added
+- **The widget's theme, kept per agent.** `GET`/`PUT /v1/agents/{slug}/widget` carry `theme` —
+  `auto`, `light` or `dark`, `null` for the widget's own default (auto) — beside the other settings
+  (migration 0052). A body without it still saves, as `null`.
 - **A call the org's minutes end says so.** When the minutes, not the agent's own limit, are what
   end a call, the worker writes `credits.exhausted` on the call's log before `call.ended`;
   `POST /v1/calls` answers the minutes quota beside `seconds_left` for it.

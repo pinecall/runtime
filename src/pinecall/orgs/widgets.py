@@ -1,4 +1,4 @@
-"""How the widget presents an agent — its name, a line, a greeting, a colour — per org and world."""
+"""How the widget presents an agent — name, line, greeting, colour, theme — per org and world."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from typing import Any, Protocol
 
 from pinecall.log.store import Pool
 from pinecall.types import DeclarationRefused
+from pinecall_protocol.rest import WidgetTheme
 
 # What a page may carry through the widget's own attributes, bounded so one row is one screen.
 LONGEST = {"title": 80, "tagline": 160, "greeting": 500, "accent": 40}
@@ -28,6 +29,7 @@ class Widget:
     greeting: str | None = None
     accent: str | None = None
     autostart: bool = False
+    theme: WidgetTheme | None = None
 
     def __post_init__(self) -> None:
         for name, longest in LONGEST.items():
@@ -69,14 +71,14 @@ _OF = f"SELECT {', '.join(COLUMNS)} FROM agent_widgets WHERE org = $1 AND env = 
 
 _PUT = f"""
 INSERT INTO agent_widgets (org, env, agent, {", ".join(COLUMNS)})
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 ON CONFLICT (org, env, agent) DO UPDATE SET
     {", ".join(f"{column} = excluded.{column}" for column in COLUMNS)}, set_at = now()
 """
 
 
 class PostgresWidgets:
-    """The table 0029 made."""
+    """The table 0029 made, and the column 0052 added."""
 
     def __init__(self, pool: Pool) -> None:
         self._pool = pool
