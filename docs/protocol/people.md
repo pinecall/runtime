@@ -88,9 +88,8 @@ org disables you`. So a developer with the switch holds an agent in production f
 (`pinecall start --prod`); what normally holds it is a **server's token**, made from the console's
 Tokens screen (`POST /v1/keys`, [gateway-api.md](gateway-api.md) §8), which names nobody and
 outlives whoever made it. Two people's sandbox keys are two people's: the registry holds a sandbox
-slug per person, so nobody takes another's agent. **On a sandbox instance a person's key lives a
-day** — and one minted from another key (a code, a pairing, the org switch) never outlives it —
-while production's never expire; past it the key is `401`, exactly as a revoked one.
+slug per person. **A sandbox's person keys live a day**, one minted from another key (a code, the
+org switch) never outliving it, and production's never expire; an expired key is `401`, as revoked.
 
 **How short a password may be is the OPERATOR's.** `PINECALL_MIN_PASSWORD` (default 8, `0` for
 none) is the floor every door that takes a new password is held to, and `GET /.well-known/pinecall`
@@ -163,14 +162,17 @@ console's "Forgot your password?" says: ask an admin of your org.
 ## Two instances: production says who a person is
 
 A sandbox instance keeps no password and makes no person: **every door a person is made, proved or
-handed a key by a password at is production's**, and on a sandbox `404 this is the sandbox, and
-people sign in at <PINECALL_IDENTITY_URL>: …` — the password login, `POST /v1/login/orgs`, the
-pairing, the sign-up, SSO, Google and the forgotten password. `POST /v1/login/redeem {code}`,
-production's and keyless (the code is the credential), spends a one-use code and answers `{org:
-{id, slug, name}, member: {id, email, name, role, agents, status}}`: the row **now**, never the key
-the code remembers, never the production switch (`auth/identity.py`). `404` a code unknown, spent
-or expired; `403` one a server's token or a visit minted, or a member no longer active; `429` the
-sixth in a minute from one place.
+handed a key by a password at is production's** — on a sandbox the password login, `POST
+/v1/login/orgs`, pairing, sign-up, SSO, Google and the forgotten password are `404 this is the
+sandbox, and people sign in at <PINECALL_IDENTITY_URL>: …`. A person signs in at production and
+carries a code across; the sandbox's `POST /v1/login {code}` spends a code of its own first, else
+redeems it at production — `POST /v1/login/redeem {code}`, keyless (the code is the credential),
+answers `{org: {id, slug, name}, member: {id, email, name, role, agents, status}}`, the row **now**
+and never the production switch; `404` a code unknown or spent, `403` one a server's token or a
+visit minted or a member no longer active, `429` the sixth in a minute from one place. The sandbox
+mirrors both rows **by production's ids** (no password, the address verified) and mints a key that
+lives a day: `409` when a row of its own holds that slug or address under another id, production's
+refusal in production's status and words, `502` when production does not answer.
 
 ## Mail: the letters a box sends
 

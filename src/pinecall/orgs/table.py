@@ -23,6 +23,16 @@ class Orgs(Protocol):
         """A new org, or None when the slug is already somebody's. The id is minted here."""
         ...
 
+    # A sandbox instance's orgs are production's, mirrored when a person signs in there
+    # (api/identity.py): the SAME id and slug, so `pinecall link`, a key's org and every door keep
+    # their words on both instances. Written over on every sign-in, so a rename at production is a
+    # rename here at the next one. A slug an org of this instance's own holds under another id is
+    # not taken from it.
+    async def mirrored(self, org: Org) -> Org | None:
+        """The org as production says it, inserted or updated by its id. None when the slug is
+        another org's here."""
+        ...
+
     async def listed(self) -> tuple[Org, ...]:
         """Every org, oldest first."""
         ...
@@ -74,6 +84,13 @@ class MemoryOrgs:
         self._rows[org.id] = org
         return org
 
+    async def mirrored(self, org: Org) -> Org | None:
+        """Kept under production's id, unless another org holds the slug."""
+        if any(held.slug == org.slug and held.id != org.id for held in self._rows.values()):
+            return None
+        self._rows[org.id] = org
+        return org
+
     async def listed(self) -> tuple[Org, ...]:
         """In the order they were created, which for a dict is the order they were inserted."""
         return tuple(self._rows.values())
@@ -115,6 +132,16 @@ _CREATE = """
 INSERT INTO orgs (id, slug, name) VALUES ($1, $2, $3)
     ON CONFLICT (slug) DO NOTHING
     RETURNING id, slug, name
+"""
+
+# By production's id; the WHERE refuses a slug another row holds, the insert and the update alike
+# (an empty RETURNING), so the UNIQUE on the slug is never what answers.
+_MIRRORED = """
+INSERT INTO orgs (id, slug, name)
+SELECT $1::text, $2::text, $3::text
+ WHERE NOT EXISTS (SELECT 1 FROM orgs WHERE slug = $2 AND id <> $1)
+    ON CONFLICT (id) DO UPDATE SET slug = excluded.slug, name = excluded.name
+RETURNING id, slug, name
 """
 
 _LISTED = "SELECT id, slug, name FROM orgs ORDER BY created_at, id"
@@ -161,6 +188,11 @@ class PostgresOrgs:
     async def create(self, slug: str, name: str) -> Org | None:
         """One INSERT; an empty RETURNING is the slug already being somebody's."""
         row = await self._pool.fetchrow(_CREATE, an_org_id(), slug, name)
+        return None if row is None else _an_org(row)
+
+    async def mirrored(self, org: Org) -> Org | None:
+        """One upsert; an empty RETURNING is the slug being another org's here."""
+        row = await self._pool.fetchrow(_MIRRORED, org.id, org.slug, org.name)
         return None if row is None else _an_org(row)
 
     async def listed(self) -> tuple[Org, ...]:

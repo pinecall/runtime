@@ -87,6 +87,16 @@ class Members(Protocol):
         the person existed, caught up at their login. None when no invited member answers."""
         ...
 
+    # A sandbox instance's people are production's, mirrored at each sign-in there
+    # (api/identity.py): the SAME id, so a key's subject names one person on both instances, and
+    # the role, the agents and the standing as production says them now. No password — a sandbox
+    # keeps none — and verified, since production vouched for the address. A row of this org
+    # holding the address under another id is not written over.
+    async def mirrored(self, member: Member) -> Member | None:
+        """The member as production says it, inserted or updated by id. None when the address
+        is another row's in the org, or the id is a member of another org here."""
+        ...
+
     async def listed(self, org: str) -> tuple[Member, ...]:
         """Every member of the org, oldest first, disabled ones included."""
         ...

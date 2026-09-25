@@ -1,6 +1,7 @@
 """The members and invitations tables in Postgres, driven exactly as the memory twin is."""
 
 from collections.abc import AsyncIterator
+from dataclasses import replace
 from uuid import uuid4
 
 import pytest
@@ -8,6 +9,7 @@ import pytest
 from pinecall.auth.members_postgres import PostgresMembers
 from pinecall.log.store import Pool, open_pool
 from pinecall.orgs.table import PostgresOrgs
+from pinecall.types import Member
 from tests.postgres import Dev
 
 pytestmark = pytest.mark.postgres
@@ -135,3 +137,31 @@ async def test_a_vouched_link_proves_the_address_and_a_proved_person_is_seated_a
     assert vouched is not None and vouched.verified is True
     await members.update(org, accepted.id, status="disabled")
     assert await members.vouched_for(org, accepted.id) is None
+
+
+async def test_a_mirrored_member_is_upserted_by_productions_id_and_never_over_another_row(
+    pool: Pool, org: str
+) -> None:
+    """The same statement a sandbox runs at every sign-in: inserted, then written over, fenced."""
+    members = PostgresMembers(pool)
+    berna = Member(
+        id=f"m_{uuid4().hex[:12]}",
+        org=org,
+        email="Berna@Clinica.uy",
+        name="Berna",
+        role="developer",
+        agents=frozenset({"clinica-norte"}),
+        status="active",
+    )
+    first = await members.mirrored(berna)
+    assert first is not None
+    assert (first.email, first.verified, first.agents) == (
+        "berna@clinica.uy",
+        True,
+        frozenset({"clinica-norte"}),
+    )
+    kept = await members.by_email(org, "berna@clinica.uy")
+    assert kept is not None and kept.password_hash is None
+    again = await members.mirrored(replace(berna, role="qa", status="disabled"))
+    assert again is not None and (again.role, again.status) == ("qa", "disabled")
+    assert await members.mirrored(replace(berna, id=f"m_{uuid4().hex[:12]}")) is None

@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import Depends, HTTPException
+from starlette.requests import HTTPConnection
 
 from pinecall.api._deps import SettingsDep
-from pinecall.types import PRODUCTION
+from pinecall.api.sso import the_http
+from pinecall.auth.identity import Identity, NotRedeemed
+from pinecall.auth.keys import Issued, Keys
+from pinecall.auth.members import Members
+from pinecall.auth.persons import a_persons_key
+from pinecall.orgs.table import Orgs
+from pinecall.types import PRODUCTION, SANDBOX
 
 # A sandbox instance keeps no password and makes no person: whoever signs in there signed in at
 # production and carried a one-use code across. So the doors a person is made or proved at are
@@ -23,3 +32,51 @@ def at_production(settings: SettingsDep) -> None:
 
 
 AtProduction = Depends(at_production)
+
+
+# ── a sandbox asking production who a person is ─────────────────────────────────
+
+# The mirror keeps production's ids, so the words every door uses — the slug `pinecall link` wrote,
+# a key's org and subject — mean the same thing on both instances. A row of this sandbox's own that
+# holds the slug or the address under another id is not written over: the sandbox cannot tell
+# whose it is, and an operator of the sandbox can.
+SLUG_HELD_HERE = "{slug} is another org's on this sandbox: an operator here renames or removes it"
+ADDRESS_HELD_HERE = (
+    "{email} is another member's in {slug} on this sandbox: an operator here removes that row"
+)
+# Production answers only an active member; a standing it says otherwise is not signed in here.
+NOT_ACTIVE = "{email} is not an active member of {slug} at production"
+
+
+# Production, over the process's one httpx client, on a sandbox; None on production itself, whose
+# own codes are the only ones there are — and which is not handed the client it would never use.
+def the_identity(connection: HTTPConnection, settings: SettingsDep) -> Identity | None:
+    """Who a sandbox asks who a person is, or None where this instance is the one asked."""
+    if settings.world == PRODUCTION or settings.identity_url is None:
+        return None
+    return Identity(the_http(connection), settings.identity_url)
+
+
+IdentityDep = Annotated["Identity | None", Depends(the_identity)]
+
+
+# The second half of a sign-in that began at production: the code was minted there, so it is spent
+# there, and what comes back is mirrored here — the org, then the member, both by production's ids
+# — before a key of this sandbox's own is minted for them. It lives a day (auth/persons.py): the
+# next sign-in reads production again, and production refuses a member it disabled meanwhile.
+async def a_mirrored_key(
+    code: str, label: str, identity: Identity, orgs: Orgs, members: Members, keys: Keys
+) -> Issued:
+    """A sandbox key for the person production says the code names; the refusal otherwise."""
+    try:
+        org, member = await identity.redeem(code)
+    except NotRedeemed as refused:
+        raise HTTPException(refused.status, str(refused)) from refused
+    if await orgs.mirrored(org) is None:
+        raise HTTPException(409, SLUG_HELD_HERE.format(slug=org.slug))
+    seated = await members.mirrored(member)
+    if seated is None:
+        raise HTTPException(409, ADDRESS_HELD_HERE.format(email=member.email, slug=org.slug))
+    if seated.status != "active":
+        raise HTTPException(403, NOT_ACTIVE.format(email=member.email, slug=org.slug))
+    return await a_persons_key(keys, seated, label, SANDBOX)

@@ -38,6 +38,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **On a sandbox instance, every door a person is made or proved at is `404`**, naming
   `PINECALL_IDENTITY_URL`: the password login and `POST /v1/login/orgs`, the pairing, the sign-up,
   SSO, Google and the forgotten password. A code of the sandbox's own still signs a browser in.
+- **A sandbox signs a person in by asking production.** Its `POST /v1/login {code}` spends a code of
+  its own first, else redeems it at `PINECALL_IDENTITY_URL`, mirrors the org and the member by
+  production's ids (no password, the address verified) and mints a key that lives a day: `409`
+  when a row of the sandbox's own holds that slug or address under another id, production's
+  refusal in its own status and words, `502` when production does not answer. Its org switch
+  lists the orgs the person signed into there.
 
 ### Removed
 - **`PINECALL_SANDBOX_DOMAIN` is read by nothing**: a request's `Host` no longer picks a world or

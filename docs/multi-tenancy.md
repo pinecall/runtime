@@ -163,6 +163,16 @@ answers. A server's token belongs to the world it was made in, and at the other 
   opens only while an admin's switch on their row allows it, read at every request. At the sandbox
   no header is fine: it is every member's.
 
+**One identity, production's.** A sandbox keeps no password and makes no person: a person signs in
+at production — a password, SSO, Google — and the console carries them across with a one-use code
+(`POST /v1/login/codes`, read as an identity, so a developer kept out of production crosses too).
+The sandbox's `POST /v1/login {code}` spends it at production (`POST /v1/login/redeem`), which
+answers the org and the member as its rows say now; the sandbox mirrors both **by production's
+ids** (`api/identity.py`), so a slug and a key's subject mean one thing on both instances, and
+mints a key of its own that lives a day — nothing tells a sandbox when production disables
+somebody, so the next sign-in asks again and is refused. Every door a person is made or proved at
+is production's, `404` on a sandbox; its org switch lists the orgs signed into there.
+
 Inside an instance, the registry and the routes are still namespaced by the world word (every row
 of one database carries the same one): `GET /v1/agents`, `GET /v1/routes` and every door that names
 an agent answer that world; a number is one instance's, and a request of one world claiming a
@@ -200,15 +210,6 @@ holder it was opened in (`0024`), and `GET /v1/sessions` and `GET /v1/agents/{sl
 the reader's corner alone: a developer's sandbox test calls are theirs, a colleague's are the
 colleague's, and the telephone's are production's. The Sessions screen used to show all three
 together. Every row written before `0024` reads as production's, the org's own.
-
-**An admin can open a developer's copy.** The corners are private by construction, and a
-corner nobody can look into is one nobody can help with. So a key that sees every corner (`team`
-**and** `app` — an admin's, the box's own; a manager opens `team` alone and a developer's sandbox
-is not the floor's to open) may send `pinecall-corner: <member id>` on any HTTP door, and that
-request is answered in that member's sandbox corner (`auth/corner.py`, `in_the_corner_asked`): their
-agents, their line, their calls, as the console draws them when an admin opens one. Only in the
-sandbox — production has no corners to open — and only into an active member of the key's own
-org; anything else is `403` in one sentence. Nothing is stored: the corner is that request's.
 
 **And so does the data — twice.** A contact's facts and a knowledge base carry the world of the
 key that pushed or the call that taught them (`0018`): a test call on a laptop never writes into

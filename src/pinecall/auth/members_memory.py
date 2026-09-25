@@ -141,6 +141,31 @@ class MemoryMembers:
             if row.member.email == email and row.password_hash is not None:
                 self._rows[id] = replace(row, password_hash=password_hash)
 
+    async def mirrored(self, member: Member) -> Member | None:
+        """Production's fields over the row with its id, or a new row with no password."""
+        email = an_address(member.email)
+        held = await self.by_email(member.org, email)
+        row = self._rows.get(member.id)
+        if (held is not None and held.member.id != member.id) or (
+            row is not None and row.member.org != member.org
+        ):
+            return None
+        if row is None:
+            mirrored = replace(member, email=email, verified=True, operator=False, production=False)
+            self._rows[member.id] = _Row(mirrored, None, an_instant(self._clock()))
+            return mirrored
+        mirrored = replace(
+            row.member,
+            email=email,
+            name=member.name,
+            role=member.role,
+            agents=member.agents,
+            status=member.status,
+            verified=True,
+        )
+        self._rows[member.id] = replace(row, member=mirrored)
+        return mirrored
+
     async def listed(self, org: str) -> tuple[Member, ...]:
         """In the order they were invited, which for a dict is the order they were inserted."""
         return tuple(row.member for row in self._rows.values() if row.member.org == org)

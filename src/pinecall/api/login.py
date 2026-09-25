@@ -15,7 +15,7 @@ from pinecall.api._deps import (
     SettingsDep,
     ThrottleDep,
 )
-from pinecall.api.identity import AtProduction, at_production
+from pinecall.api.identity import AtProduction, IdentityDep, a_mirrored_key, at_production
 from pinecall.api.sso import SsoDep
 from pinecall.auth import passwords
 from pinecall.auth.identity import Redeemed
@@ -125,12 +125,21 @@ async def login(
     throttle: ThrottleDep,
     sso: SsoDep,
     settings: SettingsDep,
+    identity: IdentityDep,
 ) -> dict[str, Any]:
     """A key for this person and this device, or a refusal that says the least it can."""
     if said.code is not None:
         if said.org is not None or said.email is not None or said.password is not None:
             raise HTTPException(400, ONE_OR_THE_OTHER)
-        return await _with_a_code(said, keys, codes, settings.world)
+        record = codes.spend(said.code)
+        if record is not None:
+            return await _with_a_code(record, said.device, keys, settings.world)
+        # A code this instance never minted, on a sandbox, was minted at production: the person
+        # signed in there and the console carried it across. Production is asked who they are.
+        if identity is None:
+            raise HTTPException(404, NO_CODE)
+        label = said.device or A_BROWSER
+        return (await a_mirrored_key(said.code, label, identity, orgs, members, keys)).as_json
     # A password is production's to check: a sandbox keeps none, and takes a code or nothing.
     at_production(settings)
     if said.email is None or said.password is None:
@@ -304,19 +313,15 @@ async def only_with_the_provider(sso: Sso | None, org: str) -> bool:
 
 
 async def _with_a_code(
-    said: Login, keys: KeysDep, codes: LoginCodesDep, world: Env
+    record: KeyRecord, device: str | None, keys: KeysDep, world: Env
 ) -> dict[str, Any]:
-    """The record the code stood for, spent, and a key of the browser's own minted from it. A
-    person's carries no world, whatever world the request that minted the code named, and lives
-    as long as a person's key does here — never longer than the key that minted the code."""
-    assert said.code is not None
-    record = codes.spend(said.code)
-    if record is None:
-        raise HTTPException(404, NO_CODE)
+    """A key of the browser's own minted from the record a code of ours stood for. A person's
+    carries no world, whatever world the request that minted the code named, and lives as long as
+    a person's key does here — never longer than the key that minted the code."""
     person = a_person(record)
     issued = await keys.issue(
         org=record.org,
-        label=said.device or A_BROWSER,
+        label=device or A_BROWSER,
         env=SANDBOX if person else record.env,
         scopes=record.scopes,
         subject=record.subject,

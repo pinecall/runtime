@@ -27,6 +27,21 @@ VALUES ($1, $2, $3, $4, $5, $6, 'invited', $7)
 
 _LISTED = f"SELECT {_A_ROW} FROM members WHERE org = $1 ORDER BY created_at, id"
 
+# Production's row, by its id: inserted with no password and verified, or its production-owned
+# fields written over — fenced by the org, and never over a row of this org holding the address
+# under another id (the WHERE, so the UNIQUE (org, email) is never what answers).
+_MIRRORED = f"""
+INSERT INTO members (id, org, email, name, role, agents, status, verified_at)
+SELECT $1::text, $2::text, $3::text, $4::text, $5::text, $6::text[], $7::text, now()
+ WHERE NOT EXISTS (SELECT 1 FROM members WHERE org = $2 AND email = $3 AND id <> $1)
+    ON CONFLICT (id) DO UPDATE
+   SET email = excluded.email, name = excluded.name, role = excluded.role,
+       agents = excluded.agents, status = excluded.status,
+       verified_at = COALESCE(members.verified_at, now())
+ WHERE members.org = excluded.org
+RETURNING {_A_ROW}
+"""
+
 # A seat is held by everybody the org has not disabled. The count is a query over the rows and
 # never a counter column: the rows are the truth and a number kept beside them drifts from it.
 _SEATED = "SELECT count(*) AS seated FROM members WHERE org = $1 AND status <> 'disabled'"
@@ -229,6 +244,20 @@ class PostgresMembers:
     async def vouched_for(self, org: str, id: str) -> Member | None:
         """One UPDATE, fenced by the org; a disabled row answers None."""
         row = await self._pool.fetchrow(_VOUCHED_FOR, org, id)
+        return None if row is None else a_member_of_row(row)
+
+    async def mirrored(self, member: Member) -> Member | None:
+        """One upsert; an empty RETURNING is the address or the id being somebody else's here."""
+        row = await self._pool.fetchrow(
+            _MIRRORED,
+            member.id,
+            member.org,
+            an_address(member.email),
+            member.name,
+            member.role,
+            sorted(member.agents),
+            member.status,
+        )
         return None if row is None else a_member_of_row(row)
 
     async def listed(self, org: str) -> tuple[Member, ...]:

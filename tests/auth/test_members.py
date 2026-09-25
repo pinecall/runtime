@@ -1,9 +1,12 @@
 """The members table in memory: invited with a token, accepted with a password, changed, found."""
 
+from dataclasses import replace
+
 import pytest
 
 from pinecall.auth.invitations import INVITATION_PREFIX, INVITATION_TTL_S
 from pinecall.auth.members_memory import MemoryMembers
+from pinecall.types import Member
 
 pytestmark = pytest.mark.unit
 
@@ -148,3 +151,37 @@ async def test_a_provider_vouching_seats_and_proves_a_row_and_never_a_disabled_o
     assert reset is not None and reset.token is not None
     again = await members.accept(reset.token, "$argon2id$new")
     assert again is not None and again.verified is True
+
+
+# ── a sandbox's mirror of production's people ───────────────────────────────────
+
+PRODUCTIONS_BERNA = Member(
+    id="m_berna", org=ORG, email="Berna@Clinica.uy", name="Berna", role="developer", status="active"
+)
+
+
+async def test_a_mirrored_member_keeps_productions_id_no_password_and_a_verified_address() -> None:
+    members = MemoryMembers()
+    mirrored = await members.mirrored(PRODUCTIONS_BERNA)
+    assert mirrored is not None
+    assert (mirrored.id, mirrored.email, mirrored.verified) == ("m_berna", "berna@clinica.uy", True)
+    assert await members.a_persons_password("berna@clinica.uy") is None
+
+
+async def test_mirroring_again_writes_productions_fields_over_and_keeps_the_rest() -> None:
+    members = MemoryMembers()
+    await members.mirrored(PRODUCTIONS_BERNA)
+    await members.make_operator(ORG, "m_berna", operator=True)
+    again = await members.mirrored(replace(PRODUCTIONS_BERNA, role="qa", status="disabled"))
+    assert again is not None
+    assert (again.role, again.status, again.operator) == ("qa", "disabled", True)
+    assert [m.id for m in await members.listed(ORG)] == ["m_berna"]
+
+
+async def test_a_mirror_never_writes_over_another_rows_address_or_another_orgs_id() -> None:
+    members = MemoryMembers()
+    await members.mirrored(replace(PRODUCTIONS_BERNA, id="m_berna_before"))
+    assert await members.mirrored(PRODUCTIONS_BERNA) is None
+    ana = replace(PRODUCTIONS_BERNA, email="ana@clinica.uy")
+    assert await members.mirrored(ana) is not None
+    assert await members.mirrored(replace(ana, org="tienda")) is None

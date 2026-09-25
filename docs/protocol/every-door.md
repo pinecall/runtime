@@ -40,7 +40,7 @@ key by a password at — are `404` on a sandbox instance, naming `PINECALL_IDENT
 | `DELETE` | `/v1/members/{id}` | out of the org for good: keys revoked, row and links gone, the seat free — `team`; `409` for yourself and for the last active admin |
 | `POST` | `/v1/members/{id}/reset` | a one-use link that sets an active member's password, the token once, and `mailed` — `team` |
 | `POST` | `/v1/invitations/{token}` | accept with a password: active, and the first key |
-| `POST` | `/v1/login` | a key for a person and a device: email, password, the org when they have several (*production's*) — or a code |
+| `POST` | `/v1/login` | a key for a person and a device: email, password, the org when they have several (*production's*) — or a code; on a sandbox, one production minted is redeemed there, the org and member mirrored by production's ids, and the key lives a day |
 | `POST` | `/v1/login/orgs` | which orgs an email and password sign in to, minting nothing — no key, throttled like the login, *production's* |
 | `POST` | `/v1/login/redeem` | the one-use code a person carried to the sandbox, spent: `{org, member}` as production's rows say now, never the production switch — no key, throttled per place, *production's* |
 | `POST` | `/v1/login/reset` | a forgotten password: `202` whoever asks, and a one-use link mailed where one can be — no key, throttled like the login, *production's* |

@@ -3,18 +3,21 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
+from typing import Any
 
 import httpx
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.api.identity import SIGN_IN_THERE
+from pinecall.api.identity import SIGN_IN_THERE, the_identity
+from pinecall.auth.identity import Identity
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.persons import SANDBOX_PERSONS_KEY_LIFE
 from pinecall.types import SANDBOX
 from tests.api.conftest import A_KEY, A_RECORD, over_the_asgi_app
 from tests.api.talking import answering_in
-from tests.conftest import THE_IDENTITY
+from tests.conftest import THE_IDENTITY, a_sandbox
 
 pytestmark = pytest.mark.unit
 
@@ -82,3 +85,13 @@ async def test_a_sandbox_spends_a_code_of_its_own_for_a_key_no_longer_lived_than
     assert signed.status_code == 200, signed.text
     record = await keys.verify(signed.json()["key"])
     assert record is not None and record.expires_at == HOURS_LEFT
+
+
+def test_production_asks_nobody_and_a_sandbox_asks_its_identity_over_the_process_client(
+    settings: Settings,
+) -> None:
+    """Production is never handed the client it would not use: a lifespan-less test app has none."""
+    connection: Any = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace()))
+    assert the_identity(connection, settings) is None
+    connection.app.state.http = httpx.AsyncClient()
+    assert isinstance(the_identity(connection, a_sandbox(settings)), Identity)
