@@ -18,7 +18,10 @@ def built(
     voice_id: str | None = None, language: str | None = None, model: str | None = None
 ) -> cartesia.TTS:
     asked = Asked(
-        settings=Settings(cartesia_api_key=A_KEY), voice_id=voice_id, language=language, model=model
+        settings=Settings(world="production", cartesia_api_key=A_KEY),
+        voice_id=voice_id,
+        language=language,
+        model=model,
     )
     speaks = VENDORS.build("cartesia", asked)
     assert isinstance(speaks, cartesia.TTS)

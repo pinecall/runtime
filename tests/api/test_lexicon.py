@@ -7,11 +7,14 @@ from collections.abc import AsyncIterator
 import httpx
 import pytest
 
+from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
-from pinecall.types import ROLE_SCOPES, SANDBOX
+from pinecall.types import PRODUCTION, ROLE_SCOPES, SANDBOX
 from pinecall_protocol import defs
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, over_the_asgi_app
+from tests.api.talking import answering_in
+from tests.conftest import a_sandbox
 
 pytestmark = pytest.mark.unit
 
@@ -36,6 +39,12 @@ EVA = KeyRecord(
 )
 
 WORDS = {"said": [{"word": "GSA", "spoken": "G S A"}], "heard": ["Clínica Norte"]}
+
+
+@pytest.fixture
+def settings(settings: Settings) -> Settings:
+    """The sandbox's instance, where the team writes its words; production is asked by name."""
+    return a_sandbox(settings)
 
 
 @pytest.fixture
@@ -96,9 +105,10 @@ async def test_a_stale_version_is_told_where_the_corner_is_now(carla: httpx.Asyn
 
 
 async def test_production_says_what_a_key_that_acts_there_set_and_the_sandbox_never_leaks(
-    carla: httpx.AsyncClient, production: httpx.AsyncClient
+    carla: httpx.AsyncClient, production: httpx.AsyncClient, settings: Settings
 ) -> None:
-    await carla.put(LEXICON, json={"lexicon": WORDS})
+    assert (await carla.put(LEXICON, json={"lexicon": WORDS})).status_code == 200
+    answering_in(PRODUCTION, settings)
     assert (await production.get(LEXICON)).json()["production"] is None
     put = await production.put(LEXICON, json={"lexicon": WORDS})
     assert put.status_code == 200, put.text

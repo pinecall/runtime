@@ -7,12 +7,15 @@ from collections.abc import AsyncIterator
 import httpx
 import pytest
 
+from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.routes.table import MemoryRoutes
 from pinecall.types import PRODUCTION, SANDBOX, Member, Route
 from tests.api.conftest import A_RECORD, AGENT, over_the_asgi_app
+from tests.api.talking import answering_in
+from tests.conftest import a_sandbox
 
 pytestmark = pytest.mark.unit
 
@@ -43,6 +46,12 @@ CI_KEY = "pk_test_the_ci_job"
 
 # A production key: no corner at all, because what is deployed is the ORG's.
 PRODUCTIONS_KEY = "pk_live_the_orgs_own"
+
+
+@pytest.fixture
+def settings(settings: Settings) -> Settings:
+    """The sandbox's instance: where the corners are, and so where a line is."""
+    return a_sandbox(settings)
 
 
 @pytest.fixture
@@ -254,8 +263,9 @@ async def test_a_key_that_names_nobody_has_no_phone_to_dial_from(wired: None) ->
 # holder, so `holder == whose` was None == None — true — and `pinecall line` told a laptop holding
 # nothing that the number "rings in this terminal", about a box (production, 2026-09-20).
 @pytest.fixture
-async def the_boxs(wired: None) -> AsyncIterator[httpx.AsyncClient]:  # noqa: ARG001
-    """A production key: no corner at all, because what is deployed is the ORG's."""
+async def the_boxs(wired: None, settings: Settings) -> AsyncIterator[httpx.AsyncClient]:  # noqa: ARG001
+    """A production key at production's instance: no corner, what is deployed is the ORG's."""
+    answering_in(PRODUCTION, settings)
     http = over_the_asgi_app(f"Bearer {PRODUCTIONS_KEY}")
     yield http
     await http.aclose()

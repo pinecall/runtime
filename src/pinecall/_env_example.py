@@ -30,8 +30,9 @@ def write_env_example(path: Path) -> None:
 
 
 def _default_written_out(field: FieldInfo) -> str:
-    """A default as an operator types it: nothing for a key nobody set, true/false for a flag."""
-    if field.default is None:
+    """A default as an operator types it: nothing for a key nobody set or one with no default,
+    true/false for a flag."""
+    if field.is_required() or field.default is None:
         return ""
     if isinstance(field.default, bool):
         return "true" if field.default else "false"

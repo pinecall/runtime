@@ -19,7 +19,7 @@ A_KEY = "nobody-will-ever-deploy-this"
 
 def an_ask(**asked: object) -> Asked:
     """A process that read a key for both vendors of this modality."""
-    settings = Settings(soniox_api_key=A_KEY, deepgram_api_key=A_KEY)
+    settings = Settings(world="production", soniox_api_key=A_KEY, deepgram_api_key=A_KEY)
     return Asked(settings=settings, **asked)  # pyright: ignore[reportArgumentType]
 
 
@@ -98,7 +98,7 @@ def _default_of(built: object, option: str) -> object:
 
 
 def test_a_vendor_with_no_key_is_refused_at_the_door_of_the_call() -> None:
-    keyless = Asked(settings=Settings(soniox_api_key=""))
+    keyless = Asked(settings=Settings(world="production", soniox_api_key=""))
     with pytest.raises(NoProvider, match="soniox has no API key"):
         VENDORS.build("soniox", keyless)
 

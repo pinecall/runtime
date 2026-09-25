@@ -7,13 +7,15 @@ from typing import Any
 import httpx
 import pytest
 
+from pinecall._settings import Settings
 from pinecall.api.login import VISITS_PRODUCTION
 from pinecall.api.login_orgs import AS_THE_OPERATOR, NOT_THERE
 from pinecall.auth.keys import MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.orgs.table import MemoryOrgs
-from pinecall.types import ROLE_SCOPES, Member
+from pinecall.types import ROLE_SCOPES, SANDBOX, Member
 from tests.api.conftest import AN_ORG, over_the_asgi_app
+from tests.api.talking import answering_in
 
 pytestmark = [pytest.mark.unit, pytest.mark.usefixtures("wired")]
 
@@ -118,6 +120,17 @@ async def test_walking_in_mints_an_admins_production_key_that_says_whose_it_is_a
     # The tenant reads whose key it is on its own Keys screen, and may revoke it there.
     (row,) = await keys.listed(elsewhere)
     assert (row.label, row.subject) == ("operator · bernardo@pinecall.io", A_VISITOR)
+    await operator.aclose()
+
+
+async def test_a_visit_at_the_sandboxs_instance_is_minted_in_the_sandbox(
+    keys: MemoryKeys, elsewhere: str, settings: Settings
+) -> None:
+    """An instance is one world: a visiting key of the other would open no door of this one."""
+    answering_in(SANDBOX, settings)
+    operator = await a_key_of(keys, BERNA, env="sandbox")
+    issued = await walked_into(operator, "tienda-sur")
+    assert (issued["org"], issued["env"]) == (elsewhere, "sandbox")
     await operator.aclose()
 
 

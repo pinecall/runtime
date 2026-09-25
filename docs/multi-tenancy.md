@@ -105,9 +105,8 @@ pinecall-runtime orgs quota pinecall --seats 10 --agents 25
 
 The link opens the console's own card: the person chooses a password, the token is spent, and
 they hold their first key — an admin's, every door of the org, and an admin always opens
-production. The sandbox is not on this console: a person's terminal key (`pinecall login`) works
-in the sandbox unless a request names production, and what it holds is watched at the box's
-second name, if it answers to one. The operator held a **token** and never a password: an
+production. The sandbox is not on this console: it is an instance of its own, at the URL
+production's `/.well-known/pinecall` names as `elsewhere`. The operator held a **token** and never a password: an
 invitation is inert until the person it names accepts it, so the box can seat somebody and never
 be them. An address that already has a password on this box gets no link: `orgs invite` prints the
 row `active` and `already a person on this box: seated, they sign in with the password they have`.
@@ -136,18 +135,37 @@ app's process (`PINECALL_WORKER_KEY` for a worker's), and `PINECALL_URL` says wh
 it prints a link, the person signs in on that page, and the page mints the terminal a key of its
 own (see below). That is the whole of a tenant's authentication.
 
-## Two worlds on one gateway
+## Two instances, one identity
 
 A tenant writes an agent on a laptop and runs the same agent on the box, and the two must never
 see each other: a laptop's `pinecall start` must not take the clinic's number, and the clinic's
-sessions must not fill with a developer's test calls. So **every request runs in one world.** A
-server's token is made for `production` or `sandbox` and stays there; a person's key names one per
-request with `pinecall-env` (none is the sandbox; production only while an admin's switch on their
-row allows it, read at every request — `auth/world.py`). The gateway namespaces its registry and
-its routes by that word: the same slug is held in each world by different sockets; `GET /v1/agents`, `GET
-/v1/routes` and every door that names an agent answer the world the request runs in; a dialled
-number is one agent's in one world, and a sandbox request claiming a production number is refused
-with the world named.
+sessions must not fill with a developer's test calls. So **an instance is one world**
+(`PINECALL_WORLD`, required: a process that never said is refused at startup). Production and the
+sandbox are two instances of this one runtime — each its own gateway, database, worker and keys,
+each dispatching to its own fleet (`PINECALL_FLEET`) on the SFU they share — and each tells the
+other's public URL (`PINECALL_ELSEWHERE_URL`) in every sentence that sends a person there, in the
+console's marks and at `/.well-known/pinecall`. Nothing picks a world per request any more.
+
+**The header is an assertion** (`auth/world.py`). A client says which world it believes it is
+talking to with `pinecall-env`; a header naming the other world is `403`, with where that world
+answers. A server's token belongs to the world it was made in, and at the other instance it is
+`403` too. A person's key is read two ways, by the kind of door:
+
+- **A door that opens no scope reads it as an identity** — `GET /v1/whoami`, `POST /v1/login/codes`,
+  pairing a terminal, `GET /v1/login/orgs` and `POST /v1/login/org`, one's own keys (`GET /v1/keys`,
+  a revoke): no production gate and no header required. A developer the org keeps out of
+  production still signs in at production — which is who people are — and must be able to learn
+  who they are, mint the code that hands them to the sandbox and switch org there.
+- **Every door that opens a scope reads it as it acts** (`opening`, `api/_deps.py`): at production
+  a person says `pinecall-env: production` — no header is `403`, naming where the sandbox is,
+  because a CLI older than the instances meant the sandbox by saying nothing — and production
+  opens only while an admin's switch on their row allows it, read at every request. At the sandbox
+  no header is fine: it is every member's.
+
+Inside an instance, the registry and the routes are still namespaced by the world word (every row
+of one database carries the same one): `GET /v1/agents`, `GET /v1/routes` and every door that names
+an agent answer that world; a number is one instance's, and a request of one world claiming a
+route of the other is refused with the world named.
 
 **And the key knows whose.** The sandbox is namespaced a second time, by the member the key was
 minted for, because a tenant is a team: Berna and Carla both run `tienda-sur` on their own
@@ -208,14 +226,9 @@ empty knowledge base. A push and a drop never fall back — they are about one c
 drop must not take the telephone's base. A contact's facts are what a CALL learned, and there is
 no org-wide sandbox call to inherit from: they are the corner's, or nothing. The counts behind `memory_facts` and `knowledge_chunks` read both worlds, because a
 row a laptop wrote is a row on the same disk. `agent.registered` and `call.started` carry `env`, so a console and a session
-list can say which world they are reading. A person's key is stored in the sandbox — what a request
-naming no world runs in, since a laptop is where things are written — and every key issued before
-the field existed is production's.
-
-```bash
-pinecall-runtime keys issue --org clinica --label "berna's laptop" --env sandbox
-pinecall-runtime routes add +34910000000 clinica-norte --org clinica   # production, the default
-```
+list can say which world they are reading. A person's key is read in the world of the instance it
+knocks at, whatever its row was minted with, and every key issued before the field existed is
+production's.
 
 The key also knows **what** — `scopes`, the doors as they are grouped — and **who** — `subject`
 and `name`, the member it was minted for. A key the operator issues with nothing said holds every

@@ -7,12 +7,15 @@ from collections.abc import AsyncIterator
 import httpx
 import pytest
 
+from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
 from pinecall.auth.world import ENV_HEADER, NO_PRODUCTION
-from pinecall.types import BLANK, ROLE_SCOPES, SANDBOX
+from pinecall.types import BLANK, PRODUCTION, ROLE_SCOPES, SANDBOX
 from pinecall_protocol import defs
-from tests.api.conftest import A_KEY, A_RECORD, AGENT, over_the_asgi_app
+from tests.api.conftest import A_KEY, A_RECORD, AGENT
+from tests.api.talking import answering_in, at_the_console
+from tests.conftest import a_sandbox
 
 pytestmark = pytest.mark.unit
 
@@ -58,6 +61,12 @@ HAIKU = {"llm": "anthropic/claude-haiku-4-5"}
 
 
 @pytest.fixture
+def settings(settings: Settings) -> Settings:
+    """The sandbox's instance, where the corners are; production's tests ask for it by name."""
+    return a_sandbox(settings)
+
+
+@pytest.fixture
 def keys() -> MemoryKeys:
     return MemoryKeys(
         {A_KEY: A_RECORD, ANA_KEY: ANA, BRUNO_KEY: BRUNO, CARLA_KEY: CARLA, CI_KEY: CI}
@@ -66,28 +75,28 @@ def keys() -> MemoryKeys:
 
 @pytest.fixture
 async def ana(wired: None) -> AsyncIterator[httpx.AsyncClient]:  # noqa: ARG001
-    http = over_the_asgi_app(f"Bearer {ANA_KEY}")
+    http = at_the_console(ANA_KEY, SANDBOX)
     yield http
     await http.aclose()
 
 
 @pytest.fixture
 async def bruno(wired: None) -> AsyncIterator[httpx.AsyncClient]:  # noqa: ARG001
-    http = over_the_asgi_app(f"Bearer {BRUNO_KEY}")
+    http = at_the_console(BRUNO_KEY, SANDBOX)
     yield http
     await http.aclose()
 
 
 @pytest.fixture
 async def carla(wired: None) -> AsyncIterator[httpx.AsyncClient]:  # noqa: ARG001
-    http = over_the_asgi_app(f"Bearer {CARLA_KEY}")
+    http = at_the_console(CARLA_KEY, SANDBOX)
     yield http
     await http.aclose()
 
 
 @pytest.fixture
 async def ci(wired: None) -> AsyncIterator[httpx.AsyncClient]:  # noqa: ARG001
-    http = over_the_asgi_app(f"Bearer {CI_KEY}")
+    http = at_the_console(CI_KEY, SANDBOX)
     yield http
     await http.aclose()
 
@@ -221,8 +230,9 @@ async def test_two_saves_that_read_the_same_version_do_not_both_win(
 
 
 async def test_a_key_that_acts_in_production_sets_production_there_and_nowhere_else(
-    fleet_http: httpx.AsyncClient,
+    fleet_http: httpx.AsyncClient, settings: Settings
 ) -> None:
+    answering_in(PRODUCTION, settings)
     put = await fleet_http.put(SETTINGS, json={"config": SONNET})
     assert put.status_code == 200, put.text
     assert put.json()["production"]["version"] == 1
@@ -230,8 +240,9 @@ async def test_a_key_that_acts_in_production_sets_production_there_and_nowhere_e
 
 
 async def test_a_person_the_org_keeps_out_of_production_is_refused_there_by_name(
-    ana: httpx.AsyncClient,
+    ana: httpx.AsyncClient, settings: Settings
 ) -> None:
+    answering_in(PRODUCTION, settings)
     refused = await ana.put(SETTINGS, json={"config": SONNET}, headers={ENV_HEADER: "production"})
     assert refused.status_code == 403
     assert refused.json()["detail"] == NO_PRODUCTION.format(name="Ana")

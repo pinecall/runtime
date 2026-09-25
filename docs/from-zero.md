@@ -225,14 +225,13 @@ line     rings in this terminal
 
 One line, and it says the four things that decide where you are: the agent, **whose org**, **which
 world**, and where the key came from. `pinecall start` binds no port, and neither does anything
-else on this side: the gateway serves both consoles, one at each name it answers to.
+else on this side: the gateway serves its console at `http://localhost:8080`.
 
-A laptop has two names for one machine already, so give the gateway the second one — in the
-runtime's `.env`, `PINECALL_SANDBOX_DOMAIN=127.0.0.1`, and restart it. Then
-`http://localhost:8080` is production's console, `http://127.0.0.1:8080` is the sandbox's, each
-with its own sign-in (a browser keeps a key per origin), and a request that reaches the second one
-asking for production is refused there. On a box the two names are two domains and the line above
-prints the URL with a one-use code in it.
+An instance is one world, and a laptop's is the one its `.env` says — `PINECALL_WORLD=sandbox`,
+where agents are written. On a box, production and the sandbox are two instances of this same
+runtime, each with its own console and URL (`PINECALL_ELSEWHERE_URL` names the other), and the line
+above prints the sandbox's URL with a one-use code in it. The console line above is the CLI's
+wording from before the sandbox became an instance of its own.
 
 The console you sign in to with the password from §4 shows **production** and only production:
 there the page says `no agent called clinica-norte is held here`, which is true. A

@@ -6,13 +6,11 @@ from dataclasses import dataclass
 from html import escape
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Response
 from fastapi.responses import FileResponse, HTMLResponse
 
 from pinecall._settings import Settings
 from pinecall.api._deps import SettingsDep
-from pinecall.auth.world import the_host
-from pinecall.types import PRODUCTION, SANDBOX
 
 router = APIRouter()
 
@@ -68,33 +66,27 @@ async def widget(file: str) -> FileResponse:
 # the page, because the console's router owns the path — /a/<slug>/talk is a screen, not a file —
 # and a reload has to land on exactly the same screen. tests/api/test_the_pages_are_served.py.
 @router.get("/{path:path}", include_in_schema=False)
-async def console(path: str, request: Request, settings: SettingsDep) -> Response:
+async def console(path: str, settings: SettingsDep) -> Response:
     """The page for a screen, or one of its assets; a JSON 404 under the API's own prefixes."""
     if path.startswith(API_PREFIXES):
         raise HTTPException(404, "Not Found")
-    return _served(CONSOLE, path, marks(settings, the_host(request.headers)))
+    return _served(CONSOLE, path, marks(settings))
 
 
-# One bundle, two consoles, and this is the whole of what tells them apart: a box that answers to a
-# second name (`PINECALL_SANDBOX_DOMAIN`) serves the sandbox's console there and production's at its
-# own, and the page reads which it is out of the page itself (lib/mode.ts). A box with ONE name
-# marks nothing, and a page nobody marked is production's — which is what every box was before
-# there were two. The second mark is where the OTHER console is, so the switcher's link is the
-# box's own answer and not a name compiled into the bundle.
+# One bundle, two consoles, and this is the whole of what tells them apart: each instance marks
+# the page with the world it IS (`PINECALL_WORLD`), and the page reads which it is out of the page
+# itself (lib/mode.ts). The second mark is where the OTHER console is (`PINECALL_ELSEWHERE_URL`),
+# so the switcher's link is the instance's own answer and not a name compiled into the bundle; an
+# instance told of no other writes only the first.
 WORLD_MARK = '<meta name="pinecall-world" content="{world}">'
 ELSEWHERE_MARK = '<meta name="pinecall-elsewhere" content="{url}">'
 
 
-def marks(settings: Settings, host: str) -> str:
-    """What is written into the head for the name it was asked at; nothing on a box of one name."""
-    sandbox = settings.sandbox_domain
-    if not sandbox:
-        return ""
-    here_is_the_sandbox = host == sandbox.lower()
-    other = settings.domain if here_is_the_sandbox else sandbox
-    said = WORLD_MARK.format(world=SANDBOX if here_is_the_sandbox else PRODUCTION)
-    if other:
-        said += ELSEWHERE_MARK.format(url=escape(f"https://{other}", quote=True))
+def marks(settings: Settings) -> str:
+    """What is written into the head: this instance's world, and where the other one answers."""
+    said = WORLD_MARK.format(world=settings.world)
+    if settings.elsewhere_url:
+        said += ELSEWHERE_MARK.format(url=escape(settings.elsewhere_url, quote=True))
     return said
 
 
@@ -103,7 +95,11 @@ def _served(page: Page, path: str, marked: str) -> Response:
     if not (page.directory / THE_PAGE).is_file():
         raise HTTPException(404, NOT_BUILT.format(page=page.name))
     asked = _under(page, path)
-    return FileResponse(asked) if asked is not None else _the_page(page, marked)
+    # The page by its own name is still the page: served as a file it would carry no marks, and an
+    # unmarked page boots as production's console whatever instance served it.
+    if asked is None or asked.name == THE_PAGE:
+        return _the_page(page, marked)
+    return FileResponse(asked)
 
 
 # Read on every request rather than once at startup: it is one small file, and a console rebuilt

@@ -94,7 +94,7 @@ async def test_the_answer_is_livekits_shape_and_livekits_own_verifier_reads_the_
         )
     assert status == 201, said
     assert set(said) == {"server_url", "participant_token", "call", "log_token"}
-    assert said["server_url"] == Settings().livekit_url
+    assert said["server_url"] == Settings(world="production").livekit_url
     claims = TokenVerifier(A_LIVEKIT.api_key, A_LIVEKIT.api_secret).verify(
         said["participant_token"]
     )
@@ -233,6 +233,7 @@ def test_the_ttl_is_a_minute_by_default_and_ten_at_most(gateway: TestClient) -> 
 def test_the_browser_is_told_the_public_url_when_the_box_has_one(gateway: TestClient) -> None:
     """A box reaches LiveKit on localhost; a browser cannot, so server_url is the public one."""
     public = Settings(
+        world="production",
         ops_key=AN_OPS_KEY,
         livekit_api_key=A_LIVEKIT.api_key,
         livekit_api_secret=A_LIVEKIT.api_secret,

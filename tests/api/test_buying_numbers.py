@@ -28,6 +28,7 @@ ANOTHER = "+14175550101"
 def settings() -> Settings:
     """A box with a name and a Twilio account of its own: what a purchase is billed to."""
     return Settings(
+        world="production",
         ops_key=AN_OPS_KEY,
         vault_key=A_VAULT_KEY,
         livekit_api_key=A_LIVEKIT.api_key,

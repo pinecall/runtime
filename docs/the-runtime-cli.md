@@ -291,7 +291,9 @@ pushes. The mail line names the server the box posts invitations and password re
 gateway resolves it: the mailbox the operator stored at `PUT /v1/ops/mail` first, else
 `PINECALL_SMTP_URL` and `PINECALL_MAIL_FROM`. `--mail-to` posts one real test letter through it
 after the report — `mail sent  <address> — taken by <host>:<port>`, or the server's own refusal —
-and a letter that did not go makes the exit code 1. The first line once read differently on a
+and a letter that did not go makes the exit code 1. The report's first line names the .env read and
+the instance — `world <production|sandbox> · fleet <name>` — because two instances run from one
+checkout on a box and a green report must say whose it is. The api keys line once read differently on a
 laptop, which could run on `PINECALL_DEV_KEY` — one key, org `default`, the table not read; that
 second runtime is gone, and the line names the verb that puts a key in the one table there is.
 

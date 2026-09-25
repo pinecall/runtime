@@ -14,7 +14,7 @@ pytestmark = pytest.mark.unit
 SEARCHING = {"query": "¿cuánto cuesta la revisión?"}
 
 # The budget every unit test runs under: the grounded judge answers by code alone, off the log.
-NO_BUDGET = Settings(judge_ceiling_eur=0)
+NO_BUDGET = Settings(world="production", judge_ceiling_eur=0)
 
 
 async def test_the_grounded_judge_finds_a_stated_price_in_the_sources_the_fill_wrote() -> None:

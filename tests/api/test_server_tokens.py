@@ -8,7 +8,8 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.api.keys import BY_A_PERSON, NO_SUCH_KEY, NOT_IN_PRODUCTION, SERVER_SCOPES
+from pinecall._settings import Settings
+from pinecall.api.keys import ANOTHER_WORLDS_TOKEN, BY_A_PERSON, NO_SUCH_KEY, SERVER_SCOPES
 from pinecall.auth.keys import (
     NOT_OPENED,
     PRODUCTION_PREFIX,
@@ -18,9 +19,10 @@ from pinecall.auth.keys import (
     fingerprint,
 )
 from pinecall.auth.members_memory import MemoryMembers
+from pinecall.auth.world import ENV_HEADER, NO_PRODUCTION
 from pinecall.types import PRODUCTION, SANDBOX, Member
 from tests.api.conftest import A_KEY, A_RECORD, Json
-from tests.api.talking import got
+from tests.api.talking import answering_in, got
 
 pytestmark = pytest.mark.unit
 
@@ -66,6 +68,7 @@ CARLAS_KEY = "pc_carla_laptop"
 # Another tenant entirely, so a fingerprint that is real and is not this org's has a row to be.
 ANOTHERS_KEY = "pc_live_another_tenant"
 ANOTHER = KeyRecord(key_id="k_other", org="tienda-sur", label="their server")
+SANDBOXS = "https://sandbox.clinica.test"
 
 
 @pytest.fixture
@@ -86,10 +89,14 @@ def members() -> MemoryMembers:
     return MemoryMembers([ANA, BRUNO, CARLA])
 
 
-def posted(gateway: TestClient, path: str, body: object, bearer: str) -> tuple[int, Json]:
-    """starlette's TestClient types its requests through httpx's private `_types`: one handle."""
+def posted(
+    gateway: TestClient, path: str, body: object, bearer: str, world: str = PRODUCTION
+) -> tuple[int, Json]:
+    """A write as the console sends it, saying the world it believes the gateway is. starlette's
+    TestClient types its requests through httpx's private `_types`: one handle."""
     handle: Any = gateway
-    answer: Any = handle.post(path, json=body, headers={"Authorization": f"Bearer {bearer}"})
+    headers = {"Authorization": f"Bearer {bearer}", ENV_HEADER: world}
+    answer: Any = handle.post(path, json=body, headers=headers)
     return int(answer.status_code), answer.json()
 
 
@@ -102,7 +109,8 @@ def listed(gateway: TestClient, bearer: str) -> list[Json]:
 
 
 def a_token(gateway: TestClient, env: str, bearer: str = ANAS_KEY) -> Json:
-    status, said = posted(gateway, "/v1/keys", {"label": "clinica-norte web", "env": env}, bearer)
+    body = {"label": "clinica-norte web", "env": env}
+    status, said = posted(gateway, "/v1/keys", body, bearer, env)
     assert status == 200, said
     return said
 
@@ -123,20 +131,36 @@ def test_a_person_with_production_makes_the_token_a_server_runs_on_shown_once(
     assert row["fingerprint"] == fingerprint(str(said["key"]))
 
 
-def test_a_person_the_org_keeps_out_of_production_makes_a_sandbox_token_and_no_other(
-    gateway: TestClient,
+def test_a_person_the_org_keeps_out_of_production_makes_tokens_at_the_sandbox_alone(
+    gateway: TestClient, settings: Settings
 ) -> None:
     status, said = posted(gateway, "/v1/keys", {"label": "prod", "env": PRODUCTION}, BRUNOS_KEY)
-    assert (status, said["detail"]) == (403, NOT_IN_PRODUCTION.format(name="Bruno"))
+    assert (status, said["detail"]) == (403, NO_PRODUCTION.format(name="Bruno"))
+    answering_in(SANDBOX, settings)
     assert str(a_token(gateway, SANDBOX, BRUNOS_KEY)["key"]).startswith(SANDBOX_PREFIX)
 
 
-def test_a_servers_token_makes_no_token_and_a_key_that_holds_no_agent_is_told_so(
-    gateway: TestClient,
+def test_a_token_for_the_other_world_is_made_at_the_other_instance_and_not_here(
+    gateway: TestClient, settings: Settings
 ) -> None:
-    status, said = posted(gateway, "/v1/keys", {"label": "x", "env": SANDBOX}, A_KEY)
+    """The instance is the world: a sandbox token minted here would open nothing anywhere."""
+    told = answering_in(PRODUCTION, settings.model_copy(update={"elsewhere_url": SANDBOXS}))
+    body = {"label": "x", "env": SANDBOX}
+    status, said = posted(gateway, "/v1/keys", body, ANAS_KEY)
+    assert (status, said["detail"]) == (
+        400,
+        ANOTHER_WORLDS_TOKEN.format(here=told.world, asked=SANDBOX, elsewhere=SANDBOXS),
+    )
+
+
+def test_a_servers_token_makes_no_token_and_a_key_that_holds_no_agent_is_told_so(
+    gateway: TestClient, settings: Settings
+) -> None:
+    status, said = posted(gateway, "/v1/keys", {"label": "x", "env": PRODUCTION}, A_KEY)
     assert (status, said["detail"]) == (403, BY_A_PERSON)
-    status, said = posted(gateway, "/v1/keys", {"label": "x", "env": SANDBOX}, CARLAS_KEY)
+    answering_in(SANDBOX, settings)
+    body = {"label": "x", "env": SANDBOX}
+    status, said = posted(gateway, "/v1/keys", body, CARLAS_KEY, SANDBOX)
     assert status == 403
     assert said["detail"] == NOT_OPENED.format(scope="app", opens=" · ".join(sorted(CARLA.scopes)))
 
@@ -151,8 +175,9 @@ def test_the_token_is_the_orgs_and_outlives_the_person_who_made_it(
 
 
 def test_a_person_sees_their_own_keys_and_every_servers_and_the_keys_scope_sees_all(
-    gateway: TestClient,
+    gateway: TestClient, settings: Settings
 ) -> None:
+    answering_in(SANDBOX, settings)
     a_token(gateway, SANDBOX, BRUNOS_KEY)
     brunos = listed(gateway, BRUNOS_KEY)
     assert {row["name"] for row in brunos if row["kind"] == "person"} == {"Bruno"}
@@ -162,14 +187,15 @@ def test_a_person_sees_their_own_keys_and_every_servers_and_the_keys_scope_sees_
 
 
 def test_the_maker_revokes_their_token_another_developer_cannot_and_an_admin_can(
-    gateway: TestClient,
+    gateway: TestClient, settings: Settings
 ) -> None:
+    answering_in(SANDBOX, settings)
     brunos = fingerprint(str(a_token(gateway, SANDBOX, BRUNOS_KEY)["key"]))
     anas = fingerprint(str(a_token(gateway, SANDBOX)["key"]))
-    status, said = posted(gateway, f"/v1/keys/{anas}/revoke", None, BRUNOS_KEY)
+    status, said = posted(gateway, f"/v1/keys/{anas}/revoke", None, BRUNOS_KEY, SANDBOX)
     assert (status, said["detail"]) == (404, NO_SUCH_KEY.format(fingerprint=anas))
-    assert posted(gateway, f"/v1/keys/{brunos}/revoke", None, BRUNOS_KEY)[0] == 200
-    assert posted(gateway, f"/v1/keys/{anas}/revoke", None, ANAS_KEY)[0] == 200
+    assert posted(gateway, f"/v1/keys/{brunos}/revoke", None, BRUNOS_KEY, SANDBOX)[0] == 200
+    assert posted(gateway, f"/v1/keys/{anas}/revoke", None, ANAS_KEY, SANDBOX)[0] == 200
 
 
 def test_a_revoked_token_stops_opening_the_next_door(gateway: TestClient) -> None:

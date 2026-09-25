@@ -6,13 +6,40 @@ from datetime import date
 from typing import Any
 from urllib.parse import quote
 
+import httpx
 from starlette.testclient import TestClient, WebSocketTestSession
 
+from pinecall._settings import Settings
+from pinecall.api import _deps as deps
 from pinecall.api.agents.holding import Send
+from pinecall.api.app import app
 from pinecall.auth.world import ENV_HEADER
 from pinecall.log.entry import Entry
-from pinecall.types import CallContext, Route
-from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS, CHAT, Json
+from pinecall.types import PRODUCTION, SANDBOX, CallContext, Env, Route
+from pinecall.types.dispatch import DEFAULT_FLEET
+from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS, CHAT, Json, over_the_asgi_app
+from tests.conftest import a_sandbox
+
+
+# An instance is one world. A test that follows a thing across both asks the same tables as the
+# other world's instance from some line on: the rows are still told apart by their `env`, as they
+# are inside each instance's own database.
+def at_the_console(key: str, world: Env = PRODUCTION) -> httpx.AsyncClient:
+    """A person's key as the console sends it: saying the world it believes the gateway is."""
+    http = over_the_asgi_app(f"Bearer {key}")
+    http.headers[ENV_HEADER] = world
+    return http
+
+
+def answering_in(world: Env, settings: Settings) -> Settings:
+    """The test's gateway, from here on, is that world's instance over the same tables."""
+    instance = (
+        a_sandbox(settings)
+        if world == SANDBOX
+        else settings.model_copy(update={"world": PRODUCTION, "fleet": DEFAULT_FLEET})
+    )
+    app.dependency_overrides[deps.a_settings] = lambda: instance
+    return instance
 
 
 # starlette's TestClient is an httpx client, and httpx 0.x ships no stubs for the members a test

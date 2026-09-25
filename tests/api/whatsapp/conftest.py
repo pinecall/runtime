@@ -47,6 +47,7 @@ WEBHOOK = "/v1/whatsapp/webhook"
 def settings() -> Settings:
     """The environment of a box that answers WhatsApp: the app secret, the word, and a token."""
     return Settings(
+        world="production",
         ops_key=AN_OPS_KEY,
         vault_key=A_VAULT_KEY,
         whatsapp_app_secret=AN_APP_SECRET,
@@ -91,7 +92,9 @@ async def meta(wired: None) -> AsyncIterator[httpx.AsyncClient]:  # noqa: ARG001
 @pytest.fixture
 def a_box_with_no_token(meta: httpx.AsyncClient) -> None:  # noqa: ARG001
     """A box that answers WhatsApp and has nothing to answer WITH: the two are separate secrets."""
-    without = Settings(whatsapp_app_secret=AN_APP_SECRET, whatsapp_verify_token=A_VERIFY_TOKEN)
+    without = Settings(
+        world="production", whatsapp_app_secret=AN_APP_SECRET, whatsapp_verify_token=A_VERIFY_TOKEN
+    )
     app.dependency_overrides[deps.a_settings] = lambda: without
 
 

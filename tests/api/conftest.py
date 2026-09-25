@@ -124,6 +124,7 @@ def admission(orgs: MemoryOrgs, store: MemoryStore, logs: Logs) -> Admission:
 def settings() -> Settings:
     """The environment this gateway read: the dev key the chat door takes, and LiveKit's pair."""
     return Settings(
+        world="production",
         ops_key=AN_OPS_KEY,
         vault_key=A_VAULT_KEY,
         livekit_api_key=A_LIVEKIT.api_key,

@@ -5,7 +5,15 @@ from pathlib import Path
 import pytest
 
 from pinecall._env_files import EnvFileRefused
-from pinecall._settings import ENV_FILES, Settings, env_files_read, load_settings, variable_of
+from pinecall._settings import (
+    ENV_FILES,
+    UNSAID_WORLD,
+    Settings,
+    WorldUnsaid,
+    env_files_read,
+    load_settings,
+    variable_of,
+)
 from tests.tree import PACKAGE_ROOT
 
 pytestmark = pytest.mark.unit
@@ -208,3 +216,30 @@ def test_an_env_file_that_cannot_be_opened_is_a_sentence_naming_it(
         (tmp_path / ".env").chmod(0o600)
     assert ".env" in str(refused.value)
     assert "never skipped in silence" in str(refused.value)
+
+
+# An instance is one world and nothing picks it per request, so a process that never said which is
+# refused before it runs anything: a guess would be a developer's test written where customers are.
+def test_a_process_that_never_said_its_world_is_refused_in_one_sentence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PINECALL_WORLD")
+    with pytest.raises(WorldUnsaid) as refused:
+        load_settings()
+    assert str(refused.value) == UNSAID_WORLD
+
+
+def test_a_world_written_as_nothing_is_the_same_silence(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`PINECALL_WORLD=` is what `.env.example` writes, and it says no world at all."""
+    monkeypatch.setenv("PINECALL_WORLD", "")
+    with pytest.raises(WorldUnsaid):
+        load_settings()
+
+
+def test_the_world_is_read_and_the_fleet_is_pinecall_unless_the_instance_names_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PINECALL_WORLD", "sandbox")
+    assert (load_settings().world, load_settings().fleet) == ("sandbox", "pinecall")
+    monkeypatch.setenv("PINECALL_FLEET", "pinecall-sandbox")
+    assert load_settings().fleet == "pinecall-sandbox"

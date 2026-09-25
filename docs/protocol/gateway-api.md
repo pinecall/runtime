@@ -12,7 +12,7 @@ below is generated from the schema into **protocol**'s `docs/`; the terminal is 
 ## The shape of it
 
 A gateway is an API at `/v1`, and beside it serves the console at `/` and the widget at `/widget/pinecall-widget.js` — the one answer carrying `Access-Control-Allow-Origin: *`
-(`api/pages.py`); `/v1` echoes only the mobile app's origins (`api/app_origins.py`, [people.md](people.md)). That console holds a person's scoped key (§8) and shows production; the sandbox's is the same page served at the box's second name, where a request asking for production is refused (`auth/world.py`).
+(`api/pages.py`); `/v1` echoes only the mobile app's origins (`api/app_origins.py`, [people.md](people.md)). That console holds a person's scoped key (§8) and shows the instance's world, which the page is marked with (`pinecall-world`, and `pinecall-elsewhere` for the other console's URL); the sandbox's is the same page served by the sandbox's own instance.
 Three kinds of connection, and only three:
 
 | | what it is | who opens it |
@@ -46,7 +46,7 @@ worker's doors, and `POST /v1/apps/{app}/stop`. `calls`: `GET /v1/agents`, `GET 
 **The one exception to the header** is `?token=`, because an `EventSource` cannot set one. Only a
 short-lived room token is accepted there (see Tokens), never an API key: a URL ends up in an access log. Every log door takes the parameter (seven, in the schema), but a room token is a token for ONE call, so it opens that call's three — `GET /v1/calls/{call}/events`, `…/state`, `…/recording`, its own audio — and the org-wide doors refuse it: `an org's events are read with a key`.
 
-**Two more headers**: `pinecall-env: sandbox|production` names the world a person's key works in for this request — none is the sandbox, production only while their member row opens it (`403 <name> has no production access: …`), read at every request — and a server's token stays in the one it was made for (`403 this token was made for …`), sockets closing with the sentence; `pinecall-corner: <member id>` answers an HTTP door in that member's sandbox corner — an admin opening a colleague's copy ([multi-tenancy.md](../multi-tenancy.md)).
+**Two more headers**: `pinecall-env: sandbox|production` asserts the world the client believes this instance is — the other's is `403`, naming where it answers; at production a person's key on a door that opens a scope must say it (`403 this is production, …`) and acts only while their member row opens it (`403 <name> has no production access: …`), read at every request, while the doors that open no scope read it as an identity — and a server's token stays in the one it was made for (`403 this token was made for …`), sockets closing with the sentence; `pinecall-corner: <member id>` answers an HTTP door in that member's sandbox corner — an admin opening a colleague's copy ([multi-tenancy.md](../multi-tenancy.md)).
 **Refusals** are FastAPI's shape — `{"detail": "…"}` under the status — and the sentence names the
 fix. `401` no key; `403` another org's, or a token reading a call it was not minted for; `403` also a key whose scopes do not open the door; `404` a
 thing that is not there; `409` a request that disagrees with what is stored; `422` a body that is

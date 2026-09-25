@@ -16,7 +16,7 @@ pytestmark = pytest.mark.unit
 
 def an_ask(model: str | None = None) -> Asked:
     """A question for the fake modality: no keys are needed to answer it."""
-    return Asked(settings=Settings(), model=model)
+    return Asked(settings=Settings(world="production"), model=model)
 
 
 # Criterion 3: tests/providers/vendors/acme.py is a whole vendor. Nothing imports it, no table

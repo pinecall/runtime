@@ -139,10 +139,10 @@ def configure(parser: argparse.ArgumentParser) -> None:
 
 
 def run(arguments: argparse.Namespace) -> int:
-    """Name the env file first, then walk the checks, print the report, answer with the verdict."""
-    print(render_env_source())
-    print()
+    """Name the env file and the instance first, then walk the checks, and answer the verdict."""
     settings = load_settings()
+    print(render_env_source(settings))
+    print()
     probes = live_probes()
     results = run_checks(settings, probes)
     print(render_report(results))
@@ -155,13 +155,19 @@ def run(arguments: argparse.Namespace) -> int:
     return 1 if first_failure(results) else 0
 
 
-def render_env_source() -> str:
-    """The report's first line: which .env was read, so an ignored one can never be silent."""
+# Two instances run from one checkout on one box, so the first line also says WHICH this is: a
+# doctor read against the other instance's environment would otherwise look exactly as green.
+def render_env_source(settings: Settings) -> str:
+    """The report's first line: which .env was read, so an ignored one can never be silent, and
+    the world and fleet this instance is."""
     files = env_files_read()
-    if not files:
-        return "env: no .env — environment only"
     read_in_order = ", ".join(str(path) for path in files)
-    return f"env: {read_in_order}" + (" — the last one wins" if len(files) > 1 else "")
+    source = (
+        "env: no .env — environment only"
+        if not files
+        else f"env: {read_in_order}" + (" — the last one wins" if len(files) > 1 else "")
+    )
+    return f"{source} · world {settings.world} · fleet {settings.fleet}"
 
 
 def run_checks(settings: Settings, probes: Probes) -> list[Result]:

@@ -12,6 +12,7 @@ from pinecall.auth.keys import MemoryKeys
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.types import Quotas
 from tests.api.conftest import AN_ORG, over_the_asgi_app
+from tests.api.talking import at_the_console
 
 pytestmark = pytest.mark.unit
 
@@ -84,7 +85,7 @@ async def test_nobody_removes_themselves_and_the_last_active_admin_stays(
     tenant_http: httpx.AsyncClient, stranger: httpx.AsyncClient
 ) -> None:
     ana = await seated(tenant_http, stranger, "ana", "admin")
-    hers = over_the_asgi_app(f"Bearer {ana['key']}")
+    hers = at_the_console(ana["key"])
     me = ana["member"]["id"]
 
     myself = await hers.delete(f"{MEMBERS}/{me}")
@@ -144,7 +145,7 @@ async def test_nobody_disables_themselves(
     tenant_http: httpx.AsyncClient, stranger: httpx.AsyncClient
 ) -> None:
     ana = await seated(tenant_http, stranger, "ana", "admin")
-    hers = over_the_asgi_app(f"Bearer {ana['key']}")
+    hers = at_the_console(ana["key"])
     me = ana["member"]["id"]
 
     myself = await hers.patch(f"{MEMBERS}/{me}", json={"status": "disabled"})

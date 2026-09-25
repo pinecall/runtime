@@ -7,6 +7,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **An instance is one world: `PINECALL_WORLD` (`production` or `sandbox`) is required**, and a
+  process whose environment never said is refused at startup in one sentence. The sandbox becomes
+  an instance of its own; `PINECALL_ELSEWHERE_URL` names the other instance's URL (in every
+  refusal that sends a person there, in the console's `pinecall-elsewhere` mark, and as
+  `elsewhere` beside `world` at `GET /.well-known/pinecall`), and `PINECALL_IDENTITY_URL` where a
+  sandbox's people sign in. The doctor's first line says the world and the fleet.
 - **`PINECALL_FLEET` names the instance's fleet**, `pinecall` unless set: the name its workers
   register under, the one every token, dispatch and trunk rule of its gateway asks for, and the
   prefix of every trunk and rule it names on the SFU. Two instances on one SFU set two, and
@@ -18,19 +24,31 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   needed the one name they carry into all of them.
 
 ### Removed
+- **`PINECALL_SANDBOX_DOMAIN` is read by nothing**: a request's `Host` no longer picks a world or
+  marks the console. The console is marked with the instance's world, `/index.html` included.
 - **`PUT /v1/numbers/{number}/env` is gone.** A number is one instance's: it is imported where it
   is meant to answer, and nothing moves it to the other world.
 
 ### Changed
+- **`pinecall-env` is an assertion, no longer a choice.** A header naming the other instance's
+  world is `403` with where it answers, and so is a server's token of the other world. A person's
+  key with no header at production is `403` on every door that opens a scope — a client older
+  than the instances meant the sandbox by saying nothing — and still needs production access
+  there. The doors that open no scope (whoami, a login code, pairing, the org list and switch,
+  one's own keys) read a person's key as an identity, with neither: a developer kept out of
+  production signs in there and is handed to the sandbox. At the sandbox no header is fine.
+- **`POST /v1/keys` makes tokens of the instance's world only** (`400` naming where the other's
+  are made), and an operator's visit is minted in the instance's world.
 - **An import refuses a number another trunk on the SFU already lists** (`409`, naming that trunk),
   before the carrier or the SFU is touched: livekit-sip refuses an INVITE two trunks match, and one
   carrier account serves both instances.
-- **The names this runtime gives the SFU and a tenant's carrier carry the fleet, after a colon**:
-  the inbound trunk is `<fleet>:<org>` (was `pinecall-<org>`), its rule
-  `<fleet>:<org>:one-room-per-caller`, the outbound trunk `<fleet>:<org>:out`, and the trunk and
-  credential list on a tenant's Twilio account `<fleet>:<org>`. A trunk made under the old names
-  keeps them until it is retired by hand; until then an import or a rebuild finds nothing under
-  the new name and makes a second one beside it.
+- **The names this runtime gives the SFU carry the fleet, after a colon**: the inbound trunk is
+  `<fleet>:<org>` (was `pinecall-<org>`), its rule `<fleet>:<org>:one-room-per-caller`, the
+  outbound trunk `<fleet>:<org>:out`. The default fleet's trunks and rules under the old names are
+  renamed in place by the reconcile at the first start — same id, numbers untouched, never a
+  second trunk listing a number — with no step by hand. On a tenant's Twilio account the trunk,
+  its credential list and its termination label are `<fleet>-<org>`, which for the default fleet
+  is the name they already have.
 - **Cartesia is the voice when an agent names none**, where ElevenLabs was: `sonic-3`, and a native
   speaker of the agent's language when it chose no voice (Spain's Marta for `es`, Katie for `en`
   and the rest). A curated name (`carolina`) and an ElevenLabs-shaped id still speak at ElevenLabs,

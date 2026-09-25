@@ -155,7 +155,7 @@ class TestWithNoVaultKey:
 
     @pytest.fixture
     def settings(self) -> Settings:
-        return Settings(ops_key=AN_OPS_KEY)
+        return Settings(world="production", ops_key=AN_OPS_KEY)
 
     @pytest.fixture
     def sso(self) -> Sso | None:

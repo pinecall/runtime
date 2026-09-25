@@ -20,9 +20,11 @@ pip install pinecall          # or: uv add pinecall
 That is the whole install on a server: the wheel carries the gateway, the worker, the migrations
 and the console, with the widget the gateway serves at `/widget/pinecall-widget.js` — both copied
 in by `scripts/console` before a build; a gateway built without them answers those paths `404`
-with the sentence that says so. The console it serves at `/` shows production — and, at a second name the box may answer to
-(`PINECALL_SANDBOX_DOMAIN`), the same page shows the sandbox instead, where a developer watches
-what they are running (`pinecall console` opens it). A laptop that wants to read the code, run the example agent or bring up
+with the sentence that says so. An instance is one world: `PINECALL_WORLD` (`production` or
+`sandbox`) is required, and a process that never said is refused at startup. The console it serves
+at `/` shows that world; the sandbox is a second instance of the same runtime, with its own
+database, worker and fleet (`PINECALL_FLEET`), where a developer watches what they are running
+(`pinecall console` opens it), and `PINECALL_ELSEWHERE_URL` tells each where the other answers. A laptop that wants to read the code, run the example agent or bring up
 the dev stack clones instead — [docs/from-zero.md](docs/from-zero.md) is that walkthrough, every
 command in it run in order with the output it returned.
 
@@ -31,6 +33,7 @@ command in it run in order with the output it returned.
 ```
 docker compose -f infra/compose/dev.yml up -d      livekit · sip · redis · postgres · tei
 scripts/bootstrap                                  uv sync, every extra and tool group
+PINECALL_WORLD=sandbox, in .env                    required: the one world this laptop's instance is
 uv run pinecall-runtime migrate up                 the schema; a fresh database seeds the
                                                    default org, and `keys issue` mints its key
 uv run pinecall-runtime gateway                    the control plane, on 8080
@@ -189,7 +192,7 @@ they arrive as systemd credentials — and need a LiveKit server, a Postgres 17 
 |---|---|
 | `init --email --person [--org]` | the first org and its first admin, made an operator of this box, on a runtime nobody has used yet |
 | `migrate up [--post]` · `migrate status` · `migrate plan` | the schema, numbered SQL, applied in order. `up` says which database first, takes an advisory lock, and holds every migration to 5 s; a `.post.sql` is named and never run at startup, so `--post` is how an index on a big table gets built. `status` asks the database, `plan` touches nothing |
-| `doctor [--mail-to <address>]` | keys present · keys answer · livekit · postgres · embedder · mail · lk — one line each, and what is down first; the mail line says which mailbox — stored by the operator at `PUT /v1/ops/mail`, or the environment's; `--mail-to` posts one test letter through that same mailbox and says what the server said |
+| `doctor [--mail-to <address>]` | its first line names the .env read, the instance's world and its fleet; then keys present · keys answer · livekit · postgres · embedder · mail · lk — one line each, and what is down first; the mail line says which mailbox — stored by the operator at `PUT /v1/ops/mail`, or the environment's; `--mail-to` posts one test letter through that same mailbox and says what the server said |
 | `box secrets` | every secret a box makes for itself, once; run twice rotates nothing |
 | `box secret <NAME>` | one secret you bring, from stdin, replaced in place |
 | `fleet list · cordon · uncordon · loop` | the workers as the hub hears them, the graceful shrink, and the loop that keeps `busy` at the target over any cloud |

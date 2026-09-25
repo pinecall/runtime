@@ -2,11 +2,13 @@
 
 The index of [gateway-api.md](gateway-api.md): one line per door, method and path, and what it
 is for. The prose, the shapes and the refusals are on that page and in the pages it names. Every
-door that takes a key, both sockets included, reads `pinecall-env: sandbox|production`: the world
-a person's key works in for this request (none is the sandbox; production only with production
-access, `403` otherwise), and on a server's token only its own world, `403` for the other. Every
-HTTP door then reads `pinecall-corner: <member id>`: an admin's key, in the sandbox, answered in
-that colleague's corner.
+door that takes a key, both sockets included, answers in its instance's one world
+(`PINECALL_WORLD`) and reads `pinecall-env: sandbox|production` as an assertion: naming the other
+world is `403`, as is a server's token of the other. A door that opens a scope reads a person's key
+as it acts — at production a person says the header or is `403`, and production opens only with
+production access; a door that opens none (whoami, a login code, pairing, the org switch, one's own
+keys) reads it as an identity, with neither. Every HTTP door then reads `pinecall-corner: <member
+id>`: an admin's key, in the sandbox, answered in that colleague's corner.
 
 | | | |
 |---|---|---|
@@ -24,7 +26,7 @@ that colleague's corner.
 | `POST` | `/v1/carrier/outbound` · `?dry_run=true` | provision the trunk the org dials THROUGH — Twilio's termination and a credential list, or the peer the tenant declared, then the SFU's outbound trunk — or the plan alone |
 | `POST` | `/v1/agents/{slug}/dial` | place a call as this agent: `202` with the call it became, after the guards — `talk` |
 | `GET` | `/v1/keys` | the org's tokens by fingerprint: every server's, and your own person keys (every person's with `keys`), who made each and when it was last used — any key |
-| `POST` | `/v1/keys` | a server's token `{label, env}`, answered once, `pc_live_`/`pc_test_`: a person's key with `app`, production only with production access |
+| `POST` | `/v1/keys` | a server's token `{label, env}` in this instance's world (`400` for the other's, naming where it answers), answered once, `pc_live_`/`pc_test_`: a person's key with `app`, production only with production access |
 | `POST` | `/v1/keys/{fingerprint}/revoke` | stop your own key, a token you made, or any with `keys`; the row and its history stay |
 | `GET` | `/v1/sessions?limit=&q=&agent=&channel=&before=` | the newest calls across every agent, in the reader's corner, filtered and paged, each with its verdict and flags — [console-api.md](console-api.md) |
 | `GET` | `/v1/insights?day=` | one day of the reader's corner — calls, resolved rate, median e2e, spend, doors, agents — and the month's budget, UTC — `calls` |
@@ -124,7 +126,7 @@ that colleague's corner.
 | `POST` | `/v1/calls` · `/v1/calls/{call}/events` · `/sealed` · `/tools` · `/lookup` · `/remember` · `GET /commands` | the worker's own doors; `/lookup` is also the app's own `this.knowledge.search` — `app` |
 | `POST`·`GET` | `/v1/fleet/heartbeat` · `/v1/fleet/standing` | the fleet's: what a worker holds, and whether all are full. A key holding `app` AND `fleet` — what the box mints for its worker |
 | `GET`·`POST` | `/v1/whatsapp/webhook` | Meta's |
-| `GET` | `/.well-known/pinecall` | what this gateway is before anybody holds a key: version, `cloud`, `signup`, `min_password`, `mail`, `brand`, `google` — no key |
+| `GET` | `/.well-known/pinecall` | what this gateway is before anybody holds a key: version, `world` and `elsewhere` (the other instance's URL), `cloud`, `signup`, `min_password`, `mail`, `brand`, `google` — no key |
 | `GET` | `/` | the console — no key to load, it proves its own |
 | `GET` | `/widget/pinecall-widget.js` | the widget, for any site to load: `Access-Control-Allow-Origin: *`, the one answer to any origin; under `/v1` only the mobile app's origins are echoed ([people.md](people.md)) |
 | | `/v1/ops/*` | the operator's: the box's own key, or the key of a person the box made an operator — [operator-api.md](operator-api.md) |

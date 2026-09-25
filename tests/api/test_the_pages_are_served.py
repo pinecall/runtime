@@ -10,15 +10,19 @@ import pytest
 from starlette.testclient import TestClient
 
 from pinecall._settings import Settings
+from pinecall.api import _deps as deps
 from pinecall.api import pages
 from pinecall.api.app import app
 from pinecall.api.pages import NOT_BUILT
+from tests.conftest import a_sandbox
 
 pytestmark = pytest.mark.unit
 
 THE_PAGE = (
     "<!doctype html><html><head><title>c</title></head><body><div id=root></div></body></html>"
 )
+# The page as it is served: the head carries the instance's world, production's in this suite.
+SERVED = THE_PAGE.replace("<head>", '<head><meta name="pinecall-world" content="production">', 1)
 AN_ASSET = "console.log('the console')"
 
 # Every shape a browser asks for: the root, a screen, a deep screen, an asset, the page by name.
@@ -44,48 +48,42 @@ def test_every_screen_is_the_page_so_a_reload_lands_where_it_was(
     status, content_type, body = fetched(gateway, path)
     assert status == 200
     assert content_type.startswith("text/html")
-    assert body == THE_PAGE
+    assert body == SERVED
 
 
-# One bundle, two consoles: a box that answers to a second name serves the sandbox's console
-# there, and the page is told which it is by a mark in its own head (the console's lib/mode.ts
-# reads it at boot). A box of ONE name marks nothing, which is what every box was before there
-# were two — and a page nobody marked is production's.
-THE_BOX = "box.example.test"
-THE_SANDBOX = "sandbox.example.test"
-BOTH_NAMES = Settings(domain=THE_BOX, sandbox_domain=THE_SANDBOX)
+# One bundle, two consoles: each instance marks the page with the world it IS, and with where the
+# other one answers when it was told (the console's lib/mode.ts reads both at boot). The name the
+# page was asked at plays no part: an instance is one world whatever it is called.
+THE_SANDBOX = "https://sandbox.example.test"
+PRODUCTION_TOLD_OF_THE_SANDBOX = Settings(world="production", elsewhere_url=THE_SANDBOX)
 
 
-def test_a_box_of_one_name_marks_nothing_at_all() -> None:
-    assert pages.marks(Settings(domain=THE_BOX), THE_BOX) == ""
-
-
-def test_each_name_is_marked_with_its_world_and_with_where_the_other_console_is() -> None:
-    assert pages.marks(BOTH_NAMES, THE_SANDBOX) == (
-        '<meta name="pinecall-world" content="sandbox">'
-        f'<meta name="pinecall-elsewhere" content="https://{THE_BOX}">'
+def test_an_instance_told_of_no_other_marks_only_its_world() -> None:
+    assert (
+        pages.marks(Settings(world="sandbox")) == '<meta name="pinecall-world" content="sandbox">'
     )
-    assert pages.marks(BOTH_NAMES, THE_BOX) == (
+
+
+def test_the_page_is_marked_with_the_instances_world_and_where_the_other_console_is() -> None:
+    assert pages.marks(PRODUCTION_TOLD_OF_THE_SANDBOX) == (
         '<meta name="pinecall-world" content="production">'
-        f'<meta name="pinecall-elsewhere" content="https://{THE_SANDBOX}">'
+        f'<meta name="pinecall-elsewhere" content="{THE_SANDBOX}">'
     )
 
 
-def test_the_page_is_marked_for_the_name_it_was_asked_at_and_is_never_cached(
+def test_where_the_other_console_is_is_escaped_into_the_head() -> None:
+    told = Settings(world="production", elsewhere_url='https://x.test/"><script>')
+    assert '"><script>' not in pages.marks(told)
+
+
+def test_the_page_carries_the_instances_marks_and_is_never_cached(
     gateway: TestClient,
     built: Path,  # noqa: ARG001 — the fixture is the built console, in place
-    monkeypatch: pytest.MonkeyPatch,
+    settings: Settings,
 ) -> None:
-    """What the mark SAYS is the two tests above; this is that it reaches the head of the page."""
-    asked: list[str] = []
-
-    def marked(settings: Settings, host: str) -> str:  # noqa: ARG001 — the settings are the app's
-        asked.append(host)
-        return '<meta name="pinecall-world" content="sandbox">'
-
-    monkeypatch.setattr(pages, "marks", marked)
-    body, cached = asked_at(gateway, "/a/clinica-norte", THE_SANDBOX)
-    assert asked == [THE_SANDBOX]
+    """What the marks SAY is the tests above; this is that they reach the head of the page."""
+    app.dependency_overrides[deps.a_settings] = lambda: a_sandbox(settings)
+    body, cached = asked_at(gateway, "/a/clinica-norte")
     assert body.startswith(
         '<!doctype html><html><head><meta name="pinecall-world" content="sandbox">'
     )
@@ -119,7 +117,7 @@ def test_a_url_cannot_climb_out_of_the_consoles_directory(
     built: Path,  # noqa: ARG001
 ) -> None:
     status, _, body = fetched(gateway, "/assets/../../pyproject.toml")
-    assert status == 200 and body == THE_PAGE, "a climb is a screen nobody has: the page"
+    assert status == 200 and body == SERVED, "a climb is a screen nobody has: the page"
 
 
 def test_a_gateway_nobody_built_the_console_into_says_so(
@@ -165,9 +163,12 @@ def test_the_well_known_door_says_which_runtime_and_whose(gateway: TestClient) -
     # types, and it holds no key when it asks. The suite's settings take the default.
     assert said == {
         "version": said["version"],
+        # Which world this instance is, and where the other answers: none named in this suite.
+        "world": "production",
+        "elsewhere": None,
         "cloud": False,
         "signup": False,
-        "min_password": Settings().min_password,
+        "min_password": Settings(world="production").min_password,
         # Whether the BOX can post a letter, so a sign-in page knows whether "Forgot your
         # password?" may promise an email. This suite's settings name no mail server.
         "mail": False,
@@ -177,6 +178,16 @@ def test_the_well_known_door_says_which_runtime_and_whose(gateway: TestClient) -
         "google": False,
     }
     assert isinstance(said["version"], str)
+
+
+def test_the_well_known_door_says_the_instances_world_and_where_the_other_answers(
+    gateway: TestClient, settings: Settings
+) -> None:
+    """A CLI knows only a URL: this is how it learns which world that is, and the other's URL."""
+    told = a_sandbox(settings, elsewhere_url="https://box.example.test")
+    app.dependency_overrides[deps.a_settings] = lambda: told
+    said = json.loads(fetched(gateway, "/.well-known/pinecall")[2])
+    assert (said["world"], said["elsewhere"]) == ("sandbox", "https://box.example.test")
 
 
 # starlette's TestClient types its requests through httpx's private `_types`, which no checker can
@@ -193,10 +204,10 @@ def fetched(gateway: TestClient, path: str) -> tuple[int, str, str]:
     )
 
 
-def asked_at(gateway: TestClient, path: str, host: str) -> tuple[str, str]:
-    """One GET at a name of the box: the body as a browser reads it, and whether it may be kept."""
+def asked_at(gateway: TestClient, path: str) -> tuple[str, str]:
+    """One GET of a page: the body as a browser reads it, and whether it may be kept."""
     got: Any = gateway.get(  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-        path, headers={"host": host}
+        path
     )
     return (
         str(got.text),  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
@@ -243,7 +254,7 @@ def test_the_console_owns_docs_and_the_schema_lives_under_v1(
     for screen in ("/docs", "/docs/some-base"):
         page: Any = handle.get(screen)
         assert page.status_code == 200
-        assert page.text == THE_PAGE
+        assert page.text == SERVED
     swagger: Any = handle.get("/v1/docs")
     assert swagger.status_code == 200
     assert "swagger" in swagger.text.lower()

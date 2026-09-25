@@ -70,11 +70,11 @@ def a_dev_server_named(monkeypatch: pytest.MonkeyPatch, wired: None) -> Iterator
 
 
 def test_unset_the_list_is_the_apps_two_webviews_and_nothing_more() -> None:
-    assert origins_allowed(Settings()) == THE_APPS_WEBVIEWS == (IOS, ANDROID)
+    assert origins_allowed(Settings(world="production")) == THE_APPS_WEBVIEWS == (IOS, ANDROID)
 
 
 def test_the_variable_adds_an_origin_after_the_two_and_never_twice() -> None:
-    settings = Settings(app_origins=f"{A_DEV_SERVER},{IOS}")
+    settings = Settings(world="production", app_origins=f"{A_DEV_SERVER},{IOS}")
     assert origins_allowed(settings) == (IOS, ANDROID, A_DEV_SERVER)
 
 

@@ -12,7 +12,7 @@ A_PASSWORD = "correct horse battery staple"
 
 # What the box says is short enough, handed in by the door. There is no number in the module: the
 # floor is the operator's, and this suite asks the settings for it exactly as a door does.
-A_FLOOR = Settings().min_password
+A_FLOOR = Settings(world="production").min_password
 
 
 def test_the_hash_is_argon2id_carries_its_salt_and_never_the_password() -> None:

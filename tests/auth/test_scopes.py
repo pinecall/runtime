@@ -26,7 +26,7 @@ def test_every_scope_the_protocol_has_reads_through_exactly_one_projection() -> 
 
 def test_the_pair_is_livekits_own_because_the_token_is_a_livekit_token() -> None:
     """One token opens the room and reads the log, so there is only ever one pair to set."""
-    settings = Settings(livekit_api_key=A_KEY, livekit_api_secret=A_SECRET)
+    settings = Settings(world="production", livekit_api_key=A_KEY, livekit_api_secret=A_SECRET)
     assert secret_for(settings) == LivekitKeys(A_KEY, A_SECRET)
 
 
@@ -35,4 +35,4 @@ def test_the_pair_is_livekits_own_because_the_token_is_a_livekit_token() -> None
 # stack brings LiveKit up beside Postgres, so there is one pair and it is the real one.
 def test_a_process_with_no_pair_verifies_nothing_rather_than_signing_what_opens_no_room() -> None:
     with pytest.raises(RuntimeError, match="call token"):
-        secret_for(Settings(livekit_api_key=None, livekit_api_secret=None))
+        secret_for(Settings(world="production", livekit_api_key=None, livekit_api_secret=None))

@@ -8,11 +8,14 @@ from typing import Protocol
 from livekit import api
 
 from pinecall._settings import Settings
+from pinecall.routes.trunks import by_name, once_named
 from pinecall.types import SipTransport
 
 # One outbound trunk per org, named beside its inbound twin so a person reading the SFU's two
 # lists sees one pair per tenant. `<fleet>:<org>` is the inbound one, and why a colon (trunks.py).
 TRUNK_NAME = "{fleet}:{org}:out"
+# Before the fleet led it; renamed in place when found, as the inbound one is (trunks.py).
+LEGACY_TRUNK = "pinecall-{org}-out"
 
 NO_LIVEKIT = (
     "this gateway has no LIVEKIT_API_KEY and LIVEKIT_API_SECRET: it cannot place a call on the"
@@ -84,17 +87,16 @@ class LivekitOutbound:
         self._fleet = fleet
 
     async def standing(self, org: str) -> str | None:
-        """One list, matched by the name this runtime gives the org's trunk."""
+        """One list, matched by the name this runtime gives the org's trunk, or the one it gave."""
         async with api.LiveKitAPI(self._url, self._key, self._secret) as livekit:
-            trunk = await _trunk_named(livekit, TRUNK_NAME.format(fleet=self._fleet, org=org))
+            trunk = await self._the_orgs_trunk(livekit, org)
             return None if trunk is None else trunk.sip_trunk_id
 
     async def provisioned(self, org: str, placing: Placing) -> str:
-        """Create the trunk when there is none; replace it whole when there is."""
-        name = TRUNK_NAME.format(fleet=self._fleet, org=org)
+        """Create the trunk when there is none; replace it whole — its name too — when there is."""
+        info = _a_trunk_info(TRUNK_NAME.format(fleet=self._fleet, org=org), placing)
         async with api.LiveKitAPI(self._url, self._key, self._secret) as livekit:
-            info = _a_trunk_info(name, placing)
-            trunk = await _trunk_named(livekit, name)
+            trunk = await self._the_orgs_trunk(livekit, org)
             if trunk is None:
                 made = await livekit.sip.create_outbound_trunk(
                     api.CreateSIPOutboundTrunkRequest(trunk=info)
@@ -102,6 +104,17 @@ class LivekitOutbound:
                 return made.sip_trunk_id
             await livekit.sip.update_outbound_trunk(trunk.sip_trunk_id, info)
             return trunk.sip_trunk_id
+
+    async def _the_orgs_trunk(
+        self, livekit: api.LiveKitAPI, org: str
+    ) -> api.SIPOutboundTrunkInfo | None:
+        """The org's outbound trunk: by the name it carries now, else by the one it once did."""
+        standing = await livekit.sip.list_outbound_trunk(api.ListSIPOutboundTrunkRequest())
+        return by_name(
+            standing.items,
+            TRUNK_NAME.format(fleet=self._fleet, org=org),
+            *once_named(LEGACY_TRUNK, self._fleet, org),
+        )
 
 
 def _a_trunk_info(name: str, placing: Placing) -> api.SIPOutboundTrunkInfo:
@@ -115,11 +128,6 @@ def _a_trunk_info(name: str, placing: Placing) -> api.SIPOutboundTrunkInfo:
     if placing.auth is not None:
         info.auth_username, info.auth_password = placing.auth
     return info
-
-
-async def _trunk_named(livekit: api.LiveKitAPI, name: str) -> api.SIPOutboundTrunkInfo | None:
-    standing = await livekit.sip.list_outbound_trunk(api.ListSIPOutboundTrunkRequest())
-    return next((trunk for trunk in standing.items if trunk.name == name), None)
 
 
 def outbound_for(settings: Settings) -> Outbound | None:

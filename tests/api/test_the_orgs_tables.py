@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
+from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
@@ -15,7 +16,7 @@ from pinecall.log.store import MemoryStore
 from pinecall.routes.table import MemoryRoutes
 from pinecall.types import PRODUCTION, SANDBOX, Member, Route
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, Json
-from tests.api.talking import got
+from tests.api.talking import answering_in, got
 from tests.log.test_usage import A_SUMMARY
 
 pytestmark = pytest.mark.unit
@@ -64,7 +65,7 @@ def posted(gateway: TestClient, path: str, body: object, bearer: str) -> tuple[i
 
 
 def listed(
-    gateway: TestClient, path: str, bearer: str, world: str = SANDBOX
+    gateway: TestClient, path: str, bearer: str, world: str = PRODUCTION
 ) -> tuple[int, list[Json]]:
     """A door that answers a list, which `got` does not type, in the world the request names."""
     handle: Any = gateway
@@ -82,25 +83,26 @@ async def test_usage_is_the_orgs_own_rows_and_totals_and_a_cursor(
     await store.append("CA_1", AGENT, "call.summary", dict(A_SUMMARY))
     await store.owned("CA_theirs", "clinica-vecina", "vecina")
     await store.append("CA_theirs", "clinica-vecina", "call.summary", dict(A_SUMMARY))
-    status, body = got(gateway, "/v1/usage", ANAS_KEY)
+    status, body = got(gateway, "/v1/usage", ANAS_KEY, PRODUCTION)
     assert status == 200
     assert [row["call"] for row in body["rows"]] == ["CA_1"]
     assert body["totals"] is not None and body["totals"]["calls"] == 1
     assert body["next"] == 2, "the cursor moves past the other org's row too"
-    _, empty = got(gateway, f"/v1/usage?after={body['next']}", ANAS_KEY)
+    _, empty = got(gateway, f"/v1/usage?after={body['next']}", ANAS_KEY, PRODUCTION)
     assert (empty["rows"], empty["totals"], empty["next"]) == ([], None, None)
 
 
-async def test_numbers_are_the_orgs_rows_in_the_world_asked(
-    gateway: TestClient, registry: Registry, routes: MemoryRoutes
+async def test_numbers_are_the_orgs_rows_in_the_instances_world(
+    gateway: TestClient, registry: Registry, routes: MemoryRoutes, settings: Settings
 ) -> None:
     """A door is a row somebody typed, in one world: holding an agent puts none in either."""
     await registry.register("app_1", A_RECORD.org, PRODUCTION, AGENT)
     await routes.put(Route(org=A_RECORD.org, agent=AGENT, channel="phone", number="+34910000000"))
-    assert listed(gateway, "/v1/numbers", ANAS_KEY)[1] == [], "the sandbox has no number"
-    status, doors = listed(gateway, "/v1/numbers", ANAS_KEY, PRODUCTION)
+    status, doors = listed(gateway, "/v1/numbers", ANAS_KEY)
     assert status == 200
     assert [door["route"]["number"] for door in doors] == ["+34910000000"]
+    answering_in(SANDBOX, settings)
+    assert listed(gateway, "/v1/numbers", ANAS_KEY, SANDBOX)[1] == [], "the sandbox has no number"
 
 
 def test_the_tables_ask_their_own_scope(gateway: TestClient) -> None:

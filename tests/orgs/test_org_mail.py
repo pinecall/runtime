@@ -68,8 +68,8 @@ async def test_the_memory_table_keeps_a_mailbox_its_standing_and_nothing_between
 @pytest.mark.unit
 def test_no_vault_key_means_no_mail_table_at_all() -> None:
     """The box's own mail needs no vault; an org's password cannot be kept without one."""
-    assert mail_for(Settings(vault_key=None), pool=None) is None
-    keyed = Settings(vault_key=Fernet.generate_key().decode())
+    assert mail_for(Settings(world="production", vault_key=None), pool=None) is None
+    keyed = Settings(world="production", vault_key=Fernet.generate_key().decode())
     assert isinstance(mail_for(keyed, pool=None), MemoryMail)
 
 

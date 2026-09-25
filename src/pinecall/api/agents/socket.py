@@ -66,7 +66,7 @@ async def apps(
 ) -> None:
     """One app, one socket: a key at the door, then commands in and log entries out."""
     try:
-        key = await a_key_on_a_socket(websocket, keys, members, settings.sandbox_domain)
+        key = await a_key_on_a_socket(websocket, keys, members, settings)
     except PermissionError as refused:
         await websocket.accept()
         await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(str(refused)))

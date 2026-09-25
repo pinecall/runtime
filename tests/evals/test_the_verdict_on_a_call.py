@@ -40,7 +40,7 @@ THE_GOLDENS_AGENT = AgentConfig(
 )
 
 # The budget every unit test runs under (tests/conftest.py): nothing may ask a model in ring 0.
-NO_BUDGET = Settings(judge_ceiling_eur=0)
+NO_BUDGET = Settings(world="production", judge_ceiling_eur=0)
 
 
 @pytest.fixture(scope="module")

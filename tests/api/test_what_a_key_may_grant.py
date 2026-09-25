@@ -8,11 +8,13 @@ from typing import Any
 import httpx
 import pytest
 
+from pinecall._settings import Settings
 from pinecall.auth.granting import NOT_YOUR_OWN_ROW, NOT_YOURS_TO_GRANT, NOT_YOURS_TO_SWITCH
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.types import ROLE_SCOPES, SANDBOX, Member
 from tests.api.conftest import A_KEY, A_RECORD, over_the_asgi_app
+from tests.api.talking import answering_in
 
 pytestmark = pytest.mark.unit
 
@@ -58,8 +60,10 @@ def members() -> MemoryMembers:
     return MemoryMembers([MARTA, DIEGO])
 
 
+# Marta opens no production, so she is asked at the sandbox's instance, where every member works.
 @pytest.fixture
-async def marta(wired: None) -> AsyncIterator[httpx.AsyncClient]:  # noqa: ARG001
+async def marta(wired: None, settings: Settings) -> AsyncIterator[httpx.AsyncClient]:  # noqa: ARG001
+    answering_in(SANDBOX, settings)
     http = over_the_asgi_app(f"Bearer {A_MANAGERS_KEY}")
     yield http
     await http.aclose()

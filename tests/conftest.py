@@ -46,6 +46,12 @@ pytest_plugins = [
 ]
 
 
+# The world every test's instance is, unless the test builds another (`a_sandbox`). Set for the
+# whole process and not per test: collection already builds a Settings, the marks that keep the
+# real environment keep it too, and a subprocess a test starts inherits it.
+THE_TESTS_WORLD = "production"
+
+
 def pytest_configure() -> None:
     """The suite reads no .env: an operator's real keys must not give them a different suite."""
     # pydantic-settings reads `env_file` off model_config at every construction, so clearing it
@@ -53,6 +59,14 @@ def pytest_configure() -> None:
     # load_settings() and for a direct Settings() alike. The tests that are ABOUT the file ask for
     # it back, one at a time (tests/test_settings.py).
     Settings.model_config["env_file"] = None
+    pytest.MonkeyPatch().setenv("PINECALL_WORLD", THE_TESTS_WORLD)
+
+
+def a_sandbox(settings: Settings | None = None, **changed: object) -> Settings:
+    """The same settings as the sandbox's instance: its world, and the fleet it dispatches to."""
+    return (settings or load_settings()).model_copy(
+        update={"world": "sandbox", "fleet": "pinecall-sandbox", **changed}
+    )
 
 
 # livekit registers a plugin the first time a modality's vendor table is read, and refuses to do

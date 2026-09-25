@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from pinecall._settings import load_settings
+from pinecall._settings import UNSAID_WORLD, load_settings
 from pinecall.cli import main
 from pinecall.cli.doctor import verbs as doctor
 from pinecall.mail import BoxMail
@@ -271,7 +271,8 @@ def test_the_report_opens_with_the_env_file_it_read(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(doctor, "live_probes", probes_that_answer)
     assert main(["doctor"]) == 0
-    assert capsys.readouterr().out.splitlines()[0] == f"env: {tmp_path / 'runtime' / '.env'}"
+    first = capsys.readouterr().out.splitlines()[0]
+    assert first == f"env: {tmp_path / 'runtime' / '.env'} · world production · fleet pinecall"
 
 
 def test_the_report_says_environment_only_when_there_is_no_env_file(
@@ -282,7 +283,35 @@ def test_the_report_says_environment_only_when_there_is_no_env_file(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(doctor, "live_probes", probes_that_answer)
     assert main(["doctor"]) == 0
-    assert capsys.readouterr().out.splitlines()[0] == "env: no .env — environment only"
+    first = capsys.readouterr().out.splitlines()[0]
+    assert first == "env: no .env — environment only · world production · fleet pinecall"
+
+
+def test_the_first_line_says_which_instance_the_report_is_about(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Two instances share one checkout on a box: a green report must say whose it is."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PINECALL_WORLD", "sandbox")
+    monkeypatch.setenv("PINECALL_FLEET", "pinecall-sandbox")
+    monkeypatch.setattr(doctor, "live_probes", probes_that_answer)
+    assert main(["doctor"]) == 0
+    first = capsys.readouterr().out.splitlines()[0]
+    assert first.endswith(" · world sandbox · fleet pinecall-sandbox")
+
+
+def test_a_box_that_never_said_its_world_is_refused_in_one_sentence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("PINECALL_WORLD")
+    monkeypatch.setattr(doctor, "live_probes", probes_that_answer)
+    assert main(["doctor"]) == 1
+    assert capsys.readouterr().err.strip() == UNSAID_WORLD
 
 
 def test_the_livekit_cli_is_reported_with_the_path_it_was_found_at() -> None:

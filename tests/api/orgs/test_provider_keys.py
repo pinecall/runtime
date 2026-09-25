@@ -273,6 +273,7 @@ class TestARuntimeWithNoVaultKey:
     def settings(self) -> Settings:
         """The same environment the suite's gateway reads, with the vault key left unset."""
         return Settings(
+            world="production",
             ops_key=AN_OPS_KEY,
             livekit_api_key=A_LIVEKIT.api_key,
             livekit_api_secret=A_LIVEKIT.api_secret,

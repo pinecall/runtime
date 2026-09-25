@@ -4,7 +4,8 @@ import os
 from dataclasses import dataclass
 from typing import Literal, cast, override
 
-from pydantic import Field, model_validator
+from pydantic import Field, ValidationError, model_validator
+from pydantic_core import ErrorDetails
 from pydantic_settings import (
     BaseSettings,
     DotEnvSettingsSource,
@@ -13,7 +14,9 @@ from pydantic_settings import (
 )
 
 from pinecall._env_files import ENV_FILES, as_a_refusal, env_files_read
+from pinecall._exceptions import PinecallError
 from pinecall._vendor_keys import VendorKeys
+from pinecall.types import Env
 from pinecall.types.dispatch import DEFAULT_FLEET
 
 # Our own knobs carry this prefix; a vendor key keeps the vendor's own name (the alias on the
@@ -150,14 +153,27 @@ class Settings(VendorKeys):
         default=None,
         description="The box's public name: where a carrier sends a call. Unset, nothing imports.",
     )
-    # The box's SECOND name, and the only thing that tells the two consoles apart: a page served
-    # at this one is the sandbox's, and a request that arrives here may not run in production
-    # (auth/world.py). One gateway answers both names — Caddy holds them and passes the Host
-    # through — so this is a name, never a second process. Unset, the box has one console and it
-    # is production's, as it was before there were two.
-    sandbox_domain: str | None = Field(
+
+    # ── The world: which one this instance IS, and where the other one answers ──
+    # An instance is one world, with its own database, worker and keys: production answers the
+    # phone, the sandbox is where agents are written. Nothing picks the world per request any more
+    # (auth/world.py holds a request's `pinecall-env` against THIS), so it has no default: a box
+    # that never said which it is would be guessing, and a guess here is a developer's test
+    # written into what a customer hears. load_settings() refuses a process that did not say.
+    world: Env = Field(
+        description="Which world this instance is: production or sandbox. Required, no default.",
+    )
+    # The other instance's public URL: named in the sentence that refuses a request meant for it,
+    # written into the console so its switcher links there, and served at /.well-known/pinecall.
+    elsewhere_url: str | None = Field(
         default=None,
-        description="The box's second name, whose console is the sandbox's. Unset, there is one.",
+        description="The other world's gateway, https://…: where a refusal sends a person.",
+    )
+    # Where a person's identity lives: production's gateway, which the sandbox asks who a person
+    # is. Unset on production itself, which is the identity.
+    identity_url: str | None = Field(
+        default=None,
+        description="The gateway people sign in at, for a sandbox instance. Unset on production.",
     )
 
     # ── The services the doctor asks after: Postgres, and the embedder ─────────
@@ -422,12 +438,36 @@ class Settings(VendorKeys):
         return init_settings, env_settings, walked, file_secret_settings
 
 
+# The one setting with no default, refused in a sentence rather than pydantic's table: every
+# process and every verb reads the settings first, so this is what a box that never said its world
+# sees, whatever it was asked to do. An EMPTY value is the same silence — it is what `.env.example`
+# writes — so it is refused the same way.
+UNSAID_WORLD = (
+    "PINECALL_WORLD is not set: an instance is one world, production or sandbox, and says which"
+)
+
+
+class WorldUnsaid(PinecallError):
+    """A process started with no PINECALL_WORLD. Nothing runs until it says which world it is."""
+
+
 def load_settings() -> Settings:
     """The environment now. No hidden global; an unopenable .env is a sentence, not a trace."""
     try:
-        return Settings()
+        # `world` has no default on purpose and the environment is what supplies it, which a type
+        # checker reading the constructor cannot see: the refusal below is the check that counts.
+        return Settings()  # type: ignore[call-arg]
     except OSError as failed:
         raise as_a_refusal(failed) from failed
+    except ValidationError as failed:
+        if any(_the_world_unsaid(error) for error in failed.errors()):
+            raise WorldUnsaid(UNSAID_WORLD) from failed
+        raise
+
+
+def _the_world_unsaid(error: ErrorDetails) -> bool:
+    """Whether this validation error is PINECALL_WORLD missing, or set to nothing."""
+    return error["loc"] == ("world",) and (error["type"] == "missing" or error["input"] == "")
 
 
 def variable_of(field: str) -> str:

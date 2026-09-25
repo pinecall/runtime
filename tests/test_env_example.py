@@ -38,3 +38,7 @@ def _names_in(example: str) -> list[str]:
     return [
         line.split("=", 1)[0] for line in example.splitlines() if line and not line.startswith("#")
     ]
+
+
+def test_the_world_has_no_default_and_is_written_empty_for_the_operator_to_say() -> None:
+    assert "\nPINECALL_WORLD=\n" in _example_on_disk()

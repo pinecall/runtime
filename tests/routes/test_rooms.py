@@ -36,7 +36,11 @@ def test_the_names_are_asked_for_in_batches_so_a_hundred_calls_are_one_round_tri
 
 def test_the_real_sfu_needs_the_livekit_pair_and_is_none_without_it() -> None:
     """A gateway that cannot ask which calls are running reaps nothing (api/app.py)."""
-    assert rooms_for(Settings(livekit_api_key=None, livekit_api_secret=None)) is None
+    assert (
+        rooms_for(Settings(world="production", livekit_api_key=None, livekit_api_secret=None))
+        is None
+    )
     assert isinstance(
-        rooms_for(Settings(livekit_api_key="k", livekit_api_secret="s" * 32)), LivekitRooms
+        rooms_for(Settings(world="production", livekit_api_key="k", livekit_api_secret="s" * 32)),
+        LivekitRooms,
     )

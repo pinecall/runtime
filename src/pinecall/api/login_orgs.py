@@ -6,13 +6,13 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import KeyDep, KeysDep, MembersDep, OrgsDep
+from pinecall.api._deps import KeyDep, KeysDep, MembersDep, OrgsDep, SettingsDep
 from pinecall.api.login import NOT_A_MEMBER
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Members
 from pinecall.auth.persons import a_persons_key
 from pinecall.auth.visiting import VISITOR_LABEL, a_visitor, the_operator, visiting
-from pinecall.types import HOLDING, PRODUCTION, ROLE_SCOPES, Member, Org
+from pinecall.types import HOLDING, ROLE_SCOPES, Member, Org
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -61,7 +61,12 @@ async def the_persons_orgs(key: KeyDep, orgs: OrgsDep, members: MembersDep) -> d
 
 @router.post("/v1/login/org")
 async def the_other_org(
-    said: OtherOrg, key: KeyDep, orgs: OrgsDep, members: MembersDep, keys: KeysDep
+    said: OtherOrg,
+    key: KeyDep,
+    orgs: OrgsDep,
+    members: MembersDep,
+    keys: KeysDep,
+    settings: SettingsDep,
 ) -> dict[str, Any]:
     """A key for the same person in the org named: as the member they are there, in this key's
     world — or, for an operator who is none, as the operator. 403 when the org is not theirs."""
@@ -75,13 +80,13 @@ async def the_other_org(
     # screen says in so many words, and never as the member the tenant stopped.
     if org is None or await the_operator(members, person.email) is None:
         raise HTTPException(403, NOT_THERE.format(org=said.org))
-    # Production, whatever world the asking key opens: a visit is to what the tenant's customers
-    # reach, and a sandbox is a member's corner (auth/visiting.py). An admin's reach there, less
-    # `app` — the box may look at and mend a tenant, and holds none of its agents.
+    # In this instance's world, which is the only one its doors open: at production a visit is to
+    # what the tenant's customers reach. An admin's reach there, less `app` — the box may look at
+    # and mend a tenant, and holds none of its agents.
     issued = await keys.issue(
         org=org.id,
         label=VISITOR_LABEL.format(email=person.email),
-        env=PRODUCTION,
+        env=settings.world,
         scopes=ROLE_SCOPES["admin"] - {HOLDING},
         subject=a_visitor(person.email),
         name=person.name,

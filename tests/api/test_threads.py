@@ -12,6 +12,7 @@ from pinecall.api.threads import NO_THREAD, NOTHING_OPEN, ONLY_WHATSAPP, WINDOW_
 from pinecall.api.whatsapp.threads import WINDOW_SECONDS
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
+from pinecall.auth.world import ENV_HEADER
 from pinecall.log.store import MemoryStore
 from pinecall.types import PRODUCTION, Member
 from tests.api.conftest import A_KEY, A_RECORD, AGENT
@@ -86,8 +87,10 @@ async def a_conversation(
 
 
 def post(gateway: TestClient, path: str, body: Any = None, bearer: str = A_KEY) -> Any:
+    """A write from the console at production, which says the world it believes it is in."""
     handle: Any = gateway
-    return handle.post(path, json=body, headers={"Authorization": f"Bearer {bearer}"})
+    headers = {"Authorization": f"Bearer {bearer}", ENV_HEADER: PRODUCTION}
+    return handle.post(path, json=body, headers=headers)
 
 
 async def test_the_inbox_is_a_line_per_contact_and_each_person_reads_their_own(

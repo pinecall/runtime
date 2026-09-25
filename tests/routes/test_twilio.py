@@ -10,12 +10,14 @@ import pytest
 
 from pinecall.routes.twilio import (
     ACCOUNTS_API,
+    CARRIER_TRUNK,
     TRUNKING_API,
     TWILIO_SIGNALLING,
     HttpTwilio,
     Trunk,
     TwilioRefused,
     origination_uri,
+    termination_label,
 )
 from pinecall.types import TwilioAccount
 
@@ -155,3 +157,21 @@ def test_the_networks_the_trunk_admits_are_the_ones_the_fence_opens() -> None:
     listed: Any = [line.strip().rstrip(",") for line in inside.splitlines() if "/" in line]
     assert sorted(listed) == sorted(TWILIO_SIGNALLING)
     assert json.dumps(TWILIO_SIGNALLING)  # the tuple is plain data, as the trunk wants it
+
+
+def test_the_default_fleets_carrier_trunk_keeps_the_name_every_production_trunk_already_has() -> (
+    None
+):
+    assert CARRIER_TRUNK.format(fleet="pinecall", org="org_1a2b") == "pinecall-org_1a2b"
+    assert termination_label("pinecall", "org_1a2b") == "pinecall-org-1a2b"
+
+
+def test_the_sandboxs_trunk_and_label_stand_beside_productions_on_one_account() -> None:
+    """One tenant account serves both instances: two trunks, two labels, neither the other's."""
+    names = {
+        CARRIER_TRUNK.format(fleet=fleet, org="org_1a2b")
+        for fleet in ("pinecall", "pinecall-sandbox")
+    }
+    labels = {termination_label(fleet, "org_1a2b") for fleet in ("pinecall", "pinecall-sandbox")}
+    assert (len(names), len(labels)) == (2, 2)
+    assert labels == {"pinecall-org-1a2b", "pinecall-sandbox-org-1a2b"}

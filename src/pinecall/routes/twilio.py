@@ -38,9 +38,19 @@ SIP_PORT = 5060
 ORIGINATION_NAME = "pinecall-box"
 
 # The trunk on the BOX's own account, the one infra/tools/twilio_trunk.py wires for an operator
-# and the one a number the box buys for a tenant is attached to. A tenant's trunk on its own
-# account is `pinecall-<org>` (api/numbers.py); this one is the box's, and there is one.
+# and the one a number the box buys for a tenant is attached to. This one is the box's, and there
+# is one; a tenant's trunk on its own account is CARRIER_TRUNK.
 BOX_TRUNK = "pinecall"
+
+# A tenant's trunk on ITS Twilio account — and the credential list the box dials through, and,
+# tidied, the trunk's termination label — named `<fleet>-<org>`: made once, found by name after,
+# never doubled. Why this spelling and not the SFU's `<fleet>:<org>` (routes/trunks.py): the
+# default fleet's is `pinecall-<org>`, exactly what every production trunk is already called, so no
+# tenant's account is renamed; the sandbox's fleet gives `pinecall-sandbox-<org>` beside it on the
+# same account, and no org id can make the two meet (ids are `org_<hex>`, or `default`); and a
+# dash is in every alphabet Twilio has for the three — a label is `[a-z0-9-]` and unique across
+# all of Twilio, which the org and the fleet in it make it.
+CARRIER_TRUNK = "{fleet}-{org}"
 
 # What Twilio appends to a trunk's termination label to make the host the box dials. The label is
 # unique across every Twilio account there is, which is why it carries the org and why a name
@@ -311,10 +321,10 @@ def origination_uri(domain: str) -> str:
     return f"sip:{domain}:{SIP_PORT};transport=udp"
 
 
-def termination_label(org: str) -> str:
+def termination_label(fleet: str, org: str) -> str:
     """The trunk's termination label for this org, in the only alphabet Twilio takes for one."""
-    tidied = "".join(letter if letter.isalnum() else "-" for letter in org.lower())
-    return f"{BOX_TRUNK}-{tidied.strip('-')}"
+    named = CARRIER_TRUNK.format(fleet=fleet, org=org).lower()
+    return "".join(letter if letter.isalnum() else "-" for letter in named).strip("-")
 
 
 def termination_host(label: str) -> str:

@@ -25,6 +25,7 @@ JP = {"email": "jp@cloudacio.com", "name": "JP", "role": "developer"}
 def settings() -> Settings:
     """Sign-ups open, so the stranger's door is one of the three tried here."""
     return Settings(
+        world="production",
         ops_key=AN_OPS_KEY,
         livekit_api_key=A_LIVEKIT.api_key,
         livekit_api_secret=A_LIVEKIT.api_secret,
@@ -39,10 +40,10 @@ async def another_admin(
     orgs: MemoryOrgs,
     keys: MemoryKeys,
 ) -> AsyncIterator[httpx.AsyncClient]:
-    """The admin of a SECOND tenant on this box, knocking with a key of that org's own."""
+    """A SECOND tenant on this box, knocking with that org's own key."""
     other = await orgs.create("cloudacio", "Cloudacio")
     assert other is not None
-    issued = await keys.issue(other.id, "their console", subject="m_rival", name="Rival")
+    issued = await keys.issue(other.id, "their console")
     http = over_the_asgi_app(f"Bearer {issued.key}")
     yield http
     await http.aclose()

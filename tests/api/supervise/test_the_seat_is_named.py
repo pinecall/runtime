@@ -10,8 +10,11 @@ from starlette.testclient import TestClient
 from pinecall.api._live import Live
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import KeyRecord, MemoryKeys
+from pinecall.auth.members_memory import MemoryMembers
+from pinecall.auth.world import ENV_HEADER
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
+from pinecall.types import PRODUCTION, Member
 from pinecall.types.token import NAME_ATTRIBUTE, SUBJECT_ATTRIBUTE
 from pinecall_protocol.commands import SupervisorVerb
 from tests.api.conftest import A_KEY, A_RECORD
@@ -37,10 +40,29 @@ def keys() -> MemoryKeys:
     return MemoryKeys({A_KEY: A_RECORD, ANAS_KEY: ANA})
 
 
+@pytest.fixture
+def members() -> MemoryMembers:
+    """Ana's row: the floor is production's, and the org lets her act there."""
+    return MemoryMembers(
+        [
+            Member(
+                id="m_ana",
+                org=A_RECORD.org,
+                email="ana@clinica.test",
+                name="Ana",
+                role="supervisor",
+                status="active",
+                production=True,
+            )
+        ]
+    )
+
+
 def a_seat(gateway: TestClient, bearer: str) -> dict[str, Any]:
     handle: Any = gateway
     answer: Any = handle.post(
-        f"/v1/calls/{THE_CALL}/supervise", headers={"Authorization": f"Bearer {bearer}"}
+        f"/v1/calls/{THE_CALL}/supervise",
+        headers={"Authorization": f"Bearer {bearer}", ENV_HEADER: PRODUCTION},
     )
     assert answer.status_code == 200, answer.text
     said: dict[str, Any] = answer.json()

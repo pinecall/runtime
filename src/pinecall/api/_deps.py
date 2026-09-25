@@ -15,7 +15,7 @@ from pinecall.auth.keys import NO_KEYS_TABLE, KeyRecord, Keys, not_opening
 from pinecall.auth.members import Members
 from pinecall.auth.pairing import Pairings
 from pinecall.auth.throttle import Throttle
-from pinecall.auth.world import as_asked, in_the_world_asked
+from pinecall.auth.world import as_asked, as_itself, in_the_world_asked
 from pinecall.evals.runs import Runs
 from pinecall.extensions import Extensions
 from pinecall.fleet import Roster
@@ -98,18 +98,41 @@ def the_llms(connection: HTTPConnection) -> Models:
 # The worker's doors take an API key and nothing else: no participate token reaches them, because
 # nothing a browser holds may open a call's log for writing. One parser, auth/bearer.py, as every
 # other door uses.
-async def a_key(
-    connection: HTTPConnection, keys: KeysDep, members: MembersDep, settings: SettingsDep
-) -> KeyRecord:
+async def _the_key(connection: HTTPConnection, keys: Keys) -> KeyRecord:
     """Whose key knocked. 401, and an unknown key is told nothing about why it is unknown."""
     bearer = bearer_of(connection.headers)
     record = None if bearer is None else await keys.verify(bearer)
     if record is None:
         raise HTTPException(401, "this door takes an API key", {"WWW-Authenticate": "Bearer"})
-    # The world the request names, then the corner an admin names (auth/world.py, corner.py) —
-    # held against the name it arrived at, because the sandbox's own name answers no production.
+    return record
+
+
+# Two readings of one key (auth/world.py), and a door takes one by the dep it declares. The doors
+# that open no scope — whoami, the login code, pairing, the org switch, one's own keys — read the
+# key as an IDENTITY: no production gate and no header required, because a developer the org keeps
+# out of production signs in at production all the same, and must still learn who they are, mint
+# the code that hands them to the sandbox and switch org, or the sandbox's login (which asks
+# production who a person is) could never let them in. Every door that opens a scope reads the
+# key as it ACTS in this world, gate and all (`opening`). Both refuse a header naming another
+# world and a token of another, and both then read the corner an admin names (corner.py).
+async def a_key(
+    connection: HTTPConnection, keys: KeysDep, members: MembersDep, settings: SettingsDep
+) -> KeyRecord:
+    """Whose key knocked, as an identity in this instance: the bare key's read."""
+    record = await _the_key(connection, keys)
     try:
-        return await as_asked(record, connection.headers, members, settings.sandbox_domain)
+        return await as_itself(record, connection.headers, members, settings)
+    except PermissionError as refused:
+        raise HTTPException(403, str(refused)) from refused
+
+
+async def a_key_that_acts(
+    connection: HTTPConnection, keys: KeysDep, members: MembersDep, settings: SettingsDep
+) -> KeyRecord:
+    """Whose key knocked, acting in this instance's world: what every scoped door reads."""
+    record = await _the_key(connection, keys)
+    try:
+        return await as_asked(record, connection.headers, members, settings)
     except PermissionError as refused:
         raise HTTPException(403, str(refused)) from refused
 
@@ -117,13 +140,13 @@ async def a_key(
 # A socket has no 401 to answer with: its door closes with the policy code on None, and with the
 # sentence of a PermissionError when the key may not open the world named. Both sockets ask here.
 async def a_key_on_a_socket(
-    websocket: HTTPConnection, keys: Keys, members: Members, sandbox_host: str | None = None
+    websocket: HTTPConnection, keys: Keys, members: Members, settings: Settings
 ) -> KeyRecord | None:
     """The key travels as the Authorization header of the upgrade, never in the URL."""
     record = None if (bearer := bearer_of(websocket.headers)) is None else await keys.verify(bearer)
     if record is None:
         return None
-    return await in_the_world_asked(record, websocket.headers, members, sandbox_host)
+    return await in_the_world_asked(record, websocket.headers, members, settings)
 
 
 SettingsDep = Annotated[Settings, Depends(a_settings)]
@@ -131,10 +154,11 @@ StoreDep = Annotated[Store, Depends(a_store)]
 CallIndexDep = Annotated[CallIndex, Depends(the_call_index)]
 KeysDep = Annotated[Keys, Depends(the_keys)]
 LlmsDep = Annotated[Models, Depends(the_llms)]
-# The bare key: a door that takes it asks nothing of its scopes. Two do — whoami, and minting a
-# login code for oneself — and the test over the routes names them. Every other tenant door
-# takes one of the scoped deps below.
+# The bare key: a door that takes it asks nothing of its scopes, and reads the key as an identity
+# (above). The test over the routes names every such door; every other tenant door takes one of
+# the scoped deps below, which read the key as it acts.
 KeyDep = Annotated[KeyRecord, Depends(a_key)]
+ActingKeyDep = Annotated[KeyRecord, Depends(a_key_that_acts)]
 
 
 # One dependency per scope, and the door says which by the dep it takes: the key is verified as
@@ -145,7 +169,7 @@ KeyDep = Annotated[KeyRecord, Depends(a_key)]
 def opening(*scopes: KeyScope) -> Callable[..., Awaitable[KeyRecord]]:
     """A dependency that hands back the key when it opens one of these scopes, else refuses."""
 
-    async def a_key_opening(key: KeyDep) -> KeyRecord:
+    async def a_key_opening(key: ActingKeyDep) -> KeyRecord:
         if (closed := not_opening(key, *scopes)) is not None:
             raise HTTPException(403, closed)
         return key

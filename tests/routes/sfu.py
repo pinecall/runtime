@@ -54,11 +54,18 @@ class TheSfu:
         return api.ListSIPDispatchRuleResponse(items=self.rules)
 
     async def create_dispatch_rule(self, asked: api.CreateSIPDispatchRuleRequest) -> None:
-        self.rules.append(
-            api.SIPDispatchRuleInfo(
-                name=asked.name, trunk_ids=asked.trunk_ids, room_config=asked.room_config
-            )
-        )
+        made = api.SIPDispatchRuleInfo()
+        made.CopyFrom(asked.dispatch_rule)
+        made.sip_dispatch_rule_id = f"SDR_{len(self.rules)}"
+        self.rules.append(made)
+
+    async def update_dispatch_rule(
+        self, rule_id: str, rule: api.SIPDispatchRuleInfo
+    ) -> api.SIPDispatchRuleInfo:
+        standing = next(one for one in self.rules if one.sip_dispatch_rule_id == rule_id)
+        standing.CopyFrom(rule)
+        standing.sip_dispatch_rule_id = rule_id
+        return standing
 
     async def list_outbound_trunk(self, _asked: Any) -> api.ListSIPOutboundTrunkResponse:
         return api.ListSIPOutboundTrunkResponse(items=self.outbound)
@@ -71,6 +78,14 @@ class TheSfu:
         made.sip_trunk_id = f"ST_out_{len(self.outbound)}"
         self.outbound.append(made)
         return made
+
+    async def update_outbound_trunk(
+        self, trunk_id: str, info: api.SIPOutboundTrunkInfo
+    ) -> api.SIPOutboundTrunkInfo:
+        standing = next(trunk for trunk in self.outbound if trunk.sip_trunk_id == trunk_id)
+        standing.CopyFrom(info)
+        standing.sip_trunk_id = trunk_id
+        return standing
 
     async def create_dispatch(self, asked: api.CreateAgentDispatchRequest) -> None:
         self.dispatched.append(asked)

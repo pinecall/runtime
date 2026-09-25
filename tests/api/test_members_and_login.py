@@ -71,10 +71,11 @@ async def test_accepting_makes_the_member_active_and_hands_them_their_first_key(
     record = await keys.verify(signed["key"])
     assert record is not None and record.subject == said["member"]["id"]
     assert record.scopes == ROLE_SCOPES["developer"]
-    # The new key opens the tenant's doors as the person: whoami says who.
+    # The new key opens the tenant's doors as the person: whoami says who, and in which world —
+    # the instance's, which a person's key is read in as an identity whatever it was minted with.
     async with over_the_asgi_app(f"Bearer {signed['key']}") as berna:
         who = (await berna.get("/v1/whoami")).json()
-    assert (who["name"], who["env"]) == ("Berna", "sandbox")
+    assert (who["name"], who["env"]) == ("Berna", "production")
 
 
 async def test_a_spent_expired_or_invented_token_is_one_404_and_a_short_password_is_400(
@@ -86,7 +87,7 @@ async def test_a_spent_expired_or_invented_token_is_one_404_and_a_short_password
     assert (again.status_code, again.json()["detail"]) == (404, NO_INVITATION)
     # The floor is the box's (`PINECALL_MIN_PASSWORD`), so the test asks the suite's settings for
     # it rather than naming a number the operator is free to move.
-    floor = Settings().min_password
+    floor = Settings(world="production").min_password
     short = await stranger.post("/v1/invitations/inv_x", json={"password": "a" * (floor - 1)})
     assert short.status_code == 400 and f"at least {floor}" in short.json()["detail"]
 

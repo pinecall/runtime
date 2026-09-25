@@ -7,9 +7,11 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
+from pinecall._settings import Settings
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
+from pinecall.types import SANDBOX
 from tests.api.conftest import A_KEY, A_RECORD, AGENT
-from tests.api.talking import got
+from tests.api.talking import answering_in, got
 
 pytestmark = pytest.mark.unit
 
@@ -46,11 +48,14 @@ def test_an_agent_nobody_set_a_widget_for_answers_the_widgets_defaults(gateway: 
     assert got(gateway, WIDGET, A_TALKER_KEY) == (200, NOTHING_SET)
 
 
-def test_a_widget_is_kept_for_its_org_and_world_alone(gateway: TestClient) -> None:
+def test_a_widget_is_kept_for_its_org_and_world_alone(
+    gateway: TestClient, settings: Settings
+) -> None:
     assert (put(gateway, A_WIDGET).status_code, put(gateway, A_WIDGET).json()) == (200, A_WIDGET)
     assert got(gateway, WIDGET, A_TALKER_KEY) == (200, A_WIDGET)
-    assert got(gateway, WIDGET, A_SANDBOX_KEY)[1] == NOTHING_SET
     assert got(gateway, WIDGET, THE_SHOPS_KEY)[1] == NOTHING_SET
+    answering_in(SANDBOX, settings)
+    assert got(gateway, WIDGET, A_SANDBOX_KEY)[1] == NOTHING_SET
 
 
 def test_a_colour_that_could_close_a_declaration_is_refused(gateway: TestClient) -> None:

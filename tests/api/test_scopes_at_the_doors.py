@@ -10,17 +10,19 @@ from fastapi.routing import APIRoute, APIWebSocketRoute
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+from pinecall._settings import Settings
 from pinecall.api._deps import SCOPE_OF_THE_DOOR
 from pinecall.api.app import app
 from pinecall.auth.bearer import POLICY_VIOLATION
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
-from pinecall.types import KEY_SCOPES
+from pinecall.types import KEY_SCOPES, SANDBOX
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS, CHAT
-from tests.api.talking import a_door, a_frame, a_register, got
+from tests.api.talking import a_door, a_frame, a_register, answering_in, got
 
 pytestmark = pytest.mark.unit
 
-# Two people of the clinic with narrow keys: one who only reads, one who only holds the agent.
+# Two keys of the clinic with narrow scopes: a person who only reads — in the sandbox, where every
+# member works without production being opened for them — and a server's that only holds the agent.
 A_READER_KEY = "pk_test_qa_reads_calls"
 A_READER = KeyRecord(
     key_id="k_qa",
@@ -44,8 +46,9 @@ def refused_with(status: int, body: dict[str, Any], scope: str, record: KeyRecor
 
 
 def test_a_key_that_only_reads_is_refused_the_knowledge_base_and_told_what_it_opens(
-    gateway: TestClient,
+    gateway: TestClient, settings: Settings
 ) -> None:
+    answering_in(SANDBOX, settings)
     status, body = got(gateway, "/v1/knowledge", A_READER_KEY)
     refused_with(status, body, "knowledge", A_READER)
     status, _ = got(gateway, "/v1/agents", A_READER_KEY)
@@ -73,7 +76,10 @@ def test_the_verbs_door_asks_a_key_for_supervise(gateway: TestClient) -> None:
     refused_with(answer.status_code, answer.json(), "supervise", A_READER)
 
 
-def test_the_app_socket_closes_a_key_without_app_and_says_why(gateway: TestClient) -> None:
+def test_the_app_socket_closes_a_key_without_app_and_says_why(
+    gateway: TestClient, settings: Settings
+) -> None:
+    answering_in(SANDBOX, settings)
     with pytest.raises(WebSocketDisconnect) as refused:
         with gateway.websocket_connect(
             APPS, headers={"Authorization": f"Bearer {A_READER_KEY}"}

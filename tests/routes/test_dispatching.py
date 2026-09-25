@@ -17,7 +17,12 @@ async def test_a_placed_call_is_dispatched_to_the_fleet_the_instance_names(
     sfu = TheSfu()
     monkeypatch.setattr(dispatching_module.api, "LiveKitAPI", sfu)
     dispatches = dispatches_for(
-        Settings(livekit_api_key="k", livekit_api_secret="s" * 32, fleet="pinecall-sandbox")
+        Settings(
+            world="production",
+            livekit_api_key="k",
+            livekit_api_secret="s" * 32,
+            fleet="pinecall-sandbox",
+        )
     )
     assert dispatches is not None
     dialling = Dialling(

@@ -1,36 +1,38 @@
-"""The world a request runs in: a person's names it, a server's token carries its own."""
+"""The world a request runs in: the instance's own, and a request that says another is refused."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import replace
 
+from pinecall._settings import Settings
 from pinecall.auth.corner import in_the_corner_asked
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Members
 from pinecall.auth.visiting import VISITOR_PREFIX
-from pinecall.types import ENVS, PRODUCTION, SANDBOX, Env
+from pinecall.types import ENVS, PRODUCTION
 
-# A person holds ONE key and works in both worlds: the request says which, and a request that
-# says nothing is the sandbox's — what is being written, never what answers the phone. Production
-# is the member's to open (`Member.opens_production`, 0039), read at every request so an admin
-# taking it away closes the very next one. A key that names nobody is a server's token: it was
-# made for one world and stays in it, so a header asking for the other is a mistake said out
-# loud, not a door that quietly answers from the wrong world. An operator visiting an org keeps
-# the world their visiting key was made for.
+# An instance IS one world (`PINECALL_WORLD`): its own database, worker and keys. So the header no
+# longer chooses anything — it is what the client BELIEVES it is talking to, and a belief that is
+# wrong is said out loud instead of being answered from the wrong world: a caller that meant the
+# sandbox and was served by production would be told it wrote what it did not write. The sentence
+# names where the other world answers when this instance knows (`PINECALL_ELSEWHERE_URL`).
 ENV_HEADER = "pinecall-env"
 NOT_A_WORLD = "pinecall-env is sandbox or production, not {asked!r}"
+NOT_THIS_WORLD = "this gateway is {here}'s, not {asked}'s: {asked} answers at {elsewhere}"
+# A person's key with no header meant the sandbox until the sandbox became an instance of its own,
+# so every CLI and app that predates the change would now write production on the same URL and key
+# without knowing. At production a person says which world they mean, or nothing runs.
+SAY_THE_WORLD = (
+    "this is production, and a person's key says the world it means (pinecall-env): the sandbox"
+    " answers at {elsewhere} — update pinecall"
+)
 NO_PRODUCTION = "{name} has no production access: an admin gives it in Team"
-ONE_WORLD = "this token was made for {world}: make one for {asked} in Tokens"
-
-# A box may answer to a SECOND name whose console is the sandbox's (`PINECALL_SANDBOX_DOMAIN`).
-# The name is not decoration: a request that arrived there runs in the sandbox or it does not run.
-# Refused rather than quietly served in the sandbox, because a caller who asked for production and
-# was answered from the other world would be told it wrote what it did not write. The header a
-# browser can forge is the one thing this does NOT trust for anything else — it picks between two
-# names the box was configured with, and never builds a URL (api/_gateway.py).
-HOST_HEADER = "host"
-ONLY_THE_SANDBOX = "{host} answers the sandbox only: production is asked at the gateway's own name"
+# A server's token was made for one world and stays in it: at the other instance it is refused
+# rather than quietly re-read, because the rows it names live in the other database.
+ONE_WORLD = "this token was made for {world}, and this gateway is {here}'s: use it at {elsewhere}"
+# When the instance was not told where the other world answers, the sentence still says what to do.
+THE_OTHER_GATEWAY = "the other gateway"
 
 
 def a_person(record: KeyRecord) -> bool:
@@ -38,47 +40,45 @@ def a_person(record: KeyRecord) -> bool:
     return record.subject is not None and not record.subject.startswith(VISITOR_PREFIX)
 
 
-async def in_the_world_asked(
-    record: KeyRecord,
-    headers: Mapping[str, str],
-    members: Members,
-    sandbox_host: str | None = None,
-) -> KeyRecord:
-    """The key as this request's world resolves it. Raises PermissionError with the sentence a
-    door answers 403 with."""
+# The one reading of what a request SAYS, shared by both below: a header is an assertion about the
+# instance, and a server's token belongs to one. What is left is the person, whom each reading
+# treats in its own way.
+def _held_against_the_instance(
+    record: KeyRecord, headers: Mapping[str, str], settings: Settings
+) -> str | None:
+    """The world the request named, if any, once it holds; PermissionError when it does not."""
+    here, elsewhere = settings.world, settings.elsewhere_url or THE_OTHER_GATEWAY
     asked = headers.get(ENV_HEADER)
     if asked is not None and asked not in ENVS:
         raise PermissionError(NOT_A_WORLD.format(asked=asked))
-    if not a_person(record):
-        if asked is not None and asked != record.env:
-            raise PermissionError(ONE_WORLD.format(world=record.env, asked=asked))
-        return at_the_name_it_arrived_at(record, headers, sandbox_host)
-    world: Env = PRODUCTION if asked == PRODUCTION else SANDBOX
-    if world == PRODUCTION and not await opens_production(record, members):
-        raise PermissionError(NO_PRODUCTION.format(name=record.name or "this person"))
-    resolved = record if record.env == world else replace(record, env=world)
-    return at_the_name_it_arrived_at(resolved, headers, sandbox_host)
+    if asked is not None and asked != here:
+        raise PermissionError(NOT_THIS_WORLD.format(here=here, asked=asked, elsewhere=elsewhere))
+    if not a_person(record) and record.env != here:
+        raise PermissionError(ONE_WORLD.format(world=record.env, here=here, elsewhere=elsewhere))
+    return asked
 
 
-# The world is settled by the key and the header FIRST, and only then held against the name the
-# request came in at: what is refused is the world this request would have run in, so a production
-# server's token knocking at the sandbox's name is refused as squarely as a person's header is.
-def at_the_name_it_arrived_at(
-    record: KeyRecord, headers: Mapping[str, str], sandbox_host: str | None
+def _here(record: KeyRecord, settings: Settings) -> KeyRecord:
+    """The key re-labelled with the instance's world, which a person's carries none of its own."""
+    return record if record.env == settings.world else replace(record, env=settings.world)
+
+
+# Production is the member's to open (`Member.opens_production`, 0039), read at every request so
+# an admin taking it away closes the very next one; the sandbox is every member's. An operator
+# visiting an org keeps the world their visiting key was made for, as a server's token does.
+async def in_the_world_asked(
+    record: KeyRecord, headers: Mapping[str, str], members: Members, settings: Settings
 ) -> KeyRecord:
-    """The key as it stands, or a refusal: production was asked for at the sandbox's own name."""
-    if sandbox_host is None or record.env != PRODUCTION:
-        return record
-    if the_host(headers) != sandbox_host.lower():
-        return record
-    raise PermissionError(ONLY_THE_SANDBOX.format(host=sandbox_host))
-
-
-# A Host carries the port when it is not the scheme's own (`box.example.com:8080`), and a client
-# may spell the name in any case. Both are cut here so a box named once is compared once.
-def the_host(headers: Mapping[str, str]) -> str:
-    """The name this request arrived at, lowercased and without its port."""
-    return (headers.get(HOST_HEADER) or "").split(":")[0].lower()
+    """The key as it ACTS in this instance's world. Raises PermissionError with the sentence a door
+    answers 403 with: another world asked for, a token of the other one, production not opened."""
+    asked = _held_against_the_instance(record, headers, settings)
+    if a_person(record) and settings.world == PRODUCTION:
+        if asked is None:
+            elsewhere = settings.elsewhere_url or THE_OTHER_GATEWAY
+            raise PermissionError(SAY_THE_WORLD.format(elsewhere=elsewhere))
+        if not await opens_production(record, members):
+            raise PermissionError(NO_PRODUCTION.format(name=record.name or "this person"))
+    return _here(record, settings)
 
 
 async def opens_production(record: KeyRecord, members: Members) -> bool:
@@ -88,12 +88,19 @@ async def opens_production(record: KeyRecord, members: Members) -> bool:
 
 
 async def as_asked(
-    record: KeyRecord,
-    headers: Mapping[str, str],
-    members: Members,
-    sandbox_host: str | None = None,
+    record: KeyRecord, headers: Mapping[str, str], members: Members, settings: Settings
 ) -> KeyRecord:
-    """The key in the world, then the corner, this request asked for — every door's one read."""
+    """The key acting in the instance's world, then the corner this request asked for — the one
+    read of every door that opens a scope."""
     return await in_the_corner_asked(
-        await in_the_world_asked(record, headers, members, sandbox_host), headers, members
+        await in_the_world_asked(record, headers, members, settings), headers, members
     )
+
+
+async def as_itself(
+    record: KeyRecord, headers: Mapping[str, str], members: Members, settings: Settings
+) -> KeyRecord:
+    """The key as an identity in the instance's world, then the corner asked — the read of the
+    doors that open no scope: whoami, the login code, pairing, the org switch, one's own keys."""
+    _held_against_the_instance(record, headers, settings)
+    return await in_the_corner_asked(_here(record, settings), headers, members)

@@ -19,6 +19,7 @@ A_KEY = "nobody-will-ever-deploy-this"
 def settings() -> Settings:
     """A process that read a key for every vendor this suite builds."""
     return Settings(
+        world="production",
         anthropic_api_key=A_KEY,
         openai_api_key=A_KEY,
         soniox_api_key=A_KEY,

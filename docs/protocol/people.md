@@ -67,14 +67,21 @@ invited counts, or an org at its limit could invite forever and seat them all th
 accepted — so disabling somebody is what frees one, and their row stays because the log names
 them. Re-inviting an email the org already holds takes no second seat.
 
-**A person holds one key per device, and the request names its world.** The role says what they
-do; the member's **`production`** switch, set by an admin, says whether they may do it in
-production. Every key minted for a person — at login, at `POST /v1/invitations/{token}`, at
-sign-up, at a code, at a terminal's pairing, at another org of theirs — carries their role's preset
-whole, `app` included, and opens no world of its own (`auth/persons.py`). A request says
-`pinecall-env: production` or `sandbox`; none is the sandbox. Production answers only while the
-member's row opens it, read at every request, so switching it off closes the very next one: `403
-<name> has no production access: an admin gives it in Team`. **An admin always opens production**
+**A person holds one key per device, and the request says the world it believes it is in.** The
+role says what they do; the member's **`production`** switch, set by an admin, says whether they may
+do it in production. Every key minted for a person — at login, at `POST /v1/invitations/{token}`,
+at sign-up, at a code, at a terminal's pairing, at another org of theirs — carries their role's
+preset whole, `app` included, and opens no world of its own (`auth/persons.py`): it is read in the
+world of the instance it knocks at (`PINECALL_WORLD`). `pinecall-env: production` or `sandbox` is
+an **assertion**: naming the other instance's world is `403 this gateway is <here>'s, not
+<asked>'s: <asked> answers at <elsewhere>`. The doors that open no scope — whoami, a login code,
+pairing, the org list and switch, one's own keys — read the key as an identity and ask nothing
+more, so a person kept out of production still signs in there and is handed to the sandbox. Every
+door that opens a scope reads it as it acts: at production a person's request with no header is
+`403 this is production, and a person's key says the world it means …` (an old CLI meant the
+sandbox by saying nothing), and production answers only while the member's row opens it, read at
+every request, so switching it off closes the very next one: `403 <name> has no production
+access: an admin gives it in Team`. **An admin always opens production**
 — `PATCH` with `production: false` on one is `409 <email> is an admin, and an admin always opens
 production`; `PATCH` disabling YOURSELF is `409 you cannot disable yourself: another admin of this
 org disables you`. So a developer with the switch holds an agent in production from their own terminal
@@ -205,8 +212,9 @@ link an admin handed over an hour ago. What the person opens is the invitation c
 **Only where `PINECALL_SIGNUP` is set**, and it is **off unless the person who runs the gateway
 turns it on** — a box somebody runs for their own agents wants no stranger making an org, and is
 never asked to close a door. It is its own flag and not `cloud`: a box of its own may want sign-ups,
-and a cloud may close them. `GET /.well-known/pinecall` answers `{version, cloud, signup,
-min_password, mail, brand, google}` with no key, which is how a page or a CLI knows whether to offer one at
+and a cloud may close them. `GET /.well-known/pinecall` answers `{version, world, elsewhere, cloud,
+signup, min_password, mail, brand, google}` with no key — `world` the instance's, `elsewhere` the
+other's URL or null — which is how a page or a CLI knows which world a URL is, and whether to offer one at
 all — with `mail`, whether "Forgot your password?" may promise an email, and with `brand`
 (`{name, logo_url, accent}`, [the-box.md](the-box.md)) what to call the box and paint it with — and with `google`, whether to draw "Continue with Google" (below).
 

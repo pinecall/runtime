@@ -105,7 +105,7 @@ async def test_a_streaming_vendor_is_asked_over_its_stream_as_a_call_speaks(
     voice = AVoice()
     spoken_by(voice, monkeypatch)
 
-    heard = await a_sample("cartesia", Asked(settings=Settings()), "Hola")
+    heard = await a_sample("cartesia", Asked(settings=Settings(world="production")), "Hola")
 
     assert (voice.pushed, voice.ended, voice.synthesized) == (["Hola"], True, [])
     with wave.open(io.BytesIO(heard.wav)) as file:
@@ -120,7 +120,7 @@ async def test_a_vendor_with_no_stream_is_asked_for_the_sentence_whole(
     voice = AVoice(streaming=False)
     spoken_by(voice, monkeypatch)
 
-    await a_sample("deepgram", Asked(settings=Settings()), "Hi")
+    await a_sample("deepgram", Asked(settings=Settings(world="production")), "Hi")
 
     assert (voice.synthesized, voice.pushed) == (["Hi"], [])
 
@@ -132,7 +132,7 @@ async def test_a_vendor_that_says_no_is_named_with_its_status(
     spoken_by(voice, monkeypatch)
 
     with pytest.raises(SampleRefused, match="cartesia did not say it: Not Found") as raised:
-        await a_sample("cartesia", Asked(settings=Settings()), "Hola")
+        await a_sample("cartesia", Asked(settings=Settings(world="production")), "Hola")
     assert raised.value.status == 404 and voice.closed
 
 
@@ -142,7 +142,7 @@ async def test_a_vendor_that_does_not_answer_is_named_with_no_status(
     spoken_by(AVoice(refuses=APIConnectionError("no route")), monkeypatch)
 
     with pytest.raises(SampleRefused, match="no route") as raised:
-        await a_sample("cartesia", Asked(settings=Settings()), "Hola")
+        await a_sample("cartesia", Asked(settings=Settings(world="production")), "Hola")
     assert raised.value.status is None
 
 
@@ -152,7 +152,7 @@ async def test_a_vendor_that_answers_with_no_audio_is_a_refusal_and_not_a_mute_w
     spoken_by(AVoice(frames=[]), monkeypatch)
 
     with pytest.raises(SampleRefused, match="no audio at all"):
-        await a_sample("cartesia", Asked(settings=Settings()), "Hola")
+        await a_sample("cartesia", Asked(settings=Settings(world="production")), "Hola")
 
 
 def test_the_line_a_voice_reads_when_nobody_wrote_one_is_its_languages() -> None:

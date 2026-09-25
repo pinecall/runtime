@@ -24,7 +24,11 @@ THE_AGENT = "clinica-norte"
 THE_FLEET = "pinecall-sandbox"
 
 A_BOX = Settings(
-    livekit_api_key="APIkey", livekit_api_secret="secret", livekit_url="ws://box", fleet=THE_FLEET
+    world="production",
+    livekit_api_key="APIkey",
+    livekit_api_secret="secret",
+    livekit_url="ws://box",
+    fleet=THE_FLEET,
 )
 
 

@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient, WebSocketTestSession
 
+from pinecall._settings import Settings
 from pinecall.auth.corner import CANNOT_LOOK_THERE, NOT_A_COLLEAGUE, looking_into
 from pinecall.auth.keys import KeyRecord, MemoryKeys, held_by
 from pinecall.auth.members_memory import MemoryMembers
@@ -16,6 +17,7 @@ from pinecall.types import ROLE_SCOPES, SANDBOX, Member
 from tests.api.calls.test_listing import RINGING, UP
 from tests.api.conftest import A_RECORD, AGENT, APPS
 from tests.api.talking import a_door, a_register, got
+from tests.conftest import a_sandbox
 
 pytestmark = pytest.mark.unit
 
@@ -33,6 +35,12 @@ def _a_person(key_id: str, subject: str, role: str) -> KeyRecord:
     return KeyRecord(
         key_id=key_id, org=A_RECORD.org, env=SANDBOX, subject=subject, scopes=ROLE_SCOPES[role]
     )
+
+
+@pytest.fixture
+def settings(settings: Settings) -> Settings:
+    """The sandbox's instance: corners are the sandbox's, production has one."""
+    return a_sandbox(settings)
 
 
 @pytest.fixture

@@ -27,6 +27,7 @@ A_LIVEKIT_SECRET = "dead-sentinel-dead-sentinel-dead-sentinel"
 def settings() -> Settings:
     """A box with a key for both tuned vendors of the table, and a LiveKit project of its own."""
     return Settings(
+        world="production",
         anthropic_api_key=A_KEY,
         openai_api_key=A_KEY,
         livekit_api_key=A_KEY,
@@ -36,7 +37,9 @@ def settings() -> Settings:
 
 def a_box_with_no_livekit_project() -> Settings:
     """A box that has vendor keys and no LiveKit pair: Inference is the one vendor it cannot run."""
-    return Settings(anthropic_api_key=A_KEY, livekit_api_key=None, livekit_api_secret=None)
+    return Settings(
+        world="production", anthropic_api_key=A_KEY, livekit_api_key=None, livekit_api_secret=None
+    )
 
 
 @pytest.mark.parametrize("vendor", VENDORS.tuned)
@@ -107,7 +110,7 @@ def test_an_org_that_brought_a_key_for_another_vendor_still_runs_on_the_boxs() -
 
 def test_a_provider_with_no_key_is_refused_now_and_not_mid_call() -> None:
     with pytest.raises(NoProvider, match="anthropic has no API key"):
-        keyless = Settings(anthropic_api_key="", openai_api_key="")
+        keyless = Settings(world="production", anthropic_api_key="", openai_api_key="")
         models_for(keyless)(Model(provider="anthropic", model=DEFAULT_MODEL), NO_ORG_KEYS)
 
 

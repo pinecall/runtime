@@ -111,7 +111,7 @@ inside the box, with the box's own credentials — never yours.
 
 ```console
 $ make doctor
-env: no .env — environment only
+env: no .env — environment only · world production · fleet pinecall
 
 ✓ api keys              the api_keys table — `pinecall-runtime keys issue --org <slug>` mints one
 ✓ provider keys         llm ANTHROPIC_API_KEY, OPENAI_API_KEY · stt DEEPGRAM_API_KEY, … · tts ELEVEN_API_KEY, …
@@ -294,9 +294,10 @@ line     rings in this terminal
 
 One line, and it says the four things that decide where you are: the agent, **whose org**, **which
 world**, and where the key came from. A laptop's run is in the sandbox, and the sandbox is watched
-at this box's second name — the URL above, opened signed in by `pinecall console` — while the page
-at the box's own name shows production, and only production. A box with no second name has one
-console and it is production's. Then, in another terminal:
+at its own instance's console — the URL above, opened signed in by `pinecall console` — while the
+production instance's page shows production, and only production. Until the sandbox instance is on
+the box (infra/box/README.md), a box has one console and it is production's. Then, in another
+terminal:
 
 ```console
 $ pinecall chat
@@ -305,10 +306,11 @@ $ pinecall chat
 › Buenos días. Para buscar su cita necesito su nombre completo y un teléfono de contacto.
 ```
 
-**That key is yours, and a request that names no world runs in the sandbox.** The same key acts in
-production only while your member row opens it — an admin always does; anybody else has the
-`production` switch an admin turns on in Team — and only when the request says so (`pinecall-env:
-production`; from a terminal, `pinecall start --prod`). What answers your customers is normally a
+**That key is yours, and it is read in the world of the instance it knocks at.** At production it
+acts only while your member row opens it — an admin always does; anybody else has the `production`
+switch an admin turns on in Team — and only when the request says so (`pinecall-env: production`;
+from a terminal, `pinecall start --prod`): a request of yours that says no world is refused there
+and told where the sandbox answers. Whoami, a login code and the org switch ask neither. What answers your customers is normally a
 **server's token**: made in this box's console (Tokens ▸ New server token, production), shown
 once, `pc_live_…`, and put in the server's secrets as `PINECALL_KEY`. It belongs to the org and
 outlives whoever made it; it opens production and nothing else, so a request naming the sandbox is
@@ -388,10 +390,11 @@ yourself opening a port to make dialling work, the problem is at the far end's A
 ### On Twilio, the box provisions the trunk
 
 Nothing is done by hand for the trunk itself. `POST /v1/carrier/outbound` sets the termination
-label on the org's own trunk, `<fleet>:<org>` (`PINECALL_FLEET`, `pinecall` unless set) — the one
+label on the org's own trunk, `<fleet>-<org>` (`PINECALL_FLEET`, `pinecall` unless set) — the one
 the import already made, or a new one when there is none — mints a credential list named
-`<fleet>:<org>` on the tenant's account, attaches it to the trunk, and makes the SFU's outbound
-trunk pointed at `pinecall-<org>.pstn.twilio.com`. Two things are the operator's:
+`<fleet>-<org>` on the tenant's account, attaches it to the trunk, and makes the SFU's outbound
+trunk pointed at `<fleet>-<org>.pstn.twilio.com` (`pinecall-<org>` on production). Two things are
+the operator's:
 
 - **The org's Twilio credentials, brought with `PUT /v1/carrier`**, and with permission to write
   trunking — this is the same account the import used, so if a number was imported it is already
@@ -401,7 +404,7 @@ trunk pointed at `pinecall-<org>.pstn.twilio.com`. Two things are the operator's
   gateway touch a carrier account.
 
 One dead end the code refuses by name, and it is worth knowing before you meet it: a credential
-list already called `<fleet>:<org>` on the account, **whose password this box no longer holds** —
+list already called `<fleet>-<org>` on the account, **whose password this box no longer holds** —
 a box rebuilt without its vault, or an org whose carrier row was replaced. Twilio shows a
 credential's password exactly once and reads it back to nobody, and a second list would leave two
 logins nobody can tell apart, so the door stops with `409` and says what to do: delete that
@@ -457,8 +460,8 @@ nunca la de la org, y nunca en una URL — el `?login=` se gasta una vez y se bo
 direcciones antes de que la página dibuje nada. Se entra de dos maneras: abriendo
 `https://<tu dominio>` y poniendo contraseña, o por ese link que `pinecall start` imprime.
 
-**Esta página es production, y sólo production.** El sandbox se mira en el segundo nombre de la
-caja (`PINECALL_SANDBOX_DOMAIN`), que sirve la misma página mirando el rincón de cada developer;
+**Esta página es production, y sólo production.** El sandbox es una instancia propia del mismo
+runtime (`PINECALL_WORLD=sandbox`), que sirve la misma página mirando el rincón de cada developer;
 `pinecall console` la abre ya firmada. Arriba a la derecha, el selector dice qué está
 mirando este tab — quién sos, en qué org, con qué key (por su id, nunca por su valor), en qué mundo
 y qué agentes hay sostenidos ahora mismo. Es la pregunta que contesta `pinecall whoami`, sobre la

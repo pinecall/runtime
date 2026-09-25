@@ -35,6 +35,7 @@ TIENDA = {
 def settings() -> Settings:
     """A gateway whose operator opened sign-ups. Off is the default, and the test below is that."""
     return Settings(
+        world="production",
         ops_key=AN_OPS_KEY,
         livekit_api_key=A_LIVEKIT.api_key,
         livekit_api_secret=A_LIVEKIT.api_secret,
@@ -118,7 +119,7 @@ async def test_a_gateway_nobody_opened_sign_ups_on_takes_none_and_that_is_the_de
     from pinecall.api import _deps
     from pinecall.api.app import app
 
-    assert Settings(ops_key=AN_OPS_KEY).signup is False
+    assert Settings(world="production", ops_key=AN_OPS_KEY).signup is False
     shut = settings.model_copy(update={"signup": False})
     app.dependency_overrides[_deps.a_settings] = lambda: shut
     answer = await signed_up(stranger)

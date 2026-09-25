@@ -37,6 +37,7 @@ THE_HOST = f"pinecall-{A_RECORD.org}.pstn.twilio.com"
 def settings() -> Settings:
     """A box with a name: what a carrier's trunk is pointed at."""
     return Settings(
+        world="production",
         ops_key=AN_OPS_KEY,
         vault_key=A_VAULT_KEY,
         livekit_api_key=A_LIVEKIT.api_key,
@@ -92,9 +93,9 @@ async def test_a_dry_run_is_the_plan_and_writes_nothing(
     said = answer.json()
     assert said["dry_run"] is True and said["ready"] is False
     assert said["steps"] == [
-        f"trunk    pinecall:{A_RECORD.org} — created on account {A_SID}",
+        f"trunk    pinecall-{A_RECORD.org} — created on account {A_SID}",
         f"terminal {THE_HOST} — set",
-        f"login    pinecall:{A_RECORD.org} — created, its password kept under the vault key",
+        f"login    pinecall-{A_RECORD.org} — created, its password kept under the vault key",
         f"livekit  outbound trunk pinecall:{A_RECORD.org}:out → {THE_HOST} over auto, "
         "showing 1 of this org's numbers with SIP auth",
     ]
@@ -116,9 +117,9 @@ async def test_the_twilio_steps_are_written_once_and_a_second_run_finds_them_sta
     assert first["address"] == THE_HOST
     assert first["trunk"] == outbound.trunks[A_RECORD.org].trunk_id
     assert twilio_account.made == [
-        f"trunk pinecall:{A_RECORD.org}",
+        f"trunk pinecall-{A_RECORD.org}",
         f"terminal pinecall-{A_RECORD.org}",
-        f"login pinecall:{A_RECORD.org} as pinecall:{A_RECORD.org}",
+        f"login pinecall-{A_RECORD.org} as pinecall-{A_RECORD.org}",
         "trunked CL_1",
     ]
     kept = await outbound_trunks.of(A_RECORD.org)
@@ -127,9 +128,9 @@ async def test_the_twilio_steps_are_written_once_and_a_second_run_finds_them_sta
 
     second = (await tenant_http.post(OUTBOUND)).json()
     assert second["steps"][:3] == [
-        f"trunk    TK_1 pinecall:{A_RECORD.org} — standing",
+        f"trunk    TK_1 pinecall-{A_RECORD.org} — standing",
         f"terminal {THE_HOST} — standing",
-        f"login    CL_1 pinecall:{A_RECORD.org} — standing",
+        f"login    CL_1 pinecall-{A_RECORD.org} — standing",
     ]
     assert "on the trunk already" in second["steps"][3]
     assert twilio_account.made[4:] == []

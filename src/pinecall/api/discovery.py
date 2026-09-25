@@ -20,6 +20,11 @@ class Discovered(WireModel):
     """What a CLI or a page needs before it holds a key: which runtime, and what it does."""
 
     version: str
+    # Which world this instance is (`PINECALL_WORLD`), and where the other one answers
+    # (`PINECALL_ELSEWHERE_URL`, null when this instance was told of none): a CLI picks the URL
+    # of the world it means off these, and a sign-in page points at the other before any key.
+    world: str
+    elsewhere: str | None = None
     # True on Pinecall's own hosted gateway, where a plan is billed; False on a box somebody runs
     # themselves, where nothing of that exists. A setting, not a guess: PINECALL_CLOUD.
     cloud: bool
@@ -50,9 +55,11 @@ class Discovered(WireModel):
 # No key at this door: it is how a client learns whether to offer a sign-up before anybody has one.
 @router.get("/.well-known/pinecall")
 async def discovered(settings: SettingsDep, outbox: OutboxDep, box: BoxSettingsDep) -> Discovered:
-    """Which runtime, whether it is the cloud, whether a stranger may sign up, the floor, mail."""
+    """Which runtime and world, whether it is the cloud, whether a stranger may sign up, mail."""
     return Discovered(
         version=__version__,
+        world=settings.world,
+        elsewhere=settings.elsewhere_url,
         cloud=settings.cloud,
         signup=settings.signup,
         min_password=settings.min_password,

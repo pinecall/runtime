@@ -120,7 +120,7 @@ async def the_reader(
     # A key reads in the world it names, in its own corner or the colleague's an admin named.
     if reader.key is not None:
         try:
-            looking = await as_asked(reader.key, connection.headers, members)
+            looking = await as_asked(reader.key, connection.headers, members, settings)
         except PermissionError as refused:
             raise HTTPException(403, str(refused)) from refused
         if looking is not reader.key:

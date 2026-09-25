@@ -20,6 +20,7 @@ from pinecall.auth.keys import KeyRecord
 from pinecall.routes.table import Routes
 from pinecall.routes.trunks import NO_LIVEKIT, TRUNK_NAME, Trunks, fence_of
 from pinecall.routes.twilio import (
+    CARRIER_TRUNK,
     TwilioApi,
     TwilioNumber,
     TwilioRefused,
@@ -40,11 +41,6 @@ from pinecall_protocol import WireModel
 router = APIRouter()
 
 NO_BODY = 204
-
-# The name of the org's trunk on ITS Twilio account: made once and found after, never doubled. The
-# instance's fleet leads it for the reason the SFU's names carry one (routes/trunks.py): the org's
-# one account serves both instances, and each finds its own trunk there by name.
-CARRIER_TRUNK = "{fleet}:{org}"
 
 NO_CARRIER = (
     "this org has no carrier yet: PUT /v1/carrier with a Twilio account or a SIP peer first"

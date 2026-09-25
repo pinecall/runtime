@@ -142,23 +142,18 @@ maintainer's notebook argues both.
 
 ## Two names: production's console and the sandbox's
 
-A box answers to one name, and may answer to a second whose console is the **sandbox's**. It is
-the same gateway, the same doors and the same bundle: what the second name changes is that the
-page served there marks itself the workshop (`api/pages.py` reads the `Host`), and that **no
-request arriving at it runs in production** — a key that asks is refused in a sentence, whoever
-holds it (`auth/world.py`). A person is signed in at each name separately, since a browser keeps
-a key per origin.
+**The gateway no longer tells the two worlds apart by the name a request arrived at.** An instance
+is one world (`PINECALL_WORLD`, required: a gateway or worker whose environment never said is
+refused at startup), and the sandbox becomes an instance of its own on this machine — its own
+gateway, database, worker and fleet, behind the second name — in the milestone that brings its
+units, env file and secrets here. Until then:
 
-Point the name at this machine in DNS, name it in `/etc/pinecall/box.env`, and deploy:
-
-```
-PINECALL_SANDBOX_DOMAIN=sandbox.example.com
-```
-
-`make install` then puts `caddy/sandbox.caddy` in `/etc/caddy/conf.d/`, which the Caddyfile
-imports by glob, and Caddy takes the certificate on its own. Take the line out and the next
-deploy takes the site away with it. A box with no such line has one console and it is
-production's, which is what every box was before there were two.
+- `/etc/pinecall/box.env` needs `PINECALL_WORLD=production` **before** the deploy that carries this
+  runtime, or nothing starts; `PINECALL_ELSEWHERE_URL=https://sandbox.example.com` makes every
+  refusal and the console's switcher name the sandbox's URL.
+- `PINECALL_SANDBOX_DOMAIN` is read by nothing in the runtime any more. `make install` still keys
+  `caddy/sandbox.caddy` off it, so a box that keeps the line keeps serving the second name — from
+  the production instance, marked production — until the sandbox instance replaces that site.
 
 ## Roles, and a second box
 

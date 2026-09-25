@@ -33,9 +33,12 @@ async def test_the_memory_table_keeps_one_carrier_per_org_and_reads_the_credenti
 
 @pytest.mark.unit
 def test_no_vault_key_means_no_carriers_table_at_all() -> None:
-    assert carriers_for(Settings(vault_key=None), pool=None) is None
+    assert carriers_for(Settings(world="production", vault_key=None), pool=None) is None
     assert isinstance(
-        carriers_for(Settings(vault_key=Fernet.generate_key().decode()), pool=None), MemoryCarriers
+        carriers_for(
+            Settings(world="production", vault_key=Fernet.generate_key().decode()), pool=None
+        ),
+        MemoryCarriers,
     )
 
 

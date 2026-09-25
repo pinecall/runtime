@@ -21,7 +21,7 @@ THE_FORBIDDEN_DEFAULT = "eleven_turbo_v2_5"
 
 def an_ask(**asked: object) -> Asked:
     """A process that read the ElevenLabs key."""
-    settings = Settings(eleven_api_key=A_KEY)
+    settings = Settings(world="production", eleven_api_key=A_KEY)
     return Asked(settings=settings, **asked)  # pyright: ignore[reportArgumentType]
 
 
@@ -90,4 +90,4 @@ def test_an_undeclared_voice_is_the_plugins_own_and_is_said_out_loud() -> None:
 
 def test_a_vendor_with_no_key_is_refused_at_the_door_of_the_call() -> None:
     with pytest.raises(NoProvider, match="elevenlabs has no API key"):
-        VENDORS.build("elevenlabs", Asked(settings=Settings(eleven_api_key="")))
+        VENDORS.build("elevenlabs", Asked(settings=Settings(world="production", eleven_api_key="")))

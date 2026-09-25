@@ -6,11 +6,11 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import AppKeyDep, KeyDep, KeysDep, MembersDep
+from pinecall.api._deps import AppKeyDep, KeyDep, KeysDep, MembersDep, SettingsDep
 from pinecall.auth.corner import author_of
 from pinecall.auth.keys import KeyRecord, ListedKey
-from pinecall.auth.world import a_person, opens_production
-from pinecall.types import DeclarationRefused, an_env, is_a_deployment
+from pinecall.auth.world import THE_OTHER_GATEWAY, a_person
+from pinecall.types import DeclarationRefused, an_env
 from pinecall_protocol import WireModel
 
 # The tenant's own three doors, on the org's API key, exactly as every other tenant door. They
@@ -27,9 +27,14 @@ SERVER_SCOPES: frozenset[str] = frozenset({"app", "calls", "talk", "knowledge", 
 
 # A server's token is made by a PERSON, from the console, and belongs to the org: it names who
 # made it and outlives them — a production that stopped when its developer left would be an
-# outage nobody chose (0039). Production's is made by somebody the org lets act there.
+# outage nobody chose (0039). Production's is made by somebody the org lets act there, which the
+# door's own reading already holds them to (auth/world.py): a person without it acts nowhere here.
 BY_A_PERSON = "a server's token is made by a person, from Tokens in the console"
-NOT_IN_PRODUCTION = "{name} has no production access, so no production token: an admin gives it"
+# A token opens the one world it was made in, and an instance IS one world: a token for the other
+# would be refused at every door here, and the other instance's table has never heard of it.
+ANOTHER_WORLDS_TOKEN = (
+    "this gateway is {here}'s and makes {here}'s tokens: {asked}'s at {elsewhere}"
+)
 
 # Nothing of THIS org answers to that fingerprint that this key may stop. The same 404 whether the
 # row belongs to another org, was already revoked, or is somebody else's person key: a tenant
@@ -60,17 +65,22 @@ async def listed(key: KeyDep, keys: KeysDep, members: MembersDep) -> list[dict[s
 # asked and stored by nobody: the table keeps the sha256 and no door reads one back.
 @router.post("/v1/keys")
 async def issue(
-    said: WantedToken, key: AppKeyDep, keys: KeysDep, members: MembersDep
+    said: WantedToken,
+    key: AppKeyDep,
+    keys: KeysDep,
+    settings: SettingsDep,
 ) -> dict[str, Any]:
-    """A server's token for this org, in the world named, answered once."""
+    """A server's token for this org, in this instance's world, answered once."""
     try:
         env = an_env(said.env)
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused
+    if env != settings.world:
+        elsewhere = settings.elsewhere_url or THE_OTHER_GATEWAY
+        said_so = ANOTHER_WORLDS_TOKEN.format(here=settings.world, asked=env, elsewhere=elsewhere)
+        raise HTTPException(400, said_so)
     if not a_person(key):
         raise HTTPException(403, BY_A_PERSON)
-    if is_a_deployment(env) and not await opens_production(key, members):
-        raise HTTPException(403, NOT_IN_PRODUCTION.format(name=key.name or "this person"))
     issued = await keys.issue(
         org=key.org, label=said.label, env=env, scopes=SERVER_SCOPES, created_by=author_of(key)
     )

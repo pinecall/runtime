@@ -36,7 +36,7 @@ def a_shelf(answer: Callable[[httpx.Request], httpx.Response]) -> Shelf:
 
 def asked() -> Asked:
     """The org brought its own Cartesia key: the box has none in this suite."""
-    return Asked(settings=Settings(), keys={"cartesia": A_KEY})
+    return Asked(settings=Settings(world="production"), keys={"cartesia": A_KEY})
 
 
 def one_page(*rows: Any) -> Callable[[httpx.Request], httpx.Response]:
@@ -125,7 +125,7 @@ async def test_no_key_for_the_vendor_is_refused_before_it_is_asked() -> None:
     def never(_: httpx.Request) -> httpx.Response:
         raise AssertionError("no key, no request")
 
-    bare = Asked(settings=Settings(cartesia_api_key=None))
+    bare = Asked(settings=Settings(world="production", cartesia_api_key=None))
     with pytest.raises(NoProvider, match="cartesia"):
         await a_shelf(never).voices("cartesia", "es", bare)
 

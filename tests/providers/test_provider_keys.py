@@ -42,7 +42,7 @@ def test_the_whatsapp_token_is_read_through_the_very_same_question() -> None:
     assert a_key("whatsapp", Asked(settings=box, keys={"whatsapp": THE_ORGS})) == THE_ORGS
     assert a_key("whatsapp", Asked(settings=box, keys=NO_ORG_KEYS)) == THE_BOXES
     with pytest.raises(NoProvider, match="whatsapp has no API key in this process"):
-        a_key("whatsapp", Asked(settings=Settings(whatsapp_access_token=None)))
+        a_key("whatsapp", Asked(settings=Settings(world="production", whatsapp_access_token=None)))
 
 
 def test_a_key_the_org_brought_for_one_vendor_is_never_read_for_another() -> None:
@@ -53,7 +53,7 @@ def test_a_key_the_org_brought_for_one_vendor_is_never_read_for_another() -> Non
 
 def test_a_vendor_with_neither_key_is_refused_by_name_before_the_call_starts() -> None:
     with pytest.raises(NoProvider, match="soniox has no API key in this process"):
-        a_key("soniox", Asked(settings=Settings(soniox_api_key="")))
+        a_key("soniox", Asked(settings=Settings(world="production", soniox_api_key="")))
 
 
 # The rule that replaced a hand-kept table of vendor-to-field: the field a box reads a key from IS

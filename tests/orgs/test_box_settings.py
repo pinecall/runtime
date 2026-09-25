@@ -52,8 +52,10 @@ async def test_a_secret_sealed_under_another_key_reads_as_none_rather_than_dying
 
 
 def test_the_table_exists_without_a_vault_key_unlike_the_org_tables_beside_it() -> None:
-    assert isinstance(box_settings_for(Settings(), None), MemoryBoxSettings)
-    assert isinstance(box_settings_for(Settings(vault_key=A_KEY), None), MemoryBoxSettings)
+    assert isinstance(box_settings_for(Settings(world="production"), None), MemoryBoxSettings)
+    assert isinstance(
+        box_settings_for(Settings(world="production", vault_key=A_KEY), None), MemoryBoxSettings
+    )
 
 
 @pytest.fixture

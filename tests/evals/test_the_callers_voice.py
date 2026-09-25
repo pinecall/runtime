@@ -63,7 +63,9 @@ def test_a_persona_that_declared_its_voice_speaks_in_it(monkeypatch: pytest.Monk
     built = _the_builds(monkeypatch)
     declared = DeclaredVoice(provider="cartesia", model="sonic-3", voice_id="a-uuid")
 
-    speech.Voice.of_the_caller(Settings(), speech.Speaking(language="es", declared=declared))
+    speech.Voice.of_the_caller(
+        Settings(world="production"), speech.Speaking(language="es", declared=declared)
+    )
 
     [(vendor, asked)] = built
     assert (vendor, asked.model, asked.voice_id, asked.language) == (
@@ -80,7 +82,7 @@ def test_a_persona_that_declared_none_speaks_in_a_voice_the_agent_does_not_have(
     built = _the_builds(monkeypatch)
 
     speaking = speech.Speaking(language="es", agents_voice=SPAIN[0])
-    speech.Voice.of_the_caller(Settings(), speaking)
+    speech.Voice.of_the_caller(Settings(world="production"), speaking)
 
     [(vendor, asked)] = built
     assert (vendor, asked.voice_id) == ("cartesia", SPAIN[1])
