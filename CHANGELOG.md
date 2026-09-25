@@ -104,6 +104,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   both off the box, and the sandbox's name is served by the sandbox instance's own site.
 
 ### Changed
+- **The default ears are Deepgram Flux, and Flux calls the turn.** An agent that names no `stt`
+  runs `deepgram` (`flux-general-multi`, hinted with its language) instead of Soniox, and the turn
+  detector is read off the vendor that runs, not the one declared: the local detector over the
+  default waited its whole 2.5 s on half the turns of a phone call. An agent that names `soniox`
+  keeps it, with livekit's local detector.
 - **The production worker no longer rebuilds a developer's ring in their sandbox corner**: it
   hands the room to the fleet `rings-for` names, which on a box of one instance is its own.
 - **`keys issue` mints in the instance's world.** Left out, `--env` is the gateway's own

@@ -12,7 +12,7 @@ from livekit.agents.voice import AgentSession
 from pinecall.providers.registry import NO_ORG_KEYS
 from pinecall.session.voice.barge_in import MIN_WORDS
 from pinecall.session.voice.session import a_session
-from pinecall.types import AgentConfig, Turn
+from pinecall.types import AgentConfig, Model, Turn
 from pinecall.types.channel import Channel
 from tests.session.fake_llm import FakeLLM
 from tests.session.voice.silence import FakeKit
@@ -20,6 +20,8 @@ from tests.session.voice.silence import FakeKit
 pytestmark = pytest.mark.unit
 
 CLARA = AgentConfig(slug="clinica-norte")
+# The same agent on the ears whose turns livekit's local detector calls: Soniox, named.
+ON_SONIOX = AgentConfig(slug="clinica-norte", stt=Model(provider="soniox", model=""))
 
 
 async def test_a_spoken_call_is_built_with_the_ears_and_the_voice_the_agent_asked_for() -> None:
@@ -30,10 +32,15 @@ async def test_a_spoken_call_is_built_with_the_ears_and_the_voice_the_agent_aske
     assert live.tts is kit.pipe.tts  # pyright: ignore[reportUnknownMemberType]
 
 
+async def test_an_agent_that_names_no_ears_runs_flux_and_flux_calls_the_turn() -> None:
+    """The default ears are Deepgram Flux, and the local detector never sits on top of them."""
+    assert a_call_on(CLARA, _a_kit(), "phone").turn_detection == "stt"
+
+
 async def test_the_turn_detector_is_the_local_model_and_never_the_hosted_one() -> None:
     """Left unset the library reads the environment for this (inference/eot/detector.py:55-59);
     a self-hosted box must not depend on which variables happen to be set."""
-    detector = a_call_on(CLARA, _a_kit(), "phone").turn_detection
+    detector = a_call_on(ON_SONIOX, _a_kit(), "phone").turn_detection
     assert isinstance(detector, inference.TurnDetector)
     assert detector.model == "turn-detector-v1-mini"
 
@@ -77,10 +84,7 @@ async def test_the_model_never_runs_before_the_turn_is_in_on_either_channel() ->
 
 
 async def test_what_it_takes_to_cut_the_agent_off_is_the_agents_own_declaration() -> None:
-    config = AgentConfig(
-        slug="clinica-norte",
-        turn=Turn(min_interruption_words=3, endpointing_ms=400),
-    )
+    config = replace(ON_SONIOX, turn=Turn(min_interruption_words=3, endpointing_ms=400))
     handling = _turns(a_call_on(config, _a_kit(), "phone"))
     assert handling["interruption"]["min_words"] == 3
     # endpointing_ms is the ASR's, and providers/ already handed it to the STT: waiting for it
@@ -93,7 +97,7 @@ async def test_an_agent_that_declared_no_turn_settings_inherits_livekits_own_but
 ):
     """Undeclared is livekit's own — a streaming detector brings its tighter endpointing, 0.3 —
     except min_words, where livekit's 0 lets a cough stop the agent and ours is two."""
-    handling = _turns(a_call_on(CLARA, _a_kit(), "phone"))
+    handling = _turns(a_call_on(ON_SONIOX, _a_kit(), "phone"))
     assert handling["endpointing"]["min_delay"] == 0.3
     assert handling["interruption"]["min_words"] == MIN_WORDS
 
@@ -201,4 +205,6 @@ async def test_a_recogniser_with_its_own_end_of_turn_decides_it() -> None:
 
     flux = replace(CLARA, stt=Model(provider="deepgram", model=""))
     assert a_call_on(flux, _a_kit(), "phone").turn_detection == "stt"
-    assert isinstance(a_call_on(CLARA, _a_kit(), "phone").turn_detection, inference.TurnDetector)
+    assert isinstance(
+        a_call_on(ON_SONIOX, _a_kit(), "phone").turn_detection, inference.TurnDetector
+    )

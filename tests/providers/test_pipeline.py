@@ -4,7 +4,7 @@ import dataclasses
 import logging
 
 import pytest
-from livekit.plugins import cartesia, deepgram, elevenlabs, openai, soniox
+from livekit.plugins import cartesia, deepgram, elevenlabs, openai
 
 from pinecall._settings import Settings
 from pinecall.providers.pipeline import Pipeline, pipeline_for
@@ -40,12 +40,12 @@ def test_an_agent_that_declares_nothing_still_gets_a_whole_pipeline(
     """A blank declaration once silenced a whole line of calls: it warns now, per modality."""
     with caplog.at_level(logging.WARNING, logger="pinecall.providers.pipeline"):
         built = pipeline_for(AgentConfig(slug="clinica-norte"), settings(), NO_ORG_KEYS)
-    assert isinstance(built.stt, soniox.STT)
+    assert isinstance(built.stt, deepgram.STTv2)
     assert isinstance(built.tts, cartesia.TTS)
     assert built.llm.label == "livekit.plugins.anthropic.llm.LLM"
     assert [record.message.split(" declared no ")[1] for record in caplog.records] == [
         "llm vendor; running anthropic",
-        "stt vendor; running soniox",
+        "stt vendor; running deepgram",
         "tts vendor; running cartesia",
     ]
 
@@ -70,5 +70,5 @@ def test_every_vendor_an_agent_names_is_the_one_it_gets() -> None:
 def test_the_agents_turn_declaration_reaches_the_ears_and_nothing_else() -> None:
     declared = AgentConfig(slug="clinica-norte", turn=Turn(endpointing_ms=650))
     built = pipeline_for(declared, settings(), NO_ORG_KEYS)
-    assert isinstance(built.stt, soniox.STT)
-    assert built.stt._params.max_endpoint_delay_ms == 650  # pyright: ignore[reportPrivateUsage]
+    assert isinstance(built.stt, deepgram.STTv2)
+    assert built.stt._opts.eot_timeout_ms == 650  # pyright: ignore[reportPrivateUsage]

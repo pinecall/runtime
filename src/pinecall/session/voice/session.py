@@ -16,6 +16,7 @@ from livekit.agents.voice.turn import (
     TurnHandlingOptions,
 )
 
+from pinecall.providers.pipeline import DEFAULT_STT, vendor_running
 from pinecall.providers.registry import Ears
 from pinecall.session.voice import hearing
 from pinecall.session.voice.barge_in import MIN_WORDS
@@ -200,8 +201,11 @@ def spoken_turns(config: AgentConfig) -> TurnHandlingOptions:
 STT_DECIDES: frozenset[str] = frozenset({"deepgram"})
 
 
+# Read off the vendor that RUNS, not the one declared: an agent that names no ears runs the
+# default, and the default is Flux — asking the declaration alone put the local detector on top of
+# it and waited the 2.5 s this mode exists to avoid.
 def the_turn_detector(config: AgentConfig) -> TurnDetectionMode:
     """The recogniser's own end of turn when it has one, livekit's local model otherwise."""
-    if config.stt is not None and config.stt.provider in STT_DECIDES:
+    if vendor_running(config.stt, DEFAULT_STT) in STT_DECIDES:
         return "stt"
     return inference.TurnDetector(version=LOCAL_TURN_VERSION)

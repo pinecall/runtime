@@ -17,8 +17,10 @@ from pinecall.types import AgentConfig, Model, ProviderKeys, Voice
 logger = logging.getLogger(__name__)
 
 # The vendor the ears run on when the agent named none; the voice's is providers/tts's, beside
-# its vendor table. Which model that vendor then runs is the vendor file's own business.
-DEFAULT_STT = "soniox"
+# its vendor table. Which model that vendor then runs is the vendor file's own business. Deepgram
+# Flux since 2026-09-25: it decides the end of the turn itself (session/voice/session.py), and the
+# local detector over Soniox waited its whole 2.5 s on half the turns of a phone call that day.
+DEFAULT_STT = "deepgram"
 
 
 # Three, not five: who notices speech and who calls the turn are livekit's own, built by the
