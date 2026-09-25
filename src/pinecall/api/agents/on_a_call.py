@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 
 from pinecall.api.agents.handlers import Handler, Socket, asked, handles
+from pinecall.api.codes import NOBODY_ISSUED, claimed
 from pinecall.providers import declaration
 from pinecall.session.text.session import TextSession
 from pinecall.types import DeclarationRefused
@@ -14,6 +15,7 @@ from pinecall_protocol.commands import (
     AgentSay,
     CallAttention,
     CallCallback,
+    CallClaim,
     CallEvent,
     CallHangup,
     CallLog,
@@ -28,6 +30,9 @@ from pinecall_protocol.events import AgentConfigured, CallTransferred
 # A command that names a call this process is not running is not a bad command: it is a command
 # that arrived late, or on the wrong node. The app hears which, in the protocol's own words.
 NO_SESSION = "no_session"
+
+# The code the agent heard is not one a page is waiting on: call.claim's refusal, by the protocol.
+NO_CODE = "no_code"
 
 # What a verb of the line answers on a written conversation. A chat has no audio to hold, no leg
 # to send anywhere and no tones to send down one, so each is refused by name — and the one thing
@@ -198,3 +203,22 @@ async def hang_up(command: Command, session: TextSession) -> None:
     """The app ends the call: call.ended, then the summary, then the log is sealed."""
     asked(command, CallHangup)
     await session.hangup("agent_hung_up", "agent")
+
+
+# Not a command held for the worker: a code is the gateway's to bind, whichever process runs the
+# call, and a phone call's worker has nothing to do with a code the agent heard said. So the call is
+# asked of this gateway's live memory, and refused when it runs nowhere here.
+@handles("call.claim")
+async def claim_the_code(socket: Socket, command: Command) -> None:
+    """The caller said the code the page shows: this call is bound to it, or `no_code`."""
+    wanted = asked(command, CallClaim)
+    if socket.registry.on(socket.env, command.agent, socket.id) is None:
+        raise DeclarationRefused(f"agent {command.agent} is not registered on this socket")
+    served = None if command.call is None else socket.live.served(command.call)
+    if command.call is None or served is None or served.agent != command.agent:
+        said = f"call.claim names call {command.call!r}, which is not running here"
+        await socket.refuse(command.agent, NO_SESSION, said, command.model_dump())
+        return
+    if not await claimed(socket.codes, served, command.call, wanted.code, "agent"):
+        said = NOBODY_ISSUED.format(code=wanted.code, agent=command.agent)
+        await socket.refuse(command.agent, NO_CODE, said, command.model_dump())

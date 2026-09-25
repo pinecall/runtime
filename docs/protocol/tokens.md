@@ -147,6 +147,15 @@ credentials — `Authorization`, `Last-Event-ID` and `Range` may be sent): what 
 token the page brings, never a cookie, so a page on another site reads nothing it did not bring the
 token for. Every other door answers only the origins `api/app_origins.py` names. `POST /v1/agents/{slug}/dial` answers one too, with the same `log`.
 
+## The code token
+
+A phone call is minted when it rings, so no token can name it in advance. `POST /v1/codes`
+answers a `code_token` instead: `read` scope, a room of `code:{code}` that opens nothing, the code,
+the agent and the world as `pinecall.code` · `pinecall.agent` · `pinecall.env`, and the code's own
+expiry. It reads `GET /v1/codes/{code}` for that code and nothing else — every call door answers it
+`403` — and once a call claims the code, that door hands the page a log token for the call.
+[codes.md](codes.md).
+
 ## Refusals
 
 | status | when |

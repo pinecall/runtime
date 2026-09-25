@@ -34,6 +34,13 @@ READ_TTL_S = 4 * 60 * 60
 # chooses it when it mints (`log` on POST /v1/tokens), the page cannot.
 PROJECTION_ATTRIBUTE = "pinecall.projection"
 
+# A code token reads one code's standing (GET /v1/codes/{code}) and nothing else: the code, and
+# the agent and world it was issued for, as attributes. It names no call: the call is what the
+# page is waiting to learn.
+CODE_ATTRIBUTE = "pinecall.code"
+AGENT_ATTRIBUTE = "pinecall.agent"
+ENV_ATTRIBUTE = "pinecall.env"
+
 
 @dataclass(frozen=True)
 class Grant:

@@ -179,6 +179,7 @@ Thirty lines and one dependency, no Pinecall package: [the-smallest-app.md](the-
 | `WS /v1/chat?agent=<slug>` | **text**. Your key on the header. Send `{"text": "…"}`, receive every entry of this call. Closing the socket hangs up |
 | `POST /v1/tokens` | **web voice**. Your backend mints a token; the browser joins the LiveKit room with it and never sees your key |
 | a phone number | **telephony**. The number is routed to the agent (`GET /v1/routes`); a call arrives with no help from you |
+| `POST /v1/codes` | **a phone number, and the code that binds it to a page**: four digits your page shows beside the agent's number; the caller keys them (or says them) and the page follows that call's log ([codes.md](codes.md)) |
 | `POST /v1/whatsapp/webhook` | **WhatsApp**, from Meta |
 
 `WS /v1/chat` takes three more query parameters: `app=<socket id>` to name which of your processes

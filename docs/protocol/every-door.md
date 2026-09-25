@@ -108,6 +108,9 @@ key by a password at — are `404` on a sandbox instance, naming `PINECALL_IDENT
 | `POST` | `/v1/calls/{call}/listen` · `/supervise` | a seat |
 | `POST` | `/v1/calls/{call}/verbs` | one supervisor verb, from a key of the org whose call it is · `403` another's, `404` no live call, `409` it is over |
 | `POST` | `/v1/tokens` | a room token for a browser — `503` and `fleet.full` when every worker is full |
+| `POST` | `/v1/codes` | four digits a page shows beside the agent's number, and the code token that asks after them — `talk` ([codes.md](codes.md)) |
+| `GET` | `/v1/codes/{code}?wait=` | whether a call has claimed the code: the call and its log token once one has — the code token, no key |
+| `POST` | `/v1/calls/{call}/claim` | the worker's: the caller keyed a code, bind the call to it — `404` when no page waits on it |
 | `POST`·`GET` | `/v1/callbacks` | a number to call back when the fleet was full, and the list of them |
 | `GET` | `/v1/routes` | the numbers and doors your org answers |
 | `PUT`·`DELETE`·`GET` | `/v1/provider-keys[/{vendor}]` | the org's own vendor accounts — `providers` |

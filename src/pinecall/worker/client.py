@@ -27,6 +27,7 @@ from pinecall.worker.hop import (
     TAIL_TIMEOUT,
     TIMEOUT_S,
     GatewayRefused,
+    found,
     read,
     streamed,
     the_detail_of,
@@ -289,6 +290,11 @@ class Gateway:
         path = f"/v1/calls/{call}/remember"
         said = await self._on_the_call(call, "POST", path, {}, timeout=TAIL_TIMEOUT)
         return int(said["ops"])
+
+    async def claim(self, call: str, code: str) -> bool:
+        """Bind this call to the page showing that code; False when nobody issued it."""
+        path = f"/v1/calls/{call}/claim"
+        return await found(self._on_the_call(call, "POST", path, {"code": code}))
 
     # The worker writes the log and never learns a seq: the gateway numbers it. What a browser in
     # the room is sent must carry the seq, so the worker reads its own call back through the same

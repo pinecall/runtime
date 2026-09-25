@@ -52,6 +52,7 @@ from pinecall.memory import PgvectorMemory
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.box import box_settings_for
 from pinecall.orgs.carriers import carriers_for
+from pinecall.orgs.codes import Codes
 from pinecall.orgs.dialling import dialling_for
 from pinecall.orgs.hold_audio import hold_audio_for
 from pinecall.orgs.mail import mail_for
@@ -217,6 +218,10 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     gateway.state.shelf = Shelf(http)
     gateway.state.twilio = partial(HttpTwilio, http)
     gateway.state.threads = Threads()
+    # The codes pages show beside a phone number, kept on each agent's log and read back here, so
+    # a page waiting through a restart is still answered when its caller keys the code.
+    gateway.state.codes = Codes(gateway.state.logs)
+    await gateway.state.codes.loaded(store)
     # Memory and the knowledge base are tables, so a gateway with no pool keeps neither and says
     # so at the doors (api/_deps.py). The embedder is lazy: nothing is asked of it until a lookup
     # or a push needs a vector, so a gateway whose embedder is down still starts and the doctor's

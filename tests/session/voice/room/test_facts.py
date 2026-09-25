@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from typing import cast
 
 import pytest
 from livekit import rtc
@@ -10,6 +11,7 @@ from livekit import rtc
 from pinecall.log.entry import Entry
 from pinecall.log.reduce import reduce
 from pinecall.session.voice.room import Facts
+from pinecall.session.voice.room.facts import DTMF
 from pinecall.types.token import SCOPE_ATTRIBUTE
 from tests.session.voice.fakes import CALL, Written
 from tests.session.voice.room.fakes import FakeParticipant, Held, a_caller, a_held_room, a_widget
@@ -156,6 +158,31 @@ async def test_seats_taken_before_the_agent_arrived_are_written_behind_room_open
         "participant.joined",
         "track.published",
     ]
+
+
+def a_tone(digit: str, keyed_by: FakeParticipant) -> rtc.SipDTMF:
+    """One tone as the room hands it over: the digit, its RFC 4733 code, and whose leg keyed it."""
+    code = {"*": 10, "#": 11}.get(digit) or int(digit)
+    return rtc.SipDTMF(code=code, digit=digit, participant=cast("rtc.RemoteParticipant", keyed_by))
+
+
+async def test_a_tone_the_caller_keys_is_written_and_one_from_another_leg_is_not(
+    held: Held,
+) -> None:
+    heard: list[str] = []
+    facts = Facts(held.holding.writing, "phone", CALLER, lambda digit, _: heard.append(digit))
+    facts.watch(held.holding.room)
+    caller, invited = a_caller(CALLER), a_caller("+59895555")
+    held.room.connect()
+    held.room.join(caller)
+    held.room.join(invited)
+    held.room.emit(DTMF, a_tone("4", caller))
+    held.room.emit(DTMF, a_tone("9", invited))
+    held.room.emit(DTMF, a_tone("#", caller))
+    await held.settled()
+    tones = [entry.data for entry in held.recording.of("dtmf.received")]
+    assert tones == [{"digit": "4", "code": 4}, {"digit": "#", "code": 11}]
+    assert heard == ["4", "#"]
 
 
 async def test_stopping_lets_go_of_the_room(held: Held) -> None:

@@ -88,6 +88,10 @@ class Recording:
         self.trunk: str | None = None
         self.refuses_to_dial: str | None = None
         self.dialled: list[str] = []
+        # The codes a page is waiting on, the ones asked for in order, and a refusal to make.
+        self.codes: set[str] = set()
+        self.claims: list[str] = []
+        self.refuses_to_claim: str | None = None
         self._live: asyncio.Queue[JsonObject] = asyncio.Queue()
 
     async def outbound_trunk(
@@ -123,6 +127,14 @@ class Recording:
         if answered is None:
             raise PlatformRefused(NOBODY_HOLDS_THE_AGENT)
         return answered.model_copy(update={"call_id": wanted.call_id})
+
+    async def claim(self, call: str, code: str) -> bool:
+        """Yes for a code this platform was told a page holds, no for any other; or refused."""
+        assert call == CALL
+        self.claims.append(code)
+        if self.refuses_to_claim is not None:
+            raise PlatformRefused(self.refuses_to_claim)
+        return code in self.codes
 
     async def state(self, call: str) -> tuple[JsonObject, int]:  # noqa: ARG002 — the shape
         """The log so far, folded, and the seq it was folded to."""

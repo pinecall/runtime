@@ -7,6 +7,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **Codes: a page that follows a phone call it did not place.** `POST /v1/codes` (`talk`) hands
+  a tenant's server four digits, the agent's phone number and a code token; the page asks
+  `GET /v1/codes/{code}?wait=1` with it and is answered `claimed` with the call and a log token
+  the moment the caller keys the code — the worker now writes the caller's tones as
+  `dtmf.received` and claims four close together at `POST /v1/calls/{call}/claim` — or the app
+  sends `call.claim` for a code the agent heard said. `call.claimed` lands on the call's log,
+  `code.issued` · `code.claimed` on the agent's. Protocol `>=0.6.9`. `docs/protocol/codes.md`.
 - **`pinecall-runtime sandbox seed [--from-instance production] [--to-instance sandbox]`**, run
   once as root at the cutover: a new sandbox instance starts with what the sandbox was inside
   production. Both `DATABASE_URL`s come out of the two instances' stores, never a command line.

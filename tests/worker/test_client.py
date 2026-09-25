@@ -125,6 +125,26 @@ async def test_remember_knocks_at_the_calls_own_door_with_an_empty_body() -> Non
     assert (seen[0].method, seen[0].path, seen[0].body) == ("POST", "/v1/calls/call_1/remember", {})
 
 
+async def test_a_keyed_code_is_claimed_at_the_calls_own_door() -> None:
+    seen: list[Seen] = []
+    assert await a_gateway(seen=seen).claim("call_1", "4821") is True
+    assert (seen[0].method, seen[0].path, seen[0].body) == (
+        "POST",
+        "/v1/calls/call_1/claim",
+        {"code": "4821"},
+    )
+
+
+async def test_a_code_nobody_issued_is_a_no_and_any_other_refusal_is_raised() -> None:
+    def answering(status: int) -> Gateway:
+        transport = httpx.MockTransport(lambda _: httpx.Response(status, json={"detail": "no"}))
+        return Gateway(httpx.AsyncClient(transport=transport, base_url="http://gateway.test"))
+
+    assert await answering(404).claim("call_1", "4821") is False
+    with pytest.raises(GatewayRefused, match="403"):
+        await answering(403).claim("call_1", "4821")
+
+
 def test_the_gateway_is_the_voice_sessions_platform_lookup_and_rememberer_in_one_object() -> None:
     """Three protocols, one door: what the session asks of the platform, the gateway answers."""
     gateway = a_gateway()

@@ -15,6 +15,7 @@ from pinecall.api.agents.registry import Registry
 from pinecall.knowledge import Knowledge
 from pinecall.log.entry import Entry
 from pinecall.orgs.admission import Admission
+from pinecall.orgs.codes import Codes
 from pinecall.orgs.tuning import TuningStore
 from pinecall.types import Env
 from pinecall_protocol import Command, ProtocolError, WireModel, command_of
@@ -87,6 +88,7 @@ class Socket(Protocol):
     tuning: TuningStore
     knowledge: Knowledge | None
     processes: Processes
+    codes: Codes
 
     @property
     def id(self) -> SocketId:

@@ -1,4 +1,4 @@
-"""What a spoken call asks of the platform: write, run a tool, read back, dial a second leg."""
+"""What a spoken call asks of the platform: write, run a tool, read back, dial, claim a code."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ class Dialled:
 # nothing of transports, and a test scripts a platform in memory with a live tail, which no HTTP
 # fake could do as plainly. worker/client.py is the one implementation that leaves the process.
 class Platform(Protocol):
-    """The doors a spoken call knocks on: one write, one tool, one trunk, the log read back."""
+    """The doors a spoken call knocks on: one write, one tool, one trunk, one claim, the log."""
 
     async def append(
         self, call: str, type: str, data: JsonObject, ephemeral: bool | None = None
@@ -48,6 +48,10 @@ class Platform(Protocol):
         self, slug: str, *, org: str, env: Env, holder: str | None, to: str, call: str
     ) -> Dialled:
         """The trunk this leg dials out through once `to` passed the org's guards, or why not."""
+        ...
+
+    async def claim(self, call: str, code: str) -> bool:
+        """Bind this call to the page showing that code; False when nobody holds such a code."""
         ...
 
     async def state(self, call: str) -> tuple[JsonObject, int]:

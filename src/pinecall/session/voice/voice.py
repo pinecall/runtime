@@ -34,6 +34,7 @@ from pinecall.session.voice.metrics import Meters
 from pinecall.session.voice.platform import Dialled, Platform, PlatformRefused
 from pinecall.session.voice.recording import Recorder
 from pinecall.session.voice.room import DataChannel, Facts, Holding, Trunks
+from pinecall.session.voice.room.claiming import Claiming
 from pinecall.session.voice.supervising import Supervising
 from pinecall.session.voice.tools import Tools
 from pinecall.session.voice.writing import Writing
@@ -113,6 +114,7 @@ class VoiceBridge:
         self._attending: Attending | None = None
         self._holding: Holding | None = None
         self._facts: Facts | None = None
+        self._claiming: Claiming | None = None
         self._datachannel: DataChannel | None = None
         self._started_at = time.time()
 
@@ -171,7 +173,7 @@ class VoiceBridge:
         self.meters.stop()
         if self._attending is not None:
             self._attending.close()
-        for watching in (self._facts, self._datachannel):
+        for watching in (self._facts, self._claiming, self._datachannel):
             if watching is not None:
                 watching.stop()
         ended, by = self.ending.how_it_ended()
@@ -326,7 +328,11 @@ class VoiceBridge:
             channel=self.context.channel,
             trunks=Trunks(self._outbound_trunk),
         )
-        self._facts = Facts(self.writing, self.context.channel, self.context.caller)
+        # The caller's tones are written by the facts and heard for a code a page shows.
+        self._claiming = Claiming(self.platform, self.context.call)
+        self._facts = Facts(
+            self.writing, self.context.channel, self.context.caller, self._claiming.heard
+        )
         self._facts.watch(job.room)
         self._datachannel = DataChannel(
             self._holding, self.platform, self.config, self.context.call

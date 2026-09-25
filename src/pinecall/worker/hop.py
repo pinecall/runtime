@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Awaitable, Mapping
 from typing import Any, cast
 
 import httpx
@@ -54,6 +54,19 @@ async def read(
         refusal = f"{method} {path}: {answer.status_code} {answer.text}"
         raise GatewayRefused(refusal, answer.status_code)
     return answer.json() if answer.content else None
+
+
+# A door whose 404 means "nothing by that name" is asked a yes or a no, not a refusal: a code
+# nobody issued is what a caller keying an extension gets, and it ends nothing.
+async def found(asking: Awaitable[Any]) -> bool:
+    """Whether the gateway said yes: False for a 404, and any other refusal raised as it came."""
+    try:
+        await asking
+    except GatewayRefused as refused:
+        if refused.status != NOT_FOUND:
+            raise
+        return False
+    return True
 
 
 async def streamed(http: httpx.AsyncClient, path: str) -> AsyncIterator[JsonObject]:

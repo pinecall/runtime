@@ -15,8 +15,12 @@ from livekit.protocol.room import RoomConfiguration
 
 from pinecall._settings import Settings
 from pinecall.auth.keys import KeyRecord, Keys
+from pinecall.types.key import ENVS, Env, an_env
 from pinecall.types.token import (
+    AGENT_ATTRIBUTE,
     BOUND_TO_ONE_CALL,
+    CODE_ATTRIBUTE,
+    ENV_ATTRIBUTE,
     GRANTS,
     NAME_ATTRIBUTE,
     PROJECTION_ATTRIBUTE,
@@ -91,6 +95,10 @@ class CallToken:
     # The projection a read token was minted for; None for every other scope, whose projection
     # is its grant's.
     projection: Projection | None = None
+    # A code token names a code, an agent and a world instead of a call; `call` is "" for it.
+    code: str | None = None
+    agent: str | None = None
+    env: Env | None = None
 
 
 def is_a_jwt(bearer: str) -> bool:
@@ -136,14 +144,22 @@ def a_call_token(token: str, secret: LivekitKeys) -> CallToken | None:
     projection = attributes.get(PROJECTION_ATTRIBUTE)
     if projection not in (None, *PROJECTIONS):
         return None
+    # A code token's room is the code's own name, never a call: it reads no call at all.
+    code = attributes.get(CODE_ATTRIBUTE) or None
+    env = attributes.get(ENV_ATTRIBUTE) or None
+    if env not in (None, *ENVS):
+        return None
     return CallToken(
-        call=room,
+        call="" if code is not None else room,
         scope=scope,
         expires_at=expires_at,
         identity=claims.identity or None,
         subject=attributes.get(SUBJECT_ATTRIBUTE) or None,
         name=attributes.get(NAME_ATTRIBUTE) or None,
         projection=cast("Projection | None", projection),
+        code=code,
+        agent=attributes.get(AGENT_ATTRIBUTE) or None,
+        env=None if env is None else an_env(env),
     )
 
 
@@ -168,6 +184,10 @@ class Reader:
     name: str | None = None
     # The scope a token was minted with; None for a key.
     scope: str | None = None
+    # A code token reads one code's standing and no call: `call` is "" and this names the code.
+    code: str | None = None
+    agent: str | None = None
+    env: Env | None = None
 
     # A key steers when it opens the verbs (the door checks which), and a token only when its
     # scope's grant says so: a visitor's token and a page's read token read the call, never steer.
@@ -192,6 +212,9 @@ async def a_reader(bearer: str, keys: Keys, secret: LivekitKeys | None) -> Reade
             subject=granted.subject,
             name=granted.name,
             scope=granted.scope,
+            code=granted.code,
+            agent=granted.agent,
+            env=granted.env,
         )
     record = await keys.verify(bearer)
     if record is None:
@@ -251,6 +274,36 @@ def a_log_token(
         )
         .with_ttl(timedelta(seconds=grant_for("read").ttl_s or 0))
         .with_attributes({SCOPE_ATTRIBUTE: "read", PROJECTION_ATTRIBUTE: projection})
+        .to_jwt()
+    )
+
+
+# The code token: what a page asks "has my code been claimed yet?" with. It names the code and no
+# call, opens no room, and dies with the code. Once a call claims the code, the standing door
+# mints a real log token for that call, and this one has nothing left to say.
+def a_code_token(code: str, agent: str, env: Env, expires_at: float, secret: LivekitKeys) -> str:
+    """A token that reads one code's standing, and nothing else, until the code expires."""
+    return (
+        AccessToken(secret.api_key, secret.api_secret)
+        .with_identity(a_visitor())
+        .with_grants(
+            VideoGrants(
+                room=f"code:{code}",
+                room_join=False,
+                can_publish=False,
+                can_subscribe=False,
+                can_publish_data=False,
+            )
+        )
+        .with_ttl(timedelta(seconds=expires_at - time.time()))
+        .with_attributes(
+            {
+                SCOPE_ATTRIBUTE: "read",
+                CODE_ATTRIBUTE: code,
+                AGENT_ATTRIBUTE: agent,
+                ENV_ATTRIBUTE: env,
+            }
+        )
         .to_jwt()
     )
 

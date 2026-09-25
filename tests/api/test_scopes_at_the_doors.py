@@ -123,6 +123,7 @@ ASKS_NOTHING_OR_ASKS_INSIDE: dict[str, str] = {
     "POST /v1/login/pairings/{code}": "any person's key may sign a terminal in as themselves",
     "GET /v1/login/pairings/{code}/key": "takes no key: the word itself is the right",
     "POST /v1/invitations/{token}": "takes no key: the token is the right",
+    "GET /v1/codes/{code}": "takes no key: the code token its page was handed is the right",
     "GET /v1/login/sso": "takes no key: a person about to sign in at their provider has none",
     "GET /v1/login/sso/callback": "takes no key: what it takes is the state it minted itself",
     "POST /v1/login/sso/discover": "takes no key: which orgs a domain signs in with, throttled",

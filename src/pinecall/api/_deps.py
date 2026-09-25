@@ -28,6 +28,7 @@ from pinecall.lookups import Lookups
 from pinecall.memory import Memory
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.carriers import Carriers
+from pinecall.orgs.codes import Codes
 from pinecall.orgs.table import Orgs
 from pinecall.orgs.tuning import TuningStore
 from pinecall.orgs.vault import NO_VAULT_KEY, Vault
@@ -238,6 +239,11 @@ def the_routes(connection: HTTPConnection) -> Routes:
     return held(connection, "routes")
 
 
+def the_codes(connection: HTTPConnection) -> Codes:
+    """The codes pages show beside a number, and the call each one is waiting for."""
+    return held(connection, "codes", Codes)
+
+
 def the_tokens(connection: HTTPConnection) -> Tokens:
     """The ledger this process writes. A Protocol, so isinstance says nothing here."""
     return held(connection, "tokens")
@@ -336,6 +342,7 @@ PairingsDep = Annotated[Pairings, Depends(the_pairings)]
 ThrottleDep = Annotated[Throttle, Depends(the_throttle)]
 RoutesDep = Annotated[Routes, Depends(the_routes)]
 TokensDep = Annotated[Tokens, Depends(the_tokens)]
+CodesDep = Annotated[Codes, Depends(the_codes)]
 LogsDep = Annotated[Logs, Depends(the_logs)]
 SnapshotsDep = Annotated[Snapshots, Depends(the_snapshots)]
 AdmissionDep = Annotated[Admission, Depends(the_admission)]

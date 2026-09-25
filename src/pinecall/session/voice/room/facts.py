@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -11,11 +12,13 @@ from livekit import rtc
 # The Literal of every event `rtc.Room.on` accepts: livekit declares it beside Room itself, and it
 # is what the room's signature is written in, so our names are typed in the room's own words.
 from livekit.rtc.room import EventTypes as RoomEvent
+from pydantic import ValidationError
 
 from pinecall.session.voice import sip
 from pinecall.session.voice.writing import Writing
 from pinecall.types.token import SCOPE_ATTRIBUTE
 from pinecall_protocol import defs
+from pinecall_protocol.events import DtmfReceived
 from pinecall_protocol.room import (
     ParticipantJoined,
     ParticipantLeft,
@@ -34,6 +37,12 @@ LEFT: RoomEvent = "participant_disconnected"
 PUBLISHED: RoomEvent = "track_published"
 UNPUBLISHED: RoomEvent = "track_unpublished"
 SPEAKERS: RoomEvent = "active_speakers_changed"
+DTMF: RoomEvent = "sip_dtmf_received"
+
+# Who else hears a tone the caller keyed, and when: the code a page shows is keyed on the phone
+# (session/voice/room/claiming.py). A listener and not a second subscriber, because telling the
+# caller's leg from any other is this class's to know, and it knows it once.
+type Heard = Callable[[str, float], None]
 
 # The seat a token's scope takes, in ParticipantKind's words. Any other scope is the person the
 # agent serves.
@@ -62,8 +71,11 @@ LEFT_UNSAID = "unknown"
 class Facts:
     """One room's events, written to the log in the order LiveKit produced them."""
 
-    def __init__(self, writing: Writing, channel: defs.Channel, caller: str) -> None:
+    def __init__(
+        self, writing: Writing, channel: defs.Channel, caller: str, heard: Heard | None = None
+    ) -> None:
         self._writing = writing
+        self._heard = heard
         self._channel: defs.Channel = channel
         self._caller = caller
         self._room: rtc.Room | None = None
@@ -81,6 +93,7 @@ class Facts:
             PUBLISHED: self._published,
             UNPUBLISHED: self._unpublished,
             SPEAKERS: self._speakers_changed,
+            DTMF: self._a_tone,
         }
         for name, callback in self._listening.items():
             room.on(name, callback)  # pyright: ignore[reportUnknownMemberType] — livekit's callback is `(...) -> Unknown`
@@ -200,6 +213,26 @@ class Facts:
                 "participant.speaking", ParticipantSpeaking(identity=identity, speaking=False)
             )
         self._speaking = now
+
+    # ── the keypad ──────────────────────────────────────────────────────────────
+
+    # Only the caller's own leg: a second leg room.invite brought in is somebody else's keypad, and
+    # a tone a server SDK sent names no participant at all.
+    def _a_tone(self, tone: rtc.SipDTMF) -> None:
+        """dtmf.received for a tone the caller keyed, then the listener; another leg's, nothing."""
+        participant = tone.participant
+        if participant is None:
+            return
+        if self._kind_of(participant, dict(participant.attributes)) != "caller":
+            return
+        try:
+            keyed = DtmfReceived.model_validate({"digit": tone.digit, "code": tone.code})
+        # A digit the wire has no word for is not a fact, as a data track is not.
+        except ValidationError:
+            return
+        self._writing.later("dtmf.received", keyed)
+        if self._heard is not None:
+            self._heard(keyed.digit, time.monotonic())
 
 
 def _a_track(publication: Any) -> tuple[defs.TrackKind, defs.TrackSource] | None:

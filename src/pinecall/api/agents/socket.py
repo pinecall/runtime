@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from pinecall.api._deps import (
     AdmissionDep,
+    CodesDep,
     KeysDep,
     KnowledgeDep,
     LogsDep,
@@ -32,6 +33,7 @@ from pinecall.log import REFUSED
 from pinecall.log.entry import Entry, unstored
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import Admission, QuotaExhausted
+from pinecall.orgs.codes import Codes
 from pinecall.orgs.tuning import TuningStore
 from pinecall.providers import declaration
 from pinecall.types import AgentConfig, DeclarationRefused, Env
@@ -63,6 +65,7 @@ async def apps(
     members: MembersDep,
     processes: ProcessesDep,
     settings: SettingsDep,
+    codes: CodesDep,
 ) -> None:
     """One app, one socket: a key at the door, then commands in and log entries out."""
     try:
@@ -81,7 +84,7 @@ async def apps(
         await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(closed))
         return
     socket = AppSocket(
-        websocket, key, logs, registry, live, admission, tuning, knowledge, processes
+        websocket, key, logs, registry, live, admission, tuning, knowledge, processes, codes
     )
     live.connect(socket.id, socket.send)
     client = websocket.client
@@ -124,6 +127,7 @@ class AppSocket:
         tuning: TuningStore,
         knowledge: Knowledge | None,
         processes: Processes,
+        codes: Codes,
     ):
         self._websocket = websocket
         self._id = a_socket_id()
@@ -135,6 +139,7 @@ class AppSocket:
         self.tuning = tuning
         self.knowledge = knowledge
         self.processes = processes
+        self.codes = codes
 
     @property
     def id(self) -> SocketId:

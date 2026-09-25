@@ -13,6 +13,7 @@ from pinecall.auth.scopes import (
     THE_MICROPHONE,
     LivekitKeys,
     a_call_token,
+    a_code_token,
     a_log_token,
     a_reader,
     a_room_token,
@@ -175,6 +176,17 @@ def test_a_log_token_opens_no_room() -> None:
     assert claims.video is not None and claims.video.room == A_CALL
     assert not claims.video.room_join and not claims.video.can_publish
     assert not claims.video.can_subscribe and not claims.video.can_publish_data
+
+
+def test_a_code_token_names_its_code_and_no_call_and_dies_with_the_code() -> None:
+    token = a_code_token("4821", "clinica-norte", "production", time.time() + A_MINUTE, THE_PAIR)
+    granted = a_call_token(token, THE_PAIR)
+    assert granted is not None and granted.call == "" and granted.scope == "read"
+    assert (granted.code, granted.agent, granted.env) == ("4821", "clinica-norte", "production")
+    assert granted.expires_at <= time.time() + A_MINUTE
+    assert verify_call_token(token, "code:4821", THE_PAIR) is None
+    dead = a_code_token("4821", "clinica-norte", "production", time.time() - 1, THE_PAIR)
+    assert a_call_token(dead, THE_PAIR) is None
 
 
 async def test_a_reader_from_a_log_token_reads_and_never_steers() -> None:
