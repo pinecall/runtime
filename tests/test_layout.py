@@ -36,8 +36,6 @@ FILES_THE_CEILING_SKIPS = frozenset(
         Path("src/pinecall/api/_deps.py"),
     }
 )
-# The design corpus is imported whole and read as a book, not as code.
-DIRECTORIES_THE_CEILING_SKIPS = (Path("docs/design"),)
 
 
 def test_no_python_file_sits_at_the_root() -> None:
@@ -99,9 +97,7 @@ def _the_ceiling_judges(path: Path) -> bool:
     """Whether the 400-line rule speaks about this file at all."""
     if not _is_text(path):
         return False
-    if path in FILES_THE_CEILING_SKIPS:
-        return False
-    return not any(directory in path.parents for directory in DIRECTORIES_THE_CEILING_SKIPS)
+    return path not in FILES_THE_CEILING_SKIPS
 
 
 def _line_count(path: Path) -> int:
