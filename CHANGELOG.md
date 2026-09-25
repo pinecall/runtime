@@ -17,7 +17,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   org, and a service that serves a person across their orgs — the notifier holding their phone —
   needed the one name they carry into all of them.
 
+### Removed
+- **`PUT /v1/numbers/{number}/env` is gone.** A number is one instance's: it is imported where it
+  is meant to answer, and nothing moves it to the other world.
+
 ### Changed
+- **An import refuses a number another trunk on the SFU already lists** (`409`, naming that trunk),
+  before the carrier or the SFU is touched: livekit-sip refuses an INVITE two trunks match, and one
+  carrier account serves both instances.
 - **The names this runtime gives the SFU and a tenant's carrier carry the fleet, after a colon**:
   the inbound trunk is `<fleet>:<org>` (was `pinecall-<org>`), its rule
   `<fleet>:<org>:one-room-per-caller`, the outbound trunk `<fleet>:<org>:out`, and the trunk and

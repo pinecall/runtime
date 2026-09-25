@@ -74,3 +74,29 @@ async def test_two_instances_keep_two_trunks_for_one_org_and_never_adopt_each_ot
         "pinecall:clinica",
     ]
     assert await sandbox.released("clinica", "+34910000000") is False, "production's number"
+
+
+@pytest.mark.usefixtures("sfu")
+async def test_a_number_another_trunk_lists_is_named_by_that_trunk_and_ours_is_not_another() -> (
+    None
+):
+    """livekit-sip refuses an INVITE two trunks list: the import asks this before it admits."""
+    production, sandbox = (
+        trunks_for(an_instance("pinecall")),
+        trunks_for(an_instance("pinecall-sandbox")),
+    )
+    assert production is not None and sandbox is not None
+    await production.admitted("clinica", "+34910000000", [], None)
+    assert await sandbox.held_elsewhere("clinica", "+34910000000") == "pinecall:clinica"
+    assert await production.held_elsewhere("clinica", "+34910000000") is None
+    assert await sandbox.held_elsewhere("clinica", "+34910000001") is None
+
+
+async def test_the_memory_sfu_names_another_orgs_trunk_and_what_it_was_told_stands_elsewhere() -> (
+    None
+):
+    trunks = MemoryTrunks(elsewhere={"+1": "pinecall-clinica"})
+    await trunks.admitted("tienda", "+2", [], None)
+    assert await trunks.held_elsewhere("clinica", "+2") == "ST_tienda"
+    assert await trunks.held_elsewhere("clinica", "+1") == "pinecall-clinica"
+    assert await trunks.held_elsewhere("tienda", "+2") is None

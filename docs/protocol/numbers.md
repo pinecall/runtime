@@ -50,38 +50,36 @@ of an interrupted import creates nothing twice and nothing is ever deleted:
    to its allow-list; Twilio's signalling networks as `allowed_addresses` (the very set the fence
    opens, held equal by a test), or a SIP peer's own addresses and its username and password; and
    one dispatch rule, `<fleet>:<org>:one-room-per-caller`, the instance's fleet dispatched into it.
+3. **the route**: `(org, number) → agent`, on `channel` (`phone` or `whatsapp`), in the key's world
+   — the row `routes add` writes, so moving the number later is a route change and no wiring.
 
 `<fleet>` is the instance's `PINECALL_FLEET` (`pinecall` unless set). Two instances share one SFU
 and every trunk is found **by name** across all of it, so each instance's names lead with its own
 fleet; the colon is the separator because no org id or slug can hold one, so no fleet and org can
 ever read as another pair. Trunks made before the names carried a fleet (`pinecall-<org>`) keep
 their old names until the operator retires them.
-3. **the route**: `(org, number) → agent`, on `channel` (`phone` or `whatsapp`), in the key's world
-   — the row `routes add` writes, so moving the number later is a route change and no wiring.
 
 `?dry_run=true` answers the same `steps` with the ids that stand today and writes nothing: what a
 person reads before letting the gateway touch a carrier account. Refusals: `404` no carrier yet, or
 a number the account does not own; `400` a channel with no number, a number that is not E.164;
-`503` no `PINECALL_DOMAIN`, or no LiveKit pair on this gateway; `502` Twilio's own sentence.
+`409` a number another inbound trunk on the SFU already lists — the other instance's, or one under
+an old name — because livekit-sip refuses an INVITE two trunks list, and importing it would silence
+it everywhere: the sentence names that trunk, and nothing is written anywhere; `503` no
+`PINECALL_DOMAIN`, or no LiveKit pair on this gateway; `502` Twilio's own sentence.
 
-## Moving one between the worlds — `PUT /v1/numbers/{number}/env {env}`
+## A number is one instance's
 
-An org buys ONE number, so a team wanting to try a new agent on the real line has nowhere to try
-it: a second number is a second bill. This points the org's own number at the other world and
-back. It is one row — `routes.env` — so it takes effect on the next call, and the carrier account
-and both trunks are untouched, because a call arrives at this box whichever world answers it.
-
-It is the one numbers door that does not work in the key's world alone: crossing the two is the
-point of it, and the number is the org's either way. Answers `{route, moved, from}`; a move to
-where the number already is writes nothing and answers `{route, moved: false, said}`. `404` for a
-number this org does not have at all, `400` for a word that is neither world.
+There is no door that moves a number to the other world. Each world is an instance of its own —
+its own gateway, database and worker — and a number is imported into one of them, whose routes,
+trunk and fleet answer it. To try an agent on the real line, a team imports the number where it
+means to answer it; the carrier lists one pool for both, and the import refuses a number the
+other instance already carries (above).
 
 Whose corner a ring lands in, once a world is answering it, is the caller's phone and then the
 **line** — [gateway-api.md](gateway-api.md) §3.
 
-**A number in production still reaches a developer's own phone's sandbox copy.** Moving the number
-is for a team trying an agent on the real line for an afternoon; one developer testing needs no
-move. A phone call to a production number that no dispatch aimed is asked about first (`GET
+**A number in production still reaches a developer's own phone's sandbox copy.** One developer
+testing needs no number of their own. A phone call to a production number that no dispatch aimed is asked about first (`GET
 /v1/agents/{slug}/rings-for?caller=`, the worker's question): when the phone dialling is one a
 developer registered with `pinecall line from` (`PUT /v1/line/from`) and they are holding that
 agent in the sandbox, in this org, the call is built in their sandbox corner and its log says

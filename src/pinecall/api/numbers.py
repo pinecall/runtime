@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import dataclasses
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -34,7 +33,6 @@ from pinecall.types import (
     TwilioAccount,
     a_carrier_kind,
     a_sip_transport,
-    an_env,
 )
 from pinecall.types.channel import CHANNELS_WITH_A_NUMBER, Channel
 from pinecall_protocol import WireModel
@@ -59,14 +57,13 @@ NOT_VERIFIED = (
 )
 NO_SUCH_NUMBER = "no number {number} in this org's world: nothing to let go"
 
-# A move asks about the ORG's numbers and not the key's world, because crossing the two is what it
-# is for; a number of another org is still nothing here.
-NOT_THIS_ORGS = "no number {number} in this org: nothing to move"
-
-# The number is already there. Not an error — it is the state that was asked for — but saying so
-# is the difference between "done" and "done, and it was already done", which is what a person
-# checking whether their move landed needs to read.
-ALREADY_THERE = "{number} already answers in {env}"
+# livekit-sip refuses an INVITE whose number two inbound trunks list, so a number another trunk on
+# the SFU already carries — the other instance's, or one made under an older name — is refused
+# here, before the carrier or the SFU is touched: importing it would silence it on both.
+HELD_ELSEWHERE = (
+    "{number} is already on the SFU's trunk {trunk}: a number answers on one trunk, so let it go"
+    " there first"
+)
 
 # `?dry_run=true` is the plan and no writes: the very steps, in the very words, with the ids that
 # stand today — what a person reads before letting the gateway touch a carrier account.
@@ -100,12 +97,6 @@ class WantedNumber(WireModel):
     number: str
     agent: str
     channel: str = "phone"
-
-
-class WantedWorld(WireModel):
-    """What PUT /v1/numbers/{number}/env takes: which world this number should answer in."""
-
-    env: str
 
 
 # ── the carrier ─────────────────────────────────────────────────────────────────
@@ -193,6 +184,8 @@ async def imported(
         raise HTTPException(503, NO_DOMAIN)
     if trunks is None:
         raise HTTPException(503, NO_LIVEKIT)
+    if route.number is not None and (other := await trunks.held_elsewhere(key.org, route.number)):
+        raise HTTPException(409, HELD_ELSEWHERE.format(number=route.number, trunk=other))
     steps: list[str] = []
     try:
         if isinstance(carrier.account, TwilioAccount):
@@ -218,33 +211,6 @@ async def routed(route: Route, steps: list[str], table: Routes, dry_run: bool) -
     if not dry_run:
         await table.put(route)
     return {"route": as_json(route), "steps": steps, "dry_run": dry_run}
-
-
-# An org buys ONE number, and staging has to cost nothing: pointing it at the sandbox for an
-# afternoon is how a team tries a new agent on the real line without a second number and a second
-# bill. The carrier and the SFU are untouched — a number arrives at this box either way, and which
-# world answers it is the row. Moving it back is the same verb with the other word.
-@router.put("/v1/numbers/{number}/env")
-async def moved(
-    number: str, said: WantedWorld, key: NumbersKeyDep, table: RoutesDep
-) -> dict[str, Any]:
-    """This number answers in that world from the next call on. The org's number, either world."""
-    try:
-        world = an_env(said.env)
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
-    route = await table.of_number(key.org, number)
-    if route is None:
-        raise HTTPException(404, NOT_THIS_ORGS.format(number=number))
-    if route.env == world:
-        return {
-            "route": as_json(route),
-            "moved": False,
-            "said": ALREADY_THERE.format(number=number, env=world),
-        }
-    moved_to = dataclasses.replace(route, env=world)
-    await table.put(moved_to)
-    return {"route": as_json(moved_to), "moved": True, "from": route.env}
 
 
 @router.delete("/v1/numbers/{number}", status_code=NO_BODY)

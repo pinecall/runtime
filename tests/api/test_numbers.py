@@ -9,18 +9,17 @@ import pytest
 
 from pinecall._settings import Settings
 from pinecall.api.numbers import (
-    ALREADY_THERE,
+    HELD_ELSEWHERE,
     NO_CARRIER,
     NO_DOMAIN,
     NOT_ON_ACCOUNT,
-    NOT_THIS_ORGS,
     NOT_VERIFIED,
 )
 from pinecall.orgs.carriers import MemoryCarriers
 from pinecall.routes.table import MemoryRoutes
 from pinecall.routes.trunks import MemoryTrunks
 from pinecall.routes.twilio import TWILIO_SIGNALLING
-from pinecall.types import PRODUCTION, SANDBOX
+from pinecall.types import PRODUCTION
 from tests.api.carriers import A_KEY_SID, A_SID, FakeTwilio
 from tests.api.conftest import A_LIVEKIT, A_RECORD, A_VAULT_KEY, AGENT, AN_OPS_KEY
 
@@ -213,48 +212,30 @@ async def test_the_numbers_listing_is_the_rows_and_there_is_no_other_table(
     assert [(door["route"]["number"], door["route"]["agent"]) for door in listed] == [(ABAI, AGENT)]
 
 
-# An org buys ONE number. Pointing it at the sandbox for an afternoon is how a team tries a new
-# agent on the real line, and it is the whole reason staging needs no second world and no second
-# bill: the carrier and the SFU are untouched, and the row says which world answers.
-async def test_a_number_moves_between_the_worlds_and_back(
-    tenant_http: httpx.AsyncClient, trunks: MemoryTrunks, routes: MemoryRoutes
+# livekit-sip refuses an INVITE two trunks list, and one carrier account serves both instances:
+# a number already on another trunk of the SFU — the other instance's, or one under an old name —
+# is refused before anything is written, because importing it would silence it everywhere.
+async def test_a_number_another_trunk_on_the_sfu_carries_is_refused_before_anything_is_written(
+    tenant_http: httpx.AsyncClient,
+    twilio_account: FakeTwilio,
+    trunks: MemoryTrunks,
+    routes: MemoryRoutes,
 ) -> None:
     await brought(tenant_http)
-    await tenant_http.post("/v1/numbers", json={"number": ABAI, "agent": AGENT})
-    admitted = set(trunks.trunks[A_RECORD.org].numbers)
-
-    moved = await tenant_http.put(f"/v1/numbers/{ABAI}/env", json={"env": SANDBOX})
-
-    assert moved.status_code == 200, moved.text
-    assert (moved.json()["moved"], moved.json()["from"]) == (True, PRODUCTION)
-    assert await routes.of_org(A_RECORD.org, PRODUCTION) == ()
-    assert [route.number for route in await routes.of_org(A_RECORD.org, SANDBOX)] == [ABAI]
-    assert trunks.trunks[A_RECORD.org].numbers == admitted, "the carrier is not touched by a move"
-    back = await tenant_http.put(f"/v1/numbers/{ABAI}/env", json={"env": PRODUCTION})
-    assert [route.number for route in await routes.of_org(A_RECORD.org, PRODUCTION)] == [ABAI]
-    assert back.json()["moved"] is True
+    trunks.elsewhere[ABAI] = "pinecall-sandbox:clinica"
+    refused = await tenant_http.post("/v1/numbers", json={"number": ABAI, "agent": AGENT})
+    assert (refused.status_code, refused.json()["detail"]) == (
+        409,
+        HELD_ELSEWHERE.format(number=ABAI, trunk="pinecall-sandbox:clinica"),
+    )
+    assert twilio_account.made == [], "the carrier is not touched"
+    assert A_RECORD.org not in trunks.trunks and await routes.of_org(A_RECORD.org, PRODUCTION) == ()
 
 
-async def test_a_move_to_where_it_already_is_writes_nothing_and_says_so(
+async def test_the_moving_door_is_gone_because_a_number_is_one_instances(
     tenant_http: httpx.AsyncClient,
 ) -> None:
     await brought(tenant_http)
     await tenant_http.post("/v1/numbers", json={"number": ABAI, "agent": AGENT})
-
-    again = await tenant_http.put(f"/v1/numbers/{ABAI}/env", json={"env": PRODUCTION})
-
-    assert again.status_code == 200
-    assert again.json()["moved"] is False
-    assert again.json()["said"] == ALREADY_THERE.format(number=ABAI, env=PRODUCTION)
-
-
-async def test_a_move_refuses_a_number_this_org_does_not_have_and_a_word_that_is_no_world(
-    tenant_http: httpx.AsyncClient,
-) -> None:
-    nobodys = await tenant_http.put("/v1/numbers/+15550000000/env", json={"env": SANDBOX})
-    assert nobodys.status_code == 404
-    assert nobodys.json()["detail"] == NOT_THIS_ORGS.format(number="+15550000000")
-    await brought(tenant_http)
-    await tenant_http.post("/v1/numbers", json={"number": ABAI, "agent": AGENT})
-    staging = await tenant_http.put(f"/v1/numbers/{ABAI}/env", json={"env": "staging"})
-    assert staging.status_code == 400 and "'staging'" in staging.json()["detail"]
+    moved = await tenant_http.put(f"/v1/numbers/{ABAI}/env", json={"env": "sandbox"})
+    assert moved.status_code == 405

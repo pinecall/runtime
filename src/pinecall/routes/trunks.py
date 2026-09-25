@@ -58,6 +58,10 @@ class Trunks(Protocol):
         """The number off the org's trunk. False when it was not on one."""
         ...
 
+    async def held_elsewhere(self, org: str, number: str) -> str | None:
+        """The name of another inbound trunk that already lists this number, or None."""
+        ...
+
 
 @dataclass
 class _Admitted:
@@ -68,10 +72,12 @@ class _Admitted:
 
 
 class MemoryTrunks:
-    """The media plane of a clone with no LiveKit pair, and of every test: what would be there."""
+    """The media plane of a clone with no LiveKit pair, and of every test: what would be there.
+    `elsewhere` is what trunks this runtime did not make list: a number and the trunk's name."""
 
-    def __init__(self) -> None:
+    def __init__(self, elsewhere: dict[str, str] | None = None) -> None:
         self.trunks: dict[str, _Admitted] = {}
+        self.elsewhere = dict(elsewhere or {})
 
     async def admitted(
         self, org: str, number: str, allowed: Sequence[str], auth: tuple[str, str] | None
@@ -88,6 +94,12 @@ class MemoryTrunks:
             return False
         trunk.numbers.discard(number)
         return True
+
+    async def held_elsewhere(self, org: str, number: str) -> str | None:
+        for held, trunk in self.trunks.items():
+            if held != org and number in trunk.numbers:
+                return trunk.trunk_id
+        return self.elsewhere.get(number)
 
 
 class LivekitTrunks:
@@ -120,6 +132,22 @@ class LivekitTrunks:
             )
             await _a_rule(livekit, self._fleet, org, standing.sip_trunk_id)
             return standing.sip_trunk_id
+
+    # By the numbers and not the name: the trunk that would silence this one is any other, the
+    # other instance's or one made under a name this runtime no longer gives.
+    async def held_elsewhere(self, org: str, number: str) -> str | None:
+        """The name of another inbound trunk on the SFU that already lists this number, or None."""
+        ours = TRUNK_NAME.format(fleet=self._fleet, org=org)
+        async with api.LiveKitAPI(self._url, self._key, self._secret) as livekit:
+            standing = await livekit.sip.list_inbound_trunk(api.ListSIPInboundTrunkRequest())
+        return next(
+            (
+                trunk.name
+                for trunk in standing.items
+                if trunk.name != ours and number in trunk.numbers
+            ),
+            None,
+        )
 
     async def released(self, org: str, number: str) -> bool:
         """The number off the trunk's allow-list; the trunk and the rule stay for the next one."""

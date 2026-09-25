@@ -19,7 +19,6 @@ that colleague's corner.
 | `GET` | `/v1/numbers/available` | what the carrier account owns, and which of it is imported |
 | `POST` | `/v1/numbers` · `?dry_run=true` | import one number: the carrier's trunk pointed here, the SFU's trunk admitting it, the route — or the plan alone |
 | `POST` | `/v1/numbers/buy` · `?dry_run=true` | buy one number on the box's own Twilio into the org, wired as an import, capped by the `numbers` quota — or the plan alone |
-| `PUT` | `/v1/numbers/{number}/env` | move a number to the other world — one row, the carrier untouched. What makes a staging run cost nothing — `numbers` |
 | `DELETE` | `/v1/numbers/{number}` | let a number go: the route and the admission; the carrier untouched |
 | `GET` | `/v1/carrier/outbound` | whether the org can place a call at all, one sentence per thing missing, and the guards it dials under — `numbers` |
 | `POST` | `/v1/carrier/outbound` · `?dry_run=true` | provision the trunk the org dials THROUGH — Twilio's termination and a credential list, or the peer the tenant declared, then the SFU's outbound trunk — or the plan alone |
