@@ -55,6 +55,9 @@ def tuned(declared: AgentConfig, tuning: Tuning, lexicon: Lexicon) -> AgentConfi
         turn=tuning.turn,
         memory=tuning.memory,
         record=declared.record if tuning.record is None else tuning.record,
+        max_duration_s=(
+            declared.max_duration_s if tuning.max_duration_s is None else tuning.max_duration_s
+        ),
         knowledge=tuning.knowledge,
         bases=tuning.bases or (),
         says=dict(lexicon.said),

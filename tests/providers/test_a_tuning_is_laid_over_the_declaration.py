@@ -115,3 +115,10 @@ def test_a_persona_names_its_model_and_its_voice_in_the_agents_own_words() -> No
         VOICES["mateo"].voice_id,
     )
     assert (the_llm(None), the_voice(None, None)) == (None, None)
+
+
+def test_a_voice_call_runs_ten_minutes_unless_the_world_says_otherwise() -> None:
+    """Unset is the runtime's ten minutes; a set limit wins, and 0 — no limit — is a setting too."""
+    assert tuned(DECLARED, Tuning(), NOTHING).max_duration_s == 600
+    assert tuned(DECLARED, Tuning(max_duration_s=900), NOTHING).max_duration_s == 900
+    assert tuned(DECLARED, Tuning(max_duration_s=0), NOTHING).max_duration_s == 0

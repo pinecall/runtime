@@ -21,7 +21,7 @@ from pinecall.session.knowing import a_line_for_the_file_it_ships_with
 from pinecall.session.lookups import Lookup, NoLookup, TurnLookups
 from pinecall.session.remembering import NoRememberer, Rememberer, remembered_within
 from pinecall.session.scoring import Scorer, unjudged
-from pinecall.session.voice import commands, hearing
+from pinecall.session.voice import closing_time, commands, hearing
 from pinecall.session.voice.agent import VoiceAgent
 from pinecall.session.voice.attending import Attending
 from pinecall.session.voice.barge_in import is_a_backchannel
@@ -152,6 +152,13 @@ class VoiceBridge:
             started(self.context, self.context.route.number or self.config.slug, self._started_at),
         )
         await a_line_for_the_file_it_ships_with(self.blocks, self.writing.emit)
+
+    async def closing_time(self) -> None:
+        """The agent's limit on this voice call, kept: warned a minute before, ended at it."""
+        if self._live is not None:
+            await closing_time.keep(
+                self.config.max_duration_s, self._live, self.ending, self._taken
+            )
 
     async def holding(self, melody: Path | None) -> None:
         """The room is live: what the caller hears while a tool runs, or None for nothing."""

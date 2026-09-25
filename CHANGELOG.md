@@ -7,6 +7,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **An agent's own limit on a voice call** (`max_duration_s` on its settings, protocol 0.6.10):
+  ten minutes unless the org sets otherwise, `0` for none, at most an hour. A minute before it
+  the agent is told to close; at it the call ends as `timeout` by the `platform`. Inbound voice
+  calls had no limit at all; a written conversation still has none.
 - **`pinecall-runtime sandbox seed [--from-instance production] [--to-instance sandbox]`**, run
   once as root at the cutover: a new sandbox instance starts with what the sandbox was inside
   production. Both `DATABASE_URL`s come out of the two instances' stores, never a command line.

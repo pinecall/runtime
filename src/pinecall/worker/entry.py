@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 class Bridge(Protocol):
-    """What the worker needs of the bridge: the agent livekit runs, and both ends of the log."""
+    """What the worker needs of the bridge: the agent, both ends of the log, and the clock."""
 
     @property
     def agent(self) -> Agent:
@@ -54,6 +54,10 @@ class Bridge(Protocol):
 
     async def holding(self, melody: Path | None) -> None:
         """The room is live: what plays into it while a tool runs, or None for nothing."""
+        ...
+
+    async def closing_time(self) -> None:
+        """A voice call is live: warn the agent before its limit, and end the call at it."""
         ...
 
 
@@ -207,6 +211,11 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     # waits in the gateway's queue and arrives in the order it was sent.
     commands = asyncio.ensure_future(commanding.served(worker.gateway, bridge, context.call))
     ctx.add_shutdown_callback(letting_go(commands))
+    # A voice call has the agent's limit on it — the phone and the widget's voice, never a written
+    # visit, which is the same test a_session builds its ears by (session/voice/session.py).
+    if route.channel in session.CHANNELS_THAT_LISTEN and not typed:
+        closing = asyncio.ensure_future(bridge.closing_time())
+        ctx.add_shutdown_callback(letting_go(closing))
 
 
 # The same two calls session/voice/commands.py makes for agent.say and agent.reply, handed to the

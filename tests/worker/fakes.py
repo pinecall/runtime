@@ -48,6 +48,10 @@ class CountingBridge:
         """What this call plays while a tool runs, noted."""
         self.melody = melody
 
+    async def closing_time(self) -> None:
+        """The voice call's clock, started."""
+        self.clock_started = True
+
 
 # The participant is left empty on purpose: livekit fills it for a publisher job, and every job
 # this worker answers is a room job, so a fake that filled it would be a fake of another library.
