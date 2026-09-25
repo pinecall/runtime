@@ -4,12 +4,10 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from cryptography.fernet import Fernet
-
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
 from pinecall.orgs.table import DELETED_NOTHING
-from pinecall.orgs.vault import NO_VAULT_KEY, NoVaultKey, a_cipher
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_cipher
 from pinecall.types import OrgSso, a_role
 
 
@@ -39,7 +37,7 @@ class Sso(Protocol):
 class MemorySso:
     """The table of a clone with no Postgres: the same cipher, forgotten when the process exits."""
 
-    def __init__(self, cipher: Fernet) -> None:
+    def __init__(self, cipher: Cipher) -> None:
         self._cipher = cipher
         self._rows: dict[str, tuple[OrgSso, str]] = {}
 
@@ -102,7 +100,7 @@ SELECT org, issuer, client_id, ciphertext, domains, role, required
 class PostgresSso:
     """The table in Postgres, read on every sign-in: what is set now is what the next one uses."""
 
-    def __init__(self, pool: Pool, cipher: Fernet) -> None:
+    def __init__(self, pool: Pool, cipher: Cipher) -> None:
         self._pool = pool
         self._cipher = cipher
 
@@ -147,7 +145,7 @@ def sso_for(settings: Settings, pool: Pool | None) -> Sso | None:
     return MemorySso(cipher) if pool is None else PostgresSso(pool, cipher)
 
 
-def _a_configuration(cipher: Fernet, row: Any) -> OrgSso:
+def _a_configuration(cipher: Cipher, row: Any) -> OrgSso:
     """One row back into the domain's own OrgSso, the client secret in the clear."""
     role = row["role"]
     return OrgSso(
@@ -161,12 +159,12 @@ def _a_configuration(cipher: Fernet, row: Any) -> OrgSso:
     )
 
 
-def _sealed(cipher: Fernet, secret: str) -> str:
+def _sealed(cipher: Cipher, secret: str) -> str:
     """The client secret as a row keeps it: a Fernet token, never the secret itself."""
     return cipher.encrypt(secret.encode()).decode()
 
 
-def _opened(cipher: Fernet, ciphertext: str) -> str:
+def _opened(cipher: Cipher, ciphertext: str) -> str:
     """One row back into the secret the token endpoint takes."""
     return cipher.decrypt(ciphertext.encode()).decode()
 

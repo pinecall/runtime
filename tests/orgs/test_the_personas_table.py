@@ -1,6 +1,7 @@
 """The org's personas in Postgres: written whole, renamed, dropped, and JSON back as it went in."""
 
 from collections.abc import AsyncIterator, Mapping, Sequence
+from contextlib import AbstractAsyncContextManager
 from typing import Any
 from uuid import uuid4
 
@@ -8,6 +9,7 @@ import pytest
 
 from pinecall.log.store import Pool, open_pool
 from pinecall.orgs.personas import NameTaken, NoSuchPersona, Personas
+from tests.pools import Held, acquired
 from tests.postgres import Dev
 
 pytestmark = pytest.mark.postgres
@@ -75,6 +77,9 @@ class Counted:
     async def execute(self, query: str, /, *args: Any) -> str:
         self.statements.append(query)
         return await self.pool.execute(query, *args)
+
+    def acquire(self) -> AbstractAsyncContextManager[Held]:
+        return acquired(self)
 
     async def close(self) -> None:
         await self.pool.close()

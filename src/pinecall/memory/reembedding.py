@@ -18,6 +18,7 @@ WHERE id = $1 AND model <> $3
 
 # How many facts go to the embedder in one request: a fact is a sentence, and a failed batch
 # leaves the ones before it written and the rest as they were, to be picked up by the next run.
+# A batch is one transaction and one round trip, so the table never says half of one.
 BATCH = 64
 
 
@@ -28,6 +29,10 @@ async def reembedded(pool: Pool, embedder: Embedder, *, batch: int = BATCH) -> i
     for start in range(0, len(stale), batch):
         rows = stale[start : start + batch]
         vectors = await embedder.embed([row["text"] for row in rows])
-        for row, vector in zip(rows, vectors, strict=True):
-            await pool.execute(_WRITE, row["id"], as_halfvec(vector), model)
+        written = [
+            (row["id"], as_halfvec(vector), model)
+            for row, vector in zip(rows, vectors, strict=True)
+        ]
+        async with pool.acquire() as connection, connection.transaction():
+            await connection.executemany(_WRITE, written)
     return len(stale)

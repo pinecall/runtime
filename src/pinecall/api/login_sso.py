@@ -27,7 +27,7 @@ from pinecall.api.sso import (
 )
 from pinecall.auth.codes import NO_KEY_YET, LoginCodes
 from pinecall.auth.keys import KeyRecord
-from pinecall.auth.members import Members, an_address
+from pinecall.auth.members import Members, NoSeatLeft, an_address
 from pinecall.auth.openid import (
     Claims,
     OpenIdRefused,
@@ -247,11 +247,20 @@ async def _seated(
     # door asks it — before the row, because a seat is a stock — in the quota's own sentence.
     try:
         await admission.a_seat(org.id, await members.seated(org.id))
+        invited = await members.invite(
+            org.id,
+            email,
+            said.name or email.partition("@")[0],
+            wired.role,
+            (),
+            seats=(await admission.quotas_of(org.id)).seats,
+        )
+    except NoSeatLeft as full:
+        # The write judged the seat again, under its lock, and refused: the same sentence.
+        await admission.a_seat(full.org, full.seated)
+        raise
     except QuotaExhausted as refused:
         raise HTTPException(429, str(refused)) from refused
-    invited = await members.invite(
-        org.id, email, said.name or email.partition("@")[0], wired.role, ()
-    )
     if invited is None:
         raise HTTPException(403, NOBODY_HERE.format(org=org.slug, email=email))
     return await _activated(members, org, invited.member)

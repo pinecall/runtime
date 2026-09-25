@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import InvalidToken
 
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
 from pinecall.orgs.table import DELETED_NOTHING
-from pinecall.orgs.vault import NO_VAULT_KEY, NoVaultKey, a_cipher
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_cipher
 
 # The rows there are. A name is the whole key: the box is one, so there is no org beside it.
 BRAND = "brand"
@@ -54,7 +55,7 @@ class BoxSettings(Protocol):
 class MemoryBoxSettings:
     """The table of a clone with no Postgres: the same cipher, forgotten when the process exits."""
 
-    def __init__(self, cipher: Fernet | None) -> None:
+    def __init__(self, cipher: Cipher | None) -> None:
         self._cipher = cipher
         self._rows: dict[str, tuple[dict[str, Any], str | None]] = {}
 
@@ -89,6 +90,8 @@ INSERT INTO box_settings (name, value, ciphertext, set_at) VALUES ($1, $2::jsonb
     SET value = excluded.value, ciphertext = excluded.ciphertext, set_at = now()
 """
 
+logger = logging.getLogger(__name__)
+
 _OF = "SELECT value::text AS value, ciphertext FROM box_settings WHERE name = $1"
 
 _DROP = "DELETE FROM box_settings WHERE name = $1"
@@ -99,7 +102,7 @@ _NOTED = "UPDATE box_settings SET value = value || $2::jsonb WHERE name = $1"
 class PostgresBoxSettings:
     """The table in Postgres, read each time it is asked: what is set now is what is used next."""
 
-    def __init__(self, pool: Pool, cipher: Fernet | None) -> None:
+    def __init__(self, pool: Pool, cipher: Cipher | None) -> None:
         self._pool = pool
         self._cipher = cipher
 
@@ -137,7 +140,7 @@ def box_settings_for(settings: Settings, pool: Pool | None) -> BoxSettings:
     return MemoryBoxSettings(cipher) if pool is None else PostgresBoxSettings(pool, cipher)
 
 
-def _sealed(cipher: Fernet | None, secret: str | None) -> str | None:
+def _sealed(cipher: Cipher | None, secret: str | None) -> str | None:
     """The secret as a row keeps it: a Fernet token, or nothing for a setting that has none."""
     if secret is None:
         return None
@@ -146,14 +149,19 @@ def _sealed(cipher: Fernet | None, secret: str | None) -> str | None:
     return cipher.encrypt(secret.encode()).decode()
 
 
-# A row sealed under a vault key this box no longer holds — lost, or rotated — reads as a setting
-# with no secret, which every caller treats as "not configured": the box falls back to its
-# environment and the operator sets it again, rather than every letter dying on InvalidToken.
-def _opened(cipher: Fernet | None, ciphertext: str | None) -> str | None:
+# A row sealed under a vault key this box no longer holds — lost, or rotated without the old key
+# kept behind the new (orgs/vault.py) — reads as a setting with no secret, which every caller
+# treats as "not configured": the box falls back to its environment and the operator sets it
+# again, rather than every letter dying on InvalidToken. But it is said, once per read, because a
+# box whose settings silently went missing is an afternoon of looking in the wrong place.
+def _opened(cipher: Cipher | None, ciphertext: str | None) -> str | None:
     """One token back into the secret; None when there is none, or no key to open it with."""
     if ciphertext is None or cipher is None:
         return None
     try:
         return cipher.decrypt(ciphertext.encode()).decode()
     except InvalidToken:
+        logger.warning(
+            "a box setting is sealed under a key PINECALL_VAULT_KEY no longer holds: read as unset"
+        )
         return None

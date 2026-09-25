@@ -5,12 +5,10 @@ from __future__ import annotations
 import json
 from typing import Any, Protocol
 
-from cryptography.fernet import Fernet
-
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
 from pinecall.orgs.table import DELETED_NOTHING
-from pinecall.orgs.vault import NO_VAULT_KEY, NoVaultKey, a_cipher
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_cipher
 from pinecall.types import CarrierKind, OutboundTrunk, a_carrier_kind
 
 
@@ -33,7 +31,7 @@ class OutboundTrunks(Protocol):
 class MemoryOutboundTrunks:
     """The table of a process with no Postgres: the same cipher, forgotten on exit."""
 
-    def __init__(self, cipher: Fernet) -> None:
+    def __init__(self, cipher: Cipher) -> None:
         self._cipher = cipher
         self._rows: dict[str, tuple[CarrierKind, str, str, str | None, str | None]] = {}
 
@@ -81,7 +79,7 @@ _DROP = "DELETE FROM outbound_trunks WHERE org = $1"
 class PostgresOutboundTrunks:
     """The table in Postgres, read on every dial: a trunk repaired now is what the next uses."""
 
-    def __init__(self, pool: Pool, cipher: Fernet) -> None:
+    def __init__(self, pool: Pool, cipher: Cipher) -> None:
         self._pool = pool
         self._cipher = cipher
 
@@ -127,14 +125,14 @@ def outbound_trunks_for(settings: Settings, pool: Pool | None) -> OutboundTrunks
     return MemoryOutboundTrunks(cipher) if pool is None else PostgresOutboundTrunks(pool, cipher)
 
 
-def _sealed(cipher: Fernet, password: str | None) -> str | None:
+def _sealed(cipher: Cipher, password: str | None) -> str | None:
     """The password as a row keeps it: one Fernet token over its JSON, or nothing at all."""
     if password is None:
         return None
     return cipher.encrypt(json.dumps({"password": password}).encode()).decode()
 
 
-def _opened(cipher: Fernet, ciphertext: Any) -> str | None:
+def _opened(cipher: Cipher, ciphertext: Any) -> str | None:
     """One column back into the password, or None for a trunk that authenticates with nothing."""
     if not ciphertext:
         return None

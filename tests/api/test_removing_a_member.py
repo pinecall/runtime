@@ -7,7 +7,8 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.api.members import NO_SUCH_MEMBER, NOT_YOURSELF, NOT_YOURSELF_DISABLED, THE_LAST_ADMIN
+from pinecall.api.members import NO_SUCH_MEMBER
+from pinecall.api.membership import NOT_YOURSELF, NOT_YOURSELF_DISABLED, THE_LAST_ADMIN
 from pinecall.auth.keys import MemoryKeys
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.types import Quotas

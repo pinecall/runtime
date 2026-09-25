@@ -29,7 +29,7 @@ instances, its embedder, its fleet cloud, its mail.
 | `ANTHROPIC_API_KEY` · `OPENAI_API_KEY` · `SONIOX_API_KEY` · `DEEPGRAM_API_KEY` · `ELEVEN_API_KEY` | a call needs one key of each role: llm, stt, tts |
 | `PINECALL_WORKER_KEY` | the key the worker knocks with. On a box the fleet's: `keys issue --org default --scope fleet --scope app --scope calls`, which is what lets one worker answer every org's calls. On a laptop an org's own key, and the worker serves that org |
 | `PINECALL_OPS_KEY` | the box's own key to `/v1/ops/*`, and what these verbs knock with. A person the box made an operator opens the same doors with their own key; unset, only such a person does |
-| `PINECALL_VAULT_KEY` | the Fernet key a tenant's own provider keys are encrypted under |
+| `PINECALL_VAULT_KEY` | the Fernet key a tenant's own secrets are encrypted under — its provider keys, its carrier, its mail and SSO credentials, the box's own settings. To rotate, a comma-separated list, the new key first and the old behind it: a secret seals under the first and opens under whichever sealed it, and the old key is dropped once every row has been written again |
 | `PINECALL_ROLE` · `PINECALL_INSTANCES` | what this box runs: `all` · `hub` · `worker`; and which instances, by name, space-separated — `production` when unset. Both `box.env`'s |
 | `PINECALL_GATEWAY_URL` *(the instance's)* | the instance's gateway on loopback: the host and port the gateway binds, and what its worker's job asks. On a worker box, the hub's |
 | `PINECALL_MAX_JOBS` *(the instance's)* · `PINECALL_APP` · `PINECALL_AGENT` | what a worker takes, and for whom |

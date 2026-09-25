@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
+from pinecall._exceptions import PinecallError
 from pinecall.auth.invitations import Invited
 from pinecall.log.store import Pool
 from pinecall.types import Member, MemberStatus, Role, a_role
@@ -32,6 +33,18 @@ class Kept:
     password_hash: str | None
 
 
+# A seat is a stock, and the door judges it before the row (orgs/admission.py) — but two
+# invitations judged at once both saw one seat left, so the write judges it again, under a lock,
+# and answers this when it made no row. The door turns it into the quota's own sentence.
+class NoSeatLeft(PinecallError):
+    """The org holds every seat it may: this invitation made no row. `seated` says how many."""
+
+    def __init__(self, org: str, seated: int) -> None:
+        super().__init__(f"org {org} holds all {seated} of its seats")
+        self.org = org
+        self.seated = seated
+
+
 class Members(Protocol):
     """Where the org's doors invite, list and change its people, and where login finds one."""
 
@@ -52,10 +65,13 @@ class Members(Protocol):
         *,
         production: bool = False,
         vouched: bool = False,
+        seats: int | None = None,
     ) -> Invited | None:
         """A new member with a one-use token, or a fresh token for one still invited. An email
         that already has a password on this box AND is verified is seated ACTIVE with it, and no
-        token is made. None when the email already belongs to a member of THIS org who accepted."""
+        token is made. None when the email already belongs to a member of THIS org who accepted.
+        `seats` is the most rows this org may hold, judged by the write itself so two invitations
+        at once cannot both pass: NoSeatLeft when a new row would be one past it."""
         ...
 
     async def accept(self, token: str, password_hash: str) -> Member | None:

@@ -2,6 +2,7 @@
 
 import re
 from collections.abc import Mapping, Sequence
+from contextlib import AbstractAsyncContextManager
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -22,6 +23,7 @@ from pinecall.auth.keys_postgres import PostgresKeys
 from pinecall.auth.visiting import StandingKeys
 from pinecall.log.store.postgres import MIGRATIONS
 from pinecall.types import ENVS, KEY_SCOPES, PRODUCTION, SANDBOX
+from tests.pools import Held, acquired
 
 pytestmark = pytest.mark.unit
 
@@ -292,6 +294,9 @@ class _APoolOfOneRow:
     async def execute(self, _query: str, /, *args: Any) -> str:
         self.asked.extend(args)
         return self._tag
+
+    def acquire(self) -> AbstractAsyncContextManager[Held]:
+        return acquired(self)
 
     async def close(self) -> None:
         """Nothing to give back."""

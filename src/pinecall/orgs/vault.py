@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, MultiFernet
 
 from pinecall._exceptions import PinecallError
 from pinecall._settings import Settings
@@ -19,7 +19,14 @@ NO_VAULT_KEY = "no PINECALL_VAULT_KEY: this runtime cannot keep a tenant's key"
 
 # The library's own message says 32 url-safe base64 bytes without naming the variable an operator
 # has to fix. A box must not die on a typo in its environment file without saying which line.
-NOT_A_FERNET_KEY = "PINECALL_VAULT_KEY is not a Fernet key: generate one with Fernet.generate_key()"
+NOT_A_FERNET_KEY = (
+    "PINECALL_VAULT_KEY is not a Fernet key, or a comma-separated list of them: generate one with "
+    "Fernet.generate_key()"
+)
+
+# What every table that seals a tenant secret takes: the box's key, or the keys it has held. A
+# Fernet and a MultiFernet seal and open alike, and the tests hand in one key alone.
+type Cipher = Fernet | MultiFernet
 
 
 class NoVaultKey(PinecallError):
@@ -49,7 +56,7 @@ class Vault(Protocol):
 class MemoryVault:
     """The vault of a clone with a dev key and no Postgres: the same cipher, forgotten on exit."""
 
-    def __init__(self, cipher: Fernet) -> None:
+    def __init__(self, cipher: Cipher) -> None:
         self._cipher = cipher
         self._rows: dict[tuple[str, str], str] = {}
 
@@ -93,7 +100,7 @@ _KEYS = "SELECT vendor, ciphertext FROM provider_keys WHERE org = $1"
 class PostgresVault:
     """The table in Postgres, read on every call: a key set now is used by the next call."""
 
-    def __init__(self, pool: Pool, cipher: Fernet) -> None:
+    def __init__(self, pool: Pool, cipher: Cipher) -> None:
         self._pool = pool
         self._cipher = cipher
 
@@ -146,20 +153,26 @@ async def brought_by(vault: Vault | None, quotas_of: QuotasOf, org: str) -> Brou
     return Brought(keys=await keys_brought_by(vault, org), lends=(await quotas_of(org)).lends)
 
 
-# Shared with the carriers table (orgs/carriers.py): one vault key seals every tenant secret.
-def a_cipher(vault_key: str) -> Fernet:
-    """The box's Fernet, or a refusal that names the variable an operator has to fix."""
+# Shared with every table that seals a tenant secret (carriers, mail, the trunks, sso, the box's
+# own settings): one vault key seals them all. ROTATION: the variable takes a comma-separated
+# list, newest first — a secret is sealed under the first key and opened under whichever key it
+# was sealed with, so an operator adds the new key at the front, deploys, and drops the old one
+# once every row has been written again. One key alone, rotated in place, read every tenant's
+# secret as garbage and the box's own settings as "the operator set nothing" (2026-09-26).
+def a_cipher(vault_key: str) -> MultiFernet:
+    """The box's cipher over every key it has held, or a refusal naming the variable to fix."""
+    keys = [key.strip() for key in vault_key.split(",") if key.strip()]
     try:
-        return Fernet(vault_key.encode())
+        return MultiFernet([Fernet(key.encode()) for key in keys])
     except (ValueError, TypeError) as malformed:
         raise NoVaultKey(NOT_A_FERNET_KEY) from malformed
 
 
-def _sealed(cipher: Fernet, key: str) -> str:
+def _sealed(cipher: Cipher, key: str) -> str:
     """One provider key as a row keeps it: a Fernet token, never the key itself."""
     return cipher.encrypt(key.encode()).decode()
 
 
-def _opened(cipher: Fernet, ciphertext: str) -> str:
+def _opened(cipher: Cipher, ciphertext: str) -> str:
     """One row back into the key a vendor takes."""
     return cipher.decrypt(ciphertext.encode()).decode()

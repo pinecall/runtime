@@ -402,7 +402,9 @@ class Settings(VendorKeys):
         default=None,
         description=(
             "A Fernet key, generated once on the box by `pinecall-runtime box secrets`: a tenant's "
-            "own provider keys are encrypted under it. Unset, the provider-key doors answer 503."
+            "own provider keys are encrypted under it. Unset, the provider-key doors answer 503. "
+            "To rotate: a comma-separated list, the new key first and the old one behind it; every "
+            "secret seals under the first and opens under whichever sealed it."
         ),
     )
     # The box's own mail, which is how an invitation, a password reset and a forgotten one reach

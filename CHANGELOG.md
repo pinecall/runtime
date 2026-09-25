@@ -37,6 +37,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **A cache write is not also fresh input.** The plugins report `input_tokens` as the sum of the
   fresh, the read-back and the written tokens, and the bill priced the written ones twice: at the
   input price and at the write price.
+- **A seat is judged by the write itself.** Two invitations at once both passed the quota's
+  count and both made a row; the members table now counts under a lock on the org inside its
+  INSERT, and the door answers the second with the quota's own `429`. `PINECALL_VAULT_KEY`
+  **rotates**: a comma-separated list, the new key first, opens every secret sealed under an
+  older one — one key rotated in place read every tenant's secret as garbage. Accepting an
+  invitation, remembering a call's facts, holding a golden's and writing them again with a new
+  embedder are each one transaction: a failure between two statements no longer leaves a link
+  spent with nobody seated, or a fact ended with its replacement never written.
 - **The judge model is closed.** A hang-up built an `anthropic.LLM` per judged call and closed
   none; a suite's run held one per run and closed it never.
 

@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 
 from pinecall.auth.invitations import INVITATION_TTL_S, Invited, a_token
 from pinecall.auth.keys import fingerprint
-from pinecall.auth.members import Kept, a_member_id, an_address, an_instant
+from pinecall.auth.members import Kept, NoSeatLeft, a_member_id, an_address, an_instant
 from pinecall.types import Member, MemberStatus, Role
 
 
@@ -53,6 +53,7 @@ class MemoryMembers:
         *,
         production: bool = False,
         vouched: bool = False,
+        seats: int | None = None,
     ) -> Invited | None:
         """One row per (org, email); a second invite of one still invited replaces the token."""
         email = an_address(email)
@@ -60,6 +61,11 @@ class MemoryMembers:
         if kept is not None and kept.member.status != "invited":
             return None
         if kept is None:
+            # The Postgres table counts under a lock inside its INSERT; a dict has no races to
+            # lose, so the same count before the row is the same rule.
+            seated = await self.seated(org)
+            if seats is not None and seated >= seats:
+                raise NoSeatLeft(org, seated)
             member = Member(
                 id=a_member_id(),
                 org=org,

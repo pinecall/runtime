@@ -7,12 +7,10 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
-from cryptography.fernet import Fernet
-
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
 from pinecall.orgs.table import DELETED_NOTHING
-from pinecall.orgs.vault import NO_VAULT_KEY, NoVaultKey, a_cipher
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_cipher
 from pinecall.types import Mailbox, a_security
 
 
@@ -51,7 +49,7 @@ class Mail(Protocol):
 class MemoryMail:
     """The table of a clone with no Postgres: the same cipher, forgotten when the process exits."""
 
-    def __init__(self, cipher: Fernet, now: Callable[[], str] | None = None) -> None:
+    def __init__(self, cipher: Cipher, now: Callable[[], str] | None = None) -> None:
         self._cipher = cipher
         self._now = now or _an_instant
         self._rows: dict[str, tuple[KeptMail, str]] = {}
@@ -114,7 +112,7 @@ UPDATE org_mail
 class PostgresMail:
     """The table in Postgres, read on every letter: what is set now is what the next one posts."""
 
-    def __init__(self, pool: Pool, cipher: Fernet) -> None:
+    def __init__(self, pool: Pool, cipher: Cipher) -> None:
         self._pool = pool
         self._cipher = cipher
 
@@ -157,7 +155,7 @@ def mail_for(settings: Settings, pool: Pool | None) -> Mail | None:
     return MemoryMail(cipher) if pool is None else PostgresMail(pool, cipher)
 
 
-def _a_mailbox(cipher: Fernet, row: Any) -> KeptMail:
+def _a_mailbox(cipher: Cipher, row: Any) -> KeptMail:
     """One row back into the domain's own Mailbox, the SMTP password in the clear."""
     verified = row["verified_at"]
     return KeptMail(
@@ -174,12 +172,12 @@ def _a_mailbox(cipher: Fernet, row: Any) -> KeptMail:
     )
 
 
-def _sealed(cipher: Fernet, secret: str) -> str:
+def _sealed(cipher: Cipher, secret: str) -> str:
     """The SMTP password as a row keeps it: a Fernet token, never the password itself."""
     return cipher.encrypt(secret.encode()).decode()
 
 
-def _opened(cipher: Fernet, ciphertext: str) -> str:
+def _opened(cipher: Cipher, ciphertext: str) -> str:
     """One row back into the password the mail server takes."""
     return cipher.decrypt(ciphertext.encode()).decode()
 

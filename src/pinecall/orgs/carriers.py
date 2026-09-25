@@ -5,12 +5,10 @@ from __future__ import annotations
 import json
 from typing import Any, Protocol
 
-from cryptography.fernet import Fernet
-
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
 from pinecall.orgs.table import DELETED_NOTHING
-from pinecall.orgs.vault import NO_VAULT_KEY, NoVaultKey, a_cipher
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_cipher
 from pinecall.types import Carrier, SipPeer, TwilioAccount, a_carrier_kind, a_sip_transport
 
 
@@ -33,7 +31,7 @@ class Carriers(Protocol):
 class MemoryCarriers:
     """The table of a clone with a dev key and no Postgres: the same cipher, forgotten on exit."""
 
-    def __init__(self, cipher: Fernet) -> None:
+    def __init__(self, cipher: Cipher) -> None:
         self._cipher = cipher
         self._rows: dict[str, tuple[str, str, str]] = {}
 
@@ -64,7 +62,7 @@ _DROP = "DELETE FROM carriers WHERE org = $1"
 class PostgresCarriers:
     """The table in Postgres, read on every ask: a carrier set now is what the next import uses."""
 
-    def __init__(self, pool: Pool, cipher: Fernet) -> None:
+    def __init__(self, pool: Pool, cipher: Cipher) -> None:
         self._pool = pool
         self._cipher = cipher
 
@@ -97,7 +95,7 @@ def carriers_for(settings: Settings, pool: Pool | None) -> Carriers | None:
     return MemoryCarriers(cipher) if pool is None else PostgresCarriers(pool, cipher)
 
 
-def _sealed(cipher: Fernet, carrier: Carrier) -> str:
+def _sealed(cipher: Cipher, carrier: Carrier) -> str:
     """The credentials as a row keeps them: one Fernet token over their JSON."""
     account = carrier.account
     said: dict[str, Any] = (
@@ -116,7 +114,7 @@ def _sealed(cipher: Fernet, carrier: Carrier) -> str:
     return cipher.encrypt(json.dumps(said).encode()).decode()
 
 
-def _opened(cipher: Fernet, org: str, kind: str, ciphertext: str) -> Carrier:
+def _opened(cipher: Cipher, org: str, kind: str, ciphertext: str) -> Carrier:
     """One row back into the domain's own Carrier, the credentials in the clear."""
     said: dict[str, Any] = json.loads(cipher.decrypt(ciphertext.encode()).decode())
     if a_carrier_kind(kind) == "twilio":

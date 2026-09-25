@@ -19,11 +19,9 @@ from pinecall.api._gateway import where_this_gateway_answers
 from pinecall.api._seating import elsewhere_too, may_grant
 from pinecall.api.identity import AtProduction
 from pinecall.api.org_mail import OutboxDep
-from pinecall.api.orgs import NO_BODY
 from pinecall.auth import passwords
-from pinecall.auth.granting import NOT_YOUR_OWN_ROW
-from pinecall.auth.keys import KeyRecord, Keys, revoked_every_key_of
-from pinecall.auth.members import Members
+from pinecall.auth.keys import KeyRecord
+from pinecall.auth.members import Members, NoSeatLeft
 from pinecall.auth.persons import a_persons_key
 from pinecall.mail import Letter, Outbox, a_reset, an_invitation, where_the_card_is
 from pinecall.orgs.admission import QuotaExhausted
@@ -34,7 +32,6 @@ from pinecall.types import (
     Role,
     a_role,
 )
-from pinecall.types.member import STATUSES, MemberStatus
 from pinecall_protocol import WireModel
 
 # The doors that make, change or remove a person are production's (api/identity.py): on a sandbox
@@ -61,26 +58,6 @@ NOT_ACTIVE = (
     "is enabled before their password is reset"
 )
 
-# `active` is what accepting an invitation makes a person, with a password of their own. An
-# update may re-enable a disabled member — they have one — and may not activate an invited one.
-NOT_BY_HAND = "{email} has not accepted their invitation: they become active by accepting it"
-
-# Removing is for good, so the two that would leave an org nobody can run are refused in a
-# sentence: the person asking cannot remove themselves — somebody else does, which is also what
-# proves there is somebody else — and the last ACTIVE admin stays until another one exists. An
-# invited admin does not count: an org whose only admin has not chosen a password is an org
-# nobody can sign in to.
-NOT_YOURSELF = "you cannot remove yourself: another admin of this org removes you"
-# Disabling is the same act for now, and refused to the person asking for the same reason.
-NOT_YOURSELF_DISABLED = "you cannot disable yourself: another admin of this org disables you"
-# An admin always opens production (Member.opens_production): the org's owner must reach what
-# answers its phone, so taking it from one is refused rather than quietly ignored.
-AN_ADMIN_OPENS_PRODUCTION = "{email} is an admin, and an admin always opens production"
-THE_LAST_ADMIN = (
-    "{email} is the last active admin of this org: make somebody else an admin first, "
-    "or the org is left with nobody who can run it"
-)
-
 # Who a letter says invited somebody, when the key that asked names nobody — the box's own, or a
 # machine's. The org's name is in the letter beside it, so this reads as what it is.
 AN_ADMIN = "An admin"
@@ -96,15 +73,6 @@ class WantedMember(WireModel):
     agents: list[str] = []
     # Whether they may act in production. An admin does whatever this says.
     production: bool = False
-
-
-class Changed(WireModel):
-    """What an update may replace. A field left out keeps what the member had."""
-
-    role: str | None = None
-    agents: list[str] | None = None
-    status: str | None = None
-    production: bool | None = None
 
 
 class Accepting(WireModel):
@@ -150,9 +118,24 @@ async def invite(
     # Handed to this admin only for an address that is this org's alone — and a handed link
     # proves nothing about the address, so only one that travels by mail alone vouches for it.
     alone = not await elsewhere_too(members, key.org, said.email)
-    return await invited_into(
-        members, org, said, role, _by(key), base, outbox, handed=alone, vouched=not alone
-    )
+    # The write judges the seat again, under its own lock: two invitations at once both passed
+    # the count above, and only one of them may make a row (auth/members_postgres.py).
+    try:
+        return await invited_into(
+            members,
+            org,
+            said,
+            role,
+            _by(key),
+            base,
+            outbox,
+            handed=alone,
+            vouched=not alone,
+            seats=(await admission.quotas_of(key.org)).seats,
+        )
+    except NoSeatLeft as full:
+        await admission.a_seat(full.org, full.seated)
+        raise  # unreachable: a_seat raised the quota's own sentence, which the handler answers
 
 
 def a_wanted_member(said: WantedMember, org: str) -> Role:
@@ -177,9 +160,10 @@ async def invited_into(
     *,
     handed: bool = True,
     vouched: bool = True,
+    seats: int | None = None,
 ) -> dict[str, Any]:
     """The row, the token the once, and whether a letter carrying it was posted; 409 for an
-    email that already accepted here.
+    email that already accepted here. `seats` is what the org may hold, judged by the write.
 
     A person who already exists on this box — an email with a password in another org, and
     proved to be theirs — is seated active at once and the answer carries no token: they sign
@@ -198,6 +182,7 @@ async def invited_into(
         said.agents,
         production=said.production,
         vouched=vouched,
+        seats=seats,
     )
     if invited is None:
         raise HTTPException(409, ALREADY_A_MEMBER.format(email=said.email))
@@ -218,74 +203,6 @@ async def invited_into(
         "expires_at": invited.expires_at,
         "mailed": await _posted(outbox, org.id, letter),
     }
-
-
-@router.patch("/v1/members/{id}", dependencies=[AtProduction])
-async def change(
-    id: str, said: Changed, key: TeamKeyDep, members: MembersDep, keys: KeysDep
-) -> dict[str, Any]:
-    """Replace the role, the agents, the standing or production. Disabling revokes every key of
-    theirs, and is refused (409) for the person asking."""
-    found = await members.find(key.org, id)
-    if found is None:
-        raise HTTPException(404, NO_SUCH_MEMBER.format(id=id))
-    try:
-        role = None if said.role is None else a_role(said.role)
-        status = None if said.status is None else _a_status(said.status)
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
-    if status == "active" and found.status == "invited":
-        raise HTTPException(400, NOT_BY_HAND.format(email=found.email))
-    if status == "disabled" and key.subject == id:
-        raise HTTPException(409, NOT_YOURSELF_DISABLED)
-    # Your own row is not yours to raise: a role and the switch are what another admin gives you.
-    if key.subject == id and (role is not None or said.production is not None):
-        raise HTTPException(409, NOT_YOUR_OWN_ROW)
-    await may_grant(key, members, role, said.production)
-    if said.production is False and (role or found.role) == "admin":
-        raise HTTPException(409, AN_ADMIN_OPENS_PRODUCTION.format(email=found.email))
-    changed = await members.update(
-        key.org, id, role=role, agents=said.agents, status=status, production=said.production
-    )
-    if changed is None:
-        raise HTTPException(404, NO_SUCH_MEMBER.format(id=id))
-    # A disabled person may not open a door from the next request, and their keys are the doors:
-    # the rows stay, revoked, so the log entries that name them stay readable.
-    if status == "disabled":
-        await revoked_every_key_of(keys, key.org, id)
-    return member_as_json(changed)
-
-
-# For good, where `disabled` is for now: the keys stop first, so there is no moment at which the
-# row is gone and a key of theirs still opens a door; then the row goes, its open links with it
-# (0014's CASCADE), and the seat is free because a seat is a count of rows. What the log wrote
-# about them stays readable — it names the id as text, and the id now names nobody.
-@router.delete("/v1/members/{id}", status_code=NO_BODY, dependencies=[AtProduction])
-async def remove(id: str, key: TeamKeyDep, members: MembersDep, keys: KeysDep) -> None:
-    """One person out of this org for good. 409 for yourself and for the last active admin."""
-    if key.subject == id:
-        raise HTTPException(409, NOT_YOURSELF)
-    await removed(members, keys, key.org, id)
-
-
-async def removed(members: Members, keys: Keys, org: str, id: str) -> None:
-    """Every key of theirs revoked, then the row and its links gone; 404, or 409 for the last
-    active admin. The org's door and the operator's twin both end here."""
-    found = await members.find(org, id)
-    if found is None:
-        raise HTTPException(404, NO_SUCH_MEMBER.format(id=id))
-    if _is_an_active_admin(found) and not any(
-        _is_an_active_admin(other) and other.id != id for other in await members.listed(org)
-    ):
-        raise HTTPException(409, THE_LAST_ADMIN.format(email=found.email))
-    await revoked_every_key_of(keys, org, id)
-    if not await members.remove(org, id):
-        raise HTTPException(404, NO_SUCH_MEMBER.format(id=id))
-
-
-def _is_an_active_admin(member: Member) -> bool:
-    """Whether this person can run the org today: an admin who has chosen a password."""
-    return member.role == "admin" and member.status == "active"
 
 
 # A forgotten password handed back by the admin: a one-use link, the token once in this answer and
@@ -360,13 +277,6 @@ async def _posted(outbox: Outbox, org: str, letter: Letter | None) -> bool:
 def _by(key: KeyRecord) -> str:
     """Whose name a letter says invited or reset somebody: the person, or a machine's `An admin`."""
     return key.name or AN_ADMIN
-
-
-def _a_status(word: str) -> MemberStatus:
-    """The standing this word names, or a refusal that lists the three."""
-    if word not in STATUSES:
-        raise DeclarationRefused(f"a member's status is one of {sorted(STATUSES)}, not {word!r}")
-    return "invited" if word == "invited" else ("active" if word == "active" else "disabled")
 
 
 def member_as_json(member: Member) -> dict[str, Any]:

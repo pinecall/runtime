@@ -9,7 +9,14 @@ from datetime import UTC, datetime
 
 from pinecall.auth.invitations import INVITATION_TTL_S, Invited, a_token
 from pinecall.auth.keys import fingerprint
-from pinecall.auth.members import Kept, a_member_id, a_member_of_row, an_address, text_or_none
+from pinecall.auth.members import (
+    Kept,
+    NoSeatLeft,
+    a_member_id,
+    a_member_of_row,
+    an_address,
+    text_or_none,
+)
 from pinecall.log.store import Pool
 from pinecall.types import Member, MemberStatus, Role
 
@@ -18,11 +25,20 @@ from pinecall.types import Member, MemberStatus, Role
 _A_ROW = """id, org, email, name, role, agents, status, operator, production, password_hash,
             created_at, verified_at"""
 
-# (org, email) is UNIQUE, so a second invite of an accepted member is the conflict this INSERT
-# steps around: the row is read first and the decision made in Python, where the sentence is.
+# The row is written only while the org's seats are not all held, and the count is read under a
+# lock on the org — a transaction-scoped advisory lock, so two invitations at once take turns and
+# the second counts the first (the same shape orgs/tuning.py gives a version). `$8` NULL is no
+# limit at all. (org, email) is UNIQUE, and a second invite of an accepted member is the conflict
+# ON CONFLICT steps around: nothing is written, nothing is returned, and the caller reads the row
+# again to tell that case from a seat refused.
 _INSERT = """
+WITH held AS (SELECT pg_advisory_xact_lock(hashtext($2)))
 INSERT INTO members (id, org, email, name, role, agents, status, production)
-VALUES ($1, $2, $3, $4, $5, $6, 'invited', $7)
+SELECT $1, $2, $3, $4, $5, $6, 'invited', $7 FROM held
+ WHERE $8::integer IS NULL
+    OR (SELECT count(*) FROM members WHERE org = $2 AND status <> 'disabled') < $8
+    ON CONFLICT (org, email) DO NOTHING
+RETURNING id
 """
 
 _LISTED = f"SELECT {_A_ROW} FROM members WHERE org = $1 ORDER BY created_at, id"
@@ -76,9 +92,14 @@ RETURNING {_A_ROW}
 # org seated: the row is active from the start, verified, and carries the hash they already have,
 # so there is no link and no second password.
 _INSERT_SEATED = """
+WITH held AS (SELECT pg_advisory_xact_lock(hashtext($2)))
 INSERT INTO members (id, org, email, name, role, agents, status, password_hash, production,
                      verified_at)
-VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $8, now())
+SELECT $1, $2, $3, $4, $5, $6, 'active', $7, $8, now() FROM held
+ WHERE $9::integer IS NULL
+    OR (SELECT count(*) FROM members WHERE org = $2 AND status <> 'disabled') < $9
+    ON CONFLICT (org, email) DO NOTHING
+RETURNING id
 """
 
 # The newest hash any row of this email holds: the person's password, whichever org chose it.
@@ -162,12 +183,11 @@ class PostgresMembers:
         *,
         production: bool = False,
         vouched: bool = False,
+        seats: int | None = None,
     ) -> Invited | None:
         """The row when there is none yet, then the token; a still-invited member gets a new one."""
         email = an_address(email)
         kept = await self.by_email(org, email)
-        if kept is not None and kept.member.status != "invited":
-            return None
         if kept is None:
             member = Member(
                 id=a_member_id(),
@@ -179,27 +199,53 @@ class PostgresMembers:
                 production=production,
             )
             known = await self.a_persons_password(email)
-            if known is not None and await self.verified(email):
+            seated_at_once = known is not None and await self.verified(email)
+            if seated_at_once:
                 member = replace(member, status="active", verified=True)
-                await self._pool.execute(
-                    _INSERT_SEATED,
-                    member.id,
-                    org,
-                    email,
-                    name,
-                    role,
-                    sorted(member.agents),
-                    known,
-                    production,
-                )
-                return Invited(member=member, token=None, expires_at=None)
-            await self._pool.execute(
-                _INSERT, member.id, org, email, name, role, sorted(member.agents), production
+            written = await self._written(member, known if seated_at_once else None, seats)
+            # Nothing written and nobody there: the seats are all held. Nothing written and
+            # somebody there: an invitation raced this one to the same address, judged below.
+            if written:
+                if seated_at_once:
+                    return Invited(member=member, token=None, expires_at=None)
+                return await self._a_link_for(member, vouched)
+            kept = await self.by_email(org, email)
+            if kept is None:
+                raise NoSeatLeft(org, await self.seated(org))
+        if kept.member.status != "invited":
+            return None
+        await self._pool.execute(_SPEND_OPEN, kept.member.id)
+        return await self._a_link_for(kept.member, vouched)
+
+    async def _written(self, member: Member, known: str | None, seats: int | None) -> bool:
+        """The row, under the seats the org may hold; whether one was written."""
+        columns = sorted(member.agents)
+        if known is not None:
+            row = await self._pool.fetchrow(
+                _INSERT_SEATED,
+                member.id,
+                member.org,
+                member.email,
+                member.name,
+                member.role,
+                columns,
+                known,
+                member.production,
+                seats,
             )
         else:
-            member = kept.member
-            await self._pool.execute(_SPEND_OPEN, member.id)
-        return await self._a_link_for(member, vouched)
+            row = await self._pool.fetchrow(
+                _INSERT,
+                member.id,
+                member.org,
+                member.email,
+                member.name,
+                member.role,
+                columns,
+                member.production,
+                seats,
+            )
+        return row is not None
 
     async def reset(self, org: str, id: str, *, vouched: bool = False) -> Invited | None:
         """The member read, every open link of theirs spent, and a new one written."""
@@ -211,17 +257,20 @@ class PostgresMembers:
 
     async def accept(self, token: str, password_hash: str) -> Member | None:
         """One UPDATE spends the token and names the member; a second makes them active; a
-        third carries the password to every other org of theirs."""
-        spent = await self._pool.fetchrow(_SPEND, fingerprint(token))
-        if spent is None:
-            return None
-        row = await self._pool.fetchrow(
-            _ACTIVATE, str(spent["member"]), password_hash, bool(spent["vouched"])
-        )
-        if row is None:
-            return None
-        member = a_member_of_row(row)
-        await self._pool.execute(_PASSWORD_EVERYWHERE, member.email, password_hash)
+        third carries the password to every other org of theirs. One transaction: a link spent
+        with nobody seated, or a member seated whose other orgs kept the old hash, is a person
+        who cannot sign in anywhere and cannot ask for the link again."""
+        async with self._pool.acquire() as connection, connection.transaction():
+            spent = await connection.fetchrow(_SPEND, fingerprint(token))
+            if spent is None:
+                return None
+            row = await connection.fetchrow(
+                _ACTIVATE, str(spent["member"]), password_hash, bool(spent["vouched"])
+            )
+            if row is None:
+                return None
+            member = a_member_of_row(row)
+            await connection.execute(_PASSWORD_EVERYWHERE, member.email, password_hash)
         return member
 
     async def a_persons_password(self, email: str) -> str | None:

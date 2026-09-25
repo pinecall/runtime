@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from contextlib import AbstractAsyncContextManager
 from typing import Any
 
 import pytest
 
 from pinecall.memory.reembedding import reembedded
 from pinecall.providers.embedder import DIMENSIONS
+from tests.pools import Held, acquired
 
 pytestmark = pytest.mark.unit
 
@@ -54,6 +56,9 @@ class Pool:
 
     async def fetchrow(self, query: str, /, *args: Any) -> Mapping[str, Any] | None:
         raise NotImplementedError(query or args)
+
+    def acquire(self) -> AbstractAsyncContextManager[Held]:
+        return acquired(self)
 
     async def close(self) -> None:
         return None

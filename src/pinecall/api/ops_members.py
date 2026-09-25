@@ -17,8 +17,8 @@ from pinecall.api.members import (
     a_wanted_member,
     invited_into,
     member_as_json,
-    removed,
 )
+from pinecall.api.membership import removed
 from pinecall.api.org_mail import OutboxDep
 from pinecall.api.orgs import NO_BODY
 from pinecall_protocol import WireModel

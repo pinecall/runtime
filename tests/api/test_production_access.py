@@ -5,7 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from pinecall.api.members import AN_ADMIN_OPENS_PRODUCTION
+from pinecall.api.membership import AN_ADMIN_OPENS_PRODUCTION
 from tests.api.test_members_and_login import MEMBERS, invited
 
 pytestmark = pytest.mark.unit

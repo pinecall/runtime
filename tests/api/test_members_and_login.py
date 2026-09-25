@@ -15,7 +15,8 @@ from pinecall.api.login import (
     NOT_A_PERSONS_CODE,
     ONE_OR_THE_OTHER,
 )
-from pinecall.api.members import ALREADY_A_MEMBER, NO_INVITATION, NOT_BY_HAND
+from pinecall.api.members import ALREADY_A_MEMBER, NO_INVITATION
+from pinecall.api.membership import NOT_BY_HAND
 from pinecall.auth.keys import MemoryKeys
 from pinecall.auth.throttle import TRIES_PER_WINDOW
 from pinecall.types import ROLE_SCOPES
