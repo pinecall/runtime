@@ -46,8 +46,9 @@ is held to it, and to `messages`, on **every turn** and not only when it opens: 
 call when it hangs up, so the turn is asked with what the open conversation has spent so far added
 to the org's totals. Past either, that turn is not answered: the call ends as `timeout` by the
 `platform`, `credits.exhausted` lands in the agent's log, the chat socket closes with the sentence
-(`org tienda has used 2000140 of its 2000000 llm_tokens: credits.exhausted`) and a WhatsApp thread
-closes answering nothing. A voice call is held to them when it opens.
+(`org tienda has used 2000140 of its 2000000 llm_tokens: credits.exhausted`), a WhatsApp thread
+closes answering nothing, and a run of text goldens (`pinecall test`) stops there as `failed` with
+the sentence, the goldens scored before it kept. A voice call is held to them when it opens.
 
 ## What the box lends
 

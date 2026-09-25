@@ -13,7 +13,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `messages` and `llm_tokens` before each turn the model answers, counting what the open
   conversation has spent so far; past either it ends as `timeout` by the `platform`, with
   `credits.exhausted` in the agent's log and the sentence as the chat socket's close reason — one
-  open chat could otherwise run on the box's model for ever. Protocol `>=0.6.12`.
+  open chat could otherwise run on the box's model for ever. A run of text goldens is held to the
+  same and stops as `failed` with the sentence. Protocol `>=0.6.12`.
 - **Codes: a page that follows a phone call it did not place.** `POST /v1/codes` (`talk`) hands
   a tenant's server four digits, the agent's phone number and a code token; the page asks
   `GET /v1/codes/{code}?wait=1` with it and is answered `claimed` with the call and a log token

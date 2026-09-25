@@ -22,6 +22,7 @@ from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.providers.models import Chat
 from pinecall.session.asking import Asking, NotAsking, WhatWasAsked
+from pinecall.session.text.allowance import Allowance, unlimited
 from pinecall.session.text.session import TextSession
 from pinecall.types import AgentConfig, CallContext, Env, Route, Versions
 from pinecall_protocol.commands import CallEvent, SessionConfigure
@@ -57,13 +58,25 @@ async def a_conversation(
     lookups: Lookups,
     budgets: Budgets,
     versions: Versions | None = None,
+    allowance: Allowance = unlimited,
 ) -> Conversation:
     """Open the call, seed its state, say every turn, hang up, and read the log back whole."""
     # A run is the one reader allowed the prompt itself: a golden that breaks has to be openable
     # turn by turn, and a hash in the log cannot be read. api/evals/scoring.py keeps the broken.
     asked = WhatWasAsked()
     session = an_eval_call(
-        golden, call, run, config, org, env, logs, llm, lookups, budgets, asking=asked
+        golden,
+        call,
+        run,
+        config,
+        org,
+        env,
+        logs,
+        llm,
+        lookups,
+        budgets,
+        asking=asked,
+        allowance=allowance,
     )
     settling = Settling(session)
     await logs.owned(session.call, session.agent, org, env, app.holder, versions)
@@ -112,6 +125,7 @@ def an_eval_call(
     lookups: Lookups,
     budgets: Budgets,
     asking: Asking = NotAsking(),  # noqa: B008 — stateless, shared on purpose
+    allowance: Allowance = unlimited,
 ) -> TextSession:
     """One call under the id the run named, opened by that run, on the config this model runs."""
     # The caller is nobody — no browser minted a visitor id and no number dialled — so it gets the
@@ -143,6 +157,9 @@ def an_eval_call(
         rememberer=lookups,
         budgets=budgets,
         asking=asking,
+        # A golden's turns are the org's turns: past `messages` or `llm_tokens` the run fails
+        # with the sentence, and credits.exhausted is on the agent's log (orgs/admission.py).
+        allowance=allowance,
     )
 
 

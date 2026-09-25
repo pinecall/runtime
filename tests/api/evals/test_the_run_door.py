@@ -17,8 +17,9 @@ from pinecall.evals import a_case  # noqa: E402 — after the skip, on purpose
 from pinecall.evals.runs import EvalRun, MemoryRuns
 from pinecall.log.replay import whole
 from pinecall.log.store import MemoryStore
+from pinecall.orgs.table import MemoryOrgs
 from pinecall.orgs.vault import Vault
-from pinecall.types import ProviderKeys
+from pinecall.types import ProviderKeys, Quotas
 from pinecall_protocol import defs
 from tests.api.conftest import AN_ORG
 from tests.api.evals.conftest import (
@@ -308,3 +309,28 @@ async def test_a_run_of_an_org_that_brought_none_runs_on_the_boxs_own_keys(
 
     assert answered.status_code == 200, answered.text
     assert keys_asked == [{}]
+
+
+async def test_a_run_of_an_org_past_its_token_quota_fails_with_the_sentence_and_asks_no_model(
+    suite_http: httpx.AsyncClient,
+    registry: Registry,
+    llm: FakeLLM,
+    orgs: MemoryOrgs,
+    store: MemoryStore,
+) -> None:
+    """A golden run is a written call of the org's: past `llm_tokens` it is refused like a chat."""
+    await serving(registry)
+    await orgs.set_quotas(AN_ORG.id, Quotas(llm_tokens=0))
+    llm.script.append(Scripted(chunks=("Buenos días, soy Clara.",)))
+
+    answered = await suite_http.post(
+        RUN, json={"agent": AGENT, "goldens": [a_golden("greets", ["hola"])]}
+    )
+
+    assert answered.status_code == 200, answered.text
+    run: dict[str, Any] = answered.json()
+    assert run["status"] == "failed"
+    assert "0 of its 0 llm_tokens: credits.exhausted" in run["error"]
+    assert llm.requests == 0
+    refusals = [one for one in await store.agent_since(AGENT) if one.type == "credits.exhausted"]
+    assert refusals and refusals[-1].data["quota"] == "llm_tokens"

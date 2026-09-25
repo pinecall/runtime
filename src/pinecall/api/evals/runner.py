@@ -7,6 +7,7 @@ import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
+from functools import partial
 from typing import Annotated
 from uuid import uuid4
 
@@ -32,17 +33,18 @@ from pinecall.evals.speech import Speaking
 from pinecall.log.store import Store
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
+from pinecall.orgs.admission import Admission
 from pinecall.orgs.tuning import TuningStore
 from pinecall.orgs.vault import Vault, brought_by
 from pinecall.providers import declaration
 from pinecall.providers.models import Models
+from pinecall.session.text.allowance import TurnRefused
 from pinecall.types import (
     AgentConfig,
     Brought,
     DeclarationRefused,
     Env,
     Model,
-    QuotasOf,
     Versions,
     a_call_id,
 )
@@ -120,9 +122,10 @@ class Process:
     env: Env
     holder: str | None
     # Where the org's own provider keys are kept, or None on a runtime that keeps nobody's, and
-    # how the org's quotas are read: which of the box's keys the run's models may use.
+    # the org's gate: which of the box's keys the run's models may use, and whether the org may
+    # still pay for each written turn — a golden run is a text call and is held to the same quotas.
     vault: Vault | None
-    quotas_of: QuotasOf
+    admission: Admission
     # What runs a golden's lookups and remembers its hang-up, and how long a turn waits.
     lookups: Lookups
     budgets: Budgets
@@ -178,7 +181,7 @@ async def a_run(wanted: Wanted, runner: Runner, process: Process) -> EvalRun:
     config = resolved.config
     # Whose keys this run's conversations are answered on, read once as the run opens: a run is
     # one org's, and a suite is one session — the chat socket asks the same question per call.
-    brought = await brought_by(process.vault, process.quotas_of, serving.org)
+    brought = await brought_by(process.vault, process.admission.quotas_of, serving.org)
     run = EvalRun(id=f"{A_RUN}{uuid4().hex[:12]}", agent=wanted.agent, started_at=time.time())
     async with runner.alone(run.id, wanted.agent):
         await process.runs.put(run)
@@ -193,6 +196,11 @@ async def a_run(wanted: Wanted, runner: Runner, process: Process) -> EvalRun:
         # it, and none of the ones never opened — is exactly what the caller asked for.
         except AppDetached as left:
             return await _stopped(run, str(left), process)
+        # The org may not pay for one more written turn: the run stops where its quota did, the
+        # goldens scored before it kept, and the sentence names the quota (credits.exhausted is
+        # already on the agent's log). A refusal is not the runner breaking, so it is not raised.
+        except TurnRefused as refused:
+            return await _stopped(run, str(refused), process)
         except TimeoutError:
             gave_up = TOOK_TOO_LONG.format(minutes=A_RUN_MAY_TAKE_S // 60)
             return await _stopped(run, gave_up, process)
@@ -272,6 +280,7 @@ async def _every_conversation(
                         lookups=process.lookups,
                         budgets=process.budgets,
                         versions=versions,
+                        allowance=partial(process.admission.a_turn, serving.org, wanted.agent),
                     )
                 )
             # The call itself has already ended as app_detached; what this adds is the run's own
