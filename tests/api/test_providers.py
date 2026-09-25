@@ -28,6 +28,7 @@ async def test_the_door_lists_the_models_this_build_vouches_for_per_vendor(
         "eleven_v3_conversational",
         "eleven_multilingual_v2",
     ]
+    assert models["tts/cartesia"] == ["sonic-3", "sonic-2"]
     assert "llm/cartesia" not in models
 
 

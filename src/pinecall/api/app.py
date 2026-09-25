@@ -64,6 +64,7 @@ from pinecall.orgs.vault import keys_brought_by, vault_for
 from pinecall.orgs.widgets import widgets_for
 from pinecall.providers.embed import embedder_for
 from pinecall.providers.models import models_for
+from pinecall.providers.tts.shelf import Shelf
 from pinecall.routes.dispatching import dispatches_for
 from pinecall.routes.outbound import outbound_for
 from pinecall.routes.rooms import rooms_for
@@ -208,6 +209,8 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # org's identity provider for its configuration, its keys and one token (api/login_sso.py).
     gateway.state.http = http
     gateway.state.graph = HttpGraph(http)
+    # The voice vendors' own catalogues, which a person picks a voice from (api/voices.py).
+    gateway.state.shelf = Shelf(http)
     gateway.state.twilio = partial(HttpTwilio, http)
     gateway.state.threads = Threads()
     # Memory and the knowledge base are tables, so a gateway with no pool keeps neither and says

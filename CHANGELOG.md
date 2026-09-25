@@ -7,6 +7,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **A voice is heard before it is chosen.** `GET /v1/voices?tts=cartesia&language=es` lists the
+  vendor's own voices (country and accent included, so Spain is told from Mexico), and
+  `POST /v1/voices/sample` answers a sentence in one of them as a WAV, timed in `Server-Timing`.
+  Both on the org's own key or the box's, behind `pipeline`.
+- **Cartesia has a file of its own.** `sonic-3` when nobody chose a model (`sonic-2` offered too, so
+  the console lists it), and the agent's language always sent: the plugin's own default is `en`,
+  which read a Spanish voice's words as English.
 - **The org's floor tells when a call wants a person.** `GET /v1/events` now also carries
   `attention.requested` · `attention.answered` and `supervisor.took_over` · `supervisor.released`.
 - **`GET /v1/ops/events`, the box's floor.** The operator's SSE: every org's floor on one stream,

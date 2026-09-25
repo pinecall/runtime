@@ -50,6 +50,7 @@ from pinecall.api import (
     tokens,
     tuning,
     usage,
+    voices,
     whoami,
     widget,
 )
@@ -102,6 +103,7 @@ DOORS: tuple[APIRouter, ...] = (
     processes.router,
     provider_keys.router,
     providers.router,
+    voices.router,
     orgs.operator,
     provider_keys.operator,
     usage.operator,
