@@ -26,15 +26,18 @@ _A_ROW = """id, org, email, name, role, agents, status, operator, production, pa
             created_at, verified_at"""
 
 # The row is written only while the org's seats are not all held, and the count is read under a
-# lock on the org — a transaction-scoped advisory lock, so two invitations at once take turns and
-# the second counts the first (the same shape orgs/tuning.py gives a version). `$8` NULL is no
-# limit at all. (org, email) is UNIQUE, and a second invite of an accepted member is the conflict
-# ON CONFLICT steps around: nothing is written, nothing is returned, and the caller reads the row
-# again to tell that case from a seat refused.
+# lock on the org: a transaction-scoped advisory lock taken as its OWN statement, so that the
+# INSERT after it takes a fresh snapshot once the lock is granted and counts the row the
+# transaction ahead of it committed. Inside one statement — a CTE around the INSERT — the lock
+# was taken after the snapshot, and five invitations at once each counted an empty org (CI,
+# 2026-09-26). `$8` NULL is no limit at all. (org, email) is UNIQUE, and a second invite of an
+# accepted member is the conflict ON CONFLICT steps around: nothing is written, nothing is
+# returned, and the caller reads the row again to tell that case from a seat refused.
+_HELD = "SELECT pg_advisory_xact_lock(hashtext($1))"
+
 _INSERT = """
-WITH held AS (SELECT pg_advisory_xact_lock(hashtext($2)))
 INSERT INTO members (id, org, email, name, role, agents, status, production)
-SELECT $1, $2, $3, $4, $5, $6, 'invited', $7 FROM held
+SELECT $1, $2, $3, $4, $5, $6, 'invited', $7
  WHERE $8::integer IS NULL
     OR (SELECT count(*) FROM members WHERE org = $2 AND status <> 'disabled') < $8
     ON CONFLICT (org, email) DO NOTHING
@@ -92,10 +95,9 @@ RETURNING {_A_ROW}
 # org seated: the row is active from the start, verified, and carries the hash they already have,
 # so there is no link and no second password.
 _INSERT_SEATED = """
-WITH held AS (SELECT pg_advisory_xact_lock(hashtext($2)))
 INSERT INTO members (id, org, email, name, role, agents, status, password_hash, production,
                      verified_at)
-SELECT $1, $2, $3, $4, $5, $6, 'active', $7, $8, now() FROM held
+SELECT $1, $2, $3, $4, $5, $6, 'active', $7, $8, now()
  WHERE $9::integer IS NULL
     OR (SELECT count(*) FROM members WHERE org = $2 AND status <> 'disabled') < $9
     ON CONFLICT (org, email) DO NOTHING
@@ -218,33 +220,36 @@ class PostgresMembers:
         return await self._a_link_for(kept.member, vouched)
 
     async def _written(self, member: Member, known: str | None, seats: int | None) -> bool:
-        """The row, under the seats the org may hold; whether one was written."""
+        """The row, under the seats the org may hold; whether one was written. The lock and the
+        INSERT are two statements of one transaction, on purpose (see _HELD)."""
         columns = sorted(member.agents)
-        if known is not None:
-            row = await self._pool.fetchrow(
-                _INSERT_SEATED,
-                member.id,
-                member.org,
-                member.email,
-                member.name,
-                member.role,
-                columns,
-                known,
-                member.production,
-                seats,
-            )
-        else:
-            row = await self._pool.fetchrow(
-                _INSERT,
-                member.id,
-                member.org,
-                member.email,
-                member.name,
-                member.role,
-                columns,
-                member.production,
-                seats,
-            )
+        async with self._pool.acquire() as connection, connection.transaction():
+            await connection.execute(_HELD, member.org)
+            if known is not None:
+                row = await connection.fetchrow(
+                    _INSERT_SEATED,
+                    member.id,
+                    member.org,
+                    member.email,
+                    member.name,
+                    member.role,
+                    columns,
+                    known,
+                    member.production,
+                    seats,
+                )
+            else:
+                row = await connection.fetchrow(
+                    _INSERT,
+                    member.id,
+                    member.org,
+                    member.email,
+                    member.name,
+                    member.role,
+                    columns,
+                    member.production,
+                    seats,
+                )
         return row is not None
 
     async def reset(self, org: str, id: str, *, vouched: bool = False) -> Invited | None:
