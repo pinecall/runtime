@@ -62,9 +62,10 @@ it mirrors the org from production. An org already there is never asked about ag
 `PINECALL_EXTENSIONS` that does not import stops the gateway from starting — a box told to load a
 policy never runs without one. With no package, the answer is `Quotas()`: no limit, no row.
 
-The package is installed into the runtime's own environment (`/opt/pinecall/venv` on a box).
-Mind the deploy: `make deploy` runs `uv sync --frozen`, which removes anything its lock does not
-name — install the package again after each deploy until the deploy does it itself (below).
+The package is installed into the runtime's own environment (`/opt/pinecall/venv` on a box). On a
+box deployed with `make deploy`, name its checkout in `deploy.local.mk` (`EXTENSIONS_SRC =
+../my_billing`): the deploy carries it and installs it after `uv sync --frozen`, which would
+otherwise remove it as a package its lock does not name (`infra/box/README.md`, "An extension").
 
 ## 2. What an org may use — quotas and lends
 
@@ -129,7 +130,5 @@ Said here so a layer is not built on a mechanism that does not exist:
 - **Periods.** The quotas are counted over the org's whole life. A monthly allowance is your layer
   replacing the row when the month turns.
 - **A suspension of its own.** Suspending an org is replacing its row with zeros.
-- **The deploy installing your package.** Until it does, a package outside the lock is removed by
-  the next `make deploy` and has to be installed again.
 
 Each lands with its page; the [CHANGELOG](../CHANGELOG.md) says when.

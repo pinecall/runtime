@@ -7,7 +7,10 @@ description: Deploy this checkout to a box (hub, worker, or one machine) and ver
 
 The deploy is the root `Makefile`: rsync + ssh + make + curl, from a checkout, to the account
 cloud-init made. Nothing on the box can clone; nothing here uses shipway. The box's identity is
-`deploy.local.mk` beside the Makefile (git-ignored): `BOX`, `DOMAIN`, optional `SSH_KEY`.
+`deploy.local.mk` beside the Makefile (git-ignored): `BOX`, `DOMAIN`, optional `SSH_KEY`, optional
+`EXTENSIONS_SRC` (checkouts of policy packages; NEVER `pip install` one on the box by hand —
+`uv sync --frozen` removes it on the next deploy and a gateway whose `PINECALL_EXTENSIONS` names it
+refuses to start).
 
 ## NEVER
 

@@ -423,6 +423,15 @@ instance's name, then its worker; the overflow agent and the loop last. The **co
 deploy, and a changed `.container` takes effect on its next restart, which is yours to time —
 `sudo systemctl restart pinecall-livekit` between two calls, not during one.
 
+**An extension** — a package beside the runtime that plugs a policy into it, the way a box that
+charges says its numbers (`docs/charging-for-it.md`) — travels with the deploy. Name its checkout in
+`deploy.local.mk` (`EXTENSIONS_SRC = ../cloud`, space separated for more), and its module in
+`PINECALL_EXTENSIONS` in `/etc/pinecall/box.env`, which both instances read: `sync` carries it to
+`/opt/pinecall/extensions/<its directory>`, and `install` puts it into the venv with `--no-deps`
+**after** `uv sync --frozen`, which removes whatever the lock does not name — a package installed
+once by hand is gone at the next deploy, and a gateway told to load it then refuses to start.
+Nothing set, nothing of it runs.
+
 The last word is the doctor's. `make doctor` runs `pinecall-runtime doctor` on the box exactly as
 each instance's units run — their user, `box.env` and then the instance's file, the box's
 credentials by name and the instance's own by path, in a transient unit systemd tears down on exit;

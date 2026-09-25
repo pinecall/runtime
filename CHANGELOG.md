@@ -7,6 +7,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **A box installs the policy packages it names.** `EXTENSIONS_SRC` in `deploy.local.mk` (checkouts,
+  space separated): `make deploy` carries each to `/opt/pinecall/extensions/` and installs it into
+  the venv with `--no-deps` after `uv sync --frozen`, which removed a package installed by hand at
+  the next deploy — and a gateway whose `PINECALL_EXTENSIONS` named it then refused to start.
 - **`GET /v1/limits` and `PINECALL_BILLING_URL`.** Any key of an org reads each of its quotas as
   `{limit, used}` on this instance — minutes, messages, llm_tokens, calls at once, agents, seats,
   numbers — with the box's lending and where the box's orgs pay (`billing_url`, also on

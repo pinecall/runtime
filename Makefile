@@ -20,6 +20,7 @@
 #   BOX    = deploy@203.0.113.7          # the account cloud-init made, at the machine
 #   DOMAIN = box.example.com             # what Caddy answers to; the health check knocks here
 #   SSH_KEY = ~/.ssh/id_ed25519          # optional; ssh's own default otherwise
+#   EXTENSIONS_SRC = ../cloud            # optional; packages that plug a policy in (below)
 #
 # THE BOX HOLDS NO CREDENTIAL FOR THE REPOSITORY, deliberately (docs/decisions/box.md). It cannot
 # clone and cannot fetch: the code is pushed to it by a person at a checkout, and the only account
@@ -54,6 +55,21 @@ RSYNC = rsync -az --delete -e "ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=y
 UV_SYNC = sudo -u pinecall env UV_PROJECT_ENVIRONMENT=/opt/pinecall/venv UV_CACHE_DIR=/opt/pinecall/.cache/uv \
           /opt/pinecall/bin/uv sync -q --frozen --project $(REMOTE)/runtime --extra runtime --extra providers
 
+# The packages beside the runtime that plug a policy into it — what a box that charges says its
+# numbers with (docs/charging-for-it.md) — as checkouts on this machine, space separated. Each is
+# carried to $(EXTENSIONS)/<its directory's name> and installed into the venv AFTER the sync, since
+# `uv sync --frozen` removes whatever the lock does not name: installed once by hand, a package
+# would be gone at the next deploy and a gateway told to load it would refuse to start. --no-deps:
+# a package plugs into the runtime it is installed beside and brings no runtime of its own. Which
+# of them the gateway loads is PINECALL_EXTENSIONS in /etc/pinecall/box.env; unset here, nothing
+# of this runs and a deploy is exactly what it was.
+EXTENSIONS_SRC ?=
+EXTENSIONS      = /opt/pinecall/extensions
+EXTENSION_DIRS  = $(foreach dir,$(EXTENSIONS_SRC),$(EXTENSIONS)/$(notdir $(abspath $(dir))))
+UV_EXTENSIONS   = $(if $(EXTENSIONS_SRC),sudo -u pinecall env UV_CACHE_DIR=/opt/pinecall/.cache/uv \
+                  /opt/pinecall/bin/uv pip install -q --no-deps --reinstall \
+                  --python /opt/pinecall/venv/bin/python $(EXTENSION_DIRS) &&)
+
 .PHONY: deploy console sync install restart restart-all restart-hub restart-worker health doctor migrate-post providers instance peer secret status logs ssh require-box
 
 deploy: console sync install restart doctor
@@ -75,6 +91,8 @@ sync: require-box
 	$(SSH) mkdir -p $(REMOTE)/runtime $(REMOTE)/protocol/python
 	$(RSYNC) ./ $(BOX):$(REMOTE)/runtime/
 	$(RSYNC) ../protocol/python/ $(BOX):$(REMOTE)/protocol/python/
+	$(if $(EXTENSIONS_SRC),$(SSH) 'sudo install -d -o $$(id -un) -g $$(id -gn) -m 755 $(EXTENSIONS)')
+	$(if $(EXTENSIONS_SRC),$(foreach dir,$(EXTENSIONS_SRC),$(RSYNC) $(dir)/ $(BOX):$(EXTENSIONS)/$(notdir $(abspath $(dir)))/ &&) true)
 
 # The box's own manifest — infra/box/Makefile, every file and where systemd reads it — then the
 # environment, then the manifest's second half: every instance box.env lists made whole or the
@@ -82,7 +100,7 @@ sync: require-box
 # is why the environment is built between the two. A unit, a container or a fence the tree stopped
 # describing cannot survive this.
 install: require-box
-	$(SSH) 'sudo make -s -C $(MANIFEST) install && $(UV_SYNC) && sudo make -s -C $(MANIFEST) converge'
+	$(SSH) 'sudo make -s -C $(MANIFEST) install && $(UV_SYNC) && $(UV_EXTENSIONS) sudo make -s -C $(MANIFEST) converge'
 
 # Instance by instance, in the order box.env lists them: its gateway first, and its worker only once
 # the gateway answers — a worker that registers with a gateway mid-restart is refused and retries,

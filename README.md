@@ -94,6 +94,8 @@ credential for the repository and is never told which cloud it is on.
                      BOX     = deploy@203.0.113.7
                      DOMAIN  = box.example.com
                      SSH_KEY = ~/.ssh/id_ed25519       # optional
+                     EXTENSIONS_SRC = ../cloud         # optional: policy packages, installed
+                                                       # after the lock (infra/box/README.md)
 3. make deploy     from this directory. `scripts/console` (the agents repo's console bundled and
                    copied in as package data, and the widget beside it; needs pnpm,
                    ../agents and ../widget) · rsync the checkout · `make -C infra/box install` (the
