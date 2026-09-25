@@ -10,7 +10,7 @@ from pinecall.api._deps import AppKeyDep, LogsDep
 from pinecall.api._live import LiveDep
 from pinecall.api.agents.handlers import Socket, asked, handles
 from pinecall.api.agents.registry import RegistryDep
-from pinecall.api.calls.worker_doors import NOT_OPEN
+from pinecall.api.calls.worker_doors import NOT_OPEN, refuse_another_orgs_call
 from pinecall.auth.corner import Corner, corner_of
 from pinecall.auth.keys import is_the_fleets
 from pinecall.log.entry import Entry
@@ -53,6 +53,9 @@ async def run_a_tool(
     served = live.served(call)
     if served is None:
         raise HTTPException(status_code=404, detail=NOT_OPEN.format(call=call))
+    # The call's org against the key's, before anything of the call is read: the agent check
+    # below only says the key's org holds THAT agent, which another org's call id does not need.
+    refuse_another_orgs_call(live, key, call)
     # Whose app the tool goes out to: the key's own corner for a tenant's worker, and for the
     # fleet's the corner of the CALL — said once when it was opened, and kept by this process.
     whose = corner_of(key)

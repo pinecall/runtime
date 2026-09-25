@@ -16,13 +16,15 @@ from pinecall._settings import Settings
 from pinecall.api._deps import SCOPE_OF_THE_DOOR, KeysDep, MembersDep, SettingsDep
 from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.auth.bearer import bearer_of
-from pinecall.auth.keys import Keys, is_the_fleets, not_opening
+from pinecall.auth.corner import corner_of
+from pinecall.auth.keys import KeyRecord, Keys, is_the_fleets, not_opening
 from pinecall.auth.scopes import LivekitKeys, Reader, a_reader, is_a_jwt, secret_for
 from pinecall.auth.world import as_asked
 from pinecall.log.entry import Entry
 from pinecall.log.filters import Filter, FilterRefused
 from pinecall.log.projection import project_entry
 from pinecall.log.store import DEFAULT_LIMIT, Store
+from pinecall.log.store.index import CallCorner, CallIndex
 from pinecall.types.agent import AgentConfig
 from pinecall.types.json import JsonObject
 from pinecall_protocol import encode
@@ -104,6 +106,22 @@ async def refuse_another_org(reader: Reader, store: Store, call: str | None, age
     """Refuse a key whose org does not own the log it asked for. A token has its own gate."""
     if await another_orgs(reader, store, call, agent):
         raise HTTPException(status_code=403, detail=NOT_YOUR_ORGS)
+
+
+# One sentence for a call nobody wrote and for a call of another org, world or corner: whether it
+# exists is not the asker's business, the same rule the log doors keep. The doors that judge a
+# finished call — the judges, the replay — ask this and not `owner`, which knows the org alone:
+# a sandbox person's key replayed the org's production calls until 2026-09-26.
+NO_SUCH_CALL = "no call {call} in this key's org and world"
+
+
+async def the_calls_corner(index: CallIndex, key: KeyRecord, call: str) -> CallCorner:
+    """The corner this call was opened in, when it is the key's own; one 404 sentence otherwise."""
+    whose = corner_of(key)
+    corner = await index.corner_of_call(call)
+    if corner is None or not corner.is_in(whose.org, whose.env, whose.holder or ""):
+        raise HTTPException(status_code=404, detail=NO_SUCH_CALL.format(call=call))
+    return corner
 
 
 async def the_reader(

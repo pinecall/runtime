@@ -6,6 +6,15 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 
 ## [Unreleased]
 
+### Security
+- **A call id is not a key to the call.** `GET /v1/calls/{call}/commands` and
+  `POST /v1/calls/{call}/tools` now refuse a tenant's worker `403` for a call served under another
+  org, exactly as the events and sealed doors always did: reading the commands consumed them off
+  the worker running the call, and a tool of it wrote into the other org's log.
+  `POST /v1/evals/replay/{call}` asks for the call in the key's corner — org, world, holder — the
+  way `POST /v1/evals/judge/{call}` does, and answers another tenant's call, or a sandbox key's
+  production call, with the same `404` as a typo; it answered `403` on the org alone before.
+
 ### Changed
 - **The box embeds with Perplexity's larger model.** `EMBED_PROVIDER=perplexity` now defaults to
   `pplx-embed-context-v1-4b`, asked for 1024 wide (Matryoshka) so it fits the columns: every base

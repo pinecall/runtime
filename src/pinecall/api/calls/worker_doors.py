@@ -199,14 +199,14 @@ async def append(
     """One entry of a call this gateway opened, with the seq the store stamps on it."""
     if said.type not in EVENTS:
         raise HTTPException(status_code=400, detail=UNKNOWN_EVENT.format(type=said.type))
-    _refuse_another_orgs_call(live, key, call)
+    refuse_another_orgs_call(live, key, call)
     await _the_open_log(logs, call).append(said.type, dict(said.data), said.ephemeral)
 
 
 @router.post("/v1/calls/{call}/sealed", status_code=NOTHING_MORE)
 async def sealed(call: str, key: AppKeyDep, logs: LogsDep, live: ServingDep) -> None:
     """The call is over: every reader finishes, and nothing more can be appended to it."""
-    _refuse_another_orgs_call(live, key, call)
+    refuse_another_orgs_call(live, key, call)
     await _the_open_log(logs, call).seal()
     logs.forget(call)
     live.close(call)
@@ -227,7 +227,9 @@ def _whose_call(key: KeyRecord, context: CallContext) -> tuple[str, Env, str | N
 
 # The org was said once, at the door that opened the call, and the process kept it: the check
 # costs nothing, and a worker of one org cannot write into another's log by knowing a call id.
-def _refuse_another_orgs_call(live: Serving, key: KeyRecord, call: str) -> None:
+# Every door a worker names a call at asks this first — append, seal, a tool, the commands — so
+# the id alone opens nothing: tools.py and commands.py took the id on faith until 2026-09-26.
+def refuse_another_orgs_call(live: Serving, key: KeyRecord, call: str) -> None:
     """403 when this call was opened under some other org than the key's."""
     if is_the_fleets(key):
         return

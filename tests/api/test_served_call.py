@@ -15,11 +15,15 @@ from pinecall.api._live import Live
 from pinecall.api.agents.registry import Registry
 from pinecall.api.calls import commands as door
 from pinecall.log.entry import Entry
+from pinecall.log.writers import Logs
+from pinecall.types import AgentConfig
 from pinecall.worker import commanding
 from pinecall.worker.client import CONTEXT, Gateway
+from pinecall.worker.hop import GatewayRefused
 from pinecall_protocol import Command, defs
 from pinecall_protocol.events import ToolCall
 from tests.api.conftest import A_KEY, A_RECORD, AGENT
+from tests.api.talking import a_context as a_call_on
 from tests.api.talking import a_frame, an_app, collecting, declared, until
 from tests.api.test_worker_doors import AN_OWNER, CALL, a_context
 from tests.api.test_worker_doors import declared as registered
@@ -75,6 +79,32 @@ async def test_a_tool_of_that_call_travels_down_the_same_socket_the_entries_arri
     assert live.answered(CALL, defs.ToolResult(call_id="tu_1", name="find_slots", output="10:15"))
     assert (await asking).output == "10:15"
     assert [entry.type for entry in heard] == ["call.ringing", "tool.call", "tool.result"]
+
+
+# The id of a call is not a key to it. A call served under the shop — the fleet's worker opened
+# it, say — answers the clinic's worker at neither door: a tool of it would write into the shop's
+# log, and reading its commands would CONSUME them, off the worker that is running it.
+async def test_another_orgs_served_call_opens_neither_its_tools_nor_its_commands(
+    worker_gateway: Gateway, registry: Registry, live: Live, logs: Logs
+) -> None:
+    await registered(registry)
+    theirs = "call_of_the_shop"
+    live.serve(
+        theirs,
+        AGENT,
+        "tienda",
+        logs.writing(theirs, AGENT),
+        None,
+        context=a_call_on(theirs, "tienda"),
+        config=AgentConfig(slug=AGENT),
+    )
+    wanted = ToolCall(call_id="tu_2", name="find_slots", arguments={})
+    with pytest.raises(GatewayRefused, match="403"):
+        await worker_gateway.tool(theirs, AGENT, wanted, timeout_s=1)
+    with pytest.raises(HTTPException) as refused:
+        await door.commands(theirs, A_RECORD, live)
+    assert refused.value.status_code == 403
+    assert live.commands(theirs) is not None
 
 
 # Criterion 3, from the app's side: the same registration ends when the call is sealed, and an

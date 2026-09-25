@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 
 from pinecall.api._deps import CallIndexDep, EvalsKeyDep, SettingsDep, StoreDep
 from pinecall.api.agents.registry import RegistryDep
-from pinecall.auth.corner import corner_of
+from pinecall.api.calls.sink import the_calls_corner
 from pinecall.evals.score import a_score
 from pinecall.log.entry import Entry
 from pinecall.log.replay import whole
@@ -17,10 +17,6 @@ from pinecall_protocol import encode
 from pinecall_protocol.events import CallScore
 
 router = APIRouter()
-
-# One sentence for a call nobody wrote and for a call of another org or world: whether it exists is
-# not the asker's business, the same rule the log doors keep.
-NO_SUCH_CALL = "no call {call} in this key's org and world"
 
 STILL_GOING = "call {call} is still going: it is judged when it hangs up"
 
@@ -44,10 +40,7 @@ async def judge(
     again: bool = False,
 ) -> CallScore:
     """The judges' verdict on this finished call, written onto its log and answered."""
-    whose = corner_of(key)
-    corner = await index.corner_of_call(call)
-    if corner is None or not corner.is_in(whose.org, whose.env, whose.holder or ""):
-        raise HTTPException(404, NO_SUCH_CALL.format(call=call))
+    corner = await the_calls_corner(index, key, call)
     entries = await whole(store, call)
     if not any(entry.type == "call.ended" for entry in entries):
         raise HTTPException(409, STILL_GOING.format(call=call))
