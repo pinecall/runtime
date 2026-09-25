@@ -38,13 +38,19 @@ handed the extension points to fill:
 # my_billing/__init__.py — installed in the runtime's venv, named in PINECALL_EXTENSIONS
 from pinecall.types import PRODUCTION, Env, Org, Quotas
 
-TRIAL = Quotas(minutes=30, messages=300, concurrent_calls=1,
-               lends=frozenset({"deepgram", "cartesia", "anthropic/claude-haiku-4-5"}))
+TRIAL = Quotas(
+    minutes=30,
+    messages=300,
+    concurrent_calls=1,
+    lends=frozenset({"deepgram", "cartesia", "anthropic/claude-haiku-4-5"}),
+)
 CLOSED = Quotas(minutes=0, messages=0, lends=frozenset())
+
 
 def admitted(org: Org, email: str, world: Env) -> Quotas:
     """A new org: a trial in the sandbox, nothing in production until it pays."""
     return CLOSED if world == PRODUCTION else TRIAL
+
 
 def register(extensions) -> None:
     extensions.admitted = admitted
