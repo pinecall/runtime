@@ -45,6 +45,28 @@ async def read(
     params: Mapping[str, str] | None = None,
 ) -> Any:
     """One request, and the body of the answer. Anything but a 2xx is a refusal by name."""
+    answer = await _answered(http, method, path, said, timeout, params)
+    return answer.json() if answer.content else None
+
+
+# A clip is a few hundred kilobytes, fetched once per box and then kept by its hash.
+FILE_TIMEOUT_S = 15.0
+
+
+async def fetched(http: httpx.AsyncClient, path: str, params: Mapping[str, str]) -> bytes:
+    """One GET, and the bytes it answered with — a file, not JSON — on the file's own clock."""
+    return (await _answered(http, "GET", path, None, FILE_TIMEOUT_S, params)).content
+
+
+async def _answered(
+    http: httpx.AsyncClient,
+    method: str,
+    path: str,
+    said: Any,
+    timeout: float | httpx.Timeout | None,
+    params: Mapping[str, str] | None,
+) -> httpx.Response:
+    """The answer itself, once it is a 2xx; a refusal names the door and carries the status."""
     waiting = TIMEOUT_S if timeout is None else timeout
     try:
         answer = await http.request(method, path, json=said, timeout=waiting, params=params or None)
@@ -53,7 +75,7 @@ async def read(
     if answer.status_code >= httpx.codes.BAD_REQUEST:
         refusal = f"{method} {path}: {answer.status_code} {answer.text}"
         raise GatewayRefused(refusal, answer.status_code)
-    return answer.json() if answer.content else None
+    return answer
 
 
 # A door whose 404 means "nothing by that name" is asked a yes or a no, not a refusal: a code

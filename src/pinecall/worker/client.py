@@ -27,6 +27,7 @@ from pinecall.worker.hop import (
     TAIL_TIMEOUT,
     TIMEOUT_S,
     GatewayRefused,
+    fetched,
     found,
     read,
     streamed,
@@ -41,9 +42,6 @@ from pinecall_protocol.rest import Judging
 # A seal is asked again while the gateway is away, well inside the job's own SEALING_S: a call the
 # worker could not seal is sealed by the gateway's reaper once its room is gone (api/reaping.py).
 SEALED_WITHIN_S = 30.0
-
-# A clip is a few hundred kilobytes, fetched once per box and then kept by its hash.
-HOLD_AUDIO_TIMEOUT_S = 15.0
 
 
 class HoldAudioSaid(BaseModel):
@@ -158,15 +156,7 @@ class Gateway:
     ) -> bytes:
         """The clip itself, Ogg Opus as the gateway converted it."""
         path = f"/v1/agents/{slug}/hold-audio/audio"
-        try:
-            answer = await self._http.get(
-                path, params=_whose(org, env, holder) or None, timeout=HOLD_AUDIO_TIMEOUT_S
-            )
-        except httpx.HTTPError as unreachable:
-            raise GatewayRefused(f"GET {path}: {unreachable}") from unreachable
-        if answer.status_code >= httpx.codes.BAD_REQUEST:
-            raise GatewayRefused(f"GET {path}: {answer.status_code} {answer.text}")
-        return answer.content
+        return await fetched(self._http, path, _whose(org, env, holder))
 
     # The gateway judges the number against the org's guards before it answers with a trunk, so a
     # refusal here is "not this number, not this often" and not "no trunk" — the two read very
