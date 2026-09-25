@@ -61,6 +61,9 @@ class KeyRecord:
     # colleague's (api/_deps.py, the `pinecall-corner` header). Never stored: one request's, and
     # None on every key the table hands back.
     looking_at: str | None = None
+    # When the key stops opening anything; None is never (0049). A sandbox person's key lives a day
+    # (auth/persons.py), and a key minted from it never outlives it.
+    expires_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -186,8 +189,10 @@ class Keys(Protocol):
         subject: str | None = None,
         name: str | None = None,
         created_by: str | None = None,
+        expires_at: datetime | None = None,
     ) -> Issued:
-        """A new key for this org, in one world. The plaintext is in the answer and nowhere else."""
+        """A new key for this org, in one world, until `expires_at` or for good. The plaintext is
+        in the answer and nowhere else."""
         ...
 
     async def listed(self, org: str) -> tuple[ListedKey, ...]:
@@ -216,9 +221,9 @@ class MemoryKeys:
         }
 
     async def verify(self, key: str) -> KeyRecord | None:
-        """A dict lookup, then the same revocation check Postgres makes in its WHERE."""
+        """A dict lookup, then the same two checks Postgres makes in its WHERE: revoked, expired."""
         record = self._records.get(key)
-        if record is None:
+        if record is None or has_expired(record):
             return None
         row = self._rows[fingerprint(key)]
         return None if row.revoked_at is not None else record
@@ -233,6 +238,7 @@ class MemoryKeys:
         subject: str | None = None,
         name: str | None = None,
         created_by: str | None = None,
+        expires_at: datetime | None = None,
     ) -> Issued:
         """Mint, remember, hand back. A process that exits forgets every key it issued."""
         key = mint(env, subject)
@@ -244,6 +250,7 @@ class MemoryKeys:
             scopes=scopes,
             subject=subject,
             name=name,
+            expires_at=expires_at,
         )
         self._records[key] = record
         self._rows[fingerprint(key)] = replace(
@@ -293,6 +300,11 @@ def keys_for(settings: Settings, pool: Pool | None) -> Keys | None:  # noqa: ARG
     from pinecall.auth.visiting import StandingKeys
 
     return StandingKeys(PostgresKeys(pool), members_for(pool))
+
+
+def has_expired(record: KeyRecord) -> bool:
+    """Whether this key's moment has passed: the memory twin's half of the lookup's WHERE."""
+    return record.expires_at is not None and record.expires_at <= datetime.now(UTC)
 
 
 def a_key_id() -> str:

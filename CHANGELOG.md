@@ -26,6 +26,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   org, and a service that serves a person across their orgs — the notifier holding their phone —
   needed the one name they carry into all of them.
 
+- **A key may expire** (`api_keys.expires_at`, `0049`): past its moment it is `401` exactly as a
+  revoked key. A sandbox instance's person keys live a day, and a key minted from another — a
+  code a browser spends, a terminal's pairing, the org switch — never outlives it; production's
+  person keys and every server token still never expire.
+
 ### Removed
 - **`PINECALL_SANDBOX_DOMAIN` is read by nothing**: a request's `Host` no longer picks a world or
   marks the console. The console is marked with the instance's world, `/index.html` included.

@@ -340,7 +340,7 @@ async def accept(
     member = await members.accept(token, kept)
     if member is None:
         raise HTTPException(404, NO_INVITATION)
-    issued = await a_persons_key(keys, member, said.device or "invitation")
+    issued = await a_persons_key(keys, member, said.device or "invitation", settings.world)
     return {**issued.as_json, "member": member_as_json(member)}
 
 

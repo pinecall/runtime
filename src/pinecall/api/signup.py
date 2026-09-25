@@ -120,7 +120,7 @@ async def signup(
     )
     assert member is not None
     # The admin's own key, which opens production too: an admin always does (0039).
-    issued = await a_persons_key(keys, member, said.device or SIGNED_UP)
+    issued = await a_persons_key(keys, member, said.device or SIGNED_UP, settings.world)
     minted = codes.mint(issued.record)
     return {
         **issued.as_json,

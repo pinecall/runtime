@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Response
 
-from pinecall.api._deps import KeyDep, KeysDep, MembersDep, PairingsDep
+from pinecall.api._deps import KeyDep, KeysDep, MembersDep, PairingsDep, SettingsDep
 from pinecall.api.login import for_the_same_person
 from pinecall_protocol import WireModel
 
@@ -56,7 +56,12 @@ async def asking(code: str, pairings: PairingsDep) -> dict[str, Any]:
 # person, revoked on its own from the Keys screen — and never the browser's.
 @router.post("/v1/login/pairings/{code}")
 async def approve(
-    code: str, key: KeyDep, keys: KeysDep, members: MembersDep, pairings: PairingsDep
+    code: str,
+    key: KeyDep,
+    keys: KeysDep,
+    members: MembersDep,
+    pairings: PairingsDep,
+    settings: SettingsDep,
 ) -> dict[str, Any]:
     """Sign that terminal in as the person this browser is: a sandbox key of its own."""
     if key.subject is None:
@@ -69,7 +74,7 @@ async def approve(
     # The terminal's key is the person's own, as every key of theirs: what it opens in production
     # is what their row says (auth/world.py), and a request names no world unless `--prod` says
     # so. docs/worlds-and-teams.md.
-    issued = await for_the_same_person(key, asked.device, keys, members)
+    issued = await for_the_same_person(key, asked.device, keys, members, settings.world)
     if not pairings.fill(code, str(issued["key"]), key.org):
         raise HTTPException(409, ANSWERED)
     return {"device": asked.device, "org": key.org}

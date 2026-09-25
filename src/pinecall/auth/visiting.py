@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from pinecall.auth.keys import Issued, KeyRecord, Keys, ListedKey
 from pinecall.auth.members import Members, an_address
 from pinecall.types import KEY_SCOPES, PRODUCTION, Env, Member
@@ -76,10 +78,18 @@ class StandingKeys:
         subject: str | None = None,
         name: str | None = None,
         created_by: str | None = None,
+        expires_at: datetime | None = None,
     ) -> Issued:
         """Straight through to the table."""
         return await self._keys.issue(
-            org, label, env=env, scopes=scopes, subject=subject, name=name, created_by=created_by
+            org,
+            label,
+            env=env,
+            scopes=scopes,
+            subject=subject,
+            name=name,
+            created_by=created_by,
+            expires_at=expires_at,
         )
 
     async def listed(self, org: str) -> tuple[ListedKey, ...]:

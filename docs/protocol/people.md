@@ -88,7 +88,9 @@ org disables you`. So a developer with the switch holds an agent in production f
 (`pinecall start --prod`); what normally holds it is a **server's token**, made from the console's
 Tokens screen (`POST /v1/keys`, [gateway-api.md](gateway-api.md) §8), which names nobody and
 outlives whoever made it. Two people's sandbox keys are two people's: the registry holds a sandbox
-slug per person, so nobody takes another's agent.
+slug per person, so nobody takes another's agent. **On a sandbox instance a person's key lives a
+day** — and one minted from another key (a code, a pairing, the org switch) never outlives it —
+while production's never expire; past it the key is `401`, exactly as a revoked one.
 
 **How short a password may be is the OPERATOR's, not this runtime's.** `PINECALL_MIN_PASSWORD`
 (default 8, `0` for no rule at all) is the floor, and it is carried on `GET /.well-known/pinecall`

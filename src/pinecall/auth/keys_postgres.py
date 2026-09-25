@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from pinecall.auth.keys import (
@@ -16,16 +17,17 @@ from pinecall.log.store import Pool
 from pinecall.types import KEY_SCOPES, PRODUCTION, Env, an_env
 
 # A revoked key is kept, not deleted: the logs it wrote name it, and a row that vanishes makes
-# those unreadable.
+# those unreadable. An expired one is kept for the same reason, and refused by the same WHERE
+# (0049).
 _LOOKUP = """
-SELECT id, org, label, env, scopes, subject, name
+SELECT id, org, label, env, scopes, subject, name, expires_at
   FROM api_keys
- WHERE hash = $1 AND revoked_at IS NULL
+ WHERE hash = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())
 """
 
 _ISSUE = """
-INSERT INTO api_keys (id, hash, org, label, env, scopes, subject, name, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO api_keys (id, hash, org, label, env, scopes, subject, name, created_by, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 """
 
 _OF_ORG = """
@@ -69,6 +71,7 @@ class PostgresKeys:
         subject: str | None = None,
         name: str | None = None,
         created_by: str | None = None,
+        expires_at: datetime | None = None,
     ) -> Issued:
         """The only moment a key exists in the clear: it is minted here, hashed, and let go."""
         key = mint(env, subject)
@@ -80,6 +83,7 @@ class PostgresKeys:
             scopes=scopes,
             subject=subject,
             name=name,
+            expires_at=expires_at,
         )
         await self._pool.execute(
             _ISSUE,
@@ -92,6 +96,7 @@ class PostgresKeys:
             subject,
             name,
             created_by,
+            expires_at,
         )
         return Issued(key=key, record=record)
 
@@ -120,6 +125,7 @@ def _a_record(row: Any) -> KeyRecord:
         scopes=frozenset(str(scope) for scope in row["scopes"]),
         subject=_text(row["subject"]),
         name=_text(row["name"]),
+        expires_at=row["expires_at"],
     )
 
 

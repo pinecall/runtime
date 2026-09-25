@@ -74,7 +74,9 @@ async def the_other_org(
     org = await orgs.find(said.org)
     there = None if org is None else await members.by_email(org.id, person.email)
     if org is not None and there is not None and there.member.status == "active":
-        return (await a_persons_key(keys, there.member, key.label)).as_json
+        return (
+            await a_persons_key(keys, there.member, key.label, settings.world, minted_from=key)
+        ).as_json
     # A row of theirs that is invited or disabled is the ORG's word about them, and the box does
     # not talk over it: an operator the tenant disabled walks in as the operator, which the Keys
     # screen says in so many words, and never as the member the tenant stopped.

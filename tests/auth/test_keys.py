@@ -2,6 +2,7 @@
 
 import re
 from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -66,6 +67,27 @@ async def test_a_revoked_key_stops_verifying_and_its_row_stays_in_the_listing() 
     assert [(row.fingerprint, row.label, row.revoked_at is None) for row in listed] == [
         (hashed, "the worker", False)
     ]
+
+
+# A sandbox person's key lives a day (auth/persons.py). Past its moment it reads exactly as a
+# revoked key does: nothing answers to it, and the door says nothing about why.
+async def test_an_expired_key_is_nothing_and_one_with_time_left_still_opens() -> None:
+    keys = MemoryKeys()
+    now = datetime.now(UTC)
+    gone = await keys.issue(org="clinica", subject="m_1", expires_at=now - timedelta(seconds=1))
+    left = await keys.issue(org="clinica", subject="m_1", expires_at=now + timedelta(hours=1))
+    assert await keys.verify(gone.key) is None
+    assert await keys.verify(left.key) == left.record
+
+
+async def test_postgres_asks_the_row_for_its_moment_and_refuses_it_in_the_same_where() -> None:
+    """The lookup itself refuses a key whose moment passed; an expired row is never handed back."""
+    pool = _APoolOfOneRow(None)
+    await PostgresKeys(pool).verify(A_KEY)
+    assert "expires_at IS NULL OR expires_at > now()" in pool.queries[0]
+    moment = datetime.now(UTC) + timedelta(hours=24)
+    issued = await PostgresKeys(pool).issue(org="clinica", subject="m_1", expires_at=moment)
+    assert pool.asked[-1] == moment and issued.record.expires_at == moment
 
 
 async def test_revoking_a_fingerprint_nobody_answers_to_is_false_and_not_an_error() -> None:
@@ -157,6 +179,7 @@ async def test_postgres_issue_writes_the_world_the_scopes_sorted_and_the_person(
         "m_1",
         "B",
         None,
+        None,
     ]
 
 
@@ -242,6 +265,7 @@ def _a_row(
         "scopes": sorted(KEY_SCOPES) if scopes is None else scopes,
         "subject": subject,
         "name": name,
+        "expires_at": None,
     }
 
 
@@ -252,8 +276,10 @@ class _APoolOfOneRow:
         self._row = row
         self._tag = tag
         self.asked: list[Any] = []
+        self.queries: list[str] = []
 
-    async def fetchrow(self, _query: str, /, *args: Any) -> Mapping[str, Any] | None:
+    async def fetchrow(self, query: str, /, *args: Any) -> Mapping[str, Any] | None:
+        self.queries.append(query)
         self.asked.extend(args)
         return self._row
 

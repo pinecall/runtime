@@ -6,17 +6,25 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 
-from pinecall.api._deps import KeyDep, KeysDep, LoginCodesDep, MembersDep, OrgsDep, ThrottleDep
+from pinecall.api._deps import (
+    KeyDep,
+    KeysDep,
+    LoginCodesDep,
+    MembersDep,
+    OrgsDep,
+    SettingsDep,
+    ThrottleDep,
+)
 from pinecall.api.sso import SsoDep
 from pinecall.auth import passwords
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Kept, Members
-from pinecall.auth.persons import a_persons_key
+from pinecall.auth.persons import a_persons_key, until
 from pinecall.auth.visiting import visiting
 from pinecall.auth.world import a_person
 from pinecall.orgs.sso import Sso
 from pinecall.orgs.table import Orgs
-from pinecall.types import SANDBOX
+from pinecall.types import SANDBOX, Env
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -102,15 +110,18 @@ async def login(
     codes: LoginCodesDep,
     throttle: ThrottleDep,
     sso: SsoDep,
+    settings: SettingsDep,
 ) -> dict[str, Any]:
     """A key for this person and this device, or a refusal that says the least it can."""
     if said.code is not None:
         if said.org is not None or said.email is not None or said.password is not None:
             raise HTTPException(400, ONE_OR_THE_OTHER)
-        return await _with_a_code(said, keys, codes)
+        return await _with_a_code(said, keys, codes, settings.world)
     if said.email is None or said.password is None:
         raise HTTPException(400, ONE_OR_THE_OTHER)
-    return await _with_a_password(said, the_client(request), orgs, members, keys, throttle, sso)
+    return await _with_a_password(
+        said, the_client(request), orgs, members, keys, throttle, sso, settings.world
+    )
 
 
 # Before a person picks an org at the console's sign-in: which orgs this email and password open,
@@ -154,7 +165,7 @@ async def a_code(key: KeyDep, codes: LoginCodesDep) -> dict[str, Any]:
 # (api/pairing.py). The scopes come off the MEMBER and not off the key that asked — the role is
 # the source, and a role changed since the asking key was minted is the role now.
 async def for_the_same_person(
-    key: KeyRecord, label: str | None, keys: KeysDep, members: MembersDep
+    key: KeyRecord, label: str | None, keys: KeysDep, members: MembersDep, world: Env
 ) -> dict[str, Any]:
     """A key for the person this one names, with what their role opens."""
     if key.subject is None:
@@ -164,7 +175,7 @@ async def for_the_same_person(
     member = await members.find(key.org, key.subject)
     if member is None or member.status != "active":
         raise HTTPException(403, NOT_A_MEMBER)
-    return (await a_persons_key(keys, member, label)).as_json
+    return (await a_persons_key(keys, member, label, world, minted_from=key)).as_json
 
 
 async def _with_a_password(
@@ -175,6 +186,7 @@ async def _with_a_password(
     keys: KeysDep,
     throttle: ThrottleDep,
     sso: Sso | None,
+    world: Env,
 ) -> dict[str, Any]:
     """The member this email and password name, in the org named or in the oldest of theirs, and
     a key minted for them."""
@@ -212,7 +224,7 @@ async def _with_a_password(
         if seated is None:
             raise HTTPException(403, NOT_YET.format(email=member.email))
         member = seated
-    return (await a_persons_key(keys, member, said.device or LOGGED_IN)).as_json
+    return (await a_persons_key(keys, member, said.device or LOGGED_IN, world)).as_json
 
 
 async def _the_row_for(said: Login, orgs: Orgs, members: Members, sso: Sso | None) -> Kept | None:
@@ -245,20 +257,25 @@ async def only_with_the_provider(sso: Sso | None, org: str) -> bool:
     return wired is not None and wired.required
 
 
-async def _with_a_code(said: Login, keys: KeysDep, codes: LoginCodesDep) -> dict[str, Any]:
+async def _with_a_code(
+    said: Login, keys: KeysDep, codes: LoginCodesDep, world: Env
+) -> dict[str, Any]:
     """The record the code stood for, spent, and a key of the browser's own minted from it. A
-    person's carries no world, whatever world the request that minted the code named."""
+    person's carries no world, whatever world the request that minted the code named, and lives
+    as long as a person's key does here — never longer than the key that minted the code."""
     assert said.code is not None
     record = codes.spend(said.code)
     if record is None:
         raise HTTPException(404, NO_CODE)
+    person = a_person(record)
     issued = await keys.issue(
         org=record.org,
         label=said.device or A_BROWSER,
-        env=SANDBOX if a_person(record) else record.env,
+        env=SANDBOX if person else record.env,
         scopes=record.scopes,
         subject=record.subject,
         name=record.name,
+        expires_at=until(world, record) if person else record.expires_at,
     )
     return issued.as_json
 
