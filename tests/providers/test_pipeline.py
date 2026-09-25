@@ -71,3 +71,13 @@ def test_the_agents_turn_declaration_reaches_the_ears_and_nothing_else() -> None
     built = pipeline_for(declared, settings(), NOTHING_BROUGHT)
     assert isinstance(built.stt, deepgram.STTv2)
     assert built.stt._opts.eot_timeout_ms == 650  # pyright: ignore[reportPrivateUsage]
+
+
+def test_a_declared_language_reaches_the_voice_and_the_ears_as_its_primary_subtag() -> None:
+    """`es-ES` is a language people write and no vendor lists: the plugins are handed `es`."""
+    built = pipeline_for(
+        AgentConfig(slug="clinica-norte", language="es-ES"), settings(), NOTHING_BROUGHT
+    )
+    assert isinstance(built.tts, cartesia.TTS)
+    spoken = built.tts._opts.language  # pyright: ignore[reportPrivateUsage]
+    assert spoken is not None and spoken.language == "es"

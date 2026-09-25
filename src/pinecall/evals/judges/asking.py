@@ -6,7 +6,15 @@ import json
 from typing import Any
 
 from livekit.agents.evals import JudgmentResult, Verdict
-from livekit.agents.llm import LLM, ChatContext, ChatMessage, function_tool
+from livekit.agents.llm import (
+    LLM,
+    ChatContext,
+    ChatItem,
+    ChatMessage,
+    FunctionCall,
+    FunctionCallOutput,
+    function_tool,
+)
 
 # livekit's own judge asks through a forced function call rather than by parsing prose, pins the
 # temperature to zero and lets the tool schema do the validating (evals/judge.py:116-163). This is
@@ -17,10 +25,15 @@ JUDGE = (
     "conversation, then call submit_verdict with 'pass', 'fail' or 'maybe' and a brief reason."
 )
 
-# What the judge is shown of the call: the turns, and only the turns. A question about what the
-# agent SAID is the only question this package ever asks a model, and every other kind of evidence
-# reaches it inside the criteria, named, rather than as a transcript to interpret.
+# What the judge is shown of the call: the turns, and between them every tool the agent called
+# and what it answered, in the words livekit's own judge prints them (evals/judge.py:59-75). The
+# persona judge asks whether "the tool calls" got the caller what they came for, and a transcript
+# of words alone could never show it a booking (2026-09-26). Every other kind of evidence reaches
+# a judge inside the criteria, named, rather than as a transcript to interpret.
 SPOKE = "{role}: {text}"
+TOOL_CALLED = "[function call: {name}({arguments})]"
+TOOL_ANSWERED = "[function output: {output}]"
+TOOL_BROKE = "[function error: {output}]"
 
 NO_VERDICT = "the judge answered without calling submit_verdict"
 
@@ -60,12 +73,22 @@ def _the_question(criteria: str, chat_ctx: ChatContext) -> ChatContext:
 
 
 def _spoken(chat_ctx: ChatContext) -> str:
-    """The conversation as a person reads it: one line per turn, the speaker named."""
-    return "\n".join(
-        SPOKE.format(role=item.role, text=item.text_content or "")
-        for item in chat_ctx.items
-        if isinstance(item, ChatMessage)
-    )
+    """The conversation as a person reads it: a line per turn, and a line per tool between them."""
+    return "\n".join(line for line in map(_a_line, chat_ctx.items) if line is not None)
+
+
+def _a_line(item: ChatItem) -> str | None:
+    """One item as the judge reads it; None for the items a judge has no question about."""
+    match item:
+        case ChatMessage():
+            return SPOKE.format(role=item.role, text=item.text_content or "")
+        case FunctionCall():
+            return TOOL_CALLED.format(name=item.name, arguments=item.arguments)
+        case FunctionCallOutput():
+            wording = TOOL_BROKE if item.is_error else TOOL_ANSWERED
+            return wording.format(output=item.output)
+        case _:
+            return None
 
 
 def _read(answered: dict[str, Any], criteria: str) -> JudgmentResult:

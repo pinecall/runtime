@@ -73,7 +73,10 @@ async def _judged(entries: Sequence[Entry], config: AgentConfig, settings: Setti
         why = OVER_THE_CEILING.format(ceiling=settings.judge_ceiling_eur)
         answered = [await _by_code_alone(one, case.chat_ctx, entries, why) for one in panel]
         return _an_entry([row for row in answered if row is not None], declared, 0, None)
-    result = await JudgeGroup(llm=counted, judges=panel).evaluate(case.chat_ctx)
+    try:
+        result = await JudgeGroup(llm=counted, judges=panel).evaluate(case.chat_ctx)
+    finally:
+        await counted.aclose()
     judged = [a_judgment(name, one, entries) for name, one in result.judgments.items()]
     cost = prices.eur_of(as_wire_rows(spent.flatten()))
     return _an_entry(judged, declared, counted.calls, cost)

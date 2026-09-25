@@ -25,12 +25,14 @@ def a_row(model: str, **counted: int) -> LLMModelUsage:
 
 
 def test_a_cache_read_and_a_cache_write_are_priced_apart() -> None:
-    """Folding them into the input price would misprice every cached call, in both directions."""
+    """Folding them into the input price would misprice every cached call, in both directions.
+    input_tokens is the plugin's sum of the three — half a million fresh, half a million read
+    back, a million written — so the fresh line is what is left after both cache lines."""
     cost = prices.cost_of(
         [
             a_row(
                 "claude-haiku-4-5-20251001",
-                input_tokens=A_MILLION,
+                input_tokens=A_MILLION // 2 + A_MILLION // 2 + A_MILLION,
                 input_cached_tokens=A_MILLION // 2,
                 input_cache_creation_tokens=A_MILLION,
                 output_tokens=A_MILLION,
@@ -39,6 +41,7 @@ def test_a_cache_read_and_a_cache_write_are_priced_apart() -> None:
     )
     by_unit = {row.unit: row for row in cost.rows}
     assert by_unit["input_tokens"].quantity == A_MILLION // 2
+    assert by_unit["cache_creation_tokens"].quantity == A_MILLION
     assert by_unit["cached_input_tokens"].unit_price_usd == 0.10
     assert by_unit["cache_creation_tokens"].unit_price_usd == 1.25
     assert by_unit["output_tokens"].unit_price_usd == 5.00

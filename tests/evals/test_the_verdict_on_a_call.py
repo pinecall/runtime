@@ -7,7 +7,7 @@ from livekit.agents.evals import Judge, JudgmentResult
 from livekit.agents.llm import LLM, ChatContext
 
 from pinecall._settings import Settings
-from pinecall.evals import score
+from pinecall.evals import Counted, score
 from pinecall.evals.score import a_score
 from pinecall.types import AgentConfig, ToolSpec
 from pinecall_protocol import decode_entries, encode
@@ -179,3 +179,32 @@ class _AJudgeThatRaises(Judge):
     ) -> JudgmentResult:
         """Never answers."""
         raise RuntimeError("this judge cannot decide anything")
+
+
+class _Closing(LLM[Any]):
+    """A judge model that only knows whether it was closed."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.closed = False
+
+    @property
+    @override
+    def model(self) -> str:
+        return "closing"
+
+    @override
+    def chat(self, **_: Any) -> Any:  # pyright: ignore[reportIncompatibleMethodOverride] — never asked
+        raise AssertionError("nothing is asked of this judge")
+
+    @override
+    async def aclose(self) -> None:
+        self.closed = True
+        await super().aclose()
+
+
+async def test_closing_the_counter_closes_the_judge_behind_it() -> None:
+    """A hang-up built a judge per call and closed none: a client leaked per judged call."""
+    judge = _Closing()
+    await Counted(judge).aclose()
+    assert judge.closed

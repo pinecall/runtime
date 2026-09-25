@@ -184,13 +184,16 @@ def _by_longest_prefix[T](table: dict[str, T], model: str) -> T | None:
     return table[max(listed, key=len)] if listed else None
 
 
-# input_tokens includes the cached ones, the way every provider reports it, so the uncached part is
-# the subtraction. Charging the whole of it at the input price would bill a cache hit twice.
+# input_tokens includes the cached ones AND the ones written to the cache, the way the plugins
+# report it — anthropic's prompt_tokens is the sum of the three (plugins/anthropic/llm.py:324),
+# openai's the sum of the two it has — so the fresh part is what is left after both. Charging the
+# whole of it at the input price would bill a cache hit twice, and a cache write at the input
+# price and again at the write price (it did, until 2026-09-26).
 def _rows_of(used: LLMModelUsage, price: Price) -> list[CostRow]:
     """One priced line per unit this model was billed in; a unit with no tokens is not a line."""
     cached = used.input_cached_tokens or 0
     written = used.input_cache_creation_tokens or 0
-    fresh = max((used.input_tokens or 0) - cached, 0)
+    fresh = max((used.input_tokens or 0) - cached - written, 0)
     counted: list[tuple[TokenUnit, int, float | None]] = [
         ("input_tokens", fresh, price.input),
         ("cached_input_tokens", cached, price.cached_input),

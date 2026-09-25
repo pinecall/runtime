@@ -52,6 +52,14 @@ class Counted(LLM[Any]):
         """The name the judge answers to, unchanged: this wrapper is a counter, not a model."""
         return self._judge.model
 
+    # The judge's own connections go when this does: whoever builds a Counted closes it, and a
+    # hang-up that built one per call and closed none leaked a client per call (2026-09-26).
+    @override
+    async def aclose(self) -> None:
+        """Close the judge behind this counter, then the counter's own."""
+        await self._judge.aclose()
+        await super().aclose()
+
     # livekit's own signature, kept whole (llm/llm.py:158-167): a narrower one would stop this
     # being an LLM, and a judge handed it would refuse to ask.
     @override

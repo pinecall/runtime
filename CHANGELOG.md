@@ -27,6 +27,19 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   stream it held waited that long each time.
 - The WhatsApp webhook's verify token is compared in constant time, as the signature already was.
 
+### Fixed
+- **The judges see the tool calls.** The transcript a model judge reads carried the turns alone,
+  so the persona judge, asked whether "the tool calls" got the caller what they came for, never
+  saw a booking; it now prints each call and its answer between the turns, in livekit's words.
+- **A declared language reaches the vendors as its base code.** `es-ES`, `en_US` or `spanish`
+  went to Cartesia, Deepgram and Inference verbatim; every plugin is handed `es` now, the one
+  reading `providers/language.py` always had.
+- **A cache write is not also fresh input.** The plugins report `input_tokens` as the sum of the
+  fresh, the read-back and the written tokens, and the bill priced the written ones twice: at the
+  input price and at the write price.
+- **The judge model is closed.** A hang-up built an `anthropic.LLM` per judged call and closed
+  none; a suite's run held one per run and closed it never.
+
 ### Changed
 - **The box embeds with Perplexity's larger model.** `EMBED_PROVIDER=perplexity` now defaults to
   `pplx-embed-context-v1-4b`, asked for 1024 wide (Matryoshka) so it fits the columns: every base

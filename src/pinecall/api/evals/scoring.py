@@ -40,6 +40,10 @@ class Judging:
         """Every cell answered so far, as one table of scores: the row's `matrix` at this moment."""
         return as_json(rings.Matrix(runs=tuple(self._cells)))
 
+    async def close(self) -> None:
+        """The judge model's own connections, closed once the run is over."""
+        await self._judge.aclose()
+
 
 def as_json(matrix: Any) -> dict[str, Any]:
     """The matrix as the door answers it: the axes, a row per cell, and what judging it asked."""

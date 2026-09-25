@@ -185,9 +185,9 @@ async def a_run(wanted: Wanted, runner: Runner, process: Process) -> EvalRun:
     run = EvalRun(id=f"{A_RUN}{uuid4().hex[:12]}", agent=wanted.agent, started_at=time.time())
     async with runner.alone(run.id, wanted.agent):
         await process.runs.put(run)
+        judging = Judging(config)
         try:
             async with asyncio.timeout(A_RUN_MAY_TAKE_S):
-                judging = Judging(config)
                 run = await _every_conversation(
                     wanted, run, config, serving, process, judging, brought, resolved.versions
                 )
@@ -207,6 +207,8 @@ async def a_run(wanted: Wanted, runner: Runner, process: Process) -> EvalRun:
         except Exception as broke:
             await _stopped(run, str(broke), process)
             raise
+        finally:
+            await judging.close()
 
 
 # One conversation per golden per model, and the row rewritten twice for each: once before its

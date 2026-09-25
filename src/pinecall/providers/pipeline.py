@@ -6,6 +6,7 @@ import logging
 from dataclasses import dataclass
 
 from pinecall._settings import Settings
+from pinecall.providers.language import primary
 from pinecall.providers.llm import VENDORS as LLM_VENDORS
 from pinecall.providers.models import DEFAULT_VENDOR
 from pinecall.providers.registry import Asked, Chat, Ears, Speech
@@ -72,6 +73,10 @@ def _thinking(config: AgentConfig, settings: Settings, brought: Brought) -> Aske
     )
 
 
+# The language reaches the ears and the voice as its primary subtag, `es` for `es-ES`, `en_US` or
+# `spanish` alike: an agent declares it as a free string and the plugins file voices and hints
+# under the base code, so a tag that went through verbatim reached Cartesia and Deepgram as a
+# language they do not list (2026-09-26). providers/language.py is the one reading of it.
 def _hearing(config: AgentConfig, settings: Settings, brought: Brought) -> Asked:
     """What the STT is asked for: the model, the language, the words, and what ends a turn."""
     return Asked(
@@ -79,7 +84,7 @@ def _hearing(config: AgentConfig, settings: Settings, brought: Brought) -> Asked
         keys=brought.keys,
         lends=brought.lends,
         model=config.stt.model if config.stt else None,
-        language=config.language,
+        language=primary(config.language),
         endpointing_ms=config.turn.endpointing_ms if config.turn else None,
         eot_threshold=config.turn.eot_threshold if config.turn else None,
         eager_eot_threshold=config.turn.eager_eot_threshold if config.turn else None,
@@ -98,7 +103,7 @@ def _speaking(config: AgentConfig, settings: Settings, brought: Brought) -> Aske
         keys=brought.keys,
         lends=brought.lends,
         model=voice.model if voice else None,
-        language=config.language or (voices.language_of(voice) if voice else None),
+        language=primary(config.language or (voices.language_of(voice) if voice else None)),
         voice_id=voice.voice_id if voice else None,
     )
 
