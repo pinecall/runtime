@@ -42,14 +42,20 @@ it: `{kind: "sip", numbers: []}`, and the import takes the number typed.
 Three writes, each looked up before it is made and named in the answer's `steps`, so a second run
 of an interrupted import creates nothing twice and nothing is ever deleted:
 
-1. **the carrier's trunk** (Twilio only): a trunk named `pinecall-<org>` on the tenant's account,
+1. **the carrier's trunk** (Twilio only): a trunk named `<fleet>:<org>` on the tenant's account,
    created once; its one origination URI set to the box — `sip:<PINECALL_DOMAIN>:5060;transport=udp`,
    the port livekit-sip listens on and the fence opens; the number attached to it. A trunk carrying
    two origination URIs is a person's call and refused: nothing is moved.
-2. **the SFU's trunk**: one LiveKit inbound trunk per org, `pinecall-<org>`, with the number added
+2. **the SFU's trunk**: one LiveKit inbound trunk per org, `<fleet>:<org>`, with the number added
    to its allow-list; Twilio's signalling networks as `allowed_addresses` (the very set the fence
    opens, held equal by a test), or a SIP peer's own addresses and its username and password; and
-   one dispatch rule, one room per caller, the fleet's worker dispatched into it.
+   one dispatch rule, `<fleet>:<org>:one-room-per-caller`, the instance's fleet dispatched into it.
+
+`<fleet>` is the instance's `PINECALL_FLEET` (`pinecall` unless set). Two instances share one SFU
+and every trunk is found **by name** across all of it, so each instance's names lead with its own
+fleet; the colon is the separator because no org id or slug can hold one, so no fleet and org can
+ever read as another pair. Trunks made before the names carried a fleet (`pinecall-<org>`) keep
+their old names until the operator retires them.
 3. **the route**: `(org, number) → agent`, on `channel` (`phone` or `whatsapp`), in the key's world
    — the row `routes add` writes, so moving the number later is a route change and no wiring.
 
@@ -108,7 +114,7 @@ carrier and import instead. The steps, in the answer's `steps`:
    wires for an operator — created once if the box has none, its origination URI the box, the
    number attached.
 3. **the SFU's trunk** and 4. **the route**, as an import: the org's own LiveKit inbound trunk
-   `pinecall-<org>` admits the number from Twilio's networks, and the route is written with
+   `<fleet>:<org>` admits the number from Twilio's networks, and the route is written with
    `managed: true`.
 
 What the box buys is a **stock the plan caps**: the `numbers` quota (`PUT /v1/ops/orgs/{org}/quotas`)
@@ -145,15 +151,15 @@ which only an operator sets.
 answer's `steps`, exactly as an import's are; `?dry_run=true` answers the same `steps` with the ids
 that stand today and writes nothing. **On Twilio**, four:
 
-1. **the carrier's trunk**: `pinecall-<org>` on the tenant's account — the one the import already
+1. **the carrier's trunk**: `<fleet>:<org>` on the tenant's account — the one the import already
    made, found by name, created here only when there is none.
 2. **the termination label**: the trunk's `domain_name` set to `pinecall-<org>`, so the box dials
    `pinecall-<org>.pstn.twilio.com`.
-3. **the credential list**: one named `pinecall-<org>`, its username the same and its password
+3. **the credential list**: one named `<fleet>:<org>`, its username the same and its password
    minted here, kept sealed under the vault key and never read back — **Twilio shows a
    credential's password exactly once**, which is why the box remembers rather than asks. A box
    behind a changing address would stop dialling the day its IP moved if it authenticated by ACL.
-4. **the SFU's outbound trunk**: one LiveKit outbound trunk per org, `pinecall-<org>-out`, pointed
+4. **the SFU's outbound trunk**: one LiveKit outbound trunk per org, `<fleet>:<org>:out`, pointed
    at that termination host with those credentials and carrying the org's own numbers as the ones
    it may show.
 
@@ -165,7 +171,7 @@ that is the carrier's fence and not this one's.
 
 The answer is `{steps, dry_run: false, ready: true, trunk, address}`, or `{steps, dry_run: true,
 ready: false}` for a plan. Refusals: `404` no carrier yet; `409` the org has imported no number, or
-a SIP peer that declares no `outbound_host`; `409` also a credential list named `pinecall-<org>`
+a SIP peer that declares no `outbound_host`; `409` also a credential list named `<fleet>:<org>`
 standing on the account whose password this box no longer holds — a second list would leave two
 logins nobody can tell apart, so it stops and says to delete that one in Twilio's console and run
 again; `503` no LiveKit pair on this gateway, or no `PINECALL_VAULT_KEY`; `502` Twilio's own

@@ -7,12 +7,12 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
-from pinecall.api._deps import KeptCarriersDep, NumbersKeyDep, RoutesDep, TwilioDep
+from pinecall.api._deps import KeptCarriersDep, NumbersKeyDep, RoutesDep, SettingsDep, TwilioDep
 from pinecall.api._placing import GuardsDep, KeptOutboundTrunksDep, OutboundDep
 from pinecall.api.numbers import CARRIER_TRUNK, NO_CARRIER
 from pinecall.orgs.outbound import OutboundTrunks
 from pinecall.routes.answering import own_numbers
-from pinecall.routes.outbound import NO_LIVEKIT, Outbound, Placing
+from pinecall.routes.outbound import NO_LIVEKIT, TRUNK_NAME, Outbound, Placing
 from pinecall.routes.twilio import (
     TwilioApi,
     TwilioFor,
@@ -93,6 +93,7 @@ async def provision(
     table: RoutesDep,
     sfu: OutboundDep,
     twilio: TwilioDep,
+    settings: SettingsDep,
     dry_run: bool = DRY_RUN,
 ) -> dict[str, Any]:
     """The org's outbound trunk, made once and repaired after: the plan, then the writes."""
@@ -106,11 +107,13 @@ async def provision(
         raise HTTPException(503, NO_LIVEKIT)
     steps: list[str] = []
     try:
-        placing = await _reached(carrier, twilio, trunks, numbers, steps, dry_run)
+        named = CARRIER_TRUNK.format(fleet=settings.fleet, org=carrier.org)
+        placing = await _reached(carrier, named, twilio, trunks, numbers, steps, dry_run)
     except TwilioRefused as refused:
         raise HTTPException(502, str(refused)) from refused
+    on_the_sfu = TRUNK_NAME.format(fleet=settings.fleet, org=carrier.org)
     steps.append(
-        f"livekit  outbound trunk pinecall-{carrier.org}-out → {placing.address} over "
+        f"livekit  outbound trunk {on_the_sfu} → {placing.address} over "
         f"{placing.transport}, showing {len(placing.numbers)} of this org's numbers"
         f"{' with SIP auth' if placing.auth else ''}"
     )
@@ -166,6 +169,7 @@ def _what_is_missing(
 
 async def _reached(
     carrier: Carrier,
+    named: str,
     twilio: TwilioFor,
     trunks: OutboundTrunks,
     numbers: tuple[str, ...],
@@ -174,7 +178,8 @@ async def _reached(
 ) -> Placing:
     """Where this org's calls go out, by the kind of carrier it brought."""
     if isinstance(carrier.account, TwilioAccount):
-        return await _through_twilio(carrier, carrier.account, twilio, trunks, numbers, steps, dry)
+        account = carrier.account
+        return await _through_twilio(carrier, account, named, twilio, trunks, numbers, steps, dry)
     return _through_the_peer(carrier.account, numbers, steps)
 
 
@@ -199,6 +204,7 @@ def _through_the_peer(peer: SipPeer, numbers: tuple[str, ...], steps: list[str])
 async def _through_twilio(
     carrier: Carrier,
     account: TwilioAccount,
+    name: str,
     twilio: TwilioFor,
     trunks: OutboundTrunks,
     numbers: tuple[str, ...],
@@ -207,7 +213,6 @@ async def _through_twilio(
 ) -> Placing:
     """The trunk's termination label and a credential list on it, each looked up before made."""
     api = twilio(account)
-    name = CARRIER_TRUNK.format(org=carrier.org)
     label = termination_label(carrier.org)
     trunk = await api.trunk_named(name)
     if trunk is None:

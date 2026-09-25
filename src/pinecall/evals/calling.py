@@ -20,7 +20,6 @@ from pinecall.evals.dispatching import a_dispatch
 from pinecall.evals.polling import until
 from pinecall.evals.speech import Speaking, Voice
 from pinecall.types import Env
-from pinecall.types.dispatch import WORKER_NAME
 
 # The identity the caller joins under. `pinecall-runtime worker talk` is livekit's console and
 # opens the machine's own microphone; this caller never does — its microphone is a file the box
@@ -89,7 +88,6 @@ async def a_simulated_call(
     next_line: NextLine,
     line: Line,
     settings: Settings,
-    fleet: str = WORKER_NAME,
     settled: Settled,
     org: str,
     env: Env,
@@ -112,7 +110,6 @@ async def a_simulated_call(
         a_dispatch(
             call,
             agent,
-            fleet,
             settings,
             caller,
             run,

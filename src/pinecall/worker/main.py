@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from functools import partial
+from typing import TypedDict
 
 from livekit.agents import AgentServer, JobContext, JobProcess
 
@@ -13,7 +14,6 @@ from pinecall.evals.score import JudgedWhen
 from pinecall.providers.pipeline import warm_the_vendor_tables
 from pinecall.session.voice import a_bridge
 from pinecall.session.voice.kit import kit_for
-from pinecall.types.dispatch import WORKER_NAME
 from pinecall.worker import recordings
 from pinecall.worker.client import reaching
 from pinecall.worker.entry import Worker, answer
@@ -83,6 +83,14 @@ def a_worker(settings: Settings) -> Worker:
     )
 
 
+# livekit's own default when the instance names no count is left to livekit, so it is not spelled
+# twice: the keyword is passed only when there is one to pass.
+class Warm(TypedDict, total=False):
+    """The one AgentServer keyword an instance may or may not set: how many processes stay warm."""
+
+    num_idle_processes: int
+
+
 # The two models a call cannot wait for are livekit's own and livekit preloads them itself
 # (worker.py:747-759). Ours are the vendor plugin packages, and those it cannot know about: the
 # tables are read lazily on the first pipeline, which measured 1.3 s to 4.2 s INSIDE the job with
@@ -99,16 +107,19 @@ def a_worker(settings: Settings) -> Worker:
 # os.environ for all three (worker.py:333-335) and dies at worker.py:680 when they are unset, which
 # is what `worker dev` did beside a perfectly good runtime/.env — a file is not the environment.
 # Settings is the only reader of either, and livekit gets the values by its own parameters.
-# The name is the dispatch's (types/dispatch.py): the token door writes the same word into every
+# The name is the instance's fleet (`PINECALL_FLEET`): its gateway writes the same word into every
 # room config it mints. An empty agent_name means implicit dispatch to every room in the deployment
 # (worker.py:219) — somebody else's call, answered by us — so the name is never empty and this
-# module refuses one.
-def a_server(
-    settings: Settings, fleet: str = WORKER_NAME, *, gated_by_machine_load: bool = True
-) -> AgentServer:
+# module refuses one. The warm processes are livekit's own count unless the instance says one.
+def a_server(settings: Settings, *, gated_by_machine_load: bool = True) -> AgentServer:
     """The process: the one entrypoint that answers a job, under the fleet name it joins by."""
-    if not fleet:
+    if not settings.fleet:
         raise ValueError("a worker joins a fleet by name: an empty agent_name answers every room")
+    warm = (
+        Warm()
+        if settings.idle_processes is None
+        else Warm(num_idle_processes=settings.idle_processes)
+    )
     server = AgentServer(
         ws_url=settings.livekit_url,
         api_key=settings.livekit_api_key,
@@ -123,9 +134,10 @@ def a_server(
         # runs both. Nothing outside the machine reads this server, so it never leaves loopback.
         host="127.0.0.1",
         port=settings.worker_http_port,
+        **warm,
     )
     # livekit refuses a second one itself (worker.py:502); the fleet name is ours to insist on.
-    server.rtc_session(job, agent_name=fleet)
+    server.rtc_session(job, agent_name=settings.fleet)
     return server
 
 

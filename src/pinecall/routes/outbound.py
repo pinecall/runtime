@@ -11,8 +11,8 @@ from pinecall._settings import Settings
 from pinecall.types import SipTransport
 
 # One outbound trunk per org, named beside its inbound twin so a person reading the SFU's two
-# lists sees one pair per tenant. `pinecall-<org>` is the inbound one (trunks.py).
-TRUNK_NAME = "pinecall-{org}-out"
+# lists sees one pair per tenant. `<fleet>:<org>` is the inbound one, and why a colon (trunks.py).
+TRUNK_NAME = "{fleet}:{org}:out"
 
 NO_LIVEKIT = (
     "this gateway has no LIVEKIT_API_KEY and LIVEKIT_API_SECRET: it cannot place a call on the"
@@ -77,22 +77,24 @@ class MemoryOutbound:
 class LivekitOutbound:
     """The real SFU, over livekit-api: looked up by name before anything is made, never doubled."""
 
-    def __init__(self, url: str, api_key: str, api_secret: str) -> None:
+    def __init__(self, url: str, api_key: str, api_secret: str, fleet: str) -> None:
         self._url = url
         self._key = api_key
         self._secret = api_secret
+        self._fleet = fleet
 
     async def standing(self, org: str) -> str | None:
         """One list, matched by the name this runtime gives the org's trunk."""
         async with api.LiveKitAPI(self._url, self._key, self._secret) as livekit:
-            trunk = await _trunk_named(livekit, TRUNK_NAME.format(org=org))
+            trunk = await _trunk_named(livekit, TRUNK_NAME.format(fleet=self._fleet, org=org))
             return None if trunk is None else trunk.sip_trunk_id
 
     async def provisioned(self, org: str, placing: Placing) -> str:
         """Create the trunk when there is none; replace it whole when there is."""
+        name = TRUNK_NAME.format(fleet=self._fleet, org=org)
         async with api.LiveKitAPI(self._url, self._key, self._secret) as livekit:
-            info = _a_trunk_info(org, placing)
-            trunk = await _trunk_named(livekit, TRUNK_NAME.format(org=org))
+            info = _a_trunk_info(name, placing)
+            trunk = await _trunk_named(livekit, name)
             if trunk is None:
                 made = await livekit.sip.create_outbound_trunk(
                     api.CreateSIPOutboundTrunkRequest(trunk=info)
@@ -102,10 +104,10 @@ class LivekitOutbound:
             return trunk.sip_trunk_id
 
 
-def _a_trunk_info(org: str, placing: Placing) -> api.SIPOutboundTrunkInfo:
+def _a_trunk_info(name: str, placing: Placing) -> api.SIPOutboundTrunkInfo:
     """The trunk as LiveKit keeps it: the org's name, where it dials, and what it dials as."""
     info = api.SIPOutboundTrunkInfo(
-        name=TRUNK_NAME.format(org=org),
+        name=name,
         address=placing.address,
         transport=TRANSPORTS[placing.transport],
         numbers=list(placing.numbers),
@@ -124,6 +126,9 @@ def outbound_for(settings: Settings) -> Outbound | None:
     """The SFU when the process has the LiveKit pair; None when it has none: the door says so."""
     if settings.livekit_api_key and settings.livekit_api_secret:
         return LivekitOutbound(
-            settings.livekit_url, settings.livekit_api_key, settings.livekit_api_secret
+            settings.livekit_url,
+            settings.livekit_api_key,
+            settings.livekit_api_secret,
+            settings.fleet,
         )
     return None

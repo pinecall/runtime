@@ -1,9 +1,11 @@
-"""The SFU's trunks as a dict: what an import admits, and what letting go removes."""
+"""The SFU's trunks: what an import admits, what letting go removes, and whose name each carries."""
 
 import pytest
 
 from pinecall._settings import Settings
+from pinecall.routes import trunks as trunks_module
 from pinecall.routes.trunks import LivekitTrunks, MemoryTrunks, trunks_for
+from tests.routes.sfu import TheSfu
 
 pytestmark = pytest.mark.unit
 
@@ -31,3 +33,44 @@ def test_the_real_sfu_needs_the_livekit_pair_and_is_none_without_it() -> None:
     assert isinstance(
         trunks_for(Settings(livekit_api_key="k", livekit_api_secret="s" * 32)), LivekitTrunks
     )
+
+
+@pytest.fixture
+def sfu(monkeypatch: pytest.MonkeyPatch) -> TheSfu:
+    """Every LiveKitAPI the trunks open is this one SFU, which keeps what it was asked to make."""
+    the_sfu = TheSfu()
+    monkeypatch.setattr(trunks_module.api, "LiveKitAPI", the_sfu)
+    return the_sfu
+
+
+def an_instance(fleet: str) -> Settings:
+    return Settings(livekit_api_key="k", livekit_api_secret="s" * 32, fleet=fleet)
+
+
+async def test_the_orgs_trunk_and_its_rule_are_named_by_the_instances_fleet(sfu: TheSfu) -> None:
+    """The SFU is shared and a trunk is found by name: the fleet leads, a colon separates."""
+    trunks = trunks_for(an_instance("pinecall-sandbox"))
+    assert trunks is not None
+    await trunks.admitted("clinica", "+34910000000", ["54.172.60.0/30"], None)
+    trunk = sfu.inbound_named("pinecall-sandbox:clinica")
+    assert trunk is not None and list(trunk.numbers) == ["+34910000000"]
+    [rule] = sfu.rules
+    assert rule.name == "pinecall-sandbox:clinica:one-room-per-caller"
+    assert [one.agent_name for one in rule.room_config.agents] == ["pinecall-sandbox"]
+
+
+async def test_two_instances_keep_two_trunks_for_one_org_and_never_adopt_each_others(
+    sfu: TheSfu,
+) -> None:
+    production, sandbox = (
+        trunks_for(an_instance("pinecall")),
+        trunks_for(an_instance("pinecall-sandbox")),
+    )
+    assert production is not None and sandbox is not None
+    await production.admitted("clinica", "+34910000000", [], None)
+    await sandbox.admitted("clinica", "+34910000001", [], None)
+    assert sorted(trunk.name for trunk in sfu.inbound) == [
+        "pinecall-sandbox:clinica",
+        "pinecall:clinica",
+    ]
+    assert await sandbox.released("clinica", "+34910000000") is False, "production's number"

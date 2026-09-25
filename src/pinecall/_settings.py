@@ -14,6 +14,7 @@ from pydantic_settings import (
 
 from pinecall._env_files import ENV_FILES, as_a_refusal, env_files_read
 from pinecall._vendor_keys import VendorKeys
+from pinecall.types.dispatch import DEFAULT_FLEET
 
 # Our own knobs carry this prefix; a vendor key keeps the vendor's own name (the alias on the
 # field), so the SDK that reads ANTHROPIC_API_KEY by itself and this class agree.
@@ -255,6 +256,19 @@ class Settings(VendorKeys):
         default=None,
         validation_alias="PINECALL_WORKER_NAME",
         description="What this worker is called in its heartbeats. Unset: the short hostname.",
+    )
+    # The name this instance's workers register under and its gateway dispatches to: its own, so
+    # two instances on one SFU (production and the sandbox) never take each other's calls. It is
+    # also the prefix of every trunk and rule the gateway names on the SFU (routes/trunks.py).
+    fleet: str = Field(
+        default=DEFAULT_FLEET,
+        description="The name this instance's workers register under and its dispatches ask for.",
+    )
+    # livekit prewarms one job process per CPU by default (AgentServer, worker.py:298): right for a
+    # box a worker has alone, and RAM spent twice when a second instance's worker shares the CPUs.
+    idle_processes: int | None = Field(
+        default=None,
+        description="Job processes the worker keeps warm. Unset: livekit's, one per CPU.",
     )
     # What the overflow agent says when every worker is full, then hangs up (worker/overflow.py).
     overflow_says: str = Field(

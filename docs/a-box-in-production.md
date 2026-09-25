@@ -388,9 +388,9 @@ yourself opening a port to make dialling work, the problem is at the far end's A
 ### On Twilio, the box provisions the trunk
 
 Nothing is done by hand for the trunk itself. `POST /v1/carrier/outbound` sets the termination
-label on the org's own trunk, `pinecall-<org>` — the one the import already made, or a new one
-when there is none — mints a credential list named
-`pinecall-<org>` on the tenant's account, attaches it to the trunk, and makes the SFU's outbound
+label on the org's own trunk, `<fleet>:<org>` (`PINECALL_FLEET`, `pinecall` unless set) — the one
+the import already made, or a new one when there is none — mints a credential list named
+`<fleet>:<org>` on the tenant's account, attaches it to the trunk, and makes the SFU's outbound
 trunk pointed at `pinecall-<org>.pstn.twilio.com`. Two things are the operator's:
 
 - **The org's Twilio credentials, brought with `PUT /v1/carrier`**, and with permission to write
@@ -401,7 +401,7 @@ trunk pointed at `pinecall-<org>.pstn.twilio.com`. Two things are the operator's
   gateway touch a carrier account.
 
 One dead end the code refuses by name, and it is worth knowing before you meet it: a credential
-list already called `pinecall-<org>` on the account, **whose password this box no longer holds** —
+list already called `<fleet>:<org>` on the account, **whose password this box no longer holds** —
 a box rebuilt without its vault, or an org whose carrier row was replaced. Twilio shows a
 credential's password exactly once and reads it back to nobody, and a second list would leave two
 logins nobody can tell apart, so the door stops with `409` and says what to do: delete that

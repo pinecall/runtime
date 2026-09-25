@@ -9,12 +9,13 @@ from carrier_cidrs import signalling_cidrs
 from livekit import api
 from twilio_rest import ACCOUNTS_API, TRUNKING_API, Twilio, TwilioRefused
 
-# The name the dispatch rule asks for is the name the worker joins the media plane under, so it is
-# imported from the package both processes hold rather than spelled again here: a rule naming a
-# worker nobody registered rings forever.
+# The name the dispatch rule asks for is the name the worker joins the media plane under, so its
+# default is imported from the package both processes hold rather than spelled again here: a rule
+# naming a worker nobody registered rings forever. An instance with a fleet of its own (the
+# sandbox's, PINECALL_FLEET) passes --fleet with that name.
 from pinecall.routes.twilio import BOX_TRUNK as TRUNK_NAME
 from pinecall.routes.twilio import ORIGINATION_NAME, origination_uri
-from pinecall.types.dispatch import WORKER_NAME
+from pinecall.types.dispatch import DEFAULT_FLEET
 
 LIVEKIT_TRUNK_NAME = "pinecall-inbound"
 LIVEKIT_RULE_NAME = "pinecall-one-room-per-caller"
@@ -318,7 +319,7 @@ def parse_arguments(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--number", required=True, help="E.164, e.g. +59829000000")
     parser.add_argument("--sip-host", required=True, help="the box's public name, e.g. box.example")
     parser.add_argument("--trunk-name", default=TRUNK_NAME, help=f"default {TRUNK_NAME}")
-    parser.add_argument("--fleet", default=WORKER_NAME, help=f"default {WORKER_NAME}")
+    parser.add_argument("--fleet", default=DEFAULT_FLEET, help=f"default {DEFAULT_FLEET}")
     parser.add_argument(
         "--adopt",
         action="store_true",

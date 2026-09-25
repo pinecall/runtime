@@ -34,7 +34,6 @@ class Dispatch:
         self,
         call: str,
         agent: str,
-        fleet: str,
         settings: Settings,
         caller: str | None,
         run: str | None,
@@ -49,7 +48,6 @@ class Dispatch:
     ) -> None:
         self._call = call
         self._agent = agent
-        self._fleet = fleet
         self._settings = settings
         self._caller = caller
         self._run = run
@@ -71,7 +69,7 @@ class Dispatch:
         await self._api.agent_dispatch.create_dispatch(
             CreateAgentDispatchRequest(
                 room=self._call,
-                agent_name=self._fleet,
+                agent_name=self._settings.fleet,
                 metadata=json.dumps(self._metadata()),
             )
         )
@@ -129,7 +127,6 @@ class Dispatch:
 def a_dispatch(
     call: str,
     agent: str,
-    fleet: str,
     settings: Settings,
     caller: str | None = None,
     run: str | None = None,
@@ -146,7 +143,6 @@ def a_dispatch(
     return Dispatch(
         call,
         agent,
-        fleet,
         settings,
         caller,
         run,

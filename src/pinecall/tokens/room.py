@@ -19,7 +19,6 @@ from pinecall.types.dispatch import (
     METADATA_KEY,
     ORG_KEY,
     SCOPE_KEY,
-    WORKER_NAME,
 )
 
 # A room_config that is not one, in the parser's own words: the door answers 400 with them.
@@ -32,8 +31,10 @@ NOT_A_ROOM_CONFIG = "room_config is not a LiveKit RoomConfiguration: {reason}"
 # through the one field a dispatch already has, and a browser can alter none of them. Whose the
 # call is rides the same way: the org and the world the minting key opens, and the corner it
 # holds — so the one worker every org shares resolves the agent, the keys and the log of THIS
-# org, and a sandbox visit lands in the developer's own corner and not the org's.
+# org, and a sandbox visit lands in the developer's own corner and not the org's. The fleet is the
+# instance's own (`settings.fleet`): the SFU is shared, and the name is what keeps a call here.
 def a_dispatch(
+    fleet: str,
     agent: str,
     scope: str,
     caller: str,
@@ -42,7 +43,7 @@ def a_dispatch(
     env: Env,
     holder: str | None = None,
 ) -> RoomConfiguration:
-    """The room config the token carries: one dispatch, to our workers, naming this agent."""
+    """The room config the token carries: one dispatch, to this fleet, naming this agent."""
     said: dict[str, Any] = {
         AGENT_KEY: agent,
         SCOPE_KEY: scope,
@@ -53,9 +54,7 @@ def a_dispatch(
     }
     if holder is not None:
         said[HOLDER_KEY] = holder
-    dispatch = RoomAgentDispatch(
-        agent_name=WORKER_NAME, metadata=json.dumps(said, separators=(",", ":"))
-    )
+    dispatch = RoomAgentDispatch(agent_name=fleet, metadata=json.dumps(said, separators=(",", ":")))
     return RoomConfiguration(agents=[dispatch])
 
 

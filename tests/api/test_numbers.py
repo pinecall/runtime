@@ -98,10 +98,10 @@ async def test_a_dry_run_is_the_plan_and_writes_nothing(
     said = answer.json()
     assert said["dry_run"] is True
     assert said["steps"] == [
-        f"trunk    pinecall-{A_RECORD.org} — created on account {A_SID}",
+        f"trunk    pinecall:{A_RECORD.org} — created on account {A_SID}",
         "origin   sip:box.pinecall.io:5060;transport=udp — set",
         f"number   {ABAI} — attached to the trunk",
-        f"livekit  inbound trunk pinecall-{A_RECORD.org}: +{ABAI}, from "
+        f"livekit  inbound trunk pinecall:{A_RECORD.org}: +{ABAI}, from "
         f"{len(TWILIO_SIGNALLING)} networks; one room per caller",
         f"route    {ABAI} phone → {AGENT} in production",
     ]
@@ -119,7 +119,7 @@ async def test_an_import_writes_the_carriers_trunk_the_sfus_trunk_and_the_route_
     first = await tenant_http.post("/v1/numbers", json={"number": ABAI, "agent": AGENT})
     assert first.status_code == 200, first.text
     assert twilio_account.made == [
-        f"trunk pinecall-{A_RECORD.org}",
+        f"trunk pinecall:{A_RECORD.org}",
         "origin sip:box.pinecall.io:5060;transport=udp",
         f"attach {ABAI}",
     ]
@@ -136,7 +136,7 @@ async def test_an_import_writes_the_carriers_trunk_the_sfus_trunk_and_the_route_
     again = await tenant_http.post("/v1/numbers", json={"number": ABAI, "agent": "tienda-sur"})
     assert again.status_code == 200
     assert again.json()["steps"][:3] == [
-        f"trunk    TK_1 pinecall-{A_RECORD.org} — standing",
+        f"trunk    TK_1 pinecall:{A_RECORD.org} — standing",
         "origin   sip:box.pinecall.io:5060;transport=udp — standing",
         f"number   {ABAI} — on the trunk already",
     ]

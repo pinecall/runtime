@@ -178,11 +178,11 @@ verify a key either, which it says at startup and at every keyed door — one ru
 
 ## 5. The worker, process 2
 
-`worker/main.py` builds one `AgentServer` from the settings — the SFU URL and key pair **handed**
-to livekit, never left to it — registers `rtc_session(job, agent_name=<fleet>)` (an empty name
-would answer every room in the deployment, so it is refused), and reports its load: **slots**
-(`active_jobs / PINECALL_MAX_JOBS`) when the box was measured, the CPU otherwise — and it is
-livekit-server that stops routing to a worker at 0.7 of what it reports (`worker/load.py`). livekit forks a job process per call and warms it (`warmed`).
+`worker/main.py` builds one `AgentServer` from the settings — SFU URL and key pair **handed** to
+livekit — registers `rtc_session(job, agent_name=<fleet>)`, the instance's `PINECALL_FLEET` (an
+empty name would answer every room in the deployment: refused), keeps `PINECALL_IDLE_PROCESSES`
+warm (livekit's one per CPU unless set) and reports **slots** (`active_jobs / PINECALL_MAX_JOBS`)
+when measured, the CPU otherwise; livekit-server stops routing at 0.7 (`worker/load.py`, `warmed`).
 
 `worker/entry.py`, `answer(ctx, worker)`, is the whole job:
 

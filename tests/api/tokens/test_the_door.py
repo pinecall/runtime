@@ -22,11 +22,11 @@ from pinecall.tokens.ledger import MemoryTokens
 from pinecall.types.dispatch import (
     AGENT_KEY,
     CALLER_KEY,
+    DEFAULT_FLEET,
     ENV_KEY,
     METADATA_KEY,
     ORG_KEY,
     SCOPE_KEY,
-    WORKER_NAME,
 )
 from tests.api.conftest import A_KEY, A_LIVEKIT, A_RECORD, AGENT, AN_OPS_KEY
 from tests.api.talking import a_door, a_register, an_app
@@ -62,12 +62,12 @@ def payload_of(token: str) -> dict[str, Any]:
     return decoded
 
 
-def the_dispatch_of(token: str) -> dict[str, Any]:
+def the_dispatch_of(token: str, fleet: str = DEFAULT_FLEET) -> dict[str, Any]:
     """What the worker's router will read: the one dispatch's metadata, decoded."""
     claims = TokenVerifier(A_LIVEKIT.api_key, A_LIVEKIT.api_secret).verify(token)
     assert claims.room_config is not None
     agents = list(claims.room_config.agents)
-    assert [one.agent_name for one in agents] == [WORKER_NAME]
+    assert [one.agent_name for one in agents] == [fleet]
     said: dict[str, Any] = json.loads(agents[0].metadata)
     return said
 
@@ -244,6 +244,20 @@ def test_the_browser_is_told_the_public_url_when_the_box_has_one(gateway: TestCl
         app_socket.receive_json()
         status, said = minted(gateway, {"agent": AGENT})
     assert status == 201 and said["server_url"] == "wss://livekit.clinica.example"
+
+
+def test_the_dispatch_asks_for_the_fleet_this_instance_names(
+    gateway: TestClient, settings: Settings
+) -> None:
+    """Two instances share one SFU: the fleet in the token is what keeps the call on this one."""
+    ours = settings.model_copy(update={"fleet": "pinecall-sandbox"})
+    app.dependency_overrides[deps.a_settings] = lambda: ours
+    with an_app(gateway) as app_socket:
+        app_socket.send_json(a_register(AGENT, a_door("web")))
+        app_socket.receive_json()
+        status, said = minted(gateway, {"agent": AGENT})
+    assert status == 201
+    assert the_dispatch_of(said["participant_token"], fleet="pinecall-sandbox")[AGENT_KEY] == AGENT
 
 
 def test_the_door_takes_the_api_key_and_nothing_else(gateway: TestClient) -> None:

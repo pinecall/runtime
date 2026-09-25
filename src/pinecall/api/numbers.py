@@ -19,7 +19,7 @@ from pinecall.api._deps import (
 )
 from pinecall.auth.keys import KeyRecord
 from pinecall.routes.table import Routes
-from pinecall.routes.trunks import NO_LIVEKIT, Trunks, fence_of
+from pinecall.routes.trunks import NO_LIVEKIT, TRUNK_NAME, Trunks, fence_of
 from pinecall.routes.twilio import (
     TwilioApi,
     TwilioNumber,
@@ -43,8 +43,10 @@ router = APIRouter()
 
 NO_BODY = 204
 
-# The name of the org's trunk on ITS Twilio account: made once and found after, never doubled.
-CARRIER_TRUNK = "pinecall-{org}"
+# The name of the org's trunk on ITS Twilio account: made once and found after, never doubled. The
+# instance's fleet leads it for the reason the SFU's names carry one (routes/trunks.py): the org's
+# one account serves both instances, and each finds its own trunk there by name.
+CARRIER_TRUNK = "{fleet}:{org}"
 
 NO_CARRIER = (
     "this org has no carrier yet: PUT /v1/carrier with a Twilio account or a SIP peer first"
@@ -201,10 +203,10 @@ async def imported(
                     404,
                     NOT_ON_ACCOUNT.format(number=route.number, account=carrier.account.account_sid),
                 )
-            name = CARRIER_TRUNK.format(org=carrier.org)
+            name = CARRIER_TRUNK.format(fleet=settings.fleet, org=carrier.org)
             account = carrier.account.account_sid
             await trunked(api, name, account, route, owned, settings.domain, steps, dry_run)
-        await on_the_sfu(trunks, carrier, route, steps, dry_run)
+        await on_the_sfu(trunks, settings.fleet, carrier, route, steps, dry_run)
     except TwilioRefused as refused:
         raise HTTPException(502, str(refused)) from refused
     return await routed(route, steps, table, dry_run)
@@ -294,12 +296,13 @@ async def trunked(
 
 
 async def on_the_sfu(
-    trunks: Trunks, carrier: Carrier, route: Route, steps: list[str], dry: bool
+    trunks: Trunks, fleet: str, carrier: Carrier, route: Route, steps: list[str], dry: bool
 ) -> None:
     """The org's inbound trunk on LiveKit with the number admitted, and its rule."""
     allowed, auth = fence_of(carrier)
+    trunk = TRUNK_NAME.format(fleet=fleet, org=carrier.org)
     steps.append(
-        f"livekit  inbound trunk pinecall-{carrier.org}: +{route.number}, from {len(allowed)} "
+        f"livekit  inbound trunk {trunk}: +{route.number}, from {len(allowed)} "
         f"networks{' with SIP auth' if auth else ''}; one room per caller"
     )
     # A dialled route always has one: a_route refused a channel without a number already.

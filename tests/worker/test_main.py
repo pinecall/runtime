@@ -34,15 +34,28 @@ A_LIVEKIT_KEY = "APIaFakeKeyForATest"
 A_LIVEKIT_SECRET = "a-fake-secret-that-signs-nothing"
 
 
-def test_the_fleet_name_reaches_livekit_and_is_never_empty() -> None:
-    """An empty agent_name is implicit dispatch to every room in the deployment (worker.py:219)."""
-    server = main.a_server(load_settings(), fleet="pinecall")
-    assert server._agent_name == "pinecall"  # pyright: ignore[reportPrivateUsage]
+def test_the_instances_fleet_name_reaches_livekit() -> None:
+    """Two instances share one SFU: each worker registers under its own instance's fleet."""
+    server = main.a_server(load_settings().model_copy(update={"fleet": "pinecall-sandbox"}))
+    assert server._agent_name == "pinecall-sandbox"  # pyright: ignore[reportPrivateUsage]
 
 
 def test_a_worker_with_no_fleet_name_is_refused_before_it_starts() -> None:
+    """An empty agent_name is implicit dispatch to every room in the deployment (worker.py:219)."""
     with pytest.raises(ValueError, match="answers every room"):
-        main.a_server(load_settings(), fleet="")
+        main.a_server(load_settings().model_copy(update={"fleet": ""}))
+
+
+def test_the_warm_processes_are_the_instances_count_when_it_says_one() -> None:
+    """livekit warms one per CPU by default; a second instance on the same CPUs keeps fewer."""
+    server = main.a_server(load_settings().model_copy(update={"idle_processes": 1}))
+    assert server._num_idle_processes == 1  # pyright: ignore[reportPrivateUsage]
+
+
+def test_the_warm_processes_are_livekits_own_when_the_instance_says_none() -> None:
+    server = main.a_server(load_settings())
+    default = main.AgentServer._default_num_idle_processes  # pyright: ignore[reportPrivateUsage]
+    assert server._num_idle_processes is default  # pyright: ignore[reportPrivateUsage]
 
 
 def test_only_one_entrypoint_is_ever_registered() -> None:

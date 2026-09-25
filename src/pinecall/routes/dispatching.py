@@ -18,7 +18,6 @@ from pinecall.types.dispatch import (
     ENV_KEY,
     HOLDER_KEY,
     ORG_KEY,
-    WORKER_NAME,
 )
 
 OUTBOUND = "outbound"
@@ -86,10 +85,11 @@ class MemoryDispatches:
 class LivekitDispatches:
     """One `create_dispatch`, exactly as a spoken eval run makes one (evals/calling.py)."""
 
-    def __init__(self, url: str, api_key: str, api_secret: str) -> None:
+    def __init__(self, url: str, api_key: str, api_secret: str, fleet: str) -> None:
         self._url = url
         self._key = api_key
         self._secret = api_secret
+        self._fleet = fleet
 
     # The room is not created first: livekit makes it when the dispatch lands, and its NAME is the
     # call id, which is what lets the worker's router read the log and the log find the room with
@@ -100,7 +100,7 @@ class LivekitDispatches:
             await livekit.agent_dispatch.create_dispatch(
                 api.CreateAgentDispatchRequest(
                     room=job.call,
-                    agent_name=WORKER_NAME,
+                    agent_name=self._fleet,
                     metadata=json.dumps(metadata_of(job), separators=(",", ":")),
                 )
             )
@@ -127,6 +127,9 @@ def dispatches_for(settings: Settings) -> Dispatches | None:
     """The SFU when the process has the LiveKit pair; None when it has none: the door says so."""
     if settings.livekit_api_key and settings.livekit_api_secret:
         return LivekitDispatches(
-            settings.livekit_url, settings.livekit_api_key, settings.livekit_api_secret
+            settings.livekit_url,
+            settings.livekit_api_key,
+            settings.livekit_api_secret,
+            settings.fleet,
         )
     return None

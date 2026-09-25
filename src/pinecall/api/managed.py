@@ -80,7 +80,8 @@ async def bought(
             owned = await api.bought(number)
         sid = account.account_sid
         await trunked(api, BOX_TRUNK, sid, route, {number: owned}, settings.domain, steps, dry_run)
-        await on_the_sfu(trunks, Carrier(org=key.org, account=account), route, steps, dry_run)
+        boxs = Carrier(org=key.org, account=account)
+        await on_the_sfu(trunks, settings.fleet, boxs, route, steps, dry_run)
     except TwilioRefused as refused:
         raise HTTPException(502, str(refused)) from refused
     return await routed(route, steps, table, dry_run)

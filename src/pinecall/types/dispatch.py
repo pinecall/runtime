@@ -1,11 +1,12 @@
 """What a dispatch says to a worker: the name the fleet answers to, and the keys of its metadata."""
 
-# The one name every worker of this runtime registers with the media plane under, and the one a
-# dispatch asks for. It is spelled here, in the package both processes hold, because the gateway
-# WRITES it into a token's room config and the worker REGISTERS under it: two spellings would be
-# a token that dispatches to nobody. In livekit's words it is the `agent_name`; in ours it is the
+# The name a fleet's workers register with the media plane under when the instance names none
+# (`PINECALL_FLEET`, _settings.py). Every reader takes the instance's `settings.fleet`, never this:
+# the gateway WRITES the fleet into a token's room config, a trunk's rule and a dispatch, and the
+# worker REGISTERS under it, so the two instances on one SFU — production and the sandbox — each
+# dispatch to their own workers only. In livekit's words it is the `agent_name`; in ours it is a
 # fleet's worker pool, never a tenant's agent — those are named inside the metadata below.
-WORKER_NAME = "pinecall"
+DEFAULT_FLEET = "pinecall"
 
 # The keys of a dispatch's metadata: written by whoever creates the dispatch — the token door for a
 # web call, the outbound verb for a call we place — and read by the worker's router, in this order

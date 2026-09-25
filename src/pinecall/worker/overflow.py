@@ -13,7 +13,6 @@ from livekit.protocol.room import DeleteRoomRequest
 
 from pinecall._settings import Settings, load_settings
 from pinecall.fleet import HEARTBEAT_S
-from pinecall.types.dispatch import WORKER_NAME
 from pinecall.worker import router
 from pinecall.worker.client import Gateway
 from pinecall.worker.entry import Worker, a_call
@@ -95,7 +94,7 @@ async def job(ctx: JobContext) -> None:
     await answer_the_overflow(ctx, a_worker(settings), settings.overflow_says)
 
 
-def a_server(settings: Settings, gateway: Gateway, fleet: str = WORKER_NAME) -> AgentServer:
+def a_server(settings: Settings, gateway: Gateway) -> AgentServer:
     """The overflow process: under the fleet's own name, so a dispatch nobody else takes is its."""
     gate = OverflowGate()
     server = AgentServer(
@@ -107,7 +106,7 @@ def a_server(settings: Settings, gateway: Gateway, fleet: str = WORKER_NAME) -> 
         host="127.0.0.1",
         port=0,
     )
-    server.rtc_session(job, agent_name=fleet)
+    server.rtc_session(job, agent_name=settings.fleet)
     Watching(gate, gateway).start_with(server)
     return server
 

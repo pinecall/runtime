@@ -120,7 +120,7 @@ Read back with LiveKit's own `TokenVerifier`:
 | `video.can_publish_data` | true for both: the DataChannel is how a widget speaks to the call |
 | `metadata` | the contact id, or absent |
 | `attributes["pinecall.scope"]` | `talk` or `chat` — and the other attributes the body sent |
-| `roomConfig.agents[0]` | `agent_name: pinecall`, `metadata: {"agent", "scope", "caller", "metadata", "org", "env", "holder"}` — the dispatch. `org` and `env` are the minting key's, `holder` the corner it holds (a developer's, in the sandbox; absent otherwise): the one worker every org shares reads them and asks the gateway for THAT org's doors, declaration and keys |
+| `roomConfig.agents[0]` | `agent_name`: the instance's fleet (`PINECALL_FLEET`, `pinecall` unless set), `metadata: {"agent", "scope", "caller", "metadata", "org", "env", "holder"}` — the dispatch. `org` and `env` are the minting key's, `holder` the corner it holds (a developer's, in the sandbox; absent otherwise): the one worker every org shares reads them and asks the gateway for THAT org's doors, declaration and keys |
 | `exp` | now plus `ttl_s` |
 
 The same string reads the call's log: `GET /v1/calls/{call}/events?token=…` and

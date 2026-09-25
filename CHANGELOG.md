@@ -7,12 +7,23 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **`PINECALL_FLEET` names the instance's fleet**, `pinecall` unless set: the name its workers
+  register under, the one every token, dispatch and trunk rule of its gateway asks for, and the
+  prefix of every trunk and rule it names on the SFU. Two instances on one SFU set two, and
+  neither takes the other's calls. `PINECALL_IDLE_PROCESSES` keeps that many job processes warm
+  (livekit's own default, one per CPU, when unset).
 - **`GET /v1/whoami` says the person's `email`.** A member's, off their row; a visiting
   operator's, out of their subject; null for a machine's key. `subject` is a member row of one
   org, and a service that serves a person across their orgs — the notifier holding their phone —
   needed the one name they carry into all of them.
 
 ### Changed
+- **The names this runtime gives the SFU and a tenant's carrier carry the fleet, after a colon**:
+  the inbound trunk is `<fleet>:<org>` (was `pinecall-<org>`), its rule
+  `<fleet>:<org>:one-room-per-caller`, the outbound trunk `<fleet>:<org>:out`, and the trunk and
+  credential list on a tenant's Twilio account `<fleet>:<org>`. A trunk made under the old names
+  keeps them until it is retired by hand; until then an import or a rebuild finds nothing under
+  the new name and makes a second one beside it.
 - **Cartesia is the voice when an agent names none**, where ElevenLabs was: `sonic-3`, and a native
   speaker of the agent's language when it chose no voice (Spain's Marta for `es`, Katie for `en`
   and the rest). A curated name (`carolina`) and an ElevenLabs-shaped id still speak at ElevenLabs,
