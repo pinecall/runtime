@@ -7,6 +7,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ## [Unreleased]
 
 ### Added
+- **`GET /v1/limits` and `PINECALL_BILLING_URL`.** Any key of an org reads each of its quotas as
+  `{limit, used}` on this instance — minutes, messages, llm_tokens, calls at once, agents, seats,
+  numbers — with the box's lending and where the box's orgs pay (`billing_url`, also on
+  `/.well-known/pinecall`; unset, the box bills nobody). Protocol `>=0.6.13` (`Limits`, `Limit`).
 - **A call never outruns the org's minutes.** `POST /v1/calls` answers the worker
   `{"seconds_left": n | null}` (it answered `204`), and the worker keeps the call to the lesser
   of that and the agent's `max_duration_s`, on the same clock: warned a minute before, ended as

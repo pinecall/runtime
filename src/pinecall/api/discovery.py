@@ -50,6 +50,9 @@ class Discovered(WireModel):
     # `PUT /v1/ops/signin/google` and this box can open its secret. The button goes to
     # `GET /v1/login/google`.
     google: bool = False
+    # Where this box's orgs pay (PINECALL_BILLING_URL), null on a box that bills nobody: a sign-up
+    # page may say "free to start" and link the plans before anybody holds a key.
+    billing_url: str | None = None
 
 
 # No key at this door: it is how a client learns whether to offer a sign-up before anybody has one.
@@ -67,4 +70,5 @@ async def discovered(settings: SettingsDep, outbox: OutboxDep, box: BoxSettingsD
         mail=await outbox.the_box_can_send(),
         brand=(await outbox.brand()).as_json,
         google=await BoxSignIn(box).of(GOOGLE) is not None,
+        billing_url=settings.billing_url,
     )

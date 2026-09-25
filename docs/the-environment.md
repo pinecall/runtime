@@ -43,6 +43,7 @@ instances, its embedder, its fleet cloud, its mail.
 | `PINECALL_DOMAIN` *(the instance's)* | the instance's public name: where Caddy answers it, and where a carrier sends a call for a number a tenant imports. Unset, nothing imports |
 | `PINECALL_WORKER_HTTP_PORT` *(the instance's)* | where the worker's own health server binds, on loopback: 8082 unless set; two above the gateway's port on a box |
 | `PINECALL_SIGNUP` · `PINECALL_CLOUD` · `PINECALL_EXTENSIONS` | whether a stranger may make an org here (off unless set); Pinecall's hosted gateway; packages that plug a policy into the runtime, comma separated |
+| `PINECALL_BILLING_URL` | where this box's orgs pay or change their plan — a page of whoever charges for the box; answered in `GET /v1/limits` and `/.well-known/pinecall`, and the console's upgrade link. Unset, the box bills nobody and shows no link |
 | `PINECALL_APP_ORIGINS` | origins besides the mobile app's own two (`capacitor://localhost`, `https://localhost`) that may call `/v1` from a browser, comma separated — the app's dev server on a laptop. Unset, only the two; never `*` ([people.md](protocol/people.md)) |
 | `PINECALL_MIN_PASSWORD` | how short a member's password may be: 8 unless set, `0` for no rule |
 | `PINECALL_JUDGE_CEILING_EUR` | what judging one call may spend on a model. Zero: no judge asks |

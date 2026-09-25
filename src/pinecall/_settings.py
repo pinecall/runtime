@@ -358,6 +358,13 @@ class Settings(VendorKeys):
         default=False,
         description="Whether a stranger may make an org at this gateway. Off unless you say.",
     )
+    # Where this box's orgs pay, upgrade or leave a trial: a page of whoever charges for the box,
+    # never of the runtime's. Unset, the box bills nobody and the console shows no upgrade link.
+    # Answered in GET /v1/limits and /.well-known/pinecall. docs/charging-for-it.md.
+    billing_url: str | None = Field(
+        default=None,
+        description="Where this box's orgs pay, https://…; unset, the box bills nobody.",
+    )
     # Packages installed beside the runtime that plug a policy into its named points: how a box
     # that charges says the numbers without the runtime learning what a plan is. extensions/.
     extensions: str = Field(

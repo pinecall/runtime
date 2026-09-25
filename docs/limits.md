@@ -81,6 +81,14 @@ says the same `422` when the model is picked. An org's own key is never refused,
 model. Judges and embeddings run on the box's keys regardless: judging is the org's to turn off,
 and an embedder is the box's by construction.
 
+## What an org can see
+
+`GET /v1/limits`, with any key of the org, answers every quota as `{limit, used}` — counted where
+the gate counts it, so the page and the refusal read one number — with `lends` and `billing_url`
+(`PINECALL_BILLING_URL`: where the box's orgs pay; `null` on a box that bills nobody). The console
+draws a meter from it on Home and Usage **only where `minutes` has a limit**, and an upgrade link
+only where `billing_url` is set: a self-hosted box shows neither.
+
 ## What a new org is allowed
 
 A new org's quotas are a policy's to say, not the operator's to type. A package named in

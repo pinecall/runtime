@@ -112,7 +112,14 @@ Map them onto your provider's meter (Stripe's Meter Events take an idempotency k
 id and the row's type). Minutes are the call's own; simulations write a `call.summary` like any
 call and count the same.
 
-## 4. What is not in the runtime yet
+## 4. Where your orgs pay
+
+Set `PINECALL_BILLING_URL` to your plans page. `GET /v1/limits` answers it to every key of an org
+beside the org's quotas, and the console links it from the free-minutes meter and from the notice
+a refused call leaves; `/.well-known/pinecall` carries it for a page nobody has signed into yet.
+Unset, nothing of it is drawn.
+
+## 5. What is not in the runtime yet
 
 Said here so a layer is not built on a mechanism that does not exist:
 
@@ -122,7 +129,6 @@ Said here so a layer is not built on a mechanism that does not exist:
 - **Periods.** The quotas are counted over the org's whole life. A monthly allowance is your layer
   replacing the row when the month turns.
 - **A suspension of its own.** Suspending an org is replacing its row with zeros.
-- **The console's meter and upgrade link** (`PINECALL_BILLING_URL`).
 - **The deploy installing your package.** Until it does, a package outside the lock is removed by
   the next `make deploy` and has to be installed again.
 

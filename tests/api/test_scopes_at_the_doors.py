@@ -110,6 +110,7 @@ def test_the_chat_socket_closes_a_key_without_talk_and_says_why(gateway: TestCli
 # the reason. Anything else under /v1 that is not the operator's must declare exactly one scope.
 ASKS_NOTHING_OR_ASKS_INSIDE: dict[str, str] = {
     "GET /v1/whoami": "any key may ask whose it is",
+    "GET /v1/limits": "any key of the org may read what the org may use, as whoami says whose",
     "POST /v1/login": "takes no key: it mints one",
     "POST /v1/signup": "takes no key: it makes the org that will hold one, on the cloud alone",
     "POST /v1/login/codes": "any key may mint a code for its own record",

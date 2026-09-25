@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import override
 
 from pinecall._exceptions import PinecallError
+from pinecall.log.usage import Totals
 from pinecall.log.writers import Logs
 from pinecall.orgs.meter import Meter
 from pinecall.orgs.table import Orgs
@@ -96,6 +97,12 @@ class Admission:
         except QuotaExhausted as refused:
             return str(refused)
         return None
+
+    # What the gate counts against, for a door that shows it: the same fold, so a page saying
+    # "12 of 30 minutes" and the refusal at 30 read one number (api/limits.py).
+    async def consumed(self, org: str) -> Totals:
+        """What this org has consumed on this instance, as the Meter folds it."""
+        return await self._meter.totals(org)
 
     # What a text call's vendors are built from reads the same row the gate reads: which of the
     # box's keys the org is lent (orgs/vault.py:brought_by).
