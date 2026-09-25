@@ -124,6 +124,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   both off the box, and the sandbox's name is served by the sandbox instance's own site.
 
 ### Changed
+- `docs/charging-for-it.md`: how a box's owner bills on top of the runtime — `Admitting`, quotas
+  and lends through the ops API, the usage feed with its cursor — and what the runtime does not do yet.
 - **A code's standing answers any page, and a claimed call stays claimed when it changes hands.**
   `GET /v1/codes/{code}` takes a browser from any origin (GET, no credentials, as a call's own
   reads do): its code token is the only thing that opens it, and `byPhone()` runs on the tenant's

@@ -4,7 +4,8 @@ An org's limits are mechanisms the runtime enforces and never a plan: quotas it 
 log, and the vendor keys a call runs on — the org's own, or the box's. Who sets them is the
 operator, or a policy a package beside the runtime plugs in ([ARCHITECTURE.md](../ARCHITECTURE.md)
 §12, `extensions/`). With nothing set and nothing loaded, an org has no limit and runs on the box's
-keys, which is what a self-hosted box wants.
+keys, which is what a self-hosted box wants. To charge for a box — plans, a trial, invoices — see
+[charging-for-it.md](charging-for-it.md): the billing layer beside the runtime, and its contract.
 
 ## Provider keys, per tenant
 
