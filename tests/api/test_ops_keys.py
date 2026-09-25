@@ -3,9 +3,11 @@
 import httpx
 import pytest
 
+from pinecall._settings import Settings
 from pinecall.auth.keys import PRODUCTION_PREFIX, MemoryKeys, fingerprint
-from pinecall.types import KEY_SCOPES
+from pinecall.types import KEY_SCOPES, PRODUCTION, SANDBOX
 from tests.api.conftest import AN_OPS_KEY, over_the_asgi_app
+from tests.api.talking import answering_in
 
 pytestmark = pytest.mark.unit
 
@@ -13,6 +15,7 @@ OPS_KEYS = "/v1/ops/keys"
 ROUTES = "/v1/routes"
 ORG = "clinica"
 ORGS_KEYS = f"/v1/ops/orgs/{ORG}/keys"
+SANDBOXS = "https://sandbox.pinecall.io"
 
 
 async def issue(ops_http: httpx.AsyncClient, label: str | None = None) -> dict[str, object]:
@@ -104,14 +107,14 @@ async def test_a_key_issued_with_nothing_said_is_productions_with_every_scope(
     assert (issued["subject"], issued["name"]) == (None, None)
 
 
-async def test_a_key_is_issued_into_development_with_the_scopes_and_the_person_asked_for(
+async def test_a_key_is_issued_with_the_scopes_and_the_person_asked_for(
     ops_http: httpx.AsyncClient, keys: MemoryKeys
 ) -> None:
     answer = await ops_http.post(
         ORGS_KEYS,
         json={
             "label": "berna's laptop",
-            "env": "sandbox",
+            "env": "production",
             "scopes": ["talk", "calls"],
             "subject": "m_1",
             "name": "Berna",
@@ -119,24 +122,40 @@ async def test_a_key_is_issued_into_development_with_the_scopes_and_the_person_a
     )
     assert answer.status_code == 200, answer.text
     issued = answer.json()
-    assert issued["env"] == "sandbox"
     assert issued["scopes"] == ["calls", "talk"]
     assert (issued["subject"], issued["name"]) == ("m_1", "Berna")
     record = await keys.verify(str(issued["key"]))
     assert record is not None
     assert (record.env, record.scopes, record.subject, record.name) == (
-        "sandbox",
+        "production",
         frozenset({"calls", "talk"}),
         "m_1",
         "Berna",
     )
     rows = (await ops_http.get(ORGS_KEYS)).json()
     mine = next(row for row in rows if row["fingerprint"] == fingerprint(str(issued["key"])))
-    assert (mine["env"], mine["scopes"], mine["name"]) == (
-        "sandbox",
-        ["calls", "talk"],
-        "Berna",
-    )
+    assert (mine["env"], mine["scopes"], mine["name"]) == ("production", ["calls", "talk"], "Berna")
+
+
+# The sandbox instance's worker key was minted with nothing said and came out production's, so
+# every heartbeat it sent its own gateway was refused (the cutover, 2026-09-25).
+async def test_a_key_issued_with_nothing_said_at_the_sandbox_is_the_sandboxs(
+    ops_http: httpx.AsyncClient, settings: Settings
+) -> None:
+    """The world left out is the instance's, whichever instance it is."""
+    answering_in(SANDBOX, settings)
+    issued = await issue(ops_http, label="the-worker-on-this-box")
+    assert issued["env"] == SANDBOX
+
+
+async def test_a_key_for_the_other_world_is_refused_with_where_that_world_answers(
+    ops_http: httpx.AsyncClient, settings: Settings
+) -> None:
+    """A key minted here for the other instance would open nothing, here or there."""
+    answering_in(PRODUCTION, settings.model_copy(update={"elsewhere_url": SANDBOXS}))
+    refused = await ops_http.post(ORGS_KEYS, json={"env": SANDBOX})
+    assert refused.status_code == 400
+    assert SANDBOXS in refused.json()["detail"]
 
 
 async def test_a_world_or_a_scope_nobody_declared_is_refused_in_the_domains_words(

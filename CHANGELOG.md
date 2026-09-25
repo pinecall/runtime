@@ -80,6 +80,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   both off the box, and the sandbox's name is served by the sandbox instance's own site.
 
 ### Changed
+- **`keys issue` mints in the instance's world.** Left out, `--env` is the gateway's own
+  `PINECALL_WORLD` instead of production, and naming the other world is `400`: the sandbox
+  instance's worker key came out production's at the cutover and its every heartbeat was refused.
 - **`make deploy` never leaves a box that cannot start**: the manifest's second half, `make -C
   infra/box converge`, runs once the virtualenv is built and stops the deploy — before a unit is
   enabled or a Caddy site moves — when a listed instance lacks its file, a domain and port, or a

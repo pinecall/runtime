@@ -14,12 +14,14 @@ from pinecall.api._deps import (
     MemoryDep,
     OrgsDep,
     RoutesDep,
+    SettingsDep,
     StoreDep,
     an_org,
 )
 from pinecall.api._operator import an_operator
 from pinecall.api._placing import DialPoliciesDep
 from pinecall.api.agents.registry import RegistryDep
+from pinecall.api.keys import in_this_world
 from pinecall.auth.keys import ListedKey
 from pinecall.types import (
     KEY_SCOPES,
@@ -30,7 +32,6 @@ from pinecall.types import (
     Org,
     Quotas,
     a_slug,
-    an_env,
     key_scopes,
 )
 from pinecall_protocol import WireModel
@@ -71,9 +72,10 @@ class WantedKey(WireModel):
     """What `keys issue` sends: what the key is for, where it opens, what it may do, whose it is."""
 
     label: str | None = None
-    # Production unless the operator says: the key a box's worker and app run on is the deployed
-    # world's, and a sandbox key is the deliberate act of issuing one for a laptop.
-    env: str = PRODUCTION
+    # The instance's world when left out, and refused when it names the other: an instance IS one
+    # world, and a key minted here for the other would open nothing there — the sandbox's worker
+    # key came out production's at the cutover and every heartbeat was refused (2026-09-25).
+    env: str | None = None
     # Every scope when left out, which is what an org's own machine key holds. A person's key is
     # issued with the scopes their role presets.
     scopes: list[str] | None = None
@@ -279,11 +281,14 @@ async def set_dialling(
 # The ONE response in the whole runtime that carries a key in the clear. It is built here, read
 # once by the terminal that asked for it, and stored by nobody: docs/decisions/keys.md.
 @operator.post("/orgs/{named}/keys")
-async def issue(named: str, said: WantedKey, orgs: OrgsDep, keys: KeysDep) -> dict[str, Any]:
-    """Mint a key for the org and answer with it, the once. The table keeps its sha256."""
+async def issue(
+    named: str, said: WantedKey, orgs: OrgsDep, keys: KeysDep, settings: SettingsDep
+) -> dict[str, Any]:
+    """Mint a key for the org, in this instance's world, and answer with it, the once. The table
+    keeps its sha256."""
     org = await an_org(named, orgs)
+    env = in_this_world(said.env, settings)
     try:
-        env = an_env(said.env)
         scopes = KEY_SCOPES if said.scopes is None else key_scopes(said.scopes)
     except DeclarationRefused as refused:
         raise HTTPException(400, str(refused)) from refused

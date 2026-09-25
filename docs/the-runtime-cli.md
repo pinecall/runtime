@@ -168,9 +168,9 @@ pinecall-runtime keys revoke <fingerprint>
 ```
 
 ```console
-$ pinecall-runtime keys issue --org clinica --label "berna's laptop" --env sandbox
-pc_test_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  org clinica · sandbox · berna's laptop
+$ pinecall-runtime keys issue --org clinica --label "the ci job"
+pc_live_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  org clinica · production · the ci job
   every scope
   copy it now: the table keeps the fingerprint, and the key is never shown again
 ```
@@ -179,11 +179,11 @@ That sentence is the whole group: the table stores a sha256 and **no verb anywhe
 back**. `list` prints fingerprint, world, label, whose, and whether it is revoked. `revoke` stops
 honouring the key whose fingerprint `list` printed; the row and history stay, so log entries naming
 it remain readable. Issue one key per place — a laptop, CI, each deployment — with a label, because
-a key you can revoke on its own is a key you will revoke. `--env` is **the key knowing where**: the
-agents registered on it, the doors they claim and every call they take are that world's, and the
-gateway keeps production and the sandbox apart — the same slug held once in each, a number in one
-refused to the other; the prefix says it (`pc_live_`, `pc_test_`). A box's worker and app run on a
-production key, the default. `--scope`, repeatable, is what the key may do (`app` · `calls` · `talk` · `supervise` ·
+a key you can revoke on its own is a key you will revoke. A key is minted in **the world of the
+instance the verb knocks at** — its `PINECALL_WORLD`, and the prefix says it (`pc_live_`,
+`pc_test_`): the sandbox instance's worker key is the sandbox's, production's is production's.
+`--env` may only name that same world; the other one is `400`, with the URL where it answers,
+because a key minted here for the other instance would open nothing in either. `--scope`, repeatable, is what the key may do (`app` · `calls` · `talk` · `supervise` ·
 `pipeline` · `words` — the org's lexicon — · `knowledge` · `memory` · `evals` · `numbers` ·
 `keys` — the org's own API keys — · `providers` — the vendor keys it brought — · `team` · `usage`
 · `fleet`); left out is every scope

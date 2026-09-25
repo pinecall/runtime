@@ -49,10 +49,10 @@ async def test_issue_prints_the_key_alone_on_stdout_and_the_words_about_it_on_st
     assert "never shown again" in said[2]
 
 
-async def test_issue_takes_the_world_the_scopes_and_the_person_and_the_listing_shows_them(
+async def test_issue_takes_the_scopes_and_the_person_and_the_listing_shows_them(
     operator: Operator, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """`--env development --scope calls --scope talk --subject m_1 --name Berna`, as typed."""
+    """`--scope calls --scope talk --subject m_1 --name Berna`, as typed."""
     out = printed()
     assert (
         await issue_key(
@@ -60,7 +60,6 @@ async def test_issue_takes_the_world_the_scopes_and_the_person_and_the_listing_s
             "berna's laptop",
             operator,
             out,
-            env="sandbox",
             scopes=["talk", "calls"],
             subject="m_1",
             name="Berna",
@@ -68,12 +67,17 @@ async def test_issue_takes_the_world_the_scopes_and_the_person_and_the_listing_s
         == 0
     )
     said = capsys.readouterr().err.splitlines()
-    assert "sandbox" in said[0]
+    assert "production" in said[0]
     assert said[1].strip() == "scopes calls · talk"
     listing = printed()
     await list_keys(ORG, operator, listing)
-    assert "sandbox" in listing.getvalue()
     assert "Berna" in listing.getvalue()
+
+
+async def test_issue_refuses_the_other_world_in_the_gateways_words(operator: Operator) -> None:
+    """An instance mints its own world's keys: `--env sandbox` at production is a refusal."""
+    with pytest.raises(OperatorRefused, match="400.*sandbox"):
+        await issue_key(ORG, None, operator, printed(), env="sandbox")
 
 
 async def test_issue_refuses_a_world_that_is_not_one_in_the_gateways_words(

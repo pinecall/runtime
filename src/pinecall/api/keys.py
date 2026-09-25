@@ -6,11 +6,12 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from pinecall._settings import Settings
 from pinecall.api._deps import AppKeyDep, KeyDep, KeysDep, MembersDep, SettingsDep
 from pinecall.auth.corner import author_of
 from pinecall.auth.keys import KeyRecord, ListedKey
 from pinecall.auth.world import THE_OTHER_GATEWAY, a_person
-from pinecall.types import DeclarationRefused, an_env
+from pinecall.types import DeclarationRefused, Env, an_env
 from pinecall_protocol import WireModel
 
 # The tenant's own three doors, on the org's API key, exactly as every other tenant door. They
@@ -71,20 +72,29 @@ async def issue(
     settings: SettingsDep,
 ) -> dict[str, Any]:
     """A server's token for this org, in this instance's world, answered once."""
-    try:
-        env = an_env(said.env)
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
-    if env != settings.world:
-        elsewhere = settings.elsewhere_url or THE_OTHER_GATEWAY
-        said_so = ANOTHER_WORLDS_TOKEN.format(here=settings.world, asked=env, elsewhere=elsewhere)
-        raise HTTPException(400, said_so)
+    env = in_this_world(said.env, settings)
     if not a_person(key):
         raise HTTPException(403, BY_A_PERSON)
     issued = await keys.issue(
         org=key.org, label=said.label, env=env, scopes=SERVER_SCOPES, created_by=author_of(key)
     )
     return issued.as_json
+
+
+def in_this_world(asked: str | None, settings: Settings) -> Env:
+    """The world a key is minted in: the instance's own, whether named or left out — the one check
+    of both doors that mint, the tenant's and the operator's. 400 on a word or the other world."""
+    if asked is None:
+        return settings.world
+    try:
+        env = an_env(asked)
+    except DeclarationRefused as refused:
+        raise HTTPException(400, str(refused)) from refused
+    if env != settings.world:
+        elsewhere = settings.elsewhere_url or THE_OTHER_GATEWAY
+        said_so = ANOTHER_WORLDS_TOKEN.format(here=settings.world, asked=env, elsewhere=elsewhere)
+        raise HTTPException(400, said_so)
+    return env
 
 
 # A POST and not a DELETE, because nothing is deleted: the row stays and grows a timestamp, so the

@@ -10,7 +10,7 @@ from typing import Any, TextIO
 from pinecall.auth.keys import Issued, KeyRecord
 from pinecall.cli.columns import as_columns
 from pinecall.cli.operator import Operator, against_the_gateway, with_an_org
-from pinecall.types import ENVS, EVERY_SCOPE, KEY_SCOPES, PRODUCTION, an_env
+from pinecall.types import ENVS, EVERY_SCOPE, KEY_SCOPES, an_env
 
 PURPOSE: str = "the org's API keys: issue | list | revoke"
 VERBS: tuple[str, ...] = ("issue", "list", "revoke")
@@ -42,9 +42,9 @@ def configure(parser: argparse.ArgumentParser) -> None:
     issuing.add_argument("--label", default=None, help="what this key is for, for the listing")
     issuing.add_argument(
         "--env",
-        default=PRODUCTION,
+        default=None,
         choices=sorted(ENVS),
-        help=f"which world the key opens (default {PRODUCTION})",
+        help="which world the key opens: the gateway's own, which is also the default",
     )
     issuing.add_argument(
         "--scope",
@@ -106,13 +106,16 @@ async def issue_key(
     operator: Operator,
     out: TextIO = sys.stdout,
     *,
-    env: str = PRODUCTION,
+    env: str | None = None,
     scopes: list[str] | None = None,
     subject: str | None = None,
     name: str | None = None,
 ) -> int:
     """Mint one key on the gateway's side and show it here, the once."""
-    said: dict[str, Any] = {"label": label, "env": env, "subject": subject, "name": name}
+    # Left out, the gateway mints in its own world: the body names one only when the operator did.
+    said: dict[str, Any] = {"label": label, "subject": subject, "name": name}
+    if env is not None:
+        said["env"] = env
     # Left out means every scope, and the door says so too: the body carries the list only when
     # the operator named one, so the two defaults cannot drift apart.
     if scopes is not None:
