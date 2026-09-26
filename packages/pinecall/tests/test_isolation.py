@@ -1,11 +1,14 @@
 """Which package may import which, read off every import in the tree with ast, never a regex."""
 
+import tomllib
 from collections.abc import Sequence
+from pathlib import Path
 
 import pytest
 
 from pinecall_testkit.tree import (
     CORE_ROOT,
+    DISTRIBUTIONS,
     SOURCE_ROOTS,
     PythonModule,
     modules_under,
@@ -185,6 +188,44 @@ EVERYBODYS = frozenset(path.stem for root in SOURCE_ROOTS for path in root.glob(
     "errors",
     "settings",
 }
+
+
+# Every distribution's pyproject is the table again, one level up: the distributions its
+# packages import, and nothing else, pinned — so an import across a distribution nobody declared
+# fails here and not on the first machine that installed one wheel without the other.
+@pytest.mark.parametrize(
+    "distribution",
+    [d for d in DISTRIBUTIONS if (d / "src" / "pinecall").is_dir()],
+    ids=lambda d: d.name,
+)
+def test_every_distribution_declares_exactly_the_distributions_its_packages_import(
+    distribution: Path,
+) -> None:
+    owner = {
+        package.name: root.parents[1].name
+        for root in SOURCE_ROOTS
+        for package in root.iterdir()
+        if package.is_dir() or package.suffix == ".py"
+    }
+    source = distribution / "src" / "pinecall"
+    imported = {
+        owner[name.removesuffix(".py")]
+        for module in modules_under(source)
+        for name in _pinecall_modules_named_by(module)
+        if name.removesuffix(".py") in owner
+    } - {distribution.name}
+    project = tomllib.loads((distribution / "pyproject.toml").read_text(encoding="utf-8"))[
+        "project"
+    ]
+    declared = {
+        requirement.split("==")[0].split(">=")[0]
+        for requirement in project.get("dependencies", [])
+        if requirement.startswith("pinecall-") and not requirement.startswith("pinecall-protocol")
+    }
+    assert declared == imported, (
+        f"{distribution.name} declares {sorted(declared - imported)} it does not import and "
+        f"imports {sorted(imported - declared)} it does not declare"
+    )
 
 
 def _pinecall_modules_named_by(module: PythonModule) -> set[str]:
