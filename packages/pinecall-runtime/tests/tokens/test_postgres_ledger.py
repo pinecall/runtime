@@ -6,7 +6,8 @@ from collections.abc import AsyncIterator
 import pytest
 
 from pinecall.db import open_pool
-from pinecall.tokens.ledger import PostgresTokens, TokenRecord
+from pinecall.tokens.ledger import TokenRecord
+from pinecall.tokens.ledger_postgres import PostgresTokens
 from tests.postgres import Dev
 
 # It lives here and not beside the door it serves, for the reason tests/log/test_routes_table.py

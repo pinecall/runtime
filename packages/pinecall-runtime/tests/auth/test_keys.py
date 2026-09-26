@@ -13,11 +13,11 @@ from pinecall.auth.keys import (
     PRODUCTION_PREFIX,
     SANDBOX_PREFIX,
     KeyRecord,
-    MemoryKeys,
     fingerprint,
     keys_for,
     mint,
 )
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.keys_postgres import PostgresKeys
 from pinecall.auth.visitor_keys import StandingKeys
 from pinecall.db import MIGRATIONS

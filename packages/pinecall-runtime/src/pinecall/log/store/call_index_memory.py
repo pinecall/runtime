@@ -65,7 +65,7 @@ class StillOpen:
     spoken: bool
     channel: str | None = None
     # Whether the call ever reached `call.started`. One that never did is no text session in
-    # progress, so the reaper takes it whatever channel it rang on (index_statements.py).
+    # progress, so the reaper takes it whatever channel it rang on (call_index_sql.py).
     started: bool = True
 
 

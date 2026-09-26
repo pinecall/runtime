@@ -8,7 +8,7 @@ import pytest
 from pinecall.api.agents.registry import Registry
 from pinecall.api.whatsapp.threads import Threads
 from pinecall.log.store import MemoryStore
-from pinecall.routes.records import MemoryRoutes
+from pinecall.routes.records_memory import MemoryRoutes
 from tests.api.conftest import AGENT
 from tests.api.fake_graph import FakeGraph
 from tests.api.whatsapp.conftest import (

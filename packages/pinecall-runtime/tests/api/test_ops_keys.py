@@ -3,7 +3,8 @@
 import httpx
 import pytest
 
-from pinecall.auth.keys import PRODUCTION_PREFIX, MemoryKeys, fingerprint
+from pinecall.auth.keys import PRODUCTION_PREFIX, fingerprint
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.settings import Settings
 from pinecall.types import KEY_SCOPES, PRODUCTION, SANDBOX
 from tests.api.conftest import AN_OPS_KEY, over_the_asgi_app

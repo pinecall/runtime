@@ -5,9 +5,10 @@ from __future__ import annotations
 import pytest
 
 from pinecall.api.agents.registry import Registry
-from pinecall.auth.keys import KeyRecord, MemoryKeys
+from pinecall.auth.keys import KeyRecord
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.log.store import MemoryStore
-from pinecall.orgs.tuning_store import MemoryTuning
+from pinecall.orgs.tuning_store_memory import MemoryTuning
 from pinecall.types import PRODUCTION, Docs, MemoryPolicy, Tuning
 from pinecall.worker.gateway_client import Gateway
 from pinecall.worker.gateway_http import GatewayRefused

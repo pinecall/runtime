@@ -112,6 +112,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   none; a suite's run held one per run and closed it never.
 
 ### Changed
+- **Every store is a port and two adapters, one convention.** Sixteen modules bundled a store's
+  Protocol with its in-memory and its Postgres implementation; each is three files now —
+  `<port>.py` (the Protocol, its records, its errors, `<port>_for`), `<port>_memory.py`,
+  `<port>_postgres.py` — as `auth/members*.py` already were, and SQL lives in a `*_postgres.py`,
+  a `*_sql.py` or `db/` and nowhere else. `Personas` was the Postgres class itself, with the memory
+  store inheriting from it; it is a `Protocol` with two adapters. `HoldAudio` was a union of the two
+  concrete stores; it is a `Protocol`. `tests/test_ports_and_adapters.py` holds all three rules.
 - **The database is a package, `pinecall.db`.** The pool, the migration runner, the DSN and
   schema helpers and the migrations themselves lived inside the call log's store; they are
   `db/{connecting,pool,migrating}.py` and `db/migrations/` now, and `asyncpg` is named under `db/`

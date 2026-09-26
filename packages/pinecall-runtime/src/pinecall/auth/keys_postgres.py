@@ -5,14 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pinecall.auth.keys import (
-    Issued,
-    KeyRecord,
-    ListedKey,
-    fingerprint,
-    mint,
-    new_key_id,
-)
+from pinecall.auth.keys import Issued, KeyRecord, ListedKey, fingerprint, mint, new_key_id
 from pinecall.db import Pool
 from pinecall.types import KEY_SCOPES, PRODUCTION, Env, parse_env
 

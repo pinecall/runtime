@@ -9,9 +9,10 @@ from starlette.testclient import TestClient
 
 from pinecall.api.app import app
 from pinecall.api.evals.personas import get_personas
-from pinecall.auth.keys import KeyRecord, MemoryKeys
+from pinecall.auth.keys import KeyRecord
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.log.store import MemoryStore
-from pinecall.orgs.personas import MemoryPersonas
+from pinecall.orgs.personas_memory import MemoryPersonas
 from tests.api.conftest import A_KEY, A_RECORD
 from tests.api.talking import got
 

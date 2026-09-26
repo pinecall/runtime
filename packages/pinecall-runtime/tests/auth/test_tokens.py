@@ -5,7 +5,8 @@ import time
 import pytest
 from livekit.api import AccessToken, TokenVerifier, VideoGrants
 
-from pinecall.auth.keys import KeyRecord, MemoryKeys
+from pinecall.auth.keys import KeyRecord
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.scopes import (
     KEY_PROJECTION,
     PROJECTION_OF,

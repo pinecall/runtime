@@ -2,7 +2,7 @@
 
 import pytest
 
-from pinecall.auth.keys import MemoryKeys
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.visitor_keys import StandingKeys, operator_member, visitor_email, visitor_subject
 from pinecall.types import Member

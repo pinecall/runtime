@@ -13,7 +13,7 @@ from pinecall.auth.signups import ATTEMPTS, CODE_TTL_S, PendingSignups
 from pinecall.auth.throttle import TRIES_PER_WINDOW
 from pinecall.mail.outbox import Outbox
 from pinecall.mail.smtp import Mailbox
-from pinecall.orgs.records import MemoryOrgs
+from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.settings import Settings
 from tests.api.accounts.test_signup import A_CODE, TIENDA, VERIFY, asked, the_code_mailed
 from tests.api.conftest import A_LIVEKIT, A_VAULT_KEY, AN_OPS_KEY, over_the_asgi_app

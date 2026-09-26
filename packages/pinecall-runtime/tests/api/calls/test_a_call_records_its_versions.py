@@ -6,7 +6,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from pinecall.log.store import MemoryStore
-from pinecall.orgs.tuning_store import MemoryTuning
+from pinecall.orgs.tuning_store_memory import MemoryTuning
 from pinecall.types import PRODUCTION, Lexicon, Model, Tuning
 from tests.api.conftest import A_RECORD, AGENT
 from tests.api.talking import a_call_the_app_ends, an_app, declared, got

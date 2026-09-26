@@ -9,9 +9,9 @@ import httpx
 import pytest
 
 from pinecall.api.accounts.signup import ALREADY_INVITED
-from pinecall.auth.keys import MemoryKeys
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.mail.smtp import Mailbox
-from pinecall.orgs.records import MemoryOrgs
+from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.settings import Settings
 from tests.api.conftest import A_LIVEKIT, A_RECORD, A_VAULT_KEY, AN_OPS_KEY, over_the_asgi_app
 from tests.api.mailing import A_BOX_SENDER

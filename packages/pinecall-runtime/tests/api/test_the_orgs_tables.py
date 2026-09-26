@@ -9,10 +9,11 @@ from starlette.testclient import TestClient
 
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.env import ENV_HEADER
-from pinecall.auth.keys import KeyRecord, MemoryKeys
+from pinecall.auth.keys import KeyRecord
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.log.store import MemoryStore
-from pinecall.routes.records import MemoryRoutes
+from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.settings import Settings
 from pinecall.types import PRODUCTION, SANDBOX, Member, Route
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, Json

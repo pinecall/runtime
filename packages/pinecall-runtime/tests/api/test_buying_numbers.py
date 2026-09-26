@@ -7,8 +7,8 @@ import pytest
 
 from pinecall.api.accounts.identity import BOUGHT_THERE
 from pinecall.api.telephony.managed_numbers import NO_BOX_CARRIER, NONE_FOR_SALE
-from pinecall.orgs.records import MemoryOrgs
-from pinecall.routes.records import MemoryRoutes
+from pinecall.orgs.records_memory import MemoryOrgs
+from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.routes.twilio import TWILIO_SIGNALLING
 from pinecall.settings import Settings
 from pinecall.types import PRODUCTION, Quotas

@@ -12,7 +12,8 @@ from starlette.websockets import WebSocketDisconnect
 from pinecall.api.agents.registry import Registry
 from pinecall.api.calls.events import BAD_VERB, VERB_REFUSED
 from pinecall.api.live import Live
-from pinecall.auth.keys import KeyRecord, MemoryKeys
+from pinecall.auth.keys import KeyRecord
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.types import PRODUCTION, SANDBOX

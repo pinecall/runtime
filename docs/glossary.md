@@ -19,6 +19,7 @@ here and the code disagree, the code is what happened and this page is the bug.
 | **credstore** | systemd's encrypted credentials, where every secret on a box lives; a unit loads its own by name |
 | **peer** | the other instance — production's sandbox, a sandbox's production — and the fleet key each holds of the other |
 | **core** | `pinecall-core`, `packages/pinecall-core`: `pinecall.types`, `pinecall.extensions`, `pinecall.errors` — the shapes and the points a policy plugs into, a distribution of its own on the standard library alone. The runtime depends on it; so does a policy (`cloud/`), which never installs the runtime |
+| **port** · **adapter** | a store's contract and its two implementations: `<port>.py` holds the `Protocol` (`Orgs`, `Keys`, `Personas`), `<port>_memory.py` the in-memory adapter the unit ring runs on, `<port>_postgres.py` the one a box runs, with its SQL. `<port>_for(pool)` picks. `tests/test_ports_and_adapters.py` holds the convention |
 
 ## A request
 

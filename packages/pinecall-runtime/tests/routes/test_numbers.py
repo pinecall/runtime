@@ -3,7 +3,7 @@
 import pytest
 
 from pinecall.routes import numbers
-from pinecall.routes.records import MemoryRoutes
+from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.types import SANDBOX, Route
 
 pytestmark = pytest.mark.unit

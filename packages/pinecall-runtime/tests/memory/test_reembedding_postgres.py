@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from pinecall.memory.reembedding import reembed
+from pinecall.memory.reembedding_postgres import reembed
 from pinecall.providers.embedder import DIMENSIONS
 from tests.pools import Held, acquired
 

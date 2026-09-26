@@ -7,9 +7,10 @@ from datetime import UTC, date, datetime
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
+from pinecall.auth.keys import NOT_OPENED, KeyRecord
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.log.store import MemoryStore
-from pinecall.orgs.records import MemoryOrgs
+from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.types import Quotas
 from pinecall.types.json import JsonObject
 from tests.api.conftest import A_KEY, A_RECORD

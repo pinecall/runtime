@@ -27,70 +27,19 @@ class Carriers(Protocol):
         ...
 
 
-class MemoryCarriers:
-    """The table of a clone with a dev key and no Postgres: the same cipher, forgotten on exit."""
-
-    def __init__(self, cipher: Cipher) -> None:
-        self._cipher = cipher
-        self._rows: dict[str, tuple[str, str, str]] = {}
-
-    async def put(self, carrier: Carrier) -> None:
-        """Encrypted here too, so a dev clone and a box behave alike down to the stored bytes."""
-        self._rows[carrier.org] = (carrier.kind, carrier.named, _sealed(self._cipher, carrier))
-
-    async def of(self, org: str) -> Carrier | None:
-        """Whether there is one, and what it opens to."""
-        row = self._rows.get(org)
-        return None if row is None else _opened(self._cipher, org, row[0], row[2])
-
-    async def drop(self, org: str) -> bool:
-        """Whether there was a row to forget."""
-        return self._rows.pop(org, None) is not None
-
-
-_PUT = """
-INSERT INTO carriers (org, kind, account, ciphertext, set_at) VALUES ($1, $2, $3, $4, now())
-    ON CONFLICT (org) DO UPDATE
-    SET kind = excluded.kind, account = excluded.account, ciphertext = excluded.ciphertext,
-        set_at = now()
-"""
-_OF = "SELECT kind, ciphertext FROM carriers WHERE org = $1"
-_DROP = "DELETE FROM carriers WHERE org = $1 RETURNING org"
-
-
-class PostgresCarriers:
-    """The table in Postgres, read on every ask: a carrier set now is what the next import uses."""
-
-    def __init__(self, pool: Pool, cipher: Cipher) -> None:
-        self._pool = pool
-        self._cipher = cipher
-
-    async def put(self, carrier: Carrier) -> None:
-        """The credentials reach this method in the clear and nothing under it: a token is kept."""
-        await self._pool.execute(
-            _PUT, carrier.org, carrier.kind, carrier.named, _sealed(self._cipher, carrier)
-        )
-
-    async def of(self, org: str) -> Carrier | None:
-        """One read on the primary key, decrypted for the door that acts on the account."""
-        row = await self._pool.fetchrow(_OF, org)
-        if row is None:
-            return None
-        return _opened(self._cipher, org, str(row["kind"]), str(row["ciphertext"]))
-
-    async def drop(self, org: str) -> bool:
-        """The command tag says whether a row went, so dropping a stranger is told apart."""
-        return await self._pool.fetchrow(_DROP, org) is not None
-
-
 # None when the box was given no vault key: the doors that need one answer 503 in the vault's own
 # sentence (NO_VAULT_KEY): a carrier's credentials are a secret exactly as a provider key is.
 def carriers_for(settings: Settings, pool: Pool | None) -> Carriers | None:
     """Postgres when the process opened one, memory on a dev key, none when no vault key was set."""
+    # Imported here: both adapters import this module for the port, and the one place that
+    # picks between them is the one place the cycle would close (auth/members.py).
+    from pinecall.orgs.carriers_memory import MemoryCarriers
+    from pinecall.orgs.carriers_postgres import PostgresCarriers
+
     return sealed_store(settings, pool, memory=MemoryCarriers, postgres=PostgresCarriers)
 
 
-def _sealed(cipher: Cipher, carrier: Carrier) -> str:
+def sealed(cipher: Cipher, carrier: Carrier) -> str:
     """The credentials as a row keeps them: one Fernet token over their JSON."""
     account = carrier.account
     said: dict[str, Any] = (
@@ -109,7 +58,7 @@ def _sealed(cipher: Cipher, carrier: Carrier) -> str:
     return seal(cipher, json.dumps(said))
 
 
-def _opened(cipher: Cipher, org: str, kind: str, ciphertext: str) -> Carrier:
+def opened(cipher: Cipher, org: str, kind: str, ciphertext: str) -> Carrier:
     """One row back into the domain's own Carrier, the credentials in the clear."""
     said: dict[str, Any] = json.loads(unseal(cipher, ciphertext))
     if parse_carrier_kind(kind) == "twilio":
@@ -137,11 +86,4 @@ def _opened(cipher: Cipher, org: str, kind: str, ciphertext: str) -> Carrier:
     )
 
 
-__all__ = [
-    "NO_VAULT_KEY",
-    "Carriers",
-    "MemoryCarriers",
-    "NoVaultKey",
-    "PostgresCarriers",
-    "carriers_for",
-]
+__all__ = ["NO_VAULT_KEY", "Carriers", "NoVaultKey", "carriers_for"]

@@ -8,9 +8,10 @@ import httpx
 import pytest
 from starlette.testclient import TestClient, WebSocketTestSession
 
-from pinecall.auth.keys import KeyRecord, MemoryKeys
-from pinecall.orgs.records import MemoryOrgs
-from pinecall.routes.records import MemoryRoutes
+from pinecall.auth.keys import KeyRecord
+from pinecall.auth.keys_memory import MemoryKeys
+from pinecall.orgs.records_memory import MemoryOrgs
+from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.settings import Settings
 from pinecall.types import PRODUCTION, ROLE_SCOPES, SANDBOX, Quotas, Route
 from pinecall.worker.gateway_client import CONTEXT

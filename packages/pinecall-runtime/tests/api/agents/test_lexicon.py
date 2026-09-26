@@ -8,7 +8,8 @@ import httpx
 import pytest
 
 from pinecall.api.agents.registry import Registry
-from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
+from pinecall.auth.keys import NOT_OPENED, KeyRecord
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.settings import Settings
 from pinecall.types import PRODUCTION, ROLE_SCOPES, SANDBOX
 from pinecall_protocol import defs

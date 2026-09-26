@@ -6,7 +6,7 @@ import logging
 
 import pytest
 
-from pinecall.routes.records import MemoryRoutes
+from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.types import PRODUCTION, Route
 from pinecall.whatsapp.number_routes import route_for_number
 from tests.api.conftest import A_RECORD, AGENT

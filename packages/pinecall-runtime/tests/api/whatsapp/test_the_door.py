@@ -12,7 +12,7 @@ from pinecall.api.whatsapp.threads import IDLE_SECONDS, WINDOW_SECONDS, Threads
 from pinecall.log.entry import Entry
 from pinecall.log.store import MemoryStore
 from pinecall.orgs.vault import Vault
-from pinecall.routes.records import MemoryRoutes
+from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.types import PRODUCTION
 from pinecall.whatsapp.cloud_api import GraphRefused
 from pinecall.whatsapp.outbound_replies import NOT_SENT

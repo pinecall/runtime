@@ -9,8 +9,8 @@ import pytest
 
 from pinecall.api.accounts.members import NO_SUCH_MEMBER
 from pinecall.api.accounts.membership import NOT_YOURSELF, NOT_YOURSELF_DISABLED, THE_LAST_ADMIN
-from pinecall.auth.keys import MemoryKeys
-from pinecall.orgs.records import MemoryOrgs
+from pinecall.auth.keys_memory import MemoryKeys
+from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.types import Quotas
 from tests.api.conftest import AN_ORG, over_the_asgi_app
 from tests.api.talking import at_the_console

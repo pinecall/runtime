@@ -11,7 +11,8 @@ from cryptography.fernet import Fernet
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups, OpenCall
-from pinecall.orgs.vault import MemoryVault, brought_by
+from pinecall.orgs.vault import brought_by
+from pinecall.orgs.vault_memory import MemoryVault
 from pinecall.providers.embed.tei import DID_NOT_ANSWER
 from pinecall.providers.embedder import EmbedderUnreachable
 from pinecall.session.lookup_tools import tool_result_json

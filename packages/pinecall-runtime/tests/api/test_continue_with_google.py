@@ -23,7 +23,7 @@ from pinecall.auth.openid import SCOPE
 from pinecall.auth.sso_state import Handshakes
 from pinecall.orgs.box_signin import PROVIDERS
 from pinecall.orgs.org_sso import Sso
-from pinecall.orgs.records import MemoryOrgs
+from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.orgs.vault import NO_VAULT_KEY
 from pinecall.types import Member, OrgSso
 from tests.api.conftest import AN_ORG

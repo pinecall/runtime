@@ -11,7 +11,7 @@ from pinecall.evals.hangup_score import JudgedWhen
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
-from pinecall.orgs.tuning_store import MemoryTuning
+from pinecall.orgs.tuning_store_memory import MemoryTuning
 from pinecall.providers.models import Models
 from pinecall.session.score_step import unjudged_score
 from pinecall.settings import Budgets

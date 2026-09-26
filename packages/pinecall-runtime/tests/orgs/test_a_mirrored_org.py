@@ -6,7 +6,8 @@ from uuid import uuid4
 import pytest
 
 from pinecall.db import Pool, open_pool
-from pinecall.orgs.records import MemoryOrgs, PostgresOrgs
+from pinecall.orgs.records_memory import MemoryOrgs
+from pinecall.orgs.records_postgres import PostgresOrgs
 from pinecall.types import Org
 from tests.postgres import Dev
 

@@ -35,7 +35,8 @@ from pinecall.api.live import Live
 from pinecall.api.sse import get_closing
 from pinecall.api.whatsapp import threads as whatsapp_threads
 from pinecall.api.whatsapp.threads import Threads
-from pinecall.auth.keys import KeyRecord, Keys, MemoryKeys
+from pinecall.auth.keys import KeyRecord, Keys
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.login_codes import LoginCodes
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.pairing import Pairings
@@ -50,22 +51,22 @@ from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.memory import Memory
 from pinecall.orgs.admission import Admission
-from pinecall.orgs.carriers import MemoryCarriers
+from pinecall.orgs.carriers_memory import MemoryCarriers
 from pinecall.orgs.meter import Meter
-from pinecall.orgs.records import MemoryOrgs
-from pinecall.orgs.tuning_store import MemoryTuning
-from pinecall.orgs.vault import MemoryVault, Vault, brought_by
-from pinecall.orgs.widgets import MemoryWidgets
-from pinecall.providers.models import Chat, Models
-from pinecall.routes.records import MemoryRoutes
+from pinecall.orgs.records_memory import MemoryOrgs
+from pinecall.orgs.tuning_store_memory import MemoryTuning
+from pinecall.orgs.vault import Vault, brought_by
+from pinecall.orgs.vault_memory import MemoryVault
+from pinecall.orgs.widgets_memory import MemoryWidgets
+from pinecall.providers.models import Models
+from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.routes.twilio import TwilioFor
 from pinecall.settings import Settings
-from pinecall.tokens.ledger import MemoryTokens
-from pinecall.types import Brought, Model, Org, ProviderKeys
+from pinecall.tokens.ledger_memory import MemoryTokens
+from pinecall.types import Org
 from pinecall.worker.gateway_client import Gateway
 from tests.api.fake_graph import FakeGraph
 from tests.routes.fakes import MemoryTrunks
-from tests.session.fake_llm import FakeLLM
 from tests.vectors import HashEmbedder
 
 A_KEY = "pk_test_a_key_nobody_will_ever_deploy"
@@ -238,36 +239,6 @@ def graph() -> FakeGraph:
 def threads() -> Threads:
     """The WhatsApp conversations open here, none at the start of a test and none inherited."""
     return Threads()
-
-
-@pytest.fixture
-def llm() -> FakeLLM:
-    """The model this gateway answers with: scripted, so a unit test never reaches a vendor."""
-    return FakeLLM()
-
-
-@pytest.fixture
-def models_asked() -> list[Model | None]:
-    """Every model the gateway asked the provider table for: what a session was built with."""
-    return []
-
-
-@pytest.fixture
-def keys_asked() -> list[ProviderKeys]:
-    """Whose keys the gateway asked each model to be built with: empty is the box's own."""
-    return []
-
-
-@pytest.fixture
-def llms(llm: FakeLLM, models_asked: list[Model | None], keys_asked: list[ProviderKeys]) -> Models:
-    """The provider table: what the agent declared is remembered, and the scripted model answers."""
-
-    def ask(declared: Model | None, brought: Brought) -> Chat:
-        models_asked.append(declared)
-        keys_asked.append(brought.keys)
-        return llm
-
-    return ask
 
 
 # Every dependency the lifespan would have opened, answered from the fixtures instead. One fixture,

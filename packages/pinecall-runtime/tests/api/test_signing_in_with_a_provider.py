@@ -15,7 +15,7 @@ from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.openid import SCOPE
 from pinecall.auth.sso_state import Handshakes
 from pinecall.orgs.org_sso import Sso
-from pinecall.orgs.records import MemoryOrgs
+from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.types import Member, OrgSso, Quotas, Role
 from tests.api.conftest import AN_ORG
 from tests.api.fake_idp import CLIENT_ID, CLIENT_SECRET, ISSUER, FakeIdp

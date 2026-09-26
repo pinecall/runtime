@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from pinecall.api.agents.registry import Registry
-from pinecall.orgs.tuning_store import MemoryTuning
+from pinecall.orgs.tuning_store_memory import MemoryTuning
 from pinecall.types import PRODUCTION, MemoryPolicy, Tuning
 from pinecall_protocol import defs
 from tests.api.conftest import A_RECORD, AGENT

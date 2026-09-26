@@ -7,7 +7,7 @@ import pytest
 
 from pinecall.api.app import app
 from pinecall.api.deps import get_signups
-from pinecall.auth.keys import MemoryKeys
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.login_codes import LoginCodes
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.pairing import Pairings

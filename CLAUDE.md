@@ -92,7 +92,8 @@ happened and the doc is the bug.
 
 ## What a review comes back to
 
-One definition per thing — `grep` before writing a constant, a parser, a helper. No dead code and
+A store is a port and two adapters: `<port>.py` (the Protocol, its records, `<port>_for`),
+`<port>_memory.py`, `<port>_postgres.py` — SQL lives there and in `db/`, nowhere else. One definition per thing — `grep` before writing a constant, a parser, a helper. No dead code and
 no code "for later": a symbol with no user outside its file and its test goes in the commit that
 notices it. No module-level mutable state — per call, per request, or a contextvar. The library
 first: name the livekit-agents / livekit-api / pydantic / FastAPI module that already does it, and

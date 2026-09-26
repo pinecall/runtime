@@ -7,7 +7,8 @@ from collections.abc import AsyncIterator
 import httpx
 import pytest
 
-from pinecall.auth.keys import PERSONS_PREFIX, KeyRecord, MemoryKeys
+from pinecall.auth.keys import PERSONS_PREFIX, KeyRecord
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.pairing import CODE_TTL_S, Pairings
 from pinecall.types import PRODUCTION, SANDBOX, Member

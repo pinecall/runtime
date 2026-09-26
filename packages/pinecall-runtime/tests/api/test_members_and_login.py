@@ -16,7 +16,7 @@ from pinecall.api.accounts.login import (
 )
 from pinecall.api.accounts.members import ALREADY_A_MEMBER, NO_INVITATION
 from pinecall.api.accounts.membership import NOT_BY_HAND
-from pinecall.auth.keys import MemoryKeys
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.throttle import TRIES_PER_WINDOW
 from pinecall.settings import Settings
 from pinecall.types import ROLE_SCOPES

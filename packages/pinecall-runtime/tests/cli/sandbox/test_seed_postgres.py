@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from pinecall.cli.sandbox.seed import seed
+from pinecall.cli.sandbox.seed_postgres import seed
 from pinecall.db import Pool, apply_migrations, open_pool
 from tests.cli.conftest import Dev
 

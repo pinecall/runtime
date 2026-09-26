@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
-from typing import Any, Protocol
+from collections.abc import Callable
+from typing import Protocol
 
 from cryptography.fernet import Fernet, MultiFernet
 
@@ -52,80 +52,16 @@ class Vault(Protocol):
         ...
 
 
-class MemoryVault:
-    """The vault of a clone with a dev key and no Postgres: the same cipher, forgotten on exit."""
-
-    def __init__(self, cipher: Cipher) -> None:
-        self._cipher = cipher
-        self._rows: dict[tuple[str, str], str] = {}
-
-    async def put(self, org: str, vendor: str, key: str) -> None:
-        """Encrypted here too, so a dev clone and a box behave alike down to the stored bytes."""
-        self._rows[(org, vendor)] = seal(self._cipher, key)
-
-    async def drop(self, org: str, vendor: str) -> bool:
-        """Whether there was a row to forget."""
-        return self._rows.pop((org, vendor), None) is not None
-
-    async def vendors_of(self, org: str) -> tuple[str, ...]:
-        """In the order a listing reads them, which is alphabetical."""
-        return tuple(sorted(vendor for (kept, vendor) in self._rows if kept == org))
-
-    async def keys_of(self, org: str) -> ProviderKeys:
-        """Every key this org brought, decrypted."""
-        return {
-            vendor: unseal(self._cipher, ciphertext)
-            for (kept, vendor), ciphertext in self._rows.items()
-            if kept == org
-        }
-
-
-# One row per (org, vendor), replaced whole: a tenant who rotates a key sets it again and the
-# previous ciphertext goes with it. There is deliberately no history of a secret in this table.
-_PUT = """
-INSERT INTO provider_keys (org, vendor, ciphertext, set_at)
-    VALUES ($1, $2, $3, now())
-    ON CONFLICT (org, vendor) DO UPDATE
-    SET ciphertext = excluded.ciphertext, set_at = now()
-"""
-
-_DROP = "DELETE FROM provider_keys WHERE org = $1 AND vendor = $2 RETURNING vendor"
-
-_VENDORS = "SELECT vendor FROM provider_keys WHERE org = $1 ORDER BY vendor"
-
-_KEYS = "SELECT vendor, ciphertext FROM provider_keys WHERE org = $1"
-
-
-class PostgresVault:
-    """The table in Postgres, read on every call: a key set now is used by the next call."""
-
-    def __init__(self, pool: Pool, cipher: Cipher) -> None:
-        self._pool = pool
-        self._cipher = cipher
-
-    async def put(self, org: str, vendor: str, key: str) -> None:
-        """The key in the clear reaches this method and nothing under it: the row holds a token."""
-        await self._pool.execute(_PUT, org, vendor, seal(self._cipher, key))
-
-    async def drop(self, org: str, vendor: str) -> bool:
-        """The row RETURNING says whether one went, so dropping a stranger is told apart."""
-        return await self._pool.fetchrow(_DROP, org, vendor) is not None
-
-    async def vendors_of(self, org: str) -> tuple[str, ...]:
-        """Names only. This is what an operator's listing is built from."""
-        return tuple(str(row["vendor"]) for row in await self._pool.fetch(_VENDORS, org))
-
-    async def keys_of(self, org: str) -> ProviderKeys:
-        """Every key this org brought, decrypted for the one door that may carry them."""
-        rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(_KEYS, org)
-        return {str(row["vendor"]): unseal(self._cipher, str(row["ciphertext"])) for row in rows}
-
-
 # None is an answer here and not a failure, which is why the vault is the one thing of the process
 # that api/deps.py:held does not fetch: a runtime given no vault key holds nobody's key, runs
 # every call on the box's own vendor keys, and is a complete self-hosted install.
 def vault_for(settings: Settings, pool: Pool | None) -> Vault | None:
     """Postgres when the process opened one, memory on a dev key, none when no key was set."""
+    # Imported here: both adapters import this module for the port, and the one place that
+    # picks between them is the one place the cycle would close (auth/members.py).
+    from pinecall.orgs.vault_memory import MemoryVault
+    from pinecall.orgs.vault_postgres import PostgresVault
+
     return sealed_store(settings, pool, memory=MemoryVault, postgres=PostgresVault)
 
 

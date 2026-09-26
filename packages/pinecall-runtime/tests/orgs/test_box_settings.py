@@ -7,12 +7,9 @@ import pytest
 from cryptography.fernet import Fernet
 
 from pinecall.db import Pool, open_pool
-from pinecall.orgs.box_settings import (
-    BoxSetting,
-    MemoryBoxSettings,
-    PostgresBoxSettings,
-    box_settings_for,
-)
+from pinecall.orgs.box_settings import BoxSetting, box_settings_for
+from pinecall.orgs.box_settings_memory import MemoryBoxSettings
+from pinecall.orgs.box_settings_postgres import PostgresBoxSettings
 from pinecall.orgs.vault import NoVaultKey
 from pinecall.settings import Settings
 from tests.postgres import Dev

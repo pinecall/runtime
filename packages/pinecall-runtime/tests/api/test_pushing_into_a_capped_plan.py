@@ -7,10 +7,11 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from pinecall.auth.keys import KeyRecord, MemoryKeys
+from pinecall.auth.keys import KeyRecord
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.db import open_pool
 from pinecall.knowledge import PgKnowledge
-from pinecall.orgs.records import MemoryOrgs
+from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.types import PRODUCTION, KnowledgeFile, Org, Quotas
 from tests.api.conftest import A_KEY
 from tests.knowledge.files import CLINICA, TARIFAS

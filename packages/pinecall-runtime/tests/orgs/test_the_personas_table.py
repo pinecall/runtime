@@ -8,7 +8,8 @@ from uuid import uuid4
 import pytest
 
 from pinecall.db import Pool, open_pool
-from pinecall.orgs.personas import NameTaken, NoSuchPersona, Personas
+from pinecall.orgs.personas import NameTaken, NoSuchPersona
+from pinecall.orgs.personas_postgres import PostgresPersonas
 from tests.pools import Held, acquired
 from tests.postgres import Dev
 
@@ -92,7 +93,7 @@ async def names_in_the_table(pool: Pool, org: str) -> list[str]:
 
 
 async def test_a_caller_written_comes_back_whole(pool: Pool, org: str) -> None:
-    kept = Personas(pool)
+    kept = PostgresPersonas(pool)
 
     [one] = await kept.put(org, "homeowner", **DANA)
 
@@ -105,7 +106,7 @@ async def test_a_caller_written_comes_back_whole(pool: Pool, org: str) -> None:
 async def test_the_state_of_a_caller_the_business_knows_survives_the_column(
     pool: Pool, org: str
 ) -> None:
-    kept = Personas(pool)
+    kept = PostgresPersonas(pool)
     state = {"stage": "book", "patient": {"id": "p-1", "slots": [1, 2]}}
 
     [one] = await kept.put(org, "known", **dana(state=state))
@@ -116,7 +117,7 @@ async def test_the_state_of_a_caller_the_business_knows_survives_the_column(
 async def test_how_a_caller_is_played_and_when_it_accepts_survive_the_columns(
     pool: Pool, org: str
 ) -> None:
-    kept = Personas(pool)
+    kept = PostgresPersonas(pool)
     played = {
         "llm": "anthropic/claude-haiku-4-5",
         "tts": "cartesia/sonic-3",
@@ -138,14 +139,14 @@ async def test_a_caller_written_before_it_could_say_so_is_played_by_the_runtime(
         "INSERT INTO agent_personas (org, name, goal, style) VALUES ($1, 'old', 'g', 's')", org
     )
 
-    [one] = await Personas(pool).of(org)
+    [one] = await PostgresPersonas(pool).of(org)
 
     assert (one["llm"], one["tts"], one["voice"]) == (None, None, None)
     assert (one["accepts_when"], one["declines_when"]) == ("", "")
 
 
 async def test_writing_the_same_name_replaces_it_and_never_doubles_it(pool: Pool, org: str) -> None:
-    kept = Personas(pool)
+    kept = PostgresPersonas(pool)
     await kept.put(org, "homeowner", **DANA)
 
     written = await kept.put(org, "homeowner", **dana(goal="a price today"))
@@ -155,7 +156,7 @@ async def test_writing_the_same_name_replaces_it_and_never_doubles_it(pool: Pool
 
 async def test_a_rename_leaves_exactly_one_row_and_it_is_the_new_name(pool: Pool, org: str) -> None:
     """The old name is gone from the table itself, not merely absent from what put() answered."""
-    kept = Personas(pool)
+    kept = PostgresPersonas(pool)
     await kept.put(org, "homeowner", **DANA)
 
     renamed = await kept.put(org, "dana", **dana(goal="a price today"), was="homeowner")
@@ -168,7 +169,7 @@ async def test_a_rename_leaves_exactly_one_row_and_it_is_the_new_name(pool: Pool
 async def test_a_rename_is_one_statement_so_no_cut_leaves_both_names(pool: Pool, org: str) -> None:
     """Gone and written together: what used to be an INSERT, a gap, and then a DELETE."""
     counted = Counted(pool)
-    kept = Personas(counted)
+    kept = PostgresPersonas(counted)
     await kept.put(org, "homeowner", **DANA)
     counted.statements.clear()
 
@@ -181,7 +182,7 @@ async def test_a_rename_is_one_statement_so_no_cut_leaves_both_names(pool: Pool,
 async def test_a_rename_writes_nothing_when_nobody_wrote_the_name_it_renames(
     pool: Pool, org: str
 ) -> None:
-    kept = Personas(pool)
+    kept = PostgresPersonas(pool)
     await kept.put(org, "homeowner", **DANA)
 
     with pytest.raises(NoSuchPersona):
@@ -193,7 +194,7 @@ async def test_a_rename_writes_nothing_when_nobody_wrote_the_name_it_renames(
 async def test_a_rename_onto_a_name_somebody_holds_is_refused_and_moves_nothing(
     pool: Pool, org: str
 ) -> None:
-    kept = Personas(pool)
+    kept = PostgresPersonas(pool)
     await kept.put(org, "homeowner", **DANA)
     await kept.put(org, "dana", **DANA)
 
@@ -204,7 +205,7 @@ async def test_a_rename_onto_a_name_somebody_holds_is_refused_and_moves_nothing(
 
 
 async def test_dropping_one_nobody_wrote_says_so(pool: Pool, org: str) -> None:
-    kept = Personas(pool)
+    kept = PostgresPersonas(pool)
 
     with pytest.raises(NoSuchPersona):
         await kept.drop(org, "nobody")
@@ -214,7 +215,7 @@ async def test_a_caller_written_once_is_read_by_every_agent_of_the_org(
     pool: Pool, org: str
 ) -> None:
     """The row names no agent, so there is one list and every agent of the org calls with it."""
-    kept = Personas(pool)
+    kept = PostgresPersonas(pool)
     await kept.put(org, "homeowner", **DANA)
 
     assert [one["name"] for one in await kept.of(org)] == ["homeowner"]
@@ -222,7 +223,7 @@ async def test_a_caller_written_once_is_read_by_every_agent_of_the_org(
 
 
 async def test_one_orgs_callers_are_not_anothers(pool: Pool, org: str, other: str) -> None:
-    kept = Personas(pool)
+    kept = PostgresPersonas(pool)
     await kept.put(org, "homeowner", **DANA)
 
     assert await kept.of(other) == []

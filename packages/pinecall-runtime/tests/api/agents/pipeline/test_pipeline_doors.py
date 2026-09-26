@@ -7,7 +7,7 @@ import pytest
 
 from pinecall.api.agents.registry import Registry
 from pinecall.log.store import MemoryStore
-from pinecall.orgs.tuning_store import MemoryTuning
+from pinecall.orgs.tuning_store_memory import MemoryTuning
 from pinecall.providers.tts.curated_voices import VOICES, voice_names
 from tests.api.agents.pipeline.conftest import declared
 from tests.api.conftest import AGENT, PIPELINE

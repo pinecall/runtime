@@ -9,9 +9,9 @@ import pytest
 
 from pinecall.api.accounts.login import VISITS_PRODUCTION
 from pinecall.api.accounts.org_switch import AS_THE_OPERATOR, NOT_THERE
-from pinecall.auth.keys import MemoryKeys
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
-from pinecall.orgs.records import MemoryOrgs
+from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.settings import Settings
 from pinecall.types import ROLE_SCOPES, SANDBOX, Member
 from tests.api.conftest import AN_ORG, over_the_asgi_app

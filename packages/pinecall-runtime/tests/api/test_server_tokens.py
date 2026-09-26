@@ -15,14 +15,8 @@ from pinecall.api.accounts.api_keys import (
     SERVER_SCOPES,
 )
 from pinecall.auth.env import ENV_HEADER, NO_PRODUCTION
-from pinecall.auth.keys import (
-    NOT_OPENED,
-    PRODUCTION_PREFIX,
-    SANDBOX_PREFIX,
-    KeyRecord,
-    MemoryKeys,
-    fingerprint,
-)
+from pinecall.auth.keys import NOT_OPENED, PRODUCTION_PREFIX, SANDBOX_PREFIX, KeyRecord, fingerprint
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.settings import Settings
 from pinecall.types import PRODUCTION, SANDBOX, Member

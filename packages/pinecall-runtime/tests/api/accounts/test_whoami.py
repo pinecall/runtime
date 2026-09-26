@@ -3,7 +3,7 @@
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.orgs.records import MemoryOrgs
+from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.types import KEY_SCOPES
 from tests.api.conftest import A_KEY, AN_ORG
 from tests.api.talking import got

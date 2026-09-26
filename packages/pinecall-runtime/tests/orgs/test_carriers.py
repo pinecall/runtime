@@ -7,8 +7,10 @@ import pytest
 from cryptography.fernet import Fernet
 
 from pinecall.db import Pool, open_pool
-from pinecall.orgs.carriers import MemoryCarriers, PostgresCarriers, carriers_for
-from pinecall.orgs.records import PostgresOrgs
+from pinecall.orgs.carriers import carriers_for
+from pinecall.orgs.carriers_memory import MemoryCarriers
+from pinecall.orgs.carriers_postgres import PostgresCarriers
+from pinecall.orgs.records_postgres import PostgresOrgs
 from pinecall.settings import Settings
 from pinecall.types import Carrier, SipPeer, TwilioAccount
 from tests.postgres import Dev

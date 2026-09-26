@@ -9,10 +9,10 @@ import pytest
 
 from pinecall.api.agents.registry import Registry
 from pinecall.log.store import MemoryStore
-from pinecall.orgs.dial_policies import MemoryDialling
-from pinecall.orgs.outbound_credentials import MemoryOutboundTrunks
+from pinecall.orgs.dial_policies_memory import MemoryDialling
+from pinecall.orgs.outbound_credentials_memory import MemoryOutboundTrunks
 from pinecall.routes.dispatch import metadata_of
-from pinecall.routes.records import MemoryRoutes
+from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.types import DialPolicy, OutboundTrunk, Route
 from pinecall.types.dispatch import DIAL_KEY, DIRECTION_KEY, ORG_KEY
 from tests.api.conftest import A_RECORD, AGENT

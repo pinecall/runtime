@@ -4,7 +4,8 @@ import time
 
 import pytest
 
-from pinecall.tokens.ledger import MemoryTokens, TokenRecord
+from pinecall.tokens.ledger import TokenRecord
+from pinecall.tokens.ledger_memory import MemoryTokens
 
 pytestmark = pytest.mark.unit
 

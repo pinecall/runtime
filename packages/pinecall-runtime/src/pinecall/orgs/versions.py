@@ -3,14 +3,10 @@
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
-from typing import Any, Protocol
+from typing import Protocol
 
-from pinecall.db import Pool
 from pinecall.errors import PinecallError
-from pinecall.orgs.tuning_resolution import corners
 from pinecall.types import Kept
 
 # What a write says when the corner is not at the version the writer read. Two people saving the
@@ -76,51 +72,6 @@ class Versions[T](Protocol):
         ...
 
 
-class MemoryVersions[T]:
-    """A gateway with no pool: the versions live as long as the process."""
-
-    def __init__(self) -> None:
-        self._rows: dict[Corner, list[Kept[T]]] = {}
-
-    async def own(self, corner: Corner) -> Kept[T] | None:
-        rows = self._rows.get(corner, [])
-        return rows[-1] if rows else None
-
-    async def chain(self, corner: Corner) -> list[Kept[T]]:
-        found = [await self.own(corner.held_by(holder)) for holder in corners(corner.holder)]
-        return [row for row in found if row is not None]
-
-    async def at(self, corner: Corner, version: int) -> Kept[T] | None:
-        for holder in corners(corner.holder):
-            for row in self._rows.get(corner.held_by(holder), []):
-                if row.version == version:
-                    return row
-        return None
-
-    async def history(self, corner: Corner, limit: int) -> list[Kept[T]]:
-        return list(reversed(self._rows.get(corner, [])))[:limit]
-
-    async def every_chain(self, org: str, env: str, holder: str) -> dict[str, list[Kept[T]]]:
-        agents = {
-            kept.agent
-            for kept in self._rows
-            if (kept.org, kept.env) == (org, env) and kept.agent is not None
-        }
-        chains = {slug: await self.chain(Corner(org, env, holder, slug)) for slug in sorted(agents)}
-        return {slug: chain for slug, chain in chains.items() if chain}
-
-    async def put(
-        self, corner: Corner, value: T, *, author: str, note: str | None, if_version: int | None
-    ) -> int:
-        """The memory store's INSERT: the same if_version gate the statement has, with no await."""
-        rows = self._rows.setdefault(corner, [])
-        standing = len(rows)
-        if if_version is not None and if_version != standing:
-            raise VersionMoved(standing)
-        rows.append(Kept(corner.holder, standing + 1, author, note, datetime.now(UTC), value))
-        return standing + 1
-
-
 @dataclass(frozen=True)
 class Statements:
     """One table's five statements, each taking the corner's args first (Corner.args), then
@@ -133,59 +84,3 @@ class Statements:
     put: str
     # Every agent's chain in the world: $1 org, $2 env, $3 holder. None for a table with no agent.
     every_chain: str | None = None
-
-
-# A write is one INSERT whose version is born inside it: the aggregate over the corner yields
-# one row even over none, HAVING is the if_version gate, and two writers computing the same
-# number both hit the primary key — the first lands, the second's RETURNING is empty. No lock,
-# no transaction, and no driver exception here, because this package may not name the driver
-# (db/pool.py).
-class PostgresVersions[T]:
-    """One table in Postgres, read through its statements and the shape's own reader."""
-
-    def __init__(
-        self,
-        pool: Pool,
-        statements: Statements,
-        read: Callable[[Mapping[str, Any]], Kept[T]],
-        columns: Callable[[T], tuple[Any, ...]],
-    ) -> None:
-        self._pool = pool
-        self._statements = statements
-        self._read = read
-        self._columns = columns
-
-    async def own(self, corner: Corner) -> Kept[T] | None:
-        row = await self._pool.fetchrow(self._statements.own, *corner.args)
-        return None if row is None else self._read(row)
-
-    async def chain(self, corner: Corner) -> list[Kept[T]]:
-        rows = await self._pool.fetch(self._statements.chain, *corner.args)
-        return [self._read(row) for row in rows]
-
-    async def at(self, corner: Corner, version: int) -> Kept[T] | None:
-        row = await self._pool.fetchrow(self._statements.at, *corner.args, version)
-        return None if row is None else self._read(row)
-
-    async def history(self, corner: Corner, limit: int) -> list[Kept[T]]:
-        rows = await self._pool.fetch(self._statements.history, *corner.args, limit)
-        return [self._read(row) for row in rows]
-
-    async def every_chain(self, org: str, env: str, holder: str) -> dict[str, list[Kept[T]]]:
-        if self._statements.every_chain is None:
-            raise TypeError("this table has no agent column to chain every agent by")
-        chains: dict[str, list[Kept[T]]] = {}
-        for row in await self._pool.fetch(self._statements.every_chain, org, env, holder):
-            chains.setdefault(str(row["agent"]), []).append(self._read(row))
-        return chains
-
-    async def put(
-        self, corner: Corner, value: T, *, author: str, note: str | None, if_version: int | None
-    ) -> int:
-        row = await self._pool.fetchrow(
-            self._statements.put, *corner.args, *self._columns(value), author, note, if_version
-        )
-        if row is None:
-            standing = await self.own(corner)
-            raise VersionMoved(0 if standing is None else standing.version)
-        return int(row["version"])

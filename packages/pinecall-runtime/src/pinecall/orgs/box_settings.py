@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -51,82 +50,7 @@ class BoxSettings(Protocol):
         ...
 
 
-class MemoryBoxSettings:
-    """The table of a clone with no Postgres: the same cipher, forgotten when the process exits."""
-
-    def __init__(self, cipher: Cipher | None) -> None:
-        self._cipher = cipher
-        self._rows: dict[str, tuple[dict[str, Any], str | None]] = {}
-
-    async def put(self, name: str, value: dict[str, Any], secret: str | None = None) -> None:
-        """Sealed here too, so a dev clone and a box behave alike down to the stored bytes."""
-        self._rows[name] = (dict(value), _sealed(self._cipher, secret))
-
-    async def of(self, name: str) -> BoxSetting | None:
-        """Through the cipher on the way out, exactly as the row below is."""
-        row = self._rows.get(name)
-        if row is None:
-            return None
-        value, ciphertext = row
-        return BoxSetting(dict(value), _opened(self._cipher, ciphertext))
-
-    async def drop(self, name: str) -> bool:
-        """Whether there was a row to forget."""
-        return self._rows.pop(name, None) is not None
-
-    async def noted(self, name: str, changes: dict[str, Any]) -> None:
-        """The same merge `||` makes below."""
-        row = self._rows.get(name)
-        if row is not None:
-            self._rows[name] = ({**row[0], **changes}, row[1])
-
-
-# This pool's connections were never taught the jsonb codec (only the log's own are), so jsonb is
-# text going out and text coming back: evals/run_store.py says the same.
-_PUT = """
-INSERT INTO box_settings (name, value, ciphertext, set_at) VALUES ($1, $2::jsonb, $3, now())
-    ON CONFLICT (name) DO UPDATE
-    SET value = excluded.value, ciphertext = excluded.ciphertext, set_at = now()
-"""
-
 logger = logging.getLogger(__name__)
-
-_OF = "SELECT value::text AS value, ciphertext FROM box_settings WHERE name = $1"
-
-_DROP = "DELETE FROM box_settings WHERE name = $1 RETURNING name"
-
-_NOTED = "UPDATE box_settings SET value = value || $2::jsonb WHERE name = $1"
-
-
-class PostgresBoxSettings:
-    """The table in Postgres, read each time it is asked: what is set now is what is used next."""
-
-    def __init__(self, pool: Pool, cipher: Cipher | None) -> None:
-        self._pool = pool
-        self._cipher = cipher
-
-    async def put(self, name: str, value: dict[str, Any], secret: str | None = None) -> None:
-        """The secret reaches this method in the clear and nothing under it: a token is kept."""
-        await self._pool.execute(_PUT, name, json.dumps(value), _sealed(self._cipher, secret))
-
-    async def of(self, name: str) -> BoxSetting | None:
-        """One read on the primary key."""
-        row = await self._pool.fetchrow(_OF, name)
-        if row is None:
-            return None
-        ciphertext = row["ciphertext"]
-        return BoxSetting(
-            json.loads(str(row["value"])),
-            _opened(self._cipher, None if ciphertext is None else str(ciphertext)),
-        )
-
-    async def drop(self, name: str) -> bool:
-        """The command tag says whether a row went, so dropping nothing is told apart."""
-        return await self._pool.fetchrow(_DROP, name) is not None
-
-    async def noted(self, name: str, changes: dict[str, Any]) -> None:
-        """One UPDATE: a setting nobody made has no row and nothing is written."""
-        await self._pool.execute(_NOTED, name, json.dumps(changes))
 
 
 # Unlike the org tables beside it, this one exists WITHOUT a vault key: the brand is no secret, and
@@ -134,11 +58,16 @@ class PostgresBoxSettings:
 # and it says so where one is handed to it.
 def box_settings_for(settings: Settings, pool: Pool | None) -> BoxSettings:
     """Postgres when the process opened one, memory with none; sealing only with a vault key."""
+    # Imported here: both adapters import this module for the port, and the one place that
+    # picks between them is the one place the cycle would close (auth/members.py).
+    from pinecall.orgs.box_settings_memory import MemoryBoxSettings
+    from pinecall.orgs.box_settings_postgres import PostgresBoxSettings
+
     cipher = build_cipher(settings.vault_key) if settings.vault_key else None
     return MemoryBoxSettings(cipher) if pool is None else PostgresBoxSettings(pool, cipher)
 
 
-def _sealed(cipher: Cipher | None, secret: str | None) -> str | None:
+def sealed(cipher: Cipher | None, secret: str | None) -> str | None:
     """The secret as a row keeps it: a Fernet token, or nothing for a setting that has none."""
     if secret is None:
         return None
@@ -152,7 +81,7 @@ def _sealed(cipher: Cipher | None, secret: str | None) -> str | None:
 # treats as "not configured": the box falls back to its environment and the operator sets it
 # again, rather than every letter dying on InvalidToken. But it is said, once per read, because a
 # box whose settings silently went missing is an afternoon of looking in the wrong place.
-def _opened(cipher: Cipher | None, ciphertext: str | None) -> str | None:
+def opened(cipher: Cipher | None, ciphertext: str | None) -> str | None:
     """One token back into the secret; None when there is none, or no key to open it with."""
     if ciphertext is None or cipher is None:
         return None

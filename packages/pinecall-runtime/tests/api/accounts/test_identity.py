@@ -13,7 +13,8 @@ import pytest
 from pinecall.api.accounts.identity import SIGN_IN_THERE, get_identity
 from pinecall.api.app import app
 from pinecall.auth.identity import Identity
-from pinecall.auth.keys import KeyRecord, MemoryKeys
+from pinecall.auth.keys import KeyRecord
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.person_keys import SANDBOX_PERSONS_KEY_LIFE
 from pinecall.settings import Settings
 from pinecall.types import SANDBOX

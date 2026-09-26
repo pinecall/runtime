@@ -12,9 +12,7 @@ from uuid import UUID
 from pinecall.db import Pool
 from pinecall.log.store.call_index import like_escaped
 from pinecall.memory.extraction import OPS_THAT_WRITE, Op, extract_ops
-from pinecall.memory.protocol import DEFAULT_FACTS_PER_TURN, FactsPage, Spoken
-from pinecall.memory.ranking import Candidate, rank_facts
-from pinecall.memory.statements import (
+from pinecall.memory.postgres_sql import (
     ADD,
     BY_VECTOR,
     BY_WORDS,
@@ -27,6 +25,8 @@ from pinecall.memory.statements import (
     TAUGHT_BY,
     UPDATE,
 )
+from pinecall.memory.protocol import DEFAULT_FACTS_PER_TURN, FactsPage, Spoken
+from pinecall.memory.ranking import Candidate, rank_facts
 from pinecall.providers.embedder import Embedder, halfvec_literal
 from pinecall.providers.models import Models
 from pinecall.types import (

@@ -4,11 +4,11 @@ import pytest
 from cryptography.fernet import Fernet
 
 from pinecall.api.telephony.sip_rebuild import reconcile_sip
-from pinecall.orgs.carriers import MemoryCarriers
-from pinecall.orgs.outbound_credentials import MemoryOutboundTrunks
-from pinecall.orgs.records import MemoryOrgs
+from pinecall.orgs.carriers_memory import MemoryCarriers
+from pinecall.orgs.outbound_credentials_memory import MemoryOutboundTrunks
+from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.orgs.vault import build_cipher
-from pinecall.routes.records import MemoryRoutes
+from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.routes.twilio import TWILIO_SIGNALLING
 from pinecall.types import Carrier, OutboundTrunk, Route, SipPeer, TwilioAccount
 from tests.routes.fakes import MemoryOutbound, MemoryTrunks

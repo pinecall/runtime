@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any
 
 from pinecall.db import Pool
-from pinecall.knowledge import files as the_files
+from pinecall.knowledge import files_postgres as the_files
 from pinecall.knowledge.chunking import chunks_of
 from pinecall.knowledge.files import PUSHED_WITH_ANOTHER_MODEL, File
 from pinecall.providers.embedder import Embedder, WrongModel, halfvec_literal
@@ -196,8 +196,8 @@ class PgKnowledge:
         return len(pieces)
 
     # The files of a base, one at a time — what a person at the console reads and edits. Each verb
-    # is knowledge/files.py's, over this store's pool and embedder; the base stays the unit a push
-    # replaces and a drop forgets.
+    # is knowledge/files_postgres.py's, over this store's pool and embedder; the base stays the
+    # unit a push replaces and a drop forgets.
     async def files(self, org: str, env: Env, holder: str | None, base: str) -> list[File]:
         """Every file of the base this corner reads, by path, without their text."""
         return await the_files.files(self._pool, org, env, holder, base)

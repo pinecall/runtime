@@ -8,7 +8,8 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient, WebSocketTestSession
 
-from pinecall.auth.keys import KeyRecord, MemoryKeys, is_held_by
+from pinecall.auth.keys import KeyRecord, is_held_by
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.request_scope import CANNOT_LOOK_THERE, NOT_A_COLLEAGUE, looking_into
 from pinecall.log.store import MemoryStore

@@ -7,8 +7,9 @@ from uuid import uuid4
 import pytest
 
 from pinecall.db import Pool, open_pool
-from pinecall.orgs.records import PostgresOrgs
-from pinecall.orgs.tuning_store import PostgresTuning, VersionMoved
+from pinecall.orgs.records_postgres import PostgresOrgs
+from pinecall.orgs.tuning_store import VersionMoved
+from pinecall.orgs.tuning_store_postgres import PostgresTuning
 from pinecall.types import (
     PRODUCTION,
     SANDBOX,

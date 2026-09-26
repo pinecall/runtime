@@ -6,10 +6,11 @@ from uuid import uuid4
 import pytest
 
 from pinecall.db import Pool, open_pool
-from pinecall.orgs.org_sso import PostgresSso
-from pinecall.orgs.records import PostgresOrgs
+from pinecall.orgs.org_sso_postgres import PostgresSso
+from pinecall.orgs.records_postgres import PostgresOrgs
 from pinecall.orgs.vault import build_cipher
-from pinecall.orgs.widgets import PostgresWidgets, Widget
+from pinecall.orgs.widgets import Widget
+from pinecall.orgs.widgets_postgres import PostgresWidgets
 from pinecall.types import QUOTAS, OrgSso, Quotas
 from tests.api.conftest import A_VAULT_KEY
 from tests.postgres import Dev

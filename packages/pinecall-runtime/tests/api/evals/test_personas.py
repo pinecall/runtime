@@ -9,7 +9,7 @@ import pytest
 
 from pinecall.api.app import app
 from pinecall.api.evals.personas import get_personas
-from pinecall.orgs.personas import MemoryPersonas
+from pinecall.orgs.personas_memory import MemoryPersonas
 
 pytestmark = pytest.mark.unit
 

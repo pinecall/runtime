@@ -10,7 +10,7 @@ from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.throttle import TRIES_PER_WINDOW
 from pinecall.mail import Outbox
 from pinecall.orgs.org_sso import Sso
-from pinecall.orgs.records import MemoryOrgs
+from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.types import Mailbox, Org, OrgSso
 from tests.api.conftest import AN_ORG
 from tests.api.mailing import A_BOX_SENDER

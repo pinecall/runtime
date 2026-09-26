@@ -8,10 +8,11 @@ import pytest
 from starlette.testclient import TestClient
 
 from pinecall.api.agents.registry import Registry
-from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
+from pinecall.auth.keys import NOT_OPENED, KeyRecord
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.evals.hangup_score import JUDGING_OFF, JudgedWhen
-from pinecall.orgs.records import MemoryOrgs
-from pinecall.orgs.tuning_store import MemoryTuning
+from pinecall.orgs.records_memory import MemoryOrgs
+from pinecall.orgs.tuning_store_memory import MemoryTuning
 from pinecall.settings import Settings
 from pinecall.types import AgentConfig
 from pinecall.worker.gateway_client import Gateway

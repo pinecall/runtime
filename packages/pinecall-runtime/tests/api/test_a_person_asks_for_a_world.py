@@ -18,7 +18,8 @@ from pinecall.auth.env import (
     ONE_WORLD,
     SAY_THE_WORLD,
 )
-from pinecall.auth.keys import KeyRecord, MemoryKeys
+from pinecall.auth.keys import KeyRecord
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.settings import Settings
 from pinecall.types import PRODUCTION, SANDBOX, Member, Role

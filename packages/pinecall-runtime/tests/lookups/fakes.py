@@ -16,8 +16,9 @@ from pinecall.memory import Spoken
 from pinecall.memory.protocol import FactsPage
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.meter import Meter
-from pinecall.orgs.records import MemoryOrgs
-from pinecall.orgs.vault import MemoryVault, brought_by
+from pinecall.orgs.records_memory import MemoryOrgs
+from pinecall.orgs.vault import brought_by
+from pinecall.orgs.vault_memory import MemoryVault
 from pinecall.types import (
     AgentConfig,
     Brought,

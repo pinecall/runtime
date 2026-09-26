@@ -5,7 +5,9 @@ from typing import cast
 import pytest
 
 from pinecall.db import Pool
-from pinecall.routes.records import MemoryRoutes, PostgresRoutes, door_of, routes_for
+from pinecall.routes.records import door_of, routes_for
+from pinecall.routes.records_memory import MemoryRoutes
+from pinecall.routes.records_postgres import PostgresRoutes
 from pinecall.types import PRODUCTION, DeclarationRefused, Route
 
 pytestmark = pytest.mark.unit

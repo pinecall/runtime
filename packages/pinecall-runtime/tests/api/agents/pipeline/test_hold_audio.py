@@ -14,8 +14,8 @@ import pytest
 from pinecall.api.agents.hold_melody import MAX_BYTES, get_hold_audio
 from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
-from pinecall.orgs.hold_melody import MemoryHoldAudio
-from pinecall.orgs.tuning_store import MemoryTuning
+from pinecall.orgs.hold_melody_memory import MemoryHoldAudio
+from pinecall.orgs.tuning_store_memory import MemoryTuning
 from pinecall.session.hold_melody import DEFAULT, NOT_AUDIO
 from pinecall.worker.gateway_client import Gateway
 from tests.api.agents.pipeline.conftest import declared

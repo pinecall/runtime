@@ -7,7 +7,7 @@ import sys
 from pinecall.cli.box.credentials import Decrypt, decrypt_with_systemd
 from pinecall.cli.box.instance import INSTANCES, check_instance_name, credstore_of
 from pinecall.cli.help import help_only
-from pinecall.cli.sandbox.seed import seed
+from pinecall.cli.sandbox.seed_postgres import seed
 from pinecall.db import open_pool
 from pinecall.settings import variable_of
 

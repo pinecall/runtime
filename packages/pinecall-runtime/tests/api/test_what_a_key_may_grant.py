@@ -9,7 +9,8 @@ import httpx
 import pytest
 
 from pinecall.auth.grants import NOT_YOUR_OWN_ROW, NOT_YOURS_TO_GRANT
-from pinecall.auth.keys import KeyRecord, MemoryKeys
+from pinecall.auth.keys import KeyRecord
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.types import PRODUCTION, ROLE_SCOPES, SANDBOX, Member
 from tests.api.conftest import A_KEY, A_RECORD

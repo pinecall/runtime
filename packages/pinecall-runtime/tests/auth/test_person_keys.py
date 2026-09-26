@@ -4,7 +4,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from pinecall.auth.keys import KeyRecord, MemoryKeys
+from pinecall.auth.keys import KeyRecord
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.person_keys import SANDBOX_PERSONS_KEY_LIFE, mint_person_key, until
 from pinecall.types import PRODUCTION, SANDBOX, Member
 

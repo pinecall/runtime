@@ -8,8 +8,8 @@ import pytest
 from pinecall.api.agents.registry import Registry
 from pinecall.api.ops.orgs import NO_SUCH_AGENT, NOT_HELD
 from pinecall.log.store import MemoryStore
-from pinecall.orgs.records import MemoryOrgs
-from pinecall.routes.records import MemoryRoutes
+from pinecall.orgs.records_memory import MemoryOrgs
+from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.types import PRODUCTION, Route
 from tests.api.conftest import A_RECORD, AGENT, AN_ORG
 from tests.api.ops.orgs.test_two_orgs_never_cross import ANOTHER_ORG

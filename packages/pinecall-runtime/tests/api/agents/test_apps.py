@@ -9,7 +9,8 @@ from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from pinecall.api.agents.apps import NO_SUCH_APP
-from pinecall.auth.keys import KeyRecord, MemoryKeys
+from pinecall.auth.keys import KeyRecord
+from pinecall.auth.keys_memory import MemoryKeys
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS
 from tests.api.talking import a_door, a_frame, got
 

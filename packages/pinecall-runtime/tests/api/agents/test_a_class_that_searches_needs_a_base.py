@@ -10,7 +10,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from pinecall.api.agents.socket import NO_BASE_ATTACHED
-from pinecall.orgs.tuning_store import MemoryTuning
+from pinecall.orgs.tuning_store_memory import MemoryTuning
 from pinecall.types import PRODUCTION, Docs, Tuning
 from tests.api.conftest import A_RECORD, AGENT
 from tests.api.talking import a_door, a_frame, a_register, an_app

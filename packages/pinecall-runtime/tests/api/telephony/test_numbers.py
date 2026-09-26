@@ -14,8 +14,8 @@ from pinecall.api.telephony.numbers import (
     NOT_ON_ACCOUNT,
     NOT_VERIFIED,
 )
-from pinecall.orgs.carriers import MemoryCarriers
-from pinecall.routes.records import MemoryRoutes
+from pinecall.orgs.carriers_memory import MemoryCarriers
+from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.routes.twilio import TWILIO_SIGNALLING
 from pinecall.settings import Settings
 from pinecall.types import PRODUCTION

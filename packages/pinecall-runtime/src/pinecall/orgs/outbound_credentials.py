@@ -8,7 +8,7 @@ from typing import Any, Protocol
 from pinecall.db import Pool
 from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, seal, sealed_store, unseal
 from pinecall.settings import Settings
-from pinecall.types import CarrierKind, OutboundTrunk, parse_carrier_kind
+from pinecall.types import OutboundTrunk
 
 
 class OutboundTrunks(Protocol):
@@ -27,109 +27,28 @@ class OutboundTrunks(Protocol):
         ...
 
 
-class MemoryOutboundTrunks:
-    """The table of a process with no Postgres: the same cipher, forgotten on exit."""
-
-    def __init__(self, cipher: Cipher) -> None:
-        self._cipher = cipher
-        self._rows: dict[str, tuple[CarrierKind, str, str, str | None, str | None]] = {}
-
-    async def put(self, trunk: OutboundTrunk) -> None:
-        """Sealed here too, so a dev clone and a box behave alike down to the stored bytes."""
-        self._rows[trunk.org] = (
-            trunk.kind,
-            trunk.trunk_id,
-            trunk.address,
-            trunk.username,
-            _sealed(self._cipher, trunk.password),
-        )
-
-    async def of(self, org: str) -> OutboundTrunk | None:
-        """Whether there is one, and what it opens to."""
-        row = self._rows.get(org)
-        if row is None:
-            return None
-        kind, trunk_id, address, username, ciphertext = row
-        return OutboundTrunk(
-            org=org,
-            kind=kind,
-            trunk_id=trunk_id,
-            address=address,
-            username=username,
-            password=_opened(self._cipher, ciphertext),
-        )
-
-    async def drop(self, org: str) -> bool:
-        """Whether there was a row to forget."""
-        return self._rows.pop(org, None) is not None
-
-
-_PUT = """
-INSERT INTO outbound_trunks (org, kind, trunk_id, address, username, ciphertext, set_at)
-    VALUES ($1, $2, $3, $4, $5, $6, now())
-    ON CONFLICT (org) DO UPDATE
-    SET kind = excluded.kind, trunk_id = excluded.trunk_id, address = excluded.address,
-        username = excluded.username, ciphertext = excluded.ciphertext, set_at = now()
-"""
-_OF = "SELECT kind, trunk_id, address, username, ciphertext FROM outbound_trunks WHERE org = $1"
-_DROP = "DELETE FROM outbound_trunks WHERE org = $1 RETURNING org"
-
-
-class PostgresOutboundTrunks:
-    """The table in Postgres, read on every dial: a trunk repaired now is what the next uses."""
-
-    def __init__(self, pool: Pool, cipher: Cipher) -> None:
-        self._pool = pool
-        self._cipher = cipher
-
-    async def put(self, trunk: OutboundTrunk) -> None:
-        """The password reaches this method in the clear and nothing under it: a token is kept."""
-        await self._pool.execute(
-            _PUT,
-            trunk.org,
-            trunk.kind,
-            trunk.trunk_id,
-            trunk.address,
-            trunk.username,
-            _sealed(self._cipher, trunk.password),
-        )
-
-    async def of(self, org: str) -> OutboundTrunk | None:
-        """One read on the primary key, decrypted for the door that places the call."""
-        row = await self._pool.fetchrow(_OF, org)
-        if row is None:
-            return None
-        return OutboundTrunk(
-            org=org,
-            kind=parse_carrier_kind(str(row["kind"])),
-            trunk_id=str(row["trunk_id"]),
-            address=str(row["address"]),
-            username=row["username"],
-            password=_opened(self._cipher, row["ciphertext"]),
-        )
-
-    async def drop(self, org: str) -> bool:
-        """The command tag says whether a row went, so dropping a stranger is told apart."""
-        return await self._pool.fetchrow(_DROP, org) is not None
-
-
 # None when the box was given no vault key, exactly as the carriers table is: the password this
 # row holds is one the box MINTED on the tenant's account and cannot read back from anywhere.
 def outbound_trunks_for(settings: Settings, pool: Pool | None) -> OutboundTrunks | None:
     """Postgres when the process opened one, memory when it did not, none with no vault key."""
+    # Imported here: both adapters import this module for the port, and the one place that
+    # picks between them is the one place the cycle would close (auth/members.py).
+    from pinecall.orgs.outbound_credentials_memory import MemoryOutboundTrunks
+    from pinecall.orgs.outbound_credentials_postgres import PostgresOutboundTrunks
+
     return sealed_store(
         settings, pool, memory=MemoryOutboundTrunks, postgres=PostgresOutboundTrunks
     )
 
 
-def _sealed(cipher: Cipher, password: str | None) -> str | None:
+def sealed(cipher: Cipher, password: str | None) -> str | None:
     """The password as a row keeps it: one Fernet token over its JSON, or nothing at all."""
     if password is None:
         return None
     return seal(cipher, json.dumps({"password": password}))
 
 
-def _opened(cipher: Cipher, ciphertext: Any) -> str | None:
+def opened(cipher: Cipher, ciphertext: Any) -> str | None:
     """One column back into the password, or None for a trunk that authenticates with nothing."""
     if not ciphertext:
         return None
@@ -137,11 +56,4 @@ def _opened(cipher: Cipher, ciphertext: Any) -> str | None:
     return str(said["password"])
 
 
-__all__ = [
-    "NO_VAULT_KEY",
-    "MemoryOutboundTrunks",
-    "NoVaultKey",
-    "OutboundTrunks",
-    "PostgresOutboundTrunks",
-    "outbound_trunks_for",
-]
+__all__ = ["NO_VAULT_KEY", "NoVaultKey", "OutboundTrunks", "outbound_trunks_for"]

@@ -7,8 +7,10 @@ import pytest
 from cryptography.fernet import Fernet
 
 from pinecall.db import Pool, open_pool
-from pinecall.orgs.org_mail import Mail, MemoryMail, PostgresMail, mail_for
-from pinecall.orgs.records import PostgresOrgs
+from pinecall.orgs.org_mail import Mail, mail_for
+from pinecall.orgs.org_mail_memory import MemoryMail
+from pinecall.orgs.org_mail_postgres import PostgresMail
+from pinecall.orgs.records_postgres import PostgresOrgs
 from pinecall.settings import Settings
 from pinecall.types import Mailbox
 from tests.postgres import Dev

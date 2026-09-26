@@ -7,7 +7,8 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
+from pinecall.auth.keys import NOT_OPENED, KeyRecord
+from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.settings import Settings
 from pinecall.types import SANDBOX
 from tests.api.conftest import A_KEY, A_RECORD, AGENT
