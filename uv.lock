@@ -11,6 +11,7 @@ resolution-markers = [
 [manifest]
 members = [
     "pinecall",
+    "pinecall-channels",
     "pinecall-core",
     "pinecall-db",
     "pinecall-log",
@@ -3405,6 +3406,7 @@ dependencies = [
     { name = "livekit-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-sdk" },
+    { name = "pinecall-channels" },
     { name = "pinecall-core" },
     { name = "pinecall-db" },
     { name = "pinecall-log" },
@@ -3413,9 +3415,7 @@ dependencies = [
     { name = "pinecall-session" },
     { name = "pinecall-settings" },
     { name = "pinecall-tenancy" },
-    { name = "protobuf" },
     { name = "pydantic" },
-    { name = "pyjwt" },
     { name = "starlette" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -3439,6 +3439,7 @@ requires-dist = [
     { name = "livekit-api", specifier = ">=1.2.1" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.30,<2" },
     { name = "opentelemetry-sdk", specifier = ">=1.30,<2" },
+    { name = "pinecall-channels", editable = "packages/pinecall-channels" },
     { name = "pinecall-core", editable = "packages/pinecall-core" },
     { name = "pinecall-db", editable = "packages/pinecall-db" },
     { name = "pinecall-log", editable = "packages/pinecall-log" },
@@ -3450,13 +3451,46 @@ requires-dist = [
     { name = "pinecall-session", editable = "packages/pinecall-session" },
     { name = "pinecall-settings", editable = "packages/pinecall-settings" },
     { name = "pinecall-tenancy", editable = "packages/pinecall-tenancy" },
-    { name = "protobuf", specifier = ">=5,<8" },
     { name = "pydantic", specifier = ">=2.7,<3" },
-    { name = "pyjwt", specifier = ">=2.13.0" },
     { name = "starlette", specifier = ">=0.40,<2" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30,<1" },
 ]
 provides-extras = ["providers", "providers-big", "runtime"]
+
+[[package]]
+name = "pinecall-channels"
+version = "0.1.0"
+source = { editable = "packages/pinecall-channels" }
+dependencies = [
+    { name = "httpx" },
+    { name = "livekit-api" },
+    { name = "pinecall-core" },
+    { name = "pinecall-db" },
+    { name = "pinecall-log" },
+    { name = "pinecall-protocol" },
+    { name = "pinecall-session" },
+    { name = "pinecall-settings" },
+    { name = "pinecall-tenancy" },
+    { name = "protobuf" },
+    { name = "pydantic" },
+    { name = "pyjwt" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.27,<1" },
+    { name = "livekit-api", specifier = ">=1.2.1" },
+    { name = "pinecall-core", editable = "packages/pinecall-core" },
+    { name = "pinecall-db", editable = "packages/pinecall-db" },
+    { name = "pinecall-log", editable = "packages/pinecall-log" },
+    { name = "pinecall-protocol", editable = "../protocol/python" },
+    { name = "pinecall-session", editable = "packages/pinecall-session" },
+    { name = "pinecall-settings", editable = "packages/pinecall-settings" },
+    { name = "pinecall-tenancy", editable = "packages/pinecall-tenancy" },
+    { name = "protobuf", specifier = ">=5,<8" },
+    { name = "pydantic", specifier = ">=2.7,<3" },
+    { name = "pyjwt", specifier = ">=2.13.0" },
+]
 
 [[package]]
 name = "pinecall-core"

@@ -21,6 +21,7 @@ classifiers = [
 ]
 keywords = ["voice", "telephony", "livekit", "contact-center", "agents"]
 dependencies = [
+  "pinecall-channels==0.1.0",
   "pinecall-core>=0.1,<0.2",
   "pinecall-db==0.1.0",
   "pinecall-log==0.1.0",
@@ -37,10 +38,7 @@ dependencies = [
   "opentelemetry-exporter-otlp-proto-http>=1.30,<2",
   # A range, not a bare name: the wheel PyPI serves must say which protocol it speaks.
   "pinecall-protocol>=0.6.14,<0.7",
-  # livekit-agents' own, imported by name: what a room's egress token carries.
-  "protobuf>=5,<8",
   "pydantic>=2.7,<3",
-  "pyjwt>=2.13.0",
   # fastapi's own, named because the doors import `starlette.*` by that name.
   "starlette>=0.40,<2",
   # The server the gateway runs in; cli/gateway.py stops it the way a stream needs.
@@ -66,6 +64,7 @@ pinecall-runtime = "pinecall.cli:main"
 
 [tool.uv.sources]
 pinecall-protocol = { path = "../../../protocol/python", editable = true }
+pinecall-channels = { workspace = true }
 pinecall-core = { workspace = true }
 pinecall-db = { workspace = true }
 pinecall-log = { workspace = true }
@@ -107,10 +106,8 @@ livekit-api = ["livekit"]
 opentelemetry-exporter-otlp-proto-http = ["opentelemetry"]
 opentelemetry-sdk = ["opentelemetry"]
 pinecall-protocol = ["pinecall_protocol"]
-protobuf = ["google"]
-pyjwt = ["jwt"]
 
 [tool.deptry.per_rule_ignores]
 # The siblings are imported on every other line, as `pinecall.<package>`: deptry reads a
 # namespace by its top-level name alone, and `pinecall` is first-party here.
-DEP002 = ["pinecall-core", "pinecall-db", "pinecall-log", "pinecall-providers", "pinecall-session", "pinecall-settings", "pinecall-tenancy"]
+DEP002 = ["pinecall-channels", "pinecall-core", "pinecall-db", "pinecall-log", "pinecall-providers", "pinecall-session", "pinecall-settings", "pinecall-tenancy"]
