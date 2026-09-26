@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# The one version of the workspace moved to $1: _version.py, every distribution's own version, and
+# every sibling pin, in one go — tests/test_the_version.py fails on anything it misses. The number
+# is the maintainer's (CLAUDE.md): nothing else writes it.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+new=${1:?usage: scripts/bump-version X.Y.Z}
+[[ $new =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "not a version: $new" >&2; exit 1; }
+old=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' packages/pinecall/src/pinecall/_version.py)
+
+sed -i.bak "s/^__version__ = \"$old\"$/__version__ = \"$new\"/" packages/pinecall/src/pinecall/_version.py
+for pyproject in packages/*/pyproject.toml; do
+  sed -i.bak -e "s/^version = \"$old\"$/version = \"$new\"/" \
+    -e "s/\(\"pinecall[a-z-]*\(\[[a-z-]*\]\)\{0,1\}\)==$old\"/\1==$new\"/g" "$pyproject"
+done
+find packages -name '*.bak' -delete
+uv lock -q
+echo "$old -> $new"

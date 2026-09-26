@@ -12,7 +12,7 @@ requires-python = ">=3.12"
 authors = [{ name = "Bernardo Castro", email = "me@bernardocastro.dev" }]
 classifiers = ["Private :: Do Not Upload"]
 dependencies = [
-  "pinecall",
+  "pinecall==0.1.0",
   "pinecall-protocol>=0.6.14,<0.7",
   "pytest>=9,<10",
   "hypothesis>=6.140,<7",

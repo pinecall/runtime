@@ -1,7 +1,8 @@
-# El tag ES la publicación. `git push origin vX.Y.Z` y esto publica `pinecall` en PyPI solo.
+# El tag ES la publicación. `git push origin vX.Y.Z` y esto publica las doce distribuciones de
+# packages/ en PyPI, a la misma versión (scripts/bump-version la mueve en todas).
 #
 # Este repo depende del de al lado: hasta que `pinecall-protocol` esté publicado con un rango,
-# `scripts/the-version` no deja pasar un tag. El orden es protocol primero, siempre.
+# tests/test_the_version.py no deja pasar un tag. El orden es protocol primero, siempre.
 name: release
 
 on:
@@ -99,7 +100,9 @@ jobs:
       - run: scripts/console
         working-directory: runtime
       - run: test -f runtime/packages/pinecall/src/pinecall/public/console/index.html
-      - run: uv build --package pinecall --out-dir dist
+      # Las doce y el testkit, que no se publica nunca: PyPI rechaza su clasificador `Private`, y
+      # se saca de dist/ antes para que el publish no dependa de ese rechazo.
+      - run: uv build --all-packages --out-dir dist && rm dist/pinecall_testkit-*
         working-directory: runtime
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
         with:

@@ -1,25 +1,8 @@
 #!/usr/bin/env bash
-# La versión que este repo declara, y la única condición que no se puede arreglar después de
-# publicar: `pinecall-protocol` tiene que venir con un rango. En el árbol de trabajo es una ruta
-# (`[tool.uv.sources]`), que uv resuelve al repo de al lado y el wheel NO lleva — así que un
-# publish con la línea pelada sale a PyPI pidiendo "cualquier pinecall-protocol", y un protocol
-# incompatible de mañana rompe una versión que ya no se puede tocar. Imprime la versión, o el motivo.
+# The version this workspace declares: the one _version.py says, which every distribution writes
+# down and pins its siblings to. What cannot be fixed after a publish — a sibling pinned loosely,
+# the protocol with no range — is tests/test_the_version.py, which the release's gates run.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' packages/pinecall/src/pinecall/_version.py)
-
-if ! grep -qE '^\s*"pinecall-protocol(==|>=|~=|<)' packages/pinecall/pyproject.toml; then
-  echo "pinecall-protocol viaja sin rango de versión en [project.dependencies]:" >&2
-  grep -n 'pinecall-protocol' packages/pinecall/pyproject.toml >&2
-  echo "un wheel publicado así acepta cualquier protocol. Poné el rango antes de taggear." >&2
-  exit 1
-fi
-# La misma trampa con el core: en el árbol es un miembro del workspace, en el wheel un rango.
-if ! grep -qE '^\s*"pinecall-core(==|>=|~=|<)' packages/pinecall/pyproject.toml; then
-  echo "pinecall-core viaja sin rango de versión en [project.dependencies]:" >&2
-  grep -n 'pinecall-core' packages/pinecall/pyproject.toml >&2
-  echo "un wheel publicado así acepta cualquier core. Poné el rango antes de taggear." >&2
-  exit 1
-fi
-echo "$version"
+sed -n 's/^__version__ = "\(.*\)"$/\1/p' packages/pinecall/src/pinecall/_version.py
