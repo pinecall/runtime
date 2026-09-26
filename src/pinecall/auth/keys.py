@@ -9,7 +9,6 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
-from pinecall._settings import Settings
 from pinecall.log.store import Pool
 from pinecall.types import (
     HOLDING,
@@ -290,7 +289,7 @@ class MemoryKeys:
 NO_KEYS_TABLE = "no database: a key is verified against the api_keys table, and there is none here"
 
 
-def keys_for(settings: Settings, pool: Pool | None) -> Keys | None:  # noqa: ARG001
+def keys_for(pool: Pool | None) -> Keys | None:
     """The keys table, which is the only place a key is ever checked. None with no database."""
     if pool is None:
         return None

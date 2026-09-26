@@ -55,29 +55,6 @@ class Outbound(Protocol):
         ...
 
 
-@dataclass
-class _Placed:
-    trunk_id: str
-    placing: Placing
-
-
-class MemoryOutbound:
-    """The media plane of a clone with no LiveKit pair, and of every test: what would be there."""
-
-    def __init__(self) -> None:
-        self.trunks: dict[str, _Placed] = {}
-
-    async def standing(self, org: str) -> str | None:
-        placed = self.trunks.get(org)
-        return None if placed is None else placed.trunk_id
-
-    async def provisioned(self, org: str, placing: Placing) -> str:
-        placed = self.trunks.get(org)
-        trunk_id = f"ST_{org}_out" if placed is None else placed.trunk_id
-        self.trunks[org] = _Placed(trunk_id=trunk_id, placing=placing)
-        return trunk_id
-
-
 class LivekitOutbound:
     """The real SFU, over livekit-api: looked up by name before anything is made, never doubled."""
 

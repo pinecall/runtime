@@ -5,7 +5,8 @@ from livekit import api
 
 from pinecall._settings import Settings
 from pinecall.routes import trunks as trunks_module
-from pinecall.routes.trunks import LivekitTrunks, MemoryTrunks, trunks_for
+from pinecall.routes.trunks import LivekitTrunks, trunks_for
+from tests.routes.fakes import MemoryTrunks
 from tests.routes.sfu import TheSfu
 
 pytestmark = pytest.mark.unit

@@ -96,7 +96,7 @@ async def test_the_wire_declares_a_tool_the_domain_reads_whole() -> None:
     booking = held.config.tools_by_name["book_slot"]
     assert booking.side_effect == "irreversible"
     assert booking.confirm == "Le reservo el {at}. ¿Confirmo?"
-    assert booking.requires_confirmation
+    assert booking.confirm is not None
     assert booking.timeout_s == 30.0
 
 

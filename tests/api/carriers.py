@@ -13,12 +13,10 @@ from pinecall.api.app import app
 from pinecall.orgs.carriers import MemoryCarriers
 from pinecall.orgs.dialling import MemoryDialling
 from pinecall.orgs.outbound import MemoryOutboundTrunks
-from pinecall.routes.dispatching import MemoryDispatches
-from pinecall.routes.outbound import MemoryOutbound
-from pinecall.routes.trunks import MemoryTrunks
 from pinecall.routes.twilio import Trunk, TwilioNumber, TwilioRefused
 from pinecall.types import TwilioAccount
 from tests.api.conftest import A_VAULT_KEY
+from tests.routes.fakes import MemoryDispatches, MemoryOutbound, MemoryTrunks
 
 # Registered as a plugin by tests/conftest.py, beside tests/postgres.py and tests/api/people.py.
 

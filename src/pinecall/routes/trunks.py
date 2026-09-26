@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field
 from typing import Protocol
 
 from livekit import api
@@ -67,46 +66,6 @@ class Trunks(Protocol):
     async def held_elsewhere(self, org: str, number: str) -> str | None:
         """The name of another inbound trunk that already lists this number, or None."""
         ...
-
-
-@dataclass
-class _Admitted:
-    trunk_id: str
-    numbers: set[str] = field(default_factory=set[str])
-    allowed: tuple[str, ...] = ()
-    auth: tuple[str, str] | None = None
-
-
-class MemoryTrunks:
-    """The media plane of a clone with no LiveKit pair, and of every test: what would be there,
-    each org's trunk named as the default fleet names it. `elsewhere` is what trunks this runtime
-    did not make list: a number, and the name of the trunk that holds it."""
-
-    def __init__(self, elsewhere: dict[str, str] | None = None) -> None:
-        self.trunks: dict[str, _Admitted] = {}
-        self.elsewhere = dict(elsewhere or {})
-
-    async def admitted(
-        self, org: str, number: str, allowed: Sequence[str], auth: tuple[str, str] | None
-    ) -> str:
-        trunk = self.trunks.setdefault(org, _Admitted(trunk_id=f"ST_{org}"))
-        trunk.numbers.add(number)
-        trunk.allowed = tuple(allowed)
-        trunk.auth = auth
-        return trunk.trunk_id
-
-    async def released(self, org: str, number: str) -> bool:
-        trunk = self.trunks.get(org)
-        if trunk is None or number not in trunk.numbers:
-            return False
-        trunk.numbers.discard(number)
-        return True
-
-    async def held_elsewhere(self, org: str, number: str) -> str | None:
-        for held, trunk in self.trunks.items():
-            if held != org and number in trunk.numbers:
-                return TRUNK_NAME.format(fleet=DEFAULT_FLEET, org=held)
-        return self.elsewhere.get(number)
 
 
 class LivekitTrunks:

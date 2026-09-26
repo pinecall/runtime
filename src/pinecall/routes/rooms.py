@@ -30,24 +30,6 @@ class Rooms(Protocol):
         ...
 
 
-class MemoryRooms:
-    """The media plane of a clone with no LiveKit pair, and of every test: what would be there."""
-
-    def __init__(self, open: Iterable[str] = (), agentless: Iterable[str] = ()) -> None:
-        # The rooms an agent is in, and the ones only people are left in.
-        self.open = set(open)
-        self.agentless = set(agentless)
-        self.taken_down: list[str] = []
-
-    async def with_an_agent(self, names: Collection[str]) -> set[str]:
-        return {name for name in names if name in self.open}
-
-    async def closed(self, name: str) -> None:
-        self.open.discard(name)
-        self.agentless.discard(name)
-        self.taken_down.append(name)
-
-
 # The room is the call, and the AGENT in it is what runs it: a worker's job joins as livekit's agent
 # kind. A room is not enough — people stay in one after the job is gone: the caller's tab left
 # open, a supervisor's seat — and a room with only people in it is a call nobody is running

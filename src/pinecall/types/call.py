@@ -28,12 +28,6 @@ class Contact:
     email: str | None = None
     external_id: str | None = None
 
-    # Memory needs an identity: the number on phone and WhatsApp, a sealed id on the web.
-    @property
-    def is_known(self) -> bool:
-        """True when something about this person can be remembered across calls."""
-        return bool(self.id or self.phone or self.external_id)
-
 
 # Immutable on purpose: what changes during a call is in the log, with a seq, not in here.
 @dataclass(frozen=True)

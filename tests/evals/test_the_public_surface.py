@@ -42,7 +42,6 @@ THE_SURFACE = [
     "a_matrix",
     "a_score",
     "a_simulated_call",
-    "answered_by_the_app",
     "as_html",
     "asked",
     "broken",

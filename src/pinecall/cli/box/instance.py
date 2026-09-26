@@ -216,16 +216,13 @@ def a_free_port(name: str, taken: dict[int, str]) -> int:
     return port
 
 
-type KeepRecordings = Callable[[Path], None]
-
-
 def write_instance(
     instance: Instance,
     instances: Path,
     *,
     force: bool = False,
     out: TextIO = sys.stdout,
-    keep_recordings: KeepRecordings | None = None,
+    keep_recordings: Callable[[Path], None] | None = None,
 ) -> int:
     """The file, written whole, and its recordings' directory; never over a file unasked."""
     path = env_file(instance.name, instances)

@@ -84,11 +84,6 @@ class HoldMusic:
         job.add_shutdown_callback(hold.aclose)
         return hold
 
-    @property
-    def source(self) -> Path | None:
-        """The file this call plays, or None: turned off, or a call with no room to play it in."""
-        return self._source
-
     async def start(self, room: rtc.Room) -> None:
         """Publish the track. Failing here costs the melody and nothing else."""
         if self._source is None:

@@ -31,13 +31,11 @@ FILE = Path(__file__).with_name("published_prices.json")
 
 @dataclass(frozen=True)
 class Published:
-    """The file as it is read: where it came from, and one row per model it prices."""
+    """The file as it is read: one row per model it prices, by token or by media unit. Where it
+    came from and when each row was read stay in the file, for a reviewer of its diff."""
 
-    source: str
-    commit: str
     tokens: dict[str, dict[str, float]]
     media: dict[str, tuple[str, float]]
-    dated: dict[str, str]
 
 
 # Read once per process, off disk, at the first price anybody asks for. The file ships in the
@@ -50,22 +48,9 @@ def published() -> Published:
     rows: dict[str, dict[str, Any]] = data["prices"]
     tokens: dict[str, dict[str, float]] = {}
     media: dict[str, tuple[str, float]] = {}
-    dated: dict[str, str] = {}
     for model, row in rows.items():
-        dated[model] = str(row.get("as_of", ""))
         if "unit" in row:
             media[model] = (str(row["unit"]), float(row["usd"]))
         else:
             tokens[model] = {name: float(row[name]) for name in row if name != "as_of"}
-    return Published(
-        source=str(data["source"]),
-        commit=str(data["commit"]),
-        tokens=tokens,
-        media=media,
-        dated=dated,
-    )
-
-
-def as_of(model: str) -> str | None:
-    """The date somebody last checked this model's price against its vendor's page. None: no row."""
-    return published().dated.get(model)
+    return Published(tokens=tokens, media=media)

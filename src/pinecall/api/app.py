@@ -141,7 +141,7 @@ async def _opened(gateway: FastAPI, settings: Settings, closing: AsyncExitStack)
     gateway.state.store = store
     # None with no database, which is a gateway that can verify nothing: said here so it is read
     # at startup and not discovered by the first request. auth/keys.py.
-    gateway.state.keys = keys_for(settings, pool)
+    gateway.state.keys = keys_for(pool)
     if gateway.state.keys is None:
         logger.error(NO_KEYS_TABLE)
     # Who the tenants are and what each may consume. A clone with no database has the default

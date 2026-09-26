@@ -46,7 +46,7 @@ class Provider:
     """Every other word a person writes for this vendor. `11labs` is the one that started this.
 
     A word here must not also be a MODEL of that vendor: a bare word that names a vendor IS the
-    vendor at the pipeline door (providers/overrides.py), so `sonic`, `octave`, `sonar`, `mist`,
+    vendor at the pipeline door (providers/tuning.py), so `sonic`, `octave`, `sonar`, `mist`,
     `nova` and `aura` are deliberately NOT aliases — every one of them is something a person could
     reasonably type meaning the model."""
 

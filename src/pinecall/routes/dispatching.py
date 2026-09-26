@@ -73,16 +73,6 @@ class Dispatches(Protocol):
         ...
 
 
-class MemoryDispatches:
-    """What a clone with no LiveKit pair, and every test, would have dispatched."""
-
-    def __init__(self) -> None:
-        self.jobs: list[Job] = []
-
-    async def started(self, job: Job) -> None:
-        self.jobs.append(job)
-
-
 class LivekitDispatches:
     """One `create_dispatch`, exactly as a spoken eval run makes one (evals/calling.py)."""
 

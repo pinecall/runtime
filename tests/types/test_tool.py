@@ -36,12 +36,12 @@ def test_an_irreversible_tool_needs_a_confirm_template() -> None:
         side_effect="irreversible",
         confirm="Le reservo el {day} a las {time}. ¿Lo confirmo?",
     )
-    assert booking.requires_confirmation
+    assert booking.confirm is not None
 
 
 def test_a_read_tool_needs_no_yes_but_a_template_gates_any_tool() -> None:
-    assert not a_tool().requires_confirmation
-    assert a_tool(side_effect="write", confirm="¿Lo cambio?").requires_confirmation
+    assert not a_tool().confirm is not None
+    assert a_tool(side_effect="write", confirm="¿Lo cambio?").confirm is not None
 
 
 def test_a_pii_field_names_a_parameter_the_tool_has() -> None:

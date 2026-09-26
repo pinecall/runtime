@@ -61,12 +61,12 @@ from pinecall.orgs.vault import MemoryVault, Vault, brought_by
 from pinecall.orgs.widgets import MemoryWidgets
 from pinecall.providers.models import Chat, Models
 from pinecall.routes.table import MemoryRoutes
-from pinecall.routes.trunks import MemoryTrunks
 from pinecall.routes.twilio import TwilioFor
 from pinecall.tokens.ledger import MemoryTokens
 from pinecall.types import Brought, Model, Org, ProviderKeys
 from pinecall.worker.client import Gateway
 from tests.api.fake_graph import FakeGraph
+from tests.routes.fakes import MemoryTrunks
 from tests.session.fake_llm import FakeLLM
 from tests.vectors import HashEmbedder
 

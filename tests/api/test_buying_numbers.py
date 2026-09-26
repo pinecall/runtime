@@ -10,13 +10,13 @@ from pinecall.api.identity import BOUGHT_THERE
 from pinecall.api.managed import NO_BOX_CARRIER, NONE_FOR_SALE
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.routes.table import MemoryRoutes
-from pinecall.routes.trunks import MemoryTrunks
 from pinecall.routes.twilio import TWILIO_SIGNALLING
 from pinecall.types import PRODUCTION, Quotas
 from tests.api.carriers import A_KEY_SID, A_SID, FakeTwilio
 from tests.api.conftest import A_LIVEKIT, A_RECORD, A_VAULT_KEY, AGENT, AN_OPS_KEY
 from tests.api.test_numbers import ABAI, brought
 from tests.conftest import a_sandbox
+from tests.routes.fakes import MemoryTrunks
 
 pytestmark = pytest.mark.unit
 

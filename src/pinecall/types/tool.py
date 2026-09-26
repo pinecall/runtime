@@ -30,7 +30,6 @@ class ToolSpec:
     pii: frozenset[str] = frozenset()
     confirm: str | None = None
     preview: int | None = None
-    result_summary: str | None = None
     timeout_s: float = 30.0
 
     def __post_init__(self) -> None:
@@ -61,12 +60,6 @@ class ToolSpec:
             raise DeclarationRefused(f"tool {self.name}: a preview shows at least one item")
         if self.timeout_s <= 0:
             raise DeclarationRefused(f"tool {self.name}: timeout_s is a positive number of seconds")
-
-    # A read-back is what gates a tool: the platform reads it, hears the yes, mints the token, runs.
-    @property
-    def requires_confirmation(self) -> bool:
-        """True when the platform must hear an explicit yes before running this tool."""
-        return self.confirm is not None
 
     @property
     def parameter_names(self) -> frozenset[str]:

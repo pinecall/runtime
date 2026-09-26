@@ -29,7 +29,7 @@ def test_token_scopes_are_a_closed_set() -> None:
 
 def test_talk_opens_one_session_once_for_a_minute_with_audio() -> None:
     talk = grant_for("talk")
-    assert talk.connects and talk.audio and talk.single_use
+    assert talk.connects and talk.audio
     assert talk.ttl_s == ONE_VISIT_TTL_S == 60
     assert not talk.sends_verbs
     assert ONE_VISIT_TTL_S < LONGEST_VISIT_TTL_S == 600
@@ -86,7 +86,7 @@ def test_a_grant_is_data_nobody_edits_at_runtime() -> None:
 
 def test_read_follows_one_call_for_hours_and_opens_no_room_and_steers_nothing() -> None:
     read = grant_for("read")
-    assert read.reads_log and read.own_call_only and not read.single_use
+    assert read.reads_log and read.own_call_only
     assert not read.connects and not read.audio and not read.hears and not read.sends_verbs
     assert read.ttl_s == READ_TTL_S == 4 * 60 * 60
     assert "read" not in MINTED_FOR_A_VISIT

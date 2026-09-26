@@ -29,7 +29,8 @@ DRY_RUN = Query(False, description="print the plan and write nothing")
 
 # The password the box authenticates to the carrier with. Minted here, kept sealed, and never
 # shown again by either side: Twilio does not read a credential's password back and neither does
-# LiveKit read a trunk's. Thirty-two url-safe bytes is far past anything a registrar will guess.
+# LiveKit read a trunk's. Twenty-four random bytes, thirty-two url-safe characters, is far past
+# anything a registrar will guess.
 PASSWORD_BYTES = 24
 
 NO_NUMBERS = (

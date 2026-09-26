@@ -174,6 +174,3 @@ class PostgresRuns:
 def runs_for(pool: Pool | None) -> Runs:
     """Postgres when the process opened one; memory when it is a clone running on a dev key."""
     return MemoryRuns() if pool is None else PostgresRuns(pool)
-
-
-# ── how a route asks for it ─────────────────────────────────────────────────────

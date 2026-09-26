@@ -30,7 +30,7 @@ from pinecall.evals.judges.register import RegisterJudge
 from pinecall.evals.matrix import GoldenRun, Matrix, Run, Score, a_matrix
 from pinecall.evals.report import as_html
 from pinecall.evals.score import a_score
-from pinecall.evals.transcript import answered_by_the_app, said_by_the_agent, tools_called
+from pinecall.evals.transcript import said_by_the_agent, tools_called
 
 __all__ = [
     "EXTRACTORS",
@@ -66,7 +66,6 @@ __all__ = [
     "a_matrix",
     "a_score",
     "a_simulated_call",
-    "answered_by_the_app",
     "as_html",
     "asked",
     "broken",

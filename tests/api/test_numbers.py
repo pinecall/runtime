@@ -17,11 +17,11 @@ from pinecall.api.numbers import (
 )
 from pinecall.orgs.carriers import MemoryCarriers
 from pinecall.routes.table import MemoryRoutes
-from pinecall.routes.trunks import MemoryTrunks
 from pinecall.routes.twilio import TWILIO_SIGNALLING
 from pinecall.types import PRODUCTION
 from tests.api.carriers import A_KEY_SID, A_SID, FakeTwilio
 from tests.api.conftest import A_LIVEKIT, A_RECORD, A_VAULT_KEY, AGENT, AN_OPS_KEY
+from tests.routes.fakes import MemoryTrunks
 
 pytestmark = pytest.mark.unit
 

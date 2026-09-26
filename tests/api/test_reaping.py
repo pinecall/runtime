@@ -12,11 +12,11 @@ from pinecall.api._live import Live
 from pinecall.api.reaping import NOT_JUDGED, QUIET_S, Reaper, reaping
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
-from pinecall.routes.rooms import MemoryRooms
 from pinecall.types import AgentConfig
 from tests.api.conftest import A_RECORD
 from tests.api.talking import a_context as a_call_on
 from tests.api.talking import got
+from tests.routes.fakes import MemoryRooms
 
 pytestmark = pytest.mark.unit
 

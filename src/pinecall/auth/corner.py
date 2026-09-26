@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 
 from pinecall.auth.keys import KeyRecord, held_by, is_the_fleets, sees_every_corner
 from pinecall.auth.members import Members
-from pinecall.types import DeclarationRefused, Env, is_a_deployment, whose
+from pinecall.types import DeclarationRefused, Env, is_a_deployment
 
 # A tenant that names a corner that is not its own. Said in these words at every door that takes
 # one, and never 404: whether that org exists is not the asker's business.
@@ -21,11 +21,6 @@ class Corner:
     org: str
     env: Env
     holder: str | None = None
-
-
-def whose_corner(record: KeyRecord) -> str:
-    """The corner this key works in, as a namespaced table's column spells it: '' for the org's."""
-    return whose(held_by(record))
 
 
 # Who a write is attributed to, in the history a versioned table keeps: the person, when the key

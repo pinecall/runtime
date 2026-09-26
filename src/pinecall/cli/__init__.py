@@ -52,8 +52,6 @@ GROUP_MODULES: dict[str, Group] = {
     "sandbox": sandbox,
 }
 
-GROUPS: dict[str, str] = {name: module.PURPOSE for name, module in GROUP_MODULES.items()}
-
 
 def main(argv: Sequence[str] | None = None) -> int:
     """The console-script entry. No group prints them all; otherwise the group answers."""

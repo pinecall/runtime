@@ -8,11 +8,10 @@ from pinecall.orgs.carriers import MemoryCarriers
 from pinecall.orgs.outbound import MemoryOutboundTrunks
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.orgs.vault import a_cipher
-from pinecall.routes.outbound import MemoryOutbound
 from pinecall.routes.table import MemoryRoutes
-from pinecall.routes.trunks import MemoryTrunks
 from pinecall.routes.twilio import TWILIO_SIGNALLING
 from pinecall.types import Carrier, OutboundTrunk, Route, SipPeer, TwilioAccount
+from tests.routes.fakes import MemoryOutbound, MemoryTrunks
 
 pytestmark = pytest.mark.unit
 

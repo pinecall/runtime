@@ -121,6 +121,8 @@ RETURNING base
 # relative to the best of ITS query — so three attached collections took three of a turn's four
 # slots before the ranking said anything, whatever the third was about (measured 2026-09-20).
 #
+# Both branches read `mode = 'retrieved'`, the filter 0038 promised when it let a row be kept
+# whole with no vector: nothing writes such a row yet, and a search must never rank one.
 # The dense branch: nearest by cosine, the HNSW index's own order. The corner is JOINED and not
 # asked per candidate: as a correlated subquery it ran once per row — 537 times over a tenant's
 # base, 19ms — and as a join the four columns of `knowledge_chunks_by_base` are one index
@@ -129,7 +131,7 @@ _NEAREST = f"""
 WITH mine AS ({_MINE})
 SELECT id, base, path, heading, text
 FROM knowledge_chunks JOIN mine USING (base, holder)
-WHERE org = $1 AND env = $2
+WHERE org = $1 AND env = $2 AND mode = 'retrieved'
 ORDER BY embedding <=> $5::halfvec
 LIMIT $6
 """
@@ -142,7 +144,7 @@ SELECT id, base, path, heading, text
 FROM (
     SELECT id, base, path, heading, text, text <@> to_bm25query($5, '{TEXT_INDEX}') AS score
     FROM knowledge_chunks JOIN mine USING (base, holder)
-    WHERE org = $1 AND env = $2
+    WHERE org = $1 AND env = $2 AND mode = 'retrieved'
 ) scored
 WHERE score < 0
 ORDER BY score

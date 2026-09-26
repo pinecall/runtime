@@ -3,7 +3,7 @@
 import pytest
 
 from pinecall._exceptions import PinecallError
-from pinecall.cli import GROUPS, build_parser, gateway, main
+from pinecall.cli import GROUP_MODULES, build_parser, gateway, main
 from pinecall.cli.box import verbs as box
 from pinecall.cli.doctor import verbs as doctor
 from pinecall.cli.fleet import verbs as fleet
@@ -20,7 +20,7 @@ pytestmark = pytest.mark.unit
 def test_no_arguments_prints_every_group_and_exits_zero(capsys: pytest.CaptureFixture[str]) -> None:
     assert main([]) == 0
     printed = capsys.readouterr().out
-    for group in GROUPS:
+    for group in GROUP_MODULES:
         assert group in printed
 
 
@@ -102,7 +102,7 @@ def test_the_doctor_group_is_wired_to_the_doctor_module() -> None:
 
 
 def test_every_group_says_in_one_line_what_it_is() -> None:
-    assert set(GROUPS) == {
+    assert set(GROUP_MODULES) == {
         "init",
         "gateway",
         "worker",
@@ -118,7 +118,10 @@ def test_every_group_says_in_one_line_what_it_is() -> None:
         "box",
         "sandbox",
     }
-    assert all(purpose and "\n" not in purpose for purpose in GROUPS.values())
+    assert all(
+        purpose and "\n" not in purpose
+        for purpose in (module.PURPOSE for module in GROUP_MODULES.values())
+    )
 
 
 def test_the_quota_verb_has_one_flag_per_quota_and_the_flags_are_the_wires_names() -> None:

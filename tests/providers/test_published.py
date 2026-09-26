@@ -5,7 +5,7 @@ import json
 import pytest
 
 from pinecall.providers import prices
-from pinecall.providers.published import FILE, as_of, published
+from pinecall.providers.published import FILE, published
 
 pytestmark = pytest.mark.unit
 
@@ -23,10 +23,12 @@ def test_it_prices_a_thousand_models_this_runtime_read_no_page_for() -> None:
     assert len(table.tokens) + len(table.media) > 900
 
 
-def test_every_row_carries_the_date_somebody_last_checked_it() -> None:
-    assert as_of("cartesia/sonic-3")
-    assert as_of("claude-haiku-4-5")
-    assert as_of("nothing-by-that-name") is None
+def test_the_file_says_where_it_came_from_and_when_each_row_was_read() -> None:
+    """For the reviewer of its diff: the runtime prices by the numbers and reads none of this."""
+    data = json.loads(FILE.read_text(encoding="utf-8"))
+    assert data["source"] and data["commit"]
+    assert data["prices"]["cartesia/sonic-3"]["as_of"]
+    assert data["prices"]["claude-haiku-4-5"]["as_of"]
 
 
 # The four vendors of a pipeline this build can be pointed at from the console today, priced. Each

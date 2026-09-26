@@ -52,7 +52,6 @@ class Grant:
     reads_log: bool
     sends_verbs: bool
     own_call_only: bool
-    single_use: bool
     ttl_s: int | None
     # A listener hears the room and is heard by nobody: subscribe without publish, and hidden, so
     # the caller is never told anybody joined. `audio` is both ways; `hears` is the one way.
@@ -70,7 +69,6 @@ GRANTS: dict[str, Grant] = {
         reads_log=True,
         sends_verbs=False,
         own_call_only=True,
-        single_use=True,
         ttl_s=ONE_VISIT_TTL_S,
     ),
     # A chat token speaks with no microphone, and it HEARS: LiveKit hands text streams — the
@@ -86,7 +84,6 @@ GRANTS: dict[str, Grant] = {
         reads_log=True,
         sends_verbs=False,
         own_call_only=True,
-        single_use=True,
         ttl_s=ONE_VISIT_TTL_S,
     ),
     # An observe token is minted for a LIVE call by the tenant's own door, with the API key
@@ -98,7 +95,6 @@ GRANTS: dict[str, Grant] = {
         reads_log=True,
         sends_verbs=False,
         own_call_only=False,
-        single_use=False,
         ttl_s=None,
         hears=True,
         hidden=True,
@@ -115,7 +111,6 @@ GRANTS: dict[str, Grant] = {
         reads_log=True,
         sends_verbs=True,
         own_call_only=False,
-        single_use=False,
         ttl_s=None,
     ),
     # A read token follows one call's log and plays its recording, and does nothing else: no
@@ -127,7 +122,6 @@ GRANTS: dict[str, Grant] = {
         reads_log=True,
         sends_verbs=False,
         own_call_only=True,
-        single_use=False,
         ttl_s=READ_TTL_S,
     ),
     "participate": Grant(
@@ -137,7 +131,6 @@ GRANTS: dict[str, Grant] = {
         reads_log=True,
         sends_verbs=False,
         own_call_only=True,
-        single_use=False,
         ttl_s=None,
     ),
 }
