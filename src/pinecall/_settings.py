@@ -29,6 +29,10 @@ type Role = Literal["all", "hub", "worker"]
 # HTTP door across the internet, and the one way to retrieve on a machine TEI has no image for.
 type EmbedProvider = Literal["tei", "perplexity", "openrouter"]
 
+# What the gateway's lines look like: a terminal reads text, a journal a Loki or Vector tails
+# reads json — the same json the worker's `start` verb writes by itself (livekit's JsonFormatter).
+type LogFormat = Literal["text", "json"]
+
 
 # A lookup never delays a reply past its budget, and a slow model at hang-up never holds the
 # seal: the numbers a session waits on memory and retrieval for, then goes on without them.
@@ -427,6 +431,37 @@ class Settings(VendorKeys):
     log_level: str = Field(
         default="INFO",
         description="How much both processes say: DEBUG, INFO, WARNING or ERROR.",
+    )
+    log_format: LogFormat = Field(
+        default="text",
+        description=(
+            "The gateway's lines: text for a terminal, json for a journal (the worker's `start` "
+            "is json)."
+        ),
+    )
+    # Where a call's spans go. livekit spans the session, every turn, every model and tool call
+    # (agents/telemetry/trace_types.py) on a tracer that is a no-op until a provider is set;
+    # worker/telemetry.py sets one exporting over OTLP/HTTP when this names where.
+    otlp_endpoint: str | None = Field(
+        default=None,
+        description=(
+            "Where the worker sends a call's traces, OTLP over HTTP "
+            "(http://localhost:4318/v1/traces). Unset: no trace."
+        ),
+    )
+    otlp_headers: str | None = Field(
+        default=None,
+        description=(
+            "Headers on every trace export, `name=value` comma-separated: a Langfuse or Grafana "
+            "credential."
+        ),
+    )
+    otlp_pii: bool = Field(
+        default=False,
+        description=(
+            "Whether a trace carries what was said and what a tool got. Off, a span keeps names "
+            "and timings."
+        ),
     )
     # What judging ONE call at hang-up may cost. Zero closes the door on every judge that would
     # ask a model; the policies that answer by code still answer. docs/decisions/scoring.md.

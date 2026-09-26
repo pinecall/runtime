@@ -107,6 +107,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   could make orgs for as many trials as they liked.
 
 ### Added
+- **A call's traces, and one shape of log line.** `PINECALL_OTLP_ENDPOINT` names where the worker
+  sends the spans livekit already makes — the session, each turn, each model, TTS and tool call —
+  over OTLP/HTTP, with `PINECALL_OTLP_HEADERS` on each export for the backend's credential and
+  every span naming the fleet; transcripts and tool payloads travel only under
+  `PINECALL_OTLP_PII=true`. Unset, nothing is traced. `PINECALL_LOG_FORMAT=json` makes the
+  gateway write the json line the worker's `start` verb always wrote, so one journal holds one
+  shape; `text`, the default, is for a terminal.
 - **The widget's theme, kept per agent.** `GET`/`PUT /v1/agents/{slug}/widget` carry `theme` —
   `auto`, `light` or `dark`, `null` for the widget's own default (auto) — beside the other settings
   (migration 0052). A body without it still saves, as `null`.

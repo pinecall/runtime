@@ -123,7 +123,9 @@ names the agent declared. A **scope** picks the projection a bearer reads throug
 `api/app.py` is one FastAPI process: a lifespan that opens the Postgres pool, the key table, the
 routes, the vault and the meter, the embedder `EMBED_PROVIDER` names, memory, the knowledge base and
 the one `Lookups` over them, then the routers `api/_doors.py` lists, one door each, in order — and
-the one loop that answers to nobody, the **reaper** (`api/reaping.py`, §8). By resource:
+the one loop that answers to nobody, the **reaper** (`api/reaping.py`, §8). Its lines are one
+`dictConfig` handed to uvicorn (`cli/gateway.py`, `a_log_config`): text for a terminal, or the
+json the worker writes, when `PINECALL_LOG_FORMAT` says so. By resource:
 
 | door | what |
 |---|---|
@@ -183,14 +185,15 @@ livekit — registers `rtc_session(job, agent_name=<fleet>)`, the instance's `PI
 empty name would answer every room in the deployment: refused), keeps `PINECALL_IDLE_PROCESSES`
 warm (livekit's one per CPU unless set) and reports **slots** (`active_jobs / PINECALL_MAX_JOBS`)
 when measured, the CPU otherwise; livekit-server stops routing at 0.7 (`worker/load.py`, `warmed`).
+`warmed` also hands livekit's tracer a provider when `PINECALL_OTLP_ENDPOINT` names where (`worker/telemetry.py`):
+the session, each turn, each model, TTS and tool call, spanned, the fleet on each; what was said only under `PINECALL_OTLP_PII`.
 
 `worker/entry.py`, `answer(ctx, worker)`, is the whole job:
 
 1. `ctx.connect()` and the routes, in one wait; `worker/router.py` says who the job is for — the dispatch, then the
    number dialled, then the default (`worker/seat.py`: the caller). A production ring from a developer's own phone is
    **handed over**: a dispatch into the same room to the fleet `rings-for` names (their sandbox's), and the job ends.
-2. The agent's config and the org's provider keys, in one wait, from the gateway
-   (`worker/client.py`, the worker's **only** door — HTTP, the fleet's key; no database, no
+2. The agent's config and the org's provider keys, in one wait, from the gateway (`worker/client.py`, the worker's **only** door — HTTP, the fleet's key; no database, no
    cache). Each is asked for the corner the dispatch named — the org, the world, the holder
    (`worker/router.py:whose`, `types/dispatch.py`) — so the one worker builds a session from THAT
    org's declaration and runs it on that org's keys; a phone call on the box's own trunk names no
@@ -198,12 +201,9 @@ when measured, the CPU otherwise; livekit-server stops routing at 0.7 (`worker/l
 3. `POST /v1/calls`: the gateway opens the log, binds the call to an app socket and answers `seconds_left`, what the org's minutes leave it; the worker keeps it on the agent's own clock (`closing_time.the_clock`), writing `credits.exhausted` first when the minutes are what end it.
 4. The audio, when the agent's world keeps it (`record`): `worker/recordings.py` composes the one path a recording has, `worker/egress.py` asks LiveKit for a **room composite** of this room — audio only, one mix (never dual-channel: it drops the melody, measured), the shape that runs on the SDK — here, before the session, so the greeting is inside it, and stopped before the summary states the pointer. The ROOM, so the hold melody and a supervisor's voice are in it; a recorder that refuses is a call with no audio and the doctor's `egress` line is what says so.
 5. `session/voice/kit.py` asks `providers/` for the three vendor objects the declaration names; `session/voice/session.py` builds the `AgentSession` — with livekit's **preemptive generation off**, on a spoken call as on a written one (`SPOKEN_PREEMPTION`): with it on, an end of turn landing inside a tool's execution window starts a whole new reply on a context the tool's answer is not in yet, and a call was measured asking "Is this a house?" and answering "Yes, a house." in its own voice under the same speech id — that round ran on 2,923 prompt tokens where every other ran on 4,300 to 4,900, and it paid for a second, discarded model call per turn. Half a second of latency is what it costs to be sure the agent is never both parts; **`VoiceBridge`** (`session/voice/voice.py`) sits between it and the platform.
-6. `worker/commanding.py` streams the app's commands off `GET /v1/calls/{call}/commands` and
-   applies each to the bridge, until `None` — the call ending.
-7. Hang-up: the bridge writes `call.ended`, asks the gateway to remember the call
-   (`POST /v1/calls/{call}/remember`, under `PINECALL_REMEMBER_BUDGET_S`), writes `call.summary`,
-   hands its own log to the `Scorer` (`session/scoring.py` → `evals/score.py`), writes
-   `call.score`, and the worker seals the call.
+6. `worker/commanding.py` streams the app's commands off `GET /v1/calls/{call}/commands` and applies each to the bridge, until `None` — the call ending.
+7. Hang-up: the bridge writes `call.ended`, asks the gateway to remember the call (`POST /v1/calls/{call}/remember`, under `PINECALL_REMEMBER_BUDGET_S`),
+   writes `call.summary`, hands its own log to the `Scorer` (`session/scoring.py` → `evals/score.py`), writes `call.score`, and the worker seals the call.
 
 **The bridge** hooks livekit's session and turns its life into entries: `events.py` (every
 transcript, state, turn, error → an entry), `metrics.py` (every measured block), `writing.py`

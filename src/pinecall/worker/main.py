@@ -18,6 +18,7 @@ from pinecall.worker import recordings
 from pinecall.worker.client import reaching
 from pinecall.worker.entry import Worker, answer
 from pinecall.worker.load import MachineLoad, SlotLoad, reports_no_load
+from pinecall.worker.telemetry import traced_to
 
 # What livekit needs to register a worker at all: the media plane, and the pair that signs.
 LIVEKIT_FIELDS: tuple[str, ...] = ("livekit_url", "livekit_api_key", "livekit_api_secret")
@@ -160,6 +161,7 @@ def _the_gate(
 def warmed(proc: JobProcess) -> None:  # noqa: ARG001 — livekit hands every setup the process
     """Everything a call would otherwise wait for, done while the process is still idle."""
     warm_the_vendor_tables()
+    traced_to(load_settings())
 
 
 # Which of the three a box has not set, by the variable name an operator would type. livekit

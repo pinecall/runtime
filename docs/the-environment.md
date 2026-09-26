@@ -49,7 +49,8 @@ instances, its embedder, its fleet cloud, its mail.
 | `PINECALL_MIN_PASSWORD` | how short a member's password may be: 8 unless set, `0` for no rule |
 | `PINECALL_JUDGE_CEILING_EUR` | what judging one call may spend on a model. Zero: no judge asks |
 | `PINECALL_VOICE_LOOKUP_BUDGET_MS` · `PINECALL_TEXT_LOOKUP_BUDGET_MS` · `PINECALL_REMEMBER_BUDGET_S` | how long a turn waits for recall and search, and a hang-up for memory |
-| `PINECALL_LOG_LEVEL` | `DEBUG` · `INFO` · `WARNING` · `ERROR` |
+| `PINECALL_LOG_LEVEL` · `PINECALL_LOG_FORMAT` | `DEBUG` · `INFO` · `WARNING` · `ERROR`; and the gateway's lines, `text` for a terminal or `json` for a journal — the worker's `start` verb writes json by itself, and `dev` and `talk` colour a terminal, livekit's own rule |
+| `PINECALL_OTLP_ENDPOINT` · `PINECALL_OTLP_HEADERS` · `PINECALL_OTLP_PII` | where the worker sends a call's traces, OTLP over HTTP (`http://localhost:4318/v1/traces`; a Langfuse or Grafana endpoint, or a collector on the box); the headers each export carries, `name=value` comma-separated, which is where a backend's credential goes (a secret: `make secret NAME=PINECALL_OTLP_HEADERS`); and whether a span carries what was said and what a tool got — off unless set, so a backend sees names and timings and no transcript. Unset, nothing is traced |
 
 ## A laptop, from nothing
 

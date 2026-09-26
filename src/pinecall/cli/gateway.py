@@ -2,12 +2,14 @@
 
 import argparse
 import ipaddress
+from typing import Any
 from urllib.parse import urlsplit
 
 import uvicorn
+from livekit.agents.cli.log import JsonFormatter
 
 from pinecall._exceptions import PinecallError
-from pinecall._settings import load_settings, variable_of
+from pinecall._settings import Settings, load_settings, variable_of
 
 PURPOSE: str = "the control plane: HTTP and WebSocket, one process"
 
@@ -27,6 +29,14 @@ NOT_HERE = (
     "{variable} is {url}: a gateway binds a loopback address with a port it names "
     "(http://127.0.0.1:8080), or is told --host and --port"
 )
+
+
+# One line of the gateway in a terminal. The json line is livekit's own JsonFormatter, the one
+# the worker's `start` verb writes by itself, so one journal holds one shape.
+TEXT_LINE = "%(asctime)s %(levelname)-7s %(name)s %(message)s"
+
+# Loggers that say every request at INFO: the gateway makes one per lookup, push and heartbeat.
+QUIET_AT_INFO = ("httpx", "httpcore")
 
 
 class NotBindable(PinecallError):
@@ -54,9 +64,36 @@ def run(arguments: argparse.Namespace) -> int:
         port=port,
         reload=arguments.reload,
         log_level=settings.log_level.lower(),
+        log_config=a_log_config(settings),
         timeout_graceful_shutdown=GRACEFUL_S,
     )
     return 0
+
+
+# Handed to uvicorn rather than applied here: uvicorn runs dictConfig itself in the process that
+# serves, which under --reload is one it spawns — a config applied in this process alone left
+# that child with Python's last-resort handler, WARNING and up, and nothing else.
+def a_log_config(settings: Settings) -> dict[str, Any]:
+    """logging's dictConfig for the gateway: every logger to stdout, at PINECALL_LOG_LEVEL."""
+    line: dict[str, Any] = (
+        {"()": JsonFormatter}
+        if settings.log_format == "json"
+        else {"format": TEXT_LINE, "datefmt": "%H:%M:%S"}
+    )
+    return {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {"line": line},
+        "handlers": {
+            "stdout": {
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stdout",
+                "formatter": "line",
+            }
+        },
+        "root": {"level": settings.log_level.upper(), "handlers": ["stdout"]},
+        "loggers": {name: {"level": "WARNING"} for name in QUIET_AT_INFO},
+    }
 
 
 def the_address_of(url: str) -> tuple[str, int]:

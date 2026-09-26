@@ -39,6 +39,10 @@ dependencies = [
   # and protobuf is what a room's egress token carries (tokens/room.py).
   "av>=13,<19",
   "protobuf>=5,<8",
+  # And the tracing SDK it brings: the worker hands livekit's tracer a provider that exports
+  # over OTLP/HTTP when PINECALL_OTLP_ENDPOINT names where (worker/telemetry.py).
+  "opentelemetry-sdk>=1.30,<2",
+  "opentelemetry-exporter-otlp-proto-http>=1.30,<2",
   "pyjwt>=2.13.0",
   # Fernet, and nothing else: a tenant's own provider key is encrypted at rest under the box's
   # PINECALL_VAULT_KEY. See docs/decisions/provider-keys.md.

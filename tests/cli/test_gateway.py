@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import logging
+import logging.config
 from typing import Any
 
 import pytest
+from livekit.agents.cli.log import JsonFormatter
 
+from pinecall._settings import load_settings
 from pinecall.cli import gateway
 
 pytestmark = pytest.mark.unit
@@ -32,6 +36,45 @@ def test_the_gateway_is_run_with_a_graceful_stop(monkeypatch: pytest.MonkeyPatch
     ran = ran_with(monkeypatch, "http://127.0.0.1:8080")
     assert ran["app"] == gateway.APP
     assert ran["timeout_graceful_shutdown"] == gateway.GRACEFUL_S == 5
+
+
+def test_uvicorn_is_handed_the_log_config_so_a_reloaded_child_writes_the_same_lines(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PINECALL_LOG_LEVEL", "debug")
+    ran = ran_with(monkeypatch, "http://127.0.0.1:8080")
+    assert ran["log_config"]["root"] == {"level": "DEBUG", "handlers": ["stdout"]}
+    assert ran["log_config"]["loggers"]["httpx"] == {"level": "WARNING"}
+
+
+def test_a_journal_reads_the_workers_own_json_line_and_a_terminal_reads_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PINECALL_LOG_FORMAT", "json")
+    line = _one_line_under(gateway.a_log_config(load_settings()))
+    assert line.startswith('{"message": "hello 2", "level": "INFO", "name": "pinecall.a"')
+    monkeypatch.setenv("PINECALL_LOG_FORMAT", "text")
+    line = _one_line_under(gateway.a_log_config(load_settings()))
+    assert line.endswith("INFO    pinecall.a hello 2")
+    assert isinstance(gateway.a_log_config(load_settings())["formatters"]["line"], dict)
+
+
+def _one_line_under(config: dict[str, Any]) -> str:
+    """What logging writes for one record once the config is applied — and applied, it is valid.
+    The root logger's handlers are put back so the suite's own capture is untouched."""
+    root = logging.getLogger()
+    kept, level = list(root.handlers), root.level
+    try:
+        logging.config.dictConfig(config)
+        formatter = root.handlers[0].formatter
+        assert formatter is not None
+        if config["formatters"]["line"].get("()") is JsonFormatter:
+            assert isinstance(formatter, JsonFormatter)
+        record = logging.LogRecord("pinecall.a", logging.INFO, "a.py", 1, "hello %d", (2,), None)
+        return formatter.format(record)
+    finally:
+        root.handlers[:] = kept
+        root.setLevel(level)
 
 
 def test_a_gateway_told_nothing_binds_the_host_and_port_of_its_own_url(
