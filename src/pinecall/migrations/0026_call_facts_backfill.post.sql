@@ -4,7 +4,7 @@
 -- call_log that a fact is made of, which on a box with months of calls is minutes, not seconds.
 -- Until it runs, those calls are listed and counted in no day, exactly as 0025 says.
 --
--- It restates log/call_facts.py in SQL, once, for rows that were written before the store folded them
+-- It restates log/facts.py in SQL, once, for rows that were written before the store folded them
 -- as it appended. It fills only calls that have NO row: a call that 0025's store already indexed
 -- is the store's, and this never touches it. The two cannot disagree about a call.
 --

@@ -7,7 +7,7 @@
 --
 -- Three columns say the first two the way the agent's own settings say them: `llm`, `tts` and
 -- `voice` are the same three strings `pinecall agent set` takes, read by the same parser
--- (providers/tuned_declaration.py), refused at the door for a vendor this build has no file for. Two say the
+-- (providers/tuning.py), refused at the door for a vendor this build has no file for. Two say the
 -- third in the caller's own words: when it accepts the call, and when it declines it. The judge
 -- that reads them is `persona`, on the hang-up panel (evals/judges/persona.py); the rule itself
 -- rides the call's own `call.started`, so a call is judged by what the caller was when it was made

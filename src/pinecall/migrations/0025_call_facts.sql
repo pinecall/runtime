@@ -9,7 +9,7 @@
 -- call came in by, its two numbers and its contact, how it ended and what it cost, how the judges
 -- answered, whether a person took part, every agent turn's e2e_latency, when each caller message
 -- landed, and the last thing said. It is a PROJECTION: every column is what some entry of the log
--- said, written by the store as it appends that entry (log/call_facts.py is the one fold, and the
+-- said, written by the store as it appends that entry (log/facts.py is the one fold, and the
 -- memory store runs the very same one), and the log stays the truth. A call from before this
 -- migration has no row until 0026 folds it back, and until then reads as a call nobody indexed:
 -- listed, and counted in no day.

@@ -11,7 +11,7 @@
 -- From here the tuning is one table, keyed the way knowledge is (org, world, corner) and versioned:
 -- a row is never updated, a change is the next version, and a call's head row says which version
 -- it ran on. The org's own corner is '' and not NULL, as 0021 says: it is part of the key. What a
--- knob may be is providers/tuned_declaration.py's; the columns hold JSON and no meaning.
+-- knob may be is providers/tuning.py's; the columns hold JSON and no meaning.
 --
 -- The lexicon is the org's words — how the voice says a brand, what the ears must know — shared by
 -- every agent of it, so it has no agent column and is otherwise the same shape.

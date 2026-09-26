@@ -5,7 +5,7 @@
 -- `env: development` could not tell whether they were looking at somebody's laptop or at the
 -- team's box. They were never the same axis: which WORLD a thing is in is this column, and whether
 -- a sandbox agent is one person's copy or the team's shared one is whether the key that registered
--- it names a person (api/agents/held_agent.py). Two worlds, three behaviours.
+-- it names a person (api/agents/holding.py). Two worlds, three behaviours.
 --
 -- Every row moves, in five tables, and the CHECK moves with it. The order matters on a table that
 -- HAS rows: the old constraint has to go before a row can hold the new word, and the new one
