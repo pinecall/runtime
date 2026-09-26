@@ -11,19 +11,31 @@ from tests.tree import SOURCE_ROOTS
 
 pytestmark = pytest.mark.unit
 
+# Every package another package reads from has an index: its __init__ says, in one screen, what it
+# offers. api/ and cli/ have none on purpose: they are the doors and the verbs, read by nobody.
 PACKAGES = [
     "auth",
+    "db",
     "errors",
     "evals",
     "extensions",
     "fleet",
     "knowledge",
+    "live",
     "log",
     "lookups",
     "mail",
     "memory",
+    "orgs",
+    "providers",
+    "routes",
+    "session",
+    "session.text",
+    "session.voice",
     "settings",
+    "tokens",
     "types",
+    "whatsapp",
     "worker",
 ]
 

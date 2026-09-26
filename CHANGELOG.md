@@ -112,6 +112,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   none; a suite's run held one per run and closed it never.
 
 ### Changed
+- **Every package opens with its index.** `orgs`, `routes`, `tokens`, `live`, `providers`,
+  `session`, `session.text`, `session.voice` and `whatsapp` had an empty `__init__.py`: what each
+  offered was spread over its files. Each lists now, in one screen, every name the rest of the tree
+  uses of it, imported from the module that defines it; the public-surface test pins them, and
+  `db`'s too. The gateway loads exactly the modules it loaded before.
 - **What the gateway holds right now is a package, `pinecall.live`.** The app sockets, the agents
   and doors they hold, and the calls running on them lived in `api/` beside the doors that read
   them: `api/live.py`, `api/agents/registry.py`, `held_agent.py` and `dial_in.py` are

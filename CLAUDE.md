@@ -78,7 +78,9 @@ happened and the doc is the bug.
   docstring. No two modules in one directory one letter apart.
 - `types/` imports nothing of ours; `types/` and `log/` import no framework; a vendor SDK
   outside `providers/` fails the suite; `api/` never imports `worker/`, `worker/` never `api/`.
-- The public surface of every package with an `__all__` is pinned by a test, and the `pinecall`
+- Every package another reads from opens with its index: its `__init__.py` imports and lists in
+  `__all__` what the rest of the tree uses of it, and a test pins it — `api/` and `cli/` alone have
+  none (doors and verbs, read by nobody). The public surface of every package is pinned by a test, and the `pinecall`
   namespace has no root module in either distribution.
 - The prompt is a list of named blocks in two regions, in this order: static blocks (cached) ·
   append-only history · the dynamic region, which is the view and nothing else. Never reorder.
