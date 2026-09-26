@@ -17,8 +17,8 @@ from livekit.rtc.room import EventTypes as RoomEvent
 from pinecall._exceptions import PinecallError
 from pinecall.log.projection import PUBLIC, project_entry, project_state
 from pinecall.log.replay import caught_up
-from pinecall.session.voice.room.facts import CONNECTION, JOINED, LEFT
-from pinecall.session.voice.room.holding import Holding
+from pinecall.session.voice.room.room_events import CONNECTION, JOINED, LEFT
+from pinecall.session.voice.room.room_handle import Holding
 from pinecall.types import AgentConfig
 from pinecall.types.json import JsonObject
 from pinecall.types.scopes import READS_ITS_OWN_CALL, SCOPE_ATTRIBUTE

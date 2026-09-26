@@ -14,7 +14,7 @@ from livekit.agents.metrics.usage import AgentSessionUsage
 from livekit.agents.voice import AgentSession
 
 from pinecall.providers.usage_wire import as_wire_rows
-from pinecall.session.voice.writing import Writing
+from pinecall.session.voice.log_writer import Writing
 from pinecall_protocol import WireModel
 from pinecall_protocol import metrics as wire
 

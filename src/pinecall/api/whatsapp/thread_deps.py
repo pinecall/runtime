@@ -31,7 +31,7 @@ from pinecall.orgs.tuning_store import TuningStore
 from pinecall.orgs.vault import Vault
 from pinecall.providers.models import Models
 from pinecall.routes.records import Routes
-from pinecall.whatsapp.graph import Graph
+from pinecall.whatsapp.cloud_api import Graph
 
 
 # Eleven collaborators is what opening a call takes — the chat socket asks for the same ones as

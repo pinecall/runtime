@@ -21,9 +21,9 @@ from pinecall.log.store import Store
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.providers.models import Chat
-from pinecall.session.asking import Asking, NotAsking, WhatWasAsked
-from pinecall.session.text.allowance import Allowance, unlimited
+from pinecall.session.model_requests import Asking, NotAsking, WhatWasAsked
 from pinecall.session.text.session import TextSession
+from pinecall.session.text.turn_allowance import Allowance, unlimited
 from pinecall.types import AgentConfig, CallContext, Env, Route, Versions
 from pinecall_protocol.commands import CallEvent, SessionConfigure
 

@@ -13,7 +13,7 @@ from pinecall._settings import Settings, load_settings, variable_of
 from pinecall.evals.score import JudgedWhen
 from pinecall.providers.session_vendors import warm_the_vendor_tables
 from pinecall.session.voice import a_bridge
-from pinecall.session.voice.kit import kit_for
+from pinecall.session.voice.vendors import kit_for
 from pinecall.worker import recordings
 from pinecall.worker.client import reaching
 from pinecall.worker.entry import Worker, answer

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from pinecall.session.voice import sip
-from pinecall.session.voice.room.holding import Holding
+from pinecall.session.voice.room.room_handle import Holding
 from pinecall_protocol.commands import CallDtmf
 
 VERB = "call.dtmf"

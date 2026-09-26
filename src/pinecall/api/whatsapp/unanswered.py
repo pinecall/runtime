@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pinecall.log.store import Store
 from pinecall.log.writers import Logs
 from pinecall.types import Env, Route
-from pinecall.whatsapp.inbound import Inbound
+from pinecall.whatsapp.inbound_message import Inbound
 from pinecall_protocol import encode
 from pinecall_protocol.events import MessageTaken, MessageWaiting
 

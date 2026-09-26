@@ -14,7 +14,7 @@ from pinecall.log.entry import Entry
 from pinecall.log.fanout import Subscription
 from pinecall.log.logs import CallLog
 from pinecall.lookups import OpenCall
-from pinecall.session.pending import ToolCalls
+from pinecall.session.pending_tools import ToolCalls
 from pinecall.session.text.session import TextSession
 from pinecall.types import AgentConfig, CallContext, Env
 from pinecall_protocol import Command

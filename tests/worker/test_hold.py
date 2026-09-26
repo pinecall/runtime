@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from pinecall.session.hold_audio import DEFAULT
+from pinecall.session.hold_melody import DEFAULT
 from pinecall.worker.hold import the_melody
 from pinecall.worker.hop import GatewayRefused
 from pinecall.worker.wire import HoldAudioSaid

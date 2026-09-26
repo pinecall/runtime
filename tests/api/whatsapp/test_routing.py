@@ -8,7 +8,7 @@ import pytest
 
 from pinecall.routes.records import MemoryRoutes
 from pinecall.types import PRODUCTION, Route
-from pinecall.whatsapp.routing import answering
+from pinecall.whatsapp.number_routes import answering
 from tests.api.conftest import A_RECORD, AGENT
 from tests.api.whatsapp.conftest import THE_CLINICS_NUMBER
 

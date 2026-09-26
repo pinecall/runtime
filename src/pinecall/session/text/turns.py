@@ -12,7 +12,7 @@ from livekit.agents.metrics import LLMMetrics as Measured
 from pinecall.log.entry import Entry
 from pinecall.providers.models import vendor_of
 from pinecall.session.errors import COMPONENT_FAILED
-from pinecall.session.text.measure import Reply, llm_metrics, turn_metrics
+from pinecall.session.text.metrics import Reply, llm_metrics, turn_metrics
 from pinecall_protocol import defs
 from pinecall_protocol.events import (
     AgentStateChanged,

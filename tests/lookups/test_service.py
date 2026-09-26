@@ -14,7 +14,7 @@ from pinecall.lookups import Lookups, OpenCall
 from pinecall.orgs.vault import MemoryVault, brought_by
 from pinecall.providers.embed.tei import DID_NOT_ANSWER
 from pinecall.providers.embedder import EmbedderUnreachable
-from pinecall.session.lookups import as_tool_result
+from pinecall.session.lookup_tools import as_tool_result
 from pinecall.types import Contact, Docs, Quotas
 from tests.api.conftest import A_VAULT_KEY
 from tests.lookups.fakes import (

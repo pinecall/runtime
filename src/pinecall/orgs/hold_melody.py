@@ -9,7 +9,7 @@ from typing import Any, Literal
 from pinecall.log.store import Pool
 
 # No row is the runtime's own melody. `off` is silence; `custom` is a clip somebody uploaded,
-# kept as the runtime converted it. The meaning of the bytes is session/hold_audio.py's.
+# kept as the runtime converted it. The meaning of the bytes is session/hold_melody.py's.
 type Played = Literal["off", "custom"]
 
 

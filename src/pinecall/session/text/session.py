@@ -16,23 +16,26 @@ from pinecall.log.entry import Entry
 from pinecall.log.logs import CallLog
 from pinecall.providers import prices
 from pinecall.providers.models import Chat
-from pinecall.session import clock, greeting
-from pinecall.session.asking import Asking, NotAsking
+from pinecall.session import date_tool, greeting
 from pinecall.session.callbacks import a_callback
-from pinecall.session.declaring import declared
 from pinecall.session.first_entries import started
 from pinecall.session.history import remembered
-from pinecall.session.knowing import a_line_for_the_file_it_ships_with, the_file_it_ships_with
-from pinecall.session.lookups import Lookup, NoLookup, TurnLookups
-from pinecall.session.remembering import NoRememberer, Rememberer, remembered_within
-from pinecall.session.scoring import Scorer, unjudged
+from pinecall.session.lookup_tools import Lookup, NoLookup, TurnLookups
+from pinecall.session.model_requests import Asking, NotAsking
+from pinecall.session.platform_block import (
+    a_line_for_the_file_it_ships_with,
+    the_file_it_ships_with,
+)
+from pinecall.session.remember_step import NoRememberer, Rememberer, remembered_within
+from pinecall.session.score_step import Scorer, unjudged
 from pinecall.session.text.agent import TextAgent
-from pinecall.session.text.allowance import SPENT, Allowance, TurnRefused, unlimited
-from pinecall.session.text.attending import Attending
-from pinecall.session.text.measure import Reply, tokens_spent, usage_rows
-from pinecall.session.text.resuming import taken_up
-from pinecall.session.text.running import Running
+from pinecall.session.text.attention import Attending
+from pinecall.session.text.metrics import Reply, tokens_spent, usage_rows
+from pinecall.session.text.resume import taken_up
+from pinecall.session.text.tool_runs import Running
+from pinecall.session.text.turn_allowance import SPENT, Allowance, TurnRefused, unlimited
 from pinecall.session.text.turns import Turns
+from pinecall.session.tool_declaration import declared
 from pinecall.session.written import a_written_session
 from pinecall.types import AgentConfig, Blocks, CallContext
 from pinecall_protocol import WireModel, defs, encode
@@ -103,8 +106,8 @@ class TextSession:
         self._ended = False
         self.turns = Turns(self)
         self.running = Running(self, config)
-        # The platform's own two tools are declared beside the app's, so the model sees one list
-        # and the `tools` block describes one list: session/lookups.py. A written caller sends a
+        # The platform's own two tools are declared beside the app's, so the model sees one list and
+        # the `tools` block describes one list: session/lookup_tools.py. A written caller sends a
         # whole message and there is no interim to start a lookup on, so the whole of it runs when
         # the turn ends — under the text budget, because nobody is listening to a chat's silence.
         self.lookups = TurnLookups(
@@ -119,7 +122,7 @@ class TextSession:
             writer=self.turns,
             lookups=self.lookups,
             # Nobody by default: only a run that has to be reproduced keeps the requests, and it
-            # is the run that hands the holder in. session/asking.py.
+            # is the run that hands the holder in. session/model_requests.py.
             asking=asking,
         )
         self.live: AgentSession[None] = a_written_session(llm)
@@ -176,7 +179,7 @@ class TextSession:
         )
         # The pair a voice call opens with too (worker/entry.py): seeded once, here, before the app
         # has rendered a thing, so a caller who writes "mañana" is read by a model with a calendar.
-        await remembered(self.text_agent, *clock.dated(self.context.today))
+        await remembered(self.text_agent, *date_tool.dated(self.context.today))
         await self.emit("call.started", started(self.context, self.agent, self._started_at))
         await a_line_for_the_file_it_ships_with(self._blocks, self.emit)
         # After call.started, so the opening is a turn INSIDE the call and not before it. A
@@ -202,7 +205,7 @@ class TextSession:
         self.turns.count, self.turns.last = taken.turns, taken.last
         self._started_at = taken.started_at or self._started_at
         self.quiet_since = taken.last_at
-        await remembered(self.text_agent, *clock.dated(self.context.today), *taken.history)
+        await remembered(self.text_agent, *date_tool.dated(self.context.today), *taken.history)
 
     async def hangup(self, reason: defs.EndReason, by: EndedBy) -> None:
         """The last three entries of the call, then the log is sealed. Twice is once."""
@@ -325,7 +328,7 @@ class TextSession:
         )
 
     # Never livekit's update_tools: a re-declared tool throws the provider's whole cache away,
-    # and the gate in our callable holds the closed ones shut. See session/visibility.py.
+    # and the gate in our callable holds the closed ones shut. See session/tool_visibility.py.
     async def set_tools(self, tools: Sequence[defs.ToolSpec]) -> Entry:
         """tools.set: the subset of the declared tools the model may call in this state."""
         visible = self.running.visibility.narrow(tools)

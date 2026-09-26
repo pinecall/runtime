@@ -12,7 +12,7 @@ from pinecall.api.deps import SnapshotsDep, what_is_live
 from pinecall.auth.scopes import Reader
 from pinecall.log.store import Store
 from pinecall.session.text.session import TextSession
-from pinecall.session.text.supervising import applied
+from pinecall.session.text.supervise import applied
 from pinecall_protocol import Command, ProtocolError, encode, verbs
 from pinecall_protocol.commands import SupervisorVerb
 from pinecall_protocol.defs import Supervisor

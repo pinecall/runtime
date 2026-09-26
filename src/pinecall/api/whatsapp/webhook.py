@@ -13,8 +13,8 @@ from starlette.responses import PlainTextResponse
 from pinecall.api.deps import SettingsDep
 from pinecall.api.whatsapp.thread_deps import DoorsDep
 from pinecall.api.whatsapp.threads import ThreadsDep
-from pinecall.whatsapp.inbound import Inbound, Payload, messages_in
-from pinecall.whatsapp.signing import SIGNATURE_HEADER, signed
+from pinecall.whatsapp.inbound_message import Inbound, Payload, messages_in
+from pinecall.whatsapp.webhook_signature import SIGNATURE_HEADER, signed
 from pinecall_protocol import WireModel
 
 logger = logging.getLogger(__name__)

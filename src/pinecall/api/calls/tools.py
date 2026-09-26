@@ -12,7 +12,7 @@ from pinecall.api.live import LiveDep
 from pinecall.auth.keys import is_the_fleets
 from pinecall.auth.request_scope import Corner, corner_of
 from pinecall.log.entry import Entry
-from pinecall.session.declaring import ToolUse
+from pinecall.session.tool_declaration import ToolUse
 from pinecall_protocol import Command, WireModel, defs, encode
 from pinecall_protocol.events import ToolCall
 

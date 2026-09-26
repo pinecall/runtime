@@ -14,7 +14,7 @@ from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.tuning_store import MemoryTuning
 from pinecall.providers.models import Models
-from pinecall.session.scoring import unjudged
+from pinecall.session.score_step import unjudged
 from pinecall.types import PRODUCTION, AgentConfig, CallContext, Route
 from tests.api.conftest import AGENT
 
@@ -46,7 +46,7 @@ def _context() -> CallContext:
     )
 
 
-# A session judges nothing itself (session/scoring.py): whoever OPENS the call hands it a judge,
+# A session judges nothing itself (session/score_step.py): whoever OPENS the call hands it a judge,
 # and this is that place for a written call as worker/main.py is for a spoken one. Between the
 # seam landing and 2026-09-09 this door handed none, so every chat and every WhatsApp call sealed
 # with `not_judged` and nobody was told. The assertion is on identity, because the default is a

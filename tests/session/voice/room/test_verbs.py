@@ -11,7 +11,7 @@ from livekit.agents.types import NOT_GIVEN
 
 from pinecall.session.voice import commands
 from pinecall.session.voice.room import Facts
-from pinecall.session.voice.room.holding import ROOM_VERB_FAILED
+from pinecall.session.voice.room.room_handle import ROOM_VERB_FAILED
 from pinecall_protocol import Command, ProtocolError
 from tests.session.voice.room.fakes import TRUNK, FakeApi, Held, a_caller, a_held_room
 from tests.session.voice.test_commands import End, Prompt, Recorded, Session

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from pinecall.session.lookups import Lookup
+from pinecall.session.lookup_tools import Lookup
 from pinecall.types import PlatformTool
 
 # Where a fact of a golden says it came from. A live fact names the call that taught it; this one

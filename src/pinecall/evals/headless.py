@@ -13,11 +13,11 @@ from livekit.agents.voice import AgentSession
 
 from pinecall._settings import Settings, load_settings
 from pinecall.evals.answers import Answers
-from pinecall.session.declaring import declared
-from pinecall.session.lookups import NoLookup, TurnLookups
+from pinecall.session.lookup_tools import NoLookup, TurnLookups
+from pinecall.session.tool_declaration import declared
 from pinecall.session.voice import session
 from pinecall.session.voice.agent import VoiceAgent
-from pinecall.session.voice.kit import kit_for
+from pinecall.session.voice.vendors import kit_for
 from pinecall.types import NOTHING_BROUGHT, AgentConfig, Blocks
 from pinecall.types.channel import Channel
 from pinecall_protocol.events import ErrorEvent

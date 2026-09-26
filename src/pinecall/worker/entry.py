@@ -14,10 +14,10 @@ from livekit.agents import NOT_GIVEN, JobContext, NotGivenOr
 from livekit.agents.voice import Agent, AgentSession
 from livekit.agents.voice.room_io import RoomOptions
 
-from pinecall.session import clock, greeting
-from pinecall.session.voice import closing_time, session
-from pinecall.session.voice.kit import Kit
+from pinecall.session import date_tool, greeting
+from pinecall.session.voice import session, time_limit
 from pinecall.session.voice.platform import Platform
+from pinecall.session.voice.vendors import Kit
 from pinecall.types import AgentConfig, CallContext, Route
 from pinecall.types.agent import NO_LIMIT
 from pinecall.types.dispatch import DIAL_KEY, SCOPE_KEY, WRITTEN_SCOPE, Handover
@@ -57,7 +57,7 @@ class Bridge(Protocol):
         """The room is live: what plays into it while a tool runs, or None for nothing."""
         ...
 
-    async def closing_time(self, clock: closing_time.Clock) -> None:
+    async def closing_time(self, clock: time_limit.Clock) -> None:
         """The call is live: warn the agent before the clock's limit, and end the call at it."""
         ...
 
@@ -174,7 +174,7 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     ctx.add_shutdown_callback(sealing(worker.gateway, bridge, context.call, taping))
     live = session.a_session(config, worker.kit, route.channel, brought, spoken=not typed)
     took("session")
-    await clock.seeded(bridge.agent, context.today)
+    await date_tool.seeded(bridge.agent, context.today)
     await bridge.opened(live)
     took("bridge")
     # The one voice this session answers, decided before it subscribes to anything: a listener and,
@@ -218,7 +218,7 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     # visit, which is the same test a_session builds its ears by (session/voice/session.py). And
     # any call, a written visit too, ends when the org's minutes do: minutes are the call's length.
     spoken = route.channel in session.CHANNELS_THAT_LISTEN and not typed
-    kept = closing_time.the_clock(config.max_duration_s if spoken else NO_LIMIT, ceiling, route.org)
+    kept = time_limit.the_clock(config.max_duration_s if spoken else NO_LIMIT, ceiling, route.org)
     if kept.limit_s != NO_LIMIT:
         closing = asyncio.ensure_future(bridge.closing_time(kept))
         ctx.add_shutdown_callback(letting_go(closing))

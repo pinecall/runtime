@@ -35,7 +35,7 @@ dependencies = [
   # session's own vocabulary, so the library and the two text plugins are core, not an extra.
   "livekit-agents[anthropic,openai]>=1.8,<2",
   "livekit-api>=1.2.1",
-  # livekit-agents' own, imported by name: PyAV decodes the hold audio (session/hold_audio.py)
+  # livekit-agents' own, imported by name: PyAV decodes the hold audio (session/hold_melody.py)
   # and protobuf is what a room's egress token carries (tokens/room_token.py).
   "av>=13,<19",
   "protobuf>=5,<8",

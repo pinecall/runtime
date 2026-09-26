@@ -62,7 +62,7 @@ class Admission:
     # Admission runs at the open, so a call opened with one minute left would otherwise run on for
     # twenty. The answer is how long this one may last by the org's minutes — None when they are
     # not limited — and the worker ends it there on the agent's own clock
-    # (session/voice/closing_time.py). Never zero, which that clock reads as no limit: a call
+    # (session/voice/time_limit.py). Never zero, which that clock reads as no limit: a call
     # admitted at all is admitted for at least a second.
     async def a_call(self, org: str, agent: str, running: int) -> Ceiling | None:
         """May this org open one more call for this agent — and for how many seconds at most."""

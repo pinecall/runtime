@@ -231,7 +231,7 @@ def test_the_view_is_never_placed_in_a_tool_result() -> None:
 def _a_lookup(
     tool: str, output: dict[str, Any], at: int = 1
 ) -> tuple[agents.FunctionCall, agents.FunctionCallOutput]:
-    """One pair as session/lookups.py builds it, with the ids that file gives them."""
+    """One pair as session/lookup_tools.py builds it, with the ids that file gives them."""
     call_id = f"lu_{at}_{tool}"
     return (
         agents.FunctionCall(call_id=call_id, name=tool, arguments=json.dumps({"query": "hola"})),

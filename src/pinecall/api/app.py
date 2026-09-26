@@ -75,7 +75,7 @@ from pinecall.routes.outbound_trunks import outbound_for
 from pinecall.routes.records import routes_for
 from pinecall.routes.twilio import HttpTwilio
 from pinecall.tokens.ledger import tokens_for
-from pinecall.whatsapp.graph import HttpGraph
+from pinecall.whatsapp.cloud_api import HttpGraph
 
 logger = logging.getLogger(__name__)
 

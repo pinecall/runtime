@@ -8,12 +8,12 @@ from typing import Any
 from livekit.agents.llm import ToolError
 
 from pinecall.log import as_text
-from pinecall.session.declaring import ToolUse
+from pinecall.session.tool_declaration import ToolUse
 from pinecall_protocol import defs
 
 
 # One per run and never module-level: the calls belong to the turn that made them. This is the
-# `RunTool` seam the bridge already cuts at (session/declaring.py) — livekit's own
+# `RunTool` seam the bridge already cuts at (session/tool_declaration.py) — livekit's own
 # `mock_tools` mocks a method on an Agent subclass, and none of our tools is one: they live in
 # the tenant's process behind a socket, so the callable is where an eval stands in for the app.
 class Answers:

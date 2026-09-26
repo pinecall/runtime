@@ -12,8 +12,8 @@ from livekit.agents.voice.agent import Agent as LiveAgent
 
 from pinecall.providers.models import Chat, vendor_of
 from pinecall.providers.prompt_request import request_context
-from pinecall.session.asking import Asking, NotAsking
-from pinecall.session.lookups import TurnLookups
+from pinecall.session.lookup_tools import TurnLookups
+from pinecall.session.model_requests import Asking, NotAsking
 from pinecall.types import Blocks
 from pinecall_protocol.events import ErrorEvent
 

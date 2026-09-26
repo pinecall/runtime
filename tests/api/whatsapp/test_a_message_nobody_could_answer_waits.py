@@ -15,7 +15,7 @@ from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.routes.records import MemoryRoutes
 from pinecall.types import PRODUCTION
-from pinecall.whatsapp.inbound import Inbound
+from pinecall.whatsapp.inbound_message import Inbound
 from tests.api.conftest import A_RECORD, AGENT
 from tests.api.whatsapp.conftest import (
     AN_APP,

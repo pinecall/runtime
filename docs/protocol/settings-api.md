@@ -78,7 +78,7 @@ call is recorded) —
 `max_duration_s` — the longest a **voice** call of the agent runs, in seconds: `0` is no limit,
 otherwise 60 to 3600, and unset anywhere it is 600. A minute before it the agent is told to close
 (an instruction the caller never hears, as a whisper is), and at it the call ends after the sentence
-being said, as `timeout` by the `platform` (`session/voice/closing_time.py`); the clock is kept even
+being said, as `timeout` by the `platform` (`session/voice/time_limit.py`); the clock is kept even
 while a person holds the line. A written conversation — WhatsApp, the widget's chat — is never cut
 by it. A dialled call is also held to the org's own `max_duration_s` (operator-api.md), whichever
 comes first —

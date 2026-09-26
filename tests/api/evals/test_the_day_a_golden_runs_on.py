@@ -16,7 +16,7 @@ from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.vault import brought_by
-from pinecall.session import clock
+from pinecall.session import date_tool
 from pinecall.session.text.session import TextSession
 from pinecall.types import PRODUCTION, AgentConfig
 from tests.lookups.fakes import a_plan, the_tenants
@@ -73,6 +73,6 @@ async def test_the_pinned_day_is_the_one_the_model_is_told_it_is() -> None:
     dates = [
         json.loads(item.output)
         for item in session.text_agent.chat_ctx.items
-        if isinstance(item, agents.FunctionCallOutput) and item.name == clock.CLOCK_TOOL
+        if isinstance(item, agents.FunctionCallOutput) and item.name == date_tool.CLOCK_TOOL
     ]
     assert dates == [{"today": A_TUESDAY, "weekday": "tuesday"}]

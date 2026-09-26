@@ -14,8 +14,8 @@ from pinecall.log.store import MemoryStore
 from pinecall.orgs.vault import Vault
 from pinecall.routes.records import MemoryRoutes
 from pinecall.types import PRODUCTION
-from pinecall.whatsapp.graph import GraphRefused
-from pinecall.whatsapp.sending import NOT_SENT
+from pinecall.whatsapp.cloud_api import GraphRefused
+from pinecall.whatsapp.outbound_replies import NOT_SENT
 from tests.api.conftest import A_RECORD, AGENT
 from tests.api.fake_graph import FakeGraph
 from tests.api.whatsapp.conftest import (

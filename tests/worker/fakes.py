@@ -14,7 +14,7 @@ from livekit.agents.voice import Agent, AgentSession
 from livekit.protocol import agent as jobs
 from livekit.protocol import models
 
-from pinecall.session.voice import closing_time
+from pinecall.session.voice import time_limit
 from pinecall.worker.client import Gateway
 from pinecall_protocol import Command
 
@@ -49,7 +49,7 @@ class CountingBridge:
         """What this call plays while a tool runs, noted."""
         self.melody = melody
 
-    async def closing_time(self, clock: closing_time.Clock) -> None:
+    async def closing_time(self, clock: time_limit.Clock) -> None:
         """The call's clock, started."""
         self.clock = clock
 

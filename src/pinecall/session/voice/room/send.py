@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pinecall.session.voice.room.holding import Holding
+from pinecall.session.voice.room.room_handle import Holding
 from pinecall_protocol.commands import RoomSend
 from pinecall_protocol.room import RoomSent
 

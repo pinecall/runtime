@@ -40,7 +40,7 @@ from pinecall.routes.records import Routes
 from pinecall.routes.twilio import TwilioFor
 from pinecall.tokens.ledger import Tokens
 from pinecall.types import KeyScope, Org
-from pinecall.whatsapp.graph import Graph
+from pinecall.whatsapp.cloud_api import Graph
 
 
 # This module holds what the PROCESS opened: every table the lifespan put on app.state, by name.

@@ -4,7 +4,7 @@ import hashlib
 import hmac
 from typing import Any
 
-from pinecall.whatsapp.signing import SIGNATURE_HEADER
+from pinecall.whatsapp.webhook_signature import SIGNATURE_HEADER
 
 # The Meta app's two words, as a ring-0 box holds them. Neither reaches a network.
 AN_APP_SECRET = "an-app-secret-nobody-will-ever-register"

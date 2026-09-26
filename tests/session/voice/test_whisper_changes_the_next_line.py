@@ -14,8 +14,8 @@ from pinecall.log.logs import CallLog
 from pinecall.log.store import MemoryStore
 from pinecall.providers.models import models_for
 from pinecall.session.text.session import TextSession
-from pinecall.session.voice.supervising import Supervising
-from pinecall.session.voice.writing import Writing
+from pinecall.session.voice.log_writer import Writing
+from pinecall.session.voice.supervise import Supervising
 from pinecall.types import NOTHING_BROUGHT, AgentConfig, CallContext, Model, Route
 from pinecall_protocol import verbs
 from pinecall_protocol.commands import SupervisorVerb

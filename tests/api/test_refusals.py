@@ -24,7 +24,7 @@ from pinecall.providers.embedder import EmbedderUnreachable, WrongModel, WrongWi
 from pinecall.providers.registry import NoProvider
 from pinecall.providers.tts.vendor_voices import NotListed
 from pinecall.routes.twilio import TwilioRefused
-from pinecall.session.hold_audio import NotAHoldMelody
+from pinecall.session.hold_melody import NotAHoldMelody
 from pinecall.types import DeclarationRefused
 from tests.lookups.fakes import ScriptedKnowledge, ScriptedMemory
 

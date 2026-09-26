@@ -11,10 +11,10 @@ from livekit.agents.voice import AgentSession
 from livekit.agents.voice import events as session_events
 
 from pinecall.session.errors import COMPONENT_DEAD_END, COMPONENT_FAILED
-from pinecall.session.voice.dead_end import is_a_dead_end
-from pinecall.session.voice.hold import Floor
+from pinecall.session.voice.fatal_errors import is_a_dead_end
+from pinecall.session.voice.hold_melody import Floor
+from pinecall.session.voice.log_writer import Writing
 from pinecall.session.voice.metrics import Meters, an_end_of_utterance
-from pinecall.session.voice.writing import Writing
 from pinecall_protocol import metrics as wire
 from pinecall_protocol.events import (
     AgentStateChanged,
@@ -104,9 +104,9 @@ class Events:
     # ── the caller ──────────────────────────────────────────────────────────────
 
     # The interim goes on to the lookups as well as into the log: this is the one moment the
-    # platform hears the caller mid-sentence, and starting recall and search HERE is what keeps
-    # them off the turn's own clock (session/lookups.py:heard_so_far). Nothing else is done with
-    # it — the run is the lookups' to own, start to finish.
+    # platform hears the caller mid-sentence, and starting recall and search HERE is what keeps them
+    # off the turn's own clock (session/lookup_tools.py:heard_so_far). Nothing else is done with it
+    # — the run is the lookups' to own, start to finish.
     def transcribed(self, event: session_events.UserInputTranscribedEvent) -> None:
         """user.transcript: what the recogniser hears, interim and final. Interim is ephemeral."""
         self._language = event.language or self._language

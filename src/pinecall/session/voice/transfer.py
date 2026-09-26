@@ -13,8 +13,8 @@ from livekit.protocol.sip import (
 )
 
 from pinecall.session.voice import sip
-from pinecall.session.voice.room.holding import Holding
 from pinecall.session.voice.room.leg import a_leg
+from pinecall.session.voice.room.room_handle import Holding
 from pinecall_protocol.commands import CallTransfer
 from pinecall_protocol.defs import TransferMode
 from pinecall_protocol.events import CallTransferred

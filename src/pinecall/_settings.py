@@ -39,7 +39,7 @@ type LogFormat = Literal["text", "json"]
 # seal: the numbers a session waits on memory and retrieval for, then goes on without them.
 # Declared here, once, because the three fields below take their defaults from it. The two lookup
 # budgets are named for the CHANNEL because each measures a different silence, and the field that
-# reads each one says which (session/lookups.py starts a spoken call's while the caller talks).
+# reads each one says which (session/lookup_tools.py starts a spoken call's while the caller talks).
 @dataclass(frozen=True)
 class Budgets:
     """What each turn may wait for its lookups, and a hang-up for its memory, before going on."""

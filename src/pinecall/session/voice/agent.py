@@ -13,7 +13,7 @@ from livekit.agents.voice import ModelSettings
 from livekit.agents.voice.agent import Agent as LiveAgent
 
 from pinecall.providers.prompt_request import request_context
-from pinecall.session.lookups import TurnLookups
+from pinecall.session.lookup_tools import TurnLookups
 from pinecall.types import Blocks
 from pinecall_protocol.events import ErrorEvent
 

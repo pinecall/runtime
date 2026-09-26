@@ -38,7 +38,7 @@ from pinecall.orgs.tuning_store import TuningStore
 from pinecall.orgs.vault import Vault, brought_by
 from pinecall.providers import declaration
 from pinecall.providers.models import Models
-from pinecall.session.text.allowance import TurnRefused
+from pinecall.session.text.turn_allowance import TurnRefused
 from pinecall.types import (
     AgentConfig,
     Brought,

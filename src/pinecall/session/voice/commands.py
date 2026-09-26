@@ -9,12 +9,12 @@ from livekit.agents.types import NOT_GIVEN
 from livekit.agents.voice import AgentSession
 
 from pinecall.session.voice import transfer
-from pinecall.session.voice.attending import Attending
-from pinecall.session.voice.bridging import Bridged
-from pinecall.session.voice.line import Line
+from pinecall.session.voice.attention import Attending
+from pinecall.session.voice.on_hold import Line
 from pinecall.session.voice.room import dtmf, invite, mute, remove, send
-from pinecall.session.voice.room.holding import Holding
 from pinecall.session.voice.room.leg import leg_identity
+from pinecall.session.voice.room.room_handle import Holding
+from pinecall.session.voice.second_leg import Bridged
 from pinecall_protocol import Command, ProtocolError, WireModel, command_of
 from pinecall_protocol.commands import (
     AgentReply,
@@ -39,7 +39,7 @@ from pinecall_protocol.defs import EndedBy, EndReason, ToolSpec
 # The type only, and never at import time: supervising.py reaches the call's ending through
 # the Ending declared below, so naming its module here for real would close the circle.
 if TYPE_CHECKING:
-    from pinecall.session.voice.supervising import Supervising
+    from pinecall.session.voice.supervise import Supervising
 
 # A command this bridge does not hold — `call.mute` and `call.unmute` are in the wire and have no
 # runtime — is refused by name, in the protocol's own words, rather than accepted and dropped.

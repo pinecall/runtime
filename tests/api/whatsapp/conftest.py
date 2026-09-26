@@ -16,7 +16,7 @@ from pinecall.api.app import app
 from pinecall.api.whatsapp.threads import Thread, Threads
 from pinecall.routes.records import Routes
 from pinecall.types import PRODUCTION, Route
-from pinecall.whatsapp.signing import SIGNATURE_HEADER
+from pinecall.whatsapp.webhook_signature import SIGNATURE_HEADER
 from tests.api.conftest import (
     A_KEY,
     A_RECORD,

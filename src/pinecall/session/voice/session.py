@@ -18,9 +18,9 @@ from livekit.agents.voice.turn import (
 
 from pinecall.providers.registry import Ears
 from pinecall.providers.session_vendors import DEFAULT_STT, vendor_running
-from pinecall.session.voice import hearing
+from pinecall.session.voice import stt_vocabulary
 from pinecall.session.voice.barge_in import MIN_WORDS
-from pinecall.session.voice.kit import Kit
+from pinecall.session.voice.vendors import Kit
 from pinecall.session.written import ONE_ANSWER_PER_TOOL, a_written_session
 from pinecall.types import AgentConfig, Brought
 from pinecall.types.channel import Channel
@@ -103,9 +103,9 @@ def how_it_says_things(config: AgentConfig) -> NotGivenOr[Sequence[TextTransform
 # this list as the call goes on is the bridge's, through the same door.
 def what_it_listens_for(config: AgentConfig, ears: Ears) -> NotGivenOr[STTContextOptions]:
     """The words the agent declared it hears, on the vendor door livekit itself can reach."""
-    if not config.hears or not hearing.takes_keyterms(ears):
+    if not config.hears or not stt_vocabulary.takes_keyterms(ears):
         return NOT_GIVEN
-    return {"keyterms": hearing.words(config)}
+    return {"keyterms": stt_vocabulary.words(config)}
 
 
 # Left to "auto", livekit picks the ADAPTIVE interruption detector whenever the process runs in

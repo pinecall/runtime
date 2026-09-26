@@ -124,7 +124,7 @@ class Quotas:
 
 
 # The event a quota's refusal is written as: at a door by admission, and on a call's own log by the
-# worker whose clock the org's minutes ran out on (session/voice/closing_time.py).
+# worker whose clock the org's minutes ran out on (session/voice/time_limit.py).
 EXHAUSTED = "credits.exhausted"
 
 

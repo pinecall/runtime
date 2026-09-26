@@ -8,7 +8,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from pinecall.session.hold_audio import DEFAULT
+from pinecall.session.hold_melody import DEFAULT
 from pinecall.types import Env
 from pinecall.worker.client import Gateway
 from pinecall.worker.hop import GatewayRefused

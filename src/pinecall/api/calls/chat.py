@@ -35,8 +35,8 @@ from pinecall.log.entry import Entry
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.providers.models import NoProvider
-from pinecall.session.text.allowance import TurnRefused
 from pinecall.session.text.session import TextSession, Watcher
+from pinecall.session.text.turn_allowance import TurnRefused
 from pinecall.types import THE_WIDGET, CallContext, Contact, Env, Route, a_call_id
 from pinecall.types.today import today_in
 from pinecall_protocol import encode

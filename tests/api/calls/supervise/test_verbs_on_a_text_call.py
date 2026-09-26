@@ -11,7 +11,7 @@ from starlette.testclient import TestClient, WebSocketTestSession
 
 from pinecall.api.live import Live
 from pinecall.auth.keys import KeyRecord, MemoryKeys
-from pinecall.session.supervising import ALREADY_HELD, NO_LINE_TO_TRANSFER, NOBODY_HOLDS
+from pinecall.session.supervise_prompts import ALREADY_HELD, NO_LINE_TO_TRANSFER, NOBODY_HOLDS
 from tests.api.conftest import A_KEY, A_RECORD, AGENT
 from tests.api.talking import a_caller, a_frame, an_app, declared, entry_until
 from tests.session.fake_llm import FakeLLM, Scripted

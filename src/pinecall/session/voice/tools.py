@@ -12,11 +12,11 @@ from livekit.agents.llm.tool_context import StopResponse
 from livekit.agents.voice import RunContext
 
 from pinecall.log import as_text
-from pinecall.session.pending import Emit
-from pinecall.session.visibility import Visibility
-from pinecall.session.voice.hold import HoldMusic
+from pinecall.session.pending_tools import Emit
+from pinecall.session.tool_visibility import Visibility
+from pinecall.session.voice.hold_melody import HoldMusic
 from pinecall.session.voice.platform import Platform, PlatformRefused
-from pinecall.session.voice.reading_back import read_back
+from pinecall.session.voice.read_back import read_back
 from pinecall.types import AgentConfig, ToolSpec
 from pinecall_protocol import defs
 from pinecall_protocol.events import ToolCall

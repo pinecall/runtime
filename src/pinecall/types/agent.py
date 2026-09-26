@@ -163,7 +163,7 @@ class AgentConfig:
     # the box records the whole room, so what is kept is what everybody on the call heard.
     record: bool = True
     # The longest a voice call runs, in seconds; 0 is no limit. The world's (Tuning.max_duration_s),
-    # never the class's; the worker's clock keeps it (session/voice/closing_time.py).
+    # never the class's; the worker's clock keeps it (session/voice/time_limit.py).
     max_duration_s: int = LONGEST_VOICE_CALL_S
     tools: tuple[ToolSpec, ...] = ()
     state_fields: Mapping[str, Visibility] = field(default_factory=dict[str, Visibility])

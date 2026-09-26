@@ -8,8 +8,8 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.session.lookups import Lookup
-from pinecall.session.remembering import Rememberer
+from pinecall.session.lookup_tools import Lookup
+from pinecall.session.remember_step import Rememberer
 from pinecall.session.voice.platform import Platform
 from pinecall.types import AgentConfig, CallContext, Route, ToolSpec
 from pinecall.worker import retrying

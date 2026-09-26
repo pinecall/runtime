@@ -9,7 +9,7 @@ from livekit.agents.voice import AgentSession
 from livekit.agents.voice.events import CloseReason
 
 from pinecall.session.voice.hanging_up import HOW_IT_ENDED
-from pinecall.session.voice.writing import Writing
+from pinecall.session.voice.log_writer import Writing
 from pinecall_protocol import defs
 from pinecall_protocol.events import ToolCall
 

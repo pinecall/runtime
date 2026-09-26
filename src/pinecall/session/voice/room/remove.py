@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from livekit.protocol.room import RoomParticipantIdentity
 
-from pinecall.session.voice.room.holding import Holding
+from pinecall.session.voice.room.room_handle import Holding
 from pinecall_protocol.commands import ParticipantRemove
 
 VERB = "participant.remove"

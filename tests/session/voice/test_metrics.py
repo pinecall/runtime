@@ -11,8 +11,8 @@ from livekit.agents.metrics import LLMMetrics, base
 from livekit.agents.metrics.usage import AgentSessionUsage, ModelUsageCollector
 
 from pinecall.providers import prices
+from pinecall.session.voice.log_writer import Writing
 from pinecall.session.voice.metrics import BLOCKS, Meters, an_end_of_utterance
-from pinecall.session.voice.writing import Writing
 from pinecall_protocol import decode_entry, event_of
 from tests.session.voice.fakes import CALL, Recording
 
