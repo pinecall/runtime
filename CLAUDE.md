@@ -87,8 +87,12 @@ no code "for later": a symbol with no user outside its file and its test goes in
 notices it. No module-level mutable state — per call, per request, or a contextvar. The library
 first: name the livekit-agents / livekit-api / pydantic / FastAPI module that already does it, and
 the livekit example `file:line` a session knob comes from. One idea per file, named by the idea.
-A stale comment is a bug. Names are sentences; small methods; 150 lines is the norm. Tests read
-as sentences. 
+A stale comment is a bug. A name survives a traceback on its own: a verb and its object
+(`mint_key`, `seal_log`), a noun phrase for what it answers (`recording_path`), `is_`/`has_`/`may_`
+for a predicate, `build_`/`parse_`/`new_` for a factory; a FastAPI dependency is `get_x`, one that
+refuses is `require_x`, a projection to the protocol is `wire_x`. No article, pronoun or bare
+participle as a name — the sentence goes in the docstring. Small methods; 150 lines is the norm.
+Tests read as sentences. 
 
 ## Traps — each one cost an afternoon
 
