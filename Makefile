@@ -118,8 +118,14 @@ sync: require-box
 # deploy stopped, then what the role enables. The second half runs the runtime's own verbs, which
 # is why the environment is built between the two. A unit, a container or a fence the tree stopped
 # describing cannot survive this.
+# A directory of packages/ with no pyproject.toml is a distribution the checkout renamed or dropped:
+# rsync could not delete it, because the bytecode the service compiled inside it is excluded and
+# not the deploy account's to remove, and `uv sync` refuses a workspace member with no pyproject
+# (2026-09-26: the console answered 404 until it went). Root removes it before the sync.
+GHOSTS = sudo find $(REMOTE)/runtime/packages -mindepth 1 -maxdepth 1 -type d ! -exec test -e {}/pyproject.toml \; -exec rm -rf {} +
+
 install: require-box
-	$(SSH) 'sudo make -s -C $(MANIFEST) install && $(UV_SYNC) && $(UV_EXTENSIONS) sudo make -s -C $(MANIFEST) converge'
+	$(SSH) 'sudo make -s -C $(MANIFEST) install && $(GHOSTS) && $(UV_SYNC) && $(UV_EXTENSIONS) sudo make -s -C $(MANIFEST) converge'
 
 # Instance by instance, in the order box.env lists them: its gateway first, and its worker only once
 # the gateway answers — a worker that registers with a gateway mid-restart is refused and retries,
