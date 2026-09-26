@@ -10,6 +10,62 @@ from pinecall import evals as rings
 from pinecall.api.evals.conversation import Conversation
 from pinecall.evals.goldens import Golden
 from pinecall.types import AgentConfig
+from pinecall.types.json import JsonObject
+from pinecall_protocol import WireModel
+
+
+class JudgeScore(WireModel):
+    """What one judge answered about one golden under one model, and what it was asked."""
+
+    metric: str
+    score: float
+    passed: bool
+    # A judgment always carries its reasoning: a hard policy writes the seqs for free, a model is
+    # asked for one sentence. `criteria` is the question it answered.
+    reason: str
+    criteria: str
+    judge_calls: int
+
+
+class ScoreRow(WireModel):
+    """One cell: every judge's answer about one golden under one model, and the call's summary."""
+
+    model: str
+    golden: str
+    scores: list[JudgeScore]
+    # `call.summary` verbatim: duration, turns, usage rows and cost. Nothing is recomputed — what
+    # the log did not measure, a report never learns.
+    summary: JsonObject | None
+
+
+# Only where something broke: a green golden's prompt is a page nobody opens, and a suite of thirty
+# would carry thirty of them in the row a person reads back. A list is what the model was asked,
+# request by request; null says the run that opened the call kept no requests at all.
+class BrokenRow(ScoreRow):
+    """A cell a judge answered no on: the same row, and what the model was asked."""
+
+    asked: list[JsonObject] | None
+
+
+class Failure(WireModel):
+    """One judge that did not hold: under which model, on which golden, which judge."""
+
+    model: str
+    golden: str
+    metric: str
+
+
+class ScoreMatrix(WireModel):
+    """The matrix as the door answers it: the axes, a row per cell, and what judging it asked."""
+
+    models: list[str]
+    goldens: list[str]
+    metrics: list[str]
+    # How many questions were put to a model, and never a price: a judge's tokens are an LLM row
+    # like any other, and the calls' own cost is in each row's summary, in euros.
+    judge_calls: int
+    runs: list[BrokenRow | ScoreRow]
+    failures: list[Failure]
 
 
 class Judging:
@@ -18,7 +74,7 @@ class Judging:
     def __init__(self, config: AgentConfig) -> None:
         self._config = config
         self._judge = rings.a_judge()
-        self._cells: list[Any] = []
+        self._cells: list[rings.Run] = []
 
     # One conversation at a time, the moment it ends: a person watching the run sees each golden's
     # verdict as it settles, and the matrix is the same one whether it is read half-way or whole.
@@ -35,64 +91,56 @@ class Judging:
         )
         self._cells.extend(measured.runs)
 
+    # The document and not the model: the run keeps its matrix as JSON (evals/runs.py), and the
+    # door reads it back into ScoreMatrix to answer, so a row read half-way is the same shape.
     @property
-    def matrix(self) -> dict[str, Any]:
+    def matrix(self) -> JsonObject:
         """Every cell answered so far, as one table of scores: the row's `matrix` at this moment."""
-        return as_json(rings.Matrix(runs=tuple(self._cells)))
+        return a_score_matrix(rings.Matrix(runs=tuple(self._cells))).model_dump(mode="json")
 
     async def close(self) -> None:
         """The judge model's own connections, closed once the run is over."""
         await self._judge.aclose()
 
 
-def as_json(matrix: Any) -> dict[str, Any]:
+def a_score_matrix(matrix: rings.Matrix) -> ScoreMatrix:
     """The matrix as the door answers it: the axes, a row per cell, and what judging it asked."""
-    return {
-        "models": list(matrix.models),
-        "goldens": list(matrix.goldens),
-        "metrics": list(matrix.metrics),
-        # How many questions were put to a model, and never a price: a judge's tokens are an LLM
-        # row like any other, and the calls' own cost is in each row's summary, in euros.
-        "judge_calls": matrix.judge_calls,
-        "runs": [_a_row(run) for run in matrix.runs],
-        "failures": [
-            {"model": run.model, "golden": run.golden, "metric": score.metric}
+    return ScoreMatrix(
+        models=list(matrix.models),
+        goldens=list(matrix.goldens),
+        metrics=list(matrix.metrics),
+        judge_calls=matrix.judge_calls,
+        runs=[_a_row(run) for run in matrix.runs],
+        failures=[
+            Failure(model=run.model, golden=run.golden, metric=score.metric)
             for run, score in matrix.failures()
         ],
-    }
+    )
 
 
-def _a_row(run: Any) -> dict[str, Any]:
+def _a_row(run: rings.Run) -> ScoreRow:
     """One cell: every judge's answer about one golden under one model, and the call's summary."""
-    row: dict[str, Any] = {
-        "model": run.model,
-        "golden": run.golden,
-        "scores": [
-            {
-                "metric": score.metric,
-                "score": score.score,
-                "passed": score.passed,
-                # A judgment always carries its reasoning: a hard policy writes the seqs for free,
-                # a model is asked for one sentence. `criteria` is the question it answered.
-                "reason": score.reason,
-                "criteria": score.criteria,
-                "judge_calls": score.judge_calls,
-            }
-            for score in run.scores
-        ],
-        # `call.summary` verbatim: duration, turns, usage rows and cost. Nothing is recomputed —
-        # what the log did not measure, a report never learns.
-        "summary": run.summary,
-    }
-    # Only where something broke: a green golden's prompt is a page nobody opens, and a suite of
-    # thirty would carry thirty of them in the row a person reads back. A list is what the model was
-    # asked, request by request; null says the run that opened the call kept no requests at all.
+    scores = [
+        JudgeScore(
+            metric=score.metric,
+            score=score.score,
+            passed=score.passed,
+            reason=score.reason,
+            criteria=score.criteria,
+            judge_calls=score.judge_calls,
+        )
+        for score in run.scores
+    ]
+    summary = None if run.summary is None else dict(run.summary)
     if run.broke:
-        row["asked"] = run.asked
-    return row
+        asked = None if run.asked is None else [dict(one) for one in run.asked]
+        return BrokenRow(
+            model=run.model, golden=run.golden, scores=scores, summary=summary, asked=asked
+        )
+    return ScoreRow(model=run.model, golden=run.golden, scores=scores, summary=summary)
 
 
-def _a_case(one: Conversation, config: AgentConfig) -> Any:
+def _a_case(one: Conversation, config: AgentConfig) -> rings.Case:
     """The call's log as a judge reads it, with the contracts the model was shown beside it."""
     return rings.a_case(
         one.entries,
@@ -107,7 +155,7 @@ def _a_case(one: Conversation, config: AgentConfig) -> Any:
 # be the one conversation in this runtime nothing judged at all. Every other judge still needs a
 # declaration — `register` the register the business asked for, `grounded` the one question it
 # may put to a model — and inventing either would grade a rule nobody wrote down.
-def _judges_for(golden: Golden, case: Any) -> list[Any]:
+def _judges_for(golden: Golden, case: rings.Case) -> list[Any]:
     """Consent, which every call carries its own evidence for, then whatever `expect` names."""
     expect = golden.expect
     judges: list[Any] = [rings.ConsentJudge(case.gate)]

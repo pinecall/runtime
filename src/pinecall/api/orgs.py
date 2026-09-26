@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import HTTPException
-from pydantic import TypeAdapter
 from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api._deps import (
@@ -22,7 +19,7 @@ from pinecall.api._deps import (
 from pinecall.api._operator import an_operators_router
 from pinecall.api._placing import DialPoliciesDep
 from pinecall.api.agents.registry import RegistryDep
-from pinecall.api.keys import in_this_world
+from pinecall.api.keys import KeyIssued, KeyRevoked, a_key_issued, in_this_world
 from pinecall.auth.keys import ListedKey
 from pinecall.providers.lending import NotLent, a_lending
 from pinecall.types import (
@@ -37,15 +34,11 @@ from pinecall.types import (
     key_scopes,
 )
 from pinecall_protocol import WireModel
+from pinecall_protocol.rest import DialGuards
 
 # Every /v1/ops door takes the operator key and nothing else, checked before the endpoint runs.
 # The same gate the routes doors take, from api/_deps.py: there is one, and this is it.
 operator = an_operators_router()
-
-ORGS: TypeAdapter[tuple[Org, ...]] = TypeAdapter(tuple[Org, ...])
-LISTED: TypeAdapter[tuple[ListedKey, ...]] = TypeAdapter(tuple[ListedKey, ...])
-QUOTAS: TypeAdapter[Quotas] = TypeAdapter(Quotas)
-DIALLING: TypeAdapter[DialPolicy] = TypeAdapter(DialPolicy)
 
 # The slug is the operator's word for the tenant and two tenants cannot share one.
 SLUG_TAKEN = "an org already answers to the slug {slug}"
@@ -109,23 +102,71 @@ class WantedQuotas(WireModel):
     lends: list[str] | None = None
 
 
+# A set has no order and JSON has no set: the lending is answered sorted, so the same row always
+# reads the same and a diff between two answers is a real one.
+class OrgQuotas(WireModel):
+    """The quotas row as the operator reads it back: `null` is no limit, `lends` is sorted."""
+
+    minutes: int | None
+    messages: int | None
+    agents: int | None
+    concurrent_calls: int | None
+    memory_facts: int | None
+    knowledge_chunks: int | None
+    numbers: int | None
+    seats: int | None
+    llm_tokens: int | None
+    budget_eur: int | None
+    lends: list[str] | None
+
+
+class OrgHolding(WireModel):
+    """What the org holds right now, against the quotas that are stocks."""
+
+    memory_facts: int
+    knowledge_chunks: int
+    numbers: int
+    seats: int
+
+
+class OrgStanding(WireModel):
+    """One org whole: the row, its quotas, its dial guards, and what it holds."""
+
+    id: str
+    slug: str
+    name: str
+    quotas: OrgQuotas
+    dialling: DialGuards
+    holding: OrgHolding
+
+
+class AgentMoved(WireModel):
+    """`orgs move` done: the agent, the org it landed in, how many logs and which doors went."""
+
+    agent: str
+    org: str
+    logs: int
+    numbers: list[str]
+    stayed: list[str]
+
+
 # ── the orgs ────────────────────────────────────────────────────────────────────
 
 
 @operator.get("/orgs")
-async def listed(orgs: OrgsDep) -> list[dict[str, Any]]:
+async def listed(orgs: OrgsDep) -> list[Org]:
     """Every org, oldest first: the default one is always the first line."""
-    return list(ORGS.dump_python(await orgs.listed(), mode="json"))
+    return list(await orgs.listed())
 
 
 @operator.post("/orgs")
-async def add(said: WantedOrg, orgs: OrgsDep) -> dict[str, Any]:
+async def add(said: WantedOrg, orgs: OrgsDep) -> Org:
     """A new tenant. The id is minted here and is what every row of theirs will name."""
     slug = a_slug(said.slug)
     org = await orgs.create(slug, said.name or slug)
     if org is None:
         raise HTTPException(409, SLUG_TAKEN.format(slug=slug))
-    return _as_json(org)
+    return org
 
 
 # `holding` is what the three STOCK quotas are measured against, and it is answered here rather than
@@ -142,20 +183,22 @@ async def one(
     table: RoutesDep,
     members: MembersDep,
     policies: DialPoliciesDep,
-) -> dict[str, Any]:
+) -> OrgStanding:
     """One org: its quotas, its dial guards, and what it holds against the ones that are stocks."""
     org = await an_org(named, orgs)
-    return {
-        **_as_json(org),
-        "quotas": quotas_as_json(await orgs.quotas_of(org.id)),
-        "dialling": DIALLING.dump_python(await policies.of(org.id)),
-        "holding": {
-            "memory_facts": 0 if memory is None else await memory.kept(org.id),
-            "knowledge_chunks": 0 if knowledge is None else await knowledge.kept(org.id),
-            "numbers": await table.managed_by(org.id),
-            "seats": await members.seated(org.id),
-        },
-    }
+    return OrgStanding(
+        id=org.id,
+        slug=org.slug,
+        name=org.name,
+        quotas=_the_quotas_read_back(await orgs.quotas_of(org.id)),
+        dialling=_the_guards(await policies.of(org.id)),
+        holding=OrgHolding(
+            memory_facts=0 if memory is None else await memory.kept(org.id),
+            knowledge_chunks=0 if knowledge is None else await knowledge.kept(org.id),
+            numbers=await table.managed_by(org.id),
+            seats=await members.seated(org.id),
+        ),
+    )
 
 
 @operator.delete("/orgs/{named}", status_code=HTTP_204_NO_CONTENT)
@@ -198,7 +241,7 @@ async def move(
     store: StoreDep,
     registry: RegistryDep,
     table: RoutesDep,
-) -> dict[str, Any]:
+) -> AgentMoved:
     """This agent — its log, every call of it, and its doors — into this org. `orgs move`."""
     org = await an_org(named, orgs)
     if registry.held_anywhere(said.agent):
@@ -209,20 +252,20 @@ async def move(
     # The doors go with it. Left behind, the number kept answering for an org that no longer holds
     # the slug, which is a number that reaches nobody — and nothing said so until somebody called.
     doors = await table.moved(said.agent, org.id)
-    return {
-        "agent": said.agent,
-        "org": org.slug,
-        "logs": moved,
-        "numbers": list(doors.numbers),
-        "stayed": list(doors.stayed),
-    }
+    return AgentMoved(
+        agent=said.agent,
+        org=org.slug,
+        logs=moved,
+        numbers=list(doors.numbers),
+        stayed=list(doors.stayed),
+    )
 
 
 # ── its quotas ──────────────────────────────────────────────────────────────────
 
 
 @operator.put("/orgs/{named}/quotas")
-async def set_quotas(named: str, said: WantedQuotas, orgs: OrgsDep) -> dict[str, Any]:
+async def set_quotas(named: str, said: WantedQuotas, orgs: OrgsDep) -> OrgQuotas:
     """Replace the org's limits, whole. They bite the next call and the next register."""
     org = await an_org(named, orgs)
     try:
@@ -242,16 +285,24 @@ async def set_quotas(named: str, said: WantedQuotas, orgs: OrgsDep) -> dict[str,
     except (DeclarationRefused, NotLent) as refused:
         raise HTTPException(400, str(refused)) from refused
     await orgs.set_quotas(org.id, quotas)
-    return quotas_as_json(quotas)
+    return _the_quotas_read_back(quotas)
 
 
-# A set has no order and JSON has no set: the lending is answered sorted, so the same row always
-# reads the same and a diff between two answers is a real one.
-def quotas_as_json(quotas: Quotas) -> dict[str, Any]:
-    """The quotas row as the operator reads it back."""
-    dumped: dict[str, Any] = QUOTAS.dump_python(quotas, mode="json")
-    dumped["lends"] = None if quotas.lends is None else sorted(quotas.lends)
-    return dumped
+def _the_quotas_read_back(quotas: Quotas) -> OrgQuotas:
+    """The row as the operator reads it back, the lending sorted."""
+    return OrgQuotas(
+        minutes=quotas.minutes,
+        messages=quotas.messages,
+        agents=quotas.agents,
+        concurrent_calls=quotas.concurrent_calls,
+        memory_facts=quotas.memory_facts,
+        knowledge_chunks=quotas.knowledge_chunks,
+        numbers=quotas.numbers,
+        seats=quotas.seats,
+        llm_tokens=quotas.llm_tokens,
+        budget_eur=quotas.budget_eur,
+        lends=None if quotas.lends is None else sorted(quotas.lends),
+    )
 
 
 # ── what it may dial ────────────────────────────────────────────────────────────
@@ -263,7 +314,7 @@ def quotas_as_json(quotas: Quotas) -> dict[str, Any]:
 @operator.put("/orgs/{named}/dialling")
 async def set_dialling(
     named: str, said: WantedDialling, orgs: OrgsDep, policies: DialPoliciesDep
-) -> dict[str, Any]:
+) -> DialGuards:
     """Replace the org's outbound guards, whole. They bite the next dial."""
     org = await an_org(named, orgs)
     standing = DialPolicy()
@@ -276,8 +327,17 @@ async def set_dialling(
         else said.max_duration_s,
     )
     await policies.put(org.id, policy)
-    dumped: dict[str, Any] = DIALLING.dump_python(policy)
-    return dumped
+    return _the_guards(policy)
+
+
+def _the_guards(policy: DialPolicy) -> DialGuards:
+    """The org's dial guards as the wire spells them, which is field for field the policy's."""
+    return DialGuards(
+        dial_anywhere=policy.dial_anywhere,
+        per_minute=policy.per_minute,
+        per_day=policy.per_day,
+        max_duration_s=policy.max_duration_s,
+    )
 
 
 # ── its keys ────────────────────────────────────────────────────────────────────
@@ -288,7 +348,7 @@ async def set_dialling(
 @operator.post("/orgs/{named}/keys")
 async def issue(
     named: str, said: WantedKey, orgs: OrgsDep, keys: KeysDep, settings: SettingsDep
-) -> dict[str, Any]:
+) -> KeyIssued:
     """Mint a key for the org, in this instance's world, and answer with it, the once. The table
     keeps its sha256."""
     org = await an_org(named, orgs)
@@ -302,27 +362,22 @@ async def issue(
         subject=said.subject,
         name=said.name,
     )
-    return issued.as_json
+    return a_key_issued(issued)
 
 
 @operator.get("/orgs/{named}/keys")
-async def keys_listed(named: str, orgs: OrgsDep, keys: KeysDep) -> list[dict[str, Any]]:
+async def keys_listed(named: str, orgs: OrgsDep, keys: KeysDep) -> list[ListedKey]:
     """Every key of the org, oldest first, revoked ones included and named as revoked."""
     org = await an_org(named, orgs)
-    return list(LISTED.dump_python(await keys.listed(org.id), mode="json"))
+    return list(await keys.listed(org.id))
 
 
 # A POST and not a DELETE, because nothing is deleted: the row stays and grows a timestamp, so the
 # log entries that name this key stay readable. The verb on the wire says which of the two it is.
 # It names no org: a fingerprint already names one row in the table.
 @operator.post("/keys/{fingerprint}/revoke")
-async def revoke(fingerprint: str, keys: KeysDep) -> dict[str, Any]:
+async def revoke(fingerprint: str, keys: KeysDep) -> KeyRevoked:
     """Stop honouring one key from the next request. Its row, and its history, stay."""
     if not await keys.revoke(fingerprint):
         raise HTTPException(404, NO_SUCH_KEY.format(fingerprint=fingerprint))
-    return {"fingerprint": fingerprint, "revoked": True}
-
-
-def _as_json(org: Org) -> dict[str, Any]:
-    """One org as the wire says it, through the adapter the listing already uses."""
-    return dict(ORGS.dump_python((org,), mode="json")[0])
+    return KeyRevoked(fingerprint=fingerprint, revoked=True)

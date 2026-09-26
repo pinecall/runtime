@@ -29,6 +29,7 @@ from pinecall.types.token import LONGEST_VISIT_TTL_S, MINTED_FOR_A_VISIT, ONE_VI
 from pinecall_protocol import WireModel, encode
 from pinecall_protocol.defs import Projection
 from pinecall_protocol.events import FleetFull
+from pinecall_protocol.rest import Minted
 
 router = APIRouter()
 
@@ -106,7 +107,7 @@ async def mint(
     live: ServingDep,
     fleet: FleetDep,
     logs: LogsDep,
-) -> dict[str, Any]:
+) -> Minted:
     """LiveKit's token endpoint: {server_url, participant_token}, plus the call it opens."""
     _refuse_what_is_ours_to_set(said)
     agent = _the_agent_the_org_holds(said, key, registry)
@@ -143,12 +144,12 @@ async def mint(
             expires_at=expires_at,
         )
     )
-    return {
-        "server_url": settings.livekit_public_url or settings.livekit_url,
-        "participant_token": token,
-        "call": call,
-        "log_token": a_log_token(call, said.log, secret_for(settings), visitor),
-    }
+    return Minted(
+        server_url=settings.livekit_public_url or settings.livekit_url,
+        participant_token=token,
+        call=call,
+        log_token=a_log_token(call, said.log, secret_for(settings), visitor),
+    )
 
 
 async def _refuse_a_full_fleet(fleet: FleetDep, logs: LogsDep, agent: str) -> None:

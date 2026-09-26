@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, HTTPException, Query
 
 from pinecall.api._deps import (
@@ -26,15 +24,64 @@ from pinecall.api.evals.runner import (
     Wanted,
     a_run,
 )
+from pinecall.api.evals.scoring import ScoreMatrix
 from pinecall.auth.keys import held_by
-from pinecall.evals.runs import DEFAULT_LIMIT, EvalRun, Runs
+from pinecall.evals.runs import DEFAULT_LIMIT, EvalRun, Runs, Status
 from pinecall.log.store import Store
 from pinecall.providers.models import NoProvider
 from pinecall.types import DeclarationRefused
+from pinecall_protocol import WireModel
 
 router = APIRouter()
 
 NO_SUCH_RUN = "no eval run {id} on this gateway"
+
+
+class OpenedCall(WireModel):
+    """One golden under one model: the call it opened, so its log is readable on its own."""
+
+    golden: str
+    model: str
+    call: str
+
+
+class RunSaid(WireModel):
+    """One run as the doors answer it: when it started, the calls it opened, the matrix so far."""
+
+    id: str
+    agent: str
+    started_at: float
+    finished_at: float | None
+    status: Status
+    calls: list[OpenedCall]
+    # As far as it has been judged: a cell lands the moment its conversation ends, so a run read
+    # half-way carries every verdict settled so far, whole. None until the first one settles.
+    matrix: ScoreMatrix | None
+    # Why the run stopped, when it did not finish. Empty on a run whose goldens simply failed.
+    error: str | None
+
+
+class RunList(WireModel):
+    """GET /v1/evals/runs: the org's runs, newest first."""
+
+    runs: list[RunSaid]
+
+
+# The run keeps its matrix as the document scoring.py wrote (evals/runs.py), and it is read back
+# into the shape here: the same keys either way, and the door's answer says which they are.
+def a_run_said(run: EvalRun) -> RunSaid:
+    """The run as the door answers it: one document, no nesting past the matrix."""
+    return RunSaid(
+        id=run.id,
+        agent=run.agent,
+        started_at=run.started_at,
+        finished_at=run.finished_at,
+        status=run.status,
+        calls=[OpenedCall(golden=one.golden, model=one.model, call=one.call) for one in run.calls],
+        matrix=None if run.matrix is None else ScoreMatrix.model_validate(run.matrix),
+        error=run.error,
+    )
+
 
 HOW_MANY = Query(DEFAULT_LIMIT, ge=1, le=200, description="how many runs, newest first")
 
@@ -63,7 +110,7 @@ async def run_the_goldens(
     lookups: LookupsDep,
     settings: SettingsDep,
     admission: AdmissionDep,
-) -> dict[str, Any]:
+) -> RunSaid:
     """Every golden against the app that is holding the agent, scored, stored, and answered."""
     process = Process(
         registry=registry,
@@ -82,7 +129,7 @@ async def run_the_goldens(
         settings=settings,
     )
     try:
-        return (await a_run(said, runner, process)).as_json
+        return a_run_said(await a_run(said, runner, process))
     # One asker per agent, and the refusal names the run holding that agent so it can be polled.
     # An event the agent never declared, and a model this process has no key for: both are the
     # request asking for something this box cannot do, and both name what to change.
@@ -102,11 +149,10 @@ async def listed(
     limit: int = HOW_MANY,
     since: float = SINCE,
     agent: str | None = OF_AGENT,
-) -> dict[str, Any]:
+) -> RunList:
     """The runs this gateway has done, newest first: the list a drift check diffs across."""
-    return {
-        "runs": [run.as_json for run in await _the_orgs(key.org, runs, store, limit, since, agent)]
-    }
+    mine = await _the_orgs(key.org, runs, store, limit, since, agent)
+    return RunList(runs=[a_run_said(run) for run in mine])
 
 
 # The cut belongs AFTER the org filter, and used to come before it: `newest(limit)` took the box's
@@ -135,12 +181,12 @@ async def _the_orgs(
 
 
 @router.get("/v1/evals/runs/{id}")
-async def one_run(id: str, key: EvalsKeyDep, runs: RunsDep, store: StoreDep) -> dict[str, Any]:
+async def one_run(id: str, key: EvalsKeyDep, runs: RunsDep, store: StoreDep) -> RunSaid:
     """One run, whole: the calls it opened, and the matrix as far as it has been judged."""
     run = await runs.of(id)
     if run is None or not await _is_the_orgs(key.org, store, run.agent):
         raise HTTPException(404, NO_SUCH_RUN.format(id=id))
-    return run.as_json
+    return a_run_said(run)
 
 
 async def _is_the_orgs(org: str, store: Store, agent: str) -> bool:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import time
 from datetime import date
-from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import Field
@@ -33,6 +32,7 @@ from pinecall.types import CallContext, Route, a_call_id, an_e164
 from pinecall_protocol import WireModel, encode
 from pinecall_protocol.defs import Projection
 from pinecall_protocol.events import CallEnded
+from pinecall_protocol.rest import Dialled
 
 router = APIRouter()
 
@@ -71,6 +71,12 @@ class WantedCall(WireModel):
     log: Projection = "public"
 
 
+class TrunkNamed(WireModel):
+    """What the worker is answered: the SFU's id for the org's outbound trunk, or none."""
+
+    trunk: str | None
+
+
 @router.post("/v1/agents/{slug}/dial", status_code=HTTP_202_ACCEPTED)
 async def dial(
     slug: str,
@@ -85,7 +91,7 @@ async def dial(
     live: ServingDep,
     logs: LogsDep,
     settings: SettingsDep,
-) -> dict[str, Any]:
+) -> Dialled:
     """Place a call as this agent: the guards, the log, and a job in a room named by the call."""
     if dispatches is None:
         raise HTTPException(503, NO_LIVEKIT)
@@ -132,14 +138,16 @@ async def dial(
         max_duration_s=allowed.policy.max_duration_s,
     )
     await _started(dispatches, logs, context, slug, dialling)
-    return {
-        "call": call,
-        "agent": slug,
-        "to": allowed.destination.number,
-        "from": shown,
-        "env": key.env,
-        "log_token": a_log_token(call, said.log, secret_for(settings)),
-    }
+    return Dialled.model_validate(
+        {
+            "call": call,
+            "agent": slug,
+            "to": allowed.destination.number,
+            "from": shown,
+            "env": key.env,
+            "log_token": a_log_token(call, said.log, secret_for(settings)),
+        }
+    )
 
 
 async def _doors_of(table: Routes, key: KeyRecord, slug: str) -> list[Route]:
@@ -229,13 +237,13 @@ async def outbound_trunk(
     guards: GuardsDep,
     to: str = DIALLING,
     call: str = ON_THE_CALL,
-) -> dict[str, str | None]:
+) -> TrunkNamed:
     """The SFU's id for this org's outbound trunk, once the number it will dial has passed."""
     held = registry.of(corner.env, slug, corner.holder)
     if held is None or held.org != corner.org:
         raise HTTPException(404, NO_AGENT.format(slug=slug))
     if sfu is None:
-        return {"trunk": None}
+        return TrunkNamed(trunk=None)
     asking = Asking(
         org=corner.org,
         env=corner.env,
@@ -245,4 +253,4 @@ async def outbound_trunk(
         call=call,
     )
     await guards.a_second_leg(asking)
-    return {"trunk": await sfu.standing(corner.org)}
+    return TrunkNamed(trunk=await sfu.standing(corner.org))

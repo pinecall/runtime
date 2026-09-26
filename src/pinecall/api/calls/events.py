@@ -22,6 +22,7 @@ from pinecall.api.calls.sink import (
     FilterDep,
     LimitDep,
     ProjectDep,
+    ProjectedPage,
     ReaderDep,
     another_orgs,
     ended,
@@ -70,7 +71,7 @@ async def events(
     filter: FilterDep,
     accept: AcceptDep = None,
     limit: LimitDep = DEFAULT_LIMIT,
-) -> Response | StreamingResponse | dict[str, object]:
+) -> Response | StreamingResponse | ProjectedPage:
     """The call's entries above the cursor: SSE when the reader asked for it, a page otherwise."""
     refuse_another_call(reader, call)
     await refuse_another_org(reader, store, call, "")
@@ -109,7 +110,7 @@ async def calls(
     filter: FilterDep,
     accept: AcceptDep = None,
     limit: LimitDep = DEFAULT_LIMIT,
-) -> StreamingResponse | dict[str, object]:
+) -> StreamingResponse | ProjectedPage:
     """What happened to this agent outside any call: registered, configured, an error, a call."""
     refuse_another_call(reader, None)
     await refuse_another_org(reader, store, None, slug)

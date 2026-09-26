@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import Field
 from starlette.status import HTTP_201_CREATED
@@ -20,6 +18,7 @@ from pinecall.api._deps import (
 from pinecall.api._gateway import where_this_gateway_answers
 from pinecall.api._seating import elsewhere_too, may_grant
 from pinecall.api.identity import AtProduction
+from pinecall.api.keys import KeyIssued
 from pinecall.api.org_mail import OutboxDep
 from pinecall.auth import passwords
 from pinecall.auth.keys import KeyRecord
@@ -28,6 +27,7 @@ from pinecall.auth.persons import a_persons_key
 from pinecall.mail import Letter, Outbox, a_reset, an_invitation, where_the_card_is
 from pinecall.types import (
     Member,
+    MemberStatus,
     Org,
     Role,
     a_role,
@@ -81,10 +81,53 @@ class Accepting(WireModel):
     device: str | None = None
 
 
+class MemberSaid(WireModel):
+    """One member as the wire says it: the agents sorted, the scopes their role presets beside."""
+
+    id: str
+    email: str
+    name: str
+    role: Role
+    agents: list[str]
+    status: MemberStatus
+    scopes: list[str]
+    # Whether they run the BOX, which no role gives and only the box grants. A tenant reading its
+    # own team sees it too: somebody who can open every org's door is not a secret from the org
+    # they are in.
+    operator: bool
+    # Whether a request of theirs may run in production: the switch, or being an admin.
+    production: bool
+    # Whether the address was proved theirs on this row (0048): what lets them be seated in
+    # another org without a link, and what a Team screen may say about a pending person.
+    verified: bool
+
+
+class MemberList(WireModel):
+    """GET /v1/members: every member of the org, oldest first."""
+
+    members: list[MemberSaid]
+
+
+class LinkIssued(WireModel):
+    """A member and the one-use link minted for them: the token once, or None when the letter
+    alone carries it or there was nothing to carry; when it dies; whether a letter was posted."""
+
+    member: MemberSaid
+    token: str | None
+    expires_at: str | None
+    mailed: bool
+
+
+class FirstKey(KeyIssued):
+    """POST /v1/invitations/{token}: the person's first key, once, and the member it names."""
+
+    member: MemberSaid
+
+
 @router.get("/v1/members")
-async def listed(key: TeamKeyDep, members: MembersDep) -> dict[str, Any]:
+async def listed(key: TeamKeyDep, members: MembersDep) -> MemberList:
     """Every member of the key's org, oldest first, disabled ones included."""
-    return {"members": [member_as_json(member) for member in await members.listed(key.org)]}
+    return MemberList(members=[a_member_said(member) for member in await members.listed(key.org)])
 
 
 # 201: the invitation is handed back once — the token is in this answer and hashed everywhere else.
@@ -98,7 +141,7 @@ async def invite(
     outbox: OutboxDep,
     settings: SettingsDep,
     request: Request,
-) -> dict[str, Any]:
+) -> LinkIssued:
     """One more person, invited: the row, the one-use token, and the link posted to them."""
     role = a_wanted_member(said, key.org)
     await may_grant(key, members, role, said.production)
@@ -154,7 +197,7 @@ async def invited_into(
     handed: bool = True,
     vouched: bool = True,
     seats: int | None = None,
-) -> dict[str, Any]:
+) -> LinkIssued:
     """The row, the token the once, and whether a letter carrying it was posted; 409 for an
     email that already accepted here. `seats` is what the org may hold, judged by the write.
 
@@ -190,12 +233,12 @@ async def invited_into(
             invited.expires_at,
         )
     )
-    return {
-        "member": member_as_json(invited.member),
-        "token": invited.token if handed else None,
-        "expires_at": invited.expires_at,
-        "mailed": await _posted(outbox, org.id, letter),
-    }
+    return LinkIssued(
+        member=a_member_said(invited.member),
+        token=invited.token if handed else None,
+        expires_at=invited.expires_at,
+        mailed=await _posted(outbox, org.id, letter),
+    )
 
 
 # A forgotten password handed back by the admin: a one-use link, the token once in this answer and
@@ -212,7 +255,7 @@ async def reset(
     outbox: OutboxDep,
     settings: SettingsDep,
     request: Request,
-) -> dict[str, Any]:
+) -> LinkIssued:
     """A one-use link that sets this member's password; 409 for a member who is not active."""
     found = await members.find(key.org, id)
     if found is None:
@@ -231,12 +274,12 @@ async def reset(
         if issued.token is None
         else a_reset(found.email, org.name, _by(key), link, issued.expires_at)
     )
-    return {
-        "member": member_as_json(issued.member),
-        "token": issued.token if handed else None,
-        "expires_at": issued.expires_at,
-        "mailed": await _posted(outbox, key.org, letter),
-    }
+    return LinkIssued(
+        member=a_member_said(issued.member),
+        token=issued.token if handed else None,
+        expires_at=issued.expires_at,
+        mailed=await _posted(outbox, key.org, letter),
+    )
 
 
 # No key at this door: the person holding the link has none yet. What lets them in is the token,
@@ -245,14 +288,14 @@ async def reset(
 @router.post("/v1/invitations/{token}", dependencies=[AtProduction])
 async def accept(
     token: str, said: Accepting, members: MembersDep, keys: KeysDep, settings: SettingsDep
-) -> dict[str, Any]:
+) -> FirstKey:
     """Spend the invitation: the member is active, and the answer is their first key, once."""
     kept = await passwords.hashed(said.password, settings.min_password)
     member = await members.accept(token, kept)
     if member is None:
         raise HTTPException(404, NO_INVITATION)
     issued = await a_persons_key(keys, member, said.device or "invitation", settings.world)
-    return {**issued.as_json, "member": member_as_json(member)}
+    return FirstKey(**issued.as_json, member=a_member_said(member))
 
 
 # `mailed` says a letter was HANDED OVER to a mail server, never that it arrived: the send runs
@@ -269,23 +312,17 @@ def _by(key: KeyRecord) -> str:
     return key.name or AN_ADMIN
 
 
-def member_as_json(member: Member) -> dict[str, Any]:
-    """One member as the wire says it: the agents sorted, the scopes their role presets beside."""
-    return {
-        "id": member.id,
-        "email": member.email,
-        "name": member.name,
-        "role": member.role,
-        "agents": sorted(member.agents),
-        "status": member.status,
-        "scopes": sorted(member.scopes),
-        # Whether they run the BOX, which no role gives and only the box grants. A tenant reading
-        # its own team sees it too: somebody who can open every org's door is not a secret from
-        # the org they are in.
-        "operator": member.operator,
-        # Whether a request of theirs may run in production: the switch, or being an admin.
-        "production": member.opens_production,
-        # Whether the address was proved theirs on this row (0048): what lets them be seated in
-        # another org without a link, and what a Team screen may say about a pending person.
-        "verified": member.verified,
-    }
+def a_member_said(member: Member) -> MemberSaid:
+    """One member as the wire says it, off their row: sorted where a set would not read the same."""
+    return MemberSaid(
+        id=member.id,
+        email=member.email,
+        name=member.name,
+        role=member.role,
+        agents=sorted(member.agents),
+        status=member.status,
+        scopes=sorted(member.scopes),
+        operator=member.operator,
+        production=member.opens_production,
+        verified=member.verified,
+    )

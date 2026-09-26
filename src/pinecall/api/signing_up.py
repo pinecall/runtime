@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import HTTPException
 
-from pinecall.api.members import member_as_json
+from pinecall.api.keys import KeyIssued
+from pinecall.api.members import MemberSaid, a_member_said
 from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import Keys
 from pinecall.auth.members import Members
@@ -22,6 +21,16 @@ TAKEN = "{slug} is taken: pick another name for the org"
 SIGNED_UP = "signup"
 
 
+class OrgMade(KeyIssued):
+    """POST /v1/signup/verify: the admin's first key, the org's slug, their row, and a code the
+    console spends for a key of its own."""
+
+    slug: str
+    member: MemberSaid
+    code: str
+    code_expires_at: float
+
+
 # Everything here happens only once the address has proved itself: an org whose email nobody
 # answered for is never a row, so a fake email leaves nothing standing and takes no slug.
 async def the_org_made(
@@ -33,7 +42,7 @@ async def the_org_made(
     keys: Keys,
     codes: LoginCodes,
     extensions: Extensions,
-) -> dict[str, Any]:
+) -> OrgMade:
     """The org made, allowed what its gateway's policy says, its admin active, their first key."""
     # Counted before the org exists: the orgs this person already had here (extensions/points.py).
     already = len(await members.orgs_of(pending.email))
@@ -62,10 +71,10 @@ async def the_org_made(
     # The admin's own key, which opens production too: an admin always does (0039).
     issued = await a_persons_key(keys, member, device or pending.device or SIGNED_UP, world)
     minted = codes.mint(issued.record)
-    return {
+    return OrgMade(
         **issued.as_json,
-        "slug": org.slug,
-        "member": member_as_json(member),
-        "code": minted.code,
-        "code_expires_at": minted.expires_at,
-    }
+        slug=org.slug,
+        member=a_member_said(member),
+        code=minted.code,
+        code_expires_at=minted.expires_at,
+    )

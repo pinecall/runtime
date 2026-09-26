@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, HTTPException
 from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api._deps import KeysDep, MembersDep, TeamKeyDep
 from pinecall.api._seating import may_grant
 from pinecall.api.identity import AtProduction
-from pinecall.api.members import NO_SUCH_MEMBER, member_as_json
+from pinecall.api.members import NO_SUCH_MEMBER, MemberSaid, a_member_said
 from pinecall.auth.granting import NOT_YOUR_OWN_ROW
 from pinecall.auth.keys import Keys, revoked_every_key_of
 from pinecall.auth.members import Members
@@ -53,7 +51,7 @@ class Changed(WireModel):
 @router.patch("/v1/members/{id}", dependencies=[AtProduction])
 async def change(
     id: str, said: Changed, key: TeamKeyDep, members: MembersDep, keys: KeysDep
-) -> dict[str, Any]:
+) -> MemberSaid:
     """Replace the role, the agents, the standing or production. Disabling revokes every key of
     theirs, and is refused (409) for the person asking."""
     found = await members.find(key.org, id)
@@ -80,7 +78,7 @@ async def change(
     # the rows stay, revoked, so the log entries that name them stay readable.
     if status == "disabled":
         await revoked_every_key_of(keys, key.org, id)
-    return member_as_json(changed)
+    return a_member_said(changed)
 
 
 # For good, where `disabled` is for now: the keys stop first, so there is no moment at which the

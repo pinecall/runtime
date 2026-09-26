@@ -75,13 +75,14 @@ def the_call_index(store: Annotated[Store, Depends(a_store)]) -> CallIndex:
     return cast(CallIndex, store)
 
 
-# Typed as Any because the two sides that ask for it want different types of the same object: the
-# app socket sees a Protocol of the calls it makes (api/agents/handlers.py), the text channel
-# sees the class itself. One callable, so overriding it in a test answers both.
-def what_is_live(connection: HTTPConnection) -> Any:
+# Typed as object because the sides that ask for it want different types of the same one: the
+# app socket sees a Protocol of the calls it makes (api/agents/handlers.py), a call's door the
+# Protocol of serving one (api/_serving.py), the text channel the class itself (api/_live.py),
+# and each names its own in the Annotated it depends through. One callable, so overriding it in
+# a test answers them all.
+def what_is_live(connection: HTTPConnection) -> object:
     """The process's live memory: the app sockets open here and the calls running on them."""
-    live: Any = held(connection, "live", object)
-    return live
+    return held(connection, "live", object)
 
 
 def the_keys(connection: HTTPConnection) -> Keys:

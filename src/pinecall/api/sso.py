@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Annotated, Any
+from typing import Annotated
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -21,6 +21,7 @@ from pinecall.orgs.sso import Sso
 from pinecall.orgs.vault import NO_VAULT_KEY
 from pinecall.types import OrgSso, a_domain, a_role
 from pinecall_protocol import WireModel
+from pinecall_protocol.rest import OrgSso as SsoStanding
 
 # The org's own three doors, on a key with `team` — the same scope that invites a person and
 # changes their role, because wiring the IdP is saying who the org's people ARE.
@@ -110,7 +111,9 @@ class Required(WireModel):
 
 
 @router.get("/v1/org/sso")
-async def wired(key: TeamKeyDep, sso: KeptSsoDep, settings: SettingsDep, request: Request) -> Any:
+async def wired(
+    key: TeamKeyDep, sso: KeptSsoDep, settings: SettingsDep, request: Request
+) -> SsoStanding:
     """What this org signs in with, and the URI to register at the provider. Never the secret."""
     return _standing(await sso.of(key.org), where_the_idp_answers(settings, request))
 
@@ -124,7 +127,7 @@ async def wire(
     members: MembersDep,
     settings: SettingsDep,
     request: Request,
-) -> Any:
+) -> SsoStanding:
     """Wire this org to its provider, replacing what it had; 400 for an issuer nobody answers."""
     wanted = _a_configuration(said, key.org)
     # The role a stranger at the provider is seated with is a role this key hands out: a manager
@@ -148,7 +151,7 @@ async def unwire(key: TeamKeyDep, sso: KeptSsoDep) -> None:
 @operator.get("/orgs/{named}/sso")
 async def wired_there(
     named: str, orgs: OrgsDep, sso: KeptSsoDep, settings: SettingsDep, request: Request
-) -> Any:
+) -> SsoStanding:
     """Which provider one org is wired to. The same answer the org reads, and the same silence."""
     org = await an_org(named, orgs)
     return _standing(await sso.of(org.id), where_the_idp_answers(settings, request))
@@ -166,7 +169,7 @@ async def still_required(
     sso: KeptSsoDep,
     settings: SettingsDep,
     request: Request,
-) -> Any:
+) -> SsoStanding:
     """Whether this org's people may still use a password. 404 when it is wired to nothing."""
     org = await an_org(named, orgs)
     wired_to = await sso.of(org.id)
@@ -204,14 +207,14 @@ def _a_configuration(said: WantedSso, org: str) -> OrgSso:
 # One shape either way, every field always there: an org that wired nothing answers the empty
 # value of each rather than leaving them out, so a page parses one envelope and not two
 # (protocol/schema/rest.json, OrgSso).
-def _standing(sso: OrgSso | None, redirect_uri: str) -> dict[str, Any]:
+def _standing(sso: OrgSso | None, redirect_uri: str) -> SsoStanding:
     """One configuration as every reader sees it: what it is wired to, and never the secret."""
-    return {
-        "configured": sso is not None,
-        "issuer": None if sso is None else sso.issuer,
-        "client_id": None if sso is None else sso.client_id,
-        "domains": [] if sso is None else list(sso.domains),
-        "role": None if sso is None else sso.role,
-        "required": sso is not None and sso.required,
-        "redirect_uri": redirect_uri,
-    }
+    return SsoStanding(
+        configured=sso is not None,
+        issuer=None if sso is None else sso.issuer,
+        client_id=None if sso is None else sso.client_id,
+        domains=[] if sso is None else list(sso.domains),
+        role=None if sso is None else sso.role,
+        required=sso is not None and sso.required,
+        redirect_uri=redirect_uri,
+    )

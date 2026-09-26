@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
@@ -32,6 +30,7 @@ from pinecall.auth.members import Members, NoSeatLeft, an_address
 from pinecall.auth.openid import (
     Claims,
     OpenIdRefused,
+    Provider,
     claims,
     configuration,
     exchange,
@@ -41,6 +40,7 @@ from pinecall.auth.sso import Handshake
 from pinecall.orgs.admission import Admission
 from pinecall.types import SANDBOX, Member, Org, OrgSso, a_domain
 from pinecall_protocol import WireModel
+from pinecall_protocol.rest import SsoDiscovery, SsoOrg
 
 # Production's alone (api/identity.py): a sandbox keeps no password and makes no person, so
 # there every door here is 404, naming where people sign in.
@@ -167,7 +167,7 @@ async def back(
 @router.post("/v1/login/sso/discover")
 async def discover(
     said: Wondering, request: Request, sso: SsoDep, orgs: OrgsDep, throttle: ThrottleDep
-) -> dict[str, Any]:
+) -> SsoDiscovery:
     """The orgs an address of this domain signs in to with an identity provider, oldest first."""
     email = an_address(said.email)
     if not throttle.allowed(f"{the_client(request)} sso/{email}"):
@@ -176,15 +176,15 @@ async def discover(
     # None is a box with no vault key, which can keep no client secret and so holds no provider
     # for anybody: an empty list is the truth there and never a refusal a sign-in page must read.
     found = () if sso is None or not domain else await sso.with_domain(domain)
-    listed: list[dict[str, Any]] = []
+    listed: list[SsoOrg] = []
     for wired in found:
         org = await orgs.find(wired.org)
         if org is not None:
-            listed.append({"org": org.id, "slug": org.slug, "name": org.name})
-    return {"orgs": listed}
+            listed.append(SsoOrg(org=org.id, slug=org.slug, name=org.name))
+    return SsoDiscovery(orgs=listed)
 
 
-async def the_provider(http: httpx.AsyncClient, issuer: str) -> Any:
+async def the_provider(http: httpx.AsyncClient, issuer: str) -> Provider:
     """The issuer's configuration, or 502: the request was right and somebody else is down."""
     try:
         return await configuration(http, issuer)

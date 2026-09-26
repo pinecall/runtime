@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, HTTPException
 
 from pinecall._settings import Settings
@@ -16,7 +14,15 @@ from pinecall.api._deps import (
     TwilioDep,
 )
 from pinecall.api.identity import BuysAtProduction
-from pinecall.api.numbers import DRY_RUN, NO_DOMAIN, a_route, on_the_sfu, routed, trunked
+from pinecall.api.numbers import (
+    DRY_RUN,
+    NO_DOMAIN,
+    NumberRouted,
+    a_route,
+    on_the_sfu,
+    routed,
+    trunked,
+)
 from pinecall.routes.trunks import NO_LIVEKIT
 from pinecall.routes.twilio import BOX_TRUNK, TwilioNumber
 from pinecall.types import Carrier, DeclarationRefused, TwilioAccount
@@ -53,7 +59,7 @@ async def bought(
     table: RoutesDep,
     settings: SettingsDep,
     dry_run: bool = DRY_RUN,
-) -> dict[str, Any]:
+) -> NumberRouted:
     """One number bought on the box's account into this org's world, if the plan has room."""
     account = the_boxs_account(settings)
     if account is None:

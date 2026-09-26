@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, HTTPException
 from pydantic import Field
 
@@ -15,6 +13,7 @@ from pinecall.evals.checks.consent import consent
 from pinecall.evals.checks.errors import errors
 from pinecall.evals.checks.latency import DEFAULT_BUDGET, latency
 from pinecall.evals.checks.register import register
+from pinecall.evals.checks.verdict import Status, Verdict
 from pinecall.log.replay import whole
 from pinecall.types import AgentConfig
 from pinecall_protocol import WireModel
@@ -29,6 +28,23 @@ class Case(WireModel):
     budget: dict[str, float] = Field(default_factory=dict[str, float])
 
 
+class VerdictSaid(WireModel):
+    """One check as the door answers it: its name, the word a script branches on, and why."""
+
+    check: str
+    status: Status
+    detail: str
+
+
+class Replayed(WireModel):
+    """POST /v1/evals/replay/{call}: the call, its agent, whether every check held, and each."""
+
+    call: str
+    agent: str
+    passed: bool
+    verdicts: list[VerdictSaid]
+
+
 # The key says whose log may be replayed and nothing more: the verdict does not depend on it. The
 # call is asked for in its corner — org, world, holder — exactly as the judge door beside this one
 # asks, and a call outside it is the same 404 as a typo: a typo must never read as a call that
@@ -41,7 +57,7 @@ async def replay_call(
     index: CallIndexDep,
     registry: RegistryDep,
     said: Case | None = None,
-) -> dict[str, Any]:
+) -> Replayed:
     """Rebuild the call from its log and answer the four code checks over it, in one round trip."""
     await the_calls_corner(index, key, call)
     entries = await whole(store, call)
@@ -56,12 +72,17 @@ async def replay_call(
         errors(rebuilt),
         latency(rebuilt, case.budget or DEFAULT_BUDGET),
     ]
-    return {
-        "call": rebuilt.call or call,
-        "agent": rebuilt.agent,
-        "passed": not any(verdict.status == "failed" for verdict in verdicts),
-        "verdicts": [verdict.as_json for verdict in verdicts],
-    }
+    return Replayed(
+        call=rebuilt.call or call,
+        agent=rebuilt.agent,
+        passed=not any(verdict.status == "failed" for verdict in verdicts),
+        verdicts=[_said(verdict) for verdict in verdicts],
+    )
+
+
+def _said(verdict: Verdict) -> VerdictSaid:
+    """The verdict as the door answers it: three strings, no nesting, nothing to decode."""
+    return VerdictSaid(check=verdict.check, status=verdict.status, detail=verdict.detail)
 
 
 def _irreversible(declared: AgentConfig | None) -> frozenset[str] | None:

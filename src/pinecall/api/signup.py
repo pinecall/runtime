@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from hmac import compare_digest
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.status import HTTP_201_CREATED, HTTP_202_ACCEPTED
@@ -21,7 +21,7 @@ from pinecall.api._deps import (
 from pinecall.api.identity import AtProduction
 from pinecall.api.login import NOBODY_ANYWHERE, the_client
 from pinecall.api.org_mail import OutboxDep
-from pinecall.api.signing_up import TAKEN, the_org_made
+from pinecall.api.signing_up import TAKEN, OrgMade, the_org_made
 from pinecall.auth import passwords
 from pinecall.auth.members import an_address
 from pinecall.auth.signups import NotVerified, Refusal
@@ -94,6 +94,17 @@ class Resending(WireModel):
     email: str
 
 
+class CodeMailed(WireModel):
+    """POST /v1/signup: the address a code went to, and when the code dies. Never the code."""
+
+    email: str
+    code_expires_at: float
+
+
+class CodeResent(WireModel):
+    """POST /v1/signup/resend: nothing, whether or not a sign-up was waiting for the address."""
+
+
 # Where the knock came from, for the throttle. With PINECALL_SIGNUP_KEY set, only the page that
 # holds it gets in — the one running a bot shield in front (pinecall.io checks Pineward) — and
 # the person's address is the X-Pinecall-Client it sends, written from what its own proxy saw.
@@ -129,7 +140,7 @@ async def signup(
     signups: SignupsDep,
     throttle: ThrottleDep,
     outbox: OutboxDep,
-) -> dict[str, Any]:
+) -> CodeMailed:
     """The sign-up kept and a code mailed to its address. No org exists until the code is back."""
     if not settings.signup:
         raise HTTPException(403, NOT_HERE)
@@ -156,7 +167,7 @@ async def signup(
         raise HTTPException(409, TAKEN.format(slug=slug))
     pending, code = signups.begin(email, slug, said.name, said.person, hashed, said.device)
     await outbox.post(None, a_signup_code(email, code, said.person, await outbox.brand()))
-    return {"email": email, "code_expires_at": pending.expires_at}
+    return CodeMailed(email=email, code_expires_at=pending.expires_at)
 
 
 @router.post("/v1/signup/verify", status_code=HTTP_201_CREATED)
@@ -171,7 +182,7 @@ async def verify(
     signups: SignupsDep,
     throttle: ThrottleDep,
     extensions: ExtensionsDep,
-) -> dict[str, Any]:
+) -> OrgMade:
     """The org made, allowed what its gateway's policy says, its admin active, their first key."""
     if not settings.signup:
         raise HTTPException(403, NOT_HERE)
@@ -195,7 +206,7 @@ async def resend(
     signups: SignupsDep,
     throttle: ThrottleDep,
     outbox: OutboxDep,
-) -> dict[str, Any]:
+) -> CodeResent:
     """A new code for a sign-up still waiting, when there is one; the same 202 either way."""
     if not settings.signup:
         raise HTTPException(403, NOT_HERE)
@@ -206,4 +217,4 @@ async def resend(
         pending, code = renewed
         letter = a_signup_code(pending.email, code, pending.person, await outbox.brand())
         await outbox.post(None, letter)
-    return {}
+    return CodeResent()

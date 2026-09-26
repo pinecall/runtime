@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import Field
@@ -15,6 +15,7 @@ from pinecall.orgs.mail import KeptMail, Mail
 from pinecall.orgs.vault import NO_VAULT_KEY
 from pinecall.types import Mailbox, a_security, an_address
 from pinecall_protocol import WireModel
+from pinecall_protocol.rest import MailSent, OrgMail
 
 # The org's own three doors and its test send, on a key with `team` — the same scope that invites
 # a person and wires the identity provider, because the letters this posts are the ones that
@@ -85,13 +86,13 @@ class TestTo(WireModel):
 
 
 @router.get("/v1/org/mail")
-async def wired(key: TeamKeyDep, mail: KeptMailDep) -> Any:
+async def wired(key: TeamKeyDep, mail: KeptMailDep) -> OrgMail:
     """What this org's letters go out through, and how the last one went. Never the password."""
     return _standing(await mail.of(key.org))
 
 
 @router.put("/v1/org/mail")
-async def wire(said: WantedMail, key: TeamKeyDep, mail: KeptMailDep) -> Any:
+async def wire(said: WantedMail, key: TeamKeyDep, mail: KeptMailDep) -> OrgMail:
     """Wire this org's own mail, replacing what it had. Nothing is sent to find out it works:
     the send is `POST /v1/org/mail/test`, so a door is never blocked on somebody's relay."""
     await mail.put(key.org, a_mailbox(said))
@@ -109,13 +110,13 @@ async def unwire(key: TeamKeyDep, mail: KeptMailDep) -> None:
 # is watching: a letter that is refused is what they came here to find out. It records its outcome
 # exactly as a real letter does, so the GET above says the same thing a moment later.
 @router.post("/v1/org/mail/test")
-async def test(said: TestTo, key: TeamKeyDep, outbox: OutboxDep) -> dict[str, Any]:
+async def test(said: TestTo, key: TeamKeyDep, outbox: OutboxDep) -> MailSent:
     """One letter, waited for: `{sent, error}` — and 409 when there is no mail server at all."""
     to = an_address(said.to)
     if await outbox.mailbox_for(key.org) is None:
         raise HTTPException(409, NOTHING_TO_TEST)
     said_back = await outbox.sent(key.org, a_test_message(to, await outbox.brand()))
-    return {"sent": said_back is None, "error": said_back}
+    return MailSent(sent=said_back is None, error=said_back)
 
 
 # Shared with the box's own doors (api/box_mail.py): one body, one refusal, for either mailbox.
@@ -138,15 +139,19 @@ def a_mailbox(said: WantedMail) -> Mailbox:
 # One shape either way, every field always there: an org that wired nothing answers the empty
 # value of each rather than leaving them out, so a page parses one envelope
 # (protocol/schema/rest.json, OrgMail).
-def _standing(kept: KeptMail | None) -> dict[str, Any]:
+def _standing(kept: KeptMail | None) -> OrgMail:
     """One mailbox as every reader sees it: what it is wired to, and never the password."""
-    return {
-        "configured": kept is not None,
-        "host": None if kept is None else kept.mailbox.host,
-        "port": None if kept is None else kept.mailbox.port,
-        "security": None if kept is None else kept.mailbox.security,
-        "username": None if kept is None else kept.mailbox.username,
-        "from": None if kept is None else kept.mailbox.sender,
-        "verified_at": None if kept is None else kept.verified_at,
-        "last_error": None if kept is None else kept.last_error,
-    }
+    # Validated from a dict and not built by name: `from` is the field's one name on the wire,
+    # and a keyword here.
+    return OrgMail.model_validate(
+        {
+            "configured": kept is not None,
+            "host": None if kept is None else kept.mailbox.host,
+            "port": None if kept is None else kept.mailbox.port,
+            "security": None if kept is None else kept.mailbox.security,
+            "username": None if kept is None else kept.mailbox.username,
+            "from": None if kept is None else kept.mailbox.sender,
+            "verified_at": None if kept is None else kept.verified_at,
+            "last_error": None if kept is None else kept.last_error,
+        }
+    )

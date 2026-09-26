@@ -18,11 +18,6 @@ class Verdict:
     status: Status
     detail: str
 
-    @property
-    def as_json(self) -> dict[str, str]:
-        """The verdict as the door answers it: three strings, no nesting, nothing to decode."""
-        return {"check": self.check, "status": self.status, "detail": self.detail}
-
 
 def passed(check: str, detail: str) -> Verdict:
     """The check held."""

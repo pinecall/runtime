@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, HTTPException, Request
 
 from pinecall.api._deps import (
@@ -17,6 +15,7 @@ from pinecall.api._deps import (
     ThrottleDep,
 )
 from pinecall.api.identity import AtProduction, IdentityDep, a_mirrored_key, at_production
+from pinecall.api.keys import KeyIssued, a_key_issued
 from pinecall.api.sso import SsoDep
 from pinecall.auth import passwords
 from pinecall.auth.identity import Redeemed
@@ -27,7 +26,7 @@ from pinecall.auth.visiting import visiting
 from pinecall.auth.world import a_person
 from pinecall.orgs.sso import Sso
 from pinecall.orgs.table import Orgs
-from pinecall.types import SANDBOX, Env
+from pinecall.types import SANDBOX, Env, Role
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -115,6 +114,32 @@ class Login(WireModel):
     device: str | None = None
 
 
+# The ONE shape a key in the clear travels in, as `Issued.as_json` spells it (auth/keys.py): every
+# door that mints a key for a person answers this, and the doors that add to it subclass it.
+
+
+class WordMinted(WireModel):
+    """A one-use word standing for something, and the moment it dies."""
+
+    code: str
+    expires_at: float
+
+
+class OrgToSignInTo(WireModel):
+    """One org a password opens, named, and what the person is there."""
+
+    org: str
+    slug: str
+    name: str
+    role: Role
+
+
+class OrgsToSignInTo(WireModel):
+    """POST /v1/login/orgs: the orgs this email and password open, oldest first."""
+
+    orgs: list[OrgToSignInTo]
+
+
 # The two ways in share one answer: a key in the clear, once, in the one shape a key travels in.
 @router.post("/v1/login")
 async def login(
@@ -129,7 +154,7 @@ async def login(
     settings: SettingsDep,
     identity: IdentityDep,
     extensions: ExtensionsDep,
-) -> dict[str, Any]:
+) -> KeyIssued:
     """A key for this person and this device, or a refusal that says the least it can."""
     if said.code is not None:
         if said.org is not None or said.email is not None or said.password is not None:
@@ -145,7 +170,7 @@ async def login(
         mirrored = await a_mirrored_key(
             said.code, label, identity, orgs, members, keys, extensions.admitted
         )
-        return mirrored.as_json
+        return a_key_issued(mirrored)
     # A password is production's to check: a sandbox keeps none, and takes a code or nothing.
     at_production(settings)
     if said.email is None or said.password is None:
@@ -165,7 +190,7 @@ async def orgs_to_sign_in_to(
     orgs: OrgsDep,
     members: MembersDep,
     throttle: ThrottleDep,
-) -> dict[str, Any]:
+) -> OrgsToSignInTo:
     """The orgs this person may sign in to, oldest first; 401 for a wrong email or password."""
     if not throttle.allowed(f"{the_client(request)} */{said.email}"):
         raise HTTPException(429, TOO_MANY.format(email=said.email))
@@ -173,12 +198,12 @@ async def orgs_to_sign_in_to(
     # the one sentence would say nothing, and the clock must not say it instead.
     if not await passwords.matches(said.password, await members.a_persons_password(said.email)):
         raise HTTPException(401, NOBODY_ANYWHERE)
-    listed: list[dict[str, Any]] = []
+    listed: list[OrgToSignInTo] = []
     for row in await members.orgs_of(said.email):
         org = None if row.status == "disabled" else await orgs.find(row.org)
         if org is not None:
-            listed.append({"org": org.id, "slug": org.slug, "name": org.name, "role": row.role})
-    return {"orgs": listed}
+            listed.append(OrgToSignInTo(org=org.id, slug=org.slug, name=org.name, role=row.role))
+    return OrgsToSignInTo(orgs=listed)
 
 
 # A key holder — `pinecall start`, a person already in — mints a word a browser can carry in a URL
@@ -186,10 +211,10 @@ async def orgs_to_sign_in_to(
 # key's record and is spent for a NEW key with the same org, world, scopes and person, so the
 # browser's key is its own and is revoked on its own.
 @router.post("/v1/login/codes")
-async def a_code(key: KeyDep, codes: LoginCodesDep) -> dict[str, Any]:
+async def a_code(key: KeyDep, codes: LoginCodesDep) -> WordMinted:
     """A one-use code standing for this key's record, good for five minutes."""
     minted = codes.mint(key)
-    return {"code": minted.code, "expires_at": minted.expires_at}
+    return WordMinted(code=minted.code, expires_at=minted.expires_at)
 
 
 # Production is who says a person is a member. A person signed in here carries a code to the
@@ -222,7 +247,7 @@ async def redeem(
 # the source, and a role changed since the asking key was minted is the role now.
 async def for_the_same_person(
     key: KeyRecord, label: str | None, keys: KeysDep, members: MembersDep, world: Env
-) -> dict[str, Any]:
+) -> KeyIssued:
     """A key for the person this one names, with what their role opens."""
     if key.subject is None:
         raise HTTPException(403, NOT_A_PERSONS)
@@ -231,7 +256,7 @@ async def for_the_same_person(
     member = await members.find(key.org, key.subject)
     if member is None or member.status != "active":
         raise HTTPException(403, NOT_A_MEMBER)
-    return (await a_persons_key(keys, member, label, world, minted_from=key)).as_json
+    return a_key_issued(await a_persons_key(keys, member, label, world, minted_from=key))
 
 
 async def _with_a_password(
@@ -243,7 +268,7 @@ async def _with_a_password(
     throttle: ThrottleDep,
     sso: Sso | None,
     world: Env,
-) -> dict[str, Any]:
+) -> KeyIssued:
     """The member this email and password name, in the org named or in the oldest of theirs, and
     a key minted for them."""
     if said.email is None or said.password is None:
@@ -280,7 +305,7 @@ async def _with_a_password(
         if seated is None:
             raise HTTPException(403, NOT_YET.format(email=member.email))
         member = seated
-    return (await a_persons_key(keys, member, said.device or LOGGED_IN, world)).as_json
+    return a_key_issued(await a_persons_key(keys, member, said.device or LOGGED_IN, world))
 
 
 async def _the_row_for(
@@ -316,7 +341,7 @@ async def only_with_the_provider(sso: Sso | None, org: str) -> bool:
 
 async def _with_a_code(
     record: KeyRecord, device: str | None, keys: KeysDep, world: Env
-) -> dict[str, Any]:
+) -> KeyIssued:
     """A key of the browser's own minted from the record a code of ours stood for. A person's
     carries no world, whatever world the request that minted the code named, and lives as long as
     a person's key does here — never longer than the key that minted the code."""
@@ -330,7 +355,7 @@ async def _with_a_code(
         name=record.name,
         expires_at=until(world, record) if person else record.expires_at,
     )
-    return issued.as_json
+    return a_key_issued(issued)
 
 
 def the_client(request: Request) -> str:

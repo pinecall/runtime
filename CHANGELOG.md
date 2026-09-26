@@ -107,6 +107,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   could make orgs for as many trials as they liked.
 
 ### Added
+- **Every door documents its answer.** The ninety-five doors that answered an untyped JSON object
+  — the orgs, keys, members, logins, sign-ups, pairings, numbers, routes, fleet, usage, mail,
+  brand, sign-in, SSO, dial, evals and webhook doors — return a typed model now, so
+  `/openapi.json` names every answer's schema and FastAPI validates it on the way out. The JSON
+  on the wire is byte for byte what it was.
 - **A call's traces, and one shape of log line.** `PINECALL_OTLP_ENDPOINT` names where the worker
   sends the spans livekit already makes — the session, each turn, each model, TTS and tool call —
   over OTLP/HTTP, with `PINECALL_OTLP_HEADERS` on each export for the backend's credential and

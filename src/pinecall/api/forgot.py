@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, HTTPException, Request
 from starlette.status import HTTP_202_ACCEPTED
 
@@ -30,6 +28,10 @@ class Forgotten(WireModel):
     email: str
 
 
+class ResetAsked(WireModel):
+    """POST /v1/login/reset: nothing — 202, taken, whoever asked and whatever came of it."""
+
+
 # 202, taken, and nothing else is ever said. Not whether anybody answers to the address, not
 # whether their org can send mail, not whether their org signs in with a provider instead: a door
 # that told them apart would be a door a stranger reads the box's directory out of, one address
@@ -48,14 +50,14 @@ async def forgotten(
     sso: SsoDep,
     outbox: OutboxDep,
     settings: SettingsDep,
-) -> dict[str, Any]:
+) -> ResetAsked:
     """Post a one-use reset link where one can be posted, and answer 202 whatever came of it."""
     if not throttle.allowed(f"{the_client(request)} */{said.email}"):
         raise HTTPException(429, TOO_MANY.format(email=said.email))
     await _posted(
         said.email, where_this_gateway_answers(settings, request), orgs, members, sso, outbox
     )
-    return {}
+    return ResetAsked()
 
 
 # One path for every address, and it ends the same way for all of them: nothing is raised, nothing

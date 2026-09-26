@@ -38,4 +38,4 @@ def the_production(connection: HTTPConnection, settings: SettingsDep) -> Peer | 
 
 
 SandboxDep = Annotated["Peer | None", Depends(the_sandbox)]
-ProductionDep = Annotated["Peer | None", Depends(the_production)]
+ProductionDep = Annotated[Peer | None, Depends(the_production)]

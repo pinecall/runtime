@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import HTTPException, Request
 from starlette.status import HTTP_204_NO_CONTENT
 
@@ -18,6 +16,8 @@ from pinecall.orgs.box import SIGN_IN, BoxSettings
 from pinecall.orgs.signin import GOOGLE, PROVIDERS, BoxSignIn
 from pinecall.orgs.vault import NO_VAULT_KEY, NoVaultKey
 from pinecall_protocol import WireModel
+from pinecall_protocol.rest import BoxProvider
+from pinecall_protocol.rest import BoxSignIn as SignInStanding
 
 # The same gate every /v1/ops door takes. A box-wide provider is the BOX's: the client at Google
 # is registered by whoever runs the machine, with this gateway's own callback, and an org that
@@ -43,16 +43,16 @@ class WantedClient(WireModel):
 
 
 @operator.get("/signin")
-async def wired(box: BoxSettingsDep, settings: SettingsDep, request: Request) -> dict[str, Any]:
+async def wired(box: BoxSettingsDep, settings: SettingsDep, request: Request) -> SignInStanding:
     """Every provider this box can offer, wired or not, with the URI to register at each."""
     base = where_this_gateway_answers(settings, request)
-    return {name: await _standing(name, box, base) for name in PROVIDERS}
+    return SignInStanding(google=await _standing(GOOGLE, box, base))
 
 
 @operator.put("/signin/google")
 async def wire_google(
     said: WantedClient, box: BoxSettingsDep, http: HttpDep, settings: SettingsDep, request: Request
-) -> dict[str, Any]:
+) -> BoxProvider:
     """Wire "Continue with Google", replacing what was; 400 when Google's discovery does not
     answer, 503 on a box with no vault key to seal the secret."""
     client_id, client_secret = said.client_id.strip(), said.client_secret
@@ -84,12 +84,12 @@ def where_the_provider_answers(settings: Settings, request: Request, provider: s
 # `client_id` is read off the row even when the secret cannot be opened — a vault key rotated —
 # so the page shows what was typed and `configured: false` says it is not usable, which is the
 # one afternoon this shape has to explain.
-async def _standing(name: str, box: BoxSettings, base: str) -> dict[str, Any]:
+async def _standing(name: str, box: BoxSettings, base: str) -> BoxProvider:
     """One provider as the operator sees it: whether it is usable, the client, the callback."""
     wired = await BoxSignIn(box).of(name)
     kept = await box.of(SIGN_IN.format(provider=name))
-    return {
-        "configured": wired is not None,
-        "client_id": None if kept is None else str(kept.value.get("client_id") or "") or None,
-        "redirect_uri": f"{base}{CALLBACK.format(provider=name)}",
-    }
+    return BoxProvider(
+        configured=wired is not None,
+        client_id=None if kept is None else str(kept.value.get("client_id") or "") or None,
+        redirect_uri=f"{base}{CALLBACK.format(provider=name)}",
+    )

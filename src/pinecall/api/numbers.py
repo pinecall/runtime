@@ -4,8 +4,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import Field
 from starlette.status import HTTP_204_NO_CONTENT
@@ -29,6 +27,7 @@ from pinecall.routes.twilio import (
 )
 from pinecall.types import (
     Carrier,
+    CarrierKind,
     Route,
     SipPeer,
     TwilioAccount,
@@ -93,6 +92,44 @@ class WantedNumber(WireModel):
     channel: str = "phone"
 
 
+class CarrierBrought(WireModel):
+    """What GET /v1/carrier says: the carrier's kind and the account it is, never a secret."""
+
+    kind: CarrierKind
+    account: str
+
+
+class NumberOwned(WireModel):
+    """One number the carrier account owns, and whether this org imported it in this world."""
+
+    number: str
+    name: str
+    imported: bool
+
+
+class NumbersAvailable(WireModel):
+    """What GET /v1/numbers/available says: the account's numbers, by the kind of carrier."""
+
+    kind: CarrierKind
+    numbers: list[NumberOwned]
+
+
+# The route rides as the domain's own Route: FastAPI serializes the dataclass from the annotation,
+# every field of it, so the wire says exactly what the table holds.
+class NumberDoor(WireModel):
+    """One row of GET /v1/numbers: a door the org answers at, and nothing but its route."""
+
+    route: Route
+
+
+class NumberRouted(WireModel):
+    """What an import and a purchase end in: the route, the plan's steps, and whether it wrote."""
+
+    route: Route
+    steps: list[str]
+    dry_run: bool
+
+
 # ── the carrier ─────────────────────────────────────────────────────────────────
 
 
@@ -111,12 +148,12 @@ async def bring(
 
 
 @router.get("/v1/carrier")
-async def brought(key: NumbersKeyDep, carriers: KeptCarriersDep) -> dict[str, Any]:
+async def brought(key: NumbersKeyDep, carriers: KeptCarriersDep) -> CarrierBrought:
     """Which carrier the org brought, by kind and account — never a secret."""
     carrier = await carriers.of(key.org)
     if carrier is None:
         raise HTTPException(404, NO_CARRIER)
-    return {"kind": carrier.kind, "account": carrier.named}
+    return CarrierBrought(kind=carrier.kind, account=carrier.named)
 
 
 @router.delete("/v1/carrier", status_code=HTTP_204_NO_CONTENT)
@@ -133,31 +170,31 @@ async def take_back(key: NumbersKeyDep, carriers: KeptCarriersDep) -> None:
 # worker's `app`, because a person who manages the org's numbers is not the process that answers
 # them. Every door is a row: a class declares none, and the widget is not a door at all.
 @router.get("/v1/numbers")
-async def numbers(key: NumbersKeyDep, table: RoutesDep) -> list[dict[str, Any]]:
+async def numbers(key: NumbersKeyDep, table: RoutesDep) -> list[NumberDoor]:
     """Every door the org answers in the key's world."""
-    return [{"route": as_json(route)} for route in await table.of_org(key.org, key.env)]
+    return [NumberDoor(route=route) for route in await table.of_org(key.org, key.env)]
 
 
 @router.get("/v1/numbers/available")
 async def available(
     key: NumbersKeyDep, carriers: KeptCarriersDep, twilio: TwilioDep, table: RoutesDep
-) -> dict[str, Any]:
+) -> NumbersAvailable:
     """What the carrier account owns that this org has not imported yet, by number and name."""
     carrier = await carriers.of(key.org)
     if carrier is None:
         raise HTTPException(404, NO_CARRIER)
     if not isinstance(carrier.account, TwilioAccount):
         # A SIP peer owns what it owns; nobody here can list it. The import takes the number typed.
-        return {"kind": "sip", "numbers": []}
+        return NumbersAvailable(kind="sip", numbers=[])
     imported = {route.number for route in await table.of_org(key.org, key.env)}
     owned = await twilio(carrier.account).numbers()
-    return {
-        "kind": "twilio",
-        "numbers": [
-            {"number": one.number, "name": one.name, "imported": one.number in imported}
+    return NumbersAvailable(
+        kind="twilio",
+        numbers=[
+            NumberOwned(number=one.number, name=one.name, imported=one.number in imported)
             for one in owned
         ],
-    }
+    )
 
 
 @router.post("/v1/numbers")
@@ -170,7 +207,7 @@ async def imported(
     table: RoutesDep,
     settings: SettingsDep,
     dry_run: bool = DRY_RUN,
-) -> dict[str, Any]:
+) -> NumberRouted:
     """One number into this org's world: the carrier's trunk, the SFU's trunk, the route."""
     route = a_route(key, said.number, said.agent, said.channel)
     carrier = await carriers.of(key.org)
@@ -198,12 +235,12 @@ async def imported(
     return await routed(route, steps, table, dry_run)
 
 
-async def routed(route: Route, steps: list[str], table: Routes, dry_run: bool) -> dict[str, Any]:
+async def routed(route: Route, steps: list[str], table: Routes, dry_run: bool) -> NumberRouted:
     """The last step of an import and of a purchase: the route row, and the answer with the plan."""
     steps.append(f"route    {route.number} {route.channel} → {route.agent} in {route.env}")
     if not dry_run:
         await table.put(route)
-    return {"route": as_json(route), "steps": steps, "dry_run": dry_run}
+    return NumberRouted(route=route, steps=steps, dry_run=dry_run)
 
 
 @router.delete("/v1/numbers/{number}", status_code=HTTP_204_NO_CONTENT)
@@ -303,16 +340,3 @@ def a_route(
         raise HTTPException(400, NOT_A_NUMBER_CHANNEL.format(channel=channel))
     on: Channel = "phone" if channel == "phone" else "whatsapp"
     return Route(org=key.org, agent=agent, channel=on, number=number, env=key.env, managed=managed)
-
-
-def as_json(route: Route) -> dict[str, Any]:
-    """One route as the wire says it: every field of the domain's own Route."""
-    return {
-        "org": route.org,
-        "agent": route.agent,
-        "channel": route.channel,
-        "number": route.number,
-        "label": route.label,
-        "env": route.env,
-        "managed": route.managed,
-    }

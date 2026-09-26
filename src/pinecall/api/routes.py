@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any, cast
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import TypeAdapter
 from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api._corner import CornerDep
@@ -23,9 +22,8 @@ router = APIRouter()
 # It is the box's own key out of the environment, so it names no org and every door here does.
 operator = an_operators_router()
 
-# The hop carries the domain object itself, adapted by pydantic — the same adapter
-# worker/client.py validates it back through. See docs/decisions/worker.md.
-ROUTES: TypeAdapter[tuple[Route, ...]] = TypeAdapter(tuple[Route, ...])
+# The hop carries the domain object itself: FastAPI serializes the Route dataclass from the door's
+# annotation, and worker/wire.py's adapter validates it back. See docs/decisions/worker.md.
 
 # Nothing to remove. 404 and not 204: `routes rm` on a number nobody typed is a typo, and a verb
 # that answered yes to it would send the operator looking for the change somewhere else.
@@ -50,6 +48,12 @@ class Wanted(WireModel):
     env: Env = PRODUCTION
 
 
+class RouteAdded(WireModel):
+    """What `routes add` is answered: the one row the number now is."""
+
+    route: Route
+
+
 # A tenant's key reads the doors of its own org and its own world, and is refused any other: a key
 # that could ask for another org's routes would be a key that could route a call into somebody
 # else's agent. The FLEET's key is the one exception, because the box's one worker answers every
@@ -63,35 +67,32 @@ async def routes(
     table: RoutesDep,
     number: Annotated[str | None, Query(description="the fleet's: the number dialled")] = None,
     channel: Annotated[Channel | None, Query(description="the fleet's: its channel")] = None,
-) -> list[dict[str, Any]]:
+) -> list[Route]:
     """The doors of one corner, or the one door a number rings, so a job is resolved at once."""
     if number is not None or channel is not None:
         if not is_the_fleets(key) or number is None or channel is None:
             raise HTTPException(403, NOT_YOUR_CORNER)
         door = await table.at(channel, number)
-        return [] if door is None else [_as_json(door)]
-    answered = await table.of_org(corner.org, corner.env)
-    return list(ROUTES.dump_python(tuple(answered), mode="json"))
+        return [] if door is None else [door]
+    return list(await table.of_org(corner.org, corner.env))
 
 
 @operator.get("/routes")
-async def listed(
-    table: RoutesDep, orgs: OrgsDep, org: str = ORG, env: Env = ENV
-) -> list[dict[str, Any]]:
+async def listed(table: RoutesDep, orgs: OrgsDep, org: str = ORG, env: Env = ENV) -> list[Route]:
     """The same doors the worker is given: every row this org answers at in this world."""
     owner = await an_org(org, orgs)
-    return list(ROUTES.dump_python(tuple(await table.of_org(owner.id, env)), mode="json"))
+    return list(await table.of_org(owner.id, env))
 
 
 # Nothing is ever taken from anybody any more: a door was a row or a class's declaration, and the
 # row outranked the declaration, so `add` said whose door it had just moved. A class declares none
 # now, so a number moves from one row to another and the row itself is the whole answer.
 @operator.post("/routes")
-async def add(said: Wanted, table: RoutesDep, orgs: OrgsDep) -> dict[str, Any]:
+async def add(said: Wanted, table: RoutesDep, orgs: OrgsDep) -> RouteAdded:
     """Add the number or move it. One row per number per org: this is an upsert."""
     route = _a_route(said, (await an_org(said.org, orgs)).id)
     await table.put(route)
-    return {"route": _as_json(route)}
+    return RouteAdded(route=route)
 
 
 @operator.delete("/routes/{number}", status_code=HTTP_204_NO_CONTENT)
@@ -100,11 +101,6 @@ async def remove(number: str, table: RoutesDep, orgs: OrgsDep, org: str = ORG) -
     owner = await an_org(org, orgs)
     if not await table.remove(owner.id, number):
         raise HTTPException(404, NO_SUCH_ROUTE.format(number=number, org=owner.slug))
-
-
-def _as_json(route: Route) -> dict[str, Any]:
-    """One route as the wire says it, through the adapter both sides of the hop already share."""
-    return cast("dict[str, Any]", ROUTES.dump_python((route,), mode="json")[0])
 
 
 def _a_route(said: Wanted, org: str) -> Route:

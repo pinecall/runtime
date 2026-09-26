@@ -5,10 +5,9 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from collections.abc import Sequence
-from typing import Annotated, Any, cast
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import TypeAdapter
 
 from pinecall.api._corner import CornerDep
 from pinecall.api._deps import (
@@ -43,10 +42,6 @@ from pinecall_protocol.rest import AgentList, HeldAgent, LineHolder, TheLine
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# The hop carries the domain object itself, adapted by pydantic — the same adapter
-# worker/client.py validates it back through. See docs/decisions/worker.md.
-CONFIG: TypeAdapter[AgentConfig] = TypeAdapter(AgentConfig)
-
 
 # Whose declaration is the corner's: the key's own for a tenant, and for the fleet's key the
 # corner of the call it is building a session for — the org, the world and the holder the
@@ -59,7 +54,7 @@ async def config(
     corner: CornerDep,
     registry: RegistryDep,
     kept: TuningDep,
-) -> dict[str, Any]:
+) -> AgentConfig:
     """What the app declared about this agent, resolved: the session is built from it, and the
     console draws the state by it."""
     held = registry.of(corner.env, slug, corner.holder)
@@ -67,9 +62,10 @@ async def config(
         raise HTTPException(status_code=404, detail=NO_AGENT.format(slug=slug))
     # The corner's tuning is laid on through tuned_for(), the one resolving function every door
     # that builds a session calls, so what the org set arrives by the path a declaration travels.
+    # The hop carries the domain object itself, serialized by pydantic off the annotation — the
+    # adapter in worker/wire.py validates it back through. See docs/decisions/worker.md.
     resolved = await tuned_for(kept, corner.org, corner.env, corner.holder, slug, held.config)
-    dumped = CONFIG.dump_python(resolved.config, mode="json")
-    return cast("dict[str, Any]", dumped)
+    return resolved.config
 
 
 # The console's first question, before it knows an agent to open: which agents are there. It is
@@ -180,10 +176,24 @@ NO_PRODUCTION_TO_ASK = (
 NOT_ANSWERING = "production did not answer for its numbers: try again in a moment"
 
 
+class NumberToCall(WireModel):
+    """One of production's phone numbers, and the agent a call to it reaches."""
+
+    number: str
+    agent: str
+
+
+class NumbersToCall(WireModel):
+    """GET /v1/line/numbers: the phones this person dials from, and the numbers they can dial."""
+
+    calling: list[str]
+    numbers: list[NumberToCall]
+
+
 @router.get("/v1/line/numbers")
 async def numbers_to_call(
     key: AppKeyDep, registry: RegistryDep, production: ProductionDep
-) -> dict[str, list[Any]]:
+) -> NumbersToCall:
     """The org's production numbers and the agent each reaches, and the phones this person dials
     from: what a developer's phone dials, and whether the gateway knows that phone is theirs."""
     whose = _a_person(key)
@@ -194,14 +204,14 @@ async def numbers_to_call(
     except PeerUnreachable as unreachable:
         logger.warning("line numbers: %s", unreachable)
         raise HTTPException(502, NOT_ANSWERING) from unreachable
-    return {
-        "calling": list(registry.calling(key.env, whose)),
-        "numbers": [
-            {"number": route.number, "agent": route.agent}
+    return NumbersToCall(
+        calling=list(registry.calling(key.env, whose)),
+        numbers=[
+            NumberToCall(number=route.number, agent=route.agent)
             for route in typed
             if route.number is not None and route.channel == "phone"
         ],
-    }
+    )
 
 
 def _a_person(key: KeyRecord) -> str:

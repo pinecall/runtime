@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import asdict
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Query
 from starlette.responses import StreamingResponse
@@ -21,7 +21,8 @@ from pinecall.api.calls.sink import (
     wants_sse,
 )
 from pinecall.log.store import DEFAULT_LIMIT, Store
-from pinecall.log.usage import METERED_TYPES, UsageRow, a_usage_row, totals_by_org
+from pinecall.log.usage import METERED_TYPES, Totals, UsageRow, a_usage_row, totals_by_org
+from pinecall_protocol import WireModel
 
 operator = an_operators_router()
 
@@ -40,8 +41,27 @@ OF_ORG = Query(None, description="only this org's rows, by id or slug; every org
 POLL_S = 1.0
 
 
-# response_model=None: one URL, two flavours — FastAPI cannot make a model out of "or a stream".
-@operator.get("/usage", response_model=None)
+# The rows and the totals ride as the log's own dataclasses: FastAPI serializes each from the
+# annotation, field for field, so the page says exactly what log/usage.py folded.
+class UsageAcrossOrgs(WireModel):
+    """One page of GET /v1/ops/usage: the rows, the totals by org, and the cursor to resume from."""
+
+    rows: list[UsageRow]
+    totals: dict[str, Totals]
+    next: int | None
+
+
+class UsageOfTheOrg(WireModel):
+    """One page of GET /v1/usage: this org's rows, its totals if any, and the cursor."""
+
+    rows: list[UsageRow]
+    totals: Totals | None
+    next: int | None
+
+
+# response_model=None: one URL, two flavours — FastAPI cannot make a model out of "or a stream",
+# so the page's shape is documented through `responses` and built as the model all the same.
+@operator.get("/usage", response_model=None, responses={200: {"model": UsageAcrossOrgs}})
 async def usage(
     store: StoreDep,
     orgs: OrgsDep,
@@ -49,19 +69,19 @@ async def usage(
     after: int = AFTER,
     org: str | None = OF_ORG,
     limit: Annotated[int, Query(ge=1, le=DEFAULT_LIMIT)] = DEFAULT_LIMIT,
-) -> StreamingResponse | dict[str, Any]:
+) -> StreamingResponse | UsageAcrossOrgs:
     """The metered rows above the cursor, per org, with the cursor to resume from."""
     only = None if org is None else (found.id if (found := await orgs.find(org)) else org)
     if wants_sse(accept):
         return StreamingResponse(_stream(store, after, only), media_type=SSE, headers=SSE_HEADERS)
     read, rows = await _a_page(store, after, limit, only)
-    return {
-        "rows": [asdict(row) for row in rows],
-        "totals": {org: asdict(totals) for org, totals in totals_by_org(rows).items()},
+    return UsageAcrossOrgs(
+        rows=list(rows),
+        totals=totals_by_org(rows),
         # The cursor moves past every row READ, filtered or not: a page whose every row was
         # another org's still makes progress, and an empty read is the end.
-        "next": read[-1].cursor if read else None,
-    }
+        next=read[-1].cursor if read else None,
+    )
 
 
 @router.get("/v1/usage")
@@ -70,15 +90,14 @@ async def my_usage(
     store: StoreDep,
     after: int = AFTER,
     limit: Annotated[int, Query(ge=1, le=DEFAULT_LIMIT)] = DEFAULT_LIMIT,
-) -> dict[str, Any]:
+) -> UsageOfTheOrg:
     """This org's metered rows above the cursor, with its totals and the cursor to resume from."""
     read, rows = await _a_page(store, after, limit, key.org)
-    totals = totals_by_org(rows).get(key.org)
-    return {
-        "rows": [asdict(row) for row in rows],
-        "totals": None if totals is None else asdict(totals),
-        "next": read[-1].cursor if read else None,
-    }
+    return UsageOfTheOrg(
+        rows=list(rows),
+        totals=totals_by_org(rows).get(key.org),
+        next=read[-1].cursor if read else None,
+    )
 
 
 async def _a_page(

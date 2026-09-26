@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import HTTPException, Request
 from starlette.status import HTTP_201_CREATED, HTTP_204_NO_CONTENT
 
@@ -13,10 +11,12 @@ from pinecall.api._operator import an_operators_router
 from pinecall.api.members import (
     AN_ADMIN,
     NO_SUCH_MEMBER,
+    LinkIssued,
+    MemberSaid,
     WantedMember,
+    a_member_said,
     a_wanted_member,
     invited_into,
-    member_as_json,
 )
 from pinecall.api.membership import removed
 from pinecall.api.org_mail import OutboxDep
@@ -44,7 +44,7 @@ async def invite_to(
     outbox: OutboxDep,
     settings: SettingsDep,
     request: Request,
-) -> dict[str, Any]:
+) -> LinkIssued:
     """The org's first person, or one more: the row, and the one-use token — printed once."""
     org = await an_org(named, orgs)
     role = a_wanted_member(said, org.id)
@@ -66,13 +66,13 @@ class Running(WireModel):
 @operator.put("/orgs/{named}/members/{id}/operator")
 async def runs_the_box(
     named: str, id: str, said: Running, orgs: OrgsDep, members: MembersDep
-) -> dict[str, Any]:
+) -> MemberSaid:
     """This person runs this box, or stops. 404 when no member of the org answers to the id."""
     org = await an_org(named, orgs)
     changed = await members.make_operator(org.id, id, said.operator)
     if changed is None:
         raise HTTPException(404, NO_SUCH_MEMBER.format(id=id))
-    return member_as_json(changed)
+    return a_member_said(changed)
 
 
 # The operator's twin of DELETE /v1/members/{id}, under the same rules less one: there is no
@@ -88,12 +88,19 @@ async def remove_from(
     await removed(members, keys, org.id, id)
 
 
+class OrgMembers(WireModel):
+    """GET /v1/ops/orgs/{org}/members: every member of the org, and how many hold a seat."""
+
+    members: list[MemberSaid]
+    seated: int
+
+
 @operator.get("/orgs/{named}/members")
-async def of_one_org(named: str, orgs: OrgsDep, members: MembersDep) -> dict[str, Any]:
+async def of_one_org(named: str, orgs: OrgsDep, members: MembersDep) -> OrgMembers:
     """Every member of the named org, oldest first, and how many of them hold a seat."""
     org = await an_org(named, orgs)
     listed = await members.listed(org.id)
-    return {
-        "members": [member_as_json(member) for member in listed],
-        "seated": await members.seated(org.id),
-    }
+    return OrgMembers(
+        members=[a_member_said(member) for member in listed],
+        seated=await members.seated(org.id),
+    )

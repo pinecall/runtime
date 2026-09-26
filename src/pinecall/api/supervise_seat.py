@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter
 
 from pinecall.api._deps import SettingsDep, SnapshotsDep, SuperviseKeyDep
+from pinecall.api.listen import SeatTaken
 from pinecall.tokens.seating import a_seat_in
 
 router = APIRouter()
@@ -23,6 +22,6 @@ A_SUPERVISOR = "supervise"
 @router.post("/v1/calls/{call}/supervise")
 async def supervise(
     call: str, key: SuperviseKeyDep, snapshots: SnapshotsDep, settings: SettingsDep
-) -> dict[str, Any]:
+) -> SeatTaken:
     """A token that takes one live call's seat and sends its verbs, for fifteen minutes."""
-    return await a_seat_in(call, A_SUPERVISOR, key, snapshots, settings)
+    return SeatTaken(**await a_seat_in(call, A_SUPERVISOR, key, snapshots, settings))

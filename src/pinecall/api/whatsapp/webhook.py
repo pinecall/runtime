@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hmac
 import logging
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import ValidationError
@@ -15,9 +15,17 @@ from pinecall.api.whatsapp.doors import DoorsDep
 from pinecall.api.whatsapp.threads import ThreadsDep
 from pinecall.whatsapp.inbound import Inbound, Payload, messages_in
 from pinecall.whatsapp.signing import SIGNATURE_HEADER, signed
+from pinecall_protocol import WireModel
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+class WebhookReceived(WireModel):
+    """What Meta is told back: how many messages the body carried onto a thread. Never a 4xx."""
+
+    received: int
+
 
 # What a runtime with no PINECALL_WHATSAPP_APP_SECRET answers. A 503 and not a 404: the request
 # was right and this box cannot honour it — the same shape the vault's NO_VAULT_KEY has.
@@ -58,7 +66,7 @@ async def verify(
 @router.post("/v1/whatsapp/webhook")
 async def delivered(
     request: Request, settings: SettingsDep, threads: ThreadsDep, doors: DoorsDep
-) -> dict[str, Any]:
+) -> WebhookReceived:
     """Every message in this body onto its own thread, and 200 as soon as they are queued."""
     if not settings.whatsapp_app_secret:
         raise HTTPException(503, NO_WHATSAPP)
@@ -70,7 +78,7 @@ async def delivered(
     inbound = _messages(body)
     for message in inbound:
         await threads.received(doors, message)
-    return {"received": len(inbound)}
+    return WebhookReceived(received=len(inbound))
 
 
 def _messages(body: bytes) -> tuple[Inbound, ...]:

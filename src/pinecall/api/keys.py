@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 
 from pinecall._settings import Settings
 from pinecall.api._deps import AppKeyDep, KeyDep, KeysDep, MembersDep, SettingsDep
 from pinecall.auth.corner import author_of
-from pinecall.auth.keys import KeyRecord, ListedKey
+from pinecall.auth.keys import Issued, KeyRecord, ListedKey
 from pinecall.auth.world import THE_OTHER_GATEWAY, a_person
 from pinecall.types import Env, an_env
 from pinecall_protocol import WireModel
@@ -50,13 +50,49 @@ class WantedToken(WireModel):
     env: str
 
 
+class KeyIssued(WireModel):
+    """The one answer that carries a key in the clear: the key, and the record it was written
+    under (`Issued.as_json`, auth/keys.py). Here and at the operator's `POST /orgs/{org}/keys`."""
+
+    key: str
+    key_id: str
+    org: str
+    label: str | None
+    env: Env
+    scopes: list[str]
+    subject: str | None
+    name: str | None
+
+
+class KeyRevoked(WireModel):
+    """A revoke done: which fingerprint, and that it opens nothing from the next request."""
+
+    fingerprint: str
+    revoked: bool
+
+
+class TokenLine(WireModel):
+    """One token as the Tokens screen draws it: whose, which world, who made it, when used."""
+
+    fingerprint: str
+    label: str | None
+    kind: Literal["person", "server"]
+    env: Env | None
+    name: str | None
+    created_by: str | None
+    created_at: str
+    last_used_at: str | None
+    revoked_at: str | None
+    scopes: list[str]
+
+
 @router.get("/v1/keys")
-async def listed(key: KeyDep, keys: KeysDep, members: MembersDep) -> list[dict[str, Any]]:
+async def listed(key: KeyDep, keys: KeysDep, members: MembersDep) -> list[TokenLine]:
     """The tokens this key may see, oldest first: every server's, and a person's own — every
     person's for a key that opens `keys`. Revoked ones are named as revoked."""
     names = {member.id: member.name for member in await members.listed(key.org)}
     return [
-        _as_json(row, names)
+        _a_token_line(row, names)
         for row in await keys.listed(key.org)
         if row.subject is None or row.subject == key.subject or "keys" in key.scopes
     ]
@@ -70,7 +106,7 @@ async def issue(
     key: AppKeyDep,
     keys: KeysDep,
     settings: SettingsDep,
-) -> dict[str, Any]:
+) -> KeyIssued:
     """A server's token for this org, in this instance's world, answered once."""
     env = in_this_world(said.env, settings)
     if not a_person(key):
@@ -78,7 +114,7 @@ async def issue(
     issued = await keys.issue(
         org=key.org, label=said.label, env=env, scopes=SERVER_SCOPES, created_by=author_of(key)
     )
-    return issued.as_json
+    return a_key_issued(issued)
 
 
 def in_this_world(asked: str | None, settings: Settings) -> Env:
@@ -98,14 +134,14 @@ def in_this_world(asked: str | None, settings: Settings) -> Env:
 # log entries that name this key stay readable. A person stops their own keys and the server
 # tokens they made; a key that opens `keys` stops any of the org's.
 @router.post("/v1/keys/{fingerprint}/revoke")
-async def revoke(fingerprint: str, key: KeyDep, keys: KeysDep) -> dict[str, Any]:
+async def revoke(fingerprint: str, key: KeyDep, keys: KeysDep) -> KeyRevoked:
     """Stop honouring one key of this org from the next request. Its row, and its history, stay."""
     row = next((row for row in await keys.listed(key.org) if row.fingerprint == fingerprint), None)
     if row is None or row.revoked_at is not None or not _may_stop(key, row):
         raise HTTPException(404, NO_SUCH_KEY.format(fingerprint=fingerprint))
     if not await keys.revoke(fingerprint):
         raise HTTPException(404, NO_SUCH_KEY.format(fingerprint=fingerprint))
-    return {"fingerprint": fingerprint, "revoked": True}
+    return KeyRevoked(fingerprint=fingerprint, revoked=True)
 
 
 def _may_stop(key: KeyRecord, row: ListedKey) -> bool:
@@ -114,19 +150,24 @@ def _may_stop(key: KeyRecord, row: ListedKey) -> bool:
     return mine or "keys" in key.scopes
 
 
-def _as_json(row: ListedKey, names: dict[str, str]) -> dict[str, Any]:
-    """One token as the Tokens screen draws it: whose, which world, who made it, when used."""
+def _a_token_line(row: ListedKey, names: dict[str, str]) -> TokenLine:
+    """One row as the screen draws it: who made it is a name where the org still has one."""
     person = row.subject is not None
-    return {
-        "fingerprint": row.fingerprint,
-        "label": row.label,
-        "kind": "person" if person else "server",
+    return TokenLine(
+        fingerprint=row.fingerprint,
+        label=row.label,
+        kind="person" if person else "server",
         # A person's key opens whatever their row does; only a server's token has a world.
-        "env": None if person else row.env,
-        "name": row.name,
-        "created_by": None if row.created_by is None else names.get(row.created_by, row.created_by),
-        "created_at": row.created_at,
-        "last_used_at": row.last_used_at,
-        "revoked_at": row.revoked_at,
-        "scopes": list(row.scopes),
-    }
+        env=None if person else row.env,
+        name=row.name,
+        created_by=None if row.created_by is None else names.get(row.created_by, row.created_by),
+        created_at=row.created_at,
+        last_used_at=row.last_used_at,
+        revoked_at=row.revoked_at,
+        scopes=list(row.scopes),
+    )
+
+
+def a_key_issued(issued: Issued) -> KeyIssued:
+    """The key in the one shape it ever travels in: the login's, the sign-up's, the operator's."""
+    return KeyIssued.model_validate(issued.as_json)

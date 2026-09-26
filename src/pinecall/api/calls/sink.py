@@ -6,7 +6,7 @@ import asyncio
 import json
 from collections.abc import AsyncIterator, Callable
 from dataclasses import replace
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, Query
 from starlette.requests import HTTPConnection
@@ -27,7 +27,7 @@ from pinecall.log.store import DEFAULT_LIMIT, Store
 from pinecall.log.store.index import CallCorner, CallIndex
 from pinecall.types.agent import AgentConfig
 from pinecall.types.json import JsonObject
-from pinecall_protocol import encode
+from pinecall_protocol import WireModel, encode
 from pinecall_protocol.registry import TERMINAL_EVENT
 
 # What a reader is allowed to see of one entry, applied HERE and nowhere above: None when the
@@ -224,22 +224,33 @@ AcceptDep = Annotated[str | None, Header()]
 # ── the two flavours ────────────────────────────────────────────────────────────
 
 
+# The protocol's LogPage, after the projection: an entry is whatever the reader's projection let
+# leave of it, and the public one keeps four fields of the envelope, so the entries are open JSON
+# objects here and the protocol's Entry only for a tenant (docs/protocol/projections.md).
+class ProjectedPage(WireModel):
+    """One page of a log as this reader may see it: the entries, whether it is open, and next."""
+
+    entries: list[JsonObject]
+    live: bool
+    next: int | None
+
+
 # next is the last seq the page READ, not the last it kept. With a filter the two differ, and the
 # read one is the only one that makes progress: a page whose every entry was filtered out still
 # moves the cursor past them, where next=null would tell the reader it had reached the end. An
 # empty read is the end — null is then the honest answer to "where do I resume".
 def page(
     read: list[Entry], kept: list[Entry], live: bool, project: Project, reader: Reader
-) -> dict[str, Any]:
+) -> ProjectedPage:
     """One JSON page: the entries this reader may see, whether the log is still open, and next."""
     said = (project(entry, reader) for entry in kept)
-    return {
+    return ProjectedPage(
         # An entry the projection drops is absent, not null: it never leaves at all. `next` still
         # counts it, so the cursor moves past what this reader was never going to be shown.
-        "entries": [one for one in said if one is not None],
-        "live": live,
-        "next": read[-1].seq if read else None,
-    }
+        entries=[one for one in said if one is not None],
+        live=live,
+        next=read[-1].seq if read else None,
+    )
 
 
 def sse(

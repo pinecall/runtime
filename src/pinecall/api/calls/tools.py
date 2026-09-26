@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, HTTPException
 
 from pinecall.api._deps import AppKeyDep, LogsDep
@@ -46,7 +44,7 @@ async def run_a_tool(
     registry: RegistryDep,
     logs: LogsDep,
     live: LiveDep,
-) -> dict[str, Any]:
+) -> defs.ToolResult:
     """A worker's tool call through the app's own process and back, with both entries logged."""
     # A call this gateway does not serve is one it forgot — it restarted — and the worker, which
     # still holds the call, reopens it on this 404 and asks again.
@@ -79,8 +77,7 @@ async def run_a_tool(
         return await log.append(type, encode(event))
 
     use = ToolUse(call_id=wanted.call_id, name=wanted.name, arguments=dict(wanted.arguments))
-    result = await live.waiting(call, config).ran(use, wanted.speech_id or "", emit)
-    return result.model_dump(mode="json")
+    return await live.waiting(call, config).ran(use, wanted.speech_id or "", emit)
 
 
 # ── the app's answer ────────────────────────────────────────────────────────────

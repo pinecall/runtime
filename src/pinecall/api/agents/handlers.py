@@ -17,6 +17,7 @@ from pinecall.log.entry import Entry
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.codes import Codes
 from pinecall.orgs.tuning import TuningStore
+from pinecall.session.text.session import TextSession
 from pinecall.types import Env
 from pinecall_protocol import Command, ProtocolError, WireModel, command_of
 from pinecall_protocol.commands import DevAnswer
@@ -62,8 +63,9 @@ class Live(Protocol):
         """The tool.call entries of this call still waiting for the app."""
         ...
 
-    def of(self, call: str | None) -> Any:
-        """The session a command names, or None when no call by that id runs in this process."""
+    def of(self, call: str | None) -> TextSession | None:
+        """The text session a command names, or None when this process runs no call by that id:
+        a worker's call is served here, never run here."""
         ...
 
     def answered(self, call: str, result: ToolResult) -> bool:
