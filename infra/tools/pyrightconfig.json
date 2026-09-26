@@ -8,6 +8,7 @@
     "../../packages/pinecall-core/src",
     "../../packages/pinecall-db/src",
     "../../packages/pinecall-evals/src",
+    "../../packages/pinecall-fleet/src",
     "../../packages/pinecall-log/src",
     "../../packages/pinecall-providers/src",
     "../../packages/pinecall-retrieval/src",

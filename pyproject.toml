@@ -81,6 +81,7 @@ source = [
   "packages/pinecall-core/src/pinecall",
   "packages/pinecall-db/src/pinecall",
   "packages/pinecall-evals/src/pinecall",
+  "packages/pinecall-fleet/src/pinecall",
   "packages/pinecall-log/src/pinecall",
   "packages/pinecall-providers/src/pinecall",
   "packages/pinecall-retrieval/src/pinecall",
@@ -106,6 +107,7 @@ extraPaths = [
   "packages/pinecall-core/src",
   "packages/pinecall-db/src",
   "packages/pinecall-evals/src",
+  "packages/pinecall-fleet/src",
   "packages/pinecall-log/src",
   "packages/pinecall-providers/src",
   "packages/pinecall-retrieval/src",
@@ -129,6 +131,9 @@ root = "packages/pinecall-db"
 
 [[tool.pyright.executionEnvironments]]
 root = "packages/pinecall-evals"
+
+[[tool.pyright.executionEnvironments]]
+root = "packages/pinecall-fleet"
 
 [[tool.pyright.executionEnvironments]]
 root = "packages/pinecall-log"
@@ -160,6 +165,7 @@ files = [
   "packages/pinecall-core/src",
   "packages/pinecall-db/src",
   "packages/pinecall-evals/src",
+  "packages/pinecall-fleet/src",
   "packages/pinecall-log/src",
   "packages/pinecall-providers/src",
   "packages/pinecall-retrieval/src",
@@ -168,7 +174,7 @@ files = [
   "packages/pinecall-settings/src",
   "packages/pinecall-tenancy/src",
 ]
-mypy_path = "packages/pinecall-channels/src:packages/pinecall-core/src:packages/pinecall-db/src:packages/pinecall-evals/src:packages/pinecall-log/src:packages/pinecall-providers/src:packages/pinecall-retrieval/src:packages/pinecall-runtime/src:packages/pinecall-session/src:packages/pinecall-settings/src:packages/pinecall-tenancy/src"
+mypy_path = "packages/pinecall-channels/src:packages/pinecall-core/src:packages/pinecall-db/src:packages/pinecall-evals/src:packages/pinecall-fleet/src:packages/pinecall-log/src:packages/pinecall-providers/src:packages/pinecall-retrieval/src:packages/pinecall-runtime/src:packages/pinecall-session/src:packages/pinecall-settings/src:packages/pinecall-tenancy/src"
 namespace_packages = true
 explicit_package_bases = true
 strict = true
@@ -188,6 +194,8 @@ src = [
   "packages/pinecall-db/tests",
   "packages/pinecall-evals/src",
   "packages/pinecall-evals/tests",
+  "packages/pinecall-fleet/src",
+  "packages/pinecall-fleet/tests",
   "packages/pinecall-log/src",
   "packages/pinecall-log/tests",
   "packages/pinecall-providers/src",
