@@ -3,21 +3,27 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import asdict
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 from starlette.responses import StreamingResponse
 
 from pinecall.api._deps import OrgsDep, StoreDep, UsageKeyDep
-from pinecall.api._operator import an_operator
-from pinecall.api.calls.sink import SSE, SSE_HEADERS, AcceptDep, wants_sse
+from pinecall.api._operator import an_operators_router
+from pinecall.api.calls.sink import (
+    PING,
+    SSE,
+    SSE_HEADERS,
+    AcceptDep,
+    an_sse_frame,
+    wants_sse,
+)
 from pinecall.log.store import DEFAULT_LIMIT, Store
 from pinecall.log.usage import METERED_TYPES, UsageRow, a_usage_row, totals_by_org
 
-operator = APIRouter(prefix="/v1/ops", dependencies=[Depends(an_operator)])
+operator = an_operators_router()
 
 # The tenant's own read of the same rows, cut to its org by its key: what the console's Usage
 # screen draws. A page and never a stream — a person reads a total, a cloud follows a cursor.
@@ -93,11 +99,10 @@ async def _stream(store: Store, after: int, only: str | None) -> AsyncIterator[s
         if read:
             cursor = read[-1].cursor
             continue
-        yield ": ping\n\n"
+        yield PING
         await asyncio.sleep(POLL_S)
 
 
 def _frame(row: UsageRow) -> str:
     """One row as SSE: its cursor as the id, so a reconnect resumes exactly where this left off."""
-    data = json.dumps(asdict(row), separators=(",", ":"))
-    return f"id: {row.cursor}\nevent: usage\ndata: {data}\n\n"
+    return an_sse_frame("usage", asdict(row), id=row.cursor)

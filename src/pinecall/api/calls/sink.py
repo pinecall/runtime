@@ -21,7 +21,7 @@ from pinecall.auth.keys import KeyRecord, Keys, is_the_fleets, not_opening
 from pinecall.auth.scopes import LivekitKeys, Reader, a_reader, is_a_jwt, secret_for
 from pinecall.auth.world import as_asked
 from pinecall.log.entry import Entry
-from pinecall.log.filters import Filter, FilterRefused
+from pinecall.log.filters import Filter
 from pinecall.log.projection import project_entry
 from pinecall.log.store import DEFAULT_LIMIT, Store
 from pinecall.log.store.index import CallCorner, CallIndex
@@ -46,6 +46,9 @@ PING_SECONDS = 25.0
 
 # SSE has no body to put a status in, so nginx and friends are told here not to hold onto one.
 SSE_HEADERS = {"cache-control": "no-store", "connection": "keep-alive", "x-accel-buffering": "no"}
+
+# What a quiet stream says so the connection is seen to be alive: a comment, which no reader parses.
+PING = ": ping\n\n"
 
 
 # ── the door ────────────────────────────────────────────────────────────────────
@@ -202,10 +205,7 @@ def the_filter(
     durable: Annotated[bool, Query()] = False,
 ) -> Filter:
     """`types=a.b,c.d` and `durable=1`, refused by name when they are not what a filter may be."""
-    try:
-        return Filter.of(types, durable)
-    except FilterRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    return Filter.of(types, durable)
 
 
 def wants_sse(accept: str | None) -> bool:
@@ -264,7 +264,7 @@ async def _frames(said: AsyncIterator[tuple[Entry, JsonObject]]) -> AsyncIterato
     """retry first, then a frame per entry and a ping whenever nothing came for a while."""
     yield f"retry: {RETRY_MS}\n\n"
     async for one in paced(said, PING_SECONDS):
-        yield ": ping\n\n" if one is None else _frame(*one)
+        yield PING if one is None else _frame(*one)
 
 
 async def _projected(
@@ -284,8 +284,16 @@ async def _projected(
 # at the seq of the last entry they speak for, which makes them safe to resume from too.
 def _frame(entry: Entry, said: JsonObject) -> str:
     """One entry as SSE: its seq, its type, and what this reader may see as the data line."""
-    data = json.dumps(said, separators=(",", ":"))
-    return f"id: {entry.seq}\nevent: {entry.type}\ndata: {data}\n\n"
+    return an_sse_frame(entry.type, said, id=entry.seq)
+
+
+# The one place a frame is spelled (the log's, the usage rows', the app's commands'): the id when
+# the reader can resume from it, the event, the data on one line, the blank line that ends it.
+def an_sse_frame(event: str, data: JsonObject, *, id: int | None = None) -> str:
+    """One SSE frame, compact JSON as the data line."""
+    said = json.dumps(data, separators=(",", ":"))
+    head = "" if id is None else f"id: {id}\n"
+    return f"{head}event: {event}\ndata: {said}\n\n"
 
 
 # The stream and the clock are two sources and SSE needs both. One pending task carried across the

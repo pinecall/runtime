@@ -8,18 +8,18 @@ from typing import Annotated, Any
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.requests import HTTPConnection
+from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall._settings import Settings
 from pinecall.api._deps import MembersDep, OrgsDep, SettingsDep, TeamKeyDep, an_org, held
 from pinecall.api._gateway import where_this_gateway_answers
-from pinecall.api._operator import an_operator
+from pinecall.api._operator import an_operators_router
 from pinecall.api._seating import may_grant
-from pinecall.api.orgs import NO_BODY
 from pinecall.auth.openid import OpenIdRefused, configuration
 from pinecall.auth.sso import Handshakes
 from pinecall.orgs.sso import Sso
 from pinecall.orgs.vault import NO_VAULT_KEY
-from pinecall.types import DeclarationRefused, OrgSso, a_domain, a_role
+from pinecall.types import OrgSso, a_domain, a_role
 from pinecall_protocol import WireModel
 
 # The org's own three doors, on a key with `team` — the same scope that invites a person and
@@ -29,7 +29,7 @@ router = APIRouter()
 # The same gate every /v1/ops door takes. The operator may READ which IdP an org is wired to and
 # turn `required` off, and may change nothing else: the client, the secret and the domains are
 # the tenant's, and an operator who could set them could sign in as anybody in that org.
-operator = APIRouter(prefix="/v1/ops", dependencies=[Depends(an_operator)])
+operator = an_operators_router()
 
 # Where the IdP sends the person back. It is the ONE string this gateway is known by at the
 # provider: an admin registers it there by hand, so it is in every answer of these doors rather
@@ -138,7 +138,7 @@ async def wire(
     return _standing(wanted, where_the_idp_answers(settings, request))
 
 
-@router.delete("/v1/org/sso", status_code=NO_BODY)
+@router.delete("/v1/org/sso", status_code=HTTP_204_NO_CONTENT)
 async def unwire(key: TeamKeyDep, sso: KeptSsoDep) -> None:
     """Forget the provider; this org's people sign in with a password again, from the next try."""
     if not await sso.drop(key.org):
@@ -187,18 +187,15 @@ def where_the_idp_answers(settings: Settings, request: Request) -> str:
 
 def _a_configuration(said: WantedSso, org: str) -> OrgSso:
     """The body as the domain's own shape, or 400 in the refusal's own words."""
-    try:
-        return OrgSso(
-            org=org,
-            issuer=said.issuer.strip(),
-            client_id=said.client_id.strip(),
-            client_secret=said.client_secret,
-            domains=tuple(a_domain(domain) for domain in said.domains),
-            role=None if said.role is None else a_role(said.role),
-            required=said.required,
-        )
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    return OrgSso(
+        org=org,
+        issuer=said.issuer.strip(),
+        client_id=said.client_id.strip(),
+        client_secret=said.client_secret,
+        domains=tuple(a_domain(domain) for domain in said.domains),
+        role=None if said.role is None else a_role(said.role),
+        required=said.required,
+    )
 
 
 # The client secret is not in here and there is no door that answers with one. What is worth

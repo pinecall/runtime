@@ -10,21 +10,8 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import ValidationError
 from starlette.responses import PlainTextResponse
 
-from pinecall.api._deps import (
-    AdmissionDep,
-    CallIndexDep,
-    GraphDep,
-    LlmsDep,
-    LogsDep,
-    LookupsDep,
-    RoutesDep,
-    SettingsDep,
-    TuningDep,
-    VaultDep,
-)
-from pinecall.api._live import LiveDep
-from pinecall.api.agents.registry import RegistryDep
-from pinecall.api.whatsapp.doors import Doors
+from pinecall.api._deps import SettingsDep
+from pinecall.api.whatsapp.doors import DoorsDep
 from pinecall.api.whatsapp.threads import ThreadsDep
 from pinecall.whatsapp.inbound import Inbound, Payload, messages_in
 from pinecall.whatsapp.signing import SIGNATURE_HEADER, signed
@@ -70,20 +57,7 @@ async def verify(
 # and a shape this door does not understand is a line in the log, never a 4xx.
 @router.post("/v1/whatsapp/webhook")
 async def delivered(
-    request: Request,
-    settings: SettingsDep,
-    threads: ThreadsDep,
-    routes: RoutesDep,
-    registry: RegistryDep,
-    tuning: TuningDep,
-    vault: VaultDep,
-    llms: LlmsDep,
-    admission: AdmissionDep,
-    logs: LogsDep,
-    live: LiveDep,
-    graph: GraphDep,
-    lookups: LookupsDep,
-    index: CallIndexDep,
+    request: Request, settings: SettingsDep, threads: ThreadsDep, doors: DoorsDep
 ) -> dict[str, Any]:
     """Every message in this body onto its own thread, and 200 as soon as they are queued."""
     if not settings.whatsapp_app_secret:
@@ -93,20 +67,6 @@ async def delivered(
     body = await request.body()
     if not signed(settings.whatsapp_app_secret, body, request.headers.get(SIGNATURE_HEADER)):
         raise HTTPException(403, NOT_META)
-    doors = Doors(
-        settings=settings,
-        routes=routes,
-        registry=registry,
-        tuning=tuning,
-        vault=vault,
-        llms=llms,
-        admission=admission,
-        logs=logs,
-        live=live,
-        graph=graph,
-        lookups=lookups,
-        index=index,
-    )
     inbound = _messages(body)
     for message in inbound:
         await threads.received(doors, message)

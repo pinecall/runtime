@@ -17,7 +17,6 @@ from pinecall.routes.twilio import (
     CARRIER_TRUNK,
     TwilioApi,
     TwilioFor,
-    TwilioRefused,
     termination_host,
     termination_label,
 )
@@ -107,10 +106,7 @@ async def provision(
     if sfu is None:
         raise HTTPException(503, NO_LIVEKIT)
     steps: list[str] = []
-    try:
-        placing = await _reached(carrier, settings.fleet, twilio, trunks, numbers, steps, dry_run)
-    except TwilioRefused as refused:
-        raise HTTPException(502, str(refused)) from refused
+    placing = await _reached(carrier, settings.fleet, twilio, trunks, numbers, steps, dry_run)
     on_the_sfu = TRUNK_NAME.format(fleet=settings.fleet, org=carrier.org)
     steps.append(
         f"livekit  outbound trunk {on_the_sfu} → {placing.address} over "

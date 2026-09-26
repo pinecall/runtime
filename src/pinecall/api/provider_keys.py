@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
+from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api._deps import OrgsDep, ProviderKeysKeyDep, UnlockedVaultDep, an_org
-from pinecall.api._operator import an_operator
-from pinecall.api.orgs import NO_BODY
+from pinecall.api._operator import an_operators_router
 from pinecall.providers.catalog import canonical, vendors_with_a_key
 from pinecall_protocol import WireModel
 
@@ -17,7 +17,7 @@ router = APIRouter()
 
 # The same gate every /v1/ops door takes. The second one — a runtime that was given no vault key
 # cannot keep a tenant's key at all — is UnlockedVaultDep, on each of the six endpoints.
-operator = APIRouter(prefix="/v1/ops", dependencies=[Depends(an_operator)])
+operator = an_operators_router()
 
 # 400 and not 422: the body was well formed and the word in the path is not one of ours. The list
 # is in the sentence because an operator who typed `11labs` needs to know what to type instead.
@@ -34,7 +34,7 @@ class WantedKey(WireModel):
     key: str
 
 
-@operator.put("/orgs/{named}/provider-keys/{vendor}", status_code=NO_BODY)
+@operator.put("/orgs/{named}/provider-keys/{vendor}", status_code=HTTP_204_NO_CONTENT)
 async def keep(
     named: str, vendor: str, said: WantedKey, orgs: OrgsDep, vault: UnlockedVaultDep
 ) -> None:
@@ -43,7 +43,7 @@ async def keep(
     await vault.put(org.id, _a_known_vendor(vendor), said.key)
 
 
-@operator.delete("/orgs/{named}/provider-keys/{vendor}", status_code=NO_BODY)
+@operator.delete("/orgs/{named}/provider-keys/{vendor}", status_code=HTTP_204_NO_CONTENT)
 async def forget(named: str, vendor: str, orgs: OrgsDep, vault: UnlockedVaultDep) -> None:
     """Back to the box's own key for that vendor, from the next call on."""
     org = await an_org(named, orgs)
@@ -63,7 +63,7 @@ async def vendors(named: str, orgs: OrgsDep, vault: UnlockedVaultDep) -> dict[st
 # ── the tenant's own, on its own key ────────────────────────────────────────────
 
 
-@router.put("/v1/provider-keys/{vendor}", status_code=NO_BODY)
+@router.put("/v1/provider-keys/{vendor}", status_code=HTTP_204_NO_CONTENT)
 async def bring(
     vendor: str, said: WantedKey, key: ProviderKeysKeyDep, vault: UnlockedVaultDep
 ) -> None:
@@ -71,7 +71,7 @@ async def bring(
     await vault.put(key.org, _a_known_vendor(vendor), said.key)
 
 
-@router.delete("/v1/provider-keys/{vendor}", status_code=NO_BODY)
+@router.delete("/v1/provider-keys/{vendor}", status_code=HTTP_204_NO_CONTENT)
 async def take_back(vendor: str, key: ProviderKeysKeyDep, vault: UnlockedVaultDep) -> None:
     """Back to the box's own key for that vendor, from the next call on."""
     if not await vault.drop(key.org, _a_known_vendor(vendor)):

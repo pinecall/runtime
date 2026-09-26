@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, HTTPException
@@ -11,7 +10,7 @@ from starlette.responses import StreamingResponse
 
 from pinecall.api._deps import AppKeyDep
 from pinecall.api._live import LiveDep
-from pinecall.api.calls.sink import PING_SECONDS, SSE, SSE_HEADERS, paced
+from pinecall.api.calls.sink import PING, PING_SECONDS, SSE, SSE_HEADERS, an_sse_frame, paced
 from pinecall.api.calls.worker_doors import refuse_another_orgs_call
 from pinecall_protocol import Command, encode
 
@@ -44,10 +43,9 @@ async def _body(waiting: asyncio.Queue[Command | None]) -> AsyncIterator[str]:
     """A frame per command, a comment when the call is quiet, and the end when it is sealed."""
     async for command in paced(_taken(waiting), PING_SECONDS):
         if command is None:
-            yield ": ping\n\n"
+            yield PING
             continue
-        said = json.dumps(encode(command), separators=(",", ":"))
-        yield f"event: {command.type}\ndata: {said}\n\n"
+        yield an_sse_frame(command.type, encode(command))
 
 
 async def _taken(waiting: asyncio.Queue[Command | None]) -> AsyncIterator[Command]:

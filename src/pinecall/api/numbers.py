@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import Field
+from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api._deps import (
     KeptCarriersDep,
@@ -24,12 +25,10 @@ from pinecall.routes.twilio import (
     CARRIER_TRUNK,
     TwilioApi,
     TwilioNumber,
-    TwilioRefused,
     origination_uri,
 )
 from pinecall.types import (
     Carrier,
-    DeclarationRefused,
     Route,
     SipPeer,
     TwilioAccount,
@@ -40,8 +39,6 @@ from pinecall.types.channel import CHANNELS_WITH_A_NUMBER, Channel
 from pinecall_protocol import WireModel
 
 router = APIRouter()
-
-NO_BODY = 204
 
 NO_CARRIER = (
     "this org has no carrier yet: PUT /v1/carrier with a Twilio account or a SIP peer first"
@@ -99,7 +96,7 @@ class WantedNumber(WireModel):
 # ── the carrier ─────────────────────────────────────────────────────────────────
 
 
-@router.put("/v1/carrier", status_code=NO_BODY)
+@router.put("/v1/carrier", status_code=HTTP_204_NO_CONTENT)
 async def bring(
     said: WantedCarrier, key: NumbersKeyDep, carriers: KeptCarriersDep, twilio: TwilioDep
 ) -> None:
@@ -122,7 +119,7 @@ async def brought(key: NumbersKeyDep, carriers: KeptCarriersDep) -> dict[str, An
     return {"kind": carrier.kind, "account": carrier.named}
 
 
-@router.delete("/v1/carrier", status_code=NO_BODY)
+@router.delete("/v1/carrier", status_code=HTTP_204_NO_CONTENT)
 async def take_back(key: NumbersKeyDep, carriers: KeptCarriersDep) -> None:
     """Forget the carrier. Its numbers stay routed until each is let go."""
     if not await carriers.drop(key.org):
@@ -186,21 +183,18 @@ async def imported(
     if route.number is not None and (other := await trunks.held_elsewhere(key.org, route.number)):
         raise HTTPException(409, HELD_ELSEWHERE.format(number=route.number, trunk=other))
     steps: list[str] = []
-    try:
-        if isinstance(carrier.account, TwilioAccount):
-            api = twilio(carrier.account)
-            owned = {one.number: one for one in await api.numbers()}
-            if route.number not in owned:
-                raise HTTPException(
-                    404,
-                    NOT_ON_ACCOUNT.format(number=route.number, account=carrier.account.account_sid),
-                )
-            name = CARRIER_TRUNK.format(fleet=settings.fleet, org=carrier.org)
-            account = carrier.account.account_sid
-            await trunked(api, name, account, route, owned, settings.domain, steps, dry_run)
-        await on_the_sfu(trunks, settings.fleet, carrier, route, steps, dry_run)
-    except TwilioRefused as refused:
-        raise HTTPException(502, str(refused)) from refused
+    if isinstance(carrier.account, TwilioAccount):
+        api = twilio(carrier.account)
+        owned = {one.number: one for one in await api.numbers()}
+        if route.number not in owned:
+            raise HTTPException(
+                404,
+                NOT_ON_ACCOUNT.format(number=route.number, account=carrier.account.account_sid),
+            )
+        name = CARRIER_TRUNK.format(fleet=settings.fleet, org=carrier.org)
+        account = carrier.account.account_sid
+        await trunked(api, name, account, route, owned, settings.domain, steps, dry_run)
+    await on_the_sfu(trunks, settings.fleet, carrier, route, steps, dry_run)
     return await routed(route, steps, table, dry_run)
 
 
@@ -212,7 +206,7 @@ async def routed(route: Route, steps: list[str], table: Routes, dry_run: bool) -
     return {"route": as_json(route), "steps": steps, "dry_run": dry_run}
 
 
-@router.delete("/v1/numbers/{number}", status_code=NO_BODY)
+@router.delete("/v1/numbers/{number}", status_code=HTTP_204_NO_CONTENT)
 async def let_go(number: str, key: NumbersKeyDep, trunks: TrunksDep, table: RoutesDep) -> None:
     """The route gone and the number off the org's SFU trunk. The carrier account is not touched."""
     if not await table.remove(key.org, number):
@@ -277,31 +271,28 @@ async def on_the_sfu(
 
 def _a_carrier(org: str, said: WantedCarrier) -> Carrier:
     """The domain's Carrier out of the body, or a 400 in the domain's words."""
-    try:
-        if a_carrier_kind(said.kind) == "twilio":
-            account_sid = said.account_sid or ""
-            return Carrier(
-                org=org,
-                account=TwilioAccount(
-                    account_sid=account_sid,
-                    user=said.user or account_sid,
-                    secret=said.secret or "",
-                ),
-            )
+    if a_carrier_kind(said.kind) == "twilio":
+        account_sid = said.account_sid or ""
         return Carrier(
             org=org,
-            account=SipPeer(
-                username=said.username or "",
-                password=said.password or "",
-                addresses=tuple(said.addresses),
-                outbound_host=said.outbound_host,
-                outbound_transport=a_sip_transport(said.outbound_transport),
-                outbound_username=said.outbound_username,
-                outbound_password=said.outbound_password,
+            account=TwilioAccount(
+                account_sid=account_sid,
+                user=said.user or account_sid,
+                secret=said.secret or "",
             ),
         )
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    return Carrier(
+        org=org,
+        account=SipPeer(
+            username=said.username or "",
+            password=said.password or "",
+            addresses=tuple(said.addresses),
+            outbound_host=said.outbound_host,
+            outbound_transport=a_sip_transport(said.outbound_transport),
+            outbound_username=said.outbound_username,
+            outbound_password=said.outbound_password,
+        ),
+    )
 
 
 def a_route(
@@ -311,12 +302,7 @@ def a_route(
     if channel not in CHANNELS_WITH_A_NUMBER:
         raise HTTPException(400, NOT_A_NUMBER_CHANNEL.format(channel=channel))
     on: Channel = "phone" if channel == "phone" else "whatsapp"
-    try:
-        return Route(
-            org=key.org, agent=agent, channel=on, number=number, env=key.env, managed=managed
-        )
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    return Route(org=key.org, agent=agent, channel=on, number=number, env=key.env, managed=managed)
 
 
 def as_json(route: Route) -> dict[str, Any]:

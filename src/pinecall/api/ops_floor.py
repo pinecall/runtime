@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
 from pinecall.api._deps import LogsDep
-from pinecall.api._operator import an_operator
+from pinecall.api._operator import an_operators_router
 from pinecall.api.calls.sink import a_stream
 from pinecall.log.entry import Entry
 from pinecall.log.writers import Logs
@@ -19,7 +18,7 @@ from pinecall_protocol.rest import BoxEvent
 # The same gate every /v1/ops door takes: the box's own key, or a person the box made an operator.
 # What reads it is whatever serves the box as a whole and must hear every org at once — a
 # notifier, a wallboard — where one org's key would need a stream per org it could never list.
-operator = APIRouter(prefix="/v1/ops", dependencies=[Depends(an_operator)])
+operator = an_operators_router()
 
 
 # Live only, like an org's own stream, and no cursor: each frame's id is the seq of its entry in

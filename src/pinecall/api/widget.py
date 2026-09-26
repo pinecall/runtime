@@ -4,12 +4,11 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from starlette.requests import HTTPConnection
 
 from pinecall.api._deps import PipelineKeyDep, TalkKeyDep, held
 from pinecall.orgs.widgets import Widget, Widgets
-from pinecall.types import DeclarationRefused
 from pinecall_protocol.rest import WidgetSettings
 
 router = APIRouter()
@@ -37,17 +36,14 @@ async def set_the_widget(
     slug: str, said: WidgetSettings, key: PipelineKeyDep, widgets: WidgetsDep
 ) -> WidgetSettings:
     """The whole set replaced: a field left null is the widget's own default."""
-    try:
-        kept = Widget(
-            title=said.title,
-            tagline=said.tagline,
-            greeting=said.greeting,
-            accent=said.accent,
-            autostart=said.autostart,
-            theme=said.theme,
-        )
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    kept = Widget(
+        title=said.title,
+        tagline=said.tagline,
+        greeting=said.greeting,
+        accent=said.accent,
+        autostart=said.autostart,
+        theme=said.theme,
+    )
     await widgets.put(key.org, key.env, slug, kept)
     return _as_the_wire(kept)
 

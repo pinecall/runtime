@@ -53,6 +53,11 @@ class DialRefused(PinecallError):
         super().__init__(refusal.said)
         self.refusal = refusal
 
+    @property
+    def status(self) -> int:
+        """What the door answers: the guard's own (api/_refusals.py)."""
+        return self.refusal.status
+
     @override
     def __str__(self) -> str:
         return self.refusal.said

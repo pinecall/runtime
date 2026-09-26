@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import httpx
 import pytest
+from starlette.status import HTTP_202_ACCEPTED
 
-from pinecall.api.forgot import ACCEPTED
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.throttle import TRIES_PER_WINDOW
 from pinecall.mail import Outbox
@@ -57,7 +57,7 @@ async def test_the_link_reaches_the_person_and_opens_the_card_an_invitation_open
     """The whole point: nobody has to ask an admin, and the token is never in the answer."""
     await a_member(tenant_http, stranger, outbox, relay)
     answer = await asked(stranger, BERNAS)
-    assert (answer.status_code, answer.json()) == (ACCEPTED, {})
+    assert (answer.status_code, answer.json()) == (HTTP_202_ACCEPTED, {})
     await outbox.drained()
     letter = relay.took[-1]
     assert letter.recipients == (BERNAS,)
@@ -86,7 +86,7 @@ async def test_the_sixth_try_in_a_minute_is_the_logins_own_refusal(
 ) -> None:
     """It shares /v1/login's count, so walking a list of addresses is stopped where one is."""
     for _ in range(TRIES_PER_WINDOW):
-        assert (await asked(stranger, NOBODY)).status_code == ACCEPTED
+        assert (await asked(stranger, NOBODY)).status_code == HTTP_202_ACCEPTED
     stopped = await asked(stranger, NOBODY)
     assert stopped.status_code == 429 and "try again in a minute" in stopped.json()["detail"]
 
@@ -98,7 +98,7 @@ async def test_a_member_still_invited_is_not_reset_because_their_invitation_is_t
     pending = await invited(tenant_http)
     await outbox.drained()
     relay.took.clear()
-    assert (await asked(stranger, BERNAS)).status_code == ACCEPTED
+    assert (await asked(stranger, BERNAS)).status_code == HTTP_202_ACCEPTED
     await outbox.drained()
     assert relay.took == []
     # …and the invitation they were sent still opens: nothing spent it.
@@ -122,7 +122,7 @@ class TestWhereNobodyCanSendAnything:
         """A token minted with nothing to carry it would let a stranger kill an admin's link."""
         member = (await accepted(stranger, (await invited(tenant_http))["token"]))["member"]
         handed = (await tenant_http.post(f"/v1/members/{member['id']}/reset")).json()["token"]
-        assert (await asked(stranger, BERNAS)).status_code == ACCEPTED
+        assert (await asked(stranger, BERNAS)).status_code == HTTP_202_ACCEPTED
         await outbox.drained()
         assert await members.find(AN_ORG.id, member["id"]) is not None
         # The admin's link is still the newest one, because this door minted none.
@@ -153,7 +153,7 @@ class TestAnOrgThatSignsInWithItsProvider:
                 required=True,
             )
         )
-        assert (await asked(stranger, BERNAS)).status_code == ACCEPTED
+        assert (await asked(stranger, BERNAS)).status_code == HTTP_202_ACCEPTED
         await outbox.drained()
         assert relay.took == []
 
@@ -175,7 +175,7 @@ class TestAPersonOfTwoOrgs:
     ) -> None:
         await a_member(tenant_http, stranger, outbox, relay)
         await members.invite("tienda", BERNAS, "Berna", "admin", [])
-        assert (await asked(stranger, BERNAS)).status_code == ACCEPTED
+        assert (await asked(stranger, BERNAS)).status_code == HTTP_202_ACCEPTED
         await outbox.drained()
         assert len(relay.took) == 1
         assert "Clínica Norte" in relay.took[0].parts["text/plain"]

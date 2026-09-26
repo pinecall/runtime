@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager, suppress
+from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from functools import partial
 
 import httpx
@@ -107,16 +107,36 @@ async def _say_if_the_schema_is_behind(pool: Pool) -> None:
         logger.warning(SCHEMA_BEHIND, len(behind), ", ".join(behind))
 
 
+# One connect, one read, one write may each take this long on the process's HTTP client: Meta's
+# Graph API, the embedder EMBED_PROVIDER names (a knowledge push embeds a base in batches), the
+# voice catalogues, a peer gateway. httpx's default is five seconds for all of them, which a
+# TEI on CPU embedding a batch does not keep. The OpenID and Twilio calls pass their own.
+HTTP_TIMEOUT = httpx.Timeout(connect=5.0, read=30.0, write=30.0, pool=5.0)
+
+
 @asynccontextmanager
 async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     """Open what the process needs once, hand it to the deps on app.state, and close it after."""
     settings = load_settings()
+    # Everything opened is pushed onto the stack as it opens, so a failure halfway through the
+    # start closes the pool and the client already open instead of leaking them under a traceback,
+    # and the stop closes in the reverse of the order things opened.
+    async with AsyncExitStack() as closing:
+        await _opened(gateway, settings, closing)
+        yield
+
+
+async def _opened(gateway: FastAPI, settings: Settings, closing: AsyncExitStack) -> None:
+    """Every collaborator on app.state, in the order they need each other."""
     # First, so a box told to load a policy that is not there never answers a single request.
     gateway.state.extensions = extensions_from(settings)
     pool = await _a_pool(settings)
     if pool is not None:
+        closing.push_async_callback(pool.close)
         await _say_if_the_schema_is_behind(pool)
     store = await _a_store(settings)
+    if isinstance(store, PostgresStore):
+        closing.push_async_callback(store.aclose)
     gateway.state.settings = settings
     gateway.state.store = store
     # None with no database, which is a gateway that can verify nothing: said here so it is read
@@ -212,7 +232,7 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # One httpx client for the life of the process, for the two services this gateway talks to
     # over HTTP: Meta's Graph API, and whichever embedder EMBED_PROVIDER names. The WhatsApp
     # conversations open right now ride beside it; none of it is durable and none of it should be.
-    http = httpx.AsyncClient()
+    http = await closing.enter_async_context(httpx.AsyncClient(timeout=HTTP_TIMEOUT))
     # Named on the state as well, because a third caller rides it now: the sign-in that asks an
     # org's identity provider for its configuration, its keys and one token (api/login_sso.py).
     gateway.state.http = http
@@ -249,26 +269,17 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     # api/reaping.py. It needs the SFU to tell a dead call from a quiet one, so a gateway with no
     # LiveKit pair runs none — and one with no pair has no spoken call to reap either.
     reaper = _a_reaper(settings, gateway)
+    if reaper is not None:
+        closing.push_async_callback(_cancelled, reaper)
     # And the one thing it does for the media plane: ask it, once, for every trunk the tables say
     # exists. A Redis that came up empty took every number with it and nothing said so
     # (2026-09-22); this is what says so, and puts them back. api/rebuilding.py.
     rebuilding = _a_rebuild(gateway)
+    if rebuilding is not None:
+        closing.push_async_callback(_cancelled, rebuilding)
     # And the WhatsApp messages that reached a number while nobody held its agent — a deploy, this
     # very restart — are kept on the log and answered once somebody does: api/whatsapp/waiting.py.
-    waiting = await a_waiting_room(gateway.state)
-    try:
-        yield
-    finally:
-        await _cancelled(waiting)
-        if rebuilding is not None:
-            await _cancelled(rebuilding)
-        if reaper is not None:
-            await _cancelled(reaper)
-        await http.aclose()
-        if isinstance(store, PostgresStore):
-            await store.aclose()
-        if pool is not None:
-            await pool.close()
+    closing.push_async_callback(_cancelled, await a_waiting_room(gateway.state))
 
 
 NO_REAPER = (

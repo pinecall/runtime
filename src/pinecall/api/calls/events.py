@@ -7,6 +7,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, Response, WebSocket, WebSocketDisconnect
 from starlette.responses import StreamingResponse
+from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api._deps import (
     KeysDep,
@@ -44,10 +45,6 @@ from pinecall_protocol.registry import TERMINAL_EVENT
 
 router = APIRouter()
 
-# Nothing more will ever be true of this call and the reader has all of it. An empty page would be
-# a promise to come back, and 200 with `live: false` is what the JSON flavour says; a stream has no
-# body to say it in, so the status says it once and the reader stops reconnecting.
-NOTHING_MORE = 204
 
 # A frame this socket could not read as one of the six verbs. The pydantic sentence rides with it,
 # so a desk with a typo in its JSON learns which field, not just that something was wrong.
@@ -79,7 +76,10 @@ async def events(
     await refuse_another_org(reader, store, call, "")
     over = await ended(store, call)
     if over and cursor >= await store.latest_seq(call):
-        return Response(status_code=NOTHING_MORE)
+        # Nothing more will ever be true of this call and the reader has all of it. An empty page
+        # would be a promise to come back, and 200 with `live: false` is what the JSON flavour
+        # says; a stream has no body to say it in, so 204 says it once and the reader stops.
+        return Response(status_code=HTTP_204_NO_CONTENT)
     if wants_sse(accept):
         # logs.reading() hands back the live log when this process is writing the call, so the
         # stream goes on into the fanout; for a call nobody here is writing it reads the store and

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Response
+from starlette.status import HTTP_202_ACCEPTED
 
 from pinecall.api._deps import KeyDep, KeysDep, MembersDep, PairingsDep, SettingsDep
 from pinecall.api.identity import AtProduction
@@ -25,10 +26,6 @@ ANSWERED = "that terminal is already signed in: it has a key waiting"
 
 # A terminal is signed in as a PERSON. An org's own key names nobody, so there is nobody to be.
 NOT_A_PERSON = "an org's own key names nobody: a terminal is signed in as a person"
-
-# 202: the browser has not answered yet and the terminal should ask again. Not 404, which is what
-# a word that is gone answers, and not an empty 200, which a terminal would read as a key of "".
-WAITING = 202
 
 
 class Opening(WireModel):
@@ -90,6 +87,9 @@ async def collected(code: str, response: Response, pairings: PairingsDep) -> dic
     if found.key is not None:
         return {"key": found.key}
     if found.waiting:
-        response.status_code = WAITING
+        # 202: the browser has not answered yet and the terminal should ask again. Not 404, which
+        # is what a word that is gone answers, and not an empty 200, which a terminal would read
+        # as a key of "".
+        response.status_code = HTTP_202_ACCEPTED
         return {}
     raise HTTPException(404, NO_PAIRING)

@@ -8,6 +8,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import Field
 from starlette.requests import HTTPConnection
+from starlette.status import HTTP_201_CREATED, HTTP_204_NO_CONTENT
 
 from pinecall._settings import Settings
 from pinecall.api._deps import (
@@ -19,12 +20,11 @@ from pinecall.api._deps import (
     TalkKeyDep,
 )
 from pinecall.api._live import LiveDep, Served
-from pinecall.api.calls.events import NOTHING_MORE
 from pinecall.api.calls.sink import reading
 from pinecall.api.calls.worker_doors import NOT_OPEN, NOT_THIS_ORG
 from pinecall.auth.keys import KeyRecord, is_the_fleets
 from pinecall.auth.scopes import a_code_token, a_log_token, secret_for
-from pinecall.orgs.codes import Codes, Issued, TooManyCodes
+from pinecall.orgs.codes import Codes, Issued
 from pinecall.routes.table import Routes
 from pinecall_protocol import WireModel, encode
 from pinecall_protocol.commands import CallClaim
@@ -34,8 +34,6 @@ from pinecall_protocol.rest import Code, CodeStanding
 
 router = APIRouter()
 
-# The door mints, as the token door does, and says so the way LiveKit's endpoint does.
-CREATED = 201
 
 # docs/protocol/codes.md: ten minutes unless the tenant's server says otherwise, never under one
 # nor over thirty; and a page that asks to wait is held at most 25 s — under the 30 s a proxy
@@ -65,18 +63,16 @@ class Wanted(WireModel):
     log: Projection = "public"
 
 
+# The door mints, as the token door does, and says 201 the way LiveKit's endpoint does.
 # The number is the agent's phone door in the key's own world, so a key can only issue a code for
 # an agent of its own org — and a code for an agent nobody can call is refused before it exists.
-@router.post("/v1/codes", status_code=CREATED)
+@router.post("/v1/codes", status_code=HTTP_201_CREATED)
 async def issued(
     said: Wanted, key: TalkKeyDep, routes: RoutesDep, codes: CodesDep, settings: SettingsDep
 ) -> Code:
     """Four digits, the number to call and key them at, and the token that asks after them."""
     number = await _the_phone_of(routes, key, said.agent)
-    try:
-        issued = await codes.issue(key.env, said.agent, said.ttl_s, said.log)
-    except TooManyCodes as refused:
-        raise HTTPException(429, str(refused)) from refused
+    issued = await codes.issue(key.env, said.agent, said.ttl_s, said.log)
     token = a_code_token(issued.code, said.agent, key.env, issued.expires_at, secret_for(settings))
     return Code(code=issued.code, number=number, expires_at=issued.expires_at, code_token=token)
 
@@ -111,7 +107,7 @@ async def standing(
 # The worker's door: four tones close together, asked. 404 is the ordinary answer — the caller was
 # keying an extension — and it is the same 404 a call this gateway forgot answers, which is what
 # has the worker reopen the call and ask once more (worker/client.py).
-@router.post("/v1/calls/{call}/claim", status_code=NOTHING_MORE)
+@router.post("/v1/calls/{call}/claim", status_code=HTTP_204_NO_CONTENT)
 async def keyed(call: str, said: CallClaim, key: AppKeyDep, live: LiveDep, codes: CodesDep) -> None:
     """The caller keyed a code: this call is the one its page was waiting for, or 404."""
     served = live.served(call)

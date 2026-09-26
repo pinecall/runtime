@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import Field
+from starlette.status import HTTP_201_CREATED
 
 from pinecall.api._deps import (
     AdmissionDep,
@@ -25,9 +26,7 @@ from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Members, NoSeatLeft
 from pinecall.auth.persons import a_persons_key
 from pinecall.mail import Letter, Outbox, a_reset, an_invitation, where_the_card_is
-from pinecall.orgs.admission import QuotaExhausted
 from pinecall.types import (
-    DeclarationRefused,
     Member,
     Org,
     Role,
@@ -40,8 +39,6 @@ from pinecall_protocol import WireModel
 # next one. The listing stays on both: it is what the sandbox knows.
 router = APIRouter()
 
-# The invitation is handed back once: the token is in this answer and hashed everywhere else.
-INVITED = 201
 
 # The email already belongs to somebody who accepted: they log in, and nobody re-invites them.
 ALREADY_A_MEMBER = "{email} is already a member of this org: they log in"
@@ -90,7 +87,8 @@ async def listed(key: TeamKeyDep, members: MembersDep) -> dict[str, Any]:
     return {"members": [member_as_json(member) for member in await members.listed(key.org)]}
 
 
-@router.post("/v1/members", status_code=INVITED, dependencies=[AtProduction])
+# 201: the invitation is handed back once — the token is in this answer and hashed everywhere else.
+@router.post("/v1/members", status_code=HTTP_201_CREATED, dependencies=[AtProduction])
 async def invite(
     said: WantedMember,
     key: TeamKeyDep,
@@ -110,10 +108,7 @@ async def invite(
     # cannot do. Judged before the row, because a seat is a stock; 429 and the quota's own
     # sentence, as every other door answers one.
     if await members.by_email(key.org, said.email) is None:
-        try:
-            await admission.a_seat(key.org, await members.seated(key.org))
-        except QuotaExhausted as refused:
-            raise HTTPException(429, str(refused)) from refused
+        await admission.a_seat(key.org, await members.seated(key.org))
     org = await an_org(key.org, orgs)
     base = where_this_gateway_answers(settings, request)
     # Handed to this admin only for an address that is this org's alone — and a handed link
@@ -141,12 +136,9 @@ async def invite(
 
 def a_wanted_member(said: WantedMember, org: str) -> Role:
     """The role the body names, once the shape has refused a bad email or an empty name."""
-    try:
-        role = a_role(said.role)
-        # The shape refuses a bad email or an empty name before any row is made.
-        Member(id="m_wanted", org=org, email=said.email, name=said.name, role=role)
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    role = a_role(said.role)
+    # The shape refuses a bad email or an empty name before any row is made.
+    Member(id="m_wanted", org=org, email=said.email, name=said.name, role=role)
     return role
 
 
@@ -211,7 +203,7 @@ async def invited_into(
 # door an invitation is accepted at (below). Only an active member is reset — an invited one has
 # their invitation, a disabled one is enabled first — and the new link spends every older one.
 # The person may also ask for one themselves, where mail can carry it: api/forgot.py.
-@router.post("/v1/members/{id}/reset", status_code=INVITED, dependencies=[AtProduction])
+@router.post("/v1/members/{id}/reset", status_code=HTTP_201_CREATED, dependencies=[AtProduction])
 async def reset(
     id: str,
     key: TeamKeyDep,
@@ -255,10 +247,7 @@ async def accept(
     token: str, said: Accepting, members: MembersDep, keys: KeysDep, settings: SettingsDep
 ) -> dict[str, Any]:
     """Spend the invitation: the member is active, and the answer is their first key, once."""
-    try:
-        kept = await passwords.hashed(said.password, settings.min_password)
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    kept = await passwords.hashed(said.password, settings.min_password)
     member = await members.accept(token, kept)
     if member is None:
         raise HTTPException(404, NO_INVITATION)

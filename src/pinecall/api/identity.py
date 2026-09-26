@@ -10,7 +10,7 @@ from starlette.requests import HTTPConnection
 from pinecall._settings import Settings
 from pinecall.api._deps import SettingsDep
 from pinecall.api.sso import the_http
-from pinecall.auth.identity import Identity, NotRedeemed
+from pinecall.auth.identity import Identity
 from pinecall.auth.keys import Issued, Keys, revoked_every_key_of
 from pinecall.auth.members import Members
 from pinecall.auth.persons import a_persons_key
@@ -98,10 +98,7 @@ async def a_mirrored_key(
     admitted: Admitting,
 ) -> Issued:
     """A sandbox key for the person production says the code names; the refusal otherwise."""
-    try:
-        org, member = await identity.redeem(code)
-    except NotRedeemed as refused:
-        raise HTTPException(refused.status, str(refused)) from refused
+    org, member = await identity.redeem(code)
     known = await orgs.find(org.id)
     if await orgs.mirrored(org) is None:
         raise HTTPException(409, SLUG_HELD_HERE.format(slug=org.slug))

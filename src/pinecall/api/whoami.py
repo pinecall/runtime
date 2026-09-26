@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 
 from pinecall._version import __version__
 from pinecall.api._deps import KeyDep, KeysDep, MembersDep, OrgsDep, SettingsDep
-from pinecall.api._operator import an_operator, runs_the_box
+from pinecall.api._operator import an_operators_router, runs_the_box
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Members
@@ -19,7 +19,7 @@ router = APIRouter()
 
 # The same gate every /v1/ops door takes. It carries no record — the ops key belongs to no org —
 # so this door answers what the BOX is rather than whose the key is.
-operator = APIRouter(prefix="/v1/ops", dependencies=[Depends(an_operator)])
+operator = an_operators_router()
 
 
 class Whose(WireModel):

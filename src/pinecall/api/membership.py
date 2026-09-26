@@ -5,12 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api._deps import KeysDep, MembersDep, TeamKeyDep
 from pinecall.api._seating import may_grant
 from pinecall.api.identity import AtProduction
 from pinecall.api.members import NO_SUCH_MEMBER, member_as_json
-from pinecall.api.orgs import NO_BODY
 from pinecall.auth.granting import NOT_YOUR_OWN_ROW
 from pinecall.auth.keys import Keys, revoked_every_key_of
 from pinecall.auth.members import Members
@@ -59,11 +59,8 @@ async def change(
     found = await members.find(key.org, id)
     if found is None:
         raise HTTPException(404, NO_SUCH_MEMBER.format(id=id))
-    try:
-        role = None if said.role is None else a_role(said.role)
-        status = None if said.status is None else a_status(said.status)
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    role = None if said.role is None else a_role(said.role)
+    status = None if said.status is None else a_status(said.status)
     if status == "active" and found.status == "invited":
         raise HTTPException(400, NOT_BY_HAND.format(email=found.email))
     if status == "disabled" and key.subject == id:
@@ -90,7 +87,7 @@ async def change(
 # row is gone and a key of theirs still opens a door; then the row goes, its open links with it
 # (0014's CASCADE), and the seat is free because a seat is a count of rows. What the log wrote
 # about them stays readable — it names the id as text, and the id now names nobody.
-@router.delete("/v1/members/{id}", status_code=NO_BODY, dependencies=[AtProduction])
+@router.delete("/v1/members/{id}", status_code=HTTP_204_NO_CONTENT, dependencies=[AtProduction])
 async def remove(id: str, key: TeamKeyDep, members: MembersDep, keys: KeysDep) -> None:
     """One person out of this org for good. 409 for yourself and for the last active admin."""
     if key.subject == id:

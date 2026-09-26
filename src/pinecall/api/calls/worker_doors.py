@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api._deps import (
     AdmissionDep,
@@ -19,12 +20,10 @@ from pinecall.api._serving import Serving, ServingDep
 from pinecall.api.agents.registry import NO_UNCLAIMED, NOT_THAT_APP, RegistryDep
 from pinecall.api.agents.tuned import tuned_for
 from pinecall.api.calls.attaching import attached
-from pinecall.api.calls.events import NOTHING_MORE
 from pinecall.api.calls.opening import how_it_arrived, who_serves
 from pinecall.auth.keys import KeyRecord, held_by, is_the_fleets
 from pinecall.log.logs import CallLog
 from pinecall.log.writers import Logs
-from pinecall.orgs.admission import QuotaExhausted
 from pinecall.tokens.spending import spent
 from pinecall.types import AgentConfig, CallContext, Env
 from pinecall_protocol import WireModel
@@ -93,10 +92,7 @@ async def opened(
     await spent(context, said.agent, tokens, logs)
     # The org's quotas, against the calls open here and what its log says it has consumed. The
     # refusal is in the agent's log before the worker hears the 429, and the sentence is the same.
-    try:
-        ceiling = await admission.a_call(org, said.agent, live.running(org))
-    except QuotaExhausted as refused:
-        raise HTTPException(429, str(refused)) from refused
+    ceiling = await admission.a_call(org, said.agent, live.running(org))
     # Which process serves this call is asked here exactly as the chat door asks it, of the same
     # function: an app id that names no holder of this agent is refused, never quietly ignored.
     # Whose corner, though, depends on how the call ARRIVED. A number is the org's door and the
@@ -148,7 +144,7 @@ async def opened(
 # the very context it opened it with. It says so here, and the call is served again as it was —
 # no quota, no token, no call.ringing: the call was admitted once, and its log already says how it
 # arrived. The socket holding the agent now is told with call.attached.
-@router.post("/v1/calls/{call}/reopened", status_code=NOTHING_MORE)
+@router.post("/v1/calls/{call}/reopened", status_code=HTTP_204_NO_CONTENT)
 async def reopened(
     call: str,
     said: Opening,
@@ -192,7 +188,7 @@ async def reopened(
         await attached(live, call, serving.owner)
 
 
-@router.post("/v1/calls/{call}/events", status_code=NOTHING_MORE)
+@router.post("/v1/calls/{call}/events", status_code=HTTP_204_NO_CONTENT)
 async def append(
     call: str, said: Appending, key: AppKeyDep, logs: LogsDep, live: ServingDep
 ) -> None:
@@ -203,7 +199,7 @@ async def append(
     await _the_open_log(logs, call).append(said.type, dict(said.data), said.ephemeral)
 
 
-@router.post("/v1/calls/{call}/sealed", status_code=NOTHING_MORE)
+@router.post("/v1/calls/{call}/sealed", status_code=HTTP_204_NO_CONTENT)
 async def sealed(call: str, key: AppKeyDep, logs: LogsDep, live: ServingDep) -> None:
     """The call is over: every reader finishes, and nothing more can be appended to it."""
     refuse_another_orgs_call(live, key, call)

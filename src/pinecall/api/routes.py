@@ -4,15 +4,16 @@ from __future__ import annotations
 
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import TypeAdapter
+from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api._corner import CornerDep
 from pinecall.api._deps import AppKeyDep, OrgsDep, RoutesDep, an_org
-from pinecall.api._operator import an_operator
+from pinecall.api._operator import an_operators_router
 from pinecall.auth.corner import NOT_YOUR_CORNER
 from pinecall.auth.keys import is_the_fleets
-from pinecall.types import PRODUCTION, Channel, DeclarationRefused, Env, Route
+from pinecall.types import PRODUCTION, Channel, Env, Route
 from pinecall_protocol import WireModel
 
 # The worker's own door, on the org's API key, exactly as every other door of the runtime.
@@ -20,14 +21,11 @@ router = APIRouter()
 
 # Every /v1/ops door takes the operator key and nothing else, checked before the endpoint runs.
 # It is the box's own key out of the environment, so it names no org and every door here does.
-operator = APIRouter(prefix="/v1/ops", dependencies=[Depends(an_operator)])
+operator = an_operators_router()
 
 # The hop carries the domain object itself, adapted by pydantic — the same adapter
 # worker/client.py validates it back through. See docs/decisions/worker.md.
 ROUTES: TypeAdapter[tuple[Route, ...]] = TypeAdapter(tuple[Route, ...])
-# A removed route has nothing to say back. cli/operator.py names the same number on its own
-# side, because the CLI may not import the gateway: they are two processes, as often as two boxes.
-NO_BODY = 204
 
 # Nothing to remove. 404 and not 204: `routes rm` on a number nobody typed is a typo, and a verb
 # that answered yes to it would send the operator looking for the change somewhere else.
@@ -96,7 +94,7 @@ async def add(said: Wanted, table: RoutesDep, orgs: OrgsDep) -> dict[str, Any]:
     return {"route": _as_json(route)}
 
 
-@operator.delete("/routes/{number}", status_code=NO_BODY)
+@operator.delete("/routes/{number}", status_code=HTTP_204_NO_CONTENT)
 async def remove(number: str, table: RoutesDep, orgs: OrgsDep, org: str = ORG) -> None:
     """Forget the number. A number nobody typed is a 404, so a typo is never a quiet success."""
     owner = await an_org(org, orgs)
@@ -111,9 +109,4 @@ def _as_json(route: Route) -> dict[str, Any]:
 
 def _a_route(said: Wanted, org: str) -> Route:
     """The domain's own Route, so a number that is not a number is refused before it is stored."""
-    try:
-        return Route(
-            org=org, agent=said.agent, channel=said.channel, number=said.number, env=said.env
-        )
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    return Route(org=org, agent=said.agent, channel=said.channel, number=said.number, env=said.env)

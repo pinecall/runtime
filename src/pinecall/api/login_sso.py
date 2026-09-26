@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
+from starlette.status import HTTP_302_FOUND
 
 from pinecall.api._deps import (
     AdmissionDep,
@@ -37,7 +38,7 @@ from pinecall.auth.openid import (
     where_to_send,
 )
 from pinecall.auth.sso import Handshake
-from pinecall.orgs.admission import Admission, QuotaExhausted
+from pinecall.orgs.admission import Admission
 from pinecall.types import SANDBOX, Member, Org, OrgSso, a_domain
 from pinecall_protocol import WireModel
 
@@ -45,10 +46,6 @@ from pinecall_protocol import WireModel
 # there every door here is 404, naming where people sign in.
 router = APIRouter(dependencies=[AtProduction])
 
-# A browser is redirected, twice: out to the provider, and back to the console it came from. 302
-# both times, which is what every provider's own library sends and what a browser does with the
-# least surprise; nothing here answers a body a person would ever read.
-FOUND = 302
 
 # Where the person lands with the word that mints their key. The console spends it at
 # POST /v1/login {code} exactly as it spends the one `pinecall start` prints (auth/codes.py), so
@@ -121,7 +118,10 @@ async def sign_in(
             nonce=handshake.nonce,
             verifier=handshake.verifier,
         ),
-        status_code=FOUND,
+        # A browser is redirected, twice: out to the provider, and back to the console it came
+        # from. 302 both times, which is what every provider's own library sends and what a browser
+        # does with the least surprise; nothing here answers a body a person would ever read.
+        status_code=HTTP_302_FOUND,
     )
 
 
@@ -157,7 +157,7 @@ async def back(
     if not wired.admits(said.email):
         raise HTTPException(403, ANOTHER_DOMAIN.format(email=said.email, org=org.slug))
     member = await _seated(org, wired, said, members, admission)
-    return RedirectResponse(landing(handshake.pairing, a_way_in(member, codes)), FOUND)
+    return RedirectResponse(landing(handshake.pairing, a_way_in(member, codes)), HTTP_302_FOUND)
 
 
 # No key at this door and no password in it: which orgs a person of this domain could sign in to
@@ -259,8 +259,6 @@ async def _seated(
         # The write judged the seat again, under its lock, and refused: the same sentence.
         await admission.a_seat(full.org, full.seated)
         raise
-    except QuotaExhausted as refused:
-        raise HTTPException(429, str(refused)) from refused
     if invited is None:
         raise HTTPException(403, NOBODY_HERE.format(org=org.slug, email=email))
     return await _activated(members, org, invited.member)

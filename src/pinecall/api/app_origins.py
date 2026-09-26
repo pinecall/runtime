@@ -55,12 +55,14 @@ def origins_allowed(settings: Settings) -> tuple[str, ...]:
 # all — a socket, the widget (whose `*` is api/pages.py's), the console, and above all an origin
 # NOT on the list, which gets no CORS header of any kind, preflight included, exactly as before.
 # The list is read per request because the settings are the lifespan's, which runs after this
-# middleware is built.
+# middleware is built; the CORSMiddleware over it is built once per list, and the list changes
+# only when the process does.
 class AppOrigins:
     """CORS on the /v1 doors for the allowed origins, and for nobody else, on nothing else."""
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
+        self._cors: tuple[tuple[str, ...], CORSMiddleware] | None = None
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """Hand an allowed origin's /v1 request to CORSMiddleware, and any other to the app."""
@@ -75,14 +77,20 @@ class AppOrigins:
         if origin not in allowed:
             await self.app(scope, receive, send)
             return
-        cors = CORSMiddleware(
-            self.app,
-            allow_origins=allowed,
-            allow_methods=METHODS,
-            allow_headers=HEADERS,
-            max_age=MAX_AGE_S,
-        )
-        await cors(scope, receive, send)
+        await self._cors_for(allowed)(scope, receive, send)
+
+    def _cors_for(self, allowed: tuple[str, ...]) -> CORSMiddleware:
+        """Starlette's CORS over the app for this list, kept until the list is another."""
+        if self._cors is None or self._cors[0] != allowed:
+            cors = CORSMiddleware(
+                self.app,
+                allow_origins=allowed,
+                allow_methods=METHODS,
+                allow_headers=HEADERS,
+                max_age=MAX_AGE_S,
+            )
+            self._cors = (allowed, cors)
+        return self._cors[1]
 
 
 def _any_page(app: ASGIApp) -> CORSMiddleware:

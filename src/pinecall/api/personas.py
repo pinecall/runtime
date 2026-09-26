@@ -9,7 +9,7 @@ from starlette.requests import HTTPConnection
 
 from pinecall.api._deps import EvalsKeyDep, held
 from pinecall.auth.corner import author_of
-from pinecall.orgs.personas import NameTaken, NoSuchPersona, Personas
+from pinecall.orgs.personas import Personas
 from pinecall.providers.tuning import the_llm, the_voice
 from pinecall.types import DeclarationRefused
 from pinecall_protocol.rest import Persona, PersonaList, PersonaPut
@@ -51,37 +51,29 @@ async def put_persona(
     """The caller written whole — new, replaced, or renamed from `was` — and the list after."""
     _a_name(name)
     llm, tts, voice = _played_as(said)
-    try:
-        written = await kept.put(
-            key.org,
-            name,
-            about=said.about or "",
-            goal=said.goal,
-            style=said.style,
-            facts=said.facts or {},
-            state=said.state or {},
-            author=author_of(key),
-            was=said.was,
-            llm=llm,
-            tts=tts,
-            voice=voice,
-            accepts_when=said.accepts_when or "",
-            declines_when=said.declines_when or "",
-        )
-    except NoSuchPersona as nobody:
-        raise HTTPException(404, str(nobody)) from nobody
-    except NameTaken as taken:
-        raise HTTPException(409, str(taken)) from taken
+    written = await kept.put(
+        key.org,
+        name,
+        about=said.about or "",
+        goal=said.goal,
+        style=said.style,
+        facts=said.facts or {},
+        state=said.state or {},
+        author=author_of(key),
+        was=said.was,
+        llm=llm,
+        tts=tts,
+        voice=voice,
+        accepts_when=said.accepts_when or "",
+        declines_when=said.declines_when or "",
+    )
     return PersonaList(personas=[Persona(**one) for one in written])
 
 
 @router.delete("/v1/personas/{name}")
 async def drop_persona(name: str, key: EvalsKeyDep, kept: PersonasDep) -> PersonaList:
     """The caller's row gone, and the list after. A name nobody wrote is a 404 that says so."""
-    try:
-        return PersonaList(personas=[Persona(**one) for one in await kept.drop(key.org, name)])
-    except NoSuchPersona as nobody:
-        raise HTTPException(404, str(nobody)) from nobody
+    return PersonaList(personas=[Persona(**one) for one in await kept.drop(key.org, name)])
 
 
 # The three knobs are the agent's own — `pinecall agent set --llm`, `--tts`, `--voice` — read by

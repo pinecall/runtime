@@ -90,18 +90,18 @@ class WaitingRoom:
             for row in page:
                 data = row.entry.data
                 if row.entry.type == WAITING:
+                    said = MessageWaiting.model_validate(data)
                     inbound = Inbound(
-                        number=str(data["number"]),
-                        phone_number_id=str(data["phone_number_id"]),
-                        wa_id=str(data["from"]),
-                        name=None if data.get("name") is None else str(data["name"]),
-                        message_id=str(data["message_id"]),
+                        number=said.number,
+                        phone_number_id=said.phone_number_id,
+                        wa_id=said.from_,
+                        name=said.name,
+                        message_id=said.message_id,
                         kind="text",
-                        text=str(data["text"]),
+                        text=said.text,
                     )
-                    at = float(data["received_at"])
                     self._waiting[inbound.message_id] = Waiting(
-                        row.entry.agent, data["env"], inbound, at
+                        row.entry.agent, said.env, inbound, said.received_at
                     )
                 else:
                     self._waiting.pop(str(data["message_id"]), None)

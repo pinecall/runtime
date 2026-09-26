@@ -13,7 +13,7 @@ from pinecall.api._deps import DeclarationKeyDep, PipelineKeyDep, held
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.api.pipeline import declared_here
 from pinecall.orgs.hold_audio import Chosen, HoldAudio
-from pinecall.session.hold_audio import DEFAULT, NotAHoldMelody, converted
+from pinecall.session.hold_audio import DEFAULT, converted
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -108,10 +108,7 @@ async def upload(
     data = await request.body()
     if len(data) > MAX_BYTES:
         raise HTTPException(413, TOO_BIG)
-    try:
-        melody = await asyncio.to_thread(converted, data)
-    except NotAHoldMelody as refused:
-        raise HTTPException(400, str(refused)) from refused
+    melody = await asyncio.to_thread(converted, data)
     named = (name or "").strip() or None
     chosen = Chosen(played="custom", sha256=melody.sha256, seconds=melody.seconds, name=named)
     await kept.keep(key.org, slug, chosen, melody.audio)

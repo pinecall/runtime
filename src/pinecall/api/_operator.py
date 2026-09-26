@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from hmac import compare_digest
 
-from fastapi import HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from starlette.requests import HTTPConnection
 
 from pinecall.api._deps import KeysDep, MembersDep, SettingsDep
@@ -23,6 +23,13 @@ from pinecall.auth.visiting import the_operator, visiting
 # the machine every tenant is on, and the box would be handed over by the first org that invited
 # itself one. The door refuses in words that say which of the two is missing.
 NOT_THE_OPERATORS = "this door is the box's: its operator key, or a person the box made an operator"
+
+OPS = "/v1/ops"
+
+
+def an_operators_router() -> APIRouter:
+    """A router of the box's own doors: under /v1/ops, every one of them behind an_operator."""
+    return APIRouter(prefix=OPS, dependencies=[Depends(an_operator)])
 
 
 async def an_operator(

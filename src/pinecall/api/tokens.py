@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import Field
+from starlette.status import HTTP_201_CREATED
 
 from pinecall.api._deps import (
     AdmissionDep,
@@ -21,10 +22,9 @@ from pinecall.api.agents.reaching import reached_by
 from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.auth.keys import KeyRecord, held_by
 from pinecall.auth.scopes import a_log_token, a_room_token, a_visitor, secret_for
-from pinecall.orgs.admission import QuotaExhausted
 from pinecall.tokens.ledger import TokenRecord
 from pinecall.tokens.room import a_dispatch, the_agent_a_client_named
-from pinecall.types import THE_WIDGET, DeclarationRefused, a_call_id
+from pinecall.types import THE_WIDGET, a_call_id
 from pinecall.types.token import LONGEST_VISIT_TTL_S, MINTED_FOR_A_VISIT, ONE_VISIT_TTL_S
 from pinecall_protocol import WireModel, encode
 from pinecall_protocol.defs import Projection
@@ -32,9 +32,6 @@ from pinecall_protocol.events import FleetFull
 
 router = APIRouter()
 
-# LiveKit's endpoint answers 201 Created (frontends/build/authentication/endpoint), and every
-# client SDK's TokenSource reads that.
-CREATED = 201
 
 # The scopes this door mints, in the sentence a wrong one is refused with.
 NOT_A_VISIT_SCOPE = "scope is one of {scopes}: observe and supervise take the API key instead"
@@ -92,11 +89,13 @@ class Wanted(WireModel):
     participant_metadata: str | None = None
 
 
+# 201 Created is what LiveKit's own endpoint answers (frontends/build/authentication/endpoint),
+# and what every client SDK's TokenSource reads.
 # The four things in front of LiveKit's mint, in order: the key's org answers this agent on the
 # web (404 in the config door's own words), the body sets nothing that is ours to set (400), the
 # org's quotas admit one more call (429, and credits.exhausted in the agent's log), and the token
 # is written into the ledger before it leaves, so the dispatch can spend it once.
-@router.post("/v1/tokens", status_code=CREATED)
+@router.post("/v1/tokens", status_code=HTTP_201_CREATED)
 async def mint(
     said: Wanted,
     key: TalkKeyDep,
@@ -112,10 +111,7 @@ async def mint(
     _refuse_what_is_ours_to_set(said)
     agent = _the_agent_the_org_holds(said, key, registry)
     await _refuse_a_full_fleet(fleet, logs, agent)
-    try:
-        await admission.a_call(key.org, agent, live.running(key.org))
-    except QuotaExhausted as refused:
-        raise HTTPException(429, str(refused)) from refused
+    await admission.a_call(key.org, agent, live.running(key.org))
     call = a_call_id()
     visitor = said.participant_identity or a_visitor()
     expires_at = time.time() + said.ttl_s
@@ -183,10 +179,7 @@ def _refuse_what_is_ours_to_set(said: Wanted) -> None:
 # a token for an agent nobody holds is still refused before the browser joins a room that dies.
 def _the_agent_the_org_holds(said: Wanted, key: KeyRecord, registry: RegistryDep) -> str:
     """The agent the body names, if this key reaches it at all. 400 or 404 if not."""
-    try:
-        agent = said.agent or the_agent_a_client_named(said.room_config)
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    agent = said.agent or the_agent_a_client_named(said.room_config)
     if agent is None:
         raise HTTPException(400, NO_AGENT_NAMED)
     if reached_by(registry, key, agent) is None:

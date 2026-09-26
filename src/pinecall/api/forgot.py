@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+from starlette.status import HTTP_202_ACCEPTED
 
 from pinecall.api._deps import MembersDep, OrgsDep, SettingsDep, ThrottleDep
 from pinecall.api._gateway import where_this_gateway_answers
@@ -22,12 +23,6 @@ from pinecall_protocol import WireModel
 # there every door here is 404, naming where people sign in.
 router = APIRouter(dependencies=[AtProduction])
 
-# Taken, and nothing else is ever said. Not whether anybody answers to the address, not whether
-# their org can send mail, not whether their org signs in with a provider instead: a door that
-# told them apart would be a door a stranger reads the box's directory out of, one address at a
-# time. What a person who typed their own address sees is their inbox.
-ACCEPTED = 202
-
 
 class Forgotten(WireModel):
     """The one thing this door takes: the address whose password was forgotten."""
@@ -35,11 +30,15 @@ class Forgotten(WireModel):
     email: str
 
 
+# 202, taken, and nothing else is ever said. Not whether anybody answers to the address, not
+# whether their org can send mail, not whether their org signs in with a provider instead: a door
+# that told them apart would be a door a stranger reads the box's directory out of, one address
+# at a time. What a person who typed their own address sees is their inbox.
 # No key: the person at this door has none, which is the whole of their problem. The throttle is
 # the login's own — `POST /v1/login`, `POST /v1/login/orgs` and this one share a count per client
 # and name — so a script walking a list of addresses is stopped at the sixth in a minute, and is
 # stopped identically whoever the addresses belong to.
-@router.post("/v1/login/reset", status_code=ACCEPTED)
+@router.post("/v1/login/reset", status_code=HTTP_202_ACCEPTED)
 async def forgotten(
     said: Forgotten,
     request: Request,

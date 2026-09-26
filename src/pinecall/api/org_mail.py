@@ -7,13 +7,13 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import Field
 from starlette.requests import HTTPConnection
+from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api._deps import TeamKeyDep, held
-from pinecall.api.orgs import NO_BODY
 from pinecall.mail import Outbox, a_test_message
 from pinecall.orgs.mail import KeptMail, Mail
 from pinecall.orgs.vault import NO_VAULT_KEY
-from pinecall.types import DeclarationRefused, Mailbox, a_security, an_address
+from pinecall.types import Mailbox, a_security, an_address
 from pinecall_protocol import WireModel
 
 # The org's own three doors and its test send, on a key with `team` — the same scope that invites
@@ -98,7 +98,7 @@ async def wire(said: WantedMail, key: TeamKeyDep, mail: KeptMailDep) -> Any:
     return _standing(await mail.of(key.org))
 
 
-@router.delete("/v1/org/mail", status_code=NO_BODY)
+@router.delete("/v1/org/mail", status_code=HTTP_204_NO_CONTENT)
 async def unwire(key: TeamKeyDep, mail: KeptMailDep) -> None:
     """Forget it; this org's letters go through the box's own mail again, or through nothing."""
     if not await mail.drop(key.org):
@@ -111,10 +111,7 @@ async def unwire(key: TeamKeyDep, mail: KeptMailDep) -> None:
 @router.post("/v1/org/mail/test")
 async def test(said: TestTo, key: TeamKeyDep, outbox: OutboxDep) -> dict[str, Any]:
     """One letter, waited for: `{sent, error}` — and 409 when there is no mail server at all."""
-    try:
-        to = an_address(said.to)
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    to = an_address(said.to)
     if await outbox.mailbox_for(key.org) is None:
         raise HTTPException(409, NOTHING_TO_TEST)
     said_back = await outbox.sent(key.org, a_test_message(to, await outbox.brand()))
@@ -124,17 +121,14 @@ async def test(said: TestTo, key: TeamKeyDep, outbox: OutboxDep) -> dict[str, An
 # Shared with the box's own doors (api/box_mail.py): one body, one refusal, for either mailbox.
 def a_mailbox(said: WantedMail) -> Mailbox:
     """The body as the domain's own shape, or 400 in the refusal's own words."""
-    try:
-        return Mailbox(
-            host=said.host.strip(),
-            port=said.port,
-            security=a_security(said.security),
-            username=said.username.strip(),
-            password=said.password,
-            sender=said.sender.strip(),
-        )
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    return Mailbox(
+        host=said.host.strip(),
+        port=said.port,
+        security=a_security(said.security),
+        username=said.username.strip(),
+        password=said.password,
+        sender=said.sender.strip(),
+    )
 
 
 # The password is not in here and there is no door that answers with one. What is worth knowing

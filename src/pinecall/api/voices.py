@@ -12,9 +12,9 @@ from starlette.requests import HTTPConnection
 from pinecall.api._deps import OrgsDep, PipelineKeyDep, SettingsDep, VaultDep, held
 from pinecall.auth.throttle import Throttle
 from pinecall.orgs.vault import brought_by, keys_brought_by
-from pinecall.providers.registry import Asked, NoProvider
+from pinecall.providers.registry import Asked
 from pinecall.providers.tts.sampling import Sample, SampleRefused, a_line_for, a_sample
-from pinecall.providers.tts.shelf import NotListed, Shelf, ShelfUnreachable
+from pinecall.providers.tts.shelf import Shelf, ShelfUnreachable
 from pinecall.providers.tuning import the_voice
 from pinecall.types import DeclarationRefused
 from pinecall_protocol.rest import ListedVoice, VoiceSample, VoicesListed
@@ -80,10 +80,6 @@ async def voices(
     asked = Asked(settings=settings, keys=await keys_brought_by(vault, key.org))
     try:
         found = await shelf.voices(tts, language, asked)
-    except NotListed as not_listed:
-        raise HTTPException(404, str(not_listed)) from not_listed
-    except NoProvider as missing:
-        raise HTTPException(503, str(missing)) from missing
     except ShelfUnreachable as unreachable:
         raise HTTPException(_a_status(unreachable.status), str(unreachable)) from unreachable
     return VoicesListed(
@@ -132,8 +128,6 @@ async def sample(
     )
     try:
         heard = await sampler(voice.provider, asked, text)
-    except NoProvider as missing:
-        raise HTTPException(503, str(missing)) from missing
     except SampleRefused as refused:
         raise HTTPException(
             _a_status(refused.status), _said_by(voice.provider, refused)

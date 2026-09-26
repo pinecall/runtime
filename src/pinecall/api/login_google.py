@@ -5,6 +5,7 @@ from __future__ import annotations
 import httpx
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
+from starlette.status import HTTP_302_FOUND
 
 from pinecall.api._box import BoxSettingsDep
 from pinecall.api._deps import LoginCodesDep, MembersDep, SettingsDep, ThrottleDep
@@ -12,7 +13,6 @@ from pinecall.api.box_signin import where_the_provider_answers
 from pinecall.api.identity import AtProduction
 from pinecall.api.login import only_with_the_provider, the_client
 from pinecall.api.login_sso import (
-    FOUND,
     NO_CODE_BACK,
     NO_HANDSHAKE,
     PAIRING,
@@ -83,7 +83,7 @@ async def sign_in(
             nonce=handshake.nonce,
             verifier=handshake.verifier,
         ),
-        status_code=FOUND,
+        status_code=HTTP_302_FOUND,
     )
 
 
@@ -120,7 +120,7 @@ async def back(
         home = await _the_person_home(members, sso, an_address(said.email))
     except HTTPException as refused:
         return _refused(str(refused.detail))
-    return RedirectResponse(landing(handshake.pairing, a_way_in(home, codes)), FOUND)
+    return RedirectResponse(landing(handshake.pairing, a_way_in(home, codes)), HTTP_302_FOUND)
 
 
 # The same rule the password login follows with no org named: the OLDEST org of theirs that a
@@ -150,4 +150,6 @@ async def _the_person_home(members: Members, sso: Sso | None, email: str) -> Mem
 
 def _refused(sentence: str) -> RedirectResponse:
     """Back to the sign-in page, with why, for a person to read."""
-    return RedirectResponse(f"{THE_CONSOLE}?{httpx.QueryParams({'refused': sentence})}", FOUND)
+    return RedirectResponse(
+        f"{THE_CONSOLE}?{httpx.QueryParams({'refused': sentence})}", HTTP_302_FOUND
+    )

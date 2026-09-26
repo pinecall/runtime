@@ -4,20 +4,20 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import HTTPException
+from starlette.status import HTTP_204_NO_CONTENT
 
-from pinecall.api._operator import an_operator
+from pinecall.api._operator import an_operators_router
 from pinecall.api.org_mail import OutboxDep, TestTo, WantedMail, a_mailbox
-from pinecall.api.orgs import NO_BODY
 from pinecall.mail import BoxMail, a_test_message
 from pinecall.orgs.vault import NO_VAULT_KEY, NoVaultKey
-from pinecall.types import DeclarationRefused, an_address
+from pinecall.types import an_address
 
 # The same gate every /v1/ops door takes. The mail server the box posts through is the box's
 # credential and nobody's tenant's: until here it was a line of the environment, changed by
 # whoever can ssh in and restart the gateway, and the person who runs a box from the console is not
 # always that person.
-operator = APIRouter(prefix="/v1/ops", dependencies=[Depends(an_operator)])
+operator = an_operators_router()
 
 # Nothing is stored. 404 and not an empty 204: dropping what was never set must never read as
 # done — and the environment's mailbox is not dropped here, because it is not kept here.
@@ -50,7 +50,7 @@ async def wire(said: WantedMail, outbox: OutboxDep) -> Any:
     return _standing(await outbox.the_boxs.of())
 
 
-@operator.delete("/mail", status_code=NO_BODY)
+@operator.delete("/mail", status_code=HTTP_204_NO_CONTENT)
 async def unwire(outbox: OutboxDep) -> None:
     """Forget the stored one; the box posts through its environment's again, or through nothing."""
     if not await outbox.the_boxs.drop():
@@ -62,10 +62,7 @@ async def unwire(outbox: OutboxDep) -> None:
 @operator.post("/mail/test")
 async def test(said: TestTo, outbox: OutboxDep) -> dict[str, Any]:
     """One letter through the box's own mail, waited for: `{sent, error}`; 409 with none."""
-    try:
-        to = an_address(said.to)
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    to = an_address(said.to)
     if await outbox.the_boxs.of() is None:
         raise HTTPException(409, NOTHING_TO_TEST)
     said_back = await outbox.sent(None, a_test_message(to, await outbox.brand()))

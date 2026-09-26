@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import HTTPException, Request
+from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall._settings import Settings
 from pinecall.api._box import BoxSettingsDep
 from pinecall.api._deps import SettingsDep
 from pinecall.api._gateway import where_this_gateway_answers
-from pinecall.api._operator import an_operator
-from pinecall.api.orgs import NO_BODY
+from pinecall.api._operator import an_operators_router
 from pinecall.api.sso import UNREACHABLE, HttpDep
 from pinecall.auth.openid import OpenIdRefused, configuration
 from pinecall.orgs.box import SIGN_IN, BoxSettings
@@ -22,7 +22,7 @@ from pinecall_protocol import WireModel
 # The same gate every /v1/ops door takes. A box-wide provider is the BOX's: the client at Google
 # is registered by whoever runs the machine, with this gateway's own callback, and an org that
 # could wire one would be an org deciding how every other org's people sign in.
-operator = APIRouter(prefix="/v1/ops", dependencies=[Depends(an_operator)])
+operator = an_operators_router()
 
 # Where Google sends the person back. One string per provider, off the name this gateway is
 # reached by: it is what the operator registers at Google, so it is in every answer.
@@ -69,7 +69,7 @@ async def wire_google(
     return await _standing(GOOGLE, box, where_this_gateway_answers(settings, request))
 
 
-@operator.delete("/signin/google", status_code=NO_BODY)
+@operator.delete("/signin/google", status_code=HTTP_204_NO_CONTENT)
 async def unwire_google(box: BoxSettingsDep) -> None:
     """Forget it; the sign-in page offers no Google from the next load. 404 when none was wired."""
     if not await BoxSignIn(box).drop(GOOGLE):

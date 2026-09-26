@@ -6,6 +6,7 @@ from hmac import compare_digest
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from starlette.status import HTTP_201_CREATED, HTTP_202_ACCEPTED
 
 from pinecall.api._deps import (
     ExtensionsDep,
@@ -25,15 +26,12 @@ from pinecall.auth import passwords
 from pinecall.auth.members import an_address
 from pinecall.auth.signups import NotVerified, Refusal
 from pinecall.mail import a_signup_code
-from pinecall.types import DeclarationRefused, Member, a_slug
+from pinecall.types import Member, a_slug
 from pinecall_protocol import WireModel
 
 # Production's alone (api/identity.py): a sandbox keeps no password and makes no person, so
 # there every door here is 404, naming where people sign in.
 router = APIRouter(dependencies=[AtProduction])
-
-MADE = 201
-ASKED = 202
 
 # Off unless the person who runs this gateway turned it on: a box somebody runs for their own
 # agents has an operator who makes orgs (`orgs add`) and invites people, and wants no stranger
@@ -121,7 +119,7 @@ def a_signup_client(request: Request, settings: SettingsDep) -> str:
 ClientDep = Annotated[str, Depends(a_signup_client)]
 
 
-@router.post("/v1/signup", status_code=ASKED)
+@router.post("/v1/signup", status_code=HTTP_202_ACCEPTED)
 async def signup(
     said: Signup,
     client: ClientDep,
@@ -141,12 +139,9 @@ async def signup(
     email = an_address(said.email)
     if not throttle.allowed(f"{client} signup"):
         raise HTTPException(429, TOO_MANY)
-    try:
-        slug = a_slug(said.org)
-        hashed = await passwords.hashed(said.password, settings.min_password)
-        Member(id=A_PLACEHOLDER, org=A_PLACEHOLDER, email=email, name=said.person, role="admin")
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    slug = a_slug(said.org)
+    hashed = await passwords.hashed(said.password, settings.min_password)
+    Member(id=A_PLACEHOLDER, org=A_PLACEHOLDER, email=email, name=said.person, role="admin")
     # A person who already has a password on this box makes a second org as themselves, and only
     # with THAT password: without this check a signup naming somebody else's email was seated as
     # them, handed a key in their name, and that key minted theirs in every org they belong to
@@ -164,7 +159,7 @@ async def signup(
     return {"email": email, "code_expires_at": pending.expires_at}
 
 
-@router.post("/v1/signup/verify", status_code=MADE)
+@router.post("/v1/signup/verify", status_code=HTTP_201_CREATED)
 async def verify(
     said: Verifying,
     client: ClientDep,
@@ -192,7 +187,7 @@ async def verify(
 
 # The same answer whatever the address: a door that said "nobody signed up as that" would be a
 # door that says who did.
-@router.post("/v1/signup/resend", status_code=ASKED)
+@router.post("/v1/signup/resend", status_code=HTTP_202_ACCEPTED)
 async def resend(
     said: Resending,
     client: ClientDep,

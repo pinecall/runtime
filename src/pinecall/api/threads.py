@@ -7,9 +7,10 @@ from collections.abc import Sequence
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Response
+from starlette.status import HTTP_202_ACCEPTED
 
 from pinecall.api._deps import CallIndexDep, CallsKeyDep, SnapshotsDep, StoreDep, TalkKeyDep
-from pinecall.api.supervise.aiming import QueueingDep, VerbRefused, aimed
+from pinecall.api.supervise.aiming import QueueingDep, aimed
 from pinecall.api.whatsapp.threads import WINDOW_SECONDS
 from pinecall.auth.corner import Corner, corner_of
 from pinecall.auth.keys import KeyRecord
@@ -48,8 +49,6 @@ NOTHING_OPEN = (
     "{contact}'s last conversation idled out and is sealed: a message is said on an open one, "
     "which their next message opens"
 )
-
-WRITTEN = 202
 
 
 @router.get("/v1/agents/{slug}/threads")
@@ -100,7 +99,7 @@ async def read(slug: str, contact: str, key: CallsKeyDep, index: CallIndexDep) -
 # conversation's log as supervisor.said and turn.agent, and the thread's watcher sends turn.agent
 # to the contact. WhatsApp lets a business write freely only within 24 h of the contact's last
 # message; past that, and on a conversation that already idled out, the door says which in a 409.
-@router.post("/v1/agents/{slug}/threads/{contact}/messages", status_code=WRITTEN)
+@router.post("/v1/agents/{slug}/threads/{contact}/messages", status_code=HTTP_202_ACCEPTED)
 async def say(
     slug: str,
     contact: str,
@@ -123,10 +122,7 @@ async def say(
     if live.of(newest) is None:
         raise HTTPException(409, NOTHING_OPEN.format(contact=contact))
     reader = Reader(projection=KEY_PROJECTION, key=key, subject=key.subject, name=key.name)
-    try:
-        await aimed(live, store, snapshots, reader, newest, verbs.SayVerb(text=said.text))
-    except VerbRefused as refused:
-        raise HTTPException(refused.status, refused.detail) from refused
+    await aimed(live, store, snapshots, reader, newest, verbs.SayVerb(text=said.text))
     return ThreadSaid(contact=contact, call=newest)
 
 

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import HTTPException
 from pydantic import TypeAdapter
+from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api._deps import (
     KeysDep,
@@ -18,7 +19,7 @@ from pinecall.api._deps import (
     StoreDep,
     an_org,
 )
-from pinecall.api._operator import an_operator
+from pinecall.api._operator import an_operators_router
 from pinecall.api._placing import DialPoliciesDep
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.keys import in_this_world
@@ -39,15 +40,12 @@ from pinecall_protocol import WireModel
 
 # Every /v1/ops door takes the operator key and nothing else, checked before the endpoint runs.
 # The same gate the routes doors take, from api/_deps.py: there is one, and this is it.
-operator = APIRouter(prefix="/v1/ops", dependencies=[Depends(an_operator)])
+operator = an_operators_router()
 
 ORGS: TypeAdapter[tuple[Org, ...]] = TypeAdapter(tuple[Org, ...])
 LISTED: TypeAdapter[tuple[ListedKey, ...]] = TypeAdapter(tuple[ListedKey, ...])
 QUOTAS: TypeAdapter[Quotas] = TypeAdapter(Quotas)
 DIALLING: TypeAdapter[DialPolicy] = TypeAdapter(DialPolicy)
-
-# A removed org has nothing to say back.
-NO_BODY = 204
 
 # The slug is the operator's word for the tenant and two tenants cannot share one.
 SLUG_TAKEN = "an org already answers to the slug {slug}"
@@ -123,10 +121,7 @@ async def listed(orgs: OrgsDep) -> list[dict[str, Any]]:
 @operator.post("/orgs")
 async def add(said: WantedOrg, orgs: OrgsDep) -> dict[str, Any]:
     """A new tenant. The id is minted here and is what every row of theirs will name."""
-    try:
-        slug = a_slug(said.slug)
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    slug = a_slug(said.slug)
     org = await orgs.create(slug, said.name or slug)
     if org is None:
         raise HTTPException(409, SLUG_TAKEN.format(slug=slug))
@@ -163,7 +158,7 @@ async def one(
     }
 
 
-@operator.delete("/orgs/{named}", status_code=NO_BODY)
+@operator.delete("/orgs/{named}", status_code=HTTP_204_NO_CONTENT)
 async def remove(named: str, orgs: OrgsDep, keys: KeysDep, table: RoutesDep) -> None:
     """Forget the org. Refused while a live key or a route still names it."""
     org = await an_org(named, orgs)
@@ -272,19 +267,14 @@ async def set_dialling(
     """Replace the org's outbound guards, whole. They bite the next dial."""
     org = await an_org(named, orgs)
     standing = DialPolicy()
-    try:
-        policy = DialPolicy(
-            dial_anywhere=standing.dial_anywhere
-            if said.dial_anywhere is None
-            else said.dial_anywhere,
-            per_minute=standing.per_minute if said.per_minute is None else said.per_minute,
-            per_day=standing.per_day if said.per_day is None else said.per_day,
-            max_duration_s=standing.max_duration_s
-            if said.max_duration_s is None
-            else said.max_duration_s,
-        )
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    policy = DialPolicy(
+        dial_anywhere=standing.dial_anywhere if said.dial_anywhere is None else said.dial_anywhere,
+        per_minute=standing.per_minute if said.per_minute is None else said.per_minute,
+        per_day=standing.per_day if said.per_day is None else said.per_day,
+        max_duration_s=standing.max_duration_s
+        if said.max_duration_s is None
+        else said.max_duration_s,
+    )
     await policies.put(org.id, policy)
     dumped: dict[str, Any] = DIALLING.dump_python(policy)
     return dumped
@@ -303,10 +293,7 @@ async def issue(
     keeps its sha256."""
     org = await an_org(named, orgs)
     env = in_this_world(said.env, settings)
-    try:
-        scopes = KEY_SCOPES if said.scopes is None else key_scopes(said.scopes)
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    scopes = KEY_SCOPES if said.scopes is None else key_scopes(said.scopes)
     issued = await keys.issue(
         org=org.id,
         label=said.label,

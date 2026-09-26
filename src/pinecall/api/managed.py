@@ -17,9 +17,8 @@ from pinecall.api._deps import (
 )
 from pinecall.api.identity import BuysAtProduction
 from pinecall.api.numbers import DRY_RUN, NO_DOMAIN, a_route, on_the_sfu, routed, trunked
-from pinecall.orgs.admission import QuotaExhausted
 from pinecall.routes.trunks import NO_LIVEKIT
-from pinecall.routes.twilio import BOX_TRUNK, TwilioNumber, TwilioRefused
+from pinecall.routes.twilio import BOX_TRUNK, TwilioNumber
 from pinecall.types import Carrier, DeclarationRefused, TwilioAccount
 from pinecall_protocol import WireModel
 
@@ -63,28 +62,22 @@ async def bought(
         raise HTTPException(503, NO_DOMAIN)
     if trunks is None:
         raise HTTPException(503, NO_LIVEKIT)
-    try:
-        await admission.a_managed_number(key.org, said.agent, await table.managed_by(key.org))
-    except QuotaExhausted as refused:
-        raise HTTPException(429, str(refused)) from refused
+    await admission.a_managed_number(key.org, said.agent, await table.managed_by(key.org))
     api = twilio(account)
     steps: list[str] = []
-    try:
-        number = await api.for_sale(said.country, said.area_code)
-        if number is None:
-            where = f"{said.country} {said.area_code}" if said.area_code else said.country
-            raise HTTPException(404, NONE_FOR_SALE.format(where=where.strip()))
-        route = a_route(key, number, said.agent, said.channel, managed=True)
-        owned = TwilioNumber(sid=NOT_BOUGHT_YET, number=number, name=number)
-        steps.append(f"buy      {number} — on account {account.account_sid}, billed to the box")
-        if not dry_run:
-            owned = await api.bought(number)
-        sid = account.account_sid
-        await trunked(api, BOX_TRUNK, sid, route, {number: owned}, settings.domain, steps, dry_run)
-        boxs = Carrier(org=key.org, account=account)
-        await on_the_sfu(trunks, settings.fleet, boxs, route, steps, dry_run)
-    except TwilioRefused as refused:
-        raise HTTPException(502, str(refused)) from refused
+    number = await api.for_sale(said.country, said.area_code)
+    if number is None:
+        where = f"{said.country} {said.area_code}" if said.area_code else said.country
+        raise HTTPException(404, NONE_FOR_SALE.format(where=where.strip()))
+    route = a_route(key, number, said.agent, said.channel, managed=True)
+    owned = TwilioNumber(sid=NOT_BOUGHT_YET, number=number, name=number)
+    steps.append(f"buy      {number} — on account {account.account_sid}, billed to the box")
+    if not dry_run:
+        owned = await api.bought(number)
+    sid = account.account_sid
+    await trunked(api, BOX_TRUNK, sid, route, {number: owned}, settings.domain, steps, dry_run)
+    boxs = Carrier(org=key.org, account=account)
+    await on_the_sfu(trunks, settings.fleet, boxs, route, steps, dry_run)
     return await routed(route, steps, table, dry_run)
 
 

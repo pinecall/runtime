@@ -4,18 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
-
 from pinecall.api._box import BoxSettingsDep
-from pinecall.api._operator import an_operator
+from pinecall.api._operator import an_operators_router
 from pinecall.mail import rebranded, the_brand
 from pinecall.orgs.box import BRAND
-from pinecall.types import DeclarationRefused
 from pinecall_protocol import WireModel
 
 # The same gate every /v1/ops door takes. A brand is the box's and nobody else's: what a letter
 # is signed as is decided by whoever runs the machine the letter leaves from.
-operator = APIRouter(prefix="/v1/ops", dependencies=[Depends(an_operator)])
+operator = an_operators_router()
 
 
 class Rebranding(WireModel):
@@ -37,9 +34,6 @@ async def branded(box: BoxSettingsDep) -> dict[str, Any]:
 @operator.put("/brand")
 async def rebrand(said: Rebranding, box: BoxSettingsDep) -> dict[str, Any]:
     """The brand with these fields replaced, kept, and answered whole; 400 in a sentence."""
-    try:
-        wanted = rebranded(await the_brand(box), said.name, said.logo_url, said.accent)
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    wanted = rebranded(await the_brand(box), said.name, said.logo_url, said.accent)
     await box.put(BRAND, wanted.as_json)
     return wanted.as_json

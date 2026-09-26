@@ -157,10 +157,7 @@ class Calling(WireModel):
 async def calls_from(said: Calling, key: AppKeyDep, registry: RegistryDep) -> dict[str, list[str]]:
     """Every call this number makes reaches this key's corner, in whatever agent it is holding."""
     whose = _a_person(key)
-    try:
-        number = an_e164(said.number)
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    number = an_e164(said.number)
     registry.calls_from(key.env, number, whose)
     return {"calling": list(registry.calling(key.env, whose))}
 

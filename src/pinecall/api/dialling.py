@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import Field
+from starlette.status import HTTP_202_ACCEPTED
 
 from pinecall.api._corner import CornerDep
 from pinecall.api._deps import (
@@ -24,19 +25,16 @@ from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.auth.keys import KeyRecord, held_by
 from pinecall.auth.scopes import a_log_token, secret_for
 from pinecall.log.writers import Logs
-from pinecall.orgs.admission import QuotaExhausted
-from pinecall.orgs.guards import Asking, DialRefused
+from pinecall.orgs.guards import Asking
 from pinecall.routes.dispatching import Dialling, Dispatches, Job
 from pinecall.routes.table import Routes
 from pinecall.session.first_entries import arrived
-from pinecall.types import CallContext, DeclarationRefused, Route, a_call_id, an_e164
+from pinecall.types import CallContext, Route, a_call_id, an_e164
 from pinecall_protocol import WireModel, encode
 from pinecall_protocol.defs import Projection
 from pinecall_protocol.events import CallEnded
 
 router = APIRouter()
-
-PLACED = 202
 
 NO_PHONE_DOOR = (
     "agent {slug} answers no phone number in {env}: a call back is shown as one of the org's own"
@@ -73,7 +71,7 @@ class WantedCall(WireModel):
     log: Projection = "public"
 
 
-@router.post("/v1/agents/{slug}/dial", status_code=PLACED)
+@router.post("/v1/agents/{slug}/dial", status_code=HTTP_202_ACCEPTED)
 async def dial(
     slug: str,
     said: WantedCall,
@@ -114,14 +112,8 @@ async def dial(
         call=call,
         shown=shown,
     )
-    try:
-        allowed = await guards.judged(asking)
-    except DialRefused as refused:
-        raise HTTPException(refused.refusal.status, str(refused)) from refused
-    try:
-        await admission.a_call(key.org, slug, live.running(key.org))
-    except QuotaExhausted as spent:
-        raise HTTPException(429, str(spent)) from spent
+    allowed = await guards.judged(asking)
+    await admission.a_call(key.org, slug, live.running(key.org))
     context = CallContext(
         call=call,
         channel="phone",
@@ -164,10 +156,7 @@ def _shown_as(said: WantedCall, doors: list[Route], key: KeyRecord, slug: str) -
     theirs = [door.number for door in doors if door.number is not None]
     if said.shown is None:
         return theirs[0]
-    try:
-        wanted = an_e164(said.shown)
-    except DeclarationRefused as malformed:
-        raise HTTPException(400, str(malformed)) from malformed
+    wanted = an_e164(said.shown)
     if wanted not in theirs:
         raise HTTPException(400, NOT_OUR_NUMBER.format(number=wanted, slug=slug, env=key.env))
     return wanted
@@ -255,8 +244,5 @@ async def outbound_trunk(
         asked_by=key.subject or key.key_id,
         call=call,
     )
-    try:
-        await guards.a_second_leg(asking)
-    except DialRefused as refused:
-        raise HTTPException(refused.refusal.status, str(refused)) from refused
+    await guards.a_second_leg(asking)
     return {"trunk": await sfu.standing(corner.org)}

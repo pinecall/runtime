@@ -6,30 +6,10 @@ import asyncio
 
 from starlette.datastructures import State
 
-from pinecall.api.whatsapp.doors import Doors
+from pinecall.api.whatsapp.doors import doors_of
 from pinecall.api.whatsapp.threads import Threads
 from pinecall.api.whatsapp.waiting import Waiting, answering
 from pinecall.types import Env
-
-
-# The same doors a webhook request is given, out of the gateway's own state: a message answered
-# from the waiting room goes the way one answered from Meta's request would.
-def doors_of(state: State) -> Doors:
-    """The gateway, as far as one WhatsApp message touches it."""
-    return Doors(
-        settings=state.settings,
-        routes=state.routes,
-        registry=state.registry,
-        tuning=state.tuning,
-        vault=state.vault,
-        llms=state.llms,
-        admission=state.admission,
-        logs=state.logs,
-        live=state.live,
-        graph=state.graph,
-        lookups=state.lookups,
-        index=state.store,
-    )
 
 
 async def a_waiting_room(state: State) -> asyncio.Task[None]:

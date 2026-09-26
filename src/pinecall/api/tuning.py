@@ -21,7 +21,7 @@ from pinecall.api.agents.registry import NO_AGENT, Registry, RegistryDep
 from pinecall.auth.corner import author_of
 from pinecall.auth.keys import KeyRecord, held_by, not_opening
 from pinecall.orgs.resolving import as_json
-from pinecall.orgs.tuning import HISTORY_LIMIT, TuningStore, VersionMoved
+from pinecall.orgs.tuning import HISTORY_LIMIT, TuningStore
 from pinecall.orgs.vault import brought_by
 from pinecall.providers.pipeline import what_is_not_lent
 from pinecall.providers.tuning import tuned
@@ -97,8 +97,6 @@ def a_tuning(body: TuningBody) -> Tuning:
     """The wire's body as the domain's shape, or 400 in the shape's own sentence."""
     try:
         return TUNING.validate_python(body.model_dump(mode="python", exclude_none=True))
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
     except ValidationError as invalid:
         raise HTTPException(400, _the_shapes_own_words(invalid)) from invalid
 
@@ -167,18 +165,12 @@ def declared_or_bare(slug: str, key: KeyRecord, registry: Registry) -> AgentConf
         raise HTTPException(404, NO_AGENT.format(slug=slug))
     if held is not None:
         return held.config
-    try:
-        return AgentConfig(slug=slug)
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    return AgentConfig(slug=slug)
 
 
 def checked(declared: AgentConfig, wanted: Tuning, lexicon: Lexicon) -> AgentConfig:
     """Building the config IS the check: 400 in the rule's own sentence when one breaks."""
-    try:
-        return tuned(declared, wanted, lexicon)
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    return tuned(declared, wanted, lexicon)
 
 
 def words_only(key: KeyRecord, wanted: Tuning, standing: Tuning) -> Tuning:
@@ -214,19 +206,16 @@ async def put(
     if_version: int | None,
 ) -> int:
     """One version written in this corner, or 409 with where the corner is now."""
-    try:
-        return await kept.put(
-            key.org,
-            key.env,
-            corner,
-            slug,
-            wanted,
-            author=author_of(key),
-            note=note,
-            if_version=if_version,
-        )
-    except VersionMoved as moved:
-        raise HTTPException(409, str(moved)) from moved
+    return await kept.put(
+        key.org,
+        key.env,
+        corner,
+        slug,
+        wanted,
+        author=author_of(key),
+        note=note,
+        if_version=if_version,
+    )
 
 
 def differing(ours: Kept[Tuning] | None, theirs: Kept[Tuning] | None) -> list[str]:

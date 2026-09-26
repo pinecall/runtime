@@ -3,10 +3,26 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Annotated
+
+from fastapi import Depends
+from starlette.datastructures import State
 
 from pinecall._settings import Settings
-from pinecall.api._live import Live
-from pinecall.api.agents.registry import Registry
+from pinecall.api._deps import (
+    AdmissionDep,
+    CallIndexDep,
+    GraphDep,
+    LlmsDep,
+    LogsDep,
+    LookupsDep,
+    RoutesDep,
+    SettingsDep,
+    TuningDep,
+    VaultDep,
+)
+from pinecall.api._live import Live, LiveDep
+from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.log.store.index import CallIndex
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
@@ -40,3 +56,59 @@ class Doors:
     # The contact's calls, asked when this process has no thread for them: after a restart, the
     # conversation they are in is found here and taken up rather than started again.
     index: CallIndex
+
+
+# Built from the request's own dependencies and not read off app.state, so what a test overrides
+# at one dependency is what the webhook's doors are made of.
+def a_doors(
+    settings: SettingsDep,
+    routes: RoutesDep,
+    registry: RegistryDep,
+    tuning: TuningDep,
+    vault: VaultDep,
+    llms: LlmsDep,
+    admission: AdmissionDep,
+    logs: LogsDep,
+    live: LiveDep,
+    graph: GraphDep,
+    lookups: LookupsDep,
+    index: CallIndexDep,
+) -> Doors:
+    """The gateway as one webhook request touches it, out of that request's dependencies."""
+    return Doors(
+        settings=settings,
+        routes=routes,
+        registry=registry,
+        tuning=tuning,
+        vault=vault,
+        llms=llms,
+        admission=admission,
+        logs=logs,
+        live=live,
+        graph=graph,
+        lookups=lookups,
+        index=index,
+    )
+
+
+DoorsDep = Annotated[Doors, Depends(a_doors)]
+
+
+# The same doors out of the gateway's own state, for the waiting room, which answers a message
+# with no request behind it: a message answered from there goes the way one from Meta would.
+def doors_of(state: State) -> Doors:
+    """The gateway, as far as one WhatsApp message touches it."""
+    return Doors(
+        settings=state.settings,
+        routes=state.routes,
+        registry=state.registry,
+        tuning=state.tuning,
+        vault=state.vault,
+        llms=state.llms,
+        admission=state.admission,
+        logs=state.logs,
+        live=state.live,
+        graph=state.graph,
+        lookups=state.lookups,
+        index=state.store,
+    )

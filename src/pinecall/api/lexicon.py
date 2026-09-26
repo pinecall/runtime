@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 
 from pinecall.api._deps import TuningDep
 from pinecall.api.tuning import TuningKeyDep, a_lexicon_row, corner_written
 from pinecall.auth.corner import author_of
 from pinecall.auth.keys import KeyRecord, held_by
-from pinecall.orgs.tuning import HISTORY_LIMIT, TuningStore, VersionMoved
-from pinecall.types import HOLDING, PRODUCTION, THE_ORGS_OWN, DeclarationRefused, Lexicon
+from pinecall.orgs.tuning import HISTORY_LIMIT, TuningStore
+from pinecall.types import HOLDING, PRODUCTION, THE_ORGS_OWN, Lexicon
 from pinecall_protocol.rest import LexiconAnswer, LexiconBody, LexiconHistory, LexiconPut
 
 router = APIRouter()
@@ -19,10 +19,7 @@ router = APIRouter()
 
 def a_lexicon(body: LexiconBody) -> Lexicon:
     """The wire's body as the domain's shape, or 400 in the shape's own sentence."""
-    try:
-        return Lexicon(said={one.word: one.spoken for one in body.said}, heard=tuple(body.heard))
-    except DeclarationRefused as refused:
-        raise HTTPException(400, str(refused)) from refused
+    return Lexicon(said={one.word: one.spoken for one in body.said}, heard=tuple(body.heard))
 
 
 @router.get("/v1/lexicon")
@@ -38,18 +35,15 @@ async def set_lexicon(said: LexiconPut, key: TuningKeyDep, kept: TuningDep) -> L
     """Set the lexicon in this key's corner, or the team's: a new version."""
     corner = corner_written(key, said.team)
     wanted = a_lexicon(said.lexicon)
-    try:
-        await kept.put_lexicon(
-            key.org,
-            key.env,
-            corner,
-            wanted,
-            author=author_of(key),
-            note=said.note,
-            if_version=said.if_version,
-        )
-    except VersionMoved as moved:
-        raise HTTPException(409, str(moved)) from moved
+    await kept.put_lexicon(
+        key.org,
+        key.env,
+        corner,
+        wanted,
+        author=author_of(key),
+        note=said.note,
+        if_version=said.if_version,
+    )
     return await _answer(key, kept)
 
 

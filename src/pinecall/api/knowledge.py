@@ -5,11 +5,11 @@ from __future__ import annotations
 import time
 
 from fastapi import APIRouter, HTTPException
+from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api._deps import AdmissionDep, KeptKnowledgeDep, KnowledgeKeyDep, TuningDep
 from pinecall.auth.keys import held_by
 from pinecall.knowledge.scoring import Answered, Question, Score, scored
-from pinecall.orgs.admission import QuotaExhausted
 from pinecall.types import KnowledgeFile
 from pinecall.types.knowledge import DEFAULT_CHUNKS_PER_TURN
 from pinecall_protocol.rest import (
@@ -34,9 +34,6 @@ router = APIRouter()
 # Dropping a name nobody pushed is a typo, and a verb that answered yes to it would send the
 # tenant looking for the change somewhere else. 404, and the org is never named: it is the key's.
 NO_SUCH_BASE = "no knowledge base named {base}: nothing was pushed under that name"
-
-# A drop has nothing to say back. The same number every removal in this runtime answers.
-NO_BODY = 204
 
 # A file nobody put under that path. A base pushed before its files were kept (0041) lists none
 # and says `kept: false`, and the way out is a push again, or a file put into it.
@@ -65,12 +62,7 @@ async def push(
     held = await knowledge.bases(key.org, key.env, held_by(key))
     freed = next((one.chunks for one in held if one.base == base), 0)
     keeping = await knowledge.kept(key.org) - freed + knowledge.how_many_chunks(files)
-    try:
-        await admission.a_push(key.org, keeping)
-    except QuotaExhausted as refused:
-        # 429 and the quota's own sentence, as every call door answers one: `pinecall knowledge
-        # push` prints it, and it names both figures — what this would keep, and what the cap is.
-        raise HTTPException(429, str(refused)) from refused
+    await admission.a_push(key.org, keeping)
     chunks = await knowledge.put(key.org, key.env, held_by(key), base, files)
     return KnowledgePushed(base=base, chunks=chunks, took_ms=(time.perf_counter() - started) * 1000)
 
@@ -166,17 +158,14 @@ async def put_file(
     # corner's own copy of it frees, plus what the text becomes.
     freed = await knowledge.freed_by(key.org, key.env, held_by(key), base, file)
     keeping = await knowledge.kept(key.org) - freed + knowledge.how_many_chunks([wanted])
-    try:
-        await admission.a_push(key.org, keeping)
-    except QuotaExhausted as refused:
-        raise HTTPException(429, str(refused)) from refused
+    await admission.a_push(key.org, keeping)
     chunks = await knowledge.put_file(key.org, key.env, held_by(key), base, wanted)
     return KnowledgeFilePushed(
         base=base, path=file, chunks=chunks, took_ms=(time.perf_counter() - started) * 1000
     )
 
 
-@router.delete("/v1/knowledge/{base}/files/{file:path}", status_code=NO_BODY)
+@router.delete("/v1/knowledge/{base}/files/{file:path}", status_code=HTTP_204_NO_CONTENT)
 async def drop_file(
     base: str, file: str, key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep
 ) -> None:
@@ -189,7 +178,7 @@ def _no_such_file(base: str, path: str) -> str:
     return NO_SUCH_FILE.format(base=base, path=path)
 
 
-@router.delete("/v1/knowledge/{base}", status_code=NO_BODY)
+@router.delete("/v1/knowledge/{base}", status_code=HTTP_204_NO_CONTENT)
 async def drop(base: str, key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep) -> None:
     """The base and every chunk of it, gone. 404 when the org never pushed one by that name."""
     if not await knowledge.drop(key.org, key.env, held_by(key), base):

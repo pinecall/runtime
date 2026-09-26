@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import HTTPException, Request
+from starlette.status import HTTP_201_CREATED, HTTP_204_NO_CONTENT
 
 from pinecall.api._deps import KeysDep, MembersDep, OrgsDep, SettingsDep, an_org
 from pinecall.api._gateway import where_this_gateway_answers
-from pinecall.api._operator import an_operator
+from pinecall.api._operator import an_operators_router
 from pinecall.api.members import (
     AN_ADMIN,
-    INVITED,
     NO_SUCH_MEMBER,
     WantedMember,
     a_wanted_member,
@@ -20,7 +20,6 @@ from pinecall.api.members import (
 )
 from pinecall.api.membership import removed
 from pinecall.api.org_mail import OutboxDep
-from pinecall.api.orgs import NO_BODY
 from pinecall_protocol import WireModel
 
 # The same gate every /v1/ops door takes. The operator may READ an org's people, INVITE one and
@@ -30,13 +29,13 @@ from pinecall_protocol import WireModel
 # here because it is how a tenant exists at all on a gateway that takes no sign-up: the operator
 # makes the org and invites its first admin (api/signup.py, NOT_HERE). Removing is here because
 # the row to remove is sometimes the one the operator's own invitation made by mistake.
-operator = APIRouter(prefix="/v1/ops", dependencies=[Depends(an_operator)])
+operator = an_operators_router()
 
 
 # The operator's invitation takes no seat: a plan caps what an org may seat by ITSELF, and the
 # person who runs the box is not somebody the tenant chose to spend a seat on. It is the one door
 # through which an org with sign-ups shut gets its first admin.
-@operator.post("/orgs/{named}/members", status_code=INVITED)
+@operator.post("/orgs/{named}/members", status_code=HTTP_201_CREATED)
 async def invite_to(
     named: str,
     said: WantedMember,
@@ -80,7 +79,7 @@ async def runs_the_box(
 # "yourself" here, because the box's key is nobody and a person who runs the box is removed from
 # THEIR org by this door like anybody else. The last active admin still stays — an org nobody can
 # run is as broken when the box made it so.
-@operator.delete("/orgs/{named}/members/{id}", status_code=NO_BODY)
+@operator.delete("/orgs/{named}/members/{id}", status_code=HTTP_204_NO_CONTENT)
 async def remove_from(
     named: str, id: str, orgs: OrgsDep, members: MembersDep, keys: KeysDep
 ) -> None:

@@ -21,8 +21,6 @@ from pinecall.api._deps import (
 from pinecall.api._live import LiveDep
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.evals.runner import (
-    AlreadyRunning,
-    NobodyServing,
     Process,
     RunnerDep,
     Wanted,
@@ -86,10 +84,6 @@ async def run_the_goldens(
     try:
         return (await a_run(said, runner, process)).as_json
     # One asker per agent, and the refusal names the run holding that agent so it can be polled.
-    except AlreadyRunning as running:
-        raise HTTPException(409, str(running)) from running
-    except NobodyServing as nobody:
-        raise HTTPException(404, str(nobody)) from nobody
     # An event the agent never declared, and a model this process has no key for: both are the
     # request asking for something this box cannot do, and both name what to change.
     except (DeclarationRefused, NoProvider) as refused:
