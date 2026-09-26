@@ -23,7 +23,7 @@ _A_HOST = re.compile(r"^[A-Za-z0-9.\-_\[\]:]+$")
 
 # Every address this runtime writes into an envelope is checked against this before the socket is
 # opened: a header with a newline in it is how a From line becomes two headers (RFC 5322 §2.2).
-_AN_ADDRESS = re.compile(r"^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$")
+AN_ADDRESS = re.compile(r"^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$")
 
 HIGHEST_PORT = 65535
 
@@ -57,7 +57,7 @@ class Mailbox:
 def an_address(written: str) -> str:
     """The address inside `Name <a@b.c>` or a bare one, or a refusal that shows what was read."""
     _, address = parseaddr(written)
-    if not _AN_ADDRESS.match(address):
+    if not AN_ADDRESS.match(address):
         raise DeclarationRefused(f"{written!r} carries no email address")
     return address
 

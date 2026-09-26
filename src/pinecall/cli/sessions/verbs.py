@@ -10,10 +10,11 @@ import sys
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
 from functools import partial
-from typing import Any, TextIO
+from typing import TextIO
 
 from pinecall._settings import load_settings
 from pinecall.cli.columns import as_columns
+from pinecall.cli.help import only_the_help
 from pinecall.cli.sessions import render
 from pinecall.cli.sessions.source import Calls, Source
 from pinecall.log.entry import Entry
@@ -76,7 +77,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
     recorded.add_argument("call", metavar="<id>", help="the call id")
     recorded.set_defaults(run=run_recording)
 
-    parser.set_defaults(run=partial(_print_the_verbs, parser))
+    parser.set_defaults(run=only_the_help(parser))
 
 
 def run_list(arguments: argparse.Namespace) -> int:
@@ -258,9 +259,3 @@ async def _with_a_source(verb: Callable[[Calls], Awaitable[int]]) -> int:
         return await verb(source)
     finally:
         await source.aclose()
-
-
-def _print_the_verbs(parser: argparse.ArgumentParser, _arguments: Any) -> int:
-    """`sessions` with no verb: say what there is, and exit as a help screen does."""
-    parser.print_help()
-    return 0

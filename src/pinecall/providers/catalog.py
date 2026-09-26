@@ -301,3 +301,15 @@ def settings_field_of(vendor: str) -> str | None:
 def vendors_with_a_key() -> tuple[str, ...]:
     """The vendors BYOK reaches, sorted: what api/provider_keys.py accepts and lists."""
     return tuple(sorted(row.name for row in PROVIDERS if row.env is not None))
+
+
+# `vendor/model` is how a knob, a lending and a price name a model of one vendor; a model id may
+# carry a slash of its own (`meta-llama/llama-3` through a gateway), so the FIRST separator is the
+# vendor's and everything after it is the model's. Two readers once disagreed on this.
+MODEL_SEPARATOR = "/"
+
+
+def vendor_and_model(said: str) -> tuple[str, str]:
+    """The word before the first separator and what follows it; a bare word, and "", with none."""
+    vendor, _separator, model = said.strip().partition(MODEL_SEPARATOR)
+    return vendor, model

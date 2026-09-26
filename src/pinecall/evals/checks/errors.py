@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pinecall.evals.checks.replayed import Failure, Replayed
-from pinecall.evals.checks.verdict import Verdict, failed, passed
+from pinecall.evals.checks.verdict import Verdict, broken, held
 
 CHECK = "errors"
 
@@ -12,11 +12,11 @@ def errors(call: Replayed) -> Verdict:
     """An error the session did not recover from fails the call; one it recovered from is named."""
     fatal = [failure for failure in call.failures if not failure.recoverable]
     if fatal:
-        return failed(CHECK, "; ".join(_said(failure) for failure in fatal))
+        return broken(CHECK, "; ".join(_said(failure) for failure in fatal))
     if call.failures:
         recovered = "; ".join(_said(failure) for failure in call.failures)
-        return passed(CHECK, f"recovered from {len(call.failures)} error(s): {recovered}")
-    return passed(CHECK, "the call logged no error")
+        return held(CHECK, f"recovered from {len(call.failures)} error(s): {recovered}")
+    return held(CHECK, "the call logged no error")
 
 
 def _said(failure: Failure) -> str:

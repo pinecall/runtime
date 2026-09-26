@@ -10,7 +10,7 @@ from typing import Any
 
 from pinecall.knowledge import files as the_files
 from pinecall.knowledge.chunking import chunks_of
-from pinecall.knowledge.files import File
+from pinecall.knowledge.files import PUSHED_WITH_ANOTHER_MODEL, File
 from pinecall.log.store import Pool
 from pinecall.providers.embedder import Embedder, WrongModel, as_halfvec
 from pinecall.types import (
@@ -23,13 +23,6 @@ from pinecall.types import (
     whose,
 )
 from pinecall.types.knowledge import DEFAULT_CHUNKS_PER_TURN
-
-# What a search says when the vectors in the table and the vectors this gateway makes came out of
-# two different models: they are numbers of the same width and nothing else, and ranking one
-# against the other is a plausible answer with no meaning in it. The way out is in the sentence.
-PUSHED_WITH_ANOTHER_MODEL = (
-    "base {base} was pushed with {pushed}; this gateway embeds with {mine}: push it again"
-)
 
 # The BM25 index by the name 0009 gave it: pg_textsearch scores a text by one index's statistics
 # and the query names it, the query first — `to_bm25query(<query>, <index>)`.

@@ -20,6 +20,9 @@ from pinecall.types import DEFAULT_ORG
 TIMEOUT_S = 5.0
 
 # `routes rm` is answered with no body: there is nothing to say back about a row that is gone.
+# The operator's door to the tenants: every verb about an org knocks under it.
+OPS_ORGS = "/v1/ops/orgs"
+
 NO_BODY = 204
 
 NO_OPS_KEY = (

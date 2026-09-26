@@ -9,7 +9,7 @@ from pinecall.providers import catalog
 from pinecall.providers.llm import VENDORS as LLM_VENDORS
 from pinecall.providers.models import DEFAULT_VENDOR
 from pinecall.providers.pipeline import DEFAULT_STT
-from pinecall.providers.registry import NoProvider, Vendors
+from pinecall.providers.registry import NO_VENDOR, NoProvider, Vendors
 from pinecall.providers.stt import VENDORS as STT_VENDORS
 from pinecall.providers.tts import DEFAULT_TTS
 from pinecall.providers.tts import VENDORS as TTS_VENDORS
@@ -19,10 +19,6 @@ from pinecall.types import AgentConfig, DeclarationRefused, Lexicon, Model, Tuni
 
 # The vendor tables' own refusal, over the vendor tables' own list. The list is long now, so the
 # sentence names the door that prints it rather than printing it into a form's error.
-NO_VENDOR = (
-    "no {modality} vendor named {vendor!r}; this build has {count} of them — "
-    "GET /v1/providers lists every one, with the other words each answers to"
-)
 
 # providers/tts/elevenlabs.py substitutes these models and warns the log; a person typing one into
 # a form is refused instead, because they are about to press save and believe it. The list itself
@@ -30,11 +26,6 @@ NO_VENDOR = (
 # ElevenLabs' rule and only ElevenLabs': a Cartesia model goes to Cartesia unexamined.
 NOT_RUN_HERE = "elevenlabs {asked} is not run here; this build speaks with {instead} — ask for that"
 NO_TTS_MODEL = "no {vendor} model {asked!r}; this build has {known}"
-
-# `anthropic/claude-haiku-4-5` names the vendor and the model; `claude-haiku-4-5` alone keeps
-# whichever vendor is already in use, and `cartesia` alone names a vendor and keeps its own default
-# model. One separator, said once, for the three model knobs.
-VENDOR_SEPARATOR = "/"
 
 
 # The one function every session is built through, whichever door it came in by: the worker's
@@ -130,12 +121,12 @@ def _model(
 # two readings cannot collide.
 def the_vendor_and_the_model(asked: str, in_use: str) -> tuple[str, str]:
     """Which vendor a knob names and which model, from `vendor/model`, a vendor, or a model."""
-    named, _, said = asked.rpartition(VENDOR_SEPARATOR)
-    if named:
+    named, said = catalog.vendor_and_model(asked)
+    if said:
         return catalog.canonical(named), said
-    if catalog.named(said) is not None:
-        return catalog.canonical(said), ""
-    return in_use, said
+    if catalog.named(named) is not None:
+        return catalog.canonical(named), ""
+    return in_use, named
 
 
 # A vendor with a file here vouches for its models, and ElevenLabs has one more rule of its own:

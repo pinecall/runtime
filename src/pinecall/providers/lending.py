@@ -6,13 +6,7 @@ from collections.abc import Iterable
 
 from pinecall._exceptions import PinecallError
 from pinecall.providers import catalog
-
-# An entry is a vendor, which lends every model of it, or `vendor/model`, which lends that model
-# only — read as a PREFIX, because an id carries a date: `anthropic/claude-haiku-4-5` lends
-# `claude-haiku-4-5-20251001`, the prefix rule providers/prices.py prices a snapshot by. It never
-# lends `claude-sonnet-5`, and `openai/gpt-5.4-mini` never lends `gpt-5.4`: a family's cheap end
-# is what a free trial runs on, and the dear end is the tenant's own key or nothing.
-MODEL_SEPARATOR = "/"
+from pinecall.providers.catalog import MODEL_SEPARATOR
 
 # The refusal, said before a call opens and when a person picks the model: what they asked for,
 # what they may run on, and the one other way — their own key, which is never refused.
@@ -57,7 +51,8 @@ def a_lending(entries: Iterable[str]) -> frozenset[str]:
     NotLent names the first entry that is neither."""
     kept: set[str] = set()
     for entry in entries:
-        vendor, separator, model = entry.strip().partition(MODEL_SEPARATOR)
+        vendor, model = catalog.vendor_and_model(entry)
+        separator = MODEL_SEPARATOR in entry
         if catalog.named(vendor) is None:
             raise NotLent(NO_SUCH_VENDOR.format(entry=entry))
         if separator and not model.strip():

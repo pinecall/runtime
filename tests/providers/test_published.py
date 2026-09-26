@@ -49,4 +49,4 @@ def test_a_model_of_any_llm_vendor_now_has_a_price(model: str) -> None:
 # the only one of the two that can price a real call at all.
 def test_the_hand_read_table_is_asked_first() -> None:
     assert prices.media_price_of("stt-rt-v5") == prices.MEDIA_PRICES["stt-rt"]
-    assert prices.price_of("claude-haiku-4-5-20251001") == prices.PRICES["claude-haiku-4-5"]
+    assert prices.price_of("claude-fable-5-1-20260901") == prices.PRICES["claude-fable-5-1"]

@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any, cast
 
 from pinecall.evals.case import AGENT, CALLER, Arrived, Called, Case, Role, Said
+from pinecall.evals.gate import a_confirmation
 from pinecall.log import as_text
 from pinecall.log.entry import Entry
 from pinecall.types import CONFIRMATIONS, GateKind, GateLine, ToolSpec
@@ -110,7 +111,7 @@ class _Read:
             elif isinstance(data, events.CallStarted):
                 self.rule = _the_rule_on(data)
             elif entry.type in CONFIRMATIONS:
-                self.gate.append(_a_confirmation(entry.seq, cast("GateKind", entry.type), data))
+                self.gate.append(a_confirmation(entry.seq, cast("GateKind", entry.type), data))
             elif entry.type.startswith("metrics."):
                 self._file_the_block(entry, data)
 
@@ -179,15 +180,6 @@ def _the_rule_on(data: events.CallStarted) -> tuple[str, str] | None:
     """When the caller on this call accepts it and when it declines it; None when nobody said."""
     accepts_when, declines_when = data.accepts_when or "", data.declines_when or ""
     return (accepts_when, declines_when) if accepts_when or declines_when else None
-
-
-def _a_confirmation(seq: int, kind: GateKind, data: object) -> GateLine:
-    """One `confirm.*` entry on the gate's trace: which half of the gate, and who was asked."""
-    if not isinstance(data, events.ConfirmRequest | events.ConfirmGranted | events.ConfirmDeclined):
-        raise TypeError(f"a {kind} entry carried a {type(data).__name__}")
-    return GateLine(
-        seq=seq, kind=kind, call_id=data.call_id, tool=data.tool, audience=data.audience
-    )
 
 
 def _excerpts(data: events.DocsSources) -> list[str]:

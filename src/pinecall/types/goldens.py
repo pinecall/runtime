@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from statistics import fmean
 
@@ -58,3 +58,31 @@ def _discounted(rank: int | None) -> float:
     if rank is None or rank > AT:
         return 0.0
     return 1.0 / math.log2(rank + 1)
+
+
+@dataclass(frozen=True)
+class Score[A]:
+    """What a golden says about a run, in the two figures worth reading, and what was missed."""
+
+    questions: int
+    k: int
+    recall_at_k: float
+    ndcg_at_10: float
+    misses: tuple[A, ...]
+
+
+# Memory and the knowledge base answer the same golden shape — where each wanted answer ranked —
+# and differ only in what an answer is: several facts, or one chunk. A question with any wanted
+# answer that never came back is a miss.
+def a_score[A](
+    answered: Sequence[A], k: int, ranks_of: Callable[[A], Sequence[int | None]]
+) -> Score[A]:
+    """The golden's two figures over every answered question, and the ones missed."""
+    found = figures([ranks_of(one) for one in answered])
+    return Score(
+        questions=len(answered),
+        k=k,
+        recall_at_k=found.recall_at_k,
+        ndcg_at_10=found.ndcg_at_10,
+        misses=tuple(one for one in answered if None in ranks_of(one)),
+    )

@@ -44,21 +44,15 @@ class Price:
 
 # By the longest prefix that matches, because a model id carries a date: claude-haiku-4-5-20251001
 # is priced by claude-haiku-4-5, and a snapshot nobody listed is unpriced rather than guessed.
+# Only what the published list (providers/published.py) does not carry is written here: a row
+# that says the same numbers twice is two places for one price to move. The three below are the
+# Claude 5 family, which the list had not caught up with on AS_OF.
 PRICES: dict[str, Price] = {
     # Anthropic, read off claude.com/pricing on AS_OF. Fable 5.1 is the exception in the family:
     # its cache read is a fortieth of input, not a tenth, and it is priced that way on purpose.
     "claude-fable-5-1": Price(input=10.00, output=50.00, cached_input=0.25, cache_creation=12.50),
     "claude-opus-5": Price(input=5.00, output=25.00, cached_input=0.50, cache_creation=6.25),
     "claude-sonnet-5": Price(input=2.00, output=10.00, cached_input=0.20, cache_creation=2.50),
-    "claude-haiku-4-5": Price(input=1.00, output=5.00, cached_input=0.10, cache_creation=1.25),
-    "claude-sonnet-4-5": Price(input=3.00, output=15.00, cached_input=0.30, cache_creation=3.75),
-    "claude-opus-4-5": Price(input=5.00, output=25.00, cached_input=0.50, cache_creation=6.25),
-    # OpenAI's pricing page refused the fetch on AS_OF (403). These four rows are the last ones
-    # anybody read there and nobody has re-read since: unverified 2026-09-06.
-    "gpt-4.1-mini": Price(input=0.40, output=1.60, cached_input=0.10),
-    "gpt-4.1": Price(input=2.00, output=8.00, cached_input=0.50),
-    "gpt-4o-mini": Price(input=0.15, output=0.60, cached_input=0.075),
-    "gpt-4o": Price(input=2.50, output=10.00, cached_input=1.25),
 }
 
 

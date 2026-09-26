@@ -1,10 +1,10 @@
 """Member: a person of one org, the role that presets what their keys may do, and their standing."""
 
-import re
 from dataclasses import dataclass
 from typing import Literal, get_args
 
 from pinecall.types.key import KEY_SCOPES
+from pinecall.types.mail import AN_ADDRESS
 from pinecall.types.refused import DeclarationRefused
 
 # A role is a preset of key scopes and nothing more: the doors read scopes, never roles, so a
@@ -56,7 +56,6 @@ STATUSES: frozenset[str] = frozenset(get_args(MemberStatus.__value__))
 
 # One `@`, something on both sides, no whitespace: enough to refuse a typo before a row is made.
 # What makes an address real is the person accepting the invitation sent to it, not a regex.
-_AN_EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
 @dataclass(frozen=True)
@@ -91,7 +90,7 @@ class Member:
     def __post_init__(self) -> None:
         if not self.id or not self.org:
             raise DeclarationRefused("a member names their id and the org they belong to")
-        if not _AN_EMAIL.match(self.email):
+        if not AN_ADDRESS.match(self.email):
             raise DeclarationRefused(f"an email has one @ and a domain, not {self.email!r}")
         if not self.name.strip():
             raise DeclarationRefused("a member has a name: it is what a seat says when they sit")

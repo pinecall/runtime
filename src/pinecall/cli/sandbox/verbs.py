@@ -7,6 +7,7 @@ import sys
 from pinecall._settings import variable_of
 from pinecall.cli.box.credentials import Decrypt, decrypt_with_systemd
 from pinecall.cli.box.instance import INSTANCES, a_name, credstore_of
+from pinecall.cli.help import only_the_help
 from pinecall.cli.sandbox.seed import seed
 from pinecall.log.store import open_pool
 
@@ -23,7 +24,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
     seeding.add_argument("--from-instance", default="production", help="default production")
     seeding.add_argument("--to-instance", default="sandbox", help="default sandbox")
     seeding.set_defaults(run=run_seed)
-    parser.set_defaults(run=lambda _arguments: _print_the_verbs(parser))  # pyright: ignore[reportUnknownLambdaType] — argparse's Namespace
+    parser.set_defaults(run=only_the_help(parser))
 
 
 # By instance NAME, never by DSN: a DSN carries its password, and an argument is what `ps` shows
@@ -53,9 +54,3 @@ async def seeding(source: str, target: str, decrypt: Decrypt) -> int:
             await sandbox.close()
     finally:
         await production.close()
-
-
-def _print_the_verbs(parser: argparse.ArgumentParser) -> int:
-    """`sandbox` with no verb: say what there is, and exit as a help screen does."""
-    parser.print_help()
-    return 0

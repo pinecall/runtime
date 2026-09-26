@@ -13,10 +13,11 @@ from pinecall.evals.checks.consent import consent
 from pinecall.evals.checks.errors import errors
 from pinecall.evals.checks.latency import DEFAULT_BUDGET, latency
 from pinecall.evals.checks.register import register
-from pinecall.evals.checks.verdict import Status, Verdict
+from pinecall.evals.checks.verdict import Verdict
 from pinecall.log.replay import whole
 from pinecall.types import AgentConfig
 from pinecall_protocol import WireModel
+from pinecall_protocol.defs import ScoreVerdict
 
 router = APIRouter()
 
@@ -32,7 +33,7 @@ class VerdictSaid(WireModel):
     """One check as the door answers it: its name, the word a script branches on, and why."""
 
     check: str
-    status: Status
+    status: ScoreVerdict
     detail: str
 
 
@@ -75,7 +76,7 @@ async def replay_call(
     return Replayed(
         call=rebuilt.call or call,
         agent=rebuilt.agent,
-        passed=not any(verdict.status == "failed" for verdict in verdicts),
+        passed=not any(verdict.status == "broken" for verdict in verdicts),
         verdicts=[_said(verdict) for verdict in verdicts],
     )
 

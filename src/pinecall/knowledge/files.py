@@ -12,8 +12,9 @@ from pinecall.log.store import Pool
 from pinecall.providers.embedder import Embedder, WrongModel, as_halfvec
 from pinecall.types import Env, KnowledgeFile, whose
 
-# The push's sentence, said of one file: a file put into a base another model wrote would be
-# vectors of two models in one index, and a search over that is a number with no meaning.
+# What a search says when the vectors in the table and the vectors this gateway makes came out of
+# two different models: they are numbers of the same width and nothing else, and ranking one
+# against the other is a plausible answer with no meaning in it. The way out is in the sentence.
 PUSHED_WITH_ANOTHER_MODEL = (
     "base {base} was pushed with {pushed}; this gateway embeds with {mine}: push it again"
 )

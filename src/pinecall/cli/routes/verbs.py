@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, TextIO, cast
 
 from pinecall.cli.columns import as_columns
+from pinecall.cli.help import only_the_help
 from pinecall.cli.operator import Operator, OperatorRefused, against_the_gateway, with_an_org
 from pinecall.types import ENVS, PRODUCTION
 
@@ -56,7 +57,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
     seeding.add_argument("--file", default=SEED_FILE, help="a JSON array of routes")
     seeding.set_defaults(run=run_seed)
 
-    parser.set_defaults(run=partial(_print_the_verbs, parser))
+    parser.set_defaults(run=only_the_help(parser))
 
 
 def run_list(arguments: argparse.Namespace) -> int:
@@ -172,9 +173,3 @@ def _in_a_world(parser: argparse.ArgumentParser) -> None:
         choices=sorted(ENVS),
         help=f"which world the number answers in (default {PRODUCTION})",
     )
-
-
-def _print_the_verbs(parser: argparse.ArgumentParser, _arguments: Any) -> int:
-    """`routes` with no verb: say what there is, and exit as a help screen does."""
-    parser.print_help()
-    return 0

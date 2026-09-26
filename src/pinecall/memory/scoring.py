@@ -7,7 +7,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from pinecall.types import Fact
-from pinecall.types.goldens import figures
+from pinecall.types.goldens import Score as GoldenScore
+from pinecall.types.goldens import a_score
 
 
 @dataclass(frozen=True)
@@ -55,15 +56,7 @@ class Answered:
         return None
 
 
-@dataclass(frozen=True)
-class Score:
-    """What a golden says about memory, in the two figures that are worth reading."""
-
-    questions: int
-    k: int
-    recall_at_k: float
-    ndcg_at_10: float
-    misses: tuple[Answered, ...]
+type Score = GoldenScore[Answered]
 
 
 # A fact is a sentence a model wrote, so a golden cannot be held to its wording: what the person
@@ -89,11 +82,4 @@ def _folded(text: str) -> str:
 # the share found, the logarithmic discount — is types/goldens.py's, shared with the knowledge base.
 def scored(answered: Sequence[Answered], k: int) -> Score:
     """The golden's two figures, and every question memory did not answer whole."""
-    found = figures([one.ranks for one in answered])
-    return Score(
-        questions=len(answered),
-        k=k,
-        recall_at_k=found.recall_at_k,
-        ndcg_at_10=found.ndcg_at_10,
-        misses=tuple(one for one in answered if one.missing),
-    )
+    return a_score(answered, k, lambda one: one.ranks)

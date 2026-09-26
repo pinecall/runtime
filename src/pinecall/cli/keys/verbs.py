@@ -9,6 +9,7 @@ from typing import Any, TextIO
 
 from pinecall.auth.keys import Issued, KeyRecord
 from pinecall.cli.columns import as_columns
+from pinecall.cli.help import only_the_help
 from pinecall.cli.operator import Operator, against_the_gateway, with_an_org
 from pinecall.types import ENVS, EVERY_SCOPE, KEY_SCOPES, an_env
 
@@ -69,7 +70,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
     revoking.add_argument("fingerprint", metavar="<fingerprint>", help="as `keys list` prints it")
     revoking.set_defaults(run=run_revoke)
 
-    parser.set_defaults(run=partial(_print_the_verbs, parser))
+    parser.set_defaults(run=only_the_help(parser))
 
 
 def run_issue(arguments: argparse.Namespace) -> int:
@@ -190,9 +191,3 @@ def _scopes_said(record: KeyRecord) -> str:
     if record.scopes == KEY_SCOPES:
         return "every scope"
     return "scopes " + " · ".join(sorted(record.scopes))
-
-
-def _print_the_verbs(parser: argparse.ArgumentParser, _arguments: Any) -> int:
-    """`keys` with no verb: say what there is, and exit as a help screen does."""
-    parser.print_help()
-    return 0

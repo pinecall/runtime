@@ -10,6 +10,7 @@ from pinecall._settings import Settings
 from pinecall.providers import tts
 from pinecall.providers.language import primary
 from pinecall.providers.registry import Asked, Speech
+from pinecall.providers.tts import DEFAULT_TTS
 from pinecall.types import NOTHING_BROUGHT, Brought
 from pinecall.types import Voice as DeclaredVoice
 
@@ -27,7 +28,7 @@ CHANNELS = 1
 # first, so the two sides of a call are never one voice. A language with no pair of its own is
 # called in English's. These are what a caller that declared no voice speaks in
 # (`Speaking.declared`). ElevenLabs played them until it stopped answering (2026-09-25).
-VENDOR = "cartesia"
+VENDOR = DEFAULT_TTS
 CALLER_VOICES: dict[str, tuple[str, str]] = {
     "es": (
         "13ff5deb-2591-42ad-a356-63a04e524411",  # Marcos - Steady Advisor: Spain

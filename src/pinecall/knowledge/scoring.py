@@ -5,12 +5,14 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from pinecall.knowledge.chunking import HEADING_SEPARATOR
 from pinecall.types import Chunk
-from pinecall.types.goldens import figures
+from pinecall.types.goldens import Score as GoldenScore
+from pinecall.types.goldens import a_score
 
 # The separator a heading path is written with, in the chunk and in a golden alike: it is what
 # `chunks_as_text` puts in front of every passage, so a person writes what they already read.
-BETWEEN_HEADINGS = " › "
+BETWEEN_HEADINGS = HEADING_SEPARATOR
 
 
 @dataclass(frozen=True)
@@ -45,15 +47,7 @@ class Answered:
         return None
 
 
-@dataclass(frozen=True)
-class Score:
-    """What a golden says about a base, in the two figures that are worth reading."""
-
-    questions: int
-    k: int
-    recall_at_k: float
-    ndcg_at_10: float
-    misses: tuple[Answered, ...]
+type Score = GoldenScore[Answered]
 
 
 def where(chunk: Chunk) -> str:
@@ -77,11 +71,4 @@ def answers(found: str, expects: str) -> bool:
 # both figures, here and for memory, and what is the knowledge base's own is which chunk answered.
 def scored(answered: Sequence[Answered], k: int) -> Score:
     """The golden's two figures, and every question the base missed."""
-    found = figures([(one.rank,) for one in answered])
-    return Score(
-        questions=len(answered),
-        k=k,
-        recall_at_k=found.recall_at_k,
-        ndcg_at_10=found.ndcg_at_10,
-        misses=tuple(one for one in answered if one.rank is None),
-    )
+    return a_score(answered, k, lambda one: (one.rank,))

@@ -48,10 +48,10 @@ async def test_the_door_answers_the_four_verdicts_of_a_call_that_consented(
     assert body["agent"] == AGENT
     assert body["passed"] is True
     assert {verdict["check"]: verdict["status"] for verdict in body["verdicts"]} == {
-        "consent": "passed",
-        "register": "passed",
-        "errors": "passed",
-        "latency": "passed",
+        "consent": "held",
+        "register": "held",
+        "errors": "held",
+        "latency": "held",
     }
 
 

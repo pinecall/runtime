@@ -5,8 +5,7 @@ from __future__ import annotations
 import sys
 from typing import TextIO
 
-from pinecall.cli.operator import Operator
-from pinecall.cli.orgs.sso import OPS_ORGS
+from pinecall.cli.operator import OPS_ORGS, Operator
 
 ON_THE_BOX = "this org runs every vendor on the keys of this box"
 READ_THE_KEY = "paste the {vendor} key and press enter: "

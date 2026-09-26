@@ -59,9 +59,10 @@ def test_a_model_the_table_does_not_know_is_listed_unpriced_and_never_at_zero() 
 
 def test_a_model_is_priced_by_the_longest_prefix_that_matches_it() -> None:
     """A model id carries a date, so the table lists families and the date rides along."""
-    assert prices.price_of("claude-haiku-4-5-20251001") is prices.PRICES["claude-haiku-4-5"]
-    assert prices.price_of("gpt-4o-mini-2024-07-18") is prices.PRICES["gpt-4o-mini"]
-    assert prices.price_of("gpt-4o-2024-11-20") is prices.PRICES["gpt-4o"]
+    assert prices.price_of("claude-fable-5-1-20260901") is prices.PRICES["claude-fable-5-1"]
+    # The published list is read by the same rule: a dated snapshot is priced by its family.
+    assert prices.price_of("gpt-4o-mini-2024-07-18") == prices.price_of("gpt-4o-mini")
+    assert prices.price_of("gpt-4o-2024-11-20") == prices.price_of("gpt-4o")
     assert prices.price_of("llama-3") is None
 
 

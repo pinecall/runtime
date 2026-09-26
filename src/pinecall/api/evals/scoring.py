@@ -85,7 +85,7 @@ class Judging:
         # takes one in this tree leaves it bare, so pyright reads the call as partially
         # unknown. The parameter is livekit's to name, not ours.
         measured = await rings.a_matrix(  # pyright: ignore[reportUnknownMemberType]
-            [rings.Spoken(model=one.model, golden=one.golden.name, case=case, asked=one.asked)],
+            [rings.GoldenRun(model=one.model, golden=one.golden.name, case=case, asked=one.asked)],
             _judges_for(one.golden, case),
             self._judge,
         )

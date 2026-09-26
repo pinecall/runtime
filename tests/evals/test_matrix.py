@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from pinecall.evals import ConsentJudge, Matrix, RegisterJudge, Spoken, a_case, a_matrix
+from pinecall.evals import ConsentJudge, GoldenRun, Matrix, RegisterJudge, a_case, a_matrix
 from tests.evals.fakes import CountingJudge
 from tests.evals.logs import BOOKING, a_log
 from tests.evals.measuring import measured
@@ -18,15 +18,15 @@ CONSENT = "consent"
 REGISTER = "register"
 
 
-def the_cases() -> list[Spoken]:
+def the_cases() -> list[GoldenRun]:
     """The same two goldens under two models: a matrix is what tells them apart."""
     confirmed = a_case(a_log("booking-confirmed"), tools=BOOKING)
     before_the_yes = a_case(a_log("booking-before-the-yes"), tools=BOOKING)
     return [
-        Spoken(model=HAIKU, golden="confirmed", case=confirmed),
-        Spoken(model=HAIKU, golden="before-the-yes", case=before_the_yes),
-        Spoken(model=SONNET, golden="confirmed", case=confirmed),
-        Spoken(model=SONNET, golden="before-the-yes", case=before_the_yes),
+        GoldenRun(model=HAIKU, golden="confirmed", case=confirmed),
+        GoldenRun(model=HAIKU, golden="before-the-yes", case=before_the_yes),
+        GoldenRun(model=SONNET, golden="confirmed", case=confirmed),
+        GoldenRun(model=SONNET, golden="before-the-yes", case=before_the_yes),
     ]
 
 

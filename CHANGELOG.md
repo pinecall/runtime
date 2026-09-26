@@ -81,6 +81,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   none; a suite's run held one per run and closed it never.
 
 ### Changed
+- **A code check speaks the judges' four words.** `POST /v1/evals/replay/{call}` answers each
+  check's `status` as `held` · `broken` · `deferred` · `skipped` — the protocol's own
+  `ScoreVerdict`, which every model judge already spoke — where it said `passed` and `failed`.
+  The `passed` boolean beside them is unchanged.
 - **The gate got stricter, and so did the install.** `scripts/lint` runs `deptry` after the type
   checkers (what the tree imports is what `pyproject.toml` declares, both ways — `starlette`,
   `av` and `protobuf` are declared now, having been imported by name all along) and ruff checks

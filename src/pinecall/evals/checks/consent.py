@@ -6,7 +6,7 @@ from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import replace
 
 from pinecall.evals.checks.replayed import Replayed
-from pinecall.evals.checks.verdict import Verdict, deferred, failed, passed, skipped
+from pinecall.evals.checks.verdict import Verdict, broken, deferred, held, skipped
 from pinecall.types import ConsentOutcome, GateLine, consent_of
 
 CHECK = "consent"
@@ -20,8 +20,8 @@ NO_DECLARATION = (
 # between them. `ungated` is deferred and never failed: the gate itself was taken out of the
 # runtime on purpose, and the sentence the rule returns carries that date.
 AS_A_VERDICT: Mapping[ConsentOutcome, Callable[[str, str], Verdict]] = {
-    "kept": passed,
-    "broken": failed,
+    "kept": held,
+    "broken": broken,
     "ungated": deferred,
     "undeclared": skipped,
 }

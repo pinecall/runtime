@@ -5,11 +5,12 @@ import base64
 import secrets
 import sys
 from pathlib import Path
-from typing import Any, TextIO
+from typing import TextIO
 
 from pinecall.cli.box import database, instance, peer
 from pinecall.cli.box.credentials import Encrypt, encrypt_with_systemd
 from pinecall.cli.box.instance import THE_FIRST, InstanceRefused, a_name, credstore_of, database_of
+from pinecall.cli.help import only_the_help
 
 PURPOSE: str = "the box: its instances, and their secrets as encrypted systemd credentials"
 VERBS: tuple[str, ...] = ("secrets", "secret", "instance", "database", "peer")
@@ -59,7 +60,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
     peer.configure(
         verbs.add_parser("peer", help="a fleet key of one instance, kept in another's store")
     )
-    parser.set_defaults(run=lambda arguments: _print_the_verbs(parser, arguments))  # pyright: ignore[reportUnknownLambdaType] — argparse's Namespace
+    parser.set_defaults(run=only_the_help(parser))
 
 
 def run_secrets(arguments: argparse.Namespace) -> int:
@@ -158,10 +159,4 @@ def keep_secret(
         return 2
     (encrypt or encrypt_with_systemd)(name, value, into)
     print(MADE.format(name=name), file=out)
-    return 0
-
-
-def _print_the_verbs(parser: argparse.ArgumentParser, _arguments: Any) -> int:
-    """`box` with no verb: say what there is, and exit as a help screen does."""
-    parser.print_help()
     return 0

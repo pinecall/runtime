@@ -9,7 +9,8 @@ from functools import partial
 from typing import Any, TextIO
 
 from pinecall.cli.columns import as_columns
-from pinecall.cli.operator import Operator, against_the_gateway
+from pinecall.cli.help import only_the_help
+from pinecall.cli.operator import OPS_ORGS, Operator, against_the_gateway
 from pinecall.cli.orgs.members import invite, make_operator, remove_member
 from pinecall.cli.orgs.provider_keys import (
     a_key_from,
@@ -17,7 +18,7 @@ from pinecall.cli.orgs.provider_keys import (
     remove_provider_key,
     set_provider_key,
 )
-from pinecall.cli.orgs.sso import BREAK_GLASS, OPS_ORGS, sso
+from pinecall.cli.orgs.sso import BREAK_GLASS, sso
 from pinecall.providers.catalog import vendors_with_a_key
 from pinecall.types import QUOTAS, ROLES
 
@@ -146,7 +147,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
     signing_in.add_argument("--off", action="store_true", help=BREAK_GLASS)
     signing_in.set_defaults(run=run_sso)
 
-    parser.set_defaults(run=partial(_print_the_verbs, parser))
+    parser.set_defaults(run=only_the_help(parser))
 
 
 # Forty-odd names is not a help line, so the sentence names the door that prints them all with
@@ -182,7 +183,7 @@ def _configure_provider_keys(parser: argparse.ArgumentParser) -> None:
     listing.add_argument("org", metavar="<org>", help="by id or slug")
     listing.set_defaults(run=run_provider_key_list)
 
-    parser.set_defaults(run=partial(_print_the_verbs, parser))
+    parser.set_defaults(run=only_the_help(parser))
 
 
 def run_list(arguments: argparse.Namespace) -> int:  # noqa: ARG001
@@ -346,9 +347,3 @@ async def set_dialling(
 def _row_of(org: dict[str, Any]) -> tuple[str, ...]:
     """One org as a person reads it."""
     return (str(org["id"]), str(org["slug"]), str(org["name"]))
-
-
-def _print_the_verbs(parser: argparse.ArgumentParser, _arguments: Any) -> int:
-    """`orgs` with no verb: say what there is, and exit as a help screen does."""
-    parser.print_help()
-    return 0

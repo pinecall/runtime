@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from pinecall.evals import ConsentJudge, Spoken, a_case, a_matrix, as_html
+from pinecall.evals import ConsentJudge, GoldenRun, a_case, a_matrix, as_html
 from tests.evals.fakes import CountingJudge
 from tests.evals.logs import BOOKING, THE_GOLDENS_TOOLS, a_log, the_golden_call
 
@@ -16,12 +16,12 @@ async def a_report() -> str:
     before_the_yes = a_case(a_log("booking-before-the-yes"), tools=BOOKING)
     matrix = await a_matrix(
         [
-            Spoken(
+            GoldenRun(
                 model="haiku",
                 golden="before-the-yes",
                 case=before_the_yes,
             ),
-            Spoken(
+            GoldenRun(
                 model="haiku",
                 golden="confirmed",
                 case=a_case(a_log("booking-confirmed"), tools=BOOKING),
@@ -59,7 +59,7 @@ async def test_the_call_row_is_read_off_the_calls_own_summary() -> None:
     """A number on this page is a number the log wrote; a call with no summary shows a dash."""
     golden = a_case(the_golden_call(), tools=THE_GOLDENS_TOOLS)
     matrix = await a_matrix(
-        [Spoken(model="haiku", golden="the-golden-call", case=golden)],
+        [GoldenRun(model="haiku", golden="the-golden-call", case=golden)],
         [ConsentJudge(golden.gate)],
         CountingJudge(),
     )
@@ -74,7 +74,7 @@ async def test_the_call_row_is_read_off_the_calls_own_summary() -> None:
 async def test_a_page_where_everything_held_says_so_instead_of_listing_nothing() -> None:
     confirmed = a_case(a_log("booking-confirmed"), tools=BOOKING)
     matrix = await a_matrix(
-        [Spoken(model="haiku", golden="confirmed", case=confirmed)],
+        [GoldenRun(model="haiku", golden="confirmed", case=confirmed)],
         [ConsentJudge(confirmed.gate)],
         CountingJudge(),
     )

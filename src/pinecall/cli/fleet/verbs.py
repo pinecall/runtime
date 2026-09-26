@@ -12,6 +12,7 @@ from typing import Any, TextIO
 from pydantic import TypeAdapter
 
 from pinecall.cli.columns import as_columns
+from pinecall.cli.help import only_the_help
 from pinecall.cli.operator import Operator, OperatorRefused, against_the_gateway
 from pinecall.fleet import STALE_AFTER_S, Line, Seat, cloud_named
 from pinecall.fleet.clouds import CloudRefused
@@ -69,7 +70,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
     )
     looping.set_defaults(run=run_loop)
 
-    parser.set_defaults(run=partial(_print_the_verbs, parser))
+    parser.set_defaults(run=only_the_help(parser))
 
 
 def run_list(_arguments: argparse.Namespace) -> int:
@@ -241,9 +242,3 @@ def _row_of(seat: Seat, now: float) -> tuple[str, ...]:
         standing,
         f"{now - seat.seen_at:.0f}s ago",
     )
-
-
-def _print_the_verbs(parser: argparse.ArgumentParser, _arguments: Any) -> int:
-    """`fleet` with no verb: say what there is, and exit as a help screen does."""
-    parser.print_help()
-    return 0

@@ -6,6 +6,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import cast
 
+from pinecall.evals.gate import a_confirmation
 from pinecall.log.entry import Entry
 from pinecall.log.latencies import samples
 from pinecall.types import CONFIRMATIONS, GateKind, GateLine
@@ -53,7 +54,7 @@ def rebuild(entries: Sequence[Entry]) -> Replayed:
                 GateLine(seq=entry.seq, kind="tool.call", call_id=data.call_id, tool=data.name)
             )
         elif entry.type in CONFIRMATIONS:
-            gate.append(_a_confirmation(entry.seq, cast("GateKind", entry.type), data))
+            gate.append(a_confirmation(entry.seq, cast("GateKind", entry.type), data))
         elif isinstance(data, events.ErrorEvent):
             failures.append(
                 Failure(
@@ -70,18 +71,6 @@ def rebuild(entries: Sequence[Entry]) -> Replayed:
         gate=tuple(gate),
         failures=tuple(failures),
         latencies=samples(entries),
-    )
-
-
-# The three confirm events carry the same four fields the gate is judged on; only the reason and
-# the words differ, and no check reads those. The side effect is left unset: the log does not carry
-# it, and the check fills it in from the registry the agent declared to.
-def _a_confirmation(seq: int, kind: GateKind, data: object) -> GateLine:
-    """One `confirm.*` payload as a line of the gate's trace."""
-    if not isinstance(data, events.ConfirmRequest | events.ConfirmGranted | events.ConfirmDeclined):
-        raise TypeError(f"a {kind} entry carried a {type(data).__name__}")
-    return GateLine(
-        seq=seq, kind=kind, call_id=data.call_id, tool=data.tool, audience=data.audience
     )
 
 

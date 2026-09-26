@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Literal, override
+from typing import override
 
 from livekit.agents.evals import JudgmentResult
 from livekit.agents.llm import ChatContext
 
+from pinecall.evals.goldens import Register
 from pinecall.evals.judges.policy import PolicyJudge, broken, held
 from pinecall.evals.transcript import said_by_the_agent
-
-# Which of the two Spanish registers the business asked its agent to keep. A clinic says usted, a
-# beauty salon says tú, and the one thing neither wants is an agent that drifts between them.
-type Register = Literal["tu", "usted"]
+from pinecall.evals.words import PUNCTUATION
 
 # Words that can only be addressed to the listener as tú. `te`, `tu` and `tus` are second person
 # and nothing else; `té` carries its accent, so scanning for `te` never catches the drink.
@@ -27,7 +25,6 @@ USTEO: frozenset[str] = frozenset({"usted", "ustedes", "consigo", "suyo", "suya"
 
 MARKERS: dict[str, frozenset[str]] = {"tu": TUTEO, "usted": USTEO}
 
-PUNCTUATION = ".,;:¿?¡!()\"'"
 
 CRITERIA = "The agent addressed the caller as {register} in every one of its turns."
 
