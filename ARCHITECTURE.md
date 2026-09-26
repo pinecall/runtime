@@ -5,7 +5,8 @@ processes** on LiveKit: the **gateway**, the control plane, and the **worker**, 
 answers a call. Everything else on a box — the SFU, the SIP bridge, Redis, Postgres — is somebody else's
 software, run as it ships. This page is the shape of the thing, read off the code: every module
 opens with one line that says what it is, `tests/test_isolation.py` says what may import what,
-the words the tree speaks are [docs/glossary.md](docs/glossary.md), and the *why* of each decision
+the words the tree speaks are [docs/glossary.md](docs/glossary.md), the patterns it is built from, by name,
+[docs/patterns.md](docs/patterns.md), and the *why* of each decision
 is a page under `docs/decisions/` — the maintainer's notebook, kept out of git, names and not pages.
 
 ```
@@ -294,8 +295,7 @@ will answer places the leg (`worker/outbound_leg.py`, before the session is buil
 
 ## 8. The log
 
-`log/` imports no framework. `job.py` (the envelope), `store/` (the Store protocol; Postgres,
-the one door to a driver; memory for tests; the pool), `fanout.py` (every live reader, bounded
+`log/` imports no framework. `entry.py` (the envelope), `store/` (the Store protocol; Postgres; memory for tests), `fanout.py` (every live reader, bounded
 queues — a slow reader is dropped, an append never waits), `replay.py` (backlog, marker, live),
 `reduce.py` + `reduce_room.py` (fold entries into State; the TypeScript reducer keeps the same rules),
 `snapshots.py` (one reduction per call per seq, for the whole process), `projection.py` and

@@ -64,6 +64,7 @@ it. What to edit, by what you touched:
 | you changed | edit |
 |---|---|
 | a package, a module, an entity or its fields, a line of the import table, the path a call takes | `ARCHITECTURE.md` — the section, and any table that lists the module |
+| a pattern: a new port, a new kind of door, a rule the tree's tests hold | `docs/patterns.md` — its row, with the file and the test |
 | a CLI verb, a flag, a deploy step, a variable | `README.md` (the CLI and the deploy), `.env.example` via `scripts/generate-env-example` |
 | a public contract — the operator API, the token door, a projection | `docs/protocol/`, which is the contract itself and not a description of one |
 | a procedure with a trap in it — a NEVER, an order of steps, a refusal | the skill under `.claude/skills/` |
