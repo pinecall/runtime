@@ -5,10 +5,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Each run appends to one measure and holds no floor of its own (--cov-fail-under=0): a suite
+# covers its own distribution, a fifth of the tree. The floor is the total's, judged once, last.
 uv run coverage erase
 for suite in $(scripts/suites); do
-  uv run pytest -n auto -m "unit or postgres" --cov --cov-append --cov-report= "$suite"
+  uv run pytest -n auto -m "unit or postgres" --cov --cov-append --cov-report= --cov-fail-under=0 "$suite"
 done
-uv run pytest -n auto -m unit --cov --cov-append --cov-report= \
+uv run pytest -n auto -m unit --cov --cov-append --cov-report= --cov-fail-under=0 \
   -c packages/pinecall-core/pyproject.toml --rootdir packages/pinecall-core packages/pinecall-core/tests
 uv run coverage report
