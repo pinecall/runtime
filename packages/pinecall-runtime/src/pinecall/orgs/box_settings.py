@@ -9,9 +9,9 @@ from typing import Any, Protocol
 
 from cryptography.fernet import InvalidToken
 
-from pinecall._settings import Settings
 from pinecall.log.store import Pool
 from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, build_cipher, seal, unseal
+from pinecall.settings import Settings
 
 # The rows there are. A name is the whole key: the box is one, so there is no org beside it.
 BRAND = "brand"

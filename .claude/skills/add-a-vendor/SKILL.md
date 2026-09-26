@@ -7,7 +7,7 @@ description: Add an LLM, STT or TTS vendor the way this tree does it — a catal
 
 **Almost always, there is nothing to add.** `providers/catalog.py` already holds every vendor
 livekit-agents ships a plugin for, `providers/plugin.py` builds any of them out of the plugin's own
-constructor signature, and `_vendor_keys.py` holds a field for each. Check first:
+constructor signature, and `settings/vendor_keys.py` holds a field for each. Check first:
 
 ```bash
 uv run pinecall-runtime providers --does tts | grep -i <the vendor>
@@ -39,7 +39,7 @@ uv run pinecall-runtime providers --does tts | grep -i <the vendor>
   the vendor at the pipeline door, so `sonic`, `octave`, `sonar`, `mist`, `nova` and `aura` are
   deliberately not aliases — every one of them is something a person could type meaning the model.
 
-Then **one field in `_vendor_keys.py`**, named the variable lowercased. That rule is the whole of
+Then **one field in `settings/vendor_keys.py`**, named the variable lowercased. That rule is the whole of
 the key wiring: `catalog.settings_field_of` reads it, the doctor reads it, the vault accepts the
 vendor, `.env.example` and the box's units list it. `tests/providers/test_provider_keys.py` fails
 while a row has no field.

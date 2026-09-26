@@ -9,7 +9,7 @@ import pytest
 from opentelemetry.sdk.resources import SERVICE_NAME
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from pinecall._settings import load_settings
+from pinecall.settings import load_settings
 from pinecall.worker import telemetry
 from pinecall.worker.telemetry import FLEET, NOT_A_HEADER, headers_of, traced_to
 

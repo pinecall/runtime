@@ -10,7 +10,6 @@ from typing import Any, cast
 
 from livekit.agents import llm, stt, tts
 
-from pinecall._settings import Settings
 from pinecall.errors import PinecallError
 from pinecall.providers import catalog, lent_keys
 from pinecall.providers.catalog import Modality, Provider
@@ -20,6 +19,7 @@ from pinecall.providers.plugin import (
     built_by_a_plugin,
     is_installed,
 )
+from pinecall.settings import Settings
 from pinecall.types import NO_ORG_KEYS, ProviderKeys
 
 # livekit's LLM, STT and TTS are each generic over the extra events a plugin may emit; nothing here
@@ -231,8 +231,8 @@ def _a_key_if_it_has_one(provider: Provider, asked: Asked) -> str | None:
     return None if provider.env is None else vendor_key(provider.name, asked)
 
 
-# The field is the vendor's own variable name, lowercased — providers/catalog.py holds the rule and
-# _vendor_keys.py is written to keep it true, so adding a vendor adds no row to any table here.
+# The field is the vendor's own variable name, lowercased — providers/catalog.py holds the rule
+# and settings/vendor_keys.py is written to keep it true, so adding a vendor adds no row here.
 def _the_boxes_key(vendor: str, settings: Settings) -> str | None:
     """What the environment holds for the vendor, under the vendor's own variable name."""
     field_name = catalog.settings_field_of(vendor)

@@ -7,8 +7,8 @@ from typing import Protocol
 
 from livekit import api
 
-from pinecall._settings import Settings
 from pinecall.routes.sfu import Sfu
+from pinecall.settings import Settings
 
 # livekit's own list takes the names to ask about, so a hundred unsealed calls are one round trip
 # and never a hundred. Asked in batches because the names ride in the query of one request.

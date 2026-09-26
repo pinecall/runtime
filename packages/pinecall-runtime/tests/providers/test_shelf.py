@@ -8,9 +8,9 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall._settings import Settings
 from pinecall.providers.registry import Asked, NoProvider
 from pinecall.providers.tts.vendor_voices import PAGES_AT_MOST, NotListed, Shelf, ShelfUnreachable
+from pinecall.settings import Settings
 
 pytestmark = pytest.mark.unit
 

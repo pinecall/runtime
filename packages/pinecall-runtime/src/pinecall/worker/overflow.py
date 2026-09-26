@@ -11,8 +11,8 @@ from livekit.agents import AgentServer, JobContext
 from livekit.agents.voice import Agent, AgentSession
 from livekit.protocol.room import DeleteRoomRequest
 
-from pinecall._settings import Settings, load_settings
 from pinecall.fleet import HEARTBEAT_S
+from pinecall.settings import Settings, load_settings
 from pinecall.worker import job_target
 from pinecall.worker.gateway_client import Gateway
 from pinecall.worker.gateway_http import GatewayRefused

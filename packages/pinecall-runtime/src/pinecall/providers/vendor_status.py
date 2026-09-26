@@ -9,12 +9,12 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pinecall._settings import Settings
 from pinecall.providers import catalog
 from pinecall.providers.catalog import Provider
 from pinecall.providers.livekit_inference import VENDOR as INFERENCE
 from pinecall.providers.livekit_inference import has_livekit_pair
 from pinecall.providers.plugin import is_installed
+from pinecall.settings import Settings
 
 type Standing = Literal["ready", "no plugin", "no key", "its own"]
 

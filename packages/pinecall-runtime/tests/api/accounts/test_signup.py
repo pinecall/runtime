@@ -9,7 +9,6 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall._settings import Settings
 from pinecall.api.accounts.signup import NOT_HERE, TAKEN, TOO_MANY
 from pinecall.auth.keys import MemoryKeys
 from pinecall.auth.throttle import TRIES_PER_WINDOW
@@ -17,6 +16,7 @@ from pinecall.extensions import Extensions
 from pinecall.mail.outbox import Outbox
 from pinecall.mail.smtp import Mailbox
 from pinecall.orgs.records import MemoryOrgs
+from pinecall.settings import Settings
 from pinecall.types import ROLE_SCOPES, Quotas
 from tests.api.conftest import A_LIVEKIT, A_VAULT_KEY, AN_OPS_KEY, over_the_asgi_app
 from tests.api.mailing import A_BOX_SENDER

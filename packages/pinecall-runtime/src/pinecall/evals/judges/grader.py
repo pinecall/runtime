@@ -12,8 +12,8 @@ from livekit.agents.types import (
     NotGivenOr,
 )
 
-from pinecall._settings import Settings, load_settings
 from pinecall.providers.models import Chat, models_for
+from pinecall.settings import Settings, load_settings
 from pinecall.types import NOTHING_BROUGHT
 
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from pinecall._settings import Settings
 from pinecall.providers.language import primary
 from pinecall.providers.llm import VENDORS as LLM_VENDORS
 from pinecall.providers.models import DEFAULT_VENDOR
@@ -13,6 +12,7 @@ from pinecall.providers.registry import Asked, Chat, Ears, Speech
 from pinecall.providers.stt import VENDORS as STT_VENDORS
 from pinecall.providers.tts import DEFAULT_TTS, curated_voices
 from pinecall.providers.tts import VENDORS as TTS_VENDORS
+from pinecall.settings import Settings
 from pinecall.types import AgentConfig, Brought, Model, Voice
 
 logger = logging.getLogger(__name__)

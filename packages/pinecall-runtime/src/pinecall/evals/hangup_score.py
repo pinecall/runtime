@@ -11,7 +11,6 @@ from livekit.agents.evals import Evaluator, JudgeGroup, JudgmentResult
 from livekit.agents.llm import ChatContext
 from livekit.agents.metrics.usage import ModelUsageCollector
 
-from pinecall._settings import Settings, load_settings
 from pinecall.evals.case import Case
 from pinecall.evals.case_builder import build_case
 from pinecall.evals.judges.code_judge import PolicyJudge
@@ -25,6 +24,7 @@ from pinecall.log.entry import Entry
 from pinecall.providers import prices
 from pinecall.providers.usage_wire import wire_usage_rows
 from pinecall.session.score_step import Scorer
+from pinecall.settings import Settings, load_settings
 from pinecall.types import AgentConfig
 from pinecall_protocol.events import CallScore, Judgment
 

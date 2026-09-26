@@ -5,10 +5,10 @@ import logging
 import pytest
 from livekit.plugins import elevenlabs
 
-from pinecall._settings import Settings
 from pinecall.providers.registry import Asked, NoProvider
 from pinecall.providers.tts import VENDORS
 from pinecall.providers.tts.elevenlabs import ALLOWED, DEFAULT_MODEL, INSTEAD
+from pinecall.settings import Settings
 
 pytestmark = pytest.mark.unit
 

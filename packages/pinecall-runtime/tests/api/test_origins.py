@@ -7,11 +7,11 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall._settings import Settings
 from pinecall.api import pages
 from pinecall.api.app import app
 from pinecall.api.origins import THE_APPS_WEBVIEWS, origins_allowed
 from pinecall.log.writers import Logs
+from pinecall.settings import Settings
 from tests.api.conftest import A_KEY
 
 pytestmark = pytest.mark.unit

@@ -2,8 +2,8 @@
 
 import pytest
 
-from pinecall._settings import Settings
 from pinecall.auth.passwords import hash_password, matches
+from pinecall.settings import Settings
 from pinecall.types import DeclarationRefused
 
 pytestmark = pytest.mark.unit

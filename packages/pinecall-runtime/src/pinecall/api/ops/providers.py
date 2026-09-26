@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from pinecall._settings import Settings
 from pinecall.api.deps import ProviderKeysKeyDep, SettingsDep
 from pinecall.providers import catalog, llm, stt, tts
 from pinecall.providers.catalog import MODALITIES, Provider
@@ -23,6 +22,7 @@ from pinecall.providers.tts import DEFAULT_TTS
 from pinecall.providers.tts.curated_voices import voice_names
 from pinecall.providers.tts.vendor_voices import LISTED
 from pinecall.providers.vendor_status import READY, Standing, vendor_status
+from pinecall.settings import Settings
 from pinecall_protocol import WireModel
 
 router = APIRouter()

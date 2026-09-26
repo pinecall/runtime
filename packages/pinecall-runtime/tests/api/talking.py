@@ -9,12 +9,12 @@ from urllib.parse import quote
 import httpx
 from starlette.testclient import TestClient, WebSocketTestSession
 
-from pinecall._settings import Settings
 from pinecall.api import deps as deps
 from pinecall.api.agents.held_agent import Send
 from pinecall.api.app import app
 from pinecall.auth.env import ENV_HEADER
 from pinecall.log.entry import Entry
+from pinecall.settings import Settings
 from pinecall.types import PRODUCTION, SANDBOX, CallContext, Env, Route
 from pinecall.types.dispatch import DEFAULT_FLEET
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS, CHAT, Json, over_the_asgi_app

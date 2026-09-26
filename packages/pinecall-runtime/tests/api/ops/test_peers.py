@@ -7,8 +7,8 @@ import httpx
 import pytest
 from starlette.requests import HTTPConnection
 
-from pinecall._settings import Settings
 from pinecall.api.ops.peers import get_production_peer, get_sandbox_peer
+from pinecall.settings import Settings
 from tests.conftest import a_sandbox
 
 pytestmark = pytest.mark.unit

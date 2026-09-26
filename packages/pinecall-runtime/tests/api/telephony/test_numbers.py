@@ -7,7 +7,6 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall._settings import Settings
 from pinecall.api.telephony.numbers import (
     HELD_ELSEWHERE,
     NO_CARRIER,
@@ -18,6 +17,7 @@ from pinecall.api.telephony.numbers import (
 from pinecall.orgs.carriers import MemoryCarriers
 from pinecall.routes.records import MemoryRoutes
 from pinecall.routes.twilio import TWILIO_SIGNALLING
+from pinecall.settings import Settings
 from pinecall.types import PRODUCTION
 from tests.api.carriers import A_KEY_SID, A_SID, FakeTwilio
 from tests.api.conftest import A_LIVEKIT, A_RECORD, A_VAULT_KEY, AGENT, AN_OPS_KEY

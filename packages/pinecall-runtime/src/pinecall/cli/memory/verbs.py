@@ -7,10 +7,10 @@ import asyncio
 
 import httpx
 
-from pinecall._settings import load_settings
 from pinecall.log.store.postgres import DEFAULT_SCHEMA, create_pool
 from pinecall.memory.reembedding import reembed
 from pinecall.providers.embed import embedder_for, model_of
+from pinecall.settings import load_settings
 
 PURPOSE: str = "the contacts' facts: reembed, after the box's embedder changed"
 

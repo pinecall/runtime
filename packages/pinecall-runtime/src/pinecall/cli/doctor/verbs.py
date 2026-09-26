@@ -5,8 +5,6 @@ import sys
 from collections.abc import Callable, Sequence
 from urllib.parse import urlsplit, urlunsplit
 
-from pinecall._env_files import env_files_read
-from pinecall._settings import Role, Settings, load_settings, variable_of
 from pinecall.cli.doctor.machine import (
     check_the_certificate_holds,
     check_the_disk_has_room,
@@ -23,6 +21,8 @@ from pinecall.providers.key_probes import KNOCKS
 from pinecall.providers.models import DEFAULT_VENDOR
 from pinecall.providers.session_vendors import DEFAULT_STT
 from pinecall.providers.tts import DEFAULT_TTS
+from pinecall.settings import Role, Settings, load_settings, variable_of
+from pinecall.settings.env_files import env_files_read
 
 PURPOSE: str = (
     "keys · livekit · egress · postgres · embedder · mail · disk · fence · certificate · lk"

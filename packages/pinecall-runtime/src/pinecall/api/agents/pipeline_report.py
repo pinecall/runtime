@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pinecall._settings import Settings
 from pinecall.api.ops.providers import ProviderRow, models_vouched_for, rows
 from pinecall.log.entry import Entry
 from pinecall.log.latencies import medians
@@ -14,6 +13,7 @@ from pinecall.providers.session_vendors import DEFAULT_STT, vendor_running
 from pinecall.providers.tts import DEFAULT_TTS
 from pinecall.providers.tts.curated_voices import voice_names
 from pinecall.providers.tuned_declaration import apply_tuning
+from pinecall.settings import Settings
 from pinecall.types import AgentConfig, Greeting, Lexicon, Model, Tuning, Voice
 from pinecall_protocol import WireModel, defs
 

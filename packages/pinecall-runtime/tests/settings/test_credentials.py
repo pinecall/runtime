@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from pinecall._settings import Settings
+from pinecall.settings import Settings
 
 pytestmark = pytest.mark.unit
 

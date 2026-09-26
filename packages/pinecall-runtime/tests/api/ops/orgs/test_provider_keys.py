@@ -9,11 +9,11 @@ import httpx
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall._settings import Settings
 from pinecall.auth.keys import MemoryKeys
 from pinecall.orgs.records import MemoryOrgs
 from pinecall.orgs.vault import NO_VAULT_KEY
 from pinecall.providers.catalog import vendors_with_a_key
+from pinecall.settings import Settings
 from pinecall.types import ProviderKeys, Quotas
 from tests.api.conftest import (
     A_KEY,

@@ -4,11 +4,11 @@ from datetime import date
 
 import pytest
 
-from pinecall._settings import load_settings
 from pinecall.log.logs import CallLog
 from pinecall.log.store import MemoryStore
 from pinecall.providers.models import models_for
 from pinecall.session.text.session import TextSession
+from pinecall.settings import load_settings
 from pinecall.types import NOTHING_BROUGHT, AgentConfig, CallContext, Model, Route
 
 pytestmark = pytest.mark.needs_llm

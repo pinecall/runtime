@@ -6,11 +6,11 @@ from dataclasses import dataclass
 
 from livekit import rtc
 
-from pinecall._settings import Settings
 from pinecall.providers import tts
 from pinecall.providers.language import primary
 from pinecall.providers.registry import Asked, Speech
 from pinecall.providers.tts import DEFAULT_TTS
+from pinecall.settings import Settings
 from pinecall.types import NOTHING_BROUGHT, Brought
 from pinecall.types import Voice as DeclaredVoice
 

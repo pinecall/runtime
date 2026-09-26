@@ -6,7 +6,6 @@ from uuid import uuid4
 import pytest
 from cryptography.fernet import Fernet
 
-from pinecall._settings import Settings
 from pinecall.log.store import Pool, open_pool
 from pinecall.orgs.box_settings import (
     BoxSetting,
@@ -15,6 +14,7 @@ from pinecall.orgs.box_settings import (
     box_settings_for,
 )
 from pinecall.orgs.vault import NoVaultKey
+from pinecall.settings import Settings
 from tests.postgres import Dev
 
 pytestmark = pytest.mark.unit

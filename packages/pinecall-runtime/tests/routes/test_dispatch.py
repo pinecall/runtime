@@ -2,9 +2,9 @@
 
 import pytest
 
-from pinecall._settings import Settings
 from pinecall.routes import dispatch as dispatching_module
 from pinecall.routes.dispatch import Dialling, Job, dispatches_for
+from pinecall.settings import Settings
 from tests.routes.sfu import TheSfu
 
 pytestmark = pytest.mark.unit

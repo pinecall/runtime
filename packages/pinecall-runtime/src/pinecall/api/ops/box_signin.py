@@ -5,7 +5,6 @@ from __future__ import annotations
 from fastapi import HTTPException, Request
 from starlette.status import HTTP_204_NO_CONTENT
 
-from pinecall._settings import Settings
 from pinecall.api.accounts.org_sso import UNREACHABLE, HttpDep
 from pinecall.api.deps import SettingsDep
 from pinecall.api.ops.box_settings import BoxSettingsDep
@@ -15,6 +14,7 @@ from pinecall.auth.openid import OpenIdRefused, configuration
 from pinecall.orgs.box_settings import SIGN_IN, BoxSettings
 from pinecall.orgs.box_signin import GOOGLE, PROVIDERS, BoxSignIn
 from pinecall.orgs.vault import NO_VAULT_KEY, NoVaultKey
+from pinecall.settings import Settings
 from pinecall_protocol import WireModel
 from pinecall_protocol.rest import BoxProvider
 from pinecall_protocol.rest import BoxSignIn as SignInStanding

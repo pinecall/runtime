@@ -4,9 +4,9 @@ import importlib
 
 import pytest
 
-from pinecall._settings import load_settings
 from pinecall._version import __version__
 from pinecall.errors import PinecallError
+from pinecall.settings import load_settings
 from tests.tree import SOURCE_ROOTS
 
 pytestmark = pytest.mark.unit
@@ -22,6 +22,7 @@ PACKAGES = [
     "lookups",
     "mail",
     "memory",
+    "settings",
     "types",
     "worker",
 ]

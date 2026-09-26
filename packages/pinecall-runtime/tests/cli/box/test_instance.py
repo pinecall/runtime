@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from pinecall._settings import NOBODY_TO_ASK
 from pinecall.cli import build_parser
 from pinecall.cli.box.instance import (
     ALREADY,
@@ -18,6 +17,7 @@ from pinecall.cli.box.instance import (
     env_file,
     write_instance,
 )
+from pinecall.settings import NOBODY_TO_ASK
 
 pytestmark = pytest.mark.unit
 

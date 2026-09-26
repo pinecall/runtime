@@ -3,12 +3,12 @@
 import pytest
 from livekit.plugins import anthropic, deepgram, elevenlabs, soniox
 
-from pinecall._settings import Settings
 from pinecall.providers.catalog import PROVIDERS, settings_field_of, vendors_with_a_key
 from pinecall.providers.llm import VENDORS as LLM_VENDORS
 from pinecall.providers.registry import NO_ORG_KEYS, Asked, NoProvider, vendor_key
 from pinecall.providers.stt import VENDORS as STT_VENDORS
 from pinecall.providers.tts import VENDORS as TTS_VENDORS
+from pinecall.settings import Settings
 
 pytestmark = pytest.mark.unit
 

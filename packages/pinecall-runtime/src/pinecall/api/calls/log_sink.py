@@ -11,7 +11,6 @@ from fastapi import Depends, Header, HTTPException, Query
 from starlette.requests import HTTPConnection
 from starlette.responses import StreamingResponse
 
-from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.api.deps import SCOPE_OF_THE_DOOR, KeysDep, MembersDep, SettingsDep
 from pinecall.api.sse import PING, PING_SECONDS, RETRY_MS, pace, sse_frame, sse_stream
@@ -25,6 +24,7 @@ from pinecall.log.filters import Filter
 from pinecall.log.projection import project_entry
 from pinecall.log.store import DEFAULT_LIMIT, Store
 from pinecall.log.store.call_index import CallCorner, CallIndex
+from pinecall.settings import Settings
 from pinecall.types.agent import AgentConfig
 from pinecall.types.json import JsonObject
 from pinecall_protocol import WireModel, encode

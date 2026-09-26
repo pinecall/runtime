@@ -10,7 +10,7 @@ from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-from pinecall._settings import Settings, variable_of
+from pinecall.settings import Settings, variable_of
 
 logger = logging.getLogger(__name__)
 

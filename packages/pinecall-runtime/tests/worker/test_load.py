@@ -8,7 +8,7 @@ from collections.abc import Iterator
 import pytest
 from livekit.agents import AgentServer, JobContext, WorkerOptions
 
-from pinecall._settings import load_settings
+from pinecall.settings import load_settings
 from pinecall.worker import main
 from pinecall.worker.load import (
     NO_LOAD,

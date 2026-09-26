@@ -10,10 +10,10 @@ from typing import cast
 import pytest
 from livekit.agents import JobContext, JobExecutorType, JobProcess
 
-from pinecall._settings import load_settings
 from pinecall.evals.hangup_score import JudgedWhen
 from pinecall.providers import llm, stt, tts
 from pinecall.session.voice import VoiceBridge, build_bridge
+from pinecall.settings import load_settings
 from pinecall.worker import main
 from pinecall.worker.job import Worker
 from pinecall.worker.load import MachineLoad, SlotLoad, reports_no_load

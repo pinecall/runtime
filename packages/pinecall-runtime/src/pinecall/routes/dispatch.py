@@ -8,8 +8,8 @@ from typing import Any, Protocol
 
 from livekit import api
 
-from pinecall._settings import Settings
 from pinecall.routes.sfu import Sfu
+from pinecall.settings import Settings
 from pinecall.types import Env
 from pinecall.types.dispatch import (
     AGENT_KEY,

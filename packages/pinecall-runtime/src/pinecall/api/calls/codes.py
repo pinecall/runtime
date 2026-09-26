@@ -10,7 +10,6 @@ from pydantic import Field
 from starlette.requests import HTTPConnection
 from starlette.status import HTTP_201_CREATED, HTTP_204_NO_CONTENT
 
-from pinecall._settings import Settings
 from pinecall.api.calls.log_sink import get_reader_or_none
 from pinecall.api.calls.worker_writes import NOT_OPEN, NOT_THIS_ORG
 from pinecall.api.deps import (
@@ -26,6 +25,7 @@ from pinecall.auth.keys import KeyRecord, is_fleet_key
 from pinecall.auth.scopes import mint_code_token, mint_log_token, secret_for
 from pinecall.orgs.caller_codes import Codes, Issued
 from pinecall.routes.records import Routes
+from pinecall.settings import Settings
 from pinecall_protocol import WireModel, encode
 from pinecall_protocol.commands import CallClaim
 from pinecall_protocol.defs import Projection

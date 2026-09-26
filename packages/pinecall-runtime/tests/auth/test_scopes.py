@@ -2,13 +2,13 @@
 
 import pytest
 
-from pinecall._settings import Settings
 from pinecall.auth.scopes import (
     KEY_PROJECTION,
     PROJECTION_OF,
     LivekitKeys,
     secret_for,
 )
+from pinecall.settings import Settings
 from pinecall.types.scopes import SCOPES
 
 pytestmark = pytest.mark.unit

@@ -6,12 +6,12 @@ from dataclasses import dataclass
 
 import httpx
 
-from pinecall._settings import EmbedProvider, Settings, variable_of
 from pinecall.providers.embed.perplexity import PerplexityEmbedder
 from pinecall.providers.embed.tei import TeiEmbedder
 from pinecall.providers.embed.wire import FLOATS, SIGNED_BYTES
 from pinecall.providers.embedder import Embedder
 from pinecall.providers.registry import NoProvider
+from pinecall.settings import EmbedProvider, Settings, variable_of
 
 # A vendor with no key is a refusal at startup, and never a 500 in the middle of a push.
 NO_KEY = "the {provider} embedder has no API key in this process: set {variable}"

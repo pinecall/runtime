@@ -7,8 +7,8 @@ import sys
 from livekit.agents import AgentServer
 from livekit.agents.cli import run_app
 
-from pinecall._settings import Settings, load_settings
 from pinecall.providers.session_vendors import warm_the_vendor_tables
+from pinecall.settings import Settings, load_settings
 from pinecall.worker import overflow, recording_paths
 from pinecall.worker.gateway_client import build_gateway
 from pinecall.worker.heartbeat import Heartbeats

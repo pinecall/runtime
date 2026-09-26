@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from pinecall._settings import Settings
 from pinecall.api.evals.agent_finished import until_the_answer_lands
 from pinecall.api.evals.golden_call import Conversation
 from pinecall.auth.scopes import new_visitor_identity
@@ -15,6 +14,7 @@ from pinecall.evals.wait_until import until
 from pinecall.log.entry import Entry
 from pinecall.log.replay import whole
 from pinecall.log.store import Store
+from pinecall.settings import Settings
 from pinecall.types import Env
 from pinecall_protocol.registry import TERMINAL_EVENT
 

@@ -7,9 +7,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal
 
-from pinecall._settings import Settings
 from pinecall.orgs.box_settings import MAIL, BoxSettings
 from pinecall.orgs.org_mail import KeptMail
+from pinecall.settings import Settings
 from pinecall.types import DeclarationRefused, Mailbox, parse_mailbox_url, parse_security
 
 logger = logging.getLogger(__name__)

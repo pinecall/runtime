@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import Request
 
-from pinecall._settings import Settings
+from pinecall.settings import Settings
 
 
 # The box's public name when it has one — a carrier already needs it, and it is what Caddy answers

@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
-from pinecall._settings import Budgets
 from pinecall.api.agents import call_commands as commands
 from pinecall.api.evals.app_settled import Settling
 from pinecall.api.evals.run_attachment import APP_DETACHED, ENDED_BY, AppDetached, Attachment
@@ -24,6 +23,7 @@ from pinecall.providers.models import Chat
 from pinecall.session.model_requests import Asking, NotAsking, WhatWasAsked
 from pinecall.session.text.session import TextSession
 from pinecall.session.text.turn_allowance import Allowance, unlimited_allowance
+from pinecall.settings import Budgets
 from pinecall.types import AgentConfig, CallContext, Env, Route, Versions
 from pinecall_protocol.commands import CallEvent, SessionConfigure
 

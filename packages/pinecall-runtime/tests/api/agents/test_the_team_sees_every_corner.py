@@ -8,11 +8,11 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient, WebSocketTestSession
 
-from pinecall._settings import Settings
 from pinecall.auth.keys import KeyRecord, MemoryKeys, is_held_by
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.request_scope import CANNOT_LOOK_THERE, NOT_A_COLLEAGUE, looking_into
 from pinecall.log.store import MemoryStore
+from pinecall.settings import Settings
 from pinecall.types import ROLE_SCOPES, SANDBOX, Member
 from tests.api.calls.test_listing import RINGING, UP
 from tests.api.conftest import A_RECORD, AGENT, APPS

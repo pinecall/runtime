@@ -12,10 +12,10 @@ import pytest
 from livekit import rtc
 from livekit.agents import APIConnectionError, APIStatusError
 
-from pinecall._settings import Settings
 from pinecall.providers.registry import Asked
 from pinecall.providers.tts import sampling
 from pinecall.providers.tts.sampling import A_LINE_FOR, SampleRefused, sample_line_for, speak_sample
+from pinecall.settings import Settings
 
 pytestmark = pytest.mark.unit
 

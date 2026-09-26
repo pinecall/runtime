@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 
-from pinecall._settings import Settings, load_settings, variable_of
 from pinecall.cli.columns import aligned_columns
 from pinecall.providers import catalog
 from pinecall.providers.catalog import MODALITIES, Provider
@@ -16,6 +15,7 @@ from pinecall.providers.models import DEFAULT_VENDOR
 from pinecall.providers.session_vendors import DEFAULT_STT
 from pinecall.providers.tts import DEFAULT_TTS
 from pinecall.providers.vendor_status import vendor_status
+from pinecall.settings import Settings, load_settings, variable_of
 
 PURPOSE: str = "every llm, stt and tts vendor this build runs, and what each one wants"
 

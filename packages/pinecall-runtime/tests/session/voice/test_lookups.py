@@ -13,8 +13,8 @@ from livekit.agents import llm as agents
 from livekit.agents.voice import AgentSession
 from livekit.agents.voice import events as session_events
 
-from pinecall._settings import Budgets
 from pinecall.session.voice import VoiceBridge, build_bridge
+from pinecall.settings import Budgets
 from pinecall.types import Docs, MemoryPolicy, PlatformTool
 from tests.session.fake_llm import FakeLLM, Scripted
 from tests.session.voice.fakes import CALL, CLARA, Recording

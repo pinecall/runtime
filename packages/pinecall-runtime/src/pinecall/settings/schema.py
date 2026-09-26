@@ -1,7 +1,6 @@
-"""Every environment variable the runtime reads, declared once, for both processes."""
+"""Settings: every environment variable the runtime reads, declared once, for both processes."""
 
 import os
-from dataclasses import dataclass
 from typing import Literal, cast, override
 
 from pydantic import Field, field_validator, model_validator
@@ -12,9 +11,10 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
-from pinecall._env_files import ENV_FILES, env_file_refusal, env_files_read
-from pinecall._vendor_keys import VendorKeys
-from pinecall.errors import PinecallError
+from pinecall.settings.budgets import Budgets
+from pinecall.settings.env_files import ENV_FILES, env_files_read
+from pinecall.settings.refusals import NOBODY_TO_ASK, NobodyToAsk
+from pinecall.settings.vendor_keys import VendorKeys
 from pinecall.types import PRODUCTION, SANDBOX, Env
 from pinecall.types.dispatch import A_FLEET_NAME, DEFAULT_FLEET
 from pinecall.types.today import parse_zone
@@ -33,24 +33,6 @@ type EmbedProvider = Literal["tei", "perplexity", "openrouter"]
 # What the gateway's lines look like: a terminal reads text, a journal a Loki or Vector tails
 # reads json — the same json the worker's `start` verb writes by itself (livekit's JsonFormatter).
 type LogFormat = Literal["text", "json"]
-
-
-# A lookup never delays a reply past its budget, and a slow model at hang-up never holds the
-# seal: the numbers a session waits on memory and retrieval for, then goes on without them.
-# Declared here, once, because the three fields below take their defaults from it. The two lookup
-# budgets are named for the CHANNEL because each measures a different silence, and the field that
-# reads each one says which (session/lookup_tools.py starts a spoken call's while the caller talks).
-@dataclass(frozen=True)
-class Budgets:
-    """What each turn may wait for its lookups, and a hang-up for its memory, before going on."""
-
-    voice_lookup_ms: int = 250
-    text_lookup_ms: int = 3000
-    remember_s: float = 8.0
-    # What the seal of a spoken call waits, in all, for its queued entries to reach the platform
-    # and its verdict to come back: well inside the job's own SEALING_S (worker/main.py), so a
-    # gateway that is away at hang-up costs the verdict and never the seal (2026-09-26).
-    seal_s: float = 20.0
 
 
 def _names(cls: type[BaseSettings], key: str) -> str:
@@ -537,25 +519,3 @@ class Settings(VendorKeys):
             return init_settings, env_settings, dotenv_settings, file_secret_settings
         walked = DotEnvSettingsSource(settings_cls, env_file=env_files_read())
         return init_settings, env_settings, walked, file_secret_settings
-
-
-# Said in one sentence, by every process and every verb, since each reads the settings first.
-NOBODY_TO_ASK = "a sandbox instance asks production who a person is: set PINECALL_IDENTITY_URL"
-
-
-class NobodyToAsk(PinecallError):
-    """A sandbox instance started with no PINECALL_IDENTITY_URL. Nothing runs until it has one."""
-
-
-def load_settings() -> Settings:
-    """The environment now. No hidden global; an unopenable .env is a sentence, not a trace."""
-    try:
-        return Settings()
-    except OSError as failed:
-        raise env_file_refusal(failed) from failed
-
-
-def variable_of(field: str) -> str:
-    """The environment variable one settings field reads: its own alias, or PINECALL_ + its name."""
-    alias = Settings.model_fields[field].validation_alias
-    return alias if isinstance(alias, str) else f"{ENV_PREFIX}{field.upper()}"

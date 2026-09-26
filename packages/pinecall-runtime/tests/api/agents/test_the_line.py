@@ -8,11 +8,11 @@ from dataclasses import asdict
 import httpx
 import pytest
 
-from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry
 from pinecall.api.ops.peers import get_production_peer
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
+from pinecall.settings import Settings
 from pinecall.types import PRODUCTION, SANDBOX, Member, Route
 from tests.api.conftest import A_RECORD, AGENT, over_the_asgi_app
 from tests.api.peering import A_PEER_KEY, Scripting

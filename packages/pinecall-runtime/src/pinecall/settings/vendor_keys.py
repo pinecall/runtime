@@ -5,10 +5,10 @@ from pydantic_settings import BaseSettings
 
 
 # The one part of the configuration that is NOT ours to name. Everything Pinecall invented is
-# `PINECALL_`-prefixed in _settings.py; these carry the vendor's own variable, because a box
+# `PINECALL_`-prefixed in settings/schema.py; these carry the vendor's own variable, because a box
 # that already exports ANTHROPIC_API_KEY for something else should not export it twice. They
 # are a class of their own for that reason and for one more: they are the half of the settings
-# that grows every time a vendor is added, and _settings.py is the half that must stay readable.
+# that grows every time a vendor is added, and schema.py is the half that must stay readable.
 # Settings inherits this, so `Settings.model_fields` still names every field there is.
 #
 # There is one field per catalogued vendor that has a single-string credential, and the field name

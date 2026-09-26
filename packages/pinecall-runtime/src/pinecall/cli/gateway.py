@@ -10,9 +10,9 @@ import uvicorn
 from fastapi import FastAPI
 from livekit.agents.cli.log import JsonFormatter
 
-from pinecall._settings import Settings, load_settings, variable_of
 from pinecall.api.sse import announce_closing
 from pinecall.errors import PinecallError
+from pinecall.settings import Settings, load_settings, variable_of
 
 PURPOSE: str = "the control plane: HTTP and WebSocket, one process"
 

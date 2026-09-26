@@ -12,12 +12,12 @@ from pathlib import Path
 
 import httpx
 
-from pinecall._settings import Settings
 from pinecall.log.store import StoreUnreachable, open_pool
 from pinecall.log.store.postgres import installed_extensions
 from pinecall.mail import BoxMail, TheBoxsMail
 from pinecall.orgs.box_settings import box_settings_for
 from pinecall.providers.embed import embedder_for
+from pinecall.settings import Settings
 
 # A doctor runs while something is broken: long enough for a healthy service on the same box,
 # short enough that four checks against a dead one still answer in one breath.

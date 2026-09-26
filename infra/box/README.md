@@ -385,7 +385,7 @@ Nowhere in the clear. Every secret on the box is a **systemd credential**: one f
 TPM where it has one — and decrypted by systemd into a private directory for the one unit that
 named it (`ImportCredential=` by name for the box's, `LoadCredentialEncrypted=` by path for an
 instance's), readable by that process and by nothing down the tree.
-The runtime reads that directory as it reads the environment (`_settings.py`, `secrets_dir`),
+The runtime reads that directory as it reads the environment (`settings/schema.py`, `secrets_dir`),
 under the same names; the three containers that take a secret — livekit, sip and postgres — read
 one credential, `media.env`, as their environment file. There is no `.env` on the box, and a stolen disk is not a stolen tenant.
 

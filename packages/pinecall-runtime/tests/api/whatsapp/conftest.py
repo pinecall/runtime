@@ -9,12 +9,12 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall._settings import Settings
 from pinecall.api import deps as deps
 from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
 from pinecall.api.whatsapp.threads import Thread, Threads
 from pinecall.routes.records import Routes
+from pinecall.settings import Settings
 from pinecall.types import PRODUCTION, Route
 from pinecall.whatsapp.webhook_signature import SIGNATURE_HEADER
 from tests.api.conftest import (

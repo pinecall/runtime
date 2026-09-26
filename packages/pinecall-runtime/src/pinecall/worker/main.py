@@ -9,11 +9,11 @@ from typing import TypedDict
 
 from livekit.agents import AgentServer, JobContext, JobProcess
 
-from pinecall._settings import Settings, load_settings, variable_of
 from pinecall.evals.hangup_score import JudgedWhen
 from pinecall.providers.session_vendors import warm_the_vendor_tables
 from pinecall.session.voice import build_bridge
 from pinecall.session.voice.vendors import kit_for
+from pinecall.settings import Settings, load_settings, variable_of
 from pinecall.worker import recording_paths
 from pinecall.worker.gateway_client import build_gateway
 from pinecall.worker.job import Worker, answer

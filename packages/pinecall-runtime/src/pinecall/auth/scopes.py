@@ -13,8 +13,8 @@ import jwt
 from livekit.api import AccessToken, TokenVerifier, VideoGrants
 from livekit.protocol.room import RoomConfiguration
 
-from pinecall._settings import Settings
 from pinecall.auth.keys import KeyRecord, Keys
+from pinecall.settings import Settings
 from pinecall.types.key import ENVS, Env, parse_env
 from pinecall.types.scopes import (
     AGENT_ATTRIBUTE,

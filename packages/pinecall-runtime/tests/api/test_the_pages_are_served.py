@@ -9,11 +9,11 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall._settings import Settings
 from pinecall.api import deps as deps
 from pinecall.api import pages
 from pinecall.api.app import app
 from pinecall.api.pages import NOT_BUILT
+from pinecall.settings import Settings
 from tests.conftest import a_sandbox
 
 pytestmark = pytest.mark.unit

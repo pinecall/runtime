@@ -6,9 +6,9 @@ import pytest
 from livekit.agents.evals import Judge, JudgmentResult
 from livekit.agents.llm import LLM, ChatContext
 
-from pinecall._settings import Settings
 from pinecall.evals import Counted, hangup_score
 from pinecall.evals.hangup_score import score_call
+from pinecall.settings import Settings
 from pinecall.types import AgentConfig, ToolSpec
 from pinecall_protocol import decode_entries, encode
 from pinecall_protocol.envelope import Entry

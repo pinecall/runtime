@@ -5,13 +5,13 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from pinecall._settings import Settings
 from pinecall.mail.box_mailbox import TheBoxsMail, environment_mailbox
 from pinecall.mail.brand import Brand, brand_of
 from pinecall.mail.letters import Letter
 from pinecall.mail.smtp import MailRefused, post
 from pinecall.orgs.box_settings import BoxSettings
 from pinecall.orgs.org_mail import Mail
+from pinecall.settings import Settings
 from pinecall.types import Mailbox
 
 logger = logging.getLogger(__name__)

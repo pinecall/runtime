@@ -10,11 +10,11 @@ from fastapi.routing import APIRoute, APIWebSocketRoute
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from pinecall._settings import Settings
 from pinecall.api.app import app
 from pinecall.api.deps import SCOPE_OF_THE_DOOR
 from pinecall.auth.bearer import POLICY_VIOLATION
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
+from pinecall.settings import Settings
 from pinecall.types import KEY_SCOPES, SANDBOX
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS, CHAT
 from tests.api.talking import a_door, a_frame, a_register, answering_in, got

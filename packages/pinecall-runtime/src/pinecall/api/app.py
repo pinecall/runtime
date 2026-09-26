@@ -11,7 +11,6 @@ from functools import partial
 import httpx
 from fastapi import FastAPI
 
-from pinecall._settings import Settings, load_settings
 from pinecall.api import pages
 from pinecall.api.agents.processes import Processes
 from pinecall.api.agents.registry import Registry
@@ -75,6 +74,7 @@ from pinecall.routes.live_rooms import rooms_for
 from pinecall.routes.outbound_trunks import outbound_for
 from pinecall.routes.records import routes_for
 from pinecall.routes.twilio import HttpTwilio
+from pinecall.settings import Settings, load_settings
 from pinecall.tokens.ledger import tokens_for
 from pinecall.whatsapp.cloud_api import HttpGraph
 

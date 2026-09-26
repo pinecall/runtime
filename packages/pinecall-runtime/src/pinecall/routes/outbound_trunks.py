@@ -7,9 +7,9 @@ from typing import Protocol
 
 from livekit import api
 
-from pinecall._settings import Settings
 from pinecall.routes.inbound_trunks import first_named, once_named
 from pinecall.routes.sfu import Sfu
+from pinecall.settings import Settings
 from pinecall.types import SipTransport
 
 # One outbound trunk per org, named beside its inbound twin so a person reading the SFU's two

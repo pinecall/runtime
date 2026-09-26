@@ -8,7 +8,6 @@ from typing import Any
 import pytest
 from livekit.agents import llm as agents
 
-from pinecall._settings import Budgets
 from pinecall.api.evals.golden_call import open_eval_call
 from pinecall.api.live import Live
 from pinecall.evals.goldens import Golden
@@ -18,6 +17,7 @@ from pinecall.lookups import Lookups
 from pinecall.orgs.vault import brought_by
 from pinecall.session import date_tool
 from pinecall.session.text.session import TextSession
+from pinecall.settings import Budgets
 from pinecall.types import PRODUCTION, AgentConfig
 from tests.lookups.fakes import a_plan, the_tenants
 from tests.session.fake_llm import FakeLLM

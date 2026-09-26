@@ -8,9 +8,9 @@ from typing import Protocol
 
 from livekit import api
 
-from pinecall._settings import Settings
 from pinecall.routes.sfu import Sfu
 from pinecall.routes.twilio import TWILIO_SIGNALLING
+from pinecall.settings import Settings
 from pinecall.types import Carrier, TwilioAccount
 from pinecall.types.dispatch import DEFAULT_FLEET, ORG_KEY
 

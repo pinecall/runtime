@@ -7,12 +7,12 @@ from collections.abc import AsyncIterator
 import httpx
 import pytest
 
-from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.env import ENV_HEADER, NO_PRODUCTION
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
 from pinecall.orgs.records import MemoryOrgs
 from pinecall.orgs.vault import Vault
+from pinecall.settings import Settings
 from pinecall.types import BLANK, PRODUCTION, ROLE_SCOPES, SANDBOX, Quotas
 from pinecall_protocol import defs
 from tests.api.conftest import A_KEY, A_RECORD, AGENT

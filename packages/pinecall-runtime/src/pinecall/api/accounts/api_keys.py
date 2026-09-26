@@ -6,11 +6,11 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall._settings import Settings
 from pinecall.api.deps import AppKeyDep, KeyDep, KeysDep, MembersDep, SettingsDep
 from pinecall.auth.env import THE_OTHER_GATEWAY, is_persons_key
 from pinecall.auth.keys import Issued, KeyRecord, ListedKey
 from pinecall.auth.request_scope import author_of
+from pinecall.settings import Settings
 from pinecall.types import Env, parse_env
 from pinecall_protocol import WireModel
 

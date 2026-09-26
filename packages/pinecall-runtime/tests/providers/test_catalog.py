@@ -46,10 +46,10 @@ def test_a_plugin_that_cannot_import_is_a_refusal_and_never_a_traceback(
     vendor: str, modality: Modality
 ) -> None:
     """A broken wheel reads as a line on a screen, not as a job that died with a caller in it."""
-    from pinecall._settings import Settings
     from pinecall.providers.registry import Asked, NoProvider
     from pinecall.providers.stt import VENDORS as STT_VENDORS
     from pinecall.providers.tts import VENDORS as TTS_VENDORS
+    from pinecall.settings import Settings
 
     field = catalog.settings_field_of(vendor)
     assert field is not None

@@ -9,9 +9,9 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import HTTPConnection
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from pinecall._settings import Settings
 from pinecall.api.deps import get_settings
 from pinecall.extensions.loading import named_in
+from pinecall.settings import Settings
 
 # The app is a WebView, and a WebView's origin is not this box's: Capacitor serves iOS from
 # `capacitor://localhost` and Android from `https://localhost`. Every build of the app has exactly

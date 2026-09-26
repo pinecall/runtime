@@ -7,9 +7,9 @@ from typing import Any, Protocol
 
 from cryptography.fernet import Fernet, MultiFernet
 
-from pinecall._settings import Settings
 from pinecall.errors import PinecallError
 from pinecall.log.store import Pool
+from pinecall.settings import Settings
 from pinecall.types import NO_ORG_KEYS, Brought, ProviderKeys, QuotasOf
 
 # What a runtime with no PINECALL_VAULT_KEY answers when asked to keep somebody's key. A 503 and

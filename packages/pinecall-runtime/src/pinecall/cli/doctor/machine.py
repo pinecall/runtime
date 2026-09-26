@@ -2,9 +2,9 @@
 
 from datetime import UTC, datetime
 
-from pinecall._settings import Settings
 from pinecall.cli.doctor.probes import Probes
 from pinecall.cli.doctor.report import Result, reason
+from pinecall.settings import Settings
 
 # Below this the box is minutes from a Postgres that refuses every write and a recorder that
 # drops every file — both of them silent until a caller is the one to find out.

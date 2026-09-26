@@ -38,7 +38,7 @@ class Provider:
     vendor at all, and only its key is of interest (whatsapp)."""
 
     env: str | None = None
-    """The variable this vendor's own SDK reads, kept as the vendor spells it (see _vendor_keys.py).
+    """The variable this vendor's own SDK reads, as the vendor spells it (settings/vendor_keys.py).
     None: the plugin brings its own credentials — an AWS profile, a Google service account, a
     client id and secret — so there is no one string an org could bring and BYOK does not apply."""
 
@@ -287,8 +287,8 @@ def env_of(vendor: str) -> str | None:
 
 
 # The settings field that holds a vendor's key is the vendor's own variable, lowercased — that is
-# the whole rule, and _vendor_keys.py is written to keep it true. It replaces a hand-kept table of
-# vendor-to-field that had six rows and would have needed one per vendor.
+# the whole rule, and settings/vendor_keys.py is written to keep it true. It replaces a hand-kept
+# table of vendor-to-field that had six rows and would have needed one per vendor.
 def settings_field_of(vendor: str) -> str | None:
     """Which field of Settings holds this vendor's key, or None when it has no single one."""
     env = env_of(vendor)

@@ -2,8 +2,8 @@
 
 import asyncio
 
-from pinecall._settings import variable_of
 from pinecall.mail import BoxMail, MailRefused, post, probe_letter
+from pinecall.settings import variable_of
 from pinecall.types import DeclarationRefused, Mailbox, parse_address
 
 # A box that posts no mail is not a box that is down: every door behaves as it did before mail

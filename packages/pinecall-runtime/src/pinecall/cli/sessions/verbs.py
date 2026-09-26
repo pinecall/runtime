@@ -12,7 +12,6 @@ from datetime import UTC, datetime
 from functools import partial
 from typing import TextIO
 
-from pinecall._settings import load_settings
 from pinecall.cli.columns import aligned_columns
 from pinecall.cli.help import help_only
 from pinecall.cli.sessions import render
@@ -20,6 +19,7 @@ from pinecall.cli.sessions.source import Calls, Source
 from pinecall.log.entry import Entry
 from pinecall.log.latencies import medians
 from pinecall.log.reduce import reduce
+from pinecall.settings import load_settings
 from pinecall_protocol import encode
 from pinecall_protocol.registry import TERMINAL_EVENT
 from pinecall_protocol.state import State

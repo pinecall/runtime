@@ -12,7 +12,7 @@ from livekit.agents import JobContext
 from livekit.agents.cli import _legacy
 from livekit.agents.voice import RecordingOptions
 
-from pinecall._settings import Settings
+from pinecall.settings import Settings
 
 logger = logging.getLogger(__name__)
 

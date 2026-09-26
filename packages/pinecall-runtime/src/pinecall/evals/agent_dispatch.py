@@ -9,7 +9,7 @@ from livekit import api
 from livekit.protocol.agent_dispatch import CreateAgentDispatchRequest
 from livekit.protocol.room import DeleteRoomRequest
 
-from pinecall._settings import Settings
+from pinecall.settings import Settings
 from pinecall.types import PRODUCTION, Env
 from pinecall.types.dispatch import (
     ACCEPTS_KEY,

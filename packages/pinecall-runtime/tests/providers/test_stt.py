@@ -6,11 +6,11 @@ import pytest
 from livekit.agents.utils import is_given
 from livekit.plugins import deepgram, soniox
 
-from pinecall._settings import Settings
 from pinecall.providers.registry import Asked, NoProvider
 from pinecall.providers.stt import DEFAULT_HINTS, MAX_SILENCE_MS, VENDORS, hints_for
 from pinecall.providers.stt.deepgram import DEFAULT_MODEL as FLUX
 from pinecall.providers.stt.soniox import LATENCY_LEVEL, SENSITIVITY
+from pinecall.settings import Settings
 
 pytestmark = pytest.mark.unit
 

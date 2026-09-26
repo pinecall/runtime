@@ -5,12 +5,12 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from pinecall._settings import Settings
 from pinecall.api.accounts.identity import BOUGHT_THERE
 from pinecall.api.telephony.managed_numbers import NO_BOX_CARRIER, NONE_FOR_SALE
 from pinecall.orgs.records import MemoryOrgs
 from pinecall.routes.records import MemoryRoutes
 from pinecall.routes.twilio import TWILIO_SIGNALLING
+from pinecall.settings import Settings
 from pinecall.types import PRODUCTION, Quotas
 from tests.api.carriers import A_KEY_SID, A_SID, FakeTwilio
 from tests.api.conftest import A_LIVEKIT, A_RECORD, A_VAULT_KEY, AGENT, AN_OPS_KEY

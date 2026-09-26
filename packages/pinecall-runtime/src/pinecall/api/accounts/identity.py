@@ -7,7 +7,6 @@ from typing import Annotated
 from fastapi import Depends, HTTPException
 from starlette.requests import HTTPConnection
 
-from pinecall._settings import Settings
 from pinecall.api.accounts.org_sso import get_http
 from pinecall.api.deps import SettingsDep
 from pinecall.auth.identity import Identity
@@ -16,6 +15,7 @@ from pinecall.auth.members import Members
 from pinecall.auth.person_keys import mint_person_key
 from pinecall.extensions import Admitting
 from pinecall.orgs.records import Orgs
+from pinecall.settings import Settings
 from pinecall.types import PRODUCTION, SANDBOX, Quotas
 
 # A sandbox instance keeps no password and makes no person: whoever signs in there signed in at

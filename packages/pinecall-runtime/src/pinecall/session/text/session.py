@@ -10,7 +10,6 @@ from typing import Any
 from livekit.agents import llm as agents
 from livekit.agents.voice import AgentSession
 
-from pinecall._settings import Budgets
 from pinecall.log import NOTHING_SAID, hashed_prompt
 from pinecall.log.entry import Entry
 from pinecall.log.logs import CallLog
@@ -37,6 +36,7 @@ from pinecall.session.text.turn_allowance import SPENT, Allowance, TurnRefused, 
 from pinecall.session.text.turns import Turns
 from pinecall.session.tool_declaration import declare_tools
 from pinecall.session.written import build_written_session
+from pinecall.settings import Budgets
 from pinecall.types import AgentConfig, Blocks, CallContext
 from pinecall_protocol import WireModel, defs, encode
 from pinecall_protocol.commands import CallCallback, StateSet

@@ -15,7 +15,6 @@ from fastapi import Depends
 from pydantic import Field
 from starlette.requests import HTTPConnection
 
-from pinecall._settings import Budgets, Settings
 from pinecall.api.agents.held_agent import Registration
 from pinecall.api.agents.registry import NO_AGENT, Registry
 from pinecall.api.agents.session_config import tuned_for
@@ -39,6 +38,7 @@ from pinecall.orgs.vault import Vault, brought_by
 from pinecall.providers import declaration
 from pinecall.providers.models import Models
 from pinecall.session.text.turn_allowance import TurnRefused
+from pinecall.settings import Budgets, Settings
 from pinecall.types import (
     AgentConfig,
     Brought,

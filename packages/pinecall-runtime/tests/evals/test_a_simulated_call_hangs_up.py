@@ -14,8 +14,8 @@ from typing import Any, ClassVar
 import pytest
 from livekit import api
 
-from pinecall._settings import Settings
 from pinecall.evals import agent_dispatch
+from pinecall.settings import Settings
 
 pytestmark = pytest.mark.unit
 

@@ -16,7 +16,7 @@ scripts/test                                    # pytest -m "unit or postgres" +
 uv run pytest -m unit                           # ring 0: no keys, no network, SHUFFLED — three green runs, or nothing
 uv run pytest packages/pinecall-runtime/tests/cli/doctor/test_verbs.py    # one file
 uv run pinecall-runtime gateway | worker dev | migrate up | doctor
-scripts/generate-env-example                    # after touching _settings.py; a test fails while it drifts
+scripts/generate-env-example                    # after touching settings/schema.py; a test fails while it drifts
 make deploy                                     # this checkout onto your box (deploy.local.mk); ends with the doctor
 ```
 
@@ -44,9 +44,10 @@ make deploy                                     # this checkout onto your box (d
   - `api/` the gateway's doors, one directory per surface (`scope/ accounts/ agents/ calls/ memory/
     knowledge/ evals/ telephony/ org/ ops/ whatsapp/`) · `worker/` the job · `cli/` the verbs · `migrations/` numbered SQL
   - `mail/` the letters and the generic SMTP they leave by: the org's own account, else the box's
-  - `_settings.py` every variable, once · `_version.py` the version, the maintainer's number
+  - `settings/` the configuration: `schema.py` every variable once, `vendor_keys.py` the vendors'
+    own names, `load_settings()` the one reader · `_version.py` the version, the maintainer's number
 - each distribution's `tests/` mirrors its `src/pinecall/` one to one; `test_isolation.py`, `test_layout.py`,
-  `test_the_public_surface.py`, `test_env_example.py`, `test_box_packages.py` are the tree's own rules
+  `test_the_public_surface.py`, `settings/test_example.py`, `test_box_packages.py` are the tree's own rules
 - `infra/box/` the declared box (cloud-init, units, Quadlets, the fence, the manifest Makefile);
   `infra/compose/` the dev stack; the root `Makefile` is the deploy
 - `docs/protocol/` public contracts · `docs/decisions/` the maintainer's notebook, **git-ignored**:

@@ -6,11 +6,11 @@ from datetime import UTC, datetime
 
 import pytest
 
-from pinecall._settings import Settings
 from pinecall.cli.doctor import verbs as doctor
 from pinecall.cli.doctor.probes import Probes
 from pinecall.mail import BoxMail, TheBoxsMail, environment_mailbox
 from pinecall.providers.embedder import DIMENSIONS
+from pinecall.settings import Settings
 
 
 def probes_that_answer(

@@ -10,7 +10,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.requests import HTTPConnection
 from starlette.status import HTTP_204_NO_CONTENT
 
-from pinecall._settings import Settings
 from pinecall.api.deps import MembersDep, OrgsDep, SettingsDep, TeamKeyDep, held, require_org
 from pinecall.api.public_url import public_base_url
 from pinecall.api.scope.grants import may_grant
@@ -19,6 +18,7 @@ from pinecall.auth.openid import OpenIdRefused, configuration
 from pinecall.auth.sso_state import Handshakes
 from pinecall.orgs.org_sso import Sso
 from pinecall.orgs.vault import NO_VAULT_KEY
+from pinecall.settings import Settings
 from pinecall.types import OrgSso, parse_domain, parse_role
 from pinecall_protocol import WireModel
 from pinecall_protocol.rest import OrgSso as SsoStanding

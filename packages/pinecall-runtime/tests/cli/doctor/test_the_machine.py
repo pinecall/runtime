@@ -4,9 +4,9 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from pinecall._settings import load_settings
 from pinecall.cli.doctor import machine
 from pinecall.cli.doctor import verbs as doctor
+from pinecall.settings import load_settings
 from tests.cli.doctor.reading import named, probes_that_answer
 
 pytestmark = pytest.mark.unit

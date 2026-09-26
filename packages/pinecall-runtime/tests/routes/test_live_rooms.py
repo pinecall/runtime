@@ -2,8 +2,8 @@
 
 import pytest
 
-from pinecall._settings import Settings
 from pinecall.routes.live_rooms import AT_MOST, LivekitRooms, in_batches, rooms_for
+from pinecall.settings import Settings
 from tests.routes.fakes import MemoryRooms
 
 pytestmark = pytest.mark.unit

@@ -5,9 +5,9 @@ from __future__ import annotations
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall._settings import Settings
 from pinecall.log.store import MemoryStore
 from pinecall.orgs.records import MemoryOrgs
+from pinecall.settings import Settings
 from pinecall.types import Quotas
 from tests.api.conftest import A_LIVEKIT, A_RECORD, A_VAULT_KEY, AGENT, AN_OPS_KEY
 from tests.api.talking import got

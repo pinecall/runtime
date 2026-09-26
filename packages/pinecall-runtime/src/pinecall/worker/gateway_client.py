@@ -9,7 +9,6 @@ from typing import Any, cast
 import httpx
 from pydantic import ValidationError
 
-from pinecall._detail import refusal_detail
 from pinecall.auth.peers import RingsFor
 from pinecall.fleet import Heartbeat, Standing
 from pinecall.session.voice.platform import Dialled
@@ -25,6 +24,7 @@ from pinecall.types import (
 from pinecall.types.dispatch import Handover
 from pinecall.types.json import JsonObject
 from pinecall.types.org import Ceiling
+from pinecall.types.refused_answer import refusal_detail
 from pinecall.worker.gateway_http import (
     NOT_FOUND,
     TAIL_TIMEOUT,

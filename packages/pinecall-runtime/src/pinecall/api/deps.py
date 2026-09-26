@@ -8,7 +8,6 @@ from typing import Annotated, Any, cast
 from fastapi import Depends, HTTPException
 from starlette.requests import HTTPConnection
 
-from pinecall._settings import Settings
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.env import own_scope, requested_scope, resolve_env
 from pinecall.auth.keys import NO_KEYS_TABLE, KeyRecord, Keys, cannot_open
@@ -38,6 +37,7 @@ from pinecall.providers.models import Models
 from pinecall.routes.inbound_trunks import Trunks
 from pinecall.routes.records import Routes
 from pinecall.routes.twilio import TwilioFor
+from pinecall.settings import Settings
 from pinecall.tokens.ledger import Tokens
 from pinecall.types import KeyScope, Org
 from pinecall.whatsapp.cloud_api import Graph

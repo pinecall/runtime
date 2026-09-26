@@ -17,7 +17,7 @@ _HASHER = PasswordHasher()
 
 # How short a password may be is the OPERATOR's to decide and not this runtime's: it is their box,
 # their people, and their judgement about who is on it. So there is no number here — the door hands
-# one in, off `PINECALL_MIN_PASSWORD` (_settings.py, where the default lives with the setting), and
+# one in, off `PINECALL_MIN_PASSWORD` (settings/schema.py, where the default lives with it), and
 # zero is a real answer meaning no rule at all. Length rather than digits or symbols, which people
 # meet with `Password1!`; and what actually stops a guess is not the floor but the two things
 # around it: argon2id at rest, so a dumped table is not a dumped password, and five tries a minute

@@ -5,7 +5,6 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from pinecall._settings import load_settings
 from pinecall.providers.embed import (
     DEFAULTS,
     base_url_of,
@@ -17,6 +16,7 @@ from pinecall.providers.embed import (
 from pinecall.providers.embed.perplexity import PerplexityEmbedder
 from pinecall.providers.embed.tei import TeiEmbedder
 from pinecall.providers.registry import NoProvider
+from pinecall.settings import load_settings
 
 pytestmark = pytest.mark.unit
 

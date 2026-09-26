@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from livekit.agents.cli import _legacy
 
-from pinecall._settings import Settings, load_settings
+from pinecall.settings import Settings, load_settings
 from pinecall.worker import recording_paths
 from tests.worker.fakes import a_job_in
 

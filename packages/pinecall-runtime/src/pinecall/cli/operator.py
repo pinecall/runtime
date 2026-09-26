@@ -11,10 +11,10 @@ from typing import Any, Self
 
 import httpx
 
-from pinecall._detail import refusal_detail
-from pinecall._settings import Settings, load_settings
 from pinecall.errors import PinecallError
+from pinecall.settings import Settings, load_settings
 from pinecall.types import DEFAULT_ORG
+from pinecall.types.refused_answer import refusal_detail
 
 # The operator API answers off a table, never off a call: five seconds is a database that is down.
 TIMEOUT_S = 5.0

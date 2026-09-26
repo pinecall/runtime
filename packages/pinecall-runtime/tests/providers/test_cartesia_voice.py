@@ -3,10 +3,10 @@
 import pytest
 from livekit.plugins import cartesia
 
-from pinecall._settings import Settings
 from pinecall.providers.registry import Asked
 from pinecall.providers.tts import VENDORS
 from pinecall.providers.tts.cartesia import DEFAULT_MODEL, VOICE_FOR
+from pinecall.settings import Settings
 
 pytestmark = pytest.mark.unit
 

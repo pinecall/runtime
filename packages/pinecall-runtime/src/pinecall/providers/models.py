@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from pinecall._settings import Settings
 from pinecall.providers import llm
 from pinecall.providers.registry import Asked, Chat, NoProvider
+from pinecall.settings import Settings
 from pinecall.types import Brought, Model
 
 __all__ = ["DEFAULT_VENDOR", "Chat", "Models", "NoProvider", "models_for", "vendor_of"]

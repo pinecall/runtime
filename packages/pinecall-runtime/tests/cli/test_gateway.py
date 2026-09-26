@@ -14,10 +14,10 @@ import uvicorn
 from fastapi import FastAPI
 from livekit.agents.cli.log import JsonFormatter
 
-from pinecall._settings import load_settings
 from pinecall.api.app import app
 from pinecall.api.sse import new_closing
 from pinecall.cli import gateway
+from pinecall.settings import load_settings
 
 pytestmark = pytest.mark.unit
 

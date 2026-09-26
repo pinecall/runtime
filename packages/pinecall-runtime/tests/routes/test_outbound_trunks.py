@@ -3,9 +3,9 @@
 import pytest
 from livekit import api
 
-from pinecall._settings import Settings
 from pinecall.routes import outbound_trunks as outbound_module
 from pinecall.routes.outbound_trunks import Placing, outbound_for
+from pinecall.settings import Settings
 from tests.routes.sfu import TheSfu
 
 pytestmark = pytest.mark.unit

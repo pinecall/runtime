@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from livekit import api
 
-from pinecall._settings import Settings
+from pinecall.settings import Settings
 
 
 # Four tables of this package talk to the SFU — the inbound trunks, the outbound ones, the

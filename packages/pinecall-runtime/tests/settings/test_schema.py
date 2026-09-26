@@ -6,16 +6,8 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from pinecall._env_files import EnvFileRefused
-from pinecall._settings import (
-    ENV_FILES,
-    NOBODY_TO_ASK,
-    NobodyToAsk,
-    Settings,
-    env_files_read,
-    load_settings,
-    variable_of,
-)
+from pinecall.settings import NOBODY_TO_ASK, NobodyToAsk, Settings, load_settings, variable_of
+from pinecall.settings.env_files import ENV_FILES, EnvFileRefused, env_files_read
 from tests.tree import PACKAGE_ROOT, ROOT
 
 pytestmark = pytest.mark.unit

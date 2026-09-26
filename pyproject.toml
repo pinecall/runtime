@@ -140,5 +140,5 @@ known-first-party = ["pinecall", "pinecall_protocol", "tests"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 # The environment is read once, in _settings.py. Everywhere else takes a Settings.
-"os.environ".msg = "Read the environment through pinecall._settings, nowhere else."
-"os.getenv".msg = "Read the environment through pinecall._settings, nowhere else."
+"os.environ".msg = "Read the environment through pinecall.settings, nowhere else."
+"os.getenv".msg = "Read the environment through pinecall.settings, nowhere else."

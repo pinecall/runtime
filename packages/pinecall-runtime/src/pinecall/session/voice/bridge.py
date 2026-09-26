@@ -14,7 +14,6 @@ from livekit.agents.types import TimedString
 from livekit.agents.voice import AgentSession
 from livekit.agents.voice.events import EventTypes, FunctionToolsExecutedEvent
 
-from pinecall._settings import Budgets
 from pinecall.log import NOTHING_SAID, hashed_prompt
 from pinecall.providers import prices
 from pinecall.session.first_entries import started_entry
@@ -43,6 +42,7 @@ from pinecall.session.voice.room.code_claim import Claiming
 from pinecall.session.voice.sealing import Sealing
 from pinecall.session.voice.supervise import Supervising
 from pinecall.session.voice.tools import Tools
+from pinecall.settings import Budgets
 from pinecall.types import AgentConfig, Blocks, CallContext
 from pinecall.types.org import EXHAUSTED
 from pinecall_protocol import Command, ProtocolError, defs

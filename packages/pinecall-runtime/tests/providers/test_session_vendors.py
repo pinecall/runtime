@@ -6,8 +6,8 @@ import logging
 import pytest
 from livekit.plugins import cartesia, deepgram, elevenlabs, openai
 
-from pinecall._settings import Settings
 from pinecall.providers.session_vendors import Pipeline, pipeline_for
+from pinecall.settings import Settings
 from pinecall.types import NOTHING_BROUGHT, AgentConfig, Model, Turn, Voice
 
 pytestmark = pytest.mark.unit

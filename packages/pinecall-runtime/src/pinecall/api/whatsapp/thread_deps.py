@@ -8,7 +8,6 @@ from typing import Annotated
 from fastapi import Depends
 from starlette.datastructures import State
 
-from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.api.deps import (
     AdmissionDep,
@@ -31,6 +30,7 @@ from pinecall.orgs.tuning_store import TuningStore
 from pinecall.orgs.vault import Vault
 from pinecall.providers.models import Models
 from pinecall.routes.records import Routes
+from pinecall.settings import Settings
 from pinecall.whatsapp.cloud_api import Graph
 
 

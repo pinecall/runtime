@@ -3,7 +3,6 @@
 import argparse
 import asyncio
 
-from pinecall._settings import load_settings
 from pinecall.log.store.migrating import (
     POST_DEPLOY,
     Applied,
@@ -13,6 +12,7 @@ from pinecall.log.store.migrating import (
     migrations_applied,
 )
 from pinecall.log.store.postgres import DEFAULT_SCHEMA, create_pool, without_password
+from pinecall.settings import load_settings
 
 PURPOSE: str = "the database schema: up | status | plan"
 VERBS: tuple[str, ...] = ("up", "status", "plan")

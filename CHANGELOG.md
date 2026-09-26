@@ -112,6 +112,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   none; a suite's run held one per run and closed it never.
 
 ### Changed
+- **The configuration is a package, `pinecall.settings`.** The five underscore modules at the
+  root (`_settings`, `_vendor_keys`, `_env_files`, `_env_example`, `_detail`) are
+  `settings/{schema,budgets,loading,refusals,vendor_keys,env_files,example}.py`; `Settings`,
+  `load_settings` and the rest import from `pinecall.settings`. How a gateway's refusal reads on the
+  client side (`refusal_detail`) is `pinecall.types.refused_answer`, in `pinecall-core`, with a test
+  it never had. No variable changed: `.env.example` regenerates with only its header renamed.
 - **An extension's dependencies are checked, not skipped.** `make deploy` installed an extension
   with `--no-deps`; it installs it offline now (`--no-sources --offline --reinstall-package`), so
   its dependency on `pinecall-core` is checked against the venv the lock wrote and nothing is ever

@@ -11,7 +11,6 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall._settings import Settings
 from pinecall.api.accounts.identity import NOT_ACTIVE, SLUG_HELD_HERE, get_identity
 from pinecall.api.accounts.login import NO_CODE, NOT_A_MEMBER
 from pinecall.api.app import app
@@ -21,6 +20,7 @@ from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.person_keys import SANDBOX_PERSONS_KEY_LIFE
 from pinecall.extensions import Extensions
 from pinecall.orgs.records import MemoryOrgs
+from pinecall.settings import Settings
 from pinecall.types import ROLE_SCOPES, SANDBOX, Member, Org, Quotas
 from tests.api.talking import answering_in, at_the_console
 from tests.conftest import THE_IDENTITY

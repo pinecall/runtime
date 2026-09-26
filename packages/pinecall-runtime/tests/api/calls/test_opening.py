@@ -4,7 +4,6 @@ from datetime import date
 
 import pytest
 
-from pinecall._settings import Budgets
 from pinecall.api.agents.held_agent import Registration
 from pinecall.api.calls.opening import open_text_call
 from pinecall.evals import score_call
@@ -15,6 +14,7 @@ from pinecall.orgs.admission import Admission
 from pinecall.orgs.tuning_store import MemoryTuning
 from pinecall.providers.models import Models
 from pinecall.session.score_step import unjudged_score
+from pinecall.settings import Budgets
 from pinecall.types import PRODUCTION, AgentConfig, CallContext, Route
 from tests.api.conftest import AGENT
 

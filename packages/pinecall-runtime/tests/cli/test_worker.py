@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 from livekit.agents import AgentServer
 
-from pinecall._settings import load_settings
 from pinecall.cli import build_parser, worker
+from pinecall.settings import load_settings
 from pinecall.worker import recording_paths
 from pinecall.worker.heartbeat import CORDONED_EXIT, Heartbeats
 from pinecall.worker.load import MachineLoad, reports_no_load
@@ -122,7 +122,7 @@ def test_the_console_still_runs_on_a_box_that_has_no_livekit_at_all(
 _THE_CONSOLE_SETUP_PATH = """
 import threading
 from unittest.mock import patch
-from pinecall._settings import load_settings
+from pinecall.settings import load_settings
 from pinecall.cli import worker
 from pinecall.worker.main import prewarm
 

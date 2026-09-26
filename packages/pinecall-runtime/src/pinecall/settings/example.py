@@ -4,12 +4,12 @@ from pathlib import Path
 
 from pydantic.fields import FieldInfo
 
-from pinecall._env_files import ENV_FILES
-from pinecall._settings import Settings, variable_of
+from pinecall.settings import Settings, variable_of
+from pinecall.settings.env_files import ENV_FILES
 
 HEADER = f"""\
 # The only .env ever committed, and it is GENERATED: `scripts/generate-env-example` renders it
-# from the aliases src/pinecall/_settings.py declares, and a test fails when the two drift.
+# from the aliases settings/schema.py declares, and a test fails when the two drift.
 # Copy it to {ENV_FILES[0]} and fill what you have. A real environment variable wins over the file,
 # and a name this runtime does not read is ignored, never an error.
 """

@@ -13,8 +13,8 @@
 
 from __future__ import annotations
 
-from pinecall._settings import Settings
 from pinecall.providers.registry import Asked, NoProvider
+from pinecall.settings import Settings
 
 # Inference wants a model and has no default of its own, so each modality names one here. They are
 # the cheapest sensible thing in each lane, and an agent that cares names its own:

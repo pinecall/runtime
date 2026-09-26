@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from pinecall._env_example import render_env_example
-from pinecall._settings import Settings, variable_of
+from pinecall.settings import Settings, variable_of
+from pinecall.settings.example import render_env_example
 from tests.tree import ROOT
 
 pytestmark = pytest.mark.unit

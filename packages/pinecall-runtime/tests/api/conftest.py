@@ -10,7 +10,6 @@ import pytest
 from cryptography.fernet import Fernet
 from starlette.testclient import TestClient
 
-from pinecall._settings import Settings
 from pinecall.api import deps
 from pinecall.api import live as gateway_connected
 from pinecall.api.agents import registry as registry_dep
@@ -60,6 +59,7 @@ from pinecall.orgs.widgets import MemoryWidgets
 from pinecall.providers.models import Chat, Models
 from pinecall.routes.records import MemoryRoutes
 from pinecall.routes.twilio import TwilioFor
+from pinecall.settings import Settings
 from pinecall.tokens.ledger import MemoryTokens
 from pinecall.types import Brought, Model, Org, ProviderKeys
 from pinecall.worker.gateway_client import Gateway

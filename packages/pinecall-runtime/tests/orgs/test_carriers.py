@@ -6,10 +6,10 @@ from uuid import uuid4
 import pytest
 from cryptography.fernet import Fernet
 
-from pinecall._settings import Settings
 from pinecall.log.store import Pool, open_pool
 from pinecall.orgs.carriers import MemoryCarriers, PostgresCarriers, carriers_for
 from pinecall.orgs.records import PostgresOrgs
+from pinecall.settings import Settings
 from pinecall.types import Carrier, SipPeer, TwilioAccount
 from tests.postgres import Dev
 

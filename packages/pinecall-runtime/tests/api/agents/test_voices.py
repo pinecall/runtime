@@ -7,7 +7,6 @@ from collections.abc import Iterator
 import httpx
 import pytest
 
-from pinecall._settings import Settings
 from pinecall.api.agents.voices import (
     SAMPLES_A_MINUTE,
     TEXT_CEILING,
@@ -21,6 +20,7 @@ from pinecall.auth.throttle import Throttle
 from pinecall.providers.registry import Asked
 from pinecall.providers.tts.sampling import A_LINE_FOR, Sample, SampleRefused
 from pinecall.providers.tts.vendor_voices import Shelf
+from pinecall.settings import Settings
 
 pytestmark = pytest.mark.unit
 

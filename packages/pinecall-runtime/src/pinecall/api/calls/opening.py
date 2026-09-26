@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import partial
 
-from pinecall._settings import Budgets
 from pinecall.api.agents.held_agent import Registration, SocketId
 from pinecall.api.agents.registry import Registry
 from pinecall.api.agents.session_config import tuned_for
@@ -20,6 +19,7 @@ from pinecall.providers.declaration import rang
 from pinecall.providers.models import Models
 from pinecall.session.first_entries import arrival_entry
 from pinecall.session.text.session import TextSession
+from pinecall.settings import Budgets
 from pinecall.types import CallContext, Env, ProviderKeys, Versions
 from pinecall_protocol import encode
 

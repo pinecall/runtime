@@ -8,10 +8,10 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from pinecall._settings import Settings
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.scopes import mint_room_token, secret_for
 from pinecall.log.snapshots import Snapshots
+from pinecall.settings import Settings
 from pinecall.types.scopes import NAME_ATTRIBUTE, SUBJECT_ATTRIBUTE
 
 # The identity a human takes in the room, whether they came to listen or to speak, so the room's

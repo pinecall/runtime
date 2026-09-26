@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from pinecall._settings import Settings
 from pinecall.log.store import Pool
 from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, seal, sealed_store, unseal
+from pinecall.settings import Settings
 from pinecall.types import OrgSso, parse_role
 
 

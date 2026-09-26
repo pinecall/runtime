@@ -9,7 +9,6 @@ import pytest
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from pinecall._settings import Settings
 from pinecall.auth.bearer import POLICY_VIOLATION, close_reason
 from pinecall.auth.env import (
     ENV_HEADER,
@@ -21,6 +20,7 @@ from pinecall.auth.env import (
 )
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
+from pinecall.settings import Settings
 from pinecall.types import PRODUCTION, SANDBOX, Member, Role
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS
 from tests.api.talking import a_door, a_register, answering_in, got

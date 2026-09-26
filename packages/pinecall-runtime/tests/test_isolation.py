@@ -16,10 +16,12 @@ from tests.tree import (
 pytestmark = pytest.mark.unit
 
 # The seams. A package earns its directory by having a line here; a package that is not listed
-# imports nothing of ours. The root's own modules (_settings, errors) and the generated wire
-# (pinecall_protocol) are everybody's except types', which imports nothing but the root error.
+# imports nothing of ours. What EVERYBODYS names below (the version, settings, errors) and the
+# generated wire (pinecall_protocol) are everybody's except types', which imports only the error.
 MAY_IMPORT: dict[str, frozenset[str]] = {
     "types": frozenset(),
+    # The configuration reads the environment into the shapes it names, and nothing else.
+    "settings": frozenset({"types"}),
     "extensions": frozenset({"types"}),
     "auth": frozenset({"types", "log"}),
     "log": frozenset({"types"}),
@@ -152,11 +154,12 @@ def test_only_providers_imports_a_vendor_sdk(vendor: str) -> None:
     assert not offenders, f"{vendor} is imported outside pinecall/providers: {offenders}"
 
 
-# What every package may import: a module at the root (`pinecall._settings`, `pinecall._version`),
-# and the root error — a package and not a module only so that its py.typed can ship, since a
-# namespace's root can carry no marker (PEP 561). Only the rest has a line in the table.
+# What every package may import: the version at the root, the configuration, and the root error
+# (a package and not a module only so that its py.typed can ship, since a namespace's root carries
+# no marker, PEP 561). Their own imports are still held to their lines above.
 EVERYBODYS = frozenset(path.stem for root in SOURCE_ROOTS for path in root.glob("*.py")) | {
-    "errors"
+    "errors",
+    "settings",
 }
 
 

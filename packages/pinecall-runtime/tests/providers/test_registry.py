@@ -7,8 +7,8 @@ from typing import cast
 
 import pytest
 
-from pinecall._settings import Settings
 from pinecall.providers.registry import Asked, NoProvider, Vendors, vendor_key
+from pinecall.settings import Settings
 from tests.providers.vendors import VENDORS
 
 pytestmark = pytest.mark.unit

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import httpx
 
-from pinecall._detail import refusal_detail
 from pinecall.errors import PinecallError
 from pinecall.types import Member, MemberStatus, Org, Role
+from pinecall.types.refused_answer import refusal_detail
 from pinecall_protocol import WireModel
 
 # Production's door (api/accounts/login.py), asked by a sandbox with the code a person carried

@@ -11,13 +11,13 @@ from livekit.agents import stt as recognition
 from livekit.agents.types import TimedString
 from livekit.agents.voice import AgentSession
 
-from pinecall._settings import Settings, load_settings
 from pinecall.evals.headless_tool_answers import Answers
 from pinecall.session.lookup_tools import NoLookup, TurnLookups
 from pinecall.session.tool_declaration import declare_tools
 from pinecall.session.voice import session
 from pinecall.session.voice.agent import VoiceAgent
 from pinecall.session.voice.vendors import kit_for
+from pinecall.settings import Settings, load_settings
 from pinecall.types import NOTHING_BROUGHT, AgentConfig, Blocks
 from pinecall.types.channel import Channel
 from pinecall_protocol.events import ErrorEvent

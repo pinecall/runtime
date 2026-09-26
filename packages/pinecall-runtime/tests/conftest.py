@@ -3,10 +3,10 @@
 import pytest
 from hypothesis import settings as hypothesis_settings
 
-from pinecall._settings import Settings, load_settings
 from pinecall.providers.llm import VENDORS as LLM_VENDORS
 from pinecall.providers.stt import VENDORS as STT_VENDORS
 from pinecall.providers.tts import VENDORS as TTS_VENDORS
+from pinecall.settings import Settings, load_settings
 
 # Vendors reject these instantly with a 401, and the LiveKit URL points at a port nothing listens
 # on. Structural, not disciplinary: a unit test cannot reach a real service by accident. The

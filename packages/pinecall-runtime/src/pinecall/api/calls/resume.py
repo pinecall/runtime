@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import date
 
-from pinecall._settings import Budgets
 from pinecall.api.agents.held_agent import Registration
 from pinecall.api.calls.attachment import attach_socket
 from pinecall.api.calls.opening import TextCall, open_text_session
@@ -19,6 +18,7 @@ from pinecall.orgs.tuning_store import TuningStore
 from pinecall.orgs.vault import Vault
 from pinecall.providers.models import Models
 from pinecall.session.text.session import Watcher
+from pinecall.settings import Budgets
 from pinecall.types import CallContext
 from pinecall_protocol.registry import TERMINAL_EVENT
 

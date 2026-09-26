@@ -2,10 +2,10 @@
 
 import pytest
 
-from pinecall._settings import Settings, load_settings
 from pinecall.cli.doctor import verbs as doctor
 from pinecall.cli.doctor.probes import Probes
 from pinecall.providers.embedder import EmbedderUnreachable
+from pinecall.settings import Settings, load_settings
 from tests.cli.doctor.reading import probes_that_answer
 
 pytestmark = pytest.mark.unit
