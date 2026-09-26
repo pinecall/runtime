@@ -13,7 +13,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 from pinecall.log.call_facts import change_of
 from pinecall.log.entry import Entry
 from pinecall.log.store.call_index_postgres import PostgresIndex

@@ -6,7 +6,7 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 from pinecall.log.entry import Entry
 from pinecall_protocol.registry import TERMINAL_EVENT
 

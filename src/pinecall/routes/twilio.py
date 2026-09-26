@@ -8,7 +8,7 @@ from typing import Any, Protocol
 
 import httpx
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 from pinecall.types import TwilioAccount
 
 TRUNKING_API = "https://trunking.twilio.com/v1"

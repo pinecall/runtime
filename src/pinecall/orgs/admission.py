@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import override
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 from pinecall.log.usage import Totals
 from pinecall.log.writers import Logs
 from pinecall.orgs.meter import Meter

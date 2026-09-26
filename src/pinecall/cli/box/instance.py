@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import TextIO
 from urllib.parse import urlsplit
 
-from pinecall._exceptions import PinecallError
 from pinecall._settings import NOBODY_TO_ASK, variable_of
+from pinecall.errors import PinecallError
 from pinecall.types import PRODUCTION, SANDBOX, Env
 from pinecall.types.dispatch import A_FLEET_NAME, DEFAULT_FLEET
 

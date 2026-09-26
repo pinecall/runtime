@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 from pinecall_protocol.defs import EndReason
 
 # A session counts nothing against a quota itself: the quotas are orgs/'s, and a package cannot

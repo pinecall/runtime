@@ -10,8 +10,8 @@ from typing import Any, cast
 
 from livekit.agents import llm, stt, tts
 
-from pinecall._exceptions import PinecallError
 from pinecall._settings import Settings
+from pinecall.errors import PinecallError
 from pinecall.providers import catalog, lent_keys
 from pinecall.providers.catalog import Modality, Provider
 from pinecall.providers.plugin import (

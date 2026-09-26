@@ -15,7 +15,6 @@ from fastapi import Depends
 from pydantic import Field
 from starlette.requests import HTTPConnection
 
-from pinecall._exceptions import PinecallError
 from pinecall._settings import Budgets, Settings
 from pinecall.api.agents.held_agent import Registration
 from pinecall.api.agents.registry import NO_AGENT, Registry
@@ -26,6 +25,7 @@ from pinecall.api.evals.golden_judges import Judging
 from pinecall.api.evals.run_attachment import AppDetached, Attachment
 from pinecall.api.evals.spoken_golden import run_spoken_conversation
 from pinecall.api.live import Live
+from pinecall.errors import PinecallError
 from pinecall.evals.caller_voice import Speaking
 from pinecall.evals.goldens import Golden
 from pinecall.evals.run_store import EvalRun, Opened, Runs

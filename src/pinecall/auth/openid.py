@@ -12,7 +12,7 @@ from typing import Any
 import httpx
 import jwt
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 
 # What hangs off an issuer. It is a well-known path and not a guess: the spec names it, and an
 # issuer that does not answer it is not an OpenID provider, whatever else it is.

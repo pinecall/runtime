@@ -102,6 +102,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   none; a suite's run held one per run and closed it never.
 
 ### Changed
+- **`pinecall.errors` is the root error's module.** `PinecallError` is imported from there;
+  `pinecall._exceptions` is gone. `from pinecall import PinecallError` still answers.
 - **Every public function is named to survive a traceback.** Four hundred of them opened with an
   article, a pronoun or a bare participle — `a_role`, `the_vault`, `whose_corner`, `listed`,
   `wired`, `standing` — and read only beside their module's name. Each is a verb with its object,

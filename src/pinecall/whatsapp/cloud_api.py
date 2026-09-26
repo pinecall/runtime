@@ -7,7 +7,7 @@ from typing import Protocol
 import httpx
 from pydantic import BaseModel, ValidationError
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 from pinecall.whatsapp.meta_json import LENIENT
 
 # Meta's own host and the version this door was written against. Pinned: an unversioned URL would

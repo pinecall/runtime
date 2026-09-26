@@ -10,7 +10,7 @@ from typing import Any, cast
 from livekit import api, rtc
 from livekit.protocol import agent as jobs
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 from pinecall.session.voice import sip
 from pinecall.types import ENVS, PRODUCTION, SANDBOX, THE_WIDGET, Channel, Direction, Env, Route
 from pinecall.types.dispatch import (

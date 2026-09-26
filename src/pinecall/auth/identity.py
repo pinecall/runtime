@@ -5,7 +5,7 @@ from __future__ import annotations
 import httpx
 
 from pinecall._detail import refusal_detail
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 from pinecall.types import Member, MemberStatus, Org, Role
 from pinecall_protocol import WireModel
 

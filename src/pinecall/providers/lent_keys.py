@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 from pinecall.providers import catalog
 from pinecall.providers.catalog import MODEL_SEPARATOR
 

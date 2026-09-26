@@ -14,7 +14,7 @@ from livekit import rtc
 # alias for somebody else's type is imported where it is used, like any other library name.
 from livekit.rtc.room import EventTypes as RoomEvent
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 from pinecall.log.projection import PUBLIC, project_entry, project_state
 from pinecall.log.replay import caught_up
 from pinecall.session.voice.room.room_events import CONNECTION, JOINED, LEFT

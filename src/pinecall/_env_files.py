@@ -3,7 +3,7 @@
 from collections.abc import Iterator
 from pathlib import Path
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 
 # The two names a .env is looked for under: in the directory the process started in, then in
 # each parent up to the repository root. `uv run pinecall-runtime …` starts in the runtime

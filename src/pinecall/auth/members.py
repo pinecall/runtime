@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
-from pinecall._exceptions import PinecallError
 from pinecall.auth.invitations import Invited
+from pinecall.errors import PinecallError
 from pinecall.log.store import Pool
 from pinecall.types import Member, MemberStatus, Role, parse_role
 

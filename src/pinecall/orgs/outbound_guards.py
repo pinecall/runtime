@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import override
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 from pinecall.orgs.dial_policies import Dial, DialPolicies, Dials
 from pinecall.types import DeclarationRefused, Destination, DialPolicy, parse_destination
 

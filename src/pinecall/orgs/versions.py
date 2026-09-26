@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 from pinecall.log.store import Pool
 from pinecall.orgs.tuning_resolution import corners
 from pinecall.types import Kept

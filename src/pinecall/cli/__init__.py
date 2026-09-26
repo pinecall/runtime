@@ -5,7 +5,6 @@ import sys
 from collections.abc import Callable, Sequence
 from typing import NoReturn, Protocol, override
 
-from pinecall._exceptions import PinecallError
 from pinecall.cli import (
     box,
     doctor,
@@ -22,6 +21,7 @@ from pinecall.cli import (
     sessions,
     worker,
 )
+from pinecall.errors import PinecallError
 
 
 class Group(Protocol):

@@ -18,7 +18,7 @@ from collections.abc import Iterable
 from importlib import import_module, util
 from typing import Any
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 from pinecall.providers.catalog import Modality, Provider
 
 # The names one thing goes by, in the order this door tries them. `voice_id` leads `voice` because

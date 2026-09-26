@@ -9,8 +9,8 @@ from tests.tree import PACKAGE_ROOT, PythonModule, modules_under
 pytestmark = pytest.mark.unit
 
 # The seams. A package earns its directory by having a line here; a package that is not listed
-# imports nothing of ours. The root's private modules (_settings, _exceptions) and the generated
-# wire (pinecall_protocol) are everybody's except types', which imports nothing but the root error.
+# imports nothing of ours. The root's own modules (_settings, errors) and the generated wire
+# (pinecall_protocol) are everybody's except types', which imports nothing but the root error.
 MAY_IMPORT: dict[str, frozenset[str]] = {
     "types": frozenset(),
     "extensions": frozenset({"types"}),
@@ -121,12 +121,17 @@ def test_only_providers_imports_a_vendor_sdk(vendor: str) -> None:
     assert not offenders, f"{vendor} is imported outside pinecall/providers: {offenders}"
 
 
+# A module at the root (`pinecall.errors`, `pinecall._settings`) is everybody's; only a directory
+# has a line in the table.
+ROOT_MODULES = frozenset(path.stem for path in PACKAGE_ROOT.glob("*.py"))
+
+
 def _our_packages_named_by(module: PythonModule) -> set[str]:
     """The pinecall packages a module imports: `pinecall.log.reduce` names `log`."""
     return {
         name.split(".")[1]
         for name in module.imported_modules
-        if name.startswith("pinecall.") and not name.split(".")[1].startswith("_")
+        if name.startswith("pinecall.") and name.split(".")[1] not in ROOT_MODULES
     }
 
 

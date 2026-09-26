@@ -6,7 +6,7 @@ import asyncio
 import logging
 from typing import Protocol
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 from pinecall.log import REFUSED
 from pinecall.worker.gateway_client import Gateway
 from pinecall.worker.gateway_http import GatewayRefused

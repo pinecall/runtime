@@ -7,7 +7,7 @@ import smtplib
 import ssl
 from email.message import EmailMessage
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 from pinecall.mail.letters import Letter
 from pinecall.types import Mailbox
 

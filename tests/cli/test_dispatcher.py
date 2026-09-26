@@ -2,7 +2,6 @@
 
 import pytest
 
-from pinecall._exceptions import PinecallError
 from pinecall.cli import GROUP_MODULES, build_parser, gateway, main
 from pinecall.cli.box import verbs as box
 from pinecall.cli.doctor import verbs as doctor
@@ -12,6 +11,7 @@ from pinecall.cli.orgs import verbs as orgs
 from pinecall.cli.routes import verbs as routes
 from pinecall.cli.sandbox import verbs as sandbox
 from pinecall.cli.sessions import verbs as sessions
+from pinecall.errors import PinecallError
 from pinecall.types import QUOTAS
 
 pytestmark = pytest.mark.unit

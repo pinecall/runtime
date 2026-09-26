@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from importlib import import_module
 
-from pinecall._exceptions import PinecallError
 from pinecall._settings import Settings
+from pinecall.errors import PinecallError
 from pinecall.extensions.points import Extensions
 
 # The one name a package must export. It is called once with the gateway's Extensions and fills

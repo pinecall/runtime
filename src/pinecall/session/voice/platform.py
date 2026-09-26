@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Protocol
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 from pinecall.types import Env
 from pinecall.types.json import JsonObject
 from pinecall_protocol.defs import ToolResult

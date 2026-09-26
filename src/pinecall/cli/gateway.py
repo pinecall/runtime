@@ -8,8 +8,8 @@ from urllib.parse import urlsplit
 import uvicorn
 from livekit.agents.cli.log import JsonFormatter
 
-from pinecall._exceptions import PinecallError
 from pinecall._settings import Settings, load_settings, variable_of
+from pinecall.errors import PinecallError
 
 PURPOSE: str = "the control plane: HTTP and WebSocket, one process"
 

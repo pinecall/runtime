@@ -5,7 +5,7 @@ from typing import Protocol
 
 from pgvector import HalfVector
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 
 # bge-m3's width, which is the width the migrations declare: halfvec(1024) on facts and chunks.
 # Perplexity's contextual door is asked for the same 1024 (Matryoshka: the 4b is 2560 unasked),

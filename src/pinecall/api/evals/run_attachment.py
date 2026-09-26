@@ -7,10 +7,10 @@ from collections.abc import Coroutine
 from contextlib import suppress
 from typing import Any
 
-from pinecall._exceptions import PinecallError
 from pinecall.api.agents.dial_in import Agent
 from pinecall.api.agents.held_agent import SocketId
 from pinecall.api.agents.registry import Registry
+from pinecall.errors import PinecallError
 from pinecall_protocol import defs
 
 # What a call that was left with nobody rendering it is ended as, and who ended it: not the caller

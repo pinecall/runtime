@@ -11,7 +11,6 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from pinecall._exceptions import PinecallError
 from pinecall._settings import variable_of
 from pinecall.cli.box.credentials import (
     Decrypt,
@@ -28,6 +27,7 @@ from pinecall.cli.box.instance import (
 )
 from pinecall.cli.keys.verbs import OPS_ORGS
 from pinecall.cli.operator import TIMEOUT_S, Operator, OperatorRefused
+from pinecall.errors import PinecallError
 from pinecall.types import DEFAULT_ORG, PRODUCTION, SANDBOX, THE_FLEET, Env, parse_env
 
 # Two instances trust each other the way a worker box trusts its hub: with one fleet key each,

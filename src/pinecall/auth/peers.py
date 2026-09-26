@@ -5,7 +5,7 @@ from __future__ import annotations
 import httpx
 from pydantic import TypeAdapter
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 from pinecall.types import PRODUCTION, Route
 from pinecall.types.dispatch import Handover
 from pinecall_protocol import WireModel

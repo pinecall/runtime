@@ -8,8 +8,8 @@ from collections.abc import Callable
 from typing import TextIO
 from urllib.parse import unquote, urlsplit
 
-from pinecall._exceptions import PinecallError
 from pinecall._settings import load_settings
+from pinecall.errors import PinecallError
 
 # The box runs one Postgres, and every instance's database lives in it; this is the one account
 # that may make another — the container's own superuser, reached as root through podman, so no

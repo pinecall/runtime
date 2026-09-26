@@ -7,7 +7,7 @@ import time
 from collections.abc import Mapping, Sequence
 from typing import Any, cast, override
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 from pinecall.log.store import Pool
 
 # A caller nobody wrote, and a name taken by somebody else: the two things a write can meet.

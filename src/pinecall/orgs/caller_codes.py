@@ -8,7 +8,7 @@ import secrets
 import time
 from dataclasses import dataclass, replace
 
-from pinecall._exceptions import PinecallError
+from pinecall.errors import PinecallError
 from pinecall.log.store import Store
 from pinecall.log.writers import Logs
 from pinecall.types import Env

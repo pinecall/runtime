@@ -13,8 +13,8 @@ from pydantic_settings import (
 )
 
 from pinecall._env_files import ENV_FILES, env_file_refusal, env_files_read
-from pinecall._exceptions import PinecallError
 from pinecall._vendor_keys import VendorKeys
+from pinecall.errors import PinecallError
 from pinecall.types import PRODUCTION, SANDBOX, Env
 from pinecall.types.dispatch import A_FLEET_NAME, DEFAULT_FLEET
 from pinecall.types.today import parse_zone
