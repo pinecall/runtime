@@ -14,7 +14,7 @@ scripts/format                                  # ruff format, then the fixable 
 scripts/lint                                    # ruff · pyright · mypy · deptry · squawk over unlanded migrations — the gate
 scripts/test                                    # pytest -m "unit or postgres" + infra/tools/tests + the core's suite, coverage to its floor
 uv run pytest -m unit                           # ring 0: no keys, no network, SHUFFLED — three green runs, or nothing
-uv run pytest tests/cli/doctor/test_verbs.py    # one file
+uv run pytest packages/pinecall-runtime/tests/cli/doctor/test_verbs.py    # one file
 uv run pinecall-runtime gateway | worker dev | migrate up | doctor
 scripts/generate-env-example                    # after touching _settings.py; a test fails while it drifts
 make deploy                                     # this checkout onto your box (deploy.local.mk); ends with the doctor
@@ -22,12 +22,16 @@ make deploy                                     # this checkout onto your box (d
 
 ## Structure
 
-- `src/pinecall/` — eighteen packages, none of them a process; ARCHITECTURE.md §11 is the import
-  table and `tests/test_isolation.py` enforces it; the words they speak are `docs/glossary.md`
-- `packages/pinecall-core/` — `types/`, `extensions/`, `errors.py`: a distribution of its own, on
-  the standard library alone, that a policy (`cloud/`) installs without the runtime. It imports
-  nothing of the runtime, and `pinecall` is a namespace both install into: no `__init__.py` in
-  either `src/pinecall/`. Its suite runs apart (`scripts/test`), on its own `pyproject.toml`
+- The repository is a uv workspace: the root holds the tools, the suites' configuration, `infra/`,
+  `docs/` and `scripts/`; the code is the two distributions under `packages/`, one lock, one venv
+- `packages/pinecall-runtime/` — the distribution `pinecall`: `src/pinecall/`, eighteen packages,
+  none of them a process; ARCHITECTURE.md §11 is the import table and `tests/test_isolation.py`
+  enforces it; the words they speak are `docs/glossary.md`
+- `packages/pinecall-core/` — the distribution `pinecall-core`: `types/`, `extensions/`,
+  `errors.py`, on the standard library alone, that a policy (`cloud/`) installs without the
+  runtime. It imports nothing of the runtime, and `pinecall` is a namespace both install into: no
+  `__init__.py` in either `src/pinecall/`. Its suite runs apart (`scripts/test`), on its own
+  `pyproject.toml`
   - `types/` the shapes, no IO · `log/` the truth, no framework · `providers/` the only vendor names
   - `auth/` keys, members, sign-in · `orgs/` the tenant's tables · `routes/` numbers and trunks at
     the SFU · `tokens/` the room token and the seat · `whatsapp/` the text channel · `fleet/` the
@@ -41,7 +45,7 @@ make deploy                                     # this checkout onto your box (d
     knowledge/ evals/ telephony/ org/ ops/ whatsapp/`) · `worker/` the job · `cli/` the verbs · `migrations/` numbered SQL
   - `mail/` the letters and the generic SMTP they leave by: the org's own account, else the box's
   - `_settings.py` every variable, once · `_version.py` `0.0.0` until a person says otherwise
-- `tests/` mirrors `src/pinecall/` one to one; `test_isolation.py`, `test_layout.py`,
+- each distribution's `tests/` mirrors its `src/pinecall/` one to one; `test_isolation.py`, `test_layout.py`,
   `test_the_public_surface.py`, `test_env_example.py`, `test_box_packages.py` are the tree's own rules
 - `infra/box/` the declared box (cloud-init, units, Quadlets, the fence, the manifest Makefile);
   `infra/compose/` the dev stack; the root `Makefile` is the deploy

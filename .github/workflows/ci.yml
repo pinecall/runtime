@@ -101,7 +101,7 @@ jobs:
 
       # `--extra runtime` carries livekit-agents and its plugins; `--extra providers` the vendor
       # SDKs the provider tables construct. The dev group holds the checkers and squawk.
-      - run: uv sync --locked --extra runtime --extra providers --group dev
+      - run: uv sync --locked --all-packages --extra runtime --extra providers --group dev
         working-directory: runtime
 
       # ruff, pyright, mypy, then squawk over the migrations that have not landed.

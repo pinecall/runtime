@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# src/pinecall/_settings.py -> .env.example. Idempotent: a second run changes nothing, and
+# packages/pinecall-runtime/src/pinecall/_settings.py -> .env.example. Idempotent: a second run changes nothing, and
 # tests/test_env_example.py fails the day somebody edits the file by hand instead.
 set -euo pipefail
 cd "$(dirname "$0")/.."

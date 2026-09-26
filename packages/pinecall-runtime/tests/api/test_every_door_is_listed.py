@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 import pytest
 from fastapi.routing import APIRoute, APIWebSocketRoute
 
 from pinecall.api.app import app
+from tests.tree import ROOT
 
 pytestmark = pytest.mark.unit
 
-THE_PAGE = Path(__file__).parents[2] / "docs" / "protocol" / "every-door.md"
+THE_PAGE = ROOT / "docs" / "protocol" / "every-door.md"
 
 # A path the page writes whole. Anything else in a row — `/sealed` after `/v1/calls/{call}/events`,
 # `…/history` after `/v1/agents/{slug}/settings` — continues the previous path's parent.

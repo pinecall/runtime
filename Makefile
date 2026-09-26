@@ -41,7 +41,7 @@ MANIFEST = $(REMOTE)/runtime/infra/box
 
 SSH   = ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=yes -o ConnectTimeout=20 $(BOX)
 # What rsync leaves at home, named one by one and not `--filter=':- .gitignore'`: the console
-# under src/pinecall/gateway/ is git-ignored and MUST travel, and a `!` line in a .gitignore means
+# under packages/pinecall-runtime/src/pinecall/gateway/ is git-ignored and MUST travel, and a `!` line in a .gitignore means
 # something else to rsync. What must not travel: the maintainer's notebook (docs/decisions/),
 # the audio of real calls (recordings/), every .env and the file that names this box.
 RSYNC = rsync -az --delete -e "ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=yes" \
@@ -63,7 +63,7 @@ RSYNC = rsync -az --delete -e "ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=y
 # --compile-bytecode: the units run under a read-only file system (infra/box/hardening.conf), so
 # a .pyc Python would write on first import is written here, once, by the deploy.
 UV_SYNC = sudo -u pinecall env UV_PROJECT_ENVIRONMENT=/opt/pinecall/venv UV_CACHE_DIR=/opt/pinecall/.cache/uv \
-          /opt/pinecall/bin/uv sync -q --frozen --compile-bytecode --project $(REMOTE)/runtime --extra runtime --extra providers
+          /opt/pinecall/bin/uv sync -q --frozen --compile-bytecode --project $(REMOTE)/runtime --all-packages --extra runtime --extra providers
 
 # The packages beside the runtime that plug a policy into it — what a box that charges says its
 # numbers with (docs/charging-for-it.md) — as checkouts on this machine, space separated. Each is
@@ -86,7 +86,7 @@ UV_EXTENSIONS   = $(if $(EXTENSIONS_SRC),sudo -u pinecall env UV_CACHE_DIR=/opt/
 
 deploy: console sync install restart doctor
 
-# The console into src/pinecall/gateway/console, from the console checkout beside this one (or
+# The console into packages/pinecall-runtime/src/pinecall/gateway/console, from the console checkout beside this one (or
 # PINECALL_CONSOLE). The sync below carries it; the gateway serves it at `/`.
 console:
 	scripts/console

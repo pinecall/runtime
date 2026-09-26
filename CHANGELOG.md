@@ -173,6 +173,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   could make orgs for as many trials as they liked.
 
 ### Added
+- **The repository is a uv workspace, and nothing but the workspace sits at its root.** The
+  runtime is `packages/pinecall-runtime` (the distribution `pinecall`), the core
+  `packages/pinecall-core`; the root `pyproject.toml` holds the members, the tools and the suites'
+  configuration, and no `[project]`. The three cloud scripts the fleet loop runs (`gcp`, `aws`,
+  `hetzner`) ship inside the package (`pinecall/fleet/scripts/`) instead of being read off the
+  repository's `infra/fleet/`, so a wheel runs the loop the same as a checkout does.
 - **`pinecall-core`**, a second distribution: `pinecall.types`, `pinecall.extensions` and
   `pinecall.errors`, on the standard library alone, in `packages/pinecall-core` — a member of the
   runtime's uv workspace, one lock. The runtime depends on it; a policy (`docs/charging-for-it.md`)

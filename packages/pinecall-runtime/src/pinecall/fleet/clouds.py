@@ -7,10 +7,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-# The scripts this repository ships, one per provider, under infra/fleet/: ~40 lines of the
+# The scripts the package ships, one per provider, in scripts/ beside this file: ~40 lines of the
 # vendor's own CLI each, and the only cloud-specific code there is. `--cloud gcp` names one;
-# `--cloud ./mine` names yours.
-SCRIPTS = Path(__file__).resolve().parents[3] / "infra" / "fleet"
+# `--cloud ./mine` names yours. Beside the code and not at the repository's root, so a wheel runs
+# the fleet loop the same as a checkout does.
+SCRIPTS = Path(__file__).resolve().parent / "scripts"
 
 # A cloud call is a network round trip and sometimes a boot; two minutes is generous and finite.
 A_VERB_MAY_TAKE_S = 120.0
@@ -71,7 +72,7 @@ class Script:
 
 
 def cloud_named(name: str) -> Script:
-    """`gcp`, `aws`, `hetzner` out of infra/fleet/, or any path to a script of your own."""
+    """`gcp`, `aws`, `hetzner` as the package ships them, or any path to a script of your own."""
     path = Path(name)
     if path.exists():
         return Script(path.resolve())

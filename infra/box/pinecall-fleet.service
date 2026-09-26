@@ -1,11 +1,11 @@
 # The fleet loop, on the hub: every fifteen seconds it reads the roster and the cloud, and keeps
 # the fleet at the target — a machine asked for when busy crosses it, one cordoned and deleted when
-# there is one too many. It speaks to the cloud through ONE script, infra/fleet/<cloud>, and to the
+# there is one too many. It speaks to the cloud through ONE script, pinecall/fleet/scripts/<cloud>, and to the
 # gateway through the operator API on this box.
 #
 # Installed by infra/box/Makefile; enabled only when /etc/pinecall/box.env names a cloud:
 #
-#   PINECALL_FLEET_CLOUD=gcp        # the script under infra/fleet/, or a path to yours
+#   PINECALL_FLEET_CLOUD=gcp        # a script the package ships (fleet/scripts/), or a path to yours
 #   PINECALL_FLEET_SEATS=4          # PINECALL_MAX_JOBS baked into the worker image
 #   PINECALL_FLEET_FLAGS=--min 1 --max 10 --target 0.6
 #

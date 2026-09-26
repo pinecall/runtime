@@ -151,7 +151,7 @@ each other across two ticks. The loop never cordons or deletes a machine the clo
 **list** as the fleet's: a worker you stood up by hand counts in the numbers and is never let go.
 
 The cloud is one script with three verbs — `create <name>`, `delete <name>`, `list` — and
-`infra/fleet/` ships `gcp`, `aws` and `hetzner` at about forty lines each; a cloud of your own is
+The runtime ships `gcp`, `aws` and `hetzner` (`pinecall/fleet/scripts/`) at about forty lines each; a cloud of your own is
 `--cloud ./yours`. **The image is a worker that was deployed once and frozen**: a machine made from
 it boots with the code, the units, the credentials and `box.env`, its hostname is the name the loop
 gave it, and it dials the hub by itself. Nothing is copied at boot. The loop runs wherever the

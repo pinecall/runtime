@@ -1,97 +1,9 @@
-# The Python runtime: two processes, and two distributions in one uv workspace — this one, and
-# packages/pinecall-core, the shapes it speaks and the points a policy plugs into. Every tool
-# reads its config from here; the core keeps its own pyproject for its build and its suite.
+# The repository: a uv workspace of two distributions under packages/ — `pinecall`, the runtime,
+# and `pinecall-core`, the shapes it speaks and the points a policy plugs into — one lock, one
+# venv, and the tools and suites configured here, once, for both.
 
-[project]
-name = "pinecall"
-description = "The Pinecall voice-AI runtime: gateway and worker, on LiveKit"
-readme = "README.md"
-license = "Apache-2.0"
-# PEP 639: the text itself travels in the wheel and the sdist, so an install carries its licence.
-license-files = ["LICENSE"]
-requires-python = ">=3.12"
-dynamic = ["version"]
-authors = [{ name = "Bernardo Castro", email = "me@bernardocastro.dev" }]
-classifiers = [
-  "Development Status :: 4 - Beta",
-  "Intended Audience :: Developers",
-  "Operating System :: POSIX :: Linux",
-  "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13",
-  "Topic :: Communications :: Telephony",
-  "Typing :: Typed",
-]
-keywords = ["voice", "telephony", "livekit", "contact-center", "agents"]
-dependencies = [
-  # A range, not a bare name: the wheel PyPI serves must say which protocol it speaks.
-  # `[tool.uv.sources]` below still points a checkout at the repo next door — that is a
-  # development convenience and does not travel in the wheel.
-  "pinecall-protocol>=0.6.14,<0.7",
-  # The same rule for the core: a workspace member here, a range in the wheel.
-  "pinecall-core>=0.1,<0.2",
-  "pydantic>=2.7,<3",
-  "pydantic-settings>=2.3,<3",
-  "fastapi>=0.115,<1",
-  # fastapi's own: named because api/ imports `starlette.*` by that name in thirty files, and a
-  # package the tree imports is a package the tree declares (deptry, DEP003).
-  "starlette>=0.40,<2",
-  "uvicorn[standard]>=0.30,<1",
-  "httpx>=0.27,<1",
-  "asyncpg>=0.29,<1",
-  "pgvector>=0.3,<1",
-  "typing-extensions>=4.12,<5",
-  # The text session IS a livekit llm caller: ChatContext, LLMStream and LLMMetrics are the
-  # session's own vocabulary, so the library and the two text plugins are core, not an extra.
-  "livekit-agents[anthropic,openai]>=1.8,<2",
-  "livekit-api>=1.2.1",
-  # livekit-agents' own, imported by name: PyAV decodes the hold audio (session/hold_melody.py)
-  # and protobuf is what a room's egress token carries (tokens/room_token.py).
-  "av>=13,<19",
-  "protobuf>=5,<8",
-  # And the tracing SDK it brings: the worker hands livekit's tracer a provider that exports
-  # over OTLP/HTTP when PINECALL_OTLP_ENDPOINT names where (worker/telemetry.py).
-  "opentelemetry-sdk>=1.30,<2",
-  "opentelemetry-exporter-otlp-proto-http>=1.30,<2",
-  "pyjwt>=2.13.0",
-  # Fernet, and nothing else: a tenant's own provider key is encrypted at rest under the box's
-  # PINECALL_VAULT_KEY. See docs/decisions/provider-keys.md.
-  "cryptography>=44,<51",
-  # argon2id, and nothing else: a member's password is a secret a person invented, and a sha256
-  # is a microsecond per guess. A key is 256 bits of CSPRNG and stays on sha256 (auth/keys.py).
-  "argon2-cffi>=23.1,<26",
-]
-
-[project.urls]
-Homepage = "https://github.com/pinecall/runtime"
-Repository = "https://github.com/pinecall/runtime"
-Changelog = "https://github.com/pinecall/runtime/blob/main/CHANGELOG.md"
-Issues = "https://github.com/pinecall/runtime/issues"
-Security = "https://github.com/pinecall/runtime/blob/main/SECURITY.md"
-
-[project.optional-dependencies]
-# The worker's half: the three vendors LiveKit's own inference gateway does not front, so a
-# gateway-only install skips them. The VAD and the end-of-turn model are livekit's own native
-# ones, inside livekit-agents itself; nothing here imports the silero or turn-detector plugins.
-runtime = [
-  "livekit-agents[soniox,deepgram,elevenlabs]>=1.8,<2",
-  # livekit-plugins-anthropic 1.x still builds the 0.x anthropic client.
-  "anthropic<1",
-]
-# Every other vendor livekit-agents ships a plugin for: the forty rows of
-# providers/catalog.py this box has no file of its own for. They are thin HTTP clients — the
-# catalog is real without them, and a vendor whose plugin is missing is refused by name with the
-# extra that installs it, so this extra is what turns "install" into "ready" on a box.
-providers = [
-  "livekit-agents[assemblyai,asyncai,baseten,bland,cambai,cartesia,cerebras,clova,fal,fireworksai,fishaudio,gladia,gnani,gradium,groq,hume,inworld,lmnt,minimax,mistralai,murf,neuphonic,nvidia,palabra,perplexity,resemble,respeecher,rime,rtzr,sarvam,simplismart,slng,smallestai,speechify,spitch,upliftai,vakyam,xai]>=1.8,<2",
-]
-# The four that bring a whole SDK with them and are therefore a decision, not a default: boto3,
-# azure-cognitiveservices-speech, the google-cloud clients, and speechmatics — whose `smart`
-# extra installs onnxruntime and transformers, a hundred megabytes for one vendor's endpointing.
-# A box that runs one of these installs this extra on purpose; nothing else changes.
-providers-big = ["livekit-agents[aws,azure,google,speechmatics]>=1.8,<2"]
-
-[project.scripts]
-pinecall-runtime = "pinecall.cli:main"
+[tool.uv.workspace]
+members = ["packages/*"]
 
 [dependency-groups]
 dev = [
@@ -117,36 +29,10 @@ dev = [
   "deptry>=0.24,<1",
 ]
 
-[tool.uv.workspace]
-members = ["packages/*"]
-
-[tool.uv.sources]
-pinecall-protocol = { path = "../protocol/python", editable = true }
-pinecall-core = { workspace = true }
-
-[build-system]
-# 1.27 is the first hatchling that writes `license` as a PEP 639 expression.
-requires = ["hatchling>=1.27,<2"]
-build-backend = "hatchling.build"
-
-[tool.hatch.version]
-path = "src/pinecall/_version.py"
-
-# The console is a build the agents repo's vite wrote and scripts/console copied in: git-ignored,
-# because it is not a source, and named here so the wheel carries it anyway.
-# A namespace portion: no pinecall/__init__.py in this wheel or in the core's, which carries
-# pinecall.types, pinecall.extensions and pinecall.errors.
-[tool.hatch.build.targets.wheel]
-packages = ["src/pinecall"]
-artifacts = ["src/pinecall/gateway/console/**", "src/pinecall/gateway/admin/**", "src/pinecall/gateway/widget/**"]
-
-[tool.hatch.build.targets.sdist]
-artifacts = ["src/pinecall/gateway/console/**", "src/pinecall/gateway/admin/**", "src/pinecall/gateway/widget/**"]
-
 # ── pytest ──────────────────────────────────────────────────────────────────────
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["packages/pinecall-runtime/tests", "infra/tools/tests"]
 # `-p randomly` is named rather than left to the entry point: a virtualenv without the plugin
 # fails at startup instead of quietly running the suite in file order.
 # `-n auto` lives in scripts/test, not here: `uv run pytest tests/cli/doctor/test_verbs.py` used
@@ -184,51 +70,28 @@ markers = [
 [tool.coverage.run]
 branch = true
 # Paths and not the package name: a namespace has one path per distribution.
-source = ["src/pinecall", "packages/pinecall-core/src/pinecall"]
-omit = ["src/pinecall/cli/gateway.py", "src/pinecall/cli/worker.py"]
+source = ["packages/pinecall-runtime/src/pinecall", "packages/pinecall-core/src/pinecall"]
+omit = ["packages/pinecall-runtime/src/pinecall/cli/gateway.py", "packages/pinecall-runtime/src/pinecall/cli/worker.py"]
 
 [tool.coverage.report]
 skip_covered = true
 show_missing = true
 fail_under = 90
 
-# ── deptry ──────────────────────────────────────────────────────────────────────
-
-# What the tree imports against what pyproject declares, both ways: an import of something only
-# a dependency dragged in breaks on the day that dependency drops it, and a declared package
-# nobody imports is a wheel nobody needed.
-[tool.deptry]
-known_first_party = ["pinecall"]
-
-[tool.deptry.package_module_name_map]
-pinecall-protocol = ["pinecall_protocol"]
-livekit-agents = ["livekit"]
-livekit-api = ["livekit"]
-argon2-cffi = ["argon2"]
-pyjwt = ["jwt"]
-typing-extensions = ["typing_extensions"]
-pydantic-settings = ["pydantic_settings"]
-
-[tool.deptry.per_rule_ignores]
-# uvicorn is what `pinecall-runtime gateway` runs, never imported by name; anthropic is named in
-# the `runtime` extra only to hold it under 1.0 for livekit's plugin, which is what imports it.
-# pinecall-core is imported on every other line, as `pinecall.types`: deptry reads a namespace by
-# its top-level name alone, and `pinecall` is this tree's own.
-DEP002 = ["uvicorn", "typing-extensions", "anthropic", "pinecall-core"]
-
 # ── type checkers ───────────────────────────────────────────────────────────────
 
 [tool.pyright]
-include = ["src", "tests", "packages"]
-# The core's suite imports its own conftest by name, as pytest puts its directory on the path.
-extraPaths = ["src", "packages/pinecall-core/src", "packages/pinecall-core/tests"]
+include = ["packages"]
+# Two source roots for one namespace, the runtime's tests package, and the core's suite, which
+# imports its own conftest by name as pytest puts its directory on the path.
+extraPaths = ["packages/pinecall-runtime/src", "packages/pinecall-runtime", "packages/pinecall-core/src", "packages/pinecall-core/tests"]
 typeCheckingMode = "strict"
 pythonVersion = "3.12"
 reportImplicitOverride = true
 
 [tool.mypy]
-files = ["src", "packages/pinecall-core/src"]
-mypy_path = "src:packages/pinecall-core/src"
+files = ["packages/pinecall-runtime/src", "packages/pinecall-core/src"]
+mypy_path = "packages/pinecall-runtime/src:packages/pinecall-core/src"
 namespace_packages = true
 explicit_package_bases = true
 strict = true
@@ -239,7 +102,7 @@ python_version = "3.12"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["src", "tests", "packages/pinecall-core/src", "packages/pinecall-core/tests"]
+src = ["packages/pinecall-runtime/src", "packages/pinecall-runtime/tests", "packages/pinecall-core/src", "packages/pinecall-core/tests"]
 
 [tool.ruff.lint]
 select = [
@@ -263,11 +126,10 @@ unfixable = ["T201"]
 
 [tool.ruff.lint.per-file-ignores]
 # The CLI is the one place that speaks to a terminal.
-"src/pinecall/cli/**" = ["T201"]
+"packages/pinecall-runtime/src/pinecall/cli/**" = ["T201"]
 # And a maintainer's script, which is run by hand and has nowhere else to say what it wrote.
 "scripts/*.py" = ["T201", "S310"]
 # A test asserts, spawns the tree's own tools, and makes noise with `random`.
-"tests/**" = ["S101", "S301", "S311", "S603", "S607"]
 "packages/*/tests/**" = ["S101", "S301", "S311", "S603", "S607"]
 "infra/tools/tests/**" = ["S101"]
 # The operator's own Python: it opens fixed https URLs, binds a probe to every interface on

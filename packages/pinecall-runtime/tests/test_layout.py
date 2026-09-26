@@ -21,7 +21,7 @@ FILES_THE_CEILING_SKIPS = frozenset(
     {
         Path("uv.lock"),
         Path("CHANGELOG.md"),
-        Path("src/pinecall/providers/published_prices.json"),
+        Path("packages/pinecall-runtime/src/pinecall/providers/published_prices.json"),
         # Two walkthroughs whose content IS the terminal output of every step, in order. Cutting
         # one to fit would mean cutting steps, and a walkthrough with a step missing is worse
         # than none — a person following it stops at a command that does not work.
@@ -35,14 +35,14 @@ FILES_THE_CEILING_SKIPS = frozenset(
         # every dependency a door takes, once. They sat at exactly 400 and the next setting was
         # going to cost a split of one of them — which buys a second place to look for a variable,
         # the one thing these two files exist to prevent. They grow by rows, not by ideas.
-        Path("src/pinecall/_settings.py"),
-        Path("src/pinecall/api/deps.py"),
+        Path("packages/pinecall-runtime/src/pinecall/_settings.py"),
+        Path("packages/pinecall-runtime/src/pinecall/api/deps.py"),
     }
 )
 
 
 def test_no_python_file_sits_at_the_root() -> None:
-    """The root holds configuration and scripts; code lives under src/, tests under tests/."""
+    """The root holds the workspace, its tools and scripts; code lives under packages/."""
     stray = sorted(path.name for path in ROOT.glob("*.py"))
     assert not stray, f"Python at the repo root: {stray}"
 

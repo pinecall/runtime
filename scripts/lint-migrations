@@ -8,7 +8,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-MIGRATIONS=src/pinecall/migrations
+MIGRATIONS=packages/pinecall-runtime/src/pinecall/migrations
 LOCK="$MIGRATIONS/migrations.lock"
 
 LANDED="$(grep -v '^#' "$LOCK" | tr -d '[:space:]')"

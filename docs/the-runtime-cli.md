@@ -241,7 +241,7 @@ the fleet loop ([scaling.md](scaling.md)): every `--every` seconds it reads the 
 and keeps `busy = active / seats` at `--target` — a machine when over it, a cordon on the quietest
 when under it by 0.15 or more, a delete once a cordoned machine holds nothing or never dialled in. `--seats` is the `PINECALL_MAX_JOBS` baked into the image, so
 a machine still booting counts from the moment it is asked for. `--cloud` names a script under
-`infra/fleet/` or a path to yours ([../infra/fleet/README.md](../infra/fleet/README.md)); the
+the package's `fleet/scripts/` or a path to yours ([../infra/fleet/README.md](../infra/fleet/README.md)); the
 cloud's own CLI must be signed in wherever the loop runs. `--once --dry-run` prints one tick's
 verdict and touches nothing.
 

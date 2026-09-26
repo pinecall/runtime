@@ -7,18 +7,18 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/pinecall/_version.py)
+version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' packages/pinecall-runtime/src/pinecall/_version.py)
 
-if ! grep -qE '^\s*"pinecall-protocol(==|>=|~=|<)' pyproject.toml; then
+if ! grep -qE '^\s*"pinecall-protocol(==|>=|~=|<)' packages/pinecall-runtime/pyproject.toml; then
   echo "pinecall-protocol viaja sin rango de versión en [project.dependencies]:" >&2
-  grep -n 'pinecall-protocol' pyproject.toml >&2
+  grep -n 'pinecall-protocol' packages/pinecall-runtime/pyproject.toml >&2
   echo "un wheel publicado así acepta cualquier protocol. Poné el rango antes de taggear." >&2
   exit 1
 fi
 # La misma trampa con el core: en el árbol es un miembro del workspace, en el wheel un rango.
-if ! grep -qE '^\s*"pinecall-core(==|>=|~=|<)' pyproject.toml; then
+if ! grep -qE '^\s*"pinecall-core(==|>=|~=|<)' packages/pinecall-runtime/pyproject.toml; then
   echo "pinecall-core viaja sin rango de versión en [project.dependencies]:" >&2
-  grep -n 'pinecall-core' pyproject.toml >&2
+  grep -n 'pinecall-core' packages/pinecall-runtime/pyproject.toml >&2
   echo "un wheel publicado así acepta cualquier core. Poné el rango antes de taggear." >&2
   exit 1
 fi

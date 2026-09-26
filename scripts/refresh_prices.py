@@ -1,4 +1,4 @@
-"""Write src/pinecall/providers/published_prices.json from mahimailabs/voice-prices."""
+"""Write providers/published_prices.json (the runtime package) from mahimailabs/voice-prices."""
 
 # Run by scripts/refresh-prices. It is a script and not part of the package: nothing at runtime
 # fetches anything, and what ships is the file this wrote, reviewable as a diff.

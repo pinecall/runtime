@@ -1,6 +1,7 @@
 # The fleet's clouds
 
-One script per provider, three verbs each, and this is **all** the cloud-specific code there is.
+One script per provider, three verbs each, shipped inside the package (`pinecall/fleet/scripts/`),
+and this is **all** the cloud-specific code there is.
 The loop (`pinecall-runtime fleet loop --cloud <name>`) never imports a vendor SDK: it runs the
 script and reads its lines.
 

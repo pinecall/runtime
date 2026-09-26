@@ -16,7 +16,7 @@ from pinecall._settings import (
     load_settings,
     variable_of,
 )
-from tests.tree import PACKAGE_ROOT
+from tests.tree import PACKAGE_ROOT, ROOT
 
 pytestmark = pytest.mark.unit
 
@@ -195,7 +195,7 @@ def test_the_example_file_copied_verbatim_builds_settings(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """`cp .env.example .env` and nothing else: the exact state a reader is told to be in."""
-    example = (PACKAGE_ROOT.parent.parent / ".env.example").read_text(encoding="utf-8")
+    example = (ROOT / ".env.example").read_text(encoding="utf-8")
     write_env_file(tmp_path / ".env", example)
     monkeypatch.chdir(tmp_path)
     assert load_settings().max_jobs is None

@@ -5,5 +5,5 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-uv sync --locked --extra runtime --extra providers --group dev
+uv sync --locked --all-packages --extra runtime --extra providers --group dev
 uvx prek install 2>/dev/null || echo "prek is not installed: scripts/format and scripts/lint run by hand before a commit"

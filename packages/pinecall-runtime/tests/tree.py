@@ -7,9 +7,11 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-PACKAGE_ROOT = ROOT / "src" / "pinecall"
-TESTS_ROOT = ROOT / "tests"
+# The repository, and the two distributions under packages/: the runtime, and the core.
+ROOT = Path(__file__).resolve().parents[3]
+RUNTIME = ROOT / "packages" / "pinecall-runtime"
+PACKAGE_ROOT = RUNTIME / "src" / "pinecall"
+TESTS_ROOT = RUNTIME / "tests"
 # The other portion of the `pinecall` namespace: pinecall-core, a distribution of its own.
 CORE = ROOT / "packages" / "pinecall-core"
 CORE_ROOT = CORE / "src" / "pinecall"

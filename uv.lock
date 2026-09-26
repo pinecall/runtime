@@ -14,6 +14,22 @@ members = [
     "pinecall-core",
 ]
 
+[manifest.dependency-groups]
+dev = [
+    { name = "deptry", specifier = ">=0.24,<1" },
+    { name = "hypothesis", specifier = ">=6.140,<7" },
+    { name = "mypy", specifier = "==2.3.1" },
+    { name = "pyright", specifier = "==1.1.411" },
+    { name = "pytest", specifier = ">=9,<10" },
+    { name = "pytest-asyncio", specifier = ">=1.4,<2" },
+    { name = "pytest-cov", specifier = ">=7,<8" },
+    { name = "pytest-randomly", specifier = ">=3.16,<4" },
+    { name = "pytest-timeout", specifier = ">=2.4.0" },
+    { name = "pytest-xdist", specifier = ">=3.8,<4" },
+    { name = "ruff", specifier = ">=0.16,<1" },
+    { name = "squawk-cli", specifier = ">=2.65,<3" },
+]
+
 [[package]]
 name = "aiobotocore"
 version = "3.9.1"
@@ -3373,7 +3389,7 @@ wheels = [
 
 [[package]]
 name = "pinecall"
-source = { editable = "." }
+source = { editable = "packages/pinecall-runtime" }
 dependencies = [
     { name = "argon2-cffi" },
     { name = "asyncpg" },
@@ -3409,22 +3425,6 @@ runtime = [
     { name = "livekit-agents", extra = ["deepgram", "elevenlabs", "soniox"] },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "deptry" },
-    { name = "hypothesis" },
-    { name = "mypy" },
-    { name = "pyright" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "pytest-randomly" },
-    { name = "pytest-timeout" },
-    { name = "pytest-xdist" },
-    { name = "ruff" },
-    { name = "squawk-cli" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "anthropic", marker = "extra == 'runtime'", specifier = "<1" },
@@ -3453,22 +3453,6 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30,<1" },
 ]
 provides-extras = ["providers", "providers-big", "runtime"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "deptry", specifier = ">=0.24,<1" },
-    { name = "hypothesis", specifier = ">=6.140,<7" },
-    { name = "mypy", specifier = "==2.3.1" },
-    { name = "pyright", specifier = "==1.1.411" },
-    { name = "pytest", specifier = ">=9,<10" },
-    { name = "pytest-asyncio", specifier = ">=1.4,<2" },
-    { name = "pytest-cov", specifier = ">=7,<8" },
-    { name = "pytest-randomly", specifier = ">=3.16,<4" },
-    { name = "pytest-timeout", specifier = ">=2.4.0" },
-    { name = "pytest-xdist", specifier = ">=3.8,<4" },
-    { name = "ruff", specifier = ">=0.16,<1" },
-    { name = "squawk-cli", specifier = ">=2.65,<3" },
-]
 
 [[package]]
 name = "pinecall-core"

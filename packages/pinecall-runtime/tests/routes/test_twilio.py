@@ -1,7 +1,6 @@
 """Twilio over httpx, answered by a transport that is a dict; the fence agrees on the networks."""
 
 import json
-from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs
 
@@ -20,12 +19,13 @@ from pinecall.routes.twilio import (
     termination_label,
 )
 from pinecall.types import TwilioAccount
+from tests.tree import ROOT
 
 pytestmark = pytest.mark.unit
 
 A_SID = "AC" + "0" * 32
 ACCOUNT = TwilioAccount(A_SID, A_SID, "the-auth-token")
-FENCE = Path(__file__).resolve().parents[2] / "infra" / "box" / "nftables.conf"
+FENCE = ROOT / "infra" / "box" / "nftables.conf"
 
 
 class _Twilio:

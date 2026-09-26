@@ -94,9 +94,9 @@ full              = somebody is there and nobody accepts</code></pre>
 <tr><td>a phone call</td><td>answered by <code>worker overflow</code> on the hub: one sentence, the caller's number as <code>callback.requested</code>, <code>via: overflow</code>, hang up. No STT, no model.</td></tr>
 </table></div>
 <h3>The loop → the cloud <span class="tag">built</span></h3>
-<pre><code>infra/fleet/&lt;cloud&gt; create &lt;name&gt;     boots from the worker image; hostname = name
-infra/fleet/&lt;cloud&gt; delete &lt;name&gt;
-infra/fleet/&lt;cloud&gt; list             name&lt;TAB&gt;created-at (ISO 8601), fleet-labelled only</code></pre>
+<pre><code>fleet/scripts/&lt;cloud&gt; create &lt;name&gt;     boots from the worker image; hostname = name
+fleet/scripts/&lt;cloud&gt; delete &lt;name&gt;
+fleet/scripts/&lt;cloud&gt; list             name&lt;TAB&gt;created-at (ISO 8601), fleet-labelled only</code></pre>
 <p>Shipped: <code>gcp</code>, <code>aws</code>, <code>hetzner</code> — about forty lines of the vendor's own CLI each. Yours: <code>--cloud ./mine</code> with the same three verbs. The runtime imports no cloud SDK, ever.</p>
 
 <h2 id="loop">4. One tick of the loop</h2>
