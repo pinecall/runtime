@@ -68,10 +68,7 @@ UPDATE routes SET org = $2
 RETURNING number
 """
 
-REMOVE = "DELETE FROM routes WHERE org = $1 AND number = $2"
-
-# What asyncpg answers a DELETE with when the WHERE matched nothing: the command tag, verbatim.
-DELETED_NOTHING = "DELETE 0"
+REMOVE = "DELETE FROM routes WHERE org = $1 AND number = $2 RETURNING number"
 
 
 @dataclass(frozen=True)
@@ -197,9 +194,8 @@ class PostgresRoutes:
         )
 
     async def remove(self, org: str, number: str) -> bool:
-        """The command tag says whether a row went, so a number nobody typed is told apart."""
-        tag = await self._pool.execute(REMOVE, org, number)
-        return tag.strip() != DELETED_NOTHING
+        """The row RETURNING says whether one went, so a number nobody typed is told apart."""
+        return await self._pool.fetchrow(REMOVE, org, number) is not None
 
     async def moved(self, agent: str, org: str) -> Moved:
         """One UPDATE, and the rows it could not take are the difference against what was there."""

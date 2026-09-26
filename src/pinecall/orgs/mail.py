@@ -9,8 +9,7 @@ from typing import Any, Protocol
 
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.orgs.table import DELETED_NOTHING
-from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_cipher
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_sealed_store, opened, sealed
 from pinecall.types import Mailbox, a_security
 
 
@@ -57,7 +56,7 @@ class MemoryMail:
     async def put(self, org: str, mailbox: Mailbox) -> None:
         """Encrypted here too, so a dev clone and a box behave alike down to the stored bytes."""
         kept = KeptMail(replace(mailbox, password=""))
-        self._rows[org] = (kept, _sealed(self._cipher, mailbox.password))
+        self._rows[org] = (kept, sealed(self._cipher, mailbox.password))
 
     async def of(self, org: str) -> KeptMail | None:
         """Through the cipher on the way out, exactly as the row below is."""
@@ -65,8 +64,8 @@ class MemoryMail:
         if row is None:
             return None
         kept, ciphertext = row
-        opened = replace(kept.mailbox, password=_opened(self._cipher, ciphertext))
-        return replace(kept, mailbox=opened)
+        in_the_clear = replace(kept.mailbox, password=opened(self._cipher, ciphertext))
+        return replace(kept, mailbox=in_the_clear)
 
     async def drop(self, org: str) -> bool:
         """Whether there was a row to forget."""
@@ -99,7 +98,7 @@ SELECT host, port, security, username, ciphertext, sender, verified_at, last_err
   FROM org_mail WHERE org = $1
 """
 
-_DROP = "DELETE FROM org_mail WHERE org = $1"
+_DROP = "DELETE FROM org_mail WHERE org = $1 RETURNING org"
 
 _RECORDED = """
 UPDATE org_mail
@@ -125,7 +124,7 @@ class PostgresMail:
             mailbox.port,
             mailbox.security,
             mailbox.username,
-            _sealed(self._cipher, mailbox.password),
+            sealed(self._cipher, mailbox.password),
             mailbox.sender,
         )
 
@@ -136,8 +135,7 @@ class PostgresMail:
 
     async def drop(self, org: str) -> bool:
         """The command tag says whether a row went, so dropping a stranger is told apart."""
-        tag = await self._pool.execute(_DROP, org)
-        return tag.strip() != DELETED_NOTHING
+        return await self._pool.fetchrow(_DROP, org) is not None
 
     async def recorded(self, org: str, error: str | None) -> None:
         """One UPDATE either way: an org that wired nothing has no row and nothing is written."""
@@ -149,10 +147,7 @@ class PostgresMail:
 # the box's own mail — which is a credential of the box and not of a tenant — still sends.
 def mail_for(settings: Settings, pool: Pool | None) -> Mail | None:
     """Postgres when the process opened one, memory with none, nothing with no vault key."""
-    if not settings.vault_key:
-        return None
-    cipher = a_cipher(settings.vault_key)
-    return MemoryMail(cipher) if pool is None else PostgresMail(pool, cipher)
+    return a_sealed_store(settings, pool, memory=MemoryMail, postgres=PostgresMail)
 
 
 def _a_mailbox(cipher: Cipher, row: Any) -> KeptMail:
@@ -164,22 +159,12 @@ def _a_mailbox(cipher: Cipher, row: Any) -> KeptMail:
             port=int(row["port"]),
             security=a_security(str(row["security"])),
             username=str(row["username"]),
-            password=_opened(cipher, str(row["ciphertext"])),
+            password=opened(cipher, str(row["ciphertext"])),
             sender=str(row["sender"]),
         ),
         verified_at=None if verified is None else verified.isoformat(),
         last_error=None if row["last_error"] is None else str(row["last_error"]),
     )
-
-
-def _sealed(cipher: Cipher, secret: str) -> str:
-    """The SMTP password as a row keeps it: a Fernet token, never the password itself."""
-    return cipher.encrypt(secret.encode()).decode()
-
-
-def _opened(cipher: Cipher, ciphertext: str) -> str:
-    """One row back into the password the mail server takes."""
-    return cipher.decrypt(ciphertext.encode()).decode()
 
 
 def _an_instant() -> str:

@@ -116,10 +116,13 @@ async def test_postgres_issue_writes_the_fingerprint_and_never_the_key() -> None
     assert (issued.record.org, issued.record.label) == ("clinica", "the worker")
 
 
-async def test_postgres_revoke_reads_the_command_tag_so_a_stranger_is_told_apart() -> None:
-    pool = _APoolOfOneRow(None, tag="UPDATE 0")
-    assert await PostgresKeys(pool).revoke("a" * 64) is False
-    assert await PostgresKeys(_APoolOfOneRow(None, tag="UPDATE 1")).revoke("a" * 64) is True
+async def test_postgres_revoke_answers_whether_a_row_came_back_so_a_stranger_is_told_apart() -> (
+    None
+):
+    assert await PostgresKeys(_APoolOfOneRow(None)).revoke("a" * 64) is False
+    revoked = _APoolOfOneRow(_a_row("k_1", "madrid"))
+    assert await PostgresKeys(revoked).revoke("a" * 64) is True
+    assert "RETURNING id" in revoked.queries[-1]
 
 
 async def test_postgres_keys_looks_the_key_up_by_its_hash_and_never_by_the_key() -> None:
@@ -274,9 +277,8 @@ def _a_row(
 class _APoolOfOneRow:
     """A pool that answers every query with the same row, and remembers what it was asked."""
 
-    def __init__(self, row: Mapping[str, Any] | None, tag: str = "SELECT 1") -> None:
+    def __init__(self, row: Mapping[str, Any] | None) -> None:
         self._row = row
-        self._tag = tag
         self.asked: list[Any] = []
         self.queries: list[str] = []
 
@@ -293,7 +295,7 @@ class _APoolOfOneRow:
 
     async def execute(self, _query: str, /, *args: Any) -> str:
         self.asked.extend(args)
-        return self._tag
+        return "SELECT 1"
 
     def acquire(self) -> AbstractAsyncContextManager[Held]:
         return acquired(self)

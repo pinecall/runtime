@@ -28,7 +28,6 @@ from pinecall.log.store.statements import (
     LATEST_SEQ,
     LIST_CALLS,
     MOVED,
-    MOVED_NOTHING,
     NEWEST_LIVE_CALL,
     OWNED,
     OWNER,
@@ -271,10 +270,9 @@ class PostgresStore(PostgresIndex):
         )
 
     async def moved(self, agent: str, org: str) -> int:
-        """Every head row of this agent, into another org. The count comes off the command tag."""
-        tag = await self._pool.execute(MOVED, agent, org)
-        said = tag.strip()
-        return 0 if said == MOVED_NOTHING else int(said.rsplit(" ", 1)[-1])
+        """Every head row of this agent, into another org, and how many there were."""
+        row = await self._pool.fetchrow(MOVED, agent, org)
+        return 0 if row is None else int(row["moved"])
 
     async def owner(self, call: str | None, agent: str) -> str | None:
         """Whose log this is; None for a log with no head row, or one nobody claimed."""

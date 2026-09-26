@@ -11,8 +11,7 @@ from cryptography.fernet import InvalidToken
 
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.orgs.table import DELETED_NOTHING
-from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_cipher
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_cipher, opened, sealed
 
 # The rows there are. A name is the whole key: the box is one, so there is no org beside it.
 BRAND = "brand"
@@ -94,7 +93,7 @@ logger = logging.getLogger(__name__)
 
 _OF = "SELECT value::text AS value, ciphertext FROM box_settings WHERE name = $1"
 
-_DROP = "DELETE FROM box_settings WHERE name = $1"
+_DROP = "DELETE FROM box_settings WHERE name = $1 RETURNING name"
 
 _NOTED = "UPDATE box_settings SET value = value || $2::jsonb WHERE name = $1"
 
@@ -123,8 +122,7 @@ class PostgresBoxSettings:
 
     async def drop(self, name: str) -> bool:
         """The command tag says whether a row went, so dropping nothing is told apart."""
-        tag = await self._pool.execute(_DROP, name)
-        return tag.strip() != DELETED_NOTHING
+        return await self._pool.fetchrow(_DROP, name) is not None
 
     async def noted(self, name: str, changes: dict[str, Any]) -> None:
         """One UPDATE: a setting nobody made has no row and nothing is written."""
@@ -146,7 +144,7 @@ def _sealed(cipher: Cipher | None, secret: str | None) -> str | None:
         return None
     if cipher is None:
         raise NoVaultKey(NO_VAULT_KEY)
-    return cipher.encrypt(secret.encode()).decode()
+    return sealed(cipher, secret)
 
 
 # A row sealed under a vault key this box no longer holds — lost, or rotated without the old key
@@ -159,7 +157,7 @@ def _opened(cipher: Cipher | None, ciphertext: str | None) -> str | None:
     if ciphertext is None or cipher is None:
         return None
     try:
-        return cipher.decrypt(ciphertext.encode()).decode()
+        return opened(cipher, ciphertext)
     except InvalidToken:
         logger.warning(
             "a box setting is sealed under a key PINECALL_VAULT_KEY no longer holds: read as unset"

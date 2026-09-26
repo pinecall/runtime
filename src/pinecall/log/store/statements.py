@@ -85,12 +85,13 @@ on conflict (log) do update
 # Every head row this agent has: its own, and one per call it took. `call_log_head_by_agent`
 # indexes exactly this column, so the move is one statement and one index scan however long the
 # agent has been running.
-MOVED = "update call_log_head set org = $2 where agent = $1"
-
-# What `UPDATE n` says when it moved nothing. The tag is the only thing that tells an agent
-# nobody has ever registered from one that moved: a verb that answered yes to a typo would send
-# an operator looking for the change in the wrong org.
-MOVED_NOTHING = "UPDATE 0"
+# The count comes back as a row: it is what tells an agent nobody has ever registered from one
+# that moved, and a verb that answered yes to a typo would send an operator looking for the
+# change in the wrong org.
+MOVED = """
+with moved as (update call_log_head set org = $2 where agent = $1 returning log)
+select count(*) as moved from moved
+"""
 
 OWNER = "select org from call_log_head where log = $1"
 

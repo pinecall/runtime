@@ -41,13 +41,10 @@ SELECT hash, org, label, env, scopes, subject, name, created_by, created_at, las
 # Revocation is an UPDATE and never a DELETE, and it is the one that already ran that the WHERE
 # filters out: revoking twice must not read as if a live key had just been stopped.
 _REVOKE = """
-UPDATE api_keys SET revoked_at = now() WHERE hash = $1 AND revoked_at IS NULL
+UPDATE api_keys SET revoked_at = now() WHERE hash = $1 AND revoked_at IS NULL RETURNING id
 """
 
 _TOUCH = "UPDATE api_keys SET last_used_at = now() WHERE id = $1"
-
-# What asyncpg answers an UPDATE with when the WHERE matched nothing: the command tag, verbatim.
-CHANGED_NOTHING = "UPDATE 0"
 
 
 class PostgresKeys:
@@ -106,9 +103,8 @@ class PostgresKeys:
         return tuple(_a_listed_key(row) for row in rows)
 
     async def revoke(self, hashed: str) -> bool:
-        """The command tag says whether a row changed, so revoking a stranger is told apart."""
-        tag = await self._pool.execute(_REVOKE, hashed)
-        return tag.strip() != CHANGED_NOTHING
+        """The row RETURNING says whether one changed, so revoking a stranger is told apart."""
+        return await self._pool.fetchrow(_REVOKE, hashed) is not None
 
     async def touch(self, key_id: str) -> None:
         """One UPDATE by the row's id; a row gone since is nothing to say."""

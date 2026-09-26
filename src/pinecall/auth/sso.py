@@ -7,12 +7,12 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from pinecall.auth.one_use import OneUse
 from pinecall.auth.openid import a_verifier
 
 # What travels in the URL is this word and nothing else: the org, the nonce and the PKCE verifier
 # stay here. A state that carried them would be a state somebody could write themselves.
 STATE_PREFIX = "st_"
-STATE_BYTES = 24
 NONCE_BYTES = 24
 
 # How long a person has between the redirect out and the callback back. Ten minutes is a person
@@ -43,16 +43,13 @@ class Handshake:
     provider: str | None = None
 
 
-# This process's memory, exactly as the login codes and the pairings are: a sign-in is one person
-# between two requests seconds apart, and a gateway that restarted in the middle of one is a
-# person pressing the button again. A table would make a ten-minute word survive a restart, which
-# is not a property it needs — and it is one-use here, which is the property that matters.
+# A sign-in is one person between two requests seconds apart, and a gateway that restarted in
+# the middle of one is a person pressing the button again: a one-use word (auth/one_use.py).
 class Handshakes:
     """The sign-ins started here and not yet finished. One use each; expired ones are as good."""
 
     def __init__(self, clock: Callable[[], float] = time.time) -> None:
-        self._clock = clock
-        self._open: dict[str, Handshake] = {}
+        self._words: OneUse[Handshake] = OneUse(STATE_PREFIX, STATE_TTL_S, clock)
 
     def open(
         self,
@@ -62,27 +59,19 @@ class Handshakes:
         provider: str | None = None,
     ) -> Handshake:
         """A state, a nonce and a verifier for one sign-in, good for ten minutes."""
-        self._forget_the_dead()
         handshake = Handshake(
-            state=f"{STATE_PREFIX}{secrets.token_urlsafe(STATE_BYTES)}",
+            state=self._words.a_word(),
             org=org,
             nonce=secrets.token_urlsafe(NONCE_BYTES),
             verifier=a_verifier(),
             redirect_uri=redirect_uri,
             pairing=pairing,
-            expires_at=self._clock() + STATE_TTL_S,
+            expires_at=self._words.expires_from_now(),
             provider=provider,
         )
-        self._open[handshake.state] = handshake
+        self._words.keep(handshake.state, handshake, handshake.expires_at)
         return handshake
 
     def spend(self, state: str) -> Handshake | None:
         """The sign-in this state stands for, once. None when it is unknown, spent or expired."""
-        self._forget_the_dead()
-        return self._open.pop(state, None)
-
-    def _forget_the_dead(self) -> None:
-        """Expired states go on the next open or spend, so the dict never grows with nobody's."""
-        now = self._clock()
-        for state in [one for one, handshake in self._open.items() if handshake.expires_at <= now]:
-            del self._open[state]
+        return self._words.spend(state)

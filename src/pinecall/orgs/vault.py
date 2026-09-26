@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol
 
 from cryptography.fernet import Fernet, MultiFernet
@@ -10,7 +10,6 @@ from cryptography.fernet import Fernet, MultiFernet
 from pinecall._exceptions import PinecallError
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.orgs.table import DELETED_NOTHING
 from pinecall.types import NO_ORG_KEYS, Brought, ProviderKeys, QuotasOf
 
 # What a runtime with no PINECALL_VAULT_KEY answers when asked to keep somebody's key. A 503 and
@@ -62,7 +61,7 @@ class MemoryVault:
 
     async def put(self, org: str, vendor: str, key: str) -> None:
         """Encrypted here too, so a dev clone and a box behave alike down to the stored bytes."""
-        self._rows[(org, vendor)] = _sealed(self._cipher, key)
+        self._rows[(org, vendor)] = sealed(self._cipher, key)
 
     async def drop(self, org: str, vendor: str) -> bool:
         """Whether there was a row to forget."""
@@ -75,7 +74,7 @@ class MemoryVault:
     async def keys_of(self, org: str) -> ProviderKeys:
         """Every key this org brought, decrypted."""
         return {
-            vendor: _opened(self._cipher, ciphertext)
+            vendor: opened(self._cipher, ciphertext)
             for (kept, vendor), ciphertext in self._rows.items()
             if kept == org
         }
@@ -90,7 +89,7 @@ INSERT INTO provider_keys (org, vendor, ciphertext, set_at)
     SET ciphertext = excluded.ciphertext, set_at = now()
 """
 
-_DROP = "DELETE FROM provider_keys WHERE org = $1 AND vendor = $2"
+_DROP = "DELETE FROM provider_keys WHERE org = $1 AND vendor = $2 RETURNING vendor"
 
 _VENDORS = "SELECT vendor FROM provider_keys WHERE org = $1 ORDER BY vendor"
 
@@ -106,12 +105,11 @@ class PostgresVault:
 
     async def put(self, org: str, vendor: str, key: str) -> None:
         """The key in the clear reaches this method and nothing under it: the row holds a token."""
-        await self._pool.execute(_PUT, org, vendor, _sealed(self._cipher, key))
+        await self._pool.execute(_PUT, org, vendor, sealed(self._cipher, key))
 
     async def drop(self, org: str, vendor: str) -> bool:
-        """The command tag says whether a row went, so dropping a stranger is told apart."""
-        tag = await self._pool.execute(_DROP, org, vendor)
-        return tag.strip() != DELETED_NOTHING
+        """The row RETURNING says whether one went, so dropping a stranger is told apart."""
+        return await self._pool.fetchrow(_DROP, org, vendor) is not None
 
     async def vendors_of(self, org: str) -> tuple[str, ...]:
         """Names only. This is what an operator's listing is built from."""
@@ -120,7 +118,7 @@ class PostgresVault:
     async def keys_of(self, org: str) -> ProviderKeys:
         """Every key this org brought, decrypted for the one door that may carry them."""
         rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(_KEYS, org)
-        return {str(row["vendor"]): _opened(self._cipher, str(row["ciphertext"])) for row in rows}
+        return {str(row["vendor"]): opened(self._cipher, str(row["ciphertext"])) for row in rows}
 
 
 # None is an answer here and not a failure, which is why the vault is the one thing of the process
@@ -128,10 +126,24 @@ class PostgresVault:
 # every call on the box's own vendor keys, and is a complete self-hosted install.
 def vault_for(settings: Settings, pool: Pool | None) -> Vault | None:
     """Postgres when the process opened one, memory on a dev key, none when no key was set."""
+    return a_sealed_store(settings, pool, memory=MemoryVault, postgres=PostgresVault)
+
+
+# Every table that seals a tenant's secret is built the same way — the carriers, an org's mail,
+# its outbound trunk, its identity provider, and this one: none without a vault key, since a
+# secret it could not seal is one it must not keep; memory on a laptop with no Postgres up.
+def a_sealed_store[T](
+    settings: Settings,
+    pool: Pool | None,
+    *,
+    memory: Callable[[Cipher], T],
+    postgres: Callable[[Pool, Cipher], T],
+) -> T | None:
+    """Postgres when the process opened one, memory when it did not, none with no vault key."""
     if not settings.vault_key:
         return None
     cipher = a_cipher(settings.vault_key)
-    return MemoryVault(cipher) if pool is None else PostgresVault(pool, cipher)
+    return memory(cipher) if pool is None else postgres(pool, cipher)
 
 
 # Every door that opens a call — the worker's own, the chat socket, an eval run — asks this one
@@ -168,11 +180,13 @@ def a_cipher(vault_key: str) -> MultiFernet:
         raise NoVaultKey(NOT_A_FERNET_KEY) from malformed
 
 
-def _sealed(cipher: Cipher, key: str) -> str:
-    """One provider key as a row keeps it: a Fernet token, never the key itself."""
-    return cipher.encrypt(key.encode()).decode()
+# The one pair every sealed table spells its secret through: a Fernet token in the row, the
+# secret in the clear only in the process that asked for it.
+def sealed(cipher: Cipher, secret: str) -> str:
+    """One secret as a row keeps it: a Fernet token, never the secret itself."""
+    return cipher.encrypt(secret.encode()).decode()
 
 
-def _opened(cipher: Cipher, ciphertext: str) -> str:
-    """One row back into the key a vendor takes."""
+def opened(cipher: Cipher, ciphertext: str) -> str:
+    """One row back into the secret its vendor takes."""
     return cipher.decrypt(ciphertext.encode()).decode()

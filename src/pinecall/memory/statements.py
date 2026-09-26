@@ -69,9 +69,17 @@ LIMIT $8
 ENDED = """
 UPDATE contact_memories SET invalidated_at = $5
 WHERE id = $4::uuid AND org = $1 AND env = $2 AND holder = $3 AND invalidated_at IS NULL
+RETURNING id
 """
 
-FORGET = "DELETE FROM contact_memories WHERE org = $1 AND env = $2 AND holder = $3 AND contact = $4"
+# The count of what went, as a row and never off the command tag.
+FORGET = """
+WITH gone AS (
+    DELETE FROM contact_memories WHERE org = $1 AND env = $2 AND holder = $3 AND contact = $4
+    RETURNING id
+)
+SELECT count(*) AS forgotten FROM gone
+"""
 
 # What the org KEEPS, which is what its quota is about: the current rows, every contact together,
 # in BOTH worlds — a fact a test call wrote is a row on the same disk as one a real call wrote. A

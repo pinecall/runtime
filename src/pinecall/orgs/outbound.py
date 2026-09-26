@@ -7,8 +7,7 @@ from typing import Any, Protocol
 
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.orgs.table import DELETED_NOTHING
-from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_cipher
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_sealed_store, opened, sealed
 from pinecall.types import CarrierKind, OutboundTrunk, a_carrier_kind
 
 
@@ -73,7 +72,7 @@ INSERT INTO outbound_trunks (org, kind, trunk_id, address, username, ciphertext,
         username = excluded.username, ciphertext = excluded.ciphertext, set_at = now()
 """
 _OF = "SELECT kind, trunk_id, address, username, ciphertext FROM outbound_trunks WHERE org = $1"
-_DROP = "DELETE FROM outbound_trunks WHERE org = $1"
+_DROP = "DELETE FROM outbound_trunks WHERE org = $1 RETURNING org"
 
 
 class PostgresOutboundTrunks:
@@ -111,32 +110,30 @@ class PostgresOutboundTrunks:
 
     async def drop(self, org: str) -> bool:
         """The command tag says whether a row went, so dropping a stranger is told apart."""
-        tag = await self._pool.execute(_DROP, org)
-        return tag.strip() != DELETED_NOTHING
+        return await self._pool.fetchrow(_DROP, org) is not None
 
 
 # None when the box was given no vault key, exactly as the carriers table is: the password this
 # row holds is one the box MINTED on the tenant's account and cannot read back from anywhere.
 def outbound_trunks_for(settings: Settings, pool: Pool | None) -> OutboundTrunks | None:
     """Postgres when the process opened one, memory when it did not, none with no vault key."""
-    if not settings.vault_key:
-        return None
-    cipher = a_cipher(settings.vault_key)
-    return MemoryOutboundTrunks(cipher) if pool is None else PostgresOutboundTrunks(pool, cipher)
+    return a_sealed_store(
+        settings, pool, memory=MemoryOutboundTrunks, postgres=PostgresOutboundTrunks
+    )
 
 
 def _sealed(cipher: Cipher, password: str | None) -> str | None:
     """The password as a row keeps it: one Fernet token over its JSON, or nothing at all."""
     if password is None:
         return None
-    return cipher.encrypt(json.dumps({"password": password}).encode()).decode()
+    return sealed(cipher, json.dumps({"password": password}))
 
 
 def _opened(cipher: Cipher, ciphertext: Any) -> str | None:
     """One column back into the password, or None for a trunk that authenticates with nothing."""
     if not ciphertext:
         return None
-    said: dict[str, Any] = json.loads(cipher.decrypt(str(ciphertext).encode()).decode())
+    said: dict[str, Any] = json.loads(opened(cipher, str(ciphertext)))
     return str(said["password"])
 
 

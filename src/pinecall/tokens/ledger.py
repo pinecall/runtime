@@ -6,7 +6,6 @@ import time
 from dataclasses import dataclass, replace
 from typing import Literal, Protocol
 
-from pinecall.auth.keys_postgres import CHANGED_NOTHING
 from pinecall.log.store import Pool
 
 # What spending a call's token comes back as. `spent` is the one yes; the two refusals are told
@@ -68,7 +67,7 @@ VALUES ($1, $2, $3, $4, to_timestamp($5))
 # Spent is an UPDATE guarded by its own WHERE: two dispatches racing for one token reach this row
 # in some order, and exactly one of them changes it. The command tag says which one this was.
 _SPEND = """
-UPDATE tokens SET spent_at = now() WHERE call = $1 AND spent_at IS NULL
+UPDATE tokens SET spent_at = now() WHERE call = $1 AND spent_at IS NULL RETURNING call
 """
 
 _KNOWN = """
@@ -95,8 +94,7 @@ class PostgresTokens:
 
     async def spend(self, call: str) -> Spending:
         """One guarded UPDATE; only a refusal asks a second question, to name which refusal."""
-        tag = await self._pool.execute(_SPEND, call)
-        if tag.strip() != CHANGED_NOTHING:
+        if await self._pool.fetchrow(_SPEND, call) is not None:
             return "spent"
         known = await self._pool.fetchrow(_KNOWN, call)
         return "never_minted" if known is None else "already_spent"

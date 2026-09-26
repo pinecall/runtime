@@ -6,8 +6,7 @@ from typing import Any, Protocol
 
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.orgs.table import DELETED_NOTHING
-from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_cipher
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_sealed_store, opened, sealed
 from pinecall.types import OrgSso, a_role
 
 
@@ -43,7 +42,7 @@ class MemorySso:
 
     async def put(self, sso: OrgSso) -> None:
         """Encrypted here too, so a dev clone and a box behave alike down to the stored bytes."""
-        self._rows[sso.org] = (sso, _sealed(self._cipher, sso.client_secret))
+        self._rows[sso.org] = (sso, sealed(self._cipher, sso.client_secret))
 
     async def of(self, org: str) -> OrgSso | None:
         """Through the cipher on the way out, exactly as the row below is."""
@@ -55,7 +54,7 @@ class MemorySso:
             org=kept.org,
             issuer=kept.issuer,
             client_id=kept.client_id,
-            client_secret=_opened(self._cipher, ciphertext),
+            client_secret=opened(self._cipher, ciphertext),
             domains=kept.domains,
             role=kept.role,
             required=kept.required,
@@ -87,7 +86,7 @@ _OF = """
 SELECT org, issuer, client_id, ciphertext, domains, role, required FROM org_sso WHERE org = $1
 """
 
-_DROP = "DELETE FROM org_sso WHERE org = $1"
+_DROP = "DELETE FROM org_sso WHERE org = $1 RETURNING org"
 
 _WITH_DOMAIN = """
 SELECT org, issuer, client_id, ciphertext, domains, role, required
@@ -111,7 +110,7 @@ class PostgresSso:
             sso.org,
             sso.issuer,
             sso.client_id,
-            _sealed(self._cipher, sso.client_secret),
+            sealed(self._cipher, sso.client_secret),
             list(sso.domains),
             sso.role,
             sso.required,
@@ -124,8 +123,7 @@ class PostgresSso:
 
     async def drop(self, org: str) -> bool:
         """The command tag says whether a row went, so dropping a stranger is told apart."""
-        tag = await self._pool.execute(_DROP, org)
-        return tag.strip() != DELETED_NOTHING
+        return await self._pool.fetchrow(_DROP, org) is not None
 
     async def with_domain(self, domain: str) -> tuple[OrgSso, ...]:
         """One scan of a table with one row per org: there is nothing here worth an index."""
@@ -139,10 +137,7 @@ class PostgresSso:
 # behaviour a locked-out admin wants and the one an operator has to know about.
 def sso_for(settings: Settings, pool: Pool | None) -> Sso | None:
     """Postgres when the process opened one, memory with none, nothing with no vault key."""
-    if not settings.vault_key:
-        return None
-    cipher = a_cipher(settings.vault_key)
-    return MemorySso(cipher) if pool is None else PostgresSso(pool, cipher)
+    return a_sealed_store(settings, pool, memory=MemorySso, postgres=PostgresSso)
 
 
 def _a_configuration(cipher: Cipher, row: Any) -> OrgSso:
@@ -152,21 +147,11 @@ def _a_configuration(cipher: Cipher, row: Any) -> OrgSso:
         org=str(row["org"]),
         issuer=str(row["issuer"]),
         client_id=str(row["client_id"]),
-        client_secret=_opened(cipher, str(row["ciphertext"])),
+        client_secret=opened(cipher, str(row["ciphertext"])),
         domains=tuple(str(domain) for domain in row["domains"]),
         role=None if role is None else a_role(str(role)),
         required=bool(row["required"]),
     )
-
-
-def _sealed(cipher: Cipher, secret: str) -> str:
-    """The client secret as a row keeps it: a Fernet token, never the secret itself."""
-    return cipher.encrypt(secret.encode()).decode()
-
-
-def _opened(cipher: Cipher, ciphertext: str) -> str:
-    """One row back into the secret the token endpoint takes."""
-    return cipher.decrypt(ciphertext.encode()).decode()
 
 
 __all__ = ["NO_VAULT_KEY", "MemorySso", "NoVaultKey", "PostgresSso", "Sso", "sso_for"]

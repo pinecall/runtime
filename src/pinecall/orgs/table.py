@@ -149,7 +149,7 @@ _LISTED = "SELECT id, slug, name FROM orgs ORDER BY created_at, id"
 _FIND = "SELECT id, slug, name FROM orgs WHERE id = $1 OR slug = $1 LIMIT 1"
 
 # The quotas row goes with the org: the foreign key cascades, so one DELETE is the whole removal.
-_REMOVE = "DELETE FROM orgs WHERE id = $1"
+_REMOVE = "DELETE FROM orgs WHERE id = $1 RETURNING id"
 
 _QUOTAS = """
 SELECT minutes, messages, agents, concurrent_calls, memory_facts, knowledge_chunks, numbers, seats,
@@ -175,9 +175,6 @@ INSERT INTO quotas
 _JUDGES = "SELECT judging IS NOT FALSE AS judges FROM orgs WHERE id = $1"
 
 _SET_JUDGING = "UPDATE orgs SET judging = $2 WHERE id = $1"
-
-# What asyncpg answers a DELETE with when the WHERE matched nothing: the command tag, verbatim.
-DELETED_NOTHING = "DELETE 0"
 
 
 class PostgresOrgs:
@@ -206,9 +203,8 @@ class PostgresOrgs:
         return None if row is None else _an_org(row)
 
     async def remove(self, id: str) -> bool:
-        """The command tag says whether a row went, so removing a stranger is told apart."""
-        tag = await self._pool.execute(_REMOVE, id)
-        return tag.strip() != DELETED_NOTHING
+        """The row RETURNING says whether one went, so removing a stranger is told apart."""
+        return await self._pool.fetchrow(_REMOVE, id) is not None
 
     async def quotas_of(self, id: str) -> Quotas:
         """The row, or no limits when the org was never limited."""

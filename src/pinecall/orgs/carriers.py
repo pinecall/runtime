@@ -7,8 +7,7 @@ from typing import Any, Protocol
 
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.orgs.table import DELETED_NOTHING
-from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_cipher
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_sealed_store, opened, sealed
 from pinecall.types import Carrier, SipPeer, TwilioAccount, a_carrier_kind, a_sip_transport
 
 
@@ -56,7 +55,7 @@ INSERT INTO carriers (org, kind, account, ciphertext, set_at) VALUES ($1, $2, $3
         set_at = now()
 """
 _OF = "SELECT kind, ciphertext FROM carriers WHERE org = $1"
-_DROP = "DELETE FROM carriers WHERE org = $1"
+_DROP = "DELETE FROM carriers WHERE org = $1 RETURNING org"
 
 
 class PostgresCarriers:
@@ -81,18 +80,14 @@ class PostgresCarriers:
 
     async def drop(self, org: str) -> bool:
         """The command tag says whether a row went, so dropping a stranger is told apart."""
-        tag = await self._pool.execute(_DROP, org)
-        return tag.strip() != DELETED_NOTHING
+        return await self._pool.fetchrow(_DROP, org) is not None
 
 
 # None when the box was given no vault key: the doors that need one answer 503 in the vault's own
 # sentence (NO_VAULT_KEY): a carrier's credentials are a secret exactly as a provider key is.
 def carriers_for(settings: Settings, pool: Pool | None) -> Carriers | None:
     """Postgres when the process opened one, memory on a dev key, none when no vault key was set."""
-    if not settings.vault_key:
-        return None
-    cipher = a_cipher(settings.vault_key)
-    return MemoryCarriers(cipher) if pool is None else PostgresCarriers(pool, cipher)
+    return a_sealed_store(settings, pool, memory=MemoryCarriers, postgres=PostgresCarriers)
 
 
 def _sealed(cipher: Cipher, carrier: Carrier) -> str:
@@ -111,12 +106,12 @@ def _sealed(cipher: Cipher, carrier: Carrier) -> str:
             "outbound_password": account.outbound_password,
         }
     )
-    return cipher.encrypt(json.dumps(said).encode()).decode()
+    return sealed(cipher, json.dumps(said))
 
 
 def _opened(cipher: Cipher, org: str, kind: str, ciphertext: str) -> Carrier:
     """One row back into the domain's own Carrier, the credentials in the clear."""
-    said: dict[str, Any] = json.loads(cipher.decrypt(ciphertext.encode()).decode())
+    said: dict[str, Any] = json.loads(opened(cipher, ciphertext))
     if a_carrier_kind(kind) == "twilio":
         return Carrier(
             org=org,

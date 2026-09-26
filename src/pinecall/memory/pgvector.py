@@ -150,9 +150,9 @@ class PgvectorMemory:
             await connection.executemany(ADD, rows)
 
     async def forget(self, org: str, env: Env, holder: str | None, contact: str) -> int:
-        """One DELETE, and the count off its command tag."""
-        tag = await self._pool.execute(FORGET, org, env, whose(holder), contact)
-        return int(tag.split()[-1])
+        """One DELETE, and how many rows went."""
+        row = await self._pool.fetchrow(FORGET, org, env, whose(holder), contact)
+        return 0 if row is None else int(row["forgotten"])
 
     async def history(self, org: str, env: Env, holder: str | None, contact: str) -> list[Fact]:
         """Every row, the current ones first and the newest of each group before the older."""
@@ -193,9 +193,8 @@ class PgvectorMemory:
     async def invalidated(
         self, org: str, env: Env, holder: str | None, id: str, at: datetime
     ) -> bool:
-        """One UPDATE; the command tag says whether a current fact answered."""
-        tag = await self._pool.execute(ENDED, org, env, whose(holder), id, at)
-        return tag.strip() != "UPDATE 0"
+        """One UPDATE; the row RETURNING says whether a current fact answered."""
+        return await self._pool.fetchrow(ENDED, org, env, whose(holder), id, at) is not None
 
     async def kept(self, org: str) -> int:
         """One count over the partial index: the facts that hold right now, across the org."""
