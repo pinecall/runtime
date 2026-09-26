@@ -18,7 +18,6 @@ from pinecall.api.calls.log_sink import (
     ReaderDep,
     another_orgs,
     get_reader_or_none,
-    is_sealed,
     page,
     refuse_another_call,
     refuse_another_org,
@@ -44,6 +43,7 @@ from pinecall.auth.keys import cannot_open
 from pinecall.auth.scopes import Reader
 from pinecall.log.entry import Entry, ephemeral_entry
 from pinecall.log.filters import EVERYTHING
+from pinecall.log.replay import is_sealed
 from pinecall.log.store import DEFAULT_LIMIT
 from pinecall_protocol import ProtocolError, encode
 from pinecall_protocol.events import ErrorEvent

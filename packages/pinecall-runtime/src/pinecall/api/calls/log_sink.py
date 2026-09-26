@@ -286,17 +286,6 @@ def _frame(entry: Entry, said: JsonObject) -> str:
 # ── whether the log is over ─────────────────────────────────────────────────────
 
 
-# The Store keeps no flag to ask, on purpose: what ends a call is the protocol's terminal event,
-# and the store must not have to read the protocol to write a row. So the tail is the answer.
-async def is_sealed(store: Store, call: str) -> bool:
-    """Whether this call's log is sealed: its last entry is the terminal one, or it is not over."""
-    latest = await store.latest_seq(call)
-    if latest == 0:
-        return False
-    tail = await store.since(call, after=latest - 1, limit=1)
-    return bool(tail) and tail[-1].type == TERMINAL_EVENT
-
-
 def _a_seq(header: str | None) -> int:
     """A Last-Event-ID as the seq it is. Anything else is a browser's business, not an error."""
     try:

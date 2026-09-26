@@ -3,84 +3,26 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Annotated, Any, Protocol
-
-from fastapi import Depends
+from typing import Any, Protocol
 
 from pinecall.api.agents.processes import Processes
-from pinecall.api.deps import get_live
 from pinecall.knowledge import Knowledge
-from pinecall.live.calls import Served
+from pinecall.live.calls import Live
 from pinecall.live.registry import Registry
-from pinecall.live.sockets import Send, SocketId
+from pinecall.live.sockets import SocketId
 from pinecall.log.entry import Entry
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.caller_codes import Codes
 from pinecall.orgs.tuning_store import TuningStore
-from pinecall.session.text.session import TextSession
 from pinecall.types import Env
 from pinecall_protocol import Command, ProtocolError, WireModel, command_of
-from pinecall_protocol.commands import DevAnswer
-from pinecall_protocol.defs import ToolResult
 
 
-# The two protocols below are why this module exists. The call-scoped handlers live in
-# on_a_call.py, so if they had to import the socket class to be typed, that module would import
-# the socket while the socket imported it back — a cycle that only held together because one of
-# the two imports happened late. Both sides depend on this table, and neither knows the other.
-class Live(Protocol):
-    """The process's live memory, as the app socket uses it: who is connected, what is running."""
-
-    def connect(self, owner: SocketId, send: Send) -> None:
-        """This app socket is open and can be handed the entries of the calls it answers."""
-        ...
-
-    def disconnect(self, owner: SocketId) -> None:
-        """The app socket is gone."""
-        ...
-
-    def served(self, call: str) -> Served | None:
-        """The call as this process serves it, or None when it serves no call by that id."""
-        ...
-
-    def attach(self, call: str, app: SocketId | None) -> Served | None:
-        """Serve a live call from this socket from now on (None parks it); None if nothing moved."""
-        ...
-
-    def bound_to(self, owner: SocketId) -> list[str]:
-        """The calls this socket serves right now."""
-        ...
-
-    def park(self, owner: SocketId) -> list[str]:
-        """Every call this socket served, parked: served by nobody until a socket adopts it."""
-        ...
-
-    def parked(self, env: Env, holder: str | None, agent: str) -> list[str]:
-        """The live calls of that agent, in that corner, that no socket serves."""
-        ...
-
-    def pending_tools(self, call: str) -> tuple[Entry, ...]:
-        """The tool.call entries of this call still waiting for the app."""
-        ...
-
-    def of(self, call: str | None) -> TextSession | None:
-        """The text session a command names, or None when this process runs no call by that id:
-        a worker's call is served here, never run here."""
-        ...
-
-    def answered(self, call: str, result: ToolResult) -> bool:
-        """A tool of a call this gateway runs for a worker came back; False when nobody waited."""
-        ...
-
-    def commanded(self, call: str | None, agent: str, command: Command) -> bool:
-        """Hold a command for the worker running this call. False when no such call is served."""
-        ...
-
-    def dev_answered(self, answer: DevAnswer) -> bool:
-        """The app answered a console's dev.request; False when no door is waiting on that id."""
-        ...
-
-
+# The protocol below is why this module exists. The call-scoped handlers live in on_a_call.py, so
+# if they had to import the socket class to be typed, that module would import the socket while the
+# socket imported it back — a cycle that only held together because one of the two imports happened
+# late. Both sides depend on this table, and neither knows the other. The process's live memory
+# needs no such table: it is `pinecall.live.Live`, a package both sides import.
 class Socket(Protocol):
     """What a handler may do with the app socket it was handed. AppSocket is the one that does."""
 
@@ -157,4 +99,3 @@ def parse_command[T: WireModel](command: Command, shape: type[T]) -> T:
 
 
 # The live memory is one object the lifespan opened; each side asks for it with the type it needs.
-LiveDep = Annotated[Live, Depends(get_live)]

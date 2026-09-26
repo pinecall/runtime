@@ -8,14 +8,14 @@ from typing import Any, cast
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
-from pinecall.api.agents.handlers import HANDLERS, Live, LiveDep, Socket, handles, parse_command
+from pinecall.api.agents.handlers import HANDLERS, Socket, handles, parse_command
 from pinecall.api.agents.processes import Process, Processes, ProcessesDep
-from pinecall.api.calls.attachment import handed_on, parked_calls_of
 from pinecall.api.deps import (
     AdmissionDep,
     CodesDep,
     KeysDep,
     KnowledgeDep,
+    LiveDep,
     LogsDep,
     MembersDep,
     RegistryDep,
@@ -27,6 +27,7 @@ from pinecall.auth.bearer import POLICY_VIOLATION, close_reason
 from pinecall.auth.keys import KeyRecord, cannot_open, is_held_by
 from pinecall.auth.request_scope import author_of
 from pinecall.knowledge import Knowledge
+from pinecall.live import Live, handed_on, parked_calls_of
 from pinecall.live.registry import Registry
 from pinecall.live.sockets import SocketId, new_socket_id
 from pinecall.log import REFUSED

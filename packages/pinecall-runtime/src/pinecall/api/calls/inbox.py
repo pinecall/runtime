@@ -73,7 +73,7 @@ async def thread(
 ) -> Thread:
     """Every call of one contact with the agent, merged into one thread, oldest first."""
     corner = corner_of(key)
-    calls = await _calls_of(index, corner, slug, contact)
+    calls = await require_thread(index, corner, slug, contact)
     facts = await index.facts_of(calls)
     messages: list[ThreadMessage] = []
     for call in reversed(calls):
@@ -88,7 +88,7 @@ async def thread(
 async def read(slug: str, contact: str, key: CallsKeyDep, index: CallIndexDep) -> Response:
     """This reader has read the contact's thread up to now."""
     corner = corner_of(key)
-    await _calls_of(index, corner, slug, contact)
+    await require_thread(index, corner, slug, contact)
     await index.read(
         corner.org, corner.env, corner.holder or "", slug, _the_reader(key), contact, time.time()
     )
@@ -112,7 +112,7 @@ async def say(
 ) -> ThreadSaid:
     """The words said to the contact on their open WhatsApp conversation."""
     corner = corner_of(key)
-    newest = (await _calls_of(index, corner, slug, contact))[0]
+    newest = (await require_thread(index, corner, slug, contact))[0]
     facts = (await index.facts_of([newest]))[newest]
     if facts.channel != "whatsapp":
         raise HTTPException(409, ONLY_WHATSAPP.format(contact=contact, channel=facts.channel))
@@ -126,7 +126,9 @@ async def say(
     return ThreadSaid(contact=contact, call=newest)
 
 
-async def _calls_of(index: CallIndexDep, corner: Corner, agent: str, contact: str) -> list[str]:
+async def require_thread(
+    index: CallIndexDep, corner: Corner, agent: str, contact: str
+) -> list[str]:
     """The contact's newest calls with the agent in this corner, or 404 when there are none."""
     calls = await index.calls_with(
         corner.org, corner.env, corner.holder or "", agent, contact, CALLS_IN_A_THREAD

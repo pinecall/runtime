@@ -9,8 +9,6 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
 from pinecall.api.agents import call_commands as commands
-from pinecall.api.calls.opening import open_text_call
-from pinecall.api.calls.resume import taken_up
 from pinecall.api.deps import (
     AdmissionDep,
     CallIndexDep,
@@ -30,6 +28,7 @@ from pinecall.api.evals.personas import get_personas
 from pinecall.auth.bearer import POLICY_VIOLATION, close_reason
 from pinecall.auth.keys import KeyRecord, cannot_open, is_held_by
 from pinecall.auth.scopes import new_visitor_identity
+from pinecall.live import open_text_call, taken_up
 from pinecall.live.calls import Live
 from pinecall.live.registry import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, Registry
 from pinecall.live.sockets import Registration, SocketId

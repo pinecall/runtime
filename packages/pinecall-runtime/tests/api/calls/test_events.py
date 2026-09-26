@@ -9,11 +9,12 @@ from typing import Any, cast
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.api.calls.log_sink import is_sealed, sse
+from pinecall.api.calls.log_sink import sse
 from pinecall.api.sse import RETRY_MS, SSE
 from pinecall.auth.scopes import Reader
 from pinecall.log.entry import Entry
 from pinecall.log.filters import Filter
+from pinecall.log.replay import is_sealed
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.types.json import JsonObject

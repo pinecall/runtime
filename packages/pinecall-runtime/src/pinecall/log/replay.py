@@ -12,6 +12,7 @@ from pinecall.log.reduce import reduce
 from pinecall.log.store.protocol import DEFAULT_LIMIT, Store
 from pinecall_protocol import encode
 from pinecall_protocol.events import LogCaughtUp, LogGap
+from pinecall_protocol.registry import TERMINAL_EVENT
 
 
 async def stream(
@@ -164,3 +165,14 @@ async def agent_stream(
             "log.gap",
             encode(LogGap(from_seq=cursor + 1, to_seq=cursor, snapshot=None)),
         )
+
+
+# The Store keeps no flag to ask, on purpose: what ends a call is the protocol's terminal event,
+# and the store must not have to read the protocol to write a row. So the tail is the answer.
+async def is_sealed(store: Store, call: str) -> bool:
+    """Whether this call's log is sealed: its last entry is the terminal one, or it is not over."""
+    latest = await store.latest_seq(call)
+    if latest == 0:
+        return False
+    tail = await store.since(call, after=latest - 1, limit=1)
+    return bool(tail) and tail[-1].type == TERMINAL_EVENT

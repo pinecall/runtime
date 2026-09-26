@@ -103,7 +103,7 @@ A voice call — in a browser or on the phone — runs in a worker, and a web ch
 `@pinecall/room` joins the same kind of room: all of them go on through a gateway restart as above.
 A call written over `WS /v1/chat` (`pinecall chat`, the console) or on WhatsApp runs in the
 gateway's own process, and a restart ends its session — never the call, whose log is whole and head
-row unsealed. It is **taken up** the next time it is spoken to (`api/calls/resume.py`):
+row unsealed. It is **taken up** the next time it is spoken to (`live/resuming.py`):
 
 - **`WS /v1/chat?call=<id>`**: the caller's socket dropped with the gateway, and it dials again
   naming the call. `pinecall chat` and the console do that by themselves, for about a minute.

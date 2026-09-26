@@ -76,6 +76,8 @@ happened and the doc is the bug.
 
 - No `.py` at the root. No tracked file over 400 lines. Every module opens with a one-line
   docstring. No two modules in one directory one letter apart.
+- A door is a controller: under `api/` a coroutine is a door, a dependency, a stream or one of the
+  roles `test_doors_are_controllers.py` names; a verb goes to the domain package it changes.
 - `types/` imports nothing of ours; `types/` and `log/` import no framework; a vendor SDK
   outside `providers/` fails the suite; `api/` never imports `worker/`, `worker/` never `api/`.
 - Every package another reads from opens with its index: its `__init__.py` imports and lists in

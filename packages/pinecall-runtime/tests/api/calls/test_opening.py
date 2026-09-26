@@ -4,9 +4,9 @@ from datetime import date
 
 import pytest
 
-from pinecall.api.calls.opening import open_text_call
 from pinecall.evals import score_call
 from pinecall.evals.hangup_score import JudgedWhen
+from pinecall.live.opening import open_text_call
 from pinecall.live.sockets import Registration
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups

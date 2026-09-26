@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from pinecall.api.calls.attachment import handed_on, parked_calls_of
+from pinecall.live.attaching import handed_on, parked_calls_of
 from pinecall.live.calls import Live
 from pinecall.live.registry import Registry
 from pinecall.log.entry import Entry

@@ -112,7 +112,7 @@ async def mint(
     """LiveKit's token endpoint: {server_url, participant_token}, plus the call it opens."""
     _refuse_what_is_ours_to_set(said)
     agent = _the_agent_the_org_holds(said, key, registry)
-    await _refuse_a_full_fleet(fleet, logs, agent)
+    await require_a_free_worker(fleet, logs, agent)
     await admission.a_call(key.org, agent, live.running(key.org))
     call = new_call_id()
     visitor = said.participant_identity or new_visitor_identity()
@@ -153,7 +153,7 @@ async def mint(
     )
 
 
-async def _refuse_a_full_fleet(fleet: FleetDep, logs: LogsDep, agent: str) -> None:
+async def require_a_free_worker(fleet: FleetDep, logs: LogsDep, agent: str) -> None:
     """503 when no worker can take one more call, written into the agent's log first."""
     totals = fleet.totals(time.time())
     if not totals.full:

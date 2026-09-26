@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import date
 
-from pinecall.api.calls.attachment import attach_socket
-from pinecall.api.calls.opening import TextCall, open_text_session
+from pinecall.live.attaching import attach_socket
 from pinecall.live.calls import Live
+from pinecall.live.opening import TextCall, open_text_session
 from pinecall.live.sockets import Registration
 from pinecall.log.entry import Entry
 from pinecall.log.store.call_index import CallIndex

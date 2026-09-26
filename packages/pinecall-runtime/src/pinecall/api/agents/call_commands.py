@@ -5,7 +5,8 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 
 from pinecall.api.agents.handlers import Handler, Socket, handles, parse_command
-from pinecall.api.calls.codes import NOBODY_ISSUED, claim_code
+from pinecall.api.calls.codes import NOBODY_ISSUED
+from pinecall.live import claim_code
 from pinecall.providers import declaration
 from pinecall.session.text.session import TextSession
 from pinecall.types import DeclarationRefused

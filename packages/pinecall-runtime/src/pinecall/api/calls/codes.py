@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import time
-from typing import Annotated, Literal
+from collections.abc import Sequence
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import Field
@@ -23,14 +24,14 @@ from pinecall.api.deps import (
 )
 from pinecall.auth.keys import KeyRecord, is_fleet_key
 from pinecall.auth.scopes import mint_code_token, mint_log_token, secret_for
+from pinecall.live import claim_code
 from pinecall.live.calls import Served
-from pinecall.orgs.caller_codes import Codes, Issued
-from pinecall.routes.records import Routes
+from pinecall.orgs.caller_codes import Issued
 from pinecall.settings import Settings
-from pinecall_protocol import WireModel, encode
+from pinecall.types import Route
+from pinecall_protocol import WireModel
 from pinecall_protocol.commands import CallClaim
 from pinecall_protocol.defs import Projection
-from pinecall_protocol.events import CallClaimed
 from pinecall_protocol.rest import Code, CodeStanding
 
 router = APIRouter()
@@ -43,9 +44,6 @@ TTL_S = 600
 SHORTEST_TTL_S = 60
 LONGEST_TTL_S = 1800
 WAIT_S = 25.0
-
-# How a code reached a call: the caller keyed it, or the agent heard it said and claimed it.
-type Via = Literal["keypad", "agent"]
 
 NO_PHONE = "agent {slug} answers at no phone number in {env}: pinecall numbers import"
 NOBODY_ISSUED = (
@@ -72,7 +70,7 @@ async def issue_code(
     said: Wanted, key: TalkKeyDep, routes: RoutesDep, codes: CodesDep, settings: SettingsDep
 ) -> Code:
     """Four digits, the number to call and key them at, and the token that asks after them."""
-    number = await _the_phone_of(routes, key, said.agent)
+    number = _the_phone_of(await routes.of_org(key.org, key.env), key, said.agent)
     issued = await codes.issue(key.env, said.agent, said.ttl_s, said.log)
     token = mint_code_token(
         issued.code, said.agent, key.env, issued.expires_at, secret_for(settings)
@@ -123,17 +121,6 @@ async def key_code(
         raise HTTPException(404, NOBODY_ISSUED.format(code=said.code, agent=served.agent))
 
 
-# One claim, from the keypad or from the agent: the code is taken on the agent's log, and the call
-# says so on its own — the agent's class learns the person is on the site, the console shows it.
-async def claim_code(codes: Codes, served: Served, call: str, code: str, via: Via) -> bool:
-    """Bind the call to the code, call.claimed on its log; False when no page waits on the code."""
-    issued = await codes.claim(served.context.env, served.agent, code, call)
-    if issued is None:
-        return False
-    await served.log.append("call.claimed", encode(CallClaimed(code=code, via=via)))
-    return True
-
-
 def _as_it_stands(issued: Issued, settings: Settings) -> CodeStanding:
     """The wire's shape: the call and a fresh token to read it once claimed, nulls until then."""
     if issued.claimed is not None:
@@ -153,9 +140,8 @@ def _as_it_stands(issued: Issued, settings: Settings) -> CodeStanding:
     )
 
 
-async def _the_phone_of(routes: Routes, key: KeyRecord, slug: str) -> str:
+def _the_phone_of(doors: Sequence[Route], key: KeyRecord, slug: str) -> str:
     """The first number this agent answers the phone at in the key's world, or 409."""
-    doors = await routes.of_org(key.org, key.env)
     for door in doors:
         if door.agent == slug and door.channel == "phone" and door.number is not None:
             return door.number

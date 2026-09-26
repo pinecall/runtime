@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from pinecall.api.calls.attachment import attach_socket
+from pinecall.live.attaching import attach_socket
 from pinecall.live.calls import Live
 from pinecall.live.registry import Registry
 from pinecall.log.entry import Entry

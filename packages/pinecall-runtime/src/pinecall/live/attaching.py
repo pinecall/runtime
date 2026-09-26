@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pinecall.api.agents.handlers import Live
+from pinecall.live.calls import Live
 from pinecall.live.registry import Registry
 from pinecall.live.sockets import Held, SocketId
 from pinecall.log.entry import Entry
