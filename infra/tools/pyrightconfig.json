@@ -9,6 +9,7 @@
     "../../packages/pinecall-db/src",
     "../../packages/pinecall-log/src",
     "../../packages/pinecall-providers/src",
+    "../../packages/pinecall-retrieval/src",
     "../../packages/pinecall-runtime/src",
     "../../packages/pinecall-session/src",
     "../../packages/pinecall-settings/src",
