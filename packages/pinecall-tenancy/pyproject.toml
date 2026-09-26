@@ -1,0 +1,67 @@
+# pinecall-tenancy: who: an org, its people, their keys, its secrets and quotas, and the letters it sends.
+# A portion of the `pinecall` namespace, released with the others at one version (packages/).
+
+[project]
+name = "pinecall-tenancy"
+version = "0.1.0"
+description = "Who: an org, its people, their keys, its secrets and quotas, and the letters it sends"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+authors = [{ name = "Bernardo Castro", email = "me@bernardocastro.dev" }]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+  "pinecall-core==0.1.0",
+  "pinecall-db==0.1.0",
+  "pinecall-log==0.1.0",
+  "pinecall-providers==0.1.0",
+  "pinecall-settings==0.1.0",
+  # argon2id, and nothing else: a member's password is a secret a person invented.
+  "argon2-cffi>=23.1,<26",
+  # Fernet, and nothing else: a tenant's own provider key is encrypted at rest under PINECALL_VAULT_KEY.
+  "cryptography>=44,<51",
+  "httpx>=0.27,<1",
+  # A range, not a bare name: the wheel PyPI serves must say which protocol it speaks.
+  "pinecall-protocol>=0.6.14,<0.7",
+  "pydantic>=2.7,<3",
+  "pyjwt>=2.13.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/pinecall/runtime"
+Repository = "https://github.com/pinecall/runtime"
+
+[tool.uv.sources]
+pinecall-core = { workspace = true }
+pinecall-db = { workspace = true }
+pinecall-log = { workspace = true }
+pinecall-providers = { workspace = true }
+pinecall-settings = { workspace = true }
+pinecall-protocol = { path = "../../../protocol/python", editable = true }
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+# A namespace portion: no pinecall/__init__.py in this wheel or in any sibling's.
+[tool.hatch.build.targets.wheel]
+packages = ["src/pinecall"]
+
+[tool.deptry]
+known_first_party = ["pinecall"]
+
+[tool.deptry.package_module_name_map]
+argon2-cffi = ["argon2"]
+pinecall-protocol = ["pinecall_protocol"]
+pyjwt = ["jwt"]
+
+[tool.deptry.per_rule_ignores]
+# The siblings are imported on every other line, as `pinecall.<package>`: deptry reads a
+# namespace by its top-level name alone, and `pinecall` is first-party here.
+DEP002 = ["pinecall-core", "pinecall-db", "pinecall-log", "pinecall-providers", "pinecall-settings"]

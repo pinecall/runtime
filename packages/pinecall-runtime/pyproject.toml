@@ -27,10 +27,7 @@ dependencies = [
   "pinecall-providers==0.1.0",
   "pinecall-session==0.1.0",
   "pinecall-settings==0.1.0",
-  # argon2id, and nothing else: a member's password is a secret a person invented.
-  "argon2-cffi>=23.1,<26",
-  # Fernet, and nothing else: a tenant's own provider key is encrypted at rest under PINECALL_VAULT_KEY.
-  "cryptography>=44,<51",
+  "pinecall-tenancy==0.1.0",
   "fastapi>=0.115,<1",
   "httpx>=0.27,<1",
   "livekit-agents>=1.8,<2",
@@ -75,6 +72,7 @@ pinecall-log = { workspace = true }
 pinecall-providers = { workspace = true }
 pinecall-session = { workspace = true }
 pinecall-settings = { workspace = true }
+pinecall-tenancy = { workspace = true }
 
 [build-system]
 # 1.27 is the first hatchling that writes `license` as a PEP 639 expression.
@@ -104,7 +102,6 @@ artifacts = ["src/pinecall/public/console/**", "src/pinecall/public/widget/**"]
 known_first_party = ["pinecall"]
 
 [tool.deptry.package_module_name_map]
-argon2-cffi = ["argon2"]
 livekit-agents = ["livekit"]
 livekit-api = ["livekit"]
 opentelemetry-exporter-otlp-proto-http = ["opentelemetry"]
@@ -116,4 +113,4 @@ pyjwt = ["jwt"]
 [tool.deptry.per_rule_ignores]
 # The siblings are imported on every other line, as `pinecall.<package>`: deptry reads a
 # namespace by its top-level name alone, and `pinecall` is first-party here.
-DEP002 = ["pinecall-core", "pinecall-db", "pinecall-log", "pinecall-providers", "pinecall-session", "pinecall-settings"]
+DEP002 = ["pinecall-core", "pinecall-db", "pinecall-log", "pinecall-providers", "pinecall-session", "pinecall-settings", "pinecall-tenancy"]
