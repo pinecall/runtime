@@ -23,7 +23,7 @@ from pinecall.api.ops.peers import ProductionDep, SandboxDep
 from pinecall.api.scope.request_scope import CornerDep, HeldDep
 from pinecall.auth.keys import KeyRecord, is_held_by, is_operator_key
 from pinecall.auth.members import Members
-from pinecall.auth.peers import PeerUnreachable, RingsFor
+from pinecall.fleet import PeerUnreachable, RingsFor
 from pinecall.live.registry import Registry
 from pinecall.orgs import tuned_for
 from pinecall.types import (

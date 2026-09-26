@@ -25,7 +25,7 @@ MAY_IMPORT: dict[str, frozenset[str]] = {
     # The configuration reads the environment into the shapes it names, and nothing else.
     "settings": frozenset({"types"}),
     "extensions": frozenset({"types"}),
-    "fleet": frozenset(),
+    "fleet": frozenset({"types"}),
     "providers": frozenset({"types"}),
     "log": frozenset({"db", "types"}),
     "auth": frozenset({"db", "types"}),
@@ -70,7 +70,7 @@ MAY_IMPORT: dict[str, frozenset[str]] = {
             "whatsapp",
         }
     ),
-    "worker": frozenset({"auth", "evals", "fleet", "log", "providers", "session", "types"}),
+    "worker": frozenset({"evals", "fleet", "log", "providers", "session", "types"}),
 }
 
 # The packages that hold the ideas: no HTTP, no media plane, no driver. livekit is on the list

@@ -7,7 +7,7 @@ import pytest
 
 from pinecall.api.app import app
 from pinecall.api.ops.peers import get_production_peer, get_sandbox_peer
-from pinecall.auth.peers import Peer
+from pinecall.fleet.peers import Peer
 
 # Registered as a plugin by tests/conftest.py: production's side (tests/api/test_fleet_doors.py)
 # and the sandbox's (tests/api/agents/test_the_line.py) script the same other instance.

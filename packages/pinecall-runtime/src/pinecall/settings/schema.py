@@ -180,7 +180,7 @@ class Settings(VendorKeys):
     # The two instances trust each other with one fleet key each, minted at the other's gateway
     # (`pinecall-runtime box peer`) and kept in this one's store: the developer's-phone question
     # (production → sandbox, `GET /v1/agents/{slug}/rings-for`) and the numbers a developer dials
-    # (sandbox → production, `GET /v1/routes`). auth/peers.py asks both.
+    # (sandbox → production, `GET /v1/routes`). fleet/peers.py asks both.
     sandbox_url: str | None = Field(
         default=None,
         description="Production's: where its sandbox answers, https://…, asked whose a ring is.",

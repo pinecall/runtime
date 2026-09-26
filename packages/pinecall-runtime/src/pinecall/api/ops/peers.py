@@ -9,7 +9,7 @@ from starlette.requests import HTTPConnection
 
 from pinecall.api.accounts.org_sso import get_http
 from pinecall.api.deps import SettingsDep
-from pinecall.auth.peers import Peer
+from pinecall.fleet import Peer
 from pinecall.types import PRODUCTION, SANDBOX
 
 

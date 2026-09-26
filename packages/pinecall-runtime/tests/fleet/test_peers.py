@@ -5,7 +5,7 @@ from dataclasses import asdict
 import httpx
 import pytest
 
-from pinecall.auth.peers import ROUTES, TIMEOUT_S, Peer, PeerUnreachable, RingsFor
+from pinecall.fleet.peers import ROUTES, TIMEOUT_S, Peer, PeerUnreachable, RingsFor
 from pinecall.types import PRODUCTION, Route
 from pinecall.types.dispatch import Handover
 

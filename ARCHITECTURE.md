@@ -330,7 +330,7 @@ slow hash in the tree, for the one secret a person invents), `auth/one_use.py` (
 this process's memory), `auth/signups.py` (sign-ups waiting on their mailed code, the same memory), `auth/throttle.py` (so many tries per name per minute at the password door), `orgs/caller_codes.py` (the codes a page shows beside a phone number: kept on the agent's log, held here, closed lazily when they expire),
 `orgs/org_sso.py` (one OpenID provider per org, its client secret under the same vault key), `orgs/org_mail.py` (one SMTP account per org, its password the same way, and how its last letter went), `orgs/box_settings.py` (**what the operator configured for the box itself**, 0035: one row a setting — `brand`, `mail`, `signin.<provider>` — its one secret under the same vault key, the value merged for a standing; the table exists without a vault key, since a brand is no secret. `mail/box_mailbox.py` reads the box's mailbox off it, stored over the environment's; `mail/brand.py` the brand; `api/ops/box_mail.py`, `api/ops/box_brand.py` are the doors, [docs/protocol/the-box.md](docs/protocol/the-box.md)),
 `auth/openid.py` (discovery, the code exchange, an id_token checked against the issuer's JWKS),
-`auth/sso_state.py` (the sign-ins between the redirect and the callback, one use and ten minutes), `auth/identity.py` (what production answers about the person a spent code names, and a sandbox asking it over HTTP at `PINECALL_IDENTITY_URL`; `accounts/mirroring.py` mirrors the org and the member by production's ids, `Orgs.mirrored`, `Members.mirrored`) and `auth/peers.py` (the two questions one instance asks the other on a fleet key the other minted for it, `box peer`: whose a production ring is, and production's numbers; `api/ops/peers.py`).
+`auth/sso_state.py` (the sign-ins between the redirect and the callback, one use and ten minutes), `auth/identity.py` (what production answers about the person a spent code names, and a sandbox asking it over HTTP at `PINECALL_IDENTITY_URL`; `accounts/mirroring.py` mirrors the org and the member by production's ids, `Orgs.mirrored`, `Members.mirrored`) and `fleet/peers.py` (the two questions one instance asks the other on a fleet key the other minted for it, `box peer`: whose a production ring is, and production's numbers; `api/ops/peers.py`).
 `routes/sfu.py` (the SFU's address and key pair, read once, and the client each table opens on it), `routes/numbers.py`: every number an org answers at, both worlds, which the outbound trunk and
 the country fence read.
 
@@ -358,7 +358,7 @@ types      ← nothing                          the shapes, no IO, no framework 
 extensions ← types                            the points a policy plugs into         pinecall-core
 settings   ← types                            every variable, read once              (everybody's)
 db         ← nothing                          the driver's one door, the pool, the migrations
-fleet      ← nothing                          every worker's heartbeat, the loop over the clouds
+fleet      ← types                            every worker's heartbeat, the loop over the clouds, the peer
 providers  ← types                            the only place a vendor is named
 log        ← types, db                        the truth: entries, the reducer, the stores
 auth       ← types, db                        keys, people, sign-in
@@ -376,7 +376,7 @@ live       ← types, log, lookups, orgs, evals, providers, session   what this 
 accounts   ← types, auth, orgs, extensions, mail   what a person does with an account, across domains
 telephony  ← types, log, orgs, routes, session   the carrier side: numbers, trunks, a call out
 api        ← all of the above, never worker/ — the doors: parse, one verb, wire the answer
-worker     ← types, auth, log, fleet, providers, session, evals        never api/ — over HTTP
+worker     ← types, log, fleet, providers, session, evals        never api/ — over HTTP
 cli        ← the verbs over any of them
 ```
 

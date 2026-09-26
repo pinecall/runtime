@@ -9,8 +9,7 @@ from typing import Any, cast
 import httpx
 from pydantic import ValidationError
 
-from pinecall.auth.peers import RingsFor
-from pinecall.fleet import Heartbeat, Standing
+from pinecall.fleet import Heartbeat, RingsFor, Standing
 from pinecall.session.voice.platform import Dialled
 from pinecall.types import (
     AgentConfig,
