@@ -146,7 +146,9 @@ xfail_strict = true
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 # A test that hangs fails in ten seconds, by itself. Nothing that honestly needs longer is a
-# unit test, and a hang costs minutes only when it is allowed to last.
+# unit test, and a hang costs minutes only when it is allowed to last. A hypothesis search or a
+# walk over every module marks its own minute (tests/conftest.py, SEARCH_S): the thread method
+# kills the xdist worker at the limit, and a slow runner is not a hung test.
 timeout = 10
 timeout_method = "thread"
 filterwarnings = [

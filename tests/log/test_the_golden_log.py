@@ -10,6 +10,7 @@ from pinecall.log.reduce import apply, reduce
 from pinecall_protocol import decode_entries, decode_entry, encode
 from pinecall_protocol.envelope import Entry
 from pinecall_protocol.fixtures import GOLDEN_LOG, GOLDEN_STATE
+from tests.conftest import SEARCH_S
 
 pytestmark = pytest.mark.unit
 
@@ -34,6 +35,7 @@ def test_the_golden_carries_both_kinds_of_entry() -> None:
     assert any(not entry.ephemeral for entry in GOLDEN)
 
 
+@pytest.mark.timeout(SEARCH_S)
 @settings(max_examples=len(GOLDEN) + 1, deadline=None)
 @given(cut=A_CUT)
 def test_a_state_kept_at_any_cut_folds_the_rest_to_the_same_state(cut: int) -> None:
@@ -44,6 +46,7 @@ def test_a_state_kept_at_any_cut_folds_the_rest_to_the_same_state(cut: int) -> N
     assert encode(state) == EXPECTED
 
 
+@pytest.mark.timeout(SEARCH_S)
 @settings(max_examples=len(GOLDEN), deadline=None)
 @given(cut=A_RESUME)
 def test_a_gap_carrying_a_snapshot_of_any_cut_resumes_to_the_same_state(cut: int) -> None:

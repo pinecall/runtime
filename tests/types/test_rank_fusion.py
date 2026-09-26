@@ -5,6 +5,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from pinecall.types import RRF_K, reciprocal_rank_fusion, relative_to_the_best
+from tests.conftest import SEARCH_S
 
 pytestmark = pytest.mark.unit
 
@@ -38,6 +39,7 @@ AN_ORDER = st.lists(st.sampled_from("abcdefgh"), unique=True)
 SOME_ORDERS = st.lists(AN_ORDER, min_size=1, max_size=4)
 
 
+@pytest.mark.timeout(SEARCH_S)
 @given(orders=SOME_ORDERS)
 def test_the_fusion_is_blind_to_which_branch_came_first(orders: list[list[str]]) -> None:
     """Equal to a float's rounding: the sum is the same sum, taken in the other order."""
@@ -46,12 +48,14 @@ def test_the_fusion_is_blind_to_which_branch_came_first(orders: list[list[str]])
     )
 
 
+@pytest.mark.timeout(SEARCH_S)
 @given(orders=SOME_ORDERS, more=AN_ORDER)
 def test_one_more_branch_never_lowers_anybody(orders: list[list[str]], more: list[str]) -> None:
     before, after = reciprocal_rank_fusion(*orders), reciprocal_rank_fusion(*orders, more)
     assert all(after[id] >= score for id, score in before.items())
 
 
+@pytest.mark.timeout(SEARCH_S)
 @given(orders=SOME_ORDERS)
 def test_the_relative_score_tops_at_one_and_reads_best_first(orders: list[list[str]]) -> None:
     relative = relative_to_the_best(reciprocal_rank_fusion(*orders))

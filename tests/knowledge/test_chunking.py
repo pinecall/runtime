@@ -17,6 +17,7 @@ from pinecall.knowledge.chunking import (
 )
 from pinecall.types import KnowledgeFile
 from pinecall.types.token_estimate import estimated_tokens
+from tests.conftest import SEARCH_S
 
 pytestmark = pytest.mark.unit
 
@@ -155,6 +156,7 @@ A_FILE = (
 )
 
 
+@pytest.mark.timeout(SEARCH_S)
 @given(file=A_FILE)
 def test_every_piece_is_under_the_cap_or_is_one_sentence_that_could_not_be_cut(
     file: KnowledgeFile,
@@ -164,6 +166,7 @@ def test_every_piece_is_under_the_cap_or_is_one_sentence_that_could_not_be_cut(
         assert estimated_tokens(piece.text) <= CHUNK_TOKENS or len(A_SENTENCE_END.split(body)) == 1
 
 
+@pytest.mark.timeout(SEARCH_S)
 @given(file=A_FILE)
 def test_the_pieces_are_numbered_from_zero_carry_the_path_and_lose_no_word(
     file: KnowledgeFile,

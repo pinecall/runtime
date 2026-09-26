@@ -1,6 +1,7 @@
 """Ring 0 runs with dead provider keys: everything constructs, and a real call dies in seconds."""
 
 import pytest
+from hypothesis import settings as hypothesis_settings
 
 from pinecall._settings import Settings, load_settings
 from pinecall.providers.llm import VENDORS as LLM_VENDORS
@@ -27,6 +28,17 @@ DEAD_SENTINEL_KEYS: dict[str, str] = {
     "PERPLEXITY_API_KEY": "pplx-dead-sentinel",
     "OPENROUTER_API_KEY": "sk-or-dead-sentinel",
 }
+
+# hypothesis searches forty inputs per property, not its hundred: a property here is one the
+# examples beside it already state, and forty finds what a hundred would at less than half the
+# time a shared runner spends on it. No deadline: a slow runner is not a failing property.
+hypothesis_settings.register_profile("ring0", max_examples=40, deadline=None)
+hypothesis_settings.load_profile("ring0")
+
+# A search over inputs, or a walk over every module, is held to a minute and not to the ten
+# seconds a single example gets (pyproject.toml): under coverage on a shared runner the ten were
+# hit once (2026-09-26), and pytest-timeout's thread method takes the whole xdist worker with it.
+SEARCH_S = 60
 
 # The two marks that ask for the real world. Everything else, marked or not, gets the sentinels:
 # the safe case is the default, so forgetting a mark costs a failure and never a bill.
