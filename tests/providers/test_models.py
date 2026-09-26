@@ -10,6 +10,7 @@ from pinecall.providers.llm.anthropic import DEFAULT_MODEL
 from pinecall.providers.models import DEFAULT_VENDOR, NoProvider, models_for, vendor_of
 from pinecall.providers.registry import Asked
 from pinecall.types import NOTHING_BROUGHT, Brought, Model
+from tests.plugins import without_the_plugin
 
 pytestmark = pytest.mark.unit
 
@@ -78,6 +79,7 @@ def test_a_word_nobody_catalogues_is_refused_by_name() -> None:
 
 # The catalogued half of the table: a vendor with no file here is not a vendor this build refuses,
 # it is one it has no plugin installed for — and the refusal says which extra installs it.
+@without_the_plugin("google")
 def test_a_catalogued_vendor_with_no_plugin_names_the_extra_that_installs_it() -> None:
     """Google is catalogued and is in the `providers-big` extra, which a light box does not hold."""
     with pytest.raises(NoProvider, match=r"livekit-agents\[google\]"):

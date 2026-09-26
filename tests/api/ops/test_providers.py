@@ -3,6 +3,8 @@
 import httpx
 import pytest
 
+from tests.plugins import without_the_plugin
+
 pytestmark = pytest.mark.unit
 
 
@@ -71,6 +73,7 @@ async def test_a_vendor_whose_credentials_are_its_own_is_neither_ready_nor_wanti
     assert rows["rtzr"]["standing"] == "its own"
 
 
+@without_the_plugin("azure")
 async def test_a_vendor_with_no_plugin_says_that_and_not_that_it_wants_a_key(
     tenant_http: httpx.AsyncClient,
 ) -> None:

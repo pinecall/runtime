@@ -8,6 +8,7 @@ from pinecall.providers import catalog
 from pinecall.providers.registry import Asked, NoProvider
 from pinecall.providers.stt import VENDORS as STT_VENDORS
 from pinecall.providers.tts import VENDORS as TTS_VENDORS
+from tests.plugins import without_the_plugin
 
 pytestmark = pytest.mark.unit
 
@@ -60,6 +61,7 @@ def test_a_vendor_that_wants_more_than_a_key_says_so_as_a_refusal(vendor: str) -
         STT_VENDORS.build(vendor, Asked(settings=a_box()))
 
 
+@without_the_plugin("azure")
 def test_a_catalogued_vendor_with_no_plugin_names_the_one_command_that_fixes_it() -> None:
     with pytest.raises(NoProvider, match=r'pip install "livekit-agents\[azure\]"'):
         STT_VENDORS.build("azure", Asked(settings=a_box()))
