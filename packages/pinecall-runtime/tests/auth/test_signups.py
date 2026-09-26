@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from pinecall.auth.signups import ATTEMPTS, CODE_TTL_S, NotVerified, Pending, PendingSignups
-from tests.clocks import Clock
+from tests.support.clocks import Clock
 
 pytestmark = pytest.mark.unit
 

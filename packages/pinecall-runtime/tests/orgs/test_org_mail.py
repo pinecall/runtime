@@ -13,7 +13,7 @@ from pinecall.orgs.org_mail_postgres import PostgresMail
 from pinecall.orgs.records_postgres import PostgresOrgs
 from pinecall.settings import Settings
 from pinecall.types import Mailbox
-from tests.postgres import Dev
+from tests.support.postgres import Dev
 
 SES = Mailbox(
     host="email-smtp.us-east-1.amazonaws.com",

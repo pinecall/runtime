@@ -8,7 +8,7 @@ from pinecall.providers.registry import Asked, NoProvider
 from pinecall.providers.stt import VENDORS as STT_VENDORS
 from pinecall.providers.tts import VENDORS as TTS_VENDORS
 from pinecall.settings import Settings
-from tests.plugins import without_the_plugin
+from tests.support.plugins import without_the_plugin
 
 pytestmark = pytest.mark.unit
 

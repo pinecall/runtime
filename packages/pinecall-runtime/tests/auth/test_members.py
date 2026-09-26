@@ -8,7 +8,7 @@ from pinecall.auth.invitations import INVITATION_PREFIX, INVITATION_TTL_S
 from pinecall.auth.members import NoSeatLeft
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.types import Member
-from tests.clocks import Clock
+from tests.support.clocks import Clock
 
 pytestmark = pytest.mark.unit
 

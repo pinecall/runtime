@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from pinecall.settings import NOBODY_TO_ASK, NobodyToAsk, Settings, load_settings, variable_of
 from pinecall.settings.env_files import ENV_FILES, EnvFileRefused, env_files_read
-from tests.tree import PACKAGE_ROOT, ROOT
+from tests.support.tree import PACKAGE_ROOT, ROOT
 
 pytestmark = pytest.mark.unit
 

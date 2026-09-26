@@ -6,7 +6,7 @@ import pytest
 
 from pinecall.settings import Settings, variable_of
 from pinecall.settings.example import render_env_example
-from tests.tree import ROOT
+from tests.support.tree import ROOT
 
 pytestmark = pytest.mark.unit
 

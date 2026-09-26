@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 import pytest
 
-from tests.tree import (
+from tests.support.tree import (
     CORE_ROOT,
     PACKAGE_ROOT,
     SOURCE_ROOTS,

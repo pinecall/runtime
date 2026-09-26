@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.tree import ROOT
+from tests.support.tree import ROOT
 
 pytestmark = pytest.mark.unit
 

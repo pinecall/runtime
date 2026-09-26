@@ -16,8 +16,8 @@ from pinecall.types import AgentConfig
 from tests.api.conftest import A_RECORD
 from tests.api.talking import a_context as a_call_on
 from tests.api.talking import got
-from tests.clocks import Clock
 from tests.routes.fakes import MemoryRooms
+from tests.support.clocks import Clock
 
 pytestmark = pytest.mark.unit
 

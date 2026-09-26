@@ -65,7 +65,7 @@ from pinecall.types import Org
 from pinecall.worker.gateway_client import Gateway
 from tests.api.fake_graph import FakeGraph
 from tests.routes.fakes import MemoryTrunks
-from tests.vectors import HashEmbedder
+from tests.support.vectors import HashEmbedder
 
 A_KEY = "pk_test_a_key_nobody_will_ever_deploy"
 

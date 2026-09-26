@@ -13,9 +13,9 @@ from pinecall.db import Pool
 from pinecall.memory import PgvectorMemory
 from pinecall.providers.registry import Chat
 from pinecall.types import Brought, Model
-from tests.postgres import Dev
 from tests.session.fake_llm import FakeLLM, Scripted
-from tests.vectors import HASH_MODEL, HashEmbedder, a_vector
+from tests.support.postgres import Dev
+from tests.support.vectors import HASH_MODEL, HashEmbedder, a_vector
 
 # When every fact of this suite was learned, and when a call that remembers hangs up.
 LEARNED = datetime(2026, 9, 1, 10, 0, tzinfo=UTC)

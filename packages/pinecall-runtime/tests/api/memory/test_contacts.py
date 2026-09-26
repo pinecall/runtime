@@ -11,7 +11,7 @@ from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.types import Quotas
 from tests.api.conftest import A_RECORD
 from tests.lookups.fakes import LEARNED, ScriptedMemory, a_fact
-from tests.vectors import HASH_MODEL
+from tests.support.vectors import HASH_MODEL
 
 pytestmark = pytest.mark.unit
 

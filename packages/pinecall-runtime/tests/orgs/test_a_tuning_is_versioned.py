@@ -21,7 +21,7 @@ from pinecall.types import (
     Tuning,
     Turn,
 )
-from tests.postgres import Dev
+from tests.support.postgres import Dev
 
 pytestmark = pytest.mark.postgres
 

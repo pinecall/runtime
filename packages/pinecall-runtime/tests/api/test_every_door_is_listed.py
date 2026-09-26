@@ -8,7 +8,7 @@ import pytest
 from fastapi.routing import APIRoute, APIWebSocketRoute
 
 from pinecall.api.app import app
-from tests.tree import ROOT
+from tests.support.tree import ROOT
 
 pytestmark = pytest.mark.unit
 

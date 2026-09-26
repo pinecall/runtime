@@ -18,8 +18,8 @@ from pinecall.settings import Settings
 from tests.api.accounts.test_signup import A_CODE, TIENDA, VERIFY, asked, the_code_mailed
 from tests.api.conftest import A_LIVEKIT, A_VAULT_KEY, AN_OPS_KEY, over_the_asgi_app
 from tests.api.mailing import A_BOX_SENDER
-from tests.clocks import Clock
 from tests.mail.fake_smtp import FakeSmtp
+from tests.support.clocks import Clock
 
 pytestmark = pytest.mark.unit
 

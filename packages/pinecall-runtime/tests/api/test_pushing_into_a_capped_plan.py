@@ -15,8 +15,8 @@ from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.types import PRODUCTION, KnowledgeFile, Org, Quotas
 from tests.api.conftest import A_KEY
 from tests.knowledge.files import CLINICA, TARIFAS
-from tests.postgres import Dev
-from tests.vectors import HashEmbedder
+from tests.support.postgres import Dev
+from tests.support.vectors import HashEmbedder
 
 pytestmark = pytest.mark.postgres
 

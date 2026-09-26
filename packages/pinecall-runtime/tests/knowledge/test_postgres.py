@@ -10,8 +10,8 @@ from pinecall.knowledge import Base, PgKnowledge
 from pinecall.providers.embedder import DIMENSIONS, WrongModel
 from pinecall.types import PRODUCTION, SANDBOX, KnowledgeFile
 from tests.knowledge.files import CLINICA, TARIFAS, VENDING, an_org
-from tests.postgres import Dev
-from tests.vectors import HASH_MODEL, HashEmbedder
+from tests.support.postgres import Dev
+from tests.support.vectors import HASH_MODEL, HashEmbedder
 
 pytestmark = pytest.mark.postgres
 

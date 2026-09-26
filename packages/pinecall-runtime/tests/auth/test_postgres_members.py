@@ -12,7 +12,7 @@ from pinecall.auth.members_postgres import PostgresMembers
 from pinecall.db import Pool, open_pool
 from pinecall.orgs.records_postgres import PostgresOrgs
 from pinecall.types import Member
-from tests.postgres import Dev
+from tests.support.postgres import Dev
 
 pytestmark = pytest.mark.postgres
 

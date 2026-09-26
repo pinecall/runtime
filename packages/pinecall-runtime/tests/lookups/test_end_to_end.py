@@ -18,8 +18,8 @@ from pinecall.orgs.vault import brought_by
 from pinecall.types import PRODUCTION, Docs, Org, Quotas
 from tests.knowledge.files import CLINICA, TARIFAS, an_org
 from tests.lookups.fakes import AGENT, CALL, OneCall, a_config, a_context, a_plan, the_tenants
-from tests.postgres import Dev
-from tests.vectors import HashEmbedder
+from tests.support.postgres import Dev
+from tests.support.vectors import HashEmbedder
 
 pytestmark = pytest.mark.postgres
 

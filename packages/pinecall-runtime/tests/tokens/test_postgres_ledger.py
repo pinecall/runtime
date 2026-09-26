@@ -8,7 +8,7 @@ import pytest
 from pinecall.db import open_pool
 from pinecall.tokens.ledger import TokenRecord
 from pinecall.tokens.ledger_postgres import PostgresTokens
-from tests.postgres import Dev
+from tests.support.postgres import Dev
 
 # It lives here and not beside the door it serves, for the reason tests/log/test_routes_table.py
 # lives here: the dev stack's fixtures are this package's, and one schema per run is theirs.

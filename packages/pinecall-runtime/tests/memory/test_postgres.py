@@ -6,7 +6,7 @@ from pinecall.db import Pool
 from pinecall.memory import PgvectorMemory, Spoken
 from pinecall.types import NOTHING_BROUGHT, PRODUCTION, SANDBOX, MemoryPolicy
 from tests.memory.conftest import HUNG_UP, LEARNED, ScriptedModels, a_row
-from tests.vectors import HASH_MODEL
+from tests.support.vectors import HASH_MODEL
 
 pytestmark = pytest.mark.postgres
 

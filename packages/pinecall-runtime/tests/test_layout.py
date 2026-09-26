@@ -7,7 +7,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from tests.conftest import SEARCH_S
-from tests.tree import ROOT, every_module, tracked_files
+from tests.support.tree import ROOT, every_module, tracked_files
 
 pytestmark = pytest.mark.unit
 

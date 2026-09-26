@@ -5,7 +5,7 @@ from collections.abc import Iterator
 
 import pytest
 
-from tests.tree import ROOT
+from tests.support.tree import ROOT
 
 pytestmark = pytest.mark.unit
 

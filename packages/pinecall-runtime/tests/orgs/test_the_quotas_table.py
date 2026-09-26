@@ -13,7 +13,7 @@ from pinecall.orgs.widgets import Widget
 from pinecall.orgs.widgets_postgres import PostgresWidgets
 from pinecall.types import QUOTAS, OrgSso, Quotas
 from tests.api.conftest import A_VAULT_KEY
-from tests.postgres import Dev
+from tests.support.postgres import Dev
 
 pytestmark = pytest.mark.postgres
 

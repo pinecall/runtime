@@ -46,8 +46,10 @@ make deploy                                     # this checkout onto your box (d
   - `mail/` the letters and the generic SMTP they leave by: the org's own account, else the box's
   - `settings/` the configuration: `schema.py` every variable once, `vendor_keys.py` the vendors'
     own names, `load_settings()` the one reader · `_version.py` the version, the maintainer's number
-- each distribution's `tests/` mirrors its `src/pinecall/` one to one; `test_isolation.py`, `test_layout.py`,
-  `test_the_public_surface.py`, `settings/test_example.py`, `test_box_packages.py` are the tree's own rules
+- each distribution's `tests/` mirrors its `src/pinecall/`, a directory per package
+  (`test_the_tests_mirror_the_source.py`); what every suite leans on is `tests/support/` (clocks,
+  pools, a Postgres, vectors, the tree). `test_isolation.py`, `test_layout.py`, `test_ports_and_adapters.py`,
+  `test_doors_are_controllers.py`, `test_the_public_surface.py` are the tree's own rules
 - `infra/box/` the declared box (cloud-init, units, Quadlets, the fence, the manifest Makefile);
   `infra/compose/` the dev stack; the root `Makefile` is the deploy
 - `docs/protocol/` public contracts · `docs/decisions/` the maintainer's notebook, **git-ignored**:

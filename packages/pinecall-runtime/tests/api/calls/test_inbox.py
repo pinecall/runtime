@@ -18,7 +18,7 @@ from pinecall.log.store import MemoryStore
 from pinecall.types import PRODUCTION, Member
 from tests.api.conftest import A_KEY, A_RECORD, AGENT
 from tests.api.talking import got
-from tests.clocks import Clock
+from tests.support.clocks import Clock
 
 pytestmark = pytest.mark.unit
 

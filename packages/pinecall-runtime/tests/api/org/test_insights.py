@@ -15,7 +15,7 @@ from pinecall.types import Quotas
 from pinecall.types.json import JsonObject
 from tests.api.conftest import A_KEY, A_RECORD
 from tests.api.talking import got
-from tests.clocks import Clock
+from tests.support.clocks import Clock
 
 pytestmark = pytest.mark.unit
 

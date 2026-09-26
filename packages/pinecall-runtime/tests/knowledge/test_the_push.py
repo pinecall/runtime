@@ -12,7 +12,7 @@ from pinecall.knowledge import PgKnowledge
 from pinecall.providers.embedder import DIMENSIONS
 from pinecall.types import PRODUCTION
 from tests.knowledge.files import CLINICA, TARIFAS
-from tests.pools import Held, acquired
+from tests.support.pools import Held, acquired
 
 pytestmark = pytest.mark.unit
 

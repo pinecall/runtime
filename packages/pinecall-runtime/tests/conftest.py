@@ -49,7 +49,7 @@ MARKS_THAT_KEEP_THE_REAL_ENVIRONMENT = ("needs_llm", "voice")
 # fixtures about people are the same shape of thing: one module, wanted by the api harness and by
 # the CLI suites that drive it, and a conftest at the ceiling could not hold them.
 pytest_plugins = [
-    "tests.postgres",
+    "tests.support.postgres",
     "tests.api.people",
     "tests.api.signing_in",
     "tests.api.mailing",

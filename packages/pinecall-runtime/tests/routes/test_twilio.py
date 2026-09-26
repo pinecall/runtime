@@ -19,7 +19,7 @@ from pinecall.routes.twilio import (
     termination_label,
 )
 from pinecall.types import TwilioAccount
-from tests.tree import ROOT
+from tests.support.tree import ROOT
 
 pytestmark = pytest.mark.unit
 

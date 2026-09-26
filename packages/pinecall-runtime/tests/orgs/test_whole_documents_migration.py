@@ -8,7 +8,7 @@ import pytest
 from pinecall.db import apply_migrations
 from pinecall.providers.embedder import DIMENSIONS
 from tests.orgs.boxes import Box, a_box_before
-from tests.postgres import Dev
+from tests.support.postgres import Dev
 
 pytestmark = pytest.mark.postgres
 

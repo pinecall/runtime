@@ -6,7 +6,7 @@ import pytest
 
 from pinecall.db import MIGRATIONS
 from pinecall.db.migrating import every, file_hash
-from tests.tree import PACKAGE_ROOT, ROOT, modules_under
+from tests.support.tree import PACKAGE_ROOT, ROOT, modules_under
 
 pytestmark = pytest.mark.unit
 

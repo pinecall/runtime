@@ -8,7 +8,7 @@ from functools import cache
 from pathlib import Path
 
 # The repository, and the two distributions under packages/: the runtime, and the core.
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 RUNTIME = ROOT / "packages" / "pinecall-runtime"
 PACKAGE_ROOT = RUNTIME / "src" / "pinecall"
 TESTS_ROOT = RUNTIME / "tests"

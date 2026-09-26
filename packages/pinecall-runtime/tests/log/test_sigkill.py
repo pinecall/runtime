@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from pinecall.log.store.postgres import PostgresStore
-from tests.postgres import Dev
+from tests.support.postgres import Dev
 
 pytestmark = pytest.mark.postgres
 
