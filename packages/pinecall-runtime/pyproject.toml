@@ -21,42 +21,34 @@ classifiers = [
 ]
 keywords = ["voice", "telephony", "livekit", "contact-center", "agents"]
 dependencies = [
-  # A range, not a bare name: the wheel PyPI serves must say which protocol it speaks.
-  # `[tool.uv.sources]` below still points a checkout at the repo next door — that is a
-  # development convenience and does not travel in the wheel.
-  "pinecall-protocol>=0.6.14,<0.7",
-  # The same rule for the core: a workspace member here, a range in the wheel.
   "pinecall-core>=0.1,<0.2",
-  "pydantic>=2.7,<3",
-  "pydantic-settings>=2.3,<3",
-  "fastapi>=0.115,<1",
-  # fastapi's own: named because api/ imports `starlette.*` by that name in thirty files, and a
-  # package the tree imports is a package the tree declares (deptry, DEP003).
-  "starlette>=0.40,<2",
-  "uvicorn[standard]>=0.30,<1",
-  "httpx>=0.27,<1",
+  "pinecall-settings==0.1.0",
+  # argon2id, and nothing else: a member's password is a secret a person invented.
+  "argon2-cffi>=23.1,<26",
   "asyncpg>=0.29,<1",
-  "pgvector>=0.3,<1",
-  "typing-extensions>=4.12,<5",
-  # The text session IS a livekit llm caller: ChatContext, LLMStream and LLMMetrics are the
-  # session's own vocabulary, so the library and the two text plugins are core, not an extra.
+  # livekit-agents' own, imported by name: PyAV decodes the hold audio.
+  "av>=13,<19",
+  # Fernet, and nothing else: a tenant's own provider key is encrypted at rest under PINECALL_VAULT_KEY.
+  "cryptography>=44,<51",
+  "fastapi>=0.115,<1",
+  "httpx>=0.27,<1",
+  # The text session IS a livekit llm caller: the library and the two text plugins, not an extra.
   "livekit-agents[anthropic,openai]>=1.8,<2",
   "livekit-api>=1.2.1",
-  # livekit-agents' own, imported by name: PyAV decodes the hold audio (session/hold_melody.py)
-  # and protobuf is what a room's egress token carries (tokens/room_token.py).
-  "av>=13,<19",
-  "protobuf>=5,<8",
-  # And the tracing SDK it brings: the worker hands livekit's tracer a provider that exports
-  # over OTLP/HTTP when PINECALL_OTLP_ENDPOINT names where (worker/telemetry.py).
+  # livekit's tracer, handed a provider that exports over OTLP/HTTP when PINECALL_OTLP_ENDPOINT names where.
   "opentelemetry-sdk>=1.30,<2",
   "opentelemetry-exporter-otlp-proto-http>=1.30,<2",
+  "pgvector>=0.3,<1",
+  # A range, not a bare name: the wheel PyPI serves must say which protocol it speaks.
+  "pinecall-protocol>=0.6.14,<0.7",
+  # livekit-agents' own, imported by name: what a room's egress token carries.
+  "protobuf>=5,<8",
+  "pydantic>=2.7,<3",
   "pyjwt>=2.13.0",
-  # Fernet, and nothing else: a tenant's own provider key is encrypted at rest under the box's
-  # PINECALL_VAULT_KEY. See docs/decisions/provider-keys.md.
-  "cryptography>=44,<51",
-  # argon2id, and nothing else: a member's password is a secret a person invented, and a sha256
-  # is a microsecond per guess. A key is 256 bits of CSPRNG and stays on sha256 (auth/keys.py).
-  "argon2-cffi>=23.1,<26",
+  # fastapi's own, named because the doors import `starlette.*` by that name.
+  "starlette>=0.40,<2",
+  # The server the gateway runs in; cli/gateway.py stops it the way a stream needs.
+  "uvicorn[standard]>=0.30,<1",
 ]
 
 [project.urls]
@@ -94,6 +86,7 @@ pinecall-runtime = "pinecall.cli:main"
 [tool.uv.sources]
 pinecall-protocol = { path = "../../../protocol/python", editable = true }
 pinecall-core = { workspace = true }
+pinecall-settings = { workspace = true }
 
 [build-system]
 # 1.27 is the first hatchling that writes `license` as a PEP 639 expression.
@@ -123,17 +116,18 @@ artifacts = ["src/pinecall/public/console/**", "src/pinecall/public/widget/**"]
 known_first_party = ["pinecall"]
 
 [tool.deptry.package_module_name_map]
-pinecall-protocol = ["pinecall_protocol"]
+argon2-cffi = ["argon2"]
 livekit-agents = ["livekit"]
 livekit-api = ["livekit"]
-argon2-cffi = ["argon2"]
+opentelemetry-exporter-otlp-proto-http = ["opentelemetry"]
+opentelemetry-sdk = ["opentelemetry"]
+pinecall-protocol = ["pinecall_protocol"]
+protobuf = ["google"]
 pyjwt = ["jwt"]
-typing-extensions = ["typing_extensions"]
-pydantic-settings = ["pydantic_settings"]
 
 [tool.deptry.per_rule_ignores]
-# uvicorn is what `pinecall-runtime gateway` runs, never imported by name; anthropic is named in
-# the `runtime` extra only to hold it under 1.0 for livekit's plugin, which is what imports it.
-# pinecall-core is imported on every other line, as `pinecall.types`: deptry reads a namespace by
-# its top-level name alone, and `pinecall` is this tree's own.
-DEP002 = ["uvicorn", "typing-extensions", "anthropic", "pinecall-core"]
+# The siblings are imported on every other line, as `pinecall.<package>`: deptry reads a
+# namespace by its top-level name alone, and `pinecall` is first-party here.
+# anthropic is named in the `runtime` extra only to hold it under 1.0 for livekit's plugin,
+# which is what imports it.
+DEP002 = ["pinecall-core", "pinecall-settings", "anthropic"]

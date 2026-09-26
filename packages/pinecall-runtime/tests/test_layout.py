@@ -35,7 +35,7 @@ FILES_THE_CEILING_SKIPS = frozenset(
         # every dependency a door takes, once. They sat at exactly 400 and the next setting was
         # going to cost a split of one of them — which buys a second place to look for a variable,
         # the one thing these two files exist to prevent. They grow by rows, not by ideas.
-        Path("packages/pinecall-runtime/src/pinecall/settings/schema.py"),
+        Path("packages/pinecall-settings/src/pinecall/settings/schema.py"),
         Path("packages/pinecall-runtime/src/pinecall/api/deps.py"),
     }
 )

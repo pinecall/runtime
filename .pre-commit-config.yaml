@@ -23,5 +23,5 @@ repos:
         name: .env.example is in step with pinecall.settings
         entry: bash -c 'scripts/generate-env-example && git diff --exit-code -- .env.example'
         language: system
-        files: ^(packages/pinecall-runtime/src/pinecall/settings/.*\.py|\.env\.example)$
+        files: ^(packages/pinecall-settings/src/pinecall/settings/.*\.py|\.env\.example)$
         pass_filenames: false
