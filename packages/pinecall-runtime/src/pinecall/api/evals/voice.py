@@ -5,7 +5,6 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import Field
 
-from pinecall.api.agents.session_config import tuned_for
 from pinecall.api.deps import (
     EvalsKeyDep,
     LlmsDep,
@@ -28,6 +27,7 @@ from pinecall.evals.simulated_caller import (
 )
 from pinecall.evals.voice_run import Line, run_simulated_call
 from pinecall.log.replay import whole
+from pinecall.orgs import tuned_for
 from pinecall.orgs.vault import brought_by
 from pinecall.providers.models import NoProvider
 from pinecall.providers.tuned_declaration import tuned_llm, tuned_voice

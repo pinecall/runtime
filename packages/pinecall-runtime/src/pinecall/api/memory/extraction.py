@@ -6,13 +6,13 @@ import time
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api.agents.session_config import tuned_for
 from pinecall.api.deps import LlmsDep, MemoryKeyDep, OrgsDep, TuningDep, VaultDep
 from pinecall.api.scope.request_scope import HeldDep
 from pinecall.auth.keys import KeyRecord, is_held_by
 from pinecall.live.sockets import Registration
 from pinecall.memory.extraction import ask_model
 from pinecall.memory.goldens import facts_of, judge_extraction, turns_of, undeclared_category
+from pinecall.orgs import tuned_for
 from pinecall.orgs.vault import brought_by
 from pinecall.providers.models import DEFAULT_VENDOR, Chat
 from pinecall.types import AgentConfig, MemoryPolicy, Model

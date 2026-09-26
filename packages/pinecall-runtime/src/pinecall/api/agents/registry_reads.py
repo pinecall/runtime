@@ -9,7 +9,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
 
-from pinecall.api.agents.session_config import tuned_for
 from pinecall.api.deps import (
     AppKeyDep,
     CallsKeyDep,
@@ -26,6 +25,7 @@ from pinecall.auth.keys import KeyRecord, is_held_by, is_operator_key
 from pinecall.auth.members import Members
 from pinecall.auth.peers import PeerUnreachable, RingsFor
 from pinecall.live.registry import Registry
+from pinecall.orgs import tuned_for
 from pinecall.types import (
     SANDBOX,
     THE_WIDGET,

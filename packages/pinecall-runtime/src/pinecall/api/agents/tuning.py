@@ -21,8 +21,9 @@ from pinecall.api.deps import (
 from pinecall.auth.keys import KeyRecord, cannot_open, is_held_by
 from pinecall.auth.request_scope import author_of
 from pinecall.live.registry import NO_AGENT, Registry
+from pinecall.orgs import Corners, settings_corners
 from pinecall.orgs.tuning_resolution import tuning_json
-from pinecall.orgs.tuning_store import HISTORY_LIMIT, TuningStore
+from pinecall.orgs.tuning_store import HISTORY_LIMIT
 from pinecall.orgs.vault import brought_by
 from pinecall.providers.session_vendors import first_unlent_vendor
 from pinecall.providers.tuned_declaration import apply_tuning
@@ -32,6 +33,7 @@ from pinecall.types import (
     THE_ORGS_OWN,
     AgentConfig,
     DeclarationRefused,
+    Env,
     Kept,
     Lexicon,
     Tuning,
@@ -198,28 +200,6 @@ def words_only(key: KeyRecord, wanted: Tuning, standing: Tuning) -> Tuning:
     return dataclasses.replace(wanted, **carried)
 
 
-async def put(
-    kept: TuningStore,
-    key: KeyRecord,
-    corner: str,
-    slug: str,
-    wanted: Tuning,
-    note: str | None,
-    if_version: int | None,
-) -> int:
-    """One version written in this corner, or 409 with where the corner is now."""
-    return await kept.put(
-        key.org,
-        key.env,
-        corner,
-        slug,
-        wanted,
-        author=author_of(key),
-        note=note,
-        if_version=if_version,
-    )
-
-
 def differing_fields(ours: Kept[Tuning] | None, theirs: Kept[Tuning] | None) -> list[str]:
     """The fields set differently between two versions, by name; every set one when one is None."""
     mine = {} if ours is None else tuning_json(ours.value)
@@ -233,7 +213,8 @@ def differing_fields(ours: Kept[Tuning] | None, theirs: Kept[Tuning] | None) -> 
 @router.get("/v1/agents/{slug}/settings")
 async def settings(slug: str, key: TuningKeyDep, kept: TuningDep) -> TuningAnswer:
     """The agent's tuning as this key sees it: yours, the team's, production's."""
-    return await _answer(slug, key, kept)
+    corners = await settings_corners(kept, key.org, key.env, own_corner(key), slug)
+    return wire_tuning_corners(corners, key.env)
 
 
 # The whole set, every time, with the version it was read at: two people saving from two screens
@@ -266,8 +247,18 @@ async def set_settings(
     unlent = first_unlent_vendor(config, await brought_by(vault, orgs.quotas_of, key.org))
     if unlent is not None:
         raise HTTPException(422, unlent)
-    await put(kept, key, corner, slug, wanted, said.note, said.if_version)
-    return await _answer(slug, key, kept)
+    await kept.put(
+        key.org,
+        key.env,
+        corner,
+        slug,
+        wanted,
+        author=author_of(key),
+        note=said.note,
+        if_version=said.if_version,
+    )
+    corners = await settings_corners(kept, key.org, key.env, own_corner(key), slug)
+    return wire_tuning_corners(corners, key.env)
 
 
 @router.get("/v1/agents/{slug}/settings/history")
@@ -312,8 +303,18 @@ async def rollback(slug: str, said: Rollback, key: PipelineKeyDep, kept: TuningD
     row = await kept.at(key.org, key.env, corner, slug, said.version)
     if row is None:
         raise HTTPException(404, NO_SUCH_VERSION.format(version=said.version, slug=slug))
-    await put(kept, key, corner, slug, row.value, f"rollback to v{said.version}", None)
-    return await _answer(slug, key, kept)
+    await kept.put(
+        key.org,
+        key.env,
+        corner,
+        slug,
+        row.value,
+        author=author_of(key),
+        note=f"rollback to v{said.version}",
+        if_version=None,
+    )
+    corners = await settings_corners(kept, key.org, key.env, own_corner(key), slug)
+    return wire_tuning_corners(corners, key.env)
 
 
 # What a call ran on, exactly: the head row kept the two version numbers when the call opened
@@ -346,15 +347,16 @@ async def tuning_of_call(
     )
 
 
-async def _answer(slug: str, key: KeyRecord, kept: TuningStore) -> TuningAnswer:
-    """The three corners as this key sees them, each its own newest and never the fallback."""
-    mine = is_held_by(key) if HOLDING in key.scopes else None
-    yours = None if mine is None else await kept.own(key.org, key.env, mine, slug)
-    team = await kept.own(key.org, key.env, THE_ORGS_OWN, slug)
-    production = await kept.own(key.org, PRODUCTION, THE_ORGS_OWN, slug)
+def wire_tuning_corners(corners: Corners[Tuning], world: Env) -> TuningAnswer:
+    """The three corners as the settings doors answer them."""
     return TuningAnswer(
-        world=key.env,
-        yours=None if yours is None else wire_tuning_row(yours),
-        team=None if team is None else wire_tuning_row(team),
-        production=None if production is None else wire_tuning_row(production),
+        world=world,
+        yours=None if corners.yours is None else wire_tuning_row(corners.yours),
+        team=None if corners.team is None else wire_tuning_row(corners.team),
+        production=None if corners.production is None else wire_tuning_row(corners.production),
     )
+
+
+def own_corner(key: KeyRecord) -> str | None:
+    """The corner that is this key's own, or None for a key that holds no agent."""
+    return is_held_by(key) if HOLDING in key.scopes else None

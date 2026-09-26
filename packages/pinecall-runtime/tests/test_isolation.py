@@ -29,7 +29,7 @@ MAY_IMPORT: dict[str, frozenset[str]] = {
     "providers": frozenset({"types"}),
     "log": frozenset({"db", "types"}),
     "auth": frozenset({"db", "types"}),
-    "orgs": frozenset({"db", "log", "types"}),
+    "orgs": frozenset({"db", "log", "providers", "types"}),
     "routes": frozenset({"db", "types"}),
     "tokens": frozenset({"auth", "db", "log", "types"}),
     # The outbox reads the mailbox an org wired and records what came of the letter on its row.

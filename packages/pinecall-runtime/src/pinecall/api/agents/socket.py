@@ -10,7 +10,6 @@ from pydantic import ValidationError
 
 from pinecall.api.agents.handlers import HANDLERS, Live, LiveDep, Socket, handles, parse_command
 from pinecall.api.agents.processes import Process, Processes, ProcessesDep
-from pinecall.api.agents.session_config import tuned_for
 from pinecall.api.calls.attachment import handed_on, parked_calls_of
 from pinecall.api.deps import (
     AdmissionDep,
@@ -33,6 +32,7 @@ from pinecall.live.sockets import SocketId, new_socket_id
 from pinecall.log import REFUSED
 from pinecall.log.entry import Entry, ephemeral_entry
 from pinecall.log.writers import Logs
+from pinecall.orgs import tuned_for
 from pinecall.orgs.admission import Admission, QuotaExhausted
 from pinecall.orgs.caller_codes import Codes
 from pinecall.orgs.tuning_store import TuningStore

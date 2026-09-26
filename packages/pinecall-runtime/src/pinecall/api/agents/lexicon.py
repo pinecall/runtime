@@ -6,12 +6,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query
 
-from pinecall.api.agents.tuning import TuningKeyDep, corner_written, wire_lexicon_row
+from pinecall.api.agents.tuning import TuningKeyDep, corner_written, own_corner, wire_lexicon_row
 from pinecall.api.deps import TuningDep
-from pinecall.auth.keys import KeyRecord, is_held_by
 from pinecall.auth.request_scope import author_of
-from pinecall.orgs.tuning_store import HISTORY_LIMIT, TuningStore
-from pinecall.types import HOLDING, PRODUCTION, THE_ORGS_OWN, Lexicon
+from pinecall.orgs import Corners, lexicon_corners
+from pinecall.orgs.tuning_store import HISTORY_LIMIT
+from pinecall.types import Env, Lexicon
 from pinecall_protocol.rest import LexiconAnswer, LexiconBody, LexiconHistory, LexiconPut
 
 router = APIRouter()
@@ -25,7 +25,8 @@ def parse_lexicon(body: LexiconBody) -> Lexicon:
 @router.get("/v1/lexicon")
 async def lexicon(key: TuningKeyDep, kept: TuningDep) -> LexiconAnswer:
     """The org's words as this key sees them: yours, the team's, production's."""
-    return await _answer(key, kept)
+    corners = await lexicon_corners(kept, key.org, key.env, own_corner(key))
+    return wire_lexicon_corners(corners, key.env)
 
 
 # The words are the org's, and the person who hears one said wrong is the one who fixes it: a
@@ -44,7 +45,8 @@ async def set_lexicon(said: LexiconPut, key: TuningKeyDep, kept: TuningDep) -> L
         note=said.note,
         if_version=said.if_version,
     )
-    return await _answer(key, kept)
+    corners = await lexicon_corners(kept, key.org, key.env, own_corner(key))
+    return wire_lexicon_corners(corners, key.env)
 
 
 @router.get("/v1/lexicon/history")
@@ -62,15 +64,11 @@ async def history(
     )
 
 
-async def _answer(key: KeyRecord, kept: TuningStore) -> LexiconAnswer:
-    """The three corners as this key sees them, each its own newest."""
-    mine = is_held_by(key) if HOLDING in key.scopes else None
-    yours = None if mine is None else await kept.own_lexicon(key.org, key.env, mine)
-    team = await kept.own_lexicon(key.org, key.env, THE_ORGS_OWN)
-    production = await kept.own_lexicon(key.org, PRODUCTION, THE_ORGS_OWN)
+def wire_lexicon_corners(corners: Corners[Lexicon], world: Env) -> LexiconAnswer:
+    """The three corners as the lexicon doors answer them."""
     return LexiconAnswer(
-        world=key.env,
-        yours=None if yours is None else wire_lexicon_row(yours),
-        team=None if team is None else wire_lexicon_row(team),
-        production=None if production is None else wire_lexicon_row(production),
+        world=world,
+        yours=None if corners.yours is None else wire_lexicon_row(corners.yours),
+        team=None if corners.team is None else wire_lexicon_row(corners.team),
+        production=None if corners.production is None else wire_lexicon_row(corners.production),
     )

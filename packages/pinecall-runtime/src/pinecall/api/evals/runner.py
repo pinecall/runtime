@@ -15,7 +15,6 @@ from fastapi import Depends
 from pydantic import Field
 from starlette.requests import HTTPConnection
 
-from pinecall.api.agents.session_config import tuned_for
 from pinecall.api.deps import held
 from pinecall.api.evals.golden_call import run_golden_conversation
 from pinecall.api.evals.golden_judges import Judging
@@ -32,6 +31,7 @@ from pinecall.live.sockets import Registration
 from pinecall.log.store import Store
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
+from pinecall.orgs import tuned_for
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.tuning_store import TuningStore
 from pinecall.orgs.vault import Vault, brought_by

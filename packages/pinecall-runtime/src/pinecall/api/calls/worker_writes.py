@@ -7,7 +7,6 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from starlette.status import HTTP_204_NO_CONTENT
 
-from pinecall.api.agents.session_config import tuned_for
 from pinecall.api.calls.attachment import attach_socket
 from pinecall.api.calls.deps import Serving, ServingDep
 from pinecall.api.calls.opening import record_arrival, serving_agent
@@ -25,6 +24,7 @@ from pinecall.auth.keys import KeyRecord, is_fleet_key, is_held_by
 from pinecall.live.registry import NO_UNCLAIMED, NOT_THAT_APP
 from pinecall.log.logs import CallLog
 from pinecall.log.writers import Logs
+from pinecall.orgs import tuned_for
 from pinecall.tokens.spend import spent
 from pinecall.types import AgentConfig, CallContext, Env
 from pinecall_protocol import WireModel
