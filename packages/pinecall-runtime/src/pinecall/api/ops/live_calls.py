@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from pinecall.api.calls.log_sink import sse_response
 from pinecall.api.deps import LogsDep
 from pinecall.api.scope.operator_key import operators_router
+from pinecall.api.sse import ClosingDep
 from pinecall.log.entry import Entry
 from pinecall.log.writers import Logs
 from pinecall.types.json import JsonObject
@@ -25,9 +26,9 @@ operator = operators_router()
 # its own log, so ids from two calls interleave and a reconnect resumes from now. Nothing is
 # projected: the operator is the box's, and what the store holds was masked when it was written.
 @operator.get("/events", response_model=None)
-async def events(logs: LogsDep) -> StreamingResponse:
+async def events(logs: LogsDep, closing: ClosingDep) -> StreamingResponse:
     """Every org's floor as it changes, as SSE, each frame naming the org it happened in."""
-    return sse_response(_owned(logs, logs.box().subscribe()))
+    return sse_response(_owned(logs, logs.box().subscribe()), closing)
 
 
 async def _owned(

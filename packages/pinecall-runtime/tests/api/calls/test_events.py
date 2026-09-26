@@ -9,7 +9,8 @@ from typing import Any, cast
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.api.calls.log_sink import RETRY_MS, SSE, is_sealed, pace, sse
+from pinecall.api.calls.log_sink import is_sealed, sse
+from pinecall.api.sse import RETRY_MS, SSE
 from pinecall.auth.scopes import Reader
 from pinecall.log.entry import Entry
 from pinecall.log.filters import Filter
@@ -257,7 +258,9 @@ async def test_an_entry_appended_while_the_stream_is_open_arrives(store: MemoryS
     logs = Logs(store)
     log = logs.writing(CALL, "clara")
     await log.append("call.started", {})
-    body = cast("AsyncIterator[str]", sse(log.stream(), as_written, A_READER).body_iterator)
+    body = cast(
+        "AsyncIterator[str]", sse(log.stream(), as_written, A_READER, asyncio.Event()).body_iterator
+    )
     assert await anext(body) == f"retry: {RETRY_MS}\n\n"
     assert frames(str(await anext(body)))[0]["event"] == "call.started"
     # The marker stands at the seq of the last entry it speaks for, and no store ever saw it.
@@ -268,16 +271,6 @@ async def test_an_entry_appended_while_the_stream_is_open_arrives(store: MemoryS
     assert [entry.type for entry in await store.since(CALL)] == ["call.started"]
     await log.append("user.said", {"text": "hola"})
     assert frames(str(await anext(body)))[0]["event"] == "user.said"
-
-
-async def test_a_quiet_stream_is_kept_open_by_a_ping(store: MemoryStore) -> None:
-    logs = Logs(store)
-    log = logs.writing(CALL, "clara")
-    await log.append("call.started", {})
-    # The pacing is the whole ping: a source that never speaks yields None every `every` seconds.
-    ticks = pace(_never(), every=0.01)
-    assert await anext(ticks) is None
-    assert await anext(ticks) is None
 
 
 async def test_the_stream_of_an_agents_own_log_says_caught_up_too(store: MemoryStore) -> None:
@@ -292,13 +285,6 @@ async def test_the_stream_of_an_agents_own_log_says_caught_up_too(store: MemoryS
 def as_written(entry: Entry, _reader: Reader) -> JsonObject:
     """The whole entry, projected by nobody: what sse() is handed when the sink is under test."""
     return encode(entry)
-
-
-async def _never() -> AsyncIterator[Entry]:
-    """A source with nothing to say, ever: what a quiet call looks like to the pacing."""
-    await asyncio.Event().wait()
-    # Unreachable; the yield is only what makes this a generator instead of a coroutine.
-    yield Entry(seq=0, ts=0.0, call=None, agent="", type="never", ephemeral=True, data={})
 
 
 async def _first(entries: AsyncIterator[Entry], many: int) -> AsyncIterator[Entry]:

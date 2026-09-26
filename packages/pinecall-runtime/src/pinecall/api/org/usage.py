@@ -10,16 +10,9 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 from starlette.responses import StreamingResponse
 
-from pinecall.api.calls.log_sink import (
-    PING,
-    SSE,
-    SSE_HEADERS,
-    AcceptDep,
-    sse_frame,
-    wants_sse,
-)
 from pinecall.api.deps import OrgsDep, StoreDep, UsageKeyDep
 from pinecall.api.scope.operator_key import operators_router
+from pinecall.api.sse import PING, AcceptDep, ClosingDep, sse_frame, sse_stream, wants_sse
 from pinecall.log.store import DEFAULT_LIMIT, Store
 from pinecall.log.usage import METERED_TYPES, Totals, UsageRow, fold_usage_row, totals_by_org
 from pinecall_protocol import WireModel
@@ -65,6 +58,7 @@ class UsageOfTheOrg(WireModel):
 async def usage(
     store: StoreDep,
     orgs: OrgsDep,
+    closing: ClosingDep,
     accept: AcceptDep = None,
     after: int = AFTER,
     org: str | None = OF_ORG,
@@ -73,7 +67,7 @@ async def usage(
     """The metered rows above the cursor, per org, with the cursor to resume from."""
     only = None if org is None else (found.id if (found := await orgs.find(org)) else org)
     if wants_sse(accept):
-        return StreamingResponse(_stream(store, after, only), media_type=SSE, headers=SSE_HEADERS)
+        return sse_stream(_stream(store, after, only), closing)
     read, rows = await _a_page(store, after, limit, only)
     return UsageAcrossOrgs(
         rows=list(rows),

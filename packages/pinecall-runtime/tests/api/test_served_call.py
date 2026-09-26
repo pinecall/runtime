@@ -102,7 +102,7 @@ async def test_another_orgs_served_call_opens_neither_its_tools_nor_its_commands
     with pytest.raises(GatewayRefused, match="403"):
         await worker_gateway.tool(theirs, AGENT, wanted, timeout_s=1)
     with pytest.raises(HTTPException) as refused:
-        await door.commands(theirs, A_RECORD, live)
+        await door.commands(theirs, A_RECORD, live, asyncio.Event())
     assert refused.value.status_code == 403
     assert live.commands(theirs) is not None
 
@@ -151,7 +151,7 @@ async def test_what_the_app_said_reaches_the_bridge_of_the_worker_running_the_ca
 ) -> None:
     await registered(registry)
     await worker_gateway.opened(a_context(), AGENT)
-    streaming = await door.commands(CALL, A_RECORD, live)
+    streaming = await door.commands(CALL, A_RECORD, live, asyncio.Event())
     assert live.commanded(CALL, AGENT, _a_command("prompt.set", {"name": "view", "text": "Ana"}))
     assert live.commanded(CALL, AGENT, _a_command("call.hangup", {}))
     live.close(CALL)
@@ -174,7 +174,7 @@ async def test_a_worker_reading_the_commands_of_a_call_nobody_opened_here_is_ref
     live: Live,
 ) -> None:
     with pytest.raises(HTTPException, match="open it with POST /v1/calls first"):
-        await door.commands("call_nobody_opened", A_RECORD, live)
+        await door.commands("call_nobody_opened", A_RECORD, live, asyncio.Event())
 
 
 # ── what a test says to the doors ───────────────────────────────────────────────

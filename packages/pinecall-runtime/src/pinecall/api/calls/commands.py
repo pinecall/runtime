@@ -8,10 +8,10 @@ from collections.abc import AsyncIterator
 from fastapi import APIRouter, HTTPException
 from starlette.responses import StreamingResponse
 
-from pinecall.api.calls.log_sink import PING, PING_SECONDS, SSE, SSE_HEADERS, pace, sse_frame
 from pinecall.api.calls.worker_writes import refuse_another_orgs_call
 from pinecall.api.deps import AppKeyDep
 from pinecall.api.live import LiveDep
+from pinecall.api.sse import PING, PING_SECONDS, ClosingDep, pace, sse_frame, sse_stream
 from pinecall_protocol import Command, encode
 
 router = APIRouter()
@@ -26,7 +26,9 @@ NOT_SERVED = "this gateway serves no call {call!r}: open it with POST /v1/calls 
 # tells the worker's call what to do. Both travel through the app socket this process holds, and
 # neither is a new vocabulary — the frames are the protocol's own command envelope.
 @router.get("/v1/calls/{call}/commands")
-async def commands(call: str, key: AppKeyDep, live: LiveDep) -> StreamingResponse:
+async def commands(
+    call: str, key: AppKeyDep, live: LiveDep, closing: ClosingDep
+) -> StreamingResponse:
     """Every command the app sends for this call, in order, until the call is sealed."""
     # A tenant's worker reads its own org's calls: reading is also CONSUMING the queue, so a key
     # of another org that named this id would take the commands off the worker running it.
@@ -34,7 +36,7 @@ async def commands(call: str, key: AppKeyDep, live: LiveDep) -> StreamingRespons
     waiting = live.commands(call)
     if waiting is None:
         raise HTTPException(status_code=404, detail=NOT_SERVED.format(call=call))
-    return StreamingResponse(_body(waiting), media_type=SSE, headers=SSE_HEADERS)
+    return sse_stream(_body(waiting), closing)
 
 
 # No `retry:` and no `id:`: the reader is the worker, not a browser, and a command has no seq to

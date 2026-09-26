@@ -1,5 +1,6 @@
 """One gateway per test, wired to a memory store and one issued key. Nothing reaches a network."""
 
+import asyncio
 from collections.abc import AsyncIterator, Iterator
 from functools import partial
 from typing import Any
@@ -10,11 +11,7 @@ from cryptography.fernet import Fernet
 from starlette.testclient import TestClient
 
 from pinecall._settings import Settings
-from pinecall.api import deps as deps
-from pinecall.api import deps as log_writers
-from pinecall.api import deps as routes_table
-from pinecall.api import deps as tokens_ledger
-from pinecall.api import deps as whatsapp_graph
+from pinecall.api import deps
 from pinecall.api import live as gateway_connected
 from pinecall.api.agents import registry as registry_dep
 from pinecall.api.agents.registry import Registry
@@ -36,6 +33,7 @@ from pinecall.api.deps import (
     get_vault,
 )
 from pinecall.api.live import Live
+from pinecall.api.sse import get_closing
 from pinecall.api.whatsapp import threads as whatsapp_threads
 from pinecall.api.whatsapp.threads import Threads
 from pinecall.auth.keys import KeyRecord, Keys, MemoryKeys
@@ -312,9 +310,9 @@ def wired(
     app.dependency_overrides[deps.get_store] = lambda: store
     app.dependency_overrides[deps.get_keys] = lambda: standing
     app.dependency_overrides[registry_dep.get_registry] = lambda: registry
-    app.dependency_overrides[routes_table.get_routes] = lambda: routes
-    app.dependency_overrides[tokens_ledger.get_tokens] = lambda: tokens
-    app.dependency_overrides[log_writers.get_logs] = lambda: logs
+    app.dependency_overrides[deps.get_routes] = lambda: routes
+    app.dependency_overrides[deps.get_tokens] = lambda: tokens
+    app.dependency_overrides[deps.get_logs] = lambda: logs
     app.dependency_overrides[gateway_connected.get_live] = lambda: live
     app.dependency_overrides[deps.get_llms] = lambda: llms
     app.dependency_overrides[get_tuning] = lambda: tuning
@@ -323,7 +321,7 @@ def wired(
     app.dependency_overrides[get_orgs] = lambda: orgs
     app.dependency_overrides[get_vault] = lambda: vault
     app.dependency_overrides[get_admission] = lambda: admission
-    app.dependency_overrides[whatsapp_graph.get_graph] = lambda: graph
+    app.dependency_overrides[deps.get_graph] = lambda: graph
     app.dependency_overrides[whatsapp_threads.get_threads] = lambda: threads
     app.dependency_overrides[get_memory] = lambda: memory
     app.dependency_overrides[get_knowledge] = lambda: knowledge
@@ -338,6 +336,8 @@ def wired(
     app.dependency_overrides[deps.get_carriers] = lambda: carriers
     app.dependency_overrides[deps.get_trunks] = lambda: trunks
     app.dependency_overrides[deps.twilio_for] = lambda: twilio
+    # A process this test never stops: every stream gets an event nobody sets.
+    app.dependency_overrides[get_closing] = asyncio.Event
     yield
     app.dependency_overrides.clear()
 

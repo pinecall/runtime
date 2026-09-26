@@ -11,6 +11,7 @@ from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.calls.listing import A_SCREENFUL, BEFORE, LIMIT, WORDS, page_of_calls
 from pinecall.api.calls.log_sink import ProjectDep, ReaderDep, sse
 from pinecall.api.deps import CallIndexDep, LogsDep, SnapshotsDep
+from pinecall.api.sse import ClosingDep
 from pinecall.log.store.call_index import Wanted
 from pinecall.types import Channel
 from pinecall_protocol.rest import SessionList
@@ -47,8 +48,10 @@ async def sessions(
 # go, a call arriving, up, over — tapped off every log the org owns as they are written. Each of
 # them is an entry of some log already, with its own seq there; what to resume from is that log.
 @router.get("/v1/events", response_model=None)
-async def events(reader: ReaderDep, logs: LogsDep, project: ProjectDep) -> StreamingResponse:
+async def events(
+    reader: ReaderDep, logs: LogsDep, project: ProjectDep, closing: ClosingDep
+) -> StreamingResponse:
     """The org's floor as it changes, as SSE, from now on."""
     if reader.key is None:
         raise HTTPException(403, A_KEY_READS_THE_ORG)
-    return sse(logs.feed(reader.key.org).subscribe(), project, reader, ends_at=None)
+    return sse(logs.feed(reader.key.org).subscribe(), project, reader, closing, ends_at=None)

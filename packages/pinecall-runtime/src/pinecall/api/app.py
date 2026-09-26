@@ -22,6 +22,7 @@ from pinecall.api.live import Live
 from pinecall.api.origins import AppOrigins
 from pinecall.api.refusals import refusals_answered_by
 from pinecall.api.routers import DOORS
+from pinecall.api.sse import new_closing
 from pinecall.api.telephony.sip_rebuild import reconcile_sip
 from pinecall.api.whatsapp.threads import Threads
 from pinecall.api.whatsapp.waiting_loop import start_waiting_room
@@ -118,6 +119,8 @@ HTTP_TIMEOUT = httpx.Timeout(connect=5.0, read=30.0, write=30.0, pool=5.0)
 async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
     """Open what the process needs once, hand it to the deps on app.state, and close it after."""
     settings = load_settings()
+    # Before anything answers: the event every stream ends on when the process is told to stop.
+    new_closing(gateway)
     # Everything opened is pushed onto the stack as it opens, so a failure halfway through the
     # start closes the pool and the client already open instead of leaking them under a traceback,
     # and the stop closes in the reverse of the order things opened.

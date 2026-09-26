@@ -23,7 +23,7 @@ ASKED: JsonObject = {"reason": "quiere hablar con una persona", "wait_s": 60}
 
 async def frames(logs: Logs) -> AsyncIterator[str]:
     """The door's own body, read as a notifier reads it: it never ends, so never over HTTP."""
-    answer = await events(logs)
+    answer = await events(logs, asyncio.Event())
     chunks = aiter(cast("AsyncIterable[str]", answer.body_iterator))
     assert (await anext(chunks)).startswith("retry:")
     return chunks

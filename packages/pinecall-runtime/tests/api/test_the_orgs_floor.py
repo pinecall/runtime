@@ -113,7 +113,7 @@ async def test_the_events_door_streams_the_feed_as_sse_from_now_on(
     """A register while the stream is open lands as one SSE frame carrying the entry."""
     # The door's own body, read as the browser would read it: httpx's ASGI transport hands a
     # response back whole, and a stream that never ends never comes back through it.
-    answer = await events(A_READER, logs, projection_for(registry))
+    answer = await events(A_READER, logs, projection_for(registry), asyncio.Event())
     # starlette types the body as either flavour of iterable; this door streams text, always.
     chunks = aiter(cast("AsyncIterable[str]", answer.body_iterator))
     assert (await anext(chunks)).startswith("retry:")

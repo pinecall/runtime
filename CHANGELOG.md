@@ -42,6 +42,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   every `.env` and `deploy.local.mk` at home.
 
 ### Fixed
+- **A deploy no longer cancels the open streams mid-write.** A console's live feed, a call's tail,
+  the commands stream and the usage feed never end by themselves, so a stopping gateway waited its
+  grace period on them and then cancelled each one — `Exception in ASGI application … timeout
+  graceful shutdown exceeded`, once per open console at every deploy. The process now says it is
+  stopping the moment the signal lands (`GatewayServer` in `cli/gateway.py`), and every stream
+  ends on it cleanly; the browser reconnects to the next process with its `Last-Event-ID`. The
+  five doors that stream now write through one module, `api/sse.py`, instead of three.
 - **Recordings again, under the fence.** `hardening.conf` no longer sets `RestrictSUIDSGID=`: it
   refused the setgid bit on each call's recording directory, the recorder could not write in it,
   and every call after the deploy of 2026-09-26 kept no audio. A directory the box will not mark

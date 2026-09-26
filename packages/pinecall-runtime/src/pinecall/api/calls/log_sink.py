@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from collections.abc import AsyncIterator, Callable
 from dataclasses import replace
 from typing import Annotated
@@ -15,6 +14,7 @@ from starlette.responses import StreamingResponse
 from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.api.deps import SCOPE_OF_THE_DOOR, KeysDep, MembersDep, SettingsDep
+from pinecall.api.sse import PING, PING_SECONDS, RETRY_MS, pace, sse_frame, sse_stream
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.env import requested_scope
 from pinecall.auth.keys import KeyRecord, Keys, cannot_open, is_fleet_key
@@ -33,22 +33,6 @@ from pinecall_protocol.registry import TERMINAL_EVENT
 # What a reader is allowed to see of one entry, applied HERE and nowhere above: None when the
 # entry never leaves at all, and otherwise the wire-shaped dict a sink sends.
 type Project = Callable[[Entry, Reader], JsonObject | None]
-
-SSE = "text/event-stream"
-
-# How long a browser waits before reconnecting, in milliseconds. One second: an EventSource that
-# reconnects with its Last-Event-ID loses nothing, so there is no reason to make it wait.
-RETRY_MS = 1000
-
-# A comment frame every 25 s. It is not a heartbeat the protocol knows about — it is bytes, so that
-# a proxy with a 30 s idle timeout does not cut a stream that is simply on a quiet call.
-PING_SECONDS = 25.0
-
-# SSE has no body to put a status in, so nginx and friends are told here not to hold onto one.
-SSE_HEADERS = {"cache-control": "no-store", "connection": "keep-alive", "x-accel-buffering": "no"}
-
-# What a quiet stream says so the connection is seen to be alive: a comment, which no reader parses.
-PING = ": ping\n\n"
 
 
 # ── the door ────────────────────────────────────────────────────────────────────
@@ -212,17 +196,11 @@ def parse_filter(
     return Filter.of(types, durable)
 
 
-def wants_sse(accept: str | None) -> bool:
-    """Whether this reader asked for the stream. One URL, two flavours, and Accept decides."""
-    return SSE in (accept or "")
-
-
 CursorDep = Annotated[int, Depends(parse_cursor)]
 FilterDep = Annotated[Filter, Depends(parse_filter)]
 ProjectDep = Annotated[Project, Depends(projection_for)]
 ReaderDep = Annotated[Reader, Depends(require_reader)]
 LimitDep = Annotated[int, Query(ge=1, le=DEFAULT_LIMIT)]
-AcceptDep = Annotated[str | None, Header()]
 
 
 # ── the two flavours ────────────────────────────────────────────────────────────
@@ -261,18 +239,21 @@ def sse(
     entries: AsyncIterator[Entry],
     project: Project,
     reader: Reader,
+    closing: asyncio.Event,
     *,
     ends_at: str | None = TERMINAL_EVENT,
 ) -> StreamingResponse:
     """The same entries as a stream that stays open, and ends where its log does — if it ends."""
-    return sse_response(_projected(entries, project, reader, ends_at))
+    return sse_response(_projected(entries, project, reader, ends_at), closing)
 
 
-# Any SSE door of this gateway, whatever it says per entry: a door that projects for a tenant and
-# the operator's, which wraps each entry with its org, write the same frames on the same clock.
-def sse_response(said: AsyncIterator[tuple[Entry, JsonObject]]) -> StreamingResponse:
+# Any log's SSE door, whatever it says per entry: a door that projects for a tenant and the
+# operator's, which wraps each entry with its org, write the same frames on the same clock.
+def sse_response(
+    said: AsyncIterator[tuple[Entry, JsonObject]], closing: asyncio.Event
+) -> StreamingResponse:
     """Each entry and what it says, as SSE: retry first, a frame each, a ping when it is quiet."""
-    return StreamingResponse(_frames(said), media_type=SSE, headers=SSE_HEADERS)
+    return sse_stream(_frames(said), closing)
 
 
 async def _frames(said: AsyncIterator[tuple[Entry, JsonObject]]) -> AsyncIterator[str]:
@@ -300,39 +281,6 @@ async def _projected(
 def _frame(entry: Entry, said: JsonObject) -> str:
     """One entry as SSE: its seq, its type, and what this reader may see as the data line."""
     return sse_frame(entry.type, said, id=entry.seq)
-
-
-# The one place a frame is spelled (the log's, the usage rows', the app's commands'): the id when
-# the reader can resume from it, the event, the data on one line, the blank line that ends it.
-def sse_frame(event: str, data: JsonObject, *, id: int | None = None) -> str:
-    """One SSE frame, compact JSON as the data line."""
-    said = json.dumps(data, separators=(",", ":"))
-    head = "" if id is None else f"id: {id}\n"
-    return f"{head}event: {event}\ndata: {said}\n\n"
-
-
-# The stream and the clock are two sources and SSE needs both. One pending task carried across the
-# timeout is the whole trick: re-awaiting a fresh __anext__ after a ping would drop the entry the
-# first one is still waiting for.
-async def pace[T](coming: AsyncIterator[T], every: float) -> AsyncIterator[T | None]:
-    """Every item as it comes, and None whenever `every` seconds pass with nothing to send."""
-    pending: asyncio.Task[T] | None = None
-    try:
-        while True:
-            if pending is None:
-                pending = asyncio.ensure_future(anext(coming))
-            done, _ = await asyncio.wait({pending}, timeout=every)
-            if not done:
-                yield None
-                continue
-            finished, pending = pending, None
-            try:
-                yield finished.result()
-            except StopAsyncIteration:
-                return
-    finally:
-        if pending is not None:
-            pending.cancel()
 
 
 # ── whether the log is over ─────────────────────────────────────────────────────

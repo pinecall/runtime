@@ -10,7 +10,6 @@ from starlette.responses import StreamingResponse
 from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api.calls.log_sink import (
-    AcceptDep,
     CursorDep,
     FilterDep,
     LimitDep,
@@ -24,7 +23,6 @@ from pinecall.api.calls.log_sink import (
     refuse_another_call,
     refuse_another_org,
     sse,
-    wants_sse,
 )
 from pinecall.api.calls.supervise.aiming import (
     STEERS,
@@ -40,6 +38,7 @@ from pinecall.api.deps import (
     SnapshotsDep,
     StoreDep,
 )
+from pinecall.api.sse import AcceptDep, ClosingDep, wants_sse
 from pinecall.auth.bearer import POLICY_VIOLATION, close_reason
 from pinecall.auth.keys import cannot_open
 from pinecall.auth.scopes import Reader
@@ -75,6 +74,7 @@ async def events(
     project: ProjectDep,
     cursor: CursorDep,
     filter: FilterDep,
+    closing: ClosingDep,
     accept: AcceptDep = None,
     limit: LimitDep = DEFAULT_LIMIT,
 ) -> Response | StreamingResponse | ProjectedPage:
@@ -91,7 +91,7 @@ async def events(
         # logs.reading() hands back the live log when this process is writing the call, so the
         # stream goes on into the fanout; for a call nobody here is writing it reads the store and
         # then waits, which is what a reader of another gateway's call should do.
-        return sse(logs.reading(call).stream(after=cursor, filter=filter), project, reader)
+        return sse(logs.reading(call).stream(after=cursor, filter=filter), project, reader, closing)
     entries: list[Entry] = await store.since(call, after=cursor, limit=limit)
     # The filter is applied here, at the sink, and the seq of what survives is untouched: a reader
     # that narrows its view still holds cursors it can hand back to this same endpoint.
@@ -114,6 +114,7 @@ async def calls(
     project: ProjectDep,
     cursor: CursorDep,
     filter: FilterDep,
+    closing: ClosingDep,
     accept: AcceptDep = None,
     limit: LimitDep = DEFAULT_LIMIT,
 ) -> StreamingResponse | ProjectedPage:
@@ -123,7 +124,7 @@ async def calls(
     if wants_sse(accept):
         # ends_at None: no event terminates this log, so the body closes when the reader leaves.
         stream = logs.reading_agent(slug).stream(after=cursor, filter=filter)
-        return sse(stream, project, reader, ends_at=None)
+        return sse(stream, project, reader, closing, ends_at=None)
     entries: list[Entry] = await store.agent_since(slug, after=cursor, limit=limit)
     kept = [entry for entry in entries if filter.passes(entry)]
     return page(entries, kept, True, project, reader)

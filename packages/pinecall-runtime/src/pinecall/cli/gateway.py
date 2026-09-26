@@ -2,13 +2,16 @@
 
 import argparse
 import ipaddress
-from typing import Any
+from types import FrameType
+from typing import Any, override
 from urllib.parse import urlsplit
 
 import uvicorn
+from fastapi import FastAPI
 from livekit.agents.cli.log import JsonFormatter
 
 from pinecall._settings import Settings, load_settings, variable_of
+from pinecall.api.sse import announce_closing
 from pinecall.errors import PinecallError
 
 PURPOSE: str = "the control plane: HTTP and WebSocket, one process"
@@ -16,9 +19,10 @@ PURPOSE: str = "the control plane: HTTP and WebSocket, one process"
 # The import string, not the object: uvicorn's reloader has to be able to import it again.
 APP = "pinecall.api.app:app"
 
-# A stop waits this long for the requests in flight and then closes what is left — the log streams
-# and the app sockets, which reconnect. The gateway drains no call: every live call is told again by
-# its worker and adopted by its app's socket when this process, or the next, answers.
+# A stop waits this long for the requests in flight and then closes what is left — the app sockets,
+# which reconnect. The log streams end first, on their own, the moment the stop is asked for
+# (api/sse.py). The gateway drains no call: every live call is told again by its worker and adopted
+# by its app's socket when this process, or the next, answers.
 GRACEFUL_S = 5
 
 # The gateway binds the address its own instance is reached at — PINECALL_GATEWAY_URL, which the
@@ -58,16 +62,40 @@ def run(arguments: argparse.Namespace) -> int:
     if host is None or port is None:
         own_host, own_port = bind_address(settings.gateway_url)
         host, port = host or own_host, port or own_port
-    uvicorn.run(
-        APP,
-        host=host,
-        port=port,
-        reload=arguments.reload,
-        log_level=settings.log_level.lower(),
-        log_config=build_log_config(settings),
-        timeout_graceful_shutdown=GRACEFUL_S,
-    )
+    served: dict[str, Any] = {
+        "host": host,
+        "port": port,
+        "log_level": settings.log_level.lower(),
+        "log_config": build_log_config(settings),
+        "timeout_graceful_shutdown": GRACEFUL_S,
+    }
+    if arguments.reload:
+        # The reloader serves from a process of its own, with its own server: a stop there is a
+        # laptop's, and its streams wait out the grace period as they always did.
+        uvicorn.run(APP, reload=True, **served)
+        return 0
+    from pinecall.api.app import app
+
+    GatewayServer(uvicorn.Config(app, **served), app).run()
     return 0
+
+
+# uvicorn waits for every request in flight before it stops, and a stream is a request that never
+# finishes by itself. The server is uvicorn's own; what it adds is the one word the app cannot hear
+# from ASGI — the HTTP scope has no "the server is stopping" message — said the moment the signal
+# lands, so each stream ends cleanly instead of being cancelled at GRACEFUL_S.
+class GatewayServer(uvicorn.Server):
+    """uvicorn's server, which tells the app's open streams the moment it is told to stop."""
+
+    def __init__(self, config: uvicorn.Config, app: FastAPI) -> None:
+        super().__init__(config)
+        self._app = app
+
+    @override
+    def handle_exit(self, sig: int, frame: FrameType | None) -> None:
+        """The streams first, then uvicorn's own stop."""
+        announce_closing(self._app)
+        super().handle_exit(sig, frame)
 
 
 # Handed to uvicorn rather than applied here: uvicorn runs dictConfig itself in the process that
