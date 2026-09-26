@@ -110,7 +110,7 @@ Tests read as sentences.
 - **An applied migration is NEVER edited.** `schema_migrations.sha256` refuses a checkout whose
   file changed, by name and by both hashes, because every database that ran it has the OLD one.
   The fix for an old migration is a NEW migration; `migrations/applied.sha256` keeps every
-  file's hash in the tree and the unit suite holds each file to it, so an edit fails CI and not a
+  landed file's hash in the tree and the unit suite holds each file to it, so an edit fails CI and not a
   box's startup (2026-09-26: a rename touched nine comments and production did not start). Adding
   one means bumping `migrations/migrations.lock` AND appending its line to `applied.sha256` in the
   same commit — the lock is what makes two branches adding `0022`

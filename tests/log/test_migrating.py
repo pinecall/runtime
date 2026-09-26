@@ -23,6 +23,7 @@ from pinecall.log.store.migrating import (
     migrations_behind,
 )
 from pinecall.log.store.postgres import MIGRATIONS, connect, create_pool
+from tests.log.test_migrations import the_lock
 from tests.postgres import Dev
 
 pytestmark = pytest.mark.postgres
@@ -140,13 +141,7 @@ def test_the_lockfile_names_the_last_migration_there_is() -> None:
     """Adding one means bumping the lock, which is what makes two branches conflict IN GIT rather
     than merging cleanly and leaving one of them never to run. It is also the linter's baseline:
     what sits above this line has run nowhere and is gated; what is at or below it is history."""
-    landed = [
-        line.strip()
-        for line in (MIGRATIONS / "migrations.lock").read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.startswith("#")
-    ]
-
-    assert landed == [every()[-1].name], (
+    assert the_lock() == every()[-1].name, (
         "migrations.lock is behind: bump it in the same commit as the migration"
     )
 

@@ -27,27 +27,43 @@ def test_every_migration_is_numbered_so_the_order_they_apply_in_is_the_order_the
     assert [name[:4] for name in names] == [f"{n:04d}" for n in range(1, len(names) + 1)]
 
 
-def test_every_migration_is_the_file_the_databases_that_ran_it_ran() -> None:
+def the_lock() -> str:
+    """The name `migrations.lock` holds: the last migration that landed."""
+    named = [
+        line.strip()
+        for line in (MIGRATIONS / "migrations.lock").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
+    assert len(named) == 1, f"migrations.lock names one migration, not {named}"
+    return named[0]
+
+
+def test_every_landed_migration_is_the_file_the_databases_that_ran_it_ran() -> None:
     """A landed migration edited in a pull request fails here, not at a box's next startup.
 
     The databases keep each file's sha256 and refuse a gateway whose file changed
-    (log/store/migrating.py); `applied.sha256` is that record kept in the tree. The rename of
-    2026-09-26 edited a comment in nine landed files, CI said green, and production did not start.
+    (log/store/migrating.py); `applied.sha256` is that record kept in the tree, for what is at or
+    below the lock — above it nothing has run anywhere, and the file is still the author's to
+    edit. The rename of 2026-09-26 edited a comment in nine landed files, CI said green, and
+    production did not start.
     """
     kept: dict[str, str] = {}
     for line in (MIGRATIONS / "applied.sha256").read_text(encoding="utf-8").splitlines():
         if line.strip() and not line.startswith("#"):
             sha, name = line.split(maxsplit=1)
             kept[name] = sha
-    on_disk = {path.name: file_hash(path) for path in every()}
-    missing = sorted(on_disk.keys() - kept.keys())
-    assert not missing, f"append the new migration's line to applied.sha256: {missing}"
-    edited = sorted(name for name, sha in on_disk.items() if kept.get(name) != sha)
+    landed = {path.name: file_hash(path) for path in every() if path.name <= the_lock()}
+    not_landed = sorted(kept.keys() - landed.keys())
+    assert not not_landed, (
+        f"{not_landed} has not landed: its line goes in with the bump of migrations.lock"
+    )
+    missing = sorted(landed.keys() - kept.keys())
+    assert not missing, f"append the landed migration's line to applied.sha256: {missing}"
+    edited = sorted(name for name, sha in landed.items() if kept[name] != sha)
     assert not edited, (
         f"{edited} changed after it ran: every database that ran it has the old one. Restore the "
         "file and put the change in a new migration"
     )
-    assert kept.keys() <= on_disk.keys(), "applied.sha256 names a migration this tree lacks"
 
 
 def test_the_routes_and_tokens_tables_are_created_by_a_migration_and_nowhere_else() -> None:
