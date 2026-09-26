@@ -80,6 +80,7 @@ source = [
   "packages/pinecall-core/src/pinecall",
   "packages/pinecall-db/src/pinecall",
   "packages/pinecall-log/src/pinecall",
+  "packages/pinecall-providers/src/pinecall",
   "packages/pinecall-runtime/src/pinecall",
   "packages/pinecall-settings/src/pinecall",
 ]
@@ -99,6 +100,7 @@ extraPaths = [
   "packages/pinecall-core/src",
   "packages/pinecall-db/src",
   "packages/pinecall-log/src",
+  "packages/pinecall-providers/src",
   "packages/pinecall-runtime/src",
   "packages/pinecall-settings/src",
   "packages/pinecall-testkit/src",
@@ -114,6 +116,7 @@ extraPaths = [
   "packages/pinecall-core/src",
   "packages/pinecall-db/src",
   "packages/pinecall-log/src",
+  "packages/pinecall-providers/src",
   "packages/pinecall-runtime/src",
   "packages/pinecall-settings/src",
   "packages/pinecall-testkit/src",
@@ -125,6 +128,19 @@ extraPaths = [
   "packages/pinecall-core/src",
   "packages/pinecall-db/src",
   "packages/pinecall-log/src",
+  "packages/pinecall-providers/src",
+  "packages/pinecall-runtime/src",
+  "packages/pinecall-settings/src",
+  "packages/pinecall-testkit/src",
+]
+
+[[tool.pyright.executionEnvironments]]
+root = "packages/pinecall-providers"
+extraPaths = [
+  "packages/pinecall-core/src",
+  "packages/pinecall-db/src",
+  "packages/pinecall-log/src",
+  "packages/pinecall-providers/src",
   "packages/pinecall-runtime/src",
   "packages/pinecall-settings/src",
   "packages/pinecall-testkit/src",
@@ -136,6 +152,7 @@ extraPaths = [
   "packages/pinecall-core/src",
   "packages/pinecall-db/src",
   "packages/pinecall-log/src",
+  "packages/pinecall-providers/src",
   "packages/pinecall-runtime/src",
   "packages/pinecall-settings/src",
   "packages/pinecall-testkit/src",
@@ -147,6 +164,7 @@ extraPaths = [
   "packages/pinecall-core/src",
   "packages/pinecall-db/src",
   "packages/pinecall-log/src",
+  "packages/pinecall-providers/src",
   "packages/pinecall-runtime/src",
   "packages/pinecall-settings/src",
   "packages/pinecall-testkit/src",
@@ -158,6 +176,7 @@ extraPaths = [
   "packages/pinecall-core/src",
   "packages/pinecall-db/src",
   "packages/pinecall-log/src",
+  "packages/pinecall-providers/src",
   "packages/pinecall-runtime/src",
   "packages/pinecall-settings/src",
   "packages/pinecall-testkit/src",
@@ -168,10 +187,11 @@ files = [
   "packages/pinecall-core/src",
   "packages/pinecall-db/src",
   "packages/pinecall-log/src",
+  "packages/pinecall-providers/src",
   "packages/pinecall-runtime/src",
   "packages/pinecall-settings/src",
 ]
-mypy_path = "packages/pinecall-core/src:packages/pinecall-db/src:packages/pinecall-log/src:packages/pinecall-runtime/src:packages/pinecall-settings/src"
+mypy_path = "packages/pinecall-core/src:packages/pinecall-db/src:packages/pinecall-log/src:packages/pinecall-providers/src:packages/pinecall-runtime/src:packages/pinecall-settings/src"
 namespace_packages = true
 explicit_package_bases = true
 strict = true
@@ -189,6 +209,8 @@ src = [
   "packages/pinecall-db/tests",
   "packages/pinecall-log/src",
   "packages/pinecall-log/tests",
+  "packages/pinecall-providers/src",
+  "packages/pinecall-providers/tests",
   "packages/pinecall-runtime/src",
   "packages/pinecall-runtime/tests",
   "packages/pinecall-settings/src",

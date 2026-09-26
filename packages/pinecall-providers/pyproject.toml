@@ -1,0 +1,81 @@
+# pinecall-providers: the vendors a Pinecall call runs on: the catalogue, the models, the voices, the prices.
+# A portion of the `pinecall` namespace, released with the others at one version (packages/).
+
+[project]
+name = "pinecall-providers"
+version = "0.1.0"
+description = "The vendors a Pinecall call runs on: the catalogue, the models, the voices, the prices"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+authors = [{ name = "Bernardo Castro", email = "me@bernardocastro.dev" }]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+  "pinecall-core==0.1.0",
+  "pinecall-settings==0.1.0",
+  "httpx>=0.27,<1",
+  # The text session IS a livekit llm caller: the library and the two text plugins, not an extra.
+  "livekit-agents[anthropic,openai]>=1.8,<2",
+  "pgvector>=0.3,<1",
+  # A range, not a bare name: the wheel PyPI serves must say which protocol it speaks.
+  "pinecall-protocol>=0.6.14,<0.7",
+]
+
+[project.optional-dependencies]
+# The worker's half: the three vendors LiveKit's own inference gateway does not front, so a
+# gateway-only install skips them. The VAD and the end-of-turn model are livekit's own native
+# ones, inside livekit-agents itself; nothing here imports the silero or turn-detector plugins.
+runtime = [
+  "livekit-agents[soniox,deepgram,elevenlabs]>=1.8,<2",
+  # livekit-plugins-anthropic 1.x still builds the 0.x anthropic client.
+  "anthropic<1",
+]
+# Every other vendor livekit-agents ships a plugin for: the forty rows of
+# providers/catalog.py this box has no file of its own for. They are thin HTTP clients — the
+# catalog is real without them, and a vendor whose plugin is missing is refused by name with the
+# extra that installs it, so this extra is what turns "install" into "ready" on a box.
+providers = [
+  "livekit-agents[assemblyai,asyncai,baseten,bland,cambai,cartesia,cerebras,clova,fal,fireworksai,fishaudio,gladia,gnani,gradium,groq,hume,inworld,lmnt,minimax,mistralai,murf,neuphonic,nvidia,palabra,perplexity,resemble,respeecher,rime,rtzr,sarvam,simplismart,slng,smallestai,speechify,spitch,upliftai,vakyam,xai]>=1.8,<2",
+]
+# The four that bring a whole SDK with them and are therefore a decision, not a default: boto3,
+# azure-cognitiveservices-speech, the google-cloud clients, and speechmatics — whose `smart`
+# extra installs onnxruntime and transformers, a hundred megabytes for one vendor's endpointing.
+# A box that runs one of these installs this extra on purpose; nothing else changes.
+providers-big = ["livekit-agents[aws,azure,google,speechmatics]>=1.8,<2"]
+
+[project.urls]
+Homepage = "https://github.com/pinecall/runtime"
+Repository = "https://github.com/pinecall/runtime"
+
+[tool.uv.sources]
+pinecall-core = { workspace = true }
+pinecall-settings = { workspace = true }
+pinecall-protocol = { path = "../../../protocol/python", editable = true }
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+# A namespace portion: no pinecall/__init__.py in this wheel or in any sibling's.
+[tool.hatch.build.targets.wheel]
+packages = ["src/pinecall"]
+
+[tool.deptry]
+known_first_party = ["pinecall"]
+
+[tool.deptry.package_module_name_map]
+livekit-agents = ["livekit"]
+pinecall-protocol = ["pinecall_protocol"]
+
+[tool.deptry.per_rule_ignores]
+# The siblings are imported on every other line, as `pinecall.<package>`: deptry reads a
+# namespace by its top-level name alone, and `pinecall` is first-party here.
+# anthropic is named in the `runtime` extra only to hold it under 1.0 for livekit's plugin,
+# which is what imports it.
+DEP002 = ["pinecall-core", "pinecall-settings", "anthropic"]

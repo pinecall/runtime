@@ -14,6 +14,7 @@ members = [
     "pinecall-core",
     "pinecall-db",
     "pinecall-log",
+    "pinecall-providers",
     "pinecall-settings",
     "pinecall-testkit",
 ]
@@ -3401,15 +3402,15 @@ dependencies = [
     { name = "cryptography" },
     { name = "fastapi" },
     { name = "httpx" },
-    { name = "livekit-agents", extra = ["anthropic", "openai"] },
+    { name = "livekit-agents" },
     { name = "livekit-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-sdk" },
-    { name = "pgvector" },
     { name = "pinecall-core" },
     { name = "pinecall-db" },
     { name = "pinecall-log" },
     { name = "pinecall-protocol" },
+    { name = "pinecall-providers" },
     { name = "pinecall-settings" },
     { name = "protobuf" },
     { name = "pydantic" },
@@ -3420,36 +3421,34 @@ dependencies = [
 
 [package.optional-dependencies]
 providers = [
-    { name = "livekit-agents", extra = ["assemblyai", "asyncai", "baseten", "bland", "cambai", "cartesia", "cerebras", "clova", "fal", "fireworksai", "fishaudio", "gladia", "gnani", "gradium", "groq", "hume", "inworld", "lmnt", "minimax", "mistralai", "murf", "neuphonic", "nvidia", "palabra", "perplexity", "resemble", "respeecher", "rime", "rtzr", "sarvam", "simplismart", "slng", "smallestai", "speechify", "spitch", "upliftai", "vakyam", "xai"] },
+    { name = "pinecall-providers", extra = ["providers"] },
 ]
 providers-big = [
-    { name = "livekit-agents", extra = ["aws", "azure", "google", "speechmatics"] },
+    { name = "pinecall-providers", extra = ["providers-big"] },
 ]
 runtime = [
-    { name = "anthropic" },
-    { name = "livekit-agents", extra = ["deepgram", "elevenlabs", "soniox"] },
+    { name = "pinecall-providers", extra = ["runtime"] },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "anthropic", marker = "extra == 'runtime'", specifier = "<1" },
     { name = "argon2-cffi", specifier = ">=23.1,<26" },
     { name = "av", specifier = ">=13,<19" },
     { name = "cryptography", specifier = ">=44,<51" },
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "httpx", specifier = ">=0.27,<1" },
-    { name = "livekit-agents", extras = ["anthropic", "openai"], specifier = ">=1.8,<2" },
-    { name = "livekit-agents", extras = ["assemblyai", "asyncai", "baseten", "bland", "cambai", "cartesia", "cerebras", "clova", "fal", "fireworksai", "fishaudio", "gladia", "gnani", "gradium", "groq", "hume", "inworld", "lmnt", "minimax", "mistralai", "murf", "neuphonic", "nvidia", "palabra", "perplexity", "resemble", "respeecher", "rime", "rtzr", "sarvam", "simplismart", "slng", "smallestai", "speechify", "spitch", "upliftai", "vakyam", "xai"], marker = "extra == 'providers'", specifier = ">=1.8,<2" },
-    { name = "livekit-agents", extras = ["aws", "azure", "google", "speechmatics"], marker = "extra == 'providers-big'", specifier = ">=1.8,<2" },
-    { name = "livekit-agents", extras = ["deepgram", "elevenlabs", "soniox"], marker = "extra == 'runtime'", specifier = ">=1.8,<2" },
+    { name = "livekit-agents", specifier = ">=1.8,<2" },
     { name = "livekit-api", specifier = ">=1.2.1" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.30,<2" },
     { name = "opentelemetry-sdk", specifier = ">=1.30,<2" },
-    { name = "pgvector", specifier = ">=0.3,<1" },
     { name = "pinecall-core", editable = "packages/pinecall-core" },
     { name = "pinecall-db", editable = "packages/pinecall-db" },
     { name = "pinecall-log", editable = "packages/pinecall-log" },
     { name = "pinecall-protocol", editable = "../protocol/python" },
+    { name = "pinecall-providers", editable = "packages/pinecall-providers" },
+    { name = "pinecall-providers", extras = ["providers"], marker = "extra == 'providers'", editable = "packages/pinecall-providers" },
+    { name = "pinecall-providers", extras = ["providers-big"], marker = "extra == 'providers-big'", editable = "packages/pinecall-providers" },
+    { name = "pinecall-providers", extras = ["runtime"], marker = "extra == 'runtime'", editable = "packages/pinecall-providers" },
     { name = "pinecall-settings", editable = "packages/pinecall-settings" },
     { name = "protobuf", specifier = ">=5,<8" },
     { name = "pydantic", specifier = ">=2.7,<3" },
@@ -3533,6 +3532,46 @@ dev = [
     { name = "pytest", specifier = ">=9,<10" },
     { name = "ruff", specifier = ">=0.16,<1" },
 ]
+
+[[package]]
+name = "pinecall-providers"
+version = "0.1.0"
+source = { editable = "packages/pinecall-providers" }
+dependencies = [
+    { name = "httpx" },
+    { name = "livekit-agents", extra = ["anthropic", "openai"] },
+    { name = "pgvector" },
+    { name = "pinecall-core" },
+    { name = "pinecall-protocol" },
+    { name = "pinecall-settings" },
+]
+
+[package.optional-dependencies]
+providers = [
+    { name = "livekit-agents", extra = ["assemblyai", "asyncai", "baseten", "bland", "cambai", "cartesia", "cerebras", "clova", "fal", "fireworksai", "fishaudio", "gladia", "gnani", "gradium", "groq", "hume", "inworld", "lmnt", "minimax", "mistralai", "murf", "neuphonic", "nvidia", "palabra", "perplexity", "resemble", "respeecher", "rime", "rtzr", "sarvam", "simplismart", "slng", "smallestai", "speechify", "spitch", "upliftai", "vakyam", "xai"] },
+]
+providers-big = [
+    { name = "livekit-agents", extra = ["aws", "azure", "google", "speechmatics"] },
+]
+runtime = [
+    { name = "anthropic" },
+    { name = "livekit-agents", extra = ["deepgram", "elevenlabs", "soniox"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "anthropic", marker = "extra == 'runtime'", specifier = "<1" },
+    { name = "httpx", specifier = ">=0.27,<1" },
+    { name = "livekit-agents", extras = ["anthropic", "openai"], specifier = ">=1.8,<2" },
+    { name = "livekit-agents", extras = ["assemblyai", "asyncai", "baseten", "bland", "cambai", "cartesia", "cerebras", "clova", "fal", "fireworksai", "fishaudio", "gladia", "gnani", "gradium", "groq", "hume", "inworld", "lmnt", "minimax", "mistralai", "murf", "neuphonic", "nvidia", "palabra", "perplexity", "resemble", "respeecher", "rime", "rtzr", "sarvam", "simplismart", "slng", "smallestai", "speechify", "spitch", "upliftai", "vakyam", "xai"], marker = "extra == 'providers'", specifier = ">=1.8,<2" },
+    { name = "livekit-agents", extras = ["aws", "azure", "google", "speechmatics"], marker = "extra == 'providers-big'", specifier = ">=1.8,<2" },
+    { name = "livekit-agents", extras = ["soniox", "deepgram", "elevenlabs"], marker = "extra == 'runtime'", specifier = ">=1.8,<2" },
+    { name = "pgvector", specifier = ">=0.3,<1" },
+    { name = "pinecall-core", editable = "packages/pinecall-core" },
+    { name = "pinecall-protocol", editable = "../protocol/python" },
+    { name = "pinecall-settings", editable = "packages/pinecall-settings" },
+]
+provides-extras = ["runtime", "providers", "providers-big"]
 
 [[package]]
 name = "pinecall-settings"

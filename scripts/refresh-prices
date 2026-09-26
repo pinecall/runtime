@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mahimailabs/voice-prices -> packages/pinecall-runtime/src/pinecall/providers/published_prices.json. Idempotent apart from
+# mahimailabs/voice-prices -> packages/pinecall-providers/src/pinecall/providers/published_prices.json. Idempotent apart from
 # the prices themselves: a run that finds nothing changed leaves the file alone, and a run that
 # finds a new number shows it as a diff a reviewer can read against the vendor's own page.
 #

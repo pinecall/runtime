@@ -35,7 +35,7 @@ GROUPINGS = {
         "pinecall-runtime",
         "api/ops/orgs",
     ): "the operator's doors onto every org: quotas, keys, usage",
-    ("pinecall-runtime", "providers/vendors"): "a fake vendor package the plugin tests install",
+    ("pinecall-providers", "providers/vendors"): "a fake vendor package the plugin tests install",
 }
 
 # Every distribution whose code is a portion of the namespace, with the suite beside it.

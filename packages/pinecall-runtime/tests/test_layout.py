@@ -21,7 +21,7 @@ FILES_THE_CEILING_SKIPS = frozenset(
     {
         Path("uv.lock"),
         Path("CHANGELOG.md"),
-        Path("packages/pinecall-runtime/src/pinecall/providers/published_prices.json"),
+        Path("packages/pinecall-providers/src/pinecall/providers/published_prices.json"),
         # Two walkthroughs whose content IS the terminal output of every step, in order. Cutting
         # one to fit would mean cutting steps, and a walkthrough with a step missing is worse
         # than none — a person following it stops at a command that does not work.
