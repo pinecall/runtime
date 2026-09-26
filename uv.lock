@@ -13,6 +13,7 @@ members = [
     "pinecall",
     "pinecall-core",
     "pinecall-db",
+    "pinecall-log",
     "pinecall-settings",
     "pinecall-testkit",
 ]
@@ -3407,6 +3408,7 @@ dependencies = [
     { name = "pgvector" },
     { name = "pinecall-core" },
     { name = "pinecall-db" },
+    { name = "pinecall-log" },
     { name = "pinecall-protocol" },
     { name = "pinecall-settings" },
     { name = "protobuf" },
@@ -3446,6 +3448,7 @@ requires-dist = [
     { name = "pgvector", specifier = ">=0.3,<1" },
     { name = "pinecall-core", editable = "packages/pinecall-core" },
     { name = "pinecall-db", editable = "packages/pinecall-db" },
+    { name = "pinecall-log", editable = "packages/pinecall-log" },
     { name = "pinecall-protocol", editable = "../protocol/python" },
     { name = "pinecall-settings", editable = "packages/pinecall-settings" },
     { name = "protobuf", specifier = ">=5,<8" },
@@ -3494,6 +3497,23 @@ dependencies = [
 requires-dist = [
     { name = "asyncpg", specifier = ">=0.29,<1" },
     { name = "pinecall-core", editable = "packages/pinecall-core" },
+]
+
+[[package]]
+name = "pinecall-log"
+version = "0.1.0"
+source = { editable = "packages/pinecall-log" }
+dependencies = [
+    { name = "pinecall-core" },
+    { name = "pinecall-db" },
+    { name = "pinecall-protocol" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pinecall-core", editable = "packages/pinecall-core" },
+    { name = "pinecall-db", editable = "packages/pinecall-db" },
+    { name = "pinecall-protocol", editable = "../protocol/python" },
 ]
 
 [[package]]

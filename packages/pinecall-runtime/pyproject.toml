@@ -23,6 +23,7 @@ keywords = ["voice", "telephony", "livekit", "contact-center", "agents"]
 dependencies = [
   "pinecall-core>=0.1,<0.2",
   "pinecall-db==0.1.0",
+  "pinecall-log==0.1.0",
   "pinecall-settings==0.1.0",
   # argon2id, and nothing else: a member's password is a secret a person invented.
   "argon2-cffi>=23.1,<26",
@@ -87,6 +88,7 @@ pinecall-runtime = "pinecall.cli:main"
 pinecall-protocol = { path = "../../../protocol/python", editable = true }
 pinecall-core = { workspace = true }
 pinecall-db = { workspace = true }
+pinecall-log = { workspace = true }
 pinecall-settings = { workspace = true }
 
 [build-system]
@@ -131,4 +133,4 @@ pyjwt = ["jwt"]
 # namespace by its top-level name alone, and `pinecall` is first-party here.
 # anthropic is named in the `runtime` extra only to hold it under 1.0 for livekit's plugin,
 # which is what imports it.
-DEP002 = ["pinecall-core", "pinecall-db", "pinecall-settings", "anthropic"]
+DEP002 = ["pinecall-core", "pinecall-db", "pinecall-log", "pinecall-settings", "anthropic"]
