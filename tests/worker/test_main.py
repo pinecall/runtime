@@ -13,7 +13,7 @@ from livekit.agents import JobContext, JobExecutorType, JobProcess
 from pinecall._settings import load_settings
 from pinecall.evals.hangup_score import JudgedWhen
 from pinecall.providers import llm, stt, tts
-from pinecall.session.voice import VoiceBridge, a_bridge
+from pinecall.session.voice import VoiceBridge, build_bridge
 from pinecall.worker import main
 from pinecall.worker.job import Worker
 from pinecall.worker.load import MachineLoad, SlotLoad, reports_no_load
@@ -146,7 +146,7 @@ def test_the_worker_is_built_from_the_environment_the_job_process_inherited(
     built = main.a_worker(load_settings())
     # The bridge is built with the judge in hand: the session judges nothing by itself.
     bridging = cast("partial[VoiceBridge]", built.bridging)
-    assert bridging.func is a_bridge
+    assert bridging.func is build_bridge
     assert bridging.keywords == {
         "score": JudgedWhen(built.gateway.judging),
         "lookup": built.gateway,

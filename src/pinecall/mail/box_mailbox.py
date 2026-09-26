@@ -99,7 +99,7 @@ class TheBoxsMail:
         return KeptMail(mailbox, said.get("verified_at"), said.get("last_error"))
 
 
-def the_environments_mailbox(settings: Settings) -> Mailbox | None:
+def environment_mailbox(settings: Settings) -> Mailbox | None:
     """PINECALL_SMTP_URL and PINECALL_MAIL_FROM as one mailbox; None when either is unset."""
     if not settings.smtp_url or not settings.mail_from:
         return None

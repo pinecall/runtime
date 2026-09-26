@@ -21,7 +21,7 @@ TUNING: TypeAdapter[Tuning] = TypeAdapter(Tuning)
 # `hangup {when: ""}`, a `turn {endpointing_ms: 0}`, a `bases []` — and only an absent one is
 # missing. There is no exception: `bases []` used to be dropped here, which made "I read no base,
 # ignore the team's" the same row as "I never attached one", and both fell through.
-def as_json(tuning: Tuning) -> dict[str, Any]:
+def tuning_json(tuning: Tuning) -> dict[str, Any]:
     """The tuning as the column holds it: every knob that is set, and none that is not."""
     dumped: dict[str, Any] = TUNING.dump_python(tuning, mode="json", exclude_none=True)
     return dumped
@@ -41,12 +41,12 @@ def corners(holder: str | None) -> tuple[str, ...]:
 # empty row supplies nothing and is invisible here, which is what makes cleared mean cleared.
 # The version, author, note and holder answered are the NEAREST corner that supplied a knob —
 # the version a call records and a screen shows beside what it reads.
-def resolved(chain: Sequence[Kept[Tuning]]) -> Kept[Tuning] | None:
+def resolve_tuning(chain: Sequence[Kept[Tuning]]) -> Kept[Tuning] | None:
     """One tuning out of the corners, nearest first: each knob from the nearest row that sets it.
 
     None when no corner in the chain sets a single knob.
     """
-    supplying = [(row, config) for row in chain if (config := as_json(row.value))]
+    supplying = [(row, config) for row in chain if (config := tuning_json(row.value))]
     if not supplying:
         return None
     merged: dict[str, Any] = {}

@@ -34,10 +34,10 @@ class MailRefused(PinecallError):
 # one's own all speak this, so there is no SDK here and no vendor name anywhere in this package.
 # smtplib is synchronous, so it runs in a thread — and it is given the timeout itself as well as
 # being waited on with one, because cancelling `to_thread` does not stop the thread it started.
-async def posted(mailbox: Mailbox, letter: Letter, timeout: float = TIMEOUT_S) -> None:
+async def post(mailbox: Mailbox, letter: Letter, timeout: float = TIMEOUT_S) -> None:
     """Send it, or raise MailRefused carrying what the server said. Never blocks the loop."""
     try:
-        message = an_email(mailbox, letter)
+        message = build_email(mailbox, letter)
     except ValueError as unwritable:
         raise MailRefused(NOT_WRITTEN.format(said=unwritable)) from unwritable
     try:
@@ -74,7 +74,7 @@ def _a_connection(mailbox: Mailbox, timeout: float) -> smtplib.SMTP:
     return smtplib.SMTP(mailbox.host, mailbox.port, timeout=timeout)
 
 
-def an_email(mailbox: Mailbox, letter: Letter) -> EmailMessage:
+def build_email(mailbox: Mailbox, letter: Letter) -> EmailMessage:
     """The message on the wire: plain text, and the same letter as simple HTML beside it."""
     message = EmailMessage()
     message["From"] = mailbox.sender

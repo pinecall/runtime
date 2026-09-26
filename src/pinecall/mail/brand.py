@@ -55,7 +55,7 @@ class Brand:
 
 # A field left out keeps what it had; an EMPTY one goes back to what a box told nothing has —
 # which for the logo is none at all, the only way to clear one.
-def rebranded(
+def apply_brand(
     brand: Brand, name: str | None = None, logo_url: str | None = None, accent: str | None = None
 ) -> Brand:
     """The brand with these replaced, or a refusal in a sentence. Nothing is kept by this."""
@@ -66,7 +66,7 @@ def rebranded(
     )
 
 
-async def the_brand(box: BoxSettings | None) -> Brand:
+async def brand_of(box: BoxSettings | None) -> Brand:
     """What the operator set, else what a box told nothing is: Pinecall, its accent, no logo."""
     kept = None if box is None else await box.of(BRAND)
     if kept is None:

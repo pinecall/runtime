@@ -21,7 +21,7 @@ from pinecall.providers.session_vendors import DEFAULT_STT, vendor_running
 from pinecall.session.voice import stt_vocabulary
 from pinecall.session.voice.barge_in import MIN_WORDS
 from pinecall.session.voice.vendors import Kit
-from pinecall.session.written import ONE_ANSWER_PER_TOOL, a_written_session
+from pinecall.session.written import ONE_ANSWER_PER_TOOL, build_written_session
 from pinecall.types import AgentConfig, Brought
 from pinecall.types.channel import Channel
 
@@ -61,7 +61,7 @@ SPOKEN_PREEMPTION: PreemptiveGenerationOptions = {"enabled": False}
 ALIGNED_TRANSCRIPT = True
 
 
-def a_session(
+def build_session(
     config: AgentConfig, kit: Kit, channel: Channel, brought: Brought, *, spoken: bool = True
 ) -> AgentSession[None]:
     """The session livekit runs for this call: the vendors the agent asked for, and its turns."""
@@ -72,15 +72,15 @@ def a_session(
     # (2026-09-16, the first chat from a tenant's page). No ears and no voice: the model's text
     # reaches the room as it is written.
     if channel not in CHANNELS_THAT_LISTEN or not spoken:
-        return a_written_session(built.llm)
+        return build_written_session(built.llm)
     voiced: AgentSession[None] = AgentSession(
         llm=built.llm,
         stt=built.stt,
         tts=built.tts,
         turn_handling=spoken_turns(config),
         use_tts_aligned_transcript=ALIGNED_TRANSCRIPT,
-        tts_text_transforms=how_it_says_things(config),
-        stt_context_options=what_it_listens_for(config, built.stt),
+        tts_text_transforms=reply_transforms(config),
+        stt_context_options=stt_context(config, built.stt),
         max_tool_steps=ONE_ANSWER_PER_TOOL,
     )
     return voiced
@@ -90,7 +90,7 @@ def a_session(
 # so the two names are here only because a tenant's own map is appended AFTER them: the parameter
 # REPLACES the default list, and a map passed alone would take an agent's asterisks out loud with
 # it. The order is the order a reader expects — clean the text, then say the names properly.
-def how_it_says_things(config: AgentConfig) -> NotGivenOr[Sequence[TextTransforms]]:
+def reply_transforms(config: AgentConfig) -> NotGivenOr[Sequence[TextTransforms]]:
     """What a reply passes through on its way to the voice: livekit's filters, then the tenant's."""
     if not config.says:
         return NOT_GIVEN
@@ -101,7 +101,7 @@ def how_it_says_things(config: AgentConfig) -> NotGivenOr[Sequence[TextTransform
 # providers/stt/soniox.py from the same declaration), and handing keyterms to ears that take none
 # logs a warning on every call and changes nothing (stt/stt.py:293-298). What the state adds to
 # this list as the call goes on is the bridge's, through the same door.
-def what_it_listens_for(config: AgentConfig, ears: Ears) -> NotGivenOr[STTContextOptions]:
+def stt_context(config: AgentConfig, ears: Ears) -> NotGivenOr[STTContextOptions]:
     """The words the agent declared it hears, on the vendor door livekit itself can reach."""
     if not config.hears or not stt_vocabulary.takes_keyterms(ears):
         return NOT_GIVEN
@@ -159,7 +159,7 @@ def spoken_turns(config: AgentConfig) -> TurnHandlingOptions:
         "resume_false_interruption": DO_NOT_SAY_IT_TWICE,
     }
     return {
-        "turn_detection": the_turn_detector(config),
+        "turn_detection": turn_detection(config),
         "preemptive_generation": SPOKEN_PREEMPTION,
         "interruption": interruption,
     }
@@ -175,7 +175,7 @@ STT_DECIDES: frozenset[str] = frozenset({"deepgram"})
 # Read off the vendor that RUNS, not the one declared: an agent that names no ears runs the
 # default, and the default is Flux — asking the declaration alone put the local detector on top of
 # it and waited the 2.5 s this mode exists to avoid.
-def the_turn_detector(config: AgentConfig) -> TurnDetectionMode:
+def turn_detection(config: AgentConfig) -> TurnDetectionMode:
     """The recogniser's own end of turn when it has one, livekit's local model otherwise."""
     if vendor_running(config.stt, DEFAULT_STT) in STT_DECIDES:
         return "stt"

@@ -39,7 +39,7 @@ class Line:
         if self.held:
             return
         self.held = True
-        await silenced(self._live, "the line went on hold")
+        await silence(self._live, "the line went on hold")
         self._hold().began()
         await self._writing.emit("call.line", CallLine(held=True, muted=NOT_MUTED))
 
@@ -58,7 +58,7 @@ class Line:
 
 # The hold, a warm transfer answered and a supervisor's takeover all take the agent off the line
 # the same way, and a hold and a release give it back the same way: said here once.
-async def silenced(live: AgentSession[None], why: str) -> None:
+async def silence(live: AgentSession[None], why: str) -> None:
     """The agent's sentence cut where it stands, then mute AND deaf: what it cannot hear, it
     cannot later claim to remember. interrupt raises when nothing is playing, or the session has
     already stopped (agent_session.py:1534): the agent being quiet is the state asked for."""

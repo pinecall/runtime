@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from pinecall.mail import Letter, MailRefused, posted
-from pinecall.mail.smtp import an_email
+from pinecall.mail import Letter, MailRefused, post
+from pinecall.mail.smtp import build_email
 from pinecall.types import DeclarationRefused, Mailbox, parse_mailbox_url
 from tests.mail.fake_smtp import BAD_CREDENTIALS, NOT_AUTHORIZED, FakeSmtp
 
@@ -22,7 +22,7 @@ A_LETTER = Letter(
 async def test_a_letter_reaches_the_server_with_both_parts_and_the_envelope_it_declares() -> None:
     """The whole path, over a socket: MAIL FROM, RCPT TO, the headers and both bodies."""
     async with FakeSmtp() as server:
-        await posted(server.mailbox(), A_LETTER)
+        await post(server.mailbox(), A_LETTER)
     assert len(server.took) == 1
     envelope = server.took[0]
     # The envelope carries the BARE address, and the header carries the name beside it.
@@ -37,7 +37,7 @@ async def test_a_letter_reaches_the_server_with_both_parts_and_the_envelope_it_d
 async def test_the_link_is_in_the_text_part_so_neither_half_is_the_only_way_in() -> None:
     """A reader that shows no HTML shows a letter somebody can still act on."""
     async with FakeSmtp() as server:
-        await posted(server.mailbox(), A_LETTER)
+        await post(server.mailbox(), A_LETTER)
     assert "https://box.test/invitations/inv_abc" in server.took[0].parts["text/plain"]
 
 
@@ -47,7 +47,7 @@ async def test_a_server_that_refuses_the_password_is_its_own_sentence_and_nothin
     """What an operator reads when a relay password was rotated and never brought here."""
     async with FakeSmtp(refuses_the_password=True) as server:
         with pytest.raises(MailRefused) as refused:
-            await posted(server.mailbox(), A_LETTER)
+            await post(server.mailbox(), A_LETTER)
     assert BAD_CREDENTIALS in str(refused.value)
     assert str(server.port) in str(refused.value) and "s3cret" not in str(refused.value)
     assert server.took == []
@@ -57,7 +57,7 @@ async def test_a_server_that_refuses_the_letter_says_why_and_the_password_is_not
     """SES's own refusal for an unverified sender, carried whole and with no credential in it."""
     async with FakeSmtp(refuses_the_letter=True) as server:
         with pytest.raises(MailRefused) as refused:
-            await posted(server.mailbox(), A_LETTER)
+            await post(server.mailbox(), A_LETTER)
     assert NOT_AUTHORIZED in str(refused.value) and "s3cret" not in str(refused.value)
 
 
@@ -66,14 +66,14 @@ async def test_a_server_nobody_is_listening_at_is_a_refusal_and_never_a_crash() 
     async with FakeSmtp() as server:
         shut = server.mailbox()
     with pytest.raises(MailRefused) as refused:
-        await posted(shut, A_LETTER)
+        await post(shut, A_LETTER)
     assert "did not answer" in str(refused.value)
 
 
 async def test_a_relay_that_asks_for_nothing_is_never_signed_in_to() -> None:
     """A mail server on the same machine takes a letter with no AUTH at all."""
     async with FakeSmtp() as server:
-        await posted(server.mailbox(user=""), A_LETTER)
+        await post(server.mailbox(user=""), A_LETTER)
     assert len(server.took) == 1
 
 
@@ -153,7 +153,7 @@ def test_a_header_may_not_carry_a_newline() -> None:
 
 def test_the_message_is_multipart_with_the_text_first() -> None:
     """A reader that shows one part shows the one it can, and the text part is written for that."""
-    built = an_email(
+    built = build_email(
         Mailbox(
             host="relay.test",
             port=587,
@@ -174,7 +174,7 @@ async def test_a_letter_whose_header_cannot_be_written_is_a_refusal_and_no_socke
     """An org's name with a line break in it would be two headers: it is refused, not sent."""
     async with FakeSmtp() as server:
         with pytest.raises(MailRefused) as refused:
-            await posted(
+            await post(
                 server.mailbox(),
                 Letter(to="a@b.co", subject="x\nBcc: all@b.co", text="t", html="h"),
             )

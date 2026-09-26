@@ -14,7 +14,7 @@ from livekit.agents.voice import AgentSession
 from livekit.agents.voice import events as session_events
 
 from pinecall._settings import Budgets
-from pinecall.session.voice import VoiceBridge, a_bridge
+from pinecall.session.voice import VoiceBridge, build_bridge
 from pinecall.types import Docs, MemoryPolicy, PlatformTool
 from tests.session.fake_llm import FakeLLM, Scripted
 from tests.session.voice.fakes import CALL, CLARA, Recording
@@ -82,7 +82,7 @@ async def talking(answering: Answering) -> AsyncIterator[Talking]:
     """A headless session on the scripted model, its lookups answered by `answering`."""
     recording = Recording()
     llm = FakeLLM(Scripted(chunks=("Uno.",)), Scripted(chunks=("Dos.",)))
-    bridge = a_bridge(a_context(), REMEMBERS, recording, lookup=answering, rememberer=answering)
+    bridge = build_bridge(a_context(), REMEMBERS, recording, lookup=answering, rememberer=answering)
     live: AgentSession[None] = AgentSession(
         llm=llm, vad=None, turn_handling={"turn_detection": "manual"}
     )
@@ -124,7 +124,7 @@ async def test_recall_and_search_are_declared_to_the_model_beside_the_apps_own_t
 async def test_a_class_that_declares_neither_declares_no_platform_tool() -> None:
     recording = Recording()
     llm = FakeLLM(Scripted(chunks=("Uno.",)))
-    bridge = a_bridge(a_context(), CLARA, recording)
+    bridge = build_bridge(a_context(), CLARA, recording)
     live: AgentSession[None] = AgentSession(
         llm=llm, vad=None, turn_handling={"turn_detection": "manual"}
     )
@@ -138,7 +138,7 @@ async def test_a_class_that_declares_neither_declares_no_platform_tool() -> None
 
 async def test_a_lookup_past_its_budget_is_a_recoverable_entry_and_the_turn_goes_on() -> None:
     recording = Recording()
-    bridge = a_bridge(
+    bridge = build_bridge(
         a_context(),
         replace(REMEMBERS, bases=()),
         recording,
@@ -170,7 +170,7 @@ async def test_a_lookup_started_while_the_caller_talks_reaches_the_model_on_no_b
     recording = Recording()
     answering = Answering()
     llm = FakeLLM(Scripted(chunks=("Cuarenta euros.",)))
-    bridge = a_bridge(
+    bridge = build_bridge(
         a_context(),
         REMEMBERS,
         recording,
@@ -210,7 +210,7 @@ async def test_hang_up_remembers_between_call_ended_and_call_summary(
 async def test_a_rememberer_that_fails_is_an_entry_and_the_call_still_seals() -> None:
     recording = Recording()
     failing = Answering(failing=RuntimeError("no model at hang-up"))
-    bridge = a_bridge(a_context(), REMEMBERS, recording, rememberer=failing)
+    bridge = build_bridge(a_context(), REMEMBERS, recording, rememberer=failing)
     live: AgentSession[None] = AgentSession(
         llm=FakeLLM(), vad=None, turn_handling={"turn_detection": "manual"}
     )
@@ -230,7 +230,7 @@ async def test_a_rememberer_that_fails_is_an_entry_and_the_call_still_seals() ->
 async def test_an_agent_that_declared_no_memory_asks_nobody_at_hang_up() -> None:
     recording = Recording()
     answering = Answering()
-    bridge = a_bridge(a_context(), CLARA, recording, rememberer=answering)
+    bridge = build_bridge(a_context(), CLARA, recording, rememberer=answering)
     live: AgentSession[None] = AgentSession(
         llm=FakeLLM(), vad=None, turn_handling={"turn_detection": "manual"}
     )
@@ -270,7 +270,7 @@ async def test_a_lookup_still_running_at_hang_up_is_cancelled_with_the_call() ->
             await asyncio.Event().wait()
 
     answering = _Slow()
-    bridge = a_bridge(a_context(), REMEMBERS, Recording(), lookup=answering)
+    bridge = build_bridge(a_context(), REMEMBERS, Recording(), lookup=answering)
     bridge.lookups.heard_so_far("cuánto cuesta una revisión de rutina")
     await started.wait()
     await bridge.lookups.close()

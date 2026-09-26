@@ -355,7 +355,7 @@ async def _the_session_started_in(monkeypatch: pytest.MonkeyPatch, room: rtc.Roo
         """`session.a_session` for this job: the recorder, whatever it was asked to build."""
         return built
 
-    monkeypatch.setattr(job_module.session, "a_session", a_session)
+    monkeypatch.setattr(job_module.session, "build_session", a_session)
     job = _a_job_that_records([], room)
     with pytest.raises(_FarEnough):
         await job_module.answer(cast(JobContext, job), _a_worker(bridging=_a_bridge_that_opens))

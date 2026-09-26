@@ -84,7 +84,7 @@ class Meters:
     # so the day the library adds a field it is in the log before anybody edits this file.
     def _written(self, block: measured.AgentMetrics, type_: str, model: type[WireModel]) -> None:
         """The block as the wire carries it, exactly as it came, stored unless it is a tick."""
-        ephemeral = True if a_usage_tick(block) else None
+        ephemeral = True if is_usage_tick(block) else None
         self._writing.later(type_, model.model_validate(block.model_dump()), ephemeral)
 
     def collected_usage(self, usage: AgentSessionUsage) -> None:
@@ -107,7 +107,7 @@ class Meters:
 # (`plugins/soniox/stt.py:604`), which is ~120 ticks for one spoken sentence. The total is not lost
 # by letting them go: livekit sums them into `STTModelUsage.audio_duration`, which `call.summary`
 # carries whole. See docs/decisions/livekit-metrics.md #18 and voice-bridge.md.
-def a_usage_tick(block: measured.AgentMetrics) -> bool:
+def is_usage_tick(block: measured.AgentMetrics) -> bool:
     """Whether this block is a streaming STT's usage meter, measuring nothing else."""
     if not isinstance(block, measured.STTMetrics) or not block.streamed:
         return False
@@ -123,7 +123,7 @@ def a_usage_tick(block: measured.AgentMetrics) -> bool:
 # `end_of_turn_delay` is the field livekit itself reads to build `end_of_utterance_delay`
 # (agent_activity.py:2690), and the metadata is the turn detector's, as livekit stamps it (:2683).
 # So the block is built here, the way livekit builds it, from the library's own numbers.
-def an_end_of_utterance(
+def end_of_utterance(
     report: MetricsReport, speech_id: str | None, detector: Any
 ) -> measured.EOUMetrics | None:
     """The user turn's own delays as livekit's EOUMetrics, or None when it measured none."""

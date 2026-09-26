@@ -10,7 +10,7 @@ from starlette.requests import HTTPConnection
 from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api.deps import TeamKeyDep, held
-from pinecall.mail import Outbox, a_test_message
+from pinecall.mail import Outbox, probe_letter
 from pinecall.orgs.org_mail import KeptMail, Mail
 from pinecall.orgs.vault import NO_VAULT_KEY
 from pinecall.types import Mailbox, parse_address, parse_security
@@ -115,7 +115,7 @@ async def test(said: TestTo, key: TeamKeyDep, outbox: OutboxDep) -> MailSent:
     to = parse_address(said.to)
     if await outbox.mailbox_for(key.org) is None:
         raise HTTPException(409, NOTHING_TO_TEST)
-    said_back = await outbox.sent(key.org, a_test_message(to, await outbox.brand()))
+    said_back = await outbox.sent(key.org, probe_letter(to, await outbox.brand()))
     return MailSent(sent=said_back is None, error=said_back)
 
 

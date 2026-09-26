@@ -14,7 +14,7 @@ from pinecall.api.deps import SettingsDep
 from pinecall.api.whatsapp.thread_deps import DoorsDep
 from pinecall.api.whatsapp.threads import ThreadsDep
 from pinecall.whatsapp.inbound_message import Inbound, Payload, messages_in
-from pinecall.whatsapp.webhook_signature import SIGNATURE_HEADER, signed
+from pinecall.whatsapp.webhook_signature import SIGNATURE_HEADER, is_signed
 from pinecall_protocol import WireModel
 
 logger = logging.getLogger(__name__)
@@ -73,7 +73,7 @@ async def delivered(
     # The RAW body, before anything parses it: JSON round-tripped through Python is not the bytes
     # Meta hashed, and re-encoding it would fail every signature this door will ever be sent.
     body = await request.body()
-    if not signed(settings.whatsapp_app_secret, body, request.headers.get(SIGNATURE_HEADER)):
+    if not is_signed(settings.whatsapp_app_secret, body, request.headers.get(SIGNATURE_HEADER)):
         raise HTTPException(403, NOT_META)
     inbound = _messages(body)
     for message in inbound:

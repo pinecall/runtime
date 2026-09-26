@@ -19,7 +19,7 @@ type Allowance = Callable[[int, int], Awaitable[str | None]]
 SPENT: EndReason = "timeout"
 
 
-async def unlimited(turns: int, tokens: int) -> None:  # noqa: ARG001
+async def unlimited_allowance(turns: int, tokens: int) -> None:  # noqa: ARG001
     """The allowance of a session nobody limited: every turn is answered."""
     return
 

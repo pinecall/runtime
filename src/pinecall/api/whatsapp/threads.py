@@ -25,8 +25,8 @@ from pinecall.session.text.session import TextSession
 from pinecall.session.text.turn_allowance import SPENT, TurnRefused
 from pinecall.types import CallContext, Contact, Route, new_call_id
 from pinecall.whatsapp.inbound_message import Inbound
-from pinecall.whatsapp.number_routes import WHATSAPP, answering
-from pinecall.whatsapp.outbound_replies import sending
+from pinecall.whatsapp.number_routes import WHATSAPP, route_for_number
+from pinecall.whatsapp.outbound_replies import watch_replies
 from pinecall_protocol.defs import EndReason
 
 logger = logging.getLogger(__name__)
@@ -162,7 +162,7 @@ class Threads:
     # either way, because a webhook that answers 4xx is a webhook Meta disables.
     async def _opened(self, doors: Doors, inbound: Inbound) -> Thread | None:
         """One new call for this contact, or None and a line saying why there is none."""
-        route = await answering(doors.routes, inbound.number)
+        route = await route_for_number(doors.routes, inbound.number)
         if route is None:
             return None
         held = doors.registry.taking(route.env, route.agent)
@@ -213,7 +213,9 @@ class Threads:
         )
         # Wired from the thread, and before the first entry: whatever writes a turn.agent from
         # here on reaches the contact, and nothing has to remember to send it too.
-        session.watch(sending(session, doors.graph, token, thread.phone_number_id, inbound.wa_id))
+        session.watch(
+            watch_replies(session, doors.graph, token, thread.phone_number_id, inbound.wa_id)
+        )
         await session.start()
         self._open[(inbound.number, inbound.wa_id)] = thread
         return thread
@@ -258,7 +260,9 @@ class Threads:
         if left <= 0:
             await self._forgetting(doors)(thread, WENT_QUIET)
             return None
-        session.watch(sending(session, doors.graph, token, thread.phone_number_id, inbound.wa_id))
+        session.watch(
+            watch_replies(session, doors.graph, token, thread.phone_number_id, inbound.wa_id)
+        )
         self._open[(inbound.number, inbound.wa_id)] = thread
         return thread
 

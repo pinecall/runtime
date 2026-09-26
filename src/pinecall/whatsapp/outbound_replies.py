@@ -27,7 +27,7 @@ REFUSED = "whatsapp: the agent's turn on call %s did not go out: %s"
 # The wire is fed FROM the log rather than from the model, because the log is the truth: whatever
 # wrote a turn.agent — the agent's own answer, agent.say, or a supervisor's `say` while they hold
 # the thread — reaches the contact by this one path, and nothing has to remember to send it too.
-def sending(
+def watch_replies(
     session: TextSession, graph: Graph, token: str, phone_number_id: str, to: str
 ) -> Watcher:
     """Every turn the agent takes on this thread, out through the Graph API, in the log's order."""

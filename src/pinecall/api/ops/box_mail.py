@@ -7,7 +7,7 @@ from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api.org.mail import OutboxDep, TestTo, WantedMail, a_mailbox
 from pinecall.api.scope.operator_key import an_operators_router
-from pinecall.mail import BoxMail, a_test_message
+from pinecall.mail import BoxMail, probe_letter
 from pinecall.orgs.vault import NO_VAULT_KEY, NoVaultKey
 from pinecall.types import parse_address
 from pinecall_protocol.rest import BoxMail as MailStanding
@@ -65,7 +65,7 @@ async def test(said: TestTo, outbox: OutboxDep) -> MailSent:
     to = parse_address(said.to)
     if await outbox.the_boxs.of() is None:
         raise HTTPException(409, NOTHING_TO_TEST)
-    said_back = await outbox.sent(None, a_test_message(to, await outbox.brand()))
+    said_back = await outbox.sent(None, probe_letter(to, await outbox.brand()))
     return MailSent(sent=said_back is None, error=said_back)
 
 

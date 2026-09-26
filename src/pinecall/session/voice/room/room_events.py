@@ -173,7 +173,7 @@ class Facts:
         if by_scope is not None:
             return by_scope
         is_a_phone = any(key.startswith(sip.SIP_PREFIX) for key in attributes)
-        if is_a_phone and sip.the_numbers(attributes).caller != self._caller:
+        if is_a_phone and sip.sip_numbers(attributes).caller != self._caller:
             return "sip"
         return "caller"
 

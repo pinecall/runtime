@@ -9,7 +9,7 @@ from typing import Any, Protocol
 
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_sealed_store, opened, sealed
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, sealed, sealed_store, unseal
 from pinecall.types import Mailbox, parse_security
 
 
@@ -64,7 +64,7 @@ class MemoryMail:
         if row is None:
             return None
         kept, ciphertext = row
-        in_the_clear = replace(kept.mailbox, password=opened(self._cipher, ciphertext))
+        in_the_clear = replace(kept.mailbox, password=unseal(self._cipher, ciphertext))
         return replace(kept, mailbox=in_the_clear)
 
     async def drop(self, org: str) -> bool:
@@ -147,7 +147,7 @@ class PostgresMail:
 # the box's own mail — which is a credential of the box and not of a tenant — still sends.
 def mail_for(settings: Settings, pool: Pool | None) -> Mail | None:
     """Postgres when the process opened one, memory with none, nothing with no vault key."""
-    return a_sealed_store(settings, pool, memory=MemoryMail, postgres=PostgresMail)
+    return sealed_store(settings, pool, memory=MemoryMail, postgres=PostgresMail)
 
 
 def _a_mailbox(cipher: Cipher, row: Any) -> KeptMail:
@@ -159,7 +159,7 @@ def _a_mailbox(cipher: Cipher, row: Any) -> KeptMail:
             port=int(row["port"]),
             security=parse_security(str(row["security"])),
             username=str(row["username"]),
-            password=opened(cipher, str(row["ciphertext"])),
+            password=unseal(cipher, str(row["ciphertext"])),
             sender=str(row["sender"]),
         ),
         verified_at=None if verified is None else verified.isoformat(),

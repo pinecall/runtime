@@ -6,7 +6,7 @@ from typing import Any, Protocol
 
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_sealed_store, opened, sealed
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, sealed, sealed_store, unseal
 from pinecall.types import OrgSso, parse_role
 
 
@@ -54,7 +54,7 @@ class MemorySso:
             org=kept.org,
             issuer=kept.issuer,
             client_id=kept.client_id,
-            client_secret=opened(self._cipher, ciphertext),
+            client_secret=unseal(self._cipher, ciphertext),
             domains=kept.domains,
             role=kept.role,
             required=kept.required,
@@ -137,7 +137,7 @@ class PostgresSso:
 # behaviour a locked-out admin wants and the one an operator has to know about.
 def sso_for(settings: Settings, pool: Pool | None) -> Sso | None:
     """Postgres when the process opened one, memory with none, nothing with no vault key."""
-    return a_sealed_store(settings, pool, memory=MemorySso, postgres=PostgresSso)
+    return sealed_store(settings, pool, memory=MemorySso, postgres=PostgresSso)
 
 
 def _a_configuration(cipher: Cipher, row: Any) -> OrgSso:
@@ -147,7 +147,7 @@ def _a_configuration(cipher: Cipher, row: Any) -> OrgSso:
         org=str(row["org"]),
         issuer=str(row["issuer"]),
         client_id=str(row["client_id"]),
-        client_secret=opened(cipher, str(row["ciphertext"])),
+        client_secret=unseal(cipher, str(row["ciphertext"])),
         domains=tuple(str(domain) for domain in row["domains"]),
         role=None if role is None else parse_role(str(role)),
         required=bool(row["required"]),

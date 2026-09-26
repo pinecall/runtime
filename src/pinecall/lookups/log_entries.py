@@ -11,7 +11,7 @@ from pinecall_protocol.defs import DocSource, MemoryFact, MemoryOp
 from pinecall_protocol.events import DocsSources, ErrorEvent, MemoryOps
 
 
-def a_recall(
+def recall_entry(
     contact: str, query: str, facts: Sequence[Fact], took_ms: float, speech_id: str | None
 ) -> MemoryOps:
     """The memory.ops entry of one turn: op recall, the facts as the model read them, scored."""
@@ -43,7 +43,7 @@ def a_recall(
 # (evals/case_builder.py `_excerpts`): what the log does not carry, no judge can find afterwards.
 # The base is there for the same reason: a turn reads every base attached to the agent, ranked
 # together, so which collection answered is a fact only this line can keep.
-def a_retrieval(
+def retrieval_entry(
     query: str, chunks: Sequence[Chunk], took_ms: float, speech_id: str | None
 ) -> DocsSources:
     """The docs.sources entry of one turn: every chunk, where it came from, how well it matched."""
@@ -65,7 +65,7 @@ def a_retrieval(
     )
 
 
-def a_skip(tool: PlatformTool, why: str) -> ErrorEvent:
+def skip_entry(tool: PlatformTool, why: str) -> ErrorEvent:
     """The error entry of a lookup the gateway could not run: recoverable, and it names why."""
     return ErrorEvent(
         code=skipped_code(tool), message=NOT_LOOKED_UP.format(tool=tool, why=why), recoverable=True

@@ -7,7 +7,7 @@ from typing import Any, Protocol
 
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_sealed_store, opened, sealed
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, sealed, sealed_store, unseal
 from pinecall.types import Carrier, SipPeer, TwilioAccount, parse_carrier_kind, parse_sip_transport
 
 
@@ -87,7 +87,7 @@ class PostgresCarriers:
 # sentence (NO_VAULT_KEY): a carrier's credentials are a secret exactly as a provider key is.
 def carriers_for(settings: Settings, pool: Pool | None) -> Carriers | None:
     """Postgres when the process opened one, memory on a dev key, none when no vault key was set."""
-    return a_sealed_store(settings, pool, memory=MemoryCarriers, postgres=PostgresCarriers)
+    return sealed_store(settings, pool, memory=MemoryCarriers, postgres=PostgresCarriers)
 
 
 def _sealed(cipher: Cipher, carrier: Carrier) -> str:
@@ -111,7 +111,7 @@ def _sealed(cipher: Cipher, carrier: Carrier) -> str:
 
 def _opened(cipher: Cipher, org: str, kind: str, ciphertext: str) -> Carrier:
     """One row back into the domain's own Carrier, the credentials in the clear."""
-    said: dict[str, Any] = json.loads(opened(cipher, ciphertext))
+    said: dict[str, Any] = json.loads(unseal(cipher, ciphertext))
     if parse_carrier_kind(kind) == "twilio":
         return Carrier(
             org=org,

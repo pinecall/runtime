@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pinecall.session.voice.room.leg import a_leg
+from pinecall.session.voice.room.leg import build_sip_leg
 from pinecall.session.voice.room.room_handle import Holding
 from pinecall_protocol.commands import RoomInvite
 
@@ -16,7 +16,7 @@ NO_TRUNK = "room.invite: no outbound SIP trunk is configured, nothing can dial {
 
 # The fact is the participant.joined the room writes when the far side answers, with kind sip;
 # a leg that never answers is the error the API raises, in the log under this verb's name.
-async def dialled(holding: Holding, wanted: RoomInvite) -> None:
+async def dial_in(holding: Holding, wanted: RoomInvite) -> None:
     """CreateSIPParticipant into this call's room. Warm: the agent stays on with the caller."""
     if wanted.kind != "sip":
         holding.failed(VERB, NOT_DIALLED)
@@ -29,7 +29,7 @@ async def dialled(holding: Holding, wanted: RoomInvite) -> None:
         return
     try:
         await holding.api.sip.create_sip_participant(
-            a_leg(asked.trunk, wanted.to, holding.room.name)
+            build_sip_leg(asked.trunk, wanted.to, holding.room.name)
         )
     except Exception as refused:
         holding.failed(VERB, str(refused))

@@ -44,7 +44,7 @@ async def test_a_thread_waiting_for_a_person_logs_what_the_contact_writes_and_an
 async def test_a_supervisor_taking_the_thread_answers_the_ask() -> None:
     store, session = await a_thread()
     await session.attending.asked(CallAttention(reason=BECAUSE, wait_s=30))
-    await supervise.applied(
+    await supervise.apply_verb(
         session, SupervisorVerb(by=ANA, verb=verbs.TakeoverVerb(verb="takeover"))
     )
     (answered,) = [one for one in await store.since(A_CALL) if one.type == "attention.answered"]

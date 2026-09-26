@@ -207,7 +207,7 @@ async def _send_the_caller_on(applying: Applying, said: WireModel) -> None:
     """call.transfer: the caller sent on, or the far end dialled in. ok=False: nothing moved."""
     wanted = _as(said, CallTransfer)
     holding = applying.held(transfer.VERB)
-    mode = await transfer.the_mode(holding, wanted)
+    mode = await transfer.transfer_mode(holding, wanted)
     # The caller has to hear the sentence that announced this before the line moves.
     await transfer.after_the_announcement(applying.live)
     if mode == transfer.COLD:
@@ -308,10 +308,10 @@ APPLIERS: dict[str, Applier] = {
     "call.attention": _ask_for_a_person,
     "supervisor.verb": _a_supervise_verb,
     transfer.VERB: _send_the_caller_on,
-    "room.invite": _in_the_room("room.invite", RoomInvite, invite.dialled),
+    "room.invite": _in_the_room("room.invite", RoomInvite, invite.dial_in),
     "room.send": _in_the_room("room.send", RoomSend, send.sent),
-    "participant.mute": _in_the_room("participant.mute", ParticipantMute, mute.muted),
-    "participant.remove": _in_the_room("participant.remove", ParticipantRemove, remove.removed),
+    "participant.mute": _in_the_room("participant.mute", ParticipantMute, mute.mute),
+    "participant.remove": _in_the_room("participant.remove", ParticipantRemove, remove.remove),
     dtmf.VERB: _in_the_room(dtmf.VERB, CallDtmf, dtmf.sent),
 }
 

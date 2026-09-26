@@ -17,26 +17,26 @@ from pinecall.log.logs import CallLog
 from pinecall.providers import prices
 from pinecall.providers.models import Chat
 from pinecall.session import date_tool, greeting
-from pinecall.session.callbacks import a_callback
-from pinecall.session.first_entries import started
-from pinecall.session.history import remembered
+from pinecall.session.callbacks import build_callback_entry
+from pinecall.session.first_entries import started_entry
+from pinecall.session.history import append_history
 from pinecall.session.lookup_tools import Lookup, NoLookup, TurnLookups
 from pinecall.session.model_requests import Asking, NotAsking
 from pinecall.session.platform_block import (
-    a_line_for_the_file_it_ships_with,
-    the_file_it_ships_with,
+    log_shipped_file,
+    shipped_file_text,
 )
 from pinecall.session.remember_step import NoRememberer, Rememberer, remembered_within
-from pinecall.session.score_step import Scorer, unjudged
+from pinecall.session.score_step import Scorer, unjudged_score
 from pinecall.session.text.agent import TextAgent
 from pinecall.session.text.attention import Attending
 from pinecall.session.text.metrics import Reply, tokens_spent, usage_rows
 from pinecall.session.text.resume import taken_up
 from pinecall.session.text.tool_runs import Running
-from pinecall.session.text.turn_allowance import SPENT, Allowance, TurnRefused, unlimited
+from pinecall.session.text.turn_allowance import SPENT, Allowance, TurnRefused, unlimited_allowance
 from pinecall.session.text.turns import Turns
-from pinecall.session.tool_declaration import declared
-from pinecall.session.written import a_written_session
+from pinecall.session.tool_declaration import declare_tools
+from pinecall.session.written import build_written_session
 from pinecall.types import AgentConfig, Blocks, CallContext
 from pinecall_protocol import WireModel, defs, encode
 from pinecall_protocol.commands import CallCallback, StateSet
@@ -72,12 +72,12 @@ class TextSession:
         config: AgentConfig,
         log: CallLog,
         llm: Chat,
-        score: Scorer = unjudged,
+        score: Scorer = unjudged_score,
         lookup: Lookup = NoLookup(),  # noqa: B008 — stateless, shared on purpose
         rememberer: Rememberer = NoRememberer(),  # noqa: B008 — stateless, shared on purpose
         budgets: Budgets = Budgets(),  # noqa: B008 — frozen
         asking: Asking = NotAsking(),  # noqa: B008 — stateless, shared on purpose
-        allowance: Allowance = unlimited,
+        allowance: Allowance = unlimited_allowance,
     ) -> None:
         self.context = context
         self.config = config
@@ -97,7 +97,7 @@ class TextSession:
         self.attending = Attending(self)
         self._log = log
         self._gone: set[Watcher] = set()
-        self._blocks = Blocks(config.prompt, the_file_it_ships_with(config))
+        self._blocks = Blocks(config.prompt, shipped_file_text(config))
         self._state: dict[str, Any] = {}
         self._speeches = 0
         self._started_at = time.time()
@@ -117,7 +117,7 @@ class TextSession:
         # so the declaration IS the registration, and a tools.set narrows `visibility` instead.
         self.text_agent = TextAgent(
             blocks=self._blocks,
-            tools=[*declared(config.tools, self.running.ran), *self.lookups.declared_tools],
+            tools=[*declare_tools(config.tools, self.running.ran), *self.lookups.declared_tools],
             llm=llm,
             writer=self.turns,
             lookups=self.lookups,
@@ -125,7 +125,7 @@ class TextSession:
             # is the run that hands the holder in. session/model_requests.py.
             asking=asking,
         )
-        self.live: AgentSession[None] = a_written_session(llm)
+        self.live: AgentSession[None] = build_written_session(llm)
 
     @property
     def call(self) -> str:
@@ -179,14 +179,14 @@ class TextSession:
         )
         # The pair a voice call opens with too (worker/job.py): seeded once, here, before the app
         # has rendered a thing, so a caller who writes "mañana" is read by a model with a calendar.
-        await remembered(self.text_agent, *date_tool.dated(self.context.today))
-        await self.emit("call.started", started(self.context, self.agent, self._started_at))
-        await a_line_for_the_file_it_ships_with(self._blocks, self.emit)
+        await append_history(self.text_agent, *date_tool.date_tool_pair(self.context.today))
+        await self.emit("call.started", started_entry(self.context, self.agent, self._started_at))
+        await log_shipped_file(self._blocks, self.emit)
         # After call.started, so the opening is a turn INSIDE the call and not before it. A
         # written turn cannot be cut short, so the flag a spoken greeting carries is dropped here
         # rather than pretended at: nobody is talking over anybody in a chat.
         await greeting.open_the_call(
-            greeting.the_greeting_for(self.config.greeting, self.context.run),
+            greeting.greeting_for(self.config.greeting, self.context.run),
             say=lambda text, _interruptible: self.say(text),
             reply=lambda instructions, _interruptible: self.reply(instructions),
         )
@@ -205,7 +205,9 @@ class TextSession:
         self.turns.count, self.turns.last = taken.turns, taken.last
         self._started_at = taken.started_at or self._started_at
         self.quiet_since = taken.last_at
-        await remembered(self.text_agent, *date_tool.dated(self.context.today), *taken.history)
+        await append_history(
+            self.text_agent, *date_tool.date_tool_pair(self.context.today), *taken.history
+        )
 
     async def hangup(self, reason: defs.EndReason, by: EndedBy) -> None:
         """The last three entries of the call, then the log is sealed. Twice is once."""
@@ -300,7 +302,7 @@ class TextSession:
     async def say(self, text: str) -> None:
         """agent.say: the agent says this, verbatim, with no model in the loop at all."""
         reply = Reply(speech_id=self._a_speech_id(), arrived=time.monotonic(), said=[text])
-        await remembered(self.text_agent, agents.ChatMessage(role="assistant", content=[text]))
+        await append_history(self.text_agent, agents.ChatMessage(role="assistant", content=[text]))
         await self.turns.ended(reply)
 
     # ── what the outside world says ─────────────────────────────────────────────
@@ -348,7 +350,7 @@ class TextSession:
 
     async def call_back(self, wanted: CallCallback) -> Entry:
         """call.callback: the number to ring back and what it is about, into this call's log."""
-        return await self.emit("callback.requested", a_callback(self.context, wanted))
+        return await self.emit("callback.requested", build_callback_entry(self.context, wanted))
 
     async def log_custom(self, name: str, data: Mapping[str, Any]) -> Entry:
         """call.log: a line of the app's own, with a seq like everything else."""

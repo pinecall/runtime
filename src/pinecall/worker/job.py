@@ -179,9 +179,9 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     bridge = worker.bridging(context, config, worker.gateway, recording)
     # Registered before anything can fail: a call that dies mid-setup still seals its own log.
     ctx.add_shutdown_callback(sealing(worker.gateway, bridge, context.call, taping))
-    live = session.a_session(config, worker.kit, route.channel, brought, spoken=not typed)
+    live = session.build_session(config, worker.kit, route.channel, brought, spoken=not typed)
     took("session")
-    await date_tool.seeded(bridge.agent, context.today)
+    await date_tool.seed_date(bridge.agent, context.today)
     await bridge.opened(live)
     took("bridge")
     # The one voice this session answers, decided before it subscribes to anything: a listener and,
@@ -213,7 +213,7 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     # declared a greeting speaks now, and whatever the app sent while the room was being joined
     # arrives after it. Its turn is a turn.agent like any other; nothing here is special-cased.
     await greeting.open_the_call(
-        greeting.the_greeting_for(config.greeting, context.run),
+        greeting.greeting_for(config.greeting, context.run),
         say=_saying(live),
         reply=_replying(live),
     )
@@ -225,7 +225,7 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     # visit, which is the same test a_session builds its ears by (session/voice/session.py). And
     # any call, a written visit too, ends when the org's minutes do: minutes are the call's length.
     spoken = route.channel in session.CHANNELS_THAT_LISTEN and not typed
-    kept = time_limit.the_clock(config.max_duration_s if spoken else NO_LIMIT, ceiling, route.org)
+    kept = time_limit.build_clock(config.max_duration_s if spoken else NO_LIMIT, ceiling, route.org)
     if kept.limit_s != NO_LIMIT:
         closing = asyncio.ensure_future(bridge.closing_time(kept))
         ctx.add_shutdown_callback(letting_go(closing))

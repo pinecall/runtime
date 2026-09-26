@@ -12,7 +12,7 @@ from pinecall_protocol.events import PromptChanged
 # whole in the declaration and the platform reads it into the block. Without a line here the log
 # would list identity, tools and the view, and a reader would conclude the file reached nobody —
 # which is the conclusion a live call led its own author to on 2026-09-10, wrongly.
-async def a_line_for_the_file_it_ships_with(blocks: Blocks, emit: Emit) -> None:
+async def log_shipped_file(blocks: Blocks, emit: Emit) -> None:
     """prompt.changed for the knowledge block, so the log says what the model actually reads."""
     text = blocks.text_of(KNOWLEDGE)
     if not text:
@@ -24,6 +24,6 @@ async def a_line_for_the_file_it_ships_with(blocks: Blocks, emit: Emit) -> None:
 
 # The class's own file, as the declaration carried it. A class that ships none has an empty
 # knowledge block, which sends nothing at all.
-def the_file_it_ships_with(config: AgentConfig) -> str:
+def shipped_file_text(config: AgentConfig) -> str:
     """The text of the file this agent knows by heart, or nothing."""
     return config.knowledge or ""

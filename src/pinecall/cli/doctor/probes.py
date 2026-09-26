@@ -119,9 +119,9 @@ def read_the_boxs_mail(settings: Settings) -> BoxMail | None:
 
 async def _the_boxs_mail(settings: Settings) -> BoxMail | None:
     """One pool, one read, closed again."""
-    from pinecall.mail.box_mailbox import the_environments_mailbox
+    from pinecall.mail.box_mailbox import environment_mailbox
 
-    environment = the_environments_mailbox(settings)
+    environment = environment_mailbox(settings)
     try:
         pool = await open_pool(settings.database_url)
     except StoreUnreachable:

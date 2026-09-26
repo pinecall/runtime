@@ -32,7 +32,7 @@ async def sent(holding: Holding, wanted: CallDtmf) -> None:
         if digit != PAUSE and digit not in CODES:
             holding.failed(VERB, NOT_A_TONE.format(digit=digit))
             return
-    if await sip.the_sip_leg(holding.room, holding.channel) is None:
+    if await sip.wait_for_sip_leg(holding.room, holding.channel) is None:
         holding.failed(VERB, NO_LEG)
         return
     for digit in wanted.digits:

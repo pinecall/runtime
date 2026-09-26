@@ -20,7 +20,7 @@ A_SUNDAY = date(2026, 9, 6)
 
 
 def test_the_date_is_a_call_and_its_answer_under_one_id() -> None:
-    call, output = date_tool.dated(A_SUNDAY)
+    call, output = date_tool.date_tool_pair(A_SUNDAY)
     assert (call.name, call.call_id, call.arguments) == (date_tool.CLOCK_TOOL, output.call_id, "{}")
     assert json.loads(output.output) == {"today": "2026-09-06", "weekday": "sunday"}
     assert output.is_error is False
@@ -28,12 +28,12 @@ def test_the_date_is_a_call_and_its_answer_under_one_id() -> None:
 
 def test_the_answer_asks_for_no_reply() -> None:
     """Nothing was asked: a realtime model must not start talking because it read the date."""
-    _call, output = date_tool.dated(A_SUNDAY)
+    _call, output = date_tool.date_tool_pair(A_SUNDAY)
     assert output.reply_required is False
 
 
 def test_the_weekday_does_not_depend_on_the_locale_of_the_process() -> None:
-    week = [date_tool.dated(date(2026, 9, 7 + day))[1].output for day in range(7)]
+    week = [date_tool.date_tool_pair(date(2026, 9, 7 + day))[1].output for day in range(7)]
     weekdays = [json.loads(said)["weekday"] for said in week]
     assert weekdays == list(date_tool.WEEKDAYS)
 
@@ -41,7 +41,7 @@ def test_the_weekday_does_not_depend_on_the_locale_of_the_process() -> None:
 def test_the_pair_reaches_the_provider_as_a_pair_and_never_as_an_instruction() -> None:
     """The whole reason for a pair: a system message appended here arrives as the caller talking."""
     context = agents.ChatContext.empty()
-    context.items.extend(date_tool.dated(A_SUNDAY))
+    context.items.extend(date_tool.date_tool_pair(A_SUNDAY))
     context.add_message(role="user", content="¿Qué día es hoy?")
     messages = anthropic_request(context)[0]
     kinds = [block["type"] for message in messages for block in _blocks(message)]
@@ -51,7 +51,7 @@ def test_the_pair_reaches_the_provider_as_a_pair_and_never_as_an_instruction() -
 
 async def test_the_pair_is_in_the_history_before_the_first_turn() -> None:
     agent = Agent(instructions="You are Clara.", tools=[], llm=FakeLLM())  # pyright: ignore[reportUnknownMemberType]
-    await date_tool.seeded(agent, A_SUNDAY)
+    await date_tool.seed_date(agent, A_SUNDAY)
     items = agent.chat_ctx.items
     assert isinstance(items[0], agents.FunctionCall)
     assert isinstance(items[1], agents.FunctionCallOutput)

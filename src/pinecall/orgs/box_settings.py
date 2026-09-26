@@ -11,7 +11,7 @@ from cryptography.fernet import InvalidToken
 
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_cipher, opened, sealed
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, build_cipher, sealed, unseal
 
 # The rows there are. A name is the whole key: the box is one, so there is no org beside it.
 BRAND = "brand"
@@ -134,7 +134,7 @@ class PostgresBoxSettings:
 # and it says so where one is handed to it.
 def box_settings_for(settings: Settings, pool: Pool | None) -> BoxSettings:
     """Postgres when the process opened one, memory with none; sealing only with a vault key."""
-    cipher = a_cipher(settings.vault_key) if settings.vault_key else None
+    cipher = build_cipher(settings.vault_key) if settings.vault_key else None
     return MemoryBoxSettings(cipher) if pool is None else PostgresBoxSettings(pool, cipher)
 
 
@@ -157,7 +157,7 @@ def _opened(cipher: Cipher | None, ciphertext: str | None) -> str | None:
     if ciphertext is None or cipher is None:
         return None
     try:
-        return opened(cipher, ciphertext)
+        return unseal(cipher, ciphertext)
     except InvalidToken:
         logger.warning(
             "a box setting is sealed under a key PINECALL_VAULT_KEY no longer holds: read as unset"

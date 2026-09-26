@@ -17,14 +17,14 @@ from livekit.agents.voice.events import EventTypes, FunctionToolsExecutedEvent
 from pinecall._settings import Budgets
 from pinecall.log import NOTHING_SAID, hashed_prompt
 from pinecall.providers import prices
-from pinecall.session.first_entries import started
+from pinecall.session.first_entries import started_entry
 from pinecall.session.lookup_tools import Lookup, NoLookup, TurnLookups
 from pinecall.session.platform_block import (
-    a_line_for_the_file_it_ships_with,
-    the_file_it_ships_with,
+    log_shipped_file,
+    shipped_file_text,
 )
 from pinecall.session.remember_step import NoRememberer, Rememberer
-from pinecall.session.score_step import Scorer, unjudged
+from pinecall.session.score_step import Scorer, unjudged_score
 from pinecall.session.voice import commands, stt_vocabulary, time_limit
 from pinecall.session.voice.agent import VoiceAgent
 from pinecall.session.voice.app_writes import Recorder
@@ -32,7 +32,7 @@ from pinecall.session.voice.attention import Attending
 from pinecall.session.voice.barge_in import is_a_backchannel
 from pinecall.session.voice.ending import TheEnding
 from pinecall.session.voice.events import Events
-from pinecall.session.voice.hanging_up import a_way_to_hang_up
+from pinecall.session.voice.hanging_up import hangup_toolset
 from pinecall.session.voice.hold_melody import Floor, HoldMusic
 from pinecall.session.voice.log_writer import Writing
 from pinecall.session.voice.metrics import Meters
@@ -73,7 +73,7 @@ class VoiceBridge:
         config: AgentConfig,
         platform: Platform,
         recording: Path | None = None,
-        score: Scorer = unjudged,
+        score: Scorer = unjudged_score,
         lookup: Lookup = NoLookup(),  # noqa: B008 — stateless, shared on purpose
         rememberer: Rememberer = NoRememberer(),  # noqa: B008 — stateless, shared on purpose
         budgets: Budgets = Budgets(),  # noqa: B008 — frozen
@@ -107,13 +107,13 @@ class VoiceBridge:
         self.events = Events(self.writing, self.meters, self.ending, self.lookups, self.floor)
         self.tools = Tools(config, platform, context.call, self.writing.emit)
         self.recorder = Recorder(config, context, self.writing, self._tell_the_ears)
-        self.blocks = Blocks(config.prompt, the_file_it_ships_with(config))
+        self.blocks = Blocks(config.prompt, shipped_file_text(config))
         self._agent = VoiceAgent(
             blocks=self.blocks,
             tools=[
                 *self.tools.declared_tools,
                 *self.lookups.declared_tools,
-                *a_way_to_hang_up(config, self.ending),
+                *hangup_toolset(config, self.ending),
             ],
             speaking=self,
             lookups=self.lookups,
@@ -163,9 +163,11 @@ class VoiceBridge:
         live.on(CLOSED, self.ending.session_closed)  # pyright: ignore[reportUnknownMemberType] — livekit's callback is `(...) -> Unknown`
         await self.writing.emit(
             "call.started",
-            started(self.context, self.context.route.number or self.config.slug, self._started_at),
+            started_entry(
+                self.context, self.context.route.number or self.config.slug, self._started_at
+            ),
         )
-        await a_line_for_the_file_it_ships_with(self.blocks, self.writing.emit)
+        await log_shipped_file(self.blocks, self.writing.emit)
 
     async def closing_time(self, clock: time_limit.Clock) -> None:
         """This call's limit, kept: the agent warned a minute before it, the call ended at it."""
@@ -365,12 +367,12 @@ class VoiceBridge:
         return self._live is not None and self._live.agent_state == "speaking"
 
 
-def a_bridge(
+def build_bridge(
     context: CallContext,
     config: AgentConfig,
     platform: Platform,
     recording: Path | None = None,
-    score: Scorer = unjudged,
+    score: Scorer = unjudged_score,
     lookup: Lookup = NoLookup(),  # noqa: B008 — stateless, shared on purpose
     rememberer: Rememberer = NoRememberer(),  # noqa: B008 — stateless, shared on purpose
     budgets: Budgets = Budgets(),  # noqa: B008 — frozen

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
-from pinecall.session.callbacks import a_callback
+from pinecall.session.callbacks import build_callback_entry
 from pinecall.session.voice.log_writer import Writing
 from pinecall.types import AgentConfig, CallContext
 from pinecall_protocol import ProtocolError
@@ -61,4 +61,4 @@ class Recorder:
     # the overflow agent wrote, and a person reading the call sees why it was asked for.
     async def call_back(self, wanted: CallCallback) -> None:
         """call.callback: the number to ring back, and what it is about, as one entry."""
-        await self._writing.emit("callback.requested", a_callback(self._context, wanted))
+        await self._writing.emit("callback.requested", build_callback_entry(self._context, wanted))

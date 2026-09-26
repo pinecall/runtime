@@ -30,7 +30,7 @@ NOT_LIVE = "call {call} is over: nobody is in its room, read its log or its reco
 # Both seat doors take the API key, as every tenant door does: these scopes are the tenant's,
 # never a visitor's. A call that is over has no room to join, and the door says so rather than
 # minting a token LiveKit would refuse a minute later for a room that closed.
-async def a_seat_in(
+async def mint_seat_token(
     call: str, scope: str, key: KeyRecord, snapshots: Snapshots, settings: Settings
 ) -> dict[str, Any]:
     """One seat in a live call: {server_url, participant_token, call, identity, org}."""

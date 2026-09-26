@@ -7,7 +7,7 @@ from typing import Any, Protocol
 
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_sealed_store, opened, sealed
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, sealed, sealed_store, unseal
 from pinecall.types import CarrierKind, OutboundTrunk, parse_carrier_kind
 
 
@@ -117,7 +117,7 @@ class PostgresOutboundTrunks:
 # row holds is one the box MINTED on the tenant's account and cannot read back from anywhere.
 def outbound_trunks_for(settings: Settings, pool: Pool | None) -> OutboundTrunks | None:
     """Postgres when the process opened one, memory when it did not, none with no vault key."""
-    return a_sealed_store(
+    return sealed_store(
         settings, pool, memory=MemoryOutboundTrunks, postgres=PostgresOutboundTrunks
     )
 
@@ -133,7 +133,7 @@ def _opened(cipher: Cipher, ciphertext: Any) -> str | None:
     """One column back into the password, or None for a trunk that authenticates with nothing."""
     if not ciphertext:
         return None
-    said: dict[str, Any] = json.loads(opened(cipher, str(ciphertext)))
+    said: dict[str, Any] = json.loads(unseal(cipher, str(ciphertext)))
     return str(said["password"])
 
 

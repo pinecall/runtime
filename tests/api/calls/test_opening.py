@@ -14,7 +14,7 @@ from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.tuning_store import MemoryTuning
 from pinecall.providers.models import Models
-from pinecall.session.score_step import unjudged
+from pinecall.session.score_step import unjudged_score
 from pinecall.types import PRODUCTION, AgentConfig, CallContext, Route
 from tests.api.conftest import AGENT
 
@@ -60,4 +60,4 @@ async def test_a_text_call_is_opened_with_the_judge_and_not_with_the_default(
 
     judge = opened.session._score  # pyright: ignore[reportPrivateUsage]
     assert isinstance(judge, JudgedWhen) and judge.score is a_score
-    assert opened.session._score is not unjudged  # pyright: ignore[reportPrivateUsage]
+    assert opened.session._score is not unjudged_score  # pyright: ignore[reportPrivateUsage]

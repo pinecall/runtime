@@ -12,7 +12,7 @@ from livekit.agents import AgentServer, JobContext, JobProcess
 from pinecall._settings import Settings, load_settings, variable_of
 from pinecall.evals.hangup_score import JudgedWhen
 from pinecall.providers.session_vendors import warm_the_vendor_tables
-from pinecall.session.voice import a_bridge
+from pinecall.session.voice import build_bridge
 from pinecall.session.voice.vendors import kit_for
 from pinecall.worker import recording_paths
 from pinecall.worker.gateway_client import reaching
@@ -73,7 +73,7 @@ def a_worker(settings: Settings) -> Worker:
         # Rememberer too — the same object, three protocols — under the budgets the box set. The
         # judge asks the gateway first whether the call's org judges its calls at all.
         bridging=partial(
-            a_bridge,
+            build_bridge,
             score=JudgedWhen(gateway.judging),
             lookup=gateway,
             rememberer=gateway,

@@ -39,7 +39,7 @@ class Numbers:
 
 # The one reader of livekit's SIP attributes: the router asks it who dialled what, the room's
 # facts ask it whether a second leg is the caller. Nobody else spells these strings.
-def the_numbers(attributes: Mapping[str, str]) -> Numbers:
+def sip_numbers(attributes: Mapping[str, str]) -> Numbers:
     """What the SIP attributes of a seat say: who called, and the number they dialled."""
     return Numbers(
         caller=attributes.get(CALLER_NUMBER) or None,
@@ -50,7 +50,7 @@ def the_numbers(attributes: Mapping[str, str]) -> Numbers:
 # livekit's own wait does the subscribing (agents/utils/participant.py:153); what it does not do
 # is give up, so the timeout is ours. A room that never connected raises there and has no leg
 # either, which is the same answer.
-async def the_sip_leg(
+async def wait_for_sip_leg(
     room: rtc.Room, channel: Channel | None = None, wait: float = WAIT_FOR_THE_LEG_S
 ) -> rtc.RemoteParticipant | None:
     """The phone leg in this room, waited for briefly; None when this call has none to wait for."""

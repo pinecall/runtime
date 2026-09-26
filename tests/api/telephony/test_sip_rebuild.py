@@ -7,7 +7,7 @@ from pinecall.api.telephony.sip_rebuild import reconciled
 from pinecall.orgs.carriers import MemoryCarriers
 from pinecall.orgs.outbound_credentials import MemoryOutboundTrunks
 from pinecall.orgs.records import MemoryOrgs
-from pinecall.orgs.vault import a_cipher
+from pinecall.orgs.vault import build_cipher
 from pinecall.routes.records import MemoryRoutes
 from pinecall.routes.twilio import TWILIO_SIGNALLING
 from pinecall.types import Carrier, OutboundTrunk, Route, SipPeer, TwilioAccount
@@ -25,7 +25,7 @@ async def a_world() -> tuple[MemoryOrgs, MemoryCarriers, MemoryRoutes, MemoryOut
     orgs = MemoryOrgs()
     for slug in ("clinica", "tienda"):
         await orgs.create(slug, slug.title())
-    cipher = a_cipher(A_KEY)
+    cipher = build_cipher(A_KEY)
     carriers = MemoryCarriers(cipher)
     await carriers.put(
         Carrier(
@@ -117,7 +117,7 @@ async def test_an_sfu_that_has_everything_is_left_as_it_was() -> None:
 async def test_an_org_with_no_carrier_or_no_number_is_not_an_org_the_sfu_hears_about() -> None:
     orgs = MemoryOrgs()
     await orgs.create("silent", "Silent")
-    carriers = MemoryCarriers(a_cipher(A_KEY))
+    carriers = MemoryCarriers(build_cipher(A_KEY))
     trunks = MemoryTrunks()
 
     found = await reconciled(orgs, carriers, MemoryRoutes(), trunks, None, None)

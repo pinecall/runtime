@@ -23,7 +23,7 @@ from pinecall.lookups import Lookups
 from pinecall.providers.models import Chat
 from pinecall.session.model_requests import Asking, NotAsking, WhatWasAsked
 from pinecall.session.text.session import TextSession
-from pinecall.session.text.turn_allowance import Allowance, unlimited
+from pinecall.session.text.turn_allowance import Allowance, unlimited_allowance
 from pinecall.types import AgentConfig, CallContext, Env, Route, Versions
 from pinecall_protocol.commands import CallEvent, SessionConfigure
 
@@ -58,7 +58,7 @@ async def a_conversation(
     lookups: Lookups,
     budgets: Budgets,
     versions: Versions | None = None,
-    allowance: Allowance = unlimited,
+    allowance: Allowance = unlimited_allowance,
 ) -> Conversation:
     """Open the call, seed its state, say every turn, hang up, and read the log back whole."""
     # A run is the one reader allowed the prompt itself: a golden that breaks has to be openable
@@ -126,7 +126,7 @@ def an_eval_call(
     lookups: Lookups,
     budgets: Budgets,
     asking: Asking = NotAsking(),  # noqa: B008 — stateless, shared on purpose
-    allowance: Allowance = unlimited,
+    allowance: Allowance = unlimited_allowance,
 ) -> TextSession:
     """One call under the id the run named, opened by that run, on the config this model runs."""
     # The caller is nobody — no browser minted a visitor id and no number dialled — so it gets the

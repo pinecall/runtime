@@ -47,7 +47,7 @@ async def the_callers_seat(
     if not spoken:
         return None
     if channel == sip.THE_PHONE:
-        leg = await sip.the_sip_leg(room, channel)
+        leg = await sip.wait_for_sip_leg(room, channel)
         return leg.identity if leg is not None else None
     # WhatsApp is a room nobody joins: every turn arrives as text, so there is no seat coming and
     # five seconds spent here would be five seconds of a written reply nobody is waiting on.

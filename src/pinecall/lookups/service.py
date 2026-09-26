@@ -13,8 +13,8 @@ from pinecall.knowledge import Knowledge
 from pinecall.log.entry import Entry
 from pinecall.log.logs import CallLog
 from pinecall.log.writers import Logs
-from pinecall.lookups.log_entries import a_recall, a_retrieval, a_skip
-from pinecall.lookups.tool_results import found, recalled
+from pinecall.lookups.log_entries import recall_entry, retrieval_entry, skip_entry
+from pinecall.lookups.tool_results import found, recall_result
 from pinecall.memory import DEFAULT_FACTS_PER_TURN, Memory, Spoken
 from pinecall.types import (
     AgentConfig,
@@ -122,7 +122,7 @@ class Lookups:
             return await self._searched(opened, log, quotas, query, speech_id, started, k)
         except Exception as failed:
             logger.warning("call %s: %s did not run", opened.context.call, tool, exc_info=True)
-            await _written(log, "error", a_skip(tool, str(failed) or type(failed).__name__))
+            await _written(log, "error", skip_entry(tool, str(failed) or type(failed).__name__))
             return _nothing_found(tool)
 
     async def _recalled(
@@ -140,7 +140,7 @@ class Lookups:
         # would say a search ran and found nothing, and no search ran. Nothing is embedded
         # either — a lookup that cannot use its answer must not pay for one.
         if self._memory is None or contact is None or quotas.switched_off("memory_facts"):
-            return recalled(())
+            return recall_result(())
         facts = await self._memory.recall(
             opened.org,
             opened.context.route.env,
@@ -150,8 +150,8 @@ class Lookups:
             k=DEFAULT_FACTS_PER_TURN,
         )
         took_ms = _since(started)
-        await _written(log, "memory.ops", a_recall(contact, query, facts, took_ms, speech_id))
-        return recalled(facts)
+        await _written(log, "memory.ops", recall_entry(contact, query, facts, took_ms, speech_id))
+        return recall_result(facts)
 
     async def _searched(
         self,
@@ -183,7 +183,7 @@ class Lookups:
             floors={docs.base: docs.min_score for docs in bases},
         )
         took_ms = _since(started)
-        await _written(log, "docs.sources", a_retrieval(query, chunks, took_ms, speech_id))
+        await _written(log, "docs.sources", retrieval_entry(query, chunks, took_ms, speech_id))
         return found(chunks)
 
     # ── the Rememberer ──────────────────────────────────────────────────────────
@@ -228,7 +228,7 @@ class Lookups:
 
 def _nothing_found(tool: PlatformTool) -> Mapping[str, Any]:
     """The empty answer in the tool's own shape: the key is always there, the list is empty."""
-    return recalled(()) if tool == "recall" else found(())
+    return recall_result(()) if tool == "recall" else found(())
 
 
 # The same shape a hang-up that DID remember writes, carrying what was written: nothing. The

@@ -8,7 +8,7 @@ import pytest
 
 from pinecall.routes.records import MemoryRoutes
 from pinecall.types import PRODUCTION, Route
-from pinecall.whatsapp.number_routes import answering
+from pinecall.whatsapp.number_routes import route_for_number
 from tests.api.conftest import A_RECORD, AGENT
 from tests.api.whatsapp.conftest import THE_CLINICS_NUMBER
 
@@ -25,7 +25,7 @@ async def test_a_number_that_answers_both_is_two_rows_and_whatsapp_reads_its_own
         ]
     )
 
-    route = await answering(table, THE_CLINICS_NUMBER)
+    route = await route_for_number(table, THE_CLINICS_NUMBER)
 
     assert route is not None
     assert route.door == ("whatsapp", THE_CLINICS_NUMBER)
@@ -40,14 +40,14 @@ async def test_a_number_with_only_a_phone_row_answers_no_whatsapp(
     )
 
     with caplog.at_level(logging.WARNING):
-        assert await answering(table, THE_CLINICS_NUMBER) is None
+        assert await route_for_number(table, THE_CLINICS_NUMBER) is None
 
     assert THE_CLINICS_NUMBER in caplog.text
     assert "routes add" in caplog.text
 
 
 async def test_a_number_nobody_typed_answers_nothing() -> None:
-    assert await answering(MemoryRoutes(), THE_CLINICS_NUMBER) is None
+    assert await route_for_number(MemoryRoutes(), THE_CLINICS_NUMBER) is None
 
 
 def test_the_world_a_row_names_is_the_world_the_thread_runs_in() -> None:

@@ -32,7 +32,7 @@ type RunTool = Callable[["ToolUse"], Awaitable[str]]
 # Python function to introspect: function_tool(raw_schema=...) is the door that takes a schema.
 # The callable IS ours, though, and livekit calls it: that is where the gate stands and where the
 # two entries of a tool round trip are written, in the order request < granted < call.
-def declared(specs: Sequence[ToolSpec], run: RunTool) -> list[agents.Tool]:
+def declare_tools(specs: Sequence[ToolSpec], run: RunTool) -> list[agents.Tool]:
     """The agent's visible tools as livekit declares them: the schema, and our own callable."""
     return [_raw(spec, run) for spec in specs]
 

@@ -25,7 +25,7 @@ from pinecall.api.org.mail import OutboxDep
 from pinecall.auth import passwords
 from pinecall.auth.members import normalize_email
 from pinecall.auth.signups import NotVerified, Refusal
-from pinecall.mail import a_signup_code
+from pinecall.mail import signup_code_letter
 from pinecall.types import Member, parse_slug
 from pinecall_protocol import WireModel
 
@@ -166,7 +166,7 @@ async def signup(
     if await orgs.find(slug) is not None:
         raise HTTPException(409, TAKEN.format(slug=slug))
     pending, code = signups.begin(email, slug, said.name, said.person, hashed, said.device)
-    await outbox.post(None, a_signup_code(email, code, said.person, await outbox.brand()))
+    await outbox.post(None, signup_code_letter(email, code, said.person, await outbox.brand()))
     return CodeMailed(email=email, code_expires_at=pending.expires_at)
 
 
@@ -215,6 +215,6 @@ async def resend(
     renewed = signups.renewed(normalize_email(said.email))
     if renewed is not None:
         pending, code = renewed
-        letter = a_signup_code(pending.email, code, pending.person, await outbox.brand())
+        letter = signup_code_letter(pending.email, code, pending.person, await outbox.brand())
         await outbox.post(None, letter)
     return CodeResent()

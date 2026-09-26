@@ -24,7 +24,7 @@ from pinecall.auth import passwords
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Members, NoSeatLeft
 from pinecall.auth.person_keys import mint_person_key
-from pinecall.mail import Letter, Outbox, a_reset, an_invitation, where_the_card_is
+from pinecall.mail import Letter, Outbox, card_link, invitation_letter, reset_letter
 from pinecall.types import (
     Member,
     MemberStatus,
@@ -225,11 +225,11 @@ async def invited_into(
     letter = (
         None
         if invited.token is None
-        else an_invitation(
+        else invitation_letter(
             invited.member.email,
             org.name,
             inviter,
-            where_the_card_is(base, invited.token),
+            card_link(base, invited.token),
             invited.expires_at,
         )
     )
@@ -268,11 +268,11 @@ async def reset(
     if issued is None:
         raise HTTPException(409, NOT_ACTIVE.format(email=found.email, status=found.status))
     org = await an_org(key.org, orgs)
-    link = where_the_card_is(where_this_gateway_answers(settings, request), issued.token or "")
+    link = card_link(where_this_gateway_answers(settings, request), issued.token or "")
     letter = (
         None
         if issued.token is None
-        else a_reset(found.email, org.name, _by(key), link, issued.expires_at)
+        else reset_letter(found.email, org.name, _by(key), link, issued.expires_at)
     )
     return LinkIssued(
         member=a_member_said(issued.member),

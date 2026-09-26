@@ -13,7 +13,7 @@ from livekit.protocol.sip import (
 )
 
 from pinecall.session.voice import sip
-from pinecall.session.voice.room.leg import a_leg
+from pinecall.session.voice.room.leg import build_sip_leg
 from pinecall.session.voice.room.room_handle import Holding
 from pinecall_protocol.commands import CallTransfer
 from pinecall_protocol.defs import TransferMode
@@ -52,11 +52,11 @@ PLAY_DIALTONE = True
 # browser has no leg to REFER, so the person is dialled in to them instead. The app may still ask
 # for one by name, and a cold transfer of a browser call is refused rather than quietly made warm:
 # the two are different calls afterwards, and the log must not say one where the other happened.
-async def the_mode(holding: Holding, wanted: CallTransfer) -> TransferMode:
+async def transfer_mode(holding: Holding, wanted: CallTransfer) -> TransferMode:
     """The mode to run in: the app's own, else cold for a phone leg and warm for everything else."""
     if wanted.mode is not None:
         return wanted.mode
-    return COLD if await sip.the_sip_leg(holding.room, holding.channel) is not None else WARM
+    return COLD if await sip.wait_for_sip_leg(holding.room, holding.channel) is not None else WARM
 
 
 # The model says "I am putting you through" and calls the verb in the same reply, so the line must
@@ -80,7 +80,7 @@ async def after_the_announcement(live: AgentSession[None] | None) -> None:
 # call, the way every other verb's fact reaches the log through the bridge's one hand.
 async def sent_on(holding: Holding, wanted: CallTransfer) -> CallTransferred:
     """TransferSIPParticipant on the caller's leg. ok=False: the caller is still on the line."""
-    leg = await sip.the_sip_leg(holding.room, holding.channel)
+    leg = await sip.wait_for_sip_leg(holding.room, holding.channel)
     if leg is None:
         return _stayed(wanted, NO_LEG, COLD)
     request = TransferSIPParticipantRequest(
@@ -112,7 +112,7 @@ async def dialled_in(holding: Holding, wanted: CallTransfer) -> CallTransferred:
     asked = await holding.trunks.outbound(wanted.to)
     if asked.trunk is None:
         return _stayed(wanted, asked.refused or NO_TRUNK.format(to=wanted.to), WARM)
-    request = a_leg(
+    request = build_sip_leg(
         asked.trunk,
         wanted.to,
         holding.room.name,

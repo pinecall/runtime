@@ -133,7 +133,7 @@ class LivekitTrunks:
     ) -> api.SIPInboundTrunkInfo | None:
         """The org's inbound trunk: by the name it carries now, else by the one it once did."""
         standing = await livekit.sip.list_inbound_trunk(api.ListSIPInboundTrunkRequest())
-        return by_name(
+        return first_named(
             standing.items,
             TRUNK_NAME.format(fleet=self._fleet, org=org),
             *once_named(LEGACY_TRUNK, self._fleet, org),
@@ -145,7 +145,7 @@ def once_named(legacy: str, fleet: str, org: str) -> tuple[str, ...]:
     return (legacy.format(org=org),) if fleet == DEFAULT_FLEET else ()
 
 
-def by_name[Info: (api.SIPInboundTrunkInfo, api.SIPOutboundTrunkInfo, api.SIPDispatchRuleInfo)](
+def first_named[Info: (api.SIPInboundTrunkInfo, api.SIPOutboundTrunkInfo, api.SIPDispatchRuleInfo)](
     items: Iterable[Info], *names: str
 ) -> Info | None:
     """The first of the names that something on the list carries, in the order they are given."""
@@ -175,9 +175,9 @@ async def _a_rule(livekit: api.LiveKitAPI, fleet: str, org: str, trunk_id: str) 
     """One room per caller on this trunk, with the fleet dispatched into it, made once."""
     rule = _a_rule_info(fleet, org, trunk_id)
     standing = await livekit.sip.list_dispatch_rule(api.ListSIPDispatchRuleRequest())
-    if by_name(standing.items, rule.name) is not None:
+    if first_named(standing.items, rule.name) is not None:
         return
-    once = by_name(standing.items, *once_named(LEGACY_RULE, fleet, org))
+    once = first_named(standing.items, *once_named(LEGACY_RULE, fleet, org))
     if once is not None:
         await livekit.sip.update_dispatch_rule(once.sip_dispatch_rule_id, rule)
         return

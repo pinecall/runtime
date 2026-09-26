@@ -8,7 +8,7 @@ from datetime import date
 from livekit.agents import llm as agents
 from livekit.agents.voice import Agent
 
-from pinecall.session.history import remembered
+from pinecall.session.history import append_history
 
 # The name the model sees in its own transcript. A pair is the only way a date survives the trip:
 # a system message appended mid-conversation is rewritten as a user turn for every JSON-object
@@ -31,7 +31,7 @@ WEEKDAYS: tuple[str, ...] = (
 )
 
 
-def dated(today: date) -> tuple[agents.FunctionCall, agents.FunctionCallOutput]:
+def date_tool_pair(today: date) -> tuple[agents.FunctionCall, agents.FunctionCallOutput]:
     """The pair that puts today in the history: the call, and the answer that carries the date."""
     call = agents.FunctionCall(call_id=CLOCK_CALL_ID, name=CLOCK_TOOL, arguments="{}")
     answered = json.dumps({"today": today.isoformat(), "weekday": WEEKDAYS[today.weekday()]})
@@ -47,6 +47,6 @@ def dated(today: date) -> tuple[agents.FunctionCall, agents.FunctionCallOutput]:
     return call, output
 
 
-async def seeded(agent: Agent, today: date) -> None:
+async def seed_date(agent: Agent, today: date) -> None:
     """Put the pair in the history once, before the caller has said anything at all."""
-    await remembered(agent, *dated(today))
+    await append_history(agent, *date_tool_pair(today))

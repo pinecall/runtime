@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from pinecall.api.deps import SettingsDep, SnapshotsDep, SuperviseKeyDep
-from pinecall.tokens.seats import a_seat_in
+from pinecall.tokens.seats import mint_seat_token
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -33,4 +33,4 @@ async def listen(
     call: str, key: SuperviseKeyDep, snapshots: SnapshotsDep, settings: SettingsDep
 ) -> SeatTaken:
     """A token that hears one live call: {server_url, participant_token, call, identity}."""
-    return SeatTaken(**await a_seat_in(call, A_LISTENER, key, snapshots, settings))
+    return SeatTaken(**await mint_seat_token(call, A_LISTENER, key, snapshots, settings))

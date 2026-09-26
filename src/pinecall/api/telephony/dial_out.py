@@ -26,7 +26,7 @@ from pinecall.log.writers import Logs
 from pinecall.orgs.outbound_guards import Asking
 from pinecall.routes.dispatch import Dialling, Dispatches, Job
 from pinecall.routes.records import Routes
-from pinecall.session.first_entries import arrived
+from pinecall.session.first_entries import arrival_entry
 from pinecall.types import CallContext, Route, new_call_id, parse_e164
 from pinecall.types.today import today_in
 from pinecall_protocol import WireModel, encode
@@ -181,7 +181,7 @@ def _shown_from(doors: list[Route], shown: str) -> Route:
 async def _opened(logs: Logs, context: CallContext, slug: str, shown: str, asked_by: str) -> None:
     """The call's head row, claimed for this corner, and call.dialing on top of it."""
     await logs.owned(context.call, slug, context.route.org, context.env, context.holder)
-    type, event = arrived(context, shown, asked_by)
+    type, event = arrival_entry(context, shown, asked_by)
     await logs.writing(context.call, slug).append(type, encode(event))
 
 

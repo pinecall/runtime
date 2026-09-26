@@ -5,7 +5,7 @@ from __future__ import annotations
 from livekit.agents.voice import AgentSession
 from livekit.agents.voice.agent import Agent
 
-from pinecall.session.history import noted
+from pinecall.session.history import append_note
 from pinecall.session.supervise_prompts import (
     A_RELEASE,
     A_WHISPER,
@@ -18,7 +18,7 @@ from pinecall.session.voice import transfer
 from pinecall.session.voice.attention import Attending
 from pinecall.session.voice.commands import Ending
 from pinecall.session.voice.log_writer import Writing
-from pinecall.session.voice.on_hold import hearing_again, silenced
+from pinecall.session.voice.on_hold import hearing_again, silence
 from pinecall.session.voice.room.room_handle import Holding
 from pinecall_protocol import ProtocolError, verbs
 from pinecall_protocol.commands import CallTransfer, SupervisorVerb
@@ -85,7 +85,7 @@ class Supervising:
         """transfer: the entry with the mode this call really uses, then the transfer applier."""
         wanted = CallTransfer(to=verb.to, mode=verb.mode)
         held = self._holding
-        mode = verb.mode if held is None else await transfer.the_mode(held, wanted)
+        mode = verb.mode if held is None else await transfer.transfer_mode(held, wanted)
         await self._writing.emit(
             "supervisor.transferred", SupervisorTransferred(by=by, to=verb.to, mode=mode)
         )
@@ -104,7 +104,7 @@ class Supervising:
         """whisper: an instruction the caller never hears, binding from the next sentence on."""
         await self._writing.emit("supervisor.whispered", SupervisorWhispered(by=by, text=text))
         note = A_WHISPER.format(text=text)
-        await noted(self._agent, note)
+        await append_note(self._agent, note)
         # A human is on the line: a turn generated now would talk over them.
         if self.taken_by is None:
             self._live.generate_reply(instructions=note)
@@ -119,7 +119,7 @@ class Supervising:
             await self._attending.taken_by(by)
         # Deaf as well as mute: a history with the human's half missing is the one a release must
         # not paper over.
-        await silenced(self._live, "the desk took over")
+        await silence(self._live, "the desk took over")
         self.taken_by = by
 
     async def _release(self, by: Supervisor) -> None:
@@ -129,7 +129,7 @@ class Supervising:
         await self._writing.emit("supervisor.released", SupervisorReleased(by=by))
         hearing_again(self._live)
         self.taken_by = None
-        await noted(self._agent, A_RELEASE)
+        await append_note(self._agent, A_RELEASE)
         self._live.generate_reply(instructions=A_RELEASE)
 
     async def _end(self, by: Supervisor, reason: str | None) -> None:

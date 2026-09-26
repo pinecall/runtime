@@ -9,7 +9,7 @@ from typing import Any, cast
 
 from livekit import api
 
-from pinecall.session.voice.room.leg import a_leg
+from pinecall.session.voice.room.leg import build_sip_leg
 from pinecall_protocol import defs
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,7 @@ async def placed(livekit: api.LiveKitAPI, room: str, dialling: Dialling) -> defs
     """The far end on the line, or the reason it is not. None is answered."""
     # The ceiling is the org's policy's, enforced by the media plane and not by anything of ours:
     # a worker that crashed would otherwise leave a call running on somebody's bill.
-    request = a_leg(
+    request = build_sip_leg(
         dialling.trunk,
         dialling.to,
         room,

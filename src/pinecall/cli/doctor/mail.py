@@ -3,7 +3,7 @@
 import asyncio
 
 from pinecall._settings import variable_of
-from pinecall.mail import BoxMail, MailRefused, a_test_message, posted
+from pinecall.mail import BoxMail, MailRefused, post, probe_letter
 from pinecall.types import DeclarationRefused, Mailbox, parse_address
 
 # A box that posts no mail is not a box that is down: every door behaves as it did before mail
@@ -69,7 +69,7 @@ def send_one_to(boxs: BoxMail | None, to: str) -> int:
 async def _posted(mailbox: Mailbox, to: str) -> int:
     """One letter through the box's own mail, waited for, and the server's own sentence on a no."""
     try:
-        await posted(mailbox, a_test_message(to))
+        await post(mailbox, probe_letter(to))
     except MailRefused as refused:
         print(REFUSED.format(to=to, said=refused))
         return 1

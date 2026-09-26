@@ -22,7 +22,7 @@ NO_ROUTE = (
 
 # A door is a row somebody typed and nothing else: a class declares no doors, so there is no
 # second table to disagree with this one and no precedence to work out (docs/decisions/routes.md).
-async def answering(routes: Routes, number: str) -> Route | None:
+async def route_for_number(routes: Routes, number: str) -> Route | None:
     """Who takes a message at this number, or None and the line that says what to type."""
     typed = await routes.at(WHATSAPP, number)
     if typed is None:

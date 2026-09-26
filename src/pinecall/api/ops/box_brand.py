@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pinecall.api.ops.box_settings import BoxSettingsDep
 from pinecall.api.scope.operator_key import an_operators_router
-from pinecall.mail import rebranded, the_brand
+from pinecall.mail import apply_brand, brand_of
 from pinecall.orgs.box_settings import BRAND
 from pinecall_protocol import WireModel
 from pinecall_protocol.rest import BoxBrand
@@ -27,12 +27,12 @@ class Rebranding(WireModel):
 @operator.get("/brand")
 async def branded(box: BoxSettingsDep) -> BoxBrand:
     """What the letters are called and painted with: Pinecall, its accent and no logo until set."""
-    return BoxBrand.model_validate((await the_brand(box)).as_json)
+    return BoxBrand.model_validate((await brand_of(box)).as_json)
 
 
 @operator.put("/brand")
 async def rebrand(said: Rebranding, box: BoxSettingsDep) -> BoxBrand:
     """The brand with these fields replaced, kept, and answered whole; 400 in a sentence."""
-    wanted = rebranded(await the_brand(box), said.name, said.logo_url, said.accent)
+    wanted = apply_brand(await brand_of(box), said.name, said.logo_url, said.accent)
     await box.put(BRAND, wanted.as_json)
     return BoxBrand.model_validate(wanted.as_json)

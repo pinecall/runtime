@@ -74,7 +74,7 @@ class MemoryVault:
     async def keys_of(self, org: str) -> ProviderKeys:
         """Every key this org brought, decrypted."""
         return {
-            vendor: opened(self._cipher, ciphertext)
+            vendor: unseal(self._cipher, ciphertext)
             for (kept, vendor), ciphertext in self._rows.items()
             if kept == org
         }
@@ -118,7 +118,7 @@ class PostgresVault:
     async def keys_of(self, org: str) -> ProviderKeys:
         """Every key this org brought, decrypted for the one door that may carry them."""
         rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(_KEYS, org)
-        return {str(row["vendor"]): opened(self._cipher, str(row["ciphertext"])) for row in rows}
+        return {str(row["vendor"]): unseal(self._cipher, str(row["ciphertext"])) for row in rows}
 
 
 # None is an answer here and not a failure, which is why the vault is the one thing of the process
@@ -126,13 +126,13 @@ class PostgresVault:
 # every call on the box's own vendor keys, and is a complete self-hosted install.
 def vault_for(settings: Settings, pool: Pool | None) -> Vault | None:
     """Postgres when the process opened one, memory on a dev key, none when no key was set."""
-    return a_sealed_store(settings, pool, memory=MemoryVault, postgres=PostgresVault)
+    return sealed_store(settings, pool, memory=MemoryVault, postgres=PostgresVault)
 
 
 # Every table that seals a tenant's secret is built the same way — the carriers, an org's mail,
 # its outbound trunk, its identity provider, and this one: none without a vault key, since a
 # secret it could not seal is one it must not keep; memory on a laptop with no Postgres up.
-def a_sealed_store[M, P](
+def sealed_store[M, P](
     settings: Settings,
     pool: Pool | None,
     *,
@@ -142,7 +142,7 @@ def a_sealed_store[M, P](
     """Postgres when the process opened one, memory when it did not, none with no vault key."""
     if not settings.vault_key:
         return None
-    cipher = a_cipher(settings.vault_key)
+    cipher = build_cipher(settings.vault_key)
     return memory(cipher) if pool is None else postgres(pool, cipher)
 
 
@@ -171,7 +171,7 @@ async def brought_by(vault: Vault | None, quotas_of: QuotasOf, org: str) -> Brou
 # was sealed with, so an operator adds the new key at the front, deploys, and drops the old one
 # once every row has been written again. One key alone, rotated in place, read every tenant's
 # secret as garbage and the box's own settings as "the operator set nothing" (2026-09-26).
-def a_cipher(vault_key: str) -> MultiFernet:
+def build_cipher(vault_key: str) -> MultiFernet:
     """The box's cipher over every key it has held, or a refusal naming the variable to fix."""
     keys = [key.strip() for key in vault_key.split(",") if key.strip()]
     try:
@@ -187,6 +187,6 @@ def sealed(cipher: Cipher, secret: str) -> str:
     return cipher.encrypt(secret.encode()).decode()
 
 
-def opened(cipher: Cipher, ciphertext: str) -> str:
+def unseal(cipher: Cipher, ciphertext: str) -> str:
     """One row back into the secret its vendor takes."""
     return cipher.decrypt(ciphertext.encode()).decode()

@@ -7,8 +7,8 @@ from collections.abc import Mapping
 from typing import Any
 
 from pinecall.log.store import Pool
-from pinecall.orgs.lexicon import LEXICON_STATEMENTS, a_lexicon, lexicon_columns
-from pinecall.orgs.tuning_resolution import TUNING, as_json, resolved
+from pinecall.orgs.lexicon import LEXICON_STATEMENTS, lexicon_columns, lexicon_from_row
+from pinecall.orgs.tuning_resolution import TUNING, resolve_tuning, tuning_json
 from pinecall.orgs.versions import (
     Corner,
     MemoryVersions,
@@ -91,7 +91,7 @@ class TuningStore:
         self, org: str, env: Env, holder: str | None, agent: str
     ) -> Kept[Tuning] | None:
         """What this corner reads: each knob from the nearest corner that sets it, else None."""
-        return resolved(await self._tunings.chain(Corner(org, env, whose(holder), agent)))
+        return resolve_tuning(await self._tunings.chain(Corner(org, env, whose(holder), agent)))
 
     async def own(self, org: str, env: Env, holder: str, agent: str) -> Kept[Tuning] | None:
         """This corner's newest and nothing else's; None when it set nothing."""
@@ -112,7 +112,7 @@ class TuningStore:
     async def every_newest(self, org: str, env: Env, holder: str | None) -> dict[str, Kept[Tuning]]:
         """Every agent in this world by slug, each as this corner reads it."""
         chains = await self._tunings.every_chain(org, env, whose(holder))
-        read = {slug: resolved(chain) for slug, chain in chains.items()}
+        read = {slug: resolve_tuning(chain) for slug, chain in chains.items()}
         return {slug: row for slug, row in read.items() if row is not None}
 
     async def put(
@@ -185,7 +185,7 @@ class PostgresTuning(TuningStore):
     def __init__(self, pool: Pool) -> None:
         super().__init__(
             PostgresVersions(pool, TUNING_STATEMENTS, _a_tuning, _tuning_columns),
-            PostgresVersions(pool, LEXICON_STATEMENTS, a_lexicon, lexicon_columns),
+            PostgresVersions(pool, LEXICON_STATEMENTS, lexicon_from_row, lexicon_columns),
         )
 
 
@@ -206,7 +206,7 @@ def _a_tuning(row: Mapping[str, Any]) -> Kept[Tuning]:
 
 def _tuning_columns(tuning: Tuning) -> tuple[str]:
     """The one jsonb column a tuning is written as: every knob that is set."""
-    return (json.dumps(as_json(tuning)),)
+    return (json.dumps(tuning_json(tuning)),)
 
 
 def tuning_for(pool: Pool | None) -> TuningStore:

@@ -9,7 +9,7 @@ import pytest
 from pinecall._settings import Settings
 from pinecall.cli.doctor import verbs as doctor
 from pinecall.cli.doctor.probes import Probes
-from pinecall.mail import BoxMail, TheBoxsMail, the_environments_mailbox
+from pinecall.mail import BoxMail, TheBoxsMail, environment_mailbox
 from pinecall.providers.embedder import DIMENSIONS
 
 
@@ -21,7 +21,7 @@ def probes_that_answer(
     executable_path: Callable[[str], str | None] = lambda program: f"/opt/homebrew/bin/{program}",
     embed_width: Callable[[Settings], int] = lambda _settings: DIMENSIONS,
     the_boxs_mail: Callable[[Settings], BoxMail | None] = lambda settings: asyncio.run(
-        TheBoxsMail(the_environments_mailbox(settings), None).of()
+        TheBoxsMail(environment_mailbox(settings), None).of()
     ),
     disk_free_gb: Callable[[str], float] = lambda _path: 100.0,
     unit_active: Callable[[str], bool | None] = lambda _unit: True,

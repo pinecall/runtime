@@ -18,7 +18,7 @@ from pinecall.orgs.tuning_store import TuningStore
 from pinecall.orgs.vault import Vault, brought_by
 from pinecall.providers.declaration import rang
 from pinecall.providers.models import Models
-from pinecall.session.first_entries import arrived
+from pinecall.session.first_entries import arrival_entry
 from pinecall.session.text.session import TextSession
 from pinecall.types import CallContext, Env, ProviderKeys, Versions
 from pinecall_protocol import encode
@@ -119,7 +119,7 @@ async def how_it_arrived(log: CallLog, context: CallContext, agent: str) -> None
     """call.ringing on a call that rang. Nothing on one this gateway placed itself."""
     if context.direction == "outbound":
         return
-    type, event = arrived(context, context.route.number or agent)
+    type, event = arrival_entry(context, context.route.number or agent)
     await log.append(type, encode(event))
 
 

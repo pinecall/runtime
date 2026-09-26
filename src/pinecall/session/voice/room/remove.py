@@ -12,7 +12,7 @@ VERB = "participant.remove"
 
 # The fact is the participant.left the room writes as they go, with livekit's own reason
 # participant_removed: the room saw them leave, so the room says so, and the verb says nothing.
-async def removed(holding: Holding, wanted: ParticipantRemove) -> None:
+async def remove(holding: Holding, wanted: ParticipantRemove) -> None:
     """RemoveParticipant, by identity, from this call's room."""
     request = RoomParticipantIdentity(room=holding.room.name, identity=wanted.identity)
     try:

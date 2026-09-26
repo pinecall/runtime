@@ -15,7 +15,7 @@ from livekit.agents.voice import AgentSession
 from livekit.agents.voice.events import CloseReason
 from livekit.agents.voice.turn import TurnHandlingOptions
 
-from pinecall.session.voice import VoiceBridge, a_bridge
+from pinecall.session.voice import VoiceBridge, build_bridge
 from pinecall.session.voice.hanging_up import HOW_IT_ENDED
 from pinecall_protocol.defs import ToolResult
 from tests.session.fake_llm import FakeLLM, Scripted, a_call
@@ -38,7 +38,7 @@ BY_HAND: TurnHandlingOptions = {"turn_detection": "manual"}
 async def talking(llm_script: tuple[Scripted, ...]) -> AsyncIterator[Talking]:
     """A headless session on the scripted model, the bridge opened on it, the call started."""
     recording = Recording(tools={"book": ToolResult(call_id="", name="book", output={"ref": "A7"})})
-    bridge = a_bridge(a_context(), CLARA, recording)
+    bridge = build_bridge(a_context(), CLARA, recording)
     live: AgentSession[None] = AgentSession(
         llm=FakeLLM(*llm_script), vad=None, turn_handling={"turn_detection": "manual"}
     )
@@ -51,7 +51,7 @@ async def test_the_ears_are_told_the_names_the_state_is_holding_the_moment_it_mo
     """The class already knows who it is talking to: a clinic cannot declare its patients, but
     the tool that identified Ana just wrote her name, and the next turn is where it is said."""
     recording = Recording()
-    bridge = a_bridge(a_context(), replace(CLARA, hears=("Clínica Norte",)), recording)
+    bridge = build_bridge(a_context(), replace(CLARA, hears=("Clínica Norte",)), recording)
     live: AgentSession[None] = AgentSession(
         llm=FakeLLM(), stt=SilentEars(keyterms=True), vad=None, turn_handling=BY_HAND
     )
@@ -66,7 +66,7 @@ async def test_ears_with_no_keyterms_door_are_never_told_anything() -> None:
     """Soniox is the default vendor and advertises none; telling it anyway logs a warning per
     call and changes nothing (stt/stt.py:293-298). Its declared words ride `context` instead."""
     recording = Recording()
-    bridge = a_bridge(a_context(), replace(CLARA, hears=("Clínica Norte",)), recording)
+    bridge = build_bridge(a_context(), replace(CLARA, hears=("Clínica Norte",)), recording)
     live: AgentSession[None] = AgentSession(
         llm=FakeLLM(), stt=SilentEars(), vad=None, turn_handling=BY_HAND
     )
@@ -200,7 +200,7 @@ def test_a_worker_the_platform_took_down_is_drained_and_never_an_error(
 
 async def test_the_summary_points_at_the_recording_the_bridge_was_born_knowing() -> None:
     recording = Recording()
-    bridge = a_bridge(a_context(), CLARA, recording, Path("recordings/call_1/audio.ogg"))
+    bridge = build_bridge(a_context(), CLARA, recording, Path("recordings/call_1/audio.ogg"))
     live: AgentSession[None] = AgentSession(llm=FakeLLM(), vad=None)
     await bridge.opened(live)
     await live.start(bridge.agent, record=False)  # pyright: ignore[reportUnknownMemberType]

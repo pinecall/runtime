@@ -37,7 +37,7 @@ Sleep = Callable[[float], Awaitable[None]]
 # (max_duration_s, a voice call's), and what is left of the org's minutes, which admission answered
 # at the open (orgs/admission.py:a_call) and which holds a written visit too. One clock, so the
 # agent is warned a minute before the call ends whichever of the two ends it.
-def the_ceiling(agents_limit_s: int, seconds_left: int | None) -> int:
+def call_ceiling(agents_limit_s: int, seconds_left: int | None) -> int:
     """The limit this call is kept to, in seconds; NO_LIMIT when neither limit is set."""
     if seconds_left is None:
         return agents_limit_s
@@ -58,10 +58,10 @@ class Clock:
 
 # One place the worker asks, so the limit and the reason for it can never disagree. The minutes
 # end the call when they come first — strictly first: at a tie the agent's own limit is the reason.
-def the_clock(agents_limit_s: int, ceiling: Ceiling | None, org: str) -> Clock:
+def build_clock(agents_limit_s: int, ceiling: Ceiling | None, org: str) -> Clock:
     """The clock a call is kept on: the lesser limit, and credits.exhausted when it is the org's."""
     seconds_left = None if ceiling is None else ceiling.seconds
-    limit_s = the_ceiling(agents_limit_s, seconds_left)
+    limit_s = call_ceiling(agents_limit_s, seconds_left)
     if ceiling is None or (agents_limit_s != NO_LIMIT and agents_limit_s <= ceiling.seconds):
         return Clock(limit_s)
     spent = CreditsExhausted(org=org, quota="minutes", used=ceiling.minutes, limit=ceiling.minutes)

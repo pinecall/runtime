@@ -256,7 +256,7 @@ pinecall-runtime migrate plan
 The `.sql` files under `pinecall/migrations`, applied in order, over `DATABASE_URL`. It is what a
 unit runs before every start, so it prints no secret: the `default` org is seeded here and its
 first key is `keys issue`, never this verb. **`migrate` with no verb READS** — `status`, which
-asks the DATABASE what it has run: `applied`, `behind` (a startup file it has not) and `waiting`
+asks the DATABASE what it has run: `apply_verb`, `behind` (a startup file it has not) and `waiting`
 (a `.post.sql` nobody has applied yet), counted at the end. `plan` names what a run of that kind
 would apply, off the disk. Applying is `migrate up`, typed in full; `--schema` applies into a
 schema of its own, how a test run owns its copy. **`--post` is the other half, never run at

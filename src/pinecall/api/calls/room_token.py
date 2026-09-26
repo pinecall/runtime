@@ -23,7 +23,7 @@ from pinecall.api.deps import (
 from pinecall.auth.keys import KeyRecord, is_held_by
 from pinecall.auth.scopes import mint_log_token, mint_room_token, new_visitor_identity, secret_for
 from pinecall.tokens.ledger import TokenRecord
-from pinecall.tokens.room_token import a_dispatch, the_agent_a_client_named
+from pinecall.tokens.room_token import build_dispatch, client_named_agent
 from pinecall.types import THE_WIDGET, new_call_id
 from pinecall.types.scopes import LONGEST_VISIT_TTL_S, MINTED_FOR_A_VISIT, ONE_VISIT_TTL_S
 from pinecall_protocol import WireModel, encode
@@ -124,7 +124,7 @@ async def mint(
         visitor,
         metadata=said.contact or "",
         attributes=said.participant_attributes,
-        room_config=a_dispatch(
+        room_config=build_dispatch(
             settings.fleet,
             agent,
             said.scope,
@@ -180,7 +180,7 @@ def _refuse_what_is_ours_to_set(said: Wanted) -> None:
 # a token for an agent nobody holds is still refused before the browser joins a room that dies.
 def _the_agent_the_org_holds(said: Wanted, key: KeyRecord, registry: RegistryDep) -> str:
     """The agent the body names, if this key reaches it at all. 400 or 404 if not."""
-    agent = said.agent or the_agent_a_client_named(said.room_config)
+    agent = said.agent or client_named_agent(said.room_config)
     if agent is None:
         raise HTTPException(400, NO_AGENT_NAMED)
     if reached_by(registry, key, agent) is None:

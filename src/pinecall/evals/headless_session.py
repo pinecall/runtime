@@ -14,7 +14,7 @@ from livekit.agents.voice import AgentSession
 from pinecall._settings import Settings, load_settings
 from pinecall.evals.headless_tool_answers import Answers
 from pinecall.session.lookup_tools import NoLookup, TurnLookups
-from pinecall.session.tool_declaration import declared
+from pinecall.session.tool_declaration import declare_tools
 from pinecall.session.voice import session
 from pinecall.session.voice.agent import VoiceAgent
 from pinecall.session.voice.vendors import kit_for
@@ -68,7 +68,7 @@ async def a_headless_call(
     read = settings or load_settings()
     kit = kit_for(read)
     # The box's own vendor keys: a headless call belongs to no org, so it brought none.
-    live = session.a_session(config, kit, WRITTEN, NOTHING_BROUGHT)
+    live = session.build_session(config, kit, WRITTEN, NOTHING_BROUGHT)
     # The prompt arrives the way the app sends it at call start, already written into its blocks:
     # the static ones become livekit's `instructions` — the pinned item at index 0 the provider's
     # cache lands on — and the dynamic ones are read per request, after the history. Never
@@ -79,7 +79,7 @@ async def a_headless_call(
     lookups = TurnLookups(NoLookup(), HEADLESS, None, config, read.budgets.text_lookup_ms)
     agent = VoiceAgent(
         blocks=prompt,
-        tools=[*declared(config.tools, answers), *lookups.declared_tools],
+        tools=[*declare_tools(config.tools, answers), *lookups.declared_tools],
         speaking=_NoBridge(),
         lookups=lookups,
     )

@@ -14,7 +14,7 @@ from pinecall_protocol.rest import FoundChunk, SearchFound
 # anything from outside the conversation be explicit, so the model can weigh it, and a fact that
 # says which call it came from is a fact the model can weigh.
 # docs/security/prompt-injection.md, "Memory and retrieval are tools".
-def recalled(facts: Sequence[Fact]) -> dict[str, Any]:
+def recall_result(facts: Sequence[Fact]) -> dict[str, Any]:
     """`{"facts": [{text, source, since}]}` — nothing else, in the order recall scored them."""
     return {
         "facts": [

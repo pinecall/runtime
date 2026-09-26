@@ -14,7 +14,7 @@ from pinecall.session.errors import COMPONENT_DEAD_END, COMPONENT_FAILED
 from pinecall.session.voice.fatal_errors import is_a_dead_end
 from pinecall.session.voice.hold_melody import Floor
 from pinecall.session.voice.log_writer import Writing
-from pinecall.session.voice.metrics import Meters, an_end_of_utterance
+from pinecall.session.voice.metrics import Meters, end_of_utterance
 from pinecall_protocol import metrics as wire
 from pinecall_protocol.events import (
     AgentStateChanged,
@@ -158,7 +158,7 @@ class Events:
         if item.transcript_confidence is not None:
             said["transcript_confidence"] = item.transcript_confidence
         detector = None if self._live is None else self._live.turn_detection
-        eou = an_end_of_utterance(item.metrics, speech, detector)
+        eou = end_of_utterance(item.metrics, speech, detector)
         if eou is not None:
             self._writing.later("metrics.eou", wire.EOUMetrics.model_validate(eou.model_dump()))
         self._writing.later("turn.user", UserTurnEnded.model_validate(said))

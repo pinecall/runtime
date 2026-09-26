@@ -43,7 +43,7 @@ class Melody:
     sha256: str
 
 
-def converted(data: bytes) -> Melody:
+def convert_melody(data: bytes) -> Melody:
     """Any file PyAV decodes, as the one form a call plays. Refused in a sentence otherwise."""
     try:
         source = cast(Any, av.open(io.BytesIO(data)))

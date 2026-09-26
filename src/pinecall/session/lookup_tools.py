@@ -12,7 +12,7 @@ from livekit.agents import llm as agents
 from livekit.agents.llm import ToolError
 from livekit.agents.utils.aio import cancel_and_wait
 
-from pinecall.session.tool_declaration import ToolUse, declared
+from pinecall.session.tool_declaration import ToolUse, declare_tools
 from pinecall.types import AgentConfig, PlatformTool, platform_tools
 from pinecall.types.lookup_tools import NOT_LOOKED_UP, PLATFORM_TOOLS, arguments_for, skipped_code
 from pinecall_protocol.events import ErrorEvent
@@ -85,7 +85,7 @@ class NoLookup:
 
 # Everything that arrived from outside the conversation reaches the model JSON-encoded inside a
 # tool_result, which is the one place both vendors name for it: docs/security/prompt-injection.md.
-def as_tool_result(output: Mapping[str, Any]) -> str:
+def tool_result_json(output: Mapping[str, Any]) -> str:
     """What livekit puts in the tool_result block: the lookup's object, as a JSON string."""
     return json.dumps(dict(output), ensure_ascii=False)
 
@@ -118,7 +118,7 @@ class TurnLookups:
     @property
     def declared_tools(self) -> list[agents.Tool]:
         """recall and search as livekit declares a tool, when the class declared what they read."""
-        return declared(platform_tools(self._config), self.called)
+        return declare_tools(platform_tools(self._config), self.called)
 
     @property
     def items(self) -> tuple[agents.ChatItem, ...]:
@@ -180,7 +180,7 @@ class TurnLookups:
             raise ToolError(
                 NOT_LOOKED_UP.format(tool=tool, why=str(failed) or type(failed).__name__)
             ) from failed
-        return as_tool_result(output)
+        return tool_result_json(output)
 
     @property
     def _what_the_platform_runs(self) -> tuple[PlatformTool, ...]:
@@ -278,7 +278,7 @@ class TurnLookups:
             agents.FunctionCallOutput(
                 call_id=call_id,
                 name=tool,
-                output=as_tool_result(output),
+                output=tool_result_json(output),
                 is_error=False,
                 reply_required=False,
             ),

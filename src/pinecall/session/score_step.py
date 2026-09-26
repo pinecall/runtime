@@ -21,6 +21,6 @@ def nobody_judged(why: str) -> CallScore:
     return CallScore(judges=[], panel=[], judge_calls=0, not_judged=why)
 
 
-async def unjudged(entries: Sequence[Entry], config: AgentConfig) -> CallScore:  # noqa: ARG001
+async def unjudged_score(entries: Sequence[Entry], config: AgentConfig) -> CallScore:  # noqa: ARG001
     """The verdict of a session nobody handed a judge: no verdict, and the reason there is none."""
     return nobody_judged(NOBODY_JUDGED)

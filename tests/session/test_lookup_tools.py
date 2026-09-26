@@ -12,7 +12,7 @@ import pytest
 from livekit.agents import llm as agents
 
 from pinecall.session.lookup_tools import NoLookup, TurnLookups
-from pinecall.session.platform_block import a_line_for_the_file_it_ships_with
+from pinecall.session.platform_block import log_shipped_file
 from pinecall.session.tool_declaration import ToolUse
 from pinecall.types import AgentConfig, Blocks, Docs, MemoryPolicy, PlatformTool
 
@@ -313,7 +313,7 @@ async def test_the_file_a_class_ships_with_gets_a_line_of_its_own_in_the_log() -
         written.append((type, data))
 
     blocks = Blocks(knowledge="La revisión son cuarenta euros.")
-    await a_line_for_the_file_it_ships_with(blocks, emit)
+    await log_shipped_file(blocks, emit)
     ((type, said),) = written
     assert type == "prompt.changed"
     assert said.name == "knowledge"
@@ -327,7 +327,7 @@ async def test_a_class_that_ships_no_file_writes_no_line_about_one() -> None:
     async def emit(type: str, data: Any) -> None:
         written.append((type, data))
 
-    await a_line_for_the_file_it_ships_with(Blocks(), emit)
+    await log_shipped_file(Blocks(), emit)
     assert written == []
 
 

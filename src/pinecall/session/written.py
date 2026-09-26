@@ -27,7 +27,7 @@ WRITTEN_TURNS: TurnHandlingOptions = {
 }
 
 
-def a_written_session(llm: LLM[Any]) -> AgentSession[None]:
+def build_written_session(llm: LLM[Any]) -> AgentSession[None]:
     """One written call's session: vad=None keeps livekit from building ears nobody listens with."""
     written: AgentSession[None] = AgentSession(
         llm=llm,

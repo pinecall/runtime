@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from livekit import rtc
 from livekit.agents.voice import AgentSession
 
-from pinecall.session.voice.on_hold import silenced
+from pinecall.session.voice.on_hold import silence
 from pinecall.session.voice.room.room_events import LEFT
 from pinecall.session.voice.room.room_handle import Holding
 from pinecall_protocol.defs import EndReason
@@ -45,7 +45,7 @@ class Bridged:
     async def took(self, identity: str) -> None:
         """The person answered: the agent stops speaking and hearing, and the call is theirs."""
         self._leg = identity
-        await silenced(self._live, "the warm transfer took the line")
+        await silence(self._live, "the warm transfer took the line")
         # Whatever closes this session from here, the log says the caller was transferred.
         self._ending.transferred()
         self._holding.room.on(LEFT, self._somebody_left)  # pyright: ignore[reportUnknownMemberType] — livekit's callback is `(...) -> Unknown`

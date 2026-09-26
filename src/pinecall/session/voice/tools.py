@@ -80,7 +80,7 @@ class Tools:
             # ToolError is how livekit sets is_error on the output the model reads back.
             raise ToolError(text)
         if spec.confirm:
-            self.read_backs[use.call_id] = rendered(spec.confirm, use.arguments, result)
+            self.read_backs[use.call_id] = render_confirm(spec.confirm, use.arguments, result)
         return text
 
     async def _through_app(self, spec: ToolSpec, use: ToolCall) -> defs.ToolResult:
@@ -140,7 +140,7 @@ class Tools:
 # The template is the tenant's own sentence and the arguments are what the model asked for, so
 # the read-back says what was actually done and not what the model believes it did. `result`
 # reaches the template too: a booking that came back with a reference can read it out.
-def rendered(template: str, arguments: Mapping[str, Any], result: defs.ToolResult) -> str:
+def render_confirm(template: str, arguments: Mapping[str, Any], result: defs.ToolResult) -> str:
     """The confirm template with its names filled in from the call and from what came back."""
     said: dict[str, Any] = {**dict(arguments), "result": result.output}
     return _A_PLACEHOLDER.sub(lambda found: _read(said, found.group(1), found.group(0)), template)

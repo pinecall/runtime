@@ -33,7 +33,7 @@ NOT_A_ROOM_CONFIG = "room_config is not a LiveKit RoomConfiguration: {reason}"
 # holds — so the one worker every org shares resolves the agent, the keys and the log of THIS
 # org, and a sandbox visit lands in the developer's own corner and not the org's. The fleet is the
 # instance's own (`settings.fleet`): the SFU is shared, and the name is what keeps a call here.
-def a_dispatch(
+def build_dispatch(
     fleet: str,
     agent: str,
     scope: str,
@@ -63,7 +63,7 @@ def a_dispatch(
 # endpoint: "The client SDKs automatically package agent information … into room_config"). This
 # is how a client that knows nothing of Pinecall still says which agent it came for. protobuf's
 # own parser reads either spelling of the key, so neither is spelled here.
-def the_agent_a_client_named(room_config: Mapping[str, Any] | None) -> str | None:
+def client_named_agent(room_config: Mapping[str, Any] | None) -> str | None:
     """`agentName` as the client SDKs send it, or None when the body named no agent that way."""
     if not room_config:
         return None

@@ -11,7 +11,7 @@ from starlette.requests import HTTPConnection
 from pinecall.api.deps import DeclarationKeyDep, PipelineKeyDep, held
 from pinecall.api.scope.request_scope import AnAgentHeld, CornerDep
 from pinecall.orgs.hold_melody import Chosen, HoldAudio
-from pinecall.session.hold_melody import DEFAULT, converted
+from pinecall.session.hold_melody import DEFAULT, convert_melody
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -98,7 +98,7 @@ async def upload(
     data = await request.body()
     if len(data) > MAX_BYTES:
         raise HTTPException(413, TOO_BIG)
-    melody = await asyncio.to_thread(converted, data)
+    melody = await asyncio.to_thread(convert_melody, data)
     named = (name or "").strip() or None
     chosen = Chosen(played="custom", sha256=melody.sha256, seconds=melody.seconds, name=named)
     await kept.keep(key.org, slug, chosen, melody.audio)

@@ -685,7 +685,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   for one they had applied weeks ago. It had the table's answer two lines above it.
 - **`migrate status` asks the database about post-deployment files too.** Every `.post.sql` read
   `waiting` off the disk alone, so one a person had already applied still looked pending for ever.
-  Each file is now `applied`, `behind` (a startup file this database has not run) or `waiting`, by
+  Each file is now `apply_verb`, `behind` (a startup file this database has not run) or `waiting`, by
   what the table says, and what waits is counted at the end.
 - **Nothing this runtime refuses reaches a terminal as a traceback.** The dispatcher prints any
   refusal the runtime raises deliberately as one sentence on stderr and exits 1. The one that made
@@ -1550,7 +1550,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   neither: a number exists once in a world, so the shared sandbox number is answered by the
   newest run, and `GET /v1/agents` lists what the reader can actually reach — never another
   developer's socket.
-- **One rule for "a call a run opened has no opening".** Both sessions ask `the_greeting_for`
+- **One rule for "a call a run opened has no opening".** Both sessions ask `greeting_for`
   with the call's `run`; the eval runner no longer rewrites the class's config with `greeting=None`.
   The three first entries of a call (`call.ringing`, `call.dialing`, `call.started`) are built in
   one module, `session/first_entries.py`, instead of three copies.

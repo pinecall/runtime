@@ -8,7 +8,7 @@ from typing import Protocol
 from livekit import api
 
 from pinecall._settings import Settings
-from pinecall.routes.inbound_trunks import by_name, once_named
+from pinecall.routes.inbound_trunks import first_named, once_named
 from pinecall.routes.sfu import Sfu
 from pinecall.types import SipTransport
 
@@ -86,7 +86,7 @@ class LivekitOutbound:
     ) -> api.SIPOutboundTrunkInfo | None:
         """The org's outbound trunk: by the name it carries now, else by the one it once did."""
         standing = await livekit.sip.list_outbound_trunk(api.ListSIPOutboundTrunkRequest())
-        return by_name(
+        return first_named(
             standing.items,
             TRUNK_NAME.format(fleet=self._fleet, org=org),
             *once_named(LEGACY_TRUNK, self._fleet, org),

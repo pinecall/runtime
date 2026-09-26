@@ -53,7 +53,7 @@ RETURNING version
 )
 
 
-def a_lexicon(row: Mapping[str, Any]) -> Kept[Lexicon]:
+def lexicon_from_row(row: Mapping[str, Any]) -> Kept[Lexicon]:
     """One lexicon row as the store hands it back."""
     return Kept(
         holder=str(row["holder"]),

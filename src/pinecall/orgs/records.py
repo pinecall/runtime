@@ -80,7 +80,7 @@ class MemoryOrgs:
         """One org per slug, as the table's UNIQUE would insist."""
         if any(org.slug == slug for org in self._rows.values()):
             return None
-        org = Org(id=an_org_id(), slug=slug, name=name)
+        org = Org(id=new_org_id(), slug=slug, name=name)
         self._rows[org.id] = org
         return org
 
@@ -185,7 +185,7 @@ class PostgresOrgs:
 
     async def create(self, slug: str, name: str) -> Org | None:
         """One INSERT; an empty RETURNING is the slug already being somebody's."""
-        row = await self._pool.fetchrow(_CREATE, an_org_id(), slug, name)
+        row = await self._pool.fetchrow(_CREATE, new_org_id(), slug, name)
         return None if row is None else _an_org(row)
 
     async def mirrored(self, org: Org) -> Org | None:
@@ -239,7 +239,7 @@ class PostgresOrgs:
         await self._pool.execute(_SET_JUDGING, id, on)
 
 
-def an_org_id() -> str:
+def new_org_id() -> str:
     """A name for the row. It is not a secret: it names the tenant in every table that has one."""
     return f"{ORG_ID_PREFIX}{secrets.token_hex(ORG_ID_BYTES)}"
 

@@ -20,7 +20,7 @@ from pinecall.api.deps import (
 )
 from pinecall.auth.keys import KeyRecord, cannot_open, is_held_by
 from pinecall.auth.request_scope import author_of
-from pinecall.orgs.tuning_resolution import as_json
+from pinecall.orgs.tuning_resolution import tuning_json
 from pinecall.orgs.tuning_store import HISTORY_LIMIT, TuningStore
 from pinecall.orgs.vault import brought_by
 from pinecall.providers.session_vendors import first_unlent_vendor
@@ -121,7 +121,7 @@ def a_row(kept: Kept[Tuning]) -> TuningRow:
         author=kept.author,
         note=kept.note,
         set_at=kept.set_at.timestamp(),
-        config=TuningBody.model_validate(as_json(kept.value)),
+        config=TuningBody.model_validate(tuning_json(kept.value)),
     )
 
 
@@ -221,8 +221,8 @@ async def put(
 
 def differing(ours: Kept[Tuning] | None, theirs: Kept[Tuning] | None) -> list[str]:
     """The fields set differently between two versions, by name; every set one when one is None."""
-    mine = {} if ours is None else as_json(ours.value)
-    yours = {} if theirs is None else as_json(theirs.value)
+    mine = {} if ours is None else tuning_json(ours.value)
+    yours = {} if theirs is None else tuning_json(theirs.value)
     return sorted(name for name in set(mine) | set(yours) if mine.get(name) != yours.get(name))
 
 

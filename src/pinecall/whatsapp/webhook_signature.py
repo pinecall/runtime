@@ -13,7 +13,7 @@ _SHA256 = "sha256="
 
 # The RAW body, never the parsed dict: JSON round-tripped through Python is not the bytes Meta
 # hashed — a re-encoded body differs in whitespace and key order, and every signature would fail.
-def signed(app_secret: str, body: bytes, header: str | None) -> bool:
+def is_signed(app_secret: str, body: bytes, header: str | None) -> bool:
     """Whether this body is the one Meta signed. A missing or malformed header is a no."""
     if header is None or not header.startswith(_SHA256):
         return False

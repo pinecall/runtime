@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from livekit.agents import llm as agents
 
-from pinecall.session.history import remembered
+from pinecall.session.history import append_history
 from pinecall.session.supervise_prompts import (
     A_RELEASE,
     A_WHISPER,
@@ -31,7 +31,7 @@ from pinecall_protocol.events import (
 # shared base class, because the halves that differ — a room's audio switches against a queue of
 # text — are the whole body of every method. What IS shared lives in session/supervise_prompts.py.
 # See docs/decisions/supervise.md.
-async def applied(session: TextSession, command: SupervisorVerb) -> None:
+async def apply_verb(session: TextSession, command: SupervisorVerb) -> None:
     """One verb: its entry, then the session. A ProtocolError is a refusal the door answers with."""
     by, verb = command.by, command.verb
     match verb:
@@ -64,7 +64,7 @@ async def _whisper(session: TextSession, by: Supervisor, text: str) -> None:
     """whisper: an instruction the caller never reads, binding from the next sentence on."""
     await session.emit("supervisor.whispered", SupervisorWhispered(by=by, text=text))
     note = A_WHISPER.format(text=text)
-    await remembered(session.text_agent, agents.ChatMessage(role="system", content=[note]))
+    await append_history(session.text_agent, agents.ChatMessage(role="system", content=[note]))
     # A human is on the thread: a turn generated now would write over what they are typing.
     if session.taken_by is None:
         await session.nudged(note)
@@ -86,7 +86,7 @@ async def _release(session: TextSession, by: Supervisor) -> None:
         raise ProtocolError(NOBODY_HOLDS)
     await session.emit("supervisor.released", SupervisorReleased(by=by))
     session.taken_by = None
-    await remembered(session.text_agent, agents.ChatMessage(role="system", content=[A_RELEASE]))
+    await append_history(session.text_agent, agents.ChatMessage(role="system", content=[A_RELEASE]))
     await session.nudged(A_RELEASE)
 
 

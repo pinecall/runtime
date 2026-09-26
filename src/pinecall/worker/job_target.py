@@ -97,8 +97,8 @@ async def arrival_of(job: jobs.Job, room: rtc.Room) -> Arrival:
     said = _metadata(job.metadata)
     agent = _text(said.get(AGENT_KEY))
     outbound = said.get(DIRECTION_KEY) == "outbound"
-    leg = await sip.the_sip_leg(room, wait=NOT_WAITED_FOR if agent else sip.WAIT_FOR_THE_LEG_S)
-    numbers = sip.the_numbers(leg.attributes if leg is not None else {})
+    leg = await sip.wait_for_sip_leg(room, wait=NOT_WAITED_FOR if agent else sip.WAIT_FOR_THE_LEG_S)
+    numbers = sip.sip_numbers(leg.attributes if leg is not None else {})
     return Arrival(
         caller=numbers.caller or _text(said.get(CALLER_KEY)) or job.room.name,
         # A dialled call has no SIP seat to read yet — this job is what will place it — so the

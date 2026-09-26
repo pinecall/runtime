@@ -8,7 +8,7 @@ import pytest
 from pinecall.log.store import Pool, open_pool
 from pinecall.orgs.org_sso import PostgresSso
 from pinecall.orgs.records import PostgresOrgs
-from pinecall.orgs.vault import a_cipher
+from pinecall.orgs.vault import build_cipher
 from pinecall.orgs.widgets import PostgresWidgets, Widget
 from pinecall.types import QUOTAS, OrgSso, Quotas
 from tests.api.conftest import A_VAULT_KEY
@@ -123,7 +123,7 @@ async def test_an_orgs_provider_round_trips_and_the_secret_is_not_in_the_row(
     pool: Pool, org: str
 ) -> None:
     """One row per org, replaced whole, and the client secret a Fernet token in the column."""
-    sso = PostgresSso(pool, a_cipher(A_VAULT_KEY))
+    sso = PostgresSso(pool, build_cipher(A_VAULT_KEY))
     assert await sso.of(org) is None
     wired = OrgSso(
         org=org,

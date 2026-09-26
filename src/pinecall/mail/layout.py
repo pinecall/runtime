@@ -115,7 +115,7 @@ def wordmark(brand: Brand) -> str:
     )
 
 
-def a_letter(preheader: str, content: str, footer: str, brand: Brand) -> str:
+def frame_letter(preheader: str, content: str, footer: str, brand: Brand) -> str:
     """One letter, framed: the logo when there is one, the white card, the quiet line underneath."""
     return (
         "<!DOCTYPE html>\n"

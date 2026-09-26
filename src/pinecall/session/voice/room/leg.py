@@ -18,7 +18,7 @@ def leg_identity(to: str) -> str:
     return f"{LEG_PREFIX}{to}"
 
 
-def a_leg(
+def build_sip_leg(
     trunk: str,
     to: str,
     room: str,
