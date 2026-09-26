@@ -12,15 +12,15 @@ from pinecall.session.lookup_tools import Lookup
 from pinecall.session.remember_step import Rememberer
 from pinecall.session.voice.platform import Platform
 from pinecall.types import AgentConfig, CallContext, Route, ToolSpec
-from pinecall.worker import retrying
-from pinecall.worker.client import (
+from pinecall.worker import retries
+from pinecall.worker.gateway_client import (
     CONFIG,
     CONTEXT,
     ROUTES,
     Gateway,
     reaching,
 )
-from pinecall.worker.hop import EVENT_STREAM, GatewayRefused
+from pinecall.worker.gateway_http import EVENT_STREAM, GatewayRefused
 from tests.worker.fakes import Seen, a_gateway
 
 pytestmark = pytest.mark.unit
@@ -266,7 +266,7 @@ async def test_an_append_is_asked_again_while_the_gateway_is_away_and_lands_once
     async def slept(_seconds: float) -> None:
         return None
 
-    monkeypatch.setattr(retrying.asyncio, "sleep", slept)
+    monkeypatch.setattr(retries.asyncio, "sleep", slept)
     answers = iter([httpx.Response(503), httpx.Response(502), httpx.Response(204)])
     asked: list[str] = []
 

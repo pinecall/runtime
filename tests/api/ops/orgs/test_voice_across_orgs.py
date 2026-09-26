@@ -20,8 +20,8 @@ from pinecall.types import (
     CallContext,
     Route,
 )
-from pinecall.worker.client import Gateway
-from pinecall.worker.hop import GatewayRefused
+from pinecall.worker.gateway_client import Gateway
+from pinecall.worker.gateway_http import GatewayRefused
 from pinecall_protocol import defs
 from tests.api.conftest import A_RECORD, AGENT, over_the_asgi_app
 

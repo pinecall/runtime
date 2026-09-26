@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from livekit.api.twirp_client import SipCallError
 
-from pinecall.worker import dialling
+from pinecall.worker import outbound_leg
 
 pytestmark = pytest.mark.unit
 
@@ -20,7 +20,7 @@ A_DIAL: dict[str, Any] = {
 
 
 def test_the_dispatch_is_read_as_the_gateway_wrote_it() -> None:
-    wanted = dialling.asked_of(A_DIAL)
+    wanted = outbound_leg.asked_of(A_DIAL)
     assert wanted is not None
     assert (wanted.trunk, wanted.to, wanted.shown, wanted.max_duration_s) == (
         "ST_out",
@@ -42,11 +42,11 @@ def test_the_dispatch_is_read_as_the_gateway_wrote_it() -> None:
     ],
 )
 def test_anything_that_is_not_a_dial_reads_as_none(said: Any) -> None:
-    assert dialling.asked_of(said) is None
+    assert outbound_leg.asked_of(said) is None
 
 
 def test_a_ceiling_nobody_set_is_no_ceiling_rather_than_a_guess() -> None:
-    wanted = dialling.asked_of({**A_DIAL, "max_duration_s": None})
+    wanted = outbound_leg.asked_of({**A_DIAL, "max_duration_s": None})
     assert wanted is not None and wanted.max_duration_s == 0
 
 
@@ -70,9 +70,9 @@ def test_the_carriers_answer_becomes_the_logs_own_word_for_it(
 ) -> None:
     metadata = {} if code is None else {"sip_status_code": str(code)}
     refused = SipCallError("unavailable", "the carrier said no", status=503, metadata=metadata)
-    assert dialling.how_it_failed(refused) == reason
+    assert outbound_leg.how_it_failed(refused) == reason
 
 
 def test_anything_that_is_not_a_sip_answer_is_a_dial_that_failed() -> None:
     """A trunk that is not there, an address that does not resolve: not busy, and not an answer."""
-    assert dialling.how_it_failed(RuntimeError("no such trunk")) == "dial_failed"
+    assert outbound_leg.how_it_failed(RuntimeError("no such trunk")) == "dial_failed"

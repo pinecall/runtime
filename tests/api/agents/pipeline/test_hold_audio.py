@@ -17,7 +17,7 @@ from pinecall.api.app import app
 from pinecall.orgs.hold_melody import MemoryHoldAudio
 from pinecall.orgs.tuning_store import MemoryTuning
 from pinecall.session.hold_melody import DEFAULT, NOT_AUDIO
-from pinecall.worker.client import Gateway
+from pinecall.worker.gateway_client import Gateway
 from tests.api.agents.pipeline.conftest import declared
 from tests.api.conftest import AGENT, PIPELINE
 

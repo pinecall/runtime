@@ -10,8 +10,8 @@ from pathlib import Path
 
 from pinecall.session.hold_melody import DEFAULT
 from pinecall.types import Env
-from pinecall.worker.client import Gateway
-from pinecall.worker.hop import GatewayRefused
+from pinecall.worker.gateway_client import Gateway
+from pinecall.worker.gateway_http import GatewayRefused
 
 logger = logging.getLogger(__name__)
 

@@ -82,7 +82,7 @@ class LivekitDispatches:
 
     # The room is not created first: livekit makes it when the dispatch lands, and its NAME is the
     # call id, which is what lets the worker's router read the log and the log find the room with
-    # nothing minted in between (worker/entry.py: `a_call(ctx.room.name …)`).
+    # nothing minted in between (worker/job.py: `a_call(ctx.room.name …)`).
     async def started(self, job: Job) -> None:
         """The worker dispatched into the call's own room, carrying whose it is and what to dial."""
         async with self._sfu.api() as livekit:

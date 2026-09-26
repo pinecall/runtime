@@ -15,7 +15,7 @@ from livekit.protocol import agent as jobs
 from livekit.protocol import models
 
 from pinecall.session.voice import time_limit
-from pinecall.worker.client import Gateway
+from pinecall.worker.gateway_client import Gateway
 from pinecall_protocol import Command
 
 

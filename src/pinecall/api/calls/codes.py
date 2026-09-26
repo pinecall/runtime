@@ -106,7 +106,7 @@ async def standing(
 
 # The worker's door: four tones close together, asked. 404 is the ordinary answer — the caller was
 # keying an extension — and it is the same 404 a call this gateway forgot answers, which is what
-# has the worker reopen the call and ask once more (worker/client.py).
+# has the worker reopen the call and ask once more (worker/gateway_client.py).
 @router.post("/v1/calls/{call}/claim", status_code=HTTP_204_NO_CONTENT)
 async def keyed(call: str, said: CallClaim, key: AppKeyDep, live: LiveDep, codes: CodesDep) -> None:
     """The caller keyed a code: this call is the one its page was waiting for, or 404."""

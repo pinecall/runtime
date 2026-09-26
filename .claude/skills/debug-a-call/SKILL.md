@@ -24,7 +24,7 @@ session's own `error` entries → `call.summary` (usage, cost) → `call.score` 
 is who RAN, `judges` who ANSWERED; `not_judged` means the session was built without a Scorer).
 
 A call with `turn.user` and no `turn.agent`: the LLM or TTS — see the worker's journal. A call
-with no `turn.user`: the STT, or the seat (`worker/seat.py`: which participant is the caller).
+with no `turn.user`: the STT, or the seat (`worker/caller_seat.py`: which participant is the caller).
 
 ## Drive a call
 

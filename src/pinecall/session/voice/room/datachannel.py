@@ -40,10 +40,10 @@ DATA: RoomEvent = "data_received"
 FROM_A_BROWSER: defs.EventSource = "participant"
 
 
-# What the DataChannel asks the gateway for, and all it asks. The worker never learns a seq when
-# it writes — the gateway numbers the log — so the entries a browser gets are READ back, numbered,
-# through the doors worker/client.py knocks on. A Protocol, and not the Gateway itself, because the
-# tests script a log in memory with a live tail, which no HTTP fake could do as plainly.
+# What the DataChannel asks the gateway for, and all it asks. The worker never learns a seq when it
+# writes — the gateway numbers the log — so the entries a browser gets are READ back, numbered,
+# through the doors worker/gateway_client.py knocks on. A Protocol, and not the Gateway itself,
+# because the tests script a log in memory with a live tail, which no HTTP fake could do as plainly.
 class Reading(Protocol):
     """The call's log as the gateway lets the worker read it: state now, a page, the tail."""
 

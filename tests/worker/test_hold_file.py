@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 
 from pinecall.session.hold_melody import DEFAULT
-from pinecall.worker.hold import the_melody
-from pinecall.worker.hop import GatewayRefused
+from pinecall.worker.gateway_http import GatewayRefused
+from pinecall.worker.hold_file import the_melody
 from pinecall.worker.wire import HoldAudioSaid
 
 pytestmark = pytest.mark.unit

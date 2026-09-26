@@ -34,7 +34,7 @@ infra/box/
 ## What keeps a call's audio
 
 A recording is one **room composite egress** per call, asked for by the worker the moment the room
-exists and stopped when the call ends (`worker/egress.py`). It writes
+exists and stopped when the call ends (`worker/recorder.py`). It writes
 `/var/lib/pinecall/recordings/<instance>/<call>/audio.ogg` — each instance's `PINECALL_RECORDINGS`
 is a directory of its own under the root egress mounts — which is the path `call.summary` points
 at and the path `GET /v1/calls/{call}/recording` serves from.

@@ -7,7 +7,7 @@ import logging
 import time
 from collections.abc import Awaitable, Callable, Iterator
 
-from pinecall.worker.hop import GatewayRefused
+from pinecall.worker.gateway_http import GatewayRefused
 
 logger = logging.getLogger(__name__)
 

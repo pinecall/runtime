@@ -13,7 +13,7 @@ from pinecall.log.entry import Entry
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.types import PRODUCTION
-from pinecall.worker.client import Gateway
+from pinecall.worker.gateway_client import Gateway
 from pinecall_protocol import defs
 from pinecall_protocol.events import ToolCall
 from tests.api.conftest import A_RECORD, AGENT

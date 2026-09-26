@@ -15,7 +15,7 @@ from pinecall.log.replay import whole
 router = APIRouter()
 
 # The pointer travels in the call's summary and nowhere else: the worker composes it
-# (worker/recordings.py) and the log states it there, once, near the end.
+# (worker/recording_paths.py) and the log states it there, once, near the end.
 THE_SUMMARY = "call.summary"
 AUDIO = "audio/ogg"
 

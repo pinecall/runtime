@@ -21,8 +21,9 @@ from pinecall.auth.scopes import SCOPE_ATTRIBUTE
 from pinecall.session.voice.platform import Platform
 from pinecall.types import AgentConfig, CallContext, Route
 from pinecall.types.dispatch import SCOPE_KEY, WRITTEN_SCOPE
-from pinecall.worker import entry, recordings, router
-from pinecall.worker.recordings import Keeping
+from pinecall.worker import job as job_module
+from pinecall.worker import job_target, recording_paths
+from pinecall.worker.recording_paths import Keeping
 from tests.session.fake_llm import FakeLLM
 from tests.session.voice.room.fakes import (
     FakeParticipant,
@@ -41,11 +42,11 @@ CLINICA_ON_THE_WEB = Route(org="pinecall", agent="clinica-norte", channel="web")
 
 async def test_the_door_decides_the_channel_and_the_job_decides_the_rest() -> None:
     room = a_connected_room(a_caller("+59897777", dialled="+59891111"))
-    arrival = await router.arrival_of(
+    arrival = await job_target.arrival_of(
         a_job(room="call_room_1", metadata={"agent": "clinica-norte", "why": "a follow-up"}),
         as_a_room(room),
     )
-    context = entry.a_call("call_room_1", arrival, CLINICA, "UTC")
+    context = job_module.a_call("call_room_1", arrival, CLINICA, "UTC")
     assert (context.call, context.channel, context.caller) == ("call_room_1", "phone", "+59897777")
     assert context.route == CLINICA
     assert context.metadata["why"] == "a follow-up"
@@ -57,7 +58,7 @@ async def test_the_shutdown_callback_tells_the_bridge_then_seals_the_log() -> No
     seen: list[Seen] = []
     gateway = a_gateway(seen=seen)
     bridge = CountingBridge(Agent(instructions="You are Clara.", llm=FakeLLM()))  # pyright: ignore[reportUnknownMemberType]
-    await entry.sealing(gateway, bridge, "call_room_1")("caller_hung_up")
+    await job_module.sealing(gateway, bridge, "call_room_1")("caller_hung_up")
     assert bridge.closed_because == "caller_hung_up"
     assert [(one.method, one.path) for one in seen] == [("POST", "/v1/calls/call_room_1/sealed")]
 
@@ -65,8 +66,8 @@ async def test_the_shutdown_callback_tells_the_bridge_then_seals_the_log() -> No
 def test_the_pointer_is_composed_without_touching_the_job_at_all(tmp_path: Path) -> None:
     """The box's recorder writes this file, so nothing of livekit's own is redirected for it."""
     job = _a_job_nobody_may_touch()
-    audio = entry.where_the_audio_goes(job, "call_room_1", lambda call: tmp_path / call)
-    assert audio == tmp_path / "call_room_1" / recordings.AUDIO_FILE
+    audio = recording_paths.where_the_audio_goes(job, "call_room_1", lambda call: tmp_path / call)
+    assert audio == tmp_path / "call_room_1" / recording_paths.AUDIO_FILE
 
 
 class _FarEnough(Exception):
@@ -84,7 +85,7 @@ async def test_a_written_call_keeps_no_recording_even_on_a_box_that_keeps_audio(
     )
     job = _a_job_that_records([], scope=WRITTEN_SCOPE)
     with pytest.raises(_FarEnough):
-        await entry.answer(cast(JobContext, job), worker)
+        await job_module.answer(cast(JobContext, job), worker)
     assert handed == [None]
 
 
@@ -96,7 +97,7 @@ async def test_an_agent_whose_world_says_not_to_record_keeps_no_audio(tmp_path: 
     )
     job = _a_job_that_records([])
     with pytest.raises(_FarEnough):
-        await entry.answer(cast(JobContext, job), worker)
+        await job_module.answer(cast(JobContext, job), worker)
     assert handed == [None]
     assert job.recorded == []
 
@@ -113,20 +114,20 @@ async def test_a_call_that_keeps_its_audio_asks_the_box_to_record_the_room(tmp_p
     )
     job = _a_job_that_records([])
     with pytest.raises(_FarEnough):
-        await entry.answer(cast(JobContext, job), worker)
+        await job_module.answer(cast(JobContext, job), worker)
 
-    assert handed == [tmp_path / "call_1" / recordings.AUDIO_FILE]
+    assert handed == [tmp_path / "call_1" / recording_paths.AUDIO_FILE]
     (asked,) = job.recorded
     # The room's name IS the call id, which is what lets a reader of the log find the audio.
     assert asked.room_name == "call_1"
     assert asked.audio_only is True
     # Never DUAL_CHANNEL_AGENT: it carries one track per participant and drops the melody, which
-    # is measured in worker/egress.py and is the whole reason this records the room.
+    # is measured in worker/recorder.py and is the whole reason this records the room.
     assert asked.audio_mixing == proto.AudioMixing.DEFAULT_MIXING
     assert not asked.layout and not asked.custom_base_url  # the shape that runs without a browser
     (output,) = asked.file_outputs
     assert output.file_type == proto.EncodedFileType.OGG
-    assert output.filepath == str(tmp_path / "call_1" / recordings.AUDIO_FILE)
+    assert output.filepath == str(tmp_path / "call_1" / recording_paths.AUDIO_FILE)
 
 
 async def test_a_recorder_that_will_not_take_the_job_still_takes_the_call(tmp_path: Path) -> None:
@@ -137,7 +138,7 @@ async def test_a_recorder_that_will_not_take_the_job_still_takes_the_call(tmp_pa
     )
     job = _a_job_that_records([], recorder_refuses=True)
     with pytest.raises(_FarEnough):
-        await entry.answer(cast(JobContext, job), worker)
+        await job_module.answer(cast(JobContext, job), worker)
     assert handed == [None]
 
 
@@ -145,7 +146,7 @@ async def test_every_livekit_line_of_the_call_names_the_room_it_belongs_to() -> 
     """One assignment at the top of the job, and a box running forty calls can read its log."""
     job = _a_job_that_records([])
     with pytest.raises(_FarEnough):
-        await entry.answer(cast(JobContext, job), _a_worker())
+        await job_module.answer(cast(JobContext, job), _a_worker())
     assert job.log_context_fields == {"room": "call_room_1"}
 
 
@@ -155,7 +156,7 @@ async def test_the_fleets_routes_are_asked_for_while_the_room_is_still_being_joi
     order: list[str] = []
     job = _a_job_that_records(order)
     with pytest.raises(_FarEnough):
-        await entry.answer(cast(JobContext, job), _a_worker(order))
+        await job_module.answer(cast(JobContext, job), _a_worker(order))
     assert order.index("routes asked") < order.index("connected")
 
 
@@ -184,11 +185,11 @@ async def test_a_room_the_agent_reached_first_leaves_livekits_own_rule_in_place(
 # box's recorder for the room — which is a door, and a door nothing else here is about.
 def _a_worker(
     order: list[str] | None = None,
-    bridging: entry.Bridging | None = None,
+    bridging: job_module.Bridging | None = None,
     *,
     records: bool = False,
     keeping: Keeping | None = None,
-) -> entry.Worker:
+) -> job_module.Worker:
     """The worker one job runs on: both of the agent's doors, and a bridge that stops it."""
     seen: list[Seen] = []
     gateway = a_gateway(
@@ -204,7 +205,7 @@ def _a_worker(
         seen=seen,
         watching=_records("routes asked", order),
     )
-    return entry.Worker(
+    return job_module.Worker(
         gateway=gateway,
         kit=FakeKit(FakeLLM()),
         bridging=bridging or _a_bridge_that_refuses,
@@ -212,12 +213,12 @@ def _a_worker(
     )
 
 
-def _a_bridge_that_notes(handed: list[Path | None]) -> entry.Bridging:
+def _a_bridge_that_notes(handed: list[Path | None]) -> job_module.Bridging:
     """A bridging seam that writes down the pointer it was born with, and then stops the job."""
 
     def bridging(
         context: CallContext, config: AgentConfig, platform: Platform, recording: Path | None
-    ) -> entry.Bridge:
+    ) -> job_module.Bridge:
         handed.append(recording)
         return _a_bridge_that_refuses(context, config, platform, recording)
 
@@ -229,7 +230,7 @@ def _a_bridge_that_refuses(
     config: AgentConfig,  # noqa: ARG001
     platform: Platform,  # noqa: ARG001
     recording: Path | None,  # noqa: ARG001
-) -> entry.Bridge:
+) -> job_module.Bridge:
     """One bridge per call, as the worker builds them; this one is never asked to say anything."""
     return _RefusesToOpen(Agent(instructions="You are Clara.", llm=FakeLLM()))  # pyright: ignore[reportUnknownMemberType]
 
@@ -354,10 +355,10 @@ async def _the_session_started_in(monkeypatch: pytest.MonkeyPatch, room: rtc.Roo
         """`session.a_session` for this job: the recorder, whatever it was asked to build."""
         return built
 
-    monkeypatch.setattr(entry.session, "a_session", a_session)
+    monkeypatch.setattr(job_module.session, "a_session", a_session)
     job = _a_job_that_records([], room)
     with pytest.raises(_FarEnough):
-        await entry.answer(cast(JobContext, job), _a_worker(bridging=_a_bridge_that_opens))
+        await job_module.answer(cast(JobContext, job), _a_worker(bridging=_a_bridge_that_opens))
     assert recorder.started_with is not None
     return recorder.started_with
 
@@ -367,7 +368,7 @@ def _a_bridge_that_opens(
     config: AgentConfig,  # noqa: ARG001
     platform: Platform,  # noqa: ARG001
     recording: Path | None,  # noqa: ARG001
-) -> entry.Bridge:
+) -> job_module.Bridge:
     """A bridge that lets the job through to the start it is here to watch."""
     return CountingBridge(Agent(instructions="You are Clara.", llm=FakeLLM()))  # pyright: ignore[reportUnknownMemberType]
 

@@ -9,8 +9,8 @@ from livekit.agents.cli import run_app
 
 from pinecall._settings import Settings, load_settings
 from pinecall.providers.session_vendors import warm_the_vendor_tables
-from pinecall.worker import overflow, recordings
-from pinecall.worker.client import reaching
+from pinecall.worker import overflow, recording_paths
+from pinecall.worker.gateway_client import reaching
 from pinecall.worker.heartbeat import Heartbeats
 from pinecall.worker.main import a_server, the_key_for, unset_livekit_variables
 
@@ -81,8 +81,8 @@ def run(arguments: argparse.Namespace) -> int:
     if RECORD_FLAG in flags:
         # Decided before the microphone is opened, so a `pinecall talk` of tomorrow does not
         # write over the one from today and the path is in the terminal from its first line.
-        destination = recordings.destination_for(recordings.a_console_session(), settings)
-        print(f"recording to {recordings.kept_by_the_console(destination)}")
+        destination = recording_paths.destination_for(recording_paths.a_console_session(), settings)
+        print(f"recording to {recording_paths.kept_by_the_console(destination)}")
     return hand_over(arguments.verb, flags, settings)
 
 

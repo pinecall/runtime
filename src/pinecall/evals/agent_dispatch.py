@@ -58,7 +58,7 @@ class Dispatch:
         self._api: api.LiveKitAPI | None = None
 
     # The dispatch is what puts the agent in the room: a room job whose metadata names the agent,
-    # which is the door `worker/router.py:arrival_of` reads first and the one an outbound call
+    # which is the door `worker/job_target.py:arrival_of` reads first and the one an outbound call
     # already arrives through. Nothing here dials anything and no SIP leg is waited for.
     async def __aenter__(self) -> None:
         self._api = api.LiveKitAPI(
@@ -108,7 +108,7 @@ class Dispatch:
 
     # A caller leaving is not a hangup. The agent is still seated and its job still running, so
     # `add_shutdown_callback` never fires — and that callback is where the log is SEALED and the
-    # recording's path is stated (worker/entry.py:95,191). The pointer lives in `call.summary` and
+    # recording's path is stated (worker/job.py:95,191). The pointer lives in `call.summary` and
     # nowhere else (api/calls/recording.py:17), so every simulated call left its audio on disk and
     # out of reach: 1.6 MB of ogg on the box, answered with "has no call.summary yet". A phone call
     # ends itself when the leg hangs up and livekit closes the room; a simulation has to hang up.

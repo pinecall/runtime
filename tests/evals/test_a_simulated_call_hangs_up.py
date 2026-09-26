@@ -1,7 +1,7 @@
 """A simulated caller hangs up, because leaving the room is not the same thing."""
 
 # Until it did, the agent stayed seated after the persona was done: its job never ended, the
-# shutdown callback that SEALS the log (worker/entry.py:95,191) only ran once livekit closed the
+# shutdown callback that SEALS the log (worker/job.py:95,191) only ran once livekit closed the
 # room on its own empty timeout, minutes later — and `call.summary` is the only place a
 # recording's path is ever written (api/calls/recording.py:17). So a run that had just finished
 # was answered with "has no call.summary yet" while its audio sat on the box, whole, unreachable.

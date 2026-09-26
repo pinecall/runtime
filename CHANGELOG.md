@@ -95,6 +95,16 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   none; a suite's run held one per run and closed it never.
 
 ### Changed
+- **Every module is named by what it holds.** A hundred and forty files across `types/`, `log/`,
+  `providers/`, `auth/`, `orgs/`, `routes/`, `tokens/`, `session/`, `whatsapp/`, `evals/`,
+  `memory/`, `knowledge/`, `lookups/`, `mail/` and `worker/` were named by a gerund or a bare
+  word that read only beside its package's name — `asking`, `knowing`, `hearing`, `hop`, `kit`,
+  `standing`, `table`, `facts` — and four of them were spelt the same in three directories. Each
+  is named by the noun it owns now (`model_requests`, `platform_block`, `stt_vocabulary`,
+  `gateway_http`, `vendors`, `vendor_status`, `records`, `call_facts`), the hold melody is one word
+  in every layer, `dialing` is spelt as the wire spells it, and no module is named after its own
+  package or a sibling one. An extension that imported a module by path imports the new one; the
+  public surface every `__all__` pins is unchanged.
 - **`api/` is folded by surface.** Seventy flat modules and five directories chosen by nobody are
   eleven directories named by who knocks and what for — `scope/`, `accounts/`, `agents/`, `calls/`,
   `memory/`, `knowledge/`, `evals/`, `telephony/`, `org/`, `ops/`, `whatsapp/` — and the modules
@@ -556,7 +566,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   an agent whose class had not said `web = true`. It now asks what the chat socket asks: is
   anybody holding this agent, in my world, in my org. A number is a row somebody bought; a page
   with a tag on it is not, and the two never had to have anything in common. The worker makes the
-  widget's route out of the dispatch it already carries (`worker/router.py`), the way the chat
+  widget's route out of the dispatch it already carries (`worker/job_target.py`), the way the chat
   socket has always minted one.
 
 ### Removed

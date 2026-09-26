@@ -8,7 +8,7 @@ import pytest
 from pinecall.api.agents.registry import Registry
 from pinecall.orgs.tuning_store import MemoryTuning
 from pinecall.types import PRODUCTION, Greeting, Tuning
-from pinecall.worker.client import Gateway
+from pinecall.worker.gateway_client import Gateway
 from pinecall_protocol import defs
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, over_the_asgi_app
 

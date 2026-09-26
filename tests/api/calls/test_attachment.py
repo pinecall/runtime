@@ -10,7 +10,7 @@ from pinecall.api.agents.registry import Registry
 from pinecall.api.calls.attachment import attached
 from pinecall.api.live import Live
 from pinecall.log.entry import Entry
-from pinecall.worker.client import Gateway
+from pinecall.worker.gateway_client import Gateway
 from pinecall_protocol import defs
 from pinecall_protocol.events import ToolCall
 from tests.api.conftest import AGENT

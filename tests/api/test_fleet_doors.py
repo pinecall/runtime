@@ -17,8 +17,8 @@ from pinecall.log.store import MemoryStore
 from pinecall.routes.records import MemoryRoutes
 from pinecall.types import DEFAULT_ORG, PRODUCTION, SANDBOX, THE_FLEET, Env, Route
 from pinecall.types.dispatch import Handover
-from pinecall.worker.client import Gateway
-from pinecall.worker.hop import GatewayRefused
+from pinecall.worker.gateway_client import Gateway
+from pinecall.worker.gateway_http import GatewayRefused
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, over_the_asgi_app
 from tests.api.peering import A_PEER_KEY, THERE, Scripting
 from tests.api.talking import answering_in
@@ -33,7 +33,7 @@ CALLBACKS = "/v1/callbacks"
 # scope — and that is not the tenant's key the rest of this suite holds, so one is issued here.
 @pytest.fixture
 async def fleet_gateway(wired: None, keys: MemoryKeys) -> AsyncIterator[Gateway]:  # noqa: ARG001
-    """worker/client.py over the real app, knocking with the fleet's own key."""
+    """worker/gateway_client.py over the real app, knocking with the fleet's own key."""
     issued = await keys.issue(
         DEFAULT_ORG, "the worker on this box", scopes=frozenset({THE_FLEET, "app", "calls"})
     )

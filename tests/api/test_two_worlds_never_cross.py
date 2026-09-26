@@ -13,7 +13,7 @@ from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.orgs.records import MemoryOrgs
 from pinecall.routes.records import MemoryRoutes
 from pinecall.types import PRODUCTION, ROLE_SCOPES, SANDBOX, Quotas, Route
-from pinecall.worker.client import CONTEXT
+from pinecall.worker.gateway_client import CONTEXT
 from tests.api.calls.tokens.test_the_door import minted
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS, CHAT, over_the_asgi_app
 from tests.api.talking import (

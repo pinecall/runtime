@@ -177,7 +177,7 @@ class TextSession:
         await self.live.start(  # pyright: ignore[reportUnknownMemberType]
             self.text_agent, record=False
         )
-        # The pair a voice call opens with too (worker/entry.py): seeded once, here, before the app
+        # The pair a voice call opens with too (worker/job.py): seeded once, here, before the app
         # has rendered a thing, so a caller who writes "mañana" is read by a model with a calendar.
         await remembered(self.text_agent, *date_tool.dated(self.context.today))
         await self.emit("call.started", started(self.context, self.agent, self._started_at))

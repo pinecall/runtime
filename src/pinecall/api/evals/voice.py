@@ -45,7 +45,7 @@ NO_LINE = "the simulated call could not be held: {broke}"
 class Calling(WireModel):
     """What a `--voice` run asks for: whose call, who is calling, and how spoilt their line is."""
 
-    # The caller mints it, because a room's name IS the call id (worker/entry.py:82) and the
+    # The caller mints it, because a room's name IS the call id (worker/job.py:82) and the
     # terminal has to be able to watch the log while the call is still happening.
     call: str
     agent: str

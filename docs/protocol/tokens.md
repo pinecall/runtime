@@ -37,7 +37,7 @@ client code is involved.
    for one is a browser joining a room nothing will answer in. The token's `room_config` is one
    `RoomAgentDispatch` to our worker pool, whose metadata names the agent and the corner, so the
    worker's router resolves it without a routes lookup — the widget's route is made out of that
-   metadata (`worker/router.py`), never looked up.
+   metadata (`worker/job_target.py`), never looked up.
 2. **The contact id, signed, and nothing PII.** `participant_metadata` — LiveKit's own claim —
    carries the org's opaque contact id (`contact` in our body) and nothing else. A name is refused
    (`participant_name`, `400`): the log would carry it. What the tenant's backend seals in

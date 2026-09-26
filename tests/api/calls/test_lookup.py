@@ -9,8 +9,8 @@ from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.log.store import MemoryStore
 from pinecall.orgs.tuning_store import MemoryTuning
 from pinecall.types import PRODUCTION, Docs, MemoryPolicy, Tuning
-from pinecall.worker.client import Gateway
-from pinecall.worker.hop import GatewayRefused
+from pinecall.worker.gateway_client import Gateway
+from pinecall.worker.gateway_http import GatewayRefused
 from pinecall_protocol import defs
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, over_the_asgi_app
 from tests.api.talking import a_context

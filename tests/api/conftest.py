@@ -64,7 +64,7 @@ from pinecall.routes.records import MemoryRoutes
 from pinecall.routes.twilio import TwilioFor
 from pinecall.tokens.ledger import MemoryTokens
 from pinecall.types import Brought, Model, Org, ProviderKeys
-from pinecall.worker.client import Gateway
+from pinecall.worker.gateway_client import Gateway
 from tests.api.fake_graph import FakeGraph
 from tests.routes.fakes import MemoryTrunks
 from tests.session.fake_llm import FakeLLM
@@ -358,7 +358,7 @@ def gateway(wired: None) -> Iterator[TestClient]:  # noqa: ARG001
 # while the worker's request is still waiting on it.
 @pytest.fixture
 async def worker_gateway(wired: None) -> AsyncIterator[Gateway]:  # noqa: ARG001
-    """worker/client.py over the real ASGI app, knocking with the org's key."""
+    """worker/gateway_client.py over the real ASGI app, knocking with the org's key."""
     http = over_the_asgi_app(f"Bearer {A_KEY}")
     yield Gateway(http)
     await http.aclose()

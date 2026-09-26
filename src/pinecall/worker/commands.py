@@ -8,9 +8,9 @@ from typing import Protocol
 
 from pinecall._exceptions import PinecallError
 from pinecall.log import REFUSED
-from pinecall.worker.client import Gateway
-from pinecall.worker.hop import GatewayRefused
-from pinecall.worker.retrying import away, delays
+from pinecall.worker.gateway_client import Gateway
+from pinecall.worker.gateway_http import GatewayRefused
+from pinecall.worker.retries import away, delays
 from pinecall_protocol import Command, encode
 from pinecall_protocol.events import ErrorEvent
 
@@ -32,7 +32,7 @@ class Applying(Protocol):
 # One stream per call, opened once the bridge exists so that the first prompt.set has somewhere to
 # land, and read in order: the app's commands are applied in the order the app sent them.
 #
-# This loop is cancelled by the job that seals the call (worker/entry.py, `letting_go`), so a stream
+# This loop is cancelled by the job that seals the call (worker/job.py, `letting_go`), so a stream
 # that ends while the loop is still running — cleanly, as a gateway stopping with grace ends it, or
 # cut — is never the call ending: it is the gateway going away, and the stream is opened again on a
 # capped backoff. A 4xx is the gateway's answer — the call is over, or not here — and the end.

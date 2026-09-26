@@ -13,10 +13,10 @@ from livekit.protocol.room import DeleteRoomRequest
 
 from pinecall._settings import Settings, load_settings
 from pinecall.fleet import HEARTBEAT_S
-from pinecall.worker import router
-from pinecall.worker.client import Gateway
-from pinecall.worker.entry import Worker, a_call
-from pinecall.worker.hop import GatewayRefused
+from pinecall.worker import job_target
+from pinecall.worker.gateway_client import Gateway
+from pinecall.worker.gateway_http import GatewayRefused
+from pinecall.worker.job import Worker, a_call
 from pinecall.worker.main import a_worker
 from pinecall_protocol import encode
 from pinecall_protocol.events import AgentTranscript, CallEnded
@@ -129,8 +129,8 @@ async def answer_the_overflow(ctx: JobContext, worker: Worker, says: str) -> Non
     began = time.monotonic()
     ctx.log_context_fields = {"room": ctx.job.room.name}
     _, routes = await asyncio.gather(ctx.connect(), worker.gateway.routes())
-    arrival = await router.arrival_of(ctx.job, ctx.room)
-    route = router.resolve(arrival, routes, worker.default_agent)
+    arrival = await job_target.arrival_of(ctx.job, ctx.room)
+    route = job_target.resolve(arrival, routes, worker.default_agent)
     config, brought = await asyncio.gather(
         worker.gateway.agent(route.agent), worker.gateway.provider_keys(route.agent)
     )

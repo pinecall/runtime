@@ -15,7 +15,7 @@ from pinecall.evals.hangup_score import JudgedWhen
 from pinecall.providers import llm, stt, tts
 from pinecall.session.voice import VoiceBridge, a_bridge
 from pinecall.worker import main
-from pinecall.worker.entry import Worker
+from pinecall.worker.job import Worker
 from pinecall.worker.load import MachineLoad, SlotLoad, reports_no_load
 
 pytestmark = pytest.mark.unit

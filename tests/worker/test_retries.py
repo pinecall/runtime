@@ -7,9 +7,9 @@ from collections.abc import Awaitable, Callable
 
 import pytest
 
-from pinecall.worker import retrying
-from pinecall.worker.hop import GatewayRefused
-from pinecall.worker.retrying import again, away, delays
+from pinecall.worker import retries
+from pinecall.worker.gateway_http import GatewayRefused
+from pinecall.worker.retries import again, away, delays
 
 pytestmark = pytest.mark.unit
 
@@ -22,7 +22,7 @@ def no_waiting(monkeypatch: pytest.MonkeyPatch) -> list[float]:
     async def slept(seconds: float) -> None:
         waited.append(seconds)
 
-    monkeypatch.setattr(retrying.asyncio, "sleep", slept)
+    monkeypatch.setattr(retries.asyncio, "sleep", slept)
     return waited
 
 

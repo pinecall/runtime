@@ -5,8 +5,8 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from pinecall.worker import commanding, retrying
-from pinecall.worker.client import Gateway
+from pinecall.worker import commands, retries
+from pinecall.worker.gateway_client import Gateway
 from pinecall_protocol import Command
 
 pytestmark = pytest.mark.unit
@@ -33,8 +33,8 @@ def no_waiting(monkeypatch: pytest.MonkeyPatch) -> None:
     async def slept(_seconds: float) -> None:
         return None
 
-    monkeypatch.setattr(commanding.asyncio, "sleep", slept)
-    monkeypatch.setattr(retrying.asyncio, "sleep", slept)
+    monkeypatch.setattr(commands.asyncio, "sleep", slept)
+    monkeypatch.setattr(retries.asyncio, "sleep", slept)
 
 
 def a_gateway(*answers: httpx.Response | None) -> tuple[Gateway, list[str]]:
@@ -58,12 +58,12 @@ async def test_a_command_stream_that_ends_is_opened_again_until_the_gateway_refu
     over = httpx.Response(409, json={"detail": "over"})
     gateway, asked = a_gateway(None, httpx.Response(502), httpx.Response(200, text=A_SAY), over)
     bridge = Applied()
-    await commanding.served(gateway, bridge, CALL)
+    await commands.served(gateway, bridge, CALL)
     assert [command.type for command in bridge.applied] == ["agent.say"]
     assert len(asked) == 4
 
 
 async def test_a_command_stream_the_gateway_refuses_is_not_asked_again() -> None:
     gateway, asked = a_gateway(httpx.Response(409, json={"detail": "over"}))
-    await commanding.served(gateway, Applied(), CALL)
+    await commands.served(gateway, Applied(), CALL)
     assert len(asked) == 1

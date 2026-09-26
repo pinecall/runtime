@@ -19,7 +19,7 @@ from pinecall.log.writers import Logs
 from pinecall.orgs.caller_codes import CLAIMED, ISSUED, Codes
 from pinecall.routes.records import MemoryRoutes
 from pinecall.types import PRODUCTION, Route
-from pinecall.worker.client import CONTEXT, Gateway
+from pinecall.worker.gateway_client import CONTEXT, Gateway
 from tests.api.conftest import A_KEY, A_LIVEKIT, A_RECORD, AGENT, over_the_asgi_app
 from tests.api.talking import a_context, a_frame, an_app, declared, entry_until
 from tests.api.test_worker_doors import declared as registered

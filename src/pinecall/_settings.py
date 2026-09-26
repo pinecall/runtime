@@ -263,11 +263,11 @@ class Settings(VendorKeys):
         ),
     )
 
-    # ── Recordings: where a call's audio lands ─────────────────────────────────
-    # WHETHER it is kept is the agent's own setting and not the box's (`pinecall agent set
-    # --record`, types/tuning.py): one org may record and another may not on the same machine,
-    # and neither waits for a deploy. worker/recordings.py composes the path; worker/egress.py
-    # asks the box's recorder for the room.
+    # ── Recordings: where a call's audio lands ───────────────────────────────── WHETHER it is kept
+    # is the agent's own setting and not the box's (`pinecall agent set --record`, types/tuning.py):
+    # one org may record and another may not on the same machine, and neither waits for a deploy.
+    # worker/recording_paths.py composes the path; worker/recorder.py asks the box's recorder for
+    # the room.
     recordings_root: str = Field(
         default="recordings",
         validation_alias="PINECALL_RECORDINGS",

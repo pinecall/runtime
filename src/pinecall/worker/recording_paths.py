@@ -75,7 +75,7 @@ def kept_by_the_console(destination: Path) -> Path:
 
 
 # Two writers, and which one it is depends on where the job runs. On a box the recorder is the
-# BOX's — one room composite egress per call, which writes the file itself (worker/egress.py) —
+# BOX's — one room composite egress per call, which writes the file itself (worker/recorder.py) —
 # and the session records nothing, because the session only ever knew two sources: the participant
 # it was pinned to and its own voice. Everything else the call heard, the hold melody and a
 # supervisor who took the line, was published as a track of its own and was never in the file.
@@ -84,6 +84,13 @@ def kept_by_the_console(destination: Path) -> Path:
 # library's own recorder writes it, into the directory the console was already pointed at
 # (kept_by_the_console) and only when the console was asked to record (agent_session.py:1042): a
 # pointer to a file livekit will not write is a lie, so None.
+# Decided before the session exists, so the bridge is born knowing the pointer call.summary will
+# carry, and the directory is composed only for a call that is going to fill it.
+def where_the_audio_goes(job: JobContext, call: str, keeping: Keeping) -> Path | None:
+    """The file this call's audio will be in, or None when none is kept."""
+    return kept_by_the_job(job, keeping(call))
+
+
 def kept_by_the_job(job: JobContext, destination: Path) -> Path | None:
     """The file this call's audio will be in, or None when nobody is going to write one."""
     console = _legacy.AgentsConsole.get_instance()

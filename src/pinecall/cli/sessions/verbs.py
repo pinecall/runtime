@@ -48,7 +48,7 @@ NOTHING = "—"
 NO_SUCH_CALL = "no call {call} in the log"
 
 # The path a recording is filed at travels in the call's summary and nowhere else: the worker
-# composes it (worker/recordings.py) and the log states it there, once, near the end. It is NOT
+# composes it (worker/recording_paths.py) and the log states it there, once, near the end. It is NOT
 # the terminal entry — `call.score` is, and `tail` stops on that one — so the two are named apart.
 THE_SUMMARY = "call.summary"
 NOT_SEALED = "call {call} has no {summary} yet: the recording is stated when the call ends"

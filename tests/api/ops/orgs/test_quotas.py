@@ -15,8 +15,8 @@ from pinecall.log.store import MemoryStore
 from pinecall.orgs.records import MemoryOrgs
 from pinecall.types import CallContext, Quotas, Route
 from pinecall.types.org import Ceiling
-from pinecall.worker.client import Gateway
-from pinecall.worker.hop import GatewayRefused
+from pinecall.worker.gateway_client import Gateway
+from pinecall.worker.gateway_http import GatewayRefused
 from tests.api.calls.tokens.test_the_door import minted
 from tests.api.conftest import A_KEY, A_RECORD, AGENT
 from tests.api.talking import a_caller, a_door, a_register, an_app, entry_until

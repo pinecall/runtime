@@ -14,9 +14,9 @@ from pinecall.evals.hangup_score import JudgedWhen
 from pinecall.providers.session_vendors import warm_the_vendor_tables
 from pinecall.session.voice import a_bridge
 from pinecall.session.voice.vendors import kit_for
-from pinecall.worker import recordings
-from pinecall.worker.client import reaching
-from pinecall.worker.entry import Worker, answer
+from pinecall.worker import recording_paths
+from pinecall.worker.gateway_client import reaching
+from pinecall.worker.job import Worker, answer
 from pinecall.worker.load import MachineLoad, SlotLoad, reports_no_load
 from pinecall.worker.telemetry import traced_to
 
@@ -31,7 +31,7 @@ LIVEKIT_FIELDS: tuple[str, ...] = ("livekit_url", "livekit_api_key", "livekit_ap
 DRAIN_S = 10 * 60
 
 # And what ONE job gets, once it is told to shut down, to run its shutdown callbacks. Ours is the
-# seal (worker/entry.py `sealing`): call.ended, the hang-up's one memory extraction (the `remember`
+# seal (worker/job.py `sealing`): call.ended, the hang-up's one memory extraction (the `remember`
 # budget, 8 s), call.summary, the judges, call.score. livekit's default of ten seconds cuts that in
 # half and kills the process mid-seal, which is a log with a call.ended and no end. Sixty seconds
 # covers it, and DRAIN_S + this still sits inside the unit's TimeoutStopSec.
@@ -79,7 +79,7 @@ def a_worker(settings: Settings) -> Worker:
             rememberer=gateway,
             budgets=settings.budgets,
         ),
-        keeping=recordings.keeping_for(settings),
+        keeping=recording_paths.keeping_for(settings),
         default_agent=settings.agent,
         app=settings.app,
     )

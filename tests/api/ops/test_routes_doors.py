@@ -5,8 +5,8 @@ import pytest
 
 from pinecall.api.agents.registry import Registry
 from pinecall.types import PRODUCTION
-from pinecall.worker import router
-from pinecall.worker.client import Gateway
+from pinecall.worker import job_target
+from pinecall.worker.gateway_client import Gateway
 from tests.api.conftest import A_KEY, A_RECORD
 
 pytestmark = pytest.mark.unit
@@ -32,9 +32,9 @@ async def typed(ops_http: httpx.AsyncClient, agent: str, number: str = NUMBER) -
     assert answer.status_code == httpx.codes.OK
 
 
-def arrived(number: str = NUMBER) -> router.Arrival:
-    """A call at that number, as worker/router.py reads one off a job's SIP attributes."""
-    return router.Arrival(
+def arrived(number: str = NUMBER) -> job_target.Arrival:
+    """A call at that number, as worker/job_target.py reads one off a job's SIP attributes."""
+    return job_target.Arrival(
         caller="+59899111222", channel="phone", direction="inbound", number=number
     )
 
@@ -45,12 +45,12 @@ async def test_a_route_added_while_a_worker_runs_answers_the_next_job_with_nobod
     """Criterion 1: the same worker, the same process, two jobs, two different agents."""
     await holding(registry)
     await typed(ops_http, CLINICA)
-    first = router.resolve(arrived(), await worker_gateway.routes())
+    first = job_target.resolve(arrived(), await worker_gateway.routes())
     assert first.agent == CLINICA
 
     await typed(ops_http, TIENDA)
 
-    second = router.resolve(arrived(), await worker_gateway.routes())
+    second = job_target.resolve(arrived(), await worker_gateway.routes())
     assert second.agent == TIENDA
 
 
@@ -95,8 +95,8 @@ async def test_removing_a_route_leaves_the_number_answering_nowhere(
     removed = await ops_http.delete(f"{OPS_ROUTES}/{NUMBER}", params={"org": A_RECORD.org})
 
     assert removed.status_code == httpx.codes.NO_CONTENT
-    with pytest.raises(router.NoRoute):
-        router.resolve(arrived(), await worker_gateway.routes())
+    with pytest.raises(job_target.NoRoute):
+        job_target.resolve(arrived(), await worker_gateway.routes())
 
 
 async def test_removing_a_number_nobody_typed_is_a_refusal_and_never_a_quiet_success(

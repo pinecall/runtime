@@ -25,7 +25,7 @@ from pinecall.types import (
 from pinecall.types.dispatch import Handover
 from pinecall.types.json import JsonObject
 from pinecall.types.org import Ceiling
-from pinecall.worker.hop import (
+from pinecall.worker.gateway_http import (
     NOT_FOUND,
     TAIL_TIMEOUT,
     TIMEOUT_S,
@@ -36,7 +36,7 @@ from pinecall.worker.hop import (
     read,
     streamed,
 )
-from pinecall.worker.retrying import again
+from pinecall.worker.retries import again
 from pinecall.worker.wire import (
     BEAT,
     COMMAND,

@@ -74,7 +74,7 @@ class Arrival:
 
 # Read off the job alone, before the room is joined: the routes are asked for with these while the
 # connect is still in flight, which is what keeps the caller from sitting through one more round
-# trip (worker/entry.py). A world the dispatch spelled wrong is a dispatch nobody of ours wrote,
+# trip (worker/job.py). A world the dispatch spelled wrong is a dispatch nobody of ours wrote,
 # and it reads as none rather than as a refusal — the number dialled, or the default, still stands.
 def whose(job: jobs.Job) -> Whose:
     """Whose call this job is, as far as its dispatch metadata says."""
