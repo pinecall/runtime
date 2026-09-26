@@ -1,6 +1,6 @@
 # Architecture
 
-The Pinecall runtime is two Python distributions, `pinecall` and `pinecall-core`, run as **two
+The Pinecall runtime is thirteen Python distributions, one per concept (§11), run as **two
 processes** on LiveKit: the **gateway**, the control plane, and the **worker**, the fleet that
 answers a call. Everything else on a box — the SFU, the SIP bridge, Redis, Postgres — is somebody else's
 software, run as it ships. This page is the shape of the thing, read off the code: every module
@@ -354,33 +354,33 @@ one Haiku behind a ceiling (`PINECALL_JUDGE_CEILING_EUR`; zero means no judge as
 ## 11. Who may import whom — the whole table, enforced by `tests/test_isolation.py`
 
 ```
-types      ← nothing                          the shapes, no IO, no framework        pinecall-core
-extensions ← types                            the points a policy plugs into         pinecall-core
-settings   ← types                            every variable, read once              (everybody's)
-db         ← nothing                          the driver's one door, the pool, the migrations
-fleet      ← types                            every worker's heartbeat, the loop over the clouds, the peer
-providers  ← types                            the only place a vendor is named
-log        ← types, db                        the truth: entries, the reducer, the stores
-auth       ← types, db                        keys, people, sign-in
-orgs       ← types, db, log, providers        the tenant's tables
-routes     ← types, db                        numbers and trunks at the SFU
-tokens     ← types, db, log, auth             the room, log, code and seat tokens; the reader
-mail       ← types, orgs                      the letters, and the SMTP server they are handed to
-session    ← types, log, providers            one call, written or spoken
-whatsapp   ← types, log, session, routes      the text channel
-evals      ← types, db, log, session, providers, tokens
-memory     ← types, db, log, providers        the contact's facts, in Postgres
-knowledge  ← types, db, providers             the knowledge base, in Postgres
-lookups    ← types, log, memory, knowledge    the gateway runs recall and search
-live       ← types, log, lookups, orgs, evals, providers, session   what this gateway holds: its calls
-accounts   ← types, auth, orgs, extensions, mail   what a person does with an account, across domains
-telephony  ← types, log, orgs, routes, session   the carrier side: numbers, trunks, a call out
-api        ← all of the above, never worker/ — the doors: parse, one verb, wire the answer
-worker     ← types, log, fleet, providers, session, evals        never api/ — over HTTP
-cli        ← the verbs over any of them
+types      ← nothing                          the shapes, no IO, no framework          pinecall-core
+extensions ← types                            the points a policy plugs into           pinecall-core
+settings   ← types                            every variable, read once                pinecall-settings
+db         ← nothing                          the driver's one door, the migrations    pinecall-db
+fleet      ← types                            heartbeats, the clouds, the peer         pinecall-fleet
+providers  ← types                            the only place a vendor is named         pinecall-providers
+log        ← types, db                        the truth: entries, reducer, stores      pinecall-log
+auth       ← types, db                        keys, people, sign-in                    pinecall-tenancy
+orgs       ← types, db, log, providers        the tenant's tables                      pinecall-tenancy
+routes     ← types, db                        numbers and trunks at the SFU            pinecall-channels
+tokens     ← types, db, log, auth             room, log, code, seat tokens; the reader pinecall-channels
+mail       ← types, orgs                      the letters and their SMTP               pinecall-tenancy
+session    ← types, log, providers            one call, written or spoken              pinecall-session
+whatsapp   ← types, log, session, routes      the text channel                         pinecall-channels
+evals      ← types, db, log, session, providers, tokens   the rings                    pinecall-evals
+memory     ← types, db, log, providers        the contact's facts, in Postgres         pinecall-retrieval
+knowledge  ← types, db, providers             the knowledge base, in Postgres          pinecall-retrieval
+lookups    ← types, log, memory, knowledge    recall and search, run by the gateway    pinecall-retrieval
+live       ← types, log, lookups, orgs, evals, providers, session   what it holds open pinecall
+accounts   ← types, auth, orgs, extensions, mail   what a person does with an account  pinecall-tenancy
+telephony  ← types, log, orgs, routes, session   numbers, trunks, a call out           pinecall-channels
+api        ← all of the above, never worker/ — the doors: parse, one verb, wire        pinecall
+worker     ← types, log, fleet, providers, session, evals   never api/ — over HTTP     pinecall-fleet
+cli        ← the verbs over any of them                                                pinecall
 ```
 
-The core never imports a tenant; a tenant never imports LiveKit. A package earns its directory by having a line in that table, and a line allows exactly what its package imports (`test_every_line_of_the_table_is_used_and_nothing_more`). `types`, `extensions` and `errors` are `packages/pinecall-core`, a distribution of their own on the standard library alone, so a policy installs them without the runtime; `test_the_core_imports_nothing_of_the_runtime` holds it.
+The core never imports a tenant; a tenant never imports LiveKit. A package earns its directory by having a line in that table, and a line allows exactly what its package imports (`test_every_line_of_the_table_is_used_and_nothing_more`). The last column is the distribution each package ships in, `packages/<it>/`: one concept each, and its pyproject declares exactly the distributions its packages import (`test_every_distribution_declares_exactly_the_distributions_its_packages_import`). `pinecall-core` is the standard library alone, so a policy installs it without the runtime (`test_the_core_imports_nothing_of_the_runtime`).
 
 ## 12. The box, and the line
 

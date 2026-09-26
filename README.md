@@ -176,7 +176,9 @@ number — is [infra/box/README.md](infra/box/README.md).
 ### 2. The package, and a machine you build yourself
 
 `pinecall` is a plain Python distribution with one entrypoint, for whoever already has a way to
-run processes (Kubernetes, Nomad, Ansible) and wants ours out of the picture:
+run processes (Kubernetes, Nomad, Ansible) and wants ours out of the picture. It pulls in the eleven
+distributions it is built from — `pinecall-core`, `-settings`, `-db`, `-log`, `-providers`,
+`-session`, `-tenancy`, `-channels`, `-retrieval`, `-evals`, `-fleet` — at its own version:
 
 ```
 pip install pinecall-core                  the shapes and the extension points alone, for a policy

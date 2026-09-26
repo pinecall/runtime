@@ -6,6 +6,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 
 ## [Unreleased]
 
+### Changed
+- **The runtime is thirteen distributions, one per concept.** `pip install pinecall` still installs
+  everything, and the extras (`runtime`, `providers`, `providers-big`) are the same; underneath,
+  `pinecall` depends on `pinecall-settings`, `-db`, `-log`, `-providers`, `-session`, `-tenancy`,
+  `-channels`, `-retrieval`, `-evals`, `-fleet` and `-core`, all at its version. Imports are
+  unchanged: every one is a portion of the `pinecall` namespace.
+
 ### Security
 - **A call id is not a key to the call.** `GET /v1/calls/{call}/commands` and
   `POST /v1/calls/{call}/tools` now refuse a tenant's worker `403` for a call served under another

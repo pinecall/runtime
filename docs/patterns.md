@@ -8,6 +8,7 @@ call walked through every layer. The words are [glossary.md](glossary.md)'s.
 | pattern | where | held by |
 |---|---|---|
 | **Layered packages, a DAG** | ARCHITECTURE.md §11: every package names the packages it may import; `api/` and `worker/` at the top never import each other | `tests/test_isolation.py::test_a_package_imports_only_the_packages_its_line_names` |
+| **Bounded contexts** | thirteen distributions under `packages/`, one concept each — core, settings, db, log, providers, session, tenancy, channels, retrieval, evals, fleet, the application, the testkit — each declaring exactly the ones it imports | `test_isolation.py::test_every_distribution_declares_exactly_the_distributions_its_packages_import` |
 | **Shared kernel** | `pinecall-core`: `types/` (the shapes), `extensions/`, `errors/`, on the standard library alone, installed by the runtime and by a policy that never installs the runtime | `test_isolation.py::test_the_core_imports_nothing_of_the_runtime` |
 | **Ports and adapters** | a store is `<port>.py` (the `Protocol`, its records, its errors, `<port>_for`), `<port>_memory.py` (the spec by example the unit ring runs on), `<port>_postgres.py` (+ `_sql.py`): `auth/keys*.py`, `orgs/records*.py`, `log/store/` | `tests/test_ports_and_adapters.py` |
 | **Factory** | `<port>_for(pool)` picks the adapter: Postgres when the box has a pool, memory when it has none (`orgs/tuning_store.py:tuning_for`) | the same test: an adapter lives in the file named by its store |

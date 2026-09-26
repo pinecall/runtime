@@ -12,7 +12,7 @@ docker compose -f infra/compose/dev.yml up -d   # livekit · sip · redis · pos
 scripts/bootstrap                               # uv sync (runtime · providers · dev), prek hooks
 scripts/format                                  # ruff format, then the fixable lint rules
 scripts/lint                                    # ruff · pyright · mypy · deptry · squawk over unlanded migrations — the gate
-scripts/test                                    # pytest -m "unit or postgres" + infra/tools/tests + the core's suite, coverage to its floor
+scripts/test                                    # every suite, `unit or postgres`, then the core's; coverage to its floor
 scripts/unit                                    # ring 0 over every suite: no keys, no network, SHUFFLED — twice green, or nothing
 uv run pytest packages/pinecall/tests/cli/doctor/test_verbs.py    # one file
 uv run pinecall-runtime gateway | worker dev | migrate up | doctor
@@ -23,33 +23,35 @@ make deploy                                     # this checkout onto your box (d
 ## Structure
 
 - The repository is a uv workspace: the root holds the tools, the suites' configuration, `infra/`,
-  `docs/` and `scripts/`; the code is the two distributions under `packages/`, one lock, one venv
-- `packages/pinecall/` — the distribution `pinecall`: `src/pinecall/`, eighteen packages,
-  none of them a process; ARCHITECTURE.md §11 is the import table and `tests/test_isolation.py`
-  enforces it; the words they speak are `docs/glossary.md`
-- `packages/pinecall-core/` — the distribution `pinecall-core`: `types/`, `extensions/`,
-  `errors/`, on the standard library alone, that a policy (`cloud/`) installs without the
-  runtime. It imports nothing of the runtime, and `pinecall` is a namespace both install into: no
-  `__init__.py` in either `src/pinecall/`. Its suite runs apart (`scripts/test`), on its own
-  `pyproject.toml`
-  - `types/` the shapes, no IO · `log/` the truth, no framework · `providers/` the only vendor names
-  - `auth/` keys, members, sign-in · `orgs/` the tenant's tables · `routes/` numbers and trunks at
-    the SFU · `tokens/` the room token and the seat · `whatsapp/` the text channel · `fleet/` the
-    workers' heartbeats and the loop over the clouds
-  - `extensions/` the points a package beside the runtime plugs policy into — what a new org may
-    do — spoken in mechanisms, never plans; the runtime answers them itself until told otherwise
-  - `session/` one call, `text/` in the gateway and `voice/` in the worker · `evals/` the rings
-  - `memory/` the contact's facts · `knowledge/` the knowledge base · `lookups/` the gateway
-    running `recall` and `search` — the three the gateway owns and the worker reaches over HTTP
-  - `api/` the gateway's doors, one directory per surface (`scope/ accounts/ agents/ calls/ memory/
-    knowledge/ evals/ telephony/ org/ ops/ whatsapp/`) · `worker/` the job · `cli/` the verbs · `db/` the driver's one door, the pool and the numbered SQL (`db/migrations/`)
-  - `mail/` the letters and the generic SMTP they leave by: the org's own account, else the box's
-  - `settings/` the configuration: `schema.py` every variable once, `vendor_keys.py` the vendors'
-    own names, `load_settings()` the one reader · `_version.py` the version, the maintainer's number
-- each distribution's `tests/` mirrors its `src/pinecall/`, a directory per package
-  (`test_the_tests_mirror_the_source.py`); what more than one suite leans on is
-  `packages/pinecall-testkit` (the ring-0 plugin, clocks, pools, a Postgres, the tree, the shared fakes). `test_isolation.py`, `test_layout.py`, `test_ports_and_adapters.py`,
-  `test_doors_are_controllers.py`, `test_the_public_surface.py` are the tree's own rules
+  `docs/`, `scripts/` and `tests/` (the repository's own rules); the code is thirteen
+  distributions under `packages/`, one lock, one venv, one version (`scripts/bump-version`)
+- Each distribution is one concept of the product, a portion of the `pinecall` namespace (no
+  `__init__.py` in any `src/pinecall/`), with its own `pyproject.toml` declaring exactly the
+  siblings its packages import (`tests/test_isolation.py`) and its own `tests/`:
+  - `pinecall-core` — `types/` the shapes, no IO · `extensions/` the points a policy (`cloud/`)
+    plugs into, spoken in mechanisms, never plans · `errors/`. The standard library alone
+  - `pinecall-settings` — `settings/`: `schema.py` every variable once, `load_settings()` the reader
+  - `pinecall-db` — `db/`: the driver's one door, the pool, the numbered SQL (`db/migrations/`)
+  - `pinecall-log` — `log/`: the truth, no framework — the entry, the reducer, the store
+  - `pinecall-providers` — `providers/`: the only vendor names; the plugins are its extras
+  - `pinecall-session` — `session/`: one call, `text/` in the gateway, `voice/` in the worker
+  - `pinecall-tenancy` — `orgs/` the tenant's tables · `auth/` keys, members, sign-in ·
+    `accounts/` what a person does with an account · `mail/` the letters and their SMTP
+  - `pinecall-channels` — `routes/` numbers and trunks at the SFU · `telephony/` import, buy, dial
+    · `tokens/` the room, log, code and seat tokens · `whatsapp/` the text channel
+  - `pinecall-retrieval` — `memory/` the contact's facts · `knowledge/` the knowledge base ·
+    `lookups/` recall and search, which the gateway runs and the worker reaches over HTTP
+  - `pinecall-evals` — `evals/`: the rings, the judges, the goldens
+  - `pinecall-fleet` — `fleet/` heartbeats, the loop over the clouds, the peer · `worker/` the job
+  - `pinecall` — the application: `api/` the doors, one directory per surface, each a controller
+    over a verb · `live/` what this gateway holds open · `cli/` the verbs · `public/` the pages ·
+    `_version.py` the version, the maintainer's number
+  - `pinecall-testkit` — never published: the ring-0 plugin, clocks, pools, a Postgres, the tree,
+    and the fakes more than one suite reads
+- ARCHITECTURE.md §11 is the import table between packages and `tests/test_isolation.py`
+  enforces it; the words they speak are `docs/glossary.md`; the patterns, `docs/patterns.md`
+- each distribution's `tests/` mirrors its `src/pinecall/` (`tests/test_the_tests_mirror_the_source.py`),
+  and every suite runs in its own process (`scripts/suites`): each is a package named `tests`
 - `infra/box/` the declared box (cloud-init, units, Quadlets, the fence, the manifest Makefile);
   `infra/compose/` the dev stack; the root `Makefile` is the deploy
 - `docs/protocol/` public contracts · `docs/decisions/` the maintainer's notebook, **git-ignored**:
@@ -86,7 +88,7 @@ happened and the doc is the bug.
 - Every package another reads from opens with its index: its `__init__.py` imports and lists in
   `__all__` what the rest of the tree uses of it, and a test pins it — `api/` and `cli/` alone have
   none (doors and verbs, read by nobody). The public surface of every package is pinned by a test, and the `pinecall`
-  namespace has no root module in either distribution.
+  namespace has no root module in any distribution.
 - The prompt is a list of named blocks in two regions, in this order: static blocks (cached) ·
   append-only history · the dynamic region, which is the view and nothing else. Never reorder.
   What a lookup found reaches the model as a `tool_result`, never as part of the prompt:
@@ -146,8 +148,8 @@ Tests read as sentences.
   `test_scopes_at_the_doors` found no `APIRoute` at all and pinned every door's scope over an
   EMPTY list, silently. Any walk of the app unwraps that, and asserts it reached something.
 - A key is never printed — not in a commit, a test, a log line, a reply. Compare by sha256.
-- `_version.py` is the maintainer's number: a release bumps its last digit, and nothing else
-  ever writes it.
+- `_version.py` is the maintainer's number: a release bumps its last digit with
+  `scripts/bump-version`, which moves every distribution and every pin with it; nothing else writes it.
 - The shell may name a vendor's key differently (`ELEVENLABS_API_KEY`) than the runtime does
   (`ELEVEN_API_KEY`); `.env.example` is the list.
 
