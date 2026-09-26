@@ -1,4 +1,4 @@
-"""What a stranger may import: the root and every package export their API and nothing else."""
+"""What a stranger may import: every package pins its API; the root is a namespace, not a module."""
 
 import importlib
 

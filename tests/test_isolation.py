@@ -105,17 +105,11 @@ WHAT_THE_CORE_NEVER_INSTALLS = [*FRAMEWORKS, "pydantic_settings", "pinecall_prot
 
 
 def test_the_core_imports_nothing_of_the_runtime() -> None:
+    """Every `pinecall.*` a core module names is one of its own three: the root's modules too."""
     offenders = {
         str(module.path): sorted(named - THE_CORE)
         for module in modules_under(CORE_ROOT)
-        if (
-            named := {
-                name.split(".")[1]
-                for name in module.imported_modules
-                if name.startswith("pinecall.")
-            }
-        )
-        - THE_CORE
+        if (named := _pinecall_modules_named_by(module)) - THE_CORE
     }
     assert not offenders, f"pinecall-core reaches into the runtime: {offenders}"
 
@@ -163,13 +157,14 @@ def test_only_providers_imports_a_vendor_sdk(vendor: str) -> None:
 ROOT_MODULES = frozenset(path.stem for root in SOURCE_ROOTS for path in root.glob("*.py"))
 
 
+def _pinecall_modules_named_by(module: PythonModule) -> set[str]:
+    """Every first name under `pinecall.` a module imports: `pinecall.log.reduce` names `log`."""
+    return {name.split(".")[1] for name in module.imported_modules if name.startswith("pinecall.")}
+
+
 def _our_packages_named_by(module: PythonModule) -> set[str]:
-    """The pinecall packages a module imports: `pinecall.log.reduce` names `log`."""
-    return {
-        name.split(".")[1]
-        for name in module.imported_modules
-        if name.startswith("pinecall.") and name.split(".")[1] not in ROOT_MODULES
-    }
+    """The same, minus the root's modules: what the table above has a line for."""
+    return _pinecall_modules_named_by(module) - ROOT_MODULES
 
 
 def _the_modules_the_rule_speaks_about(package: str, framework: str) -> Sequence[PythonModule]:
