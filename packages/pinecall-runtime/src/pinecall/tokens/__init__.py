@@ -10,14 +10,18 @@ from pinecall.tokens.scopes import (
     reader_of_bearer,
     secret_for,
 )
-from pinecall.tokens.seats import mint_seat_token
-from pinecall.tokens.spend import spent
+from pinecall.tokens.seats import NoSuchCall, NotLive, Seat, mint_seat_token
+from pinecall.tokens.spend import TokenRefused, spent
 
 __all__ = [
     "CallToken",
     "LivekitKeys",
+    "NoSuchCall",
+    "NotLive",
     "Reader",
+    "Seat",
     "TokenRecord",
+    "TokenRefused",
     "Tokens",
     "build_dispatch",
     "client_named_agent",

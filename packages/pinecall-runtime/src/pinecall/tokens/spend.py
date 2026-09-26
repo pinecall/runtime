@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import HTTPException
-
+from pinecall.errors import PinecallError
 from pinecall.log.writers import Logs
 from pinecall.tokens.ledger import Tokens
 from pinecall.types import CallContext
@@ -17,6 +16,10 @@ from pinecall_protocol.events import ErrorEvent
 TOKEN_SPENT = "token_spent"
 ALREADY_SPENT = "call {call} was already opened by its token: a call token opens one call, once"
 NEVER_MINTED = "call {call} names a token this runtime never minted"
+
+
+class TokenRefused(PinecallError):
+    """The token that opened this call was spent already, or was never minted here."""
 
 
 # Only a dispatch that carries a scope was minted by POST /v1/tokens: a phone call's room is named
@@ -34,4 +37,4 @@ async def spent(context: CallContext, agent: str, tokens: Tokens, logs: Logs) ->
     reason = sentence.format(call=context.call)
     refused = ErrorEvent(code=TOKEN_SPENT, message=reason, recoverable=True)
     await logs.writing_agent(agent).append("error", encode(refused))
-    raise HTTPException(status_code=409, detail=reason)
+    raise TokenRefused(reason)

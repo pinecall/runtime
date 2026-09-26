@@ -7,6 +7,7 @@ import pytest
 from tests.support.tree import (
     CORE_ROOT,
     PACKAGE_ROOT,
+    ROOT,
     SOURCE_ROOTS,
     PythonModule,
     modules_under,
@@ -78,6 +79,11 @@ MAY_IMPORT: dict[str, frozenset[str]] = {
 PACKAGES_THAT_HOLD_NO_FRAMEWORK = ["types", "extensions", "log"]
 FRAMEWORKS = ["fastapi", "livekit", "uvicorn", "asyncpg"]
 
+# The HTTP framework is the doors' and the process that serves them, and nobody else's: a verb
+# that raises HTTPException has decided a status the doors decide (api/refusals.py).
+THE_HTTP_FRAMEWORK = ["fastapi", "starlette", "uvicorn"]
+SERVE_HTTP = ("api", "cli")
+
 # Each vendor by its own SDK name, so a stray import reads as what it is: a vendor in the core.
 VENDOR_SDKS = ["anthropic", "openai", "soniox", "deepgram", "elevenlabs"]
 
@@ -141,6 +147,17 @@ def test_a_module_under_a_pure_package_never_imports_a_framework(
 ) -> None:
     offenders = _the_modules_that_import(modules_under(package_dir(package)), framework)
     assert not offenders, f"pinecall/{package} imports {framework}: {offenders}"
+
+
+@pytest.mark.parametrize("framework", THE_HTTP_FRAMEWORK)
+def test_only_the_doors_and_the_cli_import_the_http_framework(framework: str) -> None:
+    source = PACKAGE_ROOT.relative_to(ROOT)
+    offenders = [
+        str(module.path)
+        for module in modules_under(PACKAGE_ROOT)
+        if module.imports(framework) and module.path.relative_to(source).parts[0] not in SERVE_HTTP
+    ]
+    assert not offenders, f"{framework} outside api/ and cli/: {offenders}"
 
 
 def test_the_driver_is_named_nowhere_but_db() -> None:

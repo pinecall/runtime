@@ -81,8 +81,8 @@ happened and the doc is the bug.
   docstring. No two modules in one directory one letter apart.
 - A door is a controller: under `api/` a coroutine is a door, a dependency, a stream or one of the
   roles `test_doors_are_controllers.py` names; a verb goes to the domain package it changes.
-- `types/` imports nothing of ours; `types/` and `log/` import no framework; a vendor SDK
-  outside `providers/` fails the suite; `api/` never imports `worker/`, `worker/` never `api/`.
+- `types/` imports nothing of ours; `types/` and `log/` import no framework; FastAPI, Starlette and
+  uvicorn outside `api/` and `cli/` fail the suite, as a vendor SDK outside `providers/` does; `api/` never imports `worker/`, `worker/` never `api/`.
 - Every package another reads from opens with its index: its `__init__.py` imports and lists in
   `__all__` what the rest of the tree uses of it, and a test pins it — `api/` and `cli/` alone have
   none (doors and verbs, read by nobody). The public surface of every package is pinned by a test, and the `pinecall`

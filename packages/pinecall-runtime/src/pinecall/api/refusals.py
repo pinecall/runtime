@@ -53,6 +53,7 @@ from pinecall.telephony import (
     NoTrunk,
     NumberHeldElsewhere,
 )
+from pinecall.tokens import NoSuchCall, NotLive, TokenRefused
 from pinecall.types import DeclarationRefused
 
 # Every entry answers with the EXCEPTION'S OWN SENTENCE as the detail: a tenant who runs
@@ -84,6 +85,7 @@ STATUS_OF: dict[type[Exception], int] = {
     NotAMembersKey: 403,
     NobodyToSeat: 403,
     NoSuchMember: 404,
+    NoSuchCall: 404,
     NoSuchPersona: 404,
     NobodyServing: 404,
     NotListed: 404,
@@ -97,6 +99,8 @@ STATUS_OF: dict[type[Exception], int] = {
     MirrorRefused: 409,
     LastAdmin: 409,
     AlreadyAMember: 409,
+    NotLive: 409,
+    TokenRefused: 409,
     NoTrunk: 409,
     NobodyHolding: 409,
     NoNumbers: 409,

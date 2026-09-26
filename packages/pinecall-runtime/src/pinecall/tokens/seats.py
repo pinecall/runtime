@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import secrets
 import time
-from typing import Any
-
-from fastapi import HTTPException
+from dataclasses import dataclass
 
 from pinecall.auth.keys import KeyRecord
+from pinecall.errors import PinecallError
 from pinecall.log.snapshots import Snapshots
 from pinecall.settings import Settings
 from pinecall.tokens.scopes import mint_room_token, secret_for
@@ -27,18 +26,39 @@ NO_SUCH_CALL = "no call {call} on this gateway"
 NOT_LIVE = "call {call} is over: nobody is in its room, read its log or its recording instead"
 
 
+class NoSuchCall(PinecallError):
+    """No call by that id on this gateway: nothing to take a seat in."""
+
+
+class NotLive(PinecallError):
+    """The call is over: its room is gone, and a token for it would be refused by the SFU."""
+
+
+@dataclass(frozen=True)
+class Seat:
+    """A seat in a live call: where to connect, as whom, and for which org's person."""
+
+    server_url: str
+    participant_token: str
+    call: str
+    identity: str
+    org: str
+    subject: str | None
+    name: str | None
+
+
 # Both seat doors take the API key, as every tenant door does: these scopes are the tenant's,
 # never a visitor's. A call that is over has no room to join, and the door says so rather than
 # minting a token LiveKit would refuse a minute later for a room that closed.
 async def mint_seat_token(
     call: str, scope: str, key: KeyRecord, snapshots: Snapshots, settings: Settings
-) -> dict[str, Any]:
-    """One seat in a live call: {server_url, participant_token, call, identity, org}."""
+) -> Seat:
+    """One seat in a live call, minted for the person the key names; refused when it is over."""
     snapshot = await snapshots.of(call)
     if snapshot is None:
-        raise HTTPException(404, NO_SUCH_CALL.format(call=call))
+        raise NoSuchCall(NO_SUCH_CALL.format(call=call))
     if not snapshot.live:
-        raise HTTPException(409, NOT_LIVE.format(call=call))
+        raise NotLive(NOT_LIVE.format(call=call))
     identity = f"{A_SEAT}{secrets.token_hex(SEAT_BYTES)}"
     # A person's key names the person, and the seat carries them: the member's id and name ride
     # the token as attributes, so the verb the desk sends from it is written down as theirs and
@@ -51,12 +71,12 @@ async def mint_seat_token(
     token = mint_room_token(
         call, scope, time.time() + A_SEAT_LASTS_S, secret_for(settings), identity, attributes=who
     )
-    return {
-        "server_url": settings.livekit_public_url or settings.livekit_url,
-        "participant_token": token,
-        "call": call,
-        "identity": identity,
-        "org": key.org,
-        "subject": key.subject,
-        "name": key.name,
-    }
+    return Seat(
+        server_url=settings.livekit_public_url or settings.livekit_url,
+        participant_token=token,
+        call=call,
+        identity=identity,
+        org=key.org,
+        subject=key.subject,
+        name=key.name,
+    )
