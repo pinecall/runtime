@@ -11,7 +11,7 @@ from livekit.plugins.cartesia.constants import API_AUTH_HEADER, API_VERSION, API
 from pinecall.providers.catalog import canonical
 from pinecall.providers.language import primary
 from pinecall.providers.registry import Asked, a_key
-from pinecall.providers.tts.voices import VOICES
+from pinecall.providers.tts.curated_voices import VOICES
 
 # Cartesia is the one vendor whose catalogue is read from the vendor: its ids are uuids nobody
 # remembers, and it has a hundred voices in Spanish alone, so a picker that offered three names

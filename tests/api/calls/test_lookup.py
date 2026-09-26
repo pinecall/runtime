@@ -7,7 +7,7 @@ import pytest
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.log.store import MemoryStore
-from pinecall.orgs.tuning import MemoryTuning
+from pinecall.orgs.tuning_store import MemoryTuning
 from pinecall.types import PRODUCTION, Docs, MemoryPolicy, Tuning
 from pinecall.worker.client import Gateway
 from pinecall.worker.hop import GatewayRefused

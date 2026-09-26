@@ -16,7 +16,7 @@ from pinecall.api.telephony.numbers import (
     NOT_VERIFIED,
 )
 from pinecall.orgs.carriers import MemoryCarriers
-from pinecall.routes.table import MemoryRoutes
+from pinecall.routes.records import MemoryRoutes
 from pinecall.routes.twilio import TWILIO_SIGNALLING
 from pinecall.types import PRODUCTION
 from tests.api.carriers import A_KEY_SID, A_SID, FakeTwilio

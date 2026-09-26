@@ -9,8 +9,8 @@ from pinecall.api.app import app
 from pinecall.api.ops.box_settings import the_box_settings
 from pinecall.api.org.mail import the_mail, the_outbox
 from pinecall.mail import Outbox
-from pinecall.orgs.box import BoxSettings, MemoryBoxSettings
-from pinecall.orgs.mail import Mail, MemoryMail
+from pinecall.orgs.box_settings import BoxSettings, MemoryBoxSettings
+from pinecall.orgs.org_mail import Mail, MemoryMail
 from pinecall.types import Mailbox
 from tests.api.conftest import A_VAULT_KEY
 from tests.mail.fake_smtp import FakeSmtp

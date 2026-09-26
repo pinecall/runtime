@@ -6,12 +6,12 @@ import logging
 from dataclasses import dataclass, replace
 
 from pinecall.orgs.carriers import Carriers
-from pinecall.orgs.outbound import OutboundTrunks
-from pinecall.orgs.table import Orgs
-from pinecall.routes.answering import own_numbers
-from pinecall.routes.outbound import Outbound, Placing
-from pinecall.routes.table import Routes
-from pinecall.routes.trunks import Trunks, fence_of
+from pinecall.orgs.outbound_credentials import OutboundTrunks
+from pinecall.orgs.records import Orgs
+from pinecall.routes.inbound_trunks import Trunks, fence_of
+from pinecall.routes.numbers import own_numbers
+from pinecall.routes.outbound_trunks import Outbound, Placing
+from pinecall.routes.records import Routes
 from pinecall.types import Carrier, OutboundTrunk, SipPeer, SipTransport
 
 logger = logging.getLogger(__name__)

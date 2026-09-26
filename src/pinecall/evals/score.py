@@ -23,7 +23,7 @@ from pinecall.evals.judges.promises import promises_of
 from pinecall.evals.verdicts import a_judgment, nobody_asked
 from pinecall.log.entry import Entry
 from pinecall.providers import prices
-from pinecall.providers.usage import as_wire_rows
+from pinecall.providers.usage_wire import as_wire_rows
 from pinecall.session.scoring import Scorer
 from pinecall.types import AgentConfig
 from pinecall_protocol.events import CallScore, Judgment

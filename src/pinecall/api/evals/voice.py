@@ -30,7 +30,7 @@ from pinecall.evals.speech import Speaking
 from pinecall.log.replay import whole
 from pinecall.orgs.vault import brought_by
 from pinecall.providers.models import NoProvider
-from pinecall.providers.tuning import the_llm, the_voice
+from pinecall.providers.tuned_declaration import the_llm, the_voice
 from pinecall.types import DeclarationRefused
 from pinecall_protocol import WireModel
 

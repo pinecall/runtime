@@ -9,11 +9,11 @@ from pinecall.log.latencies import medians
 from pinecall.log.store import Store
 from pinecall.providers.catalog import settings_field_of
 from pinecall.providers.models import DEFAULT_VENDOR
-from pinecall.providers.pipeline import DEFAULT_STT, vendor_running
 from pinecall.providers.registry import NO_KEY
+from pinecall.providers.session_vendors import DEFAULT_STT, vendor_running
 from pinecall.providers.tts import DEFAULT_TTS
-from pinecall.providers.tts.voices import voice_names
-from pinecall.providers.tuning import tuned
+from pinecall.providers.tts.curated_voices import voice_names
+from pinecall.providers.tuned_declaration import tuned
 from pinecall.types import AgentConfig, Greeting, Lexicon, Model, Tuning, Voice
 from pinecall_protocol import WireModel, defs
 
@@ -118,7 +118,7 @@ def _on_the_wire(greeting: Greeting | None) -> defs.GreetingConfig | None:
 
 
 def _hears(declared: Model | None, language: str | None) -> Stage:
-    """What turns the caller's voice into words: providers/pipeline.py `_hearing`, on screen."""
+    """What turns the caller's voice into words: session_vendors.py `_hearing`, on screen."""
     return Stage(
         vendor=vendor_running(declared, DEFAULT_STT),
         model=declared.model if declared else None,
@@ -127,7 +127,7 @@ def _hears(declared: Model | None, language: str | None) -> Stage:
 
 
 def _decides(declared: Model | None) -> Stage:
-    """What answers: providers/pipeline.py `_thinking`, on screen."""
+    """What answers: providers/session_vendors.py `_thinking`, on screen."""
     return Stage(
         vendor=vendor_running(declared, DEFAULT_VENDOR),
         model=declared.model if declared else None,
@@ -135,7 +135,7 @@ def _decides(declared: Model | None) -> Stage:
 
 
 def _speaks(declared: Voice | None, language: str | None) -> Stage:
-    """What says it out loud: providers/pipeline.py `_speaking`, on screen."""
+    """What says it out loud: providers/session_vendors.py `_speaking`, on screen."""
     return Stage(
         vendor=vendor_running(declared, DEFAULT_TTS),
         model=declared.model if declared else None,

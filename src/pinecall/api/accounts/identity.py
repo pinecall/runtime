@@ -13,9 +13,9 @@ from pinecall.api.deps import SettingsDep
 from pinecall.auth.identity import Identity
 from pinecall.auth.keys import Issued, Keys, revoked_every_key_of
 from pinecall.auth.members import Members
-from pinecall.auth.persons import a_persons_key
+from pinecall.auth.person_keys import a_persons_key
 from pinecall.extensions import Admitting
-from pinecall.orgs.table import Orgs
+from pinecall.orgs.records import Orgs
 from pinecall.types import PRODUCTION, SANDBOX, Quotas
 
 # A sandbox instance keeps no password and makes no person: whoever signs in there signed in at

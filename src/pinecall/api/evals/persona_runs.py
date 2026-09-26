@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from pinecall.api.deps import CallIndexDep, EvalsKeyDep
 from pinecall.api.evals.personas import PersonasDep
-from pinecall.auth.corner import corner_of
+from pinecall.auth.request_scope import corner_of
 from pinecall.log.store.call_index import PersonaRun
 from pinecall.orgs.personas import NOBODY
 from pinecall_protocol.rest import PersonaRun as Row

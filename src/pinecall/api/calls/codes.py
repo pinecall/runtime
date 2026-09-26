@@ -24,8 +24,8 @@ from pinecall.api.deps import (
 from pinecall.api.live import LiveDep, Served
 from pinecall.auth.keys import KeyRecord, is_the_fleets
 from pinecall.auth.scopes import a_code_token, a_log_token, secret_for
-from pinecall.orgs.codes import Codes, Issued
-from pinecall.routes.table import Routes
+from pinecall.orgs.caller_codes import Codes, Issued
+from pinecall.routes.records import Routes
 from pinecall_protocol import WireModel, encode
 from pinecall_protocol.commands import CallClaim
 from pinecall_protocol.defs import Projection

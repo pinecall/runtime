@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import override
 
 from pinecall._exceptions import PinecallError
-from pinecall.orgs.dialling import Dial, DialPolicies, Dials
+from pinecall.orgs.dial_policies import Dial, DialPolicies, Dials
 from pinecall.types import DeclarationRefused, Destination, DialPolicy, a_destination
 
 # A minute and a day, in seconds: the two windows the ledger is counted over.

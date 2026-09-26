@@ -6,10 +6,10 @@ from collections.abc import Mapping
 from dataclasses import replace
 
 from pinecall._settings import Settings
-from pinecall.auth.corner import in_the_corner_asked
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Members
-from pinecall.auth.visiting import VISITOR_PREFIX
+from pinecall.auth.request_scope import in_the_corner_asked
+from pinecall.auth.visitor_keys import VISITOR_PREFIX
 from pinecall.types import ENVS, PRODUCTION
 
 # An instance IS one world (`PINECALL_WORLD`): its own database, worker and keys. So the header no

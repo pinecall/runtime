@@ -242,7 +242,7 @@ class Registry:
         holder: str | None = None,
     ) -> Entry:
         """Add this socket to the agent's holders and write agent.registered. It brings no doors:
-        a door is a row an operator typed (routes/table.py), and the widget is not a door at all."""
+        a door is a row an operator typed (routes/records.py); the widget is not a door at all."""
         await self._refuse_another_orgs_slug(org, slug)
         # This socket re-registering keeps what it declared; a socket joining an agent
         # somebody else holds starts from what that agent already is, and corrects it with the

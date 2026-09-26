@@ -10,7 +10,7 @@ from livekit.agents.llm.utils import (
     build_legacy_openai_schema,  # pyright: ignore[reportUnknownVariableType]
 )
 
-from pinecall.providers.blocks import SystemBlocks, as_a_request
+from pinecall.providers.prompt_request import SystemBlocks, as_a_request
 
 
 class Asking(Protocol):

@@ -14,8 +14,8 @@ from pinecall.auth.throttle import Throttle
 from pinecall.orgs.vault import brought_by, keys_brought_by
 from pinecall.providers.registry import Asked
 from pinecall.providers.tts.sampling import Sample, SampleRefused, a_line_for, a_sample
-from pinecall.providers.tts.shelf import Shelf, ShelfUnreachable
-from pinecall.providers.tuning import the_voice
+from pinecall.providers.tts.vendor_voices import Shelf, ShelfUnreachable
+from pinecall.providers.tuned_declaration import the_voice
 from pinecall.types import DeclarationRefused
 from pinecall_protocol.rest import ListedVoice, VoiceSample, VoicesListed
 

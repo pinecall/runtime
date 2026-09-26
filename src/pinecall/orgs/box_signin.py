@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from pinecall.orgs.box import SIGN_IN, BoxSettings
+from pinecall.orgs.box_settings import SIGN_IN, BoxSettings
 
 # The providers a box may offer to EVERY org's people at its sign-in page, as against the one an
-# org wires for its own (orgs/sso.py). Each is an OpenID Connect issuer this runtime already
+# org wires for its own (orgs/org_sso.py). Each is an OpenID Connect issuer this runtime already
 # knows how to talk to (auth/openid.py); what the operator brings is a client at it. One entry
 # here and one row in box_settings is a second provider — nothing else is written per provider.
 GOOGLE = "google"

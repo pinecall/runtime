@@ -14,7 +14,7 @@ from pinecall.api.calls.log_sink import (
     refuse_another_org,
 )
 from pinecall.api.deps import CallIndexDep, SnapshotsDep, StoreDep
-from pinecall.auth.corner import corner_of
+from pinecall.auth.request_scope import corner_of
 from pinecall.auth.scopes import Reader
 from pinecall.log.call_facts import CallFacts
 from pinecall.log.projection import project_state

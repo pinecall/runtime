@@ -8,9 +8,9 @@ from fastapi import APIRouter, HTTPException
 
 from pinecall._settings import Settings
 from pinecall.api.deps import AppKeyDep, KeyDep, KeysDep, MembersDep, SettingsDep
-from pinecall.auth.corner import author_of
+from pinecall.auth.env import THE_OTHER_GATEWAY, a_person
 from pinecall.auth.keys import Issued, KeyRecord, ListedKey
-from pinecall.auth.world import THE_OTHER_GATEWAY, a_person
+from pinecall.auth.request_scope import author_of
 from pinecall.types import Env, an_env
 from pinecall_protocol import WireModel
 
@@ -29,7 +29,7 @@ SERVER_SCOPES: frozenset[str] = frozenset({"app", "calls", "talk", "knowledge", 
 # A server's token is made by a PERSON, from the console, and belongs to the org: it names who
 # made it and outlives them — a production that stopped when its developer left would be an
 # outage nobody chose (0039). Production's is made by somebody the org lets act there, which the
-# door's own reading already holds them to (auth/world.py): a person without it acts nowhere here.
+# door's own reading already holds them to (auth/env.py): a person without it acts nowhere here.
 BY_A_PERSON = "a server's token is made by a person, from Tokens in the console"
 # A token opens the one world it was made in, and an instance IS one world: a token for the other
 # would be refused at every door here, and the other instance's table has never heard of it.

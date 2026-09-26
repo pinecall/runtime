@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from pinecall._settings import Settings
-from pinecall.providers.pipeline import Pipeline, pipeline_for
+from pinecall.providers.session_vendors import Pipeline, pipeline_for
 from pinecall.types import AgentConfig, Brought
 
 type Kit = Callable[[AgentConfig, Brought], Pipeline]

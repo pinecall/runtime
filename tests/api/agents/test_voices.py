@@ -20,7 +20,7 @@ from pinecall.api.deps import a_settings
 from pinecall.auth.throttle import Throttle
 from pinecall.providers.registry import Asked
 from pinecall.providers.tts.sampling import A_LINE_FOR, Sample, SampleRefused
-from pinecall.providers.tts.shelf import Shelf
+from pinecall.providers.tts.vendor_voices import Shelf
 
 pytestmark = pytest.mark.unit
 

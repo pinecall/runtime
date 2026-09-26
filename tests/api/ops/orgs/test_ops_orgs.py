@@ -8,8 +8,8 @@ import httpx
 import pytest
 
 from pinecall.auth.keys import fingerprint
-from pinecall.orgs.dialling import MemoryDialling
-from pinecall.routes.table import MemoryRoutes
+from pinecall.orgs.dial_policies import MemoryDialling
+from pinecall.routes.records import MemoryRoutes
 from pinecall.types import DialPolicy, Route
 from tests.api.conftest import AN_ORG
 

@@ -9,8 +9,8 @@ from pinecall.api.accounts.login import NOT_A_MEMBER
 from pinecall.api.deps import KeyDep, KeysDep, MembersDep, OrgsDep, SettingsDep
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Members
-from pinecall.auth.persons import a_persons_key
-from pinecall.auth.visiting import VISITOR_LABEL, a_visitor, the_operator, visiting
+from pinecall.auth.person_keys import a_persons_key
+from pinecall.auth.visitor_keys import VISITOR_LABEL, a_visitor, the_operator, visiting
 from pinecall.types import HOLDING, ROLE_SCOPES, Member, MemberStatus, Org
 from pinecall_protocol import WireModel
 

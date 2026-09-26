@@ -11,8 +11,8 @@ from cryptography.fernet import Fernet
 from pinecall.api.app import app
 from pinecall.api.telephony import deps as placing
 from pinecall.orgs.carriers import MemoryCarriers
-from pinecall.orgs.dialling import MemoryDialling
-from pinecall.orgs.outbound import MemoryOutboundTrunks
+from pinecall.orgs.dial_policies import MemoryDialling
+from pinecall.orgs.outbound_credentials import MemoryOutboundTrunks
 from pinecall.routes.twilio import Trunk, TwilioNumber, TwilioRefused
 from pinecall.types import TwilioAccount
 from tests.api.conftest import A_VAULT_KEY

@@ -108,5 +108,5 @@ row above. `DELETE /v1/ops/signin/google` — `204`; `404` when none was wired.
 
 `GET /.well-known/pinecall` says `google: true` while it is usable, which is what the sign-in
 page draws the button off. Internally a provider is one row of `box_settings` (`signin.google`)
-and one entry of a table (`orgs/signin.py`): a second box-wide provider is a row, not a rewrite;
+and one entry of a table (`orgs/box_signin.py`): a second box-wide provider is a row, not a rewrite;
 only Google is exposed today.

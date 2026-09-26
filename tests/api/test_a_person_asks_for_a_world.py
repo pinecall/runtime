@@ -11,9 +11,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from pinecall._settings import Settings
 from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
-from pinecall.auth.keys import KeyRecord, MemoryKeys
-from pinecall.auth.members_memory import MemoryMembers
-from pinecall.auth.world import (
+from pinecall.auth.env import (
     ENV_HEADER,
     NO_PRODUCTION,
     NOT_A_WORLD,
@@ -21,6 +19,8 @@ from pinecall.auth.world import (
     ONE_WORLD,
     SAY_THE_WORLD,
 )
+from pinecall.auth.keys import KeyRecord, MemoryKeys
+from pinecall.auth.members_memory import MemoryMembers
 from pinecall.types import PRODUCTION, SANDBOX, Member, Role
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS
 from tests.api.talking import a_door, a_register, answering_in, got
@@ -55,7 +55,7 @@ ANA = a_member("Ana", "admin")
 
 
 def a_persons_key(member: Member) -> KeyRecord:
-    """The one key a login leaves them: no world of its own (auth/persons.py)."""
+    """The one key a login leaves them: no world of its own (auth/person_keys.py)."""
     return KeyRecord(
         key_id=f"k_{member.name.lower()}",
         org=member.org,

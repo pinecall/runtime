@@ -24,7 +24,7 @@ from pinecall.api.live import LiveDep
 from pinecall.auth.keys import KeyRecord, held_by, is_the_fleets
 from pinecall.log.logs import CallLog
 from pinecall.log.writers import Logs
-from pinecall.tokens.spending import spent
+from pinecall.tokens.spend import spent
 from pinecall.types import AgentConfig, CallContext, Env
 from pinecall_protocol import WireModel
 from pinecall_protocol.registry import EVENTS

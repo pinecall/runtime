@@ -8,8 +8,8 @@ import pytest
 from pinecall.api.org.mail import NO_MAIL, NOTHING_TO_TEST
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.mail import Outbox
-from pinecall.orgs.mail import Mail
-from pinecall.orgs.table import MemoryOrgs
+from pinecall.orgs.org_mail import Mail
+from pinecall.orgs.records import MemoryOrgs
 from pinecall.types import Mailbox, Org
 from tests.api.conftest import A_KEY, A_RECORD, AN_ORG, over_the_asgi_app
 from tests.api.mailing import A_BOX_SENDER, AN_ORGS_SENDER

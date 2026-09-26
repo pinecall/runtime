@@ -61,8 +61,9 @@ class Speaking:
     # The org's own keys when it brought any, and what the box lends it for the rest.
     brought: Brought = NOTHING_BROUGHT
     # The voice the persona declared for itself — its `tts` and `voice`, read by the agent's own
-    # parser (providers/tuning.py:the_voice) — when it declared one. Then that vendor, that model
-    # and that id speak, whatever the agent speaks in; None is a premade the agent does not have.
+    # parser (providers/tuned_declaration.py:the_voice) — when it declared one. Then that vendor,
+    # that model and that id speak, whatever the agent speaks in; None is a premade the agent does
+    # not have.
     declared: DeclaredVoice | None = None
 
 

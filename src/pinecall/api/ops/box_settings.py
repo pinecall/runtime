@@ -8,7 +8,7 @@ from fastapi import Depends
 from starlette.requests import HTTPConnection
 
 from pinecall.api.deps import held
-from pinecall.orgs.box import BoxSettings
+from pinecall.orgs.box_settings import BoxSettings
 
 
 def the_box_settings(connection: HTTPConnection) -> BoxSettings:

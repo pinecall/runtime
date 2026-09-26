@@ -7,7 +7,7 @@ import pytest
 
 from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry
-from pinecall.orgs.tuning import MemoryTuning
+from pinecall.orgs.tuning_store import MemoryTuning
 from tests.api.agents.pipeline.conftest import declared
 from tests.api.conftest import PIPELINE
 

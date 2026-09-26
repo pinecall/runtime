@@ -3,10 +3,10 @@
 import pytest
 from livekit.plugins import cartesia
 
-from pinecall.providers.pipeline import Pipeline
+from pinecall.providers.session_vendors import Pipeline
 from pinecall.session.voice.kit import kit_for
 from pinecall.types import NOTHING_BROUGHT, AgentConfig, Brought
-from tests.providers.test_pipeline import settings
+from tests.providers.test_session_vendors import settings
 
 pytestmark = pytest.mark.unit
 

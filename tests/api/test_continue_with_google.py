@@ -20,10 +20,10 @@ from pinecall.api.ops.box_signin import EMPTY
 from pinecall.api.ops.box_signin import NOT_WIRED as NOTHING_TO_FORGET
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.openid import SCOPE
-from pinecall.auth.sso import Handshakes
-from pinecall.orgs.signin import PROVIDERS
-from pinecall.orgs.sso import Sso
-from pinecall.orgs.table import MemoryOrgs
+from pinecall.auth.sso_state import Handshakes
+from pinecall.orgs.box_signin import PROVIDERS
+from pinecall.orgs.org_sso import Sso
+from pinecall.orgs.records import MemoryOrgs
 from pinecall.orgs.vault import NO_VAULT_KEY
 from pinecall.types import Member, OrgSso
 from tests.api.conftest import AN_ORG

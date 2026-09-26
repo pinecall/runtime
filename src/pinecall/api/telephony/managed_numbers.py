@@ -23,7 +23,7 @@ from pinecall.api.telephony.numbers import (
     routed,
     trunked,
 )
-from pinecall.routes.trunks import NO_LIVEKIT
+from pinecall.routes.inbound_trunks import NO_LIVEKIT
 from pinecall.routes.twilio import BOX_TRUNK, TwilioNumber
 from pinecall.types import Carrier, DeclarationRefused, TwilioAccount
 from pinecall_protocol import WireModel

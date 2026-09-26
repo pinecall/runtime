@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from pinecall.api.agents.registry import Registry
-from pinecall.orgs.tuning import MemoryTuning
+from pinecall.orgs.tuning_store import MemoryTuning
 from pinecall.types import PRODUCTION, Greeting, Tuning
 from pinecall.worker.client import Gateway
 from pinecall_protocol import defs

@@ -10,8 +10,8 @@ from starlette.status import HTTP_204_NO_CONTENT
 from pinecall.api.deps import AppKeyDep, OrgsDep, RoutesDep, an_org
 from pinecall.api.scope.operator_key import an_operators_router
 from pinecall.api.scope.request_scope import CornerDep
-from pinecall.auth.corner import NOT_YOUR_CORNER
 from pinecall.auth.keys import is_the_fleets
+from pinecall.auth.request_scope import NOT_YOUR_CORNER
 from pinecall.types import PRODUCTION, Channel, Env, Route
 from pinecall_protocol import WireModel
 

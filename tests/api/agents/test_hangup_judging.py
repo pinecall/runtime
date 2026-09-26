@@ -11,8 +11,8 @@ from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
 from pinecall.evals.score import JUDGING_OFF, JudgedWhen
-from pinecall.orgs.table import MemoryOrgs
-from pinecall.orgs.tuning import MemoryTuning
+from pinecall.orgs.records import MemoryOrgs
+from pinecall.orgs.tuning_store import MemoryTuning
 from pinecall.types import AgentConfig
 from pinecall.worker.client import Gateway
 from tests.api.calls.test_lookup import CALL, a_phone_call

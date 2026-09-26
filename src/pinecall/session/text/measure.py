@@ -8,7 +8,7 @@ from typing import Any
 from livekit.agents.metrics import LLMMetrics as Measured
 from livekit.agents.metrics.usage import AgentSessionUsage
 
-from pinecall.providers.usage import as_wire_rows
+from pinecall.providers.usage_wire import as_wire_rows
 from pinecall_protocol.metrics import (
     AgentTurnMetrics,
     LLMMetrics,
@@ -85,8 +85,9 @@ def turn_metrics(reply: Reply, e2e_latency: float, provider: str, model: str) ->
 
 
 # livekit's own ModelUsageCollector keeps the rows, one per provider and model, and
-# `providers/usage.py` is the one place they become ours. A text call runs no ears and no voice,
-# so the LLM rows are all there is to keep and the rest would be an empty line in the summary.
+# `providers/usage_wire.py` is the one place they become ours. A text call runs no ears and no
+# voice, so the LLM rows are all there is to keep and the rest would be an empty line in the
+# summary.
 def usage_rows(usage: AgentSessionUsage) -> list[LLMModelUsage]:
     """What the session consumed, as call.summary carries it: livekit's rows, unchanged."""
     return [row for row in as_wire_rows(usage.model_usage) if isinstance(row, LLMModelUsage)]

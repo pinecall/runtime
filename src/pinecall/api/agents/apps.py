@@ -57,7 +57,7 @@ async def apps(
 
 # `app` and not `calls`: stopping a process is the act of whoever may hold one. Production is a
 # request that named it, which the world check already let through only for somebody their org
-# lets act there (auth/world.py) — or for a production server's own token.
+# lets act there (auth/env.py) — or for a production server's own token.
 @router.post("/v1/apps/{app}/stop")
 async def stop(app: str, key: AppKeyDep, processes: ProcessesDep) -> AppStopped:
     """Tell that app it was stopped, and close its socket: it exits instead of reconnecting."""

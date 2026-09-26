@@ -16,8 +16,8 @@ from livekit.agents.voice.turn import (
     TurnHandlingOptions,
 )
 
-from pinecall.providers.pipeline import DEFAULT_STT, vendor_running
 from pinecall.providers.registry import Ears
+from pinecall.providers.session_vendors import DEFAULT_STT, vendor_running
 from pinecall.session.voice import hearing
 from pinecall.session.voice.barge_in import MIN_WORDS
 from pinecall.session.voice.kit import Kit

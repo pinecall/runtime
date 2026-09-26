@@ -445,7 +445,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   without the number passing `GET /v1/agents/{slug}/outbound-trunk?to=&call=` — the shape check,
   the per-minute and per-day windows, and the same `dials` ledger. The stranger fence stays a cold
   dial's: a colleague an agent transfers to has no reason to have ever rung the org
-  (`orgs/guards.py:a_second_leg`). A refusal reaches the caller's log as the guard's own sentence,
+  (`orgs/outbound_guards.py:a_second_leg`). A refusal reaches the caller's log as the guard's own sentence,
   so `call.transferred` says `dial.too_fast` and the agent can say something true.
 
 ### Fixed
@@ -477,7 +477,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **A key grants what it holds.** `team` opened every role to whoever held it: a manager could
   invite an admin, PATCH a colleague or their own row to one, or wire SSO seating a whole domain as
   admins, and hold the org by the next login. `POST`/`PATCH /v1/members` and `PUT /v1/org/sso` now
-  refuse `403` a role whose preset opens a door the asking key does not (`auth/granting.py`,
+  refuse `403` a role whose preset opens a door the asking key does not (`auth/grants.py`,
   `this key does not open everything <role> would: …`), production access from a key that has
   none (`… has no production access, and cannot give it`), and `409` a change to one's own role
   or switch. A key naming nobody — a server's, the box's, an operator's visit — grants as before.
@@ -509,7 +509,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ### Added
 - **A persona says how it is played and when it accepts the call — and a judge reads the call by
   it.** `agent_personas` gains `llm`, `tts`, `voice`, `accepts_when` and `declines_when`
-  (migration `0047`). The three knobs are the agent's own words, read by `providers/tuning.py` and
+  (migration `0047`). The three knobs are the agent's own words, read by `providers/tuned_declaration.py` and
   refused with a 422 at `PUT /v1/personas/{name}` for a vendor or a voice this box does not have;
   `POST /v1/evals/caller` and `/v1/evals/voice` play the caller on that model and read its lines in
   that voice, and unset is what it always was. The rule rides the dispatch (or the chat door) onto
@@ -778,7 +778,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   knob now falls through on its own: a corner supplies the knobs it actually set and the corner
   below supplies the rest, a knob set to a falsy value (`turn {endpointing_ms: 0}`) is set and
   wins, and an empty row supplies nothing and is invisible to resolution. One definition,
-  `orgs/resolving.py:resolved`, which both stores read through; the versioned writes and the
+  `orgs/tuning_resolution.py:resolved`, which both stores read through; the versioned writes and the
   per-corner doors are untouched. [docs/protocol/settings-api.md](docs/protocol/settings-api.md)
 - **`bases: []` is a corner saying it reads no base.** It was the one knob with no absent form: an
   empty list was dropped on its way into the column, so "take the team's bases off this agent" was

@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from pinecall.auth.keys import KeyRecord, MemoryKeys
-from pinecall.auth.persons import SANDBOX_PERSONS_KEY_LIFE, a_persons_key, until
+from pinecall.auth.person_keys import SANDBOX_PERSONS_KEY_LIFE, a_persons_key, until
 from pinecall.types import PRODUCTION, SANDBOX, Member
 
 pytestmark = pytest.mark.unit

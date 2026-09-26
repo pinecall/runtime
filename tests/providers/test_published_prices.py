@@ -5,7 +5,7 @@ import json
 import pytest
 
 from pinecall.providers import prices
-from pinecall.providers.published import FILE, published
+from pinecall.providers.published_prices import FILE, published
 
 pytestmark = pytest.mark.unit
 

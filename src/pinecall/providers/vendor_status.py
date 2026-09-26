@@ -11,9 +11,9 @@ from typing import Literal
 
 from pinecall._settings import Settings
 from pinecall.providers import catalog
-from pinecall.providers._inference import VENDOR as INFERENCE
-from pinecall.providers._inference import the_project_is_there
 from pinecall.providers.catalog import Provider
+from pinecall.providers.livekit_inference import VENDOR as INFERENCE
+from pinecall.providers.livekit_inference import the_project_is_there
 from pinecall.providers.plugin import installed
 
 type Standing = Literal["ready", "no plugin", "no key", "its own"]

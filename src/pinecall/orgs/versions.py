@@ -10,7 +10,7 @@ from typing import Any, Protocol
 
 from pinecall._exceptions import PinecallError
 from pinecall.log.store import Pool
-from pinecall.orgs.resolving import corners
+from pinecall.orgs.tuning_resolution import corners
 from pinecall.types import Kept
 
 # What a write says when the corner is not at the version the writer read. Two people saving the

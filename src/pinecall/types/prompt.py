@@ -40,7 +40,7 @@ DEFAULT_LAYOUT: tuple[PromptBlock, ...] = (
 
 # One per call. The app writes a block by name with prompt.set; the session reads the static text
 # for livekit's instructions and the dynamic texts for the end of every request. Nothing here knows
-# a framework or a vendor: how the blocks reach a model is providers/blocks.py.
+# a framework or a vendor: how the blocks reach a model is providers/prompt_request.py.
 class Blocks:
     """One call's prompt: the blocks in the order they are sent, and the text each holds now."""
 

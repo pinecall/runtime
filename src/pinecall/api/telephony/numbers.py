@@ -18,8 +18,8 @@ from pinecall.api.deps import (
     TwilioDep,
 )
 from pinecall.auth.keys import KeyRecord
-from pinecall.routes.table import Routes
-from pinecall.routes.trunks import NO_LIVEKIT, TRUNK_NAME, Trunks, fence_of
+from pinecall.routes.inbound_trunks import NO_LIVEKIT, TRUNK_NAME, Trunks, fence_of
+from pinecall.routes.records import Routes
 from pinecall.routes.twilio import (
     CARRIER_TRUNK,
     TwilioApi,

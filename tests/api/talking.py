@@ -13,7 +13,7 @@ from pinecall._settings import Settings
 from pinecall.api import deps as deps
 from pinecall.api.agents.held_agent import Send
 from pinecall.api.app import app
-from pinecall.auth.world import ENV_HEADER
+from pinecall.auth.env import ENV_HEADER
 from pinecall.log.entry import Entry
 from pinecall.types import PRODUCTION, SANDBOX, CallContext, Env, Route
 from pinecall.types.dispatch import DEFAULT_FLEET
@@ -48,7 +48,7 @@ def got(
     client: TestClient, path: str, bearer: str | None = A_KEY, world: str | None = None
 ) -> tuple[int, Json]:
     """One GET at this door, as a status and, when the body is JSON, the body. `world` is the
-    one a person's request names (auth/world.py); a server's token has its own."""
+    one a person's request names (auth/env.py); a server's token has its own."""
     headers = {} if bearer is None else {"Authorization": f"Bearer {bearer}"}
     if world is not None:
         headers[ENV_HEADER] = world

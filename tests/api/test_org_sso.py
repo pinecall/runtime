@@ -6,8 +6,8 @@ import httpx
 import pytest
 
 from pinecall.api.accounts.org_sso import CALLBACK, NO_SSO
-from pinecall.orgs.sso import Sso
-from pinecall.orgs.table import MemoryOrgs
+from pinecall.orgs.org_sso import Sso
+from pinecall.orgs.records import MemoryOrgs
 from pinecall.types import Org
 from tests.api.conftest import AN_OPS_KEY, AN_ORG
 from tests.api.fake_idp import CLIENT_ID, CLIENT_SECRET, ISSUER

@@ -7,7 +7,7 @@ from datetime import UTC, date, datetime
 from fastapi import APIRouter
 
 from pinecall.api.deps import CallIndexDep, CallsKeyDep, OrgsDep
-from pinecall.auth.corner import corner_of
+from pinecall.auth.request_scope import corner_of
 from pinecall.log.store.call_index import Day
 from pinecall_protocol.rest import Insights
 

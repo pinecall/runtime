@@ -5,7 +5,7 @@ from __future__ import annotations
 from pinecall.api.ops.box_settings import BoxSettingsDep
 from pinecall.api.scope.operator_key import an_operators_router
 from pinecall.mail import rebranded, the_brand
-from pinecall.orgs.box import BRAND
+from pinecall.orgs.box_settings import BRAND
 from pinecall_protocol import WireModel
 from pinecall_protocol.rest import BoxBrand
 

@@ -62,10 +62,11 @@ class Persona(WireModel):
     # use these and to invent nothing beside them, which is what makes a simulated call repeatable
     # in the only way an improvised one can be.
     facts: dict[str, Any] = Field(default_factory=dict[str, Any])
-    # How they are played, in the three words the agent's own settings use (providers/tuning.py):
-    # which model improvises them, which vendor reads their lines, in which voice. None is the
-    # runtime's choice — the box's default model, a premade the agent does not have — which is
-    # what every caller was until the row could say otherwise (migration 0047).
+    # How they are played, in the three words the agent's own settings use
+    # (providers/tuned_declaration.py): which model improvises them, which vendor reads their lines,
+    # in which voice. None is the runtime's choice — the box's default model, a premade the agent
+    # does not have — which is what every caller was until the row could say otherwise (migration
+    # 0047).
     llm: str | None = None
     tts: str | None = None
     voice: str | None = None

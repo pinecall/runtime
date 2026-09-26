@@ -4,7 +4,7 @@ import httpx
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.orgs.box import BoxSettings, MemoryBoxSettings
+from pinecall.orgs.box_settings import BoxSettings, MemoryBoxSettings
 from pinecall.orgs.vault import NO_VAULT_KEY, Vault
 from tests.api.conftest import AN_OPS_KEY
 

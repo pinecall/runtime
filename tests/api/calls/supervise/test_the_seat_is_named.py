@@ -9,9 +9,9 @@ from starlette.testclient import TestClient
 
 from pinecall.api.agents.registry import Registry
 from pinecall.api.live import Live
+from pinecall.auth.env import ENV_HEADER
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
-from pinecall.auth.world import ENV_HEADER
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.types import PRODUCTION, Member

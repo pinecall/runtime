@@ -165,12 +165,12 @@ def _a_trunk_info(
 
 
 # The rule names this instance's fleet and never a tenant's agent: which agent answers a number is
-# one row in the routes table, and moving a number is not a LiveKit change at all. It does name
-# the ORG, because a tenant's trunk is one org's: the worker reads it off the dispatch and asks
-# for that org's doors, the way a web token's dispatch names its org (tokens/room.py). The box's
-# own trunk (infra/tools/twilio_trunk.py) names none, and a call on it is resolved by number. A
-# rule standing under its legacy name is replaced in place — one update, never a delete and a
-# create, so the trunk is never without a rule while a call arrives.
+# one row in the routes table, and moving a number is not a LiveKit change at all. It does name the
+# ORG, because a tenant's trunk is one org's: the worker reads it off the dispatch and asks for that
+# org's doors, the way a web token's dispatch names its org (tokens/room_token.py). The box's own
+# trunk (infra/tools/twilio_trunk.py) names none, and a call on it is resolved by number. A rule
+# standing under its legacy name is replaced in place — one update, never a delete and a create, so
+# the trunk is never without a rule while a call arrives.
 async def _a_rule(livekit: api.LiveKitAPI, fleet: str, org: str, trunk_id: str) -> None:
     """One room per caller on this trunk, with the fleet dispatched into it, made once."""
     rule = _a_rule_info(fleet, org, trunk_id)

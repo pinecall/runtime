@@ -15,8 +15,8 @@ from pinecall.api.live import Served
 from pinecall.knowledge import Knowledge
 from pinecall.log.entry import Entry
 from pinecall.orgs.admission import Admission
-from pinecall.orgs.codes import Codes
-from pinecall.orgs.tuning import TuningStore
+from pinecall.orgs.caller_codes import Codes
+from pinecall.orgs.tuning_store import TuningStore
 from pinecall.session.text.session import TextSession
 from pinecall.types import Env
 from pinecall_protocol import Command, ProtocolError, WireModel, command_of

@@ -8,12 +8,12 @@ from fastapi import Depends, HTTPException
 from starlette.requests import HTTPConnection
 
 from pinecall.api.deps import CallIndexDep, held
-from pinecall.orgs.dialling import DialPolicies, Dials
-from pinecall.orgs.guards import Guards
-from pinecall.orgs.outbound import OutboundTrunks
+from pinecall.orgs.dial_policies import DialPolicies, Dials
+from pinecall.orgs.outbound_credentials import OutboundTrunks
+from pinecall.orgs.outbound_guards import Guards
 from pinecall.orgs.vault import NO_VAULT_KEY
-from pinecall.routes.dispatching import Dispatches
-from pinecall.routes.outbound import Outbound
+from pinecall.routes.dispatch import Dispatches
+from pinecall.routes.outbound_trunks import Outbound
 
 
 def the_outbound_trunks(connection: HTTPConnection) -> OutboundTrunks | None:

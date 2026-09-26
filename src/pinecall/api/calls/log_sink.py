@@ -16,10 +16,10 @@ from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.api.deps import SCOPE_OF_THE_DOOR, KeysDep, MembersDep, SettingsDep
 from pinecall.auth.bearer import bearer_of
-from pinecall.auth.corner import corner_of
+from pinecall.auth.env import as_asked
 from pinecall.auth.keys import KeyRecord, Keys, is_the_fleets, not_opening
+from pinecall.auth.request_scope import corner_of
 from pinecall.auth.scopes import LivekitKeys, Reader, a_reader, is_a_jwt, secret_for
-from pinecall.auth.world import as_asked
 from pinecall.log.entry import Entry
 from pinecall.log.filters import Filter
 from pinecall.log.projection import project_entry

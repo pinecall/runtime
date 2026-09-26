@@ -17,7 +17,7 @@ from pinecall.evals import a_case
 from pinecall.evals.runs import EvalRun, MemoryRuns
 from pinecall.log.replay import whole
 from pinecall.log.store import MemoryStore
-from pinecall.orgs.table import MemoryOrgs
+from pinecall.orgs.records import MemoryOrgs
 from pinecall.orgs.vault import Vault
 from pinecall.types import ProviderKeys, Quotas
 from pinecall_protocol import defs

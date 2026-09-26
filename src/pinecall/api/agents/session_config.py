@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from pinecall.orgs.tuning import TuningStore
-from pinecall.providers.tuning import tuned
+from pinecall.orgs.tuning_store import TuningStore
+from pinecall.providers.tuned_declaration import tuned
 from pinecall.types import AgentConfig, Env, Lexicon, Tuning, Versions
 
 

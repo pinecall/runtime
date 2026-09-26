@@ -18,7 +18,7 @@ their role: `qa` · `supervisor` · `manager` · `admin` · `developer` (`types/
 `agents`, `status` or `production` — `disabled` revokes every key of theirs and refuses their
 login, `active` re-enables one who had a password and never activates one still invited.
 
-**A key grants what it holds** (`auth/granting.py`), at the invitation, at the PATCH and at the
+**A key grants what it holds** (`auth/grants.py`), at the invitation, at the PATCH and at the
 role `PUT /v1/org/sso` seats a stranger with. A role whose preset opens a door the asking key does
 not is `403 this key does not open everything <role> would: it opens …, so it cannot grant <role>`
 — a manager seats `qa`, `supervisor` and `manager`, never a `developer` or an `admin`.
@@ -71,7 +71,7 @@ them. Re-inviting an email the org already holds takes no second seat.
 role says what they do; the member's **`production`** switch, set by an admin, says whether they may
 do it in production. Every key minted for a person — at login, at `POST /v1/invitations/{token}`,
 at sign-up, at a code, at a terminal's pairing, at another org of theirs — carries their role's
-preset whole, `app` included, and opens no world of its own (`auth/persons.py`): it is read in the
+preset whole, `app` included, and opens no world of its own (`auth/person_keys.py`): it is read in the
 world of the instance it knocks at (`PINECALL_WORLD`). `pinecall-env: production` or `sandbox` is
 an **assertion**: naming the other instance's world is `403 this gateway is <here>'s, not
 <asked>'s: <asked> answers at <elsewhere>`. The doors that open no scope — whoami, a login code,
@@ -138,7 +138,7 @@ true` for such a person in every org and `visiting: true` inside one they are no
 key opens no sandbox and signs no terminal in — `pinecall-env: sandbox` is `403 this token was
 made for production: …` and the pairing answers `403 an operator visits an org in production,
 from the console: …` — because a sandbox is a member's corner. **It stops the moment they stop running the box**: the flag is read on every verify
-(`auth/visiting.py`), so `orgs operator --revoke`, disabling them or removing them is one write
+(`auth/visitor_keys.py`), so `orgs operator --revoke`, disabling them or removing them is one write
 and the next request with that key is `401`, with nothing to remember to revoke.
 
 **Before signing in**, a sign-in page asks `POST /v1/login/orgs {email, password}` — no key, and it

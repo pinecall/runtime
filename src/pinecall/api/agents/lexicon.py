@@ -8,9 +8,9 @@ from fastapi import APIRouter, Query
 
 from pinecall.api.agents.tuning import TuningKeyDep, a_lexicon_row, corner_written
 from pinecall.api.deps import TuningDep
-from pinecall.auth.corner import author_of
 from pinecall.auth.keys import KeyRecord, held_by
-from pinecall.orgs.tuning import HISTORY_LIMIT, TuningStore
+from pinecall.auth.request_scope import author_of
+from pinecall.orgs.tuning_store import HISTORY_LIMIT, TuningStore
 from pinecall.types import HOLDING, PRODUCTION, THE_ORGS_OWN, Lexicon
 from pinecall_protocol.rest import LexiconAnswer, LexiconBody, LexiconHistory, LexiconPut
 

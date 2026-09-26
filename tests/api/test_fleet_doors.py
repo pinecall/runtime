@@ -14,7 +14,7 @@ from pinecall.api.ops.peers import the_sandbox
 from pinecall.auth.keys import MemoryKeys
 from pinecall.fleet import Heartbeat
 from pinecall.log.store import MemoryStore
-from pinecall.routes.table import MemoryRoutes
+from pinecall.routes.records import MemoryRoutes
 from pinecall.types import DEFAULT_ORG, PRODUCTION, SANDBOX, THE_FLEET, Env, Route
 from pinecall.types.dispatch import Handover
 from pinecall.worker.client import Gateway

@@ -19,9 +19,9 @@ from pinecall.log.store.postgres import without_password
 from pinecall.providers import catalog
 from pinecall.providers.embed import base_url_of, key_field_of, model_of
 from pinecall.providers.embedder import DIMENSIONS
-from pinecall.providers.knocks import KNOCKS
+from pinecall.providers.key_probes import KNOCKS
 from pinecall.providers.models import DEFAULT_VENDOR
-from pinecall.providers.pipeline import DEFAULT_STT
+from pinecall.providers.session_vendors import DEFAULT_STT
 from pinecall.providers.tts import DEFAULT_TTS
 
 PURPOSE: str = (

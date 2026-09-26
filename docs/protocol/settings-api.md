@@ -6,7 +6,7 @@ how the voice says a brand and what the ears must know. These doors keep all of 
 corner, a version a row**, and a call's head row says which versions it ran on. They take the org's
 own API key, as every tenant door does. The class declares the contract — the tools, the state,
 the language, the doors — and nothing of this: the world is put on the declaration at the one place
-every session is built (`providers/tuning.py`), and a knob the org never set is the runtime's
+every session is built (`providers/tuned_declaration.py`), and a knob the org never set is the runtime's
 default.
 
 **Two kinds of key open them.** A key that opens `pipeline` — a developer's, an admin's — may set

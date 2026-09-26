@@ -10,7 +10,7 @@ import pytest
 from pinecall.auth.members import NoSeatLeft
 from pinecall.auth.members_postgres import PostgresMembers
 from pinecall.log.store import Pool, open_pool
-from pinecall.orgs.table import PostgresOrgs
+from pinecall.orgs.records import PostgresOrgs
 from pinecall.types import Member
 from tests.postgres import Dev
 

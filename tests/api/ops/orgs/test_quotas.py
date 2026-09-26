@@ -12,7 +12,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from pinecall.api.agents.registry import Registry
 from pinecall.log.store import MemoryStore
-from pinecall.orgs.table import MemoryOrgs
+from pinecall.orgs.records import MemoryOrgs
 from pinecall.types import CallContext, Quotas, Route
 from pinecall.types.org import Ceiling
 from pinecall.worker.client import Gateway

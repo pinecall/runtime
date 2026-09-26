@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import TextIO
 
 from pinecall.log.store import Pool
-from pinecall.orgs.table import PostgresOrgs
+from pinecall.orgs.records import PostgresOrgs
 from pinecall.types import Org
 
 

@@ -15,7 +15,7 @@ from pinecall.api.accounts.identity import SIGN_IN_THERE, the_identity
 from pinecall.api.app import app
 from pinecall.auth.identity import Identity
 from pinecall.auth.keys import KeyRecord, MemoryKeys
-from pinecall.auth.persons import SANDBOX_PERSONS_KEY_LIFE
+from pinecall.auth.person_keys import SANDBOX_PERSONS_KEY_LIFE
 from pinecall.types import SANDBOX
 from tests.api.conftest import A_KEY, A_RECORD, over_the_asgi_app
 from tests.api.talking import answering_in

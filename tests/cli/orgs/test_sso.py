@@ -9,7 +9,7 @@ import pytest
 
 from pinecall.cli.operator import Operator
 from pinecall.cli.orgs import sso as signing_in
-from pinecall.orgs.sso import Sso
+from pinecall.orgs.org_sso import Sso
 from pinecall.types import OrgSso
 from tests.api.conftest import AN_ORG
 from tests.api.fake_idp import CLIENT_ID, CLIENT_SECRET, ISSUER

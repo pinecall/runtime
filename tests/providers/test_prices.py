@@ -5,7 +5,7 @@ from livekit.agents.metrics.usage import AgentSessionUsage
 from livekit.agents.metrics.usage import LLMModelUsage as LiveUsage
 
 from pinecall.providers import prices
-from pinecall.providers.usage import as_wire_rows
+from pinecall.providers.usage_wire import as_wire_rows
 from pinecall_protocol.metrics import (
     EOTModelUsage,
     InterruptionModelUsage,

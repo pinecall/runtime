@@ -9,7 +9,7 @@ from pinecall.api.accounts.identity import AtProduction
 from pinecall.api.accounts.members import NO_SUCH_MEMBER, MemberSaid, a_member_said
 from pinecall.api.deps import KeysDep, MembersDep, TeamKeyDep
 from pinecall.api.scope.grants import may_grant
-from pinecall.auth.granting import NOT_YOUR_OWN_ROW
+from pinecall.auth.grants import NOT_YOUR_OWN_ROW
 from pinecall.auth.keys import Keys, revoked_every_key_of
 from pinecall.auth.members import Members
 from pinecall.types import DeclarationRefused, Member, a_role

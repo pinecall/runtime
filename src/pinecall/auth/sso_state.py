@@ -38,7 +38,7 @@ class Handshake:
     # so the browser lands back on that card and approves the terminal as it always did.
     pairing: str | None
     expires_at: float
-    # Which BOX-WIDE provider this sign-in went out to (orgs/signin.py), when it is not an org's
+    # Which BOX-WIDE provider this sign-in went out to (orgs/box_signin.py), when it is not an org's
     # own: `org` is then nobody's, and only that provider's callback may spend the state.
     provider: str | None = None
 

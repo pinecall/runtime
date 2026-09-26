@@ -2,8 +2,8 @@
 
 import pytest
 
-from pinecall.providers.tts.voices import VOICES, vendor_of, voice_declared
-from pinecall.providers.tuning import tuned
+from pinecall.providers.tts.curated_voices import VOICES, vendor_of, voice_declared
+from pinecall.providers.tuned_declaration import tuned
 from pinecall.types import AgentConfig, DeclarationRefused, Lexicon, Tuning, Voice
 
 pytestmark = pytest.mark.unit

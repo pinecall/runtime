@@ -12,7 +12,7 @@ from livekit.agents import llm, stt, tts
 
 from pinecall._exceptions import PinecallError
 from pinecall._settings import Settings
-from pinecall.providers import catalog, lending
+from pinecall.providers import catalog, lent_keys
 from pinecall.providers.catalog import Modality, Provider
 from pinecall.providers.plugin import (
     NOT_INSTALLED,
@@ -134,7 +134,7 @@ class Vendors[Made]:
     # model judged is the one that will RUN — the one asked for, else the default this build vouches
     # for first — never the declaration alone, which names no model when it wants the default.
     def _refuse_what_is_not_lent(self, vendor: str, asked: Asked) -> None:
-        """NoProvider, in lending's sentence, when the box does not lend what this call runs."""
+        """NoProvider, in lent_keys' sentence, when the box does not lend what this call runs."""
         said = self.refusal_to_run(vendor, asked.model, asked.keys, asked.lends)
         if said is not None:
             raise NoProvider(said)
@@ -151,7 +151,11 @@ class Vendors[Made]:
         self.read()
         vouched = self._models.get(name, ())
         running = model or (vouched[0] if vouched else None)
-        return None if lending.lent(lends, name, running) else lending.refusal(lends, name, running)
+        return (
+            None
+            if lent_keys.lent(lends, name, running)
+            else lent_keys.refusal(lends, name, running)
+        )
 
     # The catalogued path. It reaches every vendor livekit ships a plugin for, with no file here
     # and no edit when livekit adds one — providers/plugin.py reads the plugin's own signature.

@@ -61,7 +61,7 @@ class KeyRecord:
     # None on every key the table hands back.
     looking_at: str | None = None
     # When the key stops opening anything; None is never (0049). A sandbox person's key lives a day
-    # (auth/persons.py), and a key minted from it never outlives it.
+    # (auth/person_keys.py), and a key minted from it never outlives it.
     expires_at: datetime | None = None
 
 
@@ -141,7 +141,7 @@ def sees_every_corner(record: KeyRecord) -> bool:
 
 # The third question, and the one the worker asks. A tenant's key works in one corner and no door
 # lets it name another; the box's worker serves every org's calls with ONE key, so at its doors
-# the corner is the call's — what the dispatch said — and never the key's (auth/corner.py).
+# the corner is the call's — what the dispatch said — and never the key's (auth/request_scope.py).
 def is_the_fleets(record: KeyRecord) -> bool:
     """Whether this key is the box's worker's, and may resolve a door by the call it serves."""
     return THE_FLEET in record.scopes
@@ -293,10 +293,10 @@ def keys_for(pool: Pool | None) -> Keys | None:
     """The keys table, which is the only place a key is ever checked. None with no database."""
     if pool is None:
         return None
-    # Imported here: auth/visiting.py and the Postgres twin import this module for the protocol.
+    # Imported here: auth/visitor_keys.py and the Postgres twin import this module for the protocol.
     from pinecall.auth.keys_postgres import PostgresKeys
     from pinecall.auth.members import members_for
-    from pinecall.auth.visiting import StandingKeys
+    from pinecall.auth.visitor_keys import StandingKeys
 
     return StandingKeys(PostgresKeys(pool), members_for(pool))
 

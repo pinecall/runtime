@@ -36,7 +36,7 @@ dependencies = [
   "livekit-agents[anthropic,openai]>=1.8,<2",
   "livekit-api>=1.2.1",
   # livekit-agents' own, imported by name: PyAV decodes the hold audio (session/hold_audio.py)
-  # and protobuf is what a room's egress token carries (tokens/room.py).
+  # and protobuf is what a room's egress token carries (tokens/room_token.py).
   "av>=13,<19",
   "protobuf>=5,<8",
   # And the tracing SDK it brings: the worker hands livekit's tracer a provider that exports

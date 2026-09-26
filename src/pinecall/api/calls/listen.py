@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from pinecall.api.deps import SettingsDep, SnapshotsDep, SuperviseKeyDep
-from pinecall.tokens.seating import a_seat_in
+from pinecall.tokens.seats import a_seat_in
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -15,7 +15,7 @@ router = APIRouter()
 A_LISTENER = "observe"
 
 
-# The one answer both seat doors give, this one's and /supervise's: tokens/seating.py mints it.
+# The one answer both seat doors give, this one's and /supervise's: tokens/seats.py mints it.
 class SeatTaken(WireModel):
     """A seat in a live call: where to connect, as whom, and for which org's person."""
 

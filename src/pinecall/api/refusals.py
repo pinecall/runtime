@@ -13,13 +13,13 @@ from pinecall.api.evals.runner import AlreadyRunning, NobodyServing
 from pinecall.auth.identity import NotRedeemed
 from pinecall.log.filters import FilterRefused
 from pinecall.orgs.admission import QuotaExhausted
-from pinecall.orgs.codes import TooManyCodes
-from pinecall.orgs.guards import DialRefused
+from pinecall.orgs.caller_codes import TooManyCodes
+from pinecall.orgs.outbound_guards import DialRefused
 from pinecall.orgs.personas import NameTaken, NoSuchPersona
-from pinecall.orgs.tuning import VersionMoved
+from pinecall.orgs.tuning_store import VersionMoved
 from pinecall.providers.embedder import EmbedderUnreachable, WrongModel, WrongWidth
 from pinecall.providers.registry import NoProvider
-from pinecall.providers.tts.shelf import NotListed
+from pinecall.providers.tts.vendor_voices import NotListed
 from pinecall.routes.twilio import TwilioRefused
 from pinecall.session.hold_audio import NotAHoldMelody
 from pinecall.types import DeclarationRefused

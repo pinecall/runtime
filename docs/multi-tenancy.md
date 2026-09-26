@@ -147,7 +147,7 @@ database, worker and keys, dispatching to its own fleet (`PINECALL_FLEET`) on th
 each tells the other's public URL (`PINECALL_ELSEWHERE_URL`) in every sentence that sends a person
 there, in the console's marks and at `/.well-known/pinecall`. Nothing picks a world per request.
 
-**The header is an assertion** (`auth/world.py`). A client says which world it believes it is
+**The header is an assertion** (`auth/env.py`). A client says which world it believes it is
 talking to with `pinecall-env`; a header naming the other world is `403`, with where that world
 answers. A server's token belongs to the world it was made in, and at the other instance it is
 `403` too. A person's key is read two ways, by the kind of door:
@@ -249,7 +249,7 @@ as `subject`. **What they may do in production is a switch on their row**, `prod
 admin sets (`PATCH /v1/members/{id}`; an admin always has it): with it their one key acts in
 production too, `app` included, whenever a request says `pinecall-env: production`; without it that
 request is `403`. Disabling them keeps the row, revokes every key of theirs and refuses their login.
-**A key grants what it holds** (`auth/granting.py`): whoever invites or re-roles somebody hands
+**A key grants what it holds** (`auth/grants.py`): whoever invites or re-roles somebody hands
 out no role whose preset opens a door their own key does not, no production access they lack,
 and nothing on their own row — the refusals are `protocol/people.md`. A
 browser never carries a key in a URL: a key holder mints a one-use code (`POST /v1/login/codes`)
@@ -363,7 +363,7 @@ from the key whoever knocks is carrying.
 
 `pinecall-corner: <member id>`
 on any HTTP door that takes a key — the scoped doors and every read of a log — answers that request
-in that member's sandbox corner instead of the key's own (`auth/corner.py`): their agents, their
+in that member's sandbox corner instead of the key's own (`auth/request_scope.py`): their agents, their
 line, their calls. It is what the sandbox's console sends when an admin opens a developer's copy; production's
 console has one corner and nothing to open. Only a key
 that sees every corner may send it (`team` and `app`), only in the sandbox — production has one corner — and

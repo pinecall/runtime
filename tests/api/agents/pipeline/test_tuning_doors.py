@@ -9,9 +9,9 @@ import pytest
 
 from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry
+from pinecall.auth.env import ENV_HEADER, NO_PRODUCTION
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
-from pinecall.auth.world import ENV_HEADER, NO_PRODUCTION
-from pinecall.orgs.table import MemoryOrgs
+from pinecall.orgs.records import MemoryOrgs
 from pinecall.orgs.vault import Vault
 from pinecall.types import BLANK, PRODUCTION, ROLE_SCOPES, SANDBOX, Quotas
 from pinecall_protocol import defs
@@ -56,7 +56,7 @@ CARLA = KeyRecord(
 CI_KEY = "pk_test_the_orgs_own_ci"
 CI = KeyRecord(key_id="k_ci", org=A_RECORD.org, env=SANDBOX, scopes=ROLE_SCOPES["developer"])
 
-# ElevenLabs' Sarah, as providers/tts/voices.py curates her: what a voice knob resolves to.
+# ElevenLabs' Sarah, as providers/tts/curated_voices.py curates her: what a voice knob resolves to.
 CAROLINA = "EXAVITQu4vr4xnSDxMaL"
 SONNET = {"llm": "anthropic/claude-sonnet-4-5"}
 HAIKU = {"llm": "anthropic/claude-haiku-4-5"}

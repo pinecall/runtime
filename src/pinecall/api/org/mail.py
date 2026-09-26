@@ -11,7 +11,7 @@ from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api.deps import TeamKeyDep, held
 from pinecall.mail import Outbox, a_test_message
-from pinecall.orgs.mail import KeptMail, Mail
+from pinecall.orgs.org_mail import KeptMail, Mail
 from pinecall.orgs.vault import NO_VAULT_KEY
 from pinecall.types import Mailbox, a_security, an_address
 from pinecall_protocol import WireModel

@@ -6,13 +6,13 @@ from fastapi import HTTPException
 
 from pinecall.api.accounts.api_keys import KeyIssued
 from pinecall.api.accounts.members import MemberSaid, a_member_said
-from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import Keys
+from pinecall.auth.login_codes import LoginCodes
 from pinecall.auth.members import Members
-from pinecall.auth.persons import a_persons_key
+from pinecall.auth.person_keys import a_persons_key
 from pinecall.auth.signups import Pending
 from pinecall.extensions import Extensions
-from pinecall.orgs.table import Orgs
+from pinecall.orgs.records import Orgs
 from pinecall.types import Env, Quotas
 
 TAKEN = "{slug} is taken: pick another name for the org"

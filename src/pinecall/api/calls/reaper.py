@@ -15,7 +15,7 @@ from pinecall.log.store import LogSealed
 from pinecall.log.store.call_index import CallIndex, Unsealed
 from pinecall.log.writers import Logs
 from pinecall.providers import prices
-from pinecall.routes.rooms import Rooms
+from pinecall.routes.live_rooms import Rooms
 from pinecall.whatsapp.routing import WHATSAPP
 from pinecall_protocol import defs, encode
 from pinecall_protocol.events import CallEnded, CallScore, CallSummary

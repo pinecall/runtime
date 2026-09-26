@@ -12,7 +12,7 @@ from starlette.websockets import WebSocketDisconnect
 from pinecall.auth.bearer import POLICY_VIOLATION
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.log.store import MemoryStore
-from pinecall.orgs.table import MemoryOrgs
+from pinecall.orgs.records import MemoryOrgs
 from pinecall.types import Org
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, AN_ORG, APPS
 from tests.api.talking import a_caller, a_door, a_register, an_app, got, hung_up_by_the_app

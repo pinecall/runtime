@@ -6,7 +6,7 @@ from pinecall._settings import Settings
 from pinecall.evals import speech
 from pinecall.providers.registry import Asked
 from pinecall.providers.tts.cartesia import VOICE_FOR
-from pinecall.providers.tts.voices import VOICES
+from pinecall.providers.tts.curated_voices import VOICES
 from pinecall.types import Voice as DeclaredVoice
 
 pytestmark = pytest.mark.unit

@@ -2,7 +2,7 @@
 
 import pytest
 
-from pinecall.providers.lending import NotLent, a_lending, lent, refusal
+from pinecall.providers.lent_keys import NotLent, a_lending, lent, refusal
 
 pytestmark = pytest.mark.unit
 

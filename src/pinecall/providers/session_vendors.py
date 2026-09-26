@@ -11,7 +11,7 @@ from pinecall.providers.llm import VENDORS as LLM_VENDORS
 from pinecall.providers.models import DEFAULT_VENDOR
 from pinecall.providers.registry import Asked, Chat, Ears, Speech
 from pinecall.providers.stt import VENDORS as STT_VENDORS
-from pinecall.providers.tts import DEFAULT_TTS, voices
+from pinecall.providers.tts import DEFAULT_TTS, curated_voices
 from pinecall.providers.tts import VENDORS as TTS_VENDORS
 from pinecall.types import AgentConfig, Brought, Model, Voice
 
@@ -103,7 +103,7 @@ def _speaking(config: AgentConfig, settings: Settings, brought: Brought) -> Aske
         keys=brought.keys,
         lends=brought.lends,
         model=voice.model if voice else None,
-        language=primary(config.language or (voices.language_of(voice) if voice else None)),
+        language=primary(config.language or (curated_voices.language_of(voice) if voice else None)),
         voice_id=voice.voice_id if voice else None,
     )
 

@@ -9,7 +9,7 @@ from starlette.testclient import TestClient
 
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
 from pinecall.log.store import MemoryStore
-from pinecall.orgs.table import MemoryOrgs
+from pinecall.orgs.records import MemoryOrgs
 from pinecall.types import Quotas
 from pinecall.types.json import JsonObject
 from tests.api.conftest import A_KEY, A_RECORD

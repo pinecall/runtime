@@ -2,7 +2,7 @@
 
 from livekit.agents import inference
 
-from pinecall.providers._inference import DEFAULT_STT_MODEL, VENDOR, the_projects_pair
+from pinecall.providers.livekit_inference import DEFAULT_STT_MODEL, VENDOR, the_projects_pair
 from pinecall.providers.registry import Asked, Ears
 from pinecall.providers.stt import VENDORS
 

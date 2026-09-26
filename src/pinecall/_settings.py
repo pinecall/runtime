@@ -175,7 +175,7 @@ class Settings(VendorKeys):
     # ── The world: which one this instance IS, and where the other one answers ──
     # An instance is one world, with its own database, worker and keys: production answers the
     # phone, the sandbox is where agents are written. Nothing picks the world per request any more
-    # (auth/world.py holds a request's `pinecall-env` against THIS). A box that runs one instance
+    # (auth/env.py holds a request's `pinecall-env` against THIS). A box that runs one instance
     # is production, as every box was before there were two; the sandbox is said on purpose, by
     # the environment file of its own instance.
     world: Env = Field(
@@ -310,9 +310,9 @@ class Settings(VendorKeys):
         validation_alias="PINECALL_WORKER_NAME",
         description="What this worker is called in its heartbeats. Unset: the short hostname.",
     )
-    # The name this instance's workers register under and its gateway dispatches to: its own, so
-    # two instances on one SFU (production and the sandbox) never take each other's calls. It is
-    # also the prefix of every trunk and rule the gateway names on the SFU (routes/trunks.py).
+    # The name this instance's workers register under and its gateway dispatches to: its own, so two
+    # instances on one SFU (production and the sandbox) never take each other's calls. It is also
+    # the prefix of every trunk and rule the gateway names on the SFU (routes/inbound_trunks.py).
     fleet: str = Field(
         default=DEFAULT_FLEET,
         pattern=A_FLEET_NAME,
@@ -416,11 +416,12 @@ class Settings(VendorKeys):
             "secret seals under the first and opens under whichever sealed it."
         ),
     )
-    # The box's own mail, which is how an invitation, a password reset and a forgotten one reach
-    # the person they are about instead of being copied out of an answer by hand. Generic SMTP,
-    # so SES, Postmark, Mailgun or a server of one's own all fit; a credential like every other
-    # secret on a box, so it is a systemd credential and never argv. An org that wired its own
-    # (orgs/mail.py) is used instead; with neither, nothing is sent and every door reads as before.
+    # The box's own mail, which is how an invitation, a password reset and a forgotten one reach the
+    # person they are about instead of being copied out of an answer by hand. Generic SMTP, so SES,
+    # Postmark, Mailgun or a server of one's own all fit; a credential like every other secret on a
+    # box, so it is a systemd credential and never argv. An org that wired its own
+    # (orgs/org_mail.py) is used instead; with neither, nothing is sent and every door reads as
+    # before.
     smtp_url: str | None = Field(
         default=None,
         description="smtp://user:pass@host:587, or smtps://…:465 — what this box posts mail with.",

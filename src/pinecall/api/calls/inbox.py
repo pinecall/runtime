@@ -12,8 +12,8 @@ from starlette.status import HTTP_202_ACCEPTED
 from pinecall.api.calls.supervise.aiming import QueueingDep, aimed
 from pinecall.api.deps import CallIndexDep, CallsKeyDep, SnapshotsDep, StoreDep, TalkKeyDep
 from pinecall.api.whatsapp.threads import WINDOW_SECONDS
-from pinecall.auth.corner import Corner, corner_of
 from pinecall.auth.keys import KeyRecord
+from pinecall.auth.request_scope import Corner, corner_of
 from pinecall.auth.scopes import KEY_PROJECTION, Reader
 from pinecall.log.call_facts import CallFacts
 from pinecall.log.entry import Entry

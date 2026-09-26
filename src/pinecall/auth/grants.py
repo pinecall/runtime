@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from pinecall.auth.env import a_person, opens_production
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Members
-from pinecall.auth.world import a_person, opens_production
 from pinecall.types import ROLE_SCOPES, Role, is_a_deployment
 
 # The doors read scopes and a role is a preset of them, so `team` opened every role to whoever

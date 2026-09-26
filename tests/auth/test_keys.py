@@ -19,7 +19,7 @@ from pinecall.auth.keys import (
     mint,
 )
 from pinecall.auth.keys_postgres import PostgresKeys
-from pinecall.auth.visiting import StandingKeys
+from pinecall.auth.visitor_keys import StandingKeys
 from pinecall.log.store.postgres import MIGRATIONS
 from pinecall.types import ENVS, KEY_SCOPES, PRODUCTION, SANDBOX
 from tests.pools import Held, acquired
@@ -70,7 +70,7 @@ async def test_a_revoked_key_stops_verifying_and_its_row_stays_in_the_listing() 
     ]
 
 
-# A sandbox person's key lives a day (auth/persons.py). Past its moment it reads exactly as a
+# A sandbox person's key lives a day (auth/person_keys.py). Past its moment it reads exactly as a
 # revoked key does: nothing answers to it, and the door says nothing about why.
 async def test_an_expired_key_is_nothing_and_one_with_time_left_still_opens() -> None:
     keys = MemoryKeys()

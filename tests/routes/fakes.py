@@ -5,9 +5,9 @@ from __future__ import annotations
 from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 
-from pinecall.routes.dispatching import Job
-from pinecall.routes.outbound import Placing
-from pinecall.routes.trunks import TRUNK_NAME
+from pinecall.routes.dispatch import Job
+from pinecall.routes.inbound_trunks import TRUNK_NAME
+from pinecall.routes.outbound_trunks import Placing
 from pinecall.types.dispatch import DEFAULT_FLEET
 
 

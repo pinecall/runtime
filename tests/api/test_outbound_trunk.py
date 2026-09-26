@@ -8,9 +8,9 @@ import httpx
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.orgs.dialling import MemoryDialling
-from pinecall.orgs.outbound import MemoryOutboundTrunks
-from pinecall.routes.table import MemoryRoutes
+from pinecall.orgs.dial_policies import MemoryDialling
+from pinecall.orgs.outbound_credentials import MemoryOutboundTrunks
+from pinecall.routes.records import MemoryRoutes
 from pinecall.types import DialPolicy, Route
 from tests.api.carriers import A_KEY_SID, A_SID, FakeTwilio
 from tests.api.conftest import A_LIVEKIT, A_RECORD, A_VAULT_KEY, AGENT, AN_OPS_KEY

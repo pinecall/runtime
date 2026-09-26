@@ -8,8 +8,8 @@ from datetime import UTC, datetime
 from typing import Literal
 
 from pinecall._settings import Settings
-from pinecall.orgs.box import MAIL, BoxSettings
-from pinecall.orgs.mail import KeptMail
+from pinecall.orgs.box_settings import MAIL, BoxSettings
+from pinecall.orgs.org_mail import KeptMail
 from pinecall.types import DeclarationRefused, Mailbox, a_mailbox_at, a_security
 
 logger = logging.getLogger(__name__)

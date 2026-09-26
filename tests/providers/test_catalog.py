@@ -83,7 +83,7 @@ def test_resolving_a_name_twice_is_resolving_it_once() -> None:
 def test_the_vendor_this_build_runs_by_default_is_one_of_the_rows(modality: Modality) -> None:
     """A default nobody catalogued would be a pipeline that refuses itself before the first call."""
     from pinecall.providers.models import DEFAULT_VENDOR
-    from pinecall.providers.pipeline import DEFAULT_STT, DEFAULT_TTS
+    from pinecall.providers.session_vendors import DEFAULT_STT, DEFAULT_TTS
 
     ours = {"llm": DEFAULT_VENDOR, "stt": DEFAULT_STT, "tts": DEFAULT_TTS}[modality]
     assert ours in {row.name for row in catalog.doing(modality)}

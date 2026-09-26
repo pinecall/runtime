@@ -14,7 +14,7 @@ from pinecall.log.logs import CallLog
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
-from pinecall.orgs.tuning import TuningStore
+from pinecall.orgs.tuning_store import TuningStore
 from pinecall.orgs.vault import Vault, brought_by
 from pinecall.providers.declaration import rang
 from pinecall.providers.models import Models

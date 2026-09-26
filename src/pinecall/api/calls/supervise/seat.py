@@ -6,7 +6,7 @@ from fastapi import APIRouter
 
 from pinecall.api.calls.listen import SeatTaken
 from pinecall.api.deps import SettingsDep, SnapshotsDep, SuperviseKeyDep
-from pinecall.tokens.seating import a_seat_in
+from pinecall.tokens.seats import a_seat_in
 
 router = APIRouter()
 

@@ -10,8 +10,8 @@ from pinecall.mail.box import TheBoxsMail, the_environments_mailbox
 from pinecall.mail.brand import Brand, the_brand
 from pinecall.mail.letters import Letter
 from pinecall.mail.smtp import MailRefused, posted
-from pinecall.orgs.box import BoxSettings
-from pinecall.orgs.mail import Mail
+from pinecall.orgs.box_settings import BoxSettings
+from pinecall.orgs.org_mail import Mail
 from pinecall.types import Mailbox
 
 logger = logging.getLogger(__name__)

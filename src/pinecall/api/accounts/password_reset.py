@@ -13,8 +13,8 @@ from pinecall.api.org.mail import OutboxDep
 from pinecall.api.public_url import where_this_gateway_answers
 from pinecall.auth.members import Members
 from pinecall.mail import Outbox, a_forgotten_password, where_the_card_is
-from pinecall.orgs.sso import Sso
-from pinecall.orgs.table import Orgs
+from pinecall.orgs.org_sso import Sso
+from pinecall.orgs.records import Orgs
 from pinecall_protocol import WireModel
 
 # Production's alone (api/accounts/identity.py): a sandbox keeps no password and makes no person, so

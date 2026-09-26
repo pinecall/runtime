@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from pinecall.routes.table import Routes
+from pinecall.routes.records import Routes
 from pinecall.types import Channel, Route
 
 logger = logging.getLogger(__name__)

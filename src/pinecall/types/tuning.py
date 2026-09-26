@@ -42,8 +42,8 @@ class Tuning:
     memory: MemoryPolicy | None = None
     # Whether this agent's calls keep their audio. False is a decision and None is nobody having
     # made one, which is why it is `bool | None` and not `bool`: `as_json` drops what is None
-    # (orgs/resolving.py), so a plain False would be indistinguishable from unset and the corner
-    # below would never be heard.
+    # (orgs/tuning_resolution.py), so a plain False would be indistinguishable from unset and the
+    # corner below would never be heard.
     record: bool | None = None
     # The longest a voice call of this agent runs, in seconds; 0 is no limit, None is the runtime's
     # ten minutes. A written conversation is never cut by it.

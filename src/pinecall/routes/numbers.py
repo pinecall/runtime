@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pinecall.routes.table import Routes
+from pinecall.routes.records import Routes
 from pinecall.types import PRODUCTION, SANDBOX, Env
 
 # Production first, so the number a tenant would name is the first one a plan or a fence shows.

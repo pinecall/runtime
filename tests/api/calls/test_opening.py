@@ -12,7 +12,7 @@ from pinecall.evals.score import JudgedWhen
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
-from pinecall.orgs.tuning import MemoryTuning
+from pinecall.orgs.tuning_store import MemoryTuning
 from pinecall.providers.models import Models
 from pinecall.session.scoring import unjudged
 from pinecall.types import PRODUCTION, AgentConfig, CallContext, Route

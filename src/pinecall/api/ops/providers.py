@@ -18,11 +18,11 @@ from pinecall.api.deps import ProviderKeysKeyDep, SettingsDep
 from pinecall.providers import catalog, llm, stt, tts
 from pinecall.providers.catalog import MODALITIES, Provider
 from pinecall.providers.models import DEFAULT_VENDOR
-from pinecall.providers.pipeline import DEFAULT_STT
-from pinecall.providers.standing import READY, Standing, standing
+from pinecall.providers.session_vendors import DEFAULT_STT
 from pinecall.providers.tts import DEFAULT_TTS
-from pinecall.providers.tts.shelf import LISTED
-from pinecall.providers.tts.voices import voice_names
+from pinecall.providers.tts.curated_voices import voice_names
+from pinecall.providers.tts.vendor_voices import LISTED
+from pinecall.providers.vendor_status import READY, Standing, standing
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -35,11 +35,12 @@ class ProviderRow(WireModel):
     does: list[str]
     aliases: list[str]
     note: str
-    # What this vendor is waiting for on THIS box, in one word, decided by providers/standing.py so
-    # that no screen has to combine booleans of its own and get RTZR wrong. A worker is where a
-    # call is actually built, so on a split box the plugin half answers for the gateway — which is
-    # the machine an operator is looking at. An org's own key is never read here: this door answers
-    # the question an operator is asking, which is what the machine in front of them has.
+    # What this vendor is waiting for on THIS box, in one word, decided by
+    # providers/vendor_status.py so that no screen has to combine booleans of its own and get RTZR
+    # wrong. A worker is where a call is actually built, so on a split box the plugin half answers
+    # for the gateway — which is the machine an operator is looking at. An org's own key is never
+    # read here: this door answers the question an operator is asking, which is what the machine in
+    # front of them has.
     standing: Standing
     ready: bool
     # The variable a key for this vendor goes under, so a screen can print the one word to set.
@@ -49,7 +50,7 @@ class ProviderRow(WireModel):
     # to install — `livekit` is livekit-agents itself, `whatsapp` is not a plugin at all.
     extra: str
     # Whether GET /v1/voices lists this vendor's voices, so a picker can offer them and play one
-    # (providers/tts/shelf.py). False: its voice is the vendor's own id, typed in.
+    # (providers/tts/vendor_voices.py). False: its voice is the vendor's own id, typed in.
     voices_listed: bool
 
 
@@ -60,8 +61,8 @@ class Catalogue(WireModel):
     # Which vendor each stage runs on when an agent declares none. A screen shows these as the
     # chosen row rather than leaving three stages looking unconfigured.
     defaults: dict[str, str]
-    # The voices this build curates by name, off providers/tts/voices.py. Every other voice is a
-    # vendor's own id, and for a vendor that was named that is exactly what a word is taken as.
+    # The voices this build curates by name, off providers/tts/curated_voices.py. Every other voice
+    # is a vendor's own id, and for a vendor that was named that is exactly what a word is taken as.
     voices: list[str]
     # The models this build vouches for, by "<modality>/<vendor>", each vendor's default first —
     # what a tuned vendor file registered. A screen offers these as a list and a person picks one

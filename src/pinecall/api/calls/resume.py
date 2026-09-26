@@ -15,7 +15,7 @@ from pinecall.log.store.call_index import CallIndex
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
-from pinecall.orgs.tuning import TuningStore
+from pinecall.orgs.tuning_store import TuningStore
 from pinecall.orgs.vault import Vault
 from pinecall.providers.models import Models
 from pinecall.session.text.session import Watcher

@@ -4,9 +4,9 @@ import re
 
 import pytest
 
+from pinecall.providers.tts.curated_voices import VOICES
 from pinecall.providers.tts.elevenlabs import DEFAULT_MODEL
-from pinecall.providers.tts.voices import VOICES
-from pinecall.providers.tuning import NOT_RUN_HERE, the_llm, the_voice, tuned
+from pinecall.providers.tuned_declaration import NOT_RUN_HERE, the_llm, the_voice, tuned
 from pinecall.types import (
     AgentConfig,
     DeclarationRefused,

@@ -8,13 +8,13 @@ from typing import Any
 from pinecall.providers import catalog
 from pinecall.providers.llm import VENDORS as LLM_VENDORS
 from pinecall.providers.models import DEFAULT_VENDOR
-from pinecall.providers.pipeline import DEFAULT_STT
 from pinecall.providers.registry import NO_VENDOR, NoProvider, Vendors
+from pinecall.providers.session_vendors import DEFAULT_STT
 from pinecall.providers.stt import VENDORS as STT_VENDORS
 from pinecall.providers.tts import DEFAULT_TTS
 from pinecall.providers.tts import VENDORS as TTS_VENDORS
+from pinecall.providers.tts.curated_voices import vendor_of, voice_declared
 from pinecall.providers.tts.elevenlabs import a_model
-from pinecall.providers.tts.voices import vendor_of, voice_declared
 from pinecall.types import AgentConfig, DeclarationRefused, Lexicon, Model, Tuning, Voice
 
 # The vendor tables' own refusal, over the vendor tables' own list. The list is long now, so the
@@ -60,8 +60,8 @@ def tuned(declared: AgentConfig, tuning: Tuning, lexicon: Lexicon) -> AgentConfi
 
 
 # A person types the same two forms an app declares — a curated name, or their own vendor id — and
-# they go through the same door, providers/tts/voices.py. A form that took a raw id unchecked is
-# how `carolina` reached ElevenLabs and closed the line with 1008 seven times.
+# they go through the same door, providers/tts/curated_voices.py. A form that took a raw id
+# unchecked is how `carolina` reached ElevenLabs and closed the line with 1008 seven times.
 #
 # The vendor comes off `tts` when that knob is set, which is what makes the speaking stage as
 # movable as the other two: `tts = "cartesia"` moves the whole stage, and the voice written beside

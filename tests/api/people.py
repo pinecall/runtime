@@ -7,13 +7,13 @@ import pytest
 
 from pinecall.api.app import app
 from pinecall.api.deps import the_signups
-from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import MemoryKeys
+from pinecall.auth.login_codes import LoginCodes
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.pairing import Pairings
 from pinecall.auth.signups import PendingSignups
 from pinecall.auth.throttle import Throttle
-from pinecall.auth.visiting import StandingKeys
+from pinecall.auth.visitor_keys import StandingKeys
 from tests.api.conftest import over_the_asgi_app
 
 # Registered as a plugin by tests/conftest.py, beside tests/postgres.py: the api harness wants

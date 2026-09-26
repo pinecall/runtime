@@ -12,7 +12,7 @@ from livekit.agents.types import FlushSentinel, TimedString
 from livekit.agents.voice import ModelSettings
 from livekit.agents.voice.agent import Agent as LiveAgent
 
-from pinecall.providers.blocks import request_context
+from pinecall.providers.prompt_request import request_context
 from pinecall.session.lookups import TurnLookups
 from pinecall.types import Blocks
 from pinecall_protocol.events import ErrorEvent

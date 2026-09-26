@@ -25,8 +25,8 @@ class OrgSso:
     # The issuer as the IdP publishes it — `https://accounts.google.com`, an Okta or Entra tenant.
     issuer: str
     client_id: str
-    # Sealed under the box's vault key, exactly as a provider key is (orgs/sso.py). It reaches the
-    # token endpoint and nothing else: no door of this runtime ever reads one back out.
+    # Sealed under the box's vault key, exactly as a provider key is (orgs/org_sso.py). It reaches
+    # the token endpoint and nothing else: no door of this runtime ever reads one back out.
     client_secret: str
     # The email domains this org signs in with. An address outside them is refused at the callback
     # even when the IdP vouched for it: an Entra tenant can hold guests from anywhere.

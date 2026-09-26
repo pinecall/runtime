@@ -3,11 +3,11 @@
 import pytest
 
 from pinecall._settings import load_settings
-from pinecall.routes.dispatching import dispatches_for
-from pinecall.routes.outbound import outbound_for
-from pinecall.routes.rooms import rooms_for
+from pinecall.routes.dispatch import dispatches_for
+from pinecall.routes.inbound_trunks import trunks_for
+from pinecall.routes.live_rooms import rooms_for
+from pinecall.routes.outbound_trunks import outbound_for
 from pinecall.routes.sfu import Sfu
-from pinecall.routes.trunks import trunks_for
 
 pytestmark = pytest.mark.unit
 

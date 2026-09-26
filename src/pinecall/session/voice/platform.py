@@ -18,8 +18,8 @@ class PlatformRefused(PinecallError):
 
 
 # A leg is dialled through the org's own trunk and only after the number it dials has passed the
-# org's guards (orgs/guards.py), so "no trunk" and "not this number, not this often" are two
-# different answers and the verb writes the one that happened into the call's own log.
+# org's guards (orgs/outbound_guards.py), so "no trunk" and "not this number, not this often" are
+# two different answers and the verb writes the one that happened into the call's own log.
 @dataclass(frozen=True)
 class Dialled:
     """What the platform said about dialling a number: the trunk to do it with, or why not."""

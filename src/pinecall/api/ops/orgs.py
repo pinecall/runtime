@@ -21,7 +21,7 @@ from pinecall.api.deps import (
 from pinecall.api.scope.operator_key import an_operators_router
 from pinecall.api.telephony.deps import DialPoliciesDep
 from pinecall.auth.keys import ListedKey
-from pinecall.providers.lending import NotLent, a_lending
+from pinecall.providers.lent_keys import NotLent, a_lending
 from pinecall.types import (
     KEY_SCOPES,
     PRODUCTION,
@@ -98,7 +98,7 @@ class WantedQuotas(WireModel):
     llm_tokens: int | None = None
     budget_eur: int | None = None
     # Which of the box's keys the org may run on: absent or null lends all, [] lends nothing,
-    # else vendors and `vendor/model` entries (providers/lending.py).
+    # else vendors and `vendor/model` entries (providers/lent_keys.py).
     lends: list[str] | None = None
 
 

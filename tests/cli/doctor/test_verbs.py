@@ -9,7 +9,7 @@ from pinecall._settings import NOBODY_TO_ASK, load_settings
 from pinecall.cli import main
 from pinecall.cli.doctor import verbs as doctor
 from pinecall.mail import BoxMail
-from pinecall.orgs.mail import KeptMail
+from pinecall.orgs.org_mail import KeptMail
 from pinecall.types import Mailbox
 from tests.cli.doctor.reading import a_box_that_posts_mail, named, probes_that_answer
 

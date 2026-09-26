@@ -5,7 +5,7 @@ from cryptography.fernet import Fernet
 
 from pinecall.mail import Brand, rebranded, the_brand
 from pinecall.mail.brand import ACCENT, NAME
-from pinecall.orgs.box import BRAND, MemoryBoxSettings
+from pinecall.orgs.box_settings import BRAND, MemoryBoxSettings
 from pinecall.types import DeclarationRefused
 
 pytestmark = pytest.mark.unit

@@ -10,8 +10,8 @@ from livekit.agents.metrics import LLMMetrics as Measured
 from livekit.agents.voice import ModelSettings
 from livekit.agents.voice.agent import Agent as LiveAgent
 
-from pinecall.providers.blocks import request_context
 from pinecall.providers.models import Chat, vendor_of
+from pinecall.providers.prompt_request import request_context
 from pinecall.session.asking import Asking, NotAsking
 from pinecall.session.lookups import TurnLookups
 from pinecall.types import Blocks

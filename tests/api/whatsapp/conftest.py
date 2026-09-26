@@ -14,7 +14,7 @@ from pinecall.api import deps as deps
 from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
 from pinecall.api.whatsapp.threads import Thread, Threads
-from pinecall.routes.table import Routes
+from pinecall.routes.records import Routes
 from pinecall.types import PRODUCTION, Route
 from pinecall.whatsapp.signing import SIGNATURE_HEADER
 from tests.api.conftest import (

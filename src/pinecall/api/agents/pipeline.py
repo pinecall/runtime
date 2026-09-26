@@ -8,7 +8,7 @@ from pinecall.api.agents.pipeline_report import Report, report
 from pinecall.api.deps import PipelineKeyDep, SettingsDep, StoreDep, TuningDep
 from pinecall.api.scope.request_scope import HeldDep
 from pinecall.auth.keys import KeyRecord, held_by
-from pinecall.orgs.tuning import TuningStore
+from pinecall.orgs.tuning_store import TuningStore
 from pinecall.types import Lexicon, Tuning
 
 router = APIRouter()

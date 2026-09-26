@@ -12,8 +12,8 @@ from pinecall.api.ops.box_settings import BoxSettingsDep
 from pinecall.api.public_url import where_this_gateway_answers
 from pinecall.api.scope.operator_key import an_operators_router
 from pinecall.auth.openid import OpenIdRefused, configuration
-from pinecall.orgs.box import SIGN_IN, BoxSettings
-from pinecall.orgs.signin import GOOGLE, PROVIDERS, BoxSignIn
+from pinecall.orgs.box_settings import SIGN_IN, BoxSettings
+from pinecall.orgs.box_signin import GOOGLE, PROVIDERS, BoxSignIn
 from pinecall.orgs.vault import NO_VAULT_KEY, NoVaultKey
 from pinecall_protocol import WireModel
 from pinecall_protocol.rest import BoxProvider

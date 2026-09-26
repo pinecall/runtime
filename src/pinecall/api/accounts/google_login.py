@@ -27,8 +27,8 @@ from pinecall.api.ops.box_settings import BoxSettingsDep
 from pinecall.api.ops.box_signin import where_the_provider_answers
 from pinecall.auth.members import Members, an_address
 from pinecall.auth.openid import where_to_send
-from pinecall.orgs.signin import GOOGLE, BoxSignIn
-from pinecall.orgs.sso import Sso
+from pinecall.orgs.box_signin import GOOGLE, BoxSignIn
+from pinecall.orgs.org_sso import Sso
 from pinecall.types import Member
 
 # Production's alone (api/accounts/identity.py): a sandbox keeps no password and makes no person, so
@@ -36,7 +36,7 @@ from pinecall.types import Member
 router = APIRouter(dependencies=[AtProduction])
 
 # A box-wide sign-in names no org: the handshake's org is this word, and only this door's
-# callback spends a state opened with its provider (auth/sso.py, `provider`).
+# callback spends a state opened with its provider (auth/sso_state.py, `provider`).
 THE_BOX = ""
 
 NOT_WIRED = "this box signs in with no Google: an operator wires one at PUT /v1/ops/signin/google"

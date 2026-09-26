@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit
 
-from pinecall.orgs.box import BRAND, BoxSettings
+from pinecall.orgs.box_settings import BRAND, BoxSettings
 from pinecall.types import DeclarationRefused
 
 # What a box that was told nothing is called, and the colour its one button is. They were

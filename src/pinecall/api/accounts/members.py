@@ -23,7 +23,7 @@ from pinecall.api.scope.grants import elsewhere_too, may_grant
 from pinecall.auth import passwords
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Members, NoSeatLeft
-from pinecall.auth.persons import a_persons_key
+from pinecall.auth.person_keys import a_persons_key
 from pinecall.mail import Letter, Outbox, a_reset, an_invitation, where_the_card_is
 from pinecall.types import (
     Member,

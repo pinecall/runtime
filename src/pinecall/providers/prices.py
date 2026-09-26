@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal, cast
 
-from pinecall.providers.published import published
+from pinecall.providers.published_prices import published
 from pinecall_protocol.defs import Cost, CostRate, CostRow, UnpricedRow
 from pinecall_protocol.metrics import LLMModelUsage, ModelUsage, STTModelUsage, TTSModelUsage
 
@@ -44,7 +44,7 @@ class Price:
 
 # By the longest prefix that matches, because a model id carries a date: claude-haiku-4-5-20251001
 # is priced by claude-haiku-4-5, and a snapshot nobody listed is unpriced rather than guessed.
-# Only what the published list (providers/published.py) does not carry is written here: a row
+# Only what the published list (providers/published_prices.py) does not carry is written here: a row
 # that says the same numbers twice is two places for one price to move. The three below are the
 # Claude 5 family, which the list had not caught up with on AS_OF.
 PRICES: dict[str, Price] = {
@@ -95,7 +95,7 @@ MEDIA_PRICES: dict[str, MediaPrice] = {
 # read off each vendor's own page on a stated date, in the units a livekit usage row carries, and
 # where they disagree with the published list they disagree knowingly — Soniox bills a realtime
 # hour and the published list prices it by token, which an audio-seconds row cannot feed at all.
-# Behind them, providers/published.py prices the other forty vendors, which is the difference
+# Behind them, providers/published_prices.py prices the other forty vendors, which is the difference
 # between a Cartesia call reading `unpriced` and reading its bill. See that module's header.
 def price_of(model: str) -> Price | None:
     """The token price for a model id, by the longest listed prefix. None: unpriced."""

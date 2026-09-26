@@ -10,7 +10,7 @@ from starlette.requests import HTTPConnection
 
 from pinecall.api.deps import DeclarationKeyDep, PipelineKeyDep, held
 from pinecall.api.scope.request_scope import AnAgentHeld, CornerDep
-from pinecall.orgs.hold_audio import Chosen, HoldAudio
+from pinecall.orgs.hold_melody import Chosen, HoldAudio
 from pinecall.session.hold_audio import DEFAULT, converted
 from pinecall_protocol import WireModel
 

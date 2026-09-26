@@ -9,7 +9,7 @@ import pytest
 
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
-from pinecall.orgs.codes import CLAIMED, ISSUED, LIVE_PER_AGENT, Codes, TooManyCodes
+from pinecall.orgs.caller_codes import CLAIMED, ISSUED, LIVE_PER_AGENT, Codes, TooManyCodes
 from pinecall.types import PRODUCTION, SANDBOX
 
 pytestmark = pytest.mark.unit

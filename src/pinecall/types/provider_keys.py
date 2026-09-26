@@ -21,7 +21,7 @@ NO_ORG_KEYS: ProviderKeys = MappingProxyType({})
 # lending entry is a vendor (`deepgram`: every model of it) or `vendor/model` (`anthropic/claude-
 # haiku-4-5`: that model and its dated snapshots). None lends everything the box has a key for —
 # what a self-hosted box and every org nobody limited run on — and an empty set lends nothing, so
-# the org runs only on what it brought. The rule that reads it is providers/lending.py.
+# the org runs only on what it brought. The rule that reads it is providers/lent_keys.py.
 @dataclass(frozen=True)
 class Brought:
     """The org's own keys, and what the box lends it beside them."""

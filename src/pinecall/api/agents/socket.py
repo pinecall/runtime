@@ -26,15 +26,15 @@ from pinecall.api.deps import (
     a_key_on_a_socket,
 )
 from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
-from pinecall.auth.corner import author_of
 from pinecall.auth.keys import KeyRecord, held_by, not_opening
+from pinecall.auth.request_scope import author_of
 from pinecall.knowledge import Knowledge
 from pinecall.log import REFUSED
 from pinecall.log.entry import Entry, unstored
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import Admission, QuotaExhausted
-from pinecall.orgs.codes import Codes
-from pinecall.orgs.tuning import TuningStore
+from pinecall.orgs.caller_codes import Codes
+from pinecall.orgs.tuning_store import TuningStore
 from pinecall.providers import declaration
 from pinecall.types import AgentConfig, DeclarationRefused, Env
 from pinecall_protocol import Command, ProtocolError, WireModel, encode

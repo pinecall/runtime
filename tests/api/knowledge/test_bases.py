@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from pinecall.api.deps import NO_KNOWLEDGE
-from pinecall.orgs.table import MemoryOrgs
+from pinecall.orgs.records import MemoryOrgs
 from pinecall.types import Chunk, Quotas
 from tests.api.conftest import A_RECORD
 from tests.lookups.fakes import ScriptedKnowledge

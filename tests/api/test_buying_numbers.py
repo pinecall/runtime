@@ -8,8 +8,8 @@ import pytest
 from pinecall._settings import Settings
 from pinecall.api.accounts.identity import BOUGHT_THERE
 from pinecall.api.telephony.managed_numbers import NO_BOX_CARRIER, NONE_FOR_SALE
-from pinecall.orgs.table import MemoryOrgs
-from pinecall.routes.table import MemoryRoutes
+from pinecall.orgs.records import MemoryOrgs
+from pinecall.routes.records import MemoryRoutes
 from pinecall.routes.twilio import TWILIO_SIGNALLING
 from pinecall.types import PRODUCTION, Quotas
 from tests.api.carriers import A_KEY_SID, A_SID, FakeTwilio

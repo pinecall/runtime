@@ -8,7 +8,7 @@ from typing import Any
 
 from pinecall.log.store import Pool
 from pinecall.orgs.lexicon import LEXICON_STATEMENTS, a_lexicon, lexicon_columns
-from pinecall.orgs.resolving import TUNING, as_json, resolved
+from pinecall.orgs.tuning_resolution import TUNING, as_json, resolved
 from pinecall.orgs.versions import (
     Corner,
     MemoryVersions,
@@ -24,7 +24,7 @@ from pinecall.types import Env, Kept, Lexicon, Tuning, whose
 # The corner chain, nearest first: this holder's newest and the org's own newest, which every
 # corner falls back to — the rule 0021 gave knowledge, for the same reason: nobody joins a team to
 # an agent with no voice. `''` sorts before any member id, and DESC puts yours first; what the two
-# rows resolve to, knob by knob, is `orgs/resolving.py`. The statements take the corner as
+# rows resolve to, knob by knob, is `orgs/tuning_resolution.py`. The statements take the corner as
 # orgs/versions.py spells it: $1 org, $2 env, $3 holder, $4 agent.
 _COLUMNS = "holder, version, config, author, note, set_at"
 
@@ -190,7 +190,7 @@ class PostgresTuning(TuningStore):
 
 
 # This pool's connections were never taught the jsonb codec (only the log's own are), so jsonb is
-# text going out and text coming back — the same reading orgs/box.py and evals/runs.py do.
+# text going out and text coming back — the same reading orgs/box_settings.py and evals/runs.py do.
 def _a_tuning(row: Mapping[str, Any]) -> Kept[Tuning]:
     """One row as the store hands it back: the JSON read through the shape's own adapter."""
     return Kept(

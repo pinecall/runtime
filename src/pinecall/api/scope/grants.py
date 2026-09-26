@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
-from pinecall.auth.granting import granting
+from pinecall.auth.grants import granting
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Members
 from pinecall.types import Role
 
 
-# A key grants what it holds and no more (auth/granting.py); a 403 in that sentence. Asked by the
+# A key grants what it holds and no more (auth/grants.py); a 403 in that sentence. Asked by the
 # invitation, the row's PATCH, and the role an identity provider seats a stranger with.
 async def may_grant(
     key: KeyRecord, members: Members, role: Role | None, production: bool | None

@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from pinecall._version import __version__
-from pinecall.orgs.table import MemoryOrgs
+from pinecall.orgs.records import MemoryOrgs
 from pinecall.types import Quotas
 from tests.api.conftest import AN_ORG
 

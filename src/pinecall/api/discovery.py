@@ -11,7 +11,7 @@ from pinecall._version import __version__
 from pinecall.api.deps import SettingsDep
 from pinecall.api.ops.box_settings import BoxSettingsDep
 from pinecall.api.org.mail import OutboxDep
-from pinecall.orgs.signin import GOOGLE, BoxSignIn
+from pinecall.orgs.box_signin import GOOGLE, BoxSignIn
 from pinecall_protocol import WireModel
 
 router = APIRouter()

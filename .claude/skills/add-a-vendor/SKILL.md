@@ -69,7 +69,7 @@ def build(asked: Asked) -> Chat:
 
 ## The four places that are still by hand
 
-1. `providers/knocks.py` — the vendor's cheapest authenticated GET, so `doctor` knocks and
+1. `providers/key_probes.py` — the vendor's cheapest authenticated GET, so `doctor` knocks and
    `make deploy` refuses a dead key by name. **Only a URL you have opened with a live key and
    watched answer 200.** A guessed one 404s a perfectly good key and refuses a box that was fine;
    a vendor with no row is simply not knocked, which is honest.

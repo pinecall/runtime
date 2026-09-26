@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 # The three jobs a call is built out of. Who notices speech and who calls the turn are livekit's
-# own and are not a vendor choice here — see providers/pipeline.py.
+# own and are not a vendor choice here — see providers/session_vendors.py.
 type Modality = Literal["llm", "stt", "tts"]
 
 MODALITIES: tuple[Modality, ...] = ("llm", "stt", "tts")
@@ -46,9 +46,9 @@ class Provider:
     """Every other word a person writes for this vendor. `11labs` is the one that started this.
 
     A word here must not also be a MODEL of that vendor: a bare word that names a vendor IS the
-    vendor at the pipeline door (providers/tuning.py), so `sonic`, `octave`, `sonar`, `mist`,
-    `nova` and `aura` are deliberately NOT aliases — every one of them is something a person could
-    reasonably type meaning the model."""
+    vendor at the pipeline door (providers/tuned_declaration.py), so `sonic`, `octave`, `sonar`,
+    `mist`, `nova` and `aura` are deliberately NOT aliases — every one of them is something a
+    person could reasonably type meaning the model."""
 
     note: str = ""
     """One line for a screen: what a person is choosing when they choose this."""

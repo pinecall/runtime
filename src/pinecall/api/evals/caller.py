@@ -8,7 +8,7 @@ from pinecall.api.deps import EvalsKeyDep, LlmsDep, OrgsDep, VaultDep
 from pinecall.evals.caller import NO_MODEL, Asking, Improvised, what_they_say_next
 from pinecall.orgs.vault import brought_by
 from pinecall.providers.models import NoProvider
-from pinecall.providers.tuning import the_llm
+from pinecall.providers.tuned_declaration import the_llm
 from pinecall.types import DeclarationRefused
 
 router = APIRouter()

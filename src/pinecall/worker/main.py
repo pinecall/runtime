@@ -11,7 +11,7 @@ from livekit.agents import AgentServer, JobContext, JobProcess
 
 from pinecall._settings import Settings, load_settings, variable_of
 from pinecall.evals.score import JudgedWhen
-from pinecall.providers.pipeline import warm_the_vendor_tables
+from pinecall.providers.session_vendors import warm_the_vendor_tables
 from pinecall.session.voice import a_bridge
 from pinecall.session.voice.kit import kit_for
 from pinecall.worker import recordings

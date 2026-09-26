@@ -16,8 +16,8 @@ from pinecall.api.public_url import where_this_gateway_answers
 from pinecall.api.scope.grants import may_grant
 from pinecall.api.scope.operator_key import an_operators_router
 from pinecall.auth.openid import OpenIdRefused, configuration
-from pinecall.auth.sso import Handshakes
-from pinecall.orgs.sso import Sso
+from pinecall.auth.sso_state import Handshakes
+from pinecall.orgs.org_sso import Sso
 from pinecall.orgs.vault import NO_VAULT_KEY
 from pinecall.types import OrgSso, a_domain, a_role
 from pinecall_protocol import WireModel

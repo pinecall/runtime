@@ -10,9 +10,9 @@ from starlette.testclient import TestClient
 
 from pinecall.api.calls.inbox import NO_THREAD, NOTHING_OPEN, ONLY_WHATSAPP, WINDOW_CLOSED
 from pinecall.api.whatsapp.threads import WINDOW_SECONDS
+from pinecall.auth.env import ENV_HEADER
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
-from pinecall.auth.world import ENV_HEADER
 from pinecall.log.store import MemoryStore
 from pinecall.types import PRODUCTION, Member
 from tests.api.conftest import A_KEY, A_RECORD, AGENT

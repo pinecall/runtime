@@ -13,9 +13,9 @@ from pinecall.api.accounts.sso_login import NO_HANDSHAKE, NO_SSO_HERE, THE_CARD,
 from pinecall.auth import passwords
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.openid import SCOPE
-from pinecall.auth.sso import Handshakes
-from pinecall.orgs.sso import Sso
-from pinecall.orgs.table import MemoryOrgs
+from pinecall.auth.sso_state import Handshakes
+from pinecall.orgs.org_sso import Sso
+from pinecall.orgs.records import MemoryOrgs
 from pinecall.types import Member, OrgSso, Quotas, Role
 from tests.api.conftest import AN_ORG
 from tests.api.fake_idp import CLIENT_ID, CLIENT_SECRET, ISSUER, FakeIdp

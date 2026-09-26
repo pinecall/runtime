@@ -10,9 +10,9 @@ from fastapi import APIRouter, HTTPException, Query
 from pinecall.api.deps import KeptCarriersDep, NumbersKeyDep, RoutesDep, SettingsDep, TwilioDep
 from pinecall.api.telephony.deps import GuardsDep, KeptOutboundTrunksDep, OutboundDep
 from pinecall.api.telephony.numbers import NO_CARRIER
-from pinecall.orgs.outbound import OutboundTrunks
-from pinecall.routes.answering import own_numbers
-from pinecall.routes.outbound import NO_LIVEKIT, TRUNK_NAME, Outbound, Placing
+from pinecall.orgs.outbound_credentials import OutboundTrunks
+from pinecall.routes.numbers import own_numbers
+from pinecall.routes.outbound_trunks import NO_LIVEKIT, TRUNK_NAME, Outbound, Placing
 from pinecall.routes.twilio import (
     CARRIER_TRUNK,
     TwilioApi,

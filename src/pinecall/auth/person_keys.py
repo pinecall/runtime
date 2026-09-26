@@ -19,7 +19,7 @@ SANDBOX_PERSONS_KEY_LIFE = timedelta(hours=24)
 
 # A person's key from their member row — the invitation's, a password login's, a terminal's,
 # another org's, a sandbox's mirror; a code spent for a browser copies the record it stood for. It
-# carries no world: it acts in the world of the instance it knocks at (auth/world.py), and the
+# carries no world: it acts in the world of the instance it knocks at (auth/env.py), and the
 # member's row says whether production opens (0039). The column still holds `sandbox`, as 0039
 # wrote every person's, and nobody reads it. Its scopes are the role's, whole: a person who may
 # act in production holds the agent there too, from `pinecall start --prod`.

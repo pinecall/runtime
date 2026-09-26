@@ -95,7 +95,7 @@ async def approve(
     if asked.answered:
         raise HTTPException(409, ANSWERED)
     # The terminal's key is the person's own, as every key of theirs: what it opens in production
-    # is what their row says (auth/world.py), and a request names no world unless `--prod` says
+    # is what their row says (auth/env.py), and a request names no world unless `--prod` says
     # so. docs/worlds-and-teams.md.
     issued = await for_the_same_person(key, asked.device, keys, members, settings.world)
     if not pairings.fill(code, issued.key, key.org):

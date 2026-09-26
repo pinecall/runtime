@@ -6,7 +6,7 @@ import pytest
 from livekit.agents import llm as agents
 from livekit.agents.voice.generation import update_instructions
 
-from pinecall.providers.blocks import request_context
+from pinecall.providers.prompt_request import request_context
 from pinecall.session.asking import NotAsking, WhatWasAsked
 from pinecall.types import Blocks, PromptBlock
 from tests.session.voice.silence import anthropic_request

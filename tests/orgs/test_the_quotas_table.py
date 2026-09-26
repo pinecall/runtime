@@ -6,8 +6,8 @@ from uuid import uuid4
 import pytest
 
 from pinecall.log.store import Pool, open_pool
-from pinecall.orgs.sso import PostgresSso
-from pinecall.orgs.table import PostgresOrgs
+from pinecall.orgs.org_sso import PostgresSso
+from pinecall.orgs.records import PostgresOrgs
 from pinecall.orgs.vault import a_cipher
 from pinecall.orgs.widgets import PostgresWidgets, Widget
 from pinecall.types import QUOTAS, OrgSso, Quotas

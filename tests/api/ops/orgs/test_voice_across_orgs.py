@@ -10,7 +10,7 @@ import pytest
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import MemoryKeys
 from pinecall.log.store import MemoryStore
-from pinecall.routes.table import MemoryRoutes
+from pinecall.routes.records import MemoryRoutes
 from pinecall.types import (
     DEFAULT_ORG,
     NOTHING_BROUGHT,

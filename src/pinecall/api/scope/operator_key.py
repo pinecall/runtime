@@ -11,7 +11,7 @@ from pinecall.api.deps import KeysDep, MembersDep, SettingsDep
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.keys import KeyRecord, Keys
 from pinecall.auth.members import Members
-from pinecall.auth.visiting import the_operator, visiting
+from pinecall.auth.visitor_keys import the_operator, visiting
 
 # Two things open /v1/ops, and neither is an org's admin. The BOX's key — `PINECALL_OPS_KEY`, out
 # of the environment, belonging to no org, carrying no name — and a PERSON somebody holding that
@@ -50,7 +50,7 @@ async def an_operator(
 # read: the flag is on a row and never on the key, so taking it back is one write and does not
 # wait for a key to expire. A person is their email on this box (auth/members.py), so the key may
 # be the one they hold in any org of theirs — or a visitor's, inside an org that is not
-# (auth/visiting.py) — and the question is the same: does an active row of that address carry
+# (auth/visitor_keys.py) — and the question is the same: does an active row of that address carry
 # the flag today. A machine key names nobody and is nobody, whatever it may open.
 async def _a_person_who_runs_the_box(bearer: str, keys: Keys, members: Members) -> bool:
     """Whether this key is a person's, and that person was made an operator of this box."""

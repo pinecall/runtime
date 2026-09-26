@@ -2,7 +2,7 @@
 
 from livekit.agents import inference
 
-from pinecall.providers._inference import DEFAULT_LLM, VENDOR, the_projects_pair
+from pinecall.providers.livekit_inference import DEFAULT_LLM, VENDOR, the_projects_pair
 from pinecall.providers.llm import VENDORS
 from pinecall.providers.registry import Asked, Chat
 

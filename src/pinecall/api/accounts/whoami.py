@@ -8,10 +8,10 @@ from pinecall._version import __version__
 from pinecall.api.deps import KeyDep, KeysDep, MembersDep, OrgsDep, SettingsDep
 from pinecall.api.scope.operator_key import an_operators_router, runs_the_box
 from pinecall.auth.bearer import bearer_of
+from pinecall.auth.env import a_person, opens_production
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Members
-from pinecall.auth.visiting import visiting
-from pinecall.auth.world import a_person, opens_production
+from pinecall.auth.visitor_keys import visiting
 from pinecall.types import Env, is_a_deployment
 from pinecall_protocol import WireModel
 
@@ -47,9 +47,10 @@ class Whose(WireModel):
     # Whether this person runs the BOX: their key opens /v1/ops as well, and the console's org
     # switch lists every org there is. False for a machine's key, which is nobody.
     operator: bool = False
-    # True when they are inside an org they are no member of, as the operator (auth/visiting.py):
-    # `subject` is then `operator:<their address>` and `name` still says who. A console reads it
-    # to say so on the page, because what they do here is done in somebody else's org.
+    # True when they are inside an org they are no member of, as the operator
+    # (auth/visitor_keys.py): `subject` is then `operator:<their address>` and `name` still says
+    # who. A console reads it to say so on the page, because what they do here is done in somebody
+    # else's org.
     visiting: bool = False
     # Whether this key may act in production: the person's row says so (an admin always), or it
     # is a production server's token. What `pinecall whoami` and the console's switch read.
@@ -126,7 +127,7 @@ async def _whose(request: Request, keys: KeysDep) -> KeyRecord | None:
 
 
 # A member's address is on their row; a visiting operator's is in the subject itself, since no
-# row of that org is theirs (auth/visiting.py). A machine's key has neither.
+# row of that org is theirs (auth/visitor_keys.py). A machine's key has neither.
 async def address_of(key: KeyRecord, members: Members) -> str | None:
     """The address of the person this key was minted for, or None for a key that names nobody."""
     visitor = visiting(key.subject)

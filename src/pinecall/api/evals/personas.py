@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from starlette.requests import HTTPConnection
 
 from pinecall.api.deps import EvalsKeyDep, held
-from pinecall.auth.corner import author_of
+from pinecall.auth.request_scope import author_of
 from pinecall.orgs.personas import Personas
-from pinecall.providers.tuning import the_llm, the_voice
+from pinecall.providers.tuned_declaration import the_llm, the_voice
 from pinecall.types import DeclarationRefused
 from pinecall_protocol.rest import Persona, PersonaList, PersonaPut
 

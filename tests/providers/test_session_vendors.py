@@ -7,7 +7,7 @@ import pytest
 from livekit.plugins import cartesia, deepgram, elevenlabs, openai
 
 from pinecall._settings import Settings
-from pinecall.providers.pipeline import Pipeline, pipeline_for
+from pinecall.providers.session_vendors import Pipeline, pipeline_for
 from pinecall.types import NOTHING_BROUGHT, AgentConfig, Model, Turn, Voice
 
 pytestmark = pytest.mark.unit
@@ -37,7 +37,7 @@ def test_an_agent_that_declares_nothing_still_gets_a_whole_pipeline(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A blank declaration once silenced a whole line of calls: it warns now, per modality."""
-    with caplog.at_level(logging.WARNING, logger="pinecall.providers.pipeline"):
+    with caplog.at_level(logging.WARNING, logger="pinecall.providers.session_vendors"):
         built = pipeline_for(AgentConfig(slug="clinica-norte"), settings(), NOTHING_BROUGHT)
     assert isinstance(built.stt, deepgram.STTv2)
     assert isinstance(built.tts, cartesia.TTS)

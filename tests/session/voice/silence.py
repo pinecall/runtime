@@ -9,8 +9,8 @@ from livekit.agents import stt, tts
 from livekit.agents.types import DEFAULT_API_CONNECT_OPTIONS, NOT_GIVEN, APIConnectOptions
 from livekit.agents.utils import AudioBuffer
 
-from pinecall.providers.pipeline import Pipeline
 from pinecall.providers.registry import Chat
+from pinecall.providers.session_vendors import Pipeline
 from pinecall.types import AgentConfig, Brought
 
 # Nothing here ever opens a socket: every method a session might reach for on the way to a vendor

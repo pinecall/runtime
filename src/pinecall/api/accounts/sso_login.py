@@ -24,8 +24,8 @@ from pinecall.api.deps import (
     SettingsDep,
     ThrottleDep,
 )
-from pinecall.auth.codes import NO_KEY_YET, LoginCodes
 from pinecall.auth.keys import KeyRecord
+from pinecall.auth.login_codes import NO_KEY_YET, LoginCodes
 from pinecall.auth.members import Members, NoSeatLeft, an_address
 from pinecall.auth.openid import (
     Claims,
@@ -36,7 +36,7 @@ from pinecall.auth.openid import (
     exchange,
     where_to_send,
 )
-from pinecall.auth.sso import Handshake
+from pinecall.auth.sso_state import Handshake
 from pinecall.orgs.admission import Admission
 from pinecall.types import SANDBOX, Member, Org, OrgSso, a_domain
 from pinecall_protocol import WireModel
@@ -47,9 +47,9 @@ from pinecall_protocol.rest import SsoDiscovery, SsoOrg
 router = APIRouter(dependencies=[AtProduction])
 
 
-# Where the person lands with the word that mints their key. The console spends it at
-# POST /v1/login {code} exactly as it spends the one `pinecall start` prints (auth/codes.py), so
-# no key is ever in a URL — and the console needed no new screen to learn this.
+# Where the person lands with the word that mints their key. The console spends it at POST /v1/login
+# {code} exactly as it spends the one `pinecall start` prints (auth/login_codes.py), so no key is
+# ever in a URL — and the console needed no new screen to learn this.
 THE_CONSOLE = "/"
 # …or the card that signs a terminal in, when `pinecall login` is what sent them here. The
 # pairing is untouched: they arrive at it holding a key, and approve the terminal as always.

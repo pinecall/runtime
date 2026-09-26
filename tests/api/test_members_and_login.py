@@ -116,7 +116,8 @@ async def test_login_with_the_password_mints_a_key_for_that_person_and_device(
     assert signed.status_code == 200, signed.text
     body = signed.json()
     assert body["scopes"] == sorted(ROLE_SCOPES["supervisor"])
-    # The person's own key: no world of its own, so the column holds the sandbox (auth/persons.py).
+    # The person's own key: no world of its own, so the column holds the sandbox
+    # (auth/person_keys.py).
     assert (body["label"], body["env"], body["subject"]) == (
         "phone",
         "sandbox",

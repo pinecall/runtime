@@ -4,7 +4,7 @@ from dataclasses import replace
 
 import pytest
 
-from pinecall.auth.granting import (
+from pinecall.auth.grants import (
     NOT_YOURS_TO_GRANT,
     NOT_YOURS_TO_SWITCH,
     acts_in_production,
@@ -13,7 +13,7 @@ from pinecall.auth.granting import (
 )
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members_memory import MemoryMembers
-from pinecall.auth.visiting import a_visitor
+from pinecall.auth.visitor_keys import a_visitor
 from pinecall.types import PRODUCTION, ROLE_SCOPES, SANDBOX, Member
 
 pytestmark = pytest.mark.unit

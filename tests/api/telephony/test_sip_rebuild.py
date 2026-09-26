@@ -5,10 +5,10 @@ from cryptography.fernet import Fernet
 
 from pinecall.api.telephony.sip_rebuild import reconciled
 from pinecall.orgs.carriers import MemoryCarriers
-from pinecall.orgs.outbound import MemoryOutboundTrunks
-from pinecall.orgs.table import MemoryOrgs
+from pinecall.orgs.outbound_credentials import MemoryOutboundTrunks
+from pinecall.orgs.records import MemoryOrgs
 from pinecall.orgs.vault import a_cipher
-from pinecall.routes.table import MemoryRoutes
+from pinecall.routes.records import MemoryRoutes
 from pinecall.routes.twilio import TWILIO_SIGNALLING
 from pinecall.types import Carrier, OutboundTrunk, Route, SipPeer, TwilioAccount
 from tests.routes.fakes import MemoryOutbound, MemoryTrunks

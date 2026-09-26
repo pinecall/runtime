@@ -18,14 +18,14 @@ from pinecall.api.deps import (
     ThrottleDep,
 )
 from pinecall.auth import passwords
+from pinecall.auth.env import a_person
 from pinecall.auth.identity import Redeemed
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Kept, Members
-from pinecall.auth.persons import a_persons_key, until
-from pinecall.auth.visiting import visiting
-from pinecall.auth.world import a_person
-from pinecall.orgs.sso import Sso
-from pinecall.orgs.table import Orgs
+from pinecall.auth.person_keys import a_persons_key, until
+from pinecall.auth.visitor_keys import visiting
+from pinecall.orgs.org_sso import Sso
+from pinecall.orgs.records import Orgs
 from pinecall.types import SANDBOX, Env, Role
 from pinecall_protocol import WireModel
 
@@ -80,7 +80,7 @@ NOT_A_PERSONS = "a server's token names nobody: a person's key signs another dev
 # not mint another.
 NOT_A_MEMBER = "the person this key was minted for is no longer an active member of this org"
 
-# An operator inside an org they are no member of (auth/visiting.py) looks at what that org's
+# An operator inside an org they are no member of (auth/visitor_keys.py) looks at what that org's
 # customers reach, from the console. The sandbox is a PERSON's corner of an org, and they are
 # nobody's colleague there: there is no corner of theirs to open, and no terminal to sign in.
 VISITS_PRODUCTION = (
@@ -330,7 +330,7 @@ async def _the_row_for(
 
 # None is a box with no vault key: it can read no client secret, so no org signs in with a
 # provider there and every one of them is opened by a password. That is also the way back for a
-# box whose vault key was lost, and it is deliberate — see orgs/sso.py.
+# box whose vault key was lost, and it is deliberate — see orgs/org_sso.py.
 async def only_with_the_provider(sso: Sso | None, org: str) -> bool:
     """Whether this org has said a password opens it no longer."""
     if sso is None:

@@ -84,7 +84,7 @@ KEY_SCOPES: frozenset[str] = EVERY_SCOPE - {THE_FLEET}
 
 
 # Holding an agent over the app socket: what a server's token is made for, and what a developer's
-# own key opens — in production too, for a person the org lets act there (auth/world.py, 0039).
+# own key opens — in production too, for a person the org lets act there (auth/env.py, 0039).
 HOLDING: KeyScope = "app"
 
 # The members door, which an admin's key and the operator's open and a developer's does not. It is

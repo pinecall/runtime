@@ -2,8 +2,8 @@
 
 import pytest
 
-from pinecall.routes import answering
-from pinecall.routes.table import MemoryRoutes
+from pinecall.routes import numbers
+from pinecall.routes.records import MemoryRoutes
 from pinecall.types import SANDBOX, Route
 
 pytestmark = pytest.mark.unit
@@ -20,7 +20,7 @@ async def test_both_worlds_are_read_and_production_comes_first() -> None:
         ]
     )
 
-    assert await answering.own_numbers(table, ORG) == ("+59829000001", "+59829000002")
+    assert await numbers.own_numbers(table, ORG) == ("+59829000001", "+59829000002")
 
 
 async def test_only_the_phone_answers_and_only_this_orgs() -> None:
@@ -32,8 +32,8 @@ async def test_only_the_phone_answers_and_only_this_orgs() -> None:
         ]
     )
 
-    assert await answering.own_numbers(table, ORG) == ("+59829000001",)
+    assert await numbers.own_numbers(table, ORG) == ("+59829000001",)
 
 
 async def test_an_org_that_answers_nowhere_has_no_numbers() -> None:
-    assert await answering.own_numbers(MemoryRoutes(), ORG) == ()
+    assert await numbers.own_numbers(MemoryRoutes(), ORG) == ()

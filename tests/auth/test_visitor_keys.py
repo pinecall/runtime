@@ -4,7 +4,7 @@ import pytest
 
 from pinecall.auth.keys import MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
-from pinecall.auth.visiting import StandingKeys, a_visitor, the_operator, visiting
+from pinecall.auth.visitor_keys import StandingKeys, a_visitor, the_operator, visiting
 from pinecall.types import Member
 
 pytestmark = pytest.mark.unit

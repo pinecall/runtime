@@ -16,8 +16,8 @@ from pinecall.api.app import app
 from pinecall.auth.scopes import a_call_token, a_code_token
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
-from pinecall.orgs.codes import CLAIMED, ISSUED, Codes
-from pinecall.routes.table import MemoryRoutes
+from pinecall.orgs.caller_codes import CLAIMED, ISSUED, Codes
+from pinecall.routes.records import MemoryRoutes
 from pinecall.types import PRODUCTION, Route
 from pinecall.worker.client import CONTEXT, Gateway
 from tests.api.conftest import A_KEY, A_LIVEKIT, A_RECORD, AGENT, over_the_asgi_app

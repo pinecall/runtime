@@ -90,7 +90,7 @@ class Quotas:
     # Which of the box's vendor keys the org's calls may run on where it brought none of its own:
     # None lends every one (no row, a self-hosted box), an empty set none, a set those entries —
     # a vendor, or `vendor/model` by prefix. Not one of QUOTAS: nothing is counted against it.
-    # What an entry means is providers/lending.py's: types/ knows no vendor (test_isolation.py).
+    # What an entry means is providers/lent_keys.py's: types/ knows no vendor (test_isolation.py).
     lends: frozenset[str] | None = None
 
     def __post_init__(self) -> None:

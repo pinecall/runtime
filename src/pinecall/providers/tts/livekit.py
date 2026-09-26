@@ -3,7 +3,7 @@
 from livekit.agents import inference
 from livekit.agents.types import NOT_GIVEN, NotGivenOr
 
-from pinecall.providers._inference import DEFAULT_TTS_MODEL, VENDOR, the_projects_pair
+from pinecall.providers.livekit_inference import DEFAULT_TTS_MODEL, VENDOR, the_projects_pair
 from pinecall.providers.registry import Asked, Speech
 from pinecall.providers.tts import VENDORS
 

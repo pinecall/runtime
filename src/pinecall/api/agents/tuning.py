@@ -18,13 +18,13 @@ from pinecall.api.deps import (
     VaultDep,
     opening,
 )
-from pinecall.auth.corner import author_of
 from pinecall.auth.keys import KeyRecord, held_by, not_opening
-from pinecall.orgs.resolving import as_json
-from pinecall.orgs.tuning import HISTORY_LIMIT, TuningStore
+from pinecall.auth.request_scope import author_of
+from pinecall.orgs.tuning_resolution import as_json
+from pinecall.orgs.tuning_store import HISTORY_LIMIT, TuningStore
 from pinecall.orgs.vault import brought_by
-from pinecall.providers.pipeline import what_is_not_lent
-from pinecall.providers.tuning import tuned
+from pinecall.providers.session_vendors import what_is_not_lent
+from pinecall.providers.tuned_declaration import tuned
 from pinecall.types import (
     HOLDING,
     PRODUCTION,
@@ -60,7 +60,8 @@ router = APIRouter()
 TuningKeyDep = Annotated[KeyRecord, Depends(opening("pipeline", "words"))]
 
 # The wire's body read into the shape, and the shape written back out: one adapter, so what a door
-# accepts and what a row says are the same thing. orgs/resolving.py writes a column through it too.
+# accepts and what a row says are the same thing. orgs/tuning_resolution.py writes a column through
+# it too.
 TUNING: TypeAdapter[Tuning] = TypeAdapter(Tuning)
 
 # What a `words` key may touch and what it may not: the vendors, the models, the cut of a turn and
