@@ -9,7 +9,7 @@ from pinecall._settings import Budgets
 from pinecall.api.agents.held_agent import Registration, SocketId
 from pinecall.api.agents.registry import Registry
 from pinecall.api.agents.session_config import tuned_for
-from pinecall.evals.score import JudgedWhen
+from pinecall.evals.hangup_score import JudgedWhen
 from pinecall.log.logs import CallLog
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups

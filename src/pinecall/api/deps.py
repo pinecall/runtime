@@ -17,7 +17,7 @@ from pinecall.auth.members import Members
 from pinecall.auth.pairing import Pairings
 from pinecall.auth.signups import PendingSignups
 from pinecall.auth.throttle import Throttle
-from pinecall.evals.runs import Runs
+from pinecall.evals.run_store import Runs
 from pinecall.extensions import Extensions
 from pinecall.fleet import Roster
 from pinecall.knowledge import Knowledge

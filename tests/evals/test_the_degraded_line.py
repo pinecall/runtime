@@ -8,7 +8,7 @@ from array import array
 
 import pytest
 
-from pinecall.evals.line import (
+from pinecall.evals.line_noise import (
     FRAME_MS,
     LOST,
     frames_of,

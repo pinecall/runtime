@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.evals.score import a_score
+from pinecall.evals.hangup_score import a_score
 from pinecall_protocol.events import Judgment
 from tests.lookups.fakes import CALL, ScriptedKnowledge, a_chunk, a_config, a_served_call
 

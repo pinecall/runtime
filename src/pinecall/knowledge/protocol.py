@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from typing import Protocol
 
 from pinecall.knowledge.files import File
-from pinecall.knowledge.store import Base
+from pinecall.knowledge.postgres import Base
 from pinecall.types import Chunk, Env, KnowledgeFile
 from pinecall.types.knowledge import DEFAULT_CHUNKS_PER_TURN
 

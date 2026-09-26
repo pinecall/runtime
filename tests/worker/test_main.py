@@ -11,7 +11,7 @@ import pytest
 from livekit.agents import JobContext, JobExecutorType, JobProcess
 
 from pinecall._settings import load_settings
-from pinecall.evals.score import JudgedWhen
+from pinecall.evals.hangup_score import JudgedWhen
 from pinecall.providers import llm, stt, tts
 from pinecall.session.voice import VoiceBridge, a_bridge
 from pinecall.worker import main

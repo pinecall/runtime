@@ -10,7 +10,7 @@ from typing import TypedDict
 from livekit.agents import AgentServer, JobContext, JobProcess
 
 from pinecall._settings import Settings, load_settings, variable_of
-from pinecall.evals.score import JudgedWhen
+from pinecall.evals.hangup_score import JudgedWhen
 from pinecall.providers.session_vendors import warm_the_vendor_tables
 from pinecall.session.voice import a_bridge
 from pinecall.session.voice.vendors import kit_for

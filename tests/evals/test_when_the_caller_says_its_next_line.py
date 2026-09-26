@@ -2,7 +2,7 @@
 
 import pytest
 
-from pinecall.evals.calling import Settled, every_turn
+from pinecall.evals.voice_run import Settled, every_turn
 
 pytestmark = pytest.mark.unit
 

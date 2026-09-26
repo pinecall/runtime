@@ -26,7 +26,7 @@ from pinecall.api.evals.runner import (
 )
 from pinecall.api.live import LiveDep
 from pinecall.auth.keys import held_by
-from pinecall.evals.runs import DEFAULT_LIMIT, EvalRun, Runs, Status
+from pinecall.evals.run_store import DEFAULT_LIMIT, EvalRun, Runs, Status
 from pinecall.log.store import Store
 from pinecall.providers.models import NoProvider
 from pinecall.types import DeclarationRefused
@@ -67,8 +67,8 @@ class RunList(WireModel):
     runs: list[RunSaid]
 
 
-# The run keeps its matrix as the document scoring.py wrote (evals/runs.py), and it is read back
-# into the shape here: the same keys either way, and the door's answer says which they are.
+# The run keeps its matrix as the document scoring.py wrote (evals/run_store.py), and it is read
+# back into the shape here: the same keys either way, and the door's answer says which they are.
 def a_run_said(run: EvalRun) -> RunSaid:
     """The run as the door answers it: one document, no nesting past the matrix."""
     return RunSaid(

@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import replace
 
-from pinecall.evals.checks.replayed import Replayed
-from pinecall.evals.checks.verdict import Verdict, broken, deferred, held, skipped
+from pinecall.evals.checks.check_verdict import Verdict, broken, deferred, held, skipped
+from pinecall.evals.checks.replay import Replayed
 from pinecall.types import ConsentOutcome, GateLine, consent_of
 
 CHECK = "consent"

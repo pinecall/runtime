@@ -13,8 +13,8 @@ from pinecall.knowledge import Knowledge
 from pinecall.log.entry import Entry
 from pinecall.log.logs import CallLog
 from pinecall.log.writers import Logs
-from pinecall.lookups.answers import found, recalled
-from pinecall.lookups.entries import a_recall, a_retrieval, a_skip
+from pinecall.lookups.log_entries import a_recall, a_retrieval, a_skip
+from pinecall.lookups.tool_results import found, recalled
 from pinecall.memory import DEFAULT_FACTS_PER_TURN, Memory, Spoken
 from pinecall.types import (
     AgentConfig,

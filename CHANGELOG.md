@@ -1390,7 +1390,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `memory/scoring.py`; the arithmetic behind both figures lives once in `types/golden_scores.py`.
   `Memory.hold` is the write with no model in it. `docs/retrieval/spec.md` has the contract.
 - `Golden.memory`: a ring-1 golden may open its call already knowing things about the caller.
-  `evals/remembering.py` answers those facts to the `recall` tool for that call and nothing else
+  `evals/golden_memory.py` answers those facts to the `recall` tool for that call and nothing else
   moves — the tool call, the result and the request are real, the memory table is neither read nor
   written, and `remember` at hang-up is still the gateway's so a run writes no fact about
   a caller nobody called as.
@@ -1546,7 +1546,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **The simulated caller is on the line before anybody picks up.** Its track is published at
   connect, at 48 kHz, and only then is the agent waited for: a track opened and pushed into in one
   breath handed the agent a line already playing, and the 1.7 s it took to subscribe were the whole
-  first sentence (`identifica-al-paciente`, one spoken run in three). `evals/speech.py` returns
+  first sentence (`identifica-al-paciente`, one spoken run in three). `evals/caller_voice.py` returns
   every line at that one rate — espeak-ng's own rate is resampled by livekit's `AudioResampler`.
 - **The spoken run decodes `agent.state` through the protocol** (`AgentStateChanged`, typed
   `AgentState`), instead of reading a raw dict key against a bare string.

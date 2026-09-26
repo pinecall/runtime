@@ -14,7 +14,7 @@ from pinecall.api.evals.runner import AlreadyRunning, Runner
 # The judges are the `evals` group, not a dependency of the gateway: on a box without it the door
 # answers 503 and this file has nothing to assert. The whole module skips, naming the command.
 from pinecall.evals import a_case
-from pinecall.evals.runs import EvalRun, MemoryRuns
+from pinecall.evals.run_store import EvalRun, MemoryRuns
 from pinecall.log.replay import whole
 from pinecall.log.store import MemoryStore
 from pinecall.orgs.records import MemoryOrgs

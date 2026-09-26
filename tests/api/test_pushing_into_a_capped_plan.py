@@ -21,7 +21,7 @@ pytestmark = pytest.mark.postgres
 
 KNOWLEDGE = "/v1/knowledge"
 
-# The two files cut into two chunks each, which is what tests/knowledge/test_store.py pins.
+# The two files cut into two chunks each, which is what tests/knowledge/test_postgres.py pins.
 CHUNKS_OF_BOTH = 4
 
 

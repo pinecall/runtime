@@ -8,8 +8,8 @@ from livekit.agents.evals import Judge, JudgmentResult
 from livekit.agents.llm import LLM, ChatContext
 
 from pinecall.evals.case import Case
-from pinecall.evals.judges.asking import asked
-from pinecall.evals.judges.policy import broken
+from pinecall.evals.judges.binary_question import asked
+from pinecall.evals.judges.code_judge import broken
 
 # The name the log files the verdict under. `held` is the caller accepting the call and `broken`
 # the caller declining it — the four words are the log's (docs/decisions/scoring.md) — and the
@@ -36,10 +36,10 @@ THE_QUESTION = (
 )
 
 # The caller playing itself would be generous about its own conversation, which is why the rule
-# never reaches the improvising model (evals/caller.py) and the judge is the platform's one Haiku,
-# on the box's key, as every judge on the panel is (judges/model.py). LiveKit's own simulations
-# draw the same line: the simulator's verdict is a judge over the transcript, not the simulated
-# user's opinion of it (livekit/agents/simulation.py, `simulator_verdict`).
+# never reaches the improvising model (evals/simulated_caller.py) and the judge is the platform's
+# one Haiku, on the box's key, as every judge on the panel is (judges/model.py). LiveKit's own
+# simulations draw the same line: the simulator's verdict is a judge over the transcript, not the
+# simulated user's opinion of it (livekit/agents/simulation.py, `simulator_verdict`).
 ACCEPTED = "accepted: {reason}"
 DECLINED = "declined: {reason}"
 COULD_NOT_SAY = "could not say: {reason}"

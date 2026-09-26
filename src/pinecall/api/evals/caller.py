@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from pinecall.api.deps import EvalsKeyDep, LlmsDep, OrgsDep, VaultDep
-from pinecall.evals.caller import NO_MODEL, Asking, Improvised, what_they_say_next
+from pinecall.evals.simulated_caller import NO_MODEL, Asking, Improvised, what_they_say_next
 from pinecall.orgs.vault import brought_by
 from pinecall.providers.models import NoProvider
 from pinecall.providers.tuned_declaration import the_llm

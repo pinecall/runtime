@@ -74,7 +74,7 @@ class Dispatches(Protocol):
 
 
 class LivekitDispatches:
-    """One `create_dispatch`, exactly as a spoken eval run makes one (evals/calling.py)."""
+    """One `create_dispatch`, exactly as a spoken eval run makes one (evals/voice_run.py)."""
 
     def __init__(self, sfu: Sfu, fleet: str) -> None:
         self._sfu = sfu

@@ -108,10 +108,10 @@ def read_executable_path(program: str) -> str | None:
     return shutil.which(program)
 
 
-# The same answer the gateway gives (mail/box.py): the stored row when there is one this box's
-# vault key opens, else the environment's. A database that does not answer, or one still behind
-# 0035, is a box with no stored row — the environment's line then stands, exactly as it does for
-# a gateway that started against that database.
+# The same answer the gateway gives (mail/box_mailbox.py): the stored row when there is one this
+# box's vault key opens, else the environment's. A database that does not answer, or one still
+# behind 0035, is a box with no stored row — the environment's line then stands, exactly as it does
+# for a gateway that started against that database.
 def read_the_boxs_mail(settings: Settings) -> BoxMail | None:
     """What this box posts a letter through, from the table first. Synchronous: no loop here."""
     return asyncio.run(_the_boxs_mail(settings))
@@ -119,7 +119,7 @@ def read_the_boxs_mail(settings: Settings) -> BoxMail | None:
 
 async def _the_boxs_mail(settings: Settings) -> BoxMail | None:
     """One pool, one read, closed again."""
-    from pinecall.mail.box import the_environments_mailbox
+    from pinecall.mail.box_mailbox import the_environments_mailbox
 
     environment = the_environments_mailbox(settings)
     try:

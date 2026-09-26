@@ -190,7 +190,8 @@ class PostgresTuning(TuningStore):
 
 
 # This pool's connections were never taught the jsonb codec (only the log's own are), so jsonb is
-# text going out and text coming back — the same reading orgs/box_settings.py and evals/runs.py do.
+# text going out and text coming back — the same reading orgs/box_settings.py and evals/run_store.py
+# do.
 def _a_tuning(row: Mapping[str, Any]) -> Kept[Tuning]:
     """One row as the store hands it back: the JSON read through the shape's own adapter."""
     return Kept(

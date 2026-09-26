@@ -10,7 +10,7 @@ from starlette.testclient import TestClient
 from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
-from pinecall.evals.score import JUDGING_OFF, JudgedWhen
+from pinecall.evals.hangup_score import JUDGING_OFF, JudgedWhen
 from pinecall.orgs.records import MemoryOrgs
 from pinecall.orgs.tuning_store import MemoryTuning
 from pinecall.types import AgentConfig

@@ -177,7 +177,7 @@ This runtime has three of the four:
   class's tools are named in English — `book`, `findPatient` — and its callers speak Spanish: the
   vocabulary is a method name, and a caller does not use one.
 - **Provenance.** Every fact carries where it came from and since when, and both reach the model in
-  the tool result: `{"facts": [{text, source, since}]}` and nothing else (`lookups/answers.py`).
+  the tool result: `{"facts": [{text, source, since}]}` and nothing else (`lookups/tool_results.py`).
 - **Read-time framing.** The fact arrives as JSON inside a tool result, which is the position both
   vendors name for content the model should not obey.
 

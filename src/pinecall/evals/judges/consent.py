@@ -8,7 +8,7 @@ from typing import override
 from livekit.agents.evals import JudgmentResult
 from livekit.agents.llm import ChatContext
 
-from pinecall.evals.judges.policy import PolicyJudge, broken, held
+from pinecall.evals.judges.code_judge import PolicyJudge, broken, held
 from pinecall.types import ConsentOutcome, GateLine, consent_of
 
 CRITERIA = (

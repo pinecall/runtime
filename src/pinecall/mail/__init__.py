@@ -1,6 +1,6 @@
 """Outbound mail: the letters this gateway writes, and the generic SMTP server it hands them to."""
 
-from pinecall.mail.box import BoxMail, TheBoxsMail, the_environments_mailbox
+from pinecall.mail.box_mailbox import BoxMail, TheBoxsMail, the_environments_mailbox
 from pinecall.mail.brand import Brand, rebranded, the_brand
 from pinecall.mail.letters import (
     Letter,

@@ -23,7 +23,7 @@ number being read out — a phone, an order, a card. No prose index answers one,
 would come back ranked by nothing, and a caller's digits are the last thing to send to an embedder.
 
 **The score cannot make that decision, and this is why.** A chunk's score is the fused rank read
-`relative_to_the_best` of THAT query (`knowledge/store.py`), so the top chunk is 1.0 whatever was
+`relative_to_the_best` of THAT query (`knowledge/postgres.py`), so the top chunk is 1.0 whatever was
 asked: the sums a reciprocal-rank fusion produces are not comparable between two queries, which is
 the very reason they are normalised. `min_score` therefore cuts the tail of an answer and can
 never say "nothing here answers this" — a cleaning company's base returned its data-center page,

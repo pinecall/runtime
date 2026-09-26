@@ -24,7 +24,7 @@ ACTIVE: Literal["participant_active"] = "participant_active"
 # A browser's seat can be a moment behind the agent, exactly as a phone leg can, and until this
 # was waited for the difference decided whether a call was RECORDED. A dispatch that NAMES its
 # agent is waited for nowhere — `worker/router.py:51` passes NOT_WAITED_FOR — and a simulated
-# caller always names it: `evals/calling.py:101` dispatches and only then connects the caller and
+# caller always names it: `evals/voice_run.py:101` dispatches and only then connects the caller and
 # publishes its voice. Reaching the session with nobody seated leaves the agent's `input.audio`
 # unset, and livekit builds no recorder at all when it is (agent_session.py:1035), once, at start.
 # So the race was silent and its prize was the whole recording. The same five seconds the leg

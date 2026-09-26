@@ -82,7 +82,7 @@ class MemoryBoxSettings:
 
 
 # This pool's connections were never taught the jsonb codec (only the log's own are), so jsonb is
-# text going out and text coming back: evals/runs.py says the same.
+# text going out and text coming back: evals/run_store.py says the same.
 _PUT = """
 INSERT INTO box_settings (name, value, ciphertext, set_at) VALUES ($1, $2::jsonb, $3, now())
     ON CONFLICT (name) DO UPDATE

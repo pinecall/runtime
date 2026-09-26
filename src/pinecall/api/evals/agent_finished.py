@@ -6,7 +6,7 @@ import asyncio
 import time
 from collections.abc import Sequence
 
-from pinecall.evals.polling import until
+from pinecall.evals.wait_until import until
 from pinecall.log.entry import Entry
 from pinecall.log.replay import whole
 from pinecall.log.store import Store

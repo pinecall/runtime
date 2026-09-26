@@ -12,15 +12,15 @@ from livekit.agents.llm import ChatContext
 from livekit.agents.metrics.usage import ModelUsageCollector
 
 from pinecall._settings import Settings, load_settings
-from pinecall.evals.bridge import a_case
 from pinecall.evals.case import Case
+from pinecall.evals.case_builder import a_case
+from pinecall.evals.judges.code_judge import PolicyJudge
 from pinecall.evals.judges.consent import ConsentJudge
+from pinecall.evals.judges.grader import Counted, a_judge
 from pinecall.evals.judges.grounded import EXTRACTORS, GroundedJudge, evidence_of
-from pinecall.evals.judges.model import Counted, a_judge
 from pinecall.evals.judges.persona import persona_judge_of
-from pinecall.evals.judges.policy import PolicyJudge
 from pinecall.evals.judges.promises import promises_of
-from pinecall.evals.verdicts import a_judgment, nobody_asked
+from pinecall.evals.livekit_verdicts import a_judgment, nobody_asked
 from pinecall.log.entry import Entry
 from pinecall.providers import prices
 from pinecall.providers.usage_wire import as_wire_rows

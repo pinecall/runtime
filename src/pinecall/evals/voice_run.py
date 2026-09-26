@@ -15,10 +15,9 @@ from livekit.agents.utils import http_context
 
 from pinecall._settings import Settings
 from pinecall.auth.scopes import a_room_token, secret_for
-from pinecall.evals import line as degrading
-from pinecall.evals import speech
-from pinecall.evals.dispatching import a_dispatch
-from pinecall.evals.speech import Speaking, Voice
+from pinecall.evals import caller_voice, line_noise
+from pinecall.evals.agent_dispatch import a_dispatch
+from pinecall.evals.caller_voice import Speaking, Voice
 from pinecall.types import Env
 
 # The identity the caller joins under. `pinecall-runtime worker talk` is livekit's console and
@@ -53,7 +52,7 @@ class Line:
         """The one sentence a report prints about the line this call was held on."""
         if self.interferer_db is None and self.packet_loss <= 0:
             return "a clean line"
-        return degrading.said_of(self.interferer_db or 0.0, self.packet_loss)
+        return line_noise.said_of(self.interferer_db or 0.0, self.packet_loss)
 
 
 type NextLine = Callable[[int], Awaitable[tuple[str, bool]]]
@@ -153,7 +152,7 @@ async def _the_callers_voice(
         if line.interferer_db is not None and not line.interferer:
             television = Voice.of_a_television(settings, speaking.brought)
             try:
-                line.interferer = await television.spoken(speech.A_TELEVISION)
+                line.interferer = await television.spoken(caller_voice.A_TELEVISION)
             finally:
                 await television.aclose()
         voice = Voice.of_the_caller(settings, speaking)
@@ -179,7 +178,9 @@ class _Mouth:
     @classmethod
     async def on(cls, room: rtc.Room, line: Line, voice: Voice) -> _Mouth:
         """The caller's microphone in this room: open, silent, and kept for the whole call."""
-        source = rtc.AudioSource(sample_rate=speech.SAMPLE_RATE, num_channels=speech.CHANNELS)
+        source = rtc.AudioSource(
+            sample_rate=caller_voice.SAMPLE_RATE, num_channels=caller_voice.CHANNELS
+        )
         track = rtc.LocalAudioTrack.create_audio_track(A_SIMULATED_CALLER, source)
         await room.local_participant.publish_track(
             track, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE)
@@ -190,9 +191,11 @@ class _Mouth:
         """One line in the caller's voice, mixed with the interferer, and pushed frame by frame."""
         pcm = await self._voice.spoken(text)
         if self._line.interferer_db is not None:
-            pcm = degrading.mixed(pcm, self._line.interferer, self._line.interferer_db)
-        frames = degrading.with_losses(
-            degrading.frames_of(pcm, speech.SAMPLE_RATE), self._line.packet_loss, self._line.random
+            pcm = line_noise.mixed(pcm, self._line.interferer, self._line.interferer_db)
+        frames = line_noise.with_losses(
+            line_noise.frames_of(pcm, caller_voice.SAMPLE_RATE),
+            self._line.packet_loss,
+            self._line.random,
         )
         # No sleep between frames: livekit's own publisher pushes them straight into the source and
         # lets it pace them (examples/primitives/echo-agent.py:94), and its queue is a second of
@@ -201,8 +204,8 @@ class _Mouth:
             await self._source.capture_frame(
                 rtc.AudioFrame(
                     data=frame,
-                    sample_rate=speech.SAMPLE_RATE,
-                    num_channels=speech.CHANNELS,
+                    sample_rate=caller_voice.SAMPLE_RATE,
+                    num_channels=caller_voice.CHANNELS,
                     samples_per_channel=len(frame) // 2,
                 )
             )

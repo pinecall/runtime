@@ -5,8 +5,8 @@ from typing import Any
 
 import pytest
 
+from pinecall.evals.golden_memory import A_GOLDEN, Remembering
 from pinecall.evals.goldens import Golden
-from pinecall.evals.remembering import A_GOLDEN, Remembering
 from pinecall.types import PlatformTool
 
 pytestmark = pytest.mark.unit

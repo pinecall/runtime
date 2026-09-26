@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from pinecall.evals.checks.replayed import Failure, Replayed
-from pinecall.evals.checks.verdict import Verdict, broken, held
+from pinecall.evals.checks.check_verdict import Verdict, broken, held
+from pinecall.evals.checks.replay import Failure, Replayed
 
 CHECK = "errors"
 

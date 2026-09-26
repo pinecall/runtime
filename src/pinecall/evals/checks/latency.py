@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from statistics import median
 
-from pinecall.evals.checks.replayed import Replayed
-from pinecall.evals.checks.verdict import Verdict, broken, held, skipped
+from pinecall.evals.checks.check_verdict import Verdict, broken, held, skipped
+from pinecall.evals.checks.replay import Replayed
 
 CHECK = "latency"
 

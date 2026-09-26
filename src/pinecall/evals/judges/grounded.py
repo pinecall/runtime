@@ -13,8 +13,8 @@ from livekit.agents.evals import Judge, JudgmentResult
 from livekit.agents.llm import LLM, ChatContext
 
 from pinecall.evals.case import Called, Case
-from pinecall.evals.judges.asking import asked
-from pinecall.evals.judges.policy import broken, held
+from pinecall.evals.judges.binary_question import asked
+from pinecall.evals.judges.code_judge import broken, held
 from pinecall.evals.transcript import said_by_the_agent
 
 

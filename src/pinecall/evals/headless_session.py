@@ -12,7 +12,7 @@ from livekit.agents.types import TimedString
 from livekit.agents.voice import AgentSession
 
 from pinecall._settings import Settings, load_settings
-from pinecall.evals.answers import Answers
+from pinecall.evals.headless_tool_answers import Answers
 from pinecall.session.lookup_tools import NoLookup, TurnLookups
 from pinecall.session.tool_declaration import declared
 from pinecall.session.voice import session

@@ -18,15 +18,15 @@ from pinecall.api.deps import (
 )
 from pinecall.api.evals.agent_finished import the_call_is_over, until_the_answer_lands
 from pinecall.auth.keys import held_by
-from pinecall.evals.caller import (
+from pinecall.evals.caller_voice import Speaking
+from pinecall.evals.simulated_caller import (
     NO_MODEL,
     Asking,
     Persona,
     heard_in,
     what_they_say_next,
 )
-from pinecall.evals.calling import Line, a_simulated_call
-from pinecall.evals.speech import Speaking
+from pinecall.evals.voice_run import Line, a_simulated_call
 from pinecall.log.replay import whole
 from pinecall.orgs.vault import brought_by
 from pinecall.providers.models import NoProvider
@@ -119,7 +119,7 @@ async def a_voice_call(
         # Somebody hung up while the caller was waiting for its answer: the console's Stop, the
         # app, the agent. This loop is the gateway's and the call is the worker's, so the log is
         # the only place it hears of it — and a caller that did not look went on saying its
-        # remaining turns to an empty room. No line is the hangup (evals/calling.py:357).
+        # remaining turns to an empty room. No line is the hangup (evals/voice_run.py:357).
         if the_call_is_over(entries):
             return "", True
         asking = Asking(

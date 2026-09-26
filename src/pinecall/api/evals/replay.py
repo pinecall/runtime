@@ -8,12 +8,12 @@ from pydantic import Field
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.calls.log_sink import NO_SUCH_CALL, declared_by, the_calls_corner
 from pinecall.api.deps import CallIndexDep, EvalsKeyDep, StoreDep
-from pinecall.evals.checks import replayed as replay
+from pinecall.evals.checks import replay
+from pinecall.evals.checks.check_verdict import Verdict
 from pinecall.evals.checks.consent import consent
-from pinecall.evals.checks.errors import errors
 from pinecall.evals.checks.latency import DEFAULT_BUDGET, latency
+from pinecall.evals.checks.provider_errors import errors
 from pinecall.evals.checks.register import register
-from pinecall.evals.checks.verdict import Verdict
 from pinecall.log.replay import whole
 from pinecall.types import AgentConfig
 from pinecall_protocol import WireModel

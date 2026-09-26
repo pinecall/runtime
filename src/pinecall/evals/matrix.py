@@ -10,7 +10,7 @@ from livekit.agents.evals import EvaluationResult, Evaluator
 from livekit.agents.llm import LLM
 
 from pinecall.evals.case import Case
-from pinecall.evals.judges.model import Counted
+from pinecall.evals.judges.grader import Counted
 
 
 @dataclass(frozen=True)

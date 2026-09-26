@@ -8,7 +8,7 @@ from livekit.agents.evals import JudgmentResult
 from livekit.agents.llm import ChatContext
 
 from pinecall.evals.goldens import Register
-from pinecall.evals.judges.policy import PolicyJudge, broken, held
+from pinecall.evals.judges.code_judge import PolicyJudge, broken, held
 from pinecall.evals.transcript import said_by_the_agent
 from pinecall.evals.words import PUNCTUATION
 

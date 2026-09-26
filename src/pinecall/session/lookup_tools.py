@@ -295,7 +295,8 @@ class TurnLookups:
 # making a third. The caller's own sentence ends up five messages back from the end of the request.
 #
 # The tools stay declared, so a turn that really wants to ask can ask, and the log is untouched:
-# what a lookup did is written by the service that ran it (lookups/entries.py), never by the pair.
+# what a lookup did is written by the service that ran it (lookups/log_entries.py), never by the
+# pair.
 def _found_anything(output: Mapping[str, Any]) -> bool:
     """Whether a lookup came back with something. `{"facts": []}` is not context; it is noise."""
     return any(bool(value) for value in output.values())

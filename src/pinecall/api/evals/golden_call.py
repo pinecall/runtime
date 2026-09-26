@@ -13,8 +13,8 @@ from pinecall.api.evals.app_settled import Settling
 from pinecall.api.evals.run_attachment import APP_DETACHED, ENDED_BY, AppDetached, Attachment
 from pinecall.api.live import Live
 from pinecall.auth.scopes import a_visitor
+from pinecall.evals.golden_memory import Remembering
 from pinecall.evals.goldens import Golden
-from pinecall.evals.remembering import Remembering
 from pinecall.log.entry import Entry
 from pinecall.log.replay import whole
 from pinecall.log.store import Store
@@ -152,7 +152,7 @@ def an_eval_call(
         logs.writing(call, config.slug),
         llm,
         # A golden that seeds `memory` answers its own facts to `recall` and nothing else moves:
-        # the tool call, the tool result and the request are the real ones. evals/remembering.py.
+        # the tool call, the tool result and the request are the real ones. evals/golden_memory.py.
         lookup=Remembering(lookups, golden.memory) if golden.memory else lookups,
         # Never the golden's: a run must not write facts about a caller nobody called as.
         rememberer=lookups,

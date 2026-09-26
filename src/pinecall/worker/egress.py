@@ -10,7 +10,7 @@ from pathlib import Path
 from livekit import api
 from livekit.protocol import egress as proto
 
-from pinecall.evals.polling import until
+from pinecall.evals.wait_until import until
 
 logger = logging.getLogger(__name__)
 

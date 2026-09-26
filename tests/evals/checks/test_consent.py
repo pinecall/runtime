@@ -3,7 +3,7 @@
 import pytest
 
 from pinecall.evals.checks.consent import consent
-from pinecall.evals.checks.replayed import Replayed
+from pinecall.evals.checks.replay import Replayed
 from pinecall.types import GATE_DEFERRED_ON
 from tests.evals.checks.conftest import IRREVERSIBLE
 

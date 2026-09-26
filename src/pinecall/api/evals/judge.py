@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.calls.log_sink import the_calls_corner
 from pinecall.api.deps import CallIndexDep, EvalsKeyDep, SettingsDep, StoreDep
-from pinecall.evals.score import a_score
+from pinecall.evals.hangup_score import a_score
 from pinecall.log.entry import Entry
 from pinecall.log.replay import whole
 from pinecall.types import AgentConfig

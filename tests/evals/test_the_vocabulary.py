@@ -5,7 +5,7 @@ from typing import get_args
 import pytest
 from livekit.agents.evals import JudgmentResult, Verdict
 
-from pinecall.evals.verdicts import AS_OUR_VERDICT, a_judgment, evidence_in
+from pinecall.evals.livekit_verdicts import AS_OUR_VERDICT, a_judgment, evidence_in
 from pinecall_protocol.defs import ScoreVerdict
 from pinecall_protocol.envelope import Entry
 

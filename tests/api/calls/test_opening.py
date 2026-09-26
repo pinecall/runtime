@@ -8,7 +8,7 @@ from pinecall._settings import Budgets
 from pinecall.api.agents.held_agent import Registration
 from pinecall.api.calls.opening import a_text_call
 from pinecall.evals import a_score
-from pinecall.evals.score import JudgedWhen
+from pinecall.evals.hangup_score import JudgedWhen
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission

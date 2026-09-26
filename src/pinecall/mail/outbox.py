@@ -6,7 +6,7 @@ import asyncio
 import logging
 
 from pinecall._settings import Settings
-from pinecall.mail.box import TheBoxsMail, the_environments_mailbox
+from pinecall.mail.box_mailbox import TheBoxsMail, the_environments_mailbox
 from pinecall.mail.brand import Brand, the_brand
 from pinecall.mail.letters import Letter
 from pinecall.mail.smtp import MailRefused, posted

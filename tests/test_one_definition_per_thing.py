@@ -4,7 +4,7 @@ import pytest
 
 from pinecall.api.evals import replay as replay_door
 from pinecall.cli.sessions import source
-from pinecall.evals.checks import replayed
+from pinecall.evals.checks import replay as replay_check
 from pinecall.log import latencies, replay, snapshots, wording
 from pinecall.session.text import session, tool_runs
 from pinecall.session.voice import bridge, tools
@@ -20,7 +20,7 @@ def test_every_reader_of_a_whole_call_holds_the_very_same_function() -> None:
 
 
 def test_the_cli_and_the_evals_read_the_very_same_latencies() -> None:
-    assert replayed.samples is latencies.samples
+    assert replay_check.samples is latencies.samples
 
 
 def test_the_text_session_and_the_bridge_hold_the_very_same_definitions() -> None:

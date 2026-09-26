@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 # The ONE place the gateway meets the evaluation distribution, which is why this module is
-# imported at the door and never at startup: see api/evals/runs.py.
+# imported at the door and never at startup: see api/evals/run_store.py.
 from pinecall import evals as rings
 from pinecall.api.evals.golden_call import Conversation
 from pinecall.evals.goldens import Golden
@@ -91,7 +91,7 @@ class Judging:
         )
         self._cells.extend(measured.runs)
 
-    # The document and not the model: the run keeps its matrix as JSON (evals/runs.py), and the
+    # The document and not the model: the run keeps its matrix as JSON (evals/run_store.py), and the
     # door reads it back into ScoreMatrix to answer, so a row read half-way is the same shape.
     @property
     def matrix(self) -> JsonObject:

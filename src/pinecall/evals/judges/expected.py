@@ -9,7 +9,7 @@ from livekit.agents.evals import JudgmentResult
 from livekit.agents.llm import ChatContext
 
 from pinecall.evals.case import AGENT, Arrived, Case, Said
-from pinecall.evals.judges.policy import PolicyJudge, broken, held
+from pinecall.evals.judges.code_judge import PolicyJudge, broken, held
 from pinecall.evals.transcript import said_by_the_agent, said_by_the_caller, tools_called
 from pinecall.types import GateLine
 

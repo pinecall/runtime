@@ -7,8 +7,8 @@ from livekit.agents.evals import Judge, JudgmentResult
 from livekit.agents.llm import LLM, ChatContext
 
 from pinecall._settings import Settings
-from pinecall.evals import Counted, score
-from pinecall.evals.score import a_score
+from pinecall.evals import Counted, hangup_score
+from pinecall.evals.hangup_score import a_score
 from pinecall.types import AgentConfig, ToolSpec
 from pinecall_protocol import decode_entries, encode
 from pinecall_protocol.envelope import Entry
@@ -99,7 +99,7 @@ async def test_a_judging_that_blew_up_writes_the_reason_into_the_tenants_own_log
     golden: list[Entry], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The process log is not shipped. What broke belongs where the rest of the call already is."""
-    monkeypatch.setattr(score, "a_case", _refuses_to_build_a_case)
+    monkeypatch.setattr(hangup_score, "a_case", _refuses_to_build_a_case)
     scored = await a_score(golden, THE_GOLDENS_AGENT, NO_BUDGET)
     assert scored.judges == [] and scored.passed is None
     assert scored.not_judged == "judging this call failed: the log would not read back"
@@ -109,17 +109,17 @@ async def test_a_call_whose_every_judge_failed_is_not_a_call_that_passed(
     golden: list[Entry], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A judge that broke answers nothing and is dropped, as livekit's own group drops one."""
-    monkeypatch.setattr(score, "_the_judges_of", _one_judge_that_raises)
+    monkeypatch.setattr(hangup_score, "_the_judges_of", _one_judge_that_raises)
     scored = await a_score(golden, THE_GOLDENS_AGENT, NO_BUDGET)
     assert scored.judges == [] and scored.passed is None
-    assert scored.not_judged == score.NOTHING_ANSWERED
+    assert scored.not_judged == hangup_score.NOTHING_ANSWERED
 
 
 async def test_a_judge_that_raises_is_in_the_panel_and_never_among_the_judges(
     golden: list[Entry], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A dropped judge answers nothing, so only the panel says it was ever run over the call."""
-    monkeypatch.setattr(score, "GroundedJudge", _raises_instead("grounded"))
+    monkeypatch.setattr(hangup_score, "GroundedJudge", _raises_instead("grounded"))
     scored = await a_score(golden, THE_GOLDENS_AGENT, NO_BUDGET)
     assert scored.panel == ["consent", "grounded", "promises"], "all were run, whatever answered"
     assert [row.name for row in scored.judges] == ["consent", "promises"], (
