@@ -4,6 +4,7 @@ import re
 
 import pytest
 
+from pinecall.log.store.migrating import every, file_hash
 from pinecall.log.store.postgres import MIGRATIONS
 from tests.tree import PACKAGE_ROOT, ROOT, modules_under
 
@@ -24,6 +25,29 @@ def test_every_migration_is_numbered_so_the_order_they_apply_in_is_the_order_the
     # numbered in the same sequence as the rest.
     assert names == [name for name in names if re.match(r"^\d{4}_[a-z_]+(\.post)?\.sql$", name)]
     assert [name[:4] for name in names] == [f"{n:04d}" for n in range(1, len(names) + 1)]
+
+
+def test_every_migration_is_the_file_the_databases_that_ran_it_ran() -> None:
+    """A landed migration edited in a pull request fails here, not at a box's next startup.
+
+    The databases keep each file's sha256 and refuse a gateway whose file changed
+    (log/store/migrating.py); `applied.sha256` is that record kept in the tree. The rename of
+    2026-09-26 edited a comment in nine landed files, CI said green, and production did not start.
+    """
+    kept: dict[str, str] = {}
+    for line in (MIGRATIONS / "applied.sha256").read_text(encoding="utf-8").splitlines():
+        if line.strip() and not line.startswith("#"):
+            sha, name = line.split(maxsplit=1)
+            kept[name] = sha
+    on_disk = {path.name: file_hash(path) for path in every()}
+    missing = sorted(on_disk.keys() - kept.keys())
+    assert not missing, f"append the new migration's line to applied.sha256: {missing}"
+    edited = sorted(name for name, sha in on_disk.items() if kept.get(name) != sha)
+    assert not edited, (
+        f"{edited} changed after it ran: every database that ran it has the old one. Restore the "
+        "file and put the change in a new migration"
+    )
+    assert kept.keys() <= on_disk.keys(), "applied.sha256 names a migration this tree lacks"
 
 
 def test_the_routes_and_tokens_tables_are_created_by_a_migration_and_nowhere_else() -> None:

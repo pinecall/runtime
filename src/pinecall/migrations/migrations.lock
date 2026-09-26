@@ -7,5 +7,6 @@
 # And the linter's baseline. `scripts/lint-migrations` checks what sits ABOVE this line and
 # nothing at or below it: those have run on databases that keep their sha256, so they may never
 # be edited — the fix for an old migration is a new migration, and a gate that failed on them
-# would be a gate demanding something forbidden.
+# would be a gate demanding something forbidden. That they are NOT edited is held by
+# `applied.sha256` beside this file: every migration's hash, checked by the unit suite.
 0052_a_widget_theme.sql

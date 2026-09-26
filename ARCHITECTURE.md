@@ -88,9 +88,9 @@ shape — and `0009_knowledge` the knowledge base's chunks, **Chunk** beside it)
 every database that ran it has the OLD one, and an old migration is fixed by a new one. A run takes
 an advisory lock before any DDL, holds each migration to a 5 s statement and a 1 s lock timeout
 inside its own transaction, and names the database it talks to before applying anything.
-`migrations/migrations.lock` names the last one that landed — bumping it makes two branches adding
-`0022` conflict in git — and is the baseline `scripts/lint-migrations` lints above with **squawk**,
-which reads the `.sql` for what it will do to a table that has rows. `tests/migrations.py` proves a
+`migrations/migrations.lock` names the last one that landed (two branches adding `0022` conflict
+in git) and is the baseline `scripts/lint-migrations` lints above with **squawk**; every file's
+sha256 is kept in `applied.sha256`, which the unit suite holds each landed migration to. `tests/migrations.py` proves a
 migration against data: a schema built as a box HAD it, rows written, the migration applied on top.
 
 ## 3. The wire
