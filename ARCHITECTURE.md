@@ -318,8 +318,8 @@ every spoken call quiet for five minutes whose room the SFU no longer has (`rout
 ## 9. The tenants
 
 `orgs/table.py` (the orgs and their quotas), `orgs/tuning.py` (an agent's tuning and the org's
-lexicon, a row a version per world and corner — the version born in the INSERT, the primary key the
-only lock, and `VersionMoved` when two writers read the same one), `orgs/resolving.py` (what a chain of corners resolves to: every knob from the nearest corner that SET it, an empty row supplying nothing — one definition, both stores read through it and no door resolves anything of its own), `admission.py` (may this org open one more call, hold one more agent, keep one more fact, push these chunks — one refusal vocabulary,
+lexicon, the fall-through between corners written once over `orgs/versions.py` — a row a version per world and corner, in memory or in Postgres, the version born in the INSERT, the primary key the
+only lock, and `VersionMoved` when two writers read the same one; `orgs/lexicon.py` is the lexicon table's statements), `orgs/resolving.py` (what a chain of corners resolves to: every knob from the nearest corner that SET it, an empty row supplying nothing — one definition, both stores read through it and no door resolves anything of its own), `admission.py` (may this org open one more call, hold one more agent, keep one more fact, push these chunks — one refusal vocabulary,
 `credits.exhausted` in the agent's own log and the same sentence at the door), `meter.py` (every org's consumption, folded from the log as it grows, one
 cursor per process), `vault.py` (a tenant's own provider keys, Fernet at rest, written at two
 doors — the tenant's own and the operator's — and read back by exactly one, the worker's). `auth/keys.py` (sha256, no salt; the `api_keys` table and nothing beside it — `PINECALL_DEV_KEY`,
