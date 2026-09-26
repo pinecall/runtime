@@ -7,8 +7,9 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from starlette.status import HTTP_302_FOUND
 
+from pinecall.accounts import A_BROWSER, claims_from_provider, provider_config, seat_vouched
 from pinecall.api.accounts.identity import AtProduction
-from pinecall.api.accounts.login import A_BROWSER, DISABLED, TOO_MANY, throttle_client
+from pinecall.api.accounts.login import TOO_MANY, throttle_client
 from pinecall.api.accounts.org_sso import (
     HandshakesDep,
     HttpDep,
@@ -26,19 +27,9 @@ from pinecall.api.deps import (
 )
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.login_codes import NO_KEY_YET, LoginCodes
-from pinecall.auth.members import Members, NoSeatLeft, normalize_email
-from pinecall.auth.openid import (
-    Claims,
-    OpenIdRefused,
-    Provider,
-    authorization_url,
-    claims,
-    configuration,
-    exchange,
-)
-from pinecall.auth.sso_state import Handshake
-from pinecall.orgs.admission import Admission
-from pinecall.types import SANDBOX, Member, Org, OrgSso, parse_domain
+from pinecall.auth.members import normalize_email
+from pinecall.auth.openid import authorization_url
+from pinecall.types import SANDBOX, Member, parse_domain
 from pinecall_protocol import WireModel
 from pinecall_protocol.rest import SsoDiscovery, SsoOrg
 
@@ -59,11 +50,7 @@ NO_SSO_HERE = "org {org} signs in with no identity provider"
 NO_HANDSHAKE = (
     "no sign-in answers to that: it was finished already, it expired, or it never started"
 )
-IDP_REFUSED = "{issuer} did not sign this person in: {said}"
-NO_EMAIL = "{issuer} vouched for somebody it gave no email address for"
-NOT_VERIFIED = "{issuer} has not verified {email}: nobody is seated on an unverified address"
 ANOTHER_DOMAIN = "{email} is not in a domain {org} signs in with"
-NOBODY_HERE = "nobody in {org} answers to {email}, and it seats nobody it was not told to"
 
 # The redirect mints a state and asks the provider for its configuration, so it is held to the
 # same rate a sign-up is: per place, not per person, because nobody has typed an address yet.
@@ -156,7 +143,7 @@ async def back(
     )
     if not wired.admits(said.email):
         raise HTTPException(403, ANOTHER_DOMAIN.format(email=said.email, org=org.slug))
-    member = await _seated(org, wired, said, members, admission)
+    member = await seat_vouched(org, wired, said, members, admission)
     return RedirectResponse(
         landing_url(handshake.pairing, mint_sso_code(member, codes)), HTTP_302_FOUND
     )
@@ -186,98 +173,9 @@ async def discover(
     return SsoDiscovery(orgs=listed)
 
 
-async def provider_config(http: httpx.AsyncClient, issuer: str) -> Provider:
-    """The issuer's configuration, or 502: the request was right and somebody else is down."""
-    try:
-        return await configuration(http, issuer)
-    except OpenIdRefused as refused:
-        raise HTTPException(502, str(refused)) from refused
-
-
-# The same three steps for an org's own provider and for a box-wide one
-# (api/accounts/google_login.py): which client this gateway is at the issuer is all that differs
-# between them.
-async def claims_from_provider(
-    http: httpx.AsyncClient,
-    issuer: str,
-    client_id: str,
-    client_secret: str,
-    handshake: Handshake,
-    code: str,
-) -> Claims:
-    """The code spent and the id_token checked — signature, issuer, audience, expiry, nonce."""
-    provider = await provider_config(http, issuer)
-    try:
-        id_token = await exchange(
-            http,
-            provider,
-            client_id,
-            client_secret,
-            code,
-            handshake.redirect_uri,
-            handshake.verifier,
-        )
-        said = await claims(http, provider, id_token, client_id, handshake.nonce)
-    except OpenIdRefused as refused:
-        raise HTTPException(401, IDP_REFUSED.format(issuer=issuer, said=refused)) from refused
-    if not said.email:
-        raise HTTPException(401, NO_EMAIL.format(issuer=issuer))
-    # An address the provider has not verified is an address somebody typed into a directory, and
-    # seating on one is how a stranger becomes a member by claiming a colleague's email.
-    if not said.email_verified:
-        raise HTTPException(401, NOT_VERIFIED.format(issuer=issuer, email=said.email))
-    return said
-
-
-async def _seated(
-    org: Org, wired: OrgSso, said: Claims, members: Members, admission: Admission
-) -> Member:
-    """The member this address names in this org — invited, seated or made, per the org's rule."""
-    email = normalize_email(said.email)
-    kept = await members.by_email(org.id, email)
-    if kept is not None:
-        member = kept.member
-        if member.status == "disabled":
-            raise HTTPException(403, DISABLED.format(email=member.email, org=org.slug))
-        # A person who just proved who they are at their org's OWN provider has accepted their
-        # invitation: the link would only buy them a password, and this org signs in without one.
-        # They keep no password, so `required` costs them nothing and the row is simply active —
-        # and verified, on the provider's word (0048), whatever it was before.
-        return await _activated(members, org, member)
-    if wired.role is None:
-        raise HTTPException(403, NOBODY_HERE.format(org=org.slug, email=email))
-    # A member is a seat whoever it was made by, so the plan is asked here exactly as the invite
-    # door asks it — before the row, because a seat is a stock — in the quota's own sentence.
-    try:
-        await admission.a_seat(org.id, await members.seated(org.id))
-        invited = await members.invite(
-            org.id,
-            email,
-            said.name or email.partition("@")[0],
-            wired.role,
-            (),
-            seats=(await admission.quotas_of(org.id)).seats,
-        )
-    except NoSeatLeft as full:
-        # The write judged the seat again, under its lock, and refused: the same sentence.
-        await admission.a_seat(full.org, full.seated)
-        raise
-    if invited is None:
-        raise HTTPException(403, NOBODY_HERE.format(org=org.slug, email=email))
-    return await _activated(members, org, invited.member)
-
-
-async def _activated(members: Members, org: Org, member: Member) -> Member:
-    """The row active and verified, with no password on it: the provider is how they sign in."""
-    seated = await members.vouched_for(org.id, member.id)
-    if seated is None:
-        raise HTTPException(403, NOBODY_HERE.format(org=org.slug, email=member.email))
-    return seated
-
-
 # The same word `pinecall start` prints and the console already knows how to spend, standing for a
 # key that does not exist yet: the browser spending it is what mints one, labelled as a console's,
-# the person's own and with what their role opens (api/accounts/login.py:_with_a_code).
+# the person's own and with what their role opens (accounts/signing_in.py:sign_in_with_code).
 def mint_sso_code(member: Member, codes: LoginCodes) -> str:
     """A one-use login code for this person, good for five minutes and for one browser."""
     record = KeyRecord(

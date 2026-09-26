@@ -4,25 +4,20 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
+from pinecall.accounts import person_of
 from pinecall.api.accounts.api_keys import KeyIssued, wire_key_issued
-from pinecall.api.accounts.login import NOT_A_MEMBER
 from pinecall.api.deps import KeyDep, KeysDep, MembersDep, OrgsDep, SettingsDep
 from pinecall.auth.keys import KeyRecord
-from pinecall.auth.members import Members
 from pinecall.auth.person_keys import mint_person_key
 from pinecall.auth.visitor_keys import (
     VISITOR_LABEL,
     operator_member,
-    visitor_email,
     visitor_subject,
 )
-from pinecall.types import HOLDING, ROLE_SCOPES, Member, MemberStatus, Org
+from pinecall.types import HOLDING, ROLE_SCOPES, MemberStatus, Org
 from pinecall_protocol import WireModel
 
 router = APIRouter()
-
-# A machine key names no person, so it belongs to one org and has no other to switch to.
-ONE_ORG_EACH = "an org's own key names nobody: it opens one org"
 
 # The person is not a member of the org they asked to switch to. Said only to a person.
 NOT_THERE = "you are not an active member of {org}"
@@ -66,7 +61,7 @@ class OrgsOpened(WireModel):
 @router.get("/v1/login/orgs")
 async def persons_orgs(key: KeyDep, orgs: OrgsDep, members: MembersDep) -> OrgsOpened:
     """Every org this key's person may open, oldest first, and which one this key opens."""
-    person = await _the_person(key, members)
+    person = await person_of(key, members)
     listed: list[OrgOpened] = []
     theirs: set[str] = set()
     for row in await members.orgs_of(person.email):
@@ -94,7 +89,7 @@ async def switch_org(
 ) -> KeyIssued:
     """A key for the same person in the org named: as the member they are there, in this key's
     world — or, for an operator who is none, as the operator. 403 when the org is not theirs."""
-    person = await _the_person(key, members)
+    person = await person_of(key, members)
     org = await orgs.find(said.org)
     there = None if org is None else await members.by_email(org.id, person.email)
     if org is not None and there is not None and there.member.status == "active":
@@ -118,24 +113,6 @@ async def switch_org(
         name=person.name,
     )
     return wire_key_issued(issued)
-
-
-# A visitor's key names no member of the org it opens, so the person is found the other way
-# round: by the address the key carries, in the row that makes them an operator. That is what
-# lets the switch work from INSIDE a tenant — back home, or on to the next one.
-async def _the_person(key: KeyRecord, members: Members) -> Member:
-    """The active member this key was minted for; 403 for a machine key or a member gone."""
-    if key.subject is None:
-        raise HTTPException(403, ONE_ORG_EACH)
-    email = visitor_email(key.subject)
-    member = (
-        await members.find(key.org, key.subject)
-        if email is None
-        else await operator_member(members, email)
-    )
-    if member is None or member.status != "active":
-        raise HTTPException(403, NOT_A_MEMBER)
-    return member
 
 
 def _a_row(

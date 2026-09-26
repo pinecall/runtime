@@ -5,8 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Response
 from starlette.status import HTTP_202_ACCEPTED
 
+from pinecall.accounts import mint_key_for_same_person
 from pinecall.api.accounts.identity import AtProduction
-from pinecall.api.accounts.login import WordMinted, mint_key_for_same_person
+from pinecall.api.accounts.login import WordMinted
 from pinecall.api.deps import KeyDep, KeysDep, MembersDep, PairingsDep, SettingsDep
 from pinecall_protocol import WireModel
 

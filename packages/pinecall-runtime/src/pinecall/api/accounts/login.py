@@ -4,13 +4,17 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
 
-from pinecall.api.accounts.api_keys import KeyIssued, wire_key_issued
-from pinecall.api.accounts.identity import (
-    AtProduction,
-    IdentityDep,
+from pinecall.accounts import (
+    A_BROWSER,
+    NOBODY_ANYWHERE,
+    NOT_A_MEMBER,
+    SigningIn,
     mint_mirrored_key,
-    require_production,
+    sign_in_with_code,
+    sign_in_with_password,
 )
+from pinecall.api.accounts.api_keys import KeyIssued, wire_key_issued
+from pinecall.api.accounts.identity import AtProduction, IdentityDep, require_production
 from pinecall.api.accounts.org_sso import SsoDep
 from pinecall.api.deps import (
     ExtensionsDep,
@@ -25,43 +29,13 @@ from pinecall.api.deps import (
 from pinecall.auth import passwords
 from pinecall.auth.env import is_persons_key
 from pinecall.auth.identity import Redeemed
-from pinecall.auth.keys import KeyRecord
-from pinecall.auth.members import Kept, Members
-from pinecall.auth.person_keys import mint_person_key, until
-from pinecall.auth.visitor_keys import visitor_email
-from pinecall.orgs.org_sso import Sso
-from pinecall.orgs.records import Orgs
-from pinecall.types import SANDBOX, Env, Role
+from pinecall.types import Role
 from pinecall_protocol import WireModel
 
 router = APIRouter()
 
-# One sentence whether the org, the email or the password was wrong: a door that told them apart
-# would tell a stranger which orgs and which people exist.
-NOBODY = "no member of {org} answers to that email and password"
-# The same sentence when no org was named: a person is their email on this box, and a login
-# with no org lands in the oldest org they belong to.
-# A login by password is asked for with both, or it is a login by code and never reaches here.
-BOTH_ARE_NEEDED = "a login by password names both the email and the password"
-
-NOBODY_ANYWHERE = "nobody answers to that email and password"
-
-# The two standings that are not `active`, each with what to do about it. Said only once the
-# password matched: a stranger who guessed an email learns nothing about it.
-NOT_YET = "{email} has not accepted their invitation yet: open the link and choose a password"
-DISABLED = "{email} is disabled in {org}"
-
 # The throttle's own sentence. It counts every try, right or wrong: see auth/throttle.py.
 TOO_MANY = "too many attempts for {email}: try again in a minute"
-
-# The org wired an identity provider and said a password opens it no longer. It is said ONLY
-# once the password has matched and the row has been found — a wrong password is the one 401 it
-# always was, so this sentence tells a stranger nothing about who is a member of what. Somebody
-# who holds the right password already holds the right password; what they learn here is where
-# to go instead, which is the whole point of saying it.
-WITH_THE_PROVIDER = (
-    "{org} signs in with its identity provider: open /v1/login/sso?org={org} instead of a password"
-)
 
 # A code is spent on first use and dies in five minutes: the same answer for every way it is gone.
 NO_CODE = "no code answers to that: it was used, it expired, or it never existed"
@@ -72,26 +46,6 @@ NOT_A_PERSONS_CODE = "this code stands for a server's token or an operator's vis
 
 # A login says one of two things, never both and never neither.
 ONE_OR_THE_OTHER = "log in with org, email and password, or with a code — one of the two"
-
-# What a key is labelled when the person named no device: the door it came through.
-LOGGED_IN = "login"
-A_BROWSER = "console"
-
-# A key is minted from another only for the person it names: a server's token names nobody.
-NOT_A_PERSONS = "a server's token names nobody: a person's key signs another device in"
-
-# The key names a member the table no longer has an active row for: they were removed, or
-# disabled while holding a key. Their key still opens what it did until it is revoked; it does
-# not mint another.
-NOT_A_MEMBER = "the person this key was minted for is no longer an active member of this org"
-
-# An operator inside an org they are no member of (auth/visitor_keys.py) looks at what that org's
-# customers reach, from the console. The sandbox is a PERSON's corner of an org, and they are
-# nobody's colleague there: there is no corner of theirs to open, and no terminal to sign in.
-VISITS_PRODUCTION = (
-    "an operator visits an org in production, from the console: the sandbox and a terminal are "
-    "a member's — switch back to an org you belong to"
-)
 
 
 class Credentials(WireModel):
@@ -166,7 +120,9 @@ async def login(
             raise HTTPException(400, ONE_OR_THE_OTHER)
         record = codes.spend(said.code)
         if record is not None:
-            return await _with_a_code(record, said.device, keys, settings.world)
+            return wire_key_issued(
+                await sign_in_with_code(record, said.device, keys, settings.world)
+            )
         # A code this instance never minted, on a sandbox, was minted at production: the person
         # signed in there and the console carried it across. Production is asked who they are.
         if identity is None:
@@ -180,9 +136,11 @@ async def login(
     require_production(settings)
     if said.email is None or said.password is None:
         raise HTTPException(400, ONE_OR_THE_OTHER)
-    return await _with_a_password(
-        said, throttle_client(request), orgs, members, keys, throttle, sso, settings.world
-    )
+    if not throttle.allowed(f"{throttle_client(request)} {said.org or '*'}/{said.email}"):
+        raise HTTPException(429, TOO_MANY.format(email=said.email))
+    signing_in = SigningIn(said.email, said.password, said.org, said.device)
+    issued = await sign_in_with_password(signing_in, orgs, members, keys, sso, settings.world)
+    return wire_key_issued(issued)
 
 
 # Before a person picks an org at the console's sign-in: which orgs this email and password open,
@@ -245,122 +203,6 @@ async def redeem(
     if member is None or org is None:
         raise HTTPException(403, NOT_A_MEMBER)
     return Redeemed.of(org, member)
-
-
-# The one place a key is minted FROM another key: the card that signs a terminal in
-# (api/accounts/pairing.py). The scopes come off the MEMBER and not off the key that asked — the
-# role is the source, and a role changed since the asking key was minted is the role now.
-async def mint_key_for_same_person(
-    key: KeyRecord, label: str | None, keys: KeysDep, members: MembersDep, world: Env
-) -> KeyIssued:
-    """A key for the person this one names, with what their role opens."""
-    if key.subject is None:
-        raise HTTPException(403, NOT_A_PERSONS)
-    if visitor_email(key.subject) is not None:
-        raise HTTPException(403, VISITS_PRODUCTION)
-    member = await members.find(key.org, key.subject)
-    if member is None or member.status != "active":
-        raise HTTPException(403, NOT_A_MEMBER)
-    return wire_key_issued(await mint_person_key(keys, member, label, world, minted_from=key))
-
-
-async def _with_a_password(
-    said: Login,
-    client: str,
-    orgs: OrgsDep,
-    members: MembersDep,
-    keys: KeysDep,
-    throttle: ThrottleDep,
-    sso: Sso | None,
-    world: Env,
-) -> KeyIssued:
-    """The member this email and password name, in the org named or in the oldest of theirs, and
-    a key minted for them."""
-    if said.email is None or said.password is None:
-        raise HTTPException(400, BOTH_ARE_NEEDED)
-    if not throttle.allowed(f"{client} {said.org or '*'}/{said.email}"):
-        raise HTTPException(429, TOO_MANY.format(email=said.email))
-    nobody = NOBODY_ANYWHERE if said.org is None else NOBODY.format(org=said.org)
-    # The password is the PERSON's, whichever org it was chosen in: a row of theirs still
-    # invited in this org — made before they existed, or before this rule — is seated with it.
-    known = await members.a_persons_password(said.email)
-    if not await passwords.matches(said.password, known) or known is None:
-        raise HTTPException(401, nobody)
-    kept = await _the_row_for(said, said.email, orgs, members, sso)
-    if kept is None:
-        raise HTTPException(401, nobody)
-    member = kept.member
-    # Said after the password matched, and about the org the row is in: a person with two orgs
-    # lands in the one a password still opens (below), and only somebody whose every org signs in
-    # with a provider is sent to one.
-    if await is_sso_only(sso, member.org):
-        org = await orgs.find(member.org)
-        raise HTTPException(401, WITH_THE_PROVIDER.format(org=org.slug if org else member.org))
-    if member.status == "disabled":
-        raise HTTPException(403, DISABLED.format(email=member.email, org=member.org))
-    if member.status == "invited":
-        # Seated with the password they have only once the address is PROVED theirs (0048): a
-        # password chosen through a link an admin handed over could be anybody's, and an
-        # invited row seated on it was the row the wrong person walked into.
-        seated = (
-            await members.join(member.org, member.id, known)
-            if await members.verified(member.email)
-            else None
-        )
-        if seated is None:
-            raise HTTPException(403, NOT_YET.format(email=member.email))
-        member = seated
-    return wire_key_issued(await mint_person_key(keys, member, said.device or LOGGED_IN, world))
-
-
-async def _the_row_for(
-    said: Login, email: str, orgs: Orgs, members: Members, sso: Sso | None
-) -> Kept | None:
-    """The person's row in the org named; with none named, their oldest row that is not disabled."""
-    if said.org is not None:
-        org = await orgs.find(said.org)
-        return None if org is None else await members.by_email(org.id, email)
-    rows = await members.orgs_of(email)
-    # An org that signs in with its provider is passed over here rather than refused: a person of
-    # two orgs, one of them on SSO, types no org and lands in the one their password opens. When
-    # every org of theirs is on a provider the loop finds none and the fallback below says so.
-    for row in rows:
-        if row.status != "disabled" and not await is_sso_only(sso, row.org):
-            return await members.by_email(row.org, email)
-    for row in rows:
-        if row.status != "disabled":
-            return await members.by_email(row.org, email)
-    return None if not rows else await members.by_email(rows[0].org, email)
-
-
-# None is a box with no vault key: it can read no client secret, so no org signs in with a
-# provider there and every one of them is opened by a password. That is also the way back for a
-# box whose vault key was lost, and it is deliberate — see orgs/org_sso.py.
-async def is_sso_only(sso: Sso | None, org: str) -> bool:
-    """Whether this org has said a password opens it no longer."""
-    if sso is None:
-        return False
-    wired = await sso.of(org)
-    return wired is not None and wired.required
-
-
-async def _with_a_code(
-    record: KeyRecord, device: str | None, keys: KeysDep, world: Env
-) -> KeyIssued:
-    """A key of the browser's own minted from the record a code of ours stood for. A person's
-    carries no world, whatever world the request that minted the code named, and lives as long as
-    a person's key does here — never longer than the key that minted the code."""
-    person = is_persons_key(record)
-    issued = await keys.issue(
-        org=record.org,
-        label=device or A_BROWSER,
-        env=SANDBOX if person else record.env,
-        scopes=record.scopes,
-        subject=record.subject,
-        name=record.name,
-        expires_at=until(world, record) if person else record.expires_at,
-    )
-    return wire_key_issued(issued)
 
 
 def throttle_client(request: Request) -> str:

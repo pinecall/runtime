@@ -5,17 +5,17 @@ from __future__ import annotations
 from fastapi import HTTPException, Request
 from starlette.status import HTTP_201_CREATED, HTTP_204_NO_CONTENT
 
+from pinecall.accounts import NO_SUCH_MEMBER, invite_member, remove_member
 from pinecall.api.accounts.members import (
     AN_ADMIN,
-    NO_SUCH_MEMBER,
     LinkIssued,
     MemberSaid,
     WantedMember,
-    invited_into,
+    invitee_of,
     parse_member_role,
+    wire_link_made,
     wire_member,
 )
-from pinecall.api.accounts.membership import remove_member
 from pinecall.api.deps import KeysDep, MembersDep, OrgsDep, SettingsDep, require_org
 from pinecall.api.org.mail import OutboxDep
 from pinecall.api.public_url import public_base_url
@@ -49,7 +49,8 @@ async def invite_to(
     org = await require_org(named, orgs)
     role = parse_member_role(said, org.id)
     base = public_base_url(settings, request)
-    return await invited_into(members, org, said, role, AN_ADMIN, base, outbox)
+    made = await invite_member(members, org, invitee_of(said, role), AN_ADMIN, base, outbox)
+    return wire_link_made(made)
 
 
 class Running(WireModel):

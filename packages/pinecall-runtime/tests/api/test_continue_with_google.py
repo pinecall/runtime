@@ -7,14 +7,8 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.api.accounts.google_login import (
-    DISABLED_EVERYWHERE,
-    NOBODY_HERE,
-    NOT_WIRED,
-    THE_BOX,
-    THEIR_OWN_PROVIDER,
-)
-from pinecall.api.accounts.login import A_BROWSER
+from pinecall.accounts import A_BROWSER, DISABLED_EVERYWHERE, NOT_ON_THIS_BOX, THEIR_OWN_PROVIDER
+from pinecall.api.accounts.google_login import NOT_WIRED, THE_BOX
 from pinecall.api.accounts.sso_login import NO_HANDSHAKE, THE_CARD, THE_CONSOLE
 from pinecall.api.ops.box_signin import EMPTY
 from pinecall.api.ops.box_signin import NOT_WIRED as NOTHING_TO_FORGET
@@ -196,7 +190,7 @@ async def test_somebody_still_invited_is_seated_by_the_verified_address_in_every
 @pytest.mark.parametrize(
     ("email", "sentence"),
     [
-        ("stranger@example.com", NOBODY_HERE.format(email="stranger@example.com")),
+        ("stranger@example.com", NOT_ON_THIS_BOX.format(email="stranger@example.com")),
         ("nico@tiendasur.uy", DISABLED_EVERYWHERE.format(email="nico@tiendasur.uy")),
     ],
 )

@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import Field
 from starlette.status import HTTP_201_CREATED
 
+from pinecall.accounts import NO_SUCH_MEMBER, Invitee, LinkMade, invite_member, post_letter
 from pinecall.api.accounts.api_keys import KeyIssued
 from pinecall.api.accounts.identity import AtProduction
 from pinecall.api.deps import (
@@ -22,16 +23,10 @@ from pinecall.api.public_url import public_base_url
 from pinecall.api.scope.grants import is_member_elsewhere, may_grant
 from pinecall.auth import passwords
 from pinecall.auth.keys import KeyRecord
-from pinecall.auth.members import Members, NoSeatLeft
+from pinecall.auth.members import NoSeatLeft
 from pinecall.auth.person_keys import mint_person_key
-from pinecall.mail import Letter, Outbox, card_link, invitation_letter, reset_letter
-from pinecall.types import (
-    Member,
-    MemberStatus,
-    Org,
-    Role,
-    parse_role,
-)
+from pinecall.mail import card_link, reset_letter
+from pinecall.types import Member, MemberStatus, Role, parse_role
 from pinecall_protocol import WireModel
 
 # The doors that make, change or remove a person are production's (api/accounts/identity.py): on a
@@ -40,16 +35,11 @@ from pinecall_protocol import WireModel
 router = APIRouter()
 
 
-# The email already belongs to somebody who accepted: they log in, and nobody re-invites them.
-ALREADY_A_MEMBER = "{email} is already a member of this org: they log in"
-
 # Nothing answers to that token: it was used, it expired after its week, or it never existed.
 # One sentence for the three, because the person holding a dead link can act the same on each.
 NO_INVITATION = (
     "no open invitation answers to that token: it was used, it expired, or it never existed"
 )
-
-NO_SUCH_MEMBER = "no member {id} in this org"
 
 NOT_ACTIVE = (
     "{email} is {status}, not active: an invited member uses their invitation, and a disabled one "
@@ -160,11 +150,10 @@ async def invite(
     # The write judges the seat again, under its own lock: two invitations at once both passed
     # the count above, and only one of them may make a row (auth/members_postgres.py).
     try:
-        return await invited_into(
+        made = await invite_member(
             members,
             org,
-            said,
-            role,
+            invitee_of(said, role),
             _by(key),
             base,
             outbox,
@@ -175,6 +164,7 @@ async def invite(
     except NoSeatLeft as full:
         await admission.a_seat(full.org, full.seated)
         raise  # unreachable: a_seat raised the quota's own sentence, which the handler answers
+    return wire_link_made(made)
 
 
 def parse_member_role(said: WantedMember, org: str) -> Role:
@@ -185,60 +175,9 @@ def parse_member_role(said: WantedMember, org: str) -> Role:
     return role
 
 
-async def invited_into(
-    members: Members,
-    org: Org,
-    said: WantedMember,
-    role: Role,
-    inviter: str,
-    base: str,
-    outbox: Outbox,
-    *,
-    handed: bool = True,
-    vouched: bool = True,
-    seats: int | None = None,
-) -> LinkIssued:
-    """The row, the token the once, and whether a letter carrying it was posted; 409 for an
-    email that already accepted here. `seats` is what the org may hold, judged by the write.
-
-    A person who already exists on this box — an email with a password in another org, and
-    proved to be theirs — is seated active at once and the answer carries no token: they sign
-    in with the password they have, and the console's org switch lists the new org beside the
-    others. There is nothing for a letter to carry, so nothing is posted and `mailed` is false.
-
-    `handed` false keeps the token out of the answer too: the letter carries it, and only the
-    letter (`elsewhere_too`). `vouched` says whether accepting it proves the address (0048).
-    The box's own door hands it over always, and vouches: the operator knows who they seat.
-    """
-    invited = await members.invite(
-        org.id,
-        said.email,
-        said.name,
-        role,
-        said.agents,
-        production=said.production,
-        vouched=vouched,
-        seats=seats,
-    )
-    if invited is None:
-        raise HTTPException(409, ALREADY_A_MEMBER.format(email=said.email))
-    letter = (
-        None
-        if invited.token is None
-        else invitation_letter(
-            invited.member.email,
-            org.name,
-            inviter,
-            card_link(base, invited.token),
-            invited.expires_at,
-        )
-    )
-    return LinkIssued(
-        member=wire_member(invited.member),
-        token=invited.token if handed else None,
-        expires_at=invited.expires_at,
-        mailed=await _posted(outbox, org.id, letter),
-    )
+def invitee_of(said: WantedMember, role: Role) -> Invitee:
+    """Who the body invites, with the role already parsed out of it."""
+    return Invitee(said.email, said.name, role, said.agents, said.production)
 
 
 # A forgotten password handed back by the admin: a one-use link, the token once in this answer and
@@ -274,12 +213,13 @@ async def reset(
         if issued.token is None
         else reset_letter(found.email, org.name, _by(key), link, issued.expires_at)
     )
-    return LinkIssued(
-        member=wire_member(issued.member),
+    made = LinkMade(
+        member=issued.member,
         token=issued.token if handed else None,
         expires_at=issued.expires_at,
-        mailed=await _posted(outbox, key.org, letter),
+        mailed=await post_letter(outbox, key.org, letter),
     )
+    return wire_link_made(made)
 
 
 # No key at this door: the person holding the link has none yet. What lets them in is the token,
@@ -296,15 +236,6 @@ async def accept(
         raise HTTPException(404, NO_INVITATION)
     issued = await mint_person_key(keys, member, said.device or "invitation", settings.world)
     return FirstKey(**issued.as_json, member=wire_member(member))
-
-
-# `mailed` says a letter was HANDED OVER to a mail server, never that it arrived: the send runs
-# after this door has answered (mail/outbox.py), because a door blocked on somebody else's relay
-# is a door. False is the honest answer for a box and an org that both send no mail at all, and
-# it is what every answer carried before this existed.
-async def _posted(outbox: Outbox, org: str, letter: Letter | None) -> bool:
-    """Whether there was a letter to post and somebody to post it through."""
-    return False if letter is None else await outbox.post(org, letter)
 
 
 def _by(key: KeyRecord) -> str:
@@ -325,4 +256,14 @@ def wire_member(member: Member) -> MemberSaid:
         operator=member.operator,
         production=member.opens_production,
         verified=member.verified,
+    )
+
+
+def wire_link_made(made: LinkMade) -> LinkIssued:
+    """A link as the wire says it: the member off their row, the token only where it was handed."""
+    return LinkIssued(
+        member=wire_member(made.member),
+        token=made.token,
+        expires_at=made.expires_at,
+        mailed=made.mailed,
     )

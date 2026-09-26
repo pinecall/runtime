@@ -8,6 +8,19 @@ from typing import Protocol, runtime_checkable
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 
+from pinecall.accounts import (
+    AlreadyAMember,
+    LastAdmin,
+    MirrorRefused,
+    NobodyToSeat,
+    NoSuchMember,
+    NotActive,
+    NotAMembersKey,
+    ProviderRefused,
+    ProviderUnreachable,
+    SignsInWithProvider,
+    WrongCredentials,
+)
 from pinecall.api.calls.supervise.aiming import VerbRefused
 from pinecall.api.evals.runner import AlreadyRunning, NobodyServing
 from pinecall.auth.identity import NotRedeemed
@@ -47,11 +60,13 @@ from pinecall.types import DeclarationRefused
 # their terminal, and a bare `Internal Server Error` is the afternoon this repo already lost.
 #
 # 400: the request itself is refused — a declaration the shapes will not take, a filter that
-# parses to nothing, an upload that is not a melody. 404: what it names is not there. 409: the
-# request was right and the rows disagree with it — a version that moved, a name held, vectors of
-# another model or width, a run already in flight. 429: the org's quota. 502: a
-# carrier the box asked did not do it. 503: this box cannot honour it — no embedder answered, no
-# vendor of that name has a key here.
+# parses to nothing, an upload that is not a melody. 401: nobody answers to what was presented — a
+# password, a provider's word. 403: somebody does, and may not do this — invited, disabled, a
+# machine's key. 404: what it names is not there. 409: the request was right and the rows disagree
+# with it — a version that moved, a name held, vectors of another model or width, a run already in
+# flight, the last admin. 429: the org's quota. 502: a carrier or an identity provider the box
+# asked did not answer. 503: this box cannot honour it — no embedder answered, no vendor of that
+# name has a key here.
 #
 # A door that answers one of these with ANOTHER status catches it itself and says why there: the
 # personas and voices doors answer a refused declaration 422 (the body parsed and the words in it
@@ -62,6 +77,13 @@ STATUS_OF: dict[type[Exception], int] = {
     FilterRefused: 400,
     NotAHoldMelody: 400,
     NotOurNumber: 400,
+    WrongCredentials: 401,
+    SignsInWithProvider: 401,
+    ProviderRefused: 401,
+    NotActive: 403,
+    NotAMembersKey: 403,
+    NobodyToSeat: 403,
+    NoSuchMember: 404,
     NoSuchPersona: 404,
     NobodyServing: 404,
     NotListed: 404,
@@ -72,6 +94,9 @@ STATUS_OF: dict[type[Exception], int] = {
     VersionMoved: 409,
     NameTaken: 409,
     SlugTaken: 409,
+    MirrorRefused: 409,
+    LastAdmin: 409,
+    AlreadyAMember: 409,
     NoTrunk: 409,
     NobodyHolding: 409,
     NoNumbers: 409,
@@ -85,6 +110,7 @@ STATUS_OF: dict[type[Exception], int] = {
     TooManyCodes: 429,
     TwilioRefused: 502,
     DidNotDial: 502,
+    ProviderUnreachable: 502,
     EmbedderUnreachable: 503,
     NoProvider: 503,
     NoMediaPlane: 503,

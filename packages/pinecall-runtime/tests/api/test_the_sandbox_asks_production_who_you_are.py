@@ -11,8 +11,9 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.api.accounts.identity import NOT_ACTIVE, SLUG_HELD_HERE, get_identity
-from pinecall.api.accounts.login import NO_CODE, NOT_A_MEMBER
+from pinecall.accounts import NOT_A_MEMBER, NOT_ACTIVE, SLUG_HELD_HERE
+from pinecall.api.accounts.identity import get_identity
+from pinecall.api.accounts.login import NO_CODE
 from pinecall.api.app import app
 from pinecall.auth.identity import REDEEM, UNREACHABLE, Identity
 from pinecall.auth.keys_memory import MemoryKeys

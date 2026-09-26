@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.api.accounts.login import A_BROWSER, WITH_THE_PROVIDER
+from pinecall.accounts import A_BROWSER, WITH_THE_PROVIDER
 from pinecall.api.accounts.sso_login import NO_HANDSHAKE, NO_SSO_HERE, THE_CARD, THE_CONSOLE
 from pinecall.auth import passwords
 from pinecall.auth.members_memory import MemoryMembers

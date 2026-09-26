@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Request
 
 from pinecall._version import __version__
+from pinecall.accounts import address_of
 from pinecall.api.deps import KeyDep, KeysDep, MembersDep, OrgsDep, SettingsDep
 from pinecall.api.scope.operator_key import operators_router, runs_the_box
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.env import is_persons_key, opens_production
 from pinecall.auth.keys import KeyRecord
-from pinecall.auth.members import Members
 from pinecall.auth.visitor_keys import visitor_email
 from pinecall.types import Env, is_a_deployment
 from pinecall_protocol import WireModel
@@ -99,25 +101,9 @@ class TheBox(WireModel):
     org: str | None = None
 
 
-# The door the console's Box screens prove an operator's key at, as the console proves a person's at
-# /v1/whoami: a key that opens nothing is a page a person would trust tomorrow and a refusal they
-# would not understand. It reads the settings and no table, because the ops key names no org.
-@operator.get("/whoami")
-async def box_identity(settings: SettingsDep, keys: KeysDep, request: Request) -> TheBox:
-    """That this key opens the operator's doors, which box they are, and who is holding it."""
-    whose = await _whose(request, keys)
-    return TheBox(
-        operator=True,
-        version=__version__,
-        domain=settings.domain or None,
-        name=None if whose is None else whose.name,
-        org=None if whose is None else whose.org,
-    )
-
-
 # The gate already let this request through, so the only question left is which of the two ways it
 # came: a person's key has a record, the box's own key has none and verifies as nothing.
-async def _whose(request: Request, keys: KeysDep) -> KeyRecord | None:
+async def get_person_holding(request: Request, keys: KeysDep) -> KeyRecord | None:
     """The record behind the bearer, when it is a person's key rather than the box's own."""
     bearer = bearer_of(request.headers)
     if bearer is None:
@@ -126,14 +112,19 @@ async def _whose(request: Request, keys: KeysDep) -> KeyRecord | None:
     return record if record is not None and record.subject is not None else None
 
 
-# A member's address is on their row; a visiting operator's is in the subject itself, since no
-# row of that org is theirs (auth/visitor_keys.py). A machine's key has neither.
-async def address_of(key: KeyRecord, members: Members) -> str | None:
-    """The address of the person this key was minted for, or None for a key that names nobody."""
-    visitor = visitor_email(key.subject)
-    if visitor is not None:
-        return visitor
-    if key.subject is None:
-        return None
-    member = await members.find(key.org, key.subject)
-    return None if member is None else member.email
+PersonHoldingDep = Annotated[KeyRecord | None, Depends(get_person_holding)]
+
+
+# The door the console's Box screens prove an operator's key at, as the console proves a person's at
+# /v1/whoami: a key that opens nothing is a page a person would trust tomorrow and a refusal they
+# would not understand. It reads the settings and no table, because the ops key names no org.
+@operator.get("/whoami")
+async def box_identity(settings: SettingsDep, whose: PersonHoldingDep) -> TheBox:
+    """That this key opens the operator's doors, which box they are, and who is holding it."""
+    return TheBox(
+        operator=True,
+        version=__version__,
+        domain=settings.domain or None,
+        name=None if whose is None else whose.name,
+        org=None if whose is None else whose.org,
+    )

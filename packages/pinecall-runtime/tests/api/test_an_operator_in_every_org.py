@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.api.accounts.login import VISITS_PRODUCTION
+from pinecall.accounts import VISITS_PRODUCTION
 from pinecall.api.accounts.org_switch import AS_THE_OPERATOR, NOT_THERE
 from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers

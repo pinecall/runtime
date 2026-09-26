@@ -5,8 +5,8 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from pinecall.api.accounts.login import NOBODY_ANYWHERE
-from pinecall.api.accounts.members import NO_SUCH_MEMBER, NOT_ACTIVE
+from pinecall.accounts import NO_SUCH_MEMBER, NOBODY_ANYWHERE
+from pinecall.api.accounts.members import NOT_ACTIVE
 from pinecall.auth.keys import NOT_OPENED, KeyRecord
 from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.throttle import TRIES_PER_WINDOW
