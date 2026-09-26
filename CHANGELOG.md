@@ -104,6 +104,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ### Changed
 - **`pinecall.errors` is the root error's module.** `PinecallError` is imported from there;
   `pinecall._exceptions` is gone. `from pinecall import PinecallError` still answers.
+- **`extensions_from` takes the names it loads**, `PINECALL_EXTENSIONS` as a string, not the
+  whole `Settings`: `extensions_from(settings.extensions)`.
 - **Every public function is named to survive a traceback.** Four hundred of them opened with an
   article, a pronoun or a bare participle — `a_role`, `the_vault`, `whose_corner`, `listed`,
   `wired`, `standing` — and read only beside their module's name. Each is a verb with its object,

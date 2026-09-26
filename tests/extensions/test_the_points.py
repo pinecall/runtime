@@ -7,7 +7,6 @@ from types import ModuleType
 
 import pytest
 
-from pinecall._settings import Settings
 from pinecall.extensions import Extensions, NoSuchExtension, extensions_from, unlimited_quotas
 from pinecall.extensions.loading import named_in
 from pinecall.types import PRODUCTION, SANDBOX, Env, Org, Quotas
@@ -29,7 +28,7 @@ def a_package(name: str, register: object | None) -> ModuleType:
 
 def test_with_nothing_named_every_point_holds_the_runtimes_own_answer() -> None:
     """A box of its own: an org made at the alta may do everything, and no row says so."""
-    extensions = extensions_from(Settings(world="production", extensions=""))
+    extensions = extensions_from("")
     assert extensions.admitted is unlimited_quotas
     assert extensions.admitted(AN_ORG, "ana@clinica.uy", PRODUCTION, 0) == Quotas()
 
@@ -47,7 +46,7 @@ def test_a_named_package_is_imported_once_and_fills_the_point_it_has_a_policy_fo
 
     a_package("a_cloud_of_ours", register)
     try:
-        extensions = extensions_from(Settings(world="production", extensions="a_cloud_of_ours"))
+        extensions = extensions_from("a_cloud_of_ours")
     finally:
         del sys.modules["a_cloud_of_ours"]
     assert len(filled) == 1
@@ -56,14 +55,14 @@ def test_a_named_package_is_imported_once_and_fills_the_point_it_has_a_policy_fo
 
 def test_a_name_that_does_not_import_stops_the_start_rather_than_admitting_without_limits() -> None:
     with pytest.raises(NoSuchExtension, match="does not import"):
-        extensions_from(Settings(world="production", extensions="nobody_published_this"))
+        extensions_from("nobody_published_this")
 
 
 def test_a_package_with_nothing_to_register_is_refused_by_name() -> None:
     a_package("a_package_that_forgot", None)
     try:
         with pytest.raises(NoSuchExtension, match="has no `register"):
-            extensions_from(Settings(world="production", extensions="a_package_that_forgot"))
+            extensions_from("a_package_that_forgot")
     finally:
         del sys.modules["a_package_that_forgot"]
 

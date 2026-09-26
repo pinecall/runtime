@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from importlib import import_module
 
-from pinecall._settings import Settings
 from pinecall.errors import PinecallError
 from pinecall.extensions.points import Extensions
 
@@ -17,14 +16,15 @@ class NoSuchExtension(PinecallError):
     """A package the box was told to load is not there, or has nothing to register."""
 
 
-def extensions_from(settings: Settings) -> Extensions:
-    """The points, filled by every package the settings name — or left as the runtime answers.
+def extensions_from(named: str) -> Extensions:
+    """The points, filled by every package `named` lists — or left as the runtime answers.
 
     A name that does not import is raised, not skipped: a box that was told to load a policy and
-    quietly ran without one would admit every org without limits, and nobody would know.
+    quietly ran without one would admit every org without limits, and nobody would know. `named`
+    is PINECALL_EXTENSIONS as the settings read it: the loader takes the one string it reads.
     """
     extensions = Extensions()
-    for name in named_in(settings.extensions):
+    for name in named_in(named):
         try:
             module = import_module(name)
         except ImportError as missing:

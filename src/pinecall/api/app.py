@@ -129,7 +129,7 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None, None]:
 async def _opened(gateway: FastAPI, settings: Settings, closing: AsyncExitStack) -> None:
     """Every collaborator on app.state, in the order they need each other."""
     # First, so a box told to load a policy that is not there never answers a single request.
-    gateway.state.extensions = extensions_from(settings)
+    gateway.state.extensions = extensions_from(settings.extensions)
     pool = await _a_pool(settings)
     if pool is not None:
         closing.push_async_callback(pool.close)
