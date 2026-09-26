@@ -4,8 +4,8 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from conftest import SEARCH_S
 from pinecall.types import RRF_K, reciprocal_rank_fusion, relative_to_the_best
-from tests.conftest import SEARCH_S
 
 pytestmark = pytest.mark.unit
 

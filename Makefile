@@ -70,7 +70,8 @@ UV_SYNC = sudo -u pinecall env UV_PROJECT_ENVIRONMENT=/opt/pinecall/venv UV_CACH
 # carried to $(EXTENSIONS)/<its directory's name> and installed into the venv AFTER the sync, since
 # `uv sync --frozen` removes whatever the lock does not name: installed once by hand, a package
 # would be gone at the next deploy and a gateway told to load it would refuse to start. --no-deps:
-# a package plugs into the runtime it is installed beside and brings no runtime of its own. Which
+# what a package depends on is pinecall-core, a member of the venv the sync just wrote, and a
+# resolver asked for it here would go looking for it on PyPI. Which
 # of them the gateway loads is PINECALL_EXTENSIONS in /etc/pinecall/box.env; unset here, nothing
 # of this runs and a deploy is exactly what it was. --no-config: it runs as the service user from
 # the deploy account's home, where uv would try to read that account's uv.toml and be refused.

@@ -1,0 +1,64 @@
+# pinecall-core: the shapes a Pinecall runtime speaks, and the points a policy plugs into.
+# A portion of the `pinecall` namespace — `pinecall.types`, `pinecall.extensions`,
+# `pinecall.errors` — installable without the runtime, which is the whole reason it is its own
+# distribution: a package that plugs a policy in (pinecall-cloud, docs/charging-for-it.md)
+# depends on this and not on FastAPI, LiveKit and a database driver.
+
+[project]
+name = "pinecall-core"
+version = "0.1.0"
+description = "The shapes a Pinecall runtime speaks, and the points a policy plugs into"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+authors = [{ name = "Bernardo Castro", email = "me@bernardocastro.dev" }]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+]
+# The standard library and nothing else. tests/test_isolation.py in the runtime holds it there:
+# a module here that imports the runtime, a framework or a driver fails that suite.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/pinecall/runtime"
+Repository = "https://github.com/pinecall/runtime"
+
+[dependency-groups]
+# What the core's own suite needs. test_wire_agreement.py holds the shapes to the protocol's
+# words, so the protocol is a test's dependency and never the package's.
+dev = [
+  "pinecall-protocol>=0.6.14,<0.7",
+  "pytest>=9,<10",
+  "pytest-randomly>=3.16,<4",
+  "pytest-timeout>=2.4.0",
+  "hypothesis>=6.140,<7",
+]
+
+[tool.uv.sources]
+pinecall-protocol = { path = "../../../protocol/python", editable = true }
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+# A namespace portion: the tree under src/pinecall ships as it is, with no pinecall/__init__.py —
+# the runtime's wheel carries the rest of the namespace the same way.
+[tool.hatch.build.targets.wheel]
+packages = ["src/pinecall"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--tb=short -p randomly --strict-markers --strict-config"
+xfail_strict = true
+timeout = 10
+timeout_method = "thread"
+filterwarnings = ["error"]
+markers = ["unit: ring 0. No keys, no network, under two minutes"]
+
+[tool.deptry]
+known_first_party = ["pinecall"]

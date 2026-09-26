@@ -12,5 +12,6 @@ uv run pyright
 uv run pyright --project infra/tools
 uv run mypy
 uv run deptry src
+uv run deptry packages/pinecall-core/src --config packages/pinecall-core/pyproject.toml
 # Last, because it is about what a migration does to a box and not about whether the tree parses.
 scripts/lint-migrations

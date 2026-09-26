@@ -4,8 +4,10 @@ import importlib
 
 import pytest
 
-import pinecall
 from pinecall._settings import load_settings
+from pinecall._version import __version__
+from pinecall.errors import PinecallError
+from tests.tree import SOURCE_ROOTS
 
 pytestmark = pytest.mark.unit
 
@@ -24,9 +26,17 @@ PACKAGES = [
 ]
 
 
-def test_the_root_exports_the_version_and_the_root_error_and_nothing_else() -> None:
-    assert pinecall.__all__ == ["PinecallError", "__version__"]
-    assert isinstance(pinecall.__version__, str)
+# `pinecall` is a namespace both distributions install into (the runtime and pinecall-core): an
+# __init__.py in either one makes that one the whole of `pinecall`, and every module of the other
+# stops importing — on the first machine that has both, never in a checkout that has one.
+def test_the_namespace_has_no_root_module_in_either_distribution() -> None:
+    stray = [str(root / "__init__.py") for root in SOURCE_ROOTS if (root / "__init__.py").exists()]
+    assert not stray, f"pinecall is a namespace package: {stray} must not exist"
+
+
+def test_the_root_error_and_the_version_are_named_modules() -> None:
+    assert issubclass(PinecallError, Exception)
+    assert isinstance(__version__, str)
 
 
 @pytest.mark.parametrize("name", PACKAGES)

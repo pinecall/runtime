@@ -35,7 +35,7 @@ A package named in `PINECALL_EXTENSIONS` (comma separated) is imported when the 
 handed the extension points to fill:
 
 ```python
-# my_billing/__init__.py — installed in the runtime's venv, named in PINECALL_EXTENSIONS
+# my_billing/__init__.py — depends on pinecall-core, named in PINECALL_EXTENSIONS
 from pinecall.types import PRODUCTION, Env, Org, Quotas
 
 TRIAL = Quotas(
@@ -65,7 +65,8 @@ it mirrors the org from production. An org already there is never asked about ag
 `PINECALL_EXTENSIONS` that does not import stops the gateway from starting — a box told to load a
 policy never runs without one. With no package, the answer is `Quotas()`: no limit, no row.
 
-The package is installed into the runtime's own environment (`/opt/pinecall/venv` on a box). On a
+The package depends on `pinecall-core` (the shapes and the points, on the standard library alone),
+never on the runtime, and is installed into the runtime's own environment (`/opt/pinecall/venv` on a box). On a
 box deployed with `make deploy`, name its checkout in `deploy.local.mk` (`EXTENSIONS_SRC =
 ../my_billing`): the deploy carries it and installs it after `uv sync --frozen`, which would
 otherwise remove it as a package its lock does not name (`infra/box/README.md`, "An extension").

@@ -1,4 +1,6 @@
-# The Python runtime: one distribution, two processes. Every tool reads its config from here.
+# The Python runtime: two processes, and two distributions in one uv workspace — this one, and
+# packages/pinecall-core, the shapes it speaks and the points a policy plugs into. Every tool
+# reads its config from here; the core keeps its own pyproject for its build and its suite.
 
 [project]
 name = "pinecall"
@@ -25,6 +27,8 @@ dependencies = [
   # `[tool.uv.sources]` below still points a checkout at the repo next door — that is a
   # development convenience and does not travel in the wheel.
   "pinecall-protocol>=0.6.14,<0.7",
+  # The same rule for the core: a workspace member here, a range in the wheel.
+  "pinecall-core>=0.1,<0.2",
   "pydantic>=2.7,<3",
   "pydantic-settings>=2.3,<3",
   "fastapi>=0.115,<1",
@@ -113,8 +117,12 @@ dev = [
   "deptry>=0.24,<1",
 ]
 
+[tool.uv.workspace]
+members = ["packages/*"]
+
 [tool.uv.sources]
 pinecall-protocol = { path = "../protocol/python", editable = true }
+pinecall-core = { workspace = true }
 
 [build-system]
 # 1.27 is the first hatchling that writes `license` as a PEP 639 expression.
@@ -126,6 +134,8 @@ path = "src/pinecall/_version.py"
 
 # The console is a build the agents repo's vite wrote and scripts/console copied in: git-ignored,
 # because it is not a source, and named here so the wheel carries it anyway.
+# A namespace portion: no pinecall/__init__.py in this wheel or in the core's, which carries
+# pinecall.types, pinecall.extensions and pinecall.errors.
 [tool.hatch.build.targets.wheel]
 packages = ["src/pinecall"]
 artifacts = ["src/pinecall/gateway/console/**", "src/pinecall/gateway/admin/**", "src/pinecall/gateway/widget/**"]
@@ -173,7 +183,8 @@ markers = [
 # a refusal that is never taken is exactly the line a suite forgets.
 [tool.coverage.run]
 branch = true
-source = ["pinecall"]
+# Paths and not the package name: a namespace has one path per distribution.
+source = ["src/pinecall", "packages/pinecall-core/src/pinecall"]
 omit = ["src/pinecall/cli/gateway.py", "src/pinecall/cli/worker.py"]
 
 [tool.coverage.report]
@@ -201,18 +212,25 @@ pydantic-settings = ["pydantic_settings"]
 [tool.deptry.per_rule_ignores]
 # uvicorn is what `pinecall-runtime gateway` runs, never imported by name; anthropic is named in
 # the `runtime` extra only to hold it under 1.0 for livekit's plugin, which is what imports it.
-DEP002 = ["uvicorn", "typing-extensions", "anthropic"]
+# pinecall-core is imported on every other line, as `pinecall.types`: deptry reads a namespace by
+# its top-level name alone, and `pinecall` is this tree's own.
+DEP002 = ["uvicorn", "typing-extensions", "anthropic", "pinecall-core"]
 
 # ── type checkers ───────────────────────────────────────────────────────────────
 
 [tool.pyright]
-include = ["src", "tests"]
+include = ["src", "tests", "packages"]
+# The core's suite imports its own conftest by name, as pytest puts its directory on the path.
+extraPaths = ["src", "packages/pinecall-core/src", "packages/pinecall-core/tests"]
 typeCheckingMode = "strict"
 pythonVersion = "3.12"
 reportImplicitOverride = true
 
 [tool.mypy]
-files = ["src"]
+files = ["src", "packages/pinecall-core/src"]
+mypy_path = "src:packages/pinecall-core/src"
+namespace_packages = true
+explicit_package_bases = true
 strict = true
 python_version = "3.12"
 
@@ -221,7 +239,7 @@ python_version = "3.12"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["src", "tests"]
+src = ["src", "tests", "packages/pinecall-core/src", "packages/pinecall-core/tests"]
 
 [tool.ruff.lint]
 select = [
@@ -250,6 +268,7 @@ unfixable = ["T201"]
 "scripts/*.py" = ["T201", "S310"]
 # A test asserts, spawns the tree's own tools, and makes noise with `random`.
 "tests/**" = ["S101", "S301", "S311", "S603", "S607"]
+"packages/*/tests/**" = ["S101", "S301", "S311", "S603", "S607"]
 "infra/tools/tests/**" = ["S101"]
 # The operator's own Python: it opens fixed https URLs, binds a probe to every interface on
 # purpose, and jitters a SIP call with `random`.

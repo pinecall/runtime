@@ -103,7 +103,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 
 ### Changed
 - **`pinecall.errors` is the root error's module.** `PinecallError` is imported from there;
-  `pinecall._exceptions` is gone. `from pinecall import PinecallError` still answers.
+  `pinecall._exceptions` is gone, and so is the root module: `pinecall` is a namespace package
+  now, so `from pinecall import PinecallError` is `from pinecall.errors import PinecallError` and
+  `pinecall.__version__` is `pinecall._version.__version__`.
 - **`extensions_from` takes the names it loads**, `PINECALL_EXTENSIONS` as a string, not the
   whole `Settings`: `extensions_from(settings.extensions)`.
 - **Every public function is named to survive a traceback.** Four hundred of them opened with an
@@ -171,6 +173,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   could make orgs for as many trials as they liked.
 
 ### Added
+- **`pinecall-core`**, a second distribution: `pinecall.types`, `pinecall.extensions` and
+  `pinecall.errors`, on the standard library alone, in `packages/pinecall-core` — a member of the
+  runtime's uv workspace, one lock. The runtime depends on it; a policy (`docs/charging-for-it.md`)
+  depends on it and not on the runtime. Import paths are unchanged.
 - The repository says how to report a weakness (`SECURITY.md`), how people are treated
   (`CODE_OF_CONDUCT.md`), what an issue and a pull request say (`.github/ISSUE_TEMPLATE/`,
   `.github/PULL_REQUEST_TEMPLATE.md`), what every editor agrees on (`.editorconfig`), and where

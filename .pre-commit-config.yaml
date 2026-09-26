@@ -17,7 +17,7 @@ repos:
         name: uv.lock is in step with pyproject.toml
         entry: uv lock --check
         language: system
-        files: ^(pyproject\.toml|uv\.lock)$
+        files: ^(pyproject\.toml|packages/.*/pyproject\.toml|uv\.lock)$
         pass_filenames: false
       - id: env-example
         name: .env.example is in step with _settings.py

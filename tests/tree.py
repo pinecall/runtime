@@ -10,6 +10,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ROOT = ROOT / "src" / "pinecall"
 TESTS_ROOT = ROOT / "tests"
+# The other portion of the `pinecall` namespace: pinecall-core, a distribution of its own.
+CORE = ROOT / "packages" / "pinecall-core"
+CORE_ROOT = CORE / "src" / "pinecall"
+CORE_TESTS_ROOT = CORE / "tests"
+SOURCE_ROOTS = (PACKAGE_ROOT, CORE_ROOT)
 
 
 @dataclass(frozen=True)
@@ -42,8 +47,20 @@ def modules_under(directory: Path) -> tuple[PythonModule, ...]:
 
 
 def every_module() -> tuple[PythonModule, ...]:
-    """Everything the distribution owns: its source, and the tests that read it."""
-    return modules_under(PACKAGE_ROOT) + modules_under(TESTS_ROOT)
+    """Everything the two distributions own: their source, and the tests that read it."""
+    return (
+        modules_under(PACKAGE_ROOT)
+        + modules_under(CORE_ROOT)
+        + modules_under(TESTS_ROOT)
+        + modules_under(CORE_TESTS_ROOT)
+    )
+
+
+def package_dir(name: str) -> Path:
+    """Where `pinecall/<name>` lives: under the runtime's source or the core's, never both."""
+    found = [root / name for root in SOURCE_ROOTS if (root / name).is_dir()]
+    assert len(found) == 1, f"pinecall/{name} is in {len(found)} source roots: {found}"
+    return found[0]
 
 
 @cache
@@ -83,7 +100,7 @@ def _absolute_root(node: ast.ImportFrom, package: str) -> str:
 
 def _package_of(path: Path) -> str:
     """The dotted package a file sits in — the anchor a relative import resolves against."""
-    source_root = PACKAGE_ROOT.parent
-    if source_root not in path.parents:
-        return ""
-    return ".".join(path.parent.relative_to(source_root).parts)
+    for source_root in (root.parent for root in SOURCE_ROOTS):
+        if source_root in path.parents:
+            return ".".join(path.parent.relative_to(source_root).parts)
+    return ""

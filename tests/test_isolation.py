@@ -4,7 +4,14 @@ from collections.abc import Sequence
 
 import pytest
 
-from tests.tree import PACKAGE_ROOT, PythonModule, modules_under
+from tests.tree import (
+    CORE_ROOT,
+    PACKAGE_ROOT,
+    SOURCE_ROOTS,
+    PythonModule,
+    modules_under,
+    package_dir,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -67,7 +74,7 @@ MAY_IMPORT: dict[str, frozenset[str]] = {
 
 # The packages that hold the ideas: no HTTP, no media plane, no driver. livekit is on the list
 # with the rest, so a shape that needs the library has moved out of types/ and into session/.
-PACKAGES_THAT_HOLD_NO_FRAMEWORK = ["types", "log"]
+PACKAGES_THAT_HOLD_NO_FRAMEWORK = ["types", "extensions", "log"]
 FRAMEWORKS = ["fastapi", "livekit", "uvicorn", "asyncpg"]
 
 # Each vendor by its own SDK name, so a stray import reads as what it is: a vendor in the core.
@@ -84,10 +91,40 @@ def test_a_package_imports_only_the_packages_its_line_names(package: str) -> Non
     allowed = MAY_IMPORT[package] | {package}
     offenders = {
         str(module.path): sorted(named - allowed)
-        for module in modules_under(PACKAGE_ROOT / package)
+        for module in modules_under(package_dir(package))
         if (named := _our_packages_named_by(module)) - allowed
     }
     assert not offenders, f"pinecall/{package} reaches past its line: {offenders}"
+
+
+# pinecall-core installs without the runtime (packages/pinecall-core): a module of it that named
+# the runtime would import on a laptop, where the two sit side by side, and break on the first
+# machine that installed the core alone — cloud's, or anybody's extension.
+THE_CORE = frozenset({"types", "extensions", "errors"})
+WHAT_THE_CORE_NEVER_INSTALLS = [*FRAMEWORKS, "pydantic_settings", "pinecall_protocol"]
+
+
+def test_the_core_imports_nothing_of_the_runtime() -> None:
+    offenders = {
+        str(module.path): sorted(named - THE_CORE)
+        for module in modules_under(CORE_ROOT)
+        if (
+            named := {
+                name.split(".")[1]
+                for name in module.imported_modules
+                if name.startswith("pinecall.")
+            }
+        )
+        - THE_CORE
+    }
+    assert not offenders, f"pinecall-core reaches into the runtime: {offenders}"
+
+
+@pytest.mark.parametrize("library", WHAT_THE_CORE_NEVER_INSTALLS)
+def test_the_core_imports_no_library_it_does_not_declare(library: str) -> None:
+    """Its dependencies are the standard library: a framework here is a dependency it lacks."""
+    offenders = _the_modules_that_import(modules_under(CORE_ROOT), library)
+    assert not offenders, f"pinecall-core imports {library}: {offenders}"
 
 
 @pytest.mark.parametrize("framework", FRAMEWORKS)
@@ -123,7 +160,7 @@ def test_only_providers_imports_a_vendor_sdk(vendor: str) -> None:
 
 # A module at the root (`pinecall.errors`, `pinecall._settings`) is everybody's; only a directory
 # has a line in the table.
-ROOT_MODULES = frozenset(path.stem for path in PACKAGE_ROOT.glob("*.py"))
+ROOT_MODULES = frozenset(path.stem for root in SOURCE_ROOTS for path in root.glob("*.py"))
 
 
 def _our_packages_named_by(module: PythonModule) -> set[str]:
@@ -137,7 +174,7 @@ def _our_packages_named_by(module: PythonModule) -> set[str]:
 
 def _the_modules_the_rule_speaks_about(package: str, framework: str) -> Sequence[PythonModule]:
     """Every module of the package, minus the one exception, and only for the driver it holds."""
-    modules = modules_under(PACKAGE_ROOT / package)
+    modules = modules_under(package_dir(package))
     if framework != THE_DRIVER_IT_MAY_HOLD:
         return modules
     excused = {module.path for module in modules_under(THE_STORE_ADAPTER)}
@@ -152,10 +189,15 @@ def _the_modules_that_import(modules: Sequence[PythonModule], package: str) -> l
 def _the_modules_outside_the_store_adapter() -> tuple[PythonModule, ...]:
     """Every module of the runtime that is not the one door to the driver."""
     excused = {module.path for module in modules_under(THE_STORE_ADAPTER)}
-    return tuple(module for module in modules_under(PACKAGE_ROOT) if module.path not in excused)
+    return tuple(module for module in _every_source_module() if module.path not in excused)
 
 
 def _the_modules_outside(package: str) -> tuple[PythonModule, ...]:
     """Every module of the runtime that does not live under pinecall.<package>."""
-    inside = {module.path for module in modules_under(PACKAGE_ROOT / package)}
-    return tuple(module for module in modules_under(PACKAGE_ROOT) if module.path not in inside)
+    inside = {module.path for module in modules_under(package_dir(package))}
+    return tuple(module for module in _every_source_module() if module.path not in inside)
+
+
+def _every_source_module() -> tuple[PythonModule, ...]:
+    """Both portions of the namespace: the runtime's source and the core's."""
+    return tuple(module for root in SOURCE_ROOTS for module in modules_under(root))

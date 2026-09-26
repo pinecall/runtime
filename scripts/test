@@ -6,4 +6,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-uv run pytest -n auto -m "unit or postgres" --cov --cov-report=term-missing tests infra/tools/tests
+# Two suites, one coverage report: the core's (packages/pinecall-core) runs on its own ini and
+# rootdir, as it would where the runtime is not installed, and appends to what the runtime's wrote.
+uv run pytest -n auto -m "unit or postgres" --cov --cov-report= tests infra/tools/tests
+uv run pytest -n auto -m unit --cov --cov-append --cov-report=term-missing \
+  -c packages/pinecall-core/pyproject.toml --rootdir packages/pinecall-core packages/pinecall-core/tests

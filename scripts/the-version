@@ -15,4 +15,11 @@ if ! grep -qE '^\s*"pinecall-protocol(==|>=|~=|<)' pyproject.toml; then
   echo "un wheel publicado así acepta cualquier protocol. Poné el rango antes de taggear." >&2
   exit 1
 fi
+# La misma trampa con el core: en el árbol es un miembro del workspace, en el wheel un rango.
+if ! grep -qE '^\s*"pinecall-core(==|>=|~=|<)' pyproject.toml; then
+  echo "pinecall-core viaja sin rango de versión en [project.dependencies]:" >&2
+  grep -n 'pinecall-core' pyproject.toml >&2
+  echo "un wheel publicado así acepta cualquier core. Poné el rango antes de taggear." >&2
+  exit 1
+fi
 echo "$version"

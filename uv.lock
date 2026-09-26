@@ -8,6 +8,12 @@ resolution-markers = [
     "python_full_version < '3.13'",
 ]
 
+[manifest]
+members = [
+    "pinecall",
+    "pinecall-core",
+]
+
 [[package]]
 name = "aiobotocore"
 version = "3.9.1"
@@ -3380,6 +3386,7 @@ dependencies = [
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-sdk" },
     { name = "pgvector" },
+    { name = "pinecall-core" },
     { name = "pinecall-protocol" },
     { name = "protobuf" },
     { name = "pydantic" },
@@ -3435,6 +3442,7 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.30,<2" },
     { name = "opentelemetry-sdk", specifier = ">=1.30,<2" },
     { name = "pgvector", specifier = ">=0.3,<1" },
+    { name = "pinecall-core", editable = "packages/pinecall-core" },
     { name = "pinecall-protocol", editable = "../protocol/python" },
     { name = "protobuf", specifier = ">=5,<8" },
     { name = "pydantic", specifier = ">=2.7,<3" },
@@ -3460,6 +3468,31 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.8,<4" },
     { name = "ruff", specifier = ">=0.16,<1" },
     { name = "squawk-cli", specifier = ">=2.65,<3" },
+]
+
+[[package]]
+name = "pinecall-core"
+version = "0.1.0"
+source = { editable = "packages/pinecall-core" }
+
+[package.dev-dependencies]
+dev = [
+    { name = "hypothesis" },
+    { name = "pinecall-protocol" },
+    { name = "pytest" },
+    { name = "pytest-randomly" },
+    { name = "pytest-timeout" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "hypothesis", specifier = ">=6.140,<7" },
+    { name = "pinecall-protocol", editable = "../protocol/python" },
+    { name = "pytest", specifier = ">=9,<10" },
+    { name = "pytest-randomly", specifier = ">=3.16,<4" },
+    { name = "pytest-timeout", specifier = ">=2.4.0" },
 ]
 
 [[package]]

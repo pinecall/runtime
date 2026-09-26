@@ -124,7 +124,7 @@ jobs:
 
       # The wheel is packed on every push and not first at the tag: what `uv build` leaves out
       # (or drags in) is found on the branch, where it costs a commit and not a version number.
-      - run: uv build && uvx twine check dist/*
+      - run: uv build --all-packages --out-dir dist && uvx twine check dist/*
         working-directory: runtime
 
       # What a red run on the Postgres ring is debugged from, kept whether or not it was red.

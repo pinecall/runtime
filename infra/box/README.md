@@ -432,6 +432,7 @@ charges says its numbers (`docs/charging-for-it.md`) — travels with the deploy
 `deploy.local.mk` (`EXTENSIONS_SRC = ../cloud`, space separated for more), and its module in
 `PINECALL_EXTENSIONS` in `/etc/pinecall/box.env`, which both instances read: `sync` carries it to
 `/opt/pinecall/extensions/<its directory>`, and `install` puts it into the venv with `--no-deps`
+(what it depends on, `pinecall-core`, is already there: a member of the runtime's workspace)
 **after** `uv sync --frozen`, which removes whatever the lock does not name — a package installed
 once by hand is gone at the next deploy, and a gateway told to load it then refuses to start.
 Nothing set, nothing of it runs.

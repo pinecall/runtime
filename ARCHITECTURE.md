@@ -1,8 +1,8 @@
 # Architecture
 
-The Pinecall runtime is one Python distribution, `pinecall`, that runs as **two processes** on
-top of LiveKit: the **gateway**, the control plane, and the **worker**, the fleet that answers a
-call. Everything else on a box — the SFU, the SIP bridge, Redis, Postgres — is somebody else's
+The Pinecall runtime is two Python distributions, `pinecall` and `pinecall-core`, run as **two
+processes** on LiveKit: the **gateway**, the control plane, and the **worker**, the fleet that
+answers a call. Everything else on a box — the SFU, the SIP bridge, Redis, Postgres — is somebody else's
 software, run as it ships. This page is the shape of the thing, read off the code: every module
 opens with one line that says what it is, `tests/test_isolation.py` says what may import what,
 the words the tree speaks are [docs/glossary.md](docs/glossary.md), and the *why* of each decision
@@ -359,8 +359,8 @@ one Haiku behind a ceiling (`PINECALL_JUDGE_CEILING_EUR`; zero means no judge as
 The whole table, enforced by `tests/test_isolation.py`:
 
 ```
-types      ← nothing                          (no IO, no framework)
-extensions ← types                            the points a package beside us plugs policy into
+types      ← nothing                          (no IO, no framework)               pinecall-core
+extensions ← types                            the points a policy plugs into       pinecall-core
 log        ← types                            (no framework, no driver outside store/)
 providers  ← types                            (the only place a vendor is named)
 auth       ← types, log
@@ -380,7 +380,7 @@ worker     ← all but extensions, whatsapp, memory, knowledge, lookups, mail   
 cli        ← the verbs over any of them
 ```
 
-The core never imports a tenant; a tenant never imports LiveKit. A package earns its directory by having a line in that table.
+The core never imports a tenant; a tenant never imports LiveKit. A package earns its directory by having a line in that table. `types`, `extensions` and `errors` are `packages/pinecall-core`, a distribution of their own on the standard library alone, so a policy installs them without the runtime; `test_the_core_imports_nothing_of_the_runtime` holds it.
 
 ## 12. The box, and the line
 

@@ -12,7 +12,7 @@ docker compose -f infra/compose/dev.yml up -d   # livekit · sip · redis · pos
 scripts/bootstrap                               # uv sync (runtime · providers · dev), prek hooks
 scripts/format                                  # ruff format, then the fixable lint rules
 scripts/lint                                    # ruff · pyright · mypy · deptry · squawk over unlanded migrations — the gate
-scripts/test                                    # pytest -m "unit or postgres" + infra/tools/tests, coverage to its floor
+scripts/test                                    # pytest -m "unit or postgres" + infra/tools/tests + the core's suite, coverage to its floor
 uv run pytest -m unit                           # ring 0: no keys, no network, SHUFFLED — three green runs, or nothing
 uv run pytest tests/cli/doctor/test_verbs.py    # one file
 uv run pinecall-runtime gateway | worker dev | migrate up | doctor
@@ -22,8 +22,12 @@ make deploy                                     # this checkout onto your box (d
 
 ## Structure
 
-- `src/pinecall/` — twenty packages, none of them a process; ARCHITECTURE.md §11 is the import
+- `src/pinecall/` — eighteen packages, none of them a process; ARCHITECTURE.md §11 is the import
   table and `tests/test_isolation.py` enforces it; the words they speak are `docs/glossary.md`
+- `packages/pinecall-core/` — `types/`, `extensions/`, `errors.py`: a distribution of its own, on
+  the standard library alone, that a policy (`cloud/`) installs without the runtime. It imports
+  nothing of the runtime, and `pinecall` is a namespace both install into: no `__init__.py` in
+  either `src/pinecall/`. Its suite runs apart (`scripts/test`), on its own `pyproject.toml`
   - `types/` the shapes, no IO · `log/` the truth, no framework · `providers/` the only vendor names
   - `auth/` keys, members, sign-in · `orgs/` the tenant's tables · `routes/` numbers and trunks at
     the SFU · `tokens/` the room token and the seat · `whatsapp/` the text channel · `fleet/` the
@@ -69,7 +73,8 @@ happened and the doc is the bug.
   docstring. No two modules in one directory one letter apart.
 - `types/` imports nothing of ours; `types/` and `log/` import no framework; a vendor SDK
   outside `providers/` fails the suite; `api/` never imports `worker/`, `worker/` never `api/`.
-- The public surface of the root and of every package with an `__all__` is pinned by a test.
+- The public surface of every package with an `__all__` is pinned by a test, and the `pinecall`
+  namespace has no root module in either distribution.
 - The prompt is a list of named blocks in two regions, in this order: static blocks (cached) ·
   append-only history · the dynamic region, which is the view and nothing else. Never reorder.
   What a lookup found reaches the model as a `tool_result`, never as part of the prompt:

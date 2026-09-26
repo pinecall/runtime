@@ -179,6 +179,7 @@ number — is [infra/box/README.md](infra/box/README.md).
 run processes (Kubernetes, Nomad, Ansible) and wants ours out of the picture:
 
 ```
+pip install pinecall-core                  the shapes and the extension points alone, for a policy
 pip install pinecall                       the gateway
 pip install pinecall[runtime]              the gateway and the worker, on the five tuned vendors
 pip install pinecall[runtime,providers]    and the other forty livekit ships a plugin for

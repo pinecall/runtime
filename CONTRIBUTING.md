@@ -11,7 +11,8 @@ Before a commit, `scripts/format`, then `scripts/lint` and `scripts/test` must b
 check on what a commit touches. `scripts/lint` ends with `deptry`: a package the tree imports is
 one `pyproject.toml` declares, and one it declares is one the tree imports. `scripts/test`
 measures branch coverage and holds it to the floor in `pyproject.toml`, which moves up with a
-release and never down. Ring 0 (`pytest -m unit`) opens no socket and reads no key: what a test
+release and never down. `packages/pinecall-core` has a suite of its own, which `scripts/test` runs on the core's own
+`pyproject.toml`, as it would run where the runtime is not installed. Ring 0 (`pytest -m unit`) opens no socket and reads no key: what a test
 fakes it fakes once, in `tests/clocks.py`, `tests/orgs/boxes.py`, `tests/api/no_vault.py`, and
 what must hold for every input — a chunk under the cap, a fusion blind to the order of its
 branches, a snapshot that resumes to the state it was cut from — is stated once as a
