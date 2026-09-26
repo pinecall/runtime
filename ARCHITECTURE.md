@@ -351,9 +351,7 @@ on the ring-4 panel because `AgentConfig` declares no register yet. A judge that
 one Haiku behind a ceiling (`PINECALL_JUDGE_CEILING_EUR`; zero means no judge asks), and
 `call.score` records who was RUN and who ANSWERED. Decisions: *evals* and its chapters, *scoring*.
 
-## 11. Who may import whom
-
-The whole table, enforced by `tests/test_isolation.py`:
+## 11. Who may import whom — the whole table, enforced by `tests/test_isolation.py`
 
 ```
 types      ← nothing                          the shapes, no IO, no framework        pinecall-core
