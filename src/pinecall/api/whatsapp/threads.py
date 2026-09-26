@@ -20,7 +20,7 @@ from pinecall.api.whatsapp.thread_deps import Doors
 from pinecall.api.whatsapp.unanswered import Waiting, WaitingRoom
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.providers.models import NoProvider
-from pinecall.providers.registry import Asked, a_key
+from pinecall.providers.registry import Asked, vendor_key
 from pinecall.session.text.session import TextSession
 from pinecall.session.text.turn_allowance import SPENT, TurnRefused
 from pinecall.types import CallContext, Contact, Route, new_call_id
@@ -189,7 +189,7 @@ class Threads:
             )
             # The org's own Meta token or the box's, out of the very keys the model was built
             # from: the vault is read once per call and not once per thing the call needs.
-            token = a_key(WHATSAPP, Asked(settings=doors.settings, keys=opened.keys))
+            token = vendor_key(WHATSAPP, Asked(settings=doors.settings, keys=opened.keys))
         except (NoProvider, QuotaExhausted) as refused:
             logger.warning(NOT_ANSWERED, route.agent, inbound.number, refused)
             return None
@@ -248,7 +248,7 @@ class Threads:
             )
             if opened is None:
                 return None
-            token = a_key(WHATSAPP, Asked(settings=doors.settings, keys=opened.keys))
+            token = vendor_key(WHATSAPP, Asked(settings=doors.settings, keys=opened.keys))
         except NoProvider as refused:
             logger.warning(NOT_ANSWERED, route.agent, inbound.number, refused)
             return None

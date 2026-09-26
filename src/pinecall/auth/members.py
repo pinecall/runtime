@@ -20,7 +20,7 @@ MEMBER_ID_BYTES = 6
 
 # An address is one person however it is typed: `JP@Cloudacio.com ` and `jp@cloudacio.com` are the
 # same login. Every row is written and read through this, so the column only ever holds the one.
-def an_address(email: str) -> str:
+def normalize_email(email: str) -> str:
     """The email as rows keep it: trimmed and lower-cased."""
     return email.strip().lower()
 
@@ -173,7 +173,7 @@ class Members(Protocol):
         ...
 
 
-def a_member_id() -> str:
+def new_member_id() -> str:
     """A name for the row. It is what a person's key carries as `subject`."""
     return f"{MEMBER_ID_PREFIX}{secrets.token_hex(MEMBER_ID_BYTES)}"
 
@@ -188,7 +188,7 @@ def members_for(pool: Pool | None) -> Members:
     return MemoryMembers() if pool is None else PostgresMembers(pool)
 
 
-def an_instant(seconds: float) -> str:
+def iso_instant(seconds: float) -> str:
     """A moment as Postgres hands its timestamps back: ISO 8601, UTC."""
     return datetime.fromtimestamp(seconds, UTC).isoformat()
 
@@ -198,7 +198,7 @@ def text_or_none(column: Any) -> str | None:
     return None if column is None else str(column)
 
 
-def a_member_of_row(row: Any) -> Member:
+def member_from_row(row: Any) -> Member:
     """One row back into the domain's own Member. The columns are its fields, name for name."""
     return Member(
         id=str(row["id"]),

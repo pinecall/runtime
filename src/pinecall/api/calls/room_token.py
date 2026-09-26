@@ -20,8 +20,8 @@ from pinecall.api.deps import (
     TalkKeyDep,
     TokensDep,
 )
-from pinecall.auth.keys import KeyRecord, held_by
-from pinecall.auth.scopes import a_log_token, a_room_token, a_visitor, secret_for
+from pinecall.auth.keys import KeyRecord, is_held_by
+from pinecall.auth.scopes import mint_log_token, mint_room_token, new_visitor_identity, secret_for
 from pinecall.tokens.ledger import TokenRecord
 from pinecall.tokens.room_token import a_dispatch, the_agent_a_client_named
 from pinecall.types import THE_WIDGET, new_call_id
@@ -114,9 +114,9 @@ async def mint(
     await _refuse_a_full_fleet(fleet, logs, agent)
     await admission.a_call(key.org, agent, live.running(key.org))
     call = new_call_id()
-    visitor = said.participant_identity or a_visitor()
+    visitor = said.participant_identity or new_visitor_identity()
     expires_at = time.time() + said.ttl_s
-    token = a_room_token(
+    token = mint_room_token(
         call,
         said.scope,
         expires_at,
@@ -132,7 +132,7 @@ async def mint(
             said.metadata,
             key.org,
             key.env,
-            held_by(key),
+            is_held_by(key),
         ),
     )
     await tokens.minted(
@@ -148,7 +148,7 @@ async def mint(
         server_url=settings.livekit_public_url or settings.livekit_url,
         participant_token=token,
         call=call,
-        log_token=a_log_token(call, said.log, secret_for(settings), visitor),
+        log_token=mint_log_token(call, said.log, secret_for(settings), visitor),
     )
 
 

@@ -13,9 +13,9 @@ from pinecall.api.deps import OrgsDep, PipelineKeyDep, SettingsDep, VaultDep, he
 from pinecall.auth.throttle import Throttle
 from pinecall.orgs.vault import brought_by, keys_brought_by
 from pinecall.providers.registry import Asked
-from pinecall.providers.tts.sampling import Sample, SampleRefused, a_line_for, a_sample
+from pinecall.providers.tts.sampling import Sample, SampleRefused, sample_line_for, speak_sample
 from pinecall.providers.tts.vendor_voices import Shelf, ShelfUnreachable
-from pinecall.providers.tuned_declaration import the_voice
+from pinecall.providers.tuned_declaration import tuned_voice
 from pinecall.types import DeclarationRefused
 from pinecall_protocol.rest import ListedVoice, VoiceSample, VoicesListed
 
@@ -59,7 +59,7 @@ def the_sampling(connection: HTTPConnection) -> Throttle:
 
 def the_sampler() -> Sampler:
     """What says a sentence in a voice: the vendor's plugin, as a call builds it."""
-    return a_sample
+    return speak_sample
 
 
 ShelfDep = Annotated[Shelf, Depends(the_shelf)]
@@ -103,14 +103,14 @@ async def sample(
     """The words in that voice, as a WAV: 422 a typo, 429 too many, 503 no key, 502 no answer."""
     if not sampling.allowed(key.key_id):
         raise HTTPException(429, TOO_MANY.format(key=key.key_id, count=SAMPLES_A_MINUTE))
-    text = said.text or a_line_for(said.language)
+    text = said.text or sample_line_for(said.language)
     if len(text) > TEXT_CEILING:
         raise HTTPException(422, TOO_LONG.format(length=len(text), ceiling=TEXT_CEILING))
     # The three words go through the same reading the settings door gives them, so a sample that
     # plays is a setting that saves: a vendor this build has no row for, a model it would quietly
     # swap, a voice that is a typo, are all refused here in the same sentence.
     try:
-        voice = the_voice(said.tts, said.voice, said.model)
+        voice = tuned_voice(said.tts, said.voice, said.model)
     except DeclarationRefused as refused:
         raise HTTPException(422, str(refused)) from refused
     if voice is None:  # the_voice answers None only when all three words are None

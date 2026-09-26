@@ -8,7 +8,7 @@ from typing import cast
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.providers.registry import Asked, NoProvider, Vendors, a_key
+from pinecall.providers.registry import Asked, NoProvider, Vendors, vendor_key
 from tests.providers.vendors import VENDORS
 
 pytestmark = pytest.mark.unit
@@ -45,7 +45,7 @@ def test_the_vendors_package_is_read_by_import_and_not_by_a_list_of_names() -> N
 # Which key a_key hands back, and whose, is tests/providers/test_provider_keys.py's subject.
 def test_a_vendor_with_no_key_is_refused_now_and_not_mid_call() -> None:
     with pytest.raises(NoProvider, match="acme has no API key in this process"):
-        a_key("acme", an_ask())
+        vendor_key("acme", an_ask())
 
 
 # The console crash left a table marked read and empty: the setup hook imported the vendors on

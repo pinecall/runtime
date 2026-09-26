@@ -23,7 +23,7 @@ SANDBOX_PERSONS_KEY_LIFE = timedelta(hours=24)
 # member's row says whether production opens (0039). The column still holds `sandbox`, as 0039
 # wrote every person's, and nobody reads it. Its scopes are the role's, whole: a person who may
 # act in production holds the agent there too, from `pinecall start --prod`.
-async def a_persons_key(
+async def mint_person_key(
     keys: Keys,
     member: Member,
     label: str | None,

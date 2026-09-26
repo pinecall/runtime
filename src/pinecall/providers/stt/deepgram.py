@@ -3,7 +3,7 @@
 from livekit.agents.types import NOT_GIVEN, NotGivenOr
 from livekit.plugins import deepgram
 
-from pinecall.providers.registry import Asked, Ears, a_key
+from pinecall.providers.registry import Asked, Ears, vendor_key
 from pinecall.providers.stt import MAX_SILENCE_MS, VENDORS, hints_for
 
 # flux-general-multi is the only Flux model that takes language hints at all; the plugin's own
@@ -22,7 +22,7 @@ def build(asked: Asked) -> Ears:
     """STTv2 is the Flux door: STT (v1) speaks nova and knows nothing about end-of-turn."""
     return deepgram.STTv2(
         model=asked.model or DEFAULT_MODEL,
-        api_key=a_key("deepgram", asked),
+        api_key=vendor_key("deepgram", asked),
         # The plugin sends neither (deepgram/stt_v2.py:78,79); its own 16 kHz we keep as it is.
         language_hint=hints_for(asked.language),
         eot_timeout_ms=asked.endpointing_ms or MAX_SILENCE_MS,

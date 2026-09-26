@@ -8,10 +8,10 @@ from pinecall._version import __version__
 from pinecall.api.deps import KeyDep, KeysDep, MembersDep, OrgsDep, SettingsDep
 from pinecall.api.scope.operator_key import an_operators_router, runs_the_box
 from pinecall.auth.bearer import bearer_of
-from pinecall.auth.env import a_person, opens_production
+from pinecall.auth.env import is_persons_key, opens_production
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Members
-from pinecall.auth.visitor_keys import visiting
+from pinecall.auth.visitor_keys import visitor_email
 from pinecall.types import Env, is_a_deployment
 from pinecall_protocol import WireModel
 
@@ -75,9 +75,9 @@ async def whoami(key: KeyDep, orgs: OrgsDep, members: MembersDep, keys: KeysDep)
         name=key.name,
         email=await address_of(key, members),
         operator=await runs_the_box(key, members),
-        visiting=visiting(key.subject) is not None,
+        visiting=visitor_email(key.subject) is not None,
         production=await opens_production(key, members)
-        if a_person(key)
+        if is_persons_key(key)
         else is_a_deployment(key.env),
     )
 
@@ -130,7 +130,7 @@ async def _whose(request: Request, keys: KeysDep) -> KeyRecord | None:
 # row of that org is theirs (auth/visitor_keys.py). A machine's key has neither.
 async def address_of(key: KeyRecord, members: Members) -> str | None:
     """The address of the person this key was minted for, or None for a key that names nobody."""
-    visitor = visiting(key.subject)
+    visitor = visitor_email(key.subject)
     if visitor is not None:
         return visitor
     if key.subject is None:

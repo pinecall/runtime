@@ -27,7 +27,7 @@ from pinecall.memory.statements import (
     TAUGHT_BY,
     UPDATE,
 )
-from pinecall.providers.embedder import Embedder, as_halfvec
+from pinecall.providers.embedder import Embedder, halfvec_literal
 from pinecall.providers.models import Models
 from pinecall.types import (
     Brought,
@@ -272,7 +272,7 @@ class PgvectorMemory:
         listed = list(texts)
         if not listed:
             return []
-        return [as_halfvec(vector) for vector in await self._embedder.embed(listed)]
+        return [halfvec_literal(vector) for vector in await self._embedder.embed(listed)]
 
 
 def cursor_of(fact: Fact) -> str:

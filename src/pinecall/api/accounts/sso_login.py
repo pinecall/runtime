@@ -26,15 +26,15 @@ from pinecall.api.deps import (
 )
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.login_codes import NO_KEY_YET, LoginCodes
-from pinecall.auth.members import Members, NoSeatLeft, an_address
+from pinecall.auth.members import Members, NoSeatLeft, normalize_email
 from pinecall.auth.openid import (
     Claims,
     OpenIdRefused,
     Provider,
+    authorization_url,
     claims,
     configuration,
     exchange,
-    where_to_send,
 )
 from pinecall.auth.sso_state import Handshake
 from pinecall.orgs.admission import Admission
@@ -110,7 +110,7 @@ async def sign_in(
     redirect_uri = where_the_idp_answers(settings, request)
     handshake = handshakes.open(owner.id, redirect_uri, pairing)
     return RedirectResponse(
-        where_to_send(
+        authorization_url(
             provider,
             wired.client_id,
             redirect_uri,
@@ -169,7 +169,7 @@ async def discover(
     said: Wondering, request: Request, sso: SsoDep, orgs: OrgsDep, throttle: ThrottleDep
 ) -> SsoDiscovery:
     """The orgs an address of this domain signs in to with an identity provider, oldest first."""
-    email = an_address(said.email)
+    email = normalize_email(said.email)
     if not throttle.allowed(f"{the_client(request)} sso/{email}"):
         raise HTTPException(429, TOO_MANY.format(email=email))
     domain = parse_domain(email.rpartition("@")[2])
@@ -231,7 +231,7 @@ async def _seated(
     org: Org, wired: OrgSso, said: Claims, members: Members, admission: Admission
 ) -> Member:
     """The member this address names in this org — invited, seated or made, per the org's rule."""
-    email = an_address(said.email)
+    email = normalize_email(said.email)
     kept = await members.by_email(org.id, email)
     if kept is not None:
         member = kept.member

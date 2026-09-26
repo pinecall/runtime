@@ -14,7 +14,7 @@ from livekit import rtc
 from livekit.agents.utils import http_context
 
 from pinecall._settings import Settings
-from pinecall.auth.scopes import a_room_token, secret_for
+from pinecall.auth.scopes import mint_room_token, secret_for
 from pinecall.evals import caller_voice, line_noise
 from pinecall.evals.agent_dispatch import a_dispatch
 from pinecall.evals.caller_voice import Speaking, Voice
@@ -215,7 +215,7 @@ class _Mouth:
 # publishes nothing, which is exactly what the grants table says of it.
 def _a_token(call: str, settings: Settings) -> str:
     """The caller's seat in the room, signed with the pair every call token is signed with."""
-    return a_room_token(
+    return mint_room_token(
         call, "talk", time.time() + A_CALL_MAY_LAST_S, secret_for(settings), A_SIMULATED_CALLER
     )
 

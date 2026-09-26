@@ -23,7 +23,7 @@ from pinecall.evals.judges.promises import promises_of
 from pinecall.evals.livekit_verdicts import a_judgment, nobody_asked
 from pinecall.log.entry import Entry
 from pinecall.providers import prices
-from pinecall.providers.usage_wire import as_wire_rows
+from pinecall.providers.usage_wire import wire_usage_rows
 from pinecall.session.score_step import Scorer
 from pinecall.types import AgentConfig
 from pinecall_protocol.events import CallScore, Judgment
@@ -78,7 +78,7 @@ async def _judged(entries: Sequence[Entry], config: AgentConfig, settings: Setti
     finally:
         await counted.aclose()
     judged = [a_judgment(name, one, entries) for name, one in result.judgments.items()]
-    cost = prices.eur_of(as_wire_rows(spent.flatten()))
+    cost = prices.eur_of(wire_usage_rows(spent.flatten()))
     return _an_entry(judged, declared, counted.calls, cost)
 
 

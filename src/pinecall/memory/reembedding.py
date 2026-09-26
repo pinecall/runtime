@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pinecall.log.store import Pool
-from pinecall.providers.embedder import Embedder, as_halfvec
+from pinecall.providers.embedder import Embedder, halfvec_literal
 
 # A fact's vector is an index over its text, never the fact: the text, the category, the dates and
 # the chain of what superseded what are untouched, which is why this is the one UPDATE of a row
@@ -30,7 +30,7 @@ async def reembedded(pool: Pool, embedder: Embedder, *, batch: int = BATCH) -> i
         rows = stale[start : start + batch]
         vectors = await embedder.embed([row["text"] for row in rows])
         written = [
-            (row["id"], as_halfvec(vector), model)
+            (row["id"], halfvec_literal(vector), model)
             for row, vector in zip(rows, vectors, strict=True)
         ]
         async with pool.acquire() as connection, connection.transaction():

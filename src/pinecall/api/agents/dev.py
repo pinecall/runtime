@@ -18,7 +18,7 @@ from pinecall.api.deps import (
     TalkKeyDep,
 )
 from pinecall.api.live import LiveDep
-from pinecall.auth.keys import KeyRecord, held_by
+from pinecall.auth.keys import KeyRecord, is_held_by
 from pinecall.log.entry import ephemeral_entry
 from pinecall.types import JsonObject
 from pinecall_protocol import Command
@@ -154,11 +154,11 @@ async def _relayed(
         raise HTTPException(
             404, NO_SUCH_VERB.format(verb=verb, family=family, verbs=sorted(FAMILIES[family]))
         )
-    held = registry.serving(key.env, slug, app, held_by(key))
+    held = registry.serving(key.env, slug, app, is_held_by(key))
     if held is None or held.org != key.org:
         if app is not None:
             raise HTTPException(409, NOT_THAT_APP.format(app=app, slug=slug))
-        if registry.of(key.env, slug, held_by(key)) is not None:
+        if registry.of(key.env, slug, is_held_by(key)) is not None:
             raise HTTPException(409, NO_UNCLAIMED.format(slug=slug))
         raise HTTPException(404, NO_AGENT.format(slug=slug))
     id = f"dev_{uuid4().hex[:12]}"

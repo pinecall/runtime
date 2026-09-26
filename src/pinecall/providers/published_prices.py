@@ -42,7 +42,7 @@ class Published:
 # wheel beside this module: there is no download, no cache to warm and nothing to go stale in a
 # way a deploy would not show.
 @cache
-def published() -> Published:
+def published_prices() -> Published:
     """The vendored table, parsed into the two shapes providers/prices.py looks a model up in."""
     data: dict[str, Any] = json.loads(FILE.read_text(encoding="utf-8"))
     rows: dict[str, dict[str, Any]] = data["prices"]

@@ -8,7 +8,7 @@ from pinecall.api.deps import EvalsKeyDep, LlmsDep, OrgsDep, VaultDep
 from pinecall.evals.simulated_caller import NO_MODEL, Asking, Improvised, what_they_say_next
 from pinecall.orgs.vault import brought_by
 from pinecall.providers.models import NoProvider
-from pinecall.providers.tuned_declaration import the_llm
+from pinecall.providers.tuned_declaration import tuned_llm
 from pinecall.types import DeclarationRefused
 
 router = APIRouter()
@@ -27,7 +27,7 @@ async def next_line(
 ) -> Improvised:
     """One turn of an improvised caller: the persona and the call so far in, one line out."""
     try:
-        llm = llms(the_llm(said.persona.llm), await brought_by(vault, orgs.quotas_of, key.org))
+        llm = llms(tuned_llm(said.persona.llm), await brought_by(vault, orgs.quotas_of, key.org))
     except DeclarationRefused as refused:
         raise HTTPException(422, str(refused)) from refused
     except NoProvider as missing:

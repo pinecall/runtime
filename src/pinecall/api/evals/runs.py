@@ -25,7 +25,7 @@ from pinecall.api.evals.runner import (
     a_run,
 )
 from pinecall.api.live import LiveDep
-from pinecall.auth.keys import held_by
+from pinecall.auth.keys import is_held_by
 from pinecall.evals.run_store import DEFAULT_LIMIT, EvalRun, Runs, Status
 from pinecall.log.store import Store
 from pinecall.providers.models import NoProvider
@@ -121,7 +121,7 @@ async def run_the_goldens(
         store=store,
         runs=runs,
         env=key.env,
-        holder=held_by(key),
+        holder=is_held_by(key),
         vault=vault,
         admission=admission,
         lookups=lookups,

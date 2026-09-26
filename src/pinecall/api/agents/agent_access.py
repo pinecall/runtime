@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pinecall.api.agents.held_agent import Registration, SocketId
 from pinecall.api.agents.registry import Registry
-from pinecall.auth.keys import KeyRecord, held_by
+from pinecall.auth.keys import KeyRecord, is_held_by
 
 
 # A number is a row somebody bought and the widget is not: there is no web door to hold, and every
@@ -16,5 +16,5 @@ def reached_by(
     registry: Registry, key: KeyRecord, slug: str, app: SocketId | None = None
 ) -> Registration | None:
     """The registration this key reaches for this agent: its own org's, in its own world."""
-    held = registry.serving(key.env, slug, app, held_by(key))
+    held = registry.serving(key.env, slug, app, is_held_by(key))
     return held if held is not None and held.org == key.org else None

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from pinecall.orgs.tuning_store import TuningStore
-from pinecall.providers.tuned_declaration import tuned
+from pinecall.providers.tuned_declaration import apply_tuning
 from pinecall.types import AgentConfig, Env, Lexicon, Tuning, Versions
 
 
@@ -28,7 +28,7 @@ async def tuned_for(
     """The corner's newest settings and lexicon, else the org's own, on what the app declared."""
     row = await kept.newest(org, env, holder, slug)
     words = await kept.newest_lexicon(org, env, holder)
-    config = tuned(
+    config = apply_tuning(
         declared,
         Tuning() if row is None else row.value,
         Lexicon() if words is None else words.value,

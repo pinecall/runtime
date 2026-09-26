@@ -108,13 +108,13 @@ def is_a_jwt(bearer: str) -> bool:
 
 def verify_call_token(token: str, call: str, secret: LivekitKeys) -> CallToken | None:
     """The token, if it is real, unexpired and bound to THIS call. Anything else is None."""
-    granted = a_call_token(token, secret)
+    granted = decode_call_token(token, secret)
     # The comparison is last on purpose: a token for another call is a real token, and answering
     # "not yours" before checking the signature would say so to somebody holding a forgery.
     return granted if granted is not None and granted.call == call else None
 
 
-def a_call_token(token: str, secret: LivekitKeys) -> CallToken | None:
+def decode_call_token(token: str, secret: LivekitKeys) -> CallToken | None:
     """The token, if it is real and unexpired, and the call it names. Which call is the caller's."""
     verifier = TokenVerifier(secret.api_key, secret.api_secret, leeway=NO_LEEWAY)
     try:
@@ -199,10 +199,10 @@ class Reader:
         )
 
 
-async def a_reader(bearer: str, keys: Keys, secret: LivekitKeys | None) -> Reader | None:
+async def reader_of_bearer(bearer: str, keys: Keys, secret: LivekitKeys | None) -> Reader | None:
     """The bearer as who it is. None means nobody we know, and it learns nothing about why."""
     if is_a_jwt(bearer):
-        granted = None if secret is None else a_call_token(bearer, secret)
+        granted = None if secret is None else decode_call_token(bearer, secret)
         if granted is None:
             return None
         return Reader(
@@ -225,7 +225,7 @@ async def a_reader(bearer: str, keys: Keys, secret: LivekitKeys | None) -> Reade
 # The one minter. The grants are the scope's own row in types/scopes.py and nothing else: a talk
 # token publishes its microphone and hears the agent, a chat token does neither, and every one of
 # them may send data — the DataChannel is how a widget speaks to the call.
-def a_room_token(
+def mint_room_token(
     call: str,
     scope: str,
     expires_at: float,
@@ -239,7 +239,7 @@ def a_room_token(
     """The signer `verify_call_token` checks against: one call, one scope, one visitor."""
     token = (
         AccessToken(secret.api_key, secret.api_secret)
-        .with_identity(identity or a_visitor())
+        .with_identity(identity or new_visitor_identity())
         .with_grants(grants_of(scope, call))
         # A TTL, not an epoch: LiveKit stamps exp itself. A negative one is a token already
         # dead when it is minted, which is how a test asks for an expired one.
@@ -256,13 +256,13 @@ def a_room_token(
 # The read token: one call's log and its recording, for as long as a page shows the call. Its grant
 # names the room — the call — and does not let it join, so LiveKit refuses it at the media plane
 # and every door of ours reads the call it is bound to exactly as it reads a room token's.
-def a_log_token(
+def mint_log_token(
     call: str, projection: Projection, secret: LivekitKeys, identity: str | None = None
 ) -> str:
     """A token that reads that call's log, through that projection, and opens nothing else."""
     return (
         AccessToken(secret.api_key, secret.api_secret)
-        .with_identity(identity or a_visitor())
+        .with_identity(identity or new_visitor_identity())
         .with_grants(
             VideoGrants(
                 room=call,
@@ -281,11 +281,11 @@ def a_log_token(
 # The code token: what a page asks "has my code been claimed yet?" with. It names the code and no
 # call, opens no room, and dies with the code. Once a call claims the code, the standing door
 # mints a real log token for that call, and this one has nothing left to say.
-def a_code_token(code: str, agent: str, env: Env, expires_at: float, secret: LivekitKeys) -> str:
+def mint_code_token(code: str, agent: str, env: Env, expires_at: float, secret: LivekitKeys) -> str:
     """A token that reads one code's standing, and nothing else, until the code expires."""
     return (
         AccessToken(secret.api_key, secret.api_secret)
-        .with_identity(a_visitor())
+        .with_identity(new_visitor_identity())
         .with_grants(
             VideoGrants(
                 room=f"code:{code}",
@@ -322,7 +322,7 @@ def grants_of(scope: str, call: str) -> VideoGrants:
     )
 
 
-def a_visitor() -> str:
+def new_visitor_identity() -> str:
     """An identity for a caller that arrived with none: the shape the chat door already mints."""
     return f"{A_VISITOR}{secrets.token_hex(VISITOR_BYTES)}"
 

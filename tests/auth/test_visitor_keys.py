@@ -4,7 +4,7 @@ import pytest
 
 from pinecall.auth.keys import MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
-from pinecall.auth.visitor_keys import StandingKeys, a_visitor, the_operator, visiting
+from pinecall.auth.visitor_keys import StandingKeys, operator_member, visitor_email, visitor_subject
 from pinecall.types import Member
 
 pytestmark = pytest.mark.unit
@@ -21,24 +21,24 @@ BERNA = Member(
 
 
 def test_a_visitors_subject_carries_the_folded_address_and_no_member_id_reads_as_one() -> None:
-    assert a_visitor(" Bernardo@Pinecall.io ") == "operator:bernardo@pinecall.io"
-    assert visiting("operator:bernardo@pinecall.io") == "bernardo@pinecall.io"
-    assert visiting("m_berna") is None and visiting(None) is None
+    assert visitor_subject(" Bernardo@Pinecall.io ") == "operator:bernardo@pinecall.io"
+    assert visitor_email("operator:bernardo@pinecall.io") == "bernardo@pinecall.io"
+    assert visitor_email("m_berna") is None and visitor_email(None) is None
 
 
 async def test_the_operator_is_an_active_flagged_row_of_that_address_in_any_org() -> None:
     twice = Member(id="m_2", org="clinica", email=BERNA.email, name="B", role="qa", status="active")
     members = MemoryMembers([twice, BERNA])
-    assert await the_operator(members, "Bernardo@pinecall.io") == BERNA
-    assert await the_operator(members, "ana@clinica.uy") is None
+    assert await operator_member(members, "Bernardo@pinecall.io") == BERNA
+    assert await operator_member(members, "ana@clinica.uy") is None
     await members.update(BERNA.org, BERNA.id, status="disabled")
-    assert await the_operator(members, BERNA.email) is None
+    assert await operator_member(members, BERNA.email) is None
 
 
 async def test_a_visitors_key_verifies_only_while_its_person_runs_the_box() -> None:
     members, table = MemoryMembers([BERNA]), MemoryKeys()
     keys = StandingKeys(table, members)
-    visitor = await keys.issue("clinica", "operator · b", subject=a_visitor(BERNA.email))
+    visitor = await keys.issue("clinica", "operator · b", subject=visitor_subject(BERNA.email))
     machine = await keys.issue("clinica", "prod server")
 
     assert await keys.verify(visitor.key) == visitor.record

@@ -68,7 +68,7 @@ def embedder_for(settings: Settings, http: httpx.AsyncClient) -> Embedder:
         vendor=vendor_of(settings),
         base_url=base_url_of(settings),
         model=model_of(settings),
-        key=a_key(settings),
+        key=embedder_key(settings),
         http=http,
         encoding=DEFAULTS[settings.embed_provider].encoding,
     )
@@ -98,7 +98,7 @@ def key_field_of(settings: Settings) -> str | None:
     return DEFAULTS[settings.embed_provider].key_field
 
 
-def a_key(settings: Settings) -> str:
+def embedder_key(settings: Settings) -> str:
     """The key this box reaches its embedder with, or a refusal naming the variable to set."""
     field = key_field_of(settings)
     if field is None:

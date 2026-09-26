@@ -12,7 +12,7 @@ from pinecall.knowledge import files as the_files
 from pinecall.knowledge.chunking import chunks_of
 from pinecall.knowledge.files import PUSHED_WITH_ANOTHER_MODEL, File
 from pinecall.log.store import Pool
-from pinecall.providers.embedder import Embedder, WrongModel, as_halfvec
+from pinecall.providers.embedder import Embedder, WrongModel, halfvec_literal
 from pinecall.types import (
     CANDIDATES_PER_BRANCH,
     Chunk,
@@ -188,7 +188,7 @@ class PgKnowledge:
             [piece.heading for piece in pieces],
             [piece.ordinal for piece in pieces],
             [piece.text for piece in pieces],
-            [as_halfvec(vector) for vector in vectors],
+            [halfvec_literal(vector) for vector in vectors],
             paths,
             texts,
             counted,
@@ -282,7 +282,7 @@ class PgKnowledge:
         asked = list(bases)
         pushed, nearest, worded = await asyncio.gather(
             self._pool.fetch(_MINE, org, env, mine, asked),
-            self._pool.fetch(_NEAREST, org, env, mine, asked, as_halfvec(vector), room),
+            self._pool.fetch(_NEAREST, org, env, mine, asked, halfvec_literal(vector), room),
             self._pool.fetch(_BEST_WORDED, org, env, mine, asked, query, room),
         )
         _every_base_on_the_same_model(pushed, await self._embedder.model())

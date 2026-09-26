@@ -13,8 +13,8 @@ from pinecall._settings import Settings
 from pinecall.providers import catalog
 from pinecall.providers.catalog import Provider
 from pinecall.providers.livekit_inference import VENDOR as INFERENCE
-from pinecall.providers.livekit_inference import the_project_is_there
-from pinecall.providers.plugin import installed
+from pinecall.providers.livekit_inference import has_livekit_pair
+from pinecall.providers.plugin import is_installed
 
 type Standing = Literal["ready", "no plugin", "no key", "its own"]
 
@@ -27,13 +27,13 @@ NO_KEY: Standing = "no key"
 ITS_OWN: Standing = "its own"
 
 
-def standing(provider: Provider, settings: Settings) -> Standing:
+def vendor_status(provider: Provider, settings: Settings) -> Standing:
     """One word for what this vendor is waiting for. `ready` is the only one that runs a call."""
-    if not installed(provider):
+    if not is_installed(provider):
         return NO_PLUGIN
     if provider.name == INFERENCE:
         # Inference bills the box's own LiveKit project, so the project's pair IS its key.
-        return READY if the_project_is_there(settings) else NO_KEY
+        return READY if has_livekit_pair(settings) else NO_KEY
     field = catalog.settings_field_of(provider.name)
     if field is None:
         return ITS_OWN

@@ -29,6 +29,6 @@ class Invited:
     expires_at: str | None
 
 
-def a_token() -> str:
+def new_invitation_token() -> str:
     """A one-use invitation, in the clear exactly once. Stored as its sha256, like a key."""
     return f"{INVITATION_PREFIX}{secrets.token_urlsafe(INVITATION_BYTES)}"

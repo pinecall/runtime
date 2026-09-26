@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 
-from pinecall.auth.keys import KeyRecord, held_by, is_the_fleets, sees_every_corner
+from pinecall.auth.keys import KeyRecord, is_fleet_key, is_held_by, is_operator_key
 from pinecall.auth.members import Members
 from pinecall.types import DeclarationRefused, Env, is_a_deployment
 
@@ -41,11 +41,11 @@ def corner_of(
     holder: str | None = None,
 ) -> Corner:
     """The corner this key resolves in, or a refusal when a tenant named somebody else's."""
-    own = Corner(record.org, record.env, held_by(record))
+    own = Corner(record.org, record.env, is_held_by(record))
     if org is None and env is None and holder is None:
         return own
     asked = Corner(org or own.org, env or own.env, holder)
-    if is_the_fleets(record):
+    if is_fleet_key(record):
         return asked
     if asked != own:
         raise DeclarationRefused(NOT_YOUR_CORNER)
@@ -60,7 +60,7 @@ CANNOT_LOOK_THERE = "only a key that sees every corner opens a colleague's, and 
 
 def looking_into(record: KeyRecord, holder: str) -> KeyRecord:
     """The same key, resolving this request in the corner named. Raises on a key that may not."""
-    if is_a_deployment(record.env) or not sees_every_corner(record):
+    if is_a_deployment(record.env) or not is_operator_key(record):
         raise PermissionError(CANNOT_LOOK_THERE)
     return replace(record, looking_at=holder)
 
@@ -73,7 +73,7 @@ CORNER_HEADER = "pinecall-corner"
 NOT_A_COLLEAGUE = "no active member of this org answers to that corner"
 
 
-async def in_the_corner_asked(
+async def resolve_scope(
     record: KeyRecord, headers: Mapping[str, str], members: Members
 ) -> KeyRecord:
     """The key as this request resolves it: its own corner, or the colleague's the header names.

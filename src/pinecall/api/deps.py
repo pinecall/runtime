@@ -10,8 +10,8 @@ from starlette.requests import HTTPConnection
 
 from pinecall._settings import Settings
 from pinecall.auth.bearer import bearer_of
-from pinecall.auth.env import as_asked, as_itself, in_the_world_asked
-from pinecall.auth.keys import NO_KEYS_TABLE, KeyRecord, Keys, not_opening
+from pinecall.auth.env import own_scope, requested_scope, resolve_env
+from pinecall.auth.keys import NO_KEYS_TABLE, KeyRecord, Keys, cannot_open
 from pinecall.auth.login_codes import LoginCodes
 from pinecall.auth.members import Members
 from pinecall.auth.pairing import Pairings
@@ -124,7 +124,7 @@ async def a_key(
     """Whose key knocked, as an identity in this instance: the bare key's read."""
     record = await _the_key(connection, keys)
     try:
-        return await as_itself(record, connection.headers, members, settings)
+        return await own_scope(record, connection.headers, members, settings)
     except PermissionError as refused:
         raise HTTPException(403, str(refused)) from refused
 
@@ -135,7 +135,7 @@ async def a_key_that_acts(
     """Whose key knocked, acting in this instance's world: what every scoped door reads."""
     record = await _the_key(connection, keys)
     try:
-        return await as_asked(record, connection.headers, members, settings)
+        return await requested_scope(record, connection.headers, members, settings)
     except PermissionError as refused:
         raise HTTPException(403, str(refused)) from refused
 
@@ -149,7 +149,7 @@ async def a_key_on_a_socket(
     record = None if (bearer := bearer_of(websocket.headers)) is None else await keys.verify(bearer)
     if record is None:
         return None
-    return await in_the_world_asked(record, websocket.headers, members, settings)
+    return await resolve_env(record, websocket.headers, members, settings)
 
 
 SettingsDep = Annotated[Settings, Depends(a_settings)]
@@ -173,7 +173,7 @@ def opening(*scopes: KeyScope) -> Callable[..., Awaitable[KeyRecord]]:
     """A dependency that hands back the key when it opens one of these scopes, else refuses."""
 
     async def a_key_opening(key: ActingKeyDep) -> KeyRecord:
-        if (closed := not_opening(key, *scopes)) is not None:
+        if (closed := cannot_open(key, *scopes)) is not None:
             raise HTTPException(403, closed)
         return key
 

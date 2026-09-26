@@ -95,10 +95,10 @@ def test_a_key_nobody_issued_is_refused(gateway: TestClient) -> None:
 # for as long as nobody revokes it, and a URL is written down: the access log, the referrer, the
 # history. This door took a key in `?token=` until 2026-09-20, against what its own paragraph said.
 def test_a_room_token_may_travel_in_the_query_string(gateway: TestClient) -> None:
-    from pinecall.auth.scopes import a_room_token
+    from pinecall.auth.scopes import mint_room_token
     from tests.api.conftest import A_LIVEKIT
 
-    token = a_room_token(CALL, "participate", 4102444800.0, A_LIVEKIT)
+    token = mint_room_token(CALL, "participate", 4102444800.0, A_LIVEKIT)
     assert read(gateway, f"/v1/calls/{CALL}/events?token={token}").status == 200
 
 

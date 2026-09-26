@@ -29,7 +29,7 @@ TOO_SHORT = "a password is at least {shortest} characters"
 # 64 MiB per call, the library's defaults — and a gateway that ran it inline stalled every open
 # socket and stream for the length of each login (found 2026-09-26). A thread costs nothing the
 # hash does not already cost, and the loop keeps answering meanwhile.
-async def hashed(password: str, at_least: int) -> str:
+async def hash_password(password: str, at_least: int) -> str:
     """The password as the table keeps it: an argon2id string carrying its own salt and cost."""
     if len(password) < at_least:
         raise DeclarationRefused(TOO_SHORT.format(shortest=at_least))

@@ -9,7 +9,7 @@ from typing import Any
 
 from pinecall.knowledge.chunking import chunks_of
 from pinecall.log.store import Pool
-from pinecall.providers.embedder import Embedder, WrongModel, as_halfvec
+from pinecall.providers.embedder import Embedder, WrongModel, halfvec_literal
 from pinecall.types import Env, KnowledgeFile, whose
 
 # What a search says when the vectors in the table and the vectors this gateway makes came out of
@@ -175,7 +175,7 @@ async def put_file(
         [piece.heading for piece in pieces],
         [piece.ordinal for piece in pieces],
         [piece.text for piece in pieces],
-        [as_halfvec(vector) for vector in vectors],
+        [halfvec_literal(vector) for vector in vectors],
     )
     return len(pieces)
 

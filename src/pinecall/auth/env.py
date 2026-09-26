@@ -8,7 +8,7 @@ from dataclasses import replace
 from pinecall._settings import Settings
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Members
-from pinecall.auth.request_scope import in_the_corner_asked
+from pinecall.auth.request_scope import resolve_scope
 from pinecall.auth.visitor_keys import VISITOR_PREFIX
 from pinecall.types import ENVS, PRODUCTION
 
@@ -35,7 +35,7 @@ ONE_WORLD = "this token was made for {world}, and this gateway is {here}'s: use 
 THE_OTHER_GATEWAY = "the other gateway"
 
 
-def a_person(record: KeyRecord) -> bool:
+def is_persons_key(record: KeyRecord) -> bool:
     """Whether this key is a member's own, and not a server's token or an operator's visit."""
     return record.subject is not None and not record.subject.startswith(VISITOR_PREFIX)
 
@@ -53,7 +53,7 @@ def _held_against_the_instance(
         raise PermissionError(NOT_A_WORLD.format(asked=asked))
     if asked is not None and asked != here:
         raise PermissionError(NOT_THIS_WORLD.format(here=here, asked=asked, elsewhere=elsewhere))
-    if not a_person(record) and record.env != here:
+    if not is_persons_key(record) and record.env != here:
         raise PermissionError(ONE_WORLD.format(world=record.env, here=here, elsewhere=elsewhere))
     return asked
 
@@ -66,13 +66,13 @@ def _here(record: KeyRecord, settings: Settings) -> KeyRecord:
 # Production is the member's to open (`Member.opens_production`, 0039), read at every request so
 # an admin taking it away closes the very next one; the sandbox is every member's. An operator
 # visiting an org keeps the world their visiting key was made for, as a server's token does.
-async def in_the_world_asked(
+async def resolve_env(
     record: KeyRecord, headers: Mapping[str, str], members: Members, settings: Settings
 ) -> KeyRecord:
     """The key as it ACTS in this instance's world. Raises PermissionError with the sentence a door
     answers 403 with: another world asked for, a token of the other one, production not opened."""
     asked = _held_against_the_instance(record, headers, settings)
-    if a_person(record) and settings.world == PRODUCTION:
+    if is_persons_key(record) and settings.world == PRODUCTION:
         if asked is None:
             elsewhere = settings.elsewhere_url or THE_OTHER_GATEWAY
             raise PermissionError(SAY_THE_WORLD.format(elsewhere=elsewhere))
@@ -87,20 +87,20 @@ async def opens_production(record: KeyRecord, members: Members) -> bool:
     return member is not None and member.status == "active" and member.opens_production
 
 
-async def as_asked(
+async def requested_scope(
     record: KeyRecord, headers: Mapping[str, str], members: Members, settings: Settings
 ) -> KeyRecord:
     """The key acting in the instance's world, then the corner this request asked for — the one
     read of every door that opens a scope."""
-    return await in_the_corner_asked(
-        await in_the_world_asked(record, headers, members, settings), headers, members
+    return await resolve_scope(
+        await resolve_env(record, headers, members, settings), headers, members
     )
 
 
-async def as_itself(
+async def own_scope(
     record: KeyRecord, headers: Mapping[str, str], members: Members, settings: Settings
 ) -> KeyRecord:
     """The key as an identity in the instance's world, then the corner asked — the read of the
     doors that open no scope: whoami, the login code, pairing, the org switch, one's own keys."""
     _held_against_the_instance(record, headers, settings)
-    return await in_the_corner_asked(_here(record, settings), headers, members)
+    return await resolve_scope(_here(record, settings), headers, members)

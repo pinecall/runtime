@@ -9,7 +9,7 @@ from pinecall.api.agents.registry import Registry
 from pinecall.api.evals.golden_call import Conversation
 from pinecall.api.evals.golden_judges import Judging
 from pinecall.evals.goldens import Expect, Golden
-from pinecall.providers.declaration import a_tool
+from pinecall.providers.declaration import parse_tool
 from pinecall.types import GATE_DEFERRED_ON, AgentConfig
 from tests.api.evals.conftest import (
     AGENT,
@@ -27,7 +27,7 @@ pytestmark = pytest.mark.unit
 
 # The clinic as the judges see it when no app socket is in the way: the one declaration that says
 # which of its tools takes a slot away from somebody else.
-THE_CLINIC = AgentConfig(slug=AGENT, tools=(a_tool(BOOK),))
+THE_CLINIC = AgentConfig(slug=AGENT, tools=(parse_tool(BOOK),))
 
 
 async def judged(one: Conversation) -> dict[str, Any]:

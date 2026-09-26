@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from pinecall.api.deps import AppKeyDep, CallsKeyDep, FleetDep, LogsDep, StoreDep
 from pinecall.api.scope.operator_key import an_operator
-from pinecall.auth.keys import KeyRecord, is_the_fleets
+from pinecall.auth.keys import KeyRecord, is_fleet_key
 from pinecall.fleet import STALE_AFTER_S, Heartbeat, Seat, Standing, Totals
 from pinecall.log.store import DEFAULT_LIMIT
 from pinecall.types import Channel
@@ -130,7 +130,7 @@ async def callback_requested(
     # The overflow agent answers every org's callers on the fleet's key, so it may name any
     # agent that exists; a tenant's widget backend may only name its own.
     owner = await store.owner(None, said.agent)
-    if owner is None or (owner != key.org and not is_the_fleets(key)):
+    if owner is None or (owner != key.org and not is_fleet_key(key)):
         raise HTTPException(404, NOT_THIS_ORGS_AGENT.format(agent=said.agent))
     event = CallbackRequested(
         channel=said.channel, number=said.number, via=said.via, call=said.call, contact=None
@@ -198,5 +198,5 @@ def _the_totals_said(totals: Totals) -> FleetTotals:
 
 def _the_fleets_key(key: KeyRecord) -> None:
     """403 for any key but the box's worker's: only the fleet writes the fleet's table."""
-    if not is_the_fleets(key):
+    if not is_fleet_key(key):
         raise HTTPException(403, NOT_THE_FLEETS_KEY)

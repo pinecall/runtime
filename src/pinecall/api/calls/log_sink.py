@@ -16,10 +16,10 @@ from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.api.deps import SCOPE_OF_THE_DOOR, KeysDep, MembersDep, SettingsDep
 from pinecall.auth.bearer import bearer_of
-from pinecall.auth.env import as_asked
-from pinecall.auth.keys import KeyRecord, Keys, is_the_fleets, not_opening
+from pinecall.auth.env import requested_scope
+from pinecall.auth.keys import KeyRecord, Keys, cannot_open, is_fleet_key
 from pinecall.auth.request_scope import corner_of
-from pinecall.auth.scopes import LivekitKeys, Reader, a_reader, is_a_jwt, secret_for
+from pinecall.auth.scopes import LivekitKeys, Reader, is_a_jwt, reader_of_bearer, secret_for
 from pinecall.log.entry import Entry
 from pinecall.log.filters import Filter
 from pinecall.log.projection import project_entry
@@ -64,14 +64,18 @@ async def reading(
     """Who is reading: the Bearer key, or ?token= for a browser. None means nobody we know."""
     header = bearer_of(connection.headers)
     if header:
-        return await a_reader(header, keys, _a_secret(settings))
+        return await reader_of_bearer(header, keys, _a_secret(settings))
     # A KEY in the query string is refused here and not merely discouraged: this is the one door
     # that reads a bearer out of a URL, and a URL is written down — the access log, the referrer,
     # the history of whatever browser followed it. A room token is short-lived and reads one call;
     # a key is the whole tenant, for as long as nobody revokes it. The paragraph above has said so
     # since this door was written, and the door took either until 2026-09-20 (found against
     # production: `GET /v1/calls/{call}/events?token=pc_…` answered the org's log).
-    return await a_reader(token, keys, _a_secret(settings)) if token and is_a_jwt(token) else None
+    return (
+        await reader_of_bearer(token, keys, _a_secret(settings))
+        if token and is_a_jwt(token)
+        else None
+    )
 
 
 # A token bound to a call reads that call and nothing else — not another call's log, not another
@@ -99,7 +103,7 @@ NOT_YOUR_ORGS = "this key does not read that org's log"
 async def another_orgs(reader: Reader, store: Store, call: str | None, agent: str) -> bool:
     """Whether this key's org is not the one whose log this is. The question, without the answer:
     a socket has no 403 to raise and a verb answers in its own words."""
-    if reader.key is None or is_the_fleets(reader.key):
+    if reader.key is None or is_fleet_key(reader.key):
         return False
     owner = await store.owner(call, agent)
     return owner is not None and owner != reader.key.org
@@ -141,13 +145,13 @@ async def the_reader(
     # A key reads in the world it names, in its own corner or the colleague's an admin named.
     if reader.key is not None:
         try:
-            looking = await as_asked(reader.key, connection.headers, members, settings)
+            looking = await requested_scope(reader.key, connection.headers, members, settings)
         except PermissionError as refused:
             raise HTTPException(403, str(refused)) from refused
         if looking is not reader.key:
             reader = replace(reader, key=looking)
     # A token's grant already says what it reads; a key reads a call with the `calls` scope.
-    if reader.key is not None and (closed := not_opening(reader.key, READS)) is not None:
+    if reader.key is not None and (closed := cannot_open(reader.key, READS)) is not None:
         raise HTTPException(403, closed)
     return reader
 

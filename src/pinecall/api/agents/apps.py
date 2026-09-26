@@ -8,7 +8,7 @@ from pinecall.api.agents.processes import Process, ProcessesDep
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.agents.registry_reads import named_holder
 from pinecall.api.deps import AppKeyDep, CallsKeyDep, MembersDep
-from pinecall.auth.keys import KeyRecord, held_by, sees_every_corner
+from pinecall.auth.keys import KeyRecord, is_held_by, is_operator_key
 from pinecall_protocol.rest import AppList, AppProcess, AppStopped
 
 router = APIRouter()
@@ -20,7 +20,7 @@ NO_SUCH_APP = "no app {app} is connected here that this key may stop"
 
 def _visible(key: KeyRecord, process: Process) -> bool:
     """A key sees its own corner's apps and the org's; one that opens `team` sees every corner's."""
-    return sees_every_corner(key) or process.holder in (None, held_by(key))
+    return is_operator_key(key) or process.holder in (None, is_held_by(key))
 
 
 # Where an org's agents are running is the question nobody could answer: the agent listing says

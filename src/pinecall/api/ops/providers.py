@@ -22,7 +22,7 @@ from pinecall.providers.session_vendors import DEFAULT_STT
 from pinecall.providers.tts import DEFAULT_TTS
 from pinecall.providers.tts.curated_voices import voice_names
 from pinecall.providers.tts.vendor_voices import LISTED
-from pinecall.providers.vendor_status import READY, Standing, standing
+from pinecall.providers.vendor_status import READY, Standing, vendor_status
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -103,7 +103,7 @@ def rows(settings: Settings) -> list[ProviderRow]:
 
 
 def _a_row(row: Provider, settings: Settings) -> ProviderRow:
-    where = standing(row, settings)
+    where = vendor_status(row, settings)
     return ProviderRow(
         name=row.name,
         does=[modality for modality in MODALITIES if modality in row.does],

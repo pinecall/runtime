@@ -4,7 +4,7 @@ import pytest
 
 from pinecall.api.agents.registry import Registry
 from pinecall.api.agents.registry_reads import a_developers_own
-from pinecall.auth.keys import KeyRecord, held_by, sees_every_corner
+from pinecall.auth.keys import KeyRecord, is_held_by, is_operator_key
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.types import PRODUCTION, ROLE_SCOPES, SANDBOX
@@ -281,7 +281,7 @@ def test_the_corner_a_key_works_in_is_its_person_in_sandbox_and_nobody_in_produc
     laptop = KeyRecord(key_id="k_1", org=ORG, env=SANDBOX, subject=BERNA, name="Berna")
     console = KeyRecord(key_id="k_2", org=ORG, env=PRODUCTION, subject=BERNA, name="Berna")
     machine = KeyRecord(key_id="k_3", org=ORG, env=SANDBOX, label="ci")
-    assert (held_by(laptop), held_by(console), held_by(machine)) == (BERNA, None, None)
+    assert (is_held_by(laptop), is_held_by(console), is_held_by(machine)) == (BERNA, None, None)
 
 
 async def test_a_reader_who_sees_the_team_gets_one_row_per_corner_saying_whose() -> None:
@@ -304,7 +304,7 @@ def test_who_sees_every_corner_opens_the_team_and_holds_an_agent() -> None:
     manager = KeyRecord(key_id="k_2", org=ORG, env=SANDBOX, scopes=ROLE_SCOPES["manager"])
     developer = KeyRecord(key_id="k_3", org=ORG, env=SANDBOX, scopes=ROLE_SCOPES["developer"])
 
-    seen = (sees_every_corner(admin), sees_every_corner(manager), sees_every_corner(developer))
+    seen = (is_operator_key(admin), is_operator_key(manager), is_operator_key(developer))
 
     assert seen == (True, False, False)
 

@@ -13,7 +13,7 @@ from pinecall.api.deps import (
     UsageKeyDep,
 )
 from pinecall.api.live import LiveDep
-from pinecall.auth.keys import is_the_fleets
+from pinecall.auth.keys import is_fleet_key
 from pinecall_protocol.rest import Judging, JudgingWanted
 
 router = APIRouter()
@@ -48,6 +48,6 @@ async def judging_this_call(
 ) -> Judging:
     """Whether the org this open call belongs to judges its calls."""
     opened = live.the_call(call)
-    if opened is None or (opened.org != key.org and not is_the_fleets(key)):
+    if opened is None or (opened.org != key.org and not is_fleet_key(key)):
         raise HTTPException(status_code=404, detail=NOT_OPEN.format(call=call))
     return Judging(on=await orgs.judges(opened.org), ceiling_eur=settings.judge_ceiling_eur)

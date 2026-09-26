@@ -8,7 +8,7 @@ from typing import Any
 from livekit.agents.metrics import LLMMetrics as Measured
 from livekit.agents.metrics.usage import AgentSessionUsage
 
-from pinecall.providers.usage_wire import as_wire_rows
+from pinecall.providers.usage_wire import wire_usage_rows
 from pinecall_protocol.metrics import (
     AgentTurnMetrics,
     LLMMetrics,
@@ -90,7 +90,7 @@ def turn_metrics(reply: Reply, e2e_latency: float, provider: str, model: str) ->
 # summary.
 def usage_rows(usage: AgentSessionUsage) -> list[LLMModelUsage]:
     """What the session consumed, as call.summary carries it: livekit's rows, unchanged."""
-    return [row for row in as_wire_rows(usage.model_usage) if isinstance(row, LLMModelUsage)]
+    return [row for row in wire_usage_rows(usage.model_usage) if isinstance(row, LLMModelUsage)]
 
 
 # What the model has read and written on this call so far, before any call.summary exists: the

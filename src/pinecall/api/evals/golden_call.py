@@ -12,7 +12,7 @@ from pinecall.api.agents import call_commands as commands
 from pinecall.api.evals.app_settled import Settling
 from pinecall.api.evals.run_attachment import APP_DETACHED, ENDED_BY, AppDetached, Attachment
 from pinecall.api.live import Live
-from pinecall.auth.scopes import a_visitor
+from pinecall.auth.scopes import new_visitor_identity
 from pinecall.evals.golden_memory import Remembering
 from pinecall.evals.goldens import Golden
 from pinecall.log.entry import Entry
@@ -136,7 +136,7 @@ def an_eval_call(
         call=call,
         channel="web",
         direction="inbound",
-        caller=a_visitor(),
+        caller=new_visitor_identity(),
         run=run,
         route=Route(org=org, agent=config.slug, channel="web", number=None, env=env),
         # A golden that names a weekday pins the day it means; the rest run on the real one.

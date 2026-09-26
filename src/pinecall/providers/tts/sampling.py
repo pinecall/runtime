@@ -52,7 +52,7 @@ class Sample:
     total_ms: int
 
 
-def a_line_for(language: str | None) -> str:
+def sample_line_for(language: str | None) -> str:
     """The line a voice reads when nobody wrote one: its language's, else the English one."""
     return A_LINE_FOR.get(primary(language) or "", A_LINE_FOR["en"])
 
@@ -62,7 +62,7 @@ def a_line_for(language: str | None) -> str:
 # streaming path a call speaks on where the plugin has one. The plugin reaches the vendor through
 # livekit's http session, which only a job binds, so the door opens one of its own for as long as
 # the sentence takes (utils/http_context.py, as evals/voice_run.py does).
-async def a_sample(vendor: str, asked: Asked, text: str) -> Sample:
+async def speak_sample(vendor: str, asked: Asked, text: str) -> Sample:
     """The text said by that vendor as asked, as a WAV, with how long it took to start and end."""
     async with http_context.open():
         speech = VENDORS.build(vendor, asked)

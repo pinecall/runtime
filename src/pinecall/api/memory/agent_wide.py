@@ -9,7 +9,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query
 
 from pinecall.api.deps import KeptMemoryDep, MemoryKeyDep
-from pinecall.auth.keys import held_by
+from pinecall.auth.keys import is_held_by
 from pinecall_protocol import WireModel
 from pinecall_protocol.rest import AgentFact, AgentMemory, Forgotten
 
@@ -37,7 +37,7 @@ async def taught(
 ) -> AgentMemory:
     """The current facts this agent's calls taught, a page at a time, filtered by words."""
     page = await memory.taught_by(
-        key.org, key.env, held_by(key), slug, words=q or None, after=after, limit=limit
+        key.org, key.env, is_held_by(key), slug, words=q or None, after=after, limit=limit
     )
     return AgentMemory(
         facts=[
@@ -79,7 +79,7 @@ async def learnt(
 ) -> OrgMemory:
     """The current facts every agent of this org taught, a page at a time, filtered by words."""
     page = await memory.taught_by(
-        key.org, key.env, held_by(key), None, words=q or None, after=after, limit=limit
+        key.org, key.env, is_held_by(key), None, words=q or None, after=after, limit=limit
     )
     return OrgMemory(
         facts=[
@@ -103,7 +103,7 @@ async def learnt(
 @router.delete("/v1/memory/facts/{id}")
 async def forget_one(id: UUID, key: MemoryKeyDep, memory: KeptMemoryDep) -> Forgotten:
     """This fact holds no more, from now. 404 when no current fact of this org answers the id."""
-    ended = await memory.invalidated(key.org, key.env, held_by(key), str(id), datetime.now(UTC))
+    ended = await memory.invalidated(key.org, key.env, is_held_by(key), str(id), datetime.now(UTC))
     if not ended:
         raise HTTPException(404, NO_SUCH_FACT.format(id=id))
     return Forgotten(forgotten=1)

@@ -72,7 +72,7 @@ def _ahead_of_the_caller(
 
 # A live call's log keeps a hash of each block and never the text, because the log travels and a
 # prompt holds the caller's own words. A run being reproduced is the one reader that asks for it.
-def as_a_request(request: SystemBlocks, vendor: str) -> dict[str, Any]:
+def vendor_request(request: SystemBlocks, vendor: str) -> dict[str, Any]:
     """One request as the vendor's own formatter builds it: the system blocks, then the messages."""
     messages, extra = request.to_provider_format(vendor)
     # Anthropic carries the blocks apart; every other vendor's system text is already in `messages`.

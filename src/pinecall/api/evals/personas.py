@@ -10,7 +10,7 @@ from starlette.requests import HTTPConnection
 from pinecall.api.deps import EvalsKeyDep, held
 from pinecall.auth.request_scope import author_of
 from pinecall.orgs.personas import Personas
-from pinecall.providers.tuned_declaration import the_llm, the_voice
+from pinecall.providers.tuned_declaration import tuned_llm, tuned_voice
 from pinecall.types import DeclarationRefused
 from pinecall_protocol.rest import Persona, PersonaList, PersonaPut
 
@@ -84,8 +84,8 @@ def _played_as(said: PersonaPut) -> tuple[str | None, str | None, str | None]:
     """The model, the vendor and the voice as the table keeps them, or 422 in the parser's words."""
     llm, tts, voice = said.llm or None, said.tts or None, said.voice or None
     try:
-        the_llm(llm)
-        the_voice(tts, voice)
+        tuned_llm(llm)
+        tuned_voice(tts, voice)
     except DeclarationRefused as refused:
         raise HTTPException(422, str(refused)) from refused
     return llm, tts, voice

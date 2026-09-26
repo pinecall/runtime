@@ -9,7 +9,7 @@ from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.calls.worker_writes import NOT_OPEN, refuse_another_orgs_call
 from pinecall.api.deps import AppKeyDep, LogsDep
 from pinecall.api.live import LiveDep
-from pinecall.auth.keys import is_the_fleets
+from pinecall.auth.keys import is_fleet_key
 from pinecall.auth.request_scope import Corner, corner_of
 from pinecall.log.entry import Entry
 from pinecall.session.tool_declaration import ToolUse
@@ -57,7 +57,7 @@ async def run_a_tool(
     # Whose app the tool goes out to: the key's own corner for a tenant's worker, and for the
     # fleet's the corner of the CALL — said once when it was opened, and kept by this process.
     whose = corner_of(key)
-    if is_the_fleets(key):
+    if is_fleet_key(key):
         whose = Corner(served.org, served.context.env, served.holder)
     held = registry.of(whose.env, agent, whose.holder)
     if held is not None and held.org != whose.org:

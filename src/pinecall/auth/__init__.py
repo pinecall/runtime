@@ -3,7 +3,14 @@
 from pinecall.auth.bearer import POLICY_VIOLATION, bearer_of
 from pinecall.auth.keys import KeyRecord, Keys, MemoryKeys, keys_for
 from pinecall.auth.keys_postgres import PostgresKeys
-from pinecall.auth.scopes import CallToken, LivekitKeys, Reader, a_reader, a_room_token, secret_for
+from pinecall.auth.scopes import (
+    CallToken,
+    LivekitKeys,
+    Reader,
+    mint_room_token,
+    reader_of_bearer,
+    secret_for,
+)
 
 __all__ = [
     "POLICY_VIOLATION",
@@ -14,9 +21,9 @@ __all__ = [
     "MemoryKeys",
     "PostgresKeys",
     "Reader",
-    "a_reader",
-    "a_room_token",
     "bearer_of",
     "keys_for",
+    "mint_room_token",
+    "reader_of_bearer",
     "secret_for",
 ]

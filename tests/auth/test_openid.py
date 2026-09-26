@@ -15,11 +15,11 @@ from pinecall.auth.openid import (
     NOT_REACHED,
     OpenIdRefused,
     Provider,
+    authorization_url,
     claims,
     configuration,
     exchange,
     reachable,
-    where_to_send,
 )
 from tests.api.fake_idp import CLIENT_ID, CLIENT_SECRET, ISSUER, KID, FakeIdp, signing_key
 
@@ -83,7 +83,9 @@ async def test_an_issuer_that_is_an_address_is_refused_before_anything_is_fetche
 def test_the_authorization_url_merges_its_query_into_one_the_endpoint_already_carries() -> None:
     provider = _a_provider(authorization_endpoint=f"{ISSUER}/authorize?tenant=t1")
     sent = httpx.URL(
-        where_to_send(provider, CLIENT_ID, "https://box/back", state="s", nonce="n", verifier="v")
+        authorization_url(
+            provider, CLIENT_ID, "https://box/back", state="s", nonce="n", verifier="v"
+        )
     )
     assert sent.params["tenant"] == "t1"
     assert sent.params["state"] == "s"

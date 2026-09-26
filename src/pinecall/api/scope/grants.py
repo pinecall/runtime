@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
-from pinecall.auth.grants import granting
+from pinecall.auth.grants import check_may_grant
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Members
 from pinecall.types import Role
@@ -17,7 +17,7 @@ async def may_grant(
 ) -> None:
     """403 when this key may not hand out that role, or production access it has not got."""
     try:
-        await granting(key, members, role, production)
+        await check_may_grant(key, members, role, production)
     except PermissionError as refused:
         raise HTTPException(403, str(refused)) from refused
 

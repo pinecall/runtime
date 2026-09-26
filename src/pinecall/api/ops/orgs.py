@@ -21,7 +21,7 @@ from pinecall.api.deps import (
 from pinecall.api.scope.operator_key import an_operators_router
 from pinecall.api.telephony.deps import DialPoliciesDep
 from pinecall.auth.keys import ListedKey
-from pinecall.providers.lent_keys import NotLent, a_lending
+from pinecall.providers.lent_keys import NotLent, parse_lending
 from pinecall.types import (
     KEY_SCOPES,
     PRODUCTION,
@@ -280,7 +280,7 @@ async def set_quotas(named: str, said: WantedQuotas, orgs: OrgsDep) -> OrgQuotas
             seats=said.seats,
             llm_tokens=said.llm_tokens,
             budget_eur=said.budget_eur,
-            lends=None if said.lends is None else a_lending(said.lends),
+            lends=None if said.lends is None else parse_lending(said.lends),
         )
     except (DeclarationRefused, NotLent) as refused:
         raise HTTPException(400, str(refused)) from refused

@@ -707,7 +707,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   and the WhatsApp thread never: a reader following the seqs saw one skip and the stored log had
   it. A log takes more than one tap now, and a watcher is one: inline, in order, before the append
   returns, so the WhatsApp door still answers only once the contact has the message.
-- **A production key is never told the line is its own.** Production has no corners: `held_by`
+- **A production key is never told the line is its own.** Production has no corners: `is_held_by`
   answers None for every key there and so does the line's holder, so `holder == whose` was
   `None == None` and `pinecall line` told a laptop holding nothing that the number "rings in this
   terminal", about a box.
@@ -960,7 +960,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   false` and `role: "operator"` where they are none. `POST /v1/login/org` lets them into any org
   on a production key with the admin role's scopes, labelled `operator · <email>`, whose
   `subject` is `operator:<email>` — no member row, no seat, attributable by address wherever a
-  subject is written down. `GET /v1/whoami` gains `operator` and `visiting`. Such a key is asked
+  subject is written down. `GET /v1/whoami` gains `operator` and `visitor_email`. Such a key is asked
   about on every verify, so revoking the flag, disabling or removing the person stops it on the
   next request; it opens no sandbox and pairs no terminal. **Changed with it:** the operator
   flag is the PERSON's — a key of theirs in any org of theirs opens `/v1/ops/*`, not only the
@@ -1187,7 +1187,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   the operator of the box had none either. `GET /v1/agents` now answers a key that opens `team`
   with one row per CORNER instead of one per slug, and every row carries `holder`, the member
   whose copy it is — absent for the org's own, which is what a server's token holds. Which rows a
-  reader gets is the key's own answer (`sees_every_corner`, `auth/keys.py`): whoever may see who
+  reader gets is the key's own answer (`is_operator_key`, `auth/keys.py`): whoever may see who
   the team IS may see what the team is RUNNING. `holder` is the same `{holder, name}` the line
   door answers with, because the id alone names nobody a page can show.
 - **`orgs move <agent> <org>` takes the agent's NUMBERS with it.** A slug belongs to the org that first registered it for as long as

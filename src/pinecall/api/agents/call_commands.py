@@ -83,7 +83,7 @@ def in_a_call(type: str) -> Callable[[CallHandler], Handler]:
 async def configure(session: TextSession, wanted: SessionConfigure) -> None:
     """Set this call up before the first turn: the app's state, and any config of its own."""
     if wanted.config is not None:
-        session.config = declaration.configured(session.config, wanted.config)
+        session.config = declaration.apply_declaration(session.config, wanted.config)
         await session.emit(
             "agent.configured",
             AgentConfigured(changed=list(declaration.changed_by(wanted.config))),

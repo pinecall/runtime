@@ -10,7 +10,7 @@ from starlette.status import HTTP_204_NO_CONTENT
 from pinecall.api.deps import AppKeyDep, OrgsDep, RoutesDep, an_org
 from pinecall.api.scope.operator_key import an_operators_router
 from pinecall.api.scope.request_scope import CornerDep
-from pinecall.auth.keys import is_the_fleets
+from pinecall.auth.keys import is_fleet_key
 from pinecall.auth.request_scope import NOT_YOUR_CORNER
 from pinecall.types import PRODUCTION, Channel, Env, Route
 from pinecall_protocol import WireModel
@@ -70,7 +70,7 @@ async def routes(
 ) -> list[Route]:
     """The doors of one corner, or the one door a number rings, so a job is resolved at once."""
     if number is not None or channel is not None:
-        if not is_the_fleets(key) or number is None or channel is None:
+        if not is_fleet_key(key) or number is None or channel is None:
             raise HTTPException(403, NOT_YOUR_CORNER)
         door = await table.at(channel, number)
         return [] if door is None else [door]

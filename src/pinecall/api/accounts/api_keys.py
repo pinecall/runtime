@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 
 from pinecall._settings import Settings
 from pinecall.api.deps import AppKeyDep, KeyDep, KeysDep, MembersDep, SettingsDep
-from pinecall.auth.env import THE_OTHER_GATEWAY, a_person
+from pinecall.auth.env import THE_OTHER_GATEWAY, is_persons_key
 from pinecall.auth.keys import Issued, KeyRecord, ListedKey
 from pinecall.auth.request_scope import author_of
 from pinecall.types import Env, parse_env
@@ -109,7 +109,7 @@ async def issue(
 ) -> KeyIssued:
     """A server's token for this org, in this instance's world, answered once."""
     env = in_this_world(said.env, settings)
-    if not a_person(key):
+    if not is_persons_key(key):
         raise HTTPException(403, BY_A_PERSON)
     issued = await keys.issue(
         org=key.org, label=said.label, env=env, scopes=SERVER_SCOPES, created_by=author_of(key)

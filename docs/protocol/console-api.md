@@ -239,7 +239,7 @@ logo and accent) and `google` (draw "Continue with Google", a link to `GET /v1/l
 
 **The org switch for an operator**: `GET /v1/login/orgs` rows carry `member`, and an operator's
 list is every org of the box — draw the `member: false` ones apart, they are entered as the
-operator; `GET /v1/whoami` gains `operator` and `visiting`, and a page inside a visited org should
+operator; `GET /v1/whoami` gains `operator` and `visitor_email`, and a page inside a visited org should
 say so, because `visiting: true` means no sandbox, no terminal pairing and an org that is not
 theirs ([people.md](people.md)).
 

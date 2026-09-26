@@ -10,7 +10,7 @@ from livekit.agents.llm.utils import (
     build_legacy_openai_schema,  # pyright: ignore[reportUnknownVariableType]
 )
 
-from pinecall.providers.prompt_request import SystemBlocks, as_a_request
+from pinecall.providers.prompt_request import SystemBlocks, vendor_request
 
 
 class Asking(Protocol):
@@ -42,7 +42,7 @@ class WhatWasAsked:
 
     def asked(self, request: SystemBlocks, tools: Sequence[agents.Tool], vendor: str) -> None:
         """Keep this one: once per request, which on a turn that runs tools is more than once."""
-        self._turns.append({**as_a_request(request, vendor), "tools": _declared_as(tools)})
+        self._turns.append({**vendor_request(request, vendor), "tools": _declared_as(tools)})
 
     @property
     def turns(self) -> tuple[Mapping[str, Any], ...]:

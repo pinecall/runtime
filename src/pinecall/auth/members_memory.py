@@ -6,9 +6,9 @@ import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 
-from pinecall.auth.invitations import INVITATION_TTL_S, Invited, a_token
+from pinecall.auth.invitations import INVITATION_TTL_S, Invited, new_invitation_token
 from pinecall.auth.keys import fingerprint
-from pinecall.auth.members import Kept, NoSeatLeft, a_member_id, an_address, an_instant
+from pinecall.auth.members import Kept, NoSeatLeft, iso_instant, new_member_id, normalize_email
 from pinecall.types import Member, MemberStatus, Role
 
 
@@ -39,7 +39,7 @@ class MemoryMembers:
     ) -> None:
         self._clock = clock
         self._rows: dict[str, _Row] = {
-            member.id: _Row(member, None, an_instant(clock())) for member in rows
+            member.id: _Row(member, None, iso_instant(clock())) for member in rows
         }
         self._invitations: dict[str, _Invitation] = {}
 
@@ -56,7 +56,7 @@ class MemoryMembers:
         seats: int | None = None,
     ) -> Invited | None:
         """One row per (org, email); a second invite of one still invited replaces the token."""
-        email = an_address(email)
+        email = normalize_email(email)
         kept = await self.by_email(org, email)
         if kept is not None and kept.member.status != "invited":
             return None
@@ -67,7 +67,7 @@ class MemoryMembers:
             if seats is not None and seated >= seats:
                 raise NoSeatLeft(org, seated)
             member = Member(
-                id=a_member_id(),
+                id=new_member_id(),
                 org=org,
                 email=email,
                 name=name,
@@ -80,9 +80,9 @@ class MemoryMembers:
             # password somebody chose through a handed link says nothing about who chose it.
             if known is not None and await self.verified(email):
                 member = replace(member, status="active", verified=True)
-                self._rows[member.id] = _Row(member, known, an_instant(self._clock()))
+                self._rows[member.id] = _Row(member, known, iso_instant(self._clock()))
                 return Invited(member=member, token=None, expires_at=None)
-            self._rows[member.id] = _Row(member, None, an_instant(self._clock()))
+            self._rows[member.id] = _Row(member, None, iso_instant(self._clock()))
         else:
             member = kept.member
             self._spend_every_open_link_of(member.id)
@@ -107,7 +107,7 @@ class MemoryMembers:
 
     async def a_persons_password(self, email: str) -> str | None:
         """The newest hash any row of this email holds."""
-        email = an_address(email)
+        email = normalize_email(email)
         rows = [row for row in self._rows.values() if row.member.email == email]
         for row in sorted(rows, key=lambda row: row.created_at, reverse=True):
             if row.password_hash is not None:
@@ -116,7 +116,7 @@ class MemoryMembers:
 
     async def orgs_of(self, email: str) -> tuple[Member, ...]:
         """Every row of this email, in the order they were made."""
-        email = an_address(email)
+        email = normalize_email(email)
         return tuple(row.member for row in self._rows.values() if row.member.email == email)
 
     async def verified(self, email: str) -> bool:
@@ -149,7 +149,7 @@ class MemoryMembers:
 
     async def mirrored(self, member: Member) -> Member | None:
         """Production's fields over the row with its id, or a new row with no password."""
-        email = an_address(member.email)
+        email = normalize_email(member.email)
         row = self._rows.get(member.id)
         if row is not None and row.member.org != member.org:
             return None
@@ -158,7 +158,7 @@ class MemoryMembers:
             await self.remove(member.org, held.member.id)
         if row is None:
             mirrored = replace(member, email=email, verified=True, operator=False, production=False)
-            self._rows[member.id] = _Row(mirrored, None, an_instant(self._clock()))
+            self._rows[member.id] = _Row(mirrored, None, iso_instant(self._clock()))
             return mirrored
         mirrored = replace(
             row.member,
@@ -187,7 +187,7 @@ class MemoryMembers:
 
     async def by_email(self, org: str, email: str) -> Kept | None:
         """The one row of this org with this email, as login reads it."""
-        email = an_address(email)
+        email = normalize_email(email)
         for row in self._rows.values():
             if row.member.org == org and row.member.email == email:
                 return Kept(row.member, row.password_hash)
@@ -254,6 +254,6 @@ class MemoryMembers:
 
     def _a_link_for(self, member: Member, vouched: bool) -> Invited:
         """One token for this member, good for a week, remembered by its fingerprint."""
-        token, expires_at = a_token(), self._clock() + INVITATION_TTL_S
+        token, expires_at = new_invitation_token(), self._clock() + INVITATION_TTL_S
         self._invitations[fingerprint(token)] = _Invitation(member.id, expires_at, vouched=vouched)
-        return Invited(member=member, token=token, expires_at=an_instant(expires_at))
+        return Invited(member=member, token=token, expires_at=iso_instant(expires_at))

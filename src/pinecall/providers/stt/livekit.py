@@ -2,7 +2,7 @@
 
 from livekit.agents import inference
 
-from pinecall.providers.livekit_inference import DEFAULT_STT_MODEL, VENDOR, the_projects_pair
+from pinecall.providers.livekit_inference import DEFAULT_STT_MODEL, VENDOR, livekit_pair
 from pinecall.providers.registry import Asked, Ears
 from pinecall.providers.stt import VENDORS
 
@@ -14,7 +14,7 @@ from pinecall.providers.stt import VENDORS
 @VENDORS.registers(VENDOR, models=(DEFAULT_STT_MODEL,))
 def build(asked: Asked) -> Ears:
     """`deepgram/nova-3`, `assemblyai/universal-streaming`, or `auto` to be told by the language."""
-    key, secret = the_projects_pair(asked)
+    key, secret = livekit_pair(asked)
     return inference.STT(
         model=asked.model or DEFAULT_STT_MODEL,
         language=asked.language or "multi",

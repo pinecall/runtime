@@ -133,18 +133,18 @@ async def configuration(http: httpx.AsyncClient, issuer: str) -> Provider:
     )
 
 
-def a_verifier() -> str:
+def new_pkce_verifier() -> str:
     """One PKCE verifier: 256 bits of CSPRNG, url-safe, kept on this box until the exchange."""
     return secrets.token_urlsafe(VERIFIER_BYTES)
 
 
-def a_challenge(verifier: str) -> str:
+def pkce_challenge(verifier: str) -> str:
     """What travels through the browser: the verifier's sha256, base64url, no padding."""
     digest = hashlib.sha256(verifier.encode()).digest()
     return base64.urlsafe_b64encode(digest).decode().rstrip("=")
 
 
-def where_to_send(
+def authorization_url(
     provider: Provider,
     client_id: str,
     redirect_uri: str,
@@ -162,7 +162,7 @@ def where_to_send(
             "scope": SCOPE,
             "state": state,
             "nonce": nonce,
-            "code_challenge": a_challenge(verifier),
+            "code_challenge": pkce_challenge(verifier),
             "code_challenge_method": "S256",
         }
     )

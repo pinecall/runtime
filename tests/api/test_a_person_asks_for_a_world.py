@@ -10,7 +10,7 @@ from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from pinecall._settings import Settings
-from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
+from pinecall.auth.bearer import POLICY_VIOLATION, close_reason
 from pinecall.auth.env import (
     ENV_HEADER,
     NO_PRODUCTION,
@@ -232,4 +232,4 @@ def test_the_app_socket_at_production_closes_on_a_person_it_may_not_serve_and_sa
         socket.send_json(a_register(AGENT, a_door("web")))
         socket.receive_json()
     assert refused.value.code == POLICY_VIOLATION
-    assert refused.value.reason == as_a_close_reason(why)
+    assert refused.value.reason == close_reason(why)

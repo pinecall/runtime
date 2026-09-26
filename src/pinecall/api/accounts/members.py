@@ -23,7 +23,7 @@ from pinecall.api.scope.grants import elsewhere_too, may_grant
 from pinecall.auth import passwords
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Members, NoSeatLeft
-from pinecall.auth.person_keys import a_persons_key
+from pinecall.auth.person_keys import mint_person_key
 from pinecall.mail import Letter, Outbox, a_reset, an_invitation, where_the_card_is
 from pinecall.types import (
     Member,
@@ -290,11 +290,11 @@ async def accept(
     token: str, said: Accepting, members: MembersDep, keys: KeysDep, settings: SettingsDep
 ) -> FirstKey:
     """Spend the invitation: the member is active, and the answer is their first key, once."""
-    kept = await passwords.hashed(said.password, settings.min_password)
+    kept = await passwords.hash_password(said.password, settings.min_password)
     member = await members.accept(token, kept)
     if member is None:
         raise HTTPException(404, NO_INVITATION)
-    issued = await a_persons_key(keys, member, said.device or "invitation", settings.world)
+    issued = await mint_person_key(keys, member, said.device or "invitation", settings.world)
     return FirstKey(**issued.as_json, member=a_member_said(member))
 
 

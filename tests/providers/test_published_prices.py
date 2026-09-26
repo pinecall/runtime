@@ -5,7 +5,7 @@ import json
 import pytest
 
 from pinecall.providers import prices
-from pinecall.providers.published_prices import FILE, published
+from pinecall.providers.published_prices import FILE, published_prices
 
 pytestmark = pytest.mark.unit
 
@@ -19,7 +19,7 @@ def test_the_file_says_where_every_number_in_it_came_from() -> None:
 
 
 def test_it_prices_a_thousand_models_this_runtime_read_no_page_for() -> None:
-    table = published()
+    table = published_prices()
     assert len(table.tokens) + len(table.media) > 900
 
 

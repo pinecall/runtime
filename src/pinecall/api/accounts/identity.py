@@ -13,7 +13,7 @@ from pinecall.api.deps import SettingsDep
 from pinecall.auth.identity import Identity
 from pinecall.auth.keys import Issued, Keys, revoked_every_key_of
 from pinecall.auth.members import Members
-from pinecall.auth.person_keys import a_persons_key
+from pinecall.auth.person_keys import mint_person_key
 from pinecall.extensions import Admitting
 from pinecall.orgs.records import Orgs
 from pinecall.types import PRODUCTION, SANDBOX, Quotas
@@ -118,4 +118,4 @@ async def a_mirrored_key(
     if seated.status != "active":
         await revoked_every_key_of(keys, org.id, seated.id)
         raise HTTPException(403, NOT_ACTIVE.format(email=member.email, slug=org.slug))
-    return await a_persons_key(keys, seated, label, SANDBOX)
+    return await mint_person_key(keys, seated, label, SANDBOX)

@@ -17,7 +17,7 @@ from pinecall.api.deps import (
     VaultDep,
 )
 from pinecall.api.evals.agent_finished import the_call_is_over, until_the_answer_lands
-from pinecall.auth.keys import held_by
+from pinecall.auth.keys import is_held_by
 from pinecall.evals.caller_voice import Speaking
 from pinecall.evals.simulated_caller import (
     NO_MODEL,
@@ -30,7 +30,7 @@ from pinecall.evals.voice_run import Line, a_simulated_call
 from pinecall.log.replay import whole
 from pinecall.orgs.vault import brought_by
 from pinecall.providers.models import NoProvider
-from pinecall.providers.tuned_declaration import the_llm, the_voice
+from pinecall.providers.tuned_declaration import tuned_llm, tuned_voice
 from pinecall.types import DeclarationRefused
 from pinecall_protocol import WireModel
 
@@ -88,8 +88,8 @@ async def a_voice_call(
     # was. The door that wrote the persona refused a typo already, so a refusal here is a row
     # written before this build knew the word.
     try:
-        llm = llms(the_llm(said.persona.llm), brought)
-        declared = the_voice(said.persona.tts, said.persona.voice)
+        llm = llms(tuned_llm(said.persona.llm), brought)
+        declared = tuned_voice(said.persona.tts, said.persona.voice)
     except DeclarationRefused as refused:
         raise HTTPException(422, str(refused)) from refused
     except NoProvider as missing:
@@ -98,11 +98,11 @@ async def a_voice_call(
     # The caller speaks the agent's language in a voice the agent does not have: both read off
     # the config the agent runs on, in the corner of the socket the call is dispatched to.
     speaking = Speaking(brought=brought, declared=declared)
-    held = registry.of(key.env, said.agent, held_by(key))
+    held = registry.of(key.env, said.agent, is_held_by(key))
     # A slug is one org's, so a socket holding it may be another tenant's: its declaration —
     # the voice, the language — is not this key's to read, and the call runs bare instead.
     if held is not None and held.org == key.org:
-        running = await tuned_for(kept, key.org, key.env, held_by(key), said.agent, held.config)
+        running = await tuned_for(kept, key.org, key.env, is_held_by(key), said.agent, held.config)
         speaking = Speaking(
             language=running.config.language,
             agents_voice=None if running.config.voice is None else running.config.voice.voice_id,
@@ -150,7 +150,7 @@ async def a_voice_call(
             declines_when=said.persona.declines_when or None,
             org=key.org,
             env=key.env,
-            holder=held_by(key),
+            holder=is_held_by(key),
             speaking=speaking,
         )
     except (TimeoutError, RuntimeError) as broke:

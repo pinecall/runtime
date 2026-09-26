@@ -8,7 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from pinecall.auth.one_use import OneUse
-from pinecall.auth.openid import a_verifier
+from pinecall.auth.openid import new_pkce_verifier
 
 # What travels in the URL is this word and nothing else: the org, the nonce and the PKCE verifier
 # stay here. A state that carried them would be a state somebody could write themselves.
@@ -63,7 +63,7 @@ class Handshakes:
             state=self._words.a_word(),
             org=org,
             nonce=secrets.token_urlsafe(NONCE_BYTES),
-            verifier=a_verifier(),
+            verifier=new_pkce_verifier(),
             redirect_uri=redirect_uri,
             pairing=pairing,
             expires_at=self._words.expires_from_now(),

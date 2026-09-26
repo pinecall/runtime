@@ -3,7 +3,7 @@
 import pytest
 
 from pinecall.providers.tts.curated_voices import VOICES, vendor_of, voice_declared
-from pinecall.providers.tuned_declaration import tuned
+from pinecall.providers.tuned_declaration import apply_tuning
 from pinecall.types import AgentConfig, DeclarationRefused, Lexicon, Tuning, Voice
 
 pytestmark = pytest.mark.unit
@@ -14,7 +14,7 @@ THEIR_OWN = "Xb7hH8MSUJpSbSDYk0k2"
 
 def declaring(voice: str, model: str | None = None) -> Voice | None:
     """One agent with a voice set in its world and nothing else, as the next session is built."""
-    return tuned(
+    return apply_tuning(
         AgentConfig(slug="clinica-norte"), Tuning(voice=voice, tts_model=model), Lexicon()
     ).voice
 

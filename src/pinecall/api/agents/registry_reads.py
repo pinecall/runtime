@@ -22,7 +22,7 @@ from pinecall.api.deps import (
 )
 from pinecall.api.ops.peers import ProductionDep, SandboxDep
 from pinecall.api.scope.request_scope import CornerDep, HeldDep
-from pinecall.auth.keys import KeyRecord, held_by, sees_every_corner
+from pinecall.auth.keys import KeyRecord, is_held_by, is_operator_key
 from pinecall.auth.members import Members
 from pinecall.auth.peers import PeerUnreachable, RingsFor
 from pinecall.types import (
@@ -77,7 +77,7 @@ async def agents(
     # Whose copies are listed is the key's own answer: a key that opens `team` — an admin's, the
     # operator's — sees every member's sandbox corner, and every row says whose it is. A developer
     # sees their corner and the org's, which is what they can open anyway.
-    held = registry.holding(key.org, key.env, held_by(key), every_corner=sees_every_corner(key))
+    held = registry.holding(key.org, key.env, is_held_by(key), every_corner=is_operator_key(key))
     # The doors each one answers, which is a fact about the org's table and not about the class:
     # every agent is on the web, and a number is a row somebody typed (api/telephony/numbers.py).
     doors = _doors_of(await table.of_org(key.org, key.env))
@@ -118,7 +118,7 @@ async def claim_the_line(
 ) -> TheLine:
     """Take this agent's ringing doors for this key's corner, whoever had them."""
     try:
-        registry.take_the_line(key.env, slug, held_by(key))
+        registry.take_the_line(key.env, slug, is_held_by(key))
     except DeclarationRefused as refused:
         raise HTTPException(409, str(refused)) from refused
     return await _said(slug, key, registry, members)
@@ -129,7 +129,7 @@ async def drop_the_line(
     slug: str, key: AppKeyDep, registry: RegistryDep, members: MembersDep
 ) -> TheLine:
     """Stop answering the ring. Whoever else is still holding the agent picks it up."""
-    registry.drop_the_line(key.env, slug, held_by(key))
+    registry.drop_the_line(key.env, slug, is_held_by(key))
     return await _said(slug, key, registry, members)
 
 
@@ -215,7 +215,7 @@ def _a_person(key: KeyRecord) -> str:
     """Whose corner this key opens, refusing the two keys that have none to route a call into."""
     if key.env != SANDBOX:
         raise HTTPException(409, NOT_IN_PRODUCTION)
-    whose = held_by(key)
+    whose = is_held_by(key)
     if whose is None:
         raise HTTPException(403, NOBODY_TO_ROUTE_TO)
     return whose
@@ -223,7 +223,7 @@ def _a_person(key: KeyRecord) -> str:
 
 async def _said(slug: str, key: KeyRecord, registry: Registry, members: Members) -> TheLine:
     """The line as a person reads it: whose it is by name, and every corner that could claim it."""
-    whose = held_by(key)
+    whose = is_held_by(key)
     held = registry.has_a_line(key.env, slug)
     holder = registry.line_for(key.env, slug)
     waiting = [one for one in registry.waiting_for_the_line(key.env, slug) if one.holder != holder]

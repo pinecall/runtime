@@ -8,7 +8,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from pinecall.api.agents.registry import Registry
-from pinecall.auth.scopes import a_room_token
+from pinecall.auth.scopes import mint_room_token
 from pinecall.log import snapshots as memo
 from pinecall.log.reduce import reduce
 from pinecall.log.snapshots import Snapshots
@@ -89,7 +89,7 @@ def as_a_participant(gateway: TestClient, token: str, call: str) -> Json:
 
 def a_token(call: str, for_seconds: float = 60) -> str:
     """A participate token minted by the test; minting for real is the tokens card's."""
-    return a_room_token(call, "participate", time.time() + for_seconds, A_LIVEKIT)
+    return mint_room_token(call, "participate", time.time() + for_seconds, A_LIVEKIT)
 
 
 # ── criterion 1: the fold, and the memo ─────────────────────────────────────────

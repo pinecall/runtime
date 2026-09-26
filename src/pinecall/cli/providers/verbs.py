@@ -15,7 +15,7 @@ from pinecall.providers.catalog import MODALITIES, Provider
 from pinecall.providers.models import DEFAULT_VENDOR
 from pinecall.providers.session_vendors import DEFAULT_STT
 from pinecall.providers.tts import DEFAULT_TTS
-from pinecall.providers.vendor_status import standing
+from pinecall.providers.vendor_status import vendor_status
 
 PURPOSE: str = "every llm, stt and tts vendor this build runs, and what each one wants"
 
@@ -56,7 +56,7 @@ def _a_row(row: Provider, settings: Settings) -> tuple[str, ...]:
     return (
         row.name + ours,
         does,
-        standing(row, settings),
+        vendor_status(row, settings),
         variable_of(field) if (field := catalog.settings_field_of(row.name)) else "",
         " ".join(row.aliases),
     )

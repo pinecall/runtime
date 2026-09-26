@@ -22,8 +22,8 @@ from pinecall.api.deps import (
     TalkKeyDep,
 )
 from pinecall.api.live import LiveDep, Served
-from pinecall.auth.keys import KeyRecord, is_the_fleets
-from pinecall.auth.scopes import a_code_token, a_log_token, secret_for
+from pinecall.auth.keys import KeyRecord, is_fleet_key
+from pinecall.auth.scopes import mint_code_token, mint_log_token, secret_for
 from pinecall.orgs.caller_codes import Codes, Issued
 from pinecall.routes.records import Routes
 from pinecall_protocol import WireModel, encode
@@ -73,7 +73,9 @@ async def issued(
     """Four digits, the number to call and key them at, and the token that asks after them."""
     number = await _the_phone_of(routes, key, said.agent)
     issued = await codes.issue(key.env, said.agent, said.ttl_s, said.log)
-    token = a_code_token(issued.code, said.agent, key.env, issued.expires_at, secret_for(settings))
+    token = mint_code_token(
+        issued.code, said.agent, key.env, issued.expires_at, secret_for(settings)
+    )
     return Code(code=issued.code, number=number, expires_at=issued.expires_at, code_token=token)
 
 
@@ -137,7 +139,7 @@ def _as_it_stands(issued: Issued, settings: Settings) -> CodeStanding:
             status="claimed",
             expires_at=issued.expires_at,
             call=issued.claimed,
-            log_token=a_log_token(issued.claimed, issued.log, secret_for(settings)),
+            log_token=mint_log_token(issued.claimed, issued.log, secret_for(settings)),
         )
     return CodeStanding(
         code=issued.code,
@@ -159,5 +161,5 @@ async def _the_phone_of(routes: Routes, key: KeyRecord, slug: str) -> str:
 
 def _refuse_another_orgs(key: KeyRecord, served: Served) -> None:
     """403 when a tenant's worker asks about a call of another org; the fleet's asks for all."""
-    if not is_the_fleets(key) and served.org != key.org:
+    if not is_fleet_key(key) and served.org != key.org:
         raise HTTPException(403, NOT_THIS_ORG)

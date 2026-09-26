@@ -9,7 +9,7 @@ from pinecall.api.accounts.members import MemberSaid, a_member_said
 from pinecall.auth.keys import Keys
 from pinecall.auth.login_codes import LoginCodes
 from pinecall.auth.members import Members
-from pinecall.auth.person_keys import a_persons_key
+from pinecall.auth.person_keys import mint_person_key
 from pinecall.auth.signups import Pending
 from pinecall.extensions import Extensions
 from pinecall.orgs.records import Orgs
@@ -69,7 +69,7 @@ async def the_org_made(
     if member is None:
         raise RuntimeError(f"the invitation just made for {pending.email} seated nobody")
     # The admin's own key, which opens production too: an admin always does (0039).
-    issued = await a_persons_key(keys, member, device or pending.device or SIGNED_UP, world)
+    issued = await mint_person_key(keys, member, device or pending.device or SIGNED_UP, world)
     minted = codes.mint(issued.record)
     return OrgMade(
         **issued.as_json,

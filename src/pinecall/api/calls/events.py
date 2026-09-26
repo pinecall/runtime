@@ -34,8 +34,8 @@ from pinecall.api.deps import (
     SnapshotsDep,
     StoreDep,
 )
-from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
-from pinecall.auth.keys import not_opening
+from pinecall.auth.bearer import POLICY_VIOLATION, close_reason
+from pinecall.auth.keys import cannot_open
 from pinecall.auth.scopes import Reader
 from pinecall.log.entry import Entry, ephemeral_entry
 from pinecall.log.filters import EVERYTHING
@@ -154,8 +154,8 @@ async def attach(
     await websocket.accept()
     # A key on this socket reads the call and steers it, so it is asked for the second: a person
     # who may only watch is told so in the one sentence, and the socket closes.
-    if reader.key is not None and (closed := not_opening(reader.key, STEERS)) is not None:
-        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(closed))
+    if reader.key is not None and (closed := cannot_open(reader.key, STEERS)) is not None:
+        await websocket.close(code=POLICY_VIOLATION, reason=close_reason(closed))
         return
     tail = asyncio.ensure_future(_tail(websocket, logs, project, reader, call, after))
     try:

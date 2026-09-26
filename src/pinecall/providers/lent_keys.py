@@ -46,14 +46,14 @@ def refusal(lends: frozenset[str], vendor: str, model: str | None) -> str:
     return NOT_LENT.format(what=what, lent=", ".join(sorted(lends)) or NOTHING, vendor=name)
 
 
-def a_lending(entries: Iterable[str]) -> frozenset[str]:
+def parse_lending(entries: Iterable[str]) -> frozenset[str]:
     """The entries as a door takes them: each vendor catalogued and spelled once, each model named.
     NotLent names the first entry that is neither."""
     kept: set[str] = set()
     for entry in entries:
         vendor, model = catalog.vendor_and_model(entry)
         separator = MODEL_SEPARATOR in entry
-        if catalog.named(vendor) is None:
+        if catalog.provider_named(vendor) is None:
             raise NotLent(NO_SUCH_VENDOR.format(entry=entry))
         if separator and not model.strip():
             raise NotLent(NO_MODEL.format(entry=entry, separator=MODEL_SEPARATOR))

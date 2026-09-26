@@ -9,7 +9,7 @@ from uuid import uuid4
 from fastapi import APIRouter
 
 from pinecall.api.deps import EmbedderDep, KeptMemoryDep, MemoryKeyDep
-from pinecall.auth.keys import held_by
+from pinecall.auth.keys import is_held_by
 from pinecall.memory import DEFAULT_FACTS_PER_TURN, Memory
 from pinecall.memory.scoring import Answered, Question, Score, scored
 from pinecall.types import Env, Fact
@@ -32,7 +32,7 @@ router = APIRouter()
 @router.get("/v1/contacts/{contact}/memory")
 async def history(contact: str, key: MemoryKeyDep, memory: KeptMemoryDep) -> ContactMemory:
     """Everything memory ever kept about one contact of this org, current facts first."""
-    facts = await memory.history(key.org, key.env, held_by(key), contact)
+    facts = await memory.history(key.org, key.env, is_held_by(key), contact)
     return ContactMemory(facts=[_on_the_wire(fact) for fact in facts])
 
 
@@ -41,7 +41,7 @@ async def history(contact: str, key: MemoryKeyDep, memory: KeptMemoryDep) -> Con
 @router.delete("/v1/contacts/{contact}/memory")
 async def forget(contact: str, key: MemoryKeyDep, memory: KeptMemoryDep) -> Forgotten:
     """Every fact of the contact, gone; how many went. Zero is a fine answer, not a 404."""
-    return Forgotten(forgotten=await memory.forget(key.org, key.env, held_by(key), contact))
+    return Forgotten(forgotten=await memory.forget(key.org, key.env, is_held_by(key), contact))
 
 
 # A golden is the only thing that can say memory returned the WRONG facts: the judge that runs on
@@ -63,11 +63,11 @@ async def evaluate(
     started = time.perf_counter()
     try:
         answered = [
-            await _asked(memory, key.org, key.env, held_by(key), scratch, one, k=k)
+            await _asked(memory, key.org, key.env, is_held_by(key), scratch, one, k=k)
             for one in said.questions
         ]
     finally:
-        await memory.forget(key.org, key.env, held_by(key), scratch)
+        await memory.forget(key.org, key.env, is_held_by(key), scratch)
     took_ms = (time.perf_counter() - started) * 1000
     return _as_a_score(await embedder.model(), scored(answered, k), took_ms)
 

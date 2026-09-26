@@ -18,13 +18,13 @@ from pinecall.api.deps import (
     VaultDep,
     opening,
 )
-from pinecall.auth.keys import KeyRecord, held_by, not_opening
+from pinecall.auth.keys import KeyRecord, cannot_open, is_held_by
 from pinecall.auth.request_scope import author_of
 from pinecall.orgs.tuning_resolution import as_json
 from pinecall.orgs.tuning_store import HISTORY_LIMIT, TuningStore
 from pinecall.orgs.vault import brought_by
-from pinecall.providers.session_vendors import what_is_not_lent
-from pinecall.providers.tuned_declaration import tuned
+from pinecall.providers.session_vendors import first_unlent_vendor
+from pinecall.providers.tuned_declaration import apply_tuning
 from pinecall.types import (
     HOLDING,
     PRODUCTION,
@@ -152,7 +152,7 @@ def corner_written(key: KeyRecord, team: bool) -> str:
     """The corner a set lands in, as the column spells it."""
     if team or HOLDING not in key.scopes:
         return THE_ORGS_OWN
-    return whose(held_by(key))
+    return whose(is_held_by(key))
 
 
 # A set needs no socket: a supervisor fixing tonight's opening has no app running, and the rules a
@@ -161,7 +161,7 @@ def corner_written(key: KeyRecord, team: bool) -> str:
 # against what the session would really run on.
 def declared_or_bare(slug: str, key: KeyRecord, registry: Registry) -> AgentConfig:
     """What the app declared when one holds the agent; the bare slug when none does."""
-    held = registry.of(key.env, slug, held_by(key))
+    held = registry.of(key.env, slug, is_held_by(key))
     if held is not None and held.org != key.org:
         raise HTTPException(404, NO_AGENT.format(slug=slug))
     if held is not None:
@@ -171,7 +171,7 @@ def declared_or_bare(slug: str, key: KeyRecord, registry: Registry) -> AgentConf
 
 def checked(declared: AgentConfig, wanted: Tuning, lexicon: Lexicon) -> AgentConfig:
     """Building the config IS the check: 400 in the rule's own sentence when one breaks."""
-    return tuned(declared, wanted, lexicon)
+    return apply_tuning(declared, wanted, lexicon)
 
 
 def words_only(key: KeyRecord, wanted: Tuning, standing: Tuning) -> Tuning:
@@ -192,7 +192,7 @@ def words_only(key: KeyRecord, wanted: Tuning, standing: Tuning) -> Tuning:
     ):
         touched.append("greeting.reply")
     if touched:
-        refusal = not_opening(key, "pipeline") or ""
+        refusal = cannot_open(key, "pipeline") or ""
         raise HTTPException(403, NOT_WORDS.format(fields=", ".join(touched), refusal=refusal))
     return dataclasses.replace(wanted, **carried)
 
@@ -262,7 +262,7 @@ async def set_settings(
     )
     # What the box does not lend this org is refused here, when it is picked, in the sentence the
     # call would refuse with — not saved to be refused on the next call.
-    unlent = what_is_not_lent(config, await brought_by(vault, orgs.quotas_of, key.org))
+    unlent = first_unlent_vendor(config, await brought_by(vault, orgs.quotas_of, key.org))
     if unlent is not None:
         raise HTTPException(422, unlent)
     await put(kept, key, corner, slug, wanted, said.note, said.if_version)
@@ -291,7 +291,7 @@ async def diff(
     against: Annotated[Literal["team", "production"], Query()] = "production",
 ) -> TuningDiff:
     """What this key's corner reads, against the team's or production's newest."""
-    ours = await kept.newest(key.org, key.env, held_by(key), slug)
+    ours = await kept.newest(key.org, key.env, is_held_by(key), slug)
     world = PRODUCTION if against == "production" else key.env
     theirs = await kept.own(key.org, world, THE_ORGS_OWN, slug)
     return TuningDiff(
@@ -347,7 +347,7 @@ async def of_a_call(
 
 async def _answer(slug: str, key: KeyRecord, kept: TuningStore) -> TuningAnswer:
     """The three corners as this key sees them, each its own newest and never the fallback."""
-    mine = held_by(key) if HOLDING in key.scopes else None
+    mine = is_held_by(key) if HOLDING in key.scopes else None
     yours = None if mine is None else await kept.own(key.org, key.env, mine, slug)
     team = await kept.own(key.org, key.env, THE_ORGS_OWN, slug)
     production = await kept.own(key.org, PRODUCTION, THE_ORGS_OWN, slug)

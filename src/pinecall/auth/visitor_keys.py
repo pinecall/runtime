@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from pinecall.auth.keys import Issued, KeyRecord, Keys, ListedKey
-from pinecall.auth.members import Members, an_address
+from pinecall.auth.members import Members, normalize_email
 from pinecall.types import KEY_SCOPES, PRODUCTION, Env, Member
 
 # A person's key names the member it was minted for (`subject = m_…`), and every door that asks
@@ -23,12 +23,12 @@ VISITOR_PREFIX = "operator:"
 VISITOR_LABEL = "operator · {email}"
 
 
-def a_visitor(email: str) -> str:
+def visitor_subject(email: str) -> str:
     """The subject a key carries when it is an operator's, inside an org they are no member of."""
-    return f"{VISITOR_PREFIX}{an_address(email)}"
+    return f"{VISITOR_PREFIX}{normalize_email(email)}"
 
 
-def visiting(subject: str | None) -> str | None:
+def visitor_email(subject: str | None) -> str | None:
     """The operator's address when this subject is a visitor's; None for a member's or nobody's."""
     if subject is None or not subject.startswith(VISITOR_PREFIX):
         return None
@@ -38,7 +38,7 @@ def visiting(subject: str | None) -> str | None:
 # The flag is on the ROW and never on the key (0020), here as at /v1/ops: an operator is whoever
 # has an active row, in any org of this box, that the box marked. Oldest first, so the answer is
 # the same row every time and a page can say which org they are an operator FROM.
-async def the_operator(members: Members, email: str) -> Member | None:
+async def operator_member(members: Members, email: str) -> Member | None:
     """The row that makes this address an operator of the box today, or None when none does."""
     for row in await members.orgs_of(email):
         if row.operator and row.status == "active":
@@ -63,8 +63,8 @@ class StandingKeys:
         record = await self._keys.verify(key)
         if record is None:
             return None
-        email = visiting(record.subject)
-        if email is not None and await the_operator(self._members, email) is None:
+        email = visitor_email(record.subject)
+        if email is not None and await operator_member(self._members, email) is None:
             return None
         return record
 

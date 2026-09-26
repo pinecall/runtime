@@ -13,7 +13,7 @@ from livekit.agents.metrics.base import AvatarMetrics, Metadata
 from livekit.agents.metrics.usage import AgentSessionUsage
 from livekit.agents.voice import AgentSession
 
-from pinecall.providers.usage_wire import as_wire_rows
+from pinecall.providers.usage_wire import wire_usage_rows
 from pinecall.session.voice.log_writer import Writing
 from pinecall_protocol import WireModel
 from pinecall_protocol import metrics as wire
@@ -94,7 +94,7 @@ class Meters:
     @property
     def rows(self) -> list[wire.ModelUsage]:
         """What the call consumed, as call.summary carries it: livekit's own rows, unchanged."""
-        return as_wire_rows(self.usage.model_usage) if self.usage is not None else []
+        return wire_usage_rows(self.usage.model_usage) if self.usage is not None else []
 
 
 # ── the meter a streaming STT keeps running ─────────────────────────────────

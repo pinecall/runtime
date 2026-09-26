@@ -10,7 +10,7 @@ from pinecall.api.calls.log_sink import reading
 from pinecall.api.calls.supervise.aiming import STEERS, QueueingDep
 from pinecall.api.calls.supervise.aiming import aimed as aimed_at
 from pinecall.api.deps import KeysDep, SettingsDep, SnapshotsDep, StoreDep
-from pinecall.auth.keys import not_opening
+from pinecall.auth.keys import cannot_open
 from pinecall_protocol import WireModel, verbs
 
 router = APIRouter()
@@ -47,7 +47,7 @@ async def verb(
     reader = await reading(request, keys, settings, None)
     if reader is None:
         raise HTTPException(401, NO_BEARER, {"WWW-Authenticate": "Bearer"})
-    if reader.key is not None and (closed := not_opening(reader.key, STEERS)) is not None:
+    if reader.key is not None and (closed := cannot_open(reader.key, STEERS)) is not None:
         raise HTTPException(403, closed)
     await aimed_at(live, store, snapshots, reader, call, said)
     return VerbTaken(call=call, verb=said.verb, seq=None)

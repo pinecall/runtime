@@ -3,7 +3,7 @@
 from livekit.plugins import anthropic
 
 from pinecall.providers.llm import VENDORS
-from pinecall.providers.registry import Asked, Chat, a_key
+from pinecall.providers.registry import Asked, Chat, vendor_key
 
 # The plugin's own is claude-sonnet-4-6 (anthropic/llm.py:67), which is not what a phone line
 # waits for.
@@ -17,6 +17,6 @@ def build(asked: Asked) -> Chat:
     """caching is unset in the plugin (anthropic/llm.py:77); the static blocks are its reason."""
     return anthropic.LLM(
         model=asked.model or DEFAULT_MODEL,
-        api_key=a_key("anthropic", asked),
+        api_key=vendor_key("anthropic", asked),
         caching="ephemeral",
     )

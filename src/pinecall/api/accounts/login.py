@@ -18,12 +18,12 @@ from pinecall.api.deps import (
     ThrottleDep,
 )
 from pinecall.auth import passwords
-from pinecall.auth.env import a_person
+from pinecall.auth.env import is_persons_key
 from pinecall.auth.identity import Redeemed
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Kept, Members
-from pinecall.auth.person_keys import a_persons_key, until
-from pinecall.auth.visitor_keys import visiting
+from pinecall.auth.person_keys import mint_person_key, until
+from pinecall.auth.visitor_keys import visitor_email
 from pinecall.orgs.org_sso import Sso
 from pinecall.orgs.records import Orgs
 from pinecall.types import SANDBOX, Env, Role
@@ -233,7 +233,7 @@ async def redeem(
     record = codes.spend(said.code)
     if record is None:
         raise HTTPException(404, NO_CODE)
-    if not a_person(record) or record.subject is None:
+    if not is_persons_key(record) or record.subject is None:
         raise HTTPException(403, NOT_A_PERSONS_CODE)
     member = await members.find(record.org, record.subject)
     org = await orgs.find(record.org)
@@ -251,12 +251,12 @@ async def for_the_same_person(
     """A key for the person this one names, with what their role opens."""
     if key.subject is None:
         raise HTTPException(403, NOT_A_PERSONS)
-    if visiting(key.subject) is not None:
+    if visitor_email(key.subject) is not None:
         raise HTTPException(403, VISITS_PRODUCTION)
     member = await members.find(key.org, key.subject)
     if member is None or member.status != "active":
         raise HTTPException(403, NOT_A_MEMBER)
-    return a_key_issued(await a_persons_key(keys, member, label, world, minted_from=key))
+    return a_key_issued(await mint_person_key(keys, member, label, world, minted_from=key))
 
 
 async def _with_a_password(
@@ -305,7 +305,7 @@ async def _with_a_password(
         if seated is None:
             raise HTTPException(403, NOT_YET.format(email=member.email))
         member = seated
-    return a_key_issued(await a_persons_key(keys, member, said.device or LOGGED_IN, world))
+    return a_key_issued(await mint_person_key(keys, member, said.device or LOGGED_IN, world))
 
 
 async def _the_row_for(
@@ -345,7 +345,7 @@ async def _with_a_code(
     """A key of the browser's own minted from the record a code of ours stood for. A person's
     carries no world, whatever world the request that minted the code named, and lives as long as
     a person's key does here — never longer than the key that minted the code."""
-    person = a_person(record)
+    person = is_persons_key(record)
     issued = await keys.issue(
         org=record.org,
         label=device or A_BROWSER,

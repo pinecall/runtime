@@ -7,14 +7,14 @@ from collections.abc import Iterable
 from dataclasses import replace
 from datetime import UTC, datetime
 
-from pinecall.auth.invitations import INVITATION_TTL_S, Invited, a_token
+from pinecall.auth.invitations import INVITATION_TTL_S, Invited, new_invitation_token
 from pinecall.auth.keys import fingerprint
 from pinecall.auth.members import (
     Kept,
     NoSeatLeft,
-    a_member_id,
-    a_member_of_row,
-    an_address,
+    member_from_row,
+    new_member_id,
+    normalize_email,
     text_or_none,
 )
 from pinecall.log.store import Pool
@@ -188,11 +188,11 @@ class PostgresMembers:
         seats: int | None = None,
     ) -> Invited | None:
         """The row when there is none yet, then the token; a still-invited member gets a new one."""
-        email = an_address(email)
+        email = normalize_email(email)
         kept = await self.by_email(org, email)
         if kept is None:
             member = Member(
-                id=a_member_id(),
+                id=new_member_id(),
                 org=org,
                 email=email,
                 name=name,
@@ -274,39 +274,39 @@ class PostgresMembers:
             )
             if row is None:
                 return None
-            member = a_member_of_row(row)
+            member = member_from_row(row)
             await connection.execute(_PASSWORD_EVERYWHERE, member.email, password_hash)
         return member
 
     async def a_persons_password(self, email: str) -> str | None:
         """One read across the orgs, newest hash first."""
-        email = an_address(email)
+        email = normalize_email(email)
         row = await self._pool.fetchrow(_A_PERSONS_PASSWORD, email)
         return None if row is None else text_or_none(row["password_hash"])
 
     async def orgs_of(self, email: str) -> tuple[Member, ...]:
         """Every row of this email, oldest first: what the console's org switch lists."""
-        email = an_address(email)
-        return tuple(a_member_of_row(row) for row in await self._pool.fetch(_ORGS_OF, email))
+        email = normalize_email(email)
+        return tuple(member_from_row(row) for row in await self._pool.fetch(_ORGS_OF, email))
 
     async def verified(self, email: str) -> bool:
         """One read across the orgs: whether any row of the address was proved."""
-        return await self._pool.fetchrow(_VERIFIED, an_address(email)) is not None
+        return await self._pool.fetchrow(_VERIFIED, normalize_email(email)) is not None
 
     async def join(self, org: str, id: str, password_hash: str) -> Member | None:
         """One UPDATE, fenced by the org and by the standing."""
         row = await self._pool.fetchrow(_JOIN, org, id, password_hash)
-        return None if row is None else a_member_of_row(row)
+        return None if row is None else member_from_row(row)
 
     async def vouched_for(self, org: str, id: str) -> Member | None:
         """One UPDATE, fenced by the org; a disabled row answers None."""
         row = await self._pool.fetchrow(_VOUCHED_FOR, org, id)
-        return None if row is None else a_member_of_row(row)
+        return None if row is None else member_from_row(row)
 
     async def mirrored(self, member: Member) -> Member | None:
         """The stale row of the address out, then one upsert; an empty RETURNING is the id being
         another org's member here."""
-        email = an_address(member.email)
+        email = normalize_email(member.email)
         await self._pool.execute(_DISPLACED, member.org, email, member.id)
         row = await self._pool.fetchrow(
             _MIRRORED,
@@ -318,11 +318,11 @@ class PostgresMembers:
             sorted(member.agents),
             member.status,
         )
-        return None if row is None else a_member_of_row(row)
+        return None if row is None else member_from_row(row)
 
     async def listed(self, org: str) -> tuple[Member, ...]:
         """Oldest first, disabled ones included: the row stays because the log names them."""
-        return tuple(a_member_of_row(row) for row in await self._pool.fetch(_LISTED, org))
+        return tuple(member_from_row(row) for row in await self._pool.fetch(_LISTED, org))
 
     async def seated(self, org: str) -> int:
         """One count over the org's rows: everybody it has not disabled."""
@@ -332,14 +332,14 @@ class PostgresMembers:
     async def find(self, org: str, id: str) -> Member | None:
         """One read on the primary key, fenced by the org."""
         row = await self._pool.fetchrow(_FIND, org, id)
-        return None if row is None else a_member_of_row(row)
+        return None if row is None else member_from_row(row)
 
     async def by_email(self, org: str, email: str) -> Kept | None:
         """One read on the UNIQUE pair, with the hash login checks against."""
-        email = an_address(email)
+        email = normalize_email(email)
         row = await self._pool.fetchrow(_BY_EMAIL, org, email)
         return (
-            None if row is None else Kept(a_member_of_row(row), text_or_none(row["password_hash"]))
+            None if row is None else Kept(member_from_row(row), text_or_none(row["password_hash"]))
         )
 
     async def update(
@@ -362,12 +362,12 @@ class PostgresMembers:
             status,
             production,
         )
-        return None if row is None else a_member_of_row(row)
+        return None if row is None else member_from_row(row)
 
     async def make_operator(self, org: str, id: str, operator: bool) -> Member | None:
         """One column, fenced by the org. The row is the truth about who runs this box."""
         row = await self._pool.fetchrow(_MAKE_OPERATOR, org, id, operator)
-        return None if row is None else a_member_of_row(row)
+        return None if row is None else member_from_row(row)
 
     async def remove(self, org: str, id: str) -> bool:
         """One DELETE, fenced by the org; the row it returns says whether one went."""
@@ -375,7 +375,7 @@ class PostgresMembers:
 
     async def _a_link_for(self, member: Member, vouched: bool) -> Invited:
         """One token for this member, a week long, its fingerprint and its standing in the table."""
-        token = a_token()
+        token = new_invitation_token()
         expires_at = datetime.fromtimestamp(time.time() + INVITATION_TTL_S, UTC)
         await self._pool.execute(_INVITE, fingerprint(token), member.id, expires_at, vouched)
         return Invited(member=member, token=token, expires_at=expires_at.isoformat())

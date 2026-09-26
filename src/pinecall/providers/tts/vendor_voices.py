@@ -10,7 +10,7 @@ from livekit.plugins.cartesia.constants import API_AUTH_HEADER, API_VERSION, API
 
 from pinecall.providers.catalog import canonical
 from pinecall.providers.language import primary
-from pinecall.providers.registry import Asked, a_key
+from pinecall.providers.registry import Asked, vendor_key
 from pinecall.providers.tts.curated_voices import VOICES
 
 # Cartesia is the one vendor whose catalogue is read from the vendor: its ids are uuids nobody
@@ -72,7 +72,7 @@ class Shelf:
             return _curated(named, wanted)
         if named != "cartesia":
             raise NotListed(NOT_LISTED.format(vendor=named))
-        return await self._cartesia_voices(wanted, a_key(named, asked))
+        return await self._cartesia_voices(wanted, vendor_key(named, asked))
 
     async def _cartesia_voices(self, language: str | None, key: str) -> list[ShelvedVoice]:
         # The vendor's `language` filter also lets through voices of other languages, so every row

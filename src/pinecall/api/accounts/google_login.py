@@ -25,8 +25,8 @@ from pinecall.api.accounts.sso_login import (
 from pinecall.api.deps import LoginCodesDep, MembersDep, SettingsDep, ThrottleDep
 from pinecall.api.ops.box_settings import BoxSettingsDep
 from pinecall.api.ops.box_signin import where_the_provider_answers
-from pinecall.auth.members import Members, an_address
-from pinecall.auth.openid import where_to_send
+from pinecall.auth.members import Members, normalize_email
+from pinecall.auth.openid import authorization_url
 from pinecall.orgs.box_signin import GOOGLE, BoxSignIn
 from pinecall.orgs.org_sso import Sso
 from pinecall.types import Member
@@ -75,7 +75,7 @@ async def sign_in(
     redirect_uri = where_the_provider_answers(settings, request, GOOGLE)
     handshake = handshakes.open(THE_BOX, redirect_uri, pairing, provider=GOOGLE)
     return RedirectResponse(
-        where_to_send(
+        authorization_url(
             provider,
             wired.client_id,
             redirect_uri,
@@ -117,7 +117,7 @@ async def back(
         said = await who_the_provider_says(
             http, wired.issuer, wired.client_id, wired.client_secret, handshake, code
         )
-        home = await _the_person_home(members, sso, an_address(said.email))
+        home = await _the_person_home(members, sso, normalize_email(said.email))
     except HTTPException as refused:
         return _refused(str(refused.detail))
     return RedirectResponse(landing(handshake.pairing, a_way_in(home, codes)), HTTP_302_FOUND)

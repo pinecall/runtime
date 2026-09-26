@@ -9,9 +9,9 @@ from pinecall.auth.keys import (
     Issued,
     KeyRecord,
     ListedKey,
-    a_key_id,
     fingerprint,
     mint,
+    new_key_id,
 )
 from pinecall.log.store import Pool
 from pinecall.types import KEY_SCOPES, PRODUCTION, Env, parse_env
@@ -73,7 +73,7 @@ class PostgresKeys:
         """The only moment a key exists in the clear: it is minted here, hashed, and let go."""
         key = mint(env, subject)
         record = KeyRecord(
-            key_id=a_key_id(),
+            key_id=new_key_id(),
             org=org,
             label=label,
             env=env,

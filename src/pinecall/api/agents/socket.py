@@ -25,8 +25,8 @@ from pinecall.api.deps import (
     TuningDep,
     a_key_on_a_socket,
 )
-from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
-from pinecall.auth.keys import KeyRecord, held_by, not_opening
+from pinecall.auth.bearer import POLICY_VIOLATION, close_reason
+from pinecall.auth.keys import KeyRecord, cannot_open, is_held_by
 from pinecall.auth.request_scope import author_of
 from pinecall.knowledge import Knowledge
 from pinecall.log import REFUSED
@@ -72,7 +72,7 @@ async def apps(
         key = await a_key_on_a_socket(websocket, keys, members, settings)
     except PermissionError as refused:
         await websocket.accept()
-        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(str(refused)))
+        await websocket.close(code=POLICY_VIOLATION, reason=close_reason(str(refused)))
         return
     if key is None:
         await websocket.close(code=POLICY_VIOLATION)
@@ -80,8 +80,8 @@ async def apps(
     await websocket.accept()
     await keys.touch(key.key_id)
     # Holding an agent is the `app` scope: a person's key without it is told so and closed.
-    if (closed := not_opening(key, "app")) is not None:
-        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(closed))
+    if (closed := cannot_open(key, "app")) is not None:
+        await websocket.close(code=POLICY_VIOLATION, reason=close_reason(closed))
         return
     socket = AppSocket(
         websocket, key, logs, registry, live, admission, tuning, knowledge, processes, codes
@@ -93,7 +93,7 @@ async def apps(
             app=socket.id,
             org=key.org,
             env=key.env,
-            holder=held_by(key),
+            holder=is_held_by(key),
             address=None if client is None else client.host,
             connected_at=time.time(),
             stop=socket.stopped,
@@ -159,7 +159,7 @@ class AppSocket:
     @property
     def holder(self) -> str | None:
         """Whose corner of that world: a developer's own in the sandbox, nobody's in production."""
-        return held_by(self.key)
+        return is_held_by(self.key)
 
     @property
     def author(self) -> str:
@@ -214,7 +214,7 @@ class AppSocket:
         """Tell the app it was stopped — it exits rather than reconnect — and close its socket."""
         said = ErrorEvent(code=STOPPED, message=why, recoverable=False)
         await self.send(ephemeral_entry("error", said))
-        await self._websocket.close(reason=as_a_close_reason(why))
+        await self._websocket.close(reason=close_reason(why))
 
     async def refuse(self, agent: str, code: str, message: str, raw: Any) -> None:
         """Say no in the protocol's own words, naming the command and the id the app gave it."""
@@ -334,7 +334,7 @@ async def configure(socket: Socket, command: Command) -> None:
     held = socket.registry.on(socket.env, command.agent, socket.id)
     # Not held on this socket: the registry's own refusal below says so, in its own words.
     if held is not None:
-        declared = declaration.configured(held.config, wanted.config)
+        declared = declaration.apply_declaration(held.config, wanted.config)
         await the_bases_it_reads(socket, command.agent, declared)
     entry = await socket.registry.configure(socket.id, socket.env, command.agent, wanted.config)
     await socket.send(entry)

@@ -7,7 +7,7 @@ from fastapi import APIRouter
 from pinecall.api.agents.pipeline_report import Report, report
 from pinecall.api.deps import PipelineKeyDep, SettingsDep, StoreDep, TuningDep
 from pinecall.api.scope.request_scope import HeldDep
-from pinecall.auth.keys import KeyRecord, held_by
+from pinecall.auth.keys import KeyRecord, is_held_by
 from pinecall.orgs.tuning_store import TuningStore
 from pinecall.types import Lexicon, Tuning
 
@@ -30,8 +30,8 @@ async def pipeline(
 
 async def standing(kept: TuningStore, key: KeyRecord, slug: str) -> tuple[Tuning, Lexicon]:
     """What this key's corner reads right now: its own newest, else the org's own, else nothing."""
-    row = await kept.newest(key.org, key.env, held_by(key), slug)
-    words = await kept.newest_lexicon(key.org, key.env, held_by(key))
+    row = await kept.newest(key.org, key.env, is_held_by(key), slug)
+    words = await kept.newest_lexicon(key.org, key.env, is_held_by(key))
     return (
         Tuning() if row is None else row.value,
         Lexicon() if words is None else words.value,

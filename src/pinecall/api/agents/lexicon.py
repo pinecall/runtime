@@ -8,7 +8,7 @@ from fastapi import APIRouter, Query
 
 from pinecall.api.agents.tuning import TuningKeyDep, a_lexicon_row, corner_written
 from pinecall.api.deps import TuningDep
-from pinecall.auth.keys import KeyRecord, held_by
+from pinecall.auth.keys import KeyRecord, is_held_by
 from pinecall.auth.request_scope import author_of
 from pinecall.orgs.tuning_store import HISTORY_LIMIT, TuningStore
 from pinecall.types import HOLDING, PRODUCTION, THE_ORGS_OWN, Lexicon
@@ -62,7 +62,7 @@ async def history(
 
 async def _answer(key: KeyRecord, kept: TuningStore) -> LexiconAnswer:
     """The three corners as this key sees them, each its own newest."""
-    mine = held_by(key) if HOLDING in key.scopes else None
+    mine = is_held_by(key) if HOLDING in key.scopes else None
     yours = None if mine is None else await kept.own_lexicon(key.org, key.env, mine)
     team = await kept.own_lexicon(key.org, key.env, THE_ORGS_OWN)
     production = await kept.own_lexicon(key.org, PRODUCTION, THE_ORGS_OWN)

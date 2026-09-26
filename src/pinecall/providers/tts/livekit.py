@@ -3,7 +3,7 @@
 from livekit.agents import inference
 from livekit.agents.types import NOT_GIVEN, NotGivenOr
 
-from pinecall.providers.livekit_inference import DEFAULT_TTS_MODEL, VENDOR, the_projects_pair
+from pinecall.providers.livekit_inference import DEFAULT_TTS_MODEL, VENDOR, livekit_pair
 from pinecall.providers.registry import Asked, Speech
 from pinecall.providers.tts import VENDORS
 
@@ -11,7 +11,7 @@ from pinecall.providers.tts import VENDORS
 @VENDORS.registers(VENDOR, models=(DEFAULT_TTS_MODEL,))
 def build(asked: Asked) -> Speech:
     """The voice is the vendor's own id; a model with no voice speaks in that model's default."""
-    key, secret = the_projects_pair(asked)
+    key, secret = livekit_pair(asked)
     return inference.TTS(
         model=asked.model or DEFAULT_TTS_MODEL,
         voice=_or_the_models_own(asked.voice_id),

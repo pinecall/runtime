@@ -345,7 +345,7 @@ async def _with_a_password(members: MemoryMembers) -> str:
     """One more person of the org, seated the way an invitation seats one: with a password."""
     invited = await members.invite(AN_ORG.id, f"conpass@{A_DOMAIN}", "Con Pass", "developer", ())
     assert invited is not None and invited.token is not None
-    seated = await members.accept(invited.token, await passwords.hashed(A_PASSWORD, 8))
+    seated = await members.accept(invited.token, await passwords.hash_password(A_PASSWORD, 8))
     assert seated is not None
     return seated.email
 

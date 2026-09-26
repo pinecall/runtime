@@ -121,7 +121,7 @@ NOT_OPENED = "this key does not open {scope}: it opens {opens}"
 # developers of one tenant each hold, reach and see their own agent; a sandbox key that names
 # nobody — CI's — works in the org's own corner, which is what everybody falls back to.
 # api/agents/registry.py is where the corners are, and `Held` there says the same thing.
-def held_by(record: KeyRecord) -> str | None:
+def is_held_by(record: KeyRecord) -> str | None:
     """The corner of its world this key holds and reads in: nobody's, or a developer's own."""
     if is_a_deployment(record.env):
         return None
@@ -134,7 +134,7 @@ def held_by(record: KeyRecord) -> str | None:
 # nobody can see is a corner nobody can help with. It takes BOTH the team's door and the agent's
 # own (`app`): `team` alone is a manager's, who runs the floor and holds no agent, and a
 # developer's sandbox — their calls, their memory, their copy — is not the floor's to open.
-def sees_every_corner(record: KeyRecord) -> bool:
+def is_operator_key(record: KeyRecord) -> bool:
     """Whether this key is the org's eyes — an admin's, the box's own — and not one person's."""
     return THE_TEAM in record.scopes and HOLDING in record.scopes
 
@@ -142,12 +142,12 @@ def sees_every_corner(record: KeyRecord) -> bool:
 # The third question, and the one the worker asks. A tenant's key works in one corner and no door
 # lets it name another; the box's worker serves every org's calls with ONE key, so at its doors
 # the corner is the call's — what the dispatch said — and never the key's (auth/request_scope.py).
-def is_the_fleets(record: KeyRecord) -> bool:
+def is_fleet_key(record: KeyRecord) -> bool:
     """Whether this key is the box's worker's, and may resolve a door by the call it serves."""
     return THE_FLEET in record.scopes
 
 
-def not_opening(record: KeyRecord, *scopes: str) -> str | None:
+def cannot_open(record: KeyRecord, *scopes: str) -> str | None:
     """The refusal when this key holds none of these scopes, or None when it holds one."""
     if any(scope in record.scopes for scope in scopes):
         return None
@@ -242,7 +242,7 @@ class MemoryKeys:
         """Mint, remember, hand back. A process that exits forgets every key it issued."""
         key = mint(env, subject)
         record = KeyRecord(
-            key_id=a_key_id(),
+            key_id=new_key_id(),
             org=org,
             label=label,
             env=env,
@@ -315,7 +315,7 @@ def has_expired(record: KeyRecord) -> bool:
     return record.expires_at is not None and record.expires_at <= datetime.now(UTC)
 
 
-def a_key_id() -> str:
+def new_key_id() -> str:
     """The row's name. It is not a secret and it is not the fingerprint: it names the row."""
     return f"{KEY_ID_PREFIX}{secrets.token_hex(KEY_ID_BYTES)}"
 

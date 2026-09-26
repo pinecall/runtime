@@ -6,7 +6,7 @@ from livekit.plugins import anthropic, deepgram, elevenlabs, soniox
 from pinecall._settings import Settings
 from pinecall.providers.catalog import PROVIDERS, settings_field_of, vendors_with_a_key
 from pinecall.providers.llm import VENDORS as LLM_VENDORS
-from pinecall.providers.registry import NO_ORG_KEYS, Asked, NoProvider, a_key
+from pinecall.providers.registry import NO_ORG_KEYS, Asked, NoProvider, vendor_key
 from pinecall.providers.stt import VENDORS as STT_VENDORS
 from pinecall.providers.tts import VENDORS as TTS_VENDORS
 
@@ -25,35 +25,37 @@ def a_box_that_read_every_key() -> Settings:
 # Criterion 1, at the one line that reads a key.
 def test_an_org_that_brought_a_key_for_a_vendor_runs_that_vendor_with_it() -> None:
     asked = Asked(settings=a_box_that_read_every_key(), keys={"elevenlabs": THE_ORGS})
-    assert a_key("elevenlabs", asked) == THE_ORGS
+    assert vendor_key("elevenlabs", asked) == THE_ORGS
 
 
 def test_an_org_that_brought_none_runs_every_vendor_on_the_box() -> None:
     """Managed is the default and is not a code path: it is the absence of a row."""
     asked = Asked(settings=a_box_that_read_every_key(), keys=NO_ORG_KEYS)
     brought = vendors_with_a_key()
-    assert [a_key(vendor, asked) for vendor in brought] == [THE_BOXES] * len(brought)
+    assert [vendor_key(vendor, asked) for vendor in brought] == [THE_BOXES] * len(brought)
 
 
 # WhatsApp is not a model vendor and has no plugin: what it shares with the rest is the ONE
 # question a door asks before it opens anything — whose key does this call run on.
 def test_the_whatsapp_token_is_read_through_the_very_same_question() -> None:
     box = a_box_that_read_every_key()
-    assert a_key("whatsapp", Asked(settings=box, keys={"whatsapp": THE_ORGS})) == THE_ORGS
-    assert a_key("whatsapp", Asked(settings=box, keys=NO_ORG_KEYS)) == THE_BOXES
+    assert vendor_key("whatsapp", Asked(settings=box, keys={"whatsapp": THE_ORGS})) == THE_ORGS
+    assert vendor_key("whatsapp", Asked(settings=box, keys=NO_ORG_KEYS)) == THE_BOXES
     with pytest.raises(NoProvider, match="whatsapp has no API key in this process"):
-        a_key("whatsapp", Asked(settings=Settings(world="production", whatsapp_access_token=None)))
+        vendor_key(
+            "whatsapp", Asked(settings=Settings(world="production", whatsapp_access_token=None))
+        )
 
 
 def test_a_key_the_org_brought_for_one_vendor_is_never_read_for_another() -> None:
     """One row is one vendor: a tenant's ElevenLabs key must not reach Anthropic."""
     asked = Asked(settings=a_box_that_read_every_key(), keys={"elevenlabs": THE_ORGS})
-    assert a_key("anthropic", asked) == THE_BOXES
+    assert vendor_key("anthropic", asked) == THE_BOXES
 
 
 def test_a_vendor_with_neither_key_is_refused_by_name_before_the_call_starts() -> None:
     with pytest.raises(NoProvider, match="soniox has no API key in this process"):
-        a_key("soniox", Asked(settings=Settings(world="production", soniox_api_key="")))
+        vendor_key("soniox", Asked(settings=Settings(world="production", soniox_api_key="")))
 
 
 # The rule that replaced a hand-kept table of vendor-to-field: the field a box reads a key from IS

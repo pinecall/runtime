@@ -41,7 +41,7 @@ def provider_keys() -> dict[catalog.Modality, tuple[str, ...]]:
     return {
         modality: tuple(
             field
-            for row in catalog.doing(modality)
+            for row in catalog.providers_doing(modality)
             if (field := catalog.settings_field_of(row.name)) is not None
         )
         for modality in catalog.MODALITIES

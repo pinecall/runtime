@@ -2,7 +2,7 @@
 
 from livekit.plugins import cartesia
 
-from pinecall.providers.registry import Asked, Speech, a_key
+from pinecall.providers.registry import Asked, Speech, vendor_key
 from pinecall.providers.tts import VENDORS
 
 # The models this build vouches for, the default first: sonic-3 is Cartesia's newest and its
@@ -29,14 +29,14 @@ def build(asked: Asked) -> Speech:
     """The model, the voice and the language, each the agent's own or Cartesia's default."""
     speaks = cartesia.TTS(
         model=asked.model or DEFAULT_MODEL,
-        api_key=a_key("cartesia", asked),
-        voice=asked.voice_id or a_voice_for(asked.language),
+        api_key=vendor_key("cartesia", asked),
+        voice=asked.voice_id or default_voice_for(asked.language),
     )
     if asked.language:
         speaks.update_options(language=asked.language)
     return speaks
 
 
-def a_voice_for(language: str | None) -> str:
+def default_voice_for(language: str | None) -> str:
     """The voice an agent that chose none speaks in: its language's, else the English one."""
     return VOICE_FOR.get(language or "", VOICE_FOR["en"])

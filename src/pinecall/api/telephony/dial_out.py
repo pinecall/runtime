@@ -20,8 +20,8 @@ from pinecall.api.deps import (
 )
 from pinecall.api.scope.request_scope import AnAgentHeld, CornerDep
 from pinecall.api.telephony.deps import DispatchesDep, GuardsDep, KeptOutboundTrunksDep, OutboundDep
-from pinecall.auth.keys import KeyRecord, held_by
-from pinecall.auth.scopes import a_log_token, secret_for
+from pinecall.auth.keys import KeyRecord, is_held_by
+from pinecall.auth.scopes import mint_log_token, secret_for
 from pinecall.log.writers import Logs
 from pinecall.orgs.outbound_guards import Asking
 from pinecall.routes.dispatch import Dialling, Dispatches, Job
@@ -95,7 +95,7 @@ async def dial(
     """Place a call as this agent: the guards, the log, and a job in a room named by the call."""
     if dispatches is None:
         raise HTTPException(503, NO_LIVEKIT)
-    holder = held_by(key)
+    holder = is_held_by(key)
     doors = await _doors_of(table, key, slug)
     shown = _shown_as(said, doors, key, slug)
     trunk = await trunks.of(key.org)
@@ -145,7 +145,7 @@ async def dial(
             "to": allowed.destination.number,
             "from": shown,
             "env": key.env,
-            "log_token": a_log_token(call, said.log, secret_for(settings)),
+            "log_token": mint_log_token(call, said.log, secret_for(settings)),
         }
     )
 

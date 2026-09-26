@@ -34,7 +34,7 @@ DEFAULT_TTS_MODEL = "cartesia"
 NO_LIVEKIT = "livekit inference needs this box's LIVEKIT_API_KEY and its secret: {missing}"
 
 
-def the_projects_pair(asked: Asked) -> tuple[str, str]:
+def livekit_pair(asked: Asked) -> tuple[str, str]:
     """The box's LiveKit key and secret, or the refusal that names whichever one is missing."""
     key = asked.settings.livekit_api_key
     secret = asked.settings.livekit_api_secret
@@ -46,6 +46,6 @@ def the_projects_pair(asked: Asked) -> tuple[str, str]:
 
 # The same question a screen asks before the call, so it shows a box with no LiveKit project as
 # one that cannot run Inference yet rather than as one that needs a vendor key it will never find.
-def the_project_is_there(settings: Settings) -> bool:
+def has_livekit_pair(settings: Settings) -> bool:
     """Whether this box has the pair Inference signs with. api/ops/providers.py draws it."""
     return bool(settings.livekit_api_key and settings.livekit_api_secret)

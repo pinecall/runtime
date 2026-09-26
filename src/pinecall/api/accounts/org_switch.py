@@ -9,8 +9,13 @@ from pinecall.api.accounts.login import NOT_A_MEMBER
 from pinecall.api.deps import KeyDep, KeysDep, MembersDep, OrgsDep, SettingsDep
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Members
-from pinecall.auth.person_keys import a_persons_key
-from pinecall.auth.visitor_keys import VISITOR_LABEL, a_visitor, the_operator, visiting
+from pinecall.auth.person_keys import mint_person_key
+from pinecall.auth.visitor_keys import (
+    VISITOR_LABEL,
+    operator_member,
+    visitor_email,
+    visitor_subject,
+)
 from pinecall.types import HOLDING, ROLE_SCOPES, Member, MemberStatus, Org
 from pinecall_protocol import WireModel
 
@@ -69,7 +74,7 @@ async def the_persons_orgs(key: KeyDep, orgs: OrgsDep, members: MembersDep) -> O
             continue
         theirs.add(row.org)
         listed.append(_a_row(await orgs.find(row.org), row.org, row.role, row.status, key, True))
-    if await the_operator(members, person.email) is not None:
+    if await operator_member(members, person.email) is not None:
         listed.extend(
             _a_row(org, org.id, AS_THE_OPERATOR, "active", key, False)
             for org in await orgs.listed()
@@ -94,12 +99,12 @@ async def the_other_org(
     there = None if org is None else await members.by_email(org.id, person.email)
     if org is not None and there is not None and there.member.status == "active":
         return a_key_issued(
-            await a_persons_key(keys, there.member, key.label, settings.world, minted_from=key)
+            await mint_person_key(keys, there.member, key.label, settings.world, minted_from=key)
         )
     # A row of theirs that is invited or disabled is the ORG's word about them, and the box does
     # not talk over it: an operator the tenant disabled walks in as the operator, which the Keys
     # screen says in so many words, and never as the member the tenant stopped.
-    if org is None or await the_operator(members, person.email) is None:
+    if org is None or await operator_member(members, person.email) is None:
         raise HTTPException(403, NOT_THERE.format(org=said.org))
     # In this instance's world, which is the only one its doors open: at production a visit is to
     # what the tenant's customers reach. An admin's reach there, less `app` — the box may look at
@@ -109,7 +114,7 @@ async def the_other_org(
         label=VISITOR_LABEL.format(email=person.email),
         env=settings.world,
         scopes=ROLE_SCOPES["admin"] - {HOLDING},
-        subject=a_visitor(person.email),
+        subject=visitor_subject(person.email),
         name=person.name,
     )
     return a_key_issued(issued)
@@ -122,11 +127,11 @@ async def _the_person(key: KeyRecord, members: Members) -> Member:
     """The active member this key was minted for; 403 for a machine key or a member gone."""
     if key.subject is None:
         raise HTTPException(403, ONE_ORG_EACH)
-    email = visiting(key.subject)
+    email = visitor_email(key.subject)
     member = (
         await members.find(key.org, key.subject)
         if email is None
-        else await the_operator(members, email)
+        else await operator_member(members, email)
     )
     if member is None or member.status != "active":
         raise HTTPException(403, NOT_A_MEMBER)

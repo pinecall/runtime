@@ -21,7 +21,7 @@ from pinecall.api.deps import (
     TuningDep,
 )
 from pinecall.api.live import LiveDep
-from pinecall.auth.keys import KeyRecord, held_by, is_the_fleets
+from pinecall.auth.keys import KeyRecord, is_fleet_key, is_held_by
 from pinecall.log.logs import CallLog
 from pinecall.log.writers import Logs
 from pinecall.tokens.spend import spent
@@ -211,14 +211,14 @@ async def sealed(call: str, key: AppKeyDep, logs: LogsDep, live: ServingDep) -> 
 # A tenant's worker opens its own org's calls; the fleet's opens every org's, by the call.
 def _whose_call(key: KeyRecord, context: CallContext) -> tuple[str, Env, str | None]:
     """The org, the world and the corner a worker's call is opened in, or 403 naming why not."""
-    fleet = is_the_fleets(key)
+    fleet = is_fleet_key(key)
     if not fleet and context.route.org != key.org:
         raise HTTPException(status_code=403, detail=NOT_THIS_ORG)
     if not fleet and context.env != key.env:
         raise HTTPException(
             status_code=403, detail=NOT_THIS_ENV.format(key=key.env, route=context.env)
         )
-    return context.route.org, context.env, context.holder if fleet else held_by(key)
+    return context.route.org, context.env, context.holder if fleet else is_held_by(key)
 
 
 # The org was said once, at the door that opened the call, and the process kept it: the check
@@ -227,7 +227,7 @@ def _whose_call(key: KeyRecord, context: CallContext) -> tuple[str, Env, str | N
 # the id alone opens nothing: tools.py and commands.py took the id on faith until 2026-09-26.
 def refuse_another_orgs_call(live: Serving, key: KeyRecord, call: str) -> None:
     """403 when this call was opened under some other org than the key's."""
-    if is_the_fleets(key):
+    if is_fleet_key(key):
         return
     org = live.org_of(call)
     if org is not None and org != key.org:

@@ -231,7 +231,9 @@ async def _every_conversation(
     total = len(models) * len(wanted.goldens)
     judged = 0
     for asked in models:
-        running = config if asked is None else declaration.configured(config, _only_the_llm(asked))
+        running = (
+            config if asked is None else declaration.apply_declaration(config, _only_the_llm(asked))
+        )
         named = _named(running.llm)
         llm = process.llms(running.llm, brought)
         for golden in wanted.goldens:

@@ -13,7 +13,7 @@ from starlette.testclient import TestClient
 from pinecall.api import deps as deps
 from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
-from pinecall.auth.scopes import a_call_token, a_code_token
+from pinecall.auth.scopes import decode_call_token, mint_code_token
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.orgs.caller_codes import CLAIMED, ISSUED, Codes
@@ -78,7 +78,7 @@ async def test_a_code_is_issued_with_the_agents_number_and_a_token(
     said = await a_code(tenant_http)
     assert len(said["code"]) == 4 and said["number"] == THE_CLINICS_NUMBER
     assert said["expires_at"] == pytest.approx(time.time() + 600, abs=5)
-    token = a_call_token(said["code_token"], A_LIVEKIT)
+    token = decode_call_token(said["code_token"], A_LIVEKIT)
     assert token is not None and token.call == "" and token.scope == "read"
     assert (token.code, token.agent, token.env) == (said["code"], AGENT, PRODUCTION)
     assert [one["code"] for one in await written(store, ISSUED)] == [said["code"]]
@@ -114,7 +114,7 @@ async def test_the_page_waits_and_is_answered_the_moment_the_call_claims_it(
     answer = await asyncio.wait_for(waiting, 2.0)
     standing = answer.json()
     assert (standing["status"], standing["call"]) == ("claimed", CALL)
-    reads = a_call_token(standing["log_token"], A_LIVEKIT)
+    reads = decode_call_token(standing["log_token"], A_LIVEKIT)
     assert reads is not None and (reads.call, reads.projection) == (CALL, "tenant")
     claimed = [entry.data for entry in await store.since(CALL) if entry.type == "call.claimed"]
     assert claimed == [{"code": said["code"], "via": "keypad"}]
@@ -161,7 +161,7 @@ async def test_a_claim_nobody_issued_is_404(
 
 async def test_an_expired_code_says_so(page: httpx.AsyncClient, codes: Codes) -> None:
     issued = await codes.issue(PRODUCTION, AGENT, 0.05, "public")
-    token = a_code_token(issued.code, AGENT, PRODUCTION, time.time() + 60, A_LIVEKIT)
+    token = mint_code_token(issued.code, AGENT, PRODUCTION, time.time() + 60, A_LIVEKIT)
     answer = await page.get(f"{CODES}/{issued.code}?wait=1&token={token}")
     assert answer.status_code == 200
     assert (answer.json()["status"], answer.json()["log_token"]) == ("expired", None)

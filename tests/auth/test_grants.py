@@ -9,11 +9,11 @@ from pinecall.auth.grants import (
     NOT_YOURS_TO_SWITCH,
     acts_in_production,
     cannot_grant,
-    granting,
+    check_may_grant,
 )
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members_memory import MemoryMembers
-from pinecall.auth.visitor_keys import a_visitor
+from pinecall.auth.visitor_keys import visitor_subject
 from pinecall.types import PRODUCTION, ROLE_SCOPES, SANDBOX, Member
 
 pytestmark = pytest.mark.unit
@@ -31,7 +31,7 @@ A_VISITORS = KeyRecord(
     org="clinica",
     env=PRODUCTION,
     scopes=ROLE_SCOPES["admin"] - {"app"},
-    subject=a_visitor("ops@pinecall.io"),
+    subject=visitor_subject("ops@pinecall.io"),
 )
 
 
@@ -57,11 +57,11 @@ async def test_production_is_given_only_by_somebody_who_acts_there() -> None:
     members = MemoryMembers([replace(MARTA, status="active")])
     assert not await acts_in_production(A_MANAGERS, members)
     with pytest.raises(PermissionError) as refused:
-        await granting(A_MANAGERS, members, "qa", True)
+        await check_may_grant(A_MANAGERS, members, "qa", True)
     assert str(refused.value) == NOT_YOURS_TO_SWITCH.format(name="this person")
     # The switch turned on for Marta, and the very next grant of hers goes through.
     await members.update(MARTA.org, MARTA.id, production=True)
-    await granting(A_MANAGERS, members, "qa", True)
+    await check_may_grant(A_MANAGERS, members, "qa", True)
     # A production server's token acts there by what it is; a sandbox one does not.
     assert await acts_in_production(A_SERVERS, members)
     assert not await acts_in_production(
@@ -70,5 +70,5 @@ async def test_production_is_given_only_by_somebody_who_acts_there() -> None:
 
 
 async def test_a_role_nobody_named_and_a_switch_left_off_are_not_asked_about() -> None:
-    await granting(A_MANAGERS, MemoryMembers(), None, None)
-    await granting(A_MANAGERS, MemoryMembers(), None, False)
+    await check_may_grant(A_MANAGERS, MemoryMembers(), None, None)
+    await check_may_grant(A_MANAGERS, MemoryMembers(), None, False)

@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api.deps import AdmissionDep, KeptKnowledgeDep, KnowledgeKeyDep, TuningDep
-from pinecall.auth.keys import held_by
+from pinecall.auth.keys import is_held_by
 from pinecall.knowledge.scoring import Answered, Question, Score, scored
 from pinecall.types import KnowledgeFile
 from pinecall.types.knowledge import DEFAULT_CHUNKS_PER_TURN
@@ -59,11 +59,11 @@ async def push(
     # What the org would keep once this push has landed: everything it holds in both worlds, less
     # what the base being replaced frees — the push replaces it whole — plus what these files
     # become. Judged before a row is written, because a push is one statement and all or nothing.
-    held = await knowledge.bases(key.org, key.env, held_by(key))
+    held = await knowledge.bases(key.org, key.env, is_held_by(key))
     freed = next((one.chunks for one in held if one.base == base), 0)
     keeping = await knowledge.kept(key.org) - freed + knowledge.how_many_chunks(files)
     await admission.a_push(key.org, keeping)
-    chunks = await knowledge.put(key.org, key.env, held_by(key), base, files)
+    chunks = await knowledge.put(key.org, key.env, is_held_by(key), base, files)
     return KnowledgePushed(base=base, chunks=chunks, took_ms=(time.perf_counter() - started) * 1000)
 
 
@@ -78,7 +78,7 @@ async def bases(key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep) -> KnowledgeL
                 model=one.model,
                 pushed_at=one.pushed_at.timestamp(),
             )
-            for one in await knowledge.bases(key.org, key.env, held_by(key))
+            for one in await knowledge.bases(key.org, key.env, is_held_by(key))
         ]
     )
 
@@ -90,7 +90,7 @@ async def bases(key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep) -> KnowledgeL
 async def attached(key: KnowledgeKeyDep, kept: TuningDep) -> KnowledgeUses:
     """One row per base any agent's settings attach, with the agents that read it."""
     readers: dict[str, list[str]] = {}
-    for slug, row in (await kept.every_newest(key.org, key.env, held_by(key))).items():
+    for slug, row in (await kept.every_newest(key.org, key.env, is_held_by(key))).items():
         for docs in row.value.bases or ():
             readers.setdefault(docs.base, []).append(slug)
     return KnowledgeUses(
@@ -105,10 +105,10 @@ async def attached(key: KnowledgeKeyDep, kept: TuningDep) -> KnowledgeUses:
 @router.get("/v1/knowledge/{base}")
 async def files(base: str, key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep) -> KnowledgeFiles:
     """Every file of the base, by path, with its size and what it became; never the text."""
-    held = await knowledge.bases(key.org, key.env, held_by(key))
+    held = await knowledge.bases(key.org, key.env, is_held_by(key))
     if not any(one.base == base for one in held):
         raise HTTPException(status_code=404, detail=NO_SUCH_BASE.format(base=base))
-    listed = await knowledge.files(key.org, key.env, held_by(key), base)
+    listed = await knowledge.files(key.org, key.env, is_held_by(key), base)
     return KnowledgeFiles(
         base=base,
         kept=bool(listed),
@@ -131,7 +131,7 @@ async def read_file(
     base: str, file: str, key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep
 ) -> KnowledgeFileRead:
     """One file of the base, text and all."""
-    found = await knowledge.file(key.org, key.env, held_by(key), base, file)
+    found = await knowledge.file(key.org, key.env, is_held_by(key), base, file)
     if found is None:
         raise HTTPException(status_code=404, detail=_no_such_file(base, file))
     return KnowledgeFileRead(
@@ -156,10 +156,10 @@ async def put_file(
     wanted = KnowledgeFile(path=file, text=said.text)
     # Judged as a push is: what the org would keep once this file has landed, less what this
     # corner's own copy of it frees, plus what the text becomes.
-    freed = await knowledge.freed_by(key.org, key.env, held_by(key), base, file)
+    freed = await knowledge.freed_by(key.org, key.env, is_held_by(key), base, file)
     keeping = await knowledge.kept(key.org) - freed + knowledge.how_many_chunks([wanted])
     await admission.a_push(key.org, keeping)
-    chunks = await knowledge.put_file(key.org, key.env, held_by(key), base, wanted)
+    chunks = await knowledge.put_file(key.org, key.env, is_held_by(key), base, wanted)
     return KnowledgeFilePushed(
         base=base, path=file, chunks=chunks, took_ms=(time.perf_counter() - started) * 1000
     )
@@ -170,7 +170,7 @@ async def drop_file(
     base: str, file: str, key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep
 ) -> None:
     """The file and its chunks gone; the base too when it was the last. 404 when there is none."""
-    if not await knowledge.drop_file(key.org, key.env, held_by(key), base, file):
+    if not await knowledge.drop_file(key.org, key.env, is_held_by(key), base, file):
         raise HTTPException(status_code=404, detail=_no_such_file(base, file))
 
 
@@ -181,7 +181,7 @@ def _no_such_file(base: str, path: str) -> str:
 @router.delete("/v1/knowledge/{base}", status_code=HTTP_204_NO_CONTENT)
 async def drop(base: str, key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep) -> None:
     """The base and every chunk of it, gone. 404 when the org never pushed one by that name."""
-    if not await knowledge.drop(key.org, key.env, held_by(key), base):
+    if not await knowledge.drop(key.org, key.env, is_held_by(key), base):
         raise HTTPException(status_code=404, detail=NO_SUCH_BASE.format(base=base))
 
 
@@ -195,7 +195,7 @@ async def evaluate(
     base: str, said: KnowledgeGolden, key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep
 ) -> KnowledgeScore:
     """Every question of the golden asked of the base, and how well it ranked the answers."""
-    bases_held = await knowledge.bases(key.org, key.env, held_by(key))
+    bases_held = await knowledge.bases(key.org, key.env, is_held_by(key))
     held = next((one for one in bases_held if one.base == base), None)
     if held is None:
         raise HTTPException(status_code=404, detail=NO_SUCH_BASE.format(base=base))
@@ -208,7 +208,7 @@ async def evaluate(
             question=Question(asks=one.asks, expects=one.expects),
             # No min_score: a golden asks where the passage RANKED, and a threshold would answer
             # a different question — whether it also cleared the bar the agent happens to set.
-            chunks=await knowledge.search(key.org, key.env, held_by(key), [base], one.asks, k=k),
+            chunks=await knowledge.search(key.org, key.env, is_held_by(key), [base], one.asks, k=k),
         )
         for one in said.questions
     ]

@@ -23,7 +23,7 @@ from pinecall.api.deps import (
 )
 from pinecall.api.org.mail import OutboxDep
 from pinecall.auth import passwords
-from pinecall.auth.members import an_address
+from pinecall.auth.members import normalize_email
 from pinecall.auth.signups import NotVerified, Refusal
 from pinecall.mail import a_signup_code
 from pinecall.types import Member, parse_slug
@@ -147,11 +147,11 @@ async def signup(
     if not await outbox.the_box_can_send():
         raise HTTPException(503, NO_MAIL)
     # The address as every row keeps it, so `ANA@x.uy ` is Ana (auth/members.py).
-    email = an_address(said.email)
+    email = normalize_email(said.email)
     if not throttle.allowed(f"{client} signup"):
         raise HTTPException(429, TOO_MANY)
     slug = parse_slug(said.org)
-    hashed = await passwords.hashed(said.password, settings.min_password)
+    hashed = await passwords.hash_password(said.password, settings.min_password)
     Member(id=A_PLACEHOLDER, org=A_PLACEHOLDER, email=email, name=said.person, role="admin")
     # A person who already has a password on this box makes a second org as themselves, and only
     # with THAT password: without this check a signup naming somebody else's email was seated as
@@ -188,7 +188,7 @@ async def verify(
         raise HTTPException(403, NOT_HERE)
     if not throttle.allowed(f"{client} signup/verify"):
         raise HTTPException(429, TOO_MANY)
-    taken = signups.verify(an_address(said.email), said.code.strip())
+    taken = signups.verify(normalize_email(said.email), said.code.strip())
     if isinstance(taken, NotVerified):
         raise HTTPException(400, REFUSED[taken.reason])
     return await the_org_made(
@@ -212,7 +212,7 @@ async def resend(
         raise HTTPException(403, NOT_HERE)
     if not throttle.allowed(f"{client} signup/resend"):
         raise HTTPException(429, TOO_MANY)
-    renewed = signups.renewed(an_address(said.email))
+    renewed = signups.renewed(normalize_email(said.email))
     if renewed is not None:
         pending, code = renewed
         letter = a_signup_code(pending.email, code, pending.person, await outbox.brand())

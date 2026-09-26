@@ -11,7 +11,7 @@ from pinecall.api.deps import KeysDep, MembersDep, SettingsDep
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.keys import KeyRecord, Keys
 from pinecall.auth.members import Members
-from pinecall.auth.visitor_keys import the_operator, visiting
+from pinecall.auth.visitor_keys import operator_member, visitor_email
 
 # Two things open /v1/ops, and neither is an org's admin. The BOX's key — `PINECALL_OPS_KEY`, out
 # of the environment, belonging to no org, carrying no name — and a PERSON somebody holding that
@@ -62,10 +62,10 @@ async def runs_the_box(record: KeyRecord, members: Members) -> bool:
     """Whether the person this key names — a member here, or a visitor — runs the box today."""
     if record.subject is None:
         return False
-    email = visiting(record.subject)
+    email = visitor_email(record.subject)
     if email is None:
         member = await members.find(record.org, record.subject)
         if member is None or member.status != "active":
             return False
         email = member.email
-    return await the_operator(members, email) is not None
+    return await operator_member(members, email) is not None

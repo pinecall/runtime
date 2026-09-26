@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from pinecall._settings import Settings
 from pinecall.api.evals.agent_finished import until_the_answer_lands
 from pinecall.api.evals.golden_call import Conversation
-from pinecall.auth.scopes import a_visitor
+from pinecall.auth.scopes import new_visitor_identity
 from pinecall.evals.caller_voice import Speaking
 from pinecall.evals.goldens import Golden
 from pinecall.evals.voice_run import Line, a_simulated_call
@@ -59,7 +59,7 @@ async def a_spoken_conversation(
         org=org,
         env=env,
         holder=holder,
-        caller=a_visitor(),
+        caller=new_visitor_identity(),
         run=run,
         app=app,
         speaking=speaking,

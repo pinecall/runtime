@@ -110,7 +110,7 @@ def _speaking(config: AgentConfig, settings: Settings, brought: Brought) -> Aske
 
 # The settings door's question, asked of the three an agent would run — the vendor it named or
 # ours, the model it named or that vendor's default — with the rule a call is built under.
-def what_is_not_lent(config: AgentConfig, brought: Brought) -> str | None:
+def first_unlent_vendor(config: AgentConfig, brought: Brought) -> str | None:
     """The first of its llm, ears and voice the box would not run for this org, said; else None."""
     stages = (
         (LLM_VENDORS, config.llm, DEFAULT_VENDOR),

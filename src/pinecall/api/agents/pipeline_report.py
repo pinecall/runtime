@@ -13,7 +13,7 @@ from pinecall.providers.registry import NO_KEY
 from pinecall.providers.session_vendors import DEFAULT_STT, vendor_running
 from pinecall.providers.tts import DEFAULT_TTS
 from pinecall.providers.tts.curated_voices import voice_names
-from pinecall.providers.tuned_declaration import tuned
+from pinecall.providers.tuned_declaration import apply_tuning
 from pinecall.types import AgentConfig, Greeting, Lexicon, Model, Tuning, Voice
 from pinecall_protocol import WireModel, defs
 
@@ -79,7 +79,7 @@ async def report(
     settings: Settings,
 ) -> Report:
     """Read the agent's last calls once and answer everything the pipeline screen draws."""
-    config = tuned(declared, tuning, lexicon)
+    config = apply_tuning(declared, tuning, lexicon)
     hears = _hears(config.stt, config.language)
     decides = _decides(config.llm)
     speaks = _speaks(config.voice, config.language)

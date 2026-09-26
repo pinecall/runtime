@@ -30,7 +30,7 @@ ROWS: dict[type[Any], type[WireModel]] = {
 }
 
 
-def as_wire_rows(usage: Sequence[ModelUsage]) -> list[wire.ModelUsage]:
+def wire_usage_rows(usage: Sequence[ModelUsage]) -> list[wire.ModelUsage]:
     """Every row this wire has a shape for, in the order livekit summed them. Unchanged."""
     said: list[wire.ModelUsage] = []
     for row in usage:

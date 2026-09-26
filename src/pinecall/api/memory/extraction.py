@@ -10,7 +10,7 @@ from pinecall.api.agents.held_agent import Registration
 from pinecall.api.agents.session_config import tuned_for
 from pinecall.api.deps import LlmsDep, MemoryKeyDep, OrgsDep, TuningDep, VaultDep
 from pinecall.api.scope.request_scope import HeldDep
-from pinecall.auth.keys import KeyRecord, held_by
+from pinecall.auth.keys import KeyRecord, is_held_by
 from pinecall.memory.extraction import answered
 from pinecall.memory.goldens import facts_of, judged, turns_of, undeclared
 from pinecall.orgs.vault import brought_by
@@ -78,7 +78,7 @@ async def _one(case: ExtractionGolden, chat: Chat, config: AgentConfig) -> Extra
 
 async def _the_agent(slug: str, held: Registration, key: KeyRecord, kept: TuningDep) -> AgentConfig:
     """The declaration this run is judged against, with the org's tuning already laid over it."""
-    resolved = await tuned_for(kept, key.org, key.env, held_by(key), slug, held.config)
+    resolved = await tuned_for(kept, key.org, key.env, is_held_by(key), slug, held.config)
     return resolved.config
 
 

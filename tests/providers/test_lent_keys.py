@@ -2,7 +2,7 @@
 
 import pytest
 
-from pinecall.providers.lent_keys import NotLent, a_lending, lent, refusal
+from pinecall.providers.lent_keys import NotLent, lent, parse_lending, refusal
 
 pytestmark = pytest.mark.unit
 
@@ -64,10 +64,10 @@ def test_the_refusal_names_what_was_asked_what_may_run_and_the_other_way() -> No
 
 
 def test_a_door_takes_entries_spelled_once_and_refuses_what_names_nothing() -> None:
-    assert a_lending(["Claude/claude-haiku-4-5", " deepgram "]) == frozenset(
+    assert parse_lending(["Claude/claude-haiku-4-5", " deepgram "]) == frozenset(
         {"anthropic/claude-haiku-4-5", "deepgram"}
     )
     with pytest.raises(NotLent, match="no vendor"):
-        a_lending(["zenith"])
+        parse_lending(["zenith"])
     with pytest.raises(NotLent, match="no model"):
-        a_lending(["anthropic/"])
+        parse_lending(["anthropic/"])

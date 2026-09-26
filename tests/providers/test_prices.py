@@ -5,7 +5,7 @@ from livekit.agents.metrics.usage import AgentSessionUsage
 from livekit.agents.metrics.usage import LLMModelUsage as LiveUsage
 
 from pinecall.providers import prices
-from pinecall.providers.usage_wire import as_wire_rows
+from pinecall.providers.usage_wire import wire_usage_rows
 from pinecall_protocol.metrics import (
     EOTModelUsage,
     InterruptionModelUsage,
@@ -175,7 +175,7 @@ def test_a_row_livekit_labelled_with_the_api_host_is_priced_by_its_model_all_the
     measured = LiveUsage(provider="api.anthropic.com", model="claude-haiku-4-5-20251001")
     measured.input_tokens = A_MILLION
     measured.output_tokens = A_MILLION
-    cost = prices.cost_of(as_wire_rows(AgentSessionUsage(model_usage=[measured]).model_usage))
+    cost = prices.cost_of(wire_usage_rows(AgentSessionUsage(model_usage=[measured]).model_usage))
     assert cost.unpriced == []
     assert cost.eur > 0
     assert {row.provider for row in cost.rows} == {"api.anthropic.com"}

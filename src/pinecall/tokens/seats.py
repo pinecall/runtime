@@ -10,7 +10,7 @@ from fastapi import HTTPException
 
 from pinecall._settings import Settings
 from pinecall.auth.keys import KeyRecord
-from pinecall.auth.scopes import a_room_token, secret_for
+from pinecall.auth.scopes import mint_room_token, secret_for
 from pinecall.log.snapshots import Snapshots
 from pinecall.types.scopes import NAME_ATTRIBUTE, SUBJECT_ATTRIBUTE
 
@@ -48,7 +48,7 @@ async def a_seat_in(
         for attribute, value in ((SUBJECT_ATTRIBUTE, key.subject), (NAME_ATTRIBUTE, key.name))
         if value
     }
-    token = a_room_token(
+    token = mint_room_token(
         call, scope, time.time() + A_SEAT_LASTS_S, secret_for(settings), identity, attributes=who
     )
     return {

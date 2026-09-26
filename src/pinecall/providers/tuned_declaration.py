@@ -14,7 +14,7 @@ from pinecall.providers.stt import VENDORS as STT_VENDORS
 from pinecall.providers.tts import DEFAULT_TTS
 from pinecall.providers.tts import VENDORS as TTS_VENDORS
 from pinecall.providers.tts.curated_voices import vendor_of, voice_declared
-from pinecall.providers.tts.elevenlabs import a_model
+from pinecall.providers.tts.elevenlabs import allowed_model
 from pinecall.types import AgentConfig, DeclarationRefused, Lexicon, Model, Tuning, Voice
 
 # The vendor tables' own refusal, over the vendor tables' own list. The list is long now, so the
@@ -34,14 +34,14 @@ NO_TTS_MODEL = "no {vendor} model {asked!r}; this build has {known}"
 # the org never set is the runtime's own default. The lexicon is the org's words, the agent's
 # `says` and `hears`. Building the config IS the check — what a door accepts is exactly what the
 # next session runs, so nothing is validated twice in two places.
-def tuned(declared: AgentConfig, tuning: Tuning, lexicon: Lexicon) -> AgentConfig:
+def apply_tuning(declared: AgentConfig, tuning: Tuning, lexicon: Lexicon) -> AgentConfig:
     """What the class declared with the world's settings on it: what the next session runs."""
     return dataclasses.replace(
         declared,
         greeting=tuning.greeting,
-        voice=the_voice(tuning.tts, tuning.voice, tuning.tts_model),
+        voice=tuned_voice(tuning.tts, tuning.voice, tuning.tts_model),
         stt=_model("stt", STT_VENDORS, tuning.stt, DEFAULT_STT),
-        llm=the_llm(tuning.llm),
+        llm=tuned_llm(tuning.llm),
         hangup=tuning.hangup,
         turn=tuning.turn,
         memory=tuning.memory,
@@ -71,7 +71,7 @@ def tuned(declared: AgentConfig, tuning: Tuning, lexicon: Lexicon) -> AgentConfi
 # The same three words, through the same door, say how a synthetic caller is played
 # (orgs/personas.py, api/evals/voice.py): a persona's `tts` and `voice` are the agent's two knobs
 # and are refused for the same typos, when the caller is written and not on its first line.
-def the_voice(tts: str | None, voice: str | None, tts_model: str | None = None) -> Voice | None:
+def tuned_voice(tts: str | None, voice: str | None, tts_model: str | None = None) -> Voice | None:
     """The voice a tuning or a persona names: the vendor, the id and the model may each be set."""
     if voice is None and tts is None and tts_model is None:
         return None
@@ -84,7 +84,7 @@ def the_voice(tts: str | None, voice: str | None, tts_model: str | None = None) 
 # in neither is whatever the app declared.
 def _speaking(tts: str | None, tts_model: str | None) -> tuple[str, str | None]:
     """Which vendor speaks and with which model, out of the two knobs that can say so."""
-    vendor, model = the_vendor_and_the_model(tts, DEFAULT_TTS) if tts else (DEFAULT_TTS, "")
+    vendor, model = split_vendor_model(tts, DEFAULT_TTS) if tts else (DEFAULT_TTS, "")
     _refuse_an_unknown_vendor("tts", TTS_VENDORS, vendor)
     return vendor, _a_voice_model(vendor, tts_model or model or None)
 
@@ -94,7 +94,7 @@ def _voice_id(voice: str | None, vendor: str) -> str | None:
     return None if voice is None else voice_declared(voice, vendor, None).voice_id
 
 
-def the_llm(asked: str | None) -> Model | None:
+def tuned_llm(asked: str | None) -> Model | None:
     """The model that decides, as a tuning or a persona names it; None when nothing was set."""
     return _model("llm", LLM_VENDORS, asked, DEFAULT_VENDOR)
 
@@ -105,7 +105,7 @@ def _model(
     """A model knob, in any of the three forms the_vendor_and_the_model reads; None unset."""
     if asked is None:
         return None
-    vendor, model = the_vendor_and_the_model(asked, ours)
+    vendor, model = split_vendor_model(asked, ours)
     _refuse_an_unknown_vendor(modality, vendors, vendor)
     return Model(provider=vendor, model=model)
 
@@ -119,12 +119,12 @@ def _model(
 # and no word was both; with the whole catalog there is nothing a person could mean by `cartesia`
 # except the vendor — and providers/catalog.py keeps an alias from ever being a model name, so the
 # two readings cannot collide.
-def the_vendor_and_the_model(asked: str, in_use: str) -> tuple[str, str]:
+def split_vendor_model(asked: str, in_use: str) -> tuple[str, str]:
     """Which vendor a knob names and which model, from `vendor/model`, a vendor, or a model."""
     named, said = catalog.vendor_and_model(asked)
     if said:
         return catalog.canonical(named), said
-    if catalog.named(named) is not None:
+    if catalog.provider_named(named) is not None:
         return catalog.canonical(named), ""
     return in_use, named
 
@@ -153,7 +153,7 @@ def _a_voice_model(vendor: str, wanted: str | None) -> str | None:
 def _an_elevenlabs_model(wanted: str) -> str:
     """ElevenLabs' own reading: a model it swaps for another is refused, not swapped in silence."""
     try:
-        instead = a_model(wanted)
+        instead = allowed_model(wanted)
     except NoProvider as refused:
         raise DeclarationRefused(str(refused)) from refused
     if instead != wanted:

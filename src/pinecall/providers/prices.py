@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal, cast
 
-from pinecall.providers.published_prices import published
+from pinecall.providers.published_prices import published_prices
 from pinecall_protocol.defs import Cost, CostRate, CostRow, UnpricedRow
 from pinecall_protocol.metrics import LLMModelUsage, ModelUsage, STTModelUsage, TTSModelUsage
 
@@ -113,7 +113,7 @@ def media_price_of(model: str) -> MediaPrice | None:
 # not name is None, which _rows_of already reads as "this model is not billed for that".
 def _a_published_price(model: str) -> Price | None:
     """One published token row as a Price, or None when nobody published that model."""
-    row = _by_longest_prefix(published().tokens, model)
+    row = _by_longest_prefix(published_prices().tokens, model)
     if row is None:
         return None
     return Price(
@@ -126,7 +126,7 @@ def _a_published_price(model: str) -> Price | None:
 
 def _a_published_media_price(model: str) -> MediaPrice | None:
     """One published voice row as a MediaPrice. The unit is theirs; the arithmetic is ours."""
-    row = _by_longest_prefix(published().media, model)
+    row = _by_longest_prefix(published_prices().media, model)
     if row is None:
         return None
     unit, usd = row

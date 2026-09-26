@@ -3,7 +3,7 @@
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.auth.passwords import hashed, matches
+from pinecall.auth.passwords import hash_password, matches
 from pinecall.types import DeclarationRefused
 
 pytestmark = pytest.mark.unit
@@ -16,14 +16,14 @@ A_FLOOR = Settings(world="production").min_password
 
 
 async def test_the_hash_is_argon2id_carries_its_salt_and_never_the_password() -> None:
-    kept = await hashed(A_PASSWORD, A_FLOOR)
+    kept = await hash_password(A_PASSWORD, A_FLOOR)
     assert kept.startswith("$argon2id$")
     assert A_PASSWORD not in kept
-    assert await hashed(A_PASSWORD, A_FLOOR) != kept, "a salt of its own each time"
+    assert await hash_password(A_PASSWORD, A_FLOOR) != kept, "a salt of its own each time"
 
 
 async def test_the_right_password_matches_and_anything_else_does_not() -> None:
-    kept = await hashed(A_PASSWORD, A_FLOOR)
+    kept = await hash_password(A_PASSWORD, A_FLOOR)
     assert await matches(A_PASSWORD, kept)
     assert not await matches(A_PASSWORD + "!", kept)
     assert not await matches("", kept)
@@ -42,13 +42,13 @@ async def test_a_hash_that_is_not_one_is_a_mismatch_and_never_an_error() -> None
 
 async def test_a_password_under_the_floor_is_refused_before_it_is_hashed() -> None:
     with pytest.raises(DeclarationRefused, match=f"at least {A_FLOOR}"):
-        await hashed("a" * (A_FLOOR - 1), A_FLOOR)
-    assert await hashed("a" * A_FLOOR, A_FLOOR)
+        await hash_password("a" * (A_FLOOR - 1), A_FLOOR)
+    assert await hash_password("a" * A_FLOOR, A_FLOOR)
 
 
 async def test_the_floor_is_the_boxs_and_zero_is_no_rule_at_all() -> None:
     """Whoever runs the box decides, including deciding not to: `PINECALL_MIN_PASSWORD=0`."""
-    assert await hashed("a", 1)
-    assert await hashed("", 0), "nothing is a password where the operator asked for no rule"
+    assert await hash_password("a", 1)
+    assert await hash_password("", 0), "nothing is a password where the operator asked for no rule"
     with pytest.raises(DeclarationRefused, match="at least 20"):
-        await hashed(A_PASSWORD[:19], 20)
+        await hash_password(A_PASSWORD[:19], 20)

@@ -264,7 +264,7 @@ def _every_word() -> dict[str, str]:
 WORDS: dict[str, str] = _every_word()
 
 
-def named(word: str) -> Provider | None:
+def provider_named(word: str) -> Provider | None:
     """The provider a person meant, by its own name or any alias. None: nobody by that word."""
     return BY_NAME.get(WORDS.get(word.strip().lower(), ""))
 
@@ -275,14 +275,14 @@ def canonical(word: str) -> str:
     return WORDS.get(word.strip().lower(), word.strip().lower())
 
 
-def doing(modality: Modality) -> tuple[Provider, ...]:
+def providers_doing(modality: Modality) -> tuple[Provider, ...]:
     """Every provider that can do this job, in the order a list on a screen shows them."""
     return tuple(row for row in PROVIDERS if modality in row.does)
 
 
 def env_of(vendor: str) -> str | None:
     """The variable the box reads this vendor's key from. None: it brings its own credentials."""
-    row = named(vendor)
+    row = provider_named(vendor)
     return None if row is None else row.env
 
 

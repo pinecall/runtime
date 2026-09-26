@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pinecall.auth.env import a_person, opens_production
+from pinecall.auth.env import is_persons_key, opens_production
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Members
 from pinecall.types import ROLE_SCOPES, Role, is_a_deployment
@@ -27,7 +27,7 @@ def cannot_grant(record: KeyRecord, role: Role) -> str | None:
     A key that names nobody — a server's token, the box's own, an operator's visit — is the org's
     or the box's and not one person's reach, so it grants what it is asked to.
     """
-    if not a_person(record) or ROLE_SCOPES[role] <= record.scopes:
+    if not is_persons_key(record) or ROLE_SCOPES[role] <= record.scopes:
         return None
     opens = " · ".join(sorted(record.scopes)) or "nothing"
     return NOT_YOURS_TO_GRANT.format(role=role, opens=opens)
@@ -35,12 +35,12 @@ def cannot_grant(record: KeyRecord, role: Role) -> str | None:
 
 async def acts_in_production(record: KeyRecord, members: Members) -> bool:
     """Whether this key may act in production now: the person's row says, or the token's world."""
-    if a_person(record):
+    if is_persons_key(record):
         return await opens_production(record, members)
     return is_a_deployment(record.env)
 
 
-async def granting(
+async def check_may_grant(
     record: KeyRecord, members: Members, role: Role | None, production: bool | None
 ) -> None:
     """Raise PermissionError, in the door's 403 sentence, when this key may not hand these out."""

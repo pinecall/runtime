@@ -97,7 +97,7 @@ key; the issuer is Google's own (`https://accounts.google.com`) and is not a fie
             "redirect_uri": "https://box.example.com/v1/login/google/callback"}}
 ```
 
-`configured` is whether it is **usable**: wired, and its secret openable with this box's vault
+`apply_declaration` is whether it is **usable**: wired, and its secret openable with this box's vault
 key. `client_id` is read off the row even when it is not, so a page shows what was typed.
 
 `PUT /v1/ops/signin/google {client_id, client_secret}` — replaced whole, the secret write-only.

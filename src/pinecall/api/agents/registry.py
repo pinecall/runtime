@@ -249,7 +249,7 @@ class Registry:
         # agent.configure one round trip later. A call landing in that window must not find an
         # agent with no instructions. See docs/decisions/dispatch.md.
         held = self.on(env, slug, owner) or self.of(env, slug, holder)
-        config = held.config if held else declaration.an_agent(slug)
+        config = held.config if held else declaration.agent_from_slug(slug)
         self._replace(
             Registration(
                 slug=slug,
@@ -262,7 +262,7 @@ class Registry:
                 takes_unclaimed=takes_unclaimed,
             )
         )
-        said = declaration.registered(owner, sdk, env)
+        said = declaration.build_registered(owner, sdk, env)
         return await self._append(slug, "agent.registered", said, env)
 
     async def configure(
@@ -274,7 +274,9 @@ class Registry:
             raise DeclarationRefused(
                 f"agent {slug} is not registered on this socket: register it before configuring it"
             )
-        self._replace(dataclasses.replace(held, config=declaration.configured(held.config, wire)))
+        self._replace(
+            dataclasses.replace(held, config=declaration.apply_declaration(held.config, wire))
+        )
         configured = AgentConfigured(changed=list(declaration.changed_by(wire)))
         return await self._append(slug, "agent.configured", configured)
 
