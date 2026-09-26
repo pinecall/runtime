@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException
 
 from pinecall.api.calls.log_sink import NOT_YOURS, refuse_another_call
-from pinecall.auth.scopes import Reader
+from pinecall.tokens.scopes import Reader
 from pinecall.types import PRODUCTION
 
 pytestmark = pytest.mark.unit

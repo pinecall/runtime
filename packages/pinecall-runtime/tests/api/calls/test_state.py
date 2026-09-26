@@ -7,12 +7,12 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.auth.scopes import mint_room_token
 from pinecall.live.registry import Registry
 from pinecall.log import snapshots as memo
 from pinecall.log.reduce import reduce
 from pinecall.log.snapshots import Snapshots
 from pinecall.log.store import MemoryStore
+from pinecall.tokens.scopes import mint_room_token
 from pinecall.types import PRODUCTION
 from pinecall_protocol import decode_entries, encode
 from pinecall_protocol.defs import AgentConfig, StateFieldSpec

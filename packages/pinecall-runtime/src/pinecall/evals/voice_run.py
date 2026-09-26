@@ -13,11 +13,11 @@ from typing import Protocol
 from livekit import rtc
 from livekit.agents.utils import http_context
 
-from pinecall.auth.scopes import mint_room_token, secret_for
 from pinecall.evals import caller_voice, line_noise
 from pinecall.evals.agent_dispatch import dispatch_agent
 from pinecall.evals.caller_voice import Speaking, Voice
 from pinecall.settings import Settings
+from pinecall.tokens.scopes import mint_room_token, secret_for
 from pinecall.types import Env
 
 # The identity the caller joins under. `pinecall-runtime worker talk` is livekit's console and

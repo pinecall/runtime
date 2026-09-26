@@ -3,8 +3,8 @@
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.auth.scopes import mint_room_token
 from pinecall.log.store import MemoryStore
+from pinecall.tokens.scopes import mint_room_token
 from tests.api.conftest import A_LIVEKIT, A_RECORD
 from tests.api.talking import got
 

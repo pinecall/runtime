@@ -17,8 +17,8 @@ from livekit.agents.voice.room_io import RoomOptions
 from livekit.protocol import agent as jobs
 from livekit.protocol import egress as proto
 
-from pinecall.auth.scopes import SCOPE_ATTRIBUTE
 from pinecall.session.voice.platform import Platform
+from pinecall.tokens.scopes import SCOPE_ATTRIBUTE
 from pinecall.types import AgentConfig, CallContext, Route
 from pinecall.types.dispatch import SCOPE_KEY, WRITTEN_SCOPE
 from pinecall.worker import job as job_module

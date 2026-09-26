@@ -4,7 +4,7 @@ A call's log holds everything: every word, every number, every tool's arguments.
 receives is a **projection** of it, chosen by who is reading, and there are exactly two. This is a
 public contract: a console, a widget or a customer's own reader may rely on every row below.
 The runtime spells the two names in two places and nowhere else — `log/projection.py` and
-`auth/scopes.py` — so no sink can decide on its own what "public" means.
+`tokens/scopes.py` — so no sink can decide on its own what "public" means.
 
 ## Who reads through which
 

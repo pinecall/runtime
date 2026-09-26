@@ -14,11 +14,11 @@ from starlette.testclient import TestClient
 
 from pinecall.api import deps as deps
 from pinecall.api.app import app
-from pinecall.auth.scopes import SCOPE_ATTRIBUTE, THE_MICROPHONE
 from pinecall.fleet import Heartbeat, Roster
 from pinecall.log.store import MemoryStore
 from pinecall.settings import Settings
 from pinecall.tokens.ledger_memory import MemoryTokens
+from pinecall.tokens.scopes import SCOPE_ATTRIBUTE, THE_MICROPHONE
 from pinecall.types.dispatch import (
     AGENT_KEY,
     CALLER_KEY,

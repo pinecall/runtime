@@ -21,10 +21,10 @@ from pinecall.api.deps import (
     TokensDep,
 )
 from pinecall.auth.keys import KeyRecord, is_held_by
-from pinecall.auth.scopes import mint_log_token, mint_room_token, new_visitor_identity, secret_for
 from pinecall.live.registry import NO_AGENT
 from pinecall.tokens.ledger import TokenRecord
 from pinecall.tokens.room_token import build_dispatch, client_named_agent
+from pinecall.tokens.scopes import mint_log_token, mint_room_token, new_visitor_identity, secret_for
 from pinecall.types import THE_WIDGET, new_call_id
 from pinecall.types.scopes import LONGEST_VISIT_TTL_S, MINTED_FOR_A_VISIT, ONE_VISIT_TTL_S
 from pinecall_protocol import WireModel, encode

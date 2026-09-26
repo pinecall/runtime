@@ -9,8 +9,8 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.auth.scopes import SCOPE_ATTRIBUTE
 from pinecall.log.store import MemoryStore
+from pinecall.tokens.scopes import SCOPE_ATTRIBUTE
 from pinecall_protocol import decode_entries
 from pinecall_protocol.fixtures import GOLDEN_LOG
 from tests.api.conftest import A_KEY, AGENT

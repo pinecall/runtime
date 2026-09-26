@@ -14,7 +14,7 @@ from pinecall_protocol.defs import Projection
 # validated when it was written, and a whitelist that never constructs cannot invent a field.
 type Json = dict[str, Any]
 
-# The two projections and the three visibilities are named HERE and in auth/scopes.py, nowhere
+# The two projections and the three visibilities are named HERE and in tokens/scopes.py, nowhere
 # else in the runtime: a sink that could spell "public" could also decide what it means.
 PUBLIC: Projection = "public"
 TENANT: Projection = "tenant"

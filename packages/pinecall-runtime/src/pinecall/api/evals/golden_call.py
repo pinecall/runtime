@@ -10,7 +10,6 @@ from typing import Any
 from pinecall.api.agents import call_commands as commands
 from pinecall.api.evals.app_settled import Settling
 from pinecall.api.evals.run_attachment import APP_DETACHED, ENDED_BY, AppDetached, Attachment
-from pinecall.auth.scopes import new_visitor_identity
 from pinecall.evals.golden_memory import Remembering
 from pinecall.evals.goldens import Golden
 from pinecall.live.calls import Live
@@ -24,6 +23,7 @@ from pinecall.session.model_requests import Asking, NotAsking, WhatWasAsked
 from pinecall.session.text.session import TextSession
 from pinecall.session.text.turn_allowance import Allowance, unlimited_allowance
 from pinecall.settings import Budgets
+from pinecall.tokens.scopes import new_visitor_identity
 from pinecall.types import AgentConfig, CallContext, Env, Route, Versions
 from pinecall_protocol.commands import CallEvent, SessionConfigure
 

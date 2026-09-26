@@ -54,7 +54,7 @@ async def test_the_orgs_sessions_span_its_agents_newest_first_and_stop_at_its_fe
 
 
 def test_a_room_token_reads_its_one_call_and_never_an_orgs_list(gateway: TestClient) -> None:
-    from pinecall.auth.scopes import mint_room_token
+    from pinecall.tokens.scopes import mint_room_token
     from tests.api.conftest import A_LIVEKIT
 
     token = mint_room_token("CA_first", "participate", 4102444800.0, A_LIVEKIT)

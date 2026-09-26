@@ -14,11 +14,11 @@ from pinecall.api.deps import CallIndexDep, CallsKeyDep, SnapshotsDep, StoreDep,
 from pinecall.api.whatsapp.threads import WINDOW_SECONDS
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.request_scope import Corner, corner_of
-from pinecall.auth.scopes import KEY_PROJECTION, Reader
 from pinecall.log.call_facts import CallFacts
 from pinecall.log.entry import Entry
 from pinecall.log.replay import whole
 from pinecall.log.store.call_index import ThreadRow
+from pinecall.tokens.scopes import KEY_PROJECTION, Reader
 from pinecall_protocol import verbs
 from pinecall_protocol.rest import (
     Thread,

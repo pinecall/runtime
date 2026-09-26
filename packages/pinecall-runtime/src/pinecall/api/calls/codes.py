@@ -23,11 +23,11 @@ from pinecall.api.deps import (
     TalkKeyDep,
 )
 from pinecall.auth.keys import KeyRecord, is_fleet_key
-from pinecall.auth.scopes import mint_code_token, mint_log_token, secret_for
 from pinecall.live import claim_code
 from pinecall.live.calls import Served
 from pinecall.orgs.caller_codes import Issued
 from pinecall.settings import Settings
+from pinecall.tokens.scopes import mint_code_token, mint_log_token, secret_for
 from pinecall.types import Route
 from pinecall_protocol import WireModel
 from pinecall_protocol.commands import CallClaim

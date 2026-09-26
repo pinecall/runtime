@@ -7,8 +7,8 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.auth.scopes import SCOPE_ATTRIBUTE
 from pinecall.log.store import MemoryStore
+from pinecall.tokens.scopes import SCOPE_ATTRIBUTE
 from tests.api.calls.tokens.test_listen_door import (
     THE_CALL,
     a_call_in_progress,

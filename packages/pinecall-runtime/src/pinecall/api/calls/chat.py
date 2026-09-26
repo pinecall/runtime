@@ -27,7 +27,6 @@ from pinecall.api.deps import (
 from pinecall.api.evals.personas import get_personas
 from pinecall.auth.bearer import POLICY_VIOLATION, close_reason
 from pinecall.auth.keys import KeyRecord, cannot_open, is_held_by
-from pinecall.auth.scopes import new_visitor_identity
 from pinecall.live import open_text_call, taken_up
 from pinecall.live.calls import Live
 from pinecall.live.registry import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, Registry
@@ -38,6 +37,7 @@ from pinecall.orgs.admission import QuotaExhausted
 from pinecall.providers.models import NoProvider
 from pinecall.session.text.session import TextSession, Watcher
 from pinecall.session.text.turn_allowance import TurnRefused
+from pinecall.tokens.scopes import new_visitor_identity
 from pinecall.types import THE_WIDGET, CallContext, Contact, Env, Route, new_call_id
 from pinecall.types.today import today_in
 from pinecall_protocol import encode

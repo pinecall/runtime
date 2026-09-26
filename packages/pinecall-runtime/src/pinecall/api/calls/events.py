@@ -40,11 +40,11 @@ from pinecall.api.deps import (
 from pinecall.api.sse import AcceptDep, ClosingDep, wants_sse
 from pinecall.auth.bearer import POLICY_VIOLATION, close_reason
 from pinecall.auth.keys import cannot_open
-from pinecall.auth.scopes import Reader
 from pinecall.log.entry import Entry, ephemeral_entry
 from pinecall.log.filters import EVERYTHING
 from pinecall.log.replay import is_sealed
 from pinecall.log.store import DEFAULT_LIMIT
+from pinecall.tokens.scopes import Reader
 from pinecall_protocol import ProtocolError, encode
 from pinecall_protocol.events import ErrorEvent
 from pinecall_protocol.registry import TERMINAL_EVENT

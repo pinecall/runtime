@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from pinecall.auth.scopes import SCOPE_ATTRIBUTE
+from pinecall.tokens.scopes import SCOPE_ATTRIBUTE
 from pinecall.types import Scope
 from pinecall.worker import caller_seat
 from tests.session.voice.room.fakes import (

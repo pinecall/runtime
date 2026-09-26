@@ -36,7 +36,6 @@ from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.login_codes import LoginCodes
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.pairing import Pairings
-from pinecall.auth.scopes import KEY_PROJECTION, LivekitKeys, Reader
 from pinecall.auth.throttle import Throttle
 from pinecall.extensions import Extensions
 from pinecall.fleet import Roster
@@ -61,6 +60,7 @@ from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.routes.twilio import TwilioFor
 from pinecall.settings import Settings
 from pinecall.tokens.ledger_memory import MemoryTokens
+from pinecall.tokens.scopes import KEY_PROJECTION, LivekitKeys, Reader
 from pinecall.types import Org
 from pinecall.worker.gateway_client import Gateway
 from tests.api.fake_graph import FakeGraph

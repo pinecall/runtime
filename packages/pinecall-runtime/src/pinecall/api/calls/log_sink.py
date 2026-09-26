@@ -17,7 +17,6 @@ from pinecall.auth.bearer import bearer_of
 from pinecall.auth.env import requested_scope
 from pinecall.auth.keys import KeyRecord, Keys, cannot_open, is_fleet_key
 from pinecall.auth.request_scope import corner_of
-from pinecall.auth.scopes import LivekitKeys, Reader, is_a_jwt, reader_of_bearer, secret_for
 from pinecall.live.registry import Registry
 from pinecall.log.entry import Entry
 from pinecall.log.filters import Filter
@@ -25,6 +24,7 @@ from pinecall.log.projection import project_entry
 from pinecall.log.store import DEFAULT_LIMIT, Store
 from pinecall.log.store.call_index import CallCorner, CallIndex
 from pinecall.settings import Settings
+from pinecall.tokens.scopes import LivekitKeys, Reader, is_a_jwt, reader_of_bearer, secret_for
 from pinecall.types.agent import AgentConfig
 from pinecall.types.json import JsonObject
 from pinecall_protocol import WireModel, encode

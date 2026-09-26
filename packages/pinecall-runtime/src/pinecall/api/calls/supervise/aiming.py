@@ -9,10 +9,10 @@ from pydantic import TypeAdapter, ValidationError
 
 from pinecall.api.calls.log_sink import another_orgs
 from pinecall.api.deps import SnapshotsDep, get_live
-from pinecall.auth.scopes import Reader
 from pinecall.log.store import Store
 from pinecall.session.text.session import TextSession
 from pinecall.session.text.supervise import apply_verb
+from pinecall.tokens.scopes import Reader
 from pinecall_protocol import Command, ProtocolError, encode, verbs
 from pinecall_protocol.commands import SupervisorVerb
 from pinecall_protocol.defs import Supervisor

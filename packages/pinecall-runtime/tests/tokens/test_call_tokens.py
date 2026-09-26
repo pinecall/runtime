@@ -7,7 +7,7 @@ from livekit.api import AccessToken, TokenVerifier, VideoGrants
 
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.keys_memory import MemoryKeys
-from pinecall.auth.scopes import (
+from pinecall.tokens.scopes import (
     KEY_PROJECTION,
     PROJECTION_OF,
     SCOPE_ATTRIBUTE,

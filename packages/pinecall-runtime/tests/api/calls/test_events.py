@@ -11,12 +11,12 @@ from starlette.testclient import TestClient
 
 from pinecall.api.calls.log_sink import sse
 from pinecall.api.sse import RETRY_MS, SSE
-from pinecall.auth.scopes import Reader
 from pinecall.log.entry import Entry
 from pinecall.log.filters import Filter
 from pinecall.log.replay import is_sealed
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
+from pinecall.tokens.scopes import Reader
 from pinecall.types.json import JsonObject
 from pinecall_protocol import encode
 from tests.api.conftest import A_KEY, A_READER
@@ -97,7 +97,7 @@ def test_a_key_nobody_issued_is_refused(gateway: TestClient) -> None:
 # for as long as nobody revokes it, and a URL is written down: the access log, the referrer, the
 # history. This door took a key in `?token=` until 2026-09-20, against what its own paragraph said.
 def test_a_room_token_may_travel_in_the_query_string(gateway: TestClient) -> None:
-    from pinecall.auth.scopes import mint_room_token
+    from pinecall.tokens.scopes import mint_room_token
     from tests.api.conftest import A_LIVEKIT
 
     token = mint_room_token(CALL, "participate", 4102444800.0, A_LIVEKIT)

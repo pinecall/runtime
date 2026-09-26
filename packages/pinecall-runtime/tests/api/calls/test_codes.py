@@ -12,12 +12,12 @@ from starlette.testclient import TestClient
 
 from pinecall.api import deps as deps
 from pinecall.api.app import app
-from pinecall.auth.scopes import decode_call_token, mint_code_token
 from pinecall.live.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.orgs.caller_codes import CLAIMED, ISSUED, Codes
 from pinecall.routes.records_memory import MemoryRoutes
+from pinecall.tokens.scopes import decode_call_token, mint_code_token
 from pinecall.types import PRODUCTION, Route
 from pinecall.worker.gateway_client import CONTEXT, Gateway
 from tests.api.conftest import A_KEY, A_LIVEKIT, A_RECORD, AGENT, over_the_asgi_app

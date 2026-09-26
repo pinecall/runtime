@@ -14,12 +14,12 @@ from pinecall.api.calls.log_sink import (
 )
 from pinecall.api.deps import CallIndexDep, RegistryDep, SnapshotsDep, StoreDep
 from pinecall.auth.request_scope import corner_of
-from pinecall.auth.scopes import Reader
 from pinecall.live.registry import Registry
 from pinecall.log.call_facts import CallFacts
 from pinecall.log.projection import project_state
 from pinecall.log.snapshots import Snapshot, Snapshots
 from pinecall.log.store.call_index import CallIndex, Wanted
+from pinecall.tokens.scopes import Reader
 from pinecall.types import Channel
 from pinecall.types.json import JsonObject
 from pinecall_protocol import encode

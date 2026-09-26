@@ -37,7 +37,7 @@ This runtime does not implement a conversation. LiveKit does, and the line is dr
 | **`livekit.agents.evals`**: `Judge`, `JudgeGroup`, `Verdict`, `Evaluator`, `JudgmentResult` | `evals/judges/*`, `evals/hangup_score.py` | our judges are theirs; `PolicyJudge` answers by code |
 | **`livekit.agents.cli`** | `cli/worker.py` | `worker dev | start | download-files` pass livekit's own flags through |
 | **`livekit.rtc`**: the room, `EventTypes`, the DataChannel | `session/voice/room/*` | the room's events as facts; the log to browsers in the room |
-| **`livekit.api`** + **`livekit.protocol`**: tokens, `RoomConfiguration`, `RoomAgentDispatch`, `MuteRoomTrackRequest` | `auth/scopes.py`, `tokens/room_token.py`, `session/voice/room/*` | a call token IS a LiveKit room token with our scope in it |
+| **`livekit.api`** + **`livekit.protocol`**: tokens, `RoomConfiguration`, `RoomAgentDispatch`, `MuteRoomTrackRequest` | `tokens/scopes.py`, `tokens/room_token.py`, `session/voice/room/*` | a call token IS a LiveKit room token with our scope in it |
 
 What is ours, and only ours: **the log** (every event, with a seq), **the wire** (the protocol
 both sides are generated from), **the tenants** (orgs, keys, quotas, routes, the vault), **the
@@ -111,7 +111,7 @@ log's entry IS the wire's envelope (`log/entry.py`). The fifty-odd entry types, 
 | the two voices | `user.state` `user.transcript` `agent.state` `agent.transcript` — an `agent.transcript` entry is one **delta**, never the reply so far: in a voice call one word with the seconds the voice aligned it to, in a written call one model token; `reduce.py` joins every delta since the last `turn.agent` into `live.agent` |
 | **commands** (app → call) | `agent.say` `agent.reply` `state.set` `session.configure` `call.hangup` `call.transfer` `call.attention` `call.callback` `call.hold` `.unhold` `call.dtmf` `call.dial` `room.invite` `room.send` `participant.mute` `participant.remove` — and `call.mute` `.unmute`, which are in the wire and have no runtime |
 
-Two **projections** decide what leaves the platform (`log/projection.py`, `auth/scopes.py`, the
+Two **projections** decide what leaves the platform (`log/projection.py`, `tokens/scopes.py`, the
 only two places that spell them): **public** — what a participant in the room may see: the
 public state fields, a turn's `role`/`text`, one metric (`e2e_latency`), never `agent` or
 `call`; **tenant** — everything, PII masked where it was written (`log/pii.py`), by the field
@@ -324,7 +324,7 @@ one key that needed no database and was then the ONLY key honoured, is gone, and
 second runtime a laptop used to be; its Postgres store is `auth/keys_postgres.py`), `auth/env.py`
 (the instance's one world held against the request: a header is an assertion, a server's token
 has its own; a person read as an identity or as it acts), `auth/person_keys.py` (every person's key minted in one place, the role's scopes whole), `auth/grants.py` (a key grants what it holds: a role whose preset opens no door the key does not, production access only from a key that has it — asked at the invitation, the row's PATCH and the role SSO seats a stranger with), `auth/bearer.py` (one parser of the header, one close code),
-`auth/scopes.py` (which projection, and the room token that carries one call, one scope),
+`tokens/scopes.py` (which projection, and the room token that carries one call, one scope),
 `auth/members.py` (the org's people and their invitations), `auth/passwords.py` (argon2id, the one
 slow hash in the tree, for the one secret a person invents), `auth/one_use.py` (a word spent once, dead on its own after its minutes: what the login codes, the pairings and the OpenID states are), `auth/login_codes.py` (one-use login codes,
 this process's memory), `auth/signups.py` (sign-ups waiting on their mailed code, the same memory), `auth/throttle.py` (so many tries per name per minute at the password door), `orgs/caller_codes.py` (the codes a page shows beside a phone number: kept on the agent's log, held here, closed lazily when they expire),
@@ -364,11 +364,11 @@ log        ← types, db                        the truth: entries, the reducer,
 auth       ← types, db                        keys, people, sign-in
 orgs       ← types, db, log, providers        the tenant's tables
 routes     ← types, db                        numbers and trunks at the SFU
-tokens     ← types, db, log, auth             the room token and the seat
+tokens     ← types, db, log, auth             the room, log, code and seat tokens; the reader
 mail       ← types, orgs                      the letters, and the SMTP server they are handed to
 session    ← types, log, providers            one call, written or spoken
 whatsapp   ← types, log, session, routes      the text channel
-evals      ← types, db, auth, log, session, providers
+evals      ← types, db, log, session, providers, tokens
 memory     ← types, db, log, providers        the contact's facts, in Postgres
 knowledge  ← types, db, providers             the knowledge base, in Postgres
 lookups    ← types, log, memory, knowledge    the gateway runs recall and search
