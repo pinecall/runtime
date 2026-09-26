@@ -44,7 +44,7 @@ make deploy                                     # this checkout onto your box (d
   - `api/` the gateway's doors, one directory per surface (`scope/ accounts/ agents/ calls/ memory/
     knowledge/ evals/ telephony/ org/ ops/ whatsapp/`) · `worker/` the job · `cli/` the verbs · `migrations/` numbered SQL
   - `mail/` the letters and the generic SMTP they leave by: the org's own account, else the box's
-  - `_settings.py` every variable, once · `_version.py` `0.0.0` until a person says otherwise
+  - `_settings.py` every variable, once · `_version.py` the version, the maintainer's number
 - each distribution's `tests/` mirrors its `src/pinecall/` one to one; `test_isolation.py`, `test_layout.py`,
   `test_the_public_surface.py`, `test_env_example.py`, `test_box_packages.py` are the tree's own rules
 - `infra/box/` the declared box (cloud-init, units, Quadlets, the fence, the manifest Makefile);
@@ -137,7 +137,8 @@ Tests read as sentences.
   `test_scopes_at_the_doors` found no `APIRoute` at all and pinned every door's scope over an
   EMPTY list, silently. Any walk of the app unwraps that, and asserts it reached something.
 - A key is never printed — not in a commit, a test, a log line, a reply. Compare by sha256.
-- `_version.py` stays `0.0.0`.
+- `_version.py` is the maintainer's number: a release bumps its last digit, and nothing else
+  ever writes it.
 - The shell may name a vendor's key differently (`ELEVENLABS_API_KEY`) than the runtime does
   (`ELEVEN_API_KEY`); `.env.example` is the list.
 
