@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import Field
 from starlette.status import HTTP_202_ACCEPTED
 
-from pinecall.api._corner import CornerDep
+from pinecall.api._corner import AnAgentHeld, CornerDep
 from pinecall.api._deps import (
     AdmissionDep,
     DeclarationKeyDep,
@@ -20,7 +20,7 @@ from pinecall.api._deps import (
 )
 from pinecall.api._placing import DispatchesDep, GuardsDep, KeptOutboundTrunksDep, OutboundDep
 from pinecall.api._serving import ServingDep
-from pinecall.api.agents.registry import NO_AGENT, RegistryDep
+from pinecall.api.agents.registry import RegistryDep
 from pinecall.auth.keys import KeyRecord, held_by
 from pinecall.auth.scopes import a_log_token, secret_for
 from pinecall.log.writers import Logs
@@ -227,21 +227,17 @@ async def _never_rang(logs: Logs, context: CallContext, slug: str) -> None:
 #
 # The trunk is asked of the SFU by name and never read off the row: the row is the provisioning's
 # memory, the SFU is what exists, and a row naming a trunk the SFU lost is the 404 a caller heard.
-@router.get("/v1/agents/{slug}/outbound-trunk")
+@router.get("/v1/agents/{slug}/outbound-trunk", dependencies=[AnAgentHeld])
 async def outbound_trunk(
     slug: str,
     key: DeclarationKeyDep,
     corner: CornerDep,
-    registry: RegistryDep,
     sfu: OutboundDep,
     guards: GuardsDep,
     to: str = DIALLING,
     call: str = ON_THE_CALL,
 ) -> TrunkNamed:
     """The SFU's id for this org's outbound trunk, once the number it will dial has passed."""
-    held = registry.of(corner.env, slug, corner.holder)
-    if held is None or held.org != corner.org:
-        raise HTTPException(404, NO_AGENT.format(slug=slug))
     if sfu is None:
         return TrunkNamed(trunk=None)
     asking = Asking(

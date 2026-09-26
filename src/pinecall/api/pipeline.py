@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
+from pinecall.api._corner import HeldDep
 from pinecall.api._deps import PipelineKeyDep, SettingsDep, StoreDep, TuningDep
-from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.api.pipeline_report import Report, report
 from pinecall.auth.keys import KeyRecord, held_by
 from pinecall.orgs.tuning import TuningStore
-from pinecall.types import AgentConfig, Lexicon, Tuning
+from pinecall.types import Lexicon, Tuning
 
 router = APIRouter()
 
@@ -18,23 +18,14 @@ router = APIRouter()
 async def pipeline(
     slug: str,
     key: PipelineKeyDep,
-    registry: RegistryDep,
+    held: HeldDep,
     kept: TuningDep,
     store: StoreDep,
     settings: SettingsDep,
 ) -> Report:
     """What this agent hears, decides and speaks with, what it measured, and what is set."""
-    declared = declared_here(slug, key, registry)
     tuning, lexicon = await standing(kept, key, slug)
-    return await report(slug, declared, tuning, lexicon, store, settings)
-
-
-def declared_here(slug: str, key: KeyRecord, registry: RegistryDep) -> AgentConfig:
-    """What the app says about this agent right now. Nothing is turned on an agent nobody holds."""
-    held = registry.of(key.env, slug, held_by(key))
-    if held is None or held.org != key.org:
-        raise HTTPException(404, NO_AGENT.format(slug=slug))
-    return held.config
+    return await report(slug, held.config, tuning, lexicon, store, settings)
 
 
 async def standing(kept: TuningStore, key: KeyRecord, slug: str) -> tuple[Tuning, Lexicon]:

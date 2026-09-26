@@ -56,7 +56,7 @@ key by a password at — are `404` on a sandbox instance, naming `PINECALL_IDENT
 | `POST` | `/v1/org/mail/test` | one test letter, waited for: `{sent, error}` — `team`; 409 when nothing can send |
 | `GET` | `/v1/login/sso?org=&pairing=` | 302 to that org's provider, with state, nonce and a PKCE challenge — no key; every SSO and Google door is *production's* |
 | `GET` | `/v1/login/sso/callback?code=&state=` | the code exchanged and the id_token checked; 302 to `/?login=<code>`, so no key is ever in a URL — no key |
-| `GET` | `/v1/login/google[?pairing=]` | box-wide "Continue with Google": 302 to Google — no key, throttled like the SSO; 404 while nobody wired one |
+| `GET` | `/v1/login/google?pairing=` | box-wide "Continue with Google": 302 to Google — no key, throttled like the SSO; 404 while nobody wired one |
 | `GET` | `/v1/login/google/callback?code=&state=` | the address matched against every org's members: 302 `/?login=<code>` for a member, `/?refused=<why>` for nobody — no key |
 | `POST` | `/v1/login/sso/discover` | which orgs an address's domain signs in to with a provider; says nothing about who exists — no key, throttled like the login |
 | `POST` | `/v1/signup` | *production's*; where `PINECALL_SIGNUP` is on, off by default: the sign-up kept and a six-digit code mailed, `202`, no org yet; with `PINECALL_SIGNUP_KEY` set, that key only |
@@ -71,11 +71,21 @@ key by a password at — are `404` on a sandbox instance, naming `PINECALL_IDENT
 | `PUT` · `DELETE` | `/v1/ops/signin/google` | **the box's own**: the OAuth client at Google, its secret sealed; Google's discovery checked before anything is kept |
 | `GET` | `/v1/ops/events` | **the box's own**: SSE, live only — every org's floor at once, each frame `{org, entry}`. [the-boxs-floor.md](the-boxs-floor.md) |
 | `GET` · `PUT` | `/v1/ops/brand` | **the box's own**: what the letters and the sign-in page are called and painted with — `{name, logo_url, accent}` |
-| `GET` | `/v1/ops/orgs/{org}/sso` | **the box's own**: which provider one org signs in with, never its secret |
-| `PUT` | `/v1/ops/orgs/{org}/sso/required` | **the box's own**: the break-glass — a password opens that org again while its provider is down. Never the other way |
-| `GET` · `POST` | `/v1/ops/orgs/{org}/members` | **the box's own**: an org's people and how many hold a seat; invite one — the first admin, where sign-ups are shut — the token once. Never a change |
-| `PUT` | `/v1/ops/orgs/{org}/members/{id}/operator` | **the box's own**: whether this member runs the box; false takes it back at once |
-| `DELETE` | `/v1/ops/orgs/{org}/members/{id}` | **the box's own**: that person out of the org for good, under the tenant door's rules less "yourself" — `409` for its last active admin |
+| `GET` | `/v1/ops/orgs/{named}/sso` | **the box's own**: which provider one org signs in with, never its secret |
+| `PUT` | `/v1/ops/orgs/{named}/sso/required` | **the box's own**: the break-glass — a password opens that org again while its provider is down. Never the other way |
+| `GET` · `POST` | `/v1/ops/orgs/{named}/members` | **the box's own**: an org's people and how many hold a seat; invite one — the first admin, where sign-ups are shut — the token once. Never a change |
+| `PUT` | `/v1/ops/orgs/{named}/members/{id}/operator` | **the box's own**: whether this member runs the box; false takes it back at once |
+| `DELETE` | `/v1/ops/orgs/{named}/members/{id}` | **the box's own**: that person out of the org for good, under the tenant door's rules less "yourself" — `409` for its last active admin |
+| `GET` · `POST` | `/v1/ops/orgs` | **the box's own**: every org, oldest first, the default one always first; a new tenant, its id minted here |
+| `GET` · `DELETE` | `/v1/ops/orgs/{named}` | **the box's own**: one org as it stands — its quotas, its dial guards, what it holds; forgotten, refused `409` while a live key or a route still names it |
+| `PUT` | `/v1/ops/orgs/{named}/agents` | **the box's own**: an agent's logs and numbers moved into this org from wherever they were, refused while somebody holds it |
+| `PUT` | `/v1/ops/orgs/{named}/quotas` · `/v1/ops/orgs/{named}/dialling` | **the box's own**: the org's limits replaced whole (they bite the next call and the next register), and its dial guards |
+| `GET` · `POST` | `/v1/ops/orgs/{named}/keys` | **the box's own**: every key of the org, revoked ones named as revoked; a new one, the key once |
+| `POST` | `/v1/ops/keys/{fingerprint}/revoke` | **the box's own**: one key stops opening anything from the next request; its row and its history stay |
+| `GET` | `/v1/ops/orgs/{named}/provider-keys` · `PUT`·`DELETE /v1/ops/orgs/{named}/provider-keys/{vendor}` | **the box's own**: which vendors this org brought its own key for; one set or taken back, the box's own key from the next call on |
+| `GET` · `POST` | `/v1/ops/routes` · `DELETE /v1/ops/routes/{number}` | **the box's own**: every number every org answers at; one added or moved (one row per number per org); one forgotten, `404` for a number nobody typed |
+| `GET` | `/v1/ops/fleet` · `POST`·`DELETE /v1/ops/fleet/{worker}/cordon` | **the box's own**: every worker heard from and the fleet's totals; a cordon — the worker takes no new call, finishes what it holds and leaves, told on its next beat — and the cordon taken back |
+| `GET` | `/v1/ops/usage?after=&limit=&org=` | **the box's own**: every org's metered rows in one stream or page, with the cursor to resume from |
 | `GET` | `/v1/agents` | the agents this gateway is holding for your org |
 | `GET` | `/v1/apps` | the processes holding them right now, one per socket: agents, world, the machine (`host`, from `agent.register`), address, SDK, whose corner, since when |
 | `POST` | `/v1/apps/{app}/stop` | `app`: tell that process it was stopped (`error` code `stopped`) and close its socket; it exits instead of reconnecting — a supervisor (systemd, pm2) starts it again |
@@ -92,10 +102,10 @@ key by a password at — are `404` on a sandbox instance, naming `PINECALL_IDENT
 | `GET` | `/v1/agents/{slug}/pipeline/hold-audio/audio` | the melody itself, `audio/ogg`, to listen to before a caller does; `404` while the agent plays none — `pipeline` |
 | `PUT` | `/v1/agents/{slug}/pipeline/hold-audio/played` | `{played: "default"|"off"}`: the runtime's melody back, or silence — the uploaded clip forgotten either way — `pipeline` |
 | `GET` · `PUT` | `/v1/agents/{slug}/settings` | what the org set over the class — vendors, models, the opening, the cut of a turn, what is remembered, what it knows by heart, the bases — per world, per corner, a version a row: yours, the team's, production's — a set writes the request's world, production's directly — `pipeline` or `words`; `words` sets the opening's words and what is remembered and is refused the rest by name — [settings-api.md](settings-api.md) |
-| `GET` | `…/settings/history` · `…/settings/diff` | one corner's versions, newest first; this corner against the team's or production's — `pipeline` or `words` |
-| `POST` | `…/settings/rollback` | one version back as the next one — `pipeline` |
+| `GET` | `/v1/agents/{slug}/settings/history` · `/v1/agents/{slug}/settings/diff` | one corner's versions, newest first; this corner against the team's or production's — `pipeline` or `words` |
+| `POST` | `/v1/agents/{slug}/settings/rollback` | one version back as the next one — `pipeline` |
 | `GET` | `/v1/calls/{call}/settings` | the exact settings and lexicon a call ran on, by the versions its head row kept — `calls` |
-| `GET` · `PUT` | `/v1/lexicon` · `GET …/history` | the org's words — how the voice says them, what the ears must know — laid over every agent's own, in the request's world — `pipeline` or `words` |
+| `GET` · `PUT` | `/v1/lexicon` · `GET /v1/lexicon/history` | the org's words — how the voice says them, what the ears must know — laid over every agent's own, in the request's world — `pipeline` or `words` |
 | `GET` · `PUT` | `/v1/agents/{slug}/widget` | how the widget presents the agent — title, tagline, greeting, accent, autostart, theme — per world; read with `talk`, set with `pipeline` |
 | `POST` | `/v1/agents/{slug}/dev/{family}/{verb}` · `?app=` | a console's ask, relayed to the app standing in the agent's directory — `chat`, `knowledge`, `memory`, `view` or `evals` by family; [dev-verbs.md](dev-verbs.md) |
 | `GET` | `/v1/agents/{slug}/provider-keys` | the org's own vendor keys, **in the clear**: the worker's door, see §6 |
@@ -116,13 +126,13 @@ key by a password at — are `404` on a sandbox instance, naming `PINECALL_IDENT
 | `POST` | `/v1/calls/{call}/claim` | the worker's: the caller keyed a code, bind the call to it — `404` when no page waits on it |
 | `POST`·`GET` | `/v1/callbacks` | a number to call back when the fleet was full, and the list of them |
 | `GET` | `/v1/routes` | the numbers and doors your org answers |
-| `PUT`·`DELETE`·`GET` | `/v1/provider-keys[/{vendor}]` | the org's own vendor accounts — `providers` |
+| `GET` | `/v1/provider-keys` · `PUT`·`DELETE /v1/provider-keys/{vendor}` | the org's own vendor accounts — `providers` |
 | `GET` | `/v1/providers` | every vendor this build runs, which are ready on this box and which want a key, the vendor each stage runs on when nobody chose (`defaults`), the models this build vouches for under `<modality>/<vendor>` (`models`), the curated voices, and per vendor whether `GET /v1/voices` lists its voices (`voices_listed`) — `providers` |
 | `GET` | `/v1/voices?tts=&language=` | a voice vendor's own voices in that language (`es`, `es-ES` and `en_US` are read as their base code), each with the id the `voice` setting takes, its name, gender, country and accent — Cartesia asked of Cartesia, page by page, on the org's own key or the box's; ElevenLabs the names this build curates; which vendors list is the catalogue's `voices_listed` · `404` a vendor whose catalogue is not read, `503` no key for it, `409` the vendor refused that key, `502` it did not answer — `pipeline`. The shape is the protocol's `VoicesListed` |
 | `POST` | `/v1/voices/sample` | the protocol's `VoiceSample` — `{tts, voice, model?, language?, text?}` — said by that vendor's plugin over the same streaming path a call speaks on, answered as `audio/wav` with `Server-Timing: first-audio;dur=…, total;dur=…`; no `text` is one line in the language, chosen here. The three words are read exactly as the settings door reads them, so what plays is what saves · `422` a typo, a vendor this build has no row for, a model it would swap, or more than 400 characters · `429` past thirty samples a minute on one key · `503` no key for the vendor · `409` the vendor refused the key · `502` it did not answer — `pipeline` |
-| `GET` | `/v1/personas` · `PUT`·`DELETE …/{name}` | the org's synthetic callers — a goal, a manner, the facts they may state, how they are played (`llm` · `tts` · `voice`, the agent's own three words, `422` for one this box does not have) and when they accept the call (`accepts_when` · `declines_when`, which the `persona` judge reads at hang-up) — one list an org, whichever agent and whichever world asks; `evals` |
+| `GET` | `/v1/personas` · `PUT`·`DELETE /v1/personas/{name}` | the org's synthetic callers — a goal, a manner, the facts they may state, how they are played (`llm` · `tts` · `voice`, the agent's own three words, `422` for one this box does not have) and when they accept the call (`accepts_when` · `declines_when`, which the `persona` judge reads at hang-up) — one list an org, whichever agent and whichever world asks; `evals` |
 | `GET` | `/v1/personas/{name}/runs?limit=&before=` | that caller's simulations in the key's corner, newest first: the call, the agent, when, its turns, how it ended, its outcome, what it cost and how the judges answered. Paged as the sessions list is; `404` for a name this org never wrote — `evals` |
-| `PUT`·`GET`·`DELETE` | `/v1/knowledge[/{base}]` · `POST …/eval` · `GET /v1/knowledge/attached` · `GET`·`PUT`·`DELETE …/{base}/files/{path}` | the bases the agent searches, in the request's world — production's pushed there directly; a push answers the chunks it made; which agents read which; a base's files listed, read, put and taken out one at a time |
+| `GET` | `/v1/knowledge` · `/v1/knowledge/attached` · `PUT`·`GET`·`DELETE /v1/knowledge/{base}` · `POST /v1/knowledge/{base}/eval` · `GET`·`PUT`·`DELETE /v1/knowledge/{base}/files/{path}` | the bases the agent searches, in the request's world — production's pushed there directly; a push answers the chunks it made; which agents read which; a base's files listed, read, put and taken out one at a time |
 | `GET`·`DELETE` | `/v1/contacts/{contact}/memory` · `POST /v1/contacts/memory/eval` | what it keeps about a person, in the key's world |
 | `GET` | `/v1/agents/{slug}/threads?after=` · `/threads/{contact}` | the inbox: an agent's calls by contact, what this person has not read, and one thread merged — `calls` |
 | `POST` | `/v1/agents/{slug}/threads/{contact}/read` · `/messages` | mark a thread read — `calls`; say something on the open WhatsApp conversation — `talk` |
@@ -130,13 +140,13 @@ key by a password at — are `404` on a sandbox instance, naming `PINECALL_IDENT
 | `GET` | `/v1/memory?after=&q=` | the same across every agent of the org, each fact with its `agent` — `memory` |
 | `DELETE` | `/v1/memory/facts/{id}` | end one fact, bi-temporally: the row stays, superseded — `memory` |
 | `POST` | `/v1/agents/{slug}/memory/extraction` | what a hang-up makes of a call |
-| `POST` | `/v1/evals/run` · `GET /v1/evals/runs[/{id}]` · `POST /v1/evals/replay/{call}` · `/v1/evals/judge/{call}` | the suites, ring 3, and the judges over a finished call nobody judged |
+| `POST` | `/v1/evals/run` · `GET /v1/evals/runs` · `GET /v1/evals/runs/{id}` · `POST /v1/evals/replay/{call}` · `/v1/evals/judge/{call}` | the suites, ring 3, and the judges over a finished call nobody judged |
 | `POST` | `/v1/evals/caller` · `/v1/evals/voice` | the improvising caller — on the persona's own `llm` when it set one — and a spoken eval, in the persona's own `tts` and `voice` when it set them; `422` for a word this box does not have |
-| `POST` | `/v1/calls` · `/v1/calls/{call}/events` · `/sealed` · `/tools` · `/lookup` · `/remember` · `GET /commands` | the worker's own doors; `POST /v1/calls` answers `{"seconds_left": n, "minutes": m}`, what the org's minutes leave the call and the quota they come from (null: no limit); `/lookup` is also the app's own `this.knowledge.search` — `app` |
-| `POST`·`GET` | `/v1/fleet/heartbeat` · `/v1/fleet/standing` | the fleet's: what a worker holds, and whether all are full. A key holding `app` AND `fleet` — what the box mints for its worker |
+| `POST` | `/v1/calls` · `/v1/calls/{call}/events` · `/sealed` · `/reopened` · `/tools` · `/lookup` · `/remember` · `GET /commands` | the worker's own doors; `POST /v1/calls` answers `{"seconds_left": n, "minutes": m}`, what the org's minutes leave the call and the quota they come from (null: no limit); `/lookup` is also the app's own `this.knowledge.search` — `app` |
+| `POST` | `/v1/fleet/heartbeat` · `GET /v1/fleet/standing` | the fleet's: what a worker holds, and whether all are full. A key holding `app` AND `fleet` — what the box mints for its worker |
 | `GET`·`POST` | `/v1/whatsapp/webhook` | Meta's |
 | `GET` | `/.well-known/pinecall` | what this gateway is before anybody holds a key: version, `world` and `elsewhere` (the other instance's URL), `cloud`, `signup`, `min_password`, `mail`, `brand`, `google` — no key |
-| `GET` | `/` | the console — no key to load, it proves its own |
+| `GET` | `/{path}` | the console — no key to load, it proves its own |
 | `GET` | `/widget/pinecall-widget.js` | the widget, for any site to load: `Access-Control-Allow-Origin: *`, the one answer to any origin; under `/v1` only the mobile app's origins are echoed ([people.md](people.md)) |
 | | `/v1/ops/*` | the operator's: the box's own key, or the key of a person the box made an operator — [operator-api.md](operator-api.md) |
 

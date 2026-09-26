@@ -8,10 +8,8 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from starlette.requests import HTTPConnection
 
-from pinecall.api._corner import CornerDep
+from pinecall.api._corner import AnAgentHeld, CornerDep
 from pinecall.api._deps import DeclarationKeyDep, PipelineKeyDep, held
-from pinecall.api.agents.registry import NO_AGENT, RegistryDep
-from pinecall.api.pipeline import declared_here
 from pinecall.orgs.hold_audio import Chosen, HoldAudio
 from pinecall.session.hold_audio import DEFAULT, converted
 from pinecall_protocol import WireModel
@@ -73,38 +71,30 @@ async def _bytes(kept: HoldAudio, org: str, slug: str) -> Response:
 # ── the console's: the Pipeline tab, on a key that opens `pipeline` ─────────────────────────────
 
 
-@router.get("/v1/agents/{slug}/pipeline/hold-audio")
-async def hold_audio(
-    slug: str, key: PipelineKeyDep, registry: RegistryDep, kept: HoldAudioDep
-) -> HoldAudioAnswer:
+@router.get("/v1/agents/{slug}/pipeline/hold-audio", dependencies=[AnAgentHeld])
+async def hold_audio(slug: str, key: PipelineKeyDep, kept: HoldAudioDep) -> HoldAudioAnswer:
     """What this agent plays while a tool runs."""
-    declared_here(slug, key, registry)
     return answer(await kept.chosen(key.org, slug))
 
 
-@router.get("/v1/agents/{slug}/pipeline/hold-audio/audio")
-async def hold_audio_file(
-    slug: str, key: PipelineKeyDep, registry: RegistryDep, kept: HoldAudioDep
-) -> Response:
+@router.get("/v1/agents/{slug}/pipeline/hold-audio/audio", dependencies=[AnAgentHeld])
+async def hold_audio_file(slug: str, key: PipelineKeyDep, kept: HoldAudioDep) -> Response:
     """The melody itself, to listen to before a caller does."""
-    declared_here(slug, key, registry)
     return await _bytes(kept, key.org, slug)
 
 
 # The body IS the file — a wav, an mp3, an ogg, an m4a, whatever PyAV decodes — and not a form:
 # one request, no multipart, and the name it had rides in `?name=`. It is converted here, once,
 # so every worker plays the same Opus and none of them decodes a stranger's mp3 mid-call.
-@router.put("/v1/agents/{slug}/pipeline/hold-audio")
+@router.put("/v1/agents/{slug}/pipeline/hold-audio", dependencies=[AnAgentHeld])
 async def upload(
     slug: str,
     request: Request,
     key: PipelineKeyDep,
-    registry: RegistryDep,
     kept: HoldAudioDep,
     name: Annotated[str | None, Query(max_length=200)] = None,
 ) -> HoldAudioAnswer:
     """A file of yours as this agent's hold melody, converted; it plays from the next call on."""
-    declared_here(slug, key, registry)
     data = await request.body()
     if len(data) > MAX_BYTES:
         raise HTTPException(413, TOO_BIG)
@@ -115,12 +105,11 @@ async def upload(
     return answer(chosen)
 
 
-@router.put("/v1/agents/{slug}/pipeline/hold-audio/played")
+@router.put("/v1/agents/{slug}/pipeline/hold-audio/played", dependencies=[AnAgentHeld])
 async def choose(
-    slug: str, said: Played, key: PipelineKeyDep, registry: RegistryDep, kept: HoldAudioDep
+    slug: str, said: Played, key: PipelineKeyDep, kept: HoldAudioDep
 ) -> HoldAudioAnswer:
     """The runtime's melody back, or none at all. An uploaded clip is forgotten either way."""
-    declared_here(slug, key, registry)
     if said.played == "default":
         await kept.forget(key.org, slug)
         return answer(None)
@@ -132,33 +121,23 @@ async def choose(
 # ── the worker's: the corner of the call it is building, on the fleet's key ──────────────────────
 
 
-def _held_in_corner(slug: str, corner: CornerDep, registry: RegistryDep) -> None:
-    held = registry.of(corner.env, slug, corner.holder)
-    if held is None or held.org != corner.org:
-        raise HTTPException(404, NO_AGENT.format(slug=slug))
-
-
-@router.get("/v1/agents/{slug}/hold-audio")
+@router.get("/v1/agents/{slug}/hold-audio", dependencies=[AnAgentHeld])
 async def for_a_call(
     slug: str,
     key: DeclarationKeyDep,  # noqa: ARG001 — the scope is asked here; the corner says where
     corner: CornerDep,
-    registry: RegistryDep,
     kept: HoldAudioDep,
 ) -> HoldAudioAnswer:
     """What the call being built plays while a tool runs; the worker fetches a clip by its hash."""
-    _held_in_corner(slug, corner, registry)
     return answer(await kept.chosen(corner.org, slug))
 
 
-@router.get("/v1/agents/{slug}/hold-audio/audio")
+@router.get("/v1/agents/{slug}/hold-audio/audio", dependencies=[AnAgentHeld])
 async def for_a_call_file(
     slug: str,
     key: DeclarationKeyDep,  # noqa: ARG001
     corner: CornerDep,
-    registry: RegistryDep,
     kept: HoldAudioDep,
 ) -> Response:
     """The clip's bytes, once per worker per hash: the worker keeps it on disk after that."""
-    _held_in_corner(slug, corner, registry)
     return await _bytes(kept, corner.org, slug)

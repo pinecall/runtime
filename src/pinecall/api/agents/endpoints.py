@@ -9,7 +9,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
 
-from pinecall.api._corner import CornerDep
+from pinecall.api._corner import CornerDep, HeldDep
 from pinecall.api._deps import (
     AppKeyDep,
     CallsKeyDep,
@@ -19,7 +19,7 @@ from pinecall.api._deps import (
     SettingsDep,
     TuningDep,
 )
-from pinecall.api.agents.registry import NO_AGENT, Registry, RegistryDep
+from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.api.agents.tuned import tuned_for
 from pinecall.api.peers import ProductionDep, SandboxDep
 from pinecall.auth.keys import KeyRecord, held_by, sees_every_corner
@@ -52,14 +52,11 @@ async def config(
     slug: str,
     key: DeclarationKeyDep,  # noqa: ARG001 — the scope is asked here; the corner says where
     corner: CornerDep,
-    registry: RegistryDep,
+    held: HeldDep,
     kept: TuningDep,
 ) -> AgentConfig:
     """What the app declared about this agent, resolved: the session is built from it, and the
     console draws the state by it."""
-    held = registry.of(corner.env, slug, corner.holder)
-    if held is None or held.org != corner.org:
-        raise HTTPException(status_code=404, detail=NO_AGENT.format(slug=slug))
     # The corner's tuning is laid on through tuned_for(), the one resolving function every door
     # that builds a session calls, so what the org set arrives by the path a declaration travels.
     # The hop carries the domain object itself, serialized by pydantic off the annotation — the

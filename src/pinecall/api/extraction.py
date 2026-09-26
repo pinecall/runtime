@@ -6,8 +6,9 @@ import time
 
 from fastapi import APIRouter, HTTPException
 
+from pinecall.api._corner import HeldDep
 from pinecall.api._deps import LlmsDep, MemoryKeyDep, OrgsDep, TuningDep, VaultDep
-from pinecall.api.agents.registry import NO_AGENT, RegistryDep
+from pinecall.api.agents.holding import Registration
 from pinecall.api.agents.tuned import tuned_for
 from pinecall.auth.keys import KeyRecord, held_by
 from pinecall.memory.extraction import answered
@@ -39,14 +40,14 @@ async def extraction(
     slug: str,
     said: ExtractionCases,
     key: MemoryKeyDep,
-    registry: RegistryDep,
+    held: HeldDep,
     kept: TuningDep,
     llms: LlmsDep,
     vault: VaultDep,
     orgs: OrgsDep,
 ) -> ExtractionRun:
     """Every case through one extraction each, and the four questions asked of what came back."""
-    config = await _the_agent(slug, key, registry, kept)
+    config = await _the_agent(slug, held, key, kept)
     policy = config.memory
     if policy is None or not policy.remember:
         raise HTTPException(status_code=400, detail=KEEPS_NOTHING.format(slug=slug))
@@ -75,13 +76,8 @@ async def _one(case: ExtractionGolden, chat: Chat, config: AgentConfig) -> Extra
     return judged(case, said, policy=policy, known=known, tools=config.tools)
 
 
-async def _the_agent(
-    slug: str, key: KeyRecord, registry: RegistryDep, kept: TuningDep
-) -> AgentConfig:
+async def _the_agent(slug: str, held: Registration, key: KeyRecord, kept: TuningDep) -> AgentConfig:
     """The declaration this run is judged against, with the org's tuning already laid over it."""
-    held = registry.of(key.env, slug, held_by(key))
-    if held is None or held.org != key.org:
-        raise HTTPException(status_code=404, detail=NO_AGENT.format(slug=slug))
     resolved = await tuned_for(kept, key.org, key.env, held_by(key), slug, held.config)
     return resolved.config
 

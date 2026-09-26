@@ -7,6 +7,8 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Query
 
 from pinecall.api._deps import KeyDep
+from pinecall.api.agents.holding import Registration
+from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.auth.corner import Corner, corner_of
 from pinecall.types import DeclarationRefused, Env
 
@@ -30,3 +32,19 @@ async def a_corner(
 
 
 CornerDep = Annotated[Corner, Depends(a_corner)]
+
+
+# "The agent in this corner, or 404" was nine doors' own three lines. An API key IS its org, so a
+# slug another org holds is a 404 here — that it exists at all is not the asker's business — and
+# a slug nobody holds is the same 404: what is turned on an agent nobody holds is nothing.
+def an_agent_held(slug: str, corner: CornerDep, registry: RegistryDep) -> Registration:
+    """The socket holding this agent in this corner: what it declared, and its doors."""
+    held = registry.of(corner.env, slug, corner.holder)
+    if held is None or held.org != corner.org:
+        raise HTTPException(404, NO_AGENT.format(slug=slug))
+    return held
+
+
+HeldDep = Annotated[Registration, Depends(an_agent_held)]
+# For a door that asks only that somebody holds it, and reads nothing of what they declared.
+AnAgentHeld = Depends(an_agent_held)
