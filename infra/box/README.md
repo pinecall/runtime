@@ -431,9 +431,10 @@ deploy, and a changed `.container` takes effect on its next restart, which is yo
 charges says its numbers (`docs/charging-for-it.md`) — travels with the deploy. Name its checkout in
 `deploy.local.mk` (`EXTENSIONS_SRC = ../cloud`, space separated for more), and its module in
 `PINECALL_EXTENSIONS` in `/etc/pinecall/box.env`, which both instances read: `sync` carries it to
-`/opt/pinecall/extensions/<its directory>`, and `install` puts it into the venv with `--no-deps`
-(what it depends on, `pinecall-core`, is already there: a member of the runtime's workspace)
-**after** `uv sync --frozen`, which removes whatever the lock does not name — a package installed
+`/opt/pinecall/extensions/<its directory>`, and `install` puts it into the venv **offline**, its
+dependencies checked against what is already there (`pinecall-core`, a member of the runtime's
+workspace) and never fetched — a package that needs what the runtime's lock did not install fails
+the deploy by name — **after** `uv sync --frozen`, which removes whatever the lock does not name — a package installed
 once by hand is gone at the next deploy, and a gateway told to load it then refuses to start.
 Nothing set, nothing of it runs.
 

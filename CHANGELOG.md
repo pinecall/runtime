@@ -112,6 +112,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   none; a suite's run held one per run and closed it never.
 
 ### Changed
+- **An extension's dependencies are checked, not skipped.** `make deploy` installed an extension
+  with `--no-deps`; it installs it offline now (`--no-sources --offline --reinstall-package`), so
+  its dependency on `pinecall-core` is checked against the venv the lock wrote and nothing is ever
+  fetched, and only the extension is reinstalled instead of everything it resolves.
 - **`pinecall.errors` is the root error's module.** `PinecallError` is imported from there;
   `pinecall._exceptions` is gone, and so is the root module: `pinecall` is a namespace package
   now, so `from pinecall import PinecallError` is `from pinecall.errors import PinecallError` and

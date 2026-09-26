@@ -69,17 +69,24 @@ UV_SYNC = sudo -u pinecall env UV_PROJECT_ENVIRONMENT=/opt/pinecall/venv UV_CACH
 # numbers with (docs/charging-for-it.md) — as checkouts on this machine, space separated. Each is
 # carried to $(EXTENSIONS)/<its directory's name> and installed into the venv AFTER the sync, since
 # `uv sync --frozen` removes whatever the lock does not name: installed once by hand, a package
-# would be gone at the next deploy and a gateway told to load it would refuse to start. --no-deps:
-# what a package depends on is pinecall-core, a member of the venv the sync just wrote, and a
-# resolver asked for it here would go looking for it on PyPI. Which
-# of them the gateway loads is PINECALL_EXTENSIONS in /etc/pinecall/box.env; unset here, nothing
-# of this runs and a deploy is exactly what it was. --no-config: it runs as the service user from
-# the deploy account's home, where uv would try to read that account's uv.toml and be refused.
+# would be gone at the next deploy and a gateway told to load it would refuse to start. Which of
+# them the gateway loads is PINECALL_EXTENSIONS in /etc/pinecall/box.env; unset here, nothing of
+# this runs and a deploy is exactly what it was.
+#   --no-sources   a package's [tool.uv.sources] are its laptop's paths, which the box does not have
+#   --offline      its dependencies are the runtime's (pinecall-core, a member of the venv the sync
+#                  just wrote), so they are checked against the venv and never fetched: a package
+#                  that needs something the runtime's lock did not install fails here, by name
+#   --reinstall-package  the package itself and nothing else; the venv around it is the lock's
+#   --no-config    it runs as the service user from the deploy account's home, where uv would try
+#                  to read that account's uv.toml and be refused
+# (Proved on the box on 2026-09-26: cloud resolves with pinecall-core from the venv, offline.)
 EXTENSIONS_SRC ?=
 EXTENSIONS      = /opt/pinecall/extensions
 EXTENSION_DIRS  = $(foreach dir,$(EXTENSIONS_SRC),$(EXTENSIONS)/$(notdir $(abspath $(dir))))
+EXTENSION_NAMES = $(foreach dir,$(EXTENSIONS_SRC),$(shell sed -n 's/^name = "\(.*\)"$$/\1/p' $(dir)/pyproject.toml))
 UV_EXTENSIONS   = $(if $(EXTENSIONS_SRC),sudo -u pinecall env UV_CACHE_DIR=/opt/pinecall/.cache/uv \
-                  /opt/pinecall/bin/uv pip install -q --no-config --no-deps --reinstall --compile-bytecode \
+                  /opt/pinecall/bin/uv pip install -q --no-config --no-sources --offline --compile-bytecode \
+                  $(foreach name,$(EXTENSION_NAMES),--reinstall-package $(name)) \
                   --python /opt/pinecall/venv/bin/python $(EXTENSION_DIRS) &&)
 
 .PHONY: deploy console sync install restart restart-all restart-hub restart-worker health doctor migrate-post providers instance peer secret status logs ssh require-box
