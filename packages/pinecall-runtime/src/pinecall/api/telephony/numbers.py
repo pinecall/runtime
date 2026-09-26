@@ -18,6 +18,7 @@ from pinecall.api.deps import (
     TwilioDep,
 )
 from pinecall.auth.keys import KeyRecord
+from pinecall.orgs.carriers import NO_CARRIER, NoCarrier
 from pinecall.routes.inbound_trunks import NO_LIVEKIT, TRUNK_NAME, Trunks, fence_of
 from pinecall.routes.records import Routes
 from pinecall.routes.twilio import (
@@ -40,9 +41,6 @@ from pinecall_protocol import WireModel
 
 router = APIRouter()
 
-NO_CARRIER = (
-    "this org has no carrier yet: PUT /v1/carrier with a Twilio account or a SIP peer first"
-)
 NO_DOMAIN = "this gateway has no PINECALL_DOMAIN: a carrier cannot be pointed at a box with no name"
 NOT_ON_ACCOUNT = "{number} is not a number of Twilio account {account}"
 NOT_A_NUMBER_CHANNEL = "a number answers on phone or whatsapp, not {channel}"
@@ -153,7 +151,7 @@ async def brought(key: NumbersKeyDep, carriers: KeptCarriersDep) -> CarrierBroug
     """Which carrier the org brought, by kind and account — never a secret."""
     carrier = await carriers.of(key.org)
     if carrier is None:
-        raise HTTPException(404, NO_CARRIER)
+        raise NoCarrier(NO_CARRIER)
     return CarrierBrought(kind=carrier.kind, account=carrier.named)
 
 
@@ -161,7 +159,7 @@ async def brought(key: NumbersKeyDep, carriers: KeptCarriersDep) -> CarrierBroug
 async def take_back(key: NumbersKeyDep, carriers: KeptCarriersDep) -> None:
     """Forget the carrier. Its numbers stay routed until each is let go."""
     if not await carriers.drop(key.org):
-        raise HTTPException(404, NO_CARRIER)
+        raise NoCarrier(NO_CARRIER)
 
 
 # ── the numbers ─────────────────────────────────────────────────────────────────
@@ -183,7 +181,7 @@ async def available(
     """What the carrier account owns that this org has not imported yet, by number and name."""
     carrier = await carriers.of(key.org)
     if carrier is None:
-        raise HTTPException(404, NO_CARRIER)
+        raise NoCarrier(NO_CARRIER)
     if not isinstance(carrier.account, TwilioAccount):
         # A SIP peer owns what it owns; nobody here can list it. The import takes the number typed.
         return NumbersAvailable(kind="sip", numbers=[])
@@ -213,7 +211,7 @@ async def import_number(
     route = parse_route(key, said.number, said.agent, said.channel)
     carrier = await carriers.of(key.org)
     if carrier is None:
-        raise HTTPException(404, NO_CARRIER)
+        raise NoCarrier(NO_CARRIER)
     if not settings.domain:
         raise HTTPException(503, NO_DOMAIN)
     if trunks is None:

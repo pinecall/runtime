@@ -6,9 +6,18 @@ import json
 from typing import Any, Protocol
 
 from pinecall.db import Pool
+from pinecall.errors import PinecallError
 from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, seal, sealed_store, unseal
 from pinecall.settings import Settings
 from pinecall.types import Carrier, SipPeer, TwilioAccount, parse_carrier_kind, parse_sip_transport
+
+NO_CARRIER = (
+    "this org has no carrier yet: PUT /v1/carrier with a Twilio account or a SIP peer first"
+)
+
+
+class NoCarrier(PinecallError):
+    """The org brought no carrier: nothing can be imported, provisioned or dialled through yet."""
 
 
 class Carriers(Protocol):

@@ -12,9 +12,16 @@ from pinecall.api.calls.supervise.aiming import VerbRefused
 from pinecall.api.evals.runner import AlreadyRunning, NobodyServing
 from pinecall.auth.identity import NotRedeemed
 from pinecall.dialling import DidNotDial, NobodyHolding, NoPhoneDoor, NotOurNumber, NoTrunk
+from pinecall.dialling.provisioning import (
+    CredentialsLost,
+    NoMediaPlane,
+    NoNumbers,
+    NoOutboundHost,
+)
 from pinecall.log.filters import FilterRefused
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.orgs.caller_codes import TooManyCodes
+from pinecall.orgs.carriers import NoCarrier
 from pinecall.orgs.outbound_guards import DialRefused
 from pinecall.orgs.personas import NameTaken, NoSuchPersona
 from pinecall.orgs.records import SlugTaken
@@ -50,11 +57,15 @@ STATUS_OF: dict[type[Exception], int] = {
     NobodyServing: 404,
     NotListed: 404,
     NoPhoneDoor: 404,
+    NoCarrier: 404,
     VersionMoved: 409,
     NameTaken: 409,
     SlugTaken: 409,
     NoTrunk: 409,
     NobodyHolding: 409,
+    NoNumbers: 409,
+    NoOutboundHost: 409,
+    CredentialsLost: 409,
     AlreadyRunning: 409,
     WrongWidth: 409,
     WrongModel: 409,
@@ -64,6 +75,7 @@ STATUS_OF: dict[type[Exception], int] = {
     DidNotDial: 502,
     EmbedderUnreachable: 503,
     NoProvider: 503,
+    NoMediaPlane: 503,
 }
 
 

@@ -9,11 +9,11 @@ import pytest
 
 from pinecall.api.telephony.numbers import (
     HELD_ELSEWHERE,
-    NO_CARRIER,
     NO_DOMAIN,
     NOT_ON_ACCOUNT,
     NOT_VERIFIED,
 )
+from pinecall.orgs.carriers import NO_CARRIER
 from pinecall.orgs.carriers_memory import MemoryCarriers
 from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.routes.twilio import TWILIO_SIGNALLING
