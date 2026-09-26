@@ -55,7 +55,7 @@ class DialRefused(PinecallError):
 
     @property
     def status(self) -> int:
-        """What the door answers: the guard's own (api/_refusals.py)."""
+        """What the door answers: the guard's own (api/refusals.py)."""
         return self.refusal.status
 
     @override

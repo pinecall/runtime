@@ -14,8 +14,9 @@ SCOPES: frozenset[str] = frozenset(get_args(Scope.__value__))
 SCOPE_ATTRIBUTE = "pinecall.scope"
 
 # Who sat down, when the seat was minted from a person's key: the member's id and their name, as
-# attributes of the same token, so a verb sent from that seat is written down as theirs. A body
-# may not set anything under `pinecall.` (api/tokens.py), so neither can be forged by a browser.
+# attributes of the same token, so a verb sent from that seat is written down as theirs. A body may
+# not set anything under `pinecall.` (api/calls/room_token.py), so neither can be forged by a
+# browser.
 SUBJECT_ATTRIBUTE = "pinecall.subject"
 NAME_ATTRIBUTE = "pinecall.name"
 

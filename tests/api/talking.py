@@ -10,8 +10,8 @@ import httpx
 from starlette.testclient import TestClient, WebSocketTestSession
 
 from pinecall._settings import Settings
-from pinecall.api import _deps as deps
-from pinecall.api.agents.holding import Send
+from pinecall.api import deps as deps
+from pinecall.api.agents.held_agent import Send
 from pinecall.api.app import app
 from pinecall.auth.world import ENV_HEADER
 from pinecall.log.entry import Entry

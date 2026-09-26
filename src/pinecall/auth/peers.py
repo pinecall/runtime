@@ -11,9 +11,9 @@ from pinecall.types.dispatch import Handover
 from pinecall_protocol import WireModel
 
 # The two doors one instance knocks at on the other's: the developer's-phone question, which
-# production asks its sandbox (api/agents/endpoints.py), and the numbers the customers call, which
-# the sandbox asks production. Both are the FLEET's doors — a fleet key names the org it asks for
-# — so the key each instance holds of the other is a fleet key minted there (`box peer`).
+# production asks its sandbox (api/agents/registry_reads.py), and the numbers the customers call,
+# which the sandbox asks production. Both are the FLEET's doors — a fleet key names the org it asks
+# for — so the key each instance holds of the other is a fleet key minted there (`box peer`).
 RINGS_FOR = "/v1/agents/{slug}/rings-for"
 ROUTES = "/v1/routes"
 

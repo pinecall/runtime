@@ -10,7 +10,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from pinecall._settings import Settings
-from pinecall.api import _deps as deps
+from pinecall.api import deps as deps
 from pinecall.api import pages
 from pinecall.api.app import app
 from pinecall.api.pages import NOT_BUILT

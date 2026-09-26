@@ -5,7 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from pinecall.api.org_mail import NO_MAIL, NOTHING_TO_TEST
+from pinecall.api.org.mail import NO_MAIL, NOTHING_TO_TEST
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.mail import Outbox
 from pinecall.orgs.mail import Mail

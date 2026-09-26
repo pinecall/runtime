@@ -104,8 +104,9 @@ def test_the_lexicon_is_the_agents_says_and_hears() -> None:
     assert config.hears == ("GSA", "Vidal")
 
 
-# The same parser reads a synthetic caller's three knobs (api/personas.py, api/evals/voice.py),
-# so a persona's `llm` and `voice` mean exactly what the agent's do, and unset is unset.
+# The same parser reads a synthetic caller's three knobs (api/evals/personas.py,
+# api/evals/voice.py), so a persona's `llm` and `voice` mean exactly what the agent's do, and unset
+# is unset.
 def test_a_persona_names_its_model_and_its_voice_in_the_agents_own_words() -> None:
     model = the_llm("openai/gpt-5")
     assert model is not None and (model.provider, model.model) == ("openai", "gpt-5")

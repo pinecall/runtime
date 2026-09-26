@@ -93,7 +93,7 @@ type Mint = Callable[[Side, str, Decrypt], Awaitable[str]]
 
 
 # At the instance's own gateway, on its own ops key, as pinecall-worker-key@ mints the worker's —
-# and so in that instance's world, which is the one the door mints in (api/orgs.py) and the only
+# and so in that instance's world, which is the one the door mints in (api/ops/orgs.py) and the only
 # one whose doors honour it (auth/world.py). The key is read off the answer and never printed.
 async def minted_at(
     side: Side, into: str, decrypt: Decrypt, transport: httpx.AsyncBaseTransport | None = None

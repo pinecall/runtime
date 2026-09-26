@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from pinecall.api._corner import AnAgentHeld, CornerDep
-from pinecall.api._deps import AppKeyDep, OrgsDep, VaultDep
+from pinecall.api.deps import AppKeyDep, OrgsDep, VaultDep
+from pinecall.api.scope.request_scope import AnAgentHeld, CornerDep
 from pinecall.orgs.vault import brought_by
 
 router = APIRouter()

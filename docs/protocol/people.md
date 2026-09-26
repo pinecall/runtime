@@ -256,7 +256,7 @@ for the app's dev server (`http://localhost:5173`) on a laptop — unset, there 
 allowed origin gets itself echoed in `Access-Control-Allow-Origin` with `Vary: Origin`, on every
 `/v1` door including the SSE streams, and its preflight is told `GET POST PUT PATCH DELETE`, the
 headers `authorization`, `content-type`, `pinecall-env`, `pinecall-corner`, `last-event-id`,
-`accept`, and ten minutes of `Max-Age` (`api/app_origins.py`). Any other origin gets no CORS header
+`accept`, and ten minutes of `Max-Age` (`api/origins.py`). Any other origin gets no CORS header
 at all, preflight included, and its browser refuses as before. **A list and not `*`**, because a
 person's key in a page anywhere is a key some page anywhere can be written to steal; a list names
 the one app that holds one. **No `Allow-Credentials`**, because the key travels as a bearer header

@@ -168,7 +168,7 @@ class CallIndex(Protocol):
 
     # The other half: a written call runs in the gateway's own process, which ends it when it is
     # over — unless the process went first. A restart leaves it open for its caller to come back
-    # to (api/calls/taking_up.py); one nobody came back to is the reaper's, past its channel's wait.
+    # to (api/calls/resume.py); one nobody came back to is the reaper's, past its channel's wait.
     async def unsealed_written(self, quiet_since: float, limit: int) -> list[Unsealed]:
         """Every started, unspoken call, its log unsealed and quiet since then, with its channel."""
         ...

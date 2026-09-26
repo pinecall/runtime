@@ -5,9 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import Field
 
-from pinecall.api._deps import CallIndexDep, EvalsKeyDep, StoreDep
 from pinecall.api.agents.registry import RegistryDep
-from pinecall.api.calls.sink import NO_SUCH_CALL, declared_by, the_calls_corner
+from pinecall.api.calls.log_sink import NO_SUCH_CALL, declared_by, the_calls_corner
+from pinecall.api.deps import CallIndexDep, EvalsKeyDep, StoreDep
 from pinecall.evals.checks import replayed as replay
 from pinecall.evals.checks.consent import consent
 from pinecall.evals.checks.errors import errors

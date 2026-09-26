@@ -217,7 +217,7 @@ it should push it instead of shipping it.
 | a tool result's content parses as JSON and its key is `facts` or `chunks` | `tests/providers/test_blocks.py`, `tests/session/test_lookups.py` |
 | the view is never placed in a `tool_result` | `tests/providers/test_blocks.py` |
 | a fact naming one of the class's tools is refused at write time | `tests/memory/test_extraction.py` |
-| the same refusal against a live model, on the tenant's own class and tool names | `pinecall remember`, whose planted sentences are the assertion; the judging is `tests/memory/test_goldens.py` and the door `tests/api/test_extraction.py` |
+| the same refusal against a live model, on the tenant's own class and tool names | `pinecall remember`, whose planted sentences are the assertion; the judging is `tests/memory/test_goldens.py` and the door `tests/api/memory/test_extraction.py` |
 | a value the call showed must not survive is in no fact memory would keep | `pinecall remember`, `expect.never_says` |
 | a fact's `source` and `since` reach the model | `tests/lookups/test_service.py` |
 | the contact a lookup reads is the platform's, never the model's | `tests/lookups/test_service.py` |

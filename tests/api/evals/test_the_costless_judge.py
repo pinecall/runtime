@@ -6,8 +6,8 @@ import httpx
 import pytest
 
 from pinecall.api.agents.registry import Registry
-from pinecall.api.evals.conversation import Conversation
-from pinecall.api.evals.scoring import Judging
+from pinecall.api.evals.golden_call import Conversation
+from pinecall.api.evals.golden_judges import Judging
 from pinecall.evals.goldens import Expect, Golden
 from pinecall.providers.declaration import a_tool
 from pinecall.types import GATE_DEFERRED_ON, AgentConfig

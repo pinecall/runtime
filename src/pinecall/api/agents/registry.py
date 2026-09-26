@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING, Annotated
 from fastapi import Depends
 from starlette.requests import HTTPConnection
 
-from pinecall.api._deps import held
-from pinecall.api.agents.doors import Agent, Doors
-from pinecall.api.agents.holding import Held, Registration, SocketId
+from pinecall.api.agents.dial_in import Agent, Doors
+from pinecall.api.agents.held_agent import Held, Registration, SocketId
+from pinecall.api.deps import held
 from pinecall.log.entry import Entry
 from pinecall.providers import declaration
 from pinecall.types import PRODUCTION, AgentConfig, DeclarationRefused, Env, is_a_deployment
@@ -55,7 +55,7 @@ class Registry:
         # keeps its place: it is the same process, not a newer one.
         self._agents: dict[Held, list[Registration]] = {}
         # The public side of the table: which agent each dialled door answers for, and whose
-        # corner of the world its ring goes to. See api/agents/doors.py.
+        # corner of the world its ring goes to. See api/agents/dial_in.py.
         self._doors = Doors()
         self._owned: dict[SocketId, set[Held]] = {}
         # Counts accepted claims, so `answering` can say which of two corners took a door last.
@@ -182,7 +182,7 @@ class Registry:
     # corner with the org's underneath, one row per slug: two copies of `tienda-sur` are one entry
     # for them and the one they are running wins. An admin and the box operator ask "what is the
     # team running", and collapsing would hide the very thing they opened the page for — so they
-    # get one row per CORNER, each saying whose it is. api/agents/endpoints.py decides which.
+    # get one row per CORNER, each saying whose it is. api/agents/registry_reads.py decides which.
     def holding(
         self,
         org: str,

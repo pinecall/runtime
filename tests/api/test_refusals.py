@@ -10,9 +10,9 @@ import pytest
 from fastapi import FastAPI
 
 from pinecall import api
-from pinecall.api._refusals import STATUS_OF, WITH_THEIR_OWN_STATUS, refusals_answered_by
+from pinecall.api.calls.supervise.aiming import VerbRefused
 from pinecall.api.evals.runner import AlreadyRunning, NobodyServing
-from pinecall.api.supervise.aiming import VerbRefused
+from pinecall.api.refusals import STATUS_OF, WITH_THEIR_OWN_STATUS, refusals_answered_by
 from pinecall.auth.identity import NotRedeemed
 from pinecall.log.filters import FilterRefused
 from pinecall.orgs.admission import Exhausted, QuotaExhausted
@@ -93,7 +93,7 @@ async def test_a_base_of_another_model_is_409_naming_both_models_and_the_way_out
 async def test_it_is_every_door_and_not_one_so_a_contacts_memory_says_the_same(
     tenant_http: httpx.AsyncClient, memory: ScriptedMemory
 ) -> None:
-    """One table maps the refusal to the status (api/_refusals.py); no endpoint writes a catch."""
+    """One table maps the refusal to the status (api/refusals.py); no endpoint writes a catch."""
     memory.failing = TEI_IS_DOWN
     refused = await tenant_http.get(CONTACT)
     assert refused.status_code == 503
@@ -131,7 +131,7 @@ TABLED: list[tuple[Exception, int]] = [
 async def test_every_tabled_refusal_lands_as_its_status_with_its_own_sentence(
     refusal: Exception, status: int
 ) -> None:
-    """One table, one handler each, and never a catch in a door (api/_refusals.py)."""
+    """One table, one handler each, and never a catch in a door (api/refusals.py)."""
     gateway = FastAPI()
     refusals_answered_by(gateway)
 

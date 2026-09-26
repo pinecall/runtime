@@ -55,7 +55,8 @@ from pinecall_protocol.defs import ToolResult
 from pinecall_protocol.events import ToolCall
 
 # A seal is asked again while the gateway is away, well inside the job's own SEALING_S: a call the
-# worker could not seal is sealed by the gateway's reaper once its room is gone (api/reaping.py).
+# worker could not seal is sealed by the gateway's reaper once its room is gone
+# (api/calls/reaper.py).
 SEALED_WITHIN_S = 30.0
 
 

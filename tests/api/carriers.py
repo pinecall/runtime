@@ -8,8 +8,8 @@ from dataclasses import dataclass, field
 import pytest
 from cryptography.fernet import Fernet
 
-from pinecall.api import _placing as placing
 from pinecall.api.app import app
+from pinecall.api.telephony import deps as placing
 from pinecall.orgs.carriers import MemoryCarriers
 from pinecall.orgs.dialling import MemoryDialling
 from pinecall.orgs.outbound import MemoryOutboundTrunks

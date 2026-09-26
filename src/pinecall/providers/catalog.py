@@ -299,7 +299,7 @@ def settings_field_of(vendor: str) -> str | None:
 # speech pair and RTZR are left out on purpose — there is no one string to store for them, and a
 # door that accepted one would store a key nothing reads.
 def vendors_with_a_key() -> tuple[str, ...]:
-    """The vendors BYOK reaches, sorted: what api/provider_keys.py accepts and lists."""
+    """The vendors BYOK reaches, sorted: what api/org/provider_keys.py accepts and lists."""
     return tuple(sorted(row.name for row in PROVIDERS if row.env is not None))
 
 

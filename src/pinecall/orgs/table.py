@@ -24,10 +24,10 @@ class Orgs(Protocol):
         ...
 
     # A sandbox instance's orgs are production's, mirrored when a person signs in there
-    # (api/identity.py): the SAME id and slug, so `pinecall link`, a key's org and every door keep
-    # their words on both instances. Written over on every sign-in, so a rename at production is a
-    # rename here at the next one. A slug an org of this instance's own holds under another id is
-    # not taken from it.
+    # (api/accounts/identity.py): the SAME id and slug, so `pinecall link`, a key's org and every
+    # door keep their words on both instances. Written over on every sign-in, so a rename at
+    # production is a rename here at the next one. A slug an org of this instance's own holds under
+    # another id is not taken from it.
     async def mirrored(self, org: Org) -> Org | None:
         """The org as production says it, inserted or updated by its id. None when the slug is
         another org's here."""

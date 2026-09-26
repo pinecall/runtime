@@ -6,9 +6,9 @@ from typing import Any, override
 import httpx
 import pytest
 
-from pinecall.api._deps import the_runs
 from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
+from pinecall.api.deps import the_runs
 from pinecall.api.evals.runner import AlreadyRunning, Runner
 
 # The judges are the `evals` group, not a dependency of the gateway: on a box without it the door
@@ -71,7 +71,7 @@ async def test_a_run_over_the_goldens_stores_its_scores_and_answers_the_matrix(
     assert [call["golden"] for call in run["calls"]] == ["greets", "prices"]
     matrix = run["matrix"]
     assert matrix["goldens"] == ["greets", "prices"]
-    # `consent` leads every row whatever the golden asked for: api/evals/scoring.py.
+    # `consent` leads every row whatever the golden asked for: api/evals/golden_judges.py.
     assert matrix["metrics"] == ["consent", "heard", "says", "silence"]
     assert not matrix["failures"]
     assert [score["score"] for row in matrix["runs"] for score in row["scores"]] == [1.0] * 7

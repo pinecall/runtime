@@ -6,8 +6,8 @@ import httpx
 import pytest
 from cryptography.fernet import Fernet
 
+from pinecall.api.accounts.org_sso import the_handshakes, the_http, the_sso
 from pinecall.api.app import app
-from pinecall.api.sso import the_handshakes, the_http, the_sso
 from pinecall.auth.sso import Handshakes
 from pinecall.orgs.sso import MemorySso, Sso
 from tests.api.conftest import A_VAULT_KEY

@@ -2,8 +2,8 @@
 
 import pytest
 
-from pinecall.api.agents.endpoints import a_developers_own
 from pinecall.api.agents.registry import Registry
+from pinecall.api.agents.registry_reads import a_developers_own
 from pinecall.auth.keys import KeyRecord, held_by, sees_every_corner
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs

@@ -157,7 +157,7 @@ answers. A server's token belongs to the world it was made in, and at the other 
   a revoke): no production gate and no header required. A developer the org keeps out of
   production still signs in at production — which is who people are — and must be able to learn
   who they are, mint the code that hands them to the sandbox and switch org there.
-- **Every door that opens a scope reads it as it acts** (`opening`, `api/_deps.py`): at production
+- **Every door that opens a scope reads it as it acts** (`opening`, `api/deps.py`): at production
   a person says `pinecall-env: production` — no header is `403`, naming where the sandbox is,
   because a CLI older than the instances meant the sandbox by saying nothing — and production
   opens only while an admin's switch on their row allows it, read at every request. At the sandbox
@@ -168,7 +168,7 @@ at production — a password, SSO, Google — and the console carries them acros
 (`POST /v1/login/codes`, read as an identity, so a developer kept out of production crosses too).
 The sandbox's `POST /v1/login {code}` spends it at production (`POST /v1/login/redeem`), which
 answers the org and the member as its rows say now; the sandbox mirrors both **by production's
-ids** (`api/identity.py`), so a slug and a key's subject mean one thing on both instances, and
+ids** (`api/accounts/identity.py`), so a slug and a key's subject mean one thing on both instances, and
 mints a key of its own that lives a day — nothing tells a sandbox when production disables
 somebody, so a disabled person's key opens it until it expires or they sign in again, when the
 mirror learns it and revokes every key of theirs there. Every door a person is made, changed or
@@ -187,7 +187,7 @@ back to. Production is namespaced by nobody: there is one corner there, the org'
 server's token holds the slug or a person with production access (`pinecall start --prod`). The exception is a **dialled** door: a number exists once in
 a world, so the sandbox number is the org's and a call at it rings in one terminal — web and
 chat are each developer's own, the telephone is shared. WHICH terminal is asked in two steps
-(`api/agents/doors.py`). First, **whose phone dialled**: a developer says which number they call
+(`api/agents/dial_in.py`). First, **whose phone dialled**: a developer says which number they call
 from (`PUT /v1/line/from`) and every call they make lands in their own corner — three of them can
 test at once, and that is the answer for almost every ring. Then, for a number nobody claimed, the
 agent's **line**: the first corner to hold it takes it, a second developer claims it, and it is

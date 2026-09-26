@@ -8,9 +8,9 @@ from fastapi import APIRouter
 from pydantic import Field
 
 from pinecall._version import __version__
-from pinecall.api._box import BoxSettingsDep
-from pinecall.api._deps import SettingsDep
-from pinecall.api.org_mail import OutboxDep
+from pinecall.api.deps import SettingsDep
+from pinecall.api.ops.box_settings import BoxSettingsDep
+from pinecall.api.org.mail import OutboxDep
 from pinecall.orgs.signin import GOOGLE, BoxSignIn
 from pinecall_protocol import WireModel
 

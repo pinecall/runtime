@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
-from pinecall.api._deps import (
+from pinecall.api.agents.registry import RegistryDep
+from pinecall.api.deps import (
     AdmissionDep,
     EvalsKeyDep,
     LlmsDep,
@@ -16,15 +17,14 @@ from pinecall.api._deps import (
     TuningDep,
     VaultDep,
 )
-from pinecall.api._live import LiveDep
-from pinecall.api.agents.registry import RegistryDep
+from pinecall.api.evals.golden_judges import ScoreMatrix
 from pinecall.api.evals.runner import (
     Process,
     RunnerDep,
     Wanted,
     a_run,
 )
-from pinecall.api.evals.scoring import ScoreMatrix
+from pinecall.api.live import LiveDep
 from pinecall.auth.keys import held_by
 from pinecall.evals.runs import DEFAULT_LIMIT, EvalRun, Runs, Status
 from pinecall.log.store import Store

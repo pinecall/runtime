@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from pinecall.api.agents.registry import Registry
-from pinecall.api.calls.sink import Project, a_projection
+from pinecall.api.calls.log_sink import Project, a_projection
 from pinecall.auth.scopes import KEY_PROJECTION, PROJECTION_OF, Reader
 from pinecall.log.entry import Entry
 from pinecall.log.projection import MASK

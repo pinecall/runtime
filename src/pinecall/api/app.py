@@ -13,18 +13,18 @@ from fastapi import FastAPI
 
 from pinecall._settings import Settings, load_settings
 from pinecall.api import pages
-from pinecall.api._doors import DOORS
-from pinecall.api._live import Live
-from pinecall.api._refusals import refusals_answered_by
 from pinecall.api.agents.processes import Processes
 from pinecall.api.agents.registry import Registry
-from pinecall.api.app_origins import AppOrigins
+from pinecall.api.agents.voices import A_MINUTE_S, SAMPLES_A_MINUTE
+from pinecall.api.calls.reaper import Reaper, reaping
 from pinecall.api.evals.runner import Runner
-from pinecall.api.reaping import Reaper, reaping
-from pinecall.api.rebuilding import reconciled
-from pinecall.api.voices import A_MINUTE_S, SAMPLES_A_MINUTE
-from pinecall.api.whatsapp.answering import a_waiting_room
+from pinecall.api.live import Live
+from pinecall.api.origins import AppOrigins
+from pinecall.api.refusals import refusals_answered_by
+from pinecall.api.routers import DOORS
+from pinecall.api.telephony.sip_rebuild import reconciled
 from pinecall.api.whatsapp.threads import Threads
+from pinecall.api.whatsapp.waiting_loop import a_waiting_room
 from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import NO_KEYS_TABLE, keys_for
 from pinecall.auth.members import members_for
@@ -154,11 +154,12 @@ async def _opened(gateway: FastAPI, settings: Settings, closing: AsyncExitStack)
     gateway.state.login_codes = LoginCodes()
     # The sign-ups whose email has not proved itself yet: fifteen minutes each, the same memory.
     gateway.state.signups = PendingSignups()
-    # The words `pinecall login` prints, until a browser leaves a key in one. See api/pairing.py.
+    # The words `pinecall login` prints, until a browser leaves a key in one. See
+    # api/accounts/pairing.py.
     gateway.state.pairings = Pairings()
     gateway.state.throttle = Throttle()
     # And how many voice samples each key asked for lately: a vendor's seconds, on somebody's
-    # account, with no usage row to count them (api/voices.py).
+    # account, with no usage row to count them (api/agents/voices.py).
     gateway.state.sampling = Throttle(SAMPLES_A_MINUTE, A_MINUTE_S)
     # The sign-ins out at an identity provider right now: a state, a nonce and a PKCE verifier
     # per person between the redirect and the callback. This process's memory, like the two
@@ -234,10 +235,11 @@ async def _opened(gateway: FastAPI, settings: Settings, closing: AsyncExitStack)
     # conversations open right now ride beside it; none of it is durable and none of it should be.
     http = await closing.enter_async_context(httpx.AsyncClient(timeout=HTTP_TIMEOUT))
     # Named on the state as well, because a third caller rides it now: the sign-in that asks an
-    # org's identity provider for its configuration, its keys and one token (api/login_sso.py).
+    # org's identity provider for its configuration, its keys and one token
+    # (api/accounts/sso_login.py).
     gateway.state.http = http
     gateway.state.graph = HttpGraph(http)
-    # The voice vendors' own catalogues, which a person picks a voice from (api/voices.py).
+    # The voice vendors' own catalogues, which a person picks a voice from (api/agents/voices.py).
     gateway.state.shelf = Shelf(http)
     gateway.state.twilio = partial(HttpTwilio, http)
     gateway.state.threads = Threads()
@@ -246,7 +248,7 @@ async def _opened(gateway: FastAPI, settings: Settings, closing: AsyncExitStack)
     gateway.state.codes = Codes(gateway.state.logs)
     await gateway.state.codes.loaded(store)
     # Memory and the knowledge base are tables, so a gateway with no pool keeps neither and says
-    # so at the doors (api/_deps.py). The embedder is lazy: nothing is asked of it until a lookup
+    # so at the doors (api/deps.py). The embedder is lazy: nothing is asked of it until a lookup
     # or a push needs a vector, so a gateway whose embedder is down still starts and the doctor's
     # line on it stays advice. One Lookups serves every text call in-process and every worker over
     # the lookup door.
@@ -266,19 +268,20 @@ async def _opened(gateway: FastAPI, settings: Settings, closing: AsyncExitStack)
     )
     # The one thing this process does with nobody asking. A spoken call is ended by the worker
     # holding it, so a worker that is killed leaves a log that nothing on earth would ever close:
-    # api/reaping.py. It needs the SFU to tell a dead call from a quiet one, so a gateway with no
-    # LiveKit pair runs none — and one with no pair has no spoken call to reap either.
+    # api/calls/reaper.py. It needs the SFU to tell a dead call from a quiet one, so a gateway with
+    # no LiveKit pair runs none — and one with no pair has no spoken call to reap either.
     reaper = _a_reaper(settings, gateway)
     if reaper is not None:
         closing.push_async_callback(_cancelled, reaper)
     # And the one thing it does for the media plane: ask it, once, for every trunk the tables say
     # exists. A Redis that came up empty took every number with it and nothing said so
-    # (2026-09-22); this is what says so, and puts them back. api/rebuilding.py.
+    # (2026-09-22); this is what says so, and puts them back. api/telephony/sip_rebuild.py.
     rebuilding = _a_rebuild(gateway)
     if rebuilding is not None:
         closing.push_async_callback(_cancelled, rebuilding)
     # And the WhatsApp messages that reached a number while nobody held its agent — a deploy, this
-    # very restart — are kept on the log and answered once somebody does: api/whatsapp/waiting.py.
+    # very restart — are kept on the log and answered once somebody does:
+    # api/whatsapp/unanswered.py.
     closing.push_async_callback(_cancelled, await a_waiting_room(gateway.state))
 
 
@@ -288,7 +291,7 @@ NO_REAPER = (
 )
 
 
-# The store IS the call index (api/_deps.py), which is why one object answers both here.
+# The store IS the call index (api/deps.py), which is why one object answers both here.
 def _a_reaper(settings: Settings, gateway: FastAPI) -> asyncio.Task[None] | None:
     """The reaper's loop, started; None and one line when this process has no SFU to ask."""
     rooms = rooms_for(settings)
@@ -370,7 +373,7 @@ app = FastAPI(
 )
 
 
-# Every door, in the order a reader meets them: api/_doors.py is the list.
+# Every door, in the order a reader meets them: api/routers.py is the list.
 for door in DOORS:
     app.include_router(door)
 
@@ -379,9 +382,9 @@ for door in DOORS:
 app.include_router(pages.router)
 
 # What every door above answers when the embedder refuses or the rows were written by another
-# model: a status and the refusal's own sentence, in one table (api/_refusals.py).
+# model: a status and the refusal's own sentence, in one table (api/refusals.py).
 refusals_answered_by(app)
 
 # The one caller of a door from another origin: Pinecall's own mobile app, by an allowlist and
-# only under /v1 (api/app_origins.py). Every other origin is answered exactly as it was before.
+# only under /v1 (api/origins.py). Every other origin is answered exactly as it was before.
 app.add_middleware(AppOrigins)

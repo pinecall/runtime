@@ -11,7 +11,7 @@ from pydantic import TypeAdapter
 from pinecall.types import THE_ORGS_OWN, Kept, Tuning, whose
 
 # The adapter a row is read back through and written out through: the same device
-# api/agents/endpoints.py hands a worker its config by. The column holds JSON and no meaning;
+# api/agents/registry_reads.py hands a worker its config by. The column holds JSON and no meaning;
 # what a knob may be is providers/tuning.py's, the one place that knows a vendor.
 TUNING: TypeAdapter[Tuning] = TypeAdapter(Tuning)
 

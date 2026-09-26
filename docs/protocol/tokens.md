@@ -145,7 +145,7 @@ expires. Another call is `403`, an agent's log is `403`, and a supervise verb is
 and never steers. Those three doors answer a page on **any origin** (CORS `*`, `GET`, no
 credentials — `Authorization`, `Last-Event-ID` and `Range` may be sent): what opens them is the
 token the page brings, never a cookie, so a page on another site reads nothing it did not bring the
-token for. Every other door answers only the origins `api/app_origins.py` names. `POST /v1/agents/{slug}/dial` answers one too, with the same `log`.
+token for. Every other door answers only the origins `api/origins.py` names. `POST /v1/agents/{slug}/dial` answers one too, with the same `log`.
 
 ## The code token
 

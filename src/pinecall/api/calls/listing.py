@@ -6,14 +6,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
 
-from pinecall.api._deps import CallIndexDep, SnapshotsDep, StoreDep
 from pinecall.api.agents.registry import Registry, RegistryDep
-from pinecall.api.calls.sink import (
+from pinecall.api.calls.log_sink import (
     ReaderDep,
     declared_by,
     refuse_another_call,
     refuse_another_org,
 )
+from pinecall.api.deps import CallIndexDep, SnapshotsDep, StoreDep
 from pinecall.auth.corner import corner_of
 from pinecall.auth.scopes import Reader
 from pinecall.log.facts import CallFacts
@@ -77,9 +77,9 @@ async def sessions(
     return await a_page(reader, registry, index, snapshots, wanted, limit)
 
 
-# One page, however it was listed: the agent's door and the org's (api/floor.py) draw the same
-# rows, in the reader's corner — a developer's sandbox test calls are theirs, the telephone's are
-# production's, and an admin reading a colleague's copy reads that corner.
+# One page, however it was listed: the agent's door and the org's (api/calls/live_calls.py) draw the
+# same rows, in the reader's corner — a developer's sandbox test calls are theirs, the telephone's
+# are production's, and an admin reading a colleague's copy reads that corner.
 async def a_page(
     reader: Reader,
     registry: Registry,

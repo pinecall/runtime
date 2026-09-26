@@ -57,7 +57,7 @@ class KeyRecord:
     subject: str | None = None
     name: str | None = None
     # Whose sandbox corner THIS request looks into, when a key that sees every corner asked for a
-    # colleague's (api/_deps.py, the `pinecall-corner` header). Never stored: one request's, and
+    # colleague's (api/deps.py, the `pinecall-corner` header). Never stored: one request's, and
     # None on every key the table hands back.
     looking_at: str | None = None
     # When the key stops opening anything; None is never (0049). A sandbox person's key lives a day

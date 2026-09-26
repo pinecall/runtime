@@ -11,8 +11,8 @@ import pytest
 from starlette.testclient import TestClient
 
 from pinecall.api.agents.registry import Registry
-from pinecall.api.calls.sink import a_projection
-from pinecall.api.floor import events
+from pinecall.api.calls.live_calls import events
+from pinecall.api.calls.log_sink import a_projection
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import ORG_EVENTS, Logs
 from pinecall.types import PRODUCTION

@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from pinecall.api.app import app
-from pinecall.api.peers import the_production, the_sandbox
+from pinecall.api.ops.peers import the_production, the_sandbox
 from pinecall.auth.peers import Peer
 
 # Registered as a plugin by tests/conftest.py: production's side (tests/api/test_fleet_doors.py)

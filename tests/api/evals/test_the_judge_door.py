@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from pinecall.api.agents.registry import Registry
-from pinecall.api.calls.sink import NO_SUCH_CALL
+from pinecall.api.calls.log_sink import NO_SUCH_CALL
 from pinecall.api.evals.judge import ALREADY_JUDGED, STILL_GOING
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
 from pinecall.evals.score import JUDGING_OFF

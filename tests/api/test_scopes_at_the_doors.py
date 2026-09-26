@@ -11,8 +11,8 @@ from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from pinecall._settings import Settings
-from pinecall.api._deps import SCOPE_OF_THE_DOOR
 from pinecall.api.app import app
+from pinecall.api.deps import SCOPE_OF_THE_DOOR
 from pinecall.auth.bearer import POLICY_VIOLATION
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
 from pinecall.types import KEY_SCOPES, SANDBOX
@@ -157,7 +157,7 @@ OPENS_TO_EITHER: dict[str, frozenset[str]] = {
     "GET /v1/agents/{slug}/hold-audio/audio": frozenset({"app", "calls"}),
     # An agent's settings and the org's lexicon are read and set by the developer's key and by the
     # floor's: `pipeline` may move a vendor, `words` may set the opening, the lexicon and what is
-    # remembered. The door asks inside which half a body touches (api/tuning.py).
+    # remembered. The door asks inside which half a body touches (api/agents/tuning.py).
     "GET /v1/agents/{slug}/settings": frozenset({"pipeline", "words"}),
     "PUT /v1/agents/{slug}/settings": frozenset({"pipeline", "words"}),
     "GET /v1/agents/{slug}/settings/history": frozenset({"pipeline", "words"}),

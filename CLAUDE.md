@@ -33,7 +33,8 @@ make deploy                                     # this checkout onto your box (d
   - `session/` one call, `text/` in the gateway and `voice/` in the worker · `evals/` the rings
   - `memory/` the contact's facts · `knowledge/` the knowledge base · `lookups/` the gateway
     running `recall` and `search` — the three the gateway owns and the worker reaches over HTTP
-  - `api/` the gateway's doors · `worker/` the job · `cli/` the verbs · `migrations/` numbered SQL
+  - `api/` the gateway's doors, one directory per surface (`scope/ accounts/ agents/ calls/ memory/
+    knowledge/ evals/ telephony/ org/ ops/ whatsapp/`) · `worker/` the job · `cli/` the verbs · `migrations/` numbered SQL
   - `mail/` the letters and the generic SMTP they leave by: the org's own account, else the box's
   - `_settings.py` every variable, once · `_version.py` `0.0.0` until a person says otherwise
 - `tests/` mirrors `src/pinecall/` one to one; `test_isolation.py`, `test_layout.py`,

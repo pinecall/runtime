@@ -5,7 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import Field
 
-from pinecall.api._deps import (
+from pinecall.api.agents.registry import RegistryDep
+from pinecall.api.agents.session_config import tuned_for
+from pinecall.api.deps import (
     EvalsKeyDep,
     LlmsDep,
     OrgsDep,
@@ -14,9 +16,7 @@ from pinecall.api._deps import (
     TuningDep,
     VaultDep,
 )
-from pinecall.api.agents.registry import RegistryDep
-from pinecall.api.agents.tuned import tuned_for
-from pinecall.api.evals.listening import the_call_is_over, until_the_answer_lands
+from pinecall.api.evals.agent_finished import the_call_is_over, until_the_answer_lands
 from pinecall.auth.keys import held_by
 from pinecall.evals.caller import (
     NO_MODEL,

@@ -7,11 +7,11 @@ from typing import Annotated, Any, Protocol
 
 from fastapi import Depends
 
-from pinecall.api._deps import what_is_live
-from pinecall.api._live import Served
-from pinecall.api.agents.holding import Send, SocketId
+from pinecall.api.agents.held_agent import Send, SocketId
 from pinecall.api.agents.processes import Processes
 from pinecall.api.agents.registry import Registry
+from pinecall.api.deps import what_is_live
+from pinecall.api.live import Served
 from pinecall.knowledge import Knowledge
 from pinecall.log.entry import Entry
 from pinecall.orgs.admission import Admission
@@ -133,7 +133,7 @@ class Socket(Protocol):
 type Handler = Callable[[Socket, Command], Awaitable[None]]
 
 # Every command the app socket answers, by its wire type. A new one is a function and a decorator.
-# It is filled at import time, from this package and from api/agents/on_a_call.py, which the
+# It is filled at import time, from this package and from api/agents/call_commands.py, which the
 # gateway pulls in when it includes the text router.
 HANDLERS: dict[str, Handler] = {}
 

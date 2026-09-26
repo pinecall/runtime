@@ -10,13 +10,17 @@ from cryptography.fernet import Fernet
 from starlette.testclient import TestClient
 
 from pinecall._settings import Settings
-from pinecall.api import _deps as deps
-from pinecall.api import _deps as log_writers
-from pinecall.api import _deps as routes_table
-from pinecall.api import _deps as tokens_ledger
-from pinecall.api import _deps as whatsapp_graph
-from pinecall.api import _live as gateway_connected
-from pinecall.api._deps import (
+from pinecall.api import deps as deps
+from pinecall.api import deps as log_writers
+from pinecall.api import deps as routes_table
+from pinecall.api import deps as tokens_ledger
+from pinecall.api import deps as whatsapp_graph
+from pinecall.api import live as gateway_connected
+from pinecall.api.agents import registry as registry_dep
+from pinecall.api.agents.registry import Registry
+from pinecall.api.agents.widget import the_widgets
+from pinecall.api.app import app
+from pinecall.api.deps import (
     the_admission,
     the_embedder,
     the_fleet,
@@ -31,13 +35,9 @@ from pinecall.api._deps import (
     the_tuning,
     the_vault,
 )
-from pinecall.api._live import Live
-from pinecall.api.agents import registry as registry_dep
-from pinecall.api.agents.registry import Registry
-from pinecall.api.app import app
+from pinecall.api.live import Live
 from pinecall.api.whatsapp import threads as whatsapp_threads
 from pinecall.api.whatsapp.threads import Threads
-from pinecall.api.widget import the_widgets
 from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import KeyRecord, Keys, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers

@@ -10,7 +10,7 @@ import pytest
 
 from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry
-from pinecall.api.peers import the_production
+from pinecall.api.ops.peers import the_production
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.types import PRODUCTION, SANDBOX, Member, Route

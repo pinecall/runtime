@@ -8,8 +8,8 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from starlette.responses import FileResponse
 
-from pinecall.api._deps import StoreDep
-from pinecall.api.calls.sink import ReaderDep, refuse_another_call
+from pinecall.api.calls.log_sink import ReaderDep, refuse_another_call
+from pinecall.api.deps import StoreDep
 from pinecall.log.replay import whole
 
 router = APIRouter()

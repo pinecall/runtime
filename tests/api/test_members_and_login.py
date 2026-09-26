@@ -8,15 +8,15 @@ import httpx
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.api.login import (
+from pinecall.api.accounts.login import (
     NO_CODE,
     NOBODY,
     NOT_A_MEMBER,
     NOT_A_PERSONS_CODE,
     ONE_OR_THE_OTHER,
 )
-from pinecall.api.members import ALREADY_A_MEMBER, NO_INVITATION
-from pinecall.api.membership import NOT_BY_HAND
+from pinecall.api.accounts.members import ALREADY_A_MEMBER, NO_INVITATION
+from pinecall.api.accounts.membership import NOT_BY_HAND
 from pinecall.auth.keys import MemoryKeys
 from pinecall.auth.throttle import TRIES_PER_WINDOW
 from pinecall.types import ROLE_SCOPES

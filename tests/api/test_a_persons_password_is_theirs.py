@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.api.signup import ALREADY_INVITED
+from pinecall.api.accounts.signup import ALREADY_INVITED
 from pinecall.auth.keys import MemoryKeys
 from pinecall.mail.smtp import Mailbox
 from pinecall.orgs.table import MemoryOrgs

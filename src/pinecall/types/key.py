@@ -12,7 +12,7 @@ from pinecall.types.refused import DeclarationRefused
 #
 # A third world was very nearly added for `staging`, and it was not needed: whether a sandbox agent
 # is ONE PERSON's copy or the team's shared one is not this field, it is whether the key that
-# registered it names a person (api/agents/holding.py). A machine key in the sandbox is held by
+# registered it names a person (api/agents/held_agent.py). A machine key in the sandbox is held by
 # nobody's corner, which every member of the org sees — that IS staging, and it already worked.
 # Two worlds, three behaviours, and the holder does the third.
 #
@@ -90,7 +90,7 @@ HOLDING: KeyScope = "app"
 # The members door, which an admin's key and the operator's open and a developer's does not. It is
 # what separates "show me the org" from "show me my corner": whoever may see who the team IS may
 # also see what the team is RUNNING, so the agent listing asks this one question to decide whose
-# sandbox copies a reader is shown. See api/agents/endpoints.py.
+# sandbox copies a reader is shown. See api/agents/registry_reads.py.
 THE_TEAM: KeyScope = "team"
 
 

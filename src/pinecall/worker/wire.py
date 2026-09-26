@@ -14,7 +14,7 @@ from pinecall_protocol.rest import Judging
 
 
 class HoldAudioSaid(BaseModel):
-    """What the gateway says an agent plays while a tool runs (api/hold_audio.py)."""
+    """What the gateway says an agent plays while a tool runs (api/agents/hold_melody.py)."""
 
     played: Literal["default", "off", "custom"]
     sha256: str | None = None

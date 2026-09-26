@@ -8,8 +8,8 @@ import httpx
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.api.login import VISITS_PRODUCTION
-from pinecall.api.login_orgs import AS_THE_OPERATOR, NOT_THERE
+from pinecall.api.accounts.login import VISITS_PRODUCTION
+from pinecall.api.accounts.org_switch import AS_THE_OPERATOR, NOT_THERE
 from pinecall.auth.keys import MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.orgs.table import MemoryOrgs

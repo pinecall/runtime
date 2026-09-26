@@ -389,7 +389,7 @@ class Settings(VendorKeys):
         description="Packages that plug a policy into the runtime's points, comma separated.",
     )
     # Pinecall's own mobile app calls /v1 from a WebView whose origin is not this box's, and its
-    # two origins are always let in (api/app_origins.py). These are the ones a person adds, one by
+    # two origins are always let in (api/origins.py). These are the ones a person adds, one by
     # one — the app's dev server on a laptop — and never a wildcard. docs/protocol/people.md.
     app_origins: str = Field(
         default="",

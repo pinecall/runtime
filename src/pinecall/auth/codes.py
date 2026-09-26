@@ -16,8 +16,8 @@ CODE_PREFIX = "lc_"
 CODE_TTL_S = 300.0
 
 # The id a record carries when it stands for a key that has not been minted. A code is normally
-# minted FROM a live key, but the sign-in at an org's identity provider mints one for a person
-# who holds none yet (api/login_sso.py): the browser spending the code is what mints their key,
+# minted FROM a live key, but the sign-in at an org's identity provider mints one for a person who
+# holds none yet (api/accounts/sso_login.py): the browser spending the code is what mints their key,
 # and spending reads the org, the world, the scopes and the person off the record — never its id.
 NO_KEY_YET = "k_none"
 

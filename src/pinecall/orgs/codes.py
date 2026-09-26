@@ -50,7 +50,7 @@ class Issued:
         return now >= self.expires_at
 
 
-# The log is the table, as it is for WhatsApp's waiting room (api/whatsapp/waiting.py): a code is
+# The log is the table, as it is for WhatsApp's waiting room (api/whatsapp/unanswered.py): a code is
 # code.issued on the agent's own log and closed by code.claimed — with the call that took it, or
 # null when its time ran out — so a restart loses none. This process keeps the live ones in memory,
 # loaded from the log at start, so a page asking every few seconds costs no read. A code is unique

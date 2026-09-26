@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import AppKeyDep, LogsDep
-from pinecall.api._live import LiveDep
 from pinecall.api.agents.handlers import Socket, asked, handles
 from pinecall.api.agents.registry import RegistryDep
-from pinecall.api.calls.worker_doors import NOT_OPEN, refuse_another_orgs_call
+from pinecall.api.calls.worker_writes import NOT_OPEN, refuse_another_orgs_call
+from pinecall.api.deps import AppKeyDep, LogsDep
+from pinecall.api.live import LiveDep
 from pinecall.auth.corner import Corner, corner_of
 from pinecall.auth.keys import is_the_fleets
 from pinecall.log.entry import Entry
@@ -73,7 +73,7 @@ async def run_a_tool(
     # null`, and that is a fact of the call. Dropping it left `tool.result` without an output at
     # all, indistinguishable from a method that returned nothing (2026-09-08, the first talk call).
     async def emit(type: str, event: WireModel) -> Entry:
-        """Append the entry. The app hears it because the call is served (api/_live.py)."""
+        """Append the entry. The app hears it because the call is served (api/live.py)."""
         return await log.append(type, encode(event))
 
     use = ToolUse(call_id=wanted.call_id, name=wanted.name, arguments=dict(wanted.arguments))

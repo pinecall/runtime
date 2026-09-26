@@ -5,9 +5,9 @@ from collections.abc import AsyncIterator, Iterator
 import pytest
 from cryptography.fernet import Fernet
 
-from pinecall.api._box import the_box_settings
 from pinecall.api.app import app
-from pinecall.api.org_mail import the_mail, the_outbox
+from pinecall.api.ops.box_settings import the_box_settings
+from pinecall.api.org.mail import the_mail, the_outbox
 from pinecall.mail import Outbox
 from pinecall.orgs.box import BoxSettings, MemoryBoxSettings
 from pinecall.orgs.mail import Mail, MemoryMail

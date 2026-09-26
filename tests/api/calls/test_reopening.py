@@ -8,8 +8,8 @@ import httpx
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.api._live import Live
 from pinecall.api.agents.registry import Registry
+from pinecall.api.live import Live
 from pinecall.log.entry import Entry
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs

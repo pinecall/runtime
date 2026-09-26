@@ -293,9 +293,9 @@ async def test_the_written_calls_still_open_are_answered_with_their_channel(
     assert spoken not in open_now, "a spoken call is the other question's"
 
 
-# The reaper's one question (api/reaping.py): which spoken calls this store never finished writing.
-# It is asked of every org at once, so a test says which of the answer is its own — the postgres
-# schema is one pytest process's and holds whatever the tests before it left open.
+# The reaper's one question (api/calls/reaper.py): which spoken calls this store never finished
+# writing. It is asked of every org at once, so a test says which of the answer is its own — the
+# postgres schema is one pytest process's and holds whatever the tests before it left open.
 async def test_the_open_spoken_calls_that_have_been_quiet(
     store: Indexing, org: str, agent: str
 ) -> None:

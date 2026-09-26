@@ -9,7 +9,8 @@ from pinecall._exceptions import PinecallError
 from pinecall.types import Member, MemberStatus, Org, Role
 from pinecall_protocol import WireModel
 
-# Production's door (api/login.py), asked by a sandbox with the code a person carried across.
+# Production's door (api/accounts/login.py), asked by a sandbox with the code a person carried
+# across.
 REDEEM = "/v1/login/redeem"
 
 # A person is watching the console bounce between the two instances, and production is on the

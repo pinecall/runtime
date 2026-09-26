@@ -18,7 +18,7 @@ from pinecall.providers.tts.voices import VOICES
 # would hide every one of them. ElevenLabs answers with the names this build curates, because a
 # premade is the only voice that exists in every workspace (voices.py says why). Every other vendor
 # is refused by name, and its voice is still that vendor's own id typed into the setting. The
-# catalogue row says which is which (api/providers.py, `voices_listed`), so a screen never keeps
+# catalogue row says which is which (api/ops/providers.py, `voices_listed`), so a screen never keeps
 # this list of its own.
 LISTED: tuple[str, ...] = ("cartesia", "elevenlabs")
 CARTESIA = "https://api.cartesia.ai"

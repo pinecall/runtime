@@ -7,17 +7,17 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.api.box_signin import EMPTY
-from pinecall.api.box_signin import NOT_WIRED as NOTHING_TO_FORGET
-from pinecall.api.login import A_BROWSER
-from pinecall.api.login_google import (
+from pinecall.api.accounts.google_login import (
     DISABLED_EVERYWHERE,
     NOBODY_HERE,
     NOT_WIRED,
     THE_BOX,
     THEIR_OWN_PROVIDER,
 )
-from pinecall.api.login_sso import NO_HANDSHAKE, THE_CARD, THE_CONSOLE
+from pinecall.api.accounts.login import A_BROWSER
+from pinecall.api.accounts.sso_login import NO_HANDSHAKE, THE_CARD, THE_CONSOLE
+from pinecall.api.ops.box_signin import EMPTY
+from pinecall.api.ops.box_signin import NOT_WIRED as NOTHING_TO_FORGET
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.openid import SCOPE
 from pinecall.auth.sso import Handshakes

@@ -17,15 +17,15 @@ from starlette.requests import HTTPConnection
 
 from pinecall._exceptions import PinecallError
 from pinecall._settings import Budgets, Settings
-from pinecall.api._deps import held
-from pinecall.api._live import Live
-from pinecall.api.agents.holding import Registration
+from pinecall.api.agents.held_agent import Registration
 from pinecall.api.agents.registry import NO_AGENT, Registry
-from pinecall.api.agents.tuned import tuned_for
-from pinecall.api.evals.attachment import AppDetached, Attachment
-from pinecall.api.evals.conversation import a_conversation
-from pinecall.api.evals.scoring import Judging
-from pinecall.api.evals.spoken import a_spoken_conversation
+from pinecall.api.agents.session_config import tuned_for
+from pinecall.api.deps import held
+from pinecall.api.evals.golden_call import a_conversation
+from pinecall.api.evals.golden_judges import Judging
+from pinecall.api.evals.run_attachment import AppDetached, Attachment
+from pinecall.api.evals.spoken_golden import a_spoken_conversation
+from pinecall.api.live import Live
 from pinecall.evals.calling import Line
 from pinecall.evals.goldens import Golden
 from pinecall.evals.runs import EvalRun, Opened, Runs

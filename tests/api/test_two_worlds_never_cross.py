@@ -14,6 +14,7 @@ from pinecall.orgs.table import MemoryOrgs
 from pinecall.routes.table import MemoryRoutes
 from pinecall.types import PRODUCTION, ROLE_SCOPES, SANDBOX, Quotas, Route
 from pinecall.worker.client import CONTEXT
+from tests.api.calls.tokens.test_the_door import minted
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS, CHAT, over_the_asgi_app
 from tests.api.talking import (
     a_context,
@@ -24,7 +25,6 @@ from tests.api.talking import (
     got,
     hung_up_by_the_app,
 )
-from tests.api.tokens.test_the_door import minted
 from tests.conftest import a_sandbox
 
 pytestmark = pytest.mark.unit

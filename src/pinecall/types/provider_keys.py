@@ -2,8 +2,8 @@
 
 # WHICH vendors an org may bring a key for is not here and cannot be: that is read off
 # providers/catalog.py, and types/ imports nothing of ours (tests/test_isolation.py). The door that
-# refuses an unknown vendor asks the catalog — api/provider_keys.py, cli/orgs/verbs.py — so the list
-# in the refusal is the same forty-odd names the pipeline can actually be built out of.
+# refuses an unknown vendor asks the catalog — api/org/provider_keys.py, cli/orgs/verbs.py — so the
+# list in the refusal is the same forty-odd names the pipeline can actually be built out of.
 
 from collections.abc import Mapping
 from dataclasses import dataclass

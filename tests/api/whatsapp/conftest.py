@@ -10,7 +10,7 @@ import httpx
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.api import _deps as deps
+from pinecall.api import deps as deps
 from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
 from pinecall.api.whatsapp.threads import Thread, Threads

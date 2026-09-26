@@ -83,7 +83,7 @@ limit $2
 """
 
 # A written call its process never finished: started, unspoken, open, quiet. Its channel rides
-# along, because how long a written call may go quiet is its door's (api/reaping.py).
+# along, because how long a written call may go quiet is its door's (api/calls/reaper.py).
 UNSEALED_WRITTEN = """
 select head.log as call, head.agent,
        coalesce(head.started_at, 0) as started_at,

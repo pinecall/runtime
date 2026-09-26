@@ -12,9 +12,9 @@ import httpx
 import pytest
 
 from pinecall._settings import Settings
+from pinecall.api.accounts.identity import NOT_ACTIVE, SLUG_HELD_HERE, the_identity
+from pinecall.api.accounts.login import NO_CODE, NOT_A_MEMBER
 from pinecall.api.app import app
-from pinecall.api.identity import NOT_ACTIVE, SLUG_HELD_HERE, the_identity
-from pinecall.api.login import NO_CODE, NOT_A_MEMBER
 from pinecall.auth.identity import REDEEM, UNREACHABLE, Identity
 from pinecall.auth.keys import MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers

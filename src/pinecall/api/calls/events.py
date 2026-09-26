@@ -9,14 +9,7 @@ from fastapi import APIRouter, Query, Response, WebSocket, WebSocketDisconnect
 from starlette.responses import StreamingResponse
 from starlette.status import HTTP_204_NO_CONTENT
 
-from pinecall.api._deps import (
-    KeysDep,
-    LogsDep,
-    SettingsDep,
-    SnapshotsDep,
-    StoreDep,
-)
-from pinecall.api.calls.sink import (
+from pinecall.api.calls.log_sink import (
     AcceptDep,
     CursorDep,
     FilterDep,
@@ -33,7 +26,14 @@ from pinecall.api.calls.sink import (
     sse,
     wants_sse,
 )
-from pinecall.api.supervise.aiming import STEERS, QueueingDep, VerbRefused, aimed, as_a_verb
+from pinecall.api.calls.supervise.aiming import STEERS, QueueingDep, VerbRefused, aimed, as_a_verb
+from pinecall.api.deps import (
+    KeysDep,
+    LogsDep,
+    SettingsDep,
+    SnapshotsDep,
+    StoreDep,
+)
 from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
 from pinecall.auth.keys import not_opening
 from pinecall.auth.scopes import Reader

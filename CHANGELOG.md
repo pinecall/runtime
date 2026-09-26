@@ -95,6 +95,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   none; a suite's run held one per run and closed it never.
 
 ### Changed
+- **`api/` is folded by surface.** Seventy flat modules and five directories chosen by nobody are
+  eleven directories named by who knocks and what for — `scope/`, `accounts/`, `agents/`, `calls/`,
+  `memory/`, `knowledge/`, `evals/`, `telephony/`, `org/`, `ops/`, `whatsapp/` — and the modules
+  every door reads lose their underscore (`deps.py`, `refusals.py`, `routers.py`, `live.py`,
+  `origins.py`, `public_url.py`). No module of `api/` is named like a package of the runtime any
+  more. Every door answers at the path it did; only the tree moved.
 - **A code check speaks the judges' four words.** `POST /v1/evals/replay/{call}` answers each
   check's `status` as `held` · `broken` · `deferred` · `skipped` — the protocol's own
   `ScoreVerdict`, which every model judge already spoke — where it said `passed` and `failed`.
@@ -448,7 +454,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   2026-09-22 a recreated container came up empty — three numbers stopped ringing, every dial and
   every warm transfer answered `requested sip trunk does not exist`, and `GET /v1/carrier/outbound`
   still read `ready`. Now: Redis persists (`pinecall-redis.volume`, `--appendonly yes`); the
-  gateway asks the SFU for every trunk the tables describe at each start (`api/rebuilding.py`,
+  gateway asks the SFU for every trunk the tables describe at each start (`api/telephony/sip_rebuild.py`,
   per org, nothing doubled) and refreshes the row of an outbound trunk that came back under a new
   id; the worker's `outbound-trunk` door and the carrier's `ready` ask the SFU by name instead of
   trusting the row.
@@ -710,9 +716,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **The supervisor's desk works from the console.** Every verb a desk sent against a production
   call was refused — `403 that call's agent belongs to another org` — because the door asked the
   LIVE registry whose the call was, in the world of the key that asked. A person's key is minted
-  into the sandbox whatever world the page reads in (`api/login.py`), so the lookup missed and a
+  into the sandbox whatever world the page reads in (`api/accounts/login.py`), so the lookup missed and a
   key that owned the call was told it was somebody else's. Whose a call is, is what its LOG says:
-  the one question every read door already asks (`api/calls/sink.py`), now asked here too, by
+  the one question every read door already asks (`api/calls/log_sink.py`), now asked here too, by
   `POST /v1/calls/{call}/verbs` and `WS /v1/attach` alike. The sentence is `403 that call belongs
   to another org`.
 
@@ -1232,7 +1238,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   of them test at once with no coordination — and a number nobody claimed falls back to the
   agent's **line** (`GET/POST/DELETE /v1/agents/{slug}/line`), which the first corner to hold it
   takes and which is handed on when that terminal closes. Neither is a row: both are only
-  meaningful next to a socket. Production has one corner. `api/agents/doors.py`.
+  meaningful next to a socket. Production has one corner. `api/agents/dial_in.py`.
 - **The operator invites an org's first person.** `POST /v1/ops/orgs/{named}/members` and
   `pinecall-runtime orgs invite <org> <email> --name … [--role]`: how a tenant exists at all on a
   gateway that takes no sign-up — the box makes the org and invites its admin, and prints a
@@ -1267,7 +1273,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   not import stops the start rather than admitting orgs without limits. One point today:
   `admitted(org, email) -> Quotas`, asked at the sign-up and written in the same breath the org is
   made. The runtime's own answer is no limit and no row. The free-trial numbers that lived in
-  `api/signup.py` are gone: a trial is a plan, and a plan is the charging package's to spell. The
+  `api/accounts/signup.py` are gone: a trial is a plan, and a plan is the charging package's to spell. The
   cut is sentry's and getsentry's; ARCHITECTURE §12 says how.
 - **`PINECALL_SIGNUP`, and the door it opens.** `POST /v1/signup {org, name?, email, person,
   password}` makes an org allowed whatever `extensions.admitted` answers, its first `admin` active
@@ -1371,7 +1377,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   on the digits alone), and exactly the held facts the call contradicted were superseded — the
   mirror included, which catches a model that replaces whatever it touches. A case may also PLANT
   sentences: planting one is the assertion that admission refuses it. `memory/goldens.py`,
-  `api/extraction.py`.
+  `api/memory/extraction.py`.
 - **Memory can be held to a golden**, the way a base already can, and it is the only thing that
   says `recall` returned the wrong facts: a ring watches a conversation and only ever sees the
   facts memory handed over, never the better one it missed. `POST /v1/contacts/memory/eval` takes
@@ -1635,7 +1641,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   Three fixes, one per layer: the unit is `KillMode=mixed`, so only the main process is signalled
   and the jobs are livekit's to drain; `worker/main.py` gives the drain ten minutes and each job's
   seal sixty seconds, instead of livekit's hour and ten seconds, both of which the unit's
-  `TimeoutStopSec` cut; and the gateway runs a **reaper** (`api/reaping.py`) that ends a spoken
+  `TimeoutStopSec` cut; and the gateway runs a **reaper** (`api/calls/reaper.py`) that ends a spoken
   call whose room the SFU no longer has and which has said nothing for five minutes — `call.ended`
   as `drained` by the platform, `call.summary`, `call.score` with `not_judged`. It runs at start
   and every minute, it never touches a quiet call whose room is alive, and it is safe from several
@@ -1657,9 +1663,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **`simulate --voice` no longer talks over the agent.** The persona slept six fixed seconds
   between its lines while the golden runner waited for `agent.state: listening`; a turn that runs a
   tool takes thirteen, and the recordings had the caller speaking over the answer. The one wait is
-  `api/evals/listening.py`, required of every spoken caller — the fixed silence is gone.
+  `api/evals/agent_finished.py`, required of every spoken caller — the fixed silence is gone.
 - `PUT /v1/knowledge/{base}` answered a bare `500` when the embedder was down, with the whole
-  reason in the gateway's log and nothing at all to the tenant. `api/_refusals.py` maps
+  reason in the gateway's log and nothing at all to the tenant. `api/refusals.py` maps
   `EmbedderUnreachable` to **503** and `WrongWidth`/`WrongModel` to **409** at every door, each
   carrying the exception's own sentence. The lookup door is deliberately not among them: a lookup
   that could not run is still `search_skipped` on the call's log and the turn goes on.

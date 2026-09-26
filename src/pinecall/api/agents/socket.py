@@ -8,7 +8,13 @@ from typing import Any, cast
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
-from pinecall.api._deps import (
+from pinecall.api.agents.handlers import HANDLERS, Live, LiveDep, Socket, asked, handles
+from pinecall.api.agents.held_agent import SocketId, a_socket_id
+from pinecall.api.agents.processes import Process, Processes, ProcessesDep
+from pinecall.api.agents.registry import Registry, RegistryDep
+from pinecall.api.agents.session_config import tuned_for
+from pinecall.api.calls.attachment import handed_on, parked_calls_of
+from pinecall.api.deps import (
     AdmissionDep,
     CodesDep,
     KeysDep,
@@ -19,12 +25,6 @@ from pinecall.api._deps import (
     TuningDep,
     a_key_on_a_socket,
 )
-from pinecall.api.agents.handlers import HANDLERS, Live, LiveDep, Socket, asked, handles
-from pinecall.api.agents.holding import SocketId, a_socket_id
-from pinecall.api.agents.processes import Process, Processes, ProcessesDep
-from pinecall.api.agents.registry import Registry, RegistryDep
-from pinecall.api.agents.tuned import tuned_for
-from pinecall.api.calls.attaching import handed_on, parked_calls_of
 from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
 from pinecall.auth.corner import author_of
 from pinecall.auth.keys import KeyRecord, held_by, not_opening
@@ -274,7 +274,7 @@ NOT_THIS_SOCKET = (
 async def register(socket: Socket, command: Command) -> None:
     """This socket speaks for this agent, or it is told why not. It brings no doors with it:
     `routes` is still on the wire so an app on an older package registers, and is not read —
-    a door is a row an operator typed (api/numbers.py), and the widget is not a door."""
+    a door is a row an operator typed (api/telephony/numbers.py), and the widget is not a door."""
     wanted = asked(command, AgentRegister)
     socket.processes.named(socket.id, wanted.host)
     # One more agent for this org, unless it already holds this one: a socket correcting its own
@@ -347,7 +347,7 @@ async def the_bases_it_reads(socket: Socket, slug: str, declared: AgentConfig) -
     if declared.uses_knowledge and not bases:
         raise DeclarationRefused(NO_BASE_ATTACHED.format(slug=slug, world=socket.env))
     # A gateway with no table keeps no base at all, and there a lookup finds nothing and refuses
-    # nobody (api/_deps.py): the same holds for the declaration.
+    # nobody (api/deps.py): the same holds for the declaration.
     if socket.knowledge is None or not bases:
         return
     pushed = {

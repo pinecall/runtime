@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from functools import partial
 
 from pinecall._settings import Budgets
-from pinecall.api.agents.holding import Registration, SocketId
+from pinecall.api.agents.held_agent import Registration, SocketId
 from pinecall.api.agents.registry import Registry
-from pinecall.api.agents.tuned import tuned_for
+from pinecall.api.agents.session_config import tuned_for
 from pinecall.evals.score import JudgedWhen
 from pinecall.log.logs import CallLog
 from pinecall.log.writers import Logs
@@ -60,7 +60,7 @@ async def a_text_call(
 
 
 # The same session, for a call that was admitted once already and is only being taken up again —
-# its gateway restarted and forgot it (api/calls/taking_up.py): no quota is asked a second time.
+# its gateway restarted and forgot it (api/calls/resume.py): no quota is asked a second time.
 async def a_text_session(
     held: Registration,
     context: CallContext,

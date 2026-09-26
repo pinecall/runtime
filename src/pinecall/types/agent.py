@@ -150,9 +150,9 @@ class AgentConfig:
     # knowledge block of every call. The world's (Tuning.knowledge), never the class's.
     knowledge: str | None = None
     # Every base the world attached, each with how a turn reads it: the RAG. The world's too
-    # (Tuning.bases); the resolver fills it (api/agents/tuned.py). A settings row that attaches
-    # none and one that attaches an empty list run the same session — the difference between them
-    # is which corner is heard, and that is spent by the time a config is built.
+    # (Tuning.bases); the resolver fills it (api/agents/session_config.py). A settings row that
+    # attaches none and one that attaches an empty list run the same session — the difference
+    # between them is which corner is heard, and that is spent by the time a config is built.
     bases: tuple[Docs, ...] = ()
     # Whether the class searches the base itself, `this.knowledge.search`: a world that attaches
     # none refuses the registration, so a tool that would find nothing is refused at boot.

@@ -5,8 +5,8 @@ from collections.abc import AsyncIterator, Iterator
 import httpx
 import pytest
 
-from pinecall.api._deps import the_signups
 from pinecall.api.app import app
+from pinecall.api.deps import the_signups
 from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers

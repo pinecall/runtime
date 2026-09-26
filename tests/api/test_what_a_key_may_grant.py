@@ -20,7 +20,8 @@ pytestmark = pytest.mark.unit
 MEMBERS = "/v1/members"
 
 # Marta runs the floor: `team` among her scopes, production access, no `app`. The member doors are
-# production's (api/identity.py), so a manager changes the team where she may act in production.
+# production's (api/accounts/identity.py), so a manager changes the team where she may act in
+# production.
 MARTA = Member(
     id="m_marta",
     org=A_RECORD.org,

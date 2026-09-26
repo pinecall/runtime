@@ -76,7 +76,7 @@ Three indexed reads of the call index and one of the quotas, whatever the day.
 **`live` is what nobody has sealed yet, and the gateway seals what nobody else can.** `call.ended`
 is written by the worker holding a spoken call, from a shutdown callback, so a worker that is
 *killed* would leave a log nothing ever closes and a call that reads `live` for ever. A **reaper**
-(`api/reaping.py`) runs at start and every minute: a spoken call whose log is unsealed, that has
+(`api/calls/reaper.py`) runs at start and every minute: a spoken call whose log is unsealed, that has
 said nothing for five minutes, **and whose room the SFU no longer has** is ended here — livekit
 deletes an empty room after a minute, so a missing room is the media plane saying nobody is on the
 call, while a quiet call whose room is alive is never touched. It appends what the hang-up would

@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Response
 from fastapi.responses import FileResponse, HTMLResponse
 
 from pinecall._settings import Settings
-from pinecall.api._deps import SettingsDep
+from pinecall.api.deps import SettingsDep
 
 router = APIRouter()
 

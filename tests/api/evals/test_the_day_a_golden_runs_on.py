@@ -9,8 +9,8 @@ import pytest
 from livekit.agents import llm as agents
 
 from pinecall._settings import Budgets
-from pinecall.api._live import Live
-from pinecall.api.evals.conversation import an_eval_call
+from pinecall.api.evals.golden_call import an_eval_call
+from pinecall.api.live import Live
 from pinecall.evals.goldens import Golden
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs

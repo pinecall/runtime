@@ -47,5 +47,5 @@ def the_projects_pair(asked: Asked) -> tuple[str, str]:
 # The same question a screen asks before the call, so it shows a box with no LiveKit project as
 # one that cannot run Inference yet rather than as one that needs a vendor key it will never find.
 def the_project_is_there(settings: Settings) -> bool:
-    """Whether this box has the pair Inference signs with. api/providers.py draws it."""
+    """Whether this box has the pair Inference signs with. api/ops/providers.py draws it."""
     return bool(settings.livekit_api_key and settings.livekit_api_secret)

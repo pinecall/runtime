@@ -100,7 +100,7 @@ class Admission:
         return None
 
     # What the gate counts against, for a door that shows it: the same fold, so a page saying
-    # "12 of 30 minutes" and the refusal at 30 read one number (api/limits.py).
+    # "12 of 30 minutes" and the refusal at 30 read one number (api/org/limits.py).
     async def consumed(self, org: str) -> Totals:
         """What this org has consumed on this instance, as the Meter folds it."""
         return await self._meter.totals(org)
@@ -112,7 +112,7 @@ class Admission:
         return await self._orgs.quotas_of(org)
 
     # A hang-up is judged only where the org has not turned judging off: the judges may cost a
-    # model's tokens, and that is the org's to decline (api/judging.py).
+    # model's tokens, and that is the org's to decline (api/agents/hangup_judging.py).
     async def judges(self, org: str) -> bool:
         """Whether this org's calls are judged when they hang up."""
         return await self._orgs.judges(org)

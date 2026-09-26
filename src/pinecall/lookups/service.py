@@ -36,7 +36,7 @@ SPOKEN: dict[str, Literal["user", "agent"]] = {"turn.user": "user", "turn.agent"
 
 
 # What a lookup needs to know of a call, and nothing more: the process's live table answers it
-# (api/_live.py) and the service never sees the table, the registry or the app state.
+# (api/live.py) and the service never sees the table, the registry or the app state.
 @dataclass(frozen=True)
 class OpenCall:
     """One call as a lookup sees it: whose org, whose corner, how it arrived, what it declared."""

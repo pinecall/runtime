@@ -122,7 +122,7 @@ class PostgresVault:
 
 
 # None is an answer here and not a failure, which is why the vault is the one thing of the process
-# that api/_deps.py:held does not fetch: a runtime given no vault key holds nobody's key, runs
+# that api/deps.py:held does not fetch: a runtime given no vault key holds nobody's key, runs
 # every call on the box's own vendor keys, and is a complete self-hosted install.
 def vault_for(settings: Settings, pool: Pool | None) -> Vault | None:
     """Postgres when the process opened one, memory on a dev key, none when no key was set."""

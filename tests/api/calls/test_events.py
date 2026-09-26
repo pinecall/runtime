@@ -9,7 +9,7 @@ from typing import Any, cast
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.api.calls.sink import RETRY_MS, SSE, ended, paced, sse
+from pinecall.api.calls.log_sink import RETRY_MS, SSE, ended, paced, sse
 from pinecall.auth.scopes import Reader
 from pinecall.log.entry import Entry
 from pinecall.log.filters import Filter

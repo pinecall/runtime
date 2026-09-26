@@ -10,8 +10,8 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import ValidationError
 from starlette.responses import PlainTextResponse
 
-from pinecall.api._deps import SettingsDep
-from pinecall.api.whatsapp.doors import DoorsDep
+from pinecall.api.deps import SettingsDep
+from pinecall.api.whatsapp.thread_deps import DoorsDep
 from pinecall.api.whatsapp.threads import ThreadsDep
 from pinecall.whatsapp.inbound import Inbound, Payload, messages_in
 from pinecall.whatsapp.signing import SIGNATURE_HEADER, signed

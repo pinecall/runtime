@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.api.box_mail import NOTHING_STORED, NOTHING_TO_TEST
+from pinecall.api.ops.box_mail import NOTHING_STORED, NOTHING_TO_TEST
 from pinecall.mail import Outbox
 from pinecall.orgs.vault import NO_VAULT_KEY
 from tests.api.mailing import A_BOX_SENDER
@@ -22,7 +22,7 @@ A_PASSWORD_NOBODY_MAY_READ = "hunter2-and-then-some"
 
 
 def wiring(server: FakeSmtp) -> dict[str, Any]:
-    """What the operator PUTs: the org's own body, word for word (api/org_mail.py, WantedMail)."""
+    """What the operator PUTs: the org's own body, word for word (api/org/mail.py, WantedMail)."""
     return {
         "host": server.host,
         "port": server.port,

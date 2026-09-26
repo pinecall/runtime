@@ -5,7 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from pinecall.api.sso import CALLBACK, NO_SSO
+from pinecall.api.accounts.org_sso import CALLBACK, NO_SSO
 from pinecall.orgs.sso import Sso
 from pinecall.orgs.table import MemoryOrgs
 from pinecall.types import Org

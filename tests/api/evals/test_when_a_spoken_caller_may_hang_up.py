@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from pinecall.api.evals.listening import (
+from pinecall.api.evals.agent_finished import (
     A_SILENT_OPENING_S,
     AN_ANSWER_MAY_TAKE_S,
     the_answer_has_landed,
