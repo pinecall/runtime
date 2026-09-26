@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass
 from typing import Literal, cast, override
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import (
     BaseSettings,
     DotEnvSettingsSource,
@@ -17,6 +17,7 @@ from pinecall._exceptions import PinecallError
 from pinecall._vendor_keys import VendorKeys
 from pinecall.types import PRODUCTION, SANDBOX, Env
 from pinecall.types.dispatch import A_FLEET_NAME, DEFAULT_FLEET
+from pinecall.types.today import a_zone
 
 # Our own knobs carry this prefix; a vendor key keeps the vendor's own name (the alias on the
 # field), so the SDK that reads ANTHROPIC_API_KEY by itself and this class agree.
@@ -456,6 +457,20 @@ class Settings(VendorKeys):
             "credential."
         ),
     )
+    # What day it is on a call is the caller's day, not the box's: a hub in UTC and a clinic in
+    # Madrid disagree by an hour at midnight, and "tomorrow at ten" lands on the wrong day.
+    timezone: str = Field(
+        default="UTC",
+        description="The IANA zone a call's `today` is read in (Europe/Madrid). UTC unless set.",
+    )
+
+    @field_validator("timezone")
+    @classmethod
+    def _a_zone_that_exists(cls, zone: str) -> str:
+        """A typo here is a call dated wrong every day: refused at startup, naming the spelling."""
+        a_zone(zone)
+        return zone
+
     otlp_pii: bool = Field(
         default=False,
         description=(

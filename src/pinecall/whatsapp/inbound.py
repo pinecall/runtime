@@ -14,7 +14,7 @@ _PLUS = "+"
 
 
 # What the rest of the runtime is handed: one message, flat, with the two ids that route it.
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Inbound:
     """One message a person sent to one of an org's WhatsApp numbers."""
 

@@ -3,7 +3,7 @@
 import re
 from dataclasses import dataclass
 from email.utils import parseaddr
-from typing import Literal
+from typing import Literal, cast
 from urllib.parse import unquote, urlsplit
 
 from pinecall.types.refused import DeclarationRefused
@@ -68,7 +68,7 @@ def a_security(word: str) -> Security:
         raise DeclarationRefused(
             f"a mailbox is secured by one of {sorted(SECURITIES)}, not {word!r}"
         )
-    return "tls" if word == "tls" else ("none" if word == "none" else "starttls")
+    return cast("Security", word)
 
 
 # What PINECALL_SMTP_URL is read into. A URL because it is ONE credential and a box keeps a

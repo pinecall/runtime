@@ -126,7 +126,7 @@ def a_server(settings: Settings, gateway: Gateway) -> AgentServer:
 # which is what hangs up a SIP leg. No STT, no model: nothing here listens.
 async def answer_the_overflow(ctx: JobContext, worker: Worker, says: str) -> None:
     """One overflow job: tell the caller, take their number, hang up, seal the log."""
-    began = time.time()
+    began = time.monotonic()
     ctx.log_context_fields = {"room": ctx.job.room.name}
     _, routes = await asyncio.gather(ctx.connect(), worker.gateway.routes())
     arrival = await router.arrival_of(ctx.job, ctx.room)
@@ -134,7 +134,7 @@ async def answer_the_overflow(ctx: JobContext, worker: Worker, says: str) -> Non
     config, brought = await asyncio.gather(
         worker.gateway.agent(route.agent), worker.gateway.provider_keys(route.agent)
     )
-    context = a_call(ctx.room.name or ctx.job.id, arrival, route)
+    context = a_call(ctx.room.name or ctx.job.id, arrival, route, worker.timezone)
     await worker.gateway.opened(context, route.agent)
     ctx.add_shutdown_callback(_sealing(worker.gateway, context.call, began))
     if not await _somebody_arrived(ctx):
@@ -170,9 +170,11 @@ def _sealing(
     """The shutdown callback: call.ended by the agent, then the log is closed."""
 
     async def seal(_reason: str) -> None:
-        now = time.time()
         ended = CallEnded(
-            reason="agent_hung_up", ended_by="agent", ended_at=now, duration_s=now - began
+            reason="agent_hung_up",
+            ended_by="agent",
+            ended_at=time.time(),
+            duration_s=time.monotonic() - began,
         )
         await gateway.append(call, "call.ended", encode(ended))
         await gateway.sealed(call)

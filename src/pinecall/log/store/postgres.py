@@ -6,7 +6,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlsplit, urlunsplit
@@ -17,6 +17,7 @@ from pinecall._exceptions import PinecallError
 from pinecall.log.entry import Entry
 from pinecall.log.facts import change_of
 from pinecall.log.store.index_statements import RESCORED
+from pinecall.log.store.pool import Connection, Pool
 from pinecall.log.store.postgres_index import PostgresIndex
 from pinecall.log.store.protocol import DEFAULT_LIMIT, LogSealed, Metered
 from pinecall.log.store.statements import (
@@ -106,7 +107,7 @@ class PostgresStore(PostgresIndex):
 
     def __init__(
         self,
-        pool: Any,
+        pool: Pool,
         *,
         clock: Callable[[], float] = time.time,
         owns_pool: bool = False,
@@ -194,7 +195,7 @@ class PostgresStore(PostgresIndex):
     # separate pooled connections they could land the other way round, and `last_text` said the
     # older one (2026-09-26). The fold is a savepoint of its own, so its failure rolls back the
     # fold and never the entry.
-    async def _indexed(self, connection: Any, entry: Entry) -> None:
+    async def _indexed(self, connection: Connection, entry: Entry) -> None:
         """The call's facts given what the entry said; a fold that broke is logged and dropped."""
         change = change_of(entry)
         if entry.call is None or change is None:
@@ -223,7 +224,7 @@ class PostgresStore(PostgresIndex):
 
     async def list_calls(self, agent: str) -> list[str]:
         """Every call this agent opened a log for, oldest first, read off the head rows."""
-        rows: Sequence[Any] = await self._pool.fetch(LIST_CALLS, agent)
+        rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(LIST_CALLS, agent)
         return [str(row["call"]) for row in rows]
 
     async def calls_of(
@@ -235,7 +236,9 @@ class PostgresStore(PostgresIndex):
         agent: str | None = None,
     ) -> list[str]:
         """The org's newest calls, off the head rows, cut to a world, a corner or an agent."""
-        rows: Sequence[Any] = await self._pool.fetch(CALLS_OF, org, limit, env, holder, agent)
+        rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(
+            CALLS_OF, org, limit, env, holder, agent
+        )
         return [str(row["call"]) for row in rows]
 
     async def latest_seq(self, call: str) -> int:
@@ -283,7 +286,7 @@ class PostgresStore(PostgresIndex):
         self, types: Sequence[str], after: int = 0, limit: int = DEFAULT_LIMIT
     ) -> list[Metered]:
         """One page across every log: the database filters, orders and cuts, never us."""
-        rows: Sequence[Any] = await self._pool.fetch(
+        rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(
             ACROSS, list(types), max(after, 0), max(limit, 0)
         )
         return [
@@ -293,17 +296,19 @@ class PostgresStore(PostgresIndex):
 
     async def newest_calls(self, limit: int, agent: str | None = None) -> list[str]:
         """The newest calls, of one agent or of all: the database orders and cuts, never us."""
-        rows: Sequence[Any] = await self._pool.fetch(CALLS_NEWEST_FIRST, limit, agent)
+        rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(CALLS_NEWEST_FIRST, limit, agent)
         return [str(row["call"]) for row in rows]
 
     async def newest_live_call(self) -> str | None:
         """The newest log nothing has sealed, or None when every call has ended."""
-        rows: Sequence[Any] = await self._pool.fetch(NEWEST_LIVE_CALL)
+        rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(NEWEST_LIVE_CALL)
         return str(rows[0]["call"]) if rows else None
 
     async def _page(self, log: str, after: int, limit: int) -> list[Entry]:
         """One page of one log, by the identity the database computes for every row."""
-        rows: Sequence[Any] = await self._pool.fetch(PAGE, log, max(after, 0), max(limit, 0))
+        rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(
+            PAGE, log, max(after, 0), max(limit, 0)
+        )
         return [entry_of_row(row) for row in rows]
 
 
@@ -312,7 +317,7 @@ def log_name(call: str | None, agent: str) -> str:
     return call if call is not None else f"{AGENT_LOG_PREFIX}{agent}"
 
 
-def entry_of_row(row: Any) -> Entry:
+def entry_of_row(row: Mapping[str, Any]) -> Entry:
     """One row back into the envelope. No conversion: the columns are the envelope's fields."""
     return Entry(
         seq=int(row["seq"]),
@@ -338,10 +343,12 @@ async def installed_extensions(dsn: str, *, timeout: float | None = None) -> set
 # The gateway reads API keys through a pool of its own, off a table this package knows nothing
 # about. It still gets its pool from here, because this module is the one place that may name the
 # driver — a second import of asyncpg is a second door to close.
-async def create_pool(dsn: str, *, schema: str = DEFAULT_SCHEMA) -> Any:
+async def create_pool(dsn: str, *, schema: str = DEFAULT_SCHEMA) -> Pool:
     """A plain connection pool, opened by the one module allowed to say the driver's name."""
     try:
-        return await _create_pool(dsn, server_settings={"search_path": search_path_of(schema)})
+        # The driver's pool answers our Protocol; the driver types it as nothing at all.
+        opened = await _create_pool(dsn, server_settings={"search_path": search_path_of(schema)})
+        return cast("Pool", opened)
     except (OSError, ValueError, asyncpg.PostgresError) as refused:
         # The same three the store's own connect turns into StoreUnreachable: a caller that opens
         # a pool must be able to say "no database answered" without naming the driver.
@@ -371,3 +378,8 @@ def a_schema_name(schema: str) -> str:
     if not _A_SCHEMA_NAME.match(schema):
         raise SchemaRefused(f"a schema name is a lowercase word, not {schema!r}")
     return schema
+
+
+async def open_pool(database_url: str, *, schema: str = DEFAULT_SCHEMA) -> Pool:
+    """The pool the gateway holds for its whole life. The lifespan that opened it closes it."""
+    return await create_pool(database_url, schema=schema)

@@ -1,7 +1,7 @@
 """Member: a person of one org, the role that presets what their keys may do, and their standing."""
 
 from dataclasses import dataclass
-from typing import Literal, get_args
+from typing import Literal, cast, get_args
 
 from pinecall.types.key import KEY_SCOPES
 from pinecall.types.mail import AN_ADDRESS
@@ -117,16 +117,4 @@ def a_role(word: str) -> Role:
     """The role this word names, or a refusal that lists the five there are."""
     if word not in ROLES:
         raise DeclarationRefused(f"a role is one of {sorted(ROLES)}, not {word!r}")
-    return _as_role(word)
-
-
-def _as_role(word: str) -> Role:
-    """The checked word, as the closed type — the one place the cast is made."""
-    roles: dict[str, Role] = {
-        "qa": "qa",
-        "supervisor": "supervisor",
-        "manager": "manager",
-        "admin": "admin",
-        "developer": "developer",
-    }
-    return roles[word]
+    return cast("Role", word)

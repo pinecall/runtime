@@ -45,7 +45,7 @@ async def test_the_door_decides_the_channel_and_the_job_decides_the_rest() -> No
         a_job(room="call_room_1", metadata={"agent": "clinica-norte", "why": "a follow-up"}),
         as_a_room(room),
     )
-    context = entry.a_call("call_room_1", arrival, CLINICA)
+    context = entry.a_call("call_room_1", arrival, CLINICA, "UTC")
     assert (context.call, context.channel, context.caller) == ("call_room_1", "phone", "+59897777")
     assert context.route == CLINICA
     assert context.metadata["why"] == "a follow-up"

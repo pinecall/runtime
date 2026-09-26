@@ -7,7 +7,6 @@ import logging
 import time
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
-from datetime import date
 from pathlib import Path
 from typing import Protocol
 
@@ -22,6 +21,7 @@ from pinecall.session.voice.platform import Platform
 from pinecall.types import AgentConfig, CallContext, Route
 from pinecall.types.agent import NO_LIMIT
 from pinecall.types.dispatch import DIAL_KEY, SCOPE_KEY, WRITTEN_SCOPE, Handover
+from pinecall.types.today import today_in
 from pinecall.worker import commanding, dialling, egress, recordings, router, seat
 from pinecall.worker.client import Gateway
 from pinecall.worker.egress import Stopping
@@ -76,6 +76,8 @@ class Worker:
     keeping: Keeping
     # The agent a job that names none is for: the flag `pinecall talk` starts a laptop worker with.
     default_agent: str | None = None
+    # The zone a call's `today` is read in: the box's PINECALL_TIMEZONE.
+    timezone: str = "UTC"
     # The app socket every call of this process claims, when it was started by one — `pinecall
     # talk` names its own. Unset on a box, where a call takes the newest socket holding the agent.
     app: str | None = None
@@ -136,7 +138,7 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
         the_melody(worker.gateway, route.agent, org=route.org, env=route.env, holder=whose.holder),
     )
     took("config+keys")
-    context = a_call(ctx.room.name or ctx.job.id, arrival, route)
+    context = a_call(ctx.room.name or ctx.job.id, arrival, route, worker.timezone)
     # What the dispatch named wins over the flag this process was started with: a spoken eval
     # run has to reach the terminal holding its goldens, and that socket takes no unclaimed call.
     ceiling = await worker.gateway.opened(context, route.agent, arrival.app or worker.app)
@@ -276,7 +278,7 @@ async def _the_box_records(ctx: JobContext, audio: Path | None) -> Stopping | No
 
 # The room's name IS the call id: a reader of the log can find the room and the room can find the
 # log, with nothing minted in between and nothing to keep in step.
-def a_call(call: str, arrival: router.Arrival, route: Route) -> CallContext:
+def a_call(call: str, arrival: router.Arrival, route: Route, zone: str) -> CallContext:
     """The call as the platform will know it, before the first word is spoken."""
     return CallContext(
         call=call,
@@ -284,7 +286,7 @@ def a_call(call: str, arrival: router.Arrival, route: Route) -> CallContext:
         direction=arrival.direction,
         caller=arrival.caller,
         route=route,
-        today=date.today(),
+        today=today_in(zone),
         metadata=arrival.metadata,
         run=arrival.run,
         persona=arrival.persona,

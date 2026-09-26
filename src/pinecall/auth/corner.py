@@ -14,7 +14,7 @@ from pinecall.types import DeclarationRefused, Env, is_a_deployment
 NOT_YOUR_CORNER = "this key works in its own org and world: only the fleet's key names another"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Corner:
     """The org, the world, and the holder's corner of it, that one request resolves in."""
 

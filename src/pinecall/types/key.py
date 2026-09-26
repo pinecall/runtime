@@ -1,7 +1,7 @@
 """Key: which of two worlds a key opens (its env), and what it may do there (its scopes)."""
 
 from collections.abc import Iterable
-from typing import Literal, get_args
+from typing import Literal, cast, get_args
 
 from pinecall.types.refused import DeclarationRefused
 
@@ -108,7 +108,7 @@ def an_env(word: str) -> Env:
     """The world this word names, or a refusal that lists the two there are."""
     if word not in ENVS:
         raise DeclarationRefused(f"a key opens one of {sorted(ENVS)}, not {word!r}")
-    return "production" if word == PRODUCTION else "sandbox"
+    return cast("Env", word)
 
 
 def key_scopes(words: Iterable[str]) -> frozenset[str]:

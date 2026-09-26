@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-from datetime import date
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import Field
@@ -29,6 +28,7 @@ from pinecall.routes.dispatching import Dialling, Dispatches, Job
 from pinecall.routes.table import Routes
 from pinecall.session.first_entries import arrived
 from pinecall.types import CallContext, Route, a_call_id, an_e164
+from pinecall.types.today import today_in
 from pinecall_protocol import WireModel, encode
 from pinecall_protocol.defs import Projection
 from pinecall_protocol.events import CallEnded
@@ -127,7 +127,7 @@ async def dial(
         # The far end is the contact: it is who the call is with, and what memory files it under.
         caller=allowed.destination.number,
         route=_shown_from(doors, shown),
-        today=date.today(),
+        today=today_in(settings.timezone),
         holder=holder,
     )
     await _opened(logs, context, slug, shown, asking.asked_by)

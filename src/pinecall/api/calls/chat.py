@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
 from typing import Any, cast
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -39,6 +38,7 @@ from pinecall.providers.models import NoProvider
 from pinecall.session.text.allowance import TurnRefused
 from pinecall.session.text.session import TextSession, Watcher
 from pinecall.types import THE_WIDGET, CallContext, Contact, Env, Route, a_call_id
+from pinecall.types.today import today_in
 from pinecall_protocol import encode
 
 # Importing the handlers is what registers them: the app socket's table is filled at import time,
@@ -146,7 +146,12 @@ async def chat(
         opened = await a_text_call(
             held,
             a_call_from(
-                websocket, held.org, held.env, slug, await _the_rule_of(websocket, held.org)
+                websocket,
+                held.org,
+                held.env,
+                slug,
+                settings.timezone,
+                await _the_rule_of(websocket, held.org),
             ),
             tuning,
             vault,
@@ -236,7 +241,7 @@ async def _taken_up(
 ) -> None:
     """The caller back on a call its gateway forgot, or a close saying why not."""
     await websocket.accept()
-    context = a_call_from(websocket, held.org, held.env, held.slug)
+    context = a_call_from(websocket, held.org, held.env, held.slug, settings.timezone)
     try:
         opened = await taken_up(
             call,
@@ -305,6 +310,7 @@ def a_call_from(
     org: str,
     env: Env,
     slug: str,
+    zone: str,
     rule: tuple[str | None, str | None] = (None, None),
 ) -> CallContext:
     """One call, minted here: the id, who the caller is, and the door they came through."""
@@ -325,7 +331,7 @@ def a_call_from(
         accepts_when=accepts_when,
         declines_when=declines_when,
         route=Route(org=org, agent=slug, channel=THE_WIDGET, number=None, env=env),
-        today=date.today(),
+        today=today_in(zone),
     )
 
 

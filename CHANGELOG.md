@@ -114,6 +114,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   could make orgs for as many trials as they liked.
 
 ### Added
+- **`PINECALL_TIMEZONE`: what day it is on a call.** A call's `today` — what the model reads
+  the date from, what "tomorrow at ten" lands on — was the box's own clock, and a box in UTC
+  answering a clinic in Madrid was a day behind for an hour every night. The zone is a setting
+  now, IANA-spelled, refused at startup when it is not one; `UTC` unless set.
 - **Every door documents its answer.** The ninety-five doors that answered an untyped JSON object
   — the orgs, keys, members, logins, sign-ups, pairings, numbers, routes, fleet, usage, mail,
   brand, sign-in, SSO, dial, evals and webhook doors — return a typed model now, so

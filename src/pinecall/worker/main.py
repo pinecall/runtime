@@ -67,6 +67,7 @@ def a_worker(settings: Settings) -> Worker:
     return Worker(
         gateway=gateway,
         kit=kit_for(settings),
+        timezone=settings.timezone,
         # The worker is who hands a spoken call its judge: the session judges nothing itself. And
         # its memory: a job process has no database, so the gateway is the session's Lookup and
         # Rememberer too — the same object, three protocols — under the budgets the box set. The

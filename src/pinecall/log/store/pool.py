@@ -2,9 +2,7 @@
 
 from collections.abc import Iterable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
-from typing import Any, Protocol, cast
-
-from pinecall.log.store.postgres import DEFAULT_SCHEMA, create_pool
+from typing import Any, Protocol
 
 
 # One connection, held for the length of a transaction. Every statement a caller runs on the pool
@@ -40,8 +38,3 @@ class Pool(Protocol):
     def acquire(self) -> AbstractAsyncContextManager[Connection]: ...
 
     async def close(self) -> None: ...
-
-
-async def open_pool(database_url: str, *, schema: str = DEFAULT_SCHEMA) -> Pool:
-    """The pool the gateway holds for its whole life. The lifespan that opened it closes it."""
-    return cast(Pool, await create_pool(database_url, schema=schema))

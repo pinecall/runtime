@@ -38,7 +38,7 @@ KEY_ID_BYTES = 8
 # An API key IS the org: every door that takes one reads the org off this record and nothing else,
 # which is why a key that could name another org would be a key that could read another's log.
 # And it knows WHERE and WHO: the world it opens, what it may do there, and whose it is.
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class KeyRecord:
     """Whose key this is: the org that owns it, the world it opens, what it may do, who holds it."""
 

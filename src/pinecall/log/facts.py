@@ -39,7 +39,7 @@ SPOKEN_CHANNEL = "phone"
 # indexed read and never a fold of every log. The log is still the truth: every field here is what
 # some entry said, and a store that lost the row could fold it back (0026 does, for what came
 # before). Nothing in it is ever the only place a fact lives.
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class CallFacts:
     """What the list, the day and the inbox read about one call, without opening its log."""
 
@@ -128,7 +128,7 @@ class CallFacts:
         return [flag for flag, up in raised if up]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Change:
     """What one entry says about its call. None says nothing; `scored` overwrites the verdict."""
 
