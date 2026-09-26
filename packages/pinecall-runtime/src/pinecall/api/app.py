@@ -20,7 +20,6 @@ from pinecall.api.origins import AppOrigins
 from pinecall.api.refusals import refusals_answered_by
 from pinecall.api.routers import DOORS
 from pinecall.api.sse import new_closing
-from pinecall.api.telephony.sip_rebuild import reconcile_sip
 from pinecall.api.whatsapp.threads import Threads
 from pinecall.api.whatsapp.waiting_loop import start_waiting_room
 from pinecall.auth.keys import NO_KEYS_TABLE, keys_for
@@ -68,6 +67,7 @@ from pinecall.routes.outbound_trunks import outbound_for
 from pinecall.routes.records import routes_for
 from pinecall.routes.twilio import HttpTwilio
 from pinecall.settings import Settings, load_settings
+from pinecall.telephony.rebuilding import reconcile_sip
 from pinecall.tokens.ledger import tokens_for
 from pinecall.whatsapp.cloud_api import HttpGraph
 
@@ -271,7 +271,7 @@ async def _opened(gateway: FastAPI, settings: Settings, closing: AsyncExitStack)
         closing.push_async_callback(_cancelled, reaper)
     # And the one thing it does for the media plane: ask it, once, for every trunk the tables say
     # exists. A Redis that came up empty took every number with it and nothing said so
-    # (2026-09-22); this is what says so, and puts them back. api/telephony/sip_rebuild.py.
+    # (2026-09-22); this is what says so, and puts them back. telephony/rebuilding.py.
     rebuilding = _a_rebuild(gateway)
     if rebuilding is not None:
         closing.push_async_callback(_cancelled, rebuilding)
