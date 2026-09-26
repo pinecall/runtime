@@ -21,7 +21,7 @@ from pinecall.api.telephony.deps import DispatchesDep, GuardsDep, KeptOutboundTr
 from pinecall.auth.keys import is_held_by
 from pinecall.auth.scopes import mint_log_token, secret_for
 from pinecall.orgs.outbound_guards import Asking
-from pinecall.telephony.placing import Placers, Placing, place_call
+from pinecall.telephony import Placers, Placing, place_call
 from pinecall.types.today import today_in
 from pinecall_protocol import WireModel
 from pinecall_protocol.defs import Projection

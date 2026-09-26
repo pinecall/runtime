@@ -24,14 +24,21 @@ from pinecall.providers.registry import NoProvider
 from pinecall.providers.tts.vendor_voices import NotListed
 from pinecall.routes.twilio import TwilioRefused
 from pinecall.session.hold_melody import NotAHoldMelody
-from pinecall.telephony import DidNotDial, NobodyHolding, NoPhoneDoor, NotOurNumber, NoTrunk
-from pinecall.telephony.buying import NoneForSale
-from pinecall.telephony.importing import NotOnAccount, NumberHeldElsewhere
-from pinecall.telephony.missing import NoBoxCarrier, NoDomain, NoMediaPlane
-from pinecall.telephony.provisioning import (
+from pinecall.telephony import (
     CredentialsLost,
+    DidNotDial,
+    NobodyHolding,
+    NoBoxCarrier,
+    NoDomain,
+    NoMediaPlane,
+    NoneForSale,
     NoNumbers,
     NoOutboundHost,
+    NoPhoneDoor,
+    NotOnAccount,
+    NotOurNumber,
+    NoTrunk,
+    NumberHeldElsewhere,
 )
 from pinecall.types import DeclarationRefused
 

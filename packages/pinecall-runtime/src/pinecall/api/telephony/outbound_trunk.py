@@ -7,7 +7,7 @@ from fastapi import APIRouter, Query
 from pinecall.api.deps import KeptCarriersDep, NumbersKeyDep, RoutesDep, SettingsDep, TwilioDep
 from pinecall.api.telephony.deps import GuardsDep, KeptOutboundTrunksDep, OutboundDep
 from pinecall.routes.numbers import own_numbers
-from pinecall.telephony.provisioning import provision_trunk, steps_missing
+from pinecall.telephony import provision_trunk, steps_missing
 from pinecall_protocol.rest import CarrierOutbound, DialGuards, OutboundProvisioned
 
 router = APIRouter()

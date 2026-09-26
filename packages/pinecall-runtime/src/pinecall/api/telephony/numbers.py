@@ -19,7 +19,7 @@ from pinecall.api.deps import (
 )
 from pinecall.auth.keys import KeyRecord
 from pinecall.orgs.carriers import NO_CARRIER, NoCarrier
-from pinecall.telephony.importing import Routed, import_number
+from pinecall.telephony import Routed, import_number
 from pinecall.types import (
     Carrier,
     CarrierKind,

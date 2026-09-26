@@ -14,7 +14,7 @@ from pinecall.api.deps import (
     TwilioDep,
 )
 from pinecall.api.telephony.numbers import DRY_RUN, NumberRouted, number_channel, wire_routed
-from pinecall.telephony.buying import Buying, buy_number
+from pinecall.telephony import Buying, buy_number
 from pinecall_protocol import WireModel
 
 router = APIRouter()
