@@ -75,6 +75,10 @@ async def test_an_admins_reset_is_mailed_to_the_member_and_says_who_reset_it(
 ) -> None:
     """The one-use link is still in the answer; it is now also in the person's inbox."""
     member = (await accepted(stranger, (await invited(tenant_http))["token"]))["member"]
+    # The invitation is a letter too, posted in the background: it is drained and forgotten first,
+    # or it can reach the relay after the reset and stand where the reset is read.
+    await outbox.drained()
+    relay.took.clear()
     answer = await tenant_http.post(f"/v1/members/{member['id']}/reset")
     assert answer.status_code == 201 and answer.json()["mailed"] is True
     await outbox.drained()
