@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pinecall.knowledge.chunking import HEADING_SEPARATOR
 from pinecall.types import Chunk
 from pinecall.types.golden_scores import Score as GoldenScore
-from pinecall.types.golden_scores import a_score
+from pinecall.types.golden_scores import golden_score
 
 # The separator a heading path is written with, in the chunk and in a golden alike: it is what
 # `chunks_as_text` puts in front of every passage, so a person writes what they already read.
@@ -72,4 +72,4 @@ def answers(found: str, expects: str) -> bool:
 # answered.
 def scored(answered: Sequence[Answered], k: int) -> Score:
     """The golden's two figures, and every question the base missed."""
-    return a_score(answered, k, lambda one: (one.rank,))
+    return golden_score(answered, k, lambda one: (one.rank,))

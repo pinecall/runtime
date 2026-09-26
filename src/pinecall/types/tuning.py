@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from pinecall.types.agent import Greeting, Hangup, Turn, a_limit_checked, pronunciations_checked
+from pinecall.types.agent import Greeting, Hangup, Turn, check_call_limit, pronunciations_checked
 from pinecall.types.knowledge import Docs, MemoryPolicy
 from pinecall.types.refusal import DeclarationRefused
 
@@ -63,7 +63,7 @@ class Tuning:
             if value is not None and not value.strip():
                 raise DeclarationRefused(BLANK.format(field=name))
         if self.max_duration_s is not None:
-            a_limit_checked(self.max_duration_s)
+            check_call_limit(self.max_duration_s)
 
 
 # The org's words, laid over every agent's own: a brand, a surname, an acronym is the same word

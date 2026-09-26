@@ -11,7 +11,7 @@ from typing import Any, Protocol
 from pinecall._exceptions import PinecallError
 from pinecall.auth.invitations import Invited
 from pinecall.log.store import Pool
-from pinecall.types import Member, MemberStatus, Role, a_role
+from pinecall.types import Member, MemberStatus, Role, parse_role
 
 # The row's own name, not a secret: it is what a key's `subject` carries and what a seat says.
 MEMBER_ID_PREFIX = "m_"
@@ -205,7 +205,7 @@ def a_member_of_row(row: Any) -> Member:
         org=str(row["org"]),
         email=str(row["email"]),
         name=str(row["name"]),
-        role=a_role(str(row["role"])),
+        role=parse_role(str(row["role"])),
         agents=frozenset(str(agent) for agent in row["agents"]),
         status=_a_status(str(row["status"])),
         operator=bool(row["operator"]),

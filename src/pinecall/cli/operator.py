@@ -11,7 +11,7 @@ from typing import Any, Self
 
 import httpx
 
-from pinecall._detail import the_detail_of
+from pinecall._detail import refusal_detail
 from pinecall._exceptions import PinecallError
 from pinecall._settings import Settings, load_settings
 from pinecall.types import DEFAULT_ORG
@@ -93,7 +93,7 @@ class Operator:
         """The body, or the gateway's own sentence as a refusal a person can act on."""
         if answer.is_success:
             return None if answer.status_code == NO_BODY else answer.json()
-        raise OperatorRefused(f"{answer.status_code}: {the_detail_of(answer.text.strip())}")
+        raise OperatorRefused(f"{answer.status_code}: {refusal_detail(answer.text.strip())}")
 
 
 # The ops key is the BOX's, never an org's, so every door here names its org — and every verb

@@ -11,9 +11,9 @@ from pinecall.types import (
     NEVER_DIALLED,
     DeclarationRefused,
     DialPolicy,
-    a_destination,
-    a_sip_transport,
     calling_code,
+    parse_destination,
+    parse_sip_transport,
 )
 
 pytestmark = pytest.mark.unit
@@ -59,11 +59,11 @@ def test_a_destination_nobody_could_call_back_is_refused_saying_which(
     number: str, why: str
 ) -> None:
     with pytest.raises(DeclarationRefused, match=why):
-        a_destination(number)
+        parse_destination(number)
 
 
 def test_a_destination_carries_the_country_and_what_is_left_of_the_number() -> None:
-    spain = a_destination(" +34910000000 ")
+    spain = parse_destination(" +34910000000 ")
     assert (spain.number, spain.code, spain.national) == ("+34910000000", "34", "910000000")
 
 
@@ -89,7 +89,7 @@ def test_a_guard_is_a_count_and_cannot_be_negative() -> None:
 
 
 def test_the_transport_is_one_of_four_and_unsaid_is_auto() -> None:
-    assert a_sip_transport(None) == "auto"
-    assert a_sip_transport("tls") == "tls"
+    assert parse_sip_transport(None) == "auto"
+    assert parse_sip_transport("tls") == "tls"
     with pytest.raises(DeclarationRefused, match="dialled over one of"):
-        a_sip_transport("carrier-pigeon")
+        parse_sip_transport("carrier-pigeon")

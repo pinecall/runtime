@@ -32,8 +32,8 @@ from pinecall.types import (
     Route,
     SipPeer,
     TwilioAccount,
-    a_carrier_kind,
-    a_sip_transport,
+    parse_carrier_kind,
+    parse_sip_transport,
 )
 from pinecall.types.channel import CHANNELS_WITH_A_NUMBER, Channel
 from pinecall_protocol import WireModel
@@ -309,7 +309,7 @@ async def on_the_sfu(
 
 def _a_carrier(org: str, said: WantedCarrier) -> Carrier:
     """The domain's Carrier out of the body, or a 400 in the domain's words."""
-    if a_carrier_kind(said.kind) == "twilio":
+    if parse_carrier_kind(said.kind) == "twilio":
         account_sid = said.account_sid or ""
         return Carrier(
             org=org,
@@ -326,7 +326,7 @@ def _a_carrier(org: str, said: WantedCarrier) -> Carrier:
             password=said.password or "",
             addresses=tuple(said.addresses),
             outbound_host=said.outbound_host,
-            outbound_transport=a_sip_transport(said.outbound_transport),
+            outbound_transport=parse_sip_transport(said.outbound_transport),
             outbound_username=said.outbound_username,
             outbound_password=said.outbound_password,
         ),

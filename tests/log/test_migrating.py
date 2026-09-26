@@ -14,13 +14,13 @@ from pinecall.log.store.migrating import (
     POST_DEPLOY,
     RECORD_MIGRATION,
     SchemaRefused,
-    a_hash,
     apply_migrations,
     every,
+    file_hash,
     in_a_transaction,
+    migration_files,
     migrations_applied,
     migrations_behind,
-    ordered,
 )
 from pinecall.log.store.postgres import MIGRATIONS, connect, create_pool
 from tests.postgres import Dev
@@ -65,7 +65,7 @@ async def test_a_migration_edited_after_it_ran_is_refused_by_name_and_by_both_ha
     said = str(refused.value)
     assert first.name in said
     assert "a" * 64 in said, "the hash this database ran"
-    assert a_hash(first) in said, "and the one on disk now"
+    assert file_hash(first) in said, "and the one on disk now"
     assert "never edited" in said
 
 
@@ -88,7 +88,7 @@ async def test_a_row_with_no_hash_is_filled_in_rather_than_called_a_mismatch(
         )
     finally:
         await connection.close()
-    assert kept == a_hash(first)
+    assert kept == file_hash(first)
 
 
 async def test_a_migration_the_database_ran_and_this_checkout_does_not_have_is_refused(
@@ -113,7 +113,7 @@ async def test_two_runs_at_once_do_not_both_migrate(postgres: Dev) -> None:
 
     ran = [name for one in both for name in one.applied]
     assert len(ran) == len(set(ran)), "no migration was applied twice"
-    assert set(ran) == {path.name for path in ordered(post=False)}
+    assert set(ran) == {path.name for path in migration_files(post=False)}
 
 
 async def test_a_run_says_which_database_it_talked_to_and_never_the_password(
@@ -131,9 +131,9 @@ async def test_a_run_says_which_database_it_talked_to_and_never_the_password(
 
 def test_a_post_deployment_file_is_never_in_a_startup_run() -> None:
     """An index on a big table takes longer than the five seconds a startup migration is held to."""
-    assert all(not path.name.endswith(POST_DEPLOY) for path in ordered(post=False))
-    assert all(path.name.endswith(POST_DEPLOY) for path in ordered(post=True))
-    assert set(ordered(post=False)) | set(ordered(post=True)) == set(every())
+    assert all(not path.name.endswith(POST_DEPLOY) for path in migration_files(post=False))
+    assert all(path.name.endswith(POST_DEPLOY) for path in migration_files(post=True))
+    assert set(migration_files(post=False)) | set(migration_files(post=True)) == set(every())
 
 
 def test_the_lockfile_names_the_last_migration_there_is() -> None:
@@ -192,8 +192,8 @@ async def test_a_database_whose_table_predates_the_hashes_gets_the_column(postgr
 # which sends a person to `migrate up --post` for nothing (the box, 2026-09-20).
 async def test_a_run_names_only_the_post_files_this_database_has_not_run(postgres: Dev) -> None:
     schema = await a_schema(postgres)
-    post = list(ordered(post=True))
-    await pretend_it_ran(postgres, schema, post[0].name, a_hash(post[0]))
+    post = list(migration_files(post=True))
+    await pretend_it_ran(postgres, schema, post[0].name, file_hash(post[0]))
 
     ran = await apply_migrations(postgres.dsn, schema=schema)
 
@@ -207,7 +207,7 @@ async def test_a_run_names_only_the_post_files_this_database_has_not_run(postgre
 async def test_what_a_database_has_run_includes_the_post_deployment_files(postgres: Dev) -> None:
     schema = await a_schema(postgres)
     post = next(path for path in every() if path.name.endswith(POST_DEPLOY))
-    await pretend_it_ran(postgres, schema, post.name, a_hash(post))
+    await pretend_it_ran(postgres, schema, post.name, file_hash(post))
 
     pool = await create_pool(postgres.dsn, schema=schema)
     try:

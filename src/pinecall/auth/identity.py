@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import httpx
 
-from pinecall._detail import the_detail_of
+from pinecall._detail import refusal_detail
 from pinecall._exceptions import PinecallError
 from pinecall.types import Member, MemberStatus, Org, Role
 from pinecall_protocol import WireModel
@@ -109,7 +109,7 @@ class Identity:
         except httpx.HTTPError as unreachable:
             raise NotRedeemed(502, UNREACHABLE.format(url=self._url)) from unreachable
         if answer.is_client_error:
-            raise NotRedeemed(answer.status_code, the_detail_of(answer.text))
+            raise NotRedeemed(answer.status_code, refusal_detail(answer.text))
         if not answer.is_success:
             raise NotRedeemed(502, UNREACHABLE.format(url=self._url))
         # Not JSON, not the shape, or a row that refuses itself: each one is a ValueError.

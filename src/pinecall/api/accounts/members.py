@@ -30,7 +30,7 @@ from pinecall.types import (
     MemberStatus,
     Org,
     Role,
-    a_role,
+    parse_role,
 )
 from pinecall_protocol import WireModel
 
@@ -179,7 +179,7 @@ async def invite(
 
 def a_wanted_member(said: WantedMember, org: str) -> Role:
     """The role the body names, once the shape has refused a bad email or an empty name."""
-    role = a_role(said.role)
+    role = parse_role(said.role)
     # The shape refuses a bad email or an empty name before any row is made.
     Member(id="m_wanted", org=org, email=said.email, name=said.name, role=role)
     return role

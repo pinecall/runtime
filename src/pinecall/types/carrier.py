@@ -112,7 +112,7 @@ class Carrier:
         )
 
 
-def a_carrier_kind(word: str) -> CarrierKind:
+def parse_carrier_kind(word: str) -> CarrierKind:
     """The kind this word names, or a refusal that lists the two."""
     if word not in CARRIER_KINDS:
         raise DeclarationRefused(f"a carrier is one of {sorted(CARRIER_KINDS)}, not {word!r}")

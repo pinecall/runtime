@@ -74,7 +74,7 @@ class Score[A]:
 # Memory and the knowledge base answer the same golden shape — where each wanted answer ranked —
 # and differ only in what an answer is: several facts, or one chunk. A question with any wanted
 # answer that never came back is a miss.
-def a_score[A](
+def golden_score[A](
     answered: Sequence[A], k: int, ranks_of: Callable[[A], Sequence[int | None]]
 ) -> Score[A]:
     """The golden's two figures over every answered question, and the ones missed."""

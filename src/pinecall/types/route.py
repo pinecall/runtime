@@ -16,7 +16,7 @@ def dialable(number: str) -> bool:
     return _E164.match(number) is not None
 
 
-def an_e164(number: str) -> str:
+def parse_e164(number: str) -> str:
     """The number, trimmed, or a refusal naming the shape. For a door that takes one typed."""
     said = number.strip()
     if not dialable(said):

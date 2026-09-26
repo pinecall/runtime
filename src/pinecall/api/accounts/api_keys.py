@@ -11,7 +11,7 @@ from pinecall.api.deps import AppKeyDep, KeyDep, KeysDep, MembersDep, SettingsDe
 from pinecall.auth.env import THE_OTHER_GATEWAY, a_person
 from pinecall.auth.keys import Issued, KeyRecord, ListedKey
 from pinecall.auth.request_scope import author_of
-from pinecall.types import Env, an_env
+from pinecall.types import Env, parse_env
 from pinecall_protocol import WireModel
 
 # The tenant's own three doors, on the org's API key, exactly as every other tenant door. They
@@ -122,7 +122,7 @@ def in_this_world(asked: str | None, settings: Settings) -> Env:
     of both doors that mint, the tenant's and the operator's. 400 on a word or the other world."""
     if asked is None:
         return settings.world
-    env = an_env(asked)
+    env = parse_env(asked)
     if env != settings.world:
         elsewhere = settings.elsewhere_url or THE_OTHER_GATEWAY
         said_so = ANOTHER_WORLDS_TOKEN.format(here=settings.world, asked=env, elsewhere=elsewhere)

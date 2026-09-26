@@ -149,6 +149,6 @@ type Counting = Callable[[str], Awaitable[int]]
 type QuotasOf = Callable[[str], Awaitable[Quotas]]
 
 
-def a_slug(slug: str) -> str:
+def parse_slug(slug: str) -> str:
     """The slug, if it is one. A door refuses a bad one with the sentence and not a 422."""
     return Org(id=slug, slug=slug, name=slug).slug

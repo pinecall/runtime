@@ -22,7 +22,7 @@ from pinecall.cli.box.credentials import (
 from pinecall.cli.box.instance import INSTANCES, a_name, credstore_of, env_file, said_in
 from pinecall.cli.keys.verbs import OPS_ORGS
 from pinecall.cli.operator import TIMEOUT_S, Operator, OperatorRefused
-from pinecall.types import DEFAULT_ORG, PRODUCTION, SANDBOX, THE_FLEET, Env, an_env
+from pinecall.types import DEFAULT_ORG, PRODUCTION, SANDBOX, THE_FLEET, Env, parse_env
 
 # Two instances trust each other the way a worker box trusts its hub: with one fleet key each,
 # minted at the other's gateway and kept in this one's store, where its gateway loads it. What a
@@ -81,7 +81,7 @@ def side_of(name: str, instances: Path = INSTANCES) -> Side:
         raise PeerRefused(NO_SUCH_INSTANCE.format(name=name, path=path))
     return Side(
         name=name,
-        world=an_env(said_in(path, "world") or PRODUCTION),
+        world=parse_env(said_in(path, "world") or PRODUCTION),
         gateway_url=said_in(path, "gateway_url") or "",
         domain=said_in(path, "domain"),
         sandbox_url=said_in(path, "sandbox_url"),

@@ -25,8 +25,8 @@ def test_the_cli_and_the_evals_read_the_very_same_latencies() -> None:
 
 def test_the_text_session_and_the_bridge_hold_the_very_same_definitions() -> None:
     """A tool's text, the outcome of a silent call, the prompt's hash: spelled once, in log/."""
-    assert tool_runs.as_text is wording.as_text
-    assert tools.as_text is wording.as_text
+    assert tool_runs.tool_result_text is wording.tool_result_text
+    assert tools.tool_result_text is wording.tool_result_text
     assert session.NOTHING_SAID is wording.NOTHING_SAID
     assert bridge.NOTHING_SAID is wording.NOTHING_SAID
     assert session.hashed_prompt is wording.hashed_prompt

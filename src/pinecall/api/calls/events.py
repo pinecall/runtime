@@ -37,7 +37,7 @@ from pinecall.api.deps import (
 from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
 from pinecall.auth.keys import not_opening
 from pinecall.auth.scopes import Reader
-from pinecall.log.entry import Entry, unstored
+from pinecall.log.entry import Entry, ephemeral_entry
 from pinecall.log.filters import EVERYTHING
 from pinecall.log.store import DEFAULT_LIMIT
 from pinecall_protocol import ProtocolError, encode
@@ -196,7 +196,7 @@ async def _verb(
 
 def _an_error(code: str, why: str) -> Entry:
     """One refusal as the entry the socket sends back, with no seq because no log kept it."""
-    return unstored("error", ErrorEvent(code=code, message=why, recoverable=True))
+    return ephemeral_entry("error", ErrorEvent(code=code, message=why, recoverable=True))
 
 
 async def _tail(

@@ -119,7 +119,7 @@ LIMIT_OUT_OF_RANGE = (
 )
 
 
-def a_limit_checked(seconds: int) -> None:
+def check_call_limit(seconds: int) -> None:
     """Refuse a voice call's ceiling that is neither no limit nor a minute to an hour."""
     if seconds != NO_LIMIT and not SHORTEST_LIMIT_S <= seconds <= LONGEST_LIMIT_S:
         raise DeclarationRefused(

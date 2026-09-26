@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Literal, cast, get_args
 
 from pinecall.types.refusal import DeclarationRefused
-from pinecall.types.route import an_e164
+from pinecall.types.route import parse_e164
 
 # How livekit-sip carries the INVITE we place. `auto` lets the SFU pick, which is what a peer that
 # said nothing gets; Twilio's termination takes any of the three and we say nothing either.
@@ -87,9 +87,9 @@ class Destination:
         return self.number[1 + len(self.code) :]
 
 
-def a_destination(number: str) -> Destination:
+def parse_destination(number: str) -> Destination:
     """The number to dial, or a refusal saying which shape or which range put it out of reach."""
-    said = an_e164(number)
+    said = parse_e164(number)
     code = calling_code(said)
     if code is None:
         raise DeclarationRefused(NOT_A_COUNTRY.format(number=said))
@@ -136,7 +136,7 @@ class DialPolicy:
                 raise DeclarationRefused(f"{name} is a count, and cannot be {limit}")
 
 
-def a_sip_transport(word: str | None) -> SipTransport:
+def parse_sip_transport(word: str | None) -> SipTransport:
     """The transport this word names, or a refusal that lists the four. Unsaid is `auto`."""
     if word is None or word == "":
         return "auto"

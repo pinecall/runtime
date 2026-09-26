@@ -24,7 +24,7 @@ from pinecall.auth.keys import KeyRecord, held_by
 from pinecall.auth.scopes import a_log_token, a_room_token, a_visitor, secret_for
 from pinecall.tokens.ledger import TokenRecord
 from pinecall.tokens.room_token import a_dispatch, the_agent_a_client_named
-from pinecall.types import THE_WIDGET, a_call_id
+from pinecall.types import THE_WIDGET, new_call_id
 from pinecall.types.scopes import LONGEST_VISIT_TTL_S, MINTED_FOR_A_VISIT, ONE_VISIT_TTL_S
 from pinecall_protocol import WireModel, encode
 from pinecall_protocol.defs import Projection
@@ -113,7 +113,7 @@ async def mint(
     agent = _the_agent_the_org_holds(said, key, registry)
     await _refuse_a_full_fleet(fleet, logs, agent)
     await admission.a_call(key.org, agent, live.running(key.org))
-    call = a_call_id()
+    call = new_call_id()
     visitor = said.participant_identity or a_visitor()
     expires_at = time.time() + said.ttl_s
     token = a_room_token(

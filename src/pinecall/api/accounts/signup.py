@@ -26,7 +26,7 @@ from pinecall.auth import passwords
 from pinecall.auth.members import an_address
 from pinecall.auth.signups import NotVerified, Refusal
 from pinecall.mail import a_signup_code
-from pinecall.types import Member, a_slug
+from pinecall.types import Member, parse_slug
 from pinecall_protocol import WireModel
 
 # Production's alone (api/accounts/identity.py): a sandbox keeps no password and makes no person, so
@@ -150,7 +150,7 @@ async def signup(
     email = an_address(said.email)
     if not throttle.allowed(f"{client} signup"):
         raise HTTPException(429, TOO_MANY)
-    slug = a_slug(said.org)
+    slug = parse_slug(said.org)
     hashed = await passwords.hashed(said.password, settings.min_password)
     Member(id=A_PLACEHOLDER, org=A_PLACEHOLDER, email=email, name=said.person, role="admin")
     # A person who already has a password on this box makes a second org as themselves, and only

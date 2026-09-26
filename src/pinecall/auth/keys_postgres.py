@@ -14,7 +14,7 @@ from pinecall.auth.keys import (
     mint,
 )
 from pinecall.log.store import Pool
-from pinecall.types import KEY_SCOPES, PRODUCTION, Env, an_env
+from pinecall.types import KEY_SCOPES, PRODUCTION, Env, parse_env
 
 # A revoked key is kept, not deleted: the logs it wrote name it, and a row that vanishes makes
 # those unreadable. An expired one is kept for the same reason, and refused by the same WHERE
@@ -117,7 +117,7 @@ def _a_record(row: Any) -> KeyRecord:
         key_id=str(row["id"]),
         org=str(row["org"]),
         label=_text(row["label"]),
-        env=an_env(str(row["env"])),
+        env=parse_env(str(row["env"])),
         scopes=frozenset(str(scope) for scope in row["scopes"]),
         subject=_text(row["subject"]),
         name=_text(row["name"]),
@@ -135,7 +135,7 @@ def _a_listed_key(row: Any) -> ListedKey:
         label=_text(row["label"]),
         created_at=str(row["created_at"]),
         revoked_at=None if revoked is None else str(revoked),
-        env=an_env(str(row["env"])),
+        env=parse_env(str(row["env"])),
         scopes=tuple(sorted(str(scope) for scope in row["scopes"])),
         subject=_text(row["subject"]),
         name=_text(row["name"]),

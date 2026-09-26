@@ -30,7 +30,7 @@ from pinecall.auth.keys import KeyRecord, held_by, not_opening
 from pinecall.auth.request_scope import author_of
 from pinecall.knowledge import Knowledge
 from pinecall.log import REFUSED
-from pinecall.log.entry import Entry, unstored
+from pinecall.log.entry import Entry, ephemeral_entry
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import Admission, QuotaExhausted
 from pinecall.orgs.caller_codes import Codes
@@ -213,7 +213,7 @@ class AppSocket:
     async def stopped(self, why: str) -> None:
         """Tell the app it was stopped — it exits rather than reconnect — and close its socket."""
         said = ErrorEvent(code=STOPPED, message=why, recoverable=False)
-        await self.send(unstored("error", said))
+        await self.send(ephemeral_entry("error", said))
         await self._websocket.close(reason=as_a_close_reason(why))
 
     async def refuse(self, agent: str, code: str, message: str, raw: Any) -> None:
@@ -227,7 +227,7 @@ class AppSocket:
             await self.emit(agent, "error", error)
             return
         # A frame that named no agent belongs to no log: the app still hears why, unnumbered.
-        await self.send(unstored("error", error))
+        await self.send(ephemeral_entry("error", error))
 
     # A command the protocol knows but this socket cannot run is a call-scoped one: it needs a
     # session, and sessions arrive with the text session card.

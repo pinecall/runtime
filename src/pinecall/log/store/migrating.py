@@ -14,7 +14,7 @@ import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingT
 from pinecall.log.store.postgres import (
     DEFAULT_SCHEMA,
     MIGRATIONS,
-    a_schema_name,
+    check_schema_name,
     connect,
     search_path_of,
 )
@@ -106,7 +106,7 @@ async def apply_migrations(
     dsn: str, *, schema: str = DEFAULT_SCHEMA, post: bool = False
 ) -> Applied:
     """Run every .sql this database has not run, in name order, under one lock. What it ran."""
-    name = a_schema_name(schema)
+    name = check_schema_name(schema)
     connection: Any = await connect(dsn)
     try:
         # FIRST, before any DDL at all. The lock is session-level and belongs to no schema, so it
@@ -123,7 +123,7 @@ async def apply_migrations(
         done = await _what_was_applied(connection)
         ran = [
             await _apply_one(connection, path)
-            for path in ordered(post=post)
+            for path in migration_files(post=post)
             if path.name not in done
         ]
         return Applied(
@@ -134,7 +134,7 @@ async def apply_migrations(
             # answered: naming every post file on disk sent a person to `migrate up --post` for
             # one they had applied by hand weeks ago (the box, 2026-09-20). `migrate status` was
             # told the same thing the same day, and they read one table between them now.
-            waiting=tuple(path.name for path in ordered(post=True) if path.name not in done)
+            waiting=tuple(path.name for path in migration_files(post=True) if path.name not in done)
             if not post
             else (),
         )
@@ -147,12 +147,12 @@ def every() -> list[Path]:
     return sorted(MIGRATIONS.glob("*.sql"))
 
 
-def ordered(*, post: bool) -> list[Path]:
+def migration_files(*, post: bool) -> list[Path]:
     """What a run of this kind applies: the startup files, or the post-deployment ones."""
     return [path for path in every() if path.name.endswith(POST_DEPLOY) == post]
 
 
-def a_hash(path: Path) -> str:
+def file_hash(path: Path) -> str:
     """What was run, as a fingerprint of the bytes: the record a NAME could never be."""
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -165,7 +165,7 @@ def a_hash(path: Path) -> str:
 async def migrations_behind(pool: Any) -> tuple[str, ...]:
     """Every startup migration this database has not run. Empty is a schema that is level."""
     done = await migrations_applied(pool)
-    return tuple(path.name for path in ordered(post=False) if path.name not in done)
+    return tuple(path.name for path in migration_files(post=False) if path.name not in done)
 
 
 # What the TABLE says, post-deployment files included — `migrate status` marked every `.post.sql`
@@ -191,7 +191,7 @@ async def _what_was_applied(connection: Any) -> set[str]:
         path = on_disk.get(name)
         if path is None:
             raise SchemaRefused(MISSING.format(name=name))
-        now = a_hash(path)
+        now = file_hash(path)
         if was is None:
             await connection.execute(FILL_IN_A_HASH, name, now)
         elif str(was) != now:
@@ -205,7 +205,7 @@ async def _apply_one(connection: Any, path: Path) -> str:
     sql = await asyncio.to_thread(path.read_text, encoding="utf-8")
     if not in_a_transaction(sql):
         await connection.execute(sql)
-        await connection.execute(RECORD_MIGRATION, path.name, a_hash(path))
+        await connection.execute(RECORD_MIGRATION, path.name, file_hash(path))
         return path.name
     async with connection.transaction():
         # Inside the transaction, so they are the migration's own and end with it. A post-deploy
@@ -214,7 +214,7 @@ async def _apply_one(connection: Any, path: Path) -> str:
             await connection.execute(f"set local statement_timeout = {STATEMENT_TIMEOUT_MS}")
         await connection.execute(f"set local lock_timeout = {LOCK_TIMEOUT_MS}")
         await connection.execute(sql)
-        await connection.execute(RECORD_MIGRATION, path.name, a_hash(path))
+        await connection.execute(RECORD_MIGRATION, path.name, file_hash(path))
     return path.name
 
 

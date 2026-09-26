@@ -104,7 +104,7 @@ def is_a_deployment(env: Env) -> bool:
     return env != SANDBOX
 
 
-def an_env(word: str) -> Env:
+def parse_env(word: str) -> Env:
     """The world this word names, or a refusal that lists the two there are."""
     if word not in ENVS:
         raise DeclarationRefused(f"a key opens one of {sorted(ENVS)}, not {word!r}")

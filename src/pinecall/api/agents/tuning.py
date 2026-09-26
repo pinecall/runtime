@@ -34,7 +34,7 @@ from pinecall.types import (
     Kept,
     Lexicon,
     Tuning,
-    an_env,
+    parse_env,
     whose,
 )
 from pinecall_protocol.defs import Pronunciation
@@ -326,7 +326,7 @@ async def of_a_call(
     corner = await index.corner_of_call(call)
     if corner is None or corner.org is None or corner.org != key.org:
         raise HTTPException(404, NO_SUCH_CALL.format(call=call))
-    org, env = corner.org, an_env(corner.env)
+    org, env = corner.org, parse_env(corner.env)
     config = (
         None
         if corner.config_version is None

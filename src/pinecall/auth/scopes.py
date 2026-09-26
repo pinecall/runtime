@@ -15,7 +15,7 @@ from livekit.protocol.room import RoomConfiguration
 
 from pinecall._settings import Settings
 from pinecall.auth.keys import KeyRecord, Keys
-from pinecall.types.key import ENVS, Env, an_env
+from pinecall.types.key import ENVS, Env, parse_env
 from pinecall.types.scopes import (
     AGENT_ATTRIBUTE,
     BOUND_TO_ONE_CALL,
@@ -159,7 +159,7 @@ def a_call_token(token: str, secret: LivekitKeys) -> CallToken | None:
         projection=cast("Projection | None", projection),
         code=code,
         agent=attributes.get(AGENT_ATTRIBUTE) or None,
-        env=None if env is None else an_env(env),
+        env=None if env is None else parse_env(env),
     )
 
 

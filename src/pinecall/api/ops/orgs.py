@@ -30,8 +30,8 @@ from pinecall.types import (
     DialPolicy,
     Org,
     Quotas,
-    a_slug,
     key_scopes,
+    parse_slug,
 )
 from pinecall_protocol import WireModel
 from pinecall_protocol.rest import DialGuards
@@ -162,7 +162,7 @@ async def listed(orgs: OrgsDep) -> list[Org]:
 @operator.post("/orgs")
 async def add(said: WantedOrg, orgs: OrgsDep) -> Org:
     """A new tenant. The id is minted here and is what every row of theirs will name."""
-    slug = a_slug(said.slug)
+    slug = parse_slug(said.slug)
     org = await orgs.create(slug, said.name or slug)
     if org is None:
         raise HTTPException(409, SLUG_TAKEN.format(slug=slug))

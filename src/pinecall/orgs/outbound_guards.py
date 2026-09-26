@@ -8,7 +8,7 @@ from typing import override
 
 from pinecall._exceptions import PinecallError
 from pinecall.orgs.dial_policies import Dial, DialPolicies, Dials
-from pinecall.types import DeclarationRefused, Destination, DialPolicy, a_destination
+from pinecall.types import DeclarationRefused, Destination, DialPolicy, parse_destination
 
 # A minute and a day, in seconds: the two windows the ledger is counted over.
 A_MINUTE = 60.0
@@ -133,7 +133,7 @@ class Guards:
     async def _judged(self, asking: Asking, *, fenced: bool) -> Allowed:
         """Both doors' one body: which guards run is the only thing that differs."""
         try:
-            destination = a_destination(asking.to)
+            destination = parse_destination(asking.to)
         except DeclarationRefused as malformed:
             await self._written(asking, SHAPE)
             raise DialRefused(Refusal(SHAPE, str(malformed))) from malformed

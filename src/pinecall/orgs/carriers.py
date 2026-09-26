@@ -8,7 +8,7 @@ from typing import Any, Protocol
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
 from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_sealed_store, opened, sealed
-from pinecall.types import Carrier, SipPeer, TwilioAccount, a_carrier_kind, a_sip_transport
+from pinecall.types import Carrier, SipPeer, TwilioAccount, parse_carrier_kind, parse_sip_transport
 
 
 class Carriers(Protocol):
@@ -112,7 +112,7 @@ def _sealed(cipher: Cipher, carrier: Carrier) -> str:
 def _opened(cipher: Cipher, org: str, kind: str, ciphertext: str) -> Carrier:
     """One row back into the domain's own Carrier, the credentials in the clear."""
     said: dict[str, Any] = json.loads(opened(cipher, ciphertext))
-    if a_carrier_kind(kind) == "twilio":
+    if parse_carrier_kind(kind) == "twilio":
         return Carrier(
             org=org,
             account=TwilioAccount(
@@ -130,7 +130,7 @@ def _opened(cipher: Cipher, org: str, kind: str, ciphertext: str) -> Carrier:
             password=str(said["password"]),
             addresses=tuple(str(network) for network in said["addresses"]),
             outbound_host=said.get("outbound_host"),
-            outbound_transport=a_sip_transport(said.get("outbound_transport")),
+            outbound_transport=parse_sip_transport(said.get("outbound_transport")),
             outbound_username=said.get("outbound_username"),
             outbound_password=said.get("outbound_password"),
         ),

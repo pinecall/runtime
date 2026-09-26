@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Protocol, cast
 
 from pinecall.log.store import Pool
-from pinecall.types import Channel, DeclarationRefused, Env, Route, an_env
+from pinecall.types import Channel, DeclarationRefused, Env, Route, parse_env
 
 logger = logging.getLogger(__name__)
 
@@ -239,7 +239,7 @@ def route_of_row(row: Any) -> Route:
         agent=str(row["agent"]),
         channel=cast(Channel, str(row["channel"])),
         number=str(row["number"]),
-        env=an_env(str(row["env"])),
+        env=parse_env(str(row["env"])),
         managed=bool(row["managed"]),
     )
 

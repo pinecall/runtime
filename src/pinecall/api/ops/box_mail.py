@@ -9,7 +9,7 @@ from pinecall.api.org.mail import OutboxDep, TestTo, WantedMail, a_mailbox
 from pinecall.api.scope.operator_key import an_operators_router
 from pinecall.mail import BoxMail, a_test_message
 from pinecall.orgs.vault import NO_VAULT_KEY, NoVaultKey
-from pinecall.types import an_address
+from pinecall.types import parse_address
 from pinecall_protocol.rest import BoxMail as MailStanding
 from pinecall_protocol.rest import MailSent
 
@@ -62,7 +62,7 @@ async def unwire(outbox: OutboxDep) -> None:
 @operator.post("/mail/test")
 async def test(said: TestTo, outbox: OutboxDep) -> MailSent:
     """One letter through the box's own mail, waited for: `{sent, error}`; 409 with none."""
-    to = an_address(said.to)
+    to = parse_address(said.to)
     if await outbox.the_boxs.of() is None:
         raise HTTPException(409, NOTHING_TO_TEST)
     said_back = await outbox.sent(None, a_test_message(to, await outbox.brand()))

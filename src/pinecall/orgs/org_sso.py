@@ -7,7 +7,7 @@ from typing import Any, Protocol
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
 from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_sealed_store, opened, sealed
-from pinecall.types import OrgSso, a_role
+from pinecall.types import OrgSso, parse_role
 
 
 class Sso(Protocol):
@@ -149,7 +149,7 @@ def _a_configuration(cipher: Cipher, row: Any) -> OrgSso:
         client_id=str(row["client_id"]),
         client_secret=opened(cipher, str(row["ciphertext"])),
         domains=tuple(str(domain) for domain in row["domains"]),
-        role=None if role is None else a_role(str(role)),
+        role=None if role is None else parse_role(str(role)),
         required=bool(row["required"]),
     )
 

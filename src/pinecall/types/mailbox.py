@@ -51,10 +51,10 @@ class Mailbox:
             raise DeclarationRefused(
                 f"a mailbox is secured by one of {sorted(SECURITIES)}, not {self.security!r}"
             )
-        an_address(self.sender)
+        parse_address(self.sender)
 
 
-def an_address(written: str) -> str:
+def parse_address(written: str) -> str:
     """The address inside `Name <a@b.c>` or a bare one, or a refusal that shows what was read."""
     _, address = parseaddr(written)
     if not AN_ADDRESS.match(address):
@@ -62,7 +62,7 @@ def an_address(written: str) -> str:
     return address
 
 
-def a_security(word: str) -> Security:
+def parse_security(word: str) -> Security:
     """The word as the closed type, or a refusal that lists the three."""
     if word not in SECURITIES:
         raise DeclarationRefused(
@@ -80,7 +80,7 @@ def a_security(word: str) -> Security:
 # be read out of the middle of the password. So a password works percent-encoded, as a URL wants
 # it, and pasted raw, as the console showed it. A refusal never repeats the URL: the password is in
 # it, and a refusal is logged.
-def a_mailbox_at(url: str, sender: str) -> Mailbox:
+def parse_mailbox_url(url: str, sender: str) -> Mailbox:
     """`smtp://user:pass@host:587` or `smtps://…`, and who the letters are from."""
     scheme, separated, rest = url.strip().partition("://")
     if not separated or scheme not in _SCHEMES:

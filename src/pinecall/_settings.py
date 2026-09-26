@@ -12,12 +12,12 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
-from pinecall._env_files import ENV_FILES, as_a_refusal, env_files_read
+from pinecall._env_files import ENV_FILES, env_file_refusal, env_files_read
 from pinecall._exceptions import PinecallError
 from pinecall._vendor_keys import VendorKeys
 from pinecall.types import PRODUCTION, SANDBOX, Env
 from pinecall.types.dispatch import A_FLEET_NAME, DEFAULT_FLEET
-from pinecall.types.today import a_zone
+from pinecall.types.today import parse_zone
 
 # Our own knobs carry this prefix; a vendor key keeps the vendor's own name (the alias on the
 # field), so the SDK that reads ANTHROPIC_API_KEY by itself and this class agree.
@@ -469,7 +469,7 @@ class Settings(VendorKeys):
     @classmethod
     def _a_zone_that_exists(cls, zone: str) -> str:
         """A typo here is a call dated wrong every day: refused at startup, naming the spelling."""
-        a_zone(zone)
+        parse_zone(zone)
         return zone
 
     otlp_pii: bool = Field(
@@ -552,7 +552,7 @@ def load_settings() -> Settings:
     try:
         return Settings()
     except OSError as failed:
-        raise as_a_refusal(failed) from failed
+        raise env_file_refusal(failed) from failed
 
 
 def variable_of(field: str) -> str:

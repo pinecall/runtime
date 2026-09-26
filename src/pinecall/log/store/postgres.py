@@ -369,11 +369,11 @@ async def _teach_the_connection_json(connection: Any) -> None:
 # public itself and needs no second entry.
 def search_path_of(schema: str) -> str:
     """The search path a schema is worked in: itself, then public, where the extensions are."""
-    name = a_schema_name(schema)
+    name = check_schema_name(schema)
     return name if name == DEFAULT_SCHEMA else f"{name}, {DEFAULT_SCHEMA}"
 
 
-def a_schema_name(schema: str) -> str:
+def check_schema_name(schema: str) -> str:
     """A schema is an identifier and cannot be a parameter, so it is checked before it is SQL."""
     if not _A_SCHEMA_NAME.match(schema):
         raise SchemaRefused(f"a schema name is a lowercase word, not {schema!r}")

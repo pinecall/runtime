@@ -236,7 +236,7 @@ class MemoryStore:
 
     async def a_day(self, org: str, env: str, holder: str, start: float) -> Day:
         """The corner's day, counted."""
-        return call_index_memory.a_day(self._indexed(org, env, holder), start)
+        return call_index_memory.count_day(self._indexed(org, env, holder), start)
 
     async def spent_between(self, org: str, start: float, end: float) -> float:
         """What the org's calls in that span cost, every world and corner."""

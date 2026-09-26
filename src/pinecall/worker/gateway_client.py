@@ -9,7 +9,7 @@ from typing import Any, cast
 import httpx
 from pydantic import ValidationError
 
-from pinecall._detail import the_detail_of
+from pinecall._detail import refusal_detail
 from pinecall.auth.peers import RingsFor
 from pinecall.fleet import Heartbeat, Standing
 from pinecall.session.voice.platform import Dialled
@@ -170,7 +170,7 @@ class Gateway:
         try:
             said = await self._read("GET", f"/v1/agents/{slug}/outbound-trunk", params=asked)
         except GatewayRefused as refused:
-            return Dialled(refused=the_detail_of(str(refused)))
+            return Dialled(refused=refusal_detail(str(refused)))
         trunk = cast("dict[str, object]", said).get("trunk") if isinstance(said, dict) else None
         return Dialled(trunk=trunk if isinstance(trunk, str) and trunk else None)
 

@@ -10,7 +10,7 @@ from typing import Literal
 from pinecall._settings import Settings
 from pinecall.orgs.box_settings import MAIL, BoxSettings
 from pinecall.orgs.org_mail import KeptMail
-from pinecall.types import DeclarationRefused, Mailbox, a_mailbox_at, a_security
+from pinecall.types import DeclarationRefused, Mailbox, parse_mailbox_url, parse_security
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ class TheBoxsMail:
             mailbox = Mailbox(
                 host=str(said["host"]),
                 port=int(said["port"]),
-                security=a_security(str(said["security"])),
+                security=parse_security(str(said["security"])),
                 username=str(said["username"]),
                 password=kept.secret,
                 sender=str(said["sender"]),
@@ -104,7 +104,7 @@ def the_environments_mailbox(settings: Settings) -> Mailbox | None:
     if not settings.smtp_url or not settings.mail_from:
         return None
     try:
-        return a_mailbox_at(settings.smtp_url, settings.mail_from)
+        return parse_mailbox_url(settings.smtp_url, settings.mail_from)
     except DeclarationRefused as refused:
         logger.error(NOT_A_MAIL_URL, "PINECALL_SMTP_URL", refused)
         return None

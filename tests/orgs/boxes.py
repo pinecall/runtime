@@ -8,7 +8,7 @@ from uuid import uuid4
 
 import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
 
-from pinecall.log.store.migrating import MIGRATIONS_TABLE, RECORD_MIGRATION, a_hash
+from pinecall.log.store.migrating import MIGRATIONS_TABLE, RECORD_MIGRATION, file_hash
 from pinecall.log.store.postgres import MIGRATIONS, search_path_of
 from tests.postgres import Dev
 
@@ -33,7 +33,7 @@ async def applied_by_hand(connection: Any, names: Iterable[str]) -> None:
     """Run these migrations and record them as `migrate up` would, without `migrate up`."""
     for name in names:
         await connection.execute((MIGRATIONS / name).read_text(encoding="utf-8"))
-        await connection.execute(RECORD_MIGRATION, name, a_hash(MIGRATIONS / name))
+        await connection.execute(RECORD_MIGRATION, name, file_hash(MIGRATIONS / name))
 
 
 @asynccontextmanager

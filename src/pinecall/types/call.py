@@ -97,6 +97,6 @@ class CallContext:
         return self.caller if self.channel in CHANNELS_WITH_A_NUMBER else None
 
 
-def a_call_id() -> str:
+def new_call_id() -> str:
     """A call nobody has named before. The room a token opens is named by this same call."""
     return f"{A_CALL}{uuid4().hex}"

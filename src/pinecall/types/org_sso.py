@@ -70,6 +70,6 @@ class OrgSso:
         return domain.strip().lower() in self.domains
 
 
-def a_domain(word: str) -> str:
+def parse_domain(word: str) -> str:
     """One domain as a row keeps it: trimmed, folded, and without the `@` somebody pasted."""
     return word.strip().lower().lstrip("@")

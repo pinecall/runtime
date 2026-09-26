@@ -138,7 +138,7 @@ def runs_of_persona(
     )
 
 
-def a_day(calls: Sequence[Indexed], start: float) -> Day:
+def count_day(calls: Sequence[Indexed], start: float) -> Day:
     """The day's calls counted, and the two numbers that span every day: all, and still open."""
     today = [
         one

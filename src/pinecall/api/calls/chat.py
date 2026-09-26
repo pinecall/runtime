@@ -37,7 +37,7 @@ from pinecall.orgs.admission import QuotaExhausted
 from pinecall.providers.models import NoProvider
 from pinecall.session.text.session import TextSession, Watcher
 from pinecall.session.text.turn_allowance import TurnRefused
-from pinecall.types import THE_WIDGET, CallContext, Contact, Env, Route, a_call_id
+from pinecall.types import THE_WIDGET, CallContext, Contact, Env, Route, new_call_id
 from pinecall.types.today import today_in
 from pinecall_protocol import encode
 
@@ -318,7 +318,7 @@ def a_call_from(
     # A web caller is nobody yet: the visitor id travels as the calling side, which is what
     # call.started carries as `from`. Both ids are the shapes the token door mints too.
     return CallContext(
-        call=a_call_id(),
+        call=new_call_id(),
         channel=THE_WIDGET,
         direction="inbound",
         caller=websocket.query_params.get("caller") or a_visitor(),

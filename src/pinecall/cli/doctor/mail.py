@@ -4,7 +4,7 @@ import asyncio
 
 from pinecall._settings import variable_of
 from pinecall.mail import BoxMail, MailRefused, a_test_message, posted
-from pinecall.types import DeclarationRefused, Mailbox, an_address
+from pinecall.types import DeclarationRefused, Mailbox, parse_address
 
 # A box that posts no mail is not a box that is down: every door behaves as it did before mail
 # existed, and an admin hands a link over by copying it out of the answer. So the line is advice,
@@ -59,7 +59,7 @@ def send_one_to(boxs: BoxMail | None, to: str) -> int:
         print(NOT_CONFIGURED.format(url=variable_of("smtp_url"), sender=variable_of("mail_from")))
         return 1
     try:
-        address = an_address(to)
+        address = parse_address(to)
     except DeclarationRefused as refused:
         print(NOT_AN_ADDRESS.format(said=refused))
         return 1

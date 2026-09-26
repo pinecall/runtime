@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from livekit.agents.llm import ToolError
 from livekit.agents.llm.tool_context import StopResponse
 
-from pinecall.log import as_text
+from pinecall.log import tool_result_text
 from pinecall.session.pending_tools import ToolCalls
 from pinecall.session.tool_declaration import ToolUse
 from pinecall.session.tool_visibility import Visibility
@@ -48,4 +48,4 @@ class Running:
         session.cause = StateCauseTool(kind="tool", tool=call.name, call_id=call.call_id)
         result = await self.calls.ran(call, session.speech_now, session.emit)
         session.cause = None
-        return as_text(result), result.error is not None
+        return tool_result_text(result), result.error is not None

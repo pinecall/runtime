@@ -6,7 +6,7 @@ import asyncio
 
 from pinecall.log.replay import pages
 from pinecall.log.store import DEFAULT_LIMIT, Metered, Store
-from pinecall.log.usage import METERED_TYPES, Totals, a_usage_row
+from pinecall.log.usage import METERED_TYPES, Totals, fold_usage_row
 
 
 # Nothing here is a table. The totals are a fold over the log's own call.summary and call.score
@@ -32,7 +32,7 @@ class Meter:
         """Fold every metered row above the cursor, through the runtime's one paging loop."""
         async with self._folding:
             async for metered in pages(self._read, self._cursor, DEFAULT_LIMIT, position_of):
-                row = a_usage_row(metered)
+                row = fold_usage_row(metered)
                 self._totals[row.org] = self._totals.get(row.org, Totals()).plus(row)
                 self._cursor = row.cursor
 

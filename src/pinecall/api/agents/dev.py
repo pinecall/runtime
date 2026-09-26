@@ -19,7 +19,7 @@ from pinecall.api.deps import (
 )
 from pinecall.api.live import LiveDep
 from pinecall.auth.keys import KeyRecord, held_by
-from pinecall.log.entry import unstored
+from pinecall.log.entry import ephemeral_entry
 from pinecall.types import JsonObject
 from pinecall_protocol import Command
 from pinecall_protocol.commands import DevAnswer
@@ -164,7 +164,7 @@ async def _relayed(
     id = f"dev_{uuid4().hex[:12]}"
     request = DevRequest(id=id, verb=_a_verb(verb), data=dict(said))
     waiting = live.asked(id)
-    if not await live.tell(held.owner, unstored("dev.request", request, agent=slug)):
+    if not await live.tell(held.owner, ephemeral_entry("dev.request", request, agent=slug)):
         live.forget_asked(id)
         raise HTTPException(502, APP_LEFT.format(slug=slug, verb=verb))
     try:

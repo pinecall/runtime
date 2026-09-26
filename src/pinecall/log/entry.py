@@ -6,7 +6,7 @@ from pinecall_protocol import WireModel, encode
 from pinecall_protocol.envelope import Entry
 from pinecall_protocol.registry import EPHEMERAL_EVENTS
 
-__all__ = ["Entry", "ephemeral_by_default", "unstored"]
+__all__ = ["Entry", "ephemeral_by_default", "ephemeral_entry"]
 
 # An entry that never entered a log has seq 0: every log numbers from 1, so 0 reads as "this was
 # never written down".
@@ -22,7 +22,7 @@ def ephemeral_by_default(type: str) -> bool:
 
 # Two doors build one: the app socket, for a frame that named no agent, and /v1/attach, for the
 # verbs it cannot run yet. Both are answering a caller about a log neither could write to.
-def unstored(type: str, event: WireModel, agent: str = "") -> Entry:
+def ephemeral_entry(type: str, event: WireModel, agent: str = "") -> Entry:
     """An entry a socket hears and no log keeps: no log could be told which one, or none should.
 
     The agent is named when the socket has to route it — a dev.request is for one agent's process

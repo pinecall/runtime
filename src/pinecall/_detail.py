@@ -10,7 +10,7 @@ from typing import cast
 # raises with. Whoever writes ONE line for a person — the hop's log line, the CLI's error, what
 # production answered a sandbox — writes the sentence somebody can act on, never the JSON around
 # it. A body that is not JSON, or JSON with no detail, is said as it came.
-def the_detail_of(said: str) -> str:
+def refusal_detail(said: str) -> str:
     """The `detail` of a refused answer, or the answer as it came when there is none."""
     opened = said.find("{")
     if opened == -1:

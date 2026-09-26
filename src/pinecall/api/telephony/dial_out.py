@@ -27,7 +27,7 @@ from pinecall.orgs.outbound_guards import Asking
 from pinecall.routes.dispatch import Dialling, Dispatches, Job
 from pinecall.routes.records import Routes
 from pinecall.session.first_entries import arrived
-from pinecall.types import CallContext, Route, a_call_id, an_e164
+from pinecall.types import CallContext, Route, new_call_id, parse_e164
 from pinecall.types.today import today_in
 from pinecall_protocol import WireModel, encode
 from pinecall_protocol.defs import Projection
@@ -108,7 +108,7 @@ async def dial(
     # `holder` is the person's own corner, so a developer's dial reaches their own copy.
     if registry.of(key.env, slug, holder) is None:
         raise HTTPException(409, NOBODY_HOLDING.format(slug=slug, env=key.env))
-    call = a_call_id()
+    call = new_call_id()
     asking = Asking(
         org=key.org,
         env=key.env,
@@ -164,7 +164,7 @@ def _shown_as(said: WantedCall, doors: list[Route], key: KeyRecord, slug: str) -
     theirs = [door.number for door in doors if door.number is not None]
     if said.shown is None:
         return theirs[0]
-    wanted = an_e164(said.shown)
+    wanted = parse_e164(said.shown)
     if wanted not in theirs:
         raise HTTPException(400, NOT_OUR_NUMBER.format(number=wanted, slug=slug, env=key.env))
     return wanted

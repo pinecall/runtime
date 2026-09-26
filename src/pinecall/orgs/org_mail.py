@@ -10,7 +10,7 @@ from typing import Any, Protocol
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
 from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_sealed_store, opened, sealed
-from pinecall.types import Mailbox, a_security
+from pinecall.types import Mailbox, parse_security
 
 
 @dataclass(frozen=True)
@@ -157,7 +157,7 @@ def _a_mailbox(cipher: Cipher, row: Any) -> KeptMail:
         mailbox=Mailbox(
             host=str(row["host"]),
             port=int(row["port"]),
-            security=a_security(str(row["security"])),
+            security=parse_security(str(row["security"])),
             username=str(row["username"]),
             password=opened(cipher, str(row["ciphertext"])),
             sender=str(row["sender"]),

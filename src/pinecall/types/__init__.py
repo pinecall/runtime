@@ -10,7 +10,7 @@ from pinecall.types.agent import (
     Visibility,
     Voice,
 )
-from pinecall.types.call import CallContext, Contact, a_call_id
+from pinecall.types.call import CallContext, Contact, new_call_id
 from pinecall.types.carrier import (
     CARRIER_KINDS,
     Carrier,
@@ -18,7 +18,7 @@ from pinecall.types.carrier import (
     OutboundTrunk,
     SipPeer,
     TwilioAccount,
-    a_carrier_kind,
+    parse_carrier_kind,
 )
 from pinecall.types.channel import THE_WIDGET, Channel, Direction
 from pinecall.types.consent import (
@@ -40,9 +40,9 @@ from pinecall.types.dialing_policy import (
     Destination,
     DialPolicy,
     SipTransport,
-    a_destination,
-    a_sip_transport,
     calling_code,
+    parse_destination,
+    parse_sip_transport,
 )
 from pinecall.types.json import JsonObject
 from pinecall.types.key import (
@@ -57,15 +57,29 @@ from pinecall.types.key import (
     THE_TEAM,
     Env,
     KeyScope,
-    an_env,
     is_a_deployment,
     key_scopes,
+    parse_env,
     whose,
 )
 from pinecall.types.knowledge import Chunk, Docs, Fact, KnowledgeFile, MemoryPolicy
 from pinecall.types.lookup_tools import PLATFORM_TOOLS, PlatformTool, platform_tools
-from pinecall.types.mailbox import Mailbox, Security, a_mailbox_at, a_security, an_address
-from pinecall.types.member import ROLE_SCOPES, ROLES, STATUSES, Member, MemberStatus, Role, a_role
+from pinecall.types.mailbox import (
+    Mailbox,
+    Security,
+    parse_address,
+    parse_mailbox_url,
+    parse_security,
+)
+from pinecall.types.member import (
+    ROLE_SCOPES,
+    ROLES,
+    STATUSES,
+    Member,
+    MemberStatus,
+    Role,
+    parse_role,
+)
 from pinecall.types.org import (
     DEFAULT_ORG,
     QUOTAS,
@@ -74,9 +88,9 @@ from pinecall.types.org import (
     QuotaName,
     Quotas,
     QuotasOf,
-    a_slug,
+    parse_slug,
 )
-from pinecall.types.org_sso import OrgSso, a_domain
+from pinecall.types.org_sso import OrgSso, parse_domain
 from pinecall.types.prompt import DEFAULT_LAYOUT, KNOWLEDGE, Blocks, PromptBlock, PromptRegion
 from pinecall.types.provider_keys import NO_ORG_KEYS, NOTHING_BROUGHT, Brought, ProviderKeys
 from pinecall.types.rank_fusion import (
@@ -86,7 +100,7 @@ from pinecall.types.rank_fusion import (
     relative_to_the_best,
 )
 from pinecall.types.refusal import DeclarationRefused
-from pinecall.types.route import Route, an_e164, dialable
+from pinecall.types.route import Route, dialable, parse_e164
 from pinecall.types.scopes import GRANTS, Grant, Scope, grant_for
 from pinecall.types.tool_spec import SideEffect, ToolSpec
 from pinecall.types.tuning import BLANK, NAMED_KNOBS, Kept, Lexicon, Tuning, Versions
@@ -185,24 +199,24 @@ __all__ = [
     "Versions",
     "Visibility",
     "Voice",
-    "a_call_id",
-    "a_carrier_kind",
-    "a_destination",
-    "a_domain",
-    "a_mailbox_at",
-    "a_role",
-    "a_security",
-    "a_sip_transport",
-    "a_slug",
-    "an_address",
-    "an_e164",
-    "an_env",
     "calling_code",
     "consent_of",
     "dialable",
     "grant_for",
     "is_a_deployment",
     "key_scopes",
+    "new_call_id",
+    "parse_address",
+    "parse_carrier_kind",
+    "parse_destination",
+    "parse_domain",
+    "parse_e164",
+    "parse_env",
+    "parse_mailbox_url",
+    "parse_role",
+    "parse_security",
+    "parse_sip_transport",
+    "parse_slug",
     "platform_tools",
     "reciprocal_rank_fusion",
     "relative_to_the_best",

@@ -11,7 +11,7 @@ from livekit.agents.llm import ToolError
 from livekit.agents.llm.tool_context import StopResponse
 from livekit.agents.voice import RunContext
 
-from pinecall.log import as_text
+from pinecall.log import tool_result_text
 from pinecall.session.pending_tools import Emit
 from pinecall.session.tool_visibility import Visibility
 from pinecall.session.voice.hold_melody import HoldMusic
@@ -75,7 +75,7 @@ class Tools:
         """One tool through the app and back: the text the model reads, or an error it can say."""
         await self.visibility.admitted(use.name, self._emit)
         result = await self._through_app(spec, use)
-        text = as_text(result)
+        text = tool_result_text(result)
         if result.error is not None:
             # ToolError is how livekit sets is_error on the output the model reads back.
             raise ToolError(text)

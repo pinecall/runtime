@@ -7,7 +7,7 @@ from typing import Any
 
 from livekit.agents.llm import ToolError
 
-from pinecall.log import as_text
+from pinecall.log import tool_result_text
 from pinecall.session.tool_declaration import ToolUse
 from pinecall_protocol import defs
 
@@ -30,7 +30,7 @@ class Answers:
             # ToolError is how livekit sets is_error on the output the model reads back — the
             # same door `session/voice/tools.py:54` puts a refusal from the app through.
             raise ToolError(f"{use.name}: this eval declares no answer for that tool")
-        return as_text(
+        return tool_result_text(
             defs.ToolResult(call_id=use.call_id, name=use.name, output=self._by_name[use.name])
         )
 

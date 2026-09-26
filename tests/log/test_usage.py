@@ -4,7 +4,7 @@ import pytest
 
 from pinecall.log.entry import Entry
 from pinecall.log.store import Metered
-from pinecall.log.usage import METERED_TYPES, UNOWNED, a_usage_row, totals_by_org
+from pinecall.log.usage import METERED_TYPES, UNOWNED, fold_usage_row, totals_by_org
 from pinecall.types.json import JsonObject
 
 pytestmark = pytest.mark.unit
@@ -58,7 +58,7 @@ def metered(
 
 
 def test_a_summary_folds_into_minutes_turns_tokens_and_characters() -> None:
-    row = a_usage_row(metered(7, "clinica", "call.summary", A_SUMMARY))
+    row = fold_usage_row(metered(7, "clinica", "call.summary", A_SUMMARY))
     assert (row.cursor, row.org, row.call, row.type) == (7, "clinica", "CA_1", "call.summary")
     assert row.minutes == pytest.approx(1.5)
     assert (row.messages, row.input_tokens, row.output_tokens, row.characters) == (
@@ -72,21 +72,21 @@ def test_a_summary_folds_into_minutes_turns_tokens_and_characters() -> None:
 
 
 def test_a_score_folds_into_judge_calls_and_nothing_else() -> None:
-    row = a_usage_row(metered(8, "clinica", "call.score", A_SCORE))
+    row = fold_usage_row(metered(8, "clinica", "call.score", A_SCORE))
     assert (row.judge_calls, row.cost_eur) == (2, pytest.approx(0.001))
     assert (row.minutes, row.messages, row.input_tokens, row.characters) == (0.0, 0, 0, 0)
 
 
 def test_a_log_nobody_claimed_is_filed_as_unowned_rather_than_dropped() -> None:
-    assert a_usage_row(metered(1, None, "call.summary", A_SUMMARY)).org == UNOWNED
+    assert fold_usage_row(metered(1, None, "call.summary", A_SUMMARY)).org == UNOWNED
 
 
 def test_totals_sum_per_org_and_count_a_call_once_for_its_summary() -> None:
     rows = [
-        a_usage_row(metered(1, "clinica", "call.summary", A_SUMMARY, "CA_1")),
-        a_usage_row(metered(2, "clinica", "call.score", A_SCORE, "CA_1")),
-        a_usage_row(metered(3, "tienda", "call.summary", A_SUMMARY, "CA_2")),
-        a_usage_row(metered(4, "clinica", "call.summary", A_SUMMARY, "CA_3")),
+        fold_usage_row(metered(1, "clinica", "call.summary", A_SUMMARY, "CA_1")),
+        fold_usage_row(metered(2, "clinica", "call.score", A_SCORE, "CA_1")),
+        fold_usage_row(metered(3, "tienda", "call.summary", A_SUMMARY, "CA_2")),
+        fold_usage_row(metered(4, "clinica", "call.summary", A_SUMMARY, "CA_3")),
     ]
     totals = totals_by_org(rows)
     assert list(totals) == ["clinica", "tienda"]
@@ -104,7 +104,7 @@ def test_the_metered_types_are_the_summary_and_the_score_and_nothing_else() -> N
 def test_a_score_nobody_judged_costs_nothing_instead_of_raising() -> None:
     """The 500 this fixes: `float(None)` on a key that is present and null. Most calls end this
     way — nobody judged them — so one of these rows took the whole Usage page down with it."""
-    row = a_usage_row(metered(1, "acme", "call.score", A_SCORE_NOBODY_JUDGED))
+    row = fold_usage_row(metered(1, "acme", "call.score", A_SCORE_NOBODY_JUDGED))
 
     assert row.judge_calls == 0
     assert row.cost_eur == 0.0
@@ -113,9 +113,9 @@ def test_a_score_nobody_judged_costs_nothing_instead_of_raising() -> None:
 def test_a_page_of_rows_survives_one_unjudged_score_among_them() -> None:
     """It is a page, and one row that cannot be folded is a page nobody can read."""
     rows = [
-        a_usage_row(metered(1, "acme", "call.summary", A_SUMMARY)),
-        a_usage_row(metered(2, "acme", "call.score", A_SCORE_NOBODY_JUDGED)),
-        a_usage_row(metered(3, "acme", "call.score", A_SCORE)),
+        fold_usage_row(metered(1, "acme", "call.summary", A_SUMMARY)),
+        fold_usage_row(metered(2, "acme", "call.score", A_SCORE_NOBODY_JUDGED)),
+        fold_usage_row(metered(3, "acme", "call.score", A_SCORE)),
     ]
 
     totals = totals_by_org(rows)["acme"]

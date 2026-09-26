@@ -19,7 +19,7 @@ from pinecall.auth.openid import OpenIdRefused, configuration
 from pinecall.auth.sso_state import Handshakes
 from pinecall.orgs.org_sso import Sso
 from pinecall.orgs.vault import NO_VAULT_KEY
-from pinecall.types import OrgSso, a_domain, a_role
+from pinecall.types import OrgSso, parse_domain, parse_role
 from pinecall_protocol import WireModel
 from pinecall_protocol.rest import OrgSso as SsoStanding
 
@@ -195,8 +195,8 @@ def _a_configuration(said: WantedSso, org: str) -> OrgSso:
         issuer=said.issuer.strip(),
         client_id=said.client_id.strip(),
         client_secret=said.client_secret,
-        domains=tuple(a_domain(domain) for domain in said.domains),
-        role=None if said.role is None else a_role(said.role),
+        domains=tuple(parse_domain(domain) for domain in said.domains),
+        role=None if said.role is None else parse_role(said.role),
         required=said.required,
     )
 

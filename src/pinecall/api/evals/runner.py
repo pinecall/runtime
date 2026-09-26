@@ -46,7 +46,7 @@ from pinecall.types import (
     Env,
     Model,
     Versions,
-    a_call_id,
+    new_call_id,
 )
 from pinecall_protocol import WireModel, defs
 
@@ -239,7 +239,7 @@ async def _every_conversation(
             # at all: the matrix ends where the app did, and the rest is absent rather than red.
             if not app.held:
                 raise _the_app_left(judged, total, wanted.agent)
-            call = a_call_id()
+            call = new_call_id()
             run = run.opening(Opened(golden=golden.name, model=named, call=call))
             await process.runs.put(run)
             try:

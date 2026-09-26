@@ -12,7 +12,7 @@ from pinecall.api.scope.grants import may_grant
 from pinecall.auth.grants import NOT_YOUR_OWN_ROW
 from pinecall.auth.keys import Keys, revoked_every_key_of
 from pinecall.auth.members import Members
-from pinecall.types import DeclarationRefused, Member, a_role
+from pinecall.types import DeclarationRefused, Member, parse_role
 from pinecall.types.member import STATUSES, MemberStatus
 from pinecall_protocol import WireModel
 
@@ -57,7 +57,7 @@ async def change(
     found = await members.find(key.org, id)
     if found is None:
         raise HTTPException(404, NO_SUCH_MEMBER.format(id=id))
-    role = None if said.role is None else a_role(said.role)
+    role = None if said.role is None else parse_role(said.role)
     status = None if said.status is None else a_status(said.status)
     if status == "active" and found.status == "invited":
         raise HTTPException(400, NOT_BY_HAND.format(email=found.email))

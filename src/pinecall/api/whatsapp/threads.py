@@ -23,7 +23,7 @@ from pinecall.providers.models import NoProvider
 from pinecall.providers.registry import Asked, a_key
 from pinecall.session.text.session import TextSession
 from pinecall.session.text.turn_allowance import SPENT, TurnRefused
-from pinecall.types import CallContext, Contact, Route, a_call_id
+from pinecall.types import CallContext, Contact, Route, new_call_id
 from pinecall.whatsapp.inbound_message import Inbound
 from pinecall.whatsapp.number_routes import WHATSAPP, answering
 from pinecall.whatsapp.outbound_replies import sending
@@ -292,7 +292,7 @@ class Threads:
 def _a_context(route: Route, inbound: Inbound) -> CallContext:
     """One call, minted here: who wrote, at which of the org's numbers, and under which agent."""
     return CallContext(
-        call=a_call_id(),
+        call=new_call_id(),
         channel=WHATSAPP,
         direction="inbound",
         caller=inbound.caller,

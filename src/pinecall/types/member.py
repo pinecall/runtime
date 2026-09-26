@@ -113,7 +113,7 @@ class Member:
         return self.role == "admin" or self.production
 
 
-def a_role(word: str) -> Role:
+def parse_role(word: str) -> Role:
     """The role this word names, or a refusal that lists the five there are."""
     if word not in ROLES:
         raise DeclarationRefused(f"a role is one of {sorted(ROLES)}, not {word!r}")

@@ -13,7 +13,7 @@ from pinecall.api.deps import TeamKeyDep, held
 from pinecall.mail import Outbox, a_test_message
 from pinecall.orgs.org_mail import KeptMail, Mail
 from pinecall.orgs.vault import NO_VAULT_KEY
-from pinecall.types import Mailbox, a_security, an_address
+from pinecall.types import Mailbox, parse_address, parse_security
 from pinecall_protocol import WireModel
 from pinecall_protocol.rest import MailSent, OrgMail
 
@@ -112,7 +112,7 @@ async def unwire(key: TeamKeyDep, mail: KeptMailDep) -> None:
 @router.post("/v1/org/mail/test")
 async def test(said: TestTo, key: TeamKeyDep, outbox: OutboxDep) -> MailSent:
     """One letter, waited for: `{sent, error}` — and 409 when there is no mail server at all."""
-    to = an_address(said.to)
+    to = parse_address(said.to)
     if await outbox.mailbox_for(key.org) is None:
         raise HTTPException(409, NOTHING_TO_TEST)
     said_back = await outbox.sent(key.org, a_test_message(to, await outbox.brand()))
@@ -125,7 +125,7 @@ def a_mailbox(said: WantedMail) -> Mailbox:
     return Mailbox(
         host=said.host.strip(),
         port=said.port,
-        security=a_security(said.security),
+        security=parse_security(said.security),
         username=said.username.strip(),
         password=said.password,
         sender=said.sender.strip(),

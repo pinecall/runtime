@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from pinecall.types import Fact
 from pinecall.types.golden_scores import Score as GoldenScore
-from pinecall.types.golden_scores import a_score
+from pinecall.types.golden_scores import golden_score
 
 
 @dataclass(frozen=True)
@@ -83,4 +83,4 @@ def _folded(text: str) -> str:
 # base.
 def scored(answered: Sequence[Answered], k: int) -> Score:
     """The golden's two figures, and every question memory did not answer whole."""
-    return a_score(answered, k, lambda one: one.ranks)
+    return golden_score(answered, k, lambda one: one.ranks)

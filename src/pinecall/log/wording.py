@@ -11,7 +11,7 @@ NOTHING_SAID = "no reply"
 REFUSED = "refused"
 
 
-def as_text(result: ToolResult) -> str:
+def tool_result_text(result: ToolResult) -> str:
     """What the model reads back from a tool: its error, its summary, or its output as text."""
     if result.error is not None:
         return result.error

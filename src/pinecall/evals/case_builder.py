@@ -7,7 +7,7 @@ from typing import Any, cast
 
 from pinecall.evals.case import AGENT, CALLER, Arrived, Called, Case, Role, Said
 from pinecall.evals.gate import a_confirmation
-from pinecall.log import as_text
+from pinecall.log import tool_result_text
 from pinecall.log.entry import Entry
 from pinecall.types import CONFIRMATIONS, GateKind, GateLine, ToolSpec
 from pinecall_protocol import defs, events, room
@@ -156,7 +156,7 @@ class _Read:
             arguments=dict(data.arguments),
             # `pinecall.log.as_text` is the one function that says what a model reads back from a
             # tool, and it is the same one `session/voice/tools.py` puts on the wire.
-            answer=None if answered is None else as_text(answered),
+            answer=None if answered is None else tool_result_text(answered),
             failed=answered is not None and answered.error is not None,
             description=spec.description if spec else None,
         )

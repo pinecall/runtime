@@ -32,8 +32,8 @@ from pinecall.types import (
     Channel,
     DeclarationRefused,
     Route,
-    an_e164,
     is_a_deployment,
+    parse_e164,
 )
 from pinecall.types.dispatch import Handover
 from pinecall_protocol import WireModel
@@ -150,7 +150,7 @@ class Calling(WireModel):
 async def calls_from(said: Calling, key: AppKeyDep, registry: RegistryDep) -> dict[str, list[str]]:
     """Every call this number makes reaches this key's corner, in whatever agent it is holding."""
     whose = _a_person(key)
-    number = an_e164(said.number)
+    number = parse_e164(said.number)
     registry.calls_from(key.env, number, whose)
     return {"calling": list(registry.calling(key.env, whose))}
 

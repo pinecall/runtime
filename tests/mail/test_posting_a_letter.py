@@ -6,7 +6,7 @@ import pytest
 
 from pinecall.mail import Letter, MailRefused, posted
 from pinecall.mail.smtp import an_email
-from pinecall.types import DeclarationRefused, Mailbox, a_mailbox_at
+from pinecall.types import DeclarationRefused, Mailbox, parse_mailbox_url
 from tests.mail.fake_smtp import BAD_CREDENTIALS, NOT_AUTHORIZED, FakeSmtp
 
 pytestmark = pytest.mark.unit
@@ -82,11 +82,11 @@ async def test_a_relay_that_asks_for_nothing_is_never_signed_in_to() -> None:
 
 def test_a_url_says_the_port_and_the_security_when_it_names_neither() -> None:
     """smtp:// is STARTTLS on 587 and smtps:// implicit TLS on 465, because that is the world."""
-    starttls = a_mailbox_at("smtp://AKIA:pw@email-smtp.eu-west-1.amazonaws.com", "a@b.co")
+    starttls = parse_mailbox_url("smtp://AKIA:pw@email-smtp.eu-west-1.amazonaws.com", "a@b.co")
     assert (starttls.port, starttls.security) == (587, "starttls")
-    implicit = a_mailbox_at("smtps://AKIA:pw@email-smtp.eu-west-1.amazonaws.com", "a@b.co")
+    implicit = parse_mailbox_url("smtps://AKIA:pw@email-smtp.eu-west-1.amazonaws.com", "a@b.co")
     assert (implicit.port, implicit.security) == (465, "tls")
-    named = a_mailbox_at("smtp://relay.test:2525", "a@b.co")
+    named = parse_mailbox_url("smtp://relay.test:2525", "a@b.co")
     assert (named.port, named.username, named.password) == (2525, "", "")
 
 
@@ -98,7 +98,7 @@ def test_an_ses_password_survives_the_url_percent_encoded_or_pasted_raw() -> Non
     """A base64 SMTP password carries `/` and `+`: a raw `/` would end a URL's authority."""
     encoded = "BAbc%2Fde%2BFGhi%2Fjk%2BLmNoPqRsTuVwXyZ0123456789ab"
     for written in (encoded, AN_SES_SHAPED_PASSWORD):
-        kept = a_mailbox_at(
+        kept = parse_mailbox_url(
             f"smtp://AKIAEXAMPLE:{written}@email-smtp.us-east-1.amazonaws.com:587", "a@b.co"
         )
         assert (kept.username, kept.password) == ("AKIAEXAMPLE", AN_SES_SHAPED_PASSWORD)
@@ -112,7 +112,7 @@ def test_a_refused_url_never_repeats_the_password_it_carried() -> None:
         f"smtp://u:{AN_SES_SHAPED_PASSWORD}@",
     ):
         with pytest.raises(DeclarationRefused) as refused:
-            a_mailbox_at(url, "a@b.co")
+            parse_mailbox_url(url, "a@b.co")
         assert AN_SES_SHAPED_PASSWORD not in str(refused.value)
 
 
@@ -123,7 +123,7 @@ def test_a_refused_url_never_repeats_the_password_it_carried() -> None:
 def test_something_that_is_not_a_mail_url_is_refused_by_name(said: str) -> None:
     """A box told to post mail through a web address sends none and says which line to fix."""
     with pytest.raises(DeclarationRefused):
-        a_mailbox_at(said, "a@b.co")
+        parse_mailbox_url(said, "a@b.co")
 
 
 def test_a_from_with_no_address_in_it_is_refused_before_a_socket_is_opened() -> None:

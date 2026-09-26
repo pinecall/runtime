@@ -8,7 +8,7 @@ from typing import Any, Protocol
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
 from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, a_sealed_store, opened, sealed
-from pinecall.types import CarrierKind, OutboundTrunk, a_carrier_kind
+from pinecall.types import CarrierKind, OutboundTrunk, parse_carrier_kind
 
 
 class OutboundTrunks(Protocol):
@@ -101,7 +101,7 @@ class PostgresOutboundTrunks:
             return None
         return OutboundTrunk(
             org=org,
-            kind=a_carrier_kind(str(row["kind"])),
+            kind=parse_carrier_kind(str(row["kind"])),
             trunk_id=str(row["trunk_id"]),
             address=str(row["address"]),
             username=row["username"],

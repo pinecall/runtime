@@ -38,7 +38,7 @@ from pinecall.auth.openid import (
 )
 from pinecall.auth.sso_state import Handshake
 from pinecall.orgs.admission import Admission
-from pinecall.types import SANDBOX, Member, Org, OrgSso, a_domain
+from pinecall.types import SANDBOX, Member, Org, OrgSso, parse_domain
 from pinecall_protocol import WireModel
 from pinecall_protocol.rest import SsoDiscovery, SsoOrg
 
@@ -172,7 +172,7 @@ async def discover(
     email = an_address(said.email)
     if not throttle.allowed(f"{the_client(request)} sso/{email}"):
         raise HTTPException(429, TOO_MANY.format(email=email))
-    domain = a_domain(email.rpartition("@")[2])
+    domain = parse_domain(email.rpartition("@")[2])
     # None is a box with no vault key, which can keep no client secret and so holds no provider
     # for anybody: an empty list is the truth there and never a refusal a sign-in page must read.
     found = () if sso is None or not domain else await sso.with_domain(domain)

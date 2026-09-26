@@ -45,7 +45,7 @@ class EnvFileRefused(PinecallError):
     """A .env this process cannot open. Nothing is read from it, and nothing pretends otherwise."""
 
 
-def as_a_refusal(failed: OSError) -> EnvFileRefused:
+def env_file_refusal(failed: OSError) -> EnvFileRefused:
     """The OS's own complaint about a .env, as the sentence a person reads."""
     return EnvFileRefused(
         UNREADABLE_ENV.format(file=failed.filename or ENV_FILES[0], why=failed.strerror or failed)

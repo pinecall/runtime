@@ -21,7 +21,7 @@ from pinecall.api.calls.log_sink import (
 from pinecall.api.deps import OrgsDep, StoreDep, UsageKeyDep
 from pinecall.api.scope.operator_key import an_operators_router
 from pinecall.log.store import DEFAULT_LIMIT, Store
-from pinecall.log.usage import METERED_TYPES, Totals, UsageRow, a_usage_row, totals_by_org
+from pinecall.log.usage import METERED_TYPES, Totals, UsageRow, fold_usage_row, totals_by_org
 from pinecall_protocol import WireModel
 
 operator = an_operators_router()
@@ -104,7 +104,7 @@ async def _a_page(
     store: Store, after: int, limit: int, only: str | None
 ) -> tuple[Sequence[UsageRow], Sequence[UsageRow]]:
     """One page: every row read, and the ones this asker keeps."""
-    read = [a_usage_row(one) for one in await store.across(METERED_TYPES, after, limit)]
+    read = [fold_usage_row(one) for one in await store.across(METERED_TYPES, after, limit)]
     return read, [row for row in read if only is None or row.org == only]
 
 

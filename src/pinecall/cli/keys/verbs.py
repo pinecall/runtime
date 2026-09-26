@@ -11,7 +11,7 @@ from pinecall.auth.keys import Issued, KeyRecord
 from pinecall.cli.columns import as_columns
 from pinecall.cli.help import only_the_help
 from pinecall.cli.operator import Operator, against_the_gateway, with_an_org
-from pinecall.types import ENVS, EVERY_SCOPE, KEY_SCOPES, an_env
+from pinecall.types import ENVS, EVERY_SCOPE, KEY_SCOPES, parse_env
 
 PURPOSE: str = "the org's API keys: issue | list | revoke"
 VERBS: tuple[str, ...] = ("issue", "list", "revoke")
@@ -178,7 +178,7 @@ def _issued_of(answer: dict[str, Any]) -> Issued:
             key_id=str(answer["key_id"]),
             org=str(answer["org"]),
             label=answer["label"] and str(answer["label"]),
-            env=an_env(str(answer["env"])),
+            env=parse_env(str(answer["env"])),
             scopes=frozenset(str(scope) for scope in answer["scopes"]),
             subject=answer["subject"] and str(answer["subject"]),
             name=answer["name"] and str(answer["name"]),
