@@ -1,4 +1,4 @@
-"""How a spoken call ends: who decided it was over, in the words the log has to use."""
+"""Who decided a spoken call was over, in the words the log has to use for it."""
 
 from __future__ import annotations
 

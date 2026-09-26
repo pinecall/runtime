@@ -18,8 +18,13 @@ from pinecall.worker.client import Gateway
 from pinecall.worker.entry import Worker, a_call
 from pinecall.worker.hop import GatewayRefused
 from pinecall.worker.main import a_worker
+from pinecall_protocol import encode
+from pinecall_protocol.events import AgentTranscript, CallEnded
 
 logger = logging.getLogger(__name__)
+
+# The overflow says one sentence: the one speech its transcript entry names.
+THE_ONE_SENTENCE = "sp_1"
 
 # livekit picks a worker at random, weighted by 1 − load, among the ones under its line
 # (livekit-server pkg/service/agentservice.go, selectWorkerWeightedByLoad). So this worker cannot
@@ -140,7 +145,8 @@ async def answer_the_overflow(ctx: JobContext, worker: Worker, says: str) -> Non
     session: AgentSession[None] = AgentSession(tts=voice)
     await session.start(Agent(instructions=says), room=ctx.room)  # pyright: ignore[reportUnknownMemberType]
     await session.say(says, allow_interruptions=False)
-    await worker.gateway.append(context.call, "agent.transcript", {"text": says, "final": True})
+    said = AgentTranscript(speech_id=THE_ONE_SENTENCE, text=says, final=True)
+    await worker.gateway.append(context.call, "agent.transcript", encode(said))
     if route.channel == THE_PHONE and arrival.caller:
         await worker.gateway.callback_requested(
             route.agent, route.channel, arrival.caller, context.call
@@ -164,13 +170,11 @@ def _sealing(
     """The shutdown callback: call.ended by the agent, then the log is closed."""
 
     async def seal(_reason: str) -> None:
-        ended = {
-            "reason": "agent_hung_up",
-            "ended_by": "agent",
-            "ended_at": time.time(),
-            "duration_s": time.time() - began,
-        }
-        await gateway.append(call, "call.ended", ended)
+        now = time.time()
+        ended = CallEnded(
+            reason="agent_hung_up", ended_by="agent", ended_at=now, duration_s=now - began
+        )
+        await gateway.append(call, "call.ended", encode(ended))
         await gateway.sealed(call)
 
     return seal

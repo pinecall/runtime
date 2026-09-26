@@ -18,7 +18,7 @@ from pinecall._settings import Budgets
 from pinecall.log import NOTHING_SAID, hashed_prompt
 from pinecall.providers import prices
 from pinecall.session.first_entries import started
-from pinecall.session.knowing import a_line_for_the_file_it_ships_with
+from pinecall.session.knowing import a_line_for_the_file_it_ships_with, the_file_it_ships_with
 from pinecall.session.lookups import Lookup, NoLookup, TurnLookups
 from pinecall.session.remembering import NoRememberer, Rememberer
 from pinecall.session.scoring import Scorer, unjudged
@@ -104,7 +104,7 @@ class VoiceBridge:
         self.events = Events(self.writing, self.meters, self.ending, self.lookups, self.floor)
         self.tools = Tools(config, platform, context.call, self.writing.emit)
         self.recorder = Recorder(config, context, self.writing, self._tell_the_ears)
-        self.blocks = Blocks(config.prompt, _the_file_it_ships_with(config))
+        self.blocks = Blocks(config.prompt, the_file_it_ships_with(config))
         self._agent = VoiceAgent(
             blocks=self.blocks,
             tools=[
@@ -374,10 +374,3 @@ def a_bridge(
 ) -> VoiceBridge:
     """The Bridging the worker is built with: one call in, its bridge out."""
     return VoiceBridge(context, config, platform, recording, score, lookup, rememberer, budgets)
-
-
-# The class's own file, as the declaration carried it. A class that ships none has an empty
-# knowledge block, which sends nothing at all.
-def _the_file_it_ships_with(config: AgentConfig) -> str:
-    """The text of the file this agent knows by heart, or nothing."""
-    return config.knowledge or ""

@@ -7,10 +7,11 @@ import asyncio
 import sys
 from collections.abc import Awaitable, Callable, Mapping
 from types import TracebackType
-from typing import Any, Self, cast
+from typing import Any, Self
 
 import httpx
 
+from pinecall._detail import the_detail_of
 from pinecall._exceptions import PinecallError
 from pinecall._settings import Settings, load_settings
 from pinecall.types import DEFAULT_ORG
@@ -89,7 +90,7 @@ class Operator:
         """The body, or the gateway's own sentence as a refusal a person can act on."""
         if answer.is_success:
             return None if answer.status_code == NO_BODY else answer.json()
-        raise OperatorRefused(f"{answer.status_code}: {_said(answer)}")
+        raise OperatorRefused(f"{answer.status_code}: {the_detail_of(answer.text.strip())}")
 
 
 # The ops key is the BOX's, never an org's, so every door here names its org — and every verb
@@ -111,15 +112,3 @@ def against_the_gateway(verb: Callable[[Operator], Awaitable[int]]) -> int:
 async def _with_an_operator(verb: Callable[[Operator], Awaitable[int]]) -> int:
     async with Operator.of(load_settings()) as operator:
         return await verb(operator)
-
-
-def _said(answer: httpx.Response) -> str:
-    """What the gateway put in `detail`, or the body itself when it put nothing there."""
-    try:
-        read: Any = answer.json()
-    except ValueError:
-        return answer.text.strip()
-    if not isinstance(read, dict):
-        return str(read)
-    body = cast("dict[str, Any]", read)
-    return str(body.get("detail", body))

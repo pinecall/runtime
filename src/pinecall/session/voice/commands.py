@@ -14,6 +14,7 @@ from pinecall.session.voice.bridging import Bridged
 from pinecall.session.voice.line import Line
 from pinecall.session.voice.room import dtmf, invite, mute, remove, send
 from pinecall.session.voice.room.holding import Holding
+from pinecall.session.voice.room.leg import leg_identity
 from pinecall_protocol import Command, ProtocolError, WireModel, command_of
 from pinecall_protocol.commands import (
     AgentReply,
@@ -219,9 +220,7 @@ async def _send_the_caller_on(applying: Applying, said: WireModel) -> None:
     if mode == transfer.COLD:
         applying.ending.transferred()
     else:
-        await Bridged(applying.live, holding, applying.ending).took(
-            f"{transfer.LEG_PREFIX}{wanted.to}"
-        )
+        await Bridged(applying.live, holding, applying.ending).took(leg_identity(wanted.to))
 
 
 async def _hold_the_line(applying: Applying, said: WireModel) -> None:  # noqa: ARG001 — call.hold is empty

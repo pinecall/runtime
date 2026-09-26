@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from livekit import rtc
 from livekit.agents.voice import AgentSession
 
+from pinecall.session.voice.line import silenced
 from pinecall.session.voice.room.facts import LEFT
 from pinecall.session.voice.room.holding import Holding
 from pinecall_protocol.defs import EndReason
@@ -44,9 +45,7 @@ class Bridged:
     async def took(self, identity: str) -> None:
         """The person answered: the agent stops speaking and hearing, and the call is theirs."""
         self._leg = identity
-        await self._cut_the_sentence()
-        self._live.output.set_audio_enabled(False)
-        self._live.input.set_audio_enabled(False)
+        await silenced(self._live, "the warm transfer took the line")
         # Whatever closes this session from here, the log says the caller was transferred.
         self._ending.transferred()
         self._holding.room.on(LEFT, self._somebody_left)  # pyright: ignore[reportUnknownMemberType] — livekit's callback is `(...) -> Unknown`
@@ -59,12 +58,3 @@ class Bridged:
         # The room's callback is synchronous and the ending is not; the task is held so nothing
         # collects it before the log has its last two entries.
         self._ending_it = asyncio.ensure_future(self._ending.hangup(TRANSFERRED))
-
-    # interrupt raises when nothing is playing (agent_activity.py): the agent being quiet already
-    # is the state this was asking for.
-    async def _cut_the_sentence(self) -> None:
-        """The agent's sentence cut where it stands, or nothing when there was none to cut."""
-        try:
-            await self._live.interrupt(force=True)
-        except Exception:
-            logger.debug("nothing was playing when the warm transfer took the line")

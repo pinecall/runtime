@@ -6,7 +6,6 @@ import asyncio
 
 from livekit.agents.voice import AgentSession
 from livekit.protocol.sip import (
-    CreateSIPParticipantRequest,
     SIPTransferReason,
     SIPTransferStatus,
     TransferSIPParticipantRequest,
@@ -15,6 +14,7 @@ from livekit.protocol.sip import (
 
 from pinecall.session.voice import sip
 from pinecall.session.voice.room.holding import Holding
+from pinecall.session.voice.room.leg import a_leg
 from pinecall_protocol.commands import CallTransfer
 from pinecall_protocol.defs import TransferMode
 from pinecall_protocol.events import CallTransferred
@@ -30,10 +30,6 @@ WARM: TransferMode = "warm"
 
 NO_LEG = "call.transfer: a cold transfer sends the caller's own SIP leg on, and this call has none"
 NO_TRUNK = "call.transfer: no outbound SIP trunk is configured, so {to} cannot be dialled"
-
-# The identity the dialled leg takes in the room: livekit's own habit for SIP participants, and
-# the same one room.invite uses, so a reader of the log sees one kind of second leg.
-LEG_PREFIX = "sip_"
 
 # How long the far end may ring before a warm transfer gives up and the caller is told. LiveKit's
 # own default is 30s; a caller holding notices 30s.
@@ -116,15 +112,14 @@ async def dialled_in(holding: Holding, wanted: CallTransfer) -> CallTransferred:
     asked = await holding.trunks.outbound(wanted.to)
     if asked.trunk is None:
         return _stayed(wanted, asked.refused or NO_TRUNK.format(to=wanted.to), WARM)
-    request = CreateSIPParticipantRequest(
-        sip_trunk_id=asked.trunk,
-        sip_call_to=wanted.to,
-        room_name=holding.room.name,
-        participant_identity=f"{LEG_PREFIX}{wanted.to}",
-        play_dialtone=PLAY_DIALTONE,
+    request = a_leg(
+        asked.trunk,
+        wanted.to,
+        holding.room.name,
         wait_until_answered=True,
+        ringing_s=RINGING_S,
+        play_dialtone=PLAY_DIALTONE,
     )
-    request.ringing_timeout.FromSeconds(int(RINGING_S))
     try:
         await holding.api.sip.create_sip_participant(request)
     except Exception as refused:

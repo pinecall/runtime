@@ -39,10 +39,8 @@ class Line:
         if self.held:
             return
         self.held = True
-        await self._cut_the_sentence()
+        await silenced(self._live, "the line went on hold")
         self._hold().began()
-        self._live.output.set_audio_enabled(False)
-        self._live.input.set_audio_enabled(False)
         await self._writing.emit("call.line", CallLine(held=True, muted=NOT_MUTED))
 
     # `speaks_again` is False when somebody else is taking the line the hold was for: a supervisor
@@ -54,17 +52,26 @@ class Line:
         self.held = False
         self._hold().ended()
         if speaks_again:
-            # Ears before voice: a session that could speak before it could hear would answer
-            # into a sentence it never heard the start of.
-            self._live.input.set_audio_enabled(True)
-            self._live.output.set_audio_enabled(True)
+            hearing_again(self._live)
         await self._writing.emit("call.line", CallLine(held=False, muted=NOT_MUTED))
 
-    # interrupt raises when nothing is playing (agent_session.py:1534): the agent being quiet
-    # already is the state the hold was asking for.
-    async def _cut_the_sentence(self) -> None:
-        """The agent's sentence cut where it stands, or nothing when there was none to cut."""
-        try:
-            await self._live.interrupt(force=True)
-        except Exception:
-            logger.debug("nothing was playing when the line went on hold")
+
+# The hold, a warm transfer answered and a supervisor's takeover all take the agent off the line
+# the same way, and a hold and a release give it back the same way: said here once.
+async def silenced(live: AgentSession[None], why: str) -> None:
+    """The agent's sentence cut where it stands, then mute AND deaf: what it cannot hear, it
+    cannot later claim to remember. interrupt raises when nothing is playing, or the session has
+    already stopped (agent_session.py:1534): the agent being quiet is the state asked for."""
+    try:
+        await live.interrupt(force=True)
+    except Exception:
+        logger.debug("nothing was playing when %s", why)
+    live.output.set_audio_enabled(False)
+    live.input.set_audio_enabled(False)
+
+
+def hearing_again(live: AgentSession[None]) -> None:
+    """Ears before voice: a session that could speak before it could hear would answer into a
+    sentence it never heard the start of."""
+    live.input.set_audio_enabled(True)
+    live.output.set_audio_enabled(True)

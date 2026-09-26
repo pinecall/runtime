@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pinecall.log import hashed_prompt
 from pinecall.session.pending import Emit
-from pinecall.types import KNOWLEDGE, Blocks
+from pinecall.types import KNOWLEDGE, AgentConfig, Blocks
 from pinecall_protocol.events import PromptChanged
 
 
@@ -20,3 +20,10 @@ async def a_line_for_the_file_it_ships_with(blocks: Blocks, emit: Emit) -> None:
     await emit(
         "prompt.changed", PromptChanged(name=KNOWLEDGE, hash=hashed_prompt(text), chars=len(text))
     )
+
+
+# The class's own file, as the declaration carried it. A class that ships none has an empty
+# knowledge block, which sends nothing at all.
+def the_file_it_ships_with(config: AgentConfig) -> str:
+    """The text of the file this agent knows by heart, or nothing."""
+    return config.knowledge or ""

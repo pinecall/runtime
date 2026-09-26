@@ -9,6 +9,7 @@ from typing import Any, cast
 import httpx
 from pydantic import ValidationError
 
+from pinecall._detail import the_detail_of
 from pinecall.auth.peers import RingsFor
 from pinecall.fleet import Heartbeat, Standing
 from pinecall.session.voice.platform import Dialled
@@ -34,7 +35,6 @@ from pinecall.worker.hop import (
     found,
     read,
     streamed,
-    the_detail_of,
 )
 from pinecall.worker.retrying import again
 from pinecall.worker.wire import (

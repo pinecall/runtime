@@ -5,19 +5,14 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import timedelta
 from typing import Any, cast
 
 from livekit import api
-from livekit.protocol.sip import CreateSIPParticipantRequest
 
+from pinecall.session.voice.room.leg import a_leg
 from pinecall_protocol import defs
 
 logger = logging.getLogger(__name__)
-
-# The identity the far end takes in the room, livekit's own habit for a SIP participant, and the
-# one `seat.the_callers_seat` will pin the session's ears to.
-LEG_PREFIX = "sip_"
 
 # How long the far end may ring before this is a call nobody answered. Thirty seconds is about
 # five rings on a mobile and one voicemail greeting away from picking itself up.
@@ -60,19 +55,17 @@ def asked_of(said: Any) -> Dialling | None:
 # far end never entered, and a call that was never answered costs one room for a few seconds.
 async def placed(livekit: api.LiveKitAPI, room: str, dialling: Dialling) -> defs.EndReason | None:
     """The far end on the line, or the reason it is not. None is answered."""
-    request = CreateSIPParticipantRequest(
-        sip_trunk_id=dialling.trunk,
-        sip_call_to=dialling.to,
-        sip_number=dialling.shown,
-        room_name=room,
-        participant_identity=f"{LEG_PREFIX}{dialling.to}",
-        wait_until_answered=True,
-    )
-    request.ringing_timeout.FromTimedelta(timedelta(seconds=RINGING_S))
-    # The ceiling the org's policy set, enforced by the media plane and not by anything of ours:
+    # The ceiling is the org's policy's, enforced by the media plane and not by anything of ours:
     # a worker that crashed would otherwise leave a call running on somebody's bill.
-    if dialling.max_duration_s:
-        request.max_call_duration.FromTimedelta(timedelta(seconds=dialling.max_duration_s))
+    request = a_leg(
+        dialling.trunk,
+        dialling.to,
+        room,
+        shown=dialling.shown,
+        wait_until_answered=True,
+        ringing_s=RINGING_S,
+        max_duration_s=dialling.max_duration_s,
+    )
     try:
         await livekit.sip.create_sip_participant(request)
     except Exception as refused:

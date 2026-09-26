@@ -8,6 +8,8 @@ from datetime import date
 from livekit.agents import llm as agents
 from livekit.agents.voice import Agent
 
+from pinecall.session.history import remembered
+
 # The name the model sees in its own transcript. A pair is the only way a date survives the trip:
 # a system message appended mid-conversation is rewritten as a user turn for every JSON-object
 # provider (_provider_format/utils.py:49), and the model would read today's date as something the
@@ -47,8 +49,4 @@ def dated(today: date) -> tuple[agents.FunctionCall, agents.FunctionCallOutput]:
 
 async def seeded(agent: Agent, today: date) -> None:
     """Put the pair in the history once, before the caller has said anything at all."""
-    context = agent.chat_ctx.copy()
-    context.items.extend(dated(today))
-    # The clock is nobody's tool: livekit filters out a call the agent does not hold
-    # (voice/agent.py:255), and this pair is context, not something the model may call again.
-    await agent.update_chat_ctx(context, exclude_invalid_function_calls=False)
+    await remembered(agent, *dated(today))

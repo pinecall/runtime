@@ -28,6 +28,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - The WhatsApp webhook's verify token is compared in constant time, as the signature already was.
 
 ### Fixed
+- **The overflow agent's two entries are the protocol's own shapes.** Its `agent.transcript`
+  carried no `speech_id`, which every other transcript entry has, and its `call.ended` was a dict
+  spelled by hand; both are written through the wire models now.
 - **A release builds its pages from the repositories they live in.** The publish workflow checked
   out `pinecall/agents`, where the console once lived, and died at "no console checkout": it
   checks out `pinecall/console` and `pinecall/widget` now, which is the layout `scripts/console`

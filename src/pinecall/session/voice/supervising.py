@@ -5,6 +5,7 @@ from __future__ import annotations
 from livekit.agents.voice import AgentSession
 from livekit.agents.voice.agent import Agent
 
+from pinecall.session.history import noted
 from pinecall.session.supervising import (
     A_RELEASE,
     A_WHISPER,
@@ -16,6 +17,7 @@ from pinecall.session.supervising import (
 from pinecall.session.voice import transfer
 from pinecall.session.voice.attending import Attending
 from pinecall.session.voice.commands import Ending
+from pinecall.session.voice.line import hearing_again, silenced
 from pinecall.session.voice.room.holding import Holding
 from pinecall.session.voice.writing import Writing
 from pinecall_protocol import ProtocolError, verbs
@@ -102,7 +104,7 @@ class Supervising:
         """whisper: an instruction the caller never hears, binding from the next sentence on."""
         await self._writing.emit("supervisor.whispered", SupervisorWhispered(by=by, text=text))
         note = A_WHISPER.format(text=text)
-        await self._remember(note)
+        await noted(self._agent, note)
         # A human is on the line: a turn generated now would talk over them.
         if self.taken_by is None:
             self._live.generate_reply(instructions=note)
@@ -115,11 +117,9 @@ class Supervising:
         # A caller waiting for a person just got one: the ask is answered and the melody stops.
         if self._attending is not None:
             await self._attending.taken_by(by)
-        await self._cut_the_sentence()
-        # Deaf as well as mute: what the agent cannot hear, it cannot later claim to remember, and
-        # a history with the human's half missing is the one a release must not paper over.
-        self._live.output.set_audio_enabled(False)
-        self._live.input.set_audio_enabled(False)
+        # Deaf as well as mute: a history with the human's half missing is the one a release must
+        # not paper over.
+        await silenced(self._live, "the desk took over")
         self.taken_by = by
 
     async def _release(self, by: Supervisor) -> None:
@@ -127,36 +127,12 @@ class Supervising:
         if self.taken_by is None:
             raise ProtocolError(NOBODY_HOLDS)
         await self._writing.emit("supervisor.released", SupervisorReleased(by=by))
-        # Ears before voice: a session that could speak before it could hear would answer into a
-        # sentence it never heard the start of.
-        self._live.input.set_audio_enabled(True)
-        self._live.output.set_audio_enabled(True)
+        hearing_again(self._live)
         self.taken_by = None
-        await self._remember(A_RELEASE)
+        await noted(self._agent, A_RELEASE)
         self._live.generate_reply(instructions=A_RELEASE)
 
     async def _end(self, by: Supervisor, reason: str | None) -> None:
         """end: the desk hangs up now — mid-sentence, mid-thought — and call.ended says who did."""
         await self._writing.emit("supervisor.ended", SupervisorEnded(by=by, reason=reason))
         await self._ending.hangup(BY_A_SUPERVISOR, THE_SUPERVISOR, at_once=True)
-
-    # ── the two livekit calls both a whisper and a release make ─────────────────
-
-    # The note goes at the END of the history (agent.py:236, update_chat_ctx), never into a
-    # static block: those are what the provider caches, and a sentence appended there would
-    # rebuild the cache for every call this agent ever answers.
-    async def _remember(self, note: str) -> None:
-        """One system message onto the end of the history, where the model reads it next turn."""
-        context = self._agent.chat_ctx.copy()
-        context.add_message(role="system", content=note)
-        await self._agent.update_chat_ctx(context)
-
-    # interrupt raises when nothing is playing or the session has already stopped
-    # (agent_session.py:1534). Neither is a reason to refuse the takeover: the agent being quiet
-    # already is the state the verb was asking for.
-    async def _cut_the_sentence(self) -> None:
-        """The agent's sentence cut where it stands, or nothing when there was none to cut."""
-        try:
-            await self._live.interrupt(force=True)
-        except Exception:
-            return

@@ -21,11 +21,12 @@ from pinecall.session.asking import Asking, NotAsking
 from pinecall.session.callbacks import a_callback
 from pinecall.session.declaring import declared
 from pinecall.session.first_entries import started
-from pinecall.session.knowing import a_line_for_the_file_it_ships_with
+from pinecall.session.history import remembered
+from pinecall.session.knowing import a_line_for_the_file_it_ships_with, the_file_it_ships_with
 from pinecall.session.lookups import Lookup, NoLookup, TurnLookups
 from pinecall.session.remembering import NoRememberer, Rememberer, remembered_within
 from pinecall.session.scoring import Scorer, unjudged
-from pinecall.session.text.agent import TextAgent, remembered
+from pinecall.session.text.agent import TextAgent
 from pinecall.session.text.allowance import SPENT, Allowance, TurnRefused, unlimited
 from pinecall.session.text.attending import Attending
 from pinecall.session.text.measure import Reply, tokens_spent, usage_rows
@@ -93,7 +94,7 @@ class TextSession:
         self.attending = Attending(self)
         self._log = log
         self._gone: set[Watcher] = set()
-        self._blocks = Blocks(config.prompt, _the_file_it_ships_with(config))
+        self._blocks = Blocks(config.prompt, the_file_it_ships_with(config))
         self._state: dict[str, Any] = {}
         self._speeches = 0
         self._started_at = time.time()
@@ -376,10 +377,3 @@ class TextSession:
         """The id that joins a turn to its transcripts, its metrics and its tool calls."""
         self._speeches += 1
         return f"sp_{self._speeches}"
-
-
-# The class's own file, as the declaration carried it. A class that ships none has an empty
-# knowledge block, which sends nothing at all.
-def _the_file_it_ships_with(config: AgentConfig) -> str:
-    """The text of the file this agent knows by heart, or nothing."""
-    return config.knowledge or ""

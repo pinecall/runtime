@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator, Awaitable, Mapping
-from typing import Any, cast
+from typing import Any
 
 import httpx
 
@@ -118,24 +118,6 @@ async def server_sent_events(lines: AsyncIterator[str]) -> AsyncIterator[JsonObj
         elif not line and data:
             yield json.loads("\n".join(data))
             data = []
-
-
-# The gateway's refusals carry the sentence in `detail`, and the whole body is what the client
-# raises with. The verb writes ONE line in the caller's log, so it writes the sentence a person
-# can act on — "org … has placed 6 of its 6 outbound calls a minute" — and not the JSON around it.
-def the_detail_of(refusal: str) -> str:
-    """The `detail` of a refused answer, or the refusal as it came when there is none."""
-    opened = refusal.find("{")
-    if opened == -1:
-        return refusal
-    try:
-        said: object = json.loads(refusal[opened:])
-    except ValueError:
-        return refusal
-    if not isinstance(said, dict):
-        return refusal
-    detail = cast("dict[str, object]", said).get("detail")
-    return detail if isinstance(detail, str) and detail else refusal
 
 
 # A gateway older than the ceiling answered 204, and one whose org's minutes have no limit answers

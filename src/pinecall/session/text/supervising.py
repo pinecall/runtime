@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from livekit.agents import llm as agents
 
+from pinecall.session.history import remembered
 from pinecall.session.supervising import (
     A_RELEASE,
     A_WHISPER,
@@ -13,7 +14,6 @@ from pinecall.session.supervising import (
     NOBODY_HOLDS,
     THE_SUPERVISOR,
 )
-from pinecall.session.text.agent import remembered
 from pinecall.session.text.session import TextSession
 from pinecall_protocol import ProtocolError, verbs
 from pinecall_protocol.commands import SupervisorVerb

@@ -137,12 +137,3 @@ class TextAgent(LiveAgent):
             # The stream is drained and closed by now, so livekit has already emitted every
             # metric of this request: metrics.llm goes out before the tools this round asked for.
             await writer.measured(metered.seen)
-
-
-# livekit owns the history now, so the one moment the platform reaches into it lives here, next
-# to the agent it reaches into.
-async def remembered(agent: TextAgent, *items: agents.ChatItem) -> None:
-    """Items into the history without a request: agent.say is not a turn of the model."""
-    context = agent.chat_ctx.copy()
-    context.items.extend(items)
-    await agent.update_chat_ctx(context, exclude_invalid_function_calls=False)

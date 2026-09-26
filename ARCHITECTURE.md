@@ -26,7 +26,7 @@ This runtime does not implement a conversation. LiveKit does, and the line is dr
 | LiveKit provides | used by | as |
 |---|---|---|
 | **livekit-server**, the SFU: rooms, participants, tracks, the agent dispatch | the box (a container), both processes over its API | `infra/box/containers/pinecall-livekit.container`, `livekit.yaml` |
-| **livekit-sip**: a carrier's trunk as a room participant | the box; `session/voice/sip.py`, `room/invite.py`, `room/dtmf.py`, `transfer.py`, `bridging.py`; `api/rebuilding.py` asks the SFU for every trunk the tables know at each gateway start, because livekit-sip keeps them in Redis and a Redis that came up empty took every number with it | a REFER for a cold transfer, `CreateSIPParticipantRequest` for a warm one — the person dialled into the call's own room — and `publish_dtmf` for the tones |
+| **livekit-sip**: a carrier's trunk as a room participant | the box; `session/voice/sip.py`, `room/leg.py` (the one SIP leg every dial asks for), `room/invite.py`, `room/dtmf.py`, `transfer.py`, `bridging.py`; `api/rebuilding.py` asks the SFU for every trunk the tables know at each gateway start, because livekit-sip keeps them in Redis and a Redis that came up empty took every number with it | a REFER for a cold transfer, `CreateSIPParticipantRequest` for a warm one — the person dialled into the call's own room — and `publish_dtmf` for the tones |
 | **`livekit.agents.AgentServer`**: the worker process, its job processes, the load it reports | `worker/main.py` | one server, one `rtc_session`, `load_fnc` |
 | **`JobContext`**, **`JobProcess`**: one job, one process, prewarm | `worker/main.py`, `worker/entry.py` | `ctx.connect()`, `ctx.room` |
 | **`AgentSession`** + **`Agent`**: the conversation — VAD, turn detection, STT → LLM → TTS, interruption, the chat context | `session/voice/session.py`, `session/text/session.py`, `session/*/agent.py` | one session per call, ours subclassing `Agent` for the prompt's blocks |
@@ -220,7 +220,7 @@ REFER). Decisions: *worker*, *voice-bridge*, *room*, *sip*.
 
 `session/` is one call on either channel, and what both share: the `Scorer` seam, the pending
 tool calls, the supervise verbs, `clock.py` (today's date as a tool call the model appears to
-have made, never a system message), `declaring.py` (our ToolSpec as livekit's tool).
+have made, never a system message), `history.py` (the one place the platform reaches into livekit's history: items onto its end, no turn of the model), `declaring.py` (our ToolSpec as livekit's tool).
 **Voice** runs in the worker, in a room, with audio — and so does a browser's `chat` visit, the same
 session with no ears and no voice (`spoken=False`, `worker/entry.py`), which keeps no recording.
 **Text** (`session/text/`) runs in the **gateway** — WhatsApp, `/v1/chat`, `pinecall chat`, the

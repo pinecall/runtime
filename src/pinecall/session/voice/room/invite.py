@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from livekit.protocol.sip import CreateSIPParticipantRequest
-
 from pinecall.session.voice.room.holding import Holding
+from pinecall.session.voice.room.leg import a_leg
 from pinecall_protocol.commands import RoomInvite
 
 VERB = "room.invite"
@@ -13,9 +12,6 @@ VERB = "room.invite"
 # the media plane can pull one in, so asking is refused by name rather than quietly ignored.
 NOT_DIALLED = "room.invite: a participant joins with a token; the room dials only kind sip"
 NO_TRUNK = "room.invite: no outbound SIP trunk is configured, nothing can dial {to}"
-
-# The identity a dialled leg takes in the room: livekit's own habit for SIP participants.
-LEG_PREFIX = "sip_"
 
 
 # The fact is the participant.joined the room writes when the far side answers, with kind sip;
@@ -31,13 +27,9 @@ async def dialled(holding: Holding, wanted: RoomInvite) -> None:
     if asked.trunk is None:
         holding.failed(VERB, asked.refused or NO_TRUNK.format(to=wanted.to))
         return
-    request = CreateSIPParticipantRequest(
-        sip_trunk_id=asked.trunk,
-        sip_call_to=wanted.to,
-        room_name=holding.room.name,
-        participant_identity=f"{LEG_PREFIX}{wanted.to}",
-    )
     try:
-        await holding.api.sip.create_sip_participant(request)
+        await holding.api.sip.create_sip_participant(
+            a_leg(asked.trunk, wanted.to, holding.room.name)
+        )
     except Exception as refused:
         holding.failed(VERB, str(refused))

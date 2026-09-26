@@ -26,8 +26,12 @@ def test_the_walk_reaches_the_doors() -> None:
 
 def test_every_door_served_is_on_the_page_and_every_door_on_the_page_is_served() -> None:
     routed, listed = _routed(), _listed(THE_PAGE.read_text())
-    unlisted = sorted(f"{m} {p}" for m, p in routed if not any(_same(p, q) and m == n for n, q in listed))
-    unrouted = sorted(f"{m} {p}" for m, p in listed if not any(_same(p, q) and m == n for n, q in routed))
+    unlisted = sorted(
+        f"{m} {p}" for m, p in routed if not any(_same(p, q) and m == n for n, q in listed)
+    )
+    unrouted = sorted(
+        f"{m} {p}" for m, p in listed if not any(_same(p, q) and m == n for n, q in routed)
+    )
     assert not unlisted, f"served but not on the page: {unlisted}"
     assert not unrouted, f"on the page but not served: {unrouted}"
 
@@ -42,7 +46,7 @@ def _routed() -> set[tuple[str, str]]:
             if inner is not None:
                 walk(inner.routes)
             elif isinstance(route, APIRoute):
-                found.update((method, route.path) for method in route.methods)
+                found.update((method, route.path) for method in route.methods or ())
             elif isinstance(route, APIWebSocketRoute):
                 found.add(("WS", route.path))
 
@@ -72,7 +76,7 @@ def _paths_of(cell: str, row_methods: list[str]) -> list[tuple[str, str]]:
         said = re.match(r"^([A-Z]+)?\s*(\S+)?$", token)
         assert said is not None, token
         method, path = said.group(1), said.group(2)
-        if path is None or path.startswith("?") or path.startswith("["):
+        if path is None or path.startswith(("?", "[")):
             if method:
                 pending.append(method)
             continue
