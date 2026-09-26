@@ -82,9 +82,8 @@ fail_under = 90
 
 [tool.pyright]
 include = ["packages"]
-# Two source roots for one namespace, the runtime's tests package, and the core's suite, which
-# imports its own conftest by name as pytest puts its directory on the path.
-extraPaths = ["packages/pinecall-runtime/src", "packages/pinecall-runtime", "packages/pinecall-core/src", "packages/pinecall-core/tests"]
+# Two source roots for one namespace, and the runtime's `tests` package its suite imports from.
+extraPaths = ["packages/pinecall-runtime/src", "packages/pinecall-runtime", "packages/pinecall-core/src"]
 typeCheckingMode = "strict"
 pythonVersion = "3.12"
 reportImplicitOverride = true

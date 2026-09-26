@@ -183,6 +183,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   could make orgs for as many trials as they liked.
 
 ### Added
+- **`pinecall-core` is typed for whoever depends on it.** Each of its three packages ships a
+  `py.typed` (`pinecall.types`, `pinecall.extensions`, `pinecall.errors` — the root error is a
+  package now, because a namespace's root can carry no marker), so a policy type-checks against
+  it in strict mode. The runtime, an application and not a library, no longer claims
+  `Typing :: Typed`.
 - **The repository is a uv workspace, and nothing but the workspace sits at its root.** The
   runtime is `packages/pinecall-runtime` (the distribution `pinecall`), the core
   `packages/pinecall-core`; the root `pyproject.toml` holds the members, the tools and the suites'

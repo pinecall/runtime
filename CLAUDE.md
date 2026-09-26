@@ -28,7 +28,7 @@ make deploy                                     # this checkout onto your box (d
   none of them a process; ARCHITECTURE.md §11 is the import table and `tests/test_isolation.py`
   enforces it; the words they speak are `docs/glossary.md`
 - `packages/pinecall-core/` — the distribution `pinecall-core`: `types/`, `extensions/`,
-  `errors.py`, on the standard library alone, that a policy (`cloud/`) installs without the
+  `errors/`, on the standard library alone, that a policy (`cloud/`) installs without the
   runtime. It imports nothing of the runtime, and `pinecall` is a namespace both install into: no
   `__init__.py` in either `src/pinecall/`. Its suite runs apart (`scripts/test`), on its own
   `pyproject.toml`

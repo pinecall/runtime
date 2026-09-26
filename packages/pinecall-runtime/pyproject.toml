@@ -18,7 +18,6 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Topic :: Communications :: Telephony",
-  "Typing :: Typed",
 ]
 keywords = ["voice", "telephony", "livekit", "contact-center", "agents"]
 dependencies = [

@@ -13,6 +13,7 @@ pytestmark = pytest.mark.unit
 
 PACKAGES = [
     "auth",
+    "errors",
     "evals",
     "extensions",
     "fleet",

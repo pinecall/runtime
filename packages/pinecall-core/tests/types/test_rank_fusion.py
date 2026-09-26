@@ -4,10 +4,13 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from conftest import SEARCH_S
 from pinecall.types import RRF_K, reciprocal_rank_fusion, relative_to_the_best
 
 pytestmark = pytest.mark.unit
+
+# A search over inputs is held to a minute and not to the ten seconds a single example gets: under
+# coverage on a shared runner the ten were hit once (2026-09-26).
+SEARCH_S = 60
 
 
 def test_a_rank_weighs_one_over_k_plus_rank_and_an_id_in_both_orders_adds_up() -> None:

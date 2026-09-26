@@ -152,9 +152,12 @@ def test_only_providers_imports_a_vendor_sdk(vendor: str) -> None:
     assert not offenders, f"{vendor} is imported outside pinecall/providers: {offenders}"
 
 
-# A module at the root (`pinecall.errors`, `pinecall._settings`) is everybody's; only a directory
-# has a line in the table.
-ROOT_MODULES = frozenset(path.stem for root in SOURCE_ROOTS for path in root.glob("*.py"))
+# What every package may import: a module at the root (`pinecall._settings`, `pinecall._version`),
+# and the root error — a package and not a module only so that its py.typed can ship, since a
+# namespace's root can carry no marker (PEP 561). Only the rest has a line in the table.
+EVERYBODYS = frozenset(path.stem for root in SOURCE_ROOTS for path in root.glob("*.py")) | {
+    "errors"
+}
 
 
 def _pinecall_modules_named_by(module: PythonModule) -> set[str]:
@@ -163,8 +166,8 @@ def _pinecall_modules_named_by(module: PythonModule) -> set[str]:
 
 
 def _our_packages_named_by(module: PythonModule) -> set[str]:
-    """The same, minus the root's modules: what the table above has a line for."""
-    return _pinecall_modules_named_by(module) - ROOT_MODULES
+    """The same, minus what is everybody's: what the table above has a line for."""
+    return _pinecall_modules_named_by(module) - EVERYBODYS
 
 
 def _the_modules_the_rule_speaks_about(package: str, framework: str) -> Sequence[PythonModule]:
