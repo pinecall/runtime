@@ -1,6 +1,5 @@
 """The three consent logs these tests are written against: eval-only fixtures, read once each."""
 
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -18,18 +17,8 @@ from pinecall.types import PRODUCTION, Brought, Model, ProviderKeys
 from pinecall_protocol import decode_entries, defs
 from pinecall_protocol.envelope import Entry
 from pinecall_testkit.fake_llm import FakeLLM
+from pinecall_testkit.pinned_logs import BEFORE_THE_YES, CONFIRMED, LOGS, NO_GATE
 from tests.api.conftest import A_KEY, A_RECORD
-
-# Not goldens: no reducer on either side is judged by them. They are the hand-written logs the
-# judges and the ring-3 checks are pinned against, read from where tests/evals keeps them.
-LOGS = Path(__file__).parents[2] / "evals" / "logs"
-
-CONFIRMED = "booking-confirmed.json"
-BEFORE_THE_YES = "booking-before-the-yes.json"
-NO_GATE = "booking-with-no-gate.json"
-
-# What the clinic declared irreversible: the one tool that takes a slot away from somebody else.
-IRREVERSIBLE = frozenset({"book_appointment"})
 
 AGENT = "clinica-norte"
 AN_OWNER = "app_the_evals_doors"  # the id an app socket would have been minted

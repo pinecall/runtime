@@ -15,9 +15,9 @@ from pinecall.evals import (
     TheEventWasAnsweredJudge,
     build_case,
 )
+from pinecall_testkit.pinned_logs import BOOKING, a_log
 from tests.evals.conversations import a_call, a_case_of, arrived, asked, ran, replied
 from tests.evals.fakes import CountingJudge
-from tests.evals.logs import BOOKING, a_log
 from tests.evals.measuring import measured
 
 pytestmark = pytest.mark.unit

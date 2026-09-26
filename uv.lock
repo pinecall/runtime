@@ -14,6 +14,7 @@ members = [
     "pinecall-channels",
     "pinecall-core",
     "pinecall-db",
+    "pinecall-evals",
     "pinecall-log",
     "pinecall-providers",
     "pinecall-retrieval",
@@ -3410,6 +3411,7 @@ dependencies = [
     { name = "pinecall-channels" },
     { name = "pinecall-core" },
     { name = "pinecall-db" },
+    { name = "pinecall-evals" },
     { name = "pinecall-log" },
     { name = "pinecall-protocol" },
     { name = "pinecall-providers" },
@@ -3444,6 +3446,7 @@ requires-dist = [
     { name = "pinecall-channels", editable = "packages/pinecall-channels" },
     { name = "pinecall-core", editable = "packages/pinecall-core" },
     { name = "pinecall-db", editable = "packages/pinecall-db" },
+    { name = "pinecall-evals", editable = "packages/pinecall-evals" },
     { name = "pinecall-log", editable = "packages/pinecall-log" },
     { name = "pinecall-protocol", editable = "../protocol/python" },
     { name = "pinecall-providers", editable = "packages/pinecall-providers" },
@@ -3533,6 +3536,39 @@ dependencies = [
 requires-dist = [
     { name = "asyncpg", specifier = ">=0.29,<1" },
     { name = "pinecall-core", editable = "packages/pinecall-core" },
+]
+
+[[package]]
+name = "pinecall-evals"
+version = "0.1.0"
+source = { editable = "packages/pinecall-evals" }
+dependencies = [
+    { name = "livekit-agents" },
+    { name = "livekit-api" },
+    { name = "pinecall-channels" },
+    { name = "pinecall-core" },
+    { name = "pinecall-db" },
+    { name = "pinecall-log" },
+    { name = "pinecall-protocol" },
+    { name = "pinecall-providers" },
+    { name = "pinecall-session" },
+    { name = "pinecall-settings" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "livekit-agents", specifier = ">=1.8,<2" },
+    { name = "livekit-api", specifier = ">=1.2.1" },
+    { name = "pinecall-channels", editable = "packages/pinecall-channels" },
+    { name = "pinecall-core", editable = "packages/pinecall-core" },
+    { name = "pinecall-db", editable = "packages/pinecall-db" },
+    { name = "pinecall-log", editable = "packages/pinecall-log" },
+    { name = "pinecall-protocol", editable = "../protocol/python" },
+    { name = "pinecall-providers", editable = "packages/pinecall-providers" },
+    { name = "pinecall-session", editable = "packages/pinecall-session" },
+    { name = "pinecall-settings", editable = "packages/pinecall-settings" },
+    { name = "pydantic", specifier = ">=2.7,<3" },
 ]
 
 [[package]]

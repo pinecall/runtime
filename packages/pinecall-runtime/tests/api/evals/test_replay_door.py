@@ -8,8 +8,9 @@ from pinecall.auth.keys import KeyRecord
 from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.live.registry import Registry
 from pinecall.log.store import MemoryStore
+from pinecall_testkit.pinned_logs import CONFIRMED, NO_GATE
 from tests.api.conftest import A_KEY, A_RECORD, over_the_asgi_app
-from tests.api.evals.conftest import AGENT, BOOK, CONFIRMED, NO_GATE, entries_of, serving
+from tests.api.evals.conftest import AGENT, BOOK, entries_of, serving
 
 pytestmark = pytest.mark.unit
 

@@ -1,0 +1,67 @@
+# pinecall-evals: the rings a Pinecall agent is held to: goldens, judges, simulated callers, the score.
+# A portion of the `pinecall` namespace, released with the others at one version (packages/).
+
+[project]
+name = "pinecall-evals"
+version = "0.1.0"
+description = "The rings a Pinecall agent is held to: goldens, judges, simulated callers, the score"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+authors = [{ name = "Bernardo Castro", email = "me@bernardocastro.dev" }]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+  "pinecall-channels==0.1.0",
+  "pinecall-core==0.1.0",
+  "pinecall-db==0.1.0",
+  "pinecall-log==0.1.0",
+  "pinecall-providers==0.1.0",
+  "pinecall-session==0.1.0",
+  "pinecall-settings==0.1.0",
+  "livekit-agents>=1.8,<2",
+  "livekit-api>=1.2.1",
+  # A range, not a bare name: the wheel PyPI serves must say which protocol it speaks.
+  "pinecall-protocol>=0.6.14,<0.7",
+  "pydantic>=2.7,<3",
+]
+
+[project.urls]
+Homepage = "https://github.com/pinecall/runtime"
+Repository = "https://github.com/pinecall/runtime"
+
+[tool.uv.sources]
+pinecall-channels = { workspace = true }
+pinecall-core = { workspace = true }
+pinecall-db = { workspace = true }
+pinecall-log = { workspace = true }
+pinecall-providers = { workspace = true }
+pinecall-session = { workspace = true }
+pinecall-settings = { workspace = true }
+pinecall-protocol = { path = "../../../protocol/python", editable = true }
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+# A namespace portion: no pinecall/__init__.py in this wheel or in any sibling's.
+[tool.hatch.build.targets.wheel]
+packages = ["src/pinecall"]
+
+[tool.deptry]
+known_first_party = ["pinecall"]
+
+[tool.deptry.package_module_name_map]
+livekit-agents = ["livekit"]
+livekit-api = ["livekit"]
+pinecall-protocol = ["pinecall_protocol"]
+
+[tool.deptry.per_rule_ignores]
+# The siblings are imported on every other line, as `pinecall.<package>`: deptry reads a
+# namespace by its top-level name alone, and `pinecall` is first-party here.
+DEP002 = ["pinecall-channels", "pinecall-core", "pinecall-db", "pinecall-log", "pinecall-providers", "pinecall-session", "pinecall-settings"]

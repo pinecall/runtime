@@ -24,6 +24,7 @@ dependencies = [
   "pinecall-channels==0.1.0",
   "pinecall-core>=0.1,<0.2",
   "pinecall-db==0.1.0",
+  "pinecall-evals==0.1.0",
   "pinecall-log==0.1.0",
   "pinecall-providers==0.1.0",
   "pinecall-retrieval==0.1.0",
@@ -68,6 +69,7 @@ pinecall-protocol = { path = "../../../protocol/python", editable = true }
 pinecall-channels = { workspace = true }
 pinecall-core = { workspace = true }
 pinecall-db = { workspace = true }
+pinecall-evals = { workspace = true }
 pinecall-log = { workspace = true }
 pinecall-providers = { workspace = true }
 pinecall-retrieval = { workspace = true }
@@ -112,4 +114,4 @@ pinecall-protocol = ["pinecall_protocol"]
 [tool.deptry.per_rule_ignores]
 # The siblings are imported on every other line, as `pinecall.<package>`: deptry reads a
 # namespace by its top-level name alone, and `pinecall` is first-party here.
-DEP002 = ["pinecall-channels", "pinecall-core", "pinecall-db", "pinecall-log", "pinecall-providers", "pinecall-retrieval", "pinecall-session", "pinecall-settings", "pinecall-tenancy"]
+DEP002 = ["pinecall-channels", "pinecall-core", "pinecall-db", "pinecall-evals", "pinecall-log", "pinecall-providers", "pinecall-retrieval", "pinecall-session", "pinecall-settings", "pinecall-tenancy"]

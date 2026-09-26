@@ -6,8 +6,8 @@ import pytest
 
 from pinecall.evals import ConsentJudge, build_case
 from pinecall.types import GATE_DEFERRED_ON
+from pinecall_testkit.pinned_logs import BOOKING, LOOKING_UP, a_log
 from tests.evals.fakes import CountingJudge
-from tests.evals.logs import BOOKING, LOOKING_UP, a_log
 from tests.evals.measuring import measured
 
 pytestmark = pytest.mark.unit

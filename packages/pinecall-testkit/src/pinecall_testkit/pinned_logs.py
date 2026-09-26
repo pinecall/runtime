@@ -16,6 +16,15 @@ from pinecall_protocol.fixtures import GOLDEN_LOG
 # of logs for it would drift the day somebody edits one of them.
 LOGS = Path(__file__).parent / "logs"
 
+# The three consent logs, by the moment the booking was made: after the caller's yes, before it,
+# and by an agent that asked for no yes at all.
+CONFIRMED = "booking-confirmed.json"
+BEFORE_THE_YES = "booking-before-the-yes.json"
+NO_GATE = "booking-with-no-gate.json"
+
+# What the clinic declared irreversible: the one tool that takes a slot away from somebody else.
+IRREVERSIBLE = frozenset({"book_appointment"})
+
 # The protocol's own golden call: a whole conversation with retrieval, tools, confirmations, every
 # typed metrics block and a summary. It is what the bridge is read against, because it is the only
 # log that carries all of them at once.

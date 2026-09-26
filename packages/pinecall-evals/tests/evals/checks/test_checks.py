@@ -8,7 +8,8 @@ from pinecall.evals.checks.latency import DEFAULT_BUDGET, latency
 from pinecall.evals.checks.provider_errors import errors
 from pinecall.evals.checks.register import register
 from pinecall.evals.checks.replay import Failure, Replayed, rebuild
-from tests.evals.checks.conftest import BEFORE_THE_YES, entries_of
+from pinecall_testkit.pinned_logs import BEFORE_THE_YES
+from tests.evals.checks.conftest import entries_of
 
 pytestmark = pytest.mark.unit
 

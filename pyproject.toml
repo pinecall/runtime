@@ -80,6 +80,7 @@ source = [
   "packages/pinecall-channels/src/pinecall",
   "packages/pinecall-core/src/pinecall",
   "packages/pinecall-db/src/pinecall",
+  "packages/pinecall-evals/src/pinecall",
   "packages/pinecall-log/src/pinecall",
   "packages/pinecall-providers/src/pinecall",
   "packages/pinecall-retrieval/src/pinecall",
@@ -104,6 +105,7 @@ extraPaths = [
   "packages/pinecall-channels/src",
   "packages/pinecall-core/src",
   "packages/pinecall-db/src",
+  "packages/pinecall-evals/src",
   "packages/pinecall-log/src",
   "packages/pinecall-providers/src",
   "packages/pinecall-retrieval/src",
@@ -117,172 +119,47 @@ typeCheckingMode = "strict"
 pythonVersion = "3.12"
 reportImplicitOverride = true
 
-# Every suite is a package named `tests`: each is resolved from its own distribution's directory.
+# Every suite is a package named `tests`: each resolves from its own distribution's directory,
+# with the extraPaths above.
 [[tool.pyright.executionEnvironments]]
 root = "packages/pinecall-channels"
-extraPaths = [
-  "packages/pinecall-channels/src",
-  "packages/pinecall-core/src",
-  "packages/pinecall-db/src",
-  "packages/pinecall-log/src",
-  "packages/pinecall-providers/src",
-  "packages/pinecall-retrieval/src",
-  "packages/pinecall-runtime/src",
-  "packages/pinecall-session/src",
-  "packages/pinecall-settings/src",
-  "packages/pinecall-tenancy/src",
-  "packages/pinecall-testkit/src",
-]
 
 [[tool.pyright.executionEnvironments]]
 root = "packages/pinecall-db"
-extraPaths = [
-  "packages/pinecall-channels/src",
-  "packages/pinecall-core/src",
-  "packages/pinecall-db/src",
-  "packages/pinecall-log/src",
-  "packages/pinecall-providers/src",
-  "packages/pinecall-retrieval/src",
-  "packages/pinecall-runtime/src",
-  "packages/pinecall-session/src",
-  "packages/pinecall-settings/src",
-  "packages/pinecall-tenancy/src",
-  "packages/pinecall-testkit/src",
-]
+
+[[tool.pyright.executionEnvironments]]
+root = "packages/pinecall-evals"
 
 [[tool.pyright.executionEnvironments]]
 root = "packages/pinecall-log"
-extraPaths = [
-  "packages/pinecall-channels/src",
-  "packages/pinecall-core/src",
-  "packages/pinecall-db/src",
-  "packages/pinecall-log/src",
-  "packages/pinecall-providers/src",
-  "packages/pinecall-retrieval/src",
-  "packages/pinecall-runtime/src",
-  "packages/pinecall-session/src",
-  "packages/pinecall-settings/src",
-  "packages/pinecall-tenancy/src",
-  "packages/pinecall-testkit/src",
-]
 
 [[tool.pyright.executionEnvironments]]
 root = "packages/pinecall-providers"
-extraPaths = [
-  "packages/pinecall-channels/src",
-  "packages/pinecall-core/src",
-  "packages/pinecall-db/src",
-  "packages/pinecall-log/src",
-  "packages/pinecall-providers/src",
-  "packages/pinecall-retrieval/src",
-  "packages/pinecall-runtime/src",
-  "packages/pinecall-session/src",
-  "packages/pinecall-settings/src",
-  "packages/pinecall-tenancy/src",
-  "packages/pinecall-testkit/src",
-]
 
 [[tool.pyright.executionEnvironments]]
 root = "packages/pinecall-retrieval"
-extraPaths = [
-  "packages/pinecall-channels/src",
-  "packages/pinecall-core/src",
-  "packages/pinecall-db/src",
-  "packages/pinecall-log/src",
-  "packages/pinecall-providers/src",
-  "packages/pinecall-retrieval/src",
-  "packages/pinecall-runtime/src",
-  "packages/pinecall-session/src",
-  "packages/pinecall-settings/src",
-  "packages/pinecall-tenancy/src",
-  "packages/pinecall-testkit/src",
-]
 
 [[tool.pyright.executionEnvironments]]
 root = "packages/pinecall-runtime"
-extraPaths = [
-  "packages/pinecall-channels/src",
-  "packages/pinecall-core/src",
-  "packages/pinecall-db/src",
-  "packages/pinecall-log/src",
-  "packages/pinecall-providers/src",
-  "packages/pinecall-retrieval/src",
-  "packages/pinecall-runtime/src",
-  "packages/pinecall-session/src",
-  "packages/pinecall-settings/src",
-  "packages/pinecall-tenancy/src",
-  "packages/pinecall-testkit/src",
-]
 
 [[tool.pyright.executionEnvironments]]
 root = "packages/pinecall-session"
-extraPaths = [
-  "packages/pinecall-channels/src",
-  "packages/pinecall-core/src",
-  "packages/pinecall-db/src",
-  "packages/pinecall-log/src",
-  "packages/pinecall-providers/src",
-  "packages/pinecall-retrieval/src",
-  "packages/pinecall-runtime/src",
-  "packages/pinecall-session/src",
-  "packages/pinecall-settings/src",
-  "packages/pinecall-tenancy/src",
-  "packages/pinecall-testkit/src",
-]
 
 [[tool.pyright.executionEnvironments]]
 root = "packages/pinecall-settings"
-extraPaths = [
-  "packages/pinecall-channels/src",
-  "packages/pinecall-core/src",
-  "packages/pinecall-db/src",
-  "packages/pinecall-log/src",
-  "packages/pinecall-providers/src",
-  "packages/pinecall-retrieval/src",
-  "packages/pinecall-runtime/src",
-  "packages/pinecall-session/src",
-  "packages/pinecall-settings/src",
-  "packages/pinecall-tenancy/src",
-  "packages/pinecall-testkit/src",
-]
 
 [[tool.pyright.executionEnvironments]]
 root = "packages/pinecall-tenancy"
-extraPaths = [
-  "packages/pinecall-channels/src",
-  "packages/pinecall-core/src",
-  "packages/pinecall-db/src",
-  "packages/pinecall-log/src",
-  "packages/pinecall-providers/src",
-  "packages/pinecall-retrieval/src",
-  "packages/pinecall-runtime/src",
-  "packages/pinecall-session/src",
-  "packages/pinecall-settings/src",
-  "packages/pinecall-tenancy/src",
-  "packages/pinecall-testkit/src",
-]
 
 [[tool.pyright.executionEnvironments]]
 root = "packages/pinecall-testkit"
-extraPaths = [
-  "packages/pinecall-channels/src",
-  "packages/pinecall-core/src",
-  "packages/pinecall-db/src",
-  "packages/pinecall-log/src",
-  "packages/pinecall-providers/src",
-  "packages/pinecall-retrieval/src",
-  "packages/pinecall-runtime/src",
-  "packages/pinecall-session/src",
-  "packages/pinecall-settings/src",
-  "packages/pinecall-tenancy/src",
-  "packages/pinecall-testkit/src",
-]
 
 [tool.mypy]
 files = [
   "packages/pinecall-channels/src",
   "packages/pinecall-core/src",
   "packages/pinecall-db/src",
+  "packages/pinecall-evals/src",
   "packages/pinecall-log/src",
   "packages/pinecall-providers/src",
   "packages/pinecall-retrieval/src",
@@ -291,7 +168,7 @@ files = [
   "packages/pinecall-settings/src",
   "packages/pinecall-tenancy/src",
 ]
-mypy_path = "packages/pinecall-channels/src:packages/pinecall-core/src:packages/pinecall-db/src:packages/pinecall-log/src:packages/pinecall-providers/src:packages/pinecall-retrieval/src:packages/pinecall-runtime/src:packages/pinecall-session/src:packages/pinecall-settings/src:packages/pinecall-tenancy/src"
+mypy_path = "packages/pinecall-channels/src:packages/pinecall-core/src:packages/pinecall-db/src:packages/pinecall-evals/src:packages/pinecall-log/src:packages/pinecall-providers/src:packages/pinecall-retrieval/src:packages/pinecall-runtime/src:packages/pinecall-session/src:packages/pinecall-settings/src:packages/pinecall-tenancy/src"
 namespace_packages = true
 explicit_package_bases = true
 strict = true
@@ -309,6 +186,8 @@ src = [
   "packages/pinecall-core/tests",
   "packages/pinecall-db/src",
   "packages/pinecall-db/tests",
+  "packages/pinecall-evals/src",
+  "packages/pinecall-evals/tests",
   "packages/pinecall-log/src",
   "packages/pinecall-log/tests",
   "packages/pinecall-providers/src",

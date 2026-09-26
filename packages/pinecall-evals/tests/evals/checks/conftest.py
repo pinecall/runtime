@@ -1,23 +1,11 @@
 """The three consent logs the ring-3 checks are written against: read once each, rebuilt."""
 
-from pathlib import Path
-
 import pytest
 
 from pinecall.evals.checks.replay import Replayed, rebuild
 from pinecall_protocol import decode_entries
 from pinecall_protocol.envelope import Entry
-
-# Not goldens: no reducer on either side is judged by them, so they live beside the tests that
-# read them rather than in protocol/fixtures/, which is the pair both languages must agree on.
-LOGS = Path(__file__).parent.parent / "logs"
-
-CONFIRMED = "booking-confirmed.json"
-BEFORE_THE_YES = "booking-before-the-yes.json"
-NO_GATE = "booking-with-no-gate.json"
-
-# What the clinic declared irreversible: the one tool that takes a slot away from somebody else.
-IRREVERSIBLE = frozenset({"book_appointment"})
+from pinecall_testkit.pinned_logs import BEFORE_THE_YES, CONFIRMED, LOGS, NO_GATE
 
 
 def entries_of(name: str) -> list[Entry]:

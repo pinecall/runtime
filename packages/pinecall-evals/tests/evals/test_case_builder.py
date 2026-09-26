@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from pinecall.evals import Case, Said, build_case
-from tests.evals.logs import THE_GOLDENS_TOOLS, the_golden_call
+from pinecall_testkit.pinned_logs import THE_GOLDENS_TOOLS, the_golden_call
 
 pytestmark = pytest.mark.unit
 

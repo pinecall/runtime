@@ -5,7 +5,7 @@ import pytest
 from pinecall.evals.checks.consent import consent
 from pinecall.evals.checks.replay import Replayed
 from pinecall.types import GATE_DEFERRED_ON
-from tests.evals.checks.conftest import IRREVERSIBLE
+from pinecall_testkit.pinned_logs import IRREVERSIBLE
 
 pytestmark = pytest.mark.unit
 

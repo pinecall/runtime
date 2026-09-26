@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 
 from pinecall.evals import ConsentJudge, GoldenRun, Matrix, RegisterJudge, build_case, build_matrix
+from pinecall_testkit.pinned_logs import BOOKING, a_log
 from tests.evals.fakes import CountingJudge
-from tests.evals.logs import BOOKING, a_log
 from tests.evals.measuring import measured
 
 pytestmark = pytest.mark.unit

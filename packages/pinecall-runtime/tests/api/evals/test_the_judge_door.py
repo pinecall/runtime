@@ -12,8 +12,9 @@ from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.evals.hangup_score import JUDGING_OFF
 from pinecall.live.registry import Registry
 from pinecall.log.store import MemoryStore
+from pinecall_testkit.pinned_logs import CONFIRMED
 from tests.api.conftest import A_KEY, A_RECORD, over_the_asgi_app
-from tests.api.evals.conftest import BOOK, CONFIRMED, entries_of, serving
+from tests.api.evals.conftest import BOOK, entries_of, serving
 
 pytestmark = pytest.mark.unit
 
