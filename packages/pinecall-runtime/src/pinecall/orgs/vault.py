@@ -7,8 +7,8 @@ from typing import Any, Protocol
 
 from cryptography.fernet import Fernet, MultiFernet
 
+from pinecall.db import Pool
 from pinecall.errors import PinecallError
-from pinecall.log.store import Pool
 from pinecall.settings import Settings
 from pinecall.types import NO_ORG_KEYS, Brought, ProviderKeys, QuotasOf
 

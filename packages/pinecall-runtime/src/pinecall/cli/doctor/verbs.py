@@ -13,7 +13,7 @@ from pinecall.cli.doctor.machine import (
 from pinecall.cli.doctor.mail import mail_line, send_one_to
 from pinecall.cli.doctor.probes import Probes, live_probes
 from pinecall.cli.doctor.report import Result, reason
-from pinecall.log.store.postgres import without_password
+from pinecall.db import without_password
 from pinecall.providers import catalog
 from pinecall.providers.embed import base_url_of, key_field_of, model_of
 from pinecall.providers.embedder import DIMENSIONS

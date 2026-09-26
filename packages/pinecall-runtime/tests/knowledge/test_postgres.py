@@ -5,8 +5,8 @@ from typing import Any, override
 
 import pytest
 
+from pinecall.db import open_pool
 from pinecall.knowledge import Base, PgKnowledge
-from pinecall.log.store import open_pool
 from pinecall.providers.embedder import DIMENSIONS, WrongModel
 from pinecall.types import PRODUCTION, SANDBOX, KnowledgeFile
 from tests.knowledge.files import CLINICA, TARIFAS, VENDING, an_org

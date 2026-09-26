@@ -8,7 +8,7 @@ from pinecall.cli.box.credentials import Decrypt, decrypt_with_systemd
 from pinecall.cli.box.instance import INSTANCES, check_instance_name, credstore_of
 from pinecall.cli.help import help_only
 from pinecall.cli.sandbox.seed import seed
-from pinecall.log.store import open_pool
+from pinecall.db import open_pool
 from pinecall.settings import variable_of
 
 PURPOSE: str = "a sandbox instance: seed it once from production"

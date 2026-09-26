@@ -7,7 +7,7 @@ import asyncio
 
 import httpx
 
-from pinecall.log.store.postgres import DEFAULT_SCHEMA, create_pool
+from pinecall.db import DEFAULT_SCHEMA, create_pool
 from pinecall.memory.reembedding import reembed
 from pinecall.providers.embed import embedder_for, model_of
 from pinecall.settings import load_settings

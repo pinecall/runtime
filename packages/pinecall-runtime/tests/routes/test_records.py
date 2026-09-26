@@ -4,7 +4,7 @@ from typing import cast
 
 import pytest
 
-from pinecall.log.store import Pool
+from pinecall.db import Pool
 from pinecall.routes.records import MemoryRoutes, PostgresRoutes, door_of, routes_for
 from pinecall.types import PRODUCTION, DeclarationRefused, Route
 

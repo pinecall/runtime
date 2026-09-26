@@ -5,9 +5,9 @@ import json
 import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
 import pytest
 
+from pinecall.db import apply_migrations
 from pinecall.log.reduce import reduce
 from pinecall.log.store import PostgresStore
-from pinecall.log.store.migrating import apply_migrations
 from pinecall.log.store.postgres import PostgresStore as Store
 from pinecall_protocol import decode_entries, encode
 from pinecall_protocol.fixtures import GOLDEN_LOG, GOLDEN_STATE

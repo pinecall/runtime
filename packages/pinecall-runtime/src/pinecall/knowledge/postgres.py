@@ -8,10 +8,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from pinecall.db import Pool
 from pinecall.knowledge import files as the_files
 from pinecall.knowledge.chunking import chunks_of
 from pinecall.knowledge.files import PUSHED_WITH_ANOTHER_MODEL, File
-from pinecall.log.store import Pool
 from pinecall.providers.embedder import Embedder, WrongModel, halfvec_literal
 from pinecall.types import (
     CANDIDATES_PER_BRANCH,

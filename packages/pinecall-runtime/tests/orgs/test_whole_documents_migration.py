@@ -5,9 +5,7 @@ from collections.abc import AsyncIterator
 import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
 import pytest
 
-from pinecall.log.store.migrating import (
-    apply_migrations,
-)
+from pinecall.db import apply_migrations
 from pinecall.providers.embedder import DIMENSIONS
 from tests.orgs.boxes import Box, a_box_before
 from tests.postgres import Dev

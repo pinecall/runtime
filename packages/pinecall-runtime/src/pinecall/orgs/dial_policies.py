@@ -7,7 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from pinecall.log.store import Pool
+from pinecall.db import Pool
 from pinecall.types import DialPolicy
 
 

@@ -11,13 +11,8 @@ from typing import Any
 
 import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
 
-from pinecall.log.store.postgres import (
-    DEFAULT_SCHEMA,
-    MIGRATIONS,
-    check_schema_name,
-    connect,
-    search_path_of,
-)
+from pinecall.db.connecting import DEFAULT_SCHEMA, check_schema_name, connect, search_path_of
+from pinecall.errors import PinecallError
 
 # A migration that runs at STARTUP holds the gateway's door shut while it runs, so it is held to
 # five seconds — Sentry's number, and for the same reason: a deploy must not be able to hang
@@ -25,6 +20,11 @@ from pinecall.log.store.postgres import (
 # `.post.sql`, which a person runs when they choose. And the lock timeout is the other half: a
 # migration that cannot TAKE the lock in a second fails and is retried, rather than queueing
 # behind a reader and blocking every writer that arrives after it.
+# The .sql files, numbered, applied in name order, beside this runner. A migration is added, never
+# edited. They are the RUNTIME's — the log's tables, auth's api_keys, memory's contact_memories and
+# the knowledge base's tables sit in one schema, applied by one runner.
+MIGRATIONS = Path(__file__).parent / "migrations"
+
 STATEMENT_TIMEOUT_MS = 5_000
 LOCK_TIMEOUT_MS = 1_000
 
@@ -87,7 +87,7 @@ MISSING = (
 )
 
 
-class SchemaRefused(Exception):
+class MigrationsRefused(PinecallError):
     """This database and this distribution disagree about what has been applied."""
 
 
@@ -190,12 +190,12 @@ async def _what_was_applied(connection: Any) -> set[str]:
         name, was = str(row["name"]), row["sha256"]
         path = on_disk.get(name)
         if path is None:
-            raise SchemaRefused(MISSING.format(name=name))
+            raise MigrationsRefused(MISSING.format(name=name))
         now = file_hash(path)
         if was is None:
             await connection.execute(FILL_IN_A_HASH, name, now)
         elif str(was) != now:
-            raise SchemaRefused(EDITED.format(name=name, was=str(was), now=now))
+            raise MigrationsRefused(EDITED.format(name=name, was=str(was), now=now))
         done.add(name)
     return done
 

@@ -6,7 +6,7 @@ import secrets
 from collections.abc import Sequence
 from typing import Any, Protocol
 
-from pinecall.log.store import Pool
+from pinecall.db import Pool
 from pinecall.types import DEFAULT_ORG, Org, Quotas
 
 # An id is minted, never typed: a slug may be renamed one day and every row that names the org

@@ -11,9 +11,8 @@ from uuid import uuid4
 import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
 import pytest
 
+from pinecall.db import apply_migrations, search_path_of, without_password
 from pinecall.log.store import MemoryStore, PostgresStore, Store
-from pinecall.log.store.migrating import apply_migrations
-from pinecall.log.store.postgres import search_path_of, without_password
 from pinecall.settings import load_settings
 
 # Long enough for a container on the same laptop, short enough that a whole suite does not hang

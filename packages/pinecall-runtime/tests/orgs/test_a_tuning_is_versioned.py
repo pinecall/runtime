@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from pinecall.log.store import Pool, open_pool
+from pinecall.db import Pool, open_pool
 from pinecall.orgs.records import PostgresOrgs
 from pinecall.orgs.tuning_store import PostgresTuning, VersionMoved
 from pinecall.types import (

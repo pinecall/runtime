@@ -20,58 +20,48 @@ pytestmark = pytest.mark.unit
 # generated wire (pinecall_protocol) are everybody's except types', which imports only the error.
 MAY_IMPORT: dict[str, frozenset[str]] = {
     "types": frozenset(),
+    # The database: the driver, the pool, the migrations. It reads no package of ours.
+    "db": frozenset(),
     # The configuration reads the environment into the shapes it names, and nothing else.
     "settings": frozenset({"types"}),
     "extensions": frozenset({"types"}),
-    "auth": frozenset({"types", "log"}),
-    "log": frozenset({"types"}),
+    "fleet": frozenset(),
     "providers": frozenset({"types"}),
-    "orgs": frozenset({"types", "log"}),
+    "log": frozenset({"db", "types"}),
+    "auth": frozenset({"db", "types"}),
+    "orgs": frozenset({"db", "log", "types"}),
+    "routes": frozenset({"db", "types"}),
+    "tokens": frozenset({"auth", "db", "log", "types"}),
     # The outbox reads the mailbox an org wired and records what came of the letter on its row.
-    "mail": frozenset({"types", "orgs"}),
-    "routes": frozenset({"types", "log"}),
-    "tokens": frozenset({"types", "log", "auth"}),
-    "session": frozenset({"types", "log", "providers"}),
-    "whatsapp": frozenset({"types", "log", "session", "routes", "providers"}),
-    "evals": frozenset({"types", "auth", "log", "session", "providers"}),
-    "memory": frozenset({"types", "log", "providers"}),
-    "knowledge": frozenset({"types", "log", "providers"}),
-    "lookups": frozenset({"types", "log", "providers", "memory", "knowledge"}),
+    "mail": frozenset({"orgs", "types"}),
+    "session": frozenset({"log", "providers", "types"}),
+    "whatsapp": frozenset({"log", "routes", "session", "types"}),
+    "evals": frozenset({"auth", "db", "log", "providers", "session", "types"}),
+    "memory": frozenset({"db", "log", "providers", "types"}),
+    "knowledge": frozenset({"db", "providers", "types"}),
+    "lookups": frozenset({"knowledge", "log", "memory", "types"}),
     "api": frozenset(
         {
-            "types",
             "auth",
-            "log",
-            "providers",
-            "orgs",
-            "routes",
-            "tokens",
-            "session",
-            "whatsapp",
+            "db",
             "evals",
-            "memory",
-            "knowledge",
-            "lookups",
-            "fleet",
             "extensions",
-            "mail",
-        }
-    ),
-    "fleet": frozenset({"types"}),
-    "worker": frozenset(
-        {
-            "types",
-            "auth",
-            "log",
-            "providers",
-            "orgs",
-            "routes",
-            "tokens",
-            "session",
-            "evals",
             "fleet",
+            "knowledge",
+            "log",
+            "lookups",
+            "mail",
+            "memory",
+            "orgs",
+            "providers",
+            "routes",
+            "session",
+            "tokens",
+            "types",
+            "whatsapp",
         }
     ),
+    "worker": frozenset({"auth", "evals", "fleet", "log", "providers", "session", "types"}),
 }
 
 # The packages that hold the ideas: no HTTP, no media plane, no driver. livekit is on the list
@@ -82,10 +72,10 @@ FRAMEWORKS = ["fastapi", "livekit", "uvicorn", "asyncpg"]
 # Each vendor by its own SDK name, so a stray import reads as what it is: a vendor in the core.
 VENDOR_SDKS = ["anthropic", "openai", "soniox", "deepgram", "elevenlabs"]
 
-# The one exception, named so nobody has to guess whether it was an accident: the store adapter
-# is the one door to IO, so asyncpg lives behind it and the log's rules never see a driver.
-THE_STORE_ADAPTER = PACKAGE_ROOT / "log" / "store"
-THE_DRIVER_IT_MAY_HOLD = "asyncpg"
+# The database's one door: the driver is named under db/ and nowhere else, so every store — the
+# log's, the orgs', auth's — asks db/ for its pool and none of them ever names asyncpg.
+THE_DRIVERS_DOOR = PACKAGE_ROOT / "db"
+THE_DRIVER = "asyncpg"
 
 
 @pytest.mark.parametrize("package", sorted(MAY_IMPORT))
@@ -123,22 +113,31 @@ def test_the_core_imports_no_library_it_does_not_declare(library: str) -> None:
     assert not offenders, f"pinecall-core imports {library}: {offenders}"
 
 
+# The table is read as documentation (ARCHITECTURE.md §11 is the same table), so it may not say a
+# package reaches another it no longer does: a line that allows more than the code imports is a
+# seam described wider than it is, and the next import through it goes unnoticed.
+@pytest.mark.parametrize("package", sorted(MAY_IMPORT))
+def test_every_line_of_the_table_is_used_and_nothing_more(package: str) -> None:
+    used: set[str] = set()
+    for module in modules_under(package_dir(package)):
+        used |= _our_packages_named_by(module)
+    unused = sorted(MAY_IMPORT[package] - used - {package})
+    assert not unused, f"pinecall/{package}'s line allows {unused}, which it does not import"
+
+
 @pytest.mark.parametrize("framework", FRAMEWORKS)
 @pytest.mark.parametrize("package", PACKAGES_THAT_HOLD_NO_FRAMEWORK)
 def test_a_module_under_a_pure_package_never_imports_a_framework(
     package: str, framework: str
 ) -> None:
-    judged = _the_modules_the_rule_speaks_about(package, framework)
-    offenders = _the_modules_that_import(judged, framework)
+    offenders = _the_modules_that_import(modules_under(package_dir(package)), framework)
     assert not offenders, f"pinecall/{package} imports {framework}: {offenders}"
 
 
-def test_the_driver_is_named_nowhere_but_the_store_adapter() -> None:
-    """The rule the whole runtime lives under: a CLI, the api and the worker ask the store."""
-    offenders = _the_modules_that_import(
-        _the_modules_outside_the_store_adapter(), THE_DRIVER_IT_MAY_HOLD
-    )
-    assert not offenders, f"{THE_DRIVER_IT_MAY_HOLD} is imported outside log/store/: {offenders}"
+def test_the_driver_is_named_nowhere_but_db() -> None:
+    """The rule the whole runtime lives under: a store, a CLI, the api and the worker ask db/."""
+    offenders = _the_modules_that_import(_the_modules_outside_db(), THE_DRIVER)
+    assert not offenders, f"{THE_DRIVER} is imported outside db/: {offenders}"
 
 
 def test_only_providers_imports_a_livekit_plugin() -> None:
@@ -173,23 +172,14 @@ def _our_packages_named_by(module: PythonModule) -> set[str]:
     return _pinecall_modules_named_by(module) - EVERYBODYS
 
 
-def _the_modules_the_rule_speaks_about(package: str, framework: str) -> Sequence[PythonModule]:
-    """Every module of the package, minus the one exception, and only for the driver it holds."""
-    modules = modules_under(package_dir(package))
-    if framework != THE_DRIVER_IT_MAY_HOLD:
-        return modules
-    excused = {module.path for module in modules_under(THE_STORE_ADAPTER)}
-    return [module for module in modules if module.path not in excused]
-
-
 def _the_modules_that_import(modules: Sequence[PythonModule], package: str) -> list[str]:
     """The paths of the modules that name `package`, ready to read in a failure message."""
     return [str(module.path) for module in modules if module.imports(package)]
 
 
-def _the_modules_outside_the_store_adapter() -> tuple[PythonModule, ...]:
-    """Every module of the runtime that is not the one door to the driver."""
-    excused = {module.path for module in modules_under(THE_STORE_ADAPTER)}
+def _the_modules_outside_db() -> tuple[PythonModule, ...]:
+    """Every module of the runtime and the core that is not the driver's one door."""
+    excused = {module.path for module in modules_under(THE_DRIVERS_DOOR)}
     return tuple(module for module in _every_source_module() if module.path not in excused)
 
 

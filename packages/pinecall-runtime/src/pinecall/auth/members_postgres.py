@@ -17,7 +17,7 @@ from pinecall.auth.members import (
     normalize_email,
     text_or_none,
 )
-from pinecall.log.store import Pool
+from pinecall.db import Pool
 from pinecall.types import Member, MemberStatus, Role
 
 # Every column a Member is read from, spelled once: each SELECT and each RETURNING below hands

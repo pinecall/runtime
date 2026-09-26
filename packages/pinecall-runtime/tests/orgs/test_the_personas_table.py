@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from pinecall.log.store import Pool, open_pool
+from pinecall.db import Pool, open_pool
 from pinecall.orgs.personas import NameTaken, NoSuchPersona, Personas
 from tests.pools import Held, acquired
 from tests.postgres import Dev

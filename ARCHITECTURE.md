@@ -77,21 +77,19 @@ table; the declared ones have a socket.
 | **Persona** | `name` (lower-case words joined by hyphens, as `--persona` takes it), `about`, `goal`, `style`, `facts`, `state`, `llm`, `tts`, `voice`, `accepts_when`, `declines_when`, `author`, `set_at` | `agent_personas` (`0042`), primary key (`org`, `name`) since `0045`, the five of how it is played and when it accepts since `0047` | the **org's** synthetic callers. It **was** a file of the tenant's project (`test/<agent>/personas/*.ts`), which is why only a terminal standing in that directory could list one and the production console showed none: a persona is not code but a goal, a manner and a handful of facts, the same kind of thing as the voice and the lexicon, so it moved here with them (`0038`). It was then filed under one agent, which was the file's directory talking: a caller is a person on the phone, and who they are does not depend on which of the org's agents answers, so `0045` made it one list per **org** — merging a name two agents held onto the most-recently-written and keeping the other as `<name>-<agent>`. Not per world either: a caller is a test, not something a customer hears, and `price-shopper` is written once for both. Written whole (nothing is merged); `was` in the body renames. `llm` · `tts` · `voice` are the agent's own three knobs, read by `providers/tuned_declaration.py` and refused at the door; the rule rides the dispatch onto `call.started`, where the `persona` judge reads it. `orgs/personas.py` is the store, `api/evals/personas.py` the three doors and `api/evals/persona_runs.py` the fourth |
 | **Base** / **Chunk** | `base`, `chunks`, `pushed_at` · `id`, `base`, `path`, `heading`, `text`, `score` | `knowledge_bases` (`org`, `env`, `holder`, `base`, `model`, `dimensions`, `chunks`, `pushed_at`) · `knowledge_chunks` (`id`, `org`, `env`, `holder`, `base`, `path`, `heading`, `ordinal`, `text`, `embedding halfvec(1024)`), HNSW by cosine and BM25 in spanish · `knowledge_files` (`0041`: the files as pushed — `path`, `text`, `chunks`, `pushed_at` — under the base's row, what a person reads and edits one at a time; `knowledge/files.py`) | a base is one world's (`0018`): a sandbox push never replaces the one the telephone answers from; production's is pushed there directly, by a key that acts in production. A push replaces the base whole (`knowledge/postgres.py`); a chunk is embedded seeing its file's other chunks (`embed_documents`, one document per file); a `whole` file is one row with no vector that no search answers and the resolver reads entire into the static block (`api/agents/session_config.py:with_the_whole_files`) — the file the class used to carry by heart; a search is both indexes fused by reciprocal rank (`types/rank_fusion.py`, the one fusion memory ranks with too), over every base the settings attach (`lookups/service.py`), and refuses a base another model pushed. Decision: *retrieval* |
 
-Twenty-nine tables, forty-six migrations (`migrations/00NN_*.sql`, applied in order by `migrate
-up`, the two `.post.sql` by `migrate up --post`; `0008_memory` holds the contact's facts and
-`0010_memory_model` says which embedder wrote each one — **Fact** in `types/knowledge.py` is its
-shape — and `0009_knowledge` the knowledge base's chunks, **Chunk** beside it). Decisions: *types*,
-*orgs*, *keys*, *routes*, *tokens*, *provider-keys*, *log*, *memory*.
+The tables are `db/migrations/00NN_*.sql`, applied in order by `migrate up` (a `.post.sql` only
+by `migrate up --post`); `0008_memory` holds the contact's facts, `0010_memory_model` says which
+embedder wrote each (**Fact**, `types/knowledge.py`), `0009_knowledge` the knowledge base's
+chunks (**Chunk** beside it). Decisions: *types*, *orgs*, *keys*, *routes*, *tokens*,
+*provider-keys*, *log*, *memory*.
 
 **A migration is never edited, and that is enforced, not asked.** `schema_migrations` keeps a
-`sha256` per applied file and `log/store/migrating.py` refuses a checkout where one has changed:
-every database that ran it has the OLD one, and an old migration is fixed by a new one. A run takes
-an advisory lock before any DDL, holds each migration to a 5 s statement and a 1 s lock timeout
-inside its own transaction, and names the database it talks to before applying anything.
-`migrations/migrations.lock` names the last one that landed (two branches adding `0022` conflict
-in git) and is the baseline `scripts/lint-migrations` lints above with **squawk**; every file's
-sha256 is kept in `applied.sha256`, which the unit suite holds each landed migration to. `tests/migrations.py` proves a
-migration against data: a schema built as a box HAD it, rows written, the migration applied on top.
+`sha256` per applied file and `db/migrating.py` refuses a checkout where one has changed; the tree
+keeps the same hashes in `applied.sha256`, which the unit suite holds every landed file to. A run
+takes an advisory lock, holds each migration to a 5 s statement and a 1 s lock timeout in its own
+transaction, and names the database first. `migrations.lock` names the last one that landed (two
+branches adding `0022` conflict in git) and is the baseline **squawk** lints above
+(`scripts/lint-migrations`). `tests/migrations.py` proves one against data a box HAD.
 
 ## 3. The wire
 
@@ -359,28 +357,30 @@ one Haiku behind a ceiling (`PINECALL_JUDGE_CEILING_EUR`; zero means no judge as
 The whole table, enforced by `tests/test_isolation.py`:
 
 ```
-types      ← nothing                          (no IO, no framework)               pinecall-core
-extensions ← types                            the points a policy plugs into       pinecall-core
-log        ← types                            (no framework, no driver outside store/)
-providers  ← types                            (the only place a vendor is named)
-auth       ← types, log
-orgs       ← types, log
-routes     ← types, log
-tokens     ← types, log, auth
-session    ← types, log, providers
-whatsapp   ← types, log, session, routes, providers
-evals      ← types, auth, log, session, providers
-memory     ← types, log, providers            the contact's facts, in Postgres
-knowledge  ← types, log, providers            the knowledge base, in Postgres
-lookups    ← types, log, providers, memory, knowledge   the gateway runs recall and search
+types      ← nothing                          the shapes, no IO, no framework        pinecall-core
+extensions ← types                            the points a policy plugs into         pinecall-core
+settings   ← types                            every variable, read once              (everybody's)
+db         ← nothing                          the driver's one door, the pool, the migrations
+fleet      ← nothing                          every worker's heartbeat, the loop over the clouds
+providers  ← types                            the only place a vendor is named
+log        ← types, db                        the truth: entries, the reducer, the stores
+auth       ← types, db                        keys, people, sign-in
+orgs       ← types, db, log                   the tenant's tables
+routes     ← types, db                        numbers and trunks at the SFU
+tokens     ← types, db, log, auth             the room token and the seat
 mail       ← types, orgs                      the letters, and the SMTP server they are handed to
-fleet      ← types                            every worker's heartbeat, and the loop over the clouds
+session    ← types, log, providers            one call, written or spoken
+whatsapp   ← types, log, session, routes      the text channel
+evals      ← types, db, auth, log, session, providers
+memory     ← types, db, log, providers        the contact's facts, in Postgres
+knowledge  ← types, db, providers             the knowledge base, in Postgres
+lookups    ← types, log, memory, knowledge    the gateway runs recall and search
 api        ← all of the above                 never worker/
-worker     ← all but extensions, whatsapp, memory, knowledge, lookups, mail   never api/ — over HTTP
+worker     ← types, auth, log, fleet, providers, session, evals        never api/ — over HTTP
 cli        ← the verbs over any of them
 ```
 
-The core never imports a tenant; a tenant never imports LiveKit. A package earns its directory by having a line in that table. `types`, `extensions` and `errors` are `packages/pinecall-core`, a distribution of their own on the standard library alone, so a policy installs them without the runtime; `test_the_core_imports_nothing_of_the_runtime` holds it.
+The core never imports a tenant; a tenant never imports LiveKit. A package earns its directory by having a line in that table, and a line allows exactly what its package imports (`test_every_line_of_the_table_is_used_and_nothing_more`). `types`, `extensions` and `errors` are `packages/pinecall-core`, a distribution of their own on the standard library alone, so a policy installs them without the runtime; `test_the_core_imports_nothing_of_the_runtime` holds it.
 
 ## 12. The box, and the line
 

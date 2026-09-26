@@ -42,7 +42,7 @@ make deploy                                     # this checkout onto your box (d
   - `memory/` the contact's facts · `knowledge/` the knowledge base · `lookups/` the gateway
     running `recall` and `search` — the three the gateway owns and the worker reaches over HTTP
   - `api/` the gateway's doors, one directory per surface (`scope/ accounts/ agents/ calls/ memory/
-    knowledge/ evals/ telephony/ org/ ops/ whatsapp/`) · `worker/` the job · `cli/` the verbs · `migrations/` numbered SQL
+    knowledge/ evals/ telephony/ org/ ops/ whatsapp/`) · `worker/` the job · `cli/` the verbs · `db/` the driver's one door, the pool and the numbered SQL (`db/migrations/`)
   - `mail/` the letters and the generic SMTP they leave by: the org's own account, else the box's
   - `settings/` the configuration: `schema.py` every variable once, `vendor_keys.py` the vendors'
     own names, `load_settings()` the one reader · `_version.py` the version, the maintainer's number
@@ -122,7 +122,7 @@ Tests read as sentences.
   The fix for an old migration is a NEW migration; `migrations/applied.sha256` keeps every
   landed file's hash in the tree and the unit suite holds each file to it, so an edit fails CI and not a
   box's startup (2026-09-26: a rename touched nine comments and production did not start). Adding
-  one means bumping `migrations/migrations.lock` AND appending its line to `applied.sha256` in the
+  one means bumping `db/migrations/migrations.lock` AND appending its line to `applied.sha256` in the
   same commit — the lock is what makes two branches adding `0022`
   conflict in git, and it is the linter's baseline. `scripts/lint-migrations` (squawk) gates only
   what sits above that line. Three rules it will not catch and a review must: never rename a

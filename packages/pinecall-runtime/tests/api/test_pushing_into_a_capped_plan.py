@@ -8,8 +8,8 @@ import httpx
 import pytest
 
 from pinecall.auth.keys import KeyRecord, MemoryKeys
+from pinecall.db import open_pool
 from pinecall.knowledge import PgKnowledge
-from pinecall.log.store import open_pool
 from pinecall.orgs.records import MemoryOrgs
 from pinecall.types import PRODUCTION, KnowledgeFile, Org, Quotas
 from tests.api.conftest import A_KEY

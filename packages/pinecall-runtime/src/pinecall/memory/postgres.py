@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from pinecall.log.store import Pool
+from pinecall.db import Pool
 from pinecall.log.store.call_index import like_escaped
 from pinecall.memory.extraction import OPS_THAT_WRITE, Op, extract_ops
 from pinecall.memory.protocol import DEFAULT_FACTS_PER_TURN, FactsPage, Spoken

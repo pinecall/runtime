@@ -9,7 +9,7 @@ from typing import Any, Protocol
 
 from cryptography.fernet import InvalidToken
 
-from pinecall.log.store import Pool
+from pinecall.db import Pool
 from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, build_cipher, seal, unseal
 from pinecall.settings import Settings
 

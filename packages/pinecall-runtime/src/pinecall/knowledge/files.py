@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from pinecall.db import Pool
 from pinecall.knowledge.chunking import chunks_of
-from pinecall.log.store import Pool
 from pinecall.providers.embedder import Embedder, WrongModel, halfvec_literal
 from pinecall.types import Env, KnowledgeFile, whose
 

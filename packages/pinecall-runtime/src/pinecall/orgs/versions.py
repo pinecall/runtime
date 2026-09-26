@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
+from pinecall.db import Pool
 from pinecall.errors import PinecallError
-from pinecall.log.store import Pool
 from pinecall.orgs.tuning_resolution import corners
 from pinecall.types import Kept
 
@@ -139,7 +139,7 @@ class Statements:
 # one row even over none, HAVING is the if_version gate, and two writers computing the same
 # number both hit the primary key — the first lands, the second's RETURNING is empty. No lock,
 # no transaction, and no driver exception here, because this package may not name the driver
-# (log/store/pool.py).
+# (db/pool.py).
 class PostgresVersions[T]:
     """One table in Postgres, read through its statements and the shape's own reader."""
 

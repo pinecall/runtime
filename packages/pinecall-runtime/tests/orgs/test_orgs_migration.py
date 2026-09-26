@@ -6,10 +6,7 @@ import pytest
 
 from pinecall.auth.keys import fingerprint
 from pinecall.auth.keys_postgres import PostgresKeys
-from pinecall.log.store import open_pool
-from pinecall.log.store.migrating import (
-    apply_migrations,
-)
+from pinecall.db import apply_migrations, open_pool
 from tests.orgs.boxes import Box, a_box_before
 from tests.postgres import Dev
 

@@ -7,8 +7,8 @@ import time
 from collections.abc import Mapping, Sequence
 from typing import Any, cast, override
 
+from pinecall.db import Pool
 from pinecall.errors import PinecallError
-from pinecall.log.store import Pool
 
 # A caller nobody wrote, and a name taken by somebody else: the two things a write can meet.
 NOBODY = "no persona called {name} in this org"
@@ -134,7 +134,7 @@ class Personas:
 
 
 # The two JSON columns come back as text from one driver and as objects from another; both are
-# read the same way here, so nothing above knows which driver is underneath (log/store/pool.py).
+# read the same way here, so nothing above knows which driver is underneath (db/pool.py).
 def _a_persona(row: Mapping[str, Any]) -> dict[str, Any]:
     """One row as the wire's Persona: its words, its two objects, and who wrote it when."""
     return {

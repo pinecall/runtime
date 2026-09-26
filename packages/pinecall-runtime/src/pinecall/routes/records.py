@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import Any, Protocol, cast
 
-from pinecall.log.store import Pool
+from pinecall.db import Pool
 from pinecall.types import Channel, DeclarationRefused, Env, Route, parse_env
 
 logger = logging.getLogger(__name__)

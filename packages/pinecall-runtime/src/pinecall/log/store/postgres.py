@@ -1,31 +1,24 @@
-"""The Postgres Store: log/'s one door to a driver. Every rule above it stays pure."""
+"""The Postgres Store: the log's entries in their table, over a pool db/ opened."""
 
 from __future__ import annotations
 
-import json
 import logging
-import re
 import time
-from collections.abc import Awaitable, Callable, Mapping, Sequence
-from pathlib import Path
-from typing import Any, cast
-from urllib.parse import urlsplit, urlunsplit
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any
 
-import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
-
-from pinecall.errors import PinecallError
+from pinecall.db.connecting import DEFAULT_SCHEMA, create_pool
+from pinecall.db.pool import Connection, Pool
 from pinecall.log.call_facts import change_of
 from pinecall.log.entry import Entry
 from pinecall.log.store.call_index_postgres import PostgresIndex
 from pinecall.log.store.call_index_sql import RESCORED
-from pinecall.log.store.pool import Connection, Pool
 from pinecall.log.store.protocol import DEFAULT_LIMIT, LogSealed, Metered
 from pinecall.log.store.store_sql import (
     ACROSS,
     APPEND,
     CALLS_NEWEST_FIRST,
     CALLS_OF,
-    INSTALLED_EXTENSIONS,
     LATEST_SEQ,
     LIST_CALLS,
     MOVED,
@@ -38,65 +31,9 @@ from pinecall.log.store.store_sql import (
 from pinecall.types import Versions
 from pinecall.types.json import JsonObject
 
-# The .sql files, numbered, applied in name order. A migration is added, never edited. They are the
-# RUNTIME's — the log's tables, auth's api_keys, memory's contact_memories (0008) and the
-# knowledge base's two tables (0009) sit in one schema, applied by one runner — and only the
-# runner that applies them lives here, behind the store's one door to the driver.
-MIGRATIONS = Path(__file__).parents[2] / "migrations"
-
-# A schema name reaches SQL as an identifier, where no parameter can go. So it is checked here
-# rather than quoted there: a name that is not a plain lowercase word never becomes SQL at all.
-_A_SCHEMA_NAME = re.compile(r"^[a-z_][a-z0-9_]*$")
-
-# Postgres's default schema, spelled once: a store may be pointed at another (the tests own one
-# each), and nothing else in the runtime needs to know what the default is called.
-DEFAULT_SCHEMA = "public"
-
 # An agent's own log is a log like any other, under a name no call id can wear (see the CHECK
 # constraint in 0001). The database computes the same string for every row it stores.
 AGENT_LOG_PREFIX = "@"
-
-
-# asyncpg ships no py.typed, so a strict checker reads every call into it as Unknown. Two casts at
-# the door keep the rest of this file typed, and nothing untyped leaves a method.
-_create_pool = cast(
-    "Callable[..., Awaitable[Any]]",
-    asyncpg.create_pool,  # pyright: ignore[reportUnknownMemberType]
-)
-connect = cast(
-    "Callable[..., Awaitable[Any]]",
-    asyncpg.connect,  # pyright: ignore[reportUnknownMemberType]
-)
-
-
-class SchemaRefused(PinecallError):
-    """A schema name that is not a plain lowercase word. It would have been spliced into SQL."""
-
-
-# Every way a database can fail to open, under one name, raised from the one module that may say
-# the driver's. A caller deciding whether to fall back must not have to import asyncpg to ask.
-class StoreUnreachable(PinecallError):
-    """The database did not answer, or answered that this is not a database we can use."""
-
-
-# A DSN carries the password, and this sentence is printed in a terminal, a journal and an issue:
-# `migrate` printed `postgresql://pinecall:pinecall@…` at a person the day the box's password
-# changed (2026-09-20). Every refusal that names the database names it through here.
-def without_password(dsn: str) -> str:
-    """The DSN as it may be shown: the user, the host, the database — never the password."""
-    parts = urlsplit(dsn)
-    if parts.password is None:
-        return dsn
-    host = _bracketed(parts.hostname or "")
-    if parts.port is not None:
-        host = f"{host}:{parts.port}"
-    netloc = f"{parts.username}@{host}" if parts.username else host
-    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
-
-
-def _bracketed(host: str) -> str:
-    """urlsplit hands back an IPv6 host without its brackets, and `::1:5432` is not an address."""
-    return f"[{host}]" if ":" in host else host
 
 
 logger = logging.getLogger(__name__)
@@ -130,16 +67,9 @@ class PostgresStore(PostgresIndex):
         max_size: int = 10,
     ) -> PostgresStore:
         """Open a pool of this store's own. Close it with aclose()."""
-        try:
-            pool = await _create_pool(
-                dsn,
-                min_size=min_size,
-                max_size=max_size,
-                init=_teach_the_connection_json,
-                server_settings={"search_path": search_path_of(schema)},
-            )
-        except (OSError, ValueError, asyncpg.PostgresError) as refused:
-            raise StoreUnreachable(f"{without_password(dsn)}: {refused}") from refused
+        pool = await create_pool(
+            dsn, schema=schema, jsonb_as_dicts=True, min_size=min_size, max_size=max_size
+        )
         return cls(pool, clock=clock, owns_pool=True)
 
     async def aclose(self) -> None:
@@ -328,58 +258,3 @@ def entry_of_row(row: Mapping[str, Any]) -> Entry:
         ephemeral=bool(row["ephemeral"]),
         data=dict(row["data"]),
     )
-
-
-async def installed_extensions(dsn: str, *, timeout: float | None = None) -> set[str]:
-    """Which extensions this database has. One connection, one query, closed either way."""
-    connection: Any = await connect(dsn, timeout=timeout)
-    try:
-        rows: Sequence[Any] = await connection.fetch(INSTALLED_EXTENSIONS)
-    finally:
-        await connection.close()
-    return {str(row["extname"]) for row in rows}
-
-
-# The gateway reads API keys through a pool of its own, off a table this package knows nothing
-# about. It still gets its pool from here, because this module is the one place that may name the
-# driver — a second import of asyncpg is a second door to close.
-async def create_pool(dsn: str, *, schema: str = DEFAULT_SCHEMA) -> Pool:
-    """A plain connection pool, opened by the one module allowed to say the driver's name."""
-    try:
-        # The driver's pool answers our Protocol; the driver types it as nothing at all.
-        opened = await _create_pool(dsn, server_settings={"search_path": search_path_of(schema)})
-        return cast("Pool", opened)
-    except (OSError, ValueError, asyncpg.PostgresError) as refused:
-        # The same three the store's own connect turns into StoreUnreachable: a caller that opens
-        # a pool must be able to say "no database answered" without naming the driver.
-        raise StoreUnreachable(f"{without_password(dsn)}: {refused}") from refused
-
-
-async def _teach_the_connection_json(connection: Any) -> None:
-    """jsonb comes back as a dict and goes out as one; the store never sees a JSON string."""
-    await connection.set_type_codec(
-        "jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog"
-    )
-
-
-# A schema of its own is what a test process gets, and its tables land there. The extensions'
-# types and operators — halfvec, <=>, bm25's <@> — live where CREATE EXTENSION put them, in
-# public, and a path that hides public cannot name a column of that type. So the schema comes
-# first, where DDL creates, and public after it, where the types are found. The default schema is
-# public itself and needs no second entry.
-def search_path_of(schema: str) -> str:
-    """The search path a schema is worked in: itself, then public, where the extensions are."""
-    name = check_schema_name(schema)
-    return name if name == DEFAULT_SCHEMA else f"{name}, {DEFAULT_SCHEMA}"
-
-
-def check_schema_name(schema: str) -> str:
-    """A schema is an identifier and cannot be a parameter, so it is checked before it is SQL."""
-    if not _A_SCHEMA_NAME.match(schema):
-        raise SchemaRefused(f"a schema name is a lowercase word, not {schema!r}")
-    return schema
-
-
-async def open_pool(database_url: str, *, schema: str = DEFAULT_SCHEMA) -> Pool:
-    """The pool the gateway holds for its whole life. The lifespan that opened it closes it."""
-    return await create_pool(database_url, schema=schema)

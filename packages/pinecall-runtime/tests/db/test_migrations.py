@@ -4,8 +4,8 @@ import re
 
 import pytest
 
-from pinecall.log.store.migrating import every, file_hash
-from pinecall.log.store.postgres import MIGRATIONS
+from pinecall.db import MIGRATIONS
+from pinecall.db.migrating import every, file_hash
 from tests.tree import PACKAGE_ROOT, ROOT, modules_under
 
 pytestmark = pytest.mark.unit
@@ -15,13 +15,13 @@ DDL = re.compile(r"\b(create|alter|drop)\s+table\b", re.IGNORECASE)
 
 # The one exception, named here so nobody has to guess whether it was an accident: the runner's own
 # bookkeeping table cannot be a migration, because it is what records that a migration ran.
-THE_RUNNERS_OWN_TABLE = (PACKAGE_ROOT / "log" / "store" / "migrating.py").relative_to(ROOT)
+THE_RUNNERS_OWN_TABLE = (PACKAGE_ROOT / "db" / "migrating.py").relative_to(ROOT)
 
 
 def test_every_migration_is_numbered_so_the_order_they_apply_in_is_the_order_they_read_in() -> None:
     """A migration is added, never edited, and name order is the only order there is."""
     names = sorted(path.name for path in MIGRATIONS.glob("*.sql"))
-    # A post-deployment file says so in its name (log/store/migrating.py, POST_DEPLOY), and is
+    # A post-deployment file says so in its name (db/migrating.py, POST_DEPLOY), and is
     # numbered in the same sequence as the rest.
     assert names == [name for name in names if re.match(r"^\d{4}_[a-z_]+(\.post)?\.sql$", name)]
     assert [name[:4] for name in names] == [f"{n:04d}" for n in range(1, len(names) + 1)]
@@ -42,7 +42,7 @@ def test_every_landed_migration_is_the_file_the_databases_that_ran_it_ran() -> N
     """A landed migration edited in a pull request fails here, not at a box's next startup.
 
     The databases keep each file's sha256 and refuse a gateway whose file changed
-    (log/store/migrating.py); `applied.sha256` is that record kept in the tree, for what is at or
+    (db/migrating.py); `applied.sha256` is that record kept in the tree, for what is at or
     below the lock — above it nothing has run anywhere, and the file is still the author's to
     edit. The rename of 2026-09-26 edited a comment in nine landed files, CI said green, and
     production did not start.
@@ -82,4 +82,4 @@ def test_no_python_module_but_the_migration_runner_writes_ddl() -> None:
         if module.path != THE_RUNNERS_OWN_TABLE
         and DDL.search((ROOT / module.path).read_text("utf-8"))
     ]
-    assert not offenders, f"DDL outside pinecall/migrations/: {offenders}"
+    assert not offenders, f"DDL outside pinecall/db/migrations/: {offenders}"

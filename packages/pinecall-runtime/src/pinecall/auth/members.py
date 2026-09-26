@@ -9,8 +9,8 @@ from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from pinecall.auth.invitations import Invited
+from pinecall.db import Pool
 from pinecall.errors import PinecallError
-from pinecall.log.store import Pool
 from pinecall.types import Member, MemberStatus, Role, parse_role
 
 # The row's own name, not a secret: it is what a key's `subject` carries and what a seat says.

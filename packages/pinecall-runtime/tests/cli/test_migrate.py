@@ -3,9 +3,8 @@
 import pytest
 
 from pinecall.cli import build_parser, main, migrate
-from pinecall.log.store.migrating import POST_DEPLOY
-from pinecall.log.store.pool import Pool
-from pinecall.log.store.postgres import MIGRATIONS, StoreUnreachable, without_password
+from pinecall.db import MIGRATIONS, Pool, StoreUnreachable, without_password
+from pinecall.db.migrating import POST_DEPLOY
 
 pytestmark = pytest.mark.unit
 

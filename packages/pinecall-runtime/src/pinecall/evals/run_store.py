@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from typing import Any, Literal, Protocol
 
-from pinecall.log.store import Pool
+from pinecall.db import Pool
 
 # Where a run is: still opening calls, finished with a matrix, or stopped by something that broke.
 # `failed` is the run failing, never a golden failing — a golden that did not hold is a score.
@@ -141,7 +141,7 @@ class MemoryRuns:
 
 # The document is serialised here and nowhere else. `open_pool` is the plain pool the gateway's
 # other tables share, and only the LOG's own store teaches its connections the jsonb codec
-# (log/store/postgres.py) — so on this pool jsonb is text going out and text coming back.
+# (db/connecting.py, jsonb_as_dicts) — so on this pool jsonb is text going out and text coming back.
 class PostgresRuns:
     """The table in Postgres: a run survives the restart that happened in the middle of it."""
 

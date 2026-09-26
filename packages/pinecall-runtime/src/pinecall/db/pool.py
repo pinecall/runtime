@@ -1,4 +1,4 @@
-"""A connection pool as its callers use it, opened by the one module that may name the driver."""
+"""A connection pool as its callers use it, opened by db/connecting.py, the driver's one door."""
 
 from collections.abc import Iterable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager

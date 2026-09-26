@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, Protocol
 
-from pinecall.log.store import Pool
+from pinecall.db import Pool
 from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, seal, sealed_store, unseal
 from pinecall.settings import Settings
 from pinecall.types import Carrier, SipPeer, TwilioAccount, parse_carrier_kind, parse_sip_transport

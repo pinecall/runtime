@@ -5,9 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+from pinecall.db import DEFAULT_SCHEMA
 from pinecall.log.entry import Entry
 from pinecall.log.replay import whole
-from pinecall.log.store.postgres import DEFAULT_SCHEMA, PostgresStore
+from pinecall.log.store.postgres import PostgresStore
 
 
 class Calls(Protocol):

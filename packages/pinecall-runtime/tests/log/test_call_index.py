@@ -7,10 +7,10 @@ from uuid import uuid4
 
 import pytest
 
+from pinecall.db import MIGRATIONS
 from pinecall.log.call_facts import CallFacts
 from pinecall.log.store import LogSealed, PostgresStore
 from pinecall.log.store.call_index import CallIndex, Wanted
-from pinecall.log.store.postgres import MIGRATIONS
 from pinecall.types.json import JsonObject
 
 BACKENDS = [

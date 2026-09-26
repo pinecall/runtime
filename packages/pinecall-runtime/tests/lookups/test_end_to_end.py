@@ -8,8 +8,9 @@ from typing import Any, override
 
 import pytest
 
+from pinecall.db import open_pool
 from pinecall.knowledge import PgKnowledge
-from pinecall.log.store import MemoryStore, open_pool
+from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups, OpenCall
 from pinecall.orgs.records import MemoryOrgs

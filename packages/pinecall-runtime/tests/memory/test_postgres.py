@@ -2,7 +2,7 @@
 
 import pytest
 
-from pinecall.log.store import Pool
+from pinecall.db import Pool
 from pinecall.memory import PgvectorMemory, Spoken
 from pinecall.types import NOTHING_BROUGHT, PRODUCTION, SANDBOX, MemoryPolicy
 from tests.memory.conftest import HUNG_UP, LEARNED, ScriptedModels, a_row

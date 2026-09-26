@@ -1,17 +1,10 @@
-"""`pinecall-runtime migrate`: the .sql files under pinecall/migrations, applied in order."""
+"""`pinecall-runtime migrate`: the .sql files under pinecall/db/migrations, applied in order."""
 
 import argparse
 import asyncio
 
-from pinecall.log.store.migrating import (
-    POST_DEPLOY,
-    Applied,
-    apply_migrations,
-    every,
-    migration_files,
-    migrations_applied,
-)
-from pinecall.log.store.postgres import DEFAULT_SCHEMA, create_pool, without_password
+from pinecall.db import DEFAULT_SCHEMA, apply_migrations, create_pool, without_password
+from pinecall.db.migrating import POST_DEPLOY, Applied, every, migration_files, migrations_applied
 from pinecall.settings import load_settings
 
 PURPOSE: str = "the database schema: up | status | plan"
@@ -53,7 +46,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
 # A schema this verb will not splice into SQL, and a database that does not answer, both leave
 # here as themselves: the dispatcher prints anything this runtime raises deliberately as one
 # sentence and exits 1 (cli/__init__.py). The DSN in that sentence has no password in it
-# (log/store/postgres.py, without_password) — it used to arrive as an asyncpg traceback with one.
+# (db/connecting.py, without_password) — it used to arrive as an asyncpg traceback with one.
 def run(arguments: argparse.Namespace) -> int:
     """Apply, or just say. Applying twice applies nothing: the record is the guard."""
     if arguments.verb == "plan":

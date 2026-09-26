@@ -112,6 +112,13 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   none; a suite's run held one per run and closed it never.
 
 ### Changed
+- **The database is a package, `pinecall.db`.** The pool, the migration runner, the DSN and
+  schema helpers and the migrations themselves lived inside the call log's store; they are
+  `db/{connecting,pool,migrating}.py` and `db/migrations/` now, and `asyncpg` is named under `db/`
+  and nowhere else — `PostgresStore.connect` asks `db.create_pool` instead of opening a pool of its
+  own. Two classes were both called `SchemaRefused`: the migrations' disagreement is
+  `MigrationsRefused` (now a `PinecallError`), an unusable schema name is `SchemaNameRefused`. The
+  import table allows exactly what each package imports, and a test holds it to that.
 - **The built pages are `pinecall/public/`.** The console and the widget `scripts/console` copies
   in lived under a directory named like the process that serves them (`gateway/`); they live in
   `public/` now, with a committed `README.md` saying what lands there, from where, and why it is

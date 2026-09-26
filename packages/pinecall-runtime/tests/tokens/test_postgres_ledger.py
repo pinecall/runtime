@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 
-from pinecall.log.store import open_pool
+from pinecall.db import open_pool
 from pinecall.tokens.ledger import PostgresTokens, TokenRecord
 from tests.postgres import Dev
 

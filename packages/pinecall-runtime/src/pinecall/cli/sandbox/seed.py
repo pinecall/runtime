@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TextIO
 
-from pinecall.log.store import Pool
+from pinecall.db import Pool
 from pinecall.orgs.records import PostgresOrgs
 from pinecall.types import Org
 

@@ -8,22 +8,26 @@ from uuid import uuid4
 
 import pytest
 
-from pinecall.log.store.migrating import (
+from pinecall.db import (
+    MIGRATIONS,
+    MigrationsRefused,
+    apply_migrations,
+    create_pool,
+    migrations_behind,
+)
+from pinecall.db.connecting import connect
+from pinecall.db.migrating import (
     MIGRATIONS_TABLE,
     NO_TRANSACTION,
     POST_DEPLOY,
     RECORD_MIGRATION,
-    SchemaRefused,
-    apply_migrations,
     every,
     file_hash,
     in_a_transaction,
     migration_files,
     migrations_applied,
-    migrations_behind,
 )
-from pinecall.log.store.postgres import MIGRATIONS, connect, create_pool
-from tests.log.test_migrations import the_lock
+from tests.db.test_migrations import the_lock
 from tests.postgres import Dev
 
 pytestmark = pytest.mark.postgres
@@ -60,7 +64,7 @@ async def test_a_migration_edited_after_it_ran_is_refused_by_name_and_by_both_ha
     first = every()[0]
     await pretend_it_ran(postgres, schema, first.name, "a" * 64)
 
-    with pytest.raises(SchemaRefused) as refused:
+    with pytest.raises(MigrationsRefused) as refused:
         await apply_migrations(postgres.dsn, schema=schema)
 
     said = str(refused.value)
@@ -99,7 +103,7 @@ async def test_a_migration_the_database_ran_and_this_checkout_does_not_have_is_r
     schema = await a_schema(postgres)
     await pretend_it_ran(postgres, schema, "9999_from_the_future.sql", "b" * 64)
 
-    with pytest.raises(SchemaRefused, match="older than the database"):
+    with pytest.raises(MigrationsRefused, match="older than the database"):
         await apply_migrations(postgres.dsn, schema=schema)
 
 

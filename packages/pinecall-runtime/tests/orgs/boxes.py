@@ -8,8 +8,8 @@ from uuid import uuid4
 
 import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
 
-from pinecall.log.store.migrating import MIGRATIONS_TABLE, RECORD_MIGRATION, file_hash
-from pinecall.log.store.postgres import MIGRATIONS, search_path_of
+from pinecall.db import MIGRATIONS, search_path_of
+from pinecall.db.migrating import MIGRATIONS_TABLE, RECORD_MIGRATION, file_hash
 from tests.postgres import Dev
 
 _connect = cast("Any", asyncpg.connect)  # pyright: ignore[reportUnknownMemberType]

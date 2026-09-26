@@ -127,4 +127,3 @@ limit 1
 
 # The one health fact the doctor prints about a database, asked from the module that holds the
 # driver so no CLI has to import one.
-INSTALLED_EXTENSIONS = "select extname from pg_extension"

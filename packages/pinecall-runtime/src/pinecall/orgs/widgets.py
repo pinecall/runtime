@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass, fields
 from typing import Any, Protocol
 
-from pinecall.log.store import Pool
+from pinecall.db import Pool
 from pinecall.types import DeclarationRefused
 from pinecall_protocol.rest import WidgetTheme
 

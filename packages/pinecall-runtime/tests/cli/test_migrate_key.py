@@ -7,8 +7,7 @@ import pytest
 
 from pinecall.auth.keys import PRODUCTION_PREFIX, fingerprint
 from pinecall.auth.keys_postgres import PostgresKeys
-from pinecall.log.store import open_pool
-from pinecall.log.store.migrating import apply_migrations
+from pinecall.db import apply_migrations, open_pool
 from pinecall.types import DEFAULT_ORG
 from tests.cli.conftest import Dev
 

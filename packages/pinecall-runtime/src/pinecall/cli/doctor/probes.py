@@ -12,8 +12,7 @@ from pathlib import Path
 
 import httpx
 
-from pinecall.log.store import StoreUnreachable, open_pool
-from pinecall.log.store.postgres import installed_extensions
+from pinecall.db import StoreUnreachable, installed_extensions, open_pool
 from pinecall.mail import BoxMail, TheBoxsMail
 from pinecall.orgs.box_settings import box_settings_for
 from pinecall.providers.embed import embedder_for

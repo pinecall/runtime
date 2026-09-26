@@ -9,7 +9,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
-from pinecall.log.store import Pool
+from pinecall.db import Pool
 from pinecall.types import (
     HOLDING,
     KEY_SCOPES,

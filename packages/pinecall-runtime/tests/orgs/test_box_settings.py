@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from cryptography.fernet import Fernet
 
-from pinecall.log.store import Pool, open_pool
+from pinecall.db import Pool, open_pool
 from pinecall.orgs.box_settings import (
     BoxSetting,
     MemoryBoxSettings,

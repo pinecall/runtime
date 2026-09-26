@@ -253,7 +253,7 @@ pinecall-runtime migrate status
 pinecall-runtime migrate plan
 ```
 
-The `.sql` files under `pinecall/migrations`, applied in order, over `DATABASE_URL`. It is what a
+The `.sql` files under `pinecall/db/migrations`, applied in order, over `DATABASE_URL`. It is what a
 unit runs before every start, so it prints no secret: the `default` org is seeded here and its
 first key is `keys issue`, never this verb. **`migrate` with no verb READS** — `status`, which
 asks the DATABASE what it has run: `apply_verb`, `behind` (a startup file it has not) and `waiting`

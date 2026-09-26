@@ -9,7 +9,7 @@ import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingT
 import pytest
 from pgvector import HalfVector
 
-from pinecall.log.store import Pool
+from pinecall.db import Pool
 from pinecall.memory import PgvectorMemory
 from pinecall.providers.registry import Chat
 from pinecall.types import Brought, Model

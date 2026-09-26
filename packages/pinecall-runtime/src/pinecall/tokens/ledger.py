@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass, replace
 from typing import Literal, Protocol
 
-from pinecall.log.store import Pool
+from pinecall.db import Pool
 
 # What spending a call's token comes back as. `spent` is the one yes; the two refusals are told
 # apart because the sentence a worker reads should say which: a token used twice, or a call this

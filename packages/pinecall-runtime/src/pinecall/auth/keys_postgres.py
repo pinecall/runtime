@@ -13,7 +13,7 @@ from pinecall.auth.keys import (
     mint,
     new_key_id,
 )
-from pinecall.log.store import Pool
+from pinecall.db import Pool
 from pinecall.types import KEY_SCOPES, PRODUCTION, Env, parse_env
 
 # A revoked key is kept, not deleted: the logs it wrote name it, and a row that vanishes makes

@@ -20,7 +20,7 @@ from pinecall.auth.keys import (
 )
 from pinecall.auth.keys_postgres import PostgresKeys
 from pinecall.auth.visitor_keys import StandingKeys
-from pinecall.log.store.postgres import MIGRATIONS
+from pinecall.db import MIGRATIONS
 from pinecall.types import ENVS, KEY_SCOPES, PRODUCTION, SANDBOX
 from tests.pools import Held, acquired
 

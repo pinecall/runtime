@@ -6,7 +6,7 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
-from pinecall.log.store import Pool
+from pinecall.db import Pool
 from pinecall.orgs.lexicon import LEXICON_STATEMENTS, lexicon_columns, lexicon_from_row
 from pinecall.orgs.tuning_resolution import TUNING, resolve_tuning, tuning_json
 from pinecall.orgs.versions import (

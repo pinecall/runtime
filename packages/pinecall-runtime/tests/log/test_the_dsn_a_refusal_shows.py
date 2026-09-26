@@ -2,7 +2,7 @@
 
 import pytest
 
-from pinecall.log.store.postgres import without_password
+from pinecall.db import without_password
 
 pytestmark = pytest.mark.unit
 

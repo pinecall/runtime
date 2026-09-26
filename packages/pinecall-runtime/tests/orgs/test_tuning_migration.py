@@ -5,9 +5,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 
-from pinecall.log.store.migrating import (
-    apply_migrations,
-)
+from pinecall.db import apply_migrations
 from tests.orgs.boxes import Box, a_box_before, applied_by_hand, migrations_before
 from tests.postgres import Dev
 

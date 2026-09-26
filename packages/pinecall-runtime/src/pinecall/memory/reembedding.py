@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pinecall.log.store import Pool
+from pinecall.db import Pool
 from pinecall.providers.embedder import Embedder, halfvec_literal
 
 # A fact's vector is an index over its text, never the fact: the text, the category, the dates and
