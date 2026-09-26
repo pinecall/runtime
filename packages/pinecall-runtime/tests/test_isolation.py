@@ -43,7 +43,7 @@ MAY_IMPORT: dict[str, frozenset[str]] = {
     # What a person does with an account, across the domains it touches: an org founded at sign-up.
     "accounts": frozenset({"auth", "extensions", "mail", "orgs", "types"}),
     # Placing a call out: the guards, the log and the job, across the domains a dial touches.
-    "telephony": frozenset({"live", "log", "orgs", "routes", "session", "types"}),
+    "telephony": frozenset({"log", "orgs", "routes", "session", "types"}),
     # What this gateway process holds right now: the sockets, their agents and doors, the calls.
     "live": frozenset({"evals", "log", "lookups", "orgs", "providers", "session", "types"}),
     "api": frozenset(

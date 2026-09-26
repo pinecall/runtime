@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from datetime import date
 
 from pinecall.errors import PinecallError
-from pinecall.live.registry import Registry
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.outbound_credentials import OutboundTrunks
@@ -67,6 +66,9 @@ class Placing:
     to: str
     shown: str | None
     today: date
+    # Whether an app holds the agent in this world right now: a fact of this process's live
+    # memory, read by the door, so the verb judges it without reaching into the gateway.
+    held: bool
 
 
 @dataclass(frozen=True)
@@ -86,7 +88,6 @@ class Placers:
 
     routes: Routes
     trunks: OutboundTrunks
-    registry: Registry
     guards: Guards
     admission: Admission
     logs: Logs
@@ -105,7 +106,7 @@ async def place_call(placing: Placing, running: int, placers: Placers) -> Placed
     # not whose key this is but whether anybody is there: a dialled call whose tools go out to
     # nobody is a stranger's phone ringing for a conversation that cannot happen. In the sandbox
     # `holder` is the person's own corner, so a developer's dial reaches their own copy.
-    if placers.registry.of(placing.env, placing.agent, placing.holder) is None:
+    if not placing.held:
         raise NobodyHolding(NOBODY_HOLDING.format(slug=placing.agent, env=placing.env))
     call = new_call_id()
     asking = Asking(

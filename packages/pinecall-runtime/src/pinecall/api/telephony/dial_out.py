@@ -83,8 +83,9 @@ async def dial(
         to=said.to,
         shown=said.shown,
         today=today_in(settings.timezone),
+        held=registry.of(key.env, slug, is_held_by(key)) is not None,
     )
-    placers = Placers(table, trunks, registry, guards, admission, logs, dispatches)
+    placers = Placers(table, trunks, guards, admission, logs, dispatches)
     placed = await place_call(placing, live.running(key.org), placers)
     return Dialled.model_validate(
         {
