@@ -78,6 +78,7 @@ branch = true
 # Paths and not the package name: a namespace has one path per distribution.
 source = [
   "packages/pinecall-core/src/pinecall",
+  "packages/pinecall-db/src/pinecall",
   "packages/pinecall-runtime/src/pinecall",
   "packages/pinecall-settings/src/pinecall",
 ]
@@ -95,6 +96,7 @@ include = ["packages"]
 # Every distribution's source, so the namespace resolves whole wherever a portion sits.
 extraPaths = [
   "packages/pinecall-core/src",
+  "packages/pinecall-db/src",
   "packages/pinecall-runtime/src",
   "packages/pinecall-settings/src",
   "packages/pinecall-testkit/src",
@@ -105,9 +107,20 @@ reportImplicitOverride = true
 
 # Every suite is a package named `tests`: each is resolved from its own distribution's directory.
 [[tool.pyright.executionEnvironments]]
+root = "packages/pinecall-db"
+extraPaths = [
+  "packages/pinecall-core/src",
+  "packages/pinecall-db/src",
+  "packages/pinecall-runtime/src",
+  "packages/pinecall-settings/src",
+  "packages/pinecall-testkit/src",
+]
+
+[[tool.pyright.executionEnvironments]]
 root = "packages/pinecall-runtime"
 extraPaths = [
   "packages/pinecall-core/src",
+  "packages/pinecall-db/src",
   "packages/pinecall-runtime/src",
   "packages/pinecall-settings/src",
   "packages/pinecall-testkit/src",
@@ -117,6 +130,7 @@ extraPaths = [
 root = "packages/pinecall-settings"
 extraPaths = [
   "packages/pinecall-core/src",
+  "packages/pinecall-db/src",
   "packages/pinecall-runtime/src",
   "packages/pinecall-settings/src",
   "packages/pinecall-testkit/src",
@@ -126,6 +140,7 @@ extraPaths = [
 root = "packages/pinecall-testkit"
 extraPaths = [
   "packages/pinecall-core/src",
+  "packages/pinecall-db/src",
   "packages/pinecall-runtime/src",
   "packages/pinecall-settings/src",
   "packages/pinecall-testkit/src",
@@ -134,10 +149,11 @@ extraPaths = [
 [tool.mypy]
 files = [
   "packages/pinecall-core/src",
+  "packages/pinecall-db/src",
   "packages/pinecall-runtime/src",
   "packages/pinecall-settings/src",
 ]
-mypy_path = "packages/pinecall-core/src:packages/pinecall-runtime/src:packages/pinecall-settings/src"
+mypy_path = "packages/pinecall-core/src:packages/pinecall-db/src:packages/pinecall-runtime/src:packages/pinecall-settings/src"
 namespace_packages = true
 explicit_package_bases = true
 strict = true
@@ -151,6 +167,8 @@ target-version = "py312"
 src = [
   "packages/pinecall-core/src",
   "packages/pinecall-core/tests",
+  "packages/pinecall-db/src",
+  "packages/pinecall-db/tests",
   "packages/pinecall-runtime/src",
   "packages/pinecall-runtime/tests",
   "packages/pinecall-settings/src",

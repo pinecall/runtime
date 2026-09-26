@@ -12,6 +12,7 @@ resolution-markers = [
 members = [
     "pinecall",
     "pinecall-core",
+    "pinecall-db",
     "pinecall-settings",
     "pinecall-testkit",
 ]
@@ -3395,7 +3396,6 @@ name = "pinecall"
 source = { editable = "packages/pinecall-runtime" }
 dependencies = [
     { name = "argon2-cffi" },
-    { name = "asyncpg" },
     { name = "av" },
     { name = "cryptography" },
     { name = "fastapi" },
@@ -3406,6 +3406,7 @@ dependencies = [
     { name = "opentelemetry-sdk" },
     { name = "pgvector" },
     { name = "pinecall-core" },
+    { name = "pinecall-db" },
     { name = "pinecall-protocol" },
     { name = "pinecall-settings" },
     { name = "protobuf" },
@@ -3431,7 +3432,6 @@ runtime = [
 requires-dist = [
     { name = "anthropic", marker = "extra == 'runtime'", specifier = "<1" },
     { name = "argon2-cffi", specifier = ">=23.1,<26" },
-    { name = "asyncpg", specifier = ">=0.29,<1" },
     { name = "av", specifier = ">=13,<19" },
     { name = "cryptography", specifier = ">=44,<51" },
     { name = "fastapi", specifier = ">=0.115,<1" },
@@ -3445,6 +3445,7 @@ requires-dist = [
     { name = "opentelemetry-sdk", specifier = ">=1.30,<2" },
     { name = "pgvector", specifier = ">=0.3,<1" },
     { name = "pinecall-core", editable = "packages/pinecall-core" },
+    { name = "pinecall-db", editable = "packages/pinecall-db" },
     { name = "pinecall-protocol", editable = "../protocol/python" },
     { name = "pinecall-settings", editable = "packages/pinecall-settings" },
     { name = "protobuf", specifier = ">=5,<8" },
@@ -3478,6 +3479,21 @@ dev = [
     { name = "pytest", specifier = ">=9,<10" },
     { name = "pytest-randomly", specifier = ">=3.16,<4" },
     { name = "pytest-timeout", specifier = ">=2.4.0" },
+]
+
+[[package]]
+name = "pinecall-db"
+version = "0.1.0"
+source = { editable = "packages/pinecall-db" }
+dependencies = [
+    { name = "asyncpg" },
+    { name = "pinecall-core" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "asyncpg", specifier = ">=0.29,<1" },
+    { name = "pinecall-core", editable = "packages/pinecall-core" },
 ]
 
 [[package]]
