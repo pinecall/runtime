@@ -1,4 +1,4 @@
-"""Rows kept a version at a time per corner, in memory or Postgres: what a tuning and a lexicon share."""
+"""Rows kept a version at a time per corner, in memory or Postgres: a tuning and a lexicon alike."""
 
 from __future__ import annotations
 

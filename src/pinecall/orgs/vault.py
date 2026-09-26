@@ -132,13 +132,13 @@ def vault_for(settings: Settings, pool: Pool | None) -> Vault | None:
 # Every table that seals a tenant's secret is built the same way — the carriers, an org's mail,
 # its outbound trunk, its identity provider, and this one: none without a vault key, since a
 # secret it could not seal is one it must not keep; memory on a laptop with no Postgres up.
-def a_sealed_store[T](
+def a_sealed_store[M, P](
     settings: Settings,
     pool: Pool | None,
     *,
-    memory: Callable[[Cipher], T],
-    postgres: Callable[[Pool, Cipher], T],
-) -> T | None:
+    memory: Callable[[Cipher], M],
+    postgres: Callable[[Pool, Cipher], P],
+) -> M | P | None:
     """Postgres when the process opened one, memory when it did not, none with no vault key."""
     if not settings.vault_key:
         return None
