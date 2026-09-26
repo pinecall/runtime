@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
 
 import httpx
 import pytest
@@ -21,16 +20,25 @@ pytestmark = pytest.mark.unit
 
 AN_OWNER = "app_in_the_directory"
 DEV = f"/v1/agents/{AGENT}/dev"
+# How long a test waits for an entry the door is about to send: a bound on a hang, never a clock
+# the test's outcome depends on.
+SOCKET_WAITS_S = 5.0
 
 
 class _AnAppSocket:
-    """The app's side of the socket, as Live hands entries to it: kept for the test to read."""
+    """The app's side of the socket, as Live hands entries to it: kept, and handed on in order."""
 
     def __init__(self) -> None:
         self.heard: list[Entry] = []
+        self._coming: asyncio.Queue[Entry] = asyncio.Queue()
 
     async def send(self, entry: Entry) -> None:
         self.heard.append(entry)
+        self._coming.put_nowait(entry)
+
+    async def next_heard(self) -> Entry:
+        """The next entry this socket is handed, the moment it is: no clock between the two."""
+        return await asyncio.wait_for(self._coming.get(), timeout=SOCKET_WAITS_S)
 
 
 async def holding(registry: Registry, live: Live, takes_unclaimed: bool = True) -> _AnAppSocket:
@@ -49,11 +57,7 @@ async def holding(registry: Registry, live: Live, takes_unclaimed: bool = True) 
 
 async def the_request(socket: _AnAppSocket) -> Entry:
     """The dev.request the app heard, once it has."""
-    for _ in range(200):
-        if socket.heard:
-            return socket.heard[-1]
-        await asyncio.sleep(0.005)
-    raise AssertionError("the app never heard a dev.request")
+    return await socket.next_heard()
 
 
 async def test_the_ask_travels_down_the_apps_socket_unstored_and_the_answer_comes_back(
@@ -125,14 +129,14 @@ async def test_nobody_holding_the_agent_is_404_and_a_console_alone_is_409(
 ) -> None:
     nobody = await tenant_http.post(f"{DEV}/evals/drift.read", json={})
     assert nobody.status_code == 404
-    await holding(registry, live, takes_unclaimed=False)
+    socket = await holding(registry, live, takes_unclaimed=False)
     console_only = await tenant_http.post(f"{DEV}/evals/drift.read", json={})
     assert console_only.status_code == 409
     assert "pinecall start" in console_only.json()["detail"]
     # Named by its app id, the console IS asked: that is how a developer's own terminal mounts.
     named = asyncio.create_task(tenant_http.post(f"{DEV}/evals/drift.read?app={AN_OWNER}", json={}))
-    await asyncio.sleep(0.02)
-    assert live.dev_answered(DevAnswer(id=_last_id(live), result={"drift": {}}))
+    request = await the_request(socket)
+    assert live.dev_answered(DevAnswer(id=request.data["id"], result={"drift": {}}))
     assert (await named).status_code == 200
 
 
@@ -156,13 +160,6 @@ async def test_an_app_that_left_is_a_502(
     answer = await tenant_http.post(f"{DEV}/evals/goldens.roster", json={})
     assert answer.status_code == 502
     assert "disconnected" in answer.json()["detail"]
-
-
-def _last_id(live: Live) -> str:
-    """The id of the one ask waiting in this process's memory."""
-    asked: dict[str, Any] = live._asked  # pyright: ignore[reportPrivateUsage]
-    (id,) = asked
-    return id
 
 
 def test_every_dev_verb_is_in_exactly_one_family() -> None:

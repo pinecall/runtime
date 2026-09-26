@@ -42,6 +42,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   every `.env` and `deploy.local.mk` at home.
 
 ### Fixed
+- **A WhatsApp thread's quiet is counted from its last answer.** The idle clock started at the last
+  message received, so a turn slower than the idle period was cancelled in the middle of its
+  answer; it starts now when everything said has been answered.
 - **A deploy no longer cancels the open streams mid-write.** A console's live feed, a call's tail,
   the commands stream and the usage feed never end by themselves, so a stopping gateway waited its
   grace period on them and then cancelled each one — `Exception in ASGI application … timeout

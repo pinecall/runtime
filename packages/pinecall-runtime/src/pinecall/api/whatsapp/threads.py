@@ -116,17 +116,24 @@ class Thread:
                 self._said.task_done()
 
     # Not a sleep per message: one waiter that is woken by every inbound and only fires when a
-    # whole idle period has gone by with none.
+    # whole idle period has gone by with none. The period starts when the thread is QUIET —
+    # everything said has been answered — and not at the last inbound: counted from the inbound, a
+    # turn slower than the period was cancelled in the middle of its answer.
     async def _closing_when_idle(self, seconds: float) -> None:
         """Close the thread the first time it goes a whole idle period without a word."""
         while True:
+            await self._said.join()
+            self._spoke.clear()
+            # heard() sets the flag and queues the text in one step of the loop, so a message that
+            # landed between the join and the clear is still in the queue: answer it first.
+            if not self._said.empty():
+                continue
             try:
                 await asyncio.wait_for(self._spoke.wait(), timeout=seconds)
             except TimeoutError:
                 self._pump.cancel()
                 await self._closing(self, WENT_QUIET)
                 return
-            self._spoke.clear()
 
 
 class Threads:
