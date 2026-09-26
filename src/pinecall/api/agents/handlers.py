@@ -10,7 +10,7 @@ from fastapi import Depends
 from pinecall.api.agents.held_agent import Send, SocketId
 from pinecall.api.agents.processes import Processes
 from pinecall.api.agents.registry import Registry
-from pinecall.api.deps import what_is_live
+from pinecall.api.deps import get_live
 from pinecall.api.live import Served
 from pinecall.knowledge import Knowledge
 from pinecall.log.entry import Entry
@@ -148,7 +148,7 @@ def handles(type: str) -> Callable[[Handler], Handler]:
     return take
 
 
-def asked[T: WireModel](command: Command, shape: type[T]) -> T:
+def parse_command[T: WireModel](command: Command, shape: type[T]) -> T:
     """The command's data as the model its type names, refused when it is not that shape."""
     data = command_of(command)
     if not isinstance(data, shape):
@@ -157,4 +157,4 @@ def asked[T: WireModel](command: Command, shape: type[T]) -> T:
 
 
 # The live memory is one object the lifespan opened; each side asks for it with the type it needs.
-LiveDep = Annotated[Live, Depends(what_is_live)]
+LiveDep = Annotated[Live, Depends(get_live)]

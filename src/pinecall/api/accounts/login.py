@@ -4,8 +4,13 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
 
-from pinecall.api.accounts.api_keys import KeyIssued, a_key_issued
-from pinecall.api.accounts.identity import AtProduction, IdentityDep, a_mirrored_key, at_production
+from pinecall.api.accounts.api_keys import KeyIssued, wire_key_issued
+from pinecall.api.accounts.identity import (
+    AtProduction,
+    IdentityDep,
+    mint_mirrored_key,
+    require_production,
+)
 from pinecall.api.accounts.org_sso import SsoDep
 from pinecall.api.deps import (
     ExtensionsDep,
@@ -167,16 +172,16 @@ async def login(
         if identity is None:
             raise HTTPException(404, NO_CODE)
         label = said.device or A_BROWSER
-        mirrored = await a_mirrored_key(
+        mirrored = await mint_mirrored_key(
             said.code, label, identity, orgs, members, keys, extensions.admitted
         )
-        return a_key_issued(mirrored)
+        return wire_key_issued(mirrored)
     # A password is production's to check: a sandbox keeps none, and takes a code or nothing.
-    at_production(settings)
+    require_production(settings)
     if said.email is None or said.password is None:
         raise HTTPException(400, ONE_OR_THE_OTHER)
     return await _with_a_password(
-        said, the_client(request), orgs, members, keys, throttle, sso, settings.world
+        said, throttle_client(request), orgs, members, keys, throttle, sso, settings.world
     )
 
 
@@ -192,7 +197,7 @@ async def orgs_to_sign_in_to(
     throttle: ThrottleDep,
 ) -> OrgsToSignInTo:
     """The orgs this person may sign in to, oldest first; 401 for a wrong email or password."""
-    if not throttle.allowed(f"{the_client(request)} */{said.email}"):
+    if not throttle.allowed(f"{throttle_client(request)} */{said.email}"):
         raise HTTPException(429, TOO_MANY.format(email=said.email))
     # `matches` takes as long for an address nobody has as for a wrong password (auth/passwords.py):
     # the one sentence would say nothing, and the clock must not say it instead.
@@ -211,7 +216,7 @@ async def orgs_to_sign_in_to(
 # key's record and is spent for a NEW key with the same org, world, scopes and person, so the
 # browser's key is its own and is revoked on its own.
 @router.post("/v1/login/codes")
-async def a_code(key: KeyDep, codes: LoginCodesDep) -> WordMinted:
+async def mint_login_code(key: KeyDep, codes: LoginCodesDep) -> WordMinted:
     """A one-use code standing for this key's record, good for five minutes."""
     minted = codes.mint(key)
     return WordMinted(code=minted.code, expires_at=minted.expires_at)
@@ -245,7 +250,7 @@ async def redeem(
 # The one place a key is minted FROM another key: the card that signs a terminal in
 # (api/accounts/pairing.py). The scopes come off the MEMBER and not off the key that asked — the
 # role is the source, and a role changed since the asking key was minted is the role now.
-async def for_the_same_person(
+async def mint_key_for_same_person(
     key: KeyRecord, label: str | None, keys: KeysDep, members: MembersDep, world: Env
 ) -> KeyIssued:
     """A key for the person this one names, with what their role opens."""
@@ -256,7 +261,7 @@ async def for_the_same_person(
     member = await members.find(key.org, key.subject)
     if member is None or member.status != "active":
         raise HTTPException(403, NOT_A_MEMBER)
-    return a_key_issued(await mint_person_key(keys, member, label, world, minted_from=key))
+    return wire_key_issued(await mint_person_key(keys, member, label, world, minted_from=key))
 
 
 async def _with_a_password(
@@ -288,7 +293,7 @@ async def _with_a_password(
     # Said after the password matched, and about the org the row is in: a person with two orgs
     # lands in the one a password still opens (below), and only somebody whose every org signs in
     # with a provider is sent to one.
-    if await only_with_the_provider(sso, member.org):
+    if await is_sso_only(sso, member.org):
         org = await orgs.find(member.org)
         raise HTTPException(401, WITH_THE_PROVIDER.format(org=org.slug if org else member.org))
     if member.status == "disabled":
@@ -305,7 +310,7 @@ async def _with_a_password(
         if seated is None:
             raise HTTPException(403, NOT_YET.format(email=member.email))
         member = seated
-    return a_key_issued(await mint_person_key(keys, member, said.device or LOGGED_IN, world))
+    return wire_key_issued(await mint_person_key(keys, member, said.device or LOGGED_IN, world))
 
 
 async def _the_row_for(
@@ -320,7 +325,7 @@ async def _the_row_for(
     # two orgs, one of them on SSO, types no org and lands in the one their password opens. When
     # every org of theirs is on a provider the loop finds none and the fallback below says so.
     for row in rows:
-        if row.status != "disabled" and not await only_with_the_provider(sso, row.org):
+        if row.status != "disabled" and not await is_sso_only(sso, row.org):
             return await members.by_email(row.org, email)
     for row in rows:
         if row.status != "disabled":
@@ -331,7 +336,7 @@ async def _the_row_for(
 # None is a box with no vault key: it can read no client secret, so no org signs in with a
 # provider there and every one of them is opened by a password. That is also the way back for a
 # box whose vault key was lost, and it is deliberate — see orgs/org_sso.py.
-async def only_with_the_provider(sso: Sso | None, org: str) -> bool:
+async def is_sso_only(sso: Sso | None, org: str) -> bool:
     """Whether this org has said a password opens it no longer."""
     if sso is None:
         return False
@@ -355,9 +360,9 @@ async def _with_a_code(
         name=record.name,
         expires_at=until(world, record) if person else record.expires_at,
     )
-    return a_key_issued(issued)
+    return wire_key_issued(issued)
 
 
-def the_client(request: Request) -> str:
+def throttle_client(request: Request) -> str:
     """Where the knock came from, for the throttle. Unknown is one name, and it is throttled too."""
     return request.client.host if request.client is not None else "unknown"

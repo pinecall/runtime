@@ -80,7 +80,7 @@ def test_the_page_carries_the_instances_marks_and_is_never_cached(
     settings: Settings,
 ) -> None:
     """What the marks SAY is the tests above; this is that they reach the head of the page."""
-    app.dependency_overrides[deps.a_settings] = lambda: a_sandbox(settings)
+    app.dependency_overrides[deps.get_settings] = lambda: a_sandbox(settings)
     body, cached = asked_at(gateway, "/a/clinica-norte")
     assert body.startswith(
         '<!doctype html><html><head><meta name="pinecall-world" content="sandbox">'
@@ -184,7 +184,7 @@ def test_the_well_known_door_says_the_instances_world_and_where_the_other_answer
 ) -> None:
     """A CLI knows only a URL: this is how it learns which world that is, and the other's URL."""
     told = a_sandbox(settings, elsewhere_url="https://box.example.test")
-    app.dependency_overrides[deps.a_settings] = lambda: told
+    app.dependency_overrides[deps.get_settings] = lambda: told
     said = json.loads(fetched(gateway, "/.well-known/pinecall")[2])
     assert (said["world"], said["elsewhere"]) == ("sandbox", "https://box.example.test")
 

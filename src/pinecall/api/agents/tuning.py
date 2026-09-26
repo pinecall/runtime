@@ -16,7 +16,7 @@ from pinecall.api.deps import (
     PipelineKeyDep,
     TuningDep,
     VaultDep,
-    opening,
+    require_scopes,
 )
 from pinecall.auth.keys import KeyRecord, cannot_open, is_held_by
 from pinecall.auth.request_scope import author_of
@@ -57,7 +57,7 @@ router = APIRouter()
 # pipeline and may move a vendor, and the floor's — a supervisor's, a manager's — which opens
 # `words` and may set the opening's words, the lexicon and what is remembered, never a vendor.
 # The doors open to either and ask inside which half a body touches (`words_only` below).
-TuningKeyDep = Annotated[KeyRecord, Depends(opening("pipeline", "words"))]
+TuningKeyDep = Annotated[KeyRecord, Depends(require_scopes("pipeline", "words"))]
 
 # The wire's body read into the shape, and the shape written back out: one adapter, so what a door
 # accepts and what a row says are the same thing. orgs/tuning_resolution.py writes a column through
@@ -94,7 +94,7 @@ NO_SUCH_CALL = "no call {call} in this org"
 # ── the shapes, both ways ───────────────────────────────────────────────────────
 
 
-def a_tuning(body: TuningBody) -> Tuning:
+def parse_tuning(body: TuningBody) -> Tuning:
     """The wire's body as the domain's shape, or 400 in the shape's own sentence."""
     try:
         return TUNING.validate_python(body.model_dump(mode="python", exclude_none=True))
@@ -113,7 +113,7 @@ def _the_shapes_own_words(invalid: ValidationError) -> str:
     return str(invalid)
 
 
-def a_row(kept: Kept[Tuning]) -> TuningRow:
+def wire_tuning_row(kept: Kept[Tuning]) -> TuningRow:
     """One kept version as the doors answer it."""
     return TuningRow(
         holder=kept.holder,
@@ -125,7 +125,7 @@ def a_row(kept: Kept[Tuning]) -> TuningRow:
     )
 
 
-def a_lexicon_row(kept: Kept[Lexicon]) -> LexiconRow:
+def wire_lexicon_row(kept: Kept[Lexicon]) -> LexiconRow:
     """One kept lexicon version as the doors answer it."""
     return LexiconRow(
         holder=kept.holder,
@@ -169,7 +169,7 @@ def declared_or_bare(slug: str, key: KeyRecord, registry: Registry) -> AgentConf
     return AgentConfig(slug=slug)
 
 
-def checked(declared: AgentConfig, wanted: Tuning, lexicon: Lexicon) -> AgentConfig:
+def check_config(declared: AgentConfig, wanted: Tuning, lexicon: Lexicon) -> AgentConfig:
     """Building the config IS the check: 400 in the rule's own sentence when one breaks."""
     return apply_tuning(declared, wanted, lexicon)
 
@@ -219,7 +219,7 @@ async def put(
     )
 
 
-def differing(ours: Kept[Tuning] | None, theirs: Kept[Tuning] | None) -> list[str]:
+def differing_fields(ours: Kept[Tuning] | None, theirs: Kept[Tuning] | None) -> list[str]:
     """The fields set differently between two versions, by name; every set one when one is None."""
     mine = {} if ours is None else tuning_json(ours.value)
     yours = {} if theirs is None else tuning_json(theirs.value)
@@ -252,12 +252,12 @@ async def set_settings(
 ) -> TuningAnswer:
     """Set this agent's tuning in this key's corner, or the team's: a new version, checked first."""
     corner = corner_written(key, said.team)
-    wanted = a_tuning(said.config)
+    wanted = parse_tuning(said.config)
     if "pipeline" not in key.scopes:
         standing = await kept.newest(key.org, key.env, corner, slug)
         wanted = words_only(key, wanted, Tuning() if standing is None else standing.value)
     words = await kept.newest_lexicon(key.org, key.env, corner)
-    config = checked(
+    config = check_config(
         declared_or_bare(slug, key, registry), wanted, Lexicon() if words is None else words.value
     )
     # What the box does not lend this org is refused here, when it is picked, in the sentence the
@@ -280,7 +280,7 @@ async def history(
     """Every version this corner kept, newest first, each with who set it and why."""
     corner = corner_written(key, team)
     rows = await kept.history(key.org, key.env, corner, slug, limit)
-    return TuningHistory(world=key.env, holder=corner, rows=[a_row(row) for row in rows])
+    return TuningHistory(world=key.env, holder=corner, rows=[wire_tuning_row(row) for row in rows])
 
 
 @router.get("/v1/agents/{slug}/settings/diff")
@@ -295,9 +295,9 @@ async def diff(
     world = PRODUCTION if against == "production" else key.env
     theirs = await kept.own(key.org, world, THE_ORGS_OWN, slug)
     return TuningDiff(
-        ours=None if ours is None else a_row(ours),
-        theirs=None if theirs is None else a_row(theirs),
-        changed=differing(ours, theirs),
+        ours=None if ours is None else wire_tuning_row(ours),
+        theirs=None if theirs is None else wire_tuning_row(theirs),
+        changed=differing_fields(ours, theirs),
     )
 
 
@@ -319,7 +319,7 @@ async def rollback(slug: str, said: Rollback, key: PipelineKeyDep, kept: TuningD
 # (api/calls/events.py), and this reads the rows back by them. A reviewer of Tuesday's bad call
 # sees Tuesday's voice, model and words, whatever changed since.
 @router.get("/v1/calls/{call}/settings")
-async def of_a_call(
+async def tuning_of_call(
     call: str, key: CallsKeyDep, index: CallIndexDep, kept: TuningDep
 ) -> CallTuning:
     """The tuning and the lexicon this call was built on, by the versions its head row recorded."""
@@ -340,8 +340,8 @@ async def of_a_call(
     return CallTuning(
         config_version=corner.config_version,
         lexicon_version=corner.lexicon_version,
-        config=None if config is None else a_row(config),
-        lexicon=None if words is None else a_lexicon_row(words),
+        config=None if config is None else wire_tuning_row(config),
+        lexicon=None if words is None else wire_lexicon_row(words),
     )
 
 
@@ -353,7 +353,7 @@ async def _answer(slug: str, key: KeyRecord, kept: TuningStore) -> TuningAnswer:
     production = await kept.own(key.org, PRODUCTION, THE_ORGS_OWN, slug)
     return TuningAnswer(
         world=key.env,
-        yours=None if yours is None else a_row(yours),
-        team=None if team is None else a_row(team),
-        production=None if production is None else a_row(production),
+        yours=None if yours is None else wire_tuning_row(yours),
+        team=None if team is None else wire_tuning_row(team),
+        production=None if production is None else wire_tuning_row(production),
     )

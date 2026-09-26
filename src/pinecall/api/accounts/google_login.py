@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 from starlette.status import HTTP_302_FOUND
 
 from pinecall.api.accounts.identity import AtProduction
-from pinecall.api.accounts.login import only_with_the_provider, the_client
+from pinecall.api.accounts.login import is_sso_only, throttle_client
 from pinecall.api.accounts.org_sso import HandshakesDep, HttpDep, SsoDep
 from pinecall.api.accounts.sso_login import (
     NO_CODE_BACK,
@@ -17,14 +17,14 @@ from pinecall.api.accounts.sso_login import (
     THE_CONSOLE,
     THE_PROVIDER_SAID,
     TOO_MANY_SIGN_INS,
-    a_way_in,
-    landing,
-    the_provider,
-    who_the_provider_says,
+    claims_from_provider,
+    landing_url,
+    mint_sso_code,
+    provider_config,
 )
 from pinecall.api.deps import LoginCodesDep, MembersDep, SettingsDep, ThrottleDep
 from pinecall.api.ops.box_settings import BoxSettingsDep
-from pinecall.api.ops.box_signin import where_the_provider_answers
+from pinecall.api.ops.box_signin import provider_redirect_uri
 from pinecall.auth.members import Members, normalize_email
 from pinecall.auth.openid import authorization_url
 from pinecall.orgs.box_signin import GOOGLE, BoxSignIn
@@ -69,10 +69,10 @@ async def sign_in(
     wired = await BoxSignIn(box).of(GOOGLE)
     if wired is None:
         raise HTTPException(404, NOT_WIRED)
-    if not throttle.allowed(f"{the_client(request)} signin/{GOOGLE}"):
+    if not throttle.allowed(f"{throttle_client(request)} signin/{GOOGLE}"):
         raise HTTPException(429, TOO_MANY_SIGN_INS)
-    provider = await the_provider(http, wired.issuer)
-    redirect_uri = where_the_provider_answers(settings, request, GOOGLE)
+    provider = await provider_config(http, wired.issuer)
+    redirect_uri = provider_redirect_uri(settings, request, GOOGLE)
     handshake = handshakes.open(THE_BOX, redirect_uri, pairing, provider=GOOGLE)
     return RedirectResponse(
         authorization_url(
@@ -114,13 +114,15 @@ async def back(
     if wired is None:
         return _refused(NOT_WIRED)
     try:
-        said = await who_the_provider_says(
+        said = await claims_from_provider(
             http, wired.issuer, wired.client_id, wired.client_secret, handshake, code
         )
         home = await _the_person_home(members, sso, normalize_email(said.email))
     except HTTPException as refused:
         return _refused(str(refused.detail))
-    return RedirectResponse(landing(handshake.pairing, a_way_in(home, codes)), HTTP_302_FOUND)
+    return RedirectResponse(
+        landing_url(handshake.pairing, mint_sso_code(home, codes)), HTTP_302_FOUND
+    )
 
 
 # The same rule the password login follows with no org named: the OLDEST org of theirs that a
@@ -137,7 +139,7 @@ async def _the_person_home(members: Members, sso: Sso | None, email: str) -> Mem
     standing = [row for row in rows if row.status != "disabled"]
     if not standing:
         raise HTTPException(403, DISABLED_EVERYWHERE.format(email=email))
-    allowed = [row for row in standing if not await only_with_the_provider(sso, row.org)]
+    allowed = [row for row in standing if not await is_sso_only(sso, row.org)]
     if not allowed:
         raise HTTPException(403, THEIR_OWN_PROVIDER.format(email=email, org=standing[0].org))
     # Google named the address, which is what proves it (0048): every standing row of theirs is

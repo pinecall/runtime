@@ -87,7 +87,7 @@ async def bases(key: KnowledgeKeyDep, knowledge: KeptKnowledgeDep) -> KnowledgeL
 # corner's own else the org's — the same rows a session is built from. Registered before the
 # `{base}` doors so "attached" is never taken for a base's name.
 @router.get("/v1/knowledge/attached")
-async def attached(key: KnowledgeKeyDep, kept: TuningDep) -> KnowledgeUses:
+async def bases_attached(key: KnowledgeKeyDep, kept: TuningDep) -> KnowledgeUses:
     """One row per base any agent's settings attach, with the agents that read it."""
     readers: dict[str, list[str]] = {}
     for slug, row in (await kept.every_newest(key.org, key.env, is_held_by(key))).items():

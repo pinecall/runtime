@@ -9,7 +9,7 @@ from typing import Annotated
 from fastapi import Depends
 
 from pinecall.api.agents.held_agent import Send, SocketId
-from pinecall.api.deps import what_is_live
+from pinecall.api.deps import get_live
 from pinecall.log.entry import Entry
 from pinecall.log.fanout import Subscription
 from pinecall.log.logs import CallLog
@@ -298,4 +298,4 @@ async def _feeding(entries: Subscription, send: Send) -> None:
 
 # The dep itself lives in api/deps.py, so the app socket can ask for the very same object
 # without importing this module: a test that overrides it answers both doors at once.
-LiveDep = Annotated[Live, Depends(what_is_live)]
+LiveDep = Annotated[Live, Depends(get_live)]

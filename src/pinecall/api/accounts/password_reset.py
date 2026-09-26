@@ -6,11 +6,11 @@ from fastapi import APIRouter, HTTPException, Request
 from starlette.status import HTTP_202_ACCEPTED
 
 from pinecall.api.accounts.identity import AtProduction
-from pinecall.api.accounts.login import TOO_MANY, only_with_the_provider, the_client
+from pinecall.api.accounts.login import TOO_MANY, is_sso_only, throttle_client
 from pinecall.api.accounts.org_sso import SsoDep
 from pinecall.api.deps import MembersDep, OrgsDep, SettingsDep, ThrottleDep
 from pinecall.api.org.mail import OutboxDep
-from pinecall.api.public_url import where_this_gateway_answers
+from pinecall.api.public_url import public_base_url
 from pinecall.auth.members import Members
 from pinecall.mail import Outbox, card_link, forgotten_password_letter
 from pinecall.orgs.org_sso import Sso
@@ -52,11 +52,9 @@ async def forgotten(
     settings: SettingsDep,
 ) -> ResetAsked:
     """Post a one-use reset link where one can be posted, and answer 202 whatever came of it."""
-    if not throttle.allowed(f"{the_client(request)} */{said.email}"):
+    if not throttle.allowed(f"{throttle_client(request)} */{said.email}"):
         raise HTTPException(429, TOO_MANY.format(email=said.email))
-    await _posted(
-        said.email, where_this_gateway_answers(settings, request), orgs, members, sso, outbox
-    )
+    await _posted(said.email, public_base_url(settings, request), orgs, members, sso, outbox)
     return ResetAsked()
 
 
@@ -70,7 +68,7 @@ async def _posted(
 ) -> None:
     """The oldest org of theirs a password still opens and whose letters can carry a link."""
     for row in await members.orgs_of(email):
-        if row.status != "active" or await only_with_the_provider(sso, row.org):
+        if row.status != "active" or await is_sso_only(sso, row.org):
             continue
         # Asked BEFORE the token is minted, and that order is the point: `members.reset` spends
         # every older link of that member, so minting one nothing will carry would let anybody

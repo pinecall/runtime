@@ -9,8 +9,8 @@ import pytest
 from pinecall.api import deps as deps
 from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
-from pinecall.api.deps import the_runs
-from pinecall.api.evals.runner import Runner, the_runner
+from pinecall.api.deps import get_runs
+from pinecall.api.evals.runner import Runner, get_runner
 from pinecall.evals.checks.replay import Replayed, rebuild
 from pinecall.evals.run_store import MemoryRuns
 from pinecall.providers.models import Chat
@@ -137,7 +137,7 @@ def suite_http(
         keys_asked.append(brought.keys)
         return llm
 
-    app.dependency_overrides[deps.the_llms] = lambda: llms
-    app.dependency_overrides[the_runner] = lambda: runner
-    app.dependency_overrides[the_runs] = lambda: eval_runs
+    app.dependency_overrides[deps.get_llms] = lambda: llms
+    app.dependency_overrides[get_runner] = lambda: runner
+    app.dependency_overrides[get_runs] = lambda: eval_runs
     return keyed_http

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pinecall.api.ops.box_settings import BoxSettingsDep
-from pinecall.api.scope.operator_key import an_operators_router
+from pinecall.api.scope.operator_key import operators_router
 from pinecall.mail import apply_brand, brand_of
 from pinecall.orgs.box_settings import BRAND
 from pinecall_protocol import WireModel
@@ -11,7 +11,7 @@ from pinecall_protocol.rest import BoxBrand
 
 # The same gate every /v1/ops door takes. A brand is the box's and nobody else's: what a letter
 # is signed as is decided by whoever runs the machine the letter leaves from.
-operator = an_operators_router()
+operator = operators_router()
 
 
 class Rebranding(WireModel):
@@ -25,7 +25,7 @@ class Rebranding(WireModel):
 
 
 @operator.get("/brand")
-async def branded(box: BoxSettingsDep) -> BoxBrand:
+async def brand_standing(box: BoxSettingsDep) -> BoxBrand:
     """What the letters are called and painted with: Pinecall, its accent and no logo until set."""
     return BoxBrand.model_validate((await brand_of(box)).as_json)
 

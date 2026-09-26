@@ -21,10 +21,10 @@ from pinecall.api.agents.held_agent import Registration
 from pinecall.api.agents.registry import NO_AGENT, Registry
 from pinecall.api.agents.session_config import tuned_for
 from pinecall.api.deps import held
-from pinecall.api.evals.golden_call import a_conversation
+from pinecall.api.evals.golden_call import run_golden_conversation
 from pinecall.api.evals.golden_judges import Judging
 from pinecall.api.evals.run_attachment import AppDetached, Attachment
-from pinecall.api.evals.spoken_golden import a_spoken_conversation
+from pinecall.api.evals.spoken_golden import run_spoken_conversation
 from pinecall.api.live import Live
 from pinecall.evals.caller_voice import Speaking
 from pinecall.evals.goldens import Golden
@@ -161,7 +161,7 @@ class Runner:
             del self._in_flight[agent]
 
 
-async def a_run(wanted: Wanted, runner: Runner, process: Process) -> EvalRun:
+async def run_evals(wanted: Wanted, runner: Runner, process: Process) -> EvalRun:
     """Every golden under every model, scored, stored, and answered as one finished run."""
     serving = process.registry.serving(process.env, wanted.agent, wanted.app, process.holder)
     if serving is None:
@@ -246,7 +246,7 @@ async def _every_conversation(
             await process.runs.put(run)
             try:
                 said = (
-                    await a_spoken_conversation(
+                    await run_spoken_conversation(
                         golden,
                         call=call,
                         run=run.id,
@@ -268,7 +268,7 @@ async def _every_conversation(
                         ),
                     )
                     if wanted.voice
-                    else await a_conversation(
+                    else await run_golden_conversation(
                         golden,
                         call=call,
                         run=run.id,
@@ -365,9 +365,9 @@ def _named(model: Model | None) -> str:
 # ── how a route asks for it ─────────────────────────────────────────────────────
 
 
-def the_runner(connection: HTTPConnection) -> Runner:
+def get_runner(connection: HTTPConnection) -> Runner:
     """The run this process is doing right now, if it is doing one."""
     return held(connection, "evals", Runner)
 
 
-RunnerDep = Annotated[Runner, Depends(the_runner)]
+RunnerDep = Annotated[Runner, Depends(get_runner)]

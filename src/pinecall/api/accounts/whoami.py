@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request
 
 from pinecall._version import __version__
 from pinecall.api.deps import KeyDep, KeysDep, MembersDep, OrgsDep, SettingsDep
-from pinecall.api.scope.operator_key import an_operators_router, runs_the_box
+from pinecall.api.scope.operator_key import operators_router, runs_the_box
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.env import is_persons_key, opens_production
 from pinecall.auth.keys import KeyRecord
@@ -19,7 +19,7 @@ router = APIRouter()
 
 # The same gate every /v1/ops door takes. It carries no record — the ops key belongs to no org —
 # so this door answers what the BOX is rather than whose the key is.
-operator = an_operators_router()
+operator = operators_router()
 
 
 class Whose(WireModel):
@@ -103,7 +103,7 @@ class TheBox(WireModel):
 # /v1/whoami: a key that opens nothing is a page a person would trust tomorrow and a refusal they
 # would not understand. It reads the settings and no table, because the ops key names no org.
 @operator.get("/whoami")
-async def the_box(settings: SettingsDep, keys: KeysDep, request: Request) -> TheBox:
+async def box_identity(settings: SettingsDep, keys: KeysDep, request: Request) -> TheBox:
     """That this key opens the operator's doors, which box they are, and who is holding it."""
     whose = await _whose(request, keys)
     return TheBox(

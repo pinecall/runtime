@@ -6,7 +6,7 @@ import pytest
 
 from pinecall._settings import Budgets
 from pinecall.api.agents.held_agent import Registration
-from pinecall.api.calls.opening import a_text_call
+from pinecall.api.calls.opening import open_text_call
 from pinecall.evals import score_call
 from pinecall.evals.hangup_score import JudgedWhen
 from pinecall.log.writers import Logs
@@ -54,7 +54,7 @@ def _context() -> CallContext:
 async def test_a_text_call_is_opened_with_the_judge_and_not_with_the_default(
     tuning: MemoryTuning, llms: Models, admission: Admission, logs: Logs, lookups: Lookups
 ) -> None:
-    opened = await a_text_call(
+    opened = await open_text_call(
         _held(), _context(), tuning, None, llms, admission, logs, 0, lookups, Budgets()
     )
 

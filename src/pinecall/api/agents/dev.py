@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query
 
-from pinecall.api.agents.handlers import Socket, asked, handles
+from pinecall.api.agents.handlers import Socket, handles, parse_command
 from pinecall.api.agents.registry import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, RegistryDep
 from pinecall.api.deps import (
     CallsKeyDep,
@@ -184,7 +184,7 @@ async def _relayed(
 @handles("dev.answer")
 async def take_a_dev_answer(socket: Socket, command: Command) -> None:
     """What the verb produced in the app's own process, handed to the door awaiting it."""
-    answer = asked(command, DevAnswer)
+    answer = parse_command(command, DevAnswer)
     if socket.live.dev_answered(answer):
         return
     await socket.refuse(

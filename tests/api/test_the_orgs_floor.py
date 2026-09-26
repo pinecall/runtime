@@ -12,7 +12,7 @@ from starlette.testclient import TestClient
 
 from pinecall.api.agents.registry import Registry
 from pinecall.api.calls.live_calls import events
-from pinecall.api.calls.log_sink import a_projection
+from pinecall.api.calls.log_sink import projection_for
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import ORG_EVENTS, Logs
 from pinecall.types import PRODUCTION
@@ -113,7 +113,7 @@ async def test_the_events_door_streams_the_feed_as_sse_from_now_on(
     """A register while the stream is open lands as one SSE frame carrying the entry."""
     # The door's own body, read as the browser would read it: httpx's ASGI transport hands a
     # response back whole, and a stream that never ends never comes back through it.
-    answer = await events(A_READER, logs, a_projection(registry))
+    answer = await events(A_READER, logs, projection_for(registry))
     # starlette types the body as either flavour of iterable; this door streams text, always.
     chunks = aiter(cast("AsyncIterable[str]", answer.body_iterator))
     assert (await anext(chunks)).startswith("retry:")

@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from pinecall.api.app import app
-from pinecall.api.deps import the_signups
+from pinecall.api.deps import get_signups
 from pinecall.auth.keys import MemoryKeys
 from pinecall.auth.login_codes import LoginCodes
 from pinecall.auth.members_memory import MemoryMembers
@@ -51,9 +51,9 @@ def signups() -> PendingSignups:
 @pytest.fixture(autouse=True)
 def the_signups_wired(signups: PendingSignups) -> Iterator[None]:
     """The doors read this test's pending sign-ups."""
-    app.dependency_overrides[the_signups] = lambda: signups
+    app.dependency_overrides[get_signups] = lambda: signups
     yield
-    app.dependency_overrides.pop(the_signups, None)
+    app.dependency_overrides.pop(get_signups, None)
 
 
 @pytest.fixture

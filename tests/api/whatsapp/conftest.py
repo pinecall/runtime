@@ -95,7 +95,7 @@ def a_box_with_no_token(meta: httpx.AsyncClient) -> None:  # noqa: ARG001
     without = Settings(
         world="production", whatsapp_app_secret=AN_APP_SECRET, whatsapp_verify_token=A_VERIFY_TOKEN
     )
-    app.dependency_overrides[deps.a_settings] = lambda: without
+    app.dependency_overrides[deps.get_settings] = lambda: without
 
 
 def a_body(*messages: dict[str, Any], number: str = THE_CLINICS_NUMBER) -> dict[str, Any]:

@@ -239,7 +239,7 @@ def test_the_browser_is_told_the_public_url_when_the_box_has_one(gateway: TestCl
         livekit_api_secret=A_LIVEKIT.api_secret,
         livekit_public_url="wss://livekit.clinica.example",
     )
-    app.dependency_overrides[deps.a_settings] = lambda: public
+    app.dependency_overrides[deps.get_settings] = lambda: public
     with an_app(gateway) as app_socket:
         app_socket.send_json(a_register(AGENT, a_door("web")))
         app_socket.receive_json()
@@ -252,7 +252,7 @@ def test_the_dispatch_asks_for_the_fleet_this_instance_names(
 ) -> None:
     """Two instances share one SFU: the fleet in the token is what keeps the call on this one."""
     ours = settings.model_copy(update={"fleet": "pinecall-sandbox"})
-    app.dependency_overrides[deps.a_settings] = lambda: ours
+    app.dependency_overrides[deps.get_settings] = lambda: ours
     with an_app(gateway) as app_socket:
         app_socket.send_json(a_register(AGENT, a_door("web")))
         app_socket.receive_json()

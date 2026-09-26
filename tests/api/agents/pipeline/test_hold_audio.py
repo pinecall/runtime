@@ -11,7 +11,7 @@ import av
 import httpx
 import pytest
 
-from pinecall.api.agents.hold_melody import MAX_BYTES, the_hold_audio
+from pinecall.api.agents.hold_melody import MAX_BYTES, get_hold_audio
 from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
 from pinecall.orgs.hold_melody import MemoryHoldAudio
@@ -30,9 +30,9 @@ HOLD = f"{PIPELINE}/hold-audio"
 def kept() -> Iterator[MemoryHoldAudio]:
     """Nothing chosen at the start of every test: every agent plays the runtime's own melody."""
     chosen = MemoryHoldAudio()
-    app.dependency_overrides[the_hold_audio] = lambda: chosen
+    app.dependency_overrides[get_hold_audio] = lambda: chosen
     yield chosen
-    app.dependency_overrides.pop(the_hold_audio, None)
+    app.dependency_overrides.pop(get_hold_audio, None)
 
 
 def a_wav(seconds: float = 2.0, rate: int = 8000) -> bytes:

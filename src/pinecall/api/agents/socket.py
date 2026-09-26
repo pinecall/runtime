@@ -8,8 +8,8 @@ from typing import Any, cast
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
-from pinecall.api.agents.handlers import HANDLERS, Live, LiveDep, Socket, asked, handles
-from pinecall.api.agents.held_agent import SocketId, a_socket_id
+from pinecall.api.agents.handlers import HANDLERS, Live, LiveDep, Socket, handles, parse_command
+from pinecall.api.agents.held_agent import SocketId, new_socket_id
 from pinecall.api.agents.processes import Process, Processes, ProcessesDep
 from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.api.agents.session_config import tuned_for
@@ -23,7 +23,7 @@ from pinecall.api.deps import (
     MembersDep,
     SettingsDep,
     TuningDep,
-    a_key_on_a_socket,
+    get_socket_key,
 )
 from pinecall.auth.bearer import POLICY_VIOLATION, close_reason
 from pinecall.auth.keys import KeyRecord, cannot_open, is_held_by
@@ -69,7 +69,7 @@ async def apps(
 ) -> None:
     """One app, one socket: a key at the door, then commands in and log entries out."""
     try:
-        key = await a_key_on_a_socket(websocket, keys, members, settings)
+        key = await get_socket_key(websocket, keys, members, settings)
     except PermissionError as refused:
         await websocket.accept()
         await websocket.close(code=POLICY_VIOLATION, reason=close_reason(str(refused)))
@@ -130,7 +130,7 @@ class AppSocket:
         codes: Codes,
     ):
         self._websocket = websocket
-        self._id = a_socket_id()
+        self._id = new_socket_id()
         self.key = key
         self.logs = logs
         self.registry = registry
@@ -275,7 +275,7 @@ async def register(socket: Socket, command: Command) -> None:
     """This socket speaks for this agent, or it is told why not. It brings no doors with it:
     `routes` is still on the wire so an app on an older package registers, and is not read —
     a door is a row an operator typed (api/telephony/numbers.py), and the widget is not a door."""
-    wanted = asked(command, AgentRegister)
+    wanted = parse_command(command, AgentRegister)
     socket.processes.named(socket.id, wanted.host)
     # One more agent for this org, unless it already holds this one: a socket correcting its own
     # doors, or a second process of the same agent, is not a new agent — and neither is the same
@@ -330,17 +330,17 @@ NO_SUCH_BASE = (
 @handles("agent.configure")
 async def configure(socket: Socket, command: Command) -> None:
     """Declare or change what the agent is. Only the fields the app sent change."""
-    wanted = asked(command, AgentConfigure)
+    wanted = parse_command(command, AgentConfigure)
     held = socket.registry.on(socket.env, command.agent, socket.id)
     # Not held on this socket: the registry's own refusal below says so, in its own words.
     if held is not None:
         declared = declaration.apply_declaration(held.config, wanted.config)
-        await the_bases_it_reads(socket, command.agent, declared)
+        await check_bases(socket, command.agent, declared)
     entry = await socket.registry.configure(socket.id, socket.env, command.agent, wanted.config)
     await socket.send(entry)
 
 
-async def the_bases_it_reads(socket: Socket, slug: str, declared: AgentConfig) -> None:
+async def check_bases(socket: Socket, slug: str, declared: AgentConfig) -> None:
     """Refused when the class searches with nothing attached, or reads a base never pushed."""
     session = await tuned_for(socket.tuning, socket.org, socket.env, socket.holder, slug, declared)
     bases = session.config.bases

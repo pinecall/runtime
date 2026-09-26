@@ -11,10 +11,10 @@ from starlette.requests import HTTPConnection
 from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall._settings import Settings
-from pinecall.api.deps import MembersDep, OrgsDep, SettingsDep, TeamKeyDep, an_org, held
-from pinecall.api.public_url import where_this_gateway_answers
+from pinecall.api.deps import MembersDep, OrgsDep, SettingsDep, TeamKeyDep, held, require_org
+from pinecall.api.public_url import public_base_url
 from pinecall.api.scope.grants import may_grant
-from pinecall.api.scope.operator_key import an_operators_router
+from pinecall.api.scope.operator_key import operators_router
 from pinecall.auth.openid import OpenIdRefused, configuration
 from pinecall.auth.sso_state import Handshakes
 from pinecall.orgs.org_sso import Sso
@@ -30,7 +30,7 @@ router = APIRouter()
 # The same gate every /v1/ops door takes. The operator may READ which IdP an org is wired to and
 # turn `required` off, and may change nothing else: the client, the secret and the domains are
 # the tenant's, and an operator who could set them could sign in as anybody in that org.
-operator = an_operators_router()
+operator = operators_router()
 
 # Where the IdP sends the person back. It is the ONE string this gateway is known by at the
 # provider: an admin registers it there by hand, so it is in every answer of these doors rather
@@ -51,13 +51,13 @@ UNREACHABLE = "{said} — nothing was kept"
 # The three things a sign-in is handed, beside the class each is of — which is where a dep lives
 # when it is not the whole process's (api/deps.py says so). The table is None on a box with no
 # vault key, exactly as the vault and the carriers are, and the door then answers 503.
-def the_sso(connection: HTTPConnection) -> Sso | None:
+def get_sso(connection: HTTPConnection) -> Sso | None:
     """The org_sso table, or None when this runtime was given no vault key to seal a secret."""
     sso: Sso | None = getattr(connection.app.state, "sso", None)
     return sso
 
 
-def the_handshakes(connection: HTTPConnection) -> Handshakes:
+def get_handshakes(connection: HTTPConnection) -> Handshakes:
     """The sign-ins out at an identity provider right now, waiting for their callback."""
     return held(connection, "handshakes", Handshakes)
 
@@ -65,26 +65,26 @@ def the_handshakes(connection: HTTPConnection) -> Handshakes:
 # The process's one httpx client, the very one Meta's Graph and the embedder ride. A door that
 # opened a client of its own would open one per request, and a sign-in is two calls to somebody
 # else's server with a person waiting on the redirect.
-def the_http(connection: HTTPConnection) -> httpx.AsyncClient:
+def get_http(connection: HTTPConnection) -> httpx.AsyncClient:
     """What this gateway talks to other people's servers with."""
     return held(connection, "http", httpx.AsyncClient)
 
 
-SsoDep = Annotated["Sso | None", Depends(the_sso)]
-HandshakesDep = Annotated[Handshakes, Depends(the_handshakes)]
-HttpDep = Annotated[httpx.AsyncClient, Depends(the_http)]
+SsoDep = Annotated["Sso | None", Depends(get_sso)]
+HandshakesDep = Annotated[Handshakes, Depends(get_handshakes)]
+HttpDep = Annotated[httpx.AsyncClient, Depends(get_http)]
 
 
 # An org's client secret is a secret exactly as a provider key is, sealed under the same vault
 # key; a runtime with none cannot keep one, and says so in the vault's own sentence.
-async def a_kept_sso(sso: SsoDep) -> Sso:
+async def require_sso(sso: SsoDep) -> Sso:
     """The org_sso table, or 503: this box has no vault key."""
     if sso is None:
         raise HTTPException(503, NO_VAULT_KEY)
     return sso
 
 
-KeptSsoDep = Annotated[Sso, Depends(a_kept_sso)]
+KeptSsoDep = Annotated[Sso, Depends(require_sso)]
 
 
 class WantedSso(WireModel):
@@ -111,11 +111,11 @@ class Required(WireModel):
 
 
 @router.get("/v1/org/sso")
-async def wired(
+async def sso_standing(
     key: TeamKeyDep, sso: KeptSsoDep, settings: SettingsDep, request: Request
 ) -> SsoStanding:
     """What this org signs in with, and the URI to register at the provider. Never the secret."""
-    return _standing(await sso.of(key.org), where_the_idp_answers(settings, request))
+    return _standing(await sso.of(key.org), idp_redirect_uri(settings, request))
 
 
 @router.put("/v1/org/sso")
@@ -138,7 +138,7 @@ async def wire(
     except OpenIdRefused as refused:
         raise HTTPException(400, UNREACHABLE.format(said=refused)) from refused
     await sso.put(wanted)
-    return _standing(wanted, where_the_idp_answers(settings, request))
+    return _standing(wanted, idp_redirect_uri(settings, request))
 
 
 @router.delete("/v1/org/sso", status_code=HTTP_204_NO_CONTENT)
@@ -153,8 +153,8 @@ async def wired_there(
     named: str, orgs: OrgsDep, sso: KeptSsoDep, settings: SettingsDep, request: Request
 ) -> SsoStanding:
     """Which provider one org is wired to. The same answer the org reads, and the same silence."""
-    org = await an_org(named, orgs)
-    return _standing(await sso.of(org.id), where_the_idp_answers(settings, request))
+    org = await require_org(named, orgs)
+    return _standing(await sso.of(org.id), idp_redirect_uri(settings, request))
 
 
 # The break-glass, and the reason it is the BOX's and not the org's: `required` is the org saying
@@ -162,7 +162,7 @@ async def wired_there(
 # off is the person locked out. Turning it back ON is the org's own door above — an operator who
 # could would be an operator deciding how a tenant's people sign in.
 @operator.put("/orgs/{named}/sso/required")
-async def still_required(
+async def password_standing(
     named: str,
     said: Required,
     orgs: OrgsDep,
@@ -171,21 +171,21 @@ async def still_required(
     request: Request,
 ) -> SsoStanding:
     """Whether this org's people may still use a password. 404 when it is wired to nothing."""
-    org = await an_org(named, orgs)
+    org = await require_org(named, orgs)
     wired_to = await sso.of(org.id)
     if wired_to is None:
         raise HTTPException(404, NO_SSO_THERE.format(org=org.slug))
     changed = replace(wired_to, required=said.required)
     await sso.put(changed)
-    return _standing(changed, where_the_idp_answers(settings, request))
+    return _standing(changed, idp_redirect_uri(settings, request))
 
 
 # The one string this gateway is known by at the provider, off the name it is reached by
 # (api/public_url.py) — never a header a caller sent, which would be a sign-in a stranger could
 # redirect to themselves.
-def where_the_idp_answers(settings: Settings, request: Request) -> str:
+def idp_redirect_uri(settings: Settings, request: Request) -> str:
     """The redirect URI this gateway is known by, as it is registered at the provider."""
-    return f"{where_this_gateway_answers(settings, request)}{CALLBACK}"
+    return f"{public_base_url(settings, request)}{CALLBACK}"
 
 
 def _a_configuration(said: WantedSso, org: str) -> OrgSso:

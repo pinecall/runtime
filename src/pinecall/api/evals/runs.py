@@ -22,7 +22,7 @@ from pinecall.api.evals.runner import (
     Process,
     RunnerDep,
     Wanted,
-    a_run,
+    run_evals,
 )
 from pinecall.api.live import LiveDep
 from pinecall.auth.keys import is_held_by
@@ -69,7 +69,7 @@ class RunList(WireModel):
 
 # The run keeps its matrix as the document scoring.py wrote (evals/run_store.py), and it is read
 # back into the shape here: the same keys either way, and the door's answer says which they are.
-def a_run_said(run: EvalRun) -> RunSaid:
+def wire_run(run: EvalRun) -> RunSaid:
     """The run as the door answers it: one document, no nesting past the matrix."""
     return RunSaid(
         id=run.id,
@@ -129,7 +129,7 @@ async def run_the_goldens(
         settings=settings,
     )
     try:
-        return a_run_said(await a_run(said, runner, process))
+        return wire_run(await run_evals(said, runner, process))
     # One asker per agent, and the refusal names the run holding that agent so it can be polled.
     # An event the agent never declared, and a model this process has no key for: both are the
     # request asking for something this box cannot do, and both name what to change.
@@ -142,7 +142,7 @@ async def run_the_goldens(
 # and a screen reading a page of the org's newest runs would lose this agent's older ones behind
 # everybody else's. The agents repo's docs/decisions/evals-screen.md.
 @router.get("/v1/evals/runs")
-async def listed(
+async def list_runs(
     key: EvalsKeyDep,
     runs: RunsDep,
     store: StoreDep,
@@ -152,7 +152,7 @@ async def listed(
 ) -> RunList:
     """The runs this gateway has done, newest first: the list a drift check diffs across."""
     mine = await _the_orgs(key.org, runs, store, limit, since, agent)
-    return RunList(runs=[a_run_said(run) for run in mine])
+    return RunList(runs=[wire_run(run) for run in mine])
 
 
 # The cut belongs AFTER the org filter, and used to come before it: `newest(limit)` took the box's
@@ -186,7 +186,7 @@ async def one_run(id: str, key: EvalsKeyDep, runs: RunsDep, store: StoreDep) -> 
     run = await runs.of(id)
     if run is None or not await _is_the_orgs(key.org, store, run.agent):
         raise HTTPException(404, NO_SUCH_RUN.format(id=id))
-    return a_run_said(run)
+    return wire_run(run)
 
 
 async def _is_the_orgs(org: str, store: Store, agent: str) -> bool:

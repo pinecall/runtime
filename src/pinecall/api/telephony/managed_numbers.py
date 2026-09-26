@@ -18,10 +18,10 @@ from pinecall.api.telephony.numbers import (
     DRY_RUN,
     NO_DOMAIN,
     NumberRouted,
-    a_route,
-    on_the_sfu,
-    routed,
-    trunked,
+    parse_route,
+    route_number,
+    trunk_on_carrier,
+    trunk_on_sfu,
 )
 from pinecall.routes.inbound_trunks import NO_LIVEKIT
 from pinecall.routes.twilio import BOX_TRUNK, TwilioNumber
@@ -61,7 +61,7 @@ async def bought(
     dry_run: bool = DRY_RUN,
 ) -> NumberRouted:
     """One number bought on the box's account into this org's world, if the plan has room."""
-    account = the_boxs_account(settings)
+    account = box_twilio_account(settings)
     if account is None:
         raise HTTPException(503, NO_BOX_CARRIER)
     if not settings.domain:
@@ -75,19 +75,21 @@ async def bought(
     if number is None:
         where = f"{said.country} {said.area_code}" if said.area_code else said.country
         raise HTTPException(404, NONE_FOR_SALE.format(where=where.strip()))
-    route = a_route(key, number, said.agent, said.channel, managed=True)
+    route = parse_route(key, number, said.agent, said.channel, managed=True)
     owned = TwilioNumber(sid=NOT_BOUGHT_YET, number=number, name=number)
     steps.append(f"buy      {number} — on account {account.account_sid}, billed to the box")
     if not dry_run:
         owned = await api.bought(number)
     sid = account.account_sid
-    await trunked(api, BOX_TRUNK, sid, route, {number: owned}, settings.domain, steps, dry_run)
+    await trunk_on_carrier(
+        api, BOX_TRUNK, sid, route, {number: owned}, settings.domain, steps, dry_run
+    )
     boxs = Carrier(org=key.org, account=account)
-    await on_the_sfu(trunks, settings.fleet, boxs, route, steps, dry_run)
-    return await routed(route, steps, table, dry_run)
+    await trunk_on_sfu(trunks, settings.fleet, boxs, route, steps, dry_run)
+    return await route_number(route, steps, table, dry_run)
 
 
-def the_boxs_account(settings: Settings) -> TwilioAccount | None:
+def box_twilio_account(settings: Settings) -> TwilioAccount | None:
     """The box's own Twilio out of the settings, or None when the box was given none."""
     if not settings.twilio_account_sid or not settings.twilio_api_secret:
         return None

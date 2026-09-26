@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api.agents.handlers import Socket, asked, handles
+from pinecall.api.agents.handlers import Socket, handles, parse_command
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.calls.worker_writes import NOT_OPEN, refuse_another_orgs_call
 from pinecall.api.deps import AppKeyDep, LogsDep
@@ -89,7 +89,7 @@ async def run_a_tool(
 @handles("tool.result")
 async def take_a_tool_result(socket: Socket, command: Command) -> None:
     """What the tool returned in the app's own process, handed to whoever is waiting for it."""
-    result = asked(command, defs.ToolResult)
+    result = parse_command(command, defs.ToolResult)
     session = socket.live.of(command.call)
     if session is not None and session.agent == command.agent and session.tool_answered(result):
         return

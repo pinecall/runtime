@@ -8,7 +8,7 @@ import pytest
 
 from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
-from pinecall.api.deps import the_runs
+from pinecall.api.deps import get_runs
 from pinecall.api.evals.runner import AlreadyRunning, Runner
 
 # The judges are the `evals` group, not a dependency of the gateway: on a box without it the door
@@ -103,7 +103,7 @@ async def test_the_row_names_each_call_before_its_first_turn_and_its_verdict_as_
     """A watcher polling the row sees the golden being driven, then its cell, not all at the end."""
     await serving(registry)
     rewritten = Rewritten()
-    app.dependency_overrides[the_runs] = lambda: rewritten
+    app.dependency_overrides[get_runs] = lambda: rewritten
     llm.script.extend((Scripted(chunks=("Hola.",)), Scripted(chunks=("Adiós.",))))
     goldens = [a_golden("greets", ["hola"]), a_golden("parts", ["chau"])]
 
@@ -244,7 +244,7 @@ async def test_two_agents_held_by_two_apps_are_evaluated_at_the_same_time(
     await serving(registry)
     await serving(registry, slug=ANOTHER_AGENT, owner=ANOTHER_OWNER)
     rendezvous = Rendezvous()
-    app.dependency_overrides[the_runs] = lambda: rendezvous
+    app.dependency_overrides[get_runs] = lambda: rendezvous
 
     both = await asyncio.gather(
         suite_http.post(RUN, json={"agent": AGENT, "goldens": []}),

@@ -185,7 +185,7 @@ async def test_a_box_with_no_name_cannot_be_pointed_at(
 
     await brought(tenant_http)
     nameless = settings.model_copy(update={"domain": None})
-    app.dependency_overrides[deps.a_settings] = lambda: nameless
+    app.dependency_overrides[deps.get_settings] = lambda: nameless
     answer = await tenant_http.post("/v1/numbers", json={"number": ABAI, "agent": AGENT})
     assert (answer.status_code, answer.json()["detail"]) == (503, NO_DOMAIN)
 

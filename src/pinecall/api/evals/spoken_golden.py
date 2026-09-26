@@ -30,7 +30,7 @@ NOBODY_SEALED = (
 )
 
 
-async def a_spoken_conversation(
+async def run_spoken_conversation(
     golden: Golden,
     *,
     call: str,

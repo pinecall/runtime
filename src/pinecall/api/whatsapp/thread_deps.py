@@ -60,7 +60,7 @@ class Doors:
 
 # Built from the request's own dependencies and not read off app.state, so what a test overrides
 # at one dependency is what the webhook's doors are made of.
-def a_doors(
+def get_doors(
     settings: SettingsDep,
     routes: RoutesDep,
     registry: RegistryDep,
@@ -91,7 +91,7 @@ def a_doors(
     )
 
 
-DoorsDep = Annotated[Doors, Depends(a_doors)]
+DoorsDep = Annotated[Doors, Depends(get_doors)]
 
 
 # The same doors out of the gateway's own state, for the waiting room, which answers a message

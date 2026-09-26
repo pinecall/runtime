@@ -15,16 +15,16 @@ from pinecall.api.calls.log_sink import (
     SSE,
     SSE_HEADERS,
     AcceptDep,
-    an_sse_frame,
+    sse_frame,
     wants_sse,
 )
 from pinecall.api.deps import OrgsDep, StoreDep, UsageKeyDep
-from pinecall.api.scope.operator_key import an_operators_router
+from pinecall.api.scope.operator_key import operators_router
 from pinecall.log.store import DEFAULT_LIMIT, Store
 from pinecall.log.usage import METERED_TYPES, Totals, UsageRow, fold_usage_row, totals_by_org
 from pinecall_protocol import WireModel
 
-operator = an_operators_router()
+operator = operators_router()
 
 # The tenant's own read of the same rows, cut to its org by its key: what the console's Usage
 # screen draws. A page and never a stream — a person reads a total, a cloud follows a cursor.
@@ -124,4 +124,4 @@ async def _stream(store: Store, after: int, only: str | None) -> AsyncIterator[s
 
 def _frame(row: UsageRow) -> str:
     """One row as SSE: its cursor as the id, so a reconnect resumes exactly where this left off."""
-    return an_sse_frame("usage", asdict(row), id=row.cursor)
+    return sse_frame("usage", asdict(row), id=row.cursor)

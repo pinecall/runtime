@@ -16,7 +16,7 @@ from pinecall.api.deps import (
     TuningDep,
     VaultDep,
 )
-from pinecall.api.evals.agent_finished import the_call_is_over, until_the_answer_lands
+from pinecall.api.evals.agent_finished import is_call_over, until_the_answer_lands
 from pinecall.auth.keys import is_held_by
 from pinecall.evals.caller_voice import Speaking
 from pinecall.evals.simulated_caller import (
@@ -70,7 +70,7 @@ class Called(WireModel):
 # as `/v1/evals/caller` plays it — and the log the transcript is read back from. The terminal mints
 # the call id and watches the log — see docs/decisions/simulate.md.
 @router.post("/v1/evals/voice")
-async def a_voice_call(
+async def place_voice_call(
     said: Calling,
     key: EvalsKeyDep,
     llms: LlmsDep,
@@ -120,7 +120,7 @@ async def a_voice_call(
         # app, the agent. This loop is the gateway's and the call is the worker's, so the log is
         # the only place it hears of it — and a caller that did not look went on saying its
         # remaining turns to an empty room. No line is the hangup (evals/voice_run.py:357).
-        if the_call_is_over(entries):
+        if is_call_over(entries):
             return "", True
         asking = Asking(
             persona=said.persona,

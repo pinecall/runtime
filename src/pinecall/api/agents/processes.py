@@ -67,9 +67,9 @@ class Processes:
         return tuple(sorted(mine, key=lambda one: one.connected_at))
 
 
-def the_processes(connection: HTTPConnection) -> Processes:
+def get_processes(connection: HTTPConnection) -> Processes:
     """The app sockets open on this gateway right now."""
     return held(connection, "processes", Processes)
 
 
-ProcessesDep = Annotated[Processes, Depends(the_processes)]
+ProcessesDep = Annotated[Processes, Depends(get_processes)]

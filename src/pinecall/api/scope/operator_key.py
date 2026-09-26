@@ -27,12 +27,12 @@ NOT_THE_OPERATORS = "this door is the box's: its operator key, or a person the b
 OPS = "/v1/ops"
 
 
-def an_operators_router() -> APIRouter:
+def operators_router() -> APIRouter:
     """A router of the box's own doors: under /v1/ops, every one of them behind an_operator."""
-    return APIRouter(prefix=OPS, dependencies=[Depends(an_operator)])
+    return APIRouter(prefix=OPS, dependencies=[Depends(require_operator)])
 
 
-async def an_operator(
+async def require_operator(
     connection: HTTPConnection, settings: SettingsDep, keys: KeysDep, members: MembersDep
 ) -> None:
     """Whether the box's key knocked, or one of its people. Unset and nobody is the safe default."""

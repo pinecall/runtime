@@ -131,7 +131,7 @@ class WaitingRoom:
         self._waiting.pop(waiting.inbound.message_id, None)
 
 
-async def answering(
+async def answer_unanswered(
     room: WaitingRoom,
     logs: Logs,
     held: Callable[[Env, str], bool],

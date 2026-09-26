@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query
 
-from pinecall.api.agents.tuning import TuningKeyDep, a_lexicon_row, corner_written
+from pinecall.api.agents.tuning import TuningKeyDep, corner_written, wire_lexicon_row
 from pinecall.api.deps import TuningDep
 from pinecall.auth.keys import KeyRecord, is_held_by
 from pinecall.auth.request_scope import author_of
@@ -17,7 +17,7 @@ from pinecall_protocol.rest import LexiconAnswer, LexiconBody, LexiconHistory, L
 router = APIRouter()
 
 
-def a_lexicon(body: LexiconBody) -> Lexicon:
+def parse_lexicon(body: LexiconBody) -> Lexicon:
     """The wire's body as the domain's shape, or 400 in the shape's own sentence."""
     return Lexicon(said={one.word: one.spoken for one in body.said}, heard=tuple(body.heard))
 
@@ -34,7 +34,7 @@ async def lexicon(key: TuningKeyDep, kept: TuningDep) -> LexiconAnswer:
 async def set_lexicon(said: LexiconPut, key: TuningKeyDep, kept: TuningDep) -> LexiconAnswer:
     """Set the lexicon in this key's corner, or the team's: a new version."""
     corner = corner_written(key, said.team)
-    wanted = a_lexicon(said.lexicon)
+    wanted = parse_lexicon(said.lexicon)
     await kept.put_lexicon(
         key.org,
         key.env,
@@ -57,7 +57,9 @@ async def history(
     """Every version this corner kept, newest first."""
     corner = corner_written(key, team)
     rows = await kept.lexicon_history(key.org, key.env, corner, limit)
-    return LexiconHistory(world=key.env, holder=corner, rows=[a_lexicon_row(row) for row in rows])
+    return LexiconHistory(
+        world=key.env, holder=corner, rows=[wire_lexicon_row(row) for row in rows]
+    )
 
 
 async def _answer(key: KeyRecord, kept: TuningStore) -> LexiconAnswer:
@@ -68,7 +70,7 @@ async def _answer(key: KeyRecord, kept: TuningStore) -> LexiconAnswer:
     production = await kept.own_lexicon(key.org, PRODUCTION, THE_ORGS_OWN)
     return LexiconAnswer(
         world=key.env,
-        yours=None if yours is None else a_lexicon_row(yours),
-        team=None if team is None else a_lexicon_row(team),
-        production=None if production is None else a_lexicon_row(production),
+        yours=None if yours is None else wire_lexicon_row(yours),
+        team=None if team is None else wire_lexicon_row(team),
+        production=None if production is None else wire_lexicon_row(production),
     )

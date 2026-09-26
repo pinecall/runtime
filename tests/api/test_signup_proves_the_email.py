@@ -73,7 +73,7 @@ def keyed(settings: Settings) -> None:
     from pinecall.api.app import app
 
     shielded = settings.model_copy(update={"signup_key": THE_SHIELDS_KEY})
-    app.dependency_overrides[deps.a_settings] = lambda: shielded
+    app.dependency_overrides[deps.get_settings] = lambda: shielded
 
 
 # ── the letter, and nothing before the code ─────────────────────────────────────
@@ -117,7 +117,7 @@ async def test_six_wrong_codes_burn_it_and_the_right_one_is_refused_after(
     from pinecall.auth.throttle import Throttle
 
     # The throttle is its own rule (below); here every wrong try reaches the code.
-    app.dependency_overrides[deps.the_throttle] = lambda: Throttle(tries=100)
+    app.dependency_overrides[deps.get_throttle] = lambda: Throttle(tries=100)
     await asked(stranger)
     code = await the_code_mailed(outbox, relay)
     wrong = "000000" if code != "000000" else "111111"

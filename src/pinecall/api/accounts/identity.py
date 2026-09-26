@@ -8,7 +8,7 @@ from fastapi import Depends, HTTPException
 from starlette.requests import HTTPConnection
 
 from pinecall._settings import Settings
-from pinecall.api.accounts.org_sso import the_http
+from pinecall.api.accounts.org_sso import get_http
 from pinecall.api.deps import SettingsDep
 from pinecall.auth.identity import Identity
 from pinecall.auth.keys import Issued, Keys, revoked_every_key_of
@@ -33,7 +33,7 @@ BOUGHT_THERE = "this door is production's: numbers are bought at {elsewhere}"
 # One dependency, so a door says it is production's by what it declares and never by an `if`
 # somebody could leave out of the next one. A plain function too, for the one door that is
 # production's for one of its two bodies (POST /v1/login: a password, not a code).
-def at_production(settings: SettingsDep) -> None:
+def require_production(settings: SettingsDep) -> None:
     """Nothing at production; 404 naming where people sign in, anywhere else."""
     _only_at_production(settings, SIGN_IN_THERE.format(identity=settings.identity_url))
 
@@ -49,7 +49,7 @@ def _only_at_production(settings: Settings, refusal: str) -> None:
         raise HTTPException(404, refusal)
 
 
-AtProduction = Depends(at_production)
+AtProduction = Depends(require_production)
 BuysAtProduction = Depends(buying_at_production)
 
 
@@ -69,14 +69,14 @@ ANOTHER_ORGS = "{email}'s id is a member of another org on this sandbox: an oper
 
 # Production, over the process's one httpx client, on a sandbox; None on production itself, whose
 # own codes are the only ones there are — and which is not handed the client it would never use.
-def the_identity(connection: HTTPConnection, settings: SettingsDep) -> Identity | None:
+def get_identity(connection: HTTPConnection, settings: SettingsDep) -> Identity | None:
     """Who a sandbox asks who a person is, or None where this instance is the one asked."""
     if settings.world == PRODUCTION or settings.identity_url is None:
         return None
-    return Identity(the_http(connection), settings.identity_url)
+    return Identity(get_http(connection), settings.identity_url)
 
 
-IdentityDep = Annotated["Identity | None", Depends(the_identity)]
+IdentityDep = Annotated["Identity | None", Depends(get_identity)]
 
 
 # The second half of a sign-in that began at production: the code was minted there, so it is spent
@@ -88,7 +88,7 @@ IdentityDep = Annotated["Identity | None", Depends(the_identity)]
 # An org this sandbox did not have is admitted here, as signup admits one at production: the
 # extension says what a new org may do in THIS world, in the same breath it is made. An org the
 # sandbox already held — a later sign-in, or one the seed copied — is never admitted again.
-async def a_mirrored_key(
+async def mint_mirrored_key(
     code: str,
     label: str,
     identity: Identity,

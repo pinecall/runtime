@@ -17,12 +17,12 @@ from pinecall_protocol.rest import Persona, PersonaList, PersonaPut
 router = APIRouter()
 
 
-def the_personas(connection: HTTPConnection) -> Personas:
+def get_personas(connection: HTTPConnection) -> Personas:
     """Where this org's callers are kept. The doors that ask for them are this file and its runs."""
     return held(connection, "personas")
 
 
-PersonasDep = Annotated[Personas, Depends(the_personas)]
+PersonasDep = Annotated[Personas, Depends(get_personas)]
 
 # A caller is named as `--persona` takes it, and as its file was: lower-case words and hyphens.
 A_NAME = "abcdefghijklmnopqrstuvwxyz0123456789-"

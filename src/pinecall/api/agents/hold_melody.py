@@ -17,12 +17,12 @@ from pinecall_protocol import WireModel
 router = APIRouter()
 
 
-def the_hold_audio(connection: HTTPConnection) -> HoldAudio:
+def get_hold_audio(connection: HTTPConnection) -> HoldAudio:
     """Which melody each agent plays while a tool runs, when it is not the runtime's own."""
     return held(connection, "hold_audio")
 
 
-HoldAudioDep = Annotated[HoldAudio, Depends(the_hold_audio)]
+HoldAudioDep = Annotated[HoldAudio, Depends(get_hold_audio)]
 
 # An upload is a whole file in one request: a five-minute mp3 is under ten megabytes.
 MAX_BYTES = 20 * 1024 * 1024
@@ -122,7 +122,7 @@ async def choose(
 
 
 @router.get("/v1/agents/{slug}/hold-audio", dependencies=[AnAgentHeld])
-async def for_a_call(
+async def melody_for_call(
     slug: str,
     key: DeclarationKeyDep,  # noqa: ARG001 — the scope is asked here; the corner says where
     corner: CornerDep,
@@ -133,7 +133,7 @@ async def for_a_call(
 
 
 @router.get("/v1/agents/{slug}/hold-audio/audio", dependencies=[AnAgentHeld])
-async def for_a_call_file(
+async def melody_file_for_call(
     slug: str,
     key: DeclarationKeyDep,  # noqa: ARG001
     corner: CornerDep,

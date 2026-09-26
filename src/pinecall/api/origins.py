@@ -10,7 +10,7 @@ from starlette.requests import HTTPConnection
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from pinecall._settings import Settings
-from pinecall.api.deps import a_settings
+from pinecall.api.deps import get_settings
 from pinecall.extensions.loading import named_in
 
 # The app is a WebView, and a WebView's origin is not this box's: Capacitor serves iOS from
@@ -70,7 +70,7 @@ class AppOrigins:
             await self.app(scope, receive, send)
             return
         origin = Headers(scope=scope).get("origin")
-        allowed = origins_allowed(a_settings(HTTPConnection(scope))) if origin else ()
+        allowed = origins_allowed(get_settings(HTTPConnection(scope))) if origin else ()
         if origin and origin not in allowed and A_PAGES_READS.match(str(scope["path"])):
             await _any_page(self.app)(scope, receive, send)
             return

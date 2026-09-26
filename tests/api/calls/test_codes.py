@@ -35,7 +35,7 @@ CODES = "/v1/codes"
 def codes(wired: None, logs: Logs) -> Codes:  # noqa: ARG001 — `wired` clears the override after
     """The codes table this gateway answers from, empty at the start of every test."""
     table = Codes(logs)
-    app.dependency_overrides[deps.the_codes] = lambda: table
+    app.dependency_overrides[deps.get_codes] = lambda: table
     return table
 
 

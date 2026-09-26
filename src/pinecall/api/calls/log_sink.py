@@ -58,7 +58,7 @@ PING = ": ping\n\n"
 # here, because EventSource cannot set a header — a browser reading its own call has no other way
 # to say who it is. A URL ends up in an access log, which is why the app socket refuses the query
 # string outright and why the tokens this accepts are the short-lived ones.
-async def reading(
+async def get_reader_or_none(
     connection: HTTPConnection, keys: Keys, settings: Settings, token: str | None
 ) -> Reader | None:
     """Who is reading: the Bearer key, or ?token= for a browser. None means nobody we know."""
@@ -122,7 +122,7 @@ async def refuse_another_org(reader: Reader, store: Store, call: str | None, age
 NO_SUCH_CALL = "no call {call} in this key's org and world"
 
 
-async def the_calls_corner(index: CallIndex, key: KeyRecord, call: str) -> CallCorner:
+async def require_calls_scope(index: CallIndex, key: KeyRecord, call: str) -> CallCorner:
     """The corner this call was opened in, when it is the key's own; one 404 sentence otherwise."""
     whose = corner_of(key)
     corner = await index.corner_of_call(call)
@@ -131,7 +131,7 @@ async def the_calls_corner(index: CallIndex, key: KeyRecord, call: str) -> CallC
     return corner
 
 
-async def the_reader(
+async def require_reader(
     connection: HTTPConnection,
     keys: KeysDep,
     settings: SettingsDep,
@@ -139,7 +139,7 @@ async def the_reader(
     token: Annotated[str | None, Query()] = None,
 ) -> Reader:
     """The reader, or 401. An unknown key is told nothing about why it is unknown."""
-    reader = await reading(connection, keys, settings, token)
+    reader = await get_reader_or_none(connection, keys, settings, token)
     if reader is None:
         raise HTTPException(401, "a log is read with a key", {"WWW-Authenticate": "Bearer"})
     # A key reads in the world it names, in its own corner or the colleague's an admin named.
@@ -160,7 +160,7 @@ async def the_reader(
 # share, and the test over the routes reads it off this function the way it reads a scoped dep —
 # under the same attribute name and in the same shape `opening()` writes, spelled there once.
 READS = "calls"
-the_reader.__dict__[SCOPE_OF_THE_DOOR] = frozenset({READS})
+require_reader.__dict__[SCOPE_OF_THE_DOOR] = frozenset({READS})
 
 
 # A process with neither a LiveKit pair nor a dev key can still serve API keys; it just cannot
@@ -175,7 +175,7 @@ def _a_secret(settings: Settings) -> LivekitKeys | None:
 
 # The projection is decided from what the reader IS, and applied at the sink. It needs the agent's
 # declaration to know which state fields may leave, and the registry is where a declaration lives.
-def a_projection(registry: RegistryDep) -> Project:
+def projection_for(registry: RegistryDep) -> Project:
     """What this reader may see of an entry, by the contract's two projections and nothing else."""
 
     def project(entry: Entry, reader: Reader) -> JsonObject | None:
@@ -196,7 +196,7 @@ def declared_by(registry: Registry, agent: str) -> AgentConfig | None:
 # ── what the reader asked for ───────────────────────────────────────────────────
 
 
-def the_cursor(
+def parse_cursor(
     after: Annotated[int, Query(ge=0)] = 0,
     last_event_id: Annotated[str | None, Header()] = None,
 ) -> int:
@@ -204,7 +204,7 @@ def the_cursor(
     return max(after, _a_seq(last_event_id))
 
 
-def the_filter(
+def parse_filter(
     types: Annotated[str | None, Query()] = None,
     durable: Annotated[bool, Query()] = False,
 ) -> Filter:
@@ -217,10 +217,10 @@ def wants_sse(accept: str | None) -> bool:
     return SSE in (accept or "")
 
 
-CursorDep = Annotated[int, Depends(the_cursor)]
-FilterDep = Annotated[Filter, Depends(the_filter)]
-ProjectDep = Annotated[Project, Depends(a_projection)]
-ReaderDep = Annotated[Reader, Depends(the_reader)]
+CursorDep = Annotated[int, Depends(parse_cursor)]
+FilterDep = Annotated[Filter, Depends(parse_filter)]
+ProjectDep = Annotated[Project, Depends(projection_for)]
+ReaderDep = Annotated[Reader, Depends(require_reader)]
 LimitDep = Annotated[int, Query(ge=1, le=DEFAULT_LIMIT)]
 AcceptDep = Annotated[str | None, Header()]
 
@@ -265,12 +265,12 @@ def sse(
     ends_at: str | None = TERMINAL_EVENT,
 ) -> StreamingResponse:
     """The same entries as a stream that stays open, and ends where its log does — if it ends."""
-    return a_stream(_projected(entries, project, reader, ends_at))
+    return sse_response(_projected(entries, project, reader, ends_at))
 
 
 # Any SSE door of this gateway, whatever it says per entry: a door that projects for a tenant and
 # the operator's, which wraps each entry with its org, write the same frames on the same clock.
-def a_stream(said: AsyncIterator[tuple[Entry, JsonObject]]) -> StreamingResponse:
+def sse_response(said: AsyncIterator[tuple[Entry, JsonObject]]) -> StreamingResponse:
     """Each entry and what it says, as SSE: retry first, a frame each, a ping when it is quiet."""
     return StreamingResponse(_frames(said), media_type=SSE, headers=SSE_HEADERS)
 
@@ -278,7 +278,7 @@ def a_stream(said: AsyncIterator[tuple[Entry, JsonObject]]) -> StreamingResponse
 async def _frames(said: AsyncIterator[tuple[Entry, JsonObject]]) -> AsyncIterator[str]:
     """retry first, then a frame per entry and a ping whenever nothing came for a while."""
     yield f"retry: {RETRY_MS}\n\n"
-    async for one in paced(said, PING_SECONDS):
+    async for one in pace(said, PING_SECONDS):
         yield PING if one is None else _frame(*one)
 
 
@@ -299,12 +299,12 @@ async def _projected(
 # at the seq of the last entry they speak for, which makes them safe to resume from too.
 def _frame(entry: Entry, said: JsonObject) -> str:
     """One entry as SSE: its seq, its type, and what this reader may see as the data line."""
-    return an_sse_frame(entry.type, said, id=entry.seq)
+    return sse_frame(entry.type, said, id=entry.seq)
 
 
 # The one place a frame is spelled (the log's, the usage rows', the app's commands'): the id when
 # the reader can resume from it, the event, the data on one line, the blank line that ends it.
-def an_sse_frame(event: str, data: JsonObject, *, id: int | None = None) -> str:
+def sse_frame(event: str, data: JsonObject, *, id: int | None = None) -> str:
     """One SSE frame, compact JSON as the data line."""
     said = json.dumps(data, separators=(",", ":"))
     head = "" if id is None else f"id: {id}\n"
@@ -314,7 +314,7 @@ def an_sse_frame(event: str, data: JsonObject, *, id: int | None = None) -> str:
 # The stream and the clock are two sources and SSE needs both. One pending task carried across the
 # timeout is the whole trick: re-awaiting a fresh __anext__ after a ping would drop the entry the
 # first one is still waiting for.
-async def paced[T](coming: AsyncIterator[T], every: float) -> AsyncIterator[T | None]:
+async def pace[T](coming: AsyncIterator[T], every: float) -> AsyncIterator[T | None]:
     """Every item as it comes, and None whenever `every` seconds pass with nothing to send."""
     pending: asyncio.Task[T] | None = None
     try:
@@ -340,7 +340,7 @@ async def paced[T](coming: AsyncIterator[T], every: float) -> AsyncIterator[T | 
 
 # The Store keeps no flag to ask, on purpose: what ends a call is the protocol's terminal event,
 # and the store must not have to read the protocol to write a row. So the tail is the answer.
-async def ended(store: Store, call: str) -> bool:
+async def is_sealed(store: Store, call: str) -> bool:
     """Whether this call's log is sealed: its last entry is the terminal one, or it is not over."""
     latest = await store.latest_seq(call)
     if latest == 0:

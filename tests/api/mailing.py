@@ -6,8 +6,8 @@ import pytest
 from cryptography.fernet import Fernet
 
 from pinecall.api.app import app
-from pinecall.api.ops.box_settings import the_box_settings
-from pinecall.api.org.mail import the_mail, the_outbox
+from pinecall.api.ops.box_settings import get_box_settings
+from pinecall.api.org.mail import get_mail, get_outbox
 from pinecall.mail import Outbox
 from pinecall.orgs.box_settings import BoxSettings, MemoryBoxSettings
 from pinecall.orgs.org_mail import Mail, MemoryMail
@@ -64,10 +64,10 @@ def outbox(
 ) -> Iterator[Outbox]:
     """The one place a letter leaves by, over this test's environment, its tables and its box."""
     posting = Outbox(the_boxs_mail, mail, box_settings)
-    app.dependency_overrides[the_outbox] = lambda: posting
-    app.dependency_overrides[the_mail] = lambda: mail
-    app.dependency_overrides[the_box_settings] = lambda: box_settings
+    app.dependency_overrides[get_outbox] = lambda: posting
+    app.dependency_overrides[get_mail] = lambda: mail
+    app.dependency_overrides[get_box_settings] = lambda: box_settings
     yield posting
-    app.dependency_overrides.pop(the_outbox, None)
-    app.dependency_overrides.pop(the_mail, None)
-    app.dependency_overrides.pop(the_box_settings, None)
+    app.dependency_overrides.pop(get_outbox, None)
+    app.dependency_overrides.pop(get_mail, None)
+    app.dependency_overrides.pop(get_box_settings, None)

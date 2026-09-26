@@ -58,19 +58,19 @@ def held[T](connection: HTTPConnection, name: str, of: type[T] | None = None) ->
     return cast(T, thing)
 
 
-def a_settings(connection: HTTPConnection) -> Settings:
+def get_settings(connection: HTTPConnection) -> Settings:
     """The environment this process read at startup."""
     return held(connection, "settings", Settings)
 
 
-def a_store(connection: HTTPConnection) -> Store:
+def get_store(connection: HTTPConnection) -> Store:
     """Where entries are appended and read back. A Protocol, so isinstance says nothing here."""
     return held(connection, "store")
 
 
 # The store folds every call's facts as it appends, so the store IS the index: one object, two
 # protocols, and a test that overrides the store has overridden the index with it.
-def the_call_index(store: Annotated[Store, Depends(a_store)]) -> CallIndex:
+def get_call_index(store: Annotated[Store, Depends(get_store)]) -> CallIndex:
     """The questions across calls, answered off the rows the store folds (store/call_index.py)."""
     return cast(CallIndex, store)
 
@@ -80,12 +80,12 @@ def the_call_index(store: Annotated[Store, Depends(a_store)]) -> CallIndex:
 # Protocol of serving one (api/calls/deps.py), the text channel the class itself (api/live.py),
 # and each names its own in the Annotated it depends through. One callable, so overriding it in
 # a test answers them all.
-def what_is_live(connection: HTTPConnection) -> object:
+def get_live(connection: HTTPConnection) -> object:
     """The process's live memory: the app sockets open here and the calls running on them."""
     return held(connection, "live", object)
 
 
-def the_keys(connection: HTTPConnection) -> Keys:
+def get_keys(connection: HTTPConnection) -> Keys:
     """Where an API key is verified. A gateway with no database verifies nothing, and says which."""
     keys: Keys | None = getattr(connection.app.state, "keys", None)
     if keys is None:
@@ -93,7 +93,7 @@ def the_keys(connection: HTTPConnection) -> Keys:
     return keys
 
 
-def the_llms(connection: HTTPConnection) -> Models:
+def get_llms(connection: HTTPConnection) -> Models:
     """The way to a model, with this process's provider keys already in it."""
     return held(connection, "llms")
 
@@ -118,7 +118,7 @@ async def _the_key(connection: HTTPConnection, keys: Keys) -> KeyRecord:
 # production who a person is) could never let them in. Every door that opens a scope reads the
 # key as it ACTS in this world, gate and all (`opening`). Both refuse a header naming another
 # world and a token of another, and both then read the corner an admin names (corner.py).
-async def a_key(
+async def get_key(
     connection: HTTPConnection, keys: KeysDep, members: MembersDep, settings: SettingsDep
 ) -> KeyRecord:
     """Whose key knocked, as an identity in this instance: the bare key's read."""
@@ -129,7 +129,7 @@ async def a_key(
         raise HTTPException(403, str(refused)) from refused
 
 
-async def a_key_that_acts(
+async def get_acting_key(
     connection: HTTPConnection, keys: KeysDep, members: MembersDep, settings: SettingsDep
 ) -> KeyRecord:
     """Whose key knocked, acting in this instance's world: what every scoped door reads."""
@@ -142,7 +142,7 @@ async def a_key_that_acts(
 
 # A socket has no 401 to answer with: its door closes with the policy code on None, and with the
 # sentence of a PermissionError when the key may not open the world named. Both sockets ask here.
-async def a_key_on_a_socket(
+async def get_socket_key(
     websocket: HTTPConnection, keys: Keys, members: Members, settings: Settings
 ) -> KeyRecord | None:
     """The key travels as the Authorization header of the upgrade, never in the URL."""
@@ -152,16 +152,16 @@ async def a_key_on_a_socket(
     return await resolve_env(record, websocket.headers, members, settings)
 
 
-SettingsDep = Annotated[Settings, Depends(a_settings)]
-StoreDep = Annotated[Store, Depends(a_store)]
-CallIndexDep = Annotated[CallIndex, Depends(the_call_index)]
-KeysDep = Annotated[Keys, Depends(the_keys)]
-LlmsDep = Annotated[Models, Depends(the_llms)]
+SettingsDep = Annotated[Settings, Depends(get_settings)]
+StoreDep = Annotated[Store, Depends(get_store)]
+CallIndexDep = Annotated[CallIndex, Depends(get_call_index)]
+KeysDep = Annotated[Keys, Depends(get_keys)]
+LlmsDep = Annotated[Models, Depends(get_llms)]
 # The bare key: a door that takes it asks nothing of its scopes, and reads the key as an identity
 # (above). The test over the routes names every such door; every other tenant door takes one of
 # the scoped deps below, which read the key as it acts.
-KeyDep = Annotated[KeyRecord, Depends(a_key)]
-ActingKeyDep = Annotated[KeyRecord, Depends(a_key_that_acts)]
+KeyDep = Annotated[KeyRecord, Depends(get_key)]
+ActingKeyDep = Annotated[KeyRecord, Depends(get_acting_key)]
 
 
 # One dependency per scope, and the door says which by the dep it takes: the key is verified as
@@ -169,7 +169,7 @@ ActingKeyDep = Annotated[KeyRecord, Depends(a_key_that_acts)]
 # the key does open. The scopes ride the function as an attribute so a test can walk the app's
 # routes and prove every tenant door declares exactly one — save the one door below that opens to
 # two, which that test names by path so a second such door cannot arrive unnoticed.
-def opening(*scopes: KeyScope) -> Callable[..., Awaitable[KeyRecord]]:
+def require_scopes(*scopes: KeyScope) -> Callable[..., Awaitable[KeyRecord]]:
     """A dependency that hands back the key when it opens one of these scopes, else refuses."""
 
     async def a_key_opening(key: ActingKeyDep) -> KeyRecord:
@@ -183,121 +183,121 @@ def opening(*scopes: KeyScope) -> Callable[..., Awaitable[KeyRecord]]:
 
 SCOPE_OF_THE_DOOR = "pinecall_scopes"
 
-AppKeyDep = Annotated[KeyRecord, Depends(opening("app"))]
-CallsKeyDep = Annotated[KeyRecord, Depends(opening("calls"))]
+AppKeyDep = Annotated[KeyRecord, Depends(require_scopes("app"))]
+CallsKeyDep = Annotated[KeyRecord, Depends(require_scopes("calls"))]
 # What an agent DECLARED is read by two kinds of key: the worker holding it, which builds the
 # session from it, and a reader watching its calls, which draws the state by the visibility the
 # declaration gave each field. A reader's key — qa's, a supervisor's — holds no `app`, so a door
 # that asked for `app` alone left every console panel at the default. The one door open to either.
-DeclarationKeyDep = Annotated[KeyRecord, Depends(opening("app", "calls"))]
-TalkKeyDep = Annotated[KeyRecord, Depends(opening("talk"))]
-SuperviseKeyDep = Annotated[KeyRecord, Depends(opening("supervise"))]
-PipelineKeyDep = Annotated[KeyRecord, Depends(opening("pipeline"))]
-KnowledgeKeyDep = Annotated[KeyRecord, Depends(opening("knowledge"))]
-MemoryKeyDep = Annotated[KeyRecord, Depends(opening("memory"))]
-EvalsKeyDep = Annotated[KeyRecord, Depends(opening("evals"))]
-ProviderKeysKeyDep = Annotated[KeyRecord, Depends(opening("providers"))]
-TeamKeyDep = Annotated[KeyRecord, Depends(opening("team"))]
-UsageKeyDep = Annotated[KeyRecord, Depends(opening("usage"))]
-NumbersKeyDep = Annotated[KeyRecord, Depends(opening("numbers"))]
+DeclarationKeyDep = Annotated[KeyRecord, Depends(require_scopes("app", "calls"))]
+TalkKeyDep = Annotated[KeyRecord, Depends(require_scopes("talk"))]
+SuperviseKeyDep = Annotated[KeyRecord, Depends(require_scopes("supervise"))]
+PipelineKeyDep = Annotated[KeyRecord, Depends(require_scopes("pipeline"))]
+KnowledgeKeyDep = Annotated[KeyRecord, Depends(require_scopes("knowledge"))]
+MemoryKeyDep = Annotated[KeyRecord, Depends(require_scopes("memory"))]
+EvalsKeyDep = Annotated[KeyRecord, Depends(require_scopes("evals"))]
+ProviderKeysKeyDep = Annotated[KeyRecord, Depends(require_scopes("providers"))]
+TeamKeyDep = Annotated[KeyRecord, Depends(require_scopes("team"))]
+UsageKeyDep = Annotated[KeyRecord, Depends(require_scopes("usage"))]
+NumbersKeyDep = Annotated[KeyRecord, Depends(require_scopes("numbers"))]
 
 
 # ── the tables the lifespan opened, each behind one name ────────────────────────
 
 
-def the_extensions(connection: HTTPConnection) -> Extensions:
+def get_extensions(connection: HTTPConnection) -> Extensions:
     """The points a policy was plugged into at startup, or the runtime's own answers."""
     return held(connection, "extensions", Extensions)
 
 
-def the_orgs(connection: HTTPConnection) -> Orgs:
+def get_orgs(connection: HTTPConnection) -> Orgs:
     """The tenants this process serves. A Protocol, so isinstance says nothing here."""
     return held(connection, "orgs")
 
 
-def the_members(connection: HTTPConnection) -> Members:
+def get_members(connection: HTTPConnection) -> Members:
     """The people of every org, and their invitations. A Protocol, so isinstance says nothing."""
     return held(connection, "members")
 
 
-def the_signups(connection: HTTPConnection) -> PendingSignups:
+def get_signups(connection: HTTPConnection) -> PendingSignups:
     """The sign-ups this process is waiting on a code for."""
     return held(connection, "signups", PendingSignups)
 
 
-def the_login_codes(connection: HTTPConnection) -> LoginCodes:
+def get_login_codes(connection: HTTPConnection) -> LoginCodes:
     """The one-use codes minted here for a browser to log in with."""
     return held(connection, "login_codes", LoginCodes)
 
 
-def the_pairings(connection: HTTPConnection) -> Pairings:
+def get_pairings(connection: HTTPConnection) -> Pairings:
     """The words a terminal printed, waiting for a browser to leave a key in one."""
     return held(connection, "pairings", Pairings)
 
 
-def the_throttle(connection: HTTPConnection) -> Throttle:
+def get_throttle(connection: HTTPConnection) -> Throttle:
     """How often each name has knocked at the password door lately."""
     return held(connection, "throttle", Throttle)
 
 
-def the_routes(connection: HTTPConnection) -> Routes:
+def get_routes(connection: HTTPConnection) -> Routes:
     """The table this process writes. A Protocol, so isinstance says nothing here."""
     return held(connection, "routes")
 
 
-def the_codes(connection: HTTPConnection) -> Codes:
+def get_codes(connection: HTTPConnection) -> Codes:
     """The codes pages show beside a number, and the call each one is waiting for."""
     return held(connection, "codes", Codes)
 
 
-def the_tokens(connection: HTTPConnection) -> Tokens:
+def get_tokens(connection: HTTPConnection) -> Tokens:
     """The ledger this process writes. A Protocol, so isinstance says nothing here."""
     return held(connection, "tokens")
 
 
-def the_logs(connection: HTTPConnection) -> Logs:
+def get_logs(connection: HTTPConnection) -> Logs:
     """The calls and agents this process is writing, so a reader can subscribe to a live one."""
     return held(connection, "logs", Logs)
 
 
-def the_snapshots(connection: HTTPConnection) -> Snapshots:
+def get_snapshots(connection: HTTPConnection) -> Snapshots:
     """The per-call memo of reduced states, so a hundred readers cost one reduction."""
     return held(connection, "snapshots", Snapshots)
 
 
-def the_admission(connection: HTTPConnection) -> Admission:
+def get_admission(connection: HTTPConnection) -> Admission:
     """The gate this process opens calls through."""
     return held(connection, "admission", Admission)
 
 
-def the_tuning(connection: HTTPConnection) -> TuningStore:
+def get_tuning(connection: HTTPConnection) -> TuningStore:
     """Where an agent's tuning and the org's lexicon are kept, a version a row."""
     return held(connection, "tuning")
 
 
-def the_runs(connection: HTTPConnection) -> Runs:
+def get_runs(connection: HTTPConnection) -> Runs:
     """Where every finished eval run is kept. A Protocol, so isinstance says nothing here."""
     return held(connection, "eval_runs")
 
 
-def the_graph(connection: HTTPConnection) -> Graph:
+def get_graph(connection: HTTPConnection) -> Graph:
     """The one client this process talks to Meta through. A Protocol, so isinstance says nothing."""
     return held(connection, "graph")
 
 
-def the_vault(connection: HTTPConnection) -> Vault | None:
+def get_vault(connection: HTTPConnection) -> Vault | None:
     """The vault this process opened, or None when this runtime was given no vault key."""
     vault: Vault | None = getattr(connection.app.state, "vault", None)
     return vault
 
 
-def the_carriers(connection: HTTPConnection) -> Carriers | None:
+def get_carriers(connection: HTTPConnection) -> Carriers | None:
     """The org carriers, or None when this runtime was given no vault key to seal them under."""
     carriers: Carriers | None = getattr(connection.app.state, "carriers", None)
     return carriers
 
 
-def the_trunks(connection: HTTPConnection) -> Trunks | None:
+def get_trunks(connection: HTTPConnection) -> Trunks | None:
     """The SFU's SIP trunks, or None when this process has no LiveKit pair to reach them with."""
     trunks: Trunks | None = getattr(connection.app.state, "trunks", None)
     return trunks
@@ -308,12 +308,12 @@ def twilio_for(connection: HTTPConnection) -> TwilioFor:
     return held(connection, "twilio")
 
 
-def the_fleet(connection: HTTPConnection) -> Roster:
+def get_fleet(connection: HTTPConnection) -> Roster:
     """Every worker that has knocked at this gateway lately, and what it holds."""
     return held(connection, "fleet", Roster)
 
 
-def the_lookups(connection: HTTPConnection) -> Lookups:
+def get_lookups(connection: HTTPConnection) -> Lookups:
     """The gateway's answer to a turn's lookups and to a hang-up: memory and the knowledge base."""
     return held(connection, "lookups", Lookups)
 
@@ -321,64 +321,64 @@ def the_lookups(connection: HTTPConnection) -> Lookups:
 # Whichever EMBED_PROVIDER named, opened once for the process and lazy: a gateway whose embedder is
 # down still starts. A door asks it for one thing only — the model's name, which is what says two
 # scores of one golden are comparable at all.
-def the_embedder(connection: HTTPConnection) -> Embedder:
+def get_embedder(connection: HTTPConnection) -> Embedder:
     """What memory and the knowledge base write vectors with. A Protocol, so no isinstance."""
     return held(connection, "embedder")
 
 
 # Both are None on a gateway with no Postgres — a dev key — and the doors that need one say so
 # in a sentence (below), while a lookup there finds nothing and refuses nobody.
-def the_memory(connection: HTTPConnection) -> Memory | None:
+def get_memory(connection: HTTPConnection) -> Memory | None:
     """The contact's facts, or None when this gateway keeps none. A Protocol: no isinstance."""
     memory: Memory | None = getattr(connection.app.state, "memory", None)
     return memory
 
 
-def the_knowledge(connection: HTTPConnection) -> Knowledge | None:
+def get_knowledge(connection: HTTPConnection) -> Knowledge | None:
     """The knowledge base, or None when this gateway keeps none. A Protocol: no isinstance."""
     knowledge: Knowledge | None = getattr(connection.app.state, "knowledge", None)
     return knowledge
 
 
-ExtensionsDep = Annotated[Extensions, Depends(the_extensions)]
-OrgsDep = Annotated[Orgs, Depends(the_orgs)]
-MembersDep = Annotated[Members, Depends(the_members)]
-LoginCodesDep = Annotated[LoginCodes, Depends(the_login_codes)]
-SignupsDep = Annotated[PendingSignups, Depends(the_signups)]
-PairingsDep = Annotated[Pairings, Depends(the_pairings)]
-ThrottleDep = Annotated[Throttle, Depends(the_throttle)]
-RoutesDep = Annotated[Routes, Depends(the_routes)]
-TokensDep = Annotated[Tokens, Depends(the_tokens)]
-CodesDep = Annotated[Codes, Depends(the_codes)]
-LogsDep = Annotated[Logs, Depends(the_logs)]
-SnapshotsDep = Annotated[Snapshots, Depends(the_snapshots)]
-AdmissionDep = Annotated[Admission, Depends(the_admission)]
-TuningDep = Annotated[TuningStore, Depends(the_tuning)]
-RunsDep = Annotated[Runs, Depends(the_runs)]
-GraphDep = Annotated[Graph, Depends(the_graph)]
-VaultDep = Annotated["Vault | None", Depends(the_vault)]
-LookupsDep = Annotated[Lookups, Depends(the_lookups)]
-FleetDep = Annotated[Roster, Depends(the_fleet)]
-CarriersDep = Annotated["Carriers | None", Depends(the_carriers)]
-TrunksDep = Annotated["Trunks | None", Depends(the_trunks)]
+ExtensionsDep = Annotated[Extensions, Depends(get_extensions)]
+OrgsDep = Annotated[Orgs, Depends(get_orgs)]
+MembersDep = Annotated[Members, Depends(get_members)]
+LoginCodesDep = Annotated[LoginCodes, Depends(get_login_codes)]
+SignupsDep = Annotated[PendingSignups, Depends(get_signups)]
+PairingsDep = Annotated[Pairings, Depends(get_pairings)]
+ThrottleDep = Annotated[Throttle, Depends(get_throttle)]
+RoutesDep = Annotated[Routes, Depends(get_routes)]
+TokensDep = Annotated[Tokens, Depends(get_tokens)]
+CodesDep = Annotated[Codes, Depends(get_codes)]
+LogsDep = Annotated[Logs, Depends(get_logs)]
+SnapshotsDep = Annotated[Snapshots, Depends(get_snapshots)]
+AdmissionDep = Annotated[Admission, Depends(get_admission)]
+TuningDep = Annotated[TuningStore, Depends(get_tuning)]
+RunsDep = Annotated[Runs, Depends(get_runs)]
+GraphDep = Annotated[Graph, Depends(get_graph)]
+VaultDep = Annotated["Vault | None", Depends(get_vault)]
+LookupsDep = Annotated[Lookups, Depends(get_lookups)]
+FleetDep = Annotated[Roster, Depends(get_fleet)]
+CarriersDep = Annotated["Carriers | None", Depends(get_carriers)]
+TrunksDep = Annotated["Trunks | None", Depends(get_trunks)]
 TwilioDep = Annotated[TwilioFor, Depends(twilio_for)]
-EmbedderDep = Annotated[Embedder, Depends(the_embedder)]
-MemoryDep = Annotated["Memory | None", Depends(the_memory)]
-KnowledgeDep = Annotated["Knowledge | None", Depends(the_knowledge)]
+EmbedderDep = Annotated[Embedder, Depends(get_embedder)]
+MemoryDep = Annotated["Memory | None", Depends(get_memory)]
+KnowledgeDep = Annotated["Knowledge | None", Depends(get_knowledge)]
 
 
 # The gate the operator's vault doors take, the way `an_operator` gates every /v1/ops door: asked
 # before the endpoint runs, so no door has to remember to ask. The worker's own door does NOT take
 # it — a runtime with no vault holds nobody's key, and an empty set is the truth there, while 503
 # would end a call that was going to run on the box's own keys anyway.
-async def an_unlocked_vault(vault: VaultDep) -> Vault:
+async def require_vault(vault: VaultDep) -> Vault:
     """The vault, or 503: the request was right and this box cannot honour it."""
     if vault is None:
         raise HTTPException(503, NO_VAULT_KEY)
     return vault
 
 
-UnlockedVaultDep = Annotated[Vault, Depends(an_unlocked_vault)]
+UnlockedVaultDep = Annotated[Vault, Depends(require_vault)]
 
 
 # A carrier's credentials are a secret exactly as a provider key is, sealed under the same vault
@@ -412,22 +412,22 @@ NO_MEMORY = (
 )
 
 
-async def a_kept_knowledge(knowledge: KnowledgeDep) -> Knowledge:
+async def require_knowledge(knowledge: KnowledgeDep) -> Knowledge:
     """The knowledge base, or 503: this gateway has no table to push into."""
     if knowledge is None:
         raise HTTPException(503, NO_KNOWLEDGE)
     return knowledge
 
 
-async def a_kept_memory(memory: MemoryDep) -> Memory:
+async def require_memory(memory: MemoryDep) -> Memory:
     """The contact's memory, or 503: this gateway has no table to read or forget."""
     if memory is None:
         raise HTTPException(503, NO_MEMORY)
     return memory
 
 
-KeptKnowledgeDep = Annotated[Knowledge, Depends(a_kept_knowledge)]
-KeptMemoryDep = Annotated[Memory, Depends(a_kept_memory)]
+KeptKnowledgeDep = Annotated[Knowledge, Depends(require_knowledge)]
+KeptMemoryDep = Annotated[Memory, Depends(require_memory)]
 
 # Every operator door names its org, by id or by slug, and this is the one place the word becomes
 # a row: a door that typed the resolution itself would be a door that could skip it. 404 for one
@@ -435,7 +435,7 @@ KeptMemoryDep = Annotated[Memory, Depends(a_kept_memory)]
 NO_SUCH_ORG = "no org named {org}"
 
 
-async def an_org(named: str, orgs: Orgs) -> Org:
+async def require_org(named: str, orgs: Orgs) -> Org:
     """The org this word names, or 404 in one sentence."""
     org = await orgs.find(named)
     if org is None:

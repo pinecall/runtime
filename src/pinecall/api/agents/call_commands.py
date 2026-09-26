@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
-from pinecall.api.agents.handlers import Handler, Socket, asked, handles
-from pinecall.api.calls.codes import NOBODY_ISSUED, claimed
+from pinecall.api.agents.handlers import Handler, Socket, handles, parse_command
+from pinecall.api.calls.codes import NOBODY_ISSUED, claim_code
 from pinecall.providers import declaration
 from pinecall.session.text.session import TextSession
 from pinecall.types import DeclarationRefused
@@ -92,7 +92,7 @@ async def configure(session: TextSession, wanted: SessionConfigure) -> None:
         await session.set_state(StateSet(state=dict(wanted.state)))
 
 
-async def an_event(session: TextSession, fact: CallEvent) -> None:
+async def record_event(session: TextSession, fact: CallEvent) -> None:
     """A fact from the tenant's backend: declared events land in the log, undeclared are refused."""
     if not session.config.accepts(fact.name, "app"):
         raise DeclarationRefused(
@@ -105,32 +105,32 @@ async def an_event(session: TextSession, fact: CallEvent) -> None:
 @in_a_call("session.configure")
 async def configure_the_session(command: Command, session: TextSession) -> None:
     """Set this call up before the first turn: the app's state, and any config of its own."""
-    await configure(session, asked(command, SessionConfigure))
+    await configure(session, parse_command(command, SessionConfigure))
 
 
 @in_a_call("prompt.set")
 async def set_the_prompt(command: Command, session: TextSession) -> None:
     """Rewrite one block of the prompt, whole, by name; an undeclared name is refused."""
-    wanted = asked(command, PromptSet)
+    wanted = parse_command(command, PromptSet)
     await session.set_prompt(wanted.name, wanted.text)
 
 
 @in_a_call("tools.set")
 async def set_the_tools(command: Command, session: TextSession) -> None:
     """The subset of the declared tools the model may see in the state the app is in now."""
-    await session.set_tools(asked(command, ToolsSet).tools)
+    await session.set_tools(parse_command(command, ToolsSet).tools)
 
 
 @in_a_call("state.set")
 async def set_the_state(command: Command, session: TextSession) -> None:
     """The app's state moved; the whole of it travels, with what changed it when we know."""
-    await session.set_state(asked(command, StateSet))
+    await session.set_state(parse_command(command, StateSet))
 
 
 @in_a_call("agent.say")
 async def say_it(command: Command, session: TextSession) -> None:
     """The agent says this, verbatim, with no model in the loop."""
-    await session.say(asked(command, AgentSay).text)
+    await session.say(parse_command(command, AgentSay).text)
 
 
 # allow_interruptions has no meaning where nothing is being played: in text a reply is one entry,
@@ -138,19 +138,19 @@ async def say_it(command: Command, session: TextSession) -> None:
 @in_a_call("agent.reply")
 async def reply_now(command: Command, session: TextSession) -> None:
     """One model turn now, guided by an instruction the caller never sees."""
-    await session.reply(asked(command, AgentReply).instructions)
+    await session.reply(parse_command(command, AgentReply).instructions)
 
 
 @in_a_call("call.event")
 async def take_an_event(command: Command, session: TextSession) -> None:
     """A fact from the tenant's backend: declared events land in the log, undeclared are refused."""
-    await an_event(session, asked(command, CallEvent))
+    await record_event(session, parse_command(command, CallEvent))
 
 
 @in_a_call("call.log")
 async def write_a_line(command: Command, session: TextSession) -> None:
     """A line of the app's own in the call's log, with a seq like everything else."""
-    line = asked(command, CallLog)
+    line = parse_command(command, CallLog)
     await session.log_custom(line.name, line.data)
 
 
@@ -179,7 +179,7 @@ async def send_tones(command: Command, session: TextSession) -> None:  # noqa: A
 @in_a_call("call.transfer")
 async def transfer_the_call(command: Command, session: TextSession) -> None:
     """Send the caller on: a thread has no line, so nothing moves and the log says why."""
-    wanted = asked(command, CallTransfer)
+    wanted = parse_command(command, CallTransfer)
     await session.emit(
         "call.transferred",
         CallTransferred(to=wanted.to, mode=None, ok=False, error=NO_LINE.format(type=command.type)),
@@ -189,19 +189,19 @@ async def transfer_the_call(command: Command, session: TextSession) -> None:
 @in_a_call("call.attention")
 async def ask_for_a_person(command: Command, session: TextSession) -> None:
     """The thread waits for a supervisor to take it, and the model answers nothing meanwhile."""
-    await session.attending.asked(asked(command, CallAttention))
+    await session.attending.asked(parse_command(command, CallAttention))
 
 
 @in_a_call("call.callback")
 async def call_them_back(command: Command, session: TextSession) -> None:
     """The caller asked to be rung back: the number goes in the log for the app to read and dial."""
-    await session.call_back(asked(command, CallCallback))
+    await session.call_back(parse_command(command, CallCallback))
 
 
 @in_a_call("call.hangup")
 async def hang_up(command: Command, session: TextSession) -> None:
     """The app ends the call: call.ended, then the summary, then the log is sealed."""
-    asked(command, CallHangup)
+    parse_command(command, CallHangup)
     await session.hangup("agent_hung_up", "agent")
 
 
@@ -211,7 +211,7 @@ async def hang_up(command: Command, session: TextSession) -> None:
 @handles("call.claim")
 async def claim_the_code(socket: Socket, command: Command) -> None:
     """The caller said the code the page shows: this call is bound to it, or `no_code`."""
-    wanted = asked(command, CallClaim)
+    wanted = parse_command(command, CallClaim)
     if socket.registry.on(socket.env, command.agent, socket.id) is None:
         raise DeclarationRefused(f"agent {command.agent} is not registered on this socket")
     served = None if command.call is None else socket.live.served(command.call)
@@ -219,6 +219,6 @@ async def claim_the_code(socket: Socket, command: Command) -> None:
         said = f"call.claim names call {command.call!r}, which is not running here"
         await socket.refuse(command.agent, NO_SESSION, said, command.model_dump())
         return
-    if not await claimed(socket.codes, served, command.call, wanted.code, "agent"):
+    if not await claim_code(socket.codes, served, command.call, wanted.code, "agent"):
         said = NOBODY_ISSUED.format(code=wanted.code, agent=command.agent)
         await socket.refuse(command.agent, NO_CODE, said, command.model_dump())

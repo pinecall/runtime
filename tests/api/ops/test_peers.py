@@ -8,7 +8,7 @@ import pytest
 from starlette.requests import HTTPConnection
 
 from pinecall._settings import Settings
-from pinecall.api.ops.peers import the_production, the_sandbox
+from pinecall.api.ops.peers import get_production_peer, get_sandbox_peer
 from tests.conftest import a_sandbox
 
 pytestmark = pytest.mark.unit
@@ -24,12 +24,12 @@ def a_connection() -> HTTPConnection:
 
 def test_production_asks_the_sandbox_it_names_and_nobody_when_it_names_none() -> None:
     named = Settings(world="production", sandbox_url=SANDBOX_URL, sandbox_key="k")
-    assert the_sandbox(a_connection(), named) is not None
-    assert the_sandbox(a_connection(), Settings(world="production")) is None
-    assert the_production(a_connection(), named) is None
+    assert get_sandbox_peer(a_connection(), named) is not None
+    assert get_sandbox_peer(a_connection(), Settings(world="production")) is None
+    assert get_production_peer(a_connection(), named) is None
 
 
 def test_a_sandbox_asks_the_production_it_signs_people_in_at_once_it_holds_its_key() -> None:
-    assert the_production(a_connection(), a_sandbox(peer_key="k")) is not None
-    assert the_production(a_connection(), a_sandbox()) is None
-    assert the_sandbox(a_connection(), a_sandbox(peer_key="k")) is None
+    assert get_production_peer(a_connection(), a_sandbox(peer_key="k")) is not None
+    assert get_production_peer(a_connection(), a_sandbox()) is None
+    assert get_sandbox_peer(a_connection(), a_sandbox(peer_key="k")) is None

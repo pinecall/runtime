@@ -185,7 +185,7 @@ def _last_said(state: State) -> str:
 # coming up after the deploy that killed the workers ends what that deploy left behind instead of
 # waiting a minute to notice. A pass that raises is one line and the loop goes on: the reaper is
 # never allowed to be the reason a gateway stops answering.
-async def reaping(reaper: Reaper, every: float = EVERY_S) -> None:
+async def reap_forever(reaper: Reaper, every: float = EVERY_S) -> None:
     """A pass now, then one every `every` seconds, for as long as the process lives."""
     while True:
         try:

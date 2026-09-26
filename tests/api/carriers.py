@@ -188,9 +188,9 @@ def the_placing_deps(request: pytest.FixtureRequest) -> Iterator[None]:
     sfu: MemoryOutbound = request.getfixturevalue("outbound")
     jobs: MemoryDispatches = request.getfixturevalue("dispatches")
     both: MemoryDialling = request.getfixturevalue("dialling")
-    app.dependency_overrides[placing.the_outbound_trunks] = lambda: trunks
-    app.dependency_overrides[placing.the_outbound] = lambda: sfu
-    app.dependency_overrides[placing.the_dispatches] = lambda: jobs
-    app.dependency_overrides[placing.the_dial_policies] = lambda: both
-    app.dependency_overrides[placing.the_dials] = lambda: both
+    app.dependency_overrides[placing.get_outbound_trunks] = lambda: trunks
+    app.dependency_overrides[placing.get_outbound] = lambda: sfu
+    app.dependency_overrides[placing.get_dispatches] = lambda: jobs
+    app.dependency_overrides[placing.get_dial_policies] = lambda: both
+    app.dependency_overrides[placing.get_dials] = lambda: both
     yield

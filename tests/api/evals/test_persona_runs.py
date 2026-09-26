@@ -8,7 +8,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from pinecall.api.app import app
-from pinecall.api.evals.personas import the_personas
+from pinecall.api.evals.personas import get_personas
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.log.store import MemoryStore
 from pinecall.orgs.personas import MemoryPersonas
@@ -41,9 +41,9 @@ def keys() -> MemoryKeys:
 def personas() -> Iterator[MemoryPersonas]:
     """The callers both orgs wrote, before any of them has called."""
     kept = MemoryPersonas()
-    app.dependency_overrides[the_personas] = lambda: kept
+    app.dependency_overrides[get_personas] = lambda: kept
     yield kept
-    app.dependency_overrides.pop(the_personas, None)
+    app.dependency_overrides.pop(get_personas, None)
 
 
 @pytest.fixture(autouse=True)

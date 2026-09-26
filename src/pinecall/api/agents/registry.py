@@ -390,9 +390,9 @@ class Registry:
 # ── how a route asks for it ─────────────────────────────────────────────────────
 
 
-def the_registry(connection: HTTPConnection) -> Registry:
+def get_registry(connection: HTTPConnection) -> Registry:
     """Who owns which agent and which doors right now."""
     return held(connection, "registry", Registry)
 
 
-RegistryDep = Annotated[Registry, Depends(the_registry)]
+RegistryDep = Annotated[Registry, Depends(get_registry)]

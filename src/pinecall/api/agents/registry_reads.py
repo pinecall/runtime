@@ -105,7 +105,7 @@ async def agents(
 
 
 @router.get("/v1/agents/{slug}/line")
-async def the_line(
+async def line_standing(
     slug: str, key: CallsKeyDep, registry: RegistryDep, members: MembersDep
 ) -> TheLine:
     """Whose terminal a ring at this agent's doors lands in, and who else could take it."""
@@ -271,7 +271,7 @@ async def rings_for(
     sandbox: SandboxDep,
 ) -> RingsFor:
     """Whose sandbox copy a production ring from this caller belongs to, or nobody's."""
-    own = a_developers_own(registry, corner.org, slug, caller)
+    own = developers_sandbox_copy(registry, corner.org, slug, caller)
     if own is not None:
         return RingsFor.of(Handover(holder=own, fleet=settings.fleet))
     if sandbox is None:
@@ -288,7 +288,7 @@ async def rings_for(
 # customers use, and every other caller still reaches production. Only that phone, only while they
 # hold the agent, only in the org it is theirs in. `taking` is the sandbox's own answer for a ring
 # from this caller — their corner, or the line — and it is theirs only when they claimed the phone.
-def a_developers_own(registry: Registry, org: str, slug: str, caller: str) -> str | None:
+def developers_sandbox_copy(registry: Registry, org: str, slug: str, caller: str) -> str | None:
     """The developer whose sandbox copy takes a production ring from this caller, or None."""
     held = registry.taking(SANDBOX, slug, caller)
     if held is None or held.holder is None or held.org != org:

@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Response
 from starlette.status import HTTP_202_ACCEPTED
 
 from pinecall.api.accounts.identity import AtProduction
-from pinecall.api.accounts.login import WordMinted, for_the_same_person
+from pinecall.api.accounts.login import WordMinted, mint_key_for_same_person
 from pinecall.api.deps import KeyDep, KeysDep, MembersDep, PairingsDep, SettingsDep
 from pinecall_protocol import WireModel
 
@@ -58,14 +58,14 @@ class StillWaiting(WireModel):
 
 
 @router.post("/v1/login/pairings")
-async def a_pairing(said: Opening, pairings: PairingsDep) -> WordMinted:
+async def mint_pairing(said: Opening, pairings: PairingsDep) -> WordMinted:
     """A word for a terminal to print, and when it dies. No key: the terminal has none yet."""
     opened = pairings.open(said.device)
     return WordMinted(code=opened.code, expires_at=opened.expires_at)
 
 
 @router.get("/v1/login/pairings/{code}")
-async def asking(code: str, pairings: PairingsDep) -> PairingAsked:
+async def pairing_asked(code: str, pairings: PairingsDep) -> PairingAsked:
     """What the card is about to approve. It spends nothing, and no key is ever in it."""
     asked = pairings.asking(code)
     if asked is None:
@@ -97,14 +97,14 @@ async def approve(
     # The terminal's key is the person's own, as every key of theirs: what it opens in production
     # is what their row says (auth/env.py), and a request names no world unless `--prod` says
     # so. docs/worlds-and-teams.md.
-    issued = await for_the_same_person(key, asked.device, keys, members, settings.world)
+    issued = await mint_key_for_same_person(key, asked.device, keys, members, settings.world)
     if not pairings.fill(code, issued.key, key.org):
         raise HTTPException(409, ANSWERED)
     return PairingAnswered(device=asked.device, org=key.org)
 
 
 @router.get("/v1/login/pairings/{code}/key")
-async def collected(
+async def collect_key(
     code: str, response: Response, pairings: PairingsDep
 ) -> KeyCollected | StillWaiting:
     """The key the browser left, once: this is the terminal's door and it spends the word."""

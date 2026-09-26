@@ -11,7 +11,7 @@ from starlette.websockets import WebSocketState
 from pinecall.api.agents import call_commands as commands
 from pinecall.api.agents.held_agent import Registration, SocketId
 from pinecall.api.agents.registry import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, Registry, RegistryDep
-from pinecall.api.calls.opening import a_text_call
+from pinecall.api.calls.opening import open_text_call
 from pinecall.api.calls.resume import taken_up
 from pinecall.api.deps import (
     AdmissionDep,
@@ -24,9 +24,9 @@ from pinecall.api.deps import (
     SettingsDep,
     TuningDep,
     VaultDep,
-    a_key_on_a_socket,
+    get_socket_key,
 )
-from pinecall.api.evals.personas import the_personas
+from pinecall.api.evals.personas import get_personas
 from pinecall.api.live import Live, LiveDep
 from pinecall.auth.bearer import POLICY_VIOLATION, close_reason
 from pinecall.auth.keys import KeyRecord, cannot_open, is_held_by
@@ -93,7 +93,7 @@ async def chat(
 ) -> None:
     """One caller, one text call: they send {text}, they receive every entry of their own call."""
     try:
-        key = await a_key_on_a_socket(websocket, keys, members, settings)
+        key = await get_socket_key(websocket, keys, members, settings)
     except PermissionError as refused:
         await websocket.accept()
         await websocket.close(code=POLICY_VIOLATION, reason=close_reason(str(refused)))
@@ -141,9 +141,9 @@ async def chat(
     # it in. The refusals are said HERE, because only this door knows a close frame carries 123
     # bytes and that a reason must never reach a stranger as a traceback mid-handshake.
     try:
-        opened = await a_text_call(
+        opened = await open_text_call(
             held,
-            a_call_from(
+            build_call_from_socket(
                 websocket,
                 held.org,
                 held.env,
@@ -239,7 +239,7 @@ async def _taken_up(
 ) -> None:
     """The caller back on a call its gateway forgot, or a close saying why not."""
     await websocket.accept()
-    context = a_call_from(websocket, held.org, held.env, held.slug, settings.timezone)
+    context = build_call_from_socket(websocket, held.org, held.env, held.slug, settings.timezone)
     try:
         opened = await taken_up(
             call,
@@ -303,7 +303,7 @@ def hung_up_by(code: int) -> bool:
     return code != SERVICE_RESTART
 
 
-def a_call_from(
+def build_call_from_socket(
     websocket: WebSocket,
     org: str,
     env: Env,
@@ -342,7 +342,7 @@ async def _the_rule_of(websocket: WebSocket, org: str) -> tuple[str | None, str 
     name = websocket.query_params.get("persona")
     if not name:
         return None, None
-    one = await the_personas(websocket).named(org, name)
+    one = await get_personas(websocket).named(org, name)
     if one is None:
         return None, None
     return one["accepts_when"] or None, one["declines_when"] or None

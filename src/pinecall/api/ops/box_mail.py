@@ -5,8 +5,8 @@ from __future__ import annotations
 from fastapi import HTTPException
 from starlette.status import HTTP_204_NO_CONTENT
 
-from pinecall.api.org.mail import OutboxDep, TestTo, WantedMail, a_mailbox
-from pinecall.api.scope.operator_key import an_operators_router
+from pinecall.api.org.mail import OutboxDep, TestTo, WantedMail, parse_mailbox
+from pinecall.api.scope.operator_key import operators_router
 from pinecall.mail import BoxMail, probe_letter
 from pinecall.orgs.vault import NO_VAULT_KEY, NoVaultKey
 from pinecall.types import parse_address
@@ -17,7 +17,7 @@ from pinecall_protocol.rest import MailSent
 # credential and nobody's tenant's: until here it was a line of the environment, changed by
 # whoever can ssh in and restart the gateway, and the person who runs a box from the console is not
 # always that person.
-operator = an_operators_router()
+operator = operators_router()
 
 # Nothing is stored. 404 and not an empty 204: dropping what was never set must never read as
 # done — and the environment's mailbox is not dropped here, because it is not kept here.
@@ -33,7 +33,7 @@ NOTHING_TO_TEST = (
 
 
 @operator.get("/mail")
-async def wired(outbox: OutboxDep) -> MailStanding:
+async def mail_standing(outbox: OutboxDep) -> MailStanding:
     """What this box posts letters through, where that came from, and how the last one went."""
     return _standing(await outbox.the_boxs.of())
 
@@ -42,7 +42,7 @@ async def wired(outbox: OutboxDep) -> MailStanding:
 async def wire(said: WantedMail, outbox: OutboxDep) -> MailStanding:
     """Store the box's mail, replacing what was stored; the environment's is left as it is and
     no longer used. Nothing is sent to find out it works: that is `POST /v1/ops/mail/test`."""
-    mailbox = a_mailbox(said)
+    mailbox = parse_mailbox(said)
     try:
         await outbox.the_boxs.put(mailbox)
     except NoVaultKey as unsealed:

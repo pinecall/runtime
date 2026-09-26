@@ -6,9 +6,9 @@ from collections.abc import AsyncIterator
 
 from fastapi.responses import StreamingResponse
 
-from pinecall.api.calls.log_sink import a_stream
+from pinecall.api.calls.log_sink import sse_response
 from pinecall.api.deps import LogsDep
-from pinecall.api.scope.operator_key import an_operators_router
+from pinecall.api.scope.operator_key import operators_router
 from pinecall.log.entry import Entry
 from pinecall.log.writers import Logs
 from pinecall.types.json import JsonObject
@@ -18,7 +18,7 @@ from pinecall_protocol.rest import BoxEvent
 # The same gate every /v1/ops door takes: the box's own key, or a person the box made an operator.
 # What reads it is whatever serves the box as a whole and must hear every org at once — a
 # notifier, a wallboard — where one org's key would need a stream per org it could never list.
-operator = an_operators_router()
+operator = operators_router()
 
 
 # Live only, like an org's own stream, and no cursor: each frame's id is the seq of its entry in
@@ -27,7 +27,7 @@ operator = an_operators_router()
 @operator.get("/events", response_model=None)
 async def events(logs: LogsDep) -> StreamingResponse:
     """Every org's floor as it changes, as SSE, each frame naming the org it happened in."""
-    return a_stream(_owned(logs, logs.box().subscribe()))
+    return sse_response(_owned(logs, logs.box().subscribe()))
 
 
 async def _owned(

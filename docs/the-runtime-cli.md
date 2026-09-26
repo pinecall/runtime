@@ -99,7 +99,7 @@ pinecall-runtime sessions recording <call-id>
 The log, read back straight from Postgres — no gateway, no key, no org filter: this is the
 operator's view of the box, and it sees every tenant's calls. `show` prints one call entry by
 entry; `--json` prints the reduced state instead. `tail` follows a call as it happens, and with no
-id it follows the newest live one. `recording` says where that call's audio was written — and, for a written (chat) call, which keeps none, says so (`call … was not recorded: its call.summary carries no path`) and exits 1.
+id it follows the newest live one. `recording_response` says where that call's audio was written — and, for a written (chat) call, which keeps none, says so (`call … was not recorded: its call.summary carries no path`) and exits 1.
 
 ## `orgs`
 

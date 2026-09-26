@@ -36,30 +36,30 @@ NOTHING_TO_TEST = (
 
 # Off the outbox and not off a second thing on app.state: the outbox is where an org's own mail
 # is known — it is the object that chooses between that and the box's — so one process holds one.
-def the_mail(connection: HTTPConnection) -> Mail | None:
+def get_mail(connection: HTTPConnection) -> Mail | None:
     """The org_mail table, or None when this runtime was given no vault key to seal a password."""
-    return the_outbox(connection).table
+    return get_outbox(connection).table
 
 
-def the_outbox(connection: HTTPConnection) -> Outbox:
+def get_outbox(connection: HTTPConnection) -> Outbox:
     """Where every letter of this process leaves by: the org's own mail, or the box's, or none."""
     return held(connection, "outbox", Outbox)
 
 
-MailDep = Annotated["Mail | None", Depends(the_mail)]
-OutboxDep = Annotated[Outbox, Depends(the_outbox)]
+MailDep = Annotated["Mail | None", Depends(get_mail)]
+OutboxDep = Annotated[Outbox, Depends(get_outbox)]
 
 
 # An org's SMTP password is a secret exactly as a provider key is, sealed under the same vault
 # key; a runtime with none cannot keep one, and says so in the vault's own sentence.
-async def a_kept_mail(mail: MailDep) -> Mail:
+async def require_mail(mail: MailDep) -> Mail:
     """The org_mail table, or 503: this box has no vault key."""
     if mail is None:
         raise HTTPException(503, NO_VAULT_KEY)
     return mail
 
 
-KeptMailDep = Annotated[Mail, Depends(a_kept_mail)]
+KeptMailDep = Annotated[Mail, Depends(require_mail)]
 
 
 class WantedMail(WireModel):
@@ -86,7 +86,7 @@ class TestTo(WireModel):
 
 
 @router.get("/v1/org/mail")
-async def wired(key: TeamKeyDep, mail: KeptMailDep) -> OrgMail:
+async def org_mail_standing(key: TeamKeyDep, mail: KeptMailDep) -> OrgMail:
     """What this org's letters go out through, and how the last one went. Never the password."""
     return _standing(await mail.of(key.org))
 
@@ -95,7 +95,7 @@ async def wired(key: TeamKeyDep, mail: KeptMailDep) -> OrgMail:
 async def wire(said: WantedMail, key: TeamKeyDep, mail: KeptMailDep) -> OrgMail:
     """Wire this org's own mail, replacing what it had. Nothing is sent to find out it works:
     the send is `POST /v1/org/mail/test`, so a door is never blocked on somebody's relay."""
-    await mail.put(key.org, a_mailbox(said))
+    await mail.put(key.org, parse_mailbox(said))
     return _standing(await mail.of(key.org))
 
 
@@ -120,7 +120,7 @@ async def test(said: TestTo, key: TeamKeyDep, outbox: OutboxDep) -> MailSent:
 
 
 # Shared with the box's own doors (api/ops/box_mail.py): one body, one refusal, for either mailbox.
-def a_mailbox(said: WantedMail) -> Mailbox:
+def parse_mailbox(said: WantedMail) -> Mailbox:
     """The body as the domain's own shape, or 400 in the refusal's own words."""
     return Mailbox(
         host=said.host.strip(),

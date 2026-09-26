@@ -143,7 +143,7 @@ async def test_a_box_with_no_twilio_of_its_own_buys_for_nobody(
     from pinecall.api.app import app
 
     poor = settings.model_copy(update={"twilio_account_sid": None})
-    app.dependency_overrides[deps.a_settings] = lambda: poor
+    app.dependency_overrides[deps.get_settings] = lambda: poor
     answer = await tenant_http.post(BUY, json=SPRINGFIELD)
     assert (answer.status_code, answer.json()["detail"]) == (503, NO_BOX_CARRIER)
 
@@ -155,7 +155,7 @@ async def test_a_sandbox_buys_nothing_on_the_boxs_account_and_names_where_number
     from pinecall.api.app import app
 
     production = "https://box.pinecall.io"
-    app.dependency_overrides[deps.a_settings] = lambda: a_sandbox(
+    app.dependency_overrides[deps.get_settings] = lambda: a_sandbox(
         settings, elsewhere_url=production
     )
     answer = await tenant_http.post(BUY, json=SPRINGFIELD)

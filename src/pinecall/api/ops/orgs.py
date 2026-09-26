@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import HTTPException
 from starlette.status import HTTP_204_NO_CONTENT
 
-from pinecall.api.accounts.api_keys import KeyIssued, KeyRevoked, a_key_issued, in_this_world
+from pinecall.api.accounts.api_keys import KeyIssued, KeyRevoked, in_this_world, wire_key_issued
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.deps import (
     KeysDep,
@@ -16,9 +16,9 @@ from pinecall.api.deps import (
     RoutesDep,
     SettingsDep,
     StoreDep,
-    an_org,
+    require_org,
 )
-from pinecall.api.scope.operator_key import an_operators_router
+from pinecall.api.scope.operator_key import operators_router
 from pinecall.api.telephony.deps import DialPoliciesDep
 from pinecall.auth.keys import ListedKey
 from pinecall.providers.lent_keys import NotLent, parse_lending
@@ -38,7 +38,7 @@ from pinecall_protocol.rest import DialGuards
 
 # Every /v1/ops door takes the operator key and nothing else, checked before the endpoint runs.
 # The same gate the routes doors take, from api/deps.py: there is one, and this is it.
-operator = an_operators_router()
+operator = operators_router()
 
 # The slug is the operator's word for the tenant and two tenants cannot share one.
 SLUG_TAKEN = "an org already answers to the slug {slug}"
@@ -154,7 +154,7 @@ class AgentMoved(WireModel):
 
 
 @operator.get("/orgs")
-async def listed(orgs: OrgsDep) -> list[Org]:
+async def list_orgs(orgs: OrgsDep) -> list[Org]:
     """Every org, oldest first: the default one is always the first line."""
     return list(await orgs.listed())
 
@@ -185,7 +185,7 @@ async def one(
     policies: DialPoliciesDep,
 ) -> OrgStanding:
     """One org: its quotas, its dial guards, and what it holds against the ones that are stocks."""
-    org = await an_org(named, orgs)
+    org = await require_org(named, orgs)
     return OrgStanding(
         id=org.id,
         slug=org.slug,
@@ -204,7 +204,7 @@ async def one(
 @operator.delete("/orgs/{named}", status_code=HTTP_204_NO_CONTENT)
 async def remove(named: str, orgs: OrgsDep, keys: KeysDep, table: RoutesDep) -> None:
     """Forget the org. Refused while a live key or a route still names it."""
-    org = await an_org(named, orgs)
+    org = await require_org(named, orgs)
     if any(key.revoked_at is None for key in await keys.listed(org.id)):
         raise HTTPException(409, STILL_IN_USE.format(org=org.slug, what="live keys"))
     for env in (PRODUCTION, SANDBOX):
@@ -243,7 +243,7 @@ async def move(
     table: RoutesDep,
 ) -> AgentMoved:
     """This agent — its log, every call of it, and its doors — into this org. `orgs move`."""
-    org = await an_org(named, orgs)
+    org = await require_org(named, orgs)
     if registry.held_anywhere(said.agent):
         raise HTTPException(409, NOT_HELD.format(slug=said.agent))
     moved = await store.moved(said.agent, org.id)
@@ -267,7 +267,7 @@ async def move(
 @operator.put("/orgs/{named}/quotas")
 async def set_quotas(named: str, said: WantedQuotas, orgs: OrgsDep) -> OrgQuotas:
     """Replace the org's limits, whole. They bite the next call and the next register."""
-    org = await an_org(named, orgs)
+    org = await require_org(named, orgs)
     try:
         quotas = Quotas(
             minutes=said.minutes,
@@ -316,7 +316,7 @@ async def set_dialling(
     named: str, said: WantedDialling, orgs: OrgsDep, policies: DialPoliciesDep
 ) -> DialGuards:
     """Replace the org's outbound guards, whole. They bite the next dial."""
-    org = await an_org(named, orgs)
+    org = await require_org(named, orgs)
     standing = DialPolicy()
     policy = DialPolicy(
         dial_anywhere=standing.dial_anywhere if said.dial_anywhere is None else said.dial_anywhere,
@@ -351,7 +351,7 @@ async def issue(
 ) -> KeyIssued:
     """Mint a key for the org, in this instance's world, and answer with it, the once. The table
     keeps its sha256."""
-    org = await an_org(named, orgs)
+    org = await require_org(named, orgs)
     env = in_this_world(said.env, settings)
     scopes = KEY_SCOPES if said.scopes is None else key_scopes(said.scopes)
     issued = await keys.issue(
@@ -362,13 +362,13 @@ async def issue(
         subject=said.subject,
         name=said.name,
     )
-    return a_key_issued(issued)
+    return wire_key_issued(issued)
 
 
 @operator.get("/orgs/{named}/keys")
 async def keys_listed(named: str, orgs: OrgsDep, keys: KeysDep) -> list[ListedKey]:
     """Every key of the org, oldest first, revoked ones included and named as revoked."""
-    org = await an_org(named, orgs)
+    org = await require_org(named, orgs)
     return list(await keys.listed(org.id))
 
 

@@ -64,7 +64,7 @@ async def verify(
 # answers 200, whatever the body turned out to be — Meta disables a webhook that keeps failing,
 # and a shape this door does not understand is a line in the log, never a 4xx.
 @router.post("/v1/whatsapp/webhook")
-async def delivered(
+async def receive_webhook(
     request: Request, settings: SettingsDep, threads: ThreadsDep, doors: DoorsDep
 ) -> WebhookReceived:
     """Every message in this body onto its own thread, and 200 as soon as they are queued."""

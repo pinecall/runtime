@@ -29,7 +29,7 @@ NOT_HERE = "the recording of {call} is at {path} on the box that took the call, 
 # and no other. The file is looked for where the pointer says, relative to this process, which is
 # where it is when the gateway and the worker share a box — the laptop, or ours.
 @router.get("/v1/calls/{call}/recording")
-async def recording(call: str, reader: ReaderDep, store: StoreDep) -> FileResponse:
+async def recording_response(call: str, reader: ReaderDep, store: StoreDep) -> FileResponse:
     """The call's audio.ogg, with byte ranges honoured so a player can seek."""
     refuse_another_call(reader, call)
     entries = await whole(store, call)

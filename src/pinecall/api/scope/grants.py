@@ -28,6 +28,6 @@ async def may_grant(
 # alone; for anybody else's colleague it is posted to the address, and to nobody else (`mailed`).
 # And a link that was handed over proves nothing about the address, so only one that travels by
 # mail alone vouches for it (0048): the two answers are the one question, asked once.
-async def elsewhere_too(members: Members, org: str, email: str) -> bool:
+async def is_member_elsewhere(members: Members, org: str, email: str) -> bool:
     """Whether the email has a row in an org that is not this one."""
     return any(row.org != org for row in await members.orgs_of(email))

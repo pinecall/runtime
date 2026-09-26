@@ -87,7 +87,7 @@ class TokenLine(WireModel):
 
 
 @router.get("/v1/keys")
-async def listed(key: KeyDep, keys: KeysDep, members: MembersDep) -> list[TokenLine]:
+async def list_keys(key: KeyDep, keys: KeysDep, members: MembersDep) -> list[TokenLine]:
     """The tokens this key may see, oldest first: every server's, and a person's own — every
     person's for a key that opens `keys`. Revoked ones are named as revoked."""
     names = {member.id: member.name for member in await members.listed(key.org)}
@@ -114,7 +114,7 @@ async def issue(
     issued = await keys.issue(
         org=key.org, label=said.label, env=env, scopes=SERVER_SCOPES, created_by=author_of(key)
     )
-    return a_key_issued(issued)
+    return wire_key_issued(issued)
 
 
 def in_this_world(asked: str | None, settings: Settings) -> Env:
@@ -168,6 +168,6 @@ def _a_token_line(row: ListedKey, names: dict[str, str]) -> TokenLine:
     )
 
 
-def a_key_issued(issued: Issued) -> KeyIssued:
+def wire_key_issued(issued: Issued) -> KeyIssued:
     """The key in the one shape it ever travels in: the login's, the sign-up's, the operator's."""
     return KeyIssued.model_validate(issued.as_json)

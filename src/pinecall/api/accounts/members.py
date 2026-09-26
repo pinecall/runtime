@@ -15,11 +15,11 @@ from pinecall.api.deps import (
     OrgsDep,
     SettingsDep,
     TeamKeyDep,
-    an_org,
+    require_org,
 )
 from pinecall.api.org.mail import OutboxDep
-from pinecall.api.public_url import where_this_gateway_answers
-from pinecall.api.scope.grants import elsewhere_too, may_grant
+from pinecall.api.public_url import public_base_url
+from pinecall.api.scope.grants import is_member_elsewhere, may_grant
 from pinecall.auth import passwords
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.members import Members, NoSeatLeft
@@ -125,9 +125,9 @@ class FirstKey(KeyIssued):
 
 
 @router.get("/v1/members")
-async def listed(key: TeamKeyDep, members: MembersDep) -> MemberList:
+async def list_members(key: TeamKeyDep, members: MembersDep) -> MemberList:
     """Every member of the key's org, oldest first, disabled ones included."""
-    return MemberList(members=[a_member_said(member) for member in await members.listed(key.org)])
+    return MemberList(members=[wire_member(member) for member in await members.listed(key.org)])
 
 
 # 201: the invitation is handed back once — the token is in this answer and hashed everywhere else.
@@ -143,7 +143,7 @@ async def invite(
     request: Request,
 ) -> LinkIssued:
     """One more person, invited: the row, the one-use token, and the link posted to them."""
-    role = a_wanted_member(said, key.org)
+    role = parse_member_role(said, key.org)
     await may_grant(key, members, role, said.production)
     # A seat is charged only where a ROW will be made. An email the org already holds is either a
     # member who accepted — refused below — or one still invited, whose seat was taken when the
@@ -152,11 +152,11 @@ async def invite(
     # sentence, as every other door answers one.
     if await members.by_email(key.org, said.email) is None:
         await admission.a_seat(key.org, await members.seated(key.org))
-    org = await an_org(key.org, orgs)
-    base = where_this_gateway_answers(settings, request)
+    org = await require_org(key.org, orgs)
+    base = public_base_url(settings, request)
     # Handed to this admin only for an address that is this org's alone — and a handed link
     # proves nothing about the address, so only one that travels by mail alone vouches for it.
-    alone = not await elsewhere_too(members, key.org, said.email)
+    alone = not await is_member_elsewhere(members, key.org, said.email)
     # The write judges the seat again, under its own lock: two invitations at once both passed
     # the count above, and only one of them may make a row (auth/members_postgres.py).
     try:
@@ -177,7 +177,7 @@ async def invite(
         raise  # unreachable: a_seat raised the quota's own sentence, which the handler answers
 
 
-def a_wanted_member(said: WantedMember, org: str) -> Role:
+def parse_member_role(said: WantedMember, org: str) -> Role:
     """The role the body names, once the shape has refused a bad email or an empty name."""
     role = parse_role(said.role)
     # The shape refuses a bad email or an empty name before any row is made.
@@ -234,7 +234,7 @@ async def invited_into(
         )
     )
     return LinkIssued(
-        member=a_member_said(invited.member),
+        member=wire_member(invited.member),
         token=invited.token if handed else None,
         expires_at=invited.expires_at,
         mailed=await _posted(outbox, org.id, letter),
@@ -263,19 +263,19 @@ async def reset(
     # The link sets the person's ONE password, in every org of theirs: handed to this admin only
     # when the person is this org's alone, posted to the person otherwise (`elsewhere_too`) —
     # and only a link that travels by mail alone proves the address it reaches.
-    handed = not await elsewhere_too(members, key.org, found.email)
+    handed = not await is_member_elsewhere(members, key.org, found.email)
     issued = await members.reset(key.org, id, vouched=not handed)
     if issued is None:
         raise HTTPException(409, NOT_ACTIVE.format(email=found.email, status=found.status))
-    org = await an_org(key.org, orgs)
-    link = card_link(where_this_gateway_answers(settings, request), issued.token or "")
+    org = await require_org(key.org, orgs)
+    link = card_link(public_base_url(settings, request), issued.token or "")
     letter = (
         None
         if issued.token is None
         else reset_letter(found.email, org.name, _by(key), link, issued.expires_at)
     )
     return LinkIssued(
-        member=a_member_said(issued.member),
+        member=wire_member(issued.member),
         token=issued.token if handed else None,
         expires_at=issued.expires_at,
         mailed=await _posted(outbox, key.org, letter),
@@ -295,7 +295,7 @@ async def accept(
     if member is None:
         raise HTTPException(404, NO_INVITATION)
     issued = await mint_person_key(keys, member, said.device or "invitation", settings.world)
-    return FirstKey(**issued.as_json, member=a_member_said(member))
+    return FirstKey(**issued.as_json, member=wire_member(member))
 
 
 # `mailed` says a letter was HANDED OVER to a mail server, never that it arrived: the send runs
@@ -312,7 +312,7 @@ def _by(key: KeyRecord) -> str:
     return key.name or AN_ADMIN
 
 
-def a_member_said(member: Member) -> MemberSaid:
+def wire_member(member: Member) -> MemberSaid:
     """One member as the wire says it, off their row: sorted where a set would not read the same."""
     return MemberSaid(
         id=member.id,

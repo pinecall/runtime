@@ -14,12 +14,12 @@ from pinecall_protocol.rest import WidgetSettings
 router = APIRouter()
 
 
-def the_widgets(connection: HTTPConnection) -> Widgets:
+def get_widgets(connection: HTTPConnection) -> Widgets:
     """How the widget presents each agent. A Protocol, so isinstance says nothing here."""
     return held(connection, "widgets")
 
 
-WidgetsDep = Annotated[Widgets, Depends(the_widgets)]
+WidgetsDep = Annotated[Widgets, Depends(get_widgets)]
 
 
 # Read with `talk`: whoever may mint the token the widget calls with may read what it shows.

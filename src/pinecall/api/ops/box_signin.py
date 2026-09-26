@@ -9,8 +9,8 @@ from pinecall._settings import Settings
 from pinecall.api.accounts.org_sso import UNREACHABLE, HttpDep
 from pinecall.api.deps import SettingsDep
 from pinecall.api.ops.box_settings import BoxSettingsDep
-from pinecall.api.public_url import where_this_gateway_answers
-from pinecall.api.scope.operator_key import an_operators_router
+from pinecall.api.public_url import public_base_url
+from pinecall.api.scope.operator_key import operators_router
 from pinecall.auth.openid import OpenIdRefused, configuration
 from pinecall.orgs.box_settings import SIGN_IN, BoxSettings
 from pinecall.orgs.box_signin import GOOGLE, PROVIDERS, BoxSignIn
@@ -22,7 +22,7 @@ from pinecall_protocol.rest import BoxSignIn as SignInStanding
 # The same gate every /v1/ops door takes. A box-wide provider is the BOX's: the client at Google
 # is registered by whoever runs the machine, with this gateway's own callback, and an org that
 # could wire one would be an org deciding how every other org's people sign in.
-operator = an_operators_router()
+operator = operators_router()
 
 # Where Google sends the person back. One string per provider, off the name this gateway is
 # reached by: it is what the operator registers at Google, so it is in every answer.
@@ -43,9 +43,11 @@ class WantedClient(WireModel):
 
 
 @operator.get("/signin")
-async def wired(box: BoxSettingsDep, settings: SettingsDep, request: Request) -> SignInStanding:
+async def signin_standing(
+    box: BoxSettingsDep, settings: SettingsDep, request: Request
+) -> SignInStanding:
     """Every provider this box can offer, wired or not, with the URI to register at each."""
-    base = where_this_gateway_answers(settings, request)
+    base = public_base_url(settings, request)
     return SignInStanding(google=await _standing(GOOGLE, box, base))
 
 
@@ -66,7 +68,7 @@ async def wire_google(
         await BoxSignIn(box).put(GOOGLE, client_id, client_secret)
     except NoVaultKey as unsealed:
         raise HTTPException(503, NO_VAULT_KEY) from unsealed
-    return await _standing(GOOGLE, box, where_this_gateway_answers(settings, request))
+    return await _standing(GOOGLE, box, public_base_url(settings, request))
 
 
 @operator.delete("/signin/google", status_code=HTTP_204_NO_CONTENT)
@@ -76,9 +78,9 @@ async def unwire_google(box: BoxSettingsDep) -> None:
         raise HTTPException(404, NOT_WIRED.format(provider=GOOGLE))
 
 
-def where_the_provider_answers(settings: Settings, request: Request, provider: str) -> str:
+def provider_redirect_uri(settings: Settings, request: Request, provider: str) -> str:
     """The redirect URI this gateway is known by at that provider, as the operator registers it."""
-    return f"{where_this_gateway_answers(settings, request)}{CALLBACK.format(provider=provider)}"
+    return f"{public_base_url(settings, request)}{CALLBACK.format(provider=provider)}"
 
 
 # `client_id` is read off the row even when the secret cannot be opened — a vault key rotated —

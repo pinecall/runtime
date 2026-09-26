@@ -12,7 +12,7 @@ import httpx
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.api.accounts.identity import NOT_ACTIVE, SLUG_HELD_HERE, the_identity
+from pinecall.api.accounts.identity import NOT_ACTIVE, SLUG_HELD_HERE, get_identity
 from pinecall.api.accounts.login import NO_CODE, NOT_A_MEMBER
 from pinecall.api.app import app
 from pinecall.auth.identity import REDEEM, UNREACHABLE, Identity
@@ -78,9 +78,9 @@ def production() -> Iterator[Production]:
     """The gateway the sandbox asks, at the URL the sandbox was told, over a scripted wire."""
     scripted = Production()
     client = httpx.AsyncClient(transport=httpx.MockTransport(scripted.handle))
-    app.dependency_overrides[the_identity] = lambda: Identity(client, THE_IDENTITY)
+    app.dependency_overrides[get_identity] = lambda: Identity(client, THE_IDENTITY)
     yield scripted
-    app.dependency_overrides.pop(the_identity, None)
+    app.dependency_overrides.pop(get_identity, None)
 
 
 @pytest.fixture

@@ -3,7 +3,7 @@
 import pytest
 
 from pinecall.api.agents.registry import Registry
-from pinecall.api.agents.registry_reads import a_developers_own
+from pinecall.api.agents.registry_reads import developers_sandbox_copy
 from pinecall.auth.keys import KeyRecord, is_held_by, is_operator_key
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
@@ -317,8 +317,8 @@ async def test_a_developers_phone_dialling_the_production_number_reaches_their_c
     await registry.register(BERNAS_SOCKET, ORG, SANDBOX, AGENT, holder=BERNA)
     registry.calls_from(SANDBOX, BERNAS_PHONE, BERNA)
 
-    assert a_developers_own(registry, ORG, AGENT, BERNAS_PHONE) == BERNA
-    assert a_developers_own(registry, ORG, AGENT, A_STRANGERS_PHONE) is None
+    assert developers_sandbox_copy(registry, ORG, AGENT, BERNAS_PHONE) == BERNA
+    assert developers_sandbox_copy(registry, ORG, AGENT, A_STRANGERS_PHONE) is None
 
 
 async def test_a_developer_not_holding_the_agent_leaves_their_own_calls_in_production() -> None:
@@ -328,7 +328,7 @@ async def test_a_developer_not_holding_the_agent_leaves_their_own_calls_in_produ
     await registry.register(BERNAS_SOCKET, ORG, SANDBOX, "otro-agente", holder=BERNA)
     registry.calls_from(SANDBOX, BERNAS_PHONE, BERNA)
 
-    assert a_developers_own(registry, ORG, AGENT, BERNAS_PHONE) is None
+    assert developers_sandbox_copy(registry, ORG, AGENT, BERNAS_PHONE) is None
 
 
 async def test_a_developer_of_another_org_never_takes_this_orgs_production_calls() -> None:
@@ -336,4 +336,4 @@ async def test_a_developer_of_another_org_never_takes_this_orgs_production_calls
     await registry.register(BERNAS_SOCKET, "otra-org", SANDBOX, AGENT, holder=BERNA)
     registry.calls_from(SANDBOX, BERNAS_PHONE, BERNA)
 
-    assert a_developers_own(registry, ORG, AGENT, BERNAS_PHONE) is None
+    assert developers_sandbox_copy(registry, ORG, AGENT, BERNAS_PHONE) is None

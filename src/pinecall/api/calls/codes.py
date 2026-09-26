@@ -11,7 +11,7 @@ from starlette.requests import HTTPConnection
 from starlette.status import HTTP_201_CREATED, HTTP_204_NO_CONTENT
 
 from pinecall._settings import Settings
-from pinecall.api.calls.log_sink import reading
+from pinecall.api.calls.log_sink import get_reader_or_none
 from pinecall.api.calls.worker_writes import NOT_OPEN, NOT_THIS_ORG
 from pinecall.api.deps import (
     AppKeyDep,
@@ -67,7 +67,7 @@ class Wanted(WireModel):
 # The number is the agent's phone door in the key's own world, so a key can only issue a code for
 # an agent of its own org — and a code for an agent nobody can call is refused before it exists.
 @router.post("/v1/codes", status_code=HTTP_201_CREATED)
-async def issued(
+async def issue_code(
     said: Wanted, key: TalkKeyDep, routes: RoutesDep, codes: CodesDep, settings: SettingsDep
 ) -> Code:
     """Four digits, the number to call and key them at, and the token that asks after them."""
@@ -82,7 +82,7 @@ async def issued(
 # The code token is the only bearer: it names the code, the agent and the world, and reads nothing
 # else. A key has no business here — the page asking is a browser, and it holds no key.
 @router.get("/v1/codes/{code}")
-async def standing(
+async def code_status(
     code: str,
     connection: HTTPConnection,
     keys: KeysDep,
@@ -92,7 +92,7 @@ async def standing(
     wait: Annotated[bool, Query()] = False,
 ) -> CodeStanding:
     """Waiting, claimed with the call and a token that reads it, or expired — as the page draws."""
-    reader = await reading(connection, keys, settings, token)
+    reader = await get_reader_or_none(connection, keys, settings, token)
     if reader is None:
         raise HTTPException(401, UNREAD, {"WWW-Authenticate": "Bearer"})
     if reader.code != code or reader.agent is None or reader.env is None:
@@ -110,19 +110,21 @@ async def standing(
 # keying an extension — and it is the same 404 a call this gateway forgot answers, which is what
 # has the worker reopen the call and ask once more (worker/gateway_client.py).
 @router.post("/v1/calls/{call}/claim", status_code=HTTP_204_NO_CONTENT)
-async def keyed(call: str, said: CallClaim, key: AppKeyDep, live: LiveDep, codes: CodesDep) -> None:
+async def key_code(
+    call: str, said: CallClaim, key: AppKeyDep, live: LiveDep, codes: CodesDep
+) -> None:
     """The caller keyed a code: this call is the one its page was waiting for, or 404."""
     served = live.served(call)
     if served is None:
         raise HTTPException(404, NOT_OPEN.format(call=call))
     _refuse_another_orgs(key, served)
-    if not await claimed(codes, served, call, said.code, "keypad"):
+    if not await claim_code(codes, served, call, said.code, "keypad"):
         raise HTTPException(404, NOBODY_ISSUED.format(code=said.code, agent=served.agent))
 
 
 # One claim, from the keypad or from the agent: the code is taken on the agent's log, and the call
 # says so on its own — the agent's class learns the person is on the site, the console shows it.
-async def claimed(codes: Codes, served: Served, call: str, code: str, via: Via) -> bool:
+async def claim_code(codes: Codes, served: Served, call: str, code: str, via: Via) -> bool:
     """Bind the call to the code, call.claimed on its log; False when no page waits on the code."""
     issued = await codes.claim(served.context.env, served.agent, code, call)
     if issued is None:

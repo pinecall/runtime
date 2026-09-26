@@ -6,9 +6,9 @@ from fastapi import APIRouter, HTTPException
 from starlette.requests import Request
 from starlette.status import HTTP_202_ACCEPTED
 
-from pinecall.api.calls.log_sink import reading
+from pinecall.api.calls.log_sink import get_reader_or_none
 from pinecall.api.calls.supervise.aiming import STEERS, QueueingDep
-from pinecall.api.calls.supervise.aiming import aimed as aimed_at
+from pinecall.api.calls.supervise.aiming import aim_verb as aimed_at
 from pinecall.api.deps import KeysDep, SettingsDep, SnapshotsDep, StoreDep
 from pinecall.auth.keys import cannot_open
 from pinecall_protocol import WireModel, verbs
@@ -44,7 +44,7 @@ async def verb(
     live: QueueingDep,
 ) -> VerbTaken:
     """One verb onto a live call: 202 and the verb's name, or the sentence saying why not."""
-    reader = await reading(request, keys, settings, None)
+    reader = await get_reader_or_none(request, keys, settings, None)
     if reader is None:
         raise HTTPException(401, NO_BEARER, {"WWW-Authenticate": "Bearer"})
     if reader.key is not None and (closed := cannot_open(reader.key, STEERS)) is not None:

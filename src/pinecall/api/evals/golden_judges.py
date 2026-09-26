@@ -96,14 +96,14 @@ class Judging:
     @property
     def matrix(self) -> JsonObject:
         """Every cell answered so far, as one table of scores: the row's `matrix` at this moment."""
-        return a_score_matrix(rings.Matrix(runs=tuple(self._cells))).model_dump(mode="json")
+        return wire_score_matrix(rings.Matrix(runs=tuple(self._cells))).model_dump(mode="json")
 
     async def close(self) -> None:
         """The judge model's own connections, closed once the run is over."""
         await self._judge.aclose()
 
 
-def a_score_matrix(matrix: rings.Matrix) -> ScoreMatrix:
+def wire_score_matrix(matrix: rings.Matrix) -> ScoreMatrix:
     """The matrix as the door answers it: the axes, a row per cell, and what judging it asked."""
     return ScoreMatrix(
         models=list(matrix.models),

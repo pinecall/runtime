@@ -10,7 +10,7 @@ import pytest
 
 from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry
-from pinecall.api.ops.peers import the_sandbox
+from pinecall.api.ops.peers import get_sandbox_peer
 from pinecall.auth.keys import MemoryKeys
 from pinecall.fleet import Heartbeat
 from pinecall.log.store import MemoryStore
@@ -203,7 +203,7 @@ async def test_production_asks_its_sandbox_when_its_own_table_has_nobody(
     fleet_gateway: Gateway, other_instance: Scripting
 ) -> None:
     handing = {"holder": BERNA, "fleet": "pinecall-sandbox"}
-    sandbox = other_instance(the_sandbox, httpx.Response(200, json=handing))
+    sandbox = other_instance(get_sandbox_peer, httpx.Response(200, json=handing))
 
     handover = await fleet_gateway.rings_for(AGENT, org=A_RECORD.org, caller=BERNAS_PHONE)
 
@@ -216,7 +216,7 @@ async def test_production_asks_its_sandbox_when_its_own_table_has_nobody(
 async def test_a_sandbox_that_does_not_answer_leaves_the_ring_in_production(
     fleet_gateway: Gateway, other_instance: Scripting, caplog: pytest.LogCaptureFixture
 ) -> None:
-    other_instance(the_sandbox, httpx.ReadTimeout("two seconds went by"))
+    other_instance(get_sandbox_peer, httpx.ReadTimeout("two seconds went by"))
 
     assert await fleet_gateway.rings_for(AGENT, org=A_RECORD.org, caller=BERNAS_PHONE) is None
     warned = [one.levelname for one in caplog.records if THERE in one.getMessage()]

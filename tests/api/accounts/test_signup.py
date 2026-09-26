@@ -184,7 +184,7 @@ async def test_a_gateway_nobody_opened_sign_ups_on_takes_none_and_that_is_the_de
 
     assert Settings(world="production", ops_key=AN_OPS_KEY).signup is False
     shut = settings.model_copy(update={"signup": False})
-    app.dependency_overrides[deps.a_settings] = lambda: shut
+    app.dependency_overrides[deps.get_settings] = lambda: shut
     answer = await signed_up(stranger, outbox, relay)
     assert (answer.status_code, answer.json()["detail"]) == (403, NOT_HERE)
     assert "PINECALL_SIGNUP" in answer.json()["detail"]
@@ -200,7 +200,7 @@ async def test_discovery_says_whether_a_stranger_may_sign_up_and_it_is_not_cloud
 
     said = (await stranger.get("/.well-known/pinecall")).json()
     assert said["signup"] is True and said["cloud"] is False, "two facts, and they are apart"
-    app.dependency_overrides[deps.a_settings] = lambda: settings.model_copy(
+    app.dependency_overrides[deps.get_settings] = lambda: settings.model_copy(
         update={"signup": False, "cloud": True}
     )
     said = (await stranger.get("/.well-known/pinecall")).json()

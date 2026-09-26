@@ -95,11 +95,19 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   none; a suite's run held one per run and closed it never.
 
 ### Changed
+- **Every public function is named to survive a traceback.** Four hundred of them opened with an
+  article, a pronoun or a bare participle — `a_role`, `the_vault`, `whose_corner`, `listed`,
+  `wired`, `standing` — and read only beside their module's name. Each is a verb with its object,
+  a noun phrase, a predicate or a factory now (`parse_role`, `get_vault`, `list_keys`,
+  `sso_standing`, `vendor_status`); a FastAPI dependency is `get_x`, one that refuses is
+  `require_x`, a projection to the protocol is `wire_x`. `CLAUDE.md` states the rule. The names a
+  package's `__all__` exports changed with them: an extension that imported one imports the new one
+  (`extensions/points.py`: `unlimited` is `unlimited_quotas`).
 - **Every module is named by what it holds.** A hundred and forty files across `types/`, `log/`,
   `providers/`, `auth/`, `orgs/`, `routes/`, `tokens/`, `session/`, `whatsapp/`, `evals/`,
   `memory/`, `knowledge/`, `lookups/`, `mail/` and `worker/` were named by a gerund or a bare
-  word that read only beside its package's name — `asking`, `knowing`, `hearing`, `hop`, `kit`,
-  `standing`, `table`, `facts` — and four of them were spelt the same in three directories. Each
+  word that read only beside its package's name — `pairing_asked`, `knowing`, `hearing`, `hop`, `kit`,
+  `fleet_totals`, `table`, `facts` — and four of them were spelt the same in three directories. Each
   is named by the noun it owns now (`model_requests`, `platform_block`, `stt_vocabulary`,
   `gateway_http`, `vendors`, `vendor_status`, `records`, `call_facts`), the hold melody is one word
   in every layer, `dialing` is spelt as the wire spells it, and no module is named after its own
@@ -208,7 +216,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   same and stops as `failed` with the sentence. Protocol `>=0.6.12`.
 - **Codes: a page that follows a phone call it did not place.** `POST /v1/codes` (`talk`) hands
   a tenant's server four digits, the agent's phone number and a code token; the page asks
-  `GET /v1/codes/{code}?wait=1` with it and is answered `claimed` with the call and a log token
+  `GET /v1/codes/{code}?wait=1` with it and is answered `claim_code` with the call and a log token
   the moment the caller keys the code — the worker now writes the caller's tones as
   `dtmf.received` and claims four close together at `POST /v1/calls/{call}/claim` — or the app
   sends `call.claim` for a code the agent heard said. `call.claimed` lands on the call's log,
@@ -330,7 +338,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **A code's standing answers any page, and a claimed call stays claimed when it changes hands.**
   `GET /v1/codes/{code}` takes a browser from any origin (GET, no credentials, as a call's own
   reads do): its code token is the only thing that opens it, and `byPhone()` runs on the tenant's
-  own site. `call.attached` carries `claimed` (protocol 0.6.11), so the next process's view still
+  own site. `call.attached` carries `claim_code` (protocol 0.6.11), so the next process's view still
   knows the caller is on the site. `make migrate-post [INSTANCE=]` applies the `.post.sql`
   migrations the doctor names; a new instance runs it once.
 - **Breaking for extension authors: `Admitting` takes the world, and a sandbox asks it too.** The

@@ -8,13 +8,13 @@ from fastapi.responses import RedirectResponse
 from starlette.status import HTTP_302_FOUND
 
 from pinecall.api.accounts.identity import AtProduction
-from pinecall.api.accounts.login import A_BROWSER, DISABLED, TOO_MANY, the_client
+from pinecall.api.accounts.login import A_BROWSER, DISABLED, TOO_MANY, throttle_client
 from pinecall.api.accounts.org_sso import (
     HandshakesDep,
     HttpDep,
     KeptSsoDep,
     SsoDep,
-    where_the_idp_answers,
+    idp_redirect_uri,
 )
 from pinecall.api.deps import (
     AdmissionDep,
@@ -104,10 +104,10 @@ async def sign_in(
     wired = None if owner is None else await sso.of(owner.id)
     if owner is None or wired is None:
         raise HTTPException(404, NO_SSO_HERE.format(org=org))
-    if not throttle.allowed(f"{the_client(request)} sso/{owner.slug}"):
+    if not throttle.allowed(f"{throttle_client(request)} sso/{owner.slug}"):
         raise HTTPException(429, TOO_MANY_SIGN_INS)
-    provider = await the_provider(http, wired.issuer)
-    redirect_uri = where_the_idp_answers(settings, request)
+    provider = await provider_config(http, wired.issuer)
+    redirect_uri = idp_redirect_uri(settings, request)
     handshake = handshakes.open(owner.id, redirect_uri, pairing)
     return RedirectResponse(
         authorization_url(
@@ -151,13 +151,15 @@ async def back(
     # A state a box-wide provider's sign-in opened names no org, and is nobody's here.
     if wired is None or org is None or handshake.provider is not None:
         raise HTTPException(404, NO_SSO_HERE.format(org=handshake.org))
-    said = await who_the_provider_says(
+    said = await claims_from_provider(
         http, wired.issuer, wired.client_id, wired.client_secret, handshake, code
     )
     if not wired.admits(said.email):
         raise HTTPException(403, ANOTHER_DOMAIN.format(email=said.email, org=org.slug))
     member = await _seated(org, wired, said, members, admission)
-    return RedirectResponse(landing(handshake.pairing, a_way_in(member, codes)), HTTP_302_FOUND)
+    return RedirectResponse(
+        landing_url(handshake.pairing, mint_sso_code(member, codes)), HTTP_302_FOUND
+    )
 
 
 # No key at this door and no password in it: which orgs a person of this domain could sign in to
@@ -170,7 +172,7 @@ async def discover(
 ) -> SsoDiscovery:
     """The orgs an address of this domain signs in to with an identity provider, oldest first."""
     email = normalize_email(said.email)
-    if not throttle.allowed(f"{the_client(request)} sso/{email}"):
+    if not throttle.allowed(f"{throttle_client(request)} sso/{email}"):
         raise HTTPException(429, TOO_MANY.format(email=email))
     domain = parse_domain(email.rpartition("@")[2])
     # None is a box with no vault key, which can keep no client secret and so holds no provider
@@ -184,7 +186,7 @@ async def discover(
     return SsoDiscovery(orgs=listed)
 
 
-async def the_provider(http: httpx.AsyncClient, issuer: str) -> Provider:
+async def provider_config(http: httpx.AsyncClient, issuer: str) -> Provider:
     """The issuer's configuration, or 502: the request was right and somebody else is down."""
     try:
         return await configuration(http, issuer)
@@ -195,7 +197,7 @@ async def the_provider(http: httpx.AsyncClient, issuer: str) -> Provider:
 # The same three steps for an org's own provider and for a box-wide one
 # (api/accounts/google_login.py): which client this gateway is at the issuer is all that differs
 # between them.
-async def who_the_provider_says(
+async def claims_from_provider(
     http: httpx.AsyncClient,
     issuer: str,
     client_id: str,
@@ -204,7 +206,7 @@ async def who_the_provider_says(
     code: str,
 ) -> Claims:
     """The code spent and the id_token checked — signature, issuer, audience, expiry, nonce."""
-    provider = await the_provider(http, issuer)
+    provider = await provider_config(http, issuer)
     try:
         id_token = await exchange(
             http,
@@ -276,7 +278,7 @@ async def _activated(members: Members, org: Org, member: Member) -> Member:
 # The same word `pinecall start` prints and the console already knows how to spend, standing for a
 # key that does not exist yet: the browser spending it is what mints one, labelled as a console's,
 # the person's own and with what their role opens (api/accounts/login.py:_with_a_code).
-def a_way_in(member: Member, codes: LoginCodes) -> str:
+def mint_sso_code(member: Member, codes: LoginCodes) -> str:
     """A one-use login code for this person, good for five minutes and for one browser."""
     record = KeyRecord(
         key_id=NO_KEY_YET,
@@ -290,7 +292,7 @@ def a_way_in(member: Member, codes: LoginCodes) -> str:
     return codes.mint(record).code
 
 
-def landing(pairing: str | None, code: str) -> str:
+def landing_url(pairing: str | None, code: str) -> str:
     """Where the browser ends up: the console, or the card that signs a terminal in."""
     if pairing is None:
         return f"{THE_CONSOLE}?{httpx.QueryParams({'login': code})}"

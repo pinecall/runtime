@@ -7,8 +7,8 @@ from datetime import date
 
 from pinecall._settings import Budgets
 from pinecall.api.agents.held_agent import Registration
-from pinecall.api.calls.attachment import attached
-from pinecall.api.calls.opening import TextCall, a_text_session
+from pinecall.api.calls.attachment import attach_socket
+from pinecall.api.calls.opening import TextCall, open_text_session
 from pinecall.api.live import Live
 from pinecall.log.entry import Entry
 from pinecall.log.store.call_index import CallIndex
@@ -53,7 +53,7 @@ async def taken_up(
     if not entries or any(entry.type == TERMINAL_EVENT for entry in entries):
         return None
     context = _as_it_opened(replace(context, call=call), entries)
-    opened = await a_text_session(
+    opened = await open_text_session(
         held, context, tuning, vault, llms, logs, lookups, budgets, admission, running=None
     )
     session = opened.session
@@ -71,7 +71,7 @@ async def taken_up(
     )
     live.open(session)
     await session.resume(entries)
-    await attached(live, call, held.owner)
+    await attach_socket(live, call, held.owner)
     return opened
 
 

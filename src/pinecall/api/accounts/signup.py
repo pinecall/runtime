@@ -9,8 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.status import HTTP_201_CREATED, HTTP_202_ACCEPTED
 
 from pinecall.api.accounts.identity import AtProduction
-from pinecall.api.accounts.login import NOBODY_ANYWHERE, the_client
-from pinecall.api.accounts.signing_up import TAKEN, OrgMade, the_org_made
+from pinecall.api.accounts.login import NOBODY_ANYWHERE, throttle_client
+from pinecall.api.accounts.signing_up import TAKEN, OrgMade, make_org
 from pinecall.api.deps import (
     ExtensionsDep,
     KeysDep,
@@ -115,19 +115,19 @@ class CodeResent(WireModel):
 CLIENT_HEADER = "x-pinecall-client"
 
 
-def a_signup_client(request: Request, settings: SettingsDep) -> str:
+def signup_client(request: Request, settings: SettingsDep) -> str:
     """The client the throttle counts, once the shield's key was shown when one is set."""
     if settings.signup_key is None:
-        return the_client(request)
+        return throttle_client(request)
     said = request.headers.get("authorization", "")
     bearer = said.removeprefix("Bearer ").strip() if said.startswith("Bearer ") else ""
     if not bearer or not compare_digest(bearer, settings.signup_key):
         raise HTTPException(401, NOT_THE_SHIELD, headers={"WWW-Authenticate": "Bearer"})
     said_by_the_shield = request.headers.get(CLIENT_HEADER, "").strip()
-    return said_by_the_shield or the_client(request)
+    return said_by_the_shield or throttle_client(request)
 
 
-ClientDep = Annotated[str, Depends(a_signup_client)]
+ClientDep = Annotated[str, Depends(signup_client)]
 
 
 @router.post("/v1/signup", status_code=HTTP_202_ACCEPTED)
@@ -191,7 +191,7 @@ async def verify(
     taken = signups.verify(normalize_email(said.email), said.code.strip())
     if isinstance(taken, NotVerified):
         raise HTTPException(400, REFUSED[taken.reason])
-    return await the_org_made(
+    return await make_org(
         taken, said.device, settings.world, orgs, members, keys, codes, extensions
     )
 

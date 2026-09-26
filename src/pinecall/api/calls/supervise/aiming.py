@@ -8,7 +8,7 @@ from fastapi import Depends
 from pydantic import TypeAdapter, ValidationError
 
 from pinecall.api.calls.log_sink import another_orgs
-from pinecall.api.deps import SnapshotsDep, what_is_live
+from pinecall.api.deps import SnapshotsDep, get_live
 from pinecall.auth.scopes import Reader
 from pinecall.log.store import Store
 from pinecall.session.text.session import TextSession
@@ -51,7 +51,7 @@ A_KEY = "key:{org}"
 SUPERVISOR_VERB = "supervisor.verb"
 
 
-def as_a_verb(frame: str | None) -> verbs.Verb:
+def parse_verb(frame: str | None) -> verbs.Verb:
     """One inbound frame as the verb it claims to be, or a ProtocolError carrying pydantic's why."""
     try:
         return A_VERB.validate_json(frame or "")
@@ -84,13 +84,13 @@ class Queueing(Protocol):
         ...
 
 
-QueueingDep = Annotated[Queueing, Depends(what_is_live)]
+QueueingDep = Annotated[Queueing, Depends(get_live)]
 
 
 # THE one path a verb takes, whichever door it arrived at: POST /v1/calls/{call}/verbs and the
 # frames a supervisor sends down WS /v1/attach both end here, so there is one set of checks and
 # one place a verb can be refused. See docs/decisions/supervise.md.
-async def aimed(
+async def aim_verb(
     live: Queueing,
     store: Store,
     snapshots: SnapshotsDep,

@@ -7,8 +7,8 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query
 from starlette.status import HTTP_204_NO_CONTENT
 
-from pinecall.api.deps import AppKeyDep, OrgsDep, RoutesDep, an_org
-from pinecall.api.scope.operator_key import an_operators_router
+from pinecall.api.deps import AppKeyDep, OrgsDep, RoutesDep, require_org
+from pinecall.api.scope.operator_key import operators_router
 from pinecall.api.scope.request_scope import CornerDep
 from pinecall.auth.keys import is_fleet_key
 from pinecall.auth.request_scope import NOT_YOUR_CORNER
@@ -20,7 +20,7 @@ router = APIRouter()
 
 # Every /v1/ops door takes the operator key and nothing else, checked before the endpoint runs.
 # It is the box's own key out of the environment, so it names no org and every door here does.
-operator = an_operators_router()
+operator = operators_router()
 
 # The hop carries the domain object itself: FastAPI serializes the Route dataclass from the door's
 # annotation, and worker/wire.py's adapter validates it back. See docs/decisions/worker.md.
@@ -78,9 +78,11 @@ async def routes(
 
 
 @operator.get("/routes")
-async def listed(table: RoutesDep, orgs: OrgsDep, org: str = ORG, env: Env = ENV) -> list[Route]:
+async def list_routes(
+    table: RoutesDep, orgs: OrgsDep, org: str = ORG, env: Env = ENV
+) -> list[Route]:
     """The same doors the worker is given: every row this org answers at in this world."""
-    owner = await an_org(org, orgs)
+    owner = await require_org(org, orgs)
     return list(await table.of_org(owner.id, env))
 
 
@@ -90,7 +92,7 @@ async def listed(table: RoutesDep, orgs: OrgsDep, org: str = ORG, env: Env = ENV
 @operator.post("/routes")
 async def add(said: Wanted, table: RoutesDep, orgs: OrgsDep) -> RouteAdded:
     """Add the number or move it. One row per number per org: this is an upsert."""
-    route = _a_route(said, (await an_org(said.org, orgs)).id)
+    route = _a_route(said, (await require_org(said.org, orgs)).id)
     await table.put(route)
     return RouteAdded(route=route)
 
@@ -98,7 +100,7 @@ async def add(said: Wanted, table: RoutesDep, orgs: OrgsDep) -> RouteAdded:
 @operator.delete("/routes/{number}", status_code=HTTP_204_NO_CONTENT)
 async def remove(number: str, table: RoutesDep, orgs: OrgsDep, org: str = ORG) -> None:
     """Forget the number. A number nobody typed is a 404, so a typo is never a quiet success."""
-    owner = await an_org(org, orgs)
+    owner = await require_org(org, orgs)
     if not await table.remove(owner.id, number):
         raise HTTPException(404, NO_SUCH_ROUTE.format(number=number, org=owner.slug))
 

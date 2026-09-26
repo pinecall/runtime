@@ -16,15 +16,15 @@ from pinecall.api import pages
 from pinecall.api.agents.processes import Processes
 from pinecall.api.agents.registry import Registry
 from pinecall.api.agents.voices import A_MINUTE_S, SAMPLES_A_MINUTE
-from pinecall.api.calls.reaper import Reaper, reaping
+from pinecall.api.calls.reaper import Reaper, reap_forever
 from pinecall.api.evals.runner import Runner
 from pinecall.api.live import Live
 from pinecall.api.origins import AppOrigins
 from pinecall.api.refusals import refusals_answered_by
 from pinecall.api.routers import DOORS
-from pinecall.api.telephony.sip_rebuild import reconciled
+from pinecall.api.telephony.sip_rebuild import reconcile_sip
 from pinecall.api.whatsapp.threads import Threads
-from pinecall.api.whatsapp.waiting_loop import a_waiting_room
+from pinecall.api.whatsapp.waiting_loop import start_waiting_room
 from pinecall.auth.keys import NO_KEYS_TABLE, keys_for
 from pinecall.auth.login_codes import LoginCodes
 from pinecall.auth.members import members_for
@@ -282,7 +282,7 @@ async def _opened(gateway: FastAPI, settings: Settings, closing: AsyncExitStack)
     # And the WhatsApp messages that reached a number while nobody held its agent — a deploy, this
     # very restart — are kept on the log and answered once somebody does:
     # api/whatsapp/unanswered.py.
-    closing.push_async_callback(_cancelled, await a_waiting_room(gateway.state))
+    closing.push_async_callback(_cancelled, await start_waiting_room(gateway.state))
 
 
 NO_REAPER = (
@@ -299,7 +299,7 @@ def _a_reaper(settings: Settings, gateway: FastAPI) -> asyncio.Task[None] | None
         logger.warning(NO_REAPER)
         return None
     reaper = Reaper(gateway.state.store, gateway.state.logs, rooms, gateway.state.live)
-    return asyncio.ensure_future(reaping(reaper))
+    return asyncio.ensure_future(reap_forever(reaper))
 
 
 # In the background, because a gateway that waited for the SFU before opening would refuse every
@@ -311,7 +311,7 @@ def _a_rebuild(gateway: FastAPI) -> asyncio.Task[None] | None:
         return None
 
     async def rebuilt() -> None:
-        found = await reconciled(
+        found = await reconcile_sip(
             state.orgs,
             state.carriers,
             state.routes,

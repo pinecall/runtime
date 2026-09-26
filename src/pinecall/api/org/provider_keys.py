@@ -5,8 +5,8 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from starlette.status import HTTP_204_NO_CONTENT
 
-from pinecall.api.deps import OrgsDep, ProviderKeysKeyDep, UnlockedVaultDep, an_org
-from pinecall.api.scope.operator_key import an_operators_router
+from pinecall.api.deps import OrgsDep, ProviderKeysKeyDep, UnlockedVaultDep, require_org
+from pinecall.api.scope.operator_key import operators_router
 from pinecall.providers.catalog import canonical, vendors_with_a_key
 from pinecall_protocol import WireModel
 
@@ -17,7 +17,7 @@ router = APIRouter()
 
 # The same gate every /v1/ops door takes. The second one — a runtime that was given no vault key
 # cannot keep a tenant's key at all — is UnlockedVaultDep, on each of the six endpoints.
-operator = an_operators_router()
+operator = operators_router()
 
 # 400 and not 422: the body was well formed and the word in the path is not one of ours. The list
 # is in the sentence because an operator who typed `11labs` needs to know what to type instead.
@@ -39,14 +39,14 @@ async def keep(
     named: str, vendor: str, said: WantedKey, orgs: OrgsDep, vault: UnlockedVaultDep
 ) -> None:
     """The org's own key for one vendor, from the next call on. Replaces whatever it had."""
-    org = await an_org(named, orgs)
+    org = await require_org(named, orgs)
     await vault.put(org.id, _a_known_vendor(vendor), said.key)
 
 
 @operator.delete("/orgs/{named}/provider-keys/{vendor}", status_code=HTTP_204_NO_CONTENT)
 async def forget(named: str, vendor: str, orgs: OrgsDep, vault: UnlockedVaultDep) -> None:
     """Back to the box's own key for that vendor, from the next call on."""
-    org = await an_org(named, orgs)
+    org = await require_org(named, orgs)
     if not await vault.drop(org.id, _a_known_vendor(vendor)):
         raise HTTPException(404, NO_SUCH_KEY.format(org=org.slug, vendor=vendor))
 
@@ -56,7 +56,7 @@ async def forget(named: str, vendor: str, orgs: OrgsDep, vault: UnlockedVaultDep
 @operator.get("/orgs/{named}/provider-keys")
 async def vendors(named: str, orgs: OrgsDep, vault: UnlockedVaultDep) -> dict[str, list[str]]:
     """Which vendors this org brought its own key for. The rest run on the box's."""
-    org = await an_org(named, orgs)
+    org = await require_org(named, orgs)
     return {"vendors": list(await vault.vendors_of(org.id))}
 
 

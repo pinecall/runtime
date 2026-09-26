@@ -8,7 +8,7 @@ import httpx
 import pytest
 
 from pinecall.api.app import app
-from pinecall.api.evals.personas import the_personas
+from pinecall.api.evals.personas import get_personas
 from pinecall.orgs.personas import MemoryPersonas
 
 pytestmark = pytest.mark.unit
@@ -22,9 +22,9 @@ PERSONAS = "/v1/personas"
 def personas() -> Iterator[MemoryPersonas]:
     """The org's callers, empty at the start of every test."""
     kept = MemoryPersonas()
-    app.dependency_overrides[the_personas] = lambda: kept
+    app.dependency_overrides[get_personas] = lambda: kept
     yield kept
-    app.dependency_overrides.pop(the_personas, None)
+    app.dependency_overrides.pop(get_personas, None)
 
 
 DANA = {

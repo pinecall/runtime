@@ -60,7 +60,7 @@ async def until_the_answer_lands(store: Store, call: str, said: int) -> None:
 
         async def open_() -> bool:
             entries = await whole(store, call)
-            return the_call_is_over(entries) or the_line_is_open(entries, time.time())
+            return is_call_over(entries) or is_line_open(entries, time.time())
 
         await until(open_, within_s=AN_OPENING_MAY_TAKE_S)
         return
@@ -74,9 +74,9 @@ async def until_the_answer_lands(store: Store, call: str, said: int) -> None:
         entries = await whole(store, call)
         # Nothing is going to answer a call that has been hung up, so the line is not held for the
         # thirty seconds an answer may take: this is what makes stopping a simulation immediate.
-        if the_call_is_over(entries):
+        if is_call_over(entries):
             return True
-        if not the_answer_has_landed(entries, said, since=stopped):
+        if not has_answer_landed(entries, said, since=stopped):
             return False
         # Asked twice, a beat apart, because `agent.state` reaches the log a moment after the
         # agent changed and the log is all this can see. Once was not enough: on 2026-09-13 the
@@ -85,7 +85,7 @@ async def until_the_answer_lands(store: Store, call: str, said: int) -> None:
         # A single reading cannot tell a call that is over from one whose last state has not
         # landed yet; two, a pause apart, can. The cost is that pause, once per turn.
         await asyncio.sleep(A_BEAT_S)
-        return the_answer_has_landed(await whole(store, call), said, since=stopped)
+        return has_answer_landed(await whole(store, call), said, since=stopped)
 
     await until(landed, within_s=AN_ANSWER_MAY_TAKE_S)
 
@@ -102,7 +102,7 @@ async def until_the_answer_lands(store: Store, call: str, said: int) -> None:
 # `thinking`, `speaking`, and back to `listening` when it has nothing left to say. A filler leaves
 # it thinking. So the line is held until it is listening again, and that is neither a guess nor a
 # count of anything.
-def the_answer_has_landed(entries: Sequence[Entry], said: int, *, since: float) -> bool:
+def has_answer_landed(entries: Sequence[Entry], said: int, *, since: float) -> bool:
     """Every line heard, and the agent back to listening after the last of them.
 
     `since` is when the caller stopped talking, and the line it just said has to be IN this log
@@ -122,12 +122,12 @@ def the_answer_has_landed(entries: Sequence[Entry], said: int, *, since: float) 
     return at > heard[-1] and AgentStateChanged.model_validate(last.data).state == IT_IS_LISTENING
 
 
-def the_call_is_over(entries: Sequence[Entry]) -> bool:
+def is_call_over(entries: Sequence[Entry]) -> bool:
     """Whether this call has been hung up, by whoever hung it up. Nothing more will answer."""
     return any(entry.type == THE_CALL_ENDED for entry in entries)
 
 
-def the_line_is_open(entries: Sequence[Entry], now: float) -> bool:
+def is_line_open(entries: Sequence[Entry], now: float) -> bool:
     """The caller may speak first: the agent said its opening and listens, or it opens with none."""
     states = [(at, entry) for at, entry in enumerate(entries) if entry.type == AGENT_STATE]
     if not states:

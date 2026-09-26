@@ -43,7 +43,7 @@ async def restarted(threads: Threads, live: Live, logs: Logs, idle_seconds: floa
     live.close(call)
     logs.forget(call)
     fresh = Threads(idle_seconds=idle_seconds)
-    app.dependency_overrides[whatsapp_threads.the_threads] = lambda: fresh
+    app.dependency_overrides[whatsapp_threads.get_threads] = lambda: fresh
     return fresh
 
 

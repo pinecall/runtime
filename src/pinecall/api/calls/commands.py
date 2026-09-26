@@ -8,7 +8,7 @@ from collections.abc import AsyncIterator
 from fastapi import APIRouter, HTTPException
 from starlette.responses import StreamingResponse
 
-from pinecall.api.calls.log_sink import PING, PING_SECONDS, SSE, SSE_HEADERS, an_sse_frame, paced
+from pinecall.api.calls.log_sink import PING, PING_SECONDS, SSE, SSE_HEADERS, pace, sse_frame
 from pinecall.api.calls.worker_writes import refuse_another_orgs_call
 from pinecall.api.deps import AppKeyDep
 from pinecall.api.live import LiveDep
@@ -41,11 +41,11 @@ async def commands(call: str, key: AppKeyDep, live: LiveDep) -> StreamingRespons
 # resume from. A worker that loses the stream has lost the call it was reading it for.
 async def _body(waiting: asyncio.Queue[Command | None]) -> AsyncIterator[str]:
     """A frame per command, a comment when the call is quiet, and the end when it is sealed."""
-    async for command in paced(_taken(waiting), PING_SECONDS):
+    async for command in pace(_taken(waiting), PING_SECONDS):
         if command is None:
             yield PING
             continue
-        yield an_sse_frame(command.type, encode(command))
+        yield sse_frame(command.type, encode(command))
 
 
 async def _taken(waiting: asyncio.Queue[Command | None]) -> AsyncIterator[Command]:

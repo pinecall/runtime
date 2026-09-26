@@ -57,14 +57,14 @@ normal case, and a file that only forwards `model=` and `api_key=` is one more t
 from livekit.plugins import acme
 
 from pinecall.providers.llm import VENDORS
-from pinecall.providers.registry import Asked, Chat, a_key
+from pinecall.providers.registry import Asked, Chat, vendor_key
 
 DEFAULT_MODEL = "acme-fast"  # the plugin's own is acme-large (acme/llm.py:67)
 
 
 @VENDORS.registers("acme")
 def build(asked: Asked) -> Chat:
-    return acme.LLM(model=asked.model or DEFAULT_MODEL, api_key=a_key("acme", asked))
+    return acme.LLM(model=asked.model or DEFAULT_MODEL, api_key=vendor_key("acme", asked))
 ```
 
 ## The four places that are still by hand

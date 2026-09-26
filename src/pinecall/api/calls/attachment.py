@@ -20,7 +20,7 @@ CLAIMED = "call.claimed"
 # A call is its agent's, never a socket's. When the socket serving it drains or dies, or the
 # gateway that knew which socket it was restarts, the next socket holding the agent takes it here,
 # and the log says so: call.attached, written before anything else reaches that socket.
-async def attached(live: Live, call: str, app: SocketId) -> Entry | None:
+async def attach_socket(live: Live, call: str, app: SocketId) -> Entry | None:
     """This socket serves the call from now on: told how it started and where it stands."""
     served = live.attach(call, app)
     if served is None:
@@ -51,7 +51,7 @@ async def attached(live: Live, call: str, app: SocketId) -> Entry | None:
 
 async def parked_calls_of(live: Live, held: Held, app: SocketId) -> list[str]:
     """Every live call of that agent nobody serves, to the socket that just registered it."""
-    return [call for call in live.parked(*held) if await attached(live, call, app) is not None]
+    return [call for call in live.parked(*held) if await attach_socket(live, call, app) is not None]
 
 
 # The rule a socket that leaves is held to, whether it closed or drained: each of its calls goes to
@@ -65,7 +65,7 @@ async def handed_on(live: Live, registry: Registry, calls: list[str]) -> tuple[i
             continue
         env, holder = served.context.env, served.holder
         serving = registry.serving(env, served.agent, None, holder)
-        if serving is not None and await attached(live, call, serving.owner) is not None:
+        if serving is not None and await attach_socket(live, call, serving.owner) is not None:
             handed += 1
         else:
             live.attach(call, None)

@@ -18,15 +18,21 @@ from pinecall.api.calls.log_sink import (
     ProjectedPage,
     ReaderDep,
     another_orgs,
-    ended,
+    get_reader_or_none,
+    is_sealed,
     page,
-    reading,
     refuse_another_call,
     refuse_another_org,
     sse,
     wants_sse,
 )
-from pinecall.api.calls.supervise.aiming import STEERS, QueueingDep, VerbRefused, aimed, as_a_verb
+from pinecall.api.calls.supervise.aiming import (
+    STEERS,
+    QueueingDep,
+    VerbRefused,
+    aim_verb,
+    parse_verb,
+)
 from pinecall.api.deps import (
     KeysDep,
     LogsDep,
@@ -75,7 +81,7 @@ async def events(
     """The call's entries above the cursor: SSE when the reader asked for it, a page otherwise."""
     refuse_another_call(reader, call)
     await refuse_another_org(reader, store, call, "")
-    over = await ended(store, call)
+    over = await is_sealed(store, call)
     if over and cursor >= await store.latest_seq(call):
         # Nothing more will ever be true of this call and the reader has all of it. An empty page
         # would be a promise to come back, and 200 with `live: false` is what the JSON flavour
@@ -144,7 +150,7 @@ async def attach(
     after: Annotated[int, Query(ge=0)] = 0,
 ) -> None:
     """One supervisor, one call: the entries down the socket, and the verbs back up it."""
-    reader = await reading(websocket, keys, settings, token)
+    reader = await get_reader_or_none(websocket, keys, settings, token)
     if reader is None or (reader.call is not None and reader.call != call):
         await websocket.close(code=POLICY_VIOLATION)
         return
@@ -184,11 +190,11 @@ async def _verb(
 ) -> Entry | None:
     """One frame as a verb, aimed at the call. None means it went; an entry says why it did not."""
     try:
-        said = as_a_verb(frame)
+        said = parse_verb(frame)
     except ProtocolError as malformed:
         return _an_error(BAD_VERB, str(malformed))
     try:
-        await aimed(live, store, snapshots, reader, call, said)
+        await aim_verb(live, store, snapshots, reader, call, said)
     except VerbRefused as refused:
         return _an_error(VERB_REFUSED, refused.detail)
     return None

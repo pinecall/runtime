@@ -11,7 +11,7 @@ import httpx
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.api.accounts.identity import SIGN_IN_THERE, the_identity
+from pinecall.api.accounts.identity import SIGN_IN_THERE, get_identity
 from pinecall.api.app import app
 from pinecall.auth.identity import Identity
 from pinecall.auth.keys import KeyRecord, MemoryKeys
@@ -61,9 +61,9 @@ def production_is_never_asked() -> Iterator[None]:
         raise AssertionError(f"production was asked: {request.url}")
 
     identity = Identity(httpx.AsyncClient(transport=httpx.MockTransport(knocked)), THE_IDENTITY)
-    app.dependency_overrides[the_identity] = lambda: identity
+    app.dependency_overrides[get_identity] = lambda: identity
     yield
-    app.dependency_overrides.pop(the_identity, None)
+    app.dependency_overrides.pop(get_identity, None)
 
 
 @pytest.fixture
@@ -114,6 +114,6 @@ def test_production_asks_nobody_and_a_sandbox_asks_its_identity_over_the_process
 ) -> None:
     """Production is never handed the client it would not use: a lifespan-less test app has none."""
     connection: Any = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace()))
-    assert the_identity(connection, settings) is None
+    assert get_identity(connection, settings) is None
     connection.app.state.http = httpx.AsyncClient()
-    assert isinstance(the_identity(connection, a_sandbox(settings)), Identity)
+    assert isinstance(get_identity(connection, a_sandbox(settings)), Identity)

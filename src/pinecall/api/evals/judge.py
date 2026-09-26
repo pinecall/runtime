@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from fastapi import APIRouter, HTTPException
 
 from pinecall.api.agents.registry import RegistryDep
-from pinecall.api.calls.log_sink import the_calls_corner
+from pinecall.api.calls.log_sink import require_calls_scope
 from pinecall.api.deps import CallIndexDep, EvalsKeyDep, SettingsDep, StoreDep
 from pinecall.evals.hangup_score import score_call
 from pinecall.log.entry import Entry
@@ -40,7 +40,7 @@ async def judge(
     again: bool = False,
 ) -> CallScore:
     """The judges' verdict on this finished call, written onto its log and answered."""
-    corner = await the_calls_corner(index, key, call)
+    corner = await require_calls_scope(index, key, call)
     entries = await whole(store, call)
     if not any(entry.type == "call.ended" for entry in entries):
         raise HTTPException(409, STILL_GOING.format(call=call))

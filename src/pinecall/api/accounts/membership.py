@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api.accounts.identity import AtProduction
-from pinecall.api.accounts.members import NO_SUCH_MEMBER, MemberSaid, a_member_said
+from pinecall.api.accounts.members import NO_SUCH_MEMBER, MemberSaid, wire_member
 from pinecall.api.deps import KeysDep, MembersDep, TeamKeyDep
 from pinecall.api.scope.grants import may_grant
 from pinecall.auth.grants import NOT_YOUR_OWN_ROW
@@ -58,7 +58,7 @@ async def change(
     if found is None:
         raise HTTPException(404, NO_SUCH_MEMBER.format(id=id))
     role = None if said.role is None else parse_role(said.role)
-    status = None if said.status is None else a_status(said.status)
+    status = None if said.status is None else parse_member_status(said.status)
     if status == "active" and found.status == "invited":
         raise HTTPException(400, NOT_BY_HAND.format(email=found.email))
     if status == "disabled" and key.subject == id:
@@ -78,7 +78,7 @@ async def change(
     # the rows stay, revoked, so the log entries that name them stay readable.
     if status == "disabled":
         await revoked_every_key_of(keys, key.org, id)
-    return a_member_said(changed)
+    return wire_member(changed)
 
 
 # For good, where `disabled` is for now: the keys stop first, so there is no moment at which the
@@ -90,10 +90,10 @@ async def remove(id: str, key: TeamKeyDep, members: MembersDep, keys: KeysDep) -
     """One person out of this org for good. 409 for yourself and for the last active admin."""
     if key.subject == id:
         raise HTTPException(409, NOT_YOURSELF)
-    await removed(members, keys, key.org, id)
+    await remove_member(members, keys, key.org, id)
 
 
-async def removed(members: Members, keys: Keys, org: str, id: str) -> None:
+async def remove_member(members: Members, keys: Keys, org: str, id: str) -> None:
     """Every key of theirs revoked, then the row and its links gone; 404, or 409 for the last
     active admin. The org's door and the operator's twin both end here."""
     found = await members.find(org, id)
@@ -113,7 +113,7 @@ def _is_an_active_admin(member: Member) -> bool:
     return member.role == "admin" and member.status == "active"
 
 
-def a_status(word: str) -> MemberStatus:
+def parse_member_status(word: str) -> MemberStatus:
     """The standing this word names, or a refusal that lists the three."""
     if word not in STATUSES:
         raise DeclarationRefused(f"a member's status is one of {sorted(STATUSES)}, not {word!r}")

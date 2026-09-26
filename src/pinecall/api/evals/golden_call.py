@@ -41,7 +41,7 @@ class Conversation:
     asked: Sequence[Mapping[str, Any]] | None = None
 
 
-async def a_conversation(
+async def run_golden_conversation(
     golden: Golden,
     *,
     call: str,
@@ -65,7 +65,7 @@ async def a_conversation(
     # turn by turn, and a hash in the log cannot be read. api/evals/golden_judges.py keeps the
     # broken.
     asked = WhatWasAsked()
-    session = an_eval_call(
+    session = open_eval_call(
         golden,
         call,
         run,
@@ -114,7 +114,7 @@ async def a_conversation(
     )
 
 
-def an_eval_call(
+def open_eval_call(
     golden: Golden,
     call: str,
     run: str,
@@ -192,7 +192,7 @@ async def _the_facts_of(
 ) -> None:
     """Every fact this golden injects at this point of the conversation, in the order written."""
     for fact in golden.events_after(after_turn):
-        await commands.an_event(session, CallEvent(name=fact.name, data=dict(fact.data)))
+        await commands.record_event(session, CallEvent(name=fact.name, data=dict(fact.data)))
         # The app's own handler runs on event.received: it may move state, and it may make the
         # agent speak. Whatever it does is the reply the golden is about, so it is waited for.
         await settling.settled()

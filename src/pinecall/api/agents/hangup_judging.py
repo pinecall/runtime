@@ -23,7 +23,7 @@ router = APIRouter()
 # takes, and what they may cost is the org's bill, which spans both worlds. The ceiling is the
 # box's (`PINECALL_JUDGE_CEILING_EUR`), read here and set by nobody through this door.
 @router.get("/v1/org/judging")
-async def judging(key: CallsKeyDep, orgs: OrgsDep, settings: SettingsDep) -> Judging:
+async def judging_standing(key: CallsKeyDep, orgs: OrgsDep, settings: SettingsDep) -> Judging:
     """Whether this org's calls are judged at hang-up, and what judging one may spend."""
     return Judging(on=await orgs.judges(key.org), ceiling_eur=settings.judge_ceiling_eur)
 

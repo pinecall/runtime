@@ -47,24 +47,24 @@ THE_KEY_WAS_REFUSED = "{vendor} refused the key this org runs on: {why}"
 type Sampler = Callable[[str, Asked, str], Awaitable[Sample]]
 
 
-def the_shelf(connection: HTTPConnection) -> Shelf:
+def get_shelf(connection: HTTPConnection) -> Shelf:
     """The vendor catalogues, over the gateway's one HTTP client."""
     return held(connection, "shelf", Shelf)
 
 
-def the_sampling(connection: HTTPConnection) -> Throttle:
+def get_sampling(connection: HTTPConnection) -> Throttle:
     """How many samples each key has asked for lately."""
     return held(connection, "sampling", Throttle)
 
 
-def the_sampler() -> Sampler:
+def get_sampler() -> Sampler:
     """What says a sentence in a voice: the vendor's plugin, as a call builds it."""
     return speak_sample
 
 
-ShelfDep = Annotated[Shelf, Depends(the_shelf)]
-SamplingDep = Annotated[Throttle, Depends(the_sampling)]
-SamplerDep = Annotated[Sampler, Depends(the_sampler)]
+ShelfDep = Annotated[Shelf, Depends(get_shelf)]
+SamplingDep = Annotated[Throttle, Depends(get_sampling)]
+SamplerDep = Annotated[Sampler, Depends(get_sampler)]
 
 
 @router.get("/v1/voices")

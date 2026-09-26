@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from pinecall.api.app import app
-from pinecall.api.ops.peers import the_production, the_sandbox
+from pinecall.api.ops.peers import get_production_peer, get_sandbox_peer
 from pinecall.auth.peers import Peer
 
 # Registered as a plugin by tests/conftest.py: production's side (tests/api/test_fleet_doors.py)
@@ -46,5 +46,5 @@ def other_instance() -> Iterator[Scripting]:
         return peer
 
     yield scripted
-    for door in (the_production, the_sandbox):
+    for door in (get_production_peer, get_sandbox_peer):
         app.dependency_overrides.pop(door, None)

@@ -11,12 +11,12 @@ from pinecall._settings import Settings
 from pinecall.api.agents.voices import (
     SAMPLES_A_MINUTE,
     TEXT_CEILING,
-    the_sampler,
-    the_sampling,
-    the_shelf,
+    get_sampler,
+    get_sampling,
+    get_shelf,
 )
 from pinecall.api.app import app
-from pinecall.api.deps import a_settings
+from pinecall.api.deps import get_settings
 from pinecall.auth.throttle import Throttle
 from pinecall.providers.registry import Asked
 from pinecall.providers.tts.sampling import A_LINE_FOR, Sample, SampleRefused
@@ -55,12 +55,12 @@ def heard() -> Iterator[Heard]:
         return httpx.Response(200, json={"data": voices, "has_more": False})
 
     shelf = Shelf(httpx.AsyncClient(transport=httpx.MockTransport(served)))
-    app.dependency_overrides[the_shelf] = lambda: shelf
-    app.dependency_overrides[the_sampler] = lambda: said
+    app.dependency_overrides[get_shelf] = lambda: shelf
+    app.dependency_overrides[get_sampler] = lambda: said
     throttle = Throttle(SAMPLES_A_MINUTE)
-    app.dependency_overrides[the_sampling] = lambda: throttle
+    app.dependency_overrides[get_sampling] = lambda: throttle
     yield said
-    for dep in (the_shelf, the_sampler, the_sampling):
+    for dep in (get_shelf, get_sampler, get_sampling):
         app.dependency_overrides.pop(dep, None)
 
 
@@ -101,7 +101,7 @@ async def test_no_key_for_the_vendor_is_503_and_a_vendor_not_listed_is_404(
 ) -> None:
     del heard
     keyless = settings.model_copy(update={"cartesia_api_key": None})
-    app.dependency_overrides[a_settings] = lambda: keyless
+    app.dependency_overrides[get_settings] = lambda: keyless
     no_key = await tenant_http.get("/v1/voices", params={"tts": "cartesia"})
     assert no_key.status_code == 503
     assert "cartesia" in no_key.json()["detail"]
@@ -199,7 +199,7 @@ async def test_a_key_that_asks_for_samples_in_a_loop_is_told_the_ceiling(
     tenant_http: httpx.AsyncClient, heard: Heard
 ) -> None:
     two = Throttle(2)
-    app.dependency_overrides[the_sampling] = lambda: two
+    app.dependency_overrides[get_sampling] = lambda: two
     assert (await a_sample_of(tenant_http)).status_code == 200
     assert (await a_sample_of(tenant_http)).status_code == 200
     third = await a_sample_of(tenant_http)

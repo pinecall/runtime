@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from pinecall.api.agents.registry import RegistryDep
-from pinecall.api.calls.listing import A_SCREENFUL, BEFORE, LIMIT, WORDS, a_page
+from pinecall.api.calls.listing import A_SCREENFUL, BEFORE, LIMIT, WORDS, page_of_calls
 from pinecall.api.calls.log_sink import ProjectDep, ReaderDep, sse
 from pinecall.api.deps import CallIndexDep, LogsDep, SnapshotsDep
 from pinecall.log.store.call_index import Wanted
@@ -40,7 +40,7 @@ async def sessions(
     if reader.key is None:
         raise HTTPException(403, A_KEY_READS_THE_ORG)
     wanted = Wanted(agent=agent or None, channel=channel, q=q or None, before=before)
-    return await a_page(reader, registry, index, snapshots, wanted, limit)
+    return await page_of_calls(reader, registry, index, snapshots, wanted, limit)
 
 
 # Live only, and no cursor: the feed is the moments a floor changes shape — an agent held or let

@@ -12,7 +12,7 @@ from pinecall._settings import Settings
 # a caller sent: a redirect URI is compared byte for byte at an identity provider, and a link in a
 # letter is a link somebody types a password into, so one a stranger could move would be a
 # sign-in they could redirect to themselves.
-def where_this_gateway_answers(settings: Settings, request: Request) -> str:
+def public_base_url(settings: Settings, request: Request) -> str:
     """The base every outward-facing URL of this runtime is written from, with no trailing slash."""
     if settings.domain:
         return f"https://{settings.domain}"

@@ -41,7 +41,7 @@ class TextCall:
 # is refused for the same reasons in the same sequence whichever way the caller arrived. Each
 # refusal is the caller's to say in their own words — NoProvider from the model, QuotaExhausted
 # from admission — because a socket closes with a reason and a webhook answers Meta with a 200.
-async def a_text_call(
+async def open_text_call(
     held: Registration,
     context: CallContext,
     tuning: TuningStore,
@@ -54,14 +54,14 @@ async def a_text_call(
     budgets: Budgets,
 ) -> TextCall:
     """The config, whose keys, the model and the quota — then the session, unstarted."""
-    return await a_text_session(
+    return await open_text_session(
         held, context, tuning, vault, llms, logs, lookups, budgets, admission, running
     )
 
 
 # The same session, for a call that was admitted once already and is only being taken up again —
 # its gateway restarted and forgot it (api/calls/resume.py): no quota is asked a second time.
-async def a_text_session(
+async def open_text_session(
     held: Registration,
     context: CallContext,
     tuning: TuningStore,
@@ -115,7 +115,7 @@ async def a_text_session(
 # starts reading at once. The worker opens that same log and adds nothing to the top of it — a
 # second call.dialing would be the one that had forgotten who asked. Only that door ever opens a
 # call with direction outbound, so this is the whole of the rule.
-async def how_it_arrived(log: CallLog, context: CallContext, agent: str) -> None:
+async def record_arrival(log: CallLog, context: CallContext, agent: str) -> None:
     """call.ringing on a call that rang. Nothing on one this gateway placed itself."""
     if context.direction == "outbound":
         return
@@ -129,7 +129,7 @@ async def how_it_arrived(log: CallLog, context: CallContext, agent: str) -> None
 # holder's corner, as it always has. A call that RANG is the org's door: the worker that dialled
 # it holds a key naming nobody, so the corner is asked of the registry, which answers whose phone
 # dialled and then whose line it is. `declaration.rang()` is the one place the two are told apart.
-def who_serves(
+def serving_agent(
     registry: Registry,
     env: Env,
     agent: str,

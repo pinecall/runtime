@@ -7,7 +7,7 @@ from typing import Annotated, Protocol
 from fastapi import Depends
 
 from pinecall.api.agents.held_agent import SocketId
-from pinecall.api.deps import what_is_live
+from pinecall.api.deps import get_live
 from pinecall.log.logs import CallLog
 from pinecall.types import AgentConfig, CallContext
 
@@ -46,4 +46,4 @@ class Serving(Protocol):
         ...
 
 
-ServingDep = Annotated[Serving, Depends(what_is_live)]
+ServingDep = Annotated[Serving, Depends(get_live)]

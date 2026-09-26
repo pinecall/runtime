@@ -38,7 +38,7 @@ def answering_in(world: Env, settings: Settings) -> Settings:
         if world == SANDBOX
         else settings.model_copy(update={"world": PRODUCTION, "fleet": DEFAULT_FLEET})
     )
-    app.dependency_overrides[deps.a_settings] = lambda: instance
+    app.dependency_overrides[deps.get_settings] = lambda: instance
     return instance
 
 

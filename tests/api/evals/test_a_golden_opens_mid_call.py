@@ -5,7 +5,7 @@ from functools import partial
 import pytest
 
 from pinecall._settings import Budgets
-from pinecall.api.evals.golden_call import an_eval_call
+from pinecall.api.evals.golden_call import open_eval_call
 from pinecall.api.live import Live
 from pinecall.evals.goldens import Golden
 from pinecall.log.store import MemoryStore
@@ -40,7 +40,7 @@ def a_call_of(greeting: Greeting) -> tuple[TextSession, MemoryStore]:
         partial(brought_by, None, the_tenants().quotas_of),
         *a_plan(logs, the_tenants()),
     )
-    return an_eval_call(
+    return open_eval_call(
         golden, A_CALL, A_RUN, config, ORG, PRODUCTION, logs, FakeLLM(), lookups, Budgets()
     ), store
 

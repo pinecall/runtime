@@ -58,7 +58,9 @@ class Discovered(WireModel):
 
 # No key at this door: it is how a client learns whether to offer a sign-up before anybody has one.
 @router.get("/.well-known/pinecall")
-async def discovered(settings: SettingsDep, outbox: OutboxDep, box: BoxSettingsDep) -> Discovered:
+async def discovery_answer(
+    settings: SettingsDep, outbox: OutboxDep, box: BoxSettingsDep
+) -> Discovered:
     """Which runtime and world, whether it is the cloud, whether a stranger may sign up, mail."""
     return Discovered(
         version=__version__,

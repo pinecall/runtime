@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import HTTPException
 
 from pinecall.api.accounts.api_keys import KeyIssued
-from pinecall.api.accounts.members import MemberSaid, a_member_said
+from pinecall.api.accounts.members import MemberSaid, wire_member
 from pinecall.auth.keys import Keys
 from pinecall.auth.login_codes import LoginCodes
 from pinecall.auth.members import Members
@@ -33,7 +33,7 @@ class OrgMade(KeyIssued):
 
 # Everything here happens only once the address has proved itself: an org whose email nobody
 # answered for is never a row, so a fake email leaves nothing standing and takes no slug.
-async def the_org_made(
+async def make_org(
     pending: Pending,
     device: str | None,
     world: Env,
@@ -74,7 +74,7 @@ async def the_org_made(
     return OrgMade(
         **issued.as_json,
         slug=org.slug,
-        member=a_member_said(member),
+        member=wire_member(member),
         code=minted.code,
         code_expires_at=minted.expires_at,
     )

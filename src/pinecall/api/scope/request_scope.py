@@ -18,7 +18,7 @@ from pinecall.types import DeclarationRefused, Env
 # answering, `?org=&env=&holder=`, as the dispatch said them. The scope is asked by the door's
 # own dep beside this one; this only says WHERE. Nothing named is the key's own corner, so every
 # door reads exactly as it did for every key that names none.
-async def a_corner(
+async def request_scope(
     key: KeyDep,
     org: Annotated[str | None, Query()] = None,
     env: Annotated[Env | None, Query()] = None,
@@ -31,13 +31,13 @@ async def a_corner(
         raise HTTPException(403, str(refused)) from refused
 
 
-CornerDep = Annotated[Corner, Depends(a_corner)]
+CornerDep = Annotated[Corner, Depends(request_scope)]
 
 
 # "The agent in this corner, or 404" was nine doors' own three lines. An API key IS its org, so a
 # slug another org holds is a 404 here — that it exists at all is not the asker's business — and
 # a slug nobody holds is the same 404: what is turned on an agent nobody holds is nothing.
-def an_agent_held(slug: str, corner: CornerDep, registry: RegistryDep) -> Registration:
+def require_held_agent(slug: str, corner: CornerDep, registry: RegistryDep) -> Registration:
     """The socket holding this agent in this corner: what it declared, and its doors."""
     held = registry.of(corner.env, slug, corner.holder)
     if held is None or held.org != corner.org:
@@ -45,6 +45,6 @@ def an_agent_held(slug: str, corner: CornerDep, registry: RegistryDep) -> Regist
     return held
 
 
-HeldDep = Annotated[Registration, Depends(an_agent_held)]
+HeldDep = Annotated[Registration, Depends(require_held_agent)]
 # For a door that asks only that somebody holds it, and reads nothing of what they declared.
-AnAgentHeld = Depends(an_agent_held)
+AnAgentHeld = Depends(require_held_agent)

@@ -3,7 +3,7 @@
 import pytest
 from cryptography.fernet import Fernet
 
-from pinecall.api.telephony.sip_rebuild import reconciled
+from pinecall.api.telephony.sip_rebuild import reconcile_sip
 from pinecall.orgs.carriers import MemoryCarriers
 from pinecall.orgs.outbound_credentials import MemoryOutboundTrunks
 from pinecall.orgs.records import MemoryOrgs
@@ -81,7 +81,7 @@ async def test_an_sfu_with_nothing_on_it_gets_every_trunk_the_tables_know() -> N
     orgs, carriers, routes, rows = await a_world()
     trunks, outbound = MemoryTrunks(), MemoryOutbound()
 
-    found = await reconciled(orgs, carriers, routes, trunks, rows, outbound)
+    found = await reconcile_sip(orgs, carriers, routes, trunks, rows, outbound)
 
     clinica, tienda = await _id(orgs, "clinica"), await _id(orgs, "tienda")
     assert set(found.inbound) == {clinica, tienda}
@@ -104,10 +104,10 @@ async def test_an_sfu_with_nothing_on_it_gets_every_trunk_the_tables_know() -> N
 async def test_an_sfu_that_has_everything_is_left_as_it_was() -> None:
     orgs, carriers, routes, rows = await a_world()
     trunks, outbound = MemoryTrunks(), MemoryOutbound()
-    first = await reconciled(orgs, carriers, routes, trunks, rows, outbound)
+    first = await reconcile_sip(orgs, carriers, routes, trunks, rows, outbound)
     before = {org: dict(vars(placed)) for org, placed in outbound.trunks.items()}
 
-    again = await reconciled(orgs, carriers, routes, trunks, rows, outbound)
+    again = await reconcile_sip(orgs, carriers, routes, trunks, rows, outbound)
 
     assert again.renumbered == () and first.renumbered != ()
     assert {org: dict(vars(placed)) for org, placed in outbound.trunks.items()} == before
@@ -120,6 +120,6 @@ async def test_an_org_with_no_carrier_or_no_number_is_not_an_org_the_sfu_hears_a
     carriers = MemoryCarriers(build_cipher(A_KEY))
     trunks = MemoryTrunks()
 
-    found = await reconciled(orgs, carriers, MemoryRoutes(), trunks, None, None)
+    found = await reconcile_sip(orgs, carriers, MemoryRoutes(), trunks, None, None)
 
     assert found.inbound == () and trunks.trunks == {}

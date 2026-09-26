@@ -10,7 +10,7 @@ import pytest
 
 from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry
-from pinecall.api.ops.peers import the_production
+from pinecall.api.ops.peers import get_production_peer
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.types import PRODUCTION, SANDBOX, Member, Route
@@ -247,7 +247,9 @@ async def test_a_developer_reads_the_production_numbers_their_phone_can_dial(
         Route(A_RECORD.org, AGENT, "phone", THE_REAL_NUMBER),
         Route(A_RECORD.org, AGENT, "web", None),
     ]
-    production = other_instance(the_production, httpx.Response(200, json=[*map(asdict, doors)]))
+    production = other_instance(
+        get_production_peer, httpx.Response(200, json=[*map(asdict, doors)])
+    )
     await bernas.put(A_PHONE, json={"number": BERNAS_PHONE})
 
     said = await bernas.get(TO_CALL)
@@ -267,7 +269,7 @@ async def test_a_developer_reads_the_production_numbers_their_phone_can_dial(
 async def test_a_production_that_does_not_answer_is_said_and_nothing_is_made_up(
     bernas: httpx.AsyncClient, other_instance: Scripting
 ) -> None:
-    other_instance(the_production, httpx.ConnectError("nobody home"))
+    other_instance(get_production_peer, httpx.ConnectError("nobody home"))
     assert (await bernas.get(TO_CALL)).status_code == 502
 
 

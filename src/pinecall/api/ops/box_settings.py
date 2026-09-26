@@ -11,9 +11,9 @@ from pinecall.api.deps import held
 from pinecall.orgs.box_settings import BoxSettings
 
 
-def the_box_settings(connection: HTTPConnection) -> BoxSettings:
+def get_box_settings(connection: HTTPConnection) -> BoxSettings:
     """What the operator configured for the whole box: the brand, its mail, its sign-in."""
     return held(connection, "box_settings")
 
 
-BoxSettingsDep = Annotated[BoxSettings, Depends(the_box_settings)]
+BoxSettingsDep = Annotated[BoxSettings, Depends(get_box_settings)]

@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.api.calls.reaper import NOT_JUDGED, QUIET_S, Reaper, reaping
+from pinecall.api.calls.reaper import NOT_JUDGED, QUIET_S, Reaper, reap_forever
 from pinecall.api.live import Live
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
@@ -248,7 +248,7 @@ async def test_the_loop_runs_a_pass_before_it_ever_waits(
 ) -> None:
     """A gateway coming up after the deploy that killed the workers ends what it left behind."""
     call = await a_call(store, "CA_at_startup")
-    loop = asyncio.ensure_future(reaping(reaper, every=3600.0))
+    loop = asyncio.ensure_future(reap_forever(reaper, every=3600.0))
     while (await store.since(call))[-1].type != "call.score":  # noqa: ASYNC110 — a store, polled
         await asyncio.sleep(0)
     loop.cancel()

@@ -74,13 +74,13 @@ async def sessions(
     refuse_another_call(reader, None)
     await refuse_another_org(reader, store, None, slug)
     wanted = Wanted(agent=slug, channel=channel, q=q or None, before=before)
-    return await a_page(reader, registry, index, snapshots, wanted, limit)
+    return await page_of_calls(reader, registry, index, snapshots, wanted, limit)
 
 
 # One page, however it was listed: the agent's door and the org's (api/calls/live_calls.py) draw the
 # same rows, in the reader's corner — a developer's sandbox test calls are theirs, the telephone's
 # are production's, and an admin reading a colleague's copy reads that corner.
-async def a_page(
+async def page_of_calls(
     reader: Reader,
     registry: Registry,
     index: CallIndex,

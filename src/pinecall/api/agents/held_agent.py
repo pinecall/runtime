@@ -18,7 +18,7 @@ type SocketId = str
 _AN_APP = "app_"
 
 
-def a_socket_id() -> SocketId:
+def new_socket_id() -> SocketId:
     """One connected app, told apart from every other for as long as this process runs."""
     return f"{_AN_APP}{uuid4().hex[:12]}"
 

@@ -9,7 +9,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from pinecall.api.deps import AppKeyDep, CallsKeyDep, FleetDep, LogsDep, StoreDep
-from pinecall.api.scope.operator_key import an_operator
+from pinecall.api.scope.operator_key import require_operator
 from pinecall.auth.keys import KeyRecord, is_fleet_key
 from pinecall.fleet import STALE_AFTER_S, Heartbeat, Seat, Standing, Totals
 from pinecall.log.store import DEFAULT_LIMIT
@@ -19,7 +19,7 @@ from pinecall_protocol.defs import Contact
 from pinecall_protocol.events import CallbackRequested
 
 router = APIRouter()
-operator = APIRouter(prefix="/v1/ops/fleet", dependencies=[Depends(an_operator)])
+operator = APIRouter(prefix="/v1/ops/fleet", dependencies=[Depends(require_operator)])
 
 # The fleet knocks with the key pinecall-worker-key@.service mints for the box's worker — issued
 # into org default with the `fleet` scope. A tenant's key opens every door of its own org and
@@ -113,7 +113,7 @@ async def heartbeat(said: Heartbeat, key: AppKeyDep, fleet: FleetDep) -> Standin
 
 
 @router.get("/v1/fleet/standing")
-async def standing(key: AppKeyDep, fleet: FleetDep) -> FleetTotals:
+async def fleet_totals(key: AppKeyDep, fleet: FleetDep) -> FleetTotals:
     """The fleet's numbers as the overflow agent reads them: full, or not."""
     _the_fleets_key(key)
     return _the_totals_said(fleet.totals(time.time()))
@@ -164,7 +164,7 @@ async def callbacks(
 
 
 @operator.get("")
-async def listed(fleet: FleetDep) -> FleetListed:
+async def list_fleet(fleet: FleetDep) -> FleetListed:
     """Every worker heard from, and the fleet's totals over the ones heard from lately."""
     now = time.time()
     return FleetListed(

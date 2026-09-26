@@ -199,7 +199,7 @@ async def available(
 
 
 @router.post("/v1/numbers")
-async def imported(
+async def import_number(
     said: WantedNumber,
     key: NumbersKeyDep,
     carriers: KeptCarriersDep,
@@ -210,7 +210,7 @@ async def imported(
     dry_run: bool = DRY_RUN,
 ) -> NumberRouted:
     """One number into this org's world: the carrier's trunk, the SFU's trunk, the route."""
-    route = a_route(key, said.number, said.agent, said.channel)
+    route = parse_route(key, said.number, said.agent, said.channel)
     carrier = await carriers.of(key.org)
     if carrier is None:
         raise HTTPException(404, NO_CARRIER)
@@ -231,12 +231,14 @@ async def imported(
             )
         name = CARRIER_TRUNK.format(fleet=settings.fleet, org=carrier.org)
         account = carrier.account.account_sid
-        await trunked(api, name, account, route, owned, settings.domain, steps, dry_run)
-    await on_the_sfu(trunks, settings.fleet, carrier, route, steps, dry_run)
-    return await routed(route, steps, table, dry_run)
+        await trunk_on_carrier(api, name, account, route, owned, settings.domain, steps, dry_run)
+    await trunk_on_sfu(trunks, settings.fleet, carrier, route, steps, dry_run)
+    return await route_number(route, steps, table, dry_run)
 
 
-async def routed(route: Route, steps: list[str], table: Routes, dry_run: bool) -> NumberRouted:
+async def route_number(
+    route: Route, steps: list[str], table: Routes, dry_run: bool
+) -> NumberRouted:
     """The last step of an import and of a purchase: the route row, and the answer with the plan."""
     steps.append(f"route    {route.number} {route.channel} → {route.agent} in {route.env}")
     if not dry_run:
@@ -258,7 +260,7 @@ async def let_go(number: str, key: NumbersKeyDep, trunks: TrunksDep, table: Rout
 
 # Each step is looked up before it is written, and the plan says which it found standing: a
 # second run of an import that was interrupted must create nothing twice. Nothing is deleted.
-async def trunked(
+async def trunk_on_carrier(
     api: TwilioApi,
     name: str,
     account: str,
@@ -292,7 +294,7 @@ async def trunked(
             await api.attached(trunk.sid, owned[route.number].sid)
 
 
-async def on_the_sfu(
+async def trunk_on_sfu(
     trunks: Trunks, fleet: str, carrier: Carrier, route: Route, steps: list[str], dry: bool
 ) -> None:
     """The org's inbound trunk on LiveKit with the number admitted, and its rule."""
@@ -333,7 +335,7 @@ def _a_carrier(org: str, said: WantedCarrier) -> Carrier:
     )
 
 
-def a_route(
+def parse_route(
     key: KeyRecord, number: str, agent: str, channel: str, *, managed: bool = False
 ) -> Route:
     """The route an import or a purchase ends in, refused before any account is touched."""

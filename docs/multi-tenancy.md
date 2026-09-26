@@ -157,7 +157,7 @@ answers. A server's token belongs to the world it was made in, and at the other 
   a revoke): no production gate and no header required. A developer the org keeps out of
   production still signs in at production — which is who people are — and must be able to learn
   who they are, mint the code that hands them to the sandbox and switch org there.
-- **Every door that opens a scope reads it as it acts** (`opening`, `api/deps.py`): at production
+- **Every door that opens a scope reads it as it acts** (`require_scopes`, `api/deps.py`): at production
   a person says `pinecall-env: production` — no header is `403`, naming where the sandbox is,
   because a CLI older than the instances meant the sandbox by saying nothing — and production
   opens only while an admin's switch on their row allows it, read at every request. At the sandbox

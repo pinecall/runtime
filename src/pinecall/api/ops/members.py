@@ -11,15 +11,15 @@ from pinecall.api.accounts.members import (
     LinkIssued,
     MemberSaid,
     WantedMember,
-    a_member_said,
-    a_wanted_member,
     invited_into,
+    parse_member_role,
+    wire_member,
 )
-from pinecall.api.accounts.membership import removed
-from pinecall.api.deps import KeysDep, MembersDep, OrgsDep, SettingsDep, an_org
+from pinecall.api.accounts.membership import remove_member
+from pinecall.api.deps import KeysDep, MembersDep, OrgsDep, SettingsDep, require_org
 from pinecall.api.org.mail import OutboxDep
-from pinecall.api.public_url import where_this_gateway_answers
-from pinecall.api.scope.operator_key import an_operators_router
+from pinecall.api.public_url import public_base_url
+from pinecall.api.scope.operator_key import operators_router
 from pinecall_protocol import WireModel
 
 # The same gate every /v1/ops door takes. The operator may READ an org's people, INVITE one and
@@ -29,7 +29,7 @@ from pinecall_protocol import WireModel
 # because it is how a tenant exists at all on a gateway that takes no sign-up: the operator makes
 # the org and invites its first admin (api/accounts/signup.py, NOT_HERE). Removing is here because
 # the row to remove is sometimes the one the operator's own invitation made by mistake.
-operator = an_operators_router()
+operator = operators_router()
 
 
 # The operator's invitation takes no seat: a plan caps what an org may seat by ITSELF, and the
@@ -46,9 +46,9 @@ async def invite_to(
     request: Request,
 ) -> LinkIssued:
     """The org's first person, or one more: the row, and the one-use token — printed once."""
-    org = await an_org(named, orgs)
-    role = a_wanted_member(said, org.id)
-    base = where_this_gateway_answers(settings, request)
+    org = await require_org(named, orgs)
+    role = parse_member_role(said, org.id)
+    base = public_base_url(settings, request)
     return await invited_into(members, org, said, role, AN_ADMIN, base, outbox)
 
 
@@ -68,11 +68,11 @@ async def runs_the_box(
     named: str, id: str, said: Running, orgs: OrgsDep, members: MembersDep
 ) -> MemberSaid:
     """This person runs this box, or stops. 404 when no member of the org answers to the id."""
-    org = await an_org(named, orgs)
+    org = await require_org(named, orgs)
     changed = await members.make_operator(org.id, id, said.operator)
     if changed is None:
         raise HTTPException(404, NO_SUCH_MEMBER.format(id=id))
-    return a_member_said(changed)
+    return wire_member(changed)
 
 
 # The operator's twin of DELETE /v1/members/{id}, under the same rules less one: there is no
@@ -84,8 +84,8 @@ async def remove_from(
     named: str, id: str, orgs: OrgsDep, members: MembersDep, keys: KeysDep
 ) -> None:
     """One person out of the named org for good. 404 for a stranger, 409 for its last admin."""
-    org = await an_org(named, orgs)
-    await removed(members, keys, org.id, id)
+    org = await require_org(named, orgs)
+    await remove_member(members, keys, org.id, id)
 
 
 class OrgMembers(WireModel):
@@ -96,11 +96,11 @@ class OrgMembers(WireModel):
 
 
 @operator.get("/orgs/{named}/members")
-async def of_one_org(named: str, orgs: OrgsDep, members: MembersDep) -> OrgMembers:
+async def org_members(named: str, orgs: OrgsDep, members: MembersDep) -> OrgMembers:
     """Every member of the named org, oldest first, and how many of them hold a seat."""
-    org = await an_org(named, orgs)
+    org = await require_org(named, orgs)
     listed = await members.listed(org.id)
     return OrgMembers(
-        members=[a_member_said(member) for member in listed],
+        members=[wire_member(member) for member in listed],
         seated=await members.seated(org.id),
     )

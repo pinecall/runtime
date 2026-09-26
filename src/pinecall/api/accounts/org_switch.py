@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api.accounts.api_keys import KeyIssued, a_key_issued
+from pinecall.api.accounts.api_keys import KeyIssued, wire_key_issued
 from pinecall.api.accounts.login import NOT_A_MEMBER
 from pinecall.api.deps import KeyDep, KeysDep, MembersDep, OrgsDep, SettingsDep
 from pinecall.auth.keys import KeyRecord
@@ -64,7 +64,7 @@ class OrgsOpened(WireModel):
 # at a tenant's console meant inviting themselves into it, which took a seat and wrote a row the
 # tenant never asked for. `member` says which rows are theirs by right and which by the box.
 @router.get("/v1/login/orgs")
-async def the_persons_orgs(key: KeyDep, orgs: OrgsDep, members: MembersDep) -> OrgsOpened:
+async def persons_orgs(key: KeyDep, orgs: OrgsDep, members: MembersDep) -> OrgsOpened:
     """Every org this key's person may open, oldest first, and which one this key opens."""
     person = await _the_person(key, members)
     listed: list[OrgOpened] = []
@@ -84,7 +84,7 @@ async def the_persons_orgs(key: KeyDep, orgs: OrgsDep, members: MembersDep) -> O
 
 
 @router.post("/v1/login/org")
-async def the_other_org(
+async def switch_org(
     said: OtherOrg,
     key: KeyDep,
     orgs: OrgsDep,
@@ -98,7 +98,7 @@ async def the_other_org(
     org = await orgs.find(said.org)
     there = None if org is None else await members.by_email(org.id, person.email)
     if org is not None and there is not None and there.member.status == "active":
-        return a_key_issued(
+        return wire_key_issued(
             await mint_person_key(keys, there.member, key.label, settings.world, minted_from=key)
         )
     # A row of theirs that is invited or disabled is the ORG's word about them, and the box does
@@ -117,7 +117,7 @@ async def the_other_org(
         subject=visitor_subject(person.email),
         name=person.name,
     )
-    return a_key_issued(issued)
+    return wire_key_issued(issued)
 
 
 # A visitor's key names no member of the org it opens, so the person is found the other way

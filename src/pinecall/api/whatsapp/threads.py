@@ -13,7 +13,7 @@ from fastapi import Depends
 from starlette.requests import HTTPConnection
 
 from pinecall.api.agents.held_agent import Registration
-from pinecall.api.calls.opening import a_text_call
+from pinecall.api.calls.opening import open_text_call
 from pinecall.api.calls.resume import taken_up
 from pinecall.api.deps import held
 from pinecall.api.whatsapp.thread_deps import Doors
@@ -175,7 +175,7 @@ class Threads:
         if going is not None:
             return going
         try:
-            opened = await a_text_call(
+            opened = await open_text_call(
                 held,
                 _a_context(route, inbound),
                 doors.tuning,
@@ -308,9 +308,9 @@ def _a_context(route: Route, inbound: Inbound) -> CallContext:
     )
 
 
-def the_threads(connection: HTTPConnection) -> Threads:
+def get_threads(connection: HTTPConnection) -> Threads:
     """The conversations this process is running. The lifespan opened it; a test overrides it."""
     return held(connection, "threads", Threads)
 
 
-ThreadsDep = Annotated[Threads, Depends(the_threads)]
+ThreadsDep = Annotated[Threads, Depends(get_threads)]

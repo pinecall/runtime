@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import Field
 
 from pinecall.api.agents.registry import RegistryDep
-from pinecall.api.calls.log_sink import NO_SUCH_CALL, declared_by, the_calls_corner
+from pinecall.api.calls.log_sink import NO_SUCH_CALL, declared_by, require_calls_scope
 from pinecall.api.deps import CallIndexDep, EvalsKeyDep, StoreDep
 from pinecall.evals.checks import replay
 from pinecall.evals.checks.check_verdict import Verdict
@@ -60,7 +60,7 @@ async def replay_call(
     said: Case | None = None,
 ) -> Replayed:
     """Rebuild the call from its log and answer the four code checks over it, in one round trip."""
-    await the_calls_corner(index, key, call)
+    await require_calls_scope(index, key, call)
     entries = await whole(store, call)
     if not entries:
         raise HTTPException(404, NO_SUCH_CALL.format(call=call))

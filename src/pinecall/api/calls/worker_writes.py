@@ -9,9 +9,9 @@ from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api.agents.registry import NO_UNCLAIMED, NOT_THAT_APP, RegistryDep
 from pinecall.api.agents.session_config import tuned_for
-from pinecall.api.calls.attachment import attached
+from pinecall.api.calls.attachment import attach_socket
 from pinecall.api.calls.deps import Serving, ServingDep
-from pinecall.api.calls.opening import how_it_arrived, who_serves
+from pinecall.api.calls.opening import record_arrival, serving_agent
 from pinecall.api.deps import (
     AdmissionDep,
     AppKeyDep,
@@ -74,7 +74,7 @@ class Appending(WireModel):
 # the very fanout the worker will publish on. call.started stays the worker's to write — it is
 # the moment the caller and the agent can hear each other, and only the session knows it.
 @router.post("/v1/calls")
-async def opened(
+async def open_call(
     said: Opening,
     key: AppKeyDep,
     logs: LogsDep,
@@ -99,7 +99,7 @@ async def opened(
     # worker that dialled it holds a key naming nobody, so a ring lands on the LINE — nobody's
     # corner in production, and in the sandbox the developer who claimed it. Everything else was
     # opened BY a key holder, and lands in theirs. See api/agents/dial_in.py.
-    serving = who_serves(registry, env, said.agent, said.app, context, holder)
+    serving = serving_agent(registry, env, said.agent, said.app, context, holder)
     if said.app is not None and serving is None:
         raise HTTPException(409, NOT_THAT_APP.format(app=said.app, slug=said.agent))
     # Held, but by consoles only: the phone call the flag keeps out of somebody's terminal. Refused
@@ -132,7 +132,7 @@ async def opened(
         config=config,
         holder=corner,
     )
-    await how_it_arrived(log, context, said.agent)
+    await record_arrival(log, context, said.agent)
     # What is left of the org's minutes, for the worker to end this call at, and the quota they
     # come out of, for the credits.exhausted it writes when it does: null is no limit.
     if ceiling is None:
@@ -145,7 +145,7 @@ async def opened(
 # no quota, no token, no call.ringing: the call was admitted once, and its log already says how it
 # arrived. The socket holding the agent now is told with call.attached.
 @router.post("/v1/calls/{call}/reopened", status_code=HTTP_204_NO_CONTENT)
-async def reopened(
+async def reopen_call(
     call: str,
     said: Opening,
     key: AppKeyDep,
@@ -185,7 +185,7 @@ async def reopened(
         holder=holder if serving is None else serving.holder,
     )
     if serving is not None:
-        await attached(live, call, serving.owner)
+        await attach_socket(live, call, serving.owner)
 
 
 @router.post("/v1/calls/{call}/events", status_code=HTTP_204_NO_CONTENT)

@@ -9,7 +9,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, Response
 from starlette.status import HTTP_202_ACCEPTED
 
-from pinecall.api.calls.supervise.aiming import QueueingDep, aimed
+from pinecall.api.calls.supervise.aiming import QueueingDep, aim_verb
 from pinecall.api.deps import CallIndexDep, CallsKeyDep, SnapshotsDep, StoreDep, TalkKeyDep
 from pinecall.api.whatsapp.threads import WINDOW_SECONDS
 from pinecall.auth.keys import KeyRecord
@@ -122,7 +122,7 @@ async def say(
     if live.of(newest) is None:
         raise HTTPException(409, NOTHING_OPEN.format(contact=contact))
     reader = Reader(projection=KEY_PROJECTION, key=key, subject=key.subject, name=key.name)
-    await aimed(live, store, snapshots, reader, newest, verbs.SayVerb(text=said.text))
+    await aim_verb(live, store, snapshots, reader, newest, verbs.SayVerb(text=said.text))
     return ThreadSaid(contact=contact, call=newest)
 
 
