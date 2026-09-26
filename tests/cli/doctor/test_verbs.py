@@ -247,6 +247,8 @@ def test_a_worker_is_asked_after_no_postgres_and_no_embedder(
         "provider keys",
         "provider keys answer",
         "livekit",
+        "disk",
+        "fence",
         "lk",
     ]
     # The recorder with them: a worker records nothing, because the room is on the hub.

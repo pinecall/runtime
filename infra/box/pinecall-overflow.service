@@ -27,10 +27,16 @@ ImportCredential=ANTHROPIC_API_KEY
 ImportCredential=SONIOX_API_KEY
 ImportCredential=DEEPGRAM_API_KEY
 ExecStart=/opt/pinecall/venv/bin/pinecall-runtime worker overflow
+# What this process writes, hardening.conf (the drop-in) leaving everything else read-only.
+ReadWritePaths=/opt/pinecall/.cache
 # Its calls last one sentence; a minute of grace finishes any it holds.
 TimeoutStopSec=60
 Restart=always
 RestartSec=3
+# A crash loop backs off: three seconds, then doubling to a minute, so a unit that cannot start
+# is retried and never fills the journal at three seconds a try.
+RestartSteps=5
+RestartMaxDelaySec=60
 
 [Install]
 WantedBy=multi-user.target

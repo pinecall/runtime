@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import Callable, Mapping
+from datetime import UTC, datetime
 
 import pytest
 
@@ -22,6 +23,11 @@ def probes_that_answer(
     the_boxs_mail: Callable[[Settings], BoxMail | None] = lambda settings: asyncio.run(
         TheBoxsMail(the_environments_mailbox(settings), None).of()
     ),
+    disk_free_gb: Callable[[str], float] = lambda _path: 100.0,
+    unit_active: Callable[[str], bool | None] = lambda _unit: True,
+    certificate_expiry: Callable[[str], datetime] = lambda _domain: datetime(
+        2100, 1, 1, tzinfo=UTC
+    ),
 ) -> Probes:
     """A stack where everything is up, with one answer swapped for the check under test. The
     mail is read off the environment alone: a box that stored none, which ring 0 is."""
@@ -32,6 +38,9 @@ def probes_that_answer(
         executable_path=executable_path,
         embed_width=embed_width,
         the_boxs_mail=the_boxs_mail,
+        disk_free_gb=disk_free_gb,
+        unit_active=unit_active,
+        certificate_expiry=certificate_expiry,
     )
 
 

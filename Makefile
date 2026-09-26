@@ -40,9 +40,17 @@ RUNTIME  = /opt/pinecall/venv/bin/pinecall-runtime
 MANIFEST = $(REMOTE)/runtime/infra/box
 
 SSH   = ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=yes -o ConnectTimeout=20 $(BOX)
+# What rsync leaves at home, named one by one and not `--filter=':- .gitignore'`: the console
+# under src/pinecall/gateway/ is git-ignored and MUST travel, and a `!` line in a .gitignore means
+# something else to rsync. What must not travel: the maintainer's notebook (docs/decisions/),
+# the audio of real calls (recordings/), every .env and the file that names this box.
 RSYNC = rsync -az --delete -e "ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=yes" \
-        --exclude .venv --exclude .env --exclude __pycache__ --exclude '*.pyc' \
-        --exclude .pytest_cache --exclude .ruff_cache --exclude .mypy_cache --exclude .git
+        --exclude .git --exclude .venv --exclude __pycache__ --exclude '*.pyc' \
+        --exclude .pytest_cache --exclude .ruff_cache --exclude .mypy_cache --exclude .hypothesis \
+        --exclude .coverage --exclude '.coverage.*' --exclude htmlcov --exclude '*.egg-info' \
+        --exclude build --exclude dist --exclude .DS_Store --exclude .idea --exclude .vscode \
+        --exclude .env --exclude '.env.*' --exclude deploy.local.mk \
+        --exclude docs/decisions --exclude recordings
 
 # The environment is built as the service user, exactly to uv.lock, with the extras both units
 # run on. The units themselves never call uv: they run the virtualenv's own entrypoint.
@@ -52,8 +60,10 @@ RSYNC = rsync -az --delete -e "ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=y
 # offers Cartesia and a call that answers "no plugin in this build" — and a redeploy is not a thing
 # a tenant can do. `providers-big` is NOT here: boto3, the Azure speech SDK, the google-cloud
 # clients and speechmatics' onnxruntime are a decision a box makes on purpose.
+# --compile-bytecode: the units run under a read-only file system (infra/box/hardening.conf), so
+# a .pyc Python would write on first import is written here, once, by the deploy.
 UV_SYNC = sudo -u pinecall env UV_PROJECT_ENVIRONMENT=/opt/pinecall/venv UV_CACHE_DIR=/opt/pinecall/.cache/uv \
-          /opt/pinecall/bin/uv sync -q --frozen --project $(REMOTE)/runtime --extra runtime --extra providers
+          /opt/pinecall/bin/uv sync -q --frozen --compile-bytecode --project $(REMOTE)/runtime --extra runtime --extra providers
 
 # The packages beside the runtime that plug a policy into it — what a box that charges says its
 # numbers with (docs/charging-for-it.md) — as checkouts on this machine, space separated. Each is
@@ -68,7 +78,7 @@ EXTENSIONS_SRC ?=
 EXTENSIONS      = /opt/pinecall/extensions
 EXTENSION_DIRS  = $(foreach dir,$(EXTENSIONS_SRC),$(EXTENSIONS)/$(notdir $(abspath $(dir))))
 UV_EXTENSIONS   = $(if $(EXTENSIONS_SRC),sudo -u pinecall env UV_CACHE_DIR=/opt/pinecall/.cache/uv \
-                  /opt/pinecall/bin/uv pip install -q --no-config --no-deps --reinstall \
+                  /opt/pinecall/bin/uv pip install -q --no-config --no-deps --reinstall --compile-bytecode \
                   --python /opt/pinecall/venv/bin/python $(EXTENSION_DIRS) &&)
 
 .PHONY: deploy console sync install restart restart-all restart-hub restart-worker health doctor migrate-post providers instance peer secret status logs ssh require-box

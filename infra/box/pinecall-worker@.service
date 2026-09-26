@@ -74,6 +74,9 @@ ImportCredential=XAI_API_KEY
 # `start`, not `dev`: production mode keeps a prewarmed process per CPU, and dev mode keeps none,
 # so every caller would pay the cold start of a Python process before hearing a word.
 ExecStart=/opt/pinecall/venv/bin/pinecall-runtime worker start
+# What this process writes, hardening.conf (the drop-in) leaving everything else read-only: the
+# cache livekit's plugins keep a model in, and the recordings beside the recorder's.
+ReadWritePaths=/var/lib/pinecall/recordings /opt/pinecall/.cache
 # A stop is a drain: on SIGTERM the worker tells livekit it is full and finishes the calls it
 # holds, up to the ten minutes worker/main.py gives the drain. systemd's default of 90 s would cut
 # a call mid-sentence on every deploy; livekit asks for ten minutes or more of grace, and fifteen
@@ -90,6 +93,10 @@ TimeoutStopSec=900
 KillMode=mixed
 Restart=always
 RestartSec=3
+# A crash loop backs off: three seconds, then doubling to a minute, so a unit that cannot start
+# is retried and never fills the journal at three seconds a try.
+RestartSteps=5
+RestartMaxDelaySec=60
 # A cordon is a stop on purpose: the hub told this worker to drain and leave (`fleet cordon`, or
 # the loop letting a machine go), and the process exits 3 once it holds no call. systemd reads
 # that as a clean stop and leaves it down — the machine is about to be deleted, or a person will

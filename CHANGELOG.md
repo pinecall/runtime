@@ -26,6 +26,20 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   by design, and the gateway ran it inline at login, sign-up and the invitation: every socket and
   stream it held waited that long each time.
 - The WhatsApp webhook's verify token is compared in constant time, as the signature already was.
+- **A runtime process on the box may touch what it names and nothing else.** Every long-running
+  unit — the gateways, the workers, the overflow agent, the fleet loop — runs under one systemd
+  drop-in (`infra/box/hardening.conf`): no new privileges, the file system read-only but the paths
+  each unit's `ReadWritePaths=` names, its own `/tmp`, no home, no devices, no capability, the
+  `@system-service` syscalls; a tenant's app keeps a lighter set. The deploy compiles the bytecode
+  at the sync. A unit that cannot start backs off to a minute between tries, and the journal is
+  bounded, so a crash loop fills no disk.
+- **What the box takes on trust is pinned.** Every container image is named by tag and digest
+  (the multi-architecture index's), in the Quadlets, the dev stack and the Postgres image alike;
+  `scripts/image-digests` reads the registries for what each tag points at today. uv arrives on a
+  fresh box as a named release held to its checksum, never `curl | sh`; so does `hcloud` on a hub
+  that runs the fleet on Hetzner; NodeSource's key is held to its published fingerprint at birth
+  and on every deploy. `make deploy`'s rsync leaves the maintainer's notebook, the recordings,
+  every `.env` and `deploy.local.mk` at home.
 
 ### Fixed
 - **The overflow agent's two entries are the protocol's own shapes.** Its `agent.transcript`
@@ -122,6 +136,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   could make orgs for as many trials as they liked.
 
 ### Added
+- **Three more lines of the doctor:** `disk`, free space on the file system the recordings and
+  the log land on, the verdict under two gigabytes; `fence`, whether `nftables` is active, the
+  verdict on a box where it is not; `certificate`, how long the domain's certificate has left,
+  the verdict inside two weeks. A worker is asked the first two.
 - **`PINECALL_TIMEZONE`: what day it is on a call.** A call's `today` — what the model reads
   the date from, what "tomorrow at ten" lands on — was the box's own clock, and a box in UTC
   answering a clinic in Madrid was a day behind for an hour every night. The zone is a setting

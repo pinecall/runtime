@@ -12,7 +12,7 @@ After=pinecall-redis.service pinecall-livekit.service
 
 [Container]
 ContainerName=pinecall-egress
-Image=docker.io/livekit/egress:v1.14.1
+Image=docker.io/livekit/egress:v1.14.1@sha256:bf2b648b947349c3e9ff7aa8c718f00378d5c06af7624652a3653318e00333ce
 Volume=/etc/pinecall/egress.yaml:/etc/egress/config.yaml:ro
 Environment=EGRESS_CONFIG_FILE=/etc/egress/config.yaml
 Network=pinecall.network

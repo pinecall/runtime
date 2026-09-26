@@ -7,7 +7,7 @@ After=pinecall-redis.service pinecall-livekit.service
 
 [Container]
 ContainerName=pinecall-sip
-Image=docker.io/livekit/sip:v1.13.0
+Image=docker.io/livekit/sip:v1.13.0@sha256:80bf1f5b2563d75febfb24ebe0601ebc5073810223a24709850c2ba5391558d3
 # The path is fixed by the image's entrypoint: mounted anywhere else the service comes up on its
 # defaults without a word. See the header of sip.yaml.
 Volume=/etc/pinecall/sip.yaml:/sip/config.yaml:ro

@@ -33,8 +33,8 @@ NOT_CONFIGURED = "mail       nothing to send it with: set {url} and {sender}"
 NOT_AN_ADDRESS = "mail       {said}"
 
 
-# A tuple and not a Result: the report's own row type lives in verbs.py, which reads this, and a
-# module that read it back would close the circle. verbs.py wraps what this answers.
+# A tuple and not a Result: what this answers is one fact and one sentence, and whether the row
+# is advice or the verdict is verbs.py's call — it wraps what this answers.
 def the_mail_line(boxs: BoxMail | None) -> tuple[bool, str]:
     """Whether this box has a mail server, and the sentence the report's row carries."""
     if boxs is None:

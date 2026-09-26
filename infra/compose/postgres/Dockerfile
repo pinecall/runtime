@@ -4,9 +4,11 @@
 # Fully qualified, and it is not decoration: docker resolves a bare `postgres:…` against Docker
 # Hub by itself and podman refuses to guess — "short-name did not resolve to an alias and no
 # unqualified-search registries are defined". The same file has to build under both.
-ARG POSTGRES_TAG=17.11-trixie
+# Tag and digest: the digest of the multi-architecture index, so the box and a Mac build on the
+# same bytes. `scripts/image-digests` says what the tag points at today.
+ARG POSTGRES_IMAGE=docker.io/library/postgres:17.11-trixie@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f
 
-FROM docker.io/library/postgres:${POSTGRES_TAG} AS build
+FROM ${POSTGRES_IMAGE} AS build
 
 ARG PGVECTOR_TAG=v0.8.6
 ARG PG_TEXTSEARCH_TAG=v1.4.0
@@ -27,7 +29,7 @@ RUN git clone --depth 1 --branch ${PG_TEXTSEARCH_TAG} https://github.com/timesca
  && make -C /build/pg_textsearch install
 
 
-FROM docker.io/library/postgres:${POSTGRES_TAG}
+FROM ${POSTGRES_IMAGE}
 
 COPY --from=build /usr/lib/postgresql/17/lib/ /usr/lib/postgresql/17/lib/
 COPY --from=build /usr/share/postgresql/17/extension/ /usr/share/postgresql/17/extension/

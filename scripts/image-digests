@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Every image the tree pins by tag and digest, and what its tag points at in the registry TODAY:
+# the digest of the multi-architecture index (never one architecture's manifest), which is the
+# only digest a Mac and an amd64 box can share. A line that differs is a tag somebody moved —
+# a new build under the same version — and bumping the digest in the tree is a decision, not
+# a side effect of the next `podman pull`. Needs curl and python3, and nothing signed in.
+#
+#   scripts/image-digests            every image: pinned digest, then the registry's, then a verdict
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+# The image references the tree holds by digest: the box's Quadlets, the dev stack, the Postgres
+# Dockerfile. The Postgres image the box builds for itself has no registry and is not one.
+references() {
+  sed -n 's/^Image=\(.*@sha256:.*\)$/\1/p' infra/box/containers/*.container
+  sed -n 's/^ *image: *"\?\${TEI_IMAGE:-\(.*\)}"\?$/\1/p; s/^ *image: *\([a-z][^ "$]*@sha256:[0-9a-f]*\)$/\1/p' infra/compose/dev.yml
+  sed -n 's/^ARG POSTGRES_IMAGE=//p' infra/compose/postgres/Dockerfile
+}
+
+# The registry's answer for one name:tag — a HEAD on the manifest with the index media types
+# first, and the digest out of the Docker-Content-Digest header.
+in_the_registry() {
+  local name=$1 host repo tag token
+  host=${name%%/*}; repo=${name#*/}; tag=${repo##*:}; repo=${repo%:*}
+  case $host in
+    docker.io) host=registry-1.docker.io
+      token=$(curl -fsS "https://auth.docker.io/token?service=registry.docker.io&scope=repository:$repo:pull" \
+        | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])') ;;
+    ghcr.io)
+      token=$(curl -fsS "https://ghcr.io/token?scope=repository:$repo:pull" \
+        | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])') ;;
+    *) echo "no registry rule for $host" >&2; return 1 ;;
+  esac
+  # Docker Hub answers an anonymous burst with 429: one more try, a breath later.
+  curl -fsSI --retry 2 --retry-delay 2 -H "Authorization: Bearer $token" \
+    -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json" \
+    "https://$host/v2/$repo/manifests/$tag" | tr -d '\r' | awk 'tolower($1)=="docker-content-digest:" {print $2}'
+}
+
+status=0
+for reference in $(references | sort -u); do
+  pinned=${reference#*@}; name=${reference%@*}
+  today=$(in_the_registry "$name") || { echo "?  $name — the registry did not answer"; status=1; continue; }
+  if [ "$today" = "$pinned" ]; then echo "=  $name"; else echo "!  $name  pinned $pinned  registry $today"; status=1; fi
+done
+exit $status

@@ -8,7 +8,7 @@ Description=Pinecall media plane: the embedder (text-embeddings-inference, bge-m
 
 [Container]
 ContainerName=pinecall-tei
-Image=ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3
+Image=ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3@sha256:ad950d30878eceb72aaf32024d26fa2b1d04a75304fa0b4776b49aa1941fea07
 # --max-batch-tokens is not tuning, and infra/compose/dev.yml pins the same number for the same
 # reason: the default 16384 makes the warm-up allocate a full 16k-token batch through an 8k-context
 # model, and the OOM killer takes the container before it has served once. 4096 is four of the

@@ -16,6 +16,9 @@ CREDSTORE = /etc/credstore.encrypted
 RUNTIME   = /opt/pinecall/venv/bin/pinecall-runtime
 
 UNITS      = $(wildcard *.service)
+# The long-running units of the runtime, each given hardening.conf as a drop-in: what a process
+# may touch (the file says what, and why the oneshots and the tenant's app are not in the list).
+HARDENED   = pinecall-gateway@ pinecall-worker@ pinecall-overflow pinecall-fleet
 # Every container unit but the embedder's. TEI is the one a box may not want — 2.3 GB of weights
 # for a service two of the three providers do over HTTP — so the manifest, and not the unit,
 # decides whether Quadlet ever sees its file: `embedder-tei` and `embedder-elsewhere` below.
@@ -35,6 +38,8 @@ install: packages pnpm
 	systemd-sysusers
 	systemd-tmpfiles --create
 	install -D -m 644 -t $(SYSTEMD) $(UNITS)
+	$(foreach unit,$(HARDENED),install -D -m 644 hardening.conf $(SYSTEMD)/$(unit).service.d/hardening.conf &&) true
+	$(MAKE) --no-print-directory journal
 	install -D -m 644 -t $(QUADLET) $(CONTAINERS)
 	$(MAKE) --no-print-directory embedder-$(EMBEDDER)
 	install -D -m 644 -t /etc/pinecall livekit.yaml sip.yaml egress.yaml
@@ -56,6 +61,14 @@ converge:
 	$(MAKE) --no-print-directory retire
 	$(MAKE) --no-print-directory enable-$(ROLE)
 
+# The journal's bounds (journald.conf.d/pinecall.conf), and journald restarted only on the deploy
+# that changed them: a restart is cheap on systemd ≥ 254, and a box that has the file asks nothing.
+.PHONY: journal
+journal:
+	@if ! cmp -s journald.conf.d/pinecall.conf /etc/systemd/journald.conf.d/pinecall.conf; then \
+	  install -D -m 644 -t /etc/systemd/journald.conf.d journald.conf.d/pinecall.conf; \
+	  systemctl restart systemd-journald; fi
+
 # Only what is missing is installed, so a deploy on a box that has everything asks apt nothing.
 packages: node-repo
 	@missing=""; for package in $(PACKAGES); do \
@@ -65,14 +78,19 @@ packages: node-repo
 
 # NodeSource's repository, the documented way and not its setup script: the keyring, the one
 # line, and an apt update only the first time. cloud-init.yaml does the same at birth, in bootcmd,
-# so `nodejs` in PACKAGES means the same version on a box born today and a box born before.
-NODE_MAJOR   = 24
-NODE_KEYRING = /etc/apt/keyrings/nodesource.gpg
-NODE_LIST    = /etc/apt/sources.list.d/nodesource.list
+# so `nodejs` in PACKAGES means the same version on a box born today and a box born before. The
+# key that came down the wire is held to the fingerprint NodeSource publishes — a test pins the
+# two files to the same one — or it is thrown away and the deploy stops here.
+NODE_MAJOR       = 24
+NODE_KEYRING     = /etc/apt/keyrings/nodesource.gpg
+NODE_LIST        = /etc/apt/sources.list.d/nodesource.list
+NODE_FINGERPRINT = 9FD3B784BC1C6FC31A8A0A1C1655A0AB68576280
 node-repo:
 	@if [ ! -f $(NODE_LIST) ]; then \
 	  install -d -m 755 /etc/apt/keyrings; \
 	  curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o $(NODE_KEYRING); \
+	  gpg --show-keys --with-colons $(NODE_KEYRING) | grep -q '^fpr:*$(NODE_FINGERPRINT):' \
+	    || { rm -f $(NODE_KEYRING); echo "nodesource: the key is not $(NODE_FINGERPRINT)"; exit 1; }; \
 	  echo "deb [signed-by=$(NODE_KEYRING)] https://deb.nodesource.com/node_$(NODE_MAJOR).x nodistro main" > $(NODE_LIST); \
 	  apt-get update -qq >/dev/null; fi
 
@@ -308,7 +326,11 @@ retire:
 # a service user whose home is outside /home, which the box's is (/opt/pinecall). Installed once;
 # a box that has it asks for nothing.
 GOOGLE_KEYRING = /usr/share/keyrings/cloud.google.gpg
-HCLOUD_VERSION = 1.50.0
+# hcloud is a release binary and not a package, so the tarball is held to the checksum its
+# release publishes, per architecture: one that does not match is not installed.
+HCLOUD_VERSION      = 1.50.0
+HCLOUD_SHA256_amd64 = 6725a8a73d07964e7d8c6970f2dce9d93eb5bbb5b3cab40668a4dda5c7471c41
+HCLOUD_SHA256_arm64 = 8f600792f43e62df871d8f7e2ed30a1b6d271b35fd1e2f7a744e15db74015804
 .PHONY: cloud-cli-gcp cloud-cli-aws cloud-cli-hetzner
 cloud-cli-gcp:
 	@dpkg -s google-cloud-cli >/dev/null 2>&1 || { echo "installing google-cloud-cli"; \
@@ -320,7 +342,10 @@ cloud-cli-aws:
 	  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends awscli >/dev/null; }
 cloud-cli-hetzner:
 	@test -x /usr/local/bin/hcloud || { echo "installing hcloud $(HCLOUD_VERSION)"; \
-	  curl -fsSL https://github.com/hetznercloud/cli/releases/download/v$(HCLOUD_VERSION)/hcloud-linux-amd64.tar.gz | tar -xz -C /usr/local/bin hcloud; }
+	  arch=$$(dpkg --print-architecture); file=hcloud-linux-$$arch.tar.gz; \
+	  case $$arch in amd64) sum=$(HCLOUD_SHA256_amd64);; arm64) sum=$(HCLOUD_SHA256_arm64);; *) echo "hcloud: no build for $$arch"; exit 1;; esac; \
+	  cd /tmp && curl -fsSLO https://github.com/hetznercloud/cli/releases/download/v$(HCLOUD_VERSION)/$$file \
+	  && echo "$$sum  $$file" | sha256sum -c --quiet && tar -xzf $$file -C /usr/local/bin hcloud; rm -f /tmp/$$file; }
 
 # The embedder, the same shape as the role above: box.env declares it, `make install` converges on
 # it, and a box that changes the line changes what it runs on its next deploy. `systemctl enable`
