@@ -19,7 +19,7 @@ from pinecall.session.voice.room.facts import CONNECTION, JOINED, LEFT, SPEAKERS
 from pinecall.session.voice.writing import Writing
 from pinecall.types import Channel
 from pinecall.types.json import JsonObject
-from pinecall.types.token import SCOPE_ATTRIBUTE
+from pinecall.types.scopes import SCOPE_ATTRIBUTE
 from tests.session.voice.fakes import CALL, Recording
 
 ROOM_SID = "RM_fake"

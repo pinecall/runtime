@@ -6,7 +6,7 @@ from collections.abc import Sequence
 
 from pinecall.knowledge.chunking import body_of
 from pinecall.types import Chunk, Fact, PlatformTool
-from pinecall.types.lookup import NOT_LOOKED_UP, skipped_code
+from pinecall.types.lookup_tools import NOT_LOOKED_UP, skipped_code
 from pinecall_protocol.defs import DocSource, MemoryFact, MemoryOp
 from pinecall_protocol.events import DocsSources, ErrorEvent, MemoryOps
 

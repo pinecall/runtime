@@ -7,8 +7,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from pinecall.types import Fact
-from pinecall.types.goldens import Score as GoldenScore
-from pinecall.types.goldens import a_score
+from pinecall.types.golden_scores import Score as GoldenScore
+from pinecall.types.golden_scores import a_score
 
 
 @dataclass(frozen=True)
@@ -78,8 +78,9 @@ def _folded(text: str) -> str:
     return " ".join("".join(c for c in letters if not unicodedata.combining(c)).casefold().split())
 
 
-# What is memory's own is which fact answered and how many a question may want; the arithmetic —
-# the share found, the logarithmic discount — is types/goldens.py's, shared with the knowledge base.
+# What is memory's own is which fact answered and how many a question may want; the arithmetic — the
+# share found, the logarithmic discount — is types/golden_scores.py's, shared with the knowledge
+# base.
 def scored(answered: Sequence[Answered], k: int) -> Score:
     """The golden's two figures, and every question memory did not answer whole."""
     return a_score(answered, k, lambda one: one.ranks)

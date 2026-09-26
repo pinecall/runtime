@@ -21,7 +21,7 @@ from pinecall.session.voice.room.facts import CONNECTION, JOINED, LEFT
 from pinecall.session.voice.room.holding import Holding
 from pinecall.types import AgentConfig
 from pinecall.types.json import JsonObject
-from pinecall.types.token import READS_ITS_OWN_CALL, SCOPE_ATTRIBUTE
+from pinecall.types.scopes import READS_ITS_OWN_CALL, SCOPE_ATTRIBUTE
 from pinecall_protocol import defs, encode
 from pinecall_protocol.room import EventReceived
 

@@ -4,8 +4,8 @@ import ipaddress
 from dataclasses import dataclass
 from typing import Literal, cast, get_args
 
-from pinecall.types.dialling import SIP_TRANSPORTS, SipTransport
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.dialing_policy import SIP_TRANSPORTS, SipTransport
+from pinecall.types.refusal import DeclarationRefused
 
 # Two ways a number reaches the box. Twilio: the tenant's own account, whose trunk the gateway
 # points at the box and attaches numbers to over Twilio's API. sip: any other carrier, or a PBX,

@@ -15,10 +15,10 @@ from pinecall.api.whatsapp.threads import WINDOW_SECONDS
 from pinecall.auth.corner import Corner, corner_of
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.scopes import KEY_PROJECTION, Reader
+from pinecall.log.call_facts import CallFacts
 from pinecall.log.entry import Entry
-from pinecall.log.facts import CallFacts
 from pinecall.log.replay import whole
-from pinecall.log.store.index import ThreadRow
+from pinecall.log.store.call_index import ThreadRow
 from pinecall_protocol import verbs
 from pinecall_protocol.rest import (
     Thread,

@@ -755,7 +755,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   so the Personas screen could show what a caller is and nothing about what it has done. The name
   now rides the call's own `call.started`, beside `run`: a written simulation puts it on the chat
   socket (`/v1/chat?persona=`) and a spoken one on the dispatch, because there the worker is what
-  writes that entry. `log/facts.py` projects it into `call_facts.persona` (migration 0046) the way
+  writes that entry. `log/call_facts.py` projects it into `call_facts.persona` (migration 0046) the way
   every other fact is projected. There is no backfill — the name is nowhere in the logs of the
   calls that already happened — so every older simulation reads as "no persona", which is what it
   honestly is.
@@ -1387,7 +1387,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   the figures the real ranking: the same two index scans, the same fusion, the same embedder a
   call uses. A fact answers when what came back CONTAINS what was expected, folded for case and
   accents, because a fact is a sentence a model wrote and a golden names the substance.
-  `memory/scoring.py`; the arithmetic behind both figures lives once in `types/goldens.py`.
+  `memory/scoring.py`; the arithmetic behind both figures lives once in `types/golden_scores.py`.
   `Memory.hold` is the write with no model in it. `docs/retrieval/spec.md` has the contract.
 - `Golden.memory`: a ring-1 golden may open its call already knowing things about the caller.
   `evals/remembering.py` answers those facts to the `recall` tool for that call and nothing else
@@ -1622,7 +1622,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - `Rememberer.remember(call)` answers how many memory ops were written; the worker's client reads
   it off `POST /v1/calls/{call}/remember`.
 - Reciprocal rank fusion, its two constants and the halfvec text literal have one home each
-  (`types/fusion.py`, `providers/embedder.py:as_halfvec`); memory and the knowledge base both
+  (`types/rank_fusion.py`, `providers/embedder.py:as_halfvec`); memory and the knowledge base both
   import them, and a tie in a fused order is settled by id on both.
 
 ### Fixed

@@ -25,7 +25,7 @@ from pinecall.auth.scopes import a_log_token, a_room_token, a_visitor, secret_fo
 from pinecall.tokens.ledger import TokenRecord
 from pinecall.tokens.room import a_dispatch, the_agent_a_client_named
 from pinecall.types import THE_WIDGET, a_call_id
-from pinecall.types.token import LONGEST_VISIT_TTL_S, MINTED_FOR_A_VISIT, ONE_VISIT_TTL_S
+from pinecall.types.scopes import LONGEST_VISIT_TTL_S, MINTED_FOR_A_VISIT, ONE_VISIT_TTL_S
 from pinecall_protocol import WireModel, encode
 from pinecall_protocol.defs import Projection
 from pinecall_protocol.events import FleetFull

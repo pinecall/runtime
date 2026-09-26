@@ -24,7 +24,7 @@ class Candidate:
     confidence: float
 
 
-# The fusion and the relative score are types/fusion.py's, shared with the knowledge base; what
+# The fusion and the relative score are types/rank_fusion.py's, shared with the knowledge base; what
 # is memory's own is the weighing in between: how recent a fact is, and how sure memory was of it.
 def ranked(
     dense: Sequence[Candidate], sparse: Sequence[Candidate], *, now: datetime, k: int

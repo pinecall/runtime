@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.refusal import DeclarationRefused
 
 NOT_A_ZONE = "{zone!r} is not an IANA time zone (Europe/Madrid, America/Montevideo, UTC)"
 

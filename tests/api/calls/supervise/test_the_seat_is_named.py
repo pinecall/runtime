@@ -15,7 +15,7 @@ from pinecall.auth.world import ENV_HEADER
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.types import PRODUCTION, Member
-from pinecall.types.token import NAME_ATTRIBUTE, SUBJECT_ATTRIBUTE
+from pinecall.types.scopes import NAME_ATTRIBUTE, SUBJECT_ATTRIBUTE
 from pinecall_protocol.commands import SupervisorVerb
 from tests.api.calls.supervise.test_verbs_door import SAY, THE_CALL, a_live_call, queued, sent
 from tests.api.calls.tokens.test_listen_door import payload_of

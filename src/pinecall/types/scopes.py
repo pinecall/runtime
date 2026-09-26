@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Literal, get_args
 
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.refusal import DeclarationRefused
 
 type Scope = Literal["talk", "chat", "observe", "supervise", "participate", "read"]
 

@@ -8,7 +8,7 @@ from datetime import datetime
 
 from pinecall.types.agent import Greeting, Hangup, Turn, a_limit_checked, pronunciations_checked
 from pinecall.types.knowledge import Docs, MemoryPolicy
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.refusal import DeclarationRefused
 
 # convo ms-14: an empty voice reached the vendor and a whole line of calls went out silent, because
 # "" is a value and None is not. A knob nobody wants set is LEFT OUT — None — and never sent as an

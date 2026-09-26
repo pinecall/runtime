@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 
 from pinecall.types.member import ROLES, Role
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.refusal import DeclarationRefused
 
 # The issuer is an https URL with no query and no fragment, because it is a NAMESPACE and not a
 # page: the discovery document hangs off it, every id_token carries it as `iss`, and the two are

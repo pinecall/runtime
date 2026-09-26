@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.types.token import PROJECTION_ATTRIBUTE, SCOPE_ATTRIBUTE
+from pinecall.types.scopes import PROJECTION_ATTRIBUTE, SCOPE_ATTRIBUTE
 from tests.api.calls.tokens.test_the_door import minted, payload_of
 from tests.api.conftest import AGENT
 from tests.api.talking import a_door, a_register, an_app

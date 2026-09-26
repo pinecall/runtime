@@ -16,7 +16,7 @@ from pinecall.knowledge.chunking import (
     prefixed,
 )
 from pinecall.types import KnowledgeFile
-from pinecall.types.counting import estimated_tokens
+from pinecall.types.token_estimate import estimated_tokens
 
 pytestmark = pytest.mark.unit
 

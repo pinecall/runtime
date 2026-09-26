@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Literal, cast, get_args
 
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.refusal import DeclarationRefused
 from pinecall.types.route import an_e164
 
 # How livekit-sip carries the INVITE we place. `auto` lets the SFU pick, which is what a peer that

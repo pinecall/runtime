@@ -3,7 +3,7 @@
 from collections.abc import Callable, Iterable
 from typing import Any
 
-from pinecall.log import people, room
+from pinecall.log import reduce_people, reduce_room
 from pinecall_protocol import ProtocolError, WireModel, events, metrics
 from pinecall_protocol.codec import encode, event_of
 from pinecall_protocol.defs import ToolResult
@@ -169,7 +169,7 @@ def _on_call_ended(state: State, data: events.CallEnded) -> None:
     state.ended_at = data.ended_at
     state.end_reason = data.reason
     state.live = LiveTranscript(user=None, agent=None)
-    people.lapse_on_the_end(state)
+    reduce_people.lapse_on_the_end(state)
 
 
 def _on_call_line(state: State, data: events.CallLine) -> None:
@@ -340,9 +340,9 @@ def _last_index[T](items: list[T], matches: Callable[[T], bool]) -> int | None:
 
 
 # Events missing here change nothing a reader keeps: supervisor.said and .whispered land as turns
-# and prompt changes, supervisor.ended as call.ended; agent.configured, pong and log.caught_up
-# say nothing about the call. The room's facts fold in room.py, a person's part in people.py, and
-# both register here.
+# and prompt changes, supervisor.ended as call.ended; agent.configured, pong and log.caught_up say
+# nothing about the call. The room's facts fold in reduce_room.py, a person's part in
+# reduce_people.py, and both register here.
 HANDLERS: dict[str, Handler] = {
     "call.ringing": _on_call_ringing,
     "call.dialing": _on_call_dialing,
@@ -367,8 +367,8 @@ HANDLERS: dict[str, Handler] = {
     "agent.registered": _on_agent_registered,
 }
 HANDLERS.update({f"metrics.{block}": _on_metrics for block in CollectedMetrics.model_fields})
-HANDLERS.update(room.HANDLERS)
-HANDLERS.update(people.HANDLERS)
+HANDLERS.update(reduce_room.HANDLERS)
+HANDLERS.update(reduce_people.HANDLERS)
 
 HANDLERS_WITH_ENTRY: dict[str, HandlerWithEntry] = {
     "tool.call": _on_tool_call,
@@ -376,5 +376,5 @@ HANDLERS_WITH_ENTRY: dict[str, HandlerWithEntry] = {
     "error": _on_error,
     "custom": _on_custom,
 }
-HANDLERS_WITH_ENTRY.update(room.HANDLERS_WITH_ENTRY)
-HANDLERS_WITH_ENTRY.update(people.HANDLERS_WITH_ENTRY)
+HANDLERS_WITH_ENTRY.update(reduce_room.HANDLERS_WITH_ENTRY)
+HANDLERS_WITH_ENTRY.update(reduce_people.HANDLERS_WITH_ENTRY)

@@ -16,7 +16,7 @@ from livekit.protocol.room import RoomConfiguration
 from pinecall._settings import Settings
 from pinecall.auth.keys import KeyRecord, Keys
 from pinecall.types.key import ENVS, Env, an_env
-from pinecall.types.token import (
+from pinecall.types.scopes import (
     AGENT_ATTRIBUTE,
     BOUND_TO_ONE_CALL,
     CODE_ATTRIBUTE,
@@ -51,7 +51,7 @@ PROJECTIONS: tuple[str, ...] = get_args(Projection.__value__)
 # A call token IS a LiveKit room token whose room is the call. One format for text and for voice:
 # the string that joins the room is the string that reads the call's log over SSE, so there is one
 # minter, one verifier, and nothing for the two halves to disagree about. Which scope minted it
-# rides a LiveKit attribute — SCOPE_ATTRIBUTE, in types/token.py — rather than a claim of our own:
+# rides a LiveKit attribute — SCOPE_ATTRIBUTE, in types/scopes.py — rather than a claim of our own:
 # attributes survive the round trip through TokenVerifier, and LiveKit publishes them to the room,
 # so a participant's scope is readable on the media plane too without a second lookup.
 
@@ -222,7 +222,7 @@ async def a_reader(bearer: str, keys: Keys, secret: LivekitKeys | None) -> Reade
     return Reader(projection=KEY_PROJECTION, key=record, subject=record.subject, name=record.name)
 
 
-# The one minter. The grants are the scope's own row in types/token.py and nothing else: a talk
+# The one minter. The grants are the scope's own row in types/scopes.py and nothing else: a talk
 # token publishes its microphone and hears the agent, a chat token does neither, and every one of
 # them may send data — the DataChannel is how a widget speaks to the call.
 def a_room_token(

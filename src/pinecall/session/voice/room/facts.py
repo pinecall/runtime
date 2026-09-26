@@ -16,7 +16,7 @@ from pydantic import ValidationError
 
 from pinecall.session.voice import sip
 from pinecall.session.voice.writing import Writing
-from pinecall.types.token import SCOPE_ATTRIBUTE
+from pinecall.types.scopes import SCOPE_ATTRIBUTE
 from pinecall_protocol import defs
 from pinecall_protocol.events import DtmfReceived
 from pinecall_protocol.room import (

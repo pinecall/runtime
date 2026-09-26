@@ -6,7 +6,7 @@ from email.utils import parseaddr
 from typing import Literal, cast
 from urllib.parse import unquote, urlsplit
 
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.refusal import DeclarationRefused
 
 # How the connection is protected. `starttls` is the ordinary one — port 587, a plain socket
 # upgraded before anything is said — `tls` is implicit TLS on 465, and `none` is a plain socket,

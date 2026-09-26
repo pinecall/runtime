@@ -9,10 +9,10 @@ from livekit import rtc
 
 from pinecall.session.voice import sip
 from pinecall.types import THE_WIDGET, Channel, Scope
-from pinecall.types.token import SCOPE_ATTRIBUTE
+from pinecall.types.scopes import SCOPE_ATTRIBUTE
 
 # The scope a browser joins a voice call with: `talk` is the only one that publishes a microphone
-# and the only one minted for the person the agent serves (types/token.py). The other two
+# and the only one minted for the person the agent serves (types/scopes.py). The other two
 # seats in the room are `observe`, hidden and silent, and `supervise`, which the desk holds and
 # speaks from — and neither of them is who the agent answers.
 THE_CALLERS_SCOPE: Scope = "talk"

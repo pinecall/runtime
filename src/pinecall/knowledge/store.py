@@ -292,7 +292,7 @@ class PgKnowledge:
         return [chunk for chunk in chunks if _above_its_floor(chunk, floors)][:k]
 
 
-# The fusion is types/fusion.py's, the same one memory ranks with: a candidate earns
+# The fusion is types/rank_fusion.py's, the same one memory ranks with: a candidate earns
 # 1 / (k + rank) from each branch that lists it, and the sums are read against the best, so 1.0
 # is the top chunk and a chunk one branch found near its top lands near a half.
 def _fused(

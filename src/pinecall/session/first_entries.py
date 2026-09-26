@@ -46,9 +46,9 @@ def started(context: CallContext, door: str, at: float) -> CallStarted:
             "to": to,
             "run": context.run,
             # Who is being played on this call, when a simulation opened it. The log is where the
-            # fact lives; call_facts is a projection of this line (log/facts.py, migration 0046).
-            # And that caller's own rule for the call, which the `persona` judge reads from HERE
-            # at hang-up: the log is the truth about what the call was made under.
+            # fact lives; call_facts is a projection of this line (log/call_facts.py, migration
+            # 0046). And that caller's own rule for the call, which the `persona` judge reads from
+            # HERE at hang-up: the log is the truth about what the call was made under.
             "persona": context.persona,
             "accepts_when": context.accepts_when,
             "declines_when": context.declines_when,

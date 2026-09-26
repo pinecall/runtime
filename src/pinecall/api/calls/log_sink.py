@@ -24,7 +24,7 @@ from pinecall.log.entry import Entry
 from pinecall.log.filters import Filter
 from pinecall.log.projection import project_entry
 from pinecall.log.store import DEFAULT_LIMIT, Store
-from pinecall.log.store.index import CallCorner, CallIndex
+from pinecall.log.store.call_index import CallCorner, CallIndex
 from pinecall.types.agent import AgentConfig
 from pinecall.types.json import JsonObject
 from pinecall_protocol import WireModel, encode

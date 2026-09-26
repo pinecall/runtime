@@ -4,7 +4,7 @@ from __future__ import annotations
 
 # One entry's change laid over the row, in one statement: the columns an entry names win, the two
 # arrays grow, the two flags only ever turn on, and a verdict — `$13`, scored — replaces the last
-# one whole. log/facts.py's `CallFacts.changed` is the same rule, for the memory store.
+# one whole. log/call_facts.py's `CallFacts.changed` is the same rule, for the memory store.
 FACTS_CHANGED = """
 insert into call_facts as f (
     call, channel, direction, from_number, to_number, name, contact, spoken, ended_at, end_reason,

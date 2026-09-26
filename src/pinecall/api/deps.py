@@ -23,7 +23,7 @@ from pinecall.fleet import Roster
 from pinecall.knowledge import Knowledge
 from pinecall.log.snapshots import Snapshots
 from pinecall.log.store import Store
-from pinecall.log.store.index import CallIndex
+from pinecall.log.store.call_index import CallIndex
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.memory import Memory
@@ -71,7 +71,7 @@ def a_store(connection: HTTPConnection) -> Store:
 # The store folds every call's facts as it appends, so the store IS the index: one object, two
 # protocols, and a test that overrides the store has overridden the index with it.
 def the_call_index(store: Annotated[Store, Depends(a_store)]) -> CallIndex:
-    """The questions across calls, answered off the rows the store folds (log/store/index.py)."""
+    """The questions across calls, answered off the rows the store folds (store/call_index.py)."""
     return cast(CallIndex, store)
 
 

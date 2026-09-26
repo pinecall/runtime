@@ -6,7 +6,7 @@ from typing import get_args
 import pytest
 
 from pinecall.types import GRANTS, DeclarationRefused, Scope, grant_for
-from pinecall.types.token import (
+from pinecall.types.scopes import (
     BOUND_TO_ONE_CALL,
     LONGEST_VISIT_TTL_S,
     MINTED_FOR_A_VISIT,

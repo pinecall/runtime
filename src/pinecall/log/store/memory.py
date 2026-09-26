@@ -7,10 +7,10 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
+from pinecall.log.call_facts import CallFacts, change_of
 from pinecall.log.entry import Entry
-from pinecall.log.facts import CallFacts, change_of
-from pinecall.log.store import memory_index
-from pinecall.log.store.index import (
+from pinecall.log.store import call_index_memory
+from pinecall.log.store.call_index import (
     CallCorner,
     Day,
     Found,
@@ -19,7 +19,7 @@ from pinecall.log.store.index import (
     Unsealed,
     Wanted,
 )
-from pinecall.log.store.memory_index import Indexed, StillOpen
+from pinecall.log.store.call_index_memory import Indexed, StillOpen
 from pinecall.log.store.protocol import DEFAULT_LIMIT, LogSealed, Metered
 from pinecall.types import Versions
 from pinecall.types.json import JsonObject
@@ -191,7 +191,7 @@ class MemoryStore:
             if entry.type in wanted
         ][:limit]
 
-    # ── the call index (log/store/index.py), answered by memory_index.py over these logs ──────
+    # ── the call index (log/store/call_index.py), answered by call_index_memory.py over these ──
 
     async def corner_of_call(self, call: str) -> CallCorner | None:
         """The corner the claim wrote, production's and the org's own when none was said."""
@@ -200,7 +200,7 @@ class MemoryStore:
             return None
         return CallCorner(
             log.org,
-            log.env or memory_index.UNCORNERED,
+            log.env or call_index_memory.UNCORNERED,
             log.holder or "",
             log.facts.agent,
             log.config_version,
@@ -215,26 +215,28 @@ class MemoryStore:
         return {call: facts for call, facts in kept.items() if facts is not None}
 
     async def unsealed_written(self, quiet_since: float, limit: int) -> list[Unsealed]:
-        """The written calls this store never finished, as memory_index.py answers them."""
-        return memory_index.unsealed_written(self._still_open(), quiet_since, limit)
+        """The written calls this store never finished, as call_index_memory.py answers them."""
+        return call_index_memory.unsealed_written(self._still_open(), quiet_since, limit)
 
     async def unsealed_spoken(self, quiet_since: float, limit: int) -> list[Unsealed]:
         """Every org's spoken calls still open and quiet since then, the quietest first."""
-        return memory_index.unsealed_spoken(self._still_open(), quiet_since, limit)
+        return call_index_memory.unsealed_spoken(self._still_open(), quiet_since, limit)
 
     async def found(self, org: str, env: str, holder: str, wanted: Wanted, limit: int) -> Found:
         """The corner's calls that match, a page of them, newest first."""
-        return memory_index.found(self._indexed(org, env, holder), wanted, limit)
+        return call_index_memory.found(self._indexed(org, env, holder), wanted, limit)
 
     async def runs_of_persona(
         self, org: str, env: str, holder: str, persona: str, before: str | None, limit: int
     ) -> PersonaRuns:
         """This caller's newest simulations in the corner, a page of them."""
-        return memory_index.runs_of_persona(self._indexed(org, env, holder), persona, before, limit)
+        return call_index_memory.runs_of_persona(
+            self._indexed(org, env, holder), persona, before, limit
+        )
 
     async def a_day(self, org: str, env: str, holder: str, start: float) -> Day:
         """The corner's day, counted."""
-        return memory_index.a_day(self._indexed(org, env, holder), start)
+        return call_index_memory.a_day(self._indexed(org, env, holder), start)
 
     async def spent_between(self, org: str, start: float, end: float) -> float:
         """What the org's calls in that span cost, every world and corner."""
@@ -261,7 +263,7 @@ class MemoryStore:
             for (o, e, h, a, r, contact), at in self._read.items()
             if (o, e, h, a, r) == (org, env, holder, agent, reader)
         }
-        return memory_index.threads(mine, read, after, limit)
+        return call_index_memory.threads(mine, read, after, limit)
 
     async def calls_with(
         self, org: str, env: str, holder: str, agent: str, contact: str, limit: int

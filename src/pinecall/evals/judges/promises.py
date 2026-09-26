@@ -16,7 +16,7 @@ from pinecall.evals.judges.policy import broken, held
 from pinecall.evals.transcript import said_by_the_agent
 
 # The name the log files the verdict under, and the one the call index raises `promise` by
-# (log/facts.py, PROMISES): one word, spelled in both places because log/ imports no evals/.
+# (log/call_facts.py, PROMISES): one word, spelled in both places because log/ imports no evals/.
 NAME = "promises"
 
 # A promise is a sentence about the FUTURE with the business as its subject: we will call, a

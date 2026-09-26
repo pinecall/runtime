@@ -11,7 +11,7 @@ from pinecall.tokens.seating import a_seat_in
 router = APIRouter()
 
 # The scope whose row says what a supervisor may do: publish their microphone, hear the room, read
-# this one call's log, and send the six verbs (types/token.py). NOT hidden — livekit delivers no
+# this one call's log, and send the six verbs (types/scopes.py). NOT hidden — livekit delivers no
 # track from a hidden participant, so a hidden supervisor would take the line into a silence.
 A_SUPERVISOR = "supervise"
 

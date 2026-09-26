@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Literal, get_args
 
 from pinecall.types.agent import AgentConfig
-from pinecall.types.tool import ToolSpec
+from pinecall.types.tool_spec import ToolSpec
 
 # The two tools the platform runs on the app's behalf. The wire's PlatformTool is the same two
 # words (pinecall_protocol.defs), and tests/types/test_wire_agreement.py holds them to it.

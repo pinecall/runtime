@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Literal, get_args
 
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.refusal import DeclarationRefused
 
 # read looks at the world. write changes it and can be undone. irreversible changes it for good —
 # a booking sent, a payment, a cancellation — so the platform asks the caller first, never the

@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from pinecall.log.facts import CallFacts
+from pinecall.log.call_facts import CallFacts
 
 # A day, in the only clock the head rows have: unix seconds. The day is cut in UTC because an org
 # carries no timezone; the door says so in its answer.

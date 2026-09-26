@@ -245,7 +245,7 @@ the one the spanish text configuration behind the words branch already applies.
 The two figures are the two above, generalised once: a memory question may expect several facts, so
 `recall@k` is the share of the facts asked for that came back and `nDCG@10` is normalised by the
 best places those facts could have taken. A question that expects one fact reduces to exactly the
-base's arithmetic — it *is* the base's arithmetic, `types/goldens.py`, shared by both goldens.
+base's arithmetic — it *is* the base's arithmetic, `types/golden_scores.py`, shared by both goldens.
 
 **Write questions whose contact holds more facts than a turn asks for.** A turn recalls six. A
 question whose contact holds four is answered whole by any ranking at all, and its `recall@6` is

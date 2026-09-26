@@ -12,7 +12,7 @@ from pinecall.log.entry import Entry
 from pinecall.log.reduce import reduce
 from pinecall.session.voice.room import Facts
 from pinecall.session.voice.room.facts import DTMF
-from pinecall.types.token import SCOPE_ATTRIBUTE
+from pinecall.types.scopes import SCOPE_ATTRIBUTE
 from tests.session.voice.fakes import CALL, Written
 from tests.session.voice.room.fakes import FakeParticipant, Held, a_caller, a_held_room, a_widget
 

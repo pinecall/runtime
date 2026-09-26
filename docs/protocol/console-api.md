@@ -9,7 +9,7 @@ shape that already existed is optional, so an older console reads a newer gatewa
 All of them answer in the **reader's corner** — the key's org, the request's world (`pinecall-env`
 on a person's key, a token's own), and in the sandbox whose
 copy (`pinecall-corner` opens a colleague's, [multi-tenancy.md](../multi-tenancy.md)) — and count
-off the **call index**: one row per call the store folds as it appends each entry (`log/facts.py`,
+off the **call index**: one row per call the store folds as it appends each entry (`log/call_facts.py`,
 `call_facts`), never a fold of every log. A call from before migration 0025 is in no count until
 `pinecall-runtime migrate up --post` has folded it (0026).
 

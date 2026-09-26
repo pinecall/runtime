@@ -7,8 +7,8 @@ from dataclasses import dataclass
 
 from pinecall.knowledge.chunking import HEADING_SEPARATOR
 from pinecall.types import Chunk
-from pinecall.types.goldens import Score as GoldenScore
-from pinecall.types.goldens import a_score
+from pinecall.types.golden_scores import Score as GoldenScore
+from pinecall.types.golden_scores import a_score
 
 # The separator a heading path is written with, in the chunk and in a golden alike: it is what
 # `chunks_as_text` puts in front of every passage, so a person writes what they already read.
@@ -67,8 +67,9 @@ def answers(found: str, expects: str) -> bool:
     return found.startswith(f"{wanted}{BETWEEN_HEADINGS}")
 
 
-# One relevant chunk per question, which is the arithmetic's simplest case: types/goldens.py does
-# both figures, here and for memory, and what is the knowledge base's own is which chunk answered.
+# One relevant chunk per question, which is the arithmetic's simplest case: types/golden_scores.py
+# does both figures, here and for memory, and what is the knowledge base's own is which chunk
+# answered.
 def scored(answered: Sequence[Answered], k: int) -> Score:
     """The golden's two figures, and every question the base missed."""
     return a_score(answered, k, lambda one: (one.rank,))

@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from pinecall.types import DeclarationRefused, ToolSpec
-from pinecall.types.tool import SIDE_EFFECTS
+from pinecall.types.tool_spec import SIDE_EFFECTS
 
 pytestmark = pytest.mark.unit
 

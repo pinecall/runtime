@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from pinecall.types.channel import CHANNELS, CHANNELS_WITH_A_NUMBER, Channel
 from pinecall.types.key import ENVS, PRODUCTION, Env
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.refusal import DeclarationRefused
 
 # E.164: a plus, then up to fifteen digits, the first of them never zero.
 _E164 = re.compile(r"^\+[1-9]\d{1,14}$")

@@ -11,7 +11,7 @@ from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.calls.listing import A_SCREENFUL, BEFORE, LIMIT, WORDS, a_page
 from pinecall.api.calls.log_sink import ProjectDep, ReaderDep, sse
 from pinecall.api.deps import CallIndexDep, LogsDep, SnapshotsDep
-from pinecall.log.store.index import Wanted
+from pinecall.log.store.call_index import Wanted
 from pinecall.types import Channel
 from pinecall_protocol.rest import SessionList
 

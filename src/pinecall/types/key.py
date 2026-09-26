@@ -3,7 +3,7 @@
 from collections.abc import Iterable
 from typing import Literal, cast, get_args
 
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.refusal import DeclarationRefused
 
 # Two worlds and no third. A key is issued into one; the agents registered on it, the doors it
 # claims and every call it takes are that world's, and a gateway holds both at once without one

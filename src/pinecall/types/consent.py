@@ -4,7 +4,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
-from pinecall.types.tool import SideEffect
+from pinecall.types.tool_spec import SideEffect
 
 # The four entries the rule reads, under the log's own type names: the tool that ran, and the three
 # halves of the gate around it. Every other entry of a call is a different question.

@@ -12,7 +12,7 @@ from pinecall._settings import Settings
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.scopes import a_room_token, secret_for
 from pinecall.log.snapshots import Snapshots
-from pinecall.types.token import NAME_ATTRIBUTE, SUBJECT_ATTRIBUTE
+from pinecall.types.scopes import NAME_ATTRIBUTE, SUBJECT_ATTRIBUTE
 
 # The identity a human takes in the room, whether they came to listen or to speak, so the room's
 # own facts (session/voice/room/facts.py) and a later verb name the same seat. The prefix is

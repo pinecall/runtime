@@ -10,7 +10,7 @@ from typing import Any
 from uuid import UUID
 
 from pinecall.log.store import Pool
-from pinecall.log.store.index import like_escaped
+from pinecall.log.store.call_index import like_escaped
 from pinecall.memory.extraction import OPS_THAT_WRITE, Op, extracted
 from pinecall.memory.protocol import DEFAULT_FACTS_PER_TURN, FactsPage, Spoken
 from pinecall.memory.ranking import Candidate, ranked

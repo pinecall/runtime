@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from pinecall.log.facts import CallFacts, Change
-from pinecall.log.store.index import (
+from pinecall.log.call_facts import CallFacts, Change
+from pinecall.log.store.call_index import (
     A_DAY_S,
     AgentDay,
     CallCorner,
@@ -23,7 +23,7 @@ from pinecall.log.store.index import (
     like_escaped,
     thread_cursor,
 )
-from pinecall.log.store.index_statements import (
+from pinecall.log.store.call_index_sql import (
     CALLS_WITH,
     CORNER_OF_CALL,
     DAY,

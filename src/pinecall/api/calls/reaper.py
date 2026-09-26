@@ -12,7 +12,7 @@ from pinecall.api.whatsapp.threads import IDLE_SECONDS
 from pinecall.log import NOTHING_SAID, reduce
 from pinecall.log.logs import CallLog
 from pinecall.log.store import LogSealed
-from pinecall.log.store.index import CallIndex, Unsealed
+from pinecall.log.store.call_index import CallIndex, Unsealed
 from pinecall.log.writers import Logs
 from pinecall.providers import prices
 from pinecall.routes.rooms import Rooms

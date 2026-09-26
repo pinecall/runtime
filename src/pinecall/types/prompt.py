@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.refusal import DeclarationRefused
 
 # Where a block sits: before the history, cached by the provider; or after it, replaced every turn.
 type PromptRegion = Literal["static", "dynamic"]

@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from typing import Literal, cast, get_args
 
 from pinecall.types.key import KEY_SCOPES
-from pinecall.types.mail import AN_ADDRESS
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.mailbox import AN_ADDRESS
+from pinecall.types.refusal import DeclarationRefused
 
 # A role is a preset of key scopes and nothing more: the doors read scopes, never roles, so a
 # role renamed or re-cut tomorrow changes the next key issued and not one door. The five are

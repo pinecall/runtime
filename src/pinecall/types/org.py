@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Literal
 
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.refusal import DeclarationRefused
 
 # The org a box has when nobody has made a second one: `migrate up` issues the first key against
 # it, the keys and routes verbs fall back to it, and the schema seeds it as the first row.

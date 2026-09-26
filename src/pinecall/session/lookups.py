@@ -14,7 +14,7 @@ from livekit.agents.utils.aio import cancel_and_wait
 
 from pinecall.session.declaring import ToolUse, declared
 from pinecall.types import AgentConfig, PlatformTool, platform_tools
-from pinecall.types.lookup import NOT_LOOKED_UP, PLATFORM_TOOLS, arguments_for, skipped_code
+from pinecall.types.lookup_tools import NOT_LOOKED_UP, PLATFORM_TOOLS, arguments_for, skipped_code
 from pinecall_protocol.events import ErrorEvent
 
 # How many words the caller has to have said before this turn's lookups are worth starting on what

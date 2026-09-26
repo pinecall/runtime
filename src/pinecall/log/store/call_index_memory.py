@@ -6,8 +6,8 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from statistics import median
 
-from pinecall.log.facts import CallFacts
-from pinecall.log.store.index import (
+from pinecall.log.call_facts import CallFacts
+from pinecall.log.store.call_index import (
     A_DAY_S,
     AgentDay,
     Day,

@@ -23,7 +23,7 @@ from pinecall.api.deps import (
     VaultDep,
 )
 from pinecall.api.live import Live, LiveDep
-from pinecall.log.store.index import CallIndex
+from pinecall.log.store.call_index import CallIndex
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission

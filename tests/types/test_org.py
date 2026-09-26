@@ -3,7 +3,7 @@
 import pytest
 
 from pinecall.types import QUOTAS, Quotas
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.refusal import DeclarationRefused
 
 pytestmark = pytest.mark.unit
 

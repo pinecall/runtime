@@ -7,8 +7,8 @@ from typing import Literal, get_args
 
 from pinecall.types.knowledge import Docs, MemoryPolicy
 from pinecall.types.prompt import DEFAULT_LAYOUT, PromptBlock
-from pinecall.types.refused import DeclarationRefused
-from pinecall.types.tool import ToolSpec
+from pinecall.types.refusal import DeclarationRefused
+from pinecall.types.tool_spec import ToolSpec
 
 # Who may see a field of the app's state: the caller's own browser (public), the tenant's console
 # (tenant), or the console with the value masked (pii). Undeclared means tenant.

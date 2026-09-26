@@ -19,7 +19,7 @@ from pinecall.providers.embedder import (
     WrongWidth,
     every_chunk_on_its_own,
 )
-from pinecall.types.counting import estimated_tokens
+from pinecall.types.token_estimate import estimated_tokens
 
 # What tells the two models apart, and it is the model's own name: `pplx-embed-context-v1-4b`
 # reads a document's chunks together, `pplx-embed-v1-4b` reads each text alone. Nothing else in

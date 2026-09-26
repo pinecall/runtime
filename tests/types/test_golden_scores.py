@@ -2,7 +2,7 @@
 
 import pytest
 
-from pinecall.types.goldens import AT, figures
+from pinecall.types.golden_scores import AT, figures
 
 pytestmark = pytest.mark.unit
 

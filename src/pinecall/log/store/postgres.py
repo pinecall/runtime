@@ -14,13 +14,13 @@ from urllib.parse import urlsplit, urlunsplit
 import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
 
 from pinecall._exceptions import PinecallError
+from pinecall.log.call_facts import change_of
 from pinecall.log.entry import Entry
-from pinecall.log.facts import change_of
-from pinecall.log.store.index_statements import RESCORED
+from pinecall.log.store.call_index_postgres import PostgresIndex
+from pinecall.log.store.call_index_sql import RESCORED
 from pinecall.log.store.pool import Connection, Pool
-from pinecall.log.store.postgres_index import PostgresIndex
 from pinecall.log.store.protocol import DEFAULT_LIMIT, LogSealed, Metered
-from pinecall.log.store.statements import (
+from pinecall.log.store.store_sql import (
     ACROSS,
     APPEND,
     CALLS_NEWEST_FIRST,

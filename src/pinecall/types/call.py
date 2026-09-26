@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from pinecall.types.channel import CHANNELS, CHANNELS_WITH_A_NUMBER, DIRECTIONS, Channel, Direction
 from pinecall.types.key import Env
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.refusal import DeclarationRefused
 from pinecall.types.route import Route
 
 # What a call this runtime opens is named: the prefix, then 32 hex. A phone call is named by the

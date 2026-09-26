@@ -7,11 +7,11 @@ from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 
 from pinecall.types import KnowledgeFile
-from pinecall.types.counting import estimated_tokens
+from pinecall.types.token_estimate import estimated_tokens
 
 # The cap, in the tokens a model counts. A chunk that lands under 350 is small enough for eight of
 # them in front of a turn and large enough to hold a whole tariff. What a token is worth is
-# types/counting.py's, the one estimate the contextual embedder windows a document by too.
+# types/token_estimate.py's, the one estimate the contextual embedder windows a document by too.
 CHUNK_TOKENS = 350
 
 # Between the levels of a heading path ("Tarifas › Revisión"), and between a path and the text
