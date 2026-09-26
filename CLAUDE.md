@@ -134,7 +134,6 @@ Tests read as sentences.
 
 ## Commits
 
-`Bernardo Castro <me@bernardocastro.dev>`, a subject line and a body that says why, no
-`Co-Authored-By`, no generated-with trailers. `scripts/format`, then `scripts/lint` and
+A subject line and a body that says why. `scripts/format`, then `scripts/lint` and
 `scripts/test` exit 0 before a commit. `CHANGELOG.md` gains a line under `Unreleased` for
 anything a user of the package or the box would notice.
