@@ -9,6 +9,7 @@ from typing import Any, Protocol
 from livekit import api
 
 from pinecall._settings import Settings
+from pinecall.routes.sfu import Sfu
 from pinecall.types import Env
 from pinecall.types.dispatch import (
     AGENT_KEY,
@@ -85,10 +86,8 @@ class MemoryDispatches:
 class LivekitDispatches:
     """One `create_dispatch`, exactly as a spoken eval run makes one (evals/calling.py)."""
 
-    def __init__(self, url: str, api_key: str, api_secret: str, fleet: str) -> None:
-        self._url = url
-        self._key = api_key
-        self._secret = api_secret
+    def __init__(self, sfu: Sfu, fleet: str) -> None:
+        self._sfu = sfu
         self._fleet = fleet
 
     # The room is not created first: livekit makes it when the dispatch lands, and its NAME is the
@@ -96,7 +95,7 @@ class LivekitDispatches:
     # nothing minted in between (worker/entry.py: `a_call(ctx.room.name …)`).
     async def started(self, job: Job) -> None:
         """The worker dispatched into the call's own room, carrying whose it is and what to dial."""
-        async with api.LiveKitAPI(self._url, self._key, self._secret) as livekit:
+        async with self._sfu.api() as livekit:
             await livekit.agent_dispatch.create_dispatch(
                 api.CreateAgentDispatchRequest(
                     room=job.call,
@@ -125,11 +124,5 @@ def metadata_of(job: Job) -> dict[str, Any]:
 
 def dispatches_for(settings: Settings) -> Dispatches | None:
     """The SFU when the process has the LiveKit pair; None when it has none: the door says so."""
-    if settings.livekit_api_key and settings.livekit_api_secret:
-        return LivekitDispatches(
-            settings.livekit_url,
-            settings.livekit_api_key,
-            settings.livekit_api_secret,
-            settings.fleet,
-        )
-    return None
+    sfu = Sfu.of(settings)
+    return None if sfu is None else LivekitDispatches(sfu, settings.fleet)

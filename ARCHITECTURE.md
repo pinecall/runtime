@@ -334,7 +334,7 @@ this process's memory), `auth/signups.py` (sign-ups waiting on their mailed code
 `orgs/sso.py` (one OpenID provider per org, its client secret under the same vault key), `orgs/mail.py` (one SMTP account per org, its password the same way, and how its last letter went), `orgs/box.py` (**what the operator configured for the box itself**, 0035: one row a setting — `brand`, `mail`, `signin.<provider>` — its one secret under the same vault key, the value merged for a standing; the table exists without a vault key, since a brand is no secret. `mail/box.py` reads the box's mailbox off it, stored over the environment's; `mail/brand.py` the brand; `api/box_mail.py`, `api/box_brand.py` are the doors, [docs/protocol/the-box.md](docs/protocol/the-box.md)),
 `auth/openid.py` (discovery, the code exchange, an id_token checked against the issuer's JWKS),
 `auth/sso.py` (the sign-ins between the redirect and the callback, one use and ten minutes), `auth/identity.py` (what production answers about the person a spent code names, and a sandbox asking it over HTTP at `PINECALL_IDENTITY_URL`; `api/identity.py` mirrors the org and the member by production's ids, `Orgs.mirrored`, `Members.mirrored`) and `auth/peers.py` (the two questions one instance asks the other on a fleet key the other minted for it, `box peer`: whose a production ring is, and production's numbers; `api/peers.py`).
-`routes/answering.py`: every number an org answers at, both worlds, which the outbound trunk and
+`routes/sfu.py` (the SFU's address and key pair, read once, and the client each table opens on it), `routes/answering.py`: every number an org answers at, both worlds, which the outbound trunk and
 the country fence read.
 
 ## 10. Evals: four rings, one score

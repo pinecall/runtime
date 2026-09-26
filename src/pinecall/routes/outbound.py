@@ -8,6 +8,7 @@ from typing import Protocol
 from livekit import api
 
 from pinecall._settings import Settings
+from pinecall.routes.sfu import Sfu
 from pinecall.routes.trunks import by_name, once_named
 from pinecall.types import SipTransport
 
@@ -80,22 +81,20 @@ class MemoryOutbound:
 class LivekitOutbound:
     """The real SFU, over livekit-api: looked up by name before anything is made, never doubled."""
 
-    def __init__(self, url: str, api_key: str, api_secret: str, fleet: str) -> None:
-        self._url = url
-        self._key = api_key
-        self._secret = api_secret
+    def __init__(self, sfu: Sfu, fleet: str) -> None:
+        self._sfu = sfu
         self._fleet = fleet
 
     async def standing(self, org: str) -> str | None:
         """One list, matched by the name this runtime gives the org's trunk, or the one it gave."""
-        async with api.LiveKitAPI(self._url, self._key, self._secret) as livekit:
+        async with self._sfu.api() as livekit:
             trunk = await self._the_orgs_trunk(livekit, org)
             return None if trunk is None else trunk.sip_trunk_id
 
     async def provisioned(self, org: str, placing: Placing) -> str:
         """Create the trunk when there is none; replace it whole — its name too — when there is."""
         info = _a_trunk_info(TRUNK_NAME.format(fleet=self._fleet, org=org), placing)
-        async with api.LiveKitAPI(self._url, self._key, self._secret) as livekit:
+        async with self._sfu.api() as livekit:
             trunk = await self._the_orgs_trunk(livekit, org)
             if trunk is None:
                 made = await livekit.sip.create_outbound_trunk(
@@ -132,11 +131,5 @@ def _a_trunk_info(name: str, placing: Placing) -> api.SIPOutboundTrunkInfo:
 
 def outbound_for(settings: Settings) -> Outbound | None:
     """The SFU when the process has the LiveKit pair; None when it has none: the door says so."""
-    if settings.livekit_api_key and settings.livekit_api_secret:
-        return LivekitOutbound(
-            settings.livekit_url,
-            settings.livekit_api_key,
-            settings.livekit_api_secret,
-            settings.fleet,
-        )
-    return None
+    sfu = Sfu.of(settings)
+    return None if sfu is None else LivekitOutbound(sfu, settings.fleet)

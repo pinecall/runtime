@@ -8,6 +8,7 @@ from typing import Protocol
 from livekit import api
 
 from pinecall._settings import Settings
+from pinecall.routes.sfu import Sfu
 
 # livekit's own list takes the names to ask about, so a hundred unsealed calls are one round trip
 # and never a hundred. Asked in batches because the names ride in the query of one request.
@@ -55,10 +56,8 @@ class MemoryRooms:
 class LivekitRooms:
     """The real SFU, over livekit-api: which of these rooms exist with an agent still in them."""
 
-    def __init__(self, url: str, api_key: str, api_secret: str) -> None:
-        self._url = url
-        self._key = api_key
-        self._secret = api_secret
+    def __init__(self, sfu: Sfu) -> None:
+        self._sfu = sfu
 
     async def with_an_agent(self, names: Collection[str]) -> set[str]:
         """Every one of these rooms the SFU has and an agent is in. The rest are nobody's."""
@@ -66,7 +65,7 @@ class LivekitRooms:
         if not wanted:
             return set()
         served: set[str] = set()
-        async with api.LiveKitAPI(self._url, self._key, self._secret) as livekit:
+        async with self._sfu.api() as livekit:
             for batch in in_batches(wanted, AT_MOST):
                 rooms = await livekit.room.list_rooms(api.ListRoomsRequest(names=batch))
                 for room in rooms.rooms:
@@ -78,7 +77,7 @@ class LivekitRooms:
 
     async def closed(self, name: str) -> None:
         """Delete the room; livekit disconnects everybody still in it."""
-        async with api.LiveKitAPI(self._url, self._key, self._secret) as livekit:
+        async with self._sfu.api() as livekit:
             try:
                 await livekit.room.delete_room(api.DeleteRoomRequest(room=name))
             except api.TwirpError:
@@ -93,8 +92,5 @@ def in_batches(names: list[str], size: int) -> Iterable[list[str]]:
 
 def rooms_for(settings: Settings) -> Rooms | None:
     """The SFU when the process has the LiveKit pair; None when it has none, and nothing reaps."""
-    if settings.livekit_api_key and settings.livekit_api_secret:
-        return LivekitRooms(
-            settings.livekit_url, settings.livekit_api_key, settings.livekit_api_secret
-        )
-    return None
+    sfu = Sfu.of(settings)
+    return None if sfu is None else LivekitRooms(sfu)

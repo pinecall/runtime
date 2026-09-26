@@ -10,6 +10,7 @@ from typing import Protocol
 from livekit import api
 
 from pinecall._settings import Settings
+from pinecall.routes.sfu import Sfu
 from pinecall.routes.twilio import TWILIO_SIGNALLING
 from pinecall.types import Carrier, TwilioAccount
 from pinecall.types.dispatch import DEFAULT_FLEET, ORG_KEY
@@ -111,10 +112,8 @@ class MemoryTrunks:
 class LivekitTrunks:
     """The real SFU, over livekit-api: looked up by name before anything is made, never doubled."""
 
-    def __init__(self, url: str, api_key: str, api_secret: str, fleet: str) -> None:
-        self._url = url
-        self._key = api_key
-        self._secret = api_secret
+    def __init__(self, sfu: Sfu, fleet: str) -> None:
+        self._sfu = sfu
         self._fleet = fleet
 
     async def admitted(
@@ -122,7 +121,7 @@ class LivekitTrunks:
     ) -> str:
         """Create the trunk when there is none; update its numbers, fence and name when there is."""
         name = TRUNK_NAME.format(fleet=self._fleet, org=org)
-        async with api.LiveKitAPI(self._url, self._key, self._secret) as livekit:
+        async with self._sfu.api() as livekit:
             standing = await self._the_orgs_trunk(livekit, org)
             if standing is None:
                 made = await livekit.sip.create_inbound_trunk(
@@ -149,7 +148,7 @@ class LivekitTrunks:
             TRUNK_NAME.format(fleet=self._fleet, org=org),
             *once_named(LEGACY_TRUNK, self._fleet, org),
         }
-        async with api.LiveKitAPI(self._url, self._key, self._secret) as livekit:
+        async with self._sfu.api() as livekit:
             standing = await livekit.sip.list_inbound_trunk(api.ListSIPInboundTrunkRequest())
         return next(
             (
@@ -162,7 +161,7 @@ class LivekitTrunks:
 
     async def released(self, org: str, number: str) -> bool:
         """The number off the trunk's allow-list; the trunk and the rule stay for the next one."""
-        async with api.LiveKitAPI(self._url, self._key, self._secret) as livekit:
+        async with self._sfu.api() as livekit:
             standing = await self._the_orgs_trunk(livekit, org)
             if standing is None or number not in standing.numbers:
                 return False
@@ -242,11 +241,5 @@ def _a_rule_info(fleet: str, org: str, trunk_id: str) -> api.SIPDispatchRuleInfo
 
 def trunks_for(settings: Settings) -> Trunks | None:
     """The SFU when the process has the LiveKit pair; None when it has none: the door says so."""
-    if settings.livekit_api_key and settings.livekit_api_secret:
-        return LivekitTrunks(
-            settings.livekit_url,
-            settings.livekit_api_key,
-            settings.livekit_api_secret,
-            settings.fleet,
-        )
-    return None
+    sfu = Sfu.of(settings)
+    return None if sfu is None else LivekitTrunks(sfu, settings.fleet)
