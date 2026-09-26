@@ -6,13 +6,21 @@ import secrets
 from typing import Protocol
 
 from pinecall.db import Pool
+from pinecall.errors import PinecallError
 from pinecall.types import Org, Quotas
 
 # An id is minted, never typed: a slug may be renamed one day and every row that names the org
 # must not notice. The default org and the tenants 0006 migrated are the exception — their id is
 # the word the old `fleet` column held, so a key issued then still names the same row.
+# A slug is an org's public name, and a box answers to each one once.
+SLUG_TAKEN = "{slug} is taken: pick another name for the org"
+
 ORG_ID_PREFIX = "org_"
 ORG_ID_BYTES = 6
+
+
+class SlugTaken(PinecallError):
+    """The slug a new org asked for already answers for another org on this box."""
 
 
 class Orgs(Protocol):

@@ -1,34 +1,30 @@
-"""The org a verified sign-up makes: the row, what the policy allows it, its admin and their key."""
+"""The org a verified sign-up founds: the row, what its policy allows, its admin and their key."""
 
 from __future__ import annotations
 
-from fastapi import HTTPException
+from dataclasses import dataclass
 
-from pinecall.api.accounts.api_keys import KeyIssued
-from pinecall.api.accounts.members import MemberSaid, wire_member
-from pinecall.auth.keys import Keys
-from pinecall.auth.login_codes import LoginCodes
+from pinecall.auth.keys import Issued, Keys
+from pinecall.auth.login_codes import Code, LoginCodes
 from pinecall.auth.members import Members
 from pinecall.auth.person_keys import mint_person_key
 from pinecall.auth.signups import Pending
 from pinecall.extensions import Extensions
-from pinecall.orgs.records import Orgs
-from pinecall.types import Env, Quotas
-
-TAKEN = "{slug} is taken: pick another name for the org"
+from pinecall.orgs.records import SLUG_TAKEN, Orgs, SlugTaken
+from pinecall.types import Env, Member, Org, Quotas
 
 # The label of the first key and the seat it names: the door it came through.
 SIGNED_UP = "signup"
 
 
-class OrgMade(KeyIssued):
-    """POST /v1/signup/verify: the admin's first key, the org's slug, their row, and a code the
-    console spends for a key of its own."""
+@dataclass(frozen=True)
+class OrgFounded:
+    """What founding left standing: the org, its first admin, their key, a code for the console."""
 
-    slug: str
-    member: MemberSaid
-    code: str
-    code_expires_at: float
+    org: Org
+    admin: Member
+    issued: Issued
+    code: Code
 
 
 # Everything here happens only once the address has proved itself: an org whose email nobody
@@ -42,13 +38,13 @@ async def make_org(
     keys: Keys,
     codes: LoginCodes,
     extensions: Extensions,
-) -> OrgMade:
+) -> OrgFounded:
     """The org made, allowed what its gateway's policy says, its admin active, their first key."""
     # Counted before the org exists: the orgs this person already had here (extensions/points.py).
     already = len(await members.orgs_of(pending.email))
     org = await orgs.create(pending.slug, pending.name or pending.slug)
     if org is None:
-        raise HTTPException(409, TAKEN.format(slug=pending.slug))
+        raise SlugTaken(SLUG_TAKEN.format(slug=pending.slug))
     # What this org may do is whoever charges for it's to say, through the point a package plugged
     # into (extensions/points.py); the runtime's own answer is no limit, and no limit is no row.
     allowed = extensions.admitted(org, pending.email, world, already)
@@ -61,20 +57,13 @@ async def make_org(
         raise RuntimeError(f"{pending.email} already accepted into the org it is founding")
     # A person who already has a password on this box is seated at once and keeps it: one person,
     # one password (auth/members.py). Anybody else spends the invitation with the one they chose.
-    member = (
+    admin = (
         invited.member
         if invited.token is None
         else await members.accept(invited.token, pending.hashed)
     )
-    if member is None:
+    if admin is None:
         raise RuntimeError(f"the invitation just made for {pending.email} seated nobody")
     # The admin's own key, which opens production too: an admin always does (0039).
-    issued = await mint_person_key(keys, member, device or pending.device or SIGNED_UP, world)
-    minted = codes.mint(issued.record)
-    return OrgMade(
-        **issued.as_json,
-        slug=org.slug,
-        member=wire_member(member),
-        code=minted.code,
-        code_expires_at=minted.expires_at,
-    )
+    issued = await mint_person_key(keys, admin, device or pending.device or SIGNED_UP, world)
+    return OrgFounded(org=org, admin=admin, issued=issued, code=codes.mint(issued.record))

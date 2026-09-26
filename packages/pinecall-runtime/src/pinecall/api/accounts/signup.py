@@ -8,9 +8,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.status import HTTP_201_CREATED, HTTP_202_ACCEPTED
 
+from pinecall.accounts import OrgFounded, make_org
+from pinecall.api.accounts.api_keys import KeyIssued
 from pinecall.api.accounts.identity import AtProduction
 from pinecall.api.accounts.login import NOBODY_ANYWHERE, throttle_client
-from pinecall.api.accounts.signing_up import TAKEN, OrgMade, make_org
+from pinecall.api.accounts.members import MemberSaid, wire_member
 from pinecall.api.deps import (
     ExtensionsDep,
     KeysDep,
@@ -26,6 +28,7 @@ from pinecall.auth import passwords
 from pinecall.auth.members import normalize_email
 from pinecall.auth.signups import NotVerified, Refusal
 from pinecall.mail import signup_code_letter
+from pinecall.orgs.records import SLUG_TAKEN, SlugTaken
 from pinecall.types import Member, parse_slug
 from pinecall_protocol import WireModel
 
@@ -86,6 +89,27 @@ class Verifying(WireModel):
     email: str
     code: str
     device: str | None = None
+
+
+class OrgMade(KeyIssued):
+    """POST /v1/signup/verify: the admin's first key, the org's slug, their row, and a code the
+    console spends for a key of its own."""
+
+    slug: str
+    member: MemberSaid
+    code: str
+    code_expires_at: float
+
+
+def wire_org_made(founded: OrgFounded) -> OrgMade:
+    """What the door answers of a founded org: the key in the clear, once, and its code beside."""
+    return OrgMade(
+        **founded.issued.as_json,
+        slug=founded.org.slug,
+        member=wire_member(founded.admin),
+        code=founded.code.code,
+        code_expires_at=founded.code.expires_at,
+    )
 
 
 class Resending(WireModel):
@@ -164,7 +188,7 @@ async def signup(
         raise HTTPException(409, ALREADY_INVITED.format(email=email))
     # Refused before a letter goes out; `create` asks again at verify, for a slug taken meanwhile.
     if await orgs.find(slug) is not None:
-        raise HTTPException(409, TAKEN.format(slug=slug))
+        raise SlugTaken(SLUG_TAKEN.format(slug=slug))
     pending, code = signups.begin(email, slug, said.name, said.person, hashed, said.device)
     await outbox.post(None, signup_code_letter(email, code, said.person, await outbox.brand()))
     return CodeMailed(email=email, code_expires_at=pending.expires_at)
@@ -191,9 +215,10 @@ async def verify(
     taken = signups.verify(normalize_email(said.email), said.code.strip())
     if isinstance(taken, NotVerified):
         raise HTTPException(400, REFUSED[taken.reason])
-    return await make_org(
+    founded = await make_org(
         taken, said.device, settings.world, orgs, members, keys, codes, extensions
     )
+    return wire_org_made(founded)
 
 
 # The same answer whatever the address: a door that said "nobody signed up as that" would be a

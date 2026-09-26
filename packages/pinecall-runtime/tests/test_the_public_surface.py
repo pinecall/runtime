@@ -14,6 +14,7 @@ pytestmark = pytest.mark.unit
 # Every package another package reads from has an index: its __init__ says, in one screen, what it
 # offers. api/ and cli/ have none on purpose: they are the doors and the verbs, read by nobody.
 PACKAGES = [
+    "accounts",
     "auth",
     "db",
     "errors",

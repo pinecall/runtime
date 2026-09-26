@@ -16,6 +16,7 @@ from pinecall.orgs.admission import QuotaExhausted
 from pinecall.orgs.caller_codes import TooManyCodes
 from pinecall.orgs.outbound_guards import DialRefused
 from pinecall.orgs.personas import NameTaken, NoSuchPersona
+from pinecall.orgs.records import SlugTaken
 from pinecall.orgs.tuning_store import VersionMoved
 from pinecall.providers.embedder import EmbedderUnreachable, WrongModel, WrongWidth
 from pinecall.providers.registry import NoProvider
@@ -48,6 +49,7 @@ STATUS_OF: dict[type[Exception], int] = {
     NotListed: 404,
     VersionMoved: 409,
     NameTaken: 409,
+    SlugTaken: 409,
     AlreadyRunning: 409,
     WrongWidth: 409,
     WrongModel: 409,

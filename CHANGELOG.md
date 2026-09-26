@@ -112,6 +112,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   none; a suite's run held one per run and closed it never.
 
 ### Changed
+- **Founding an org is a verb, not a door's helper.** `make_org` lived in `api/` and answered
+  the HTTP body itself (`OrgMade`) and `HTTPException(409)`; it is `pinecall.accounts.make_org`
+  now, returning `OrgFounded` and raising `orgs.SlugTaken`, which `api/refusals.py` maps to 409 once.
+  The door parses, calls it, and wires the answer.
 - **Every package opens with its index.** `orgs`, `routes`, `tokens`, `live`, `providers`,
   `session`, `session.text`, `session.voice` and `whatsapp` had an empty `__init__.py`: what each
   offered was spread over its files. Each lists now, in one screen, every name the rest of the tree

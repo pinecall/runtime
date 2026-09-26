@@ -40,10 +40,13 @@ MAY_IMPORT: dict[str, frozenset[str]] = {
     "memory": frozenset({"db", "log", "providers", "types"}),
     "knowledge": frozenset({"db", "providers", "types"}),
     "lookups": frozenset({"knowledge", "log", "memory", "types"}),
+    # What a person does with an account, across the domains it touches: an org founded at sign-up.
+    "accounts": frozenset({"auth", "extensions", "orgs", "types"}),
     # What this gateway process holds right now: the sockets, their agents and doors, the calls.
     "live": frozenset({"log", "lookups", "providers", "session", "types"}),
     "api": frozenset(
         {
+            "accounts",
             "auth",
             "db",
             "evals",

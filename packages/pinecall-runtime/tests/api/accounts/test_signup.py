@@ -9,12 +9,13 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.api.accounts.signup import NOT_HERE, TAKEN, TOO_MANY
+from pinecall.api.accounts.signup import NOT_HERE, TOO_MANY
 from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.throttle import TRIES_PER_WINDOW
 from pinecall.extensions import Extensions
 from pinecall.mail.outbox import Outbox
 from pinecall.mail.smtp import Mailbox
+from pinecall.orgs.records import SLUG_TAKEN
 from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.settings import Settings
 from pinecall.types import ROLE_SCOPES, Quotas
@@ -212,7 +213,10 @@ async def test_the_refusals_are_sentences_and_a_refused_signup_makes_no_org(
 ) -> None:
     assert (await signed_up(stranger, outbox, relay)).status_code == 201
     taken = await signed_up(stranger, outbox, relay, email="otra@tiendasur.uy")
-    assert (taken.status_code, taken.json()["detail"]) == (409, TAKEN.format(slug="tienda-sur"))
+    assert (taken.status_code, taken.json()["detail"]) == (
+        409,
+        SLUG_TAKEN.format(slug="tienda-sur"),
+    )
     bad_slug = await signed_up(stranger, outbox, relay, org="Tienda Sur")
     assert bad_slug.status_code == 400 and "lowercase" in bad_slug.json()["detail"]
     short = await signed_up(stranger, outbox, relay, org="corta", password="short")
