@@ -5,8 +5,8 @@ top of LiveKit: the **gateway**, the control plane, and the **worker**, the flee
 call. Everything else on a box — the SFU, the SIP bridge, Redis, Postgres — is somebody else's
 software, run as it ships. This page is the shape of the thing, read off the code: every module
 opens with one line that says what it is, `tests/test_isolation.py` says what may import what,
-and the *why* of each decision is a page under `docs/decisions/`, named where it applies — the
-maintainer's notebook, kept out of git, so a clone has the names and not the pages.
+the words the tree speaks are [docs/glossary.md](docs/glossary.md), and the *why* of each decision
+is a page under `docs/decisions/` — the maintainer's notebook, kept out of git, names and not pages.
 
 ```
    telephone ─► carrier trunk ─► SIP bridge ─┐

@@ -22,9 +22,12 @@ make deploy                                     # this checkout onto your box (d
 
 ## Structure
 
-- `src/pinecall/` — nineteen packages, none of them a process; ARCHITECTURE.md §11 is the import
-  table and `tests/test_isolation.py` enforces it
+- `src/pinecall/` — twenty packages, none of them a process; ARCHITECTURE.md §11 is the import
+  table and `tests/test_isolation.py` enforces it; the words they speak are `docs/glossary.md`
   - `types/` the shapes, no IO · `log/` the truth, no framework · `providers/` the only vendor names
+  - `auth/` keys, members, sign-in · `orgs/` the tenant's tables · `routes/` numbers and trunks at
+    the SFU · `tokens/` the room token and the seat · `whatsapp/` the text channel · `fleet/` the
+    workers' heartbeats and the loop over the clouds
   - `extensions/` the points a package beside the runtime plugs policy into — what a new org may
     do — spoken in mechanisms, never plans; the runtime answers them itself until told otherwise
   - `session/` one call, `text/` in the gateway and `voice/` in the worker · `evals/` the rings

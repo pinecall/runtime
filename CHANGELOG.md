@@ -136,6 +136,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   could make orgs for as many trials as they liked.
 
 ### Added
+- `docs/glossary.md`: the words the tree speaks — box, hub, instance, world and env, corner,
+  holder, door, knock, seat, floor, leg, line, kit, lending, standing, golden, ring — one meaning
+  each, and `CLAUDE.md` lists all twenty packages.
 - **Three more lines of the doctor:** `disk`, free space on the file system the recordings and
   the log land on, the verdict under two gigabytes; `fence`, whether `nftables` is active, the
   verdict on a box where it is not; `certificate`, how long the domain's certificate has left,
