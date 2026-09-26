@@ -11,10 +11,15 @@ requires-python = ">=3.12"
 dynamic = ["version"]
 authors = [{ name = "Bernardo Castro", email = "me@bernardocastro.dev" }]
 classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Operating System :: POSIX :: Linux",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Topic :: Communications :: Telephony",
   "Typing :: Typed",
 ]
+keywords = ["voice", "telephony", "livekit", "contact-center", "agents"]
 dependencies = [
   # A range, not a bare name: the wheel PyPI serves must say which protocol it speaks.
   # `[tool.uv.sources]` below still points a checkout at the repo next door — that is a
@@ -51,6 +56,13 @@ dependencies = [
   # is a microsecond per guess. A key is 256 bits of CSPRNG and stays on sha256 (auth/keys.py).
   "argon2-cffi>=23.1,<26",
 ]
+
+[project.urls]
+Homepage = "https://github.com/pinecall/runtime"
+Repository = "https://github.com/pinecall/runtime"
+Changelog = "https://github.com/pinecall/runtime/blob/main/CHANGELOG.md"
+Issues = "https://github.com/pinecall/runtime/issues"
+Security = "https://github.com/pinecall/runtime/blob/main/SECURITY.md"
 
 [project.optional-dependencies]
 # The worker's half: the three vendors LiveKit's own inference gateway does not front, so a

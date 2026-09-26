@@ -152,6 +152,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   could make orgs for as many trials as they liked.
 
 ### Added
+- The repository says how to report a weakness (`SECURITY.md`), how people are treated
+  (`CODE_OF_CONDUCT.md`), what an issue and a pull request say (`.github/ISSUE_TEMPLATE/`,
+  `.github/PULL_REQUEST_TEMPLATE.md`), what every editor agrees on (`.editorconfig`), and where
+  the project lives (`[project.urls]`, and the badges at the top of the README).
 - `docs/glossary.md`: the words the tree speaks — box, hub, instance, world and env, corner,
   holder, door, knock, seat, floor, leg, line, kit, lending, standing, golden, ring — one meaning
   each, and `CLAUDE.md` lists all twenty packages.

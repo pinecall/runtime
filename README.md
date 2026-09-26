@@ -1,5 +1,10 @@
 # pinecall
 
+[![ci](https://github.com/pinecall/runtime/actions/workflows/ci.yml/badge.svg)](https://github.com/pinecall/runtime/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/pinecall)](https://pypi.org/project/pinecall/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
+[![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
+
 The Pinecall voice-AI runtime: one Python distribution, two processes, on LiveKit.
 
 - `pinecall-runtime gateway` is the control plane: the app protocol over WebSocket, the call
@@ -255,6 +260,12 @@ gateway with the org's key.
 | `infra/box/README.md` | the box: standing one up, roles, slots, secrets, the fence, wiring a number |
 | `infra/README.md` | the dev stack |
 | `.env.example` | every variable both processes read, rendered from the settings class |
+
+## Contributing, and reporting a problem
+
+[CONTRIBUTING.md](CONTRIBUTING.md) is how a change is made and checked; [CLAUDE.md](CLAUDE.md)
+is the rulebook the tests enforce; [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) is how people are
+treated here. A weakness goes to [SECURITY.md](SECURITY.md), privately, before anywhere else.
 
 ## License
 
