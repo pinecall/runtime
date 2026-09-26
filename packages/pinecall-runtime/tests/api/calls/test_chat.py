@@ -13,9 +13,9 @@ from pinecall.auth.bearer import CLOSE_REASON_BYTES, POLICY_VIOLATION
 from pinecall_protocol import decode_entry, event_of
 from pinecall_protocol.events import CallSummary
 from pinecall_protocol.metrics import LLMMetrics
+from pinecall_testkit.fake_llm import FakeLLM, Scripted, a_call
 from tests.api.conftest import AGENT, CHAT
 from tests.api.talking import a_caller, a_frame, an_app, declared, entry_until
-from tests.session.fake_llm import FakeLLM, Scripted, a_call
 
 pytestmark = pytest.mark.unit
 

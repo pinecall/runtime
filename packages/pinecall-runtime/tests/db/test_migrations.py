@@ -6,7 +6,7 @@ import pytest
 
 from pinecall.db import MIGRATIONS
 from pinecall.db.migrating import every, file_hash
-from tests.support.tree import PACKAGE_ROOT, ROOT, modules_under
+from pinecall_testkit.tree import ROOT, package_dir, source_modules
 
 pytestmark = pytest.mark.unit
 
@@ -15,7 +15,7 @@ DDL = re.compile(r"\b(create|alter|drop)\s+table\b", re.IGNORECASE)
 
 # The one exception, named here so nobody has to guess whether it was an accident: the runner's own
 # bookkeeping table cannot be a migration, because it is what records that a migration ran.
-THE_RUNNERS_OWN_TABLE = (PACKAGE_ROOT / "db" / "migrating.py").relative_to(ROOT)
+THE_RUNNERS_OWN_TABLE = (package_dir("db") / "migrating.py").relative_to(ROOT)
 
 
 def test_every_migration_is_numbered_so_the_order_they_apply_in_is_the_order_they_read_in() -> None:
@@ -78,7 +78,7 @@ def test_no_python_module_but_the_migration_runner_writes_ddl() -> None:
     """The runner bootstraps its own record of what it applied; every other table is a migration."""
     offenders = [
         str(module.path)
-        for module in modules_under(PACKAGE_ROOT)
+        for module in source_modules()
         if module.path != THE_RUNNERS_OWN_TABLE
         and DDL.search((ROOT / module.path).read_text("utf-8"))
     ]

@@ -7,16 +7,20 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
-# The repository, and the two distributions under packages/: the runtime, and the core.
+# The repository, and every distribution of its workspace under packages/: a directory with a
+# pyproject.toml, whose code is a portion of the `pinecall` namespace (src/pinecall/) or the
+# testkit's own package, and whose suite is its tests/.
 ROOT = Path(__file__).resolve().parents[4]
-RUNTIME = ROOT / "packages" / "pinecall-runtime"
-PACKAGE_ROOT = RUNTIME / "src" / "pinecall"
-TESTS_ROOT = RUNTIME / "tests"
-# The other portion of the `pinecall` namespace: pinecall-core, a distribution of its own.
-CORE = ROOT / "packages" / "pinecall-core"
-CORE_ROOT = CORE / "src" / "pinecall"
-CORE_TESTS_ROOT = CORE / "tests"
-SOURCE_ROOTS = (PACKAGE_ROOT, CORE_ROOT)
+PACKAGES = ROOT / "packages"
+DISTRIBUTIONS = tuple(sorted(d for d in PACKAGES.iterdir() if (d / "pyproject.toml").is_file()))
+# Every portion of the namespace: what `pinecall.<package>` resolves to, one directory each.
+SOURCE_ROOTS = tuple(
+    d / "src" / "pinecall" for d in DISTRIBUTIONS if (d / "src" / "pinecall").is_dir()
+)
+TEST_ROOTS = tuple(d / "tests" for d in DISTRIBUTIONS if (d / "tests").is_dir())
+TESTKIT_ROOT = PACKAGES / "pinecall-testkit" / "src" / "pinecall_testkit"
+# The kernel the rules single out: the shapes and the points, on the standard library alone.
+CORE_ROOT = PACKAGES / "pinecall-core" / "src" / "pinecall"
 
 
 @dataclass(frozen=True)
@@ -48,18 +52,30 @@ def modules_under(directory: Path) -> tuple[PythonModule, ...]:
     return tuple(_read_module(path) for path in sorted(directory.rglob("*.py")))
 
 
+def source_modules() -> tuple[PythonModule, ...]:
+    """Every module of every portion of the namespace: the code the distributions ship."""
+    return tuple(module for root in SOURCE_ROOTS for module in modules_under(root))
+
+
 def every_module() -> tuple[PythonModule, ...]:
-    """Everything the two distributions own: their source, and the tests that read it."""
+    """Everything the workspace owns: the shipped code, the testkit, and every suite."""
     return (
-        modules_under(PACKAGE_ROOT)
-        + modules_under(CORE_ROOT)
-        + modules_under(TESTS_ROOT)
-        + modules_under(CORE_TESTS_ROOT)
+        source_modules()
+        + modules_under(TESTKIT_ROOT)
+        + tuple(module for root in TEST_ROOTS for module in modules_under(root))
     )
 
 
+def package_of(module: PythonModule) -> str:
+    """The `pinecall.<package>` a shipped module belongs to: its first directory under its root."""
+    for root in SOURCE_ROOTS:
+        if (ROOT / module.path).is_relative_to(root):
+            return (ROOT / module.path).relative_to(root).parts[0]
+    raise ValueError(f"{module.path} is not shipped code")
+
+
 def package_dir(name: str) -> Path:
-    """Where `pinecall/<name>` lives: under the runtime's source or the core's, never both."""
+    """Where `pinecall/<name>` lives: in exactly one distribution's source."""
     found = [root / name for root in SOURCE_ROOTS if (root / name).is_dir()]
     assert len(found) == 1, f"pinecall/{name} is in {len(found)} source roots: {found}"
     return found[0]

@@ -1,4 +1,4 @@
-"""A Memory answering from a script, the one call this suite serves; the Knowledge, re-exported."""
+"""A Memory answering from a script, and the one call a lookup suite serves."""
 
 from __future__ import annotations
 
@@ -40,9 +40,7 @@ from pinecall_protocol import encode
 from pinecall_protocol.defs import MemoryOp
 from pinecall_protocol.events import AgentTurnEnded, UserTurnEnded
 from pinecall_protocol.metrics import AgentTurnMetrics, UserTurnMetrics
-from tests.lookups.fake_knowledge import LEARNED, THE_MODEL, ScriptedKnowledge, a_chunk
-
-__all__ = ["LEARNED", "THE_MODEL", "ScriptedKnowledge", "a_chunk"]
+from pinecall_testkit.fake_knowledge import LEARNED, ScriptedKnowledge
 
 ORG = "clinica"
 CALL = "call_filled"

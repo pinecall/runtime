@@ -12,6 +12,7 @@ resolution-markers = [
 members = [
     "pinecall",
     "pinecall-core",
+    "pinecall-testkit",
 ]
 
 [manifest.dependency-groups]
@@ -19,6 +20,7 @@ dev = [
     { name = "deptry", specifier = ">=0.24,<1" },
     { name = "hypothesis", specifier = ">=6.140,<7" },
     { name = "mypy", specifier = "==2.3.1" },
+    { name = "pinecall-testkit", editable = "packages/pinecall-testkit" },
     { name = "pyright", specifier = "==1.1.411" },
     { name = "pytest", specifier = ">=9,<10" },
     { name = "pytest-asyncio", specifier = ">=1.4,<2" },
@@ -3495,6 +3497,35 @@ dev = [
     { name = "pyright", specifier = "==1.1.411" },
     { name = "pytest", specifier = ">=9,<10" },
     { name = "ruff", specifier = ">=0.16,<1" },
+]
+
+[[package]]
+name = "pinecall-testkit"
+version = "0.1.0"
+source = { editable = "packages/pinecall-testkit" }
+dependencies = [
+    { name = "asyncpg" },
+    { name = "cryptography" },
+    { name = "httpx" },
+    { name = "hypothesis" },
+    { name = "livekit-agents" },
+    { name = "pinecall" },
+    { name = "pinecall-protocol" },
+    { name = "pyjwt" },
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "asyncpg", specifier = ">=0.29,<1" },
+    { name = "cryptography", specifier = ">=44,<51" },
+    { name = "httpx", specifier = ">=0.27,<1" },
+    { name = "hypothesis", specifier = ">=6.140,<7" },
+    { name = "livekit-agents", specifier = ">=1.8,<2" },
+    { name = "pinecall", editable = "packages/pinecall-runtime" },
+    { name = "pinecall-protocol", editable = "../protocol/python" },
+    { name = "pyjwt", specifier = ">=2.13.0" },
+    { name = "pytest", specifier = ">=9,<10" },
 ]
 
 [[package]]

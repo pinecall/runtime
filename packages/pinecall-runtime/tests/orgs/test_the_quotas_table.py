@@ -12,8 +12,8 @@ from pinecall.orgs.vault import build_cipher
 from pinecall.orgs.widgets import Widget
 from pinecall.orgs.widgets_postgres import PostgresWidgets
 from pinecall.types import QUOTAS, OrgSso, Quotas
-from tests.api.conftest import A_VAULT_KEY
-from tests.support.postgres import Dev
+from pinecall_testkit.keys import A_VAULT_KEY
+from pinecall_testkit.postgres import Dev
 
 pytestmark = pytest.mark.postgres
 

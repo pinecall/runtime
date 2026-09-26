@@ -10,8 +10,8 @@ import pytest
 from pinecall.db import Pool, open_pool
 from pinecall.orgs.personas import NameTaken, NoSuchPersona
 from pinecall.orgs.personas_postgres import PostgresPersonas
-from tests.support.pools import Held, acquired
-from tests.support.postgres import Dev
+from pinecall_testkit.pools import Held, acquired
+from pinecall_testkit.postgres import Dev
 
 pytestmark = pytest.mark.postgres
 

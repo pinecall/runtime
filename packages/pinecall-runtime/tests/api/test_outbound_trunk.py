@@ -12,9 +12,10 @@ from pinecall.orgs.outbound_credentials_memory import MemoryOutboundTrunks
 from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.settings import Settings
 from pinecall.types import DialPolicy, Route
+from pinecall_testkit.fake_media import MemoryOutbound
+from pinecall_testkit.keys import A_VAULT_KEY
 from tests.api.carriers import A_KEY_SID, A_SID, FakeTwilio
-from tests.api.conftest import A_LIVEKIT, A_RECORD, A_VAULT_KEY, AGENT, AN_OPS_KEY
-from tests.routes.fakes import MemoryOutbound
+from tests.api.conftest import A_LIVEKIT, A_RECORD, AGENT, AN_OPS_KEY
 
 pytestmark = pytest.mark.unit
 

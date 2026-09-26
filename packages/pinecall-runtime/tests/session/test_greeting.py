@@ -10,7 +10,7 @@ from pinecall.session import greeting
 from pinecall.session.text.session import TextSession
 from pinecall.types import AgentConfig, CallContext, DeclarationRefused, Greeting, Route
 from pinecall.types.agent import GREETING_IS_ONE_VERB
-from tests.session.fake_llm import FakeLLM, Scripted
+from pinecall_testkit.fake_llm import FakeLLM, Scripted
 
 pytestmark = pytest.mark.unit
 

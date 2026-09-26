@@ -12,7 +12,7 @@ from pinecall.log.store import MemoryStore
 from pinecall.session.text.session import TextSession
 from pinecall.types import AgentConfig, CallContext, Route, ToolSpec
 from pinecall_protocol import defs
-from tests.session.fake_llm import FakeLLM, Scripted, a_call
+from pinecall_testkit.fake_llm import FakeLLM, Scripted, a_call
 
 pytestmark = pytest.mark.unit
 

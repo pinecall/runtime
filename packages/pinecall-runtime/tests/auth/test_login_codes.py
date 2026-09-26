@@ -4,7 +4,7 @@ import pytest
 
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.login_codes import CODE_PREFIX, CODE_TTL_S, LoginCodes
-from tests.support.clocks import Clock
+from pinecall_testkit.clocks import Clock
 
 pytestmark = pytest.mark.unit
 

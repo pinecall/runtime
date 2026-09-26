@@ -9,7 +9,7 @@ import pytest
 from pinecall.tokens.scopes import SCOPE_ATTRIBUTE
 from pinecall.types import Scope
 from pinecall.worker import caller_seat
-from tests.session.voice.room.fakes import (
+from pinecall_testkit.fake_room import (
     FakeParticipant,
     a_caller,
     a_connected_room,

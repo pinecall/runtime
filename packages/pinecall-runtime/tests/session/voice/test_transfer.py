@@ -16,8 +16,8 @@ from livekit.protocol.sip import (
 
 from pinecall.session.voice import commands
 from pinecall_protocol import Command
-from tests.session.voice.fakes import ScriptedSession
-from tests.session.voice.room.fakes import TRUNK, FakeApi, Held, a_caller, a_held_room
+from pinecall_testkit.fake_platform import ScriptedSession
+from pinecall_testkit.fake_room import TRUNK, FakeApi, Held, a_caller, a_held_room
 from tests.session.voice.test_commands import End, Prompt, Recorded
 
 pytestmark = pytest.mark.unit

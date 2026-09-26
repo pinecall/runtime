@@ -17,8 +17,8 @@ from pinecall.providers.models import Chat
 from pinecall.types import PRODUCTION, Brought, Model, ProviderKeys
 from pinecall_protocol import decode_entries, defs
 from pinecall_protocol.envelope import Entry
+from pinecall_testkit.fake_llm import FakeLLM
 from tests.api.conftest import A_KEY, A_RECORD
-from tests.session.fake_llm import FakeLLM
 
 # Not goldens: no reducer on either side is judged by them. They are the hand-written logs the
 # judges and the ring-3 checks are pinned against, read from where tests/evals keeps them.

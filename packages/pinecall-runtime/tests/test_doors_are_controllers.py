@@ -5,7 +5,7 @@ from collections.abc import Iterator
 
 import pytest
 
-from tests.support.tree import ROOT
+from pinecall_testkit.tree import ROOT
 
 pytestmark = pytest.mark.unit
 

@@ -6,8 +6,8 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from tests.conftest import SEARCH_S
-from tests.support.tree import ROOT, every_module, tracked_files
+from pinecall_testkit.ring0 import SEARCH_S
+from pinecall_testkit.tree import ROOT, every_module, tracked_files
 
 pytestmark = pytest.mark.unit
 

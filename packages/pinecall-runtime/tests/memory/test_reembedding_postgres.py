@@ -10,7 +10,7 @@ import pytest
 
 from pinecall.memory.reembedding_postgres import reembed
 from pinecall.providers.embedder import DIMENSIONS
-from tests.support.pools import Held, acquired
+from pinecall_testkit.pools import Held, acquired
 
 pytestmark = pytest.mark.unit
 

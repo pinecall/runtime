@@ -15,9 +15,9 @@ from pinecall.session.voice.tools import Tools, render_confirm
 from pinecall_protocol import WireModel, defs, encode
 from pinecall_protocol.defs import ToolResult
 from pinecall_protocol.events import ToolCall
-from tests.session.fake_llm import FakeLLM, Scripted
-from tests.session.voice.fakes import BOOK, CALL, CLARA, FIND, Recording
-from tests.session.voice.fakes import a_call as a_context
+from pinecall_testkit.fake_llm import FakeLLM, Scripted
+from pinecall_testkit.fake_platform import BOOK, CALL, CLARA, FIND, Recording
+from pinecall_testkit.fake_platform import a_call as a_context
 
 pytestmark = pytest.mark.unit
 

@@ -13,7 +13,7 @@ from pinecall.orgs.carriers_postgres import PostgresCarriers
 from pinecall.orgs.records_postgres import PostgresOrgs
 from pinecall.settings import Settings
 from pinecall.types import Carrier, SipPeer, TwilioAccount
-from tests.support.postgres import Dev
+from pinecall_testkit.postgres import Dev
 
 A_SID = "AC" + "0" * 32
 TWILIO = TwilioAccount(A_SID, A_SID, "the-auth-token")

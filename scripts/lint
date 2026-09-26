@@ -11,7 +11,9 @@ uv run ruff check .
 uv run pyright
 uv run pyright --project infra/tools
 uv run mypy
-uv run deptry packages/pinecall-runtime/src --config packages/pinecall-runtime/pyproject.toml
-uv run deptry packages/pinecall-core/src --config packages/pinecall-core/pyproject.toml
+# What each distribution imports against what its own pyproject declares, both ways.
+for distribution in packages/*/; do
+  uv run deptry "${distribution}src" --config "${distribution}pyproject.toml"
+done
 # Last, because it is about what a migration does to a box and not about whether the tree parses.
 scripts/lint-migrations

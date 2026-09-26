@@ -11,8 +11,8 @@ from livekit.agents import llm as agents
 from livekit.agents.voice import Agent
 
 from pinecall.session import date_tool
-from tests.session.fake_llm import FakeLLM
-from tests.session.voice.silence import anthropic_request
+from pinecall_testkit.fake_llm import FakeLLM
+from pinecall_testkit.silent_kit import anthropic_request
 
 pytestmark = pytest.mark.unit
 

@@ -3,7 +3,7 @@
 import httpx
 import pytest
 
-from tests.support.plugins import without_the_plugin
+from pinecall_testkit.plugins import without_the_plugin
 
 pytestmark = pytest.mark.unit
 

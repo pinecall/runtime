@@ -4,7 +4,7 @@ import pytest
 
 from pinecall.providers.models import Chat, Models
 from pinecall.types import Brought, Model, ProviderKeys
-from tests.session.fake_llm import FakeLLM
+from pinecall_testkit.fake_llm import FakeLLM
 
 
 @pytest.fixture

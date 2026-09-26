@@ -12,7 +12,7 @@ from pinecall.orgs.box_settings_memory import MemoryBoxSettings
 from pinecall.orgs.box_settings_postgres import PostgresBoxSettings
 from pinecall.orgs.vault import NoVaultKey
 from pinecall.settings import Settings
-from tests.support.postgres import Dev
+from pinecall_testkit.postgres import Dev
 
 pytestmark = pytest.mark.unit
 

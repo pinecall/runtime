@@ -21,7 +21,7 @@ from pinecall.auth.openid import (
     exchange,
     reachable,
 )
-from tests.api.fake_idp import CLIENT_ID, CLIENT_SECRET, ISSUER, KID, FakeIdp, signing_key
+from pinecall_testkit.fake_idp import CLIENT_ID, CLIENT_SECRET, ISSUER, KID, FakeIdp, signing_key
 
 pytestmark = pytest.mark.unit
 

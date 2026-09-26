@@ -13,11 +13,11 @@ from pinecall.live.calls import Live
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.types import AgentConfig
+from pinecall_testkit.clocks import Clock
+from pinecall_testkit.fake_media import MemoryRooms
 from tests.api.conftest import A_RECORD
 from tests.api.talking import a_context as a_call_on
 from tests.api.talking import got
-from tests.routes.fakes import MemoryRooms
-from tests.support.clocks import Clock
 
 pytestmark = pytest.mark.unit
 

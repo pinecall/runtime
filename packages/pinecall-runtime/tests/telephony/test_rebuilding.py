@@ -11,7 +11,7 @@ from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.routes.twilio import TWILIO_SIGNALLING
 from pinecall.telephony.rebuilding import reconcile_sip
 from pinecall.types import Carrier, OutboundTrunk, Route, SipPeer, TwilioAccount
-from tests.routes.fakes import MemoryOutbound, MemoryTrunks
+from pinecall_testkit.fake_media import MemoryOutbound, MemoryTrunks
 
 pytestmark = pytest.mark.unit
 

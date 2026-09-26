@@ -12,8 +12,8 @@ from pinecall.session.voice.bridge import build_bridge
 from pinecall.session.voice.sealing import THE_LOG_NEVER_ARRIVED
 from pinecall.settings import Budgets
 from pinecall.types.json import JsonObject
-from tests.session.voice.fakes import CLARA, Recording
-from tests.session.voice.fakes import a_call as a_context
+from pinecall_testkit.fake_platform import CLARA, Recording
+from pinecall_testkit.fake_platform import a_call as a_context
 
 pytestmark = pytest.mark.unit
 

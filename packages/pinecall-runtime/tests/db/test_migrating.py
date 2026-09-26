@@ -27,8 +27,8 @@ from pinecall.db.migrating import (
     migration_files,
     migrations_applied,
 )
+from pinecall_testkit.postgres import Dev
 from tests.db.test_migrations import the_lock
-from tests.support.postgres import Dev
 
 pytestmark = pytest.mark.postgres
 

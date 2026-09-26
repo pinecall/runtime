@@ -9,9 +9,10 @@ from pinecall.api.deps import NO_MEMORY
 from pinecall.memory.protocol import DEFAULT_FACTS_PER_TURN
 from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.types import Quotas
+from pinecall_testkit.fake_knowledge import LEARNED
+from pinecall_testkit.fake_memory import ScriptedMemory, a_fact
+from pinecall_testkit.vectors import HASH_MODEL
 from tests.api.conftest import A_RECORD
-from tests.lookups.fakes import LEARNED, ScriptedMemory, a_fact
-from tests.support.vectors import HASH_MODEL
 
 pytestmark = pytest.mark.unit
 

@@ -13,9 +13,10 @@ from pinecall.types import PRODUCTION, Docs, MemoryPolicy, Tuning
 from pinecall.worker.gateway_client import Gateway
 from pinecall.worker.gateway_http import GatewayRefused
 from pinecall_protocol import defs
+from pinecall_testkit.fake_knowledge import ScriptedKnowledge, a_chunk
+from pinecall_testkit.fake_memory import ScriptedMemory, a_fact
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, over_the_asgi_app
 from tests.api.talking import a_context
-from tests.lookups.fakes import ScriptedKnowledge, ScriptedMemory, a_chunk, a_fact
 
 pytestmark = pytest.mark.unit
 

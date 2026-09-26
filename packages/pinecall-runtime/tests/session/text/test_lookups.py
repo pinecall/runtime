@@ -15,7 +15,7 @@ from pinecall.log.store import MemoryStore
 from pinecall.session.text.session import TextSession
 from pinecall.settings import Budgets
 from pinecall.types import AgentConfig, CallContext, Docs, MemoryPolicy, PlatformTool, Route
-from tests.session.fake_llm import FakeLLM, Scripted
+from pinecall_testkit.fake_llm import FakeLLM, Scripted
 from tests.session.text.test_session import A_CALL, A_TUESDAY, AGENT
 
 pytestmark = pytest.mark.unit

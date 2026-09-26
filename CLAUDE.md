@@ -13,7 +13,7 @@ scripts/bootstrap                               # uv sync (runtime · providers 
 scripts/format                                  # ruff format, then the fixable lint rules
 scripts/lint                                    # ruff · pyright · mypy · deptry · squawk over unlanded migrations — the gate
 scripts/test                                    # pytest -m "unit or postgres" + infra/tools/tests + the core's suite, coverage to its floor
-uv run pytest -m unit                           # ring 0: no keys, no network, SHUFFLED — three green runs, or nothing
+scripts/unit                                    # ring 0 over every suite: no keys, no network, SHUFFLED — twice green, or nothing
 uv run pytest packages/pinecall-runtime/tests/cli/doctor/test_verbs.py    # one file
 uv run pinecall-runtime gateway | worker dev | migrate up | doctor
 scripts/generate-env-example                    # after touching settings/schema.py; a test fails while it drifts
@@ -47,8 +47,8 @@ make deploy                                     # this checkout onto your box (d
   - `settings/` the configuration: `schema.py` every variable once, `vendor_keys.py` the vendors'
     own names, `load_settings()` the one reader · `_version.py` the version, the maintainer's number
 - each distribution's `tests/` mirrors its `src/pinecall/`, a directory per package
-  (`test_the_tests_mirror_the_source.py`); what every suite leans on is `tests/support/` (clocks,
-  pools, a Postgres, vectors, the tree). `test_isolation.py`, `test_layout.py`, `test_ports_and_adapters.py`,
+  (`test_the_tests_mirror_the_source.py`); what more than one suite leans on is
+  `packages/pinecall-testkit` (the ring-0 plugin, clocks, pools, a Postgres, the tree, the shared fakes). `test_isolation.py`, `test_layout.py`, `test_ports_and_adapters.py`,
   `test_doors_are_controllers.py`, `test_the_public_surface.py` are the tree's own rules
 - `infra/box/` the declared box (cloud-init, units, Quadlets, the fence, the manifest Makefile);
   `infra/compose/` the dev stack; the root `Makefile` is the deploy
@@ -94,7 +94,7 @@ happened and the doc is the bug.
 - A lookup is run by the gateway, never by the app: the worker asks over HTTP
   (`POST /v1/calls/{call}/lookup`, `/remember`), the text session asks `lookups/` in-process, and
   `worker/` imports none of `memory/`, `knowledge/`, `lookups/`.
-- Unit tests run on dead-sentinel keys (`tests/conftest.py`): everything constructs, a real call
+- Unit tests run on dead-sentinel keys (`pinecall_testkit/ring0.py`): everything constructs, a real call
   dies in seconds. The same golden log reduces to the same state here and in TypeScript.
 
 ## What a review comes back to

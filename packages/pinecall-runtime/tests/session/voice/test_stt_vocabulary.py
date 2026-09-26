@@ -6,7 +6,7 @@ import pytest
 
 from pinecall.session.voice import stt_vocabulary
 from pinecall.types import AgentConfig
-from tests.session.voice.silence import SilentEars
+from pinecall_testkit.silent_kit import SilentEars
 
 pytestmark = pytest.mark.unit
 

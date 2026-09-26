@@ -10,10 +10,10 @@ import pytest
 from pinecall.api.ops.box_mail import NOTHING_STORED, NOTHING_TO_TEST
 from pinecall.mail import Outbox
 from pinecall.orgs.vault import NO_VAULT_KEY
+from pinecall_testkit.fake_smtp import FakeSmtp
 from tests.api.mailing import A_BOX_SENDER
 from tests.api.no_vault import OnABoxWithNoVaultKey
 from tests.api.test_members_and_login import invited
-from tests.mail.fake_smtp import FakeSmtp
 
 pytestmark = pytest.mark.unit
 

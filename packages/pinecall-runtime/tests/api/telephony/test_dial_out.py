@@ -15,8 +15,8 @@ from pinecall.routes.dispatch import metadata_of
 from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.types import DialPolicy, OutboundTrunk, Route
 from pinecall.types.dispatch import DIAL_KEY, DIRECTION_KEY, ORG_KEY
+from pinecall_testkit.fake_media import MemoryDispatches
 from tests.api.conftest import A_RECORD, AGENT
-from tests.routes.fakes import MemoryDispatches
 
 pytestmark = pytest.mark.unit
 

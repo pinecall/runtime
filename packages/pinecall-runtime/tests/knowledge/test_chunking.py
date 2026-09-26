@@ -17,7 +17,7 @@ from pinecall.knowledge.chunking import (
 )
 from pinecall.types import KnowledgeFile
 from pinecall.types.token_estimate import estimated_tokens
-from tests.conftest import SEARCH_S
+from pinecall_testkit.ring0 import SEARCH_S
 
 pytestmark = pytest.mark.unit
 

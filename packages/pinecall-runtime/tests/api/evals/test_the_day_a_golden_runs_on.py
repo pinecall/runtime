@@ -19,8 +19,8 @@ from pinecall.session import date_tool
 from pinecall.session.text.session import TextSession
 from pinecall.settings import Budgets
 from pinecall.types import PRODUCTION, AgentConfig
-from tests.lookups.fakes import a_plan, the_tenants
-from tests.session.fake_llm import FakeLLM
+from pinecall_testkit.fake_llm import FakeLLM
+from pinecall_testkit.fake_memory import a_plan, the_tenants
 
 pytestmark = pytest.mark.unit
 

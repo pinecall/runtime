@@ -12,7 +12,7 @@ from pinecall.session.voice.hold_melody import HoldMusic
 from pinecall.session.voice.log_writer import Writing
 from pinecall.session.voice.on_hold import Line
 from pinecall_protocol import Command
-from tests.session.voice.fakes import CALL, Recording, ScriptedSession
+from pinecall_testkit.fake_platform import CALL, Recording, ScriptedSession
 from tests.session.voice.test_commands import End, Prompt, Recorded
 
 pytestmark = pytest.mark.unit

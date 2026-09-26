@@ -17,12 +17,12 @@ from pinecall.types import CallContext, Quotas, Route
 from pinecall.types.org import Ceiling
 from pinecall.worker.gateway_client import Gateway
 from pinecall.worker.gateway_http import GatewayRefused
+from pinecall_testkit.fake_llm import FakeLLM, Scripted
+from pinecall_testkit.usage import A_SUMMARY
 from tests.api.calls.tokens.test_the_door import minted
 from tests.api.conftest import A_KEY, A_RECORD, AGENT
 from tests.api.talking import a_caller, a_door, a_register, an_app, entry_until
 from tests.api.test_worker_doors import declared
-from tests.log.test_usage import A_SUMMARY
-from tests.session.fake_llm import FakeLLM, Scripted
 
 pytestmark = pytest.mark.unit
 

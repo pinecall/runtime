@@ -10,7 +10,7 @@ from pinecall.providers.models import DEFAULT_VENDOR, NoProvider, models_for, ve
 from pinecall.providers.registry import Asked
 from pinecall.settings import Settings
 from pinecall.types import NOTHING_BROUGHT, Brought, Model
-from tests.support.plugins import without_the_plugin
+from pinecall_testkit.plugins import without_the_plugin
 
 pytestmark = pytest.mark.unit
 

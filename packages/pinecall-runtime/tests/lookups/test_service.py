@@ -17,15 +17,13 @@ from pinecall.providers.embed.tei import DID_NOT_ANSWER
 from pinecall.providers.embedder import EmbedderUnreachable
 from pinecall.session.lookup_tools import tool_result_json
 from pinecall.types import Contact, Docs, Quotas
-from tests.api.conftest import A_VAULT_KEY
-from tests.lookups.fakes import (
+from pinecall_testkit.fake_knowledge import ScriptedKnowledge, a_chunk
+from pinecall_testkit.fake_memory import (
     CALL,
     ORG,
     THE_NUMBER,
     OneCall,
-    ScriptedKnowledge,
     ScriptedMemory,
-    a_chunk,
     a_config,
     a_context,
     a_fact,
@@ -33,6 +31,7 @@ from tests.lookups.fakes import (
     a_served_call,
     the_tenants,
 )
+from pinecall_testkit.keys import A_VAULT_KEY
 
 pytestmark = pytest.mark.unit
 

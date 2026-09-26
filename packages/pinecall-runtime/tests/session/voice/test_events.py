@@ -17,7 +17,7 @@ from livekit.agents.voice import events as session_events
 from pinecall.session.voice.events import Events
 from pinecall.session.voice.log_writer import Writing
 from pinecall.session.voice.metrics import Meters
-from tests.session.voice.fakes import CALL, Recording, ScriptedSession
+from pinecall_testkit.fake_platform import CALL, Recording, ScriptedSession
 
 pytestmark = pytest.mark.unit
 

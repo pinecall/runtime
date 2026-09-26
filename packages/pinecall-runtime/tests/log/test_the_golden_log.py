@@ -10,7 +10,7 @@ from pinecall.log.reduce import apply, reduce
 from pinecall_protocol import decode_entries, decode_entry, encode
 from pinecall_protocol.envelope import Entry
 from pinecall_protocol.fixtures import GOLDEN_LOG, GOLDEN_STATE
-from tests.conftest import SEARCH_S
+from pinecall_testkit.ring0 import SEARCH_S
 
 pytestmark = pytest.mark.unit
 

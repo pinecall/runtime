@@ -13,10 +13,10 @@ from pinecall.db import open_pool
 from pinecall.knowledge import PgKnowledge
 from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.types import PRODUCTION, KnowledgeFile, Org, Quotas
+from pinecall_testkit.knowledge_files import CLINICA, TARIFAS
+from pinecall_testkit.postgres import Dev
+from pinecall_testkit.vectors import HashEmbedder
 from tests.api.conftest import A_KEY
-from tests.knowledge.files import CLINICA, TARIFAS
-from tests.support.postgres import Dev
-from tests.support.vectors import HashEmbedder
 
 pytestmark = pytest.mark.postgres
 

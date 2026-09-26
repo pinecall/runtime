@@ -11,9 +11,9 @@ from starlette.websockets import WebSocketDisconnect
 
 from pinecall.api.calls.chat import hung_up_by
 from pinecall.log.writers import Logs
+from pinecall_testkit.fake_llm import FakeLLM, Scripted
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, CHAT
 from tests.api.talking import an_app, declared, entry_until
-from tests.session.fake_llm import FakeLLM, Scripted
 
 pytestmark = pytest.mark.unit
 

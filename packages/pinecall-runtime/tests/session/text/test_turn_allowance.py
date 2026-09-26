@@ -11,7 +11,7 @@ from pinecall.log.store import MemoryStore
 from pinecall.session.text.session import TextSession
 from pinecall.session.text.turn_allowance import Allowance, TurnRefused
 from pinecall.types import AgentConfig, CallContext, Route
-from tests.session.fake_llm import FakeLLM, Scripted
+from pinecall_testkit.fake_llm import FakeLLM, Scripted
 
 pytestmark = pytest.mark.unit
 

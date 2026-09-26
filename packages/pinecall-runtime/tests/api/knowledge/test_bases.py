@@ -8,8 +8,8 @@ import pytest
 from pinecall.api.deps import NO_KNOWLEDGE
 from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.types import Chunk, Quotas
+from pinecall_testkit.fake_knowledge import ScriptedKnowledge
 from tests.api.conftest import A_RECORD
-from tests.lookups.fakes import ScriptedKnowledge
 
 pytestmark = pytest.mark.unit
 

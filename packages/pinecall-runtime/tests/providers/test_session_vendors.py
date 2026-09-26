@@ -7,25 +7,10 @@ import pytest
 from livekit.plugins import cartesia, deepgram, elevenlabs, openai
 
 from pinecall.providers.session_vendors import Pipeline, pipeline_for
-from pinecall.settings import Settings
 from pinecall.types import NOTHING_BROUGHT, AgentConfig, Model, Turn, Voice
+from pinecall_testkit.keyed import keyed_for_every_vendor
 
 pytestmark = pytest.mark.unit
-
-A_KEY = "nobody-will-ever-deploy-this"
-
-
-def settings() -> Settings:
-    """A process that read a key for every vendor this suite builds."""
-    return Settings(
-        world="production",
-        anthropic_api_key=A_KEY,
-        openai_api_key=A_KEY,
-        soniox_api_key=A_KEY,
-        deepgram_api_key=A_KEY,
-        eleven_api_key=A_KEY,
-        cartesia_api_key=A_KEY,
-    )
 
 
 def test_a_pipeline_is_the_three_vendors_livekit_does_not_bring_itself() -> None:
@@ -38,7 +23,9 @@ def test_an_agent_that_declares_nothing_still_gets_a_whole_pipeline(
 ) -> None:
     """A blank declaration once silenced a whole line of calls: it warns now, per modality."""
     with caplog.at_level(logging.WARNING, logger="pinecall.providers.session_vendors"):
-        built = pipeline_for(AgentConfig(slug="clinica-norte"), settings(), NOTHING_BROUGHT)
+        built = pipeline_for(
+            AgentConfig(slug="clinica-norte"), keyed_for_every_vendor(), NOTHING_BROUGHT
+        )
     assert isinstance(built.stt, deepgram.STTv2)
     assert isinstance(built.tts, cartesia.TTS)
     assert built.llm.label == "livekit.plugins.anthropic.llm.LLM"
@@ -57,7 +44,7 @@ def test_every_vendor_an_agent_names_is_the_one_it_gets() -> None:
         stt=Model(provider="deepgram", model="flux-general-multi"),
         voice=Voice(provider="elevenlabs", model="eleven_v3_conversational", voice_id="a-voice"),
     )
-    built = pipeline_for(declared, settings(), NOTHING_BROUGHT)
+    built = pipeline_for(declared, keyed_for_every_vendor(), NOTHING_BROUGHT)
     assert isinstance(built.llm, openai.LLM)
     assert isinstance(built.stt, deepgram.STTv2)
     assert isinstance(built.tts, elevenlabs.TTS)
@@ -68,7 +55,7 @@ def test_every_vendor_an_agent_names_is_the_one_it_gets() -> None:
 
 def test_the_agents_turn_declaration_reaches_the_ears_and_nothing_else() -> None:
     declared = AgentConfig(slug="clinica-norte", turn=Turn(endpointing_ms=650))
-    built = pipeline_for(declared, settings(), NOTHING_BROUGHT)
+    built = pipeline_for(declared, keyed_for_every_vendor(), NOTHING_BROUGHT)
     assert isinstance(built.stt, deepgram.STTv2)
     assert built.stt._opts.eot_timeout_ms == 650  # pyright: ignore[reportPrivateUsage]
 
@@ -76,7 +63,9 @@ def test_the_agents_turn_declaration_reaches_the_ears_and_nothing_else() -> None
 def test_a_declared_language_reaches_the_voice_and_the_ears_as_its_primary_subtag() -> None:
     """`es-ES` is a language people write and no vendor lists: the plugins are handed `es`."""
     built = pipeline_for(
-        AgentConfig(slug="clinica-norte", language="es-ES"), settings(), NOTHING_BROUGHT
+        AgentConfig(slug="clinica-norte", language="es-ES"),
+        keyed_for_every_vendor(),
+        NOTHING_BROUGHT,
     )
     assert isinstance(built.tts, cartesia.TTS)
     spoken = built.tts._opts.language  # pyright: ignore[reportPrivateUsage]

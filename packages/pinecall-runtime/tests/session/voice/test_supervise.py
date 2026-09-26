@@ -14,7 +14,7 @@ from pinecall.session.voice.supervise import Supervising
 from pinecall_protocol import Command, ProtocolError, encode, verbs
 from pinecall_protocol.commands import SupervisorVerb
 from pinecall_protocol.defs import EndedBy, EndReason, Supervisor
-from tests.session.voice.fakes import CALL, Recording, ScriptedSession
+from pinecall_testkit.fake_platform import CALL, Recording, ScriptedSession
 
 pytestmark = pytest.mark.unit
 

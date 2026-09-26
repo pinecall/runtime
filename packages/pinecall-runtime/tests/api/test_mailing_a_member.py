@@ -12,11 +12,11 @@ from pinecall.mail import Outbox
 from pinecall.orgs.org_mail import Mail
 from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.types import Mailbox, Org
+from pinecall_testkit.fake_smtp import NOT_AUTHORIZED, FakeSmtp
 from tests.api.conftest import A_KEY, A_RECORD, AN_ORG, over_the_asgi_app
 from tests.api.mailing import A_BOX_SENDER, AN_ORGS_SENDER
 from tests.api.no_vault import WithNoVaultKey
 from tests.api.test_members_and_login import BERNA, accepted, invited
-from tests.mail.fake_smtp import NOT_AUTHORIZED, FakeSmtp
 
 pytestmark = pytest.mark.unit
 

@@ -11,7 +11,7 @@ from livekit.protocol import agent as jobs
 from pinecall.types import Route
 from pinecall.types.dispatch import Handover
 from pinecall.worker import job_target
-from tests.session.voice.room.fakes import FakeRoom, a_caller, a_connected_room, a_widget, as_a_room
+from pinecall_testkit.fake_room import FakeRoom, a_caller, a_connected_room, a_widget, as_a_room
 from tests.worker.fakes import a_job
 
 pytestmark = pytest.mark.unit

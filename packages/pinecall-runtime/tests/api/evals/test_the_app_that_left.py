@@ -12,8 +12,8 @@ from pinecall.api.evals.run_attachment import APP_DETACHED
 from pinecall.live.registry import Registry
 from pinecall.log.replay import whole
 from pinecall.log.store import MemoryStore
+from pinecall_testkit.fake_llm import FakeLLM, Scripted, ScriptedStream
 from tests.api.evals.conftest import AGENT, AN_OWNER, RUN, a_golden, serving
-from tests.session.fake_llm import FakeLLM, Scripted, ScriptedStream
 
 # The judges are the `evals` group, not a dependency of the gateway: on a box without it the door
 # answers 503 and this file has nothing to assert. The whole module skips, naming the command.

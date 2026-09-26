@@ -7,7 +7,7 @@ import asyncio
 import pytest
 
 from pinecall.session.voice import sip
-from tests.session.voice.room.fakes import FakeRoom, a_caller, a_connected_room, a_widget, as_a_room
+from pinecall_testkit.fake_room import FakeRoom, a_caller, a_connected_room, a_widget, as_a_room
 
 pytestmark = pytest.mark.unit
 

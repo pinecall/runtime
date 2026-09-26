@@ -18,10 +18,10 @@ from livekit.agents.voice.turn import TurnHandlingOptions
 from pinecall.session.voice import VoiceBridge, build_bridge
 from pinecall.session.voice.hanging_up import HOW_IT_ENDED
 from pinecall_protocol.defs import ToolResult
-from tests.session.fake_llm import FakeLLM, Scripted, a_call
-from tests.session.voice.fakes import BOOK, CLARA, Recording
-from tests.session.voice.fakes import a_call as a_context
-from tests.session.voice.silence import SilentEars
+from pinecall_testkit.fake_llm import FakeLLM, Scripted, a_call
+from pinecall_testkit.fake_platform import BOOK, CLARA, Recording
+from pinecall_testkit.fake_platform import a_call as a_context
+from pinecall_testkit.silent_kit import SilentEars
 
 pytestmark = pytest.mark.unit
 

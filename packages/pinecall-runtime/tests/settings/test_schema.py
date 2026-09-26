@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from pinecall.settings import NOBODY_TO_ASK, NobodyToAsk, Settings, load_settings, variable_of
 from pinecall.settings.env_files import ENV_FILES, EnvFileRefused, env_files_read
-from tests.support.tree import PACKAGE_ROOT, ROOT
+from pinecall_testkit.tree import ROOT, source_modules
 
 pytestmark = pytest.mark.unit
 
@@ -160,9 +160,11 @@ def test_a_field_with_no_alias_reads_its_name_under_the_prefix() -> None:
 # good — livekit's url and key pair reach it by parameter (worker/main.py) for exactly this reason.
 def test_nothing_in_the_runtime_writes_into_the_environment() -> None:
     offenders = [
-        str(path.relative_to(PACKAGE_ROOT))
-        for path in sorted(PACKAGE_ROOT.rglob("*.py"))
-        if any(written in path.read_text(encoding="utf-8") for written in THE_WAYS_TO_WRITE_ONE)
+        str(module.path)
+        for module in source_modules()
+        if any(
+            written in (ROOT / module.path).read_text("utf-8") for written in THE_WAYS_TO_WRITE_ONE
+        )
     ]
     assert not offenders, f"these modules write an environment variable: {offenders}"
 

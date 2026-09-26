@@ -12,10 +12,10 @@ from pinecall.mail import Outbox
 from pinecall.orgs.org_sso import Sso
 from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.types import Mailbox, Org, OrgSso
+from pinecall_testkit.fake_smtp import FakeSmtp
 from tests.api.conftest import AN_ORG
 from tests.api.mailing import A_BOX_SENDER
 from tests.api.test_members_and_login import A_PASSWORD, BERNA, LOGIN, accepted, invited
-from tests.mail.fake_smtp import FakeSmtp
 
 pytestmark = pytest.mark.unit
 

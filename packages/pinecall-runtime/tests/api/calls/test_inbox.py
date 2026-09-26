@@ -16,9 +16,9 @@ from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.log.store import MemoryStore
 from pinecall.types import PRODUCTION, Member
+from pinecall_testkit.clocks import Clock
 from tests.api.conftest import A_KEY, A_RECORD, AGENT
 from tests.api.talking import got
-from tests.support.clocks import Clock
 
 pytestmark = pytest.mark.unit
 

@@ -9,7 +9,7 @@ import pytest
 
 from pinecall.session.voice.log_writer import Writing
 from pinecall_protocol.events import AgentStateChanged
-from tests.session.voice.fakes import CALL, Recording
+from pinecall_testkit.fake_platform import CALL, Recording
 
 pytestmark = pytest.mark.unit
 

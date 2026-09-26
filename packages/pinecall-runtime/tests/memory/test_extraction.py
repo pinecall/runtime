@@ -5,8 +5,8 @@ import pytest
 from pinecall.memory.extraction import Op, extract_ops, filter_allowed, parse_ops
 from pinecall.memory.protocol import Spoken
 from pinecall.types import MemoryPolicy, ToolSpec
+from pinecall_testkit.fake_llm import FakeLLM, Scripted
 from tests.memory.facts import a_fact
-from tests.session.fake_llm import FakeLLM, Scripted
 
 pytestmark = pytest.mark.unit
 

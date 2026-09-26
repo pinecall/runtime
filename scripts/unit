@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Ring 0 alone, every suite: no keys (the vendors' are stripped from the environment), no network,
+# no database, shuffled. The gate a commit passes twice. Extra arguments go to every pytest.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+strip=(env -u ANTHROPIC_API_KEY -u OPENAI_API_KEY -u DEEPGRAM_API_KEY -u CARTESIA_API_KEY)
+for suite in $(scripts/suites); do
+  "${strip[@]}" uv run pytest -n auto -m unit -q -p no:cacheprovider --no-header "$@" "$suite"
+done
+"${strip[@]}" uv run pytest -n auto -m unit -q -p no:cacheprovider --no-header "$@" \
+  -c packages/pinecall-core/pyproject.toml --rootdir packages/pinecall-core packages/pinecall-core/tests

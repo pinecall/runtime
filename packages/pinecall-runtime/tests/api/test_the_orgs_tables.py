@@ -16,9 +16,9 @@ from pinecall.log.store import MemoryStore
 from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.settings import Settings
 from pinecall.types import PRODUCTION, SANDBOX, Member, Route
+from pinecall_testkit.usage import A_SUMMARY
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, Json
 from tests.api.talking import answering_in, got
-from tests.log.test_usage import A_SUMMARY
 
 pytestmark = pytest.mark.unit
 

@@ -16,8 +16,8 @@ from pinecall.types import AgentConfig
 from pinecall.types.json import JsonObject
 from pinecall.types.scopes import SCOPE_ATTRIBUTE
 from pinecall_protocol import encode
-from tests.session.voice.fakes import CALL, CLARA
-from tests.session.voice.room.fakes import FakeLog, FakeParticipant, Held, a_held_room, a_widget
+from pinecall_testkit.fake_platform import CALL, CLARA
+from pinecall_testkit.fake_room import FakeLog, FakeParticipant, Held, a_held_room, a_widget
 
 pytestmark = pytest.mark.unit
 

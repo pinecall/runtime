@@ -17,7 +17,7 @@ from pinecall.session.voice.metrics import Meters
 from pinecall.settings import Budgets
 from pinecall.types import Blocks
 from pinecall_protocol.events import ErrorEvent
-from tests.session.voice.fakes import CALL, CLARA, Recording, ScriptedSession
+from pinecall_testkit.fake_platform import CALL, CLARA, Recording, ScriptedSession
 from tests.session.voice.test_events import Ended, Speaking
 
 pytestmark = pytest.mark.unit

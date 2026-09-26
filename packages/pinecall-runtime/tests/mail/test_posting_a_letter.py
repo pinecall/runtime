@@ -7,7 +7,7 @@ import pytest
 from pinecall.mail import Letter, MailRefused, post
 from pinecall.mail.smtp import build_email
 from pinecall.types import DeclarationRefused, Mailbox, parse_mailbox_url
-from tests.mail.fake_smtp import BAD_CREDENTIALS, NOT_AUTHORIZED, FakeSmtp
+from pinecall_testkit.fake_smtp import BAD_CREDENTIALS, NOT_AUTHORIZED, FakeSmtp
 
 pytestmark = pytest.mark.unit
 

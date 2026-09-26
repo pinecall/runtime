@@ -22,16 +22,9 @@ from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.orgs.vault import Vault
 from pinecall.types import ProviderKeys, Quotas
 from pinecall_protocol import defs
+from pinecall_testkit.fake_llm import FakeLLM, Scripted
 from tests.api.conftest import AN_ORG
-from tests.api.evals.conftest import (
-    AGENT,
-    ANOTHER_AGENT,
-    ANOTHER_OWNER,
-    RUN,
-    a_golden,
-    serving,
-)
-from tests.session.fake_llm import FakeLLM, Scripted
+from tests.api.evals.conftest import AGENT, ANOTHER_AGENT, ANOTHER_OWNER, RUN, a_golden, serving
 
 pytestmark = pytest.mark.unit
 

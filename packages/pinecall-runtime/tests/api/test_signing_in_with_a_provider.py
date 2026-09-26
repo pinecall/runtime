@@ -17,8 +17,8 @@ from pinecall.auth.sso_state import Handshakes
 from pinecall.orgs.org_sso import Sso
 from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.types import Member, OrgSso, Quotas, Role
+from pinecall_testkit.fake_idp import CLIENT_ID, CLIENT_SECRET, ISSUER, FakeIdp
 from tests.api.conftest import AN_ORG
-from tests.api.fake_idp import CLIENT_ID, CLIENT_SECRET, ISSUER, FakeIdp
 
 pytestmark = pytest.mark.unit
 

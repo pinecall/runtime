@@ -19,9 +19,10 @@ from pinecall.orgs.records import SLUG_TAKEN
 from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.settings import Settings
 from pinecall.types import ROLE_SCOPES, Quotas
-from tests.api.conftest import A_LIVEKIT, A_VAULT_KEY, AN_OPS_KEY, over_the_asgi_app
+from pinecall_testkit.fake_smtp import FakeSmtp
+from pinecall_testkit.keys import A_VAULT_KEY
+from tests.api.conftest import A_LIVEKIT, AN_OPS_KEY, over_the_asgi_app
 from tests.api.mailing import A_BOX_SENDER
-from tests.mail.fake_smtp import FakeSmtp
 
 pytestmark = pytest.mark.unit
 

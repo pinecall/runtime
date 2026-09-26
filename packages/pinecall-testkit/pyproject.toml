@@ -1,0 +1,48 @@
+# pinecall-testkit: what every suite of the runtime leans on — the ring-0 plugin, the Postgres
+# fixtures, the clocks, the fakes more than one distribution's suite reads. A development
+# dependency of the workspace, never published: PyPI refuses the `Private` classifier below.
+
+[project]
+name = "pinecall-testkit"
+version = "0.1.0"
+description = "The fakes, fixtures and plugins the Pinecall runtime's suites share"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+authors = [{ name = "Bernardo Castro", email = "me@bernardocastro.dev" }]
+classifiers = ["Private :: Do Not Upload"]
+dependencies = [
+  "pinecall",
+  "pinecall-protocol>=0.6.14,<0.7",
+  "pytest>=9,<10",
+  "hypothesis>=6.140,<7",
+  "asyncpg>=0.29,<1",
+  "httpx>=0.27,<1",
+  "livekit-agents>=1.8,<2",
+  "cryptography>=44,<51",
+  "pyjwt>=2.13.0",
+]
+
+[tool.uv.sources]
+pinecall = { workspace = true }
+pinecall-protocol = { path = "../../../protocol/python", editable = true }
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pinecall_testkit"]
+
+[tool.deptry]
+known_first_party = ["pinecall", "pinecall_testkit"]
+
+[tool.deptry.package_module_name_map]
+pinecall-protocol = ["pinecall_protocol"]
+livekit-agents = ["livekit"]
+pyjwt = ["jwt"]
+
+[tool.deptry.per_rule_ignores]
+# `pinecall` is imported on every other line, as `pinecall.log`, `pinecall.settings`: deptry reads a
+# namespace by its top-level name alone, and `pinecall` is first-party here.
+DEP002 = ["pinecall"]

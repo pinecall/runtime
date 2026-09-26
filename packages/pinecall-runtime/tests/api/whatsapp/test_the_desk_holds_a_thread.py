@@ -12,6 +12,7 @@ from pinecall.live.registry import Registry
 from pinecall.log.entry import Entry
 from pinecall.log.store import MemoryStore
 from pinecall.routes.records_memory import MemoryRoutes
+from pinecall_testkit.fake_llm import FakeLLM, Scripted
 from tests.api.conftest import A_KEY
 from tests.api.fake_graph import FakeGraph
 from tests.api.whatsapp.conftest import (
@@ -23,7 +24,6 @@ from tests.api.whatsapp.conftest import (
     quiet,
     the_clinic_answers_at_the_number,
 )
-from tests.session.fake_llm import FakeLLM, Scripted
 
 pytestmark = pytest.mark.unit
 

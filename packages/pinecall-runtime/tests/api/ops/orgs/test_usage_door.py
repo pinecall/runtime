@@ -8,8 +8,8 @@ import httpx
 import pytest
 
 from pinecall.log.store import MemoryStore
+from pinecall_testkit.usage import A_SCORE, A_SUMMARY
 from tests.api.conftest import A_RECORD, AGENT, over_the_asgi_app
-from tests.log.test_usage import A_SCORE, A_SUMMARY
 
 pytestmark = pytest.mark.unit
 

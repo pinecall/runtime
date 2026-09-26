@@ -79,7 +79,7 @@ def build(asked: Asked) -> Chat:
    two disagree — Soniox is the row that says why.
 3. `infra/box/*.service` and `WORKER_CREDENTIALS` in the `Makefile` — one `ImportCredential=` line
    each and one name, when the vendor has an env.
-4. `tests/conftest.py` — a dead sentinel, if a suite needs to construct that vendor.
+4. `packages/pinecall-testkit/src/pinecall_testkit/ring0.py` — a dead sentinel, if a suite needs to construct that vendor.
 
 Then `scripts/generate-env-example` (a test fails while it drifts), and `CHANGELOG.md`.
 

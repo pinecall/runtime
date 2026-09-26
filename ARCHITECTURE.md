@@ -90,7 +90,7 @@ keeps the same hashes in `applied.sha256`, which the unit suite holds every land
 takes an advisory lock, holds each migration to a 5 s statement and a 1 s lock timeout in its own
 transaction, and names the database first. `migrations.lock` names the last one that landed (two
 branches adding `0022` conflict in git) and is the baseline **squawk** lints above
-(`scripts/lint-migrations`). `tests/support/migrations.py` proves one against data a box HAD.
+(`scripts/lint-migrations`). `pinecall_testkit/migrations.py` proves one against data a box HAD.
 
 ## 3. The wire
 

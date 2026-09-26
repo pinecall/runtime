@@ -7,7 +7,8 @@ import pytest
 from pinecall.evals.hangup_score import score_call
 from pinecall.settings import Settings
 from pinecall_protocol.events import Judgment
-from tests.lookups.fakes import CALL, ScriptedKnowledge, a_chunk, a_config, a_served_call
+from pinecall_testkit.fake_knowledge import ScriptedKnowledge, a_chunk
+from pinecall_testkit.fake_memory import CALL, a_config, a_served_call
 
 pytestmark = pytest.mark.unit
 

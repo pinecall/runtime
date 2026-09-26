@@ -14,7 +14,7 @@ from pinecall.providers import prices
 from pinecall.session.voice.log_writer import Writing
 from pinecall.session.voice.metrics import BLOCKS, Meters, end_of_utterance
 from pinecall_protocol import decode_entry, event_of
-from tests.session.voice.fakes import CALL, Recording
+from pinecall_testkit.fake_platform import CALL, Recording
 
 pytestmark = pytest.mark.unit
 

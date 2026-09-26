@@ -13,8 +13,8 @@ from pinecall.session.voice.barge_in import MIN_WORDS
 from pinecall.session.voice.session import build_session
 from pinecall.types import NOTHING_BROUGHT, AgentConfig, Brought, Model, Turn
 from pinecall.types.channel import Channel
-from tests.session.fake_llm import FakeLLM
-from tests.session.voice.silence import FakeKit
+from pinecall_testkit.fake_llm import FakeLLM
+from pinecall_testkit.silent_kit import FakeKit
 
 pytestmark = pytest.mark.unit
 

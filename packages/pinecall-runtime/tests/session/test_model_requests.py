@@ -9,7 +9,7 @@ from livekit.agents.voice.generation import update_instructions
 from pinecall.providers.prompt_request import request_context
 from pinecall.session.model_requests import NotAsking, WhatWasAsked
 from pinecall.types import Blocks, PromptBlock
-from tests.session.voice.silence import anthropic_request
+from pinecall_testkit.silent_kit import anthropic_request
 
 pytestmark = pytest.mark.unit
 

@@ -5,7 +5,7 @@ import math
 import pytest
 
 from pinecall.providers.embedder import DIMENSIONS, Embedder
-from tests.support.vectors import HASH_MODEL, HashEmbedder, a_vector, cosine
+from pinecall_testkit.vectors import HASH_MODEL, HashEmbedder, a_vector, cosine
 
 pytestmark = pytest.mark.unit
 

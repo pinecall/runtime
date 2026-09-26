@@ -14,8 +14,8 @@ from pinecall.orgs.box_settings_memory import MemoryBoxSettings
 from pinecall.orgs.org_mail import Mail
 from pinecall.orgs.org_mail_memory import MemoryMail
 from pinecall.types import Mailbox
-from tests.api.conftest import A_VAULT_KEY
-from tests.mail.fake_smtp import FakeSmtp
+from pinecall_testkit.fake_smtp import FakeSmtp
+from pinecall_testkit.keys import A_VAULT_KEY
 
 # Registered as a plugin by tests/conftest.py, beside tests/api/signing_in.py. The outbox is
 # AUTOUSE, unlike everything there, because inviting somebody now hands a letter over: every door

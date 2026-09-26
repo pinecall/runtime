@@ -12,8 +12,8 @@ from pinecall.api.memory.agent_wide import NO_SUCH_FACT
 from pinecall.auth.keys import NOT_OPENED, KeyRecord
 from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.memory import Memory
+from pinecall_testkit.fake_memory import TAUGHT_BY, ScriptedMemory, a_fact
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, over_the_asgi_app
-from tests.lookups.fakes import TAUGHT_BY, ScriptedMemory, a_fact
 
 pytestmark = pytest.mark.unit
 

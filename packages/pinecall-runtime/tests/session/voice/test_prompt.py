@@ -13,10 +13,10 @@ from livekit.agents.voice.generation import update_instructions
 
 from pinecall.session.voice import VoiceBridge, build_bridge
 from pinecall.types import DeclarationRefused
-from tests.session.fake_llm import FakeLLM, Scripted
-from tests.session.voice.fakes import CLARA, Recording
-from tests.session.voice.fakes import a_call as a_context
-from tests.session.voice.silence import anthropic_request
+from pinecall_testkit.fake_llm import FakeLLM, Scripted
+from pinecall_testkit.fake_platform import CLARA, Recording
+from pinecall_testkit.fake_platform import a_call as a_context
+from pinecall_testkit.silent_kit import anthropic_request
 
 pytestmark = pytest.mark.unit
 

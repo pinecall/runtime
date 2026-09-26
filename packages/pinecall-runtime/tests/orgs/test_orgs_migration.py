@@ -7,8 +7,8 @@ import pytest
 from pinecall.auth.keys import fingerprint
 from pinecall.auth.keys_postgres import PostgresKeys
 from pinecall.db import apply_migrations, open_pool
+from pinecall_testkit.postgres import Dev
 from tests.orgs.boxes import Box, a_box_before
-from tests.support.postgres import Dev
 
 pytestmark = pytest.mark.postgres
 

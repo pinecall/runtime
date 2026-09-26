@@ -26,7 +26,8 @@ from pinecall.providers.tts.vendor_voices import NotListed
 from pinecall.routes.twilio import TwilioRefused
 from pinecall.session.hold_melody import NotAHoldMelody
 from pinecall.types import DeclarationRefused
-from tests.lookups.fakes import ScriptedKnowledge, ScriptedMemory
+from pinecall_testkit.fake_knowledge import ScriptedKnowledge
+from pinecall_testkit.fake_memory import ScriptedMemory
 
 pytestmark = pytest.mark.unit
 

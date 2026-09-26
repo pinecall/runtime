@@ -4,14 +4,14 @@ from collections.abc import Sequence
 
 import pytest
 
-from tests.support.tree import (
+from pinecall_testkit.tree import (
     CORE_ROOT,
-    PACKAGE_ROOT,
-    ROOT,
     SOURCE_ROOTS,
     PythonModule,
     modules_under,
     package_dir,
+    package_of,
+    source_modules,
 )
 
 pytestmark = pytest.mark.unit
@@ -89,7 +89,7 @@ VENDOR_SDKS = ["anthropic", "openai", "soniox", "deepgram", "elevenlabs"]
 
 # The database's one door: the driver is named under db/ and nowhere else, so every store — the
 # log's, the orgs', auth's — asks db/ for its pool and none of them ever names asyncpg.
-THE_DRIVERS_DOOR = PACKAGE_ROOT / "db"
+THE_DRIVERS_DOOR = package_dir("db")
 THE_DRIVER = "asyncpg"
 
 
@@ -151,11 +151,10 @@ def test_a_module_under_a_pure_package_never_imports_a_framework(
 
 @pytest.mark.parametrize("framework", THE_HTTP_FRAMEWORK)
 def test_only_the_doors_and_the_cli_import_the_http_framework(framework: str) -> None:
-    source = PACKAGE_ROOT.relative_to(ROOT)
     offenders = [
         str(module.path)
-        for module in modules_under(PACKAGE_ROOT)
-        if module.imports(framework) and module.path.relative_to(source).parts[0] not in SERVE_HTTP
+        for module in source_modules()
+        if module.imports(framework) and package_of(module) not in SERVE_HTTP
     ]
     assert not offenders, f"{framework} outside api/ and cli/: {offenders}"
 

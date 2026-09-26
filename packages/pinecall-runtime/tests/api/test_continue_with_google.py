@@ -20,8 +20,8 @@ from pinecall.orgs.org_sso import Sso
 from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.orgs.vault import NO_VAULT_KEY
 from pinecall.types import Member, OrgSso
+from pinecall_testkit.fake_idp import FakeIdp
 from tests.api.conftest import AN_ORG
-from tests.api.fake_idp import FakeIdp
 from tests.api.no_vault import OnABoxWithNoVaultKey
 
 pytestmark = pytest.mark.unit

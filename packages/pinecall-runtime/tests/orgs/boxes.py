@@ -10,7 +10,7 @@ import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingT
 
 from pinecall.db import MIGRATIONS, search_path_of
 from pinecall.db.migrating import MIGRATIONS_TABLE, RECORD_MIGRATION, file_hash
-from tests.support.postgres import Dev
+from pinecall_testkit.postgres import Dev
 
 _connect = cast("Any", asyncpg.connect)  # pyright: ignore[reportUnknownMemberType]
 

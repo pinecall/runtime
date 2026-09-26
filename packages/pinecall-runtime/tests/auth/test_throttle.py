@@ -3,7 +3,7 @@
 import pytest
 
 from pinecall.auth.throttle import Throttle
-from tests.support.clocks import Clock
+from pinecall_testkit.clocks import Clock
 
 pytestmark = pytest.mark.unit
 

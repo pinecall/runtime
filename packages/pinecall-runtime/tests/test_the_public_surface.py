@@ -7,7 +7,7 @@ import pytest
 from pinecall._version import __version__
 from pinecall.errors import PinecallError
 from pinecall.settings import load_settings
-from tests.support.tree import SOURCE_ROOTS
+from pinecall_testkit.tree import SOURCE_ROOTS
 
 pytestmark = pytest.mark.unit
 

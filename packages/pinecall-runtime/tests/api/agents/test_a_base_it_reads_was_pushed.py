@@ -10,9 +10,9 @@ from starlette.testclient import TestClient
 from pinecall.api.agents.socket import NO_SUCH_BASE
 from pinecall.orgs.tuning_store_memory import MemoryTuning
 from pinecall.types import PRODUCTION, Docs, KnowledgeFile, Tuning
+from pinecall_testkit.fake_knowledge import ScriptedKnowledge
 from tests.api.agents.test_a_class_that_searches_needs_a_base import SEARCHES, configured
 from tests.api.conftest import A_RECORD, AGENT
-from tests.lookups.fake_knowledge import ScriptedKnowledge
 
 pytestmark = pytest.mark.unit
 

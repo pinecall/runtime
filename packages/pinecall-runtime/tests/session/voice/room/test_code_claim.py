@@ -8,7 +8,7 @@ import logging
 import pytest
 
 from pinecall.session.voice.room.code_claim import Claiming
-from tests.session.voice.fakes import CALL, Recording
+from pinecall_testkit.fake_platform import CALL, Recording
 
 pytestmark = pytest.mark.unit
 

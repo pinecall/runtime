@@ -9,8 +9,8 @@ from pinecall.live.registry import Registry
 from pinecall.orgs.tuning_store_memory import MemoryTuning
 from pinecall.types import PRODUCTION, MemoryPolicy, Tuning
 from pinecall_protocol import defs
+from pinecall_testkit.fake_llm import FakeLLM, Scripted
 from tests.api.conftest import A_RECORD, AGENT
-from tests.session.fake_llm import FakeLLM, Scripted
 
 pytestmark = pytest.mark.unit
 

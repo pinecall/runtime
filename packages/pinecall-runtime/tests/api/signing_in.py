@@ -11,8 +11,8 @@ from pinecall.api.app import app
 from pinecall.auth.sso_state import Handshakes
 from pinecall.orgs.org_sso import Sso
 from pinecall.orgs.org_sso_memory import MemorySso
-from tests.api.conftest import A_VAULT_KEY
-from tests.api.fake_idp import FakeIdp
+from pinecall_testkit.fake_idp import FakeIdp
+from pinecall_testkit.keys import A_VAULT_KEY
 
 # Registered as a plugin by tests/conftest.py, beside tests/api/people.py.
 #

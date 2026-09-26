@@ -9,9 +9,10 @@ from pinecall.log.store import MemoryStore
 from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.settings import Settings
 from pinecall.types import Quotas
-from tests.api.conftest import A_LIVEKIT, A_RECORD, A_VAULT_KEY, AGENT, AN_OPS_KEY
+from pinecall_testkit.keys import A_VAULT_KEY
+from pinecall_testkit.usage import A_SUMMARY
+from tests.api.conftest import A_LIVEKIT, A_RECORD, AGENT, AN_OPS_KEY
 from tests.api.talking import got
-from tests.log.test_usage import A_SUMMARY
 
 pytestmark = pytest.mark.unit
 

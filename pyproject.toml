@@ -27,12 +27,18 @@ dev = [
   "pytest-cov>=7,<8",
   # scripts/lint holds what the tree imports to what pyproject declares, both ways.
   "deptry>=0.24,<1",
+  # The fakes, fixtures and plugins the suites share: a member of the workspace, never published.
+  "pinecall-testkit",
 ]
+
+[tool.uv.sources]
+pinecall-testkit = { workspace = true }
 
 # ── pytest ──────────────────────────────────────────────────────────────────────
 
 [tool.pytest.ini_options]
-testpaths = ["packages/pinecall-runtime/tests", "infra/tools/tests"]
+# No testpaths: every distribution names its suite `tests`, so each runs in its own process
+# (scripts/unit, scripts/test). `uv run pytest <path>` runs the one it is given.
 # `-p randomly` is named rather than left to the entry point: a virtualenv without the plugin
 # fails at startup instead of quietly running the suite in file order.
 # `-n auto` lives in scripts/test, not here: `uv run pytest tests/cli/doctor/test_verbs.py` used
@@ -83,7 +89,7 @@ fail_under = 90
 [tool.pyright]
 include = ["packages"]
 # Two source roots for one namespace, and the runtime's `tests` package its suite imports from.
-extraPaths = ["packages/pinecall-runtime/src", "packages/pinecall-runtime", "packages/pinecall-core/src"]
+extraPaths = ["packages/pinecall-runtime/src", "packages/pinecall-runtime", "packages/pinecall-core/src", "packages/pinecall-testkit/src"]
 typeCheckingMode = "strict"
 pythonVersion = "3.12"
 reportImplicitOverride = true
@@ -101,7 +107,7 @@ python_version = "3.12"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["packages/pinecall-runtime/src", "packages/pinecall-runtime/tests", "packages/pinecall-core/src", "packages/pinecall-core/tests"]
+src = ["packages/pinecall-runtime/src", "packages/pinecall-runtime/tests", "packages/pinecall-core/src", "packages/pinecall-core/tests", "packages/pinecall-testkit/src", "packages/pinecall-testkit/tests"]
 
 [tool.ruff.lint]
 select = [
@@ -128,15 +134,17 @@ unfixable = ["T201"]
 "packages/pinecall-runtime/src/pinecall/cli/**" = ["T201"]
 # And a maintainer's script, which is run by hand and has nowhere else to say what it wrote.
 "scripts/*.py" = ["T201", "S310"]
-# A test asserts, spawns the tree's own tools, and makes noise with `random`.
+# A test asserts, spawns the tree's own tools, and makes noise with `random`; so does the testkit
+# every suite is built on.
 "packages/*/tests/**" = ["S101", "S301", "S311", "S603", "S607"]
+"packages/pinecall-testkit/src/**" = ["S101", "S301", "S311", "S603", "S607"]
 "infra/tools/tests/**" = ["S101"]
 # The operator's own Python: it opens fixed https URLs, binds a probe to every interface on
 # purpose, and jitters a SIP call with `random`.
 "infra/tools/**" = ["S310", "S104", "S311"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["pinecall", "pinecall_protocol", "tests"]
+known-first-party = ["pinecall", "pinecall_protocol", "pinecall_testkit", "tests"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 # The environment is read once, in _settings.py. Everywhere else takes a Settings.

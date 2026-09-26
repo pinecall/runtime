@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from pinecall.session.voice.room import dtmf
-from tests.session.voice.room.fakes import Held, a_caller, a_held_room
+from pinecall_testkit.fake_room import Held, a_caller, a_held_room
 from tests.session.voice.room.test_verbs import applied
 
 pytestmark = pytest.mark.unit

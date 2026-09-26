@@ -16,6 +16,7 @@ from pinecall.log.writers import Logs
 from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.types import PRODUCTION
 from pinecall.whatsapp.inbound_message import Inbound
+from pinecall_testkit.fake_llm import FakeLLM, Scripted
 from tests.api.conftest import A_RECORD, AGENT
 from tests.api.whatsapp.conftest import (
     AN_APP,
@@ -27,7 +28,6 @@ from tests.api.whatsapp.conftest import (
     quiet,
     the_operators_row,
 )
-from tests.session.fake_llm import FakeLLM, Scripted
 
 pytestmark = pytest.mark.unit
 

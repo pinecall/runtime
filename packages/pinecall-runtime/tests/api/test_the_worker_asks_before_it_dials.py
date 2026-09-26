@@ -9,8 +9,8 @@ from pinecall.live.registry import Registry
 from pinecall.orgs.dial_policies_memory import MemoryDialling
 from pinecall.routes.outbound_trunks import Placing
 from pinecall.types import DialPolicy
+from pinecall_testkit.fake_media import MemoryOutbound
 from tests.api.conftest import A_RECORD, AGENT
-from tests.routes.fakes import MemoryOutbound
 
 pytestmark = pytest.mark.unit
 

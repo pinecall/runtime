@@ -6,7 +6,7 @@ from livekit.agents import llm as agents
 from pinecall.log.store import MemoryStore
 from pinecall.session.text.session import TextSession
 from pinecall.types import DeclarationRefused
-from tests.session.fake_llm import FakeLLM, Scripted
+from pinecall_testkit.fake_llm import FakeLLM, Scripted
 from tests.session.text.test_session import A_CALL, a_session
 
 pytestmark = pytest.mark.unit

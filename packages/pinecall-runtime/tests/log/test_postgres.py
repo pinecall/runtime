@@ -11,7 +11,7 @@ from pinecall.log.store import PostgresStore
 from pinecall.log.store.postgres import PostgresStore as Store
 from pinecall_protocol import decode_entries, encode
 from pinecall_protocol.fixtures import GOLDEN_LOG, GOLDEN_STATE
-from tests.support.postgres import Dev
+from pinecall_testkit.postgres import Dev
 
 pytestmark = pytest.mark.postgres
 

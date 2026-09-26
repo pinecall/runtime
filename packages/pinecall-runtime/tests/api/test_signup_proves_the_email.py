@@ -15,11 +15,12 @@ from pinecall.mail.outbox import Outbox
 from pinecall.mail.smtp import Mailbox
 from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.settings import Settings
+from pinecall_testkit.clocks import Clock
+from pinecall_testkit.fake_smtp import FakeSmtp
+from pinecall_testkit.keys import A_VAULT_KEY
 from tests.api.accounts.test_signup import A_CODE, TIENDA, VERIFY, asked, the_code_mailed
-from tests.api.conftest import A_LIVEKIT, A_VAULT_KEY, AN_OPS_KEY, over_the_asgi_app
+from tests.api.conftest import A_LIVEKIT, AN_OPS_KEY, over_the_asgi_app
 from tests.api.mailing import A_BOX_SENDER
-from tests.mail.fake_smtp import FakeSmtp
-from tests.support.clocks import Clock
 
 pytestmark = pytest.mark.unit
 

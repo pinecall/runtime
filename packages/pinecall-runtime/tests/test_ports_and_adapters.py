@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.support.tree import ROOT, SOURCE_ROOTS
+from pinecall_testkit.tree import ROOT, SOURCE_ROOTS
 
 pytestmark = pytest.mark.unit
 

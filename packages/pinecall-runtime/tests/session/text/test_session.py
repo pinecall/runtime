@@ -11,7 +11,7 @@ from pinecall.log.store import LogSealed, MemoryStore
 from pinecall.session import date_tool
 from pinecall.session.text.session import TextSession
 from pinecall.types import AgentConfig, CallContext, Route
-from tests.session.fake_llm import FakeLLM, Scripted
+from pinecall_testkit.fake_llm import FakeLLM, Scripted
 
 pytestmark = pytest.mark.unit
 

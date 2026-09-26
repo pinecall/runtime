@@ -24,14 +24,9 @@ from pinecall.types.dispatch import SCOPE_KEY, WRITTEN_SCOPE
 from pinecall.worker import job as job_module
 from pinecall.worker import job_target, recording_paths
 from pinecall.worker.recording_paths import Keeping
-from tests.session.fake_llm import FakeLLM
-from tests.session.voice.room.fakes import (
-    FakeParticipant,
-    a_caller,
-    a_connected_room,
-    as_a_room,
-)
-from tests.session.voice.silence import FakeKit
+from pinecall_testkit.fake_llm import FakeLLM
+from pinecall_testkit.fake_room import FakeParticipant, a_caller, a_connected_room, as_a_room
+from pinecall_testkit.silent_kit import FakeKit
 from tests.worker.fakes import CountingBridge, Seen, a_gateway, a_job
 
 pytestmark = pytest.mark.unit

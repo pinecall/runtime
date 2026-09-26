@@ -63,9 +63,10 @@ from pinecall.tokens.ledger_memory import MemoryTokens
 from pinecall.tokens.scopes import KEY_PROJECTION, LivekitKeys, Reader
 from pinecall.types import Org
 from pinecall.worker.gateway_client import Gateway
+from pinecall_testkit.fake_media import MemoryTrunks
+from pinecall_testkit.keys import A_VAULT_KEY
+from pinecall_testkit.vectors import HashEmbedder
 from tests.api.fake_graph import FakeGraph
-from tests.routes.fakes import MemoryTrunks
-from tests.support.vectors import HashEmbedder
 
 A_KEY = "pk_test_a_key_nobody_will_ever_deploy"
 
@@ -79,9 +80,6 @@ A_READER = Reader(projection=KEY_PROJECTION, key=A_RECORD)
 # The secret is long on purpose: pyjwt warns below 32 bytes for HS256, and this suite
 # turns warnings into errors.
 A_LIVEKIT = LivekitKeys(api_key="ring0key", api_secret="ring-0-signs-and-verifies-its-own-tokens")
-# The box's vault key. Fernet's own generator, run once and written down: a suite that generated
-# one per run would encrypt with a key no assertion could name.
-A_VAULT_KEY = "Zm9yLXJpbmctMC1vbmx5LW5vYm9keS13aWxsLXVzZT0="
 
 Json = dict[str, Any]
 

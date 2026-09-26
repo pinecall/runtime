@@ -4,7 +4,7 @@ import httpx
 import pytest
 
 from pinecall.types import Model
-from tests.session.fake_llm import FakeLLM, Scripted, a_call
+from pinecall_testkit.fake_llm import FakeLLM, Scripted, a_call
 
 pytestmark = pytest.mark.unit
 

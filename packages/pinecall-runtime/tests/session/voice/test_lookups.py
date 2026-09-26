@@ -16,9 +16,9 @@ from livekit.agents.voice import events as session_events
 from pinecall.session.voice import VoiceBridge, build_bridge
 from pinecall.settings import Budgets
 from pinecall.types import Docs, MemoryPolicy, PlatformTool
-from tests.session.fake_llm import FakeLLM, Scripted
-from tests.session.voice.fakes import CALL, CLARA, Recording
-from tests.session.voice.fakes import a_call as a_context
+from pinecall_testkit.fake_llm import FakeLLM, Scripted
+from pinecall_testkit.fake_platform import CALL, CLARA, Recording
+from pinecall_testkit.fake_platform import a_call as a_context
 
 pytestmark = pytest.mark.unit
 

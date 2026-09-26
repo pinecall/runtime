@@ -16,9 +16,10 @@ from pinecall.settings import Settings
 from pinecall.telephony.importing import HELD_ELSEWHERE, NOT_ON_ACCOUNT
 from pinecall.telephony.missing import NO_DOMAIN
 from pinecall.types import PRODUCTION
+from pinecall_testkit.fake_media import MemoryTrunks
+from pinecall_testkit.keys import A_VAULT_KEY
 from tests.api.carriers import A_KEY_SID, A_SID, FakeTwilio
-from tests.api.conftest import A_LIVEKIT, A_RECORD, A_VAULT_KEY, AGENT, AN_OPS_KEY
-from tests.routes.fakes import MemoryTrunks
+from tests.api.conftest import A_LIVEKIT, A_RECORD, AGENT, AN_OPS_KEY
 
 pytestmark = pytest.mark.unit
 

@@ -20,7 +20,7 @@ from pinecall.types import NOTHING_BROUGHT, AgentConfig, CallContext, Model, Rou
 from pinecall_protocol import verbs
 from pinecall_protocol.commands import SupervisorVerb
 from pinecall_protocol.defs import EndedBy, EndReason, Supervisor
-from tests.session.voice.fakes import CALL, Recording
+from pinecall_testkit.fake_platform import CALL, Recording
 
 # A voice bridge has no cheap live fixture: nothing in this suite starts a LiveKit room. What the
 # whisper actually touches is livekit's own AgentSession and Agent — update_chat_ctx then

@@ -6,8 +6,8 @@ from collections.abc import AsyncIterator
 
 import pytest
 
-from tests.support.migrations import Before, a_box_before
-from tests.support.postgres import Dev
+from pinecall_testkit.migrations import Before, a_box_before
+from pinecall_testkit.postgres import Dev
 
 pytestmark = pytest.mark.postgres
 

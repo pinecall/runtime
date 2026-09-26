@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.support.tree import ROOT
+from pinecall_testkit.tree import ROOT
 from tests.test_box_packages import BOX, CLOUD_INIT, DEV_STACK, MANIFEST, what_a_box_installs
 
 pytestmark = pytest.mark.unit

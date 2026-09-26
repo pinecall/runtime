@@ -11,6 +11,7 @@ from pinecall.evals.goldens import Expect, Golden
 from pinecall.live.registry import Registry
 from pinecall.providers.declaration import parse_tool
 from pinecall.types import GATE_DEFERRED_ON, AgentConfig
+from pinecall_testkit.fake_llm import FakeLLM, Scripted
 from tests.api.evals.conftest import (
     AGENT,
     BEFORE_THE_YES,
@@ -21,7 +22,6 @@ from tests.api.evals.conftest import (
     entries_of,
     serving,
 )
-from tests.session.fake_llm import FakeLLM, Scripted
 
 pytestmark = pytest.mark.unit
 

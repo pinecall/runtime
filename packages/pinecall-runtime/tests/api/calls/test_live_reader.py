@@ -14,11 +14,7 @@ from pinecall.log.projection import MASK
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.tokens.scopes import KEY_PROJECTION, PROJECTION_OF, Reader
-from tests.api.calls.test_state import (
-    THE_CALL,
-    declare_the_golden_agent,
-    load_the_golden,
-)
+from tests.api.calls.test_state import THE_CALL, declare_the_golden_agent, load_the_golden
 
 pytestmark = pytest.mark.unit
 

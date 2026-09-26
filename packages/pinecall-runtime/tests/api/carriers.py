@@ -15,8 +15,8 @@ from pinecall.orgs.dial_policies_memory import MemoryDialling
 from pinecall.orgs.outbound_credentials_memory import MemoryOutboundTrunks
 from pinecall.routes.twilio import Trunk, TwilioNumber, TwilioRefused
 from pinecall.types import TwilioAccount
-from tests.api.conftest import A_VAULT_KEY
-from tests.routes.fakes import MemoryDispatches, MemoryOutbound, MemoryTrunks
+from pinecall_testkit.fake_media import MemoryDispatches, MemoryOutbound, MemoryTrunks
+from pinecall_testkit.keys import A_VAULT_KEY
 
 # Registered as a plugin by tests/conftest.py, beside tests/postgres.py and tests/api/people.py.
 
