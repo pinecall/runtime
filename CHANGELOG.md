@@ -112,6 +112,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   none; a suite's run held one per run and closed it never.
 
 ### Changed
+- **The built pages are `pinecall/public/`.** The console and the widget `scripts/console` copies
+  in lived under a directory named like the process that serves them (`gateway/`); they live in
+  `public/` now, with a committed `README.md` saying what lands there, from where, and why it is
+  never edited there. The `admin/` path no build has written since the operator's page was removed
+  is gone from the wheel's artifacts, `.gitignore` and the script.
 - **The configuration is a package, `pinecall.settings`.** The five underscore modules at the
   root (`_settings`, `_vendor_keys`, `_env_files`, `_env_example`, `_detail`) are
   `settings/{schema,budgets,loading,refusals,vendor_keys,env_files,example}.py`; `Settings`,

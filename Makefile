@@ -40,9 +40,9 @@ RUNTIME  = /opt/pinecall/venv/bin/pinecall-runtime
 MANIFEST = $(REMOTE)/runtime/infra/box
 
 SSH   = ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=yes -o ConnectTimeout=20 $(BOX)
-# What rsync leaves at home, named one by one and not `--filter=':- .gitignore'`: the console
-# under packages/pinecall-runtime/src/pinecall/gateway/ is git-ignored and MUST travel, and a `!` line in a .gitignore means
-# something else to rsync. What must not travel: the maintainer's notebook (docs/decisions/),
+# What rsync leaves at home, named one by one and not `--filter=':- .gitignore'`: the pages under
+# the runtime's pinecall/public/ are git-ignored and MUST travel, and a `!` line in a .gitignore
+# means something else to rsync. What must not travel: the maintainer's notebook (docs/decisions/),
 # the audio of real calls (recordings/), every .env and the file that names this box.
 RSYNC = rsync -az --delete -e "ssh $(if $(SSH_KEY),-i $(SSH_KEY)) -o BatchMode=yes" \
         --exclude .git --exclude .venv --exclude __pycache__ --exclude '*.pyc' \
@@ -93,7 +93,7 @@ UV_EXTENSIONS   = $(if $(EXTENSIONS_SRC),sudo -u pinecall env UV_CACHE_DIR=/opt/
 
 deploy: console sync install restart doctor
 
-# The console into packages/pinecall-runtime/src/pinecall/gateway/console, from the console checkout beside this one (or
+# The console into the runtime's pinecall/public/, from the console checkout beside this one (or
 # PINECALL_CONSOLE). The sync below carries it; the gateway serves it at `/`.
 console:
 	scripts/console

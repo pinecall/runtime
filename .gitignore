@@ -19,9 +19,8 @@ dist/
 
 # The console the gateway serves: a build the agents repo's vite wrote and scripts/console copied
 # in. Package data, never a source — the wheel carries it (pyproject), git does not.
-packages/pinecall-runtime/src/pinecall/gateway/console/
-packages/pinecall-runtime/src/pinecall/gateway/admin/
-packages/pinecall-runtime/src/pinecall/gateway/widget/
+packages/pinecall-runtime/src/pinecall/public/console/
+packages/pinecall-runtime/src/pinecall/public/widget/
 
 # what the worker records (RECORD=1, PINECALL_RECORDINGS): audio of real calls, never tracked
 recordings/

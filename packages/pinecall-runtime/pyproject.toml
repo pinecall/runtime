@@ -109,10 +109,10 @@ path = "src/pinecall/_version.py"
 # pinecall.types, pinecall.extensions and pinecall.errors.
 [tool.hatch.build.targets.wheel]
 packages = ["src/pinecall"]
-artifacts = ["src/pinecall/gateway/console/**", "src/pinecall/gateway/admin/**", "src/pinecall/gateway/widget/**"]
+artifacts = ["src/pinecall/public/console/**", "src/pinecall/public/widget/**"]
 
 [tool.hatch.build.targets.sdist]
-artifacts = ["src/pinecall/gateway/console/**", "src/pinecall/gateway/admin/**", "src/pinecall/gateway/widget/**"]
+artifacts = ["src/pinecall/public/console/**", "src/pinecall/public/widget/**"]
 
 # ── deptry ──────────────────────────────────────────────────────────────────────
 

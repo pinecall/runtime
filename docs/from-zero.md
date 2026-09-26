@@ -119,8 +119,8 @@ checkout. A fresh clone has never run that, so run it once:
 
 ```console
 $ scripts/console
-console → packages/pinecall-runtime/src/pinecall/gateway/console (4 files)
-widget → packages/pinecall-runtime/src/pinecall/gateway/widget/pinecall-widget.js
+console → packages/pinecall-runtime/src/pinecall/public/console (4 files)
+widget → packages/pinecall-runtime/src/pinecall/public/widget/pinecall-widget.js
 ```
 
 Skip it and the gateway still comes up, and answers every page with a sentence telling you to run

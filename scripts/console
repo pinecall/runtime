@@ -7,18 +7,16 @@ cd "$(dirname "$0")/.."
 
 CONSOLE="${PINECALL_CONSOLE:-../console}"
 WIDGET="${PINECALL_WIDGET:-../widget}"
-SHIPPED="packages/pinecall-runtime/src/pinecall/gateway"
+SHIPPED="packages/pinecall-runtime/src/pinecall/public"
 
 [ -d "$CONSOLE" ] || { echo "no console checkout at $CONSOLE: set PINECALL_CONSOLE" >&2; exit 2; }
 
 # The vite config that builds it, and the directory the gateway serves it from. api/pages.py is
-# the other half of this and the two are read together. `admin/` is swept away because a box
-# deployed before the operator's page was removed still carries it, and a stale bundle served by
-# nobody is a bundle somebody finds.
+# the other half of this and the two are read together (public/README.md says what lands where).
 BUILT="$CONSOLE/apps/console/dist"
 pnpm --dir "$CONSOLE/apps/console" exec vite build --logLevel error
 [ -f "$BUILT/index.html" ] || { echo "vite built no page at $BUILT" >&2; exit 1; }
-rm -rf "${SHIPPED:?}/console" "${SHIPPED:?}/admin"
+rm -rf "${SHIPPED:?}/console"
 mkdir -p "$SHIPPED"
 cp -R "$BUILT" "$SHIPPED/console"
 echo "console → $SHIPPED/console ($(find "$SHIPPED/console" -type f | wc -l | tr -d ' ') files)"

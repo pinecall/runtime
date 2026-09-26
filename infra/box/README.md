@@ -142,7 +142,7 @@ NAME=CARTESIA_API_KEY` puts it there. The whole table, with what each still want
 providers` from the checkout. **The box holds no credential for the repository.** It cannot clone
 and it cannot fetch; the code is pushed to it by a person at a checkout, with `make deploy` — rsync,
 ssh, make and curl, and no tool that does not come with a Unix. Its one build step runs on the
-laptop: `scripts/console` bundles the console into `packages/pinecall-runtime/src/pinecall/gateway/console/`, the rsync
+laptop: `scripts/console` bundles the console into `packages/pinecall-runtime/src/pinecall/public/console/`, the rsync
 carries it, the gateway serves it at `/`. The rest is Python. The *box* decision page in the
 maintainer's notebook argues both.
 

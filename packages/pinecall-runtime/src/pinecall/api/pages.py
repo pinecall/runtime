@@ -14,11 +14,11 @@ from pinecall.settings import Settings
 
 router = APIRouter()
 
-# Where the built pages live inside the distribution: package data the console repo's vite build
-# wrote and `scripts/console` copied here. Git-ignored, because a build is not a source; shipped
-# in the wheel as artifacts. A checkout that never ran the script has no page, and the door says
-# so rather than answering a blank one.
-BUILT = Path(__file__).resolve().parents[1] / "gateway"
+# Where the built pages live inside the distribution: pinecall/public/, which the console repo's
+# vite build wrote and `scripts/console` copied in (public/README.md). Git-ignored, because a build
+# is not a source; shipped in the wheel as artifacts. A checkout that never ran the script has no
+# page, and the door says so rather than answering a blank one.
+BUILT = Path(__file__).resolve().parents[1] / "public"
 THE_PAGE = "index.html"
 
 # The API's own prefixes: a path under them that no router declared is a JSON 404, exactly as it
