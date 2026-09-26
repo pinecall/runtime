@@ -1,5 +1,6 @@
 """The .env the runtime reads: which file, who wins, and what a name it does not know costs."""
 
+import os
 from pathlib import Path
 
 import pytest
@@ -203,6 +204,7 @@ def test_the_example_file_copied_verbatim_builds_settings(
 # A .env this process cannot open used to arrive as a PermissionError traceback out of the middle
 # of python-dotenv — a person running a verb as the service user inside another user's home, on
 # the box (2026-09-20). It is not read, and it is never skipped in silence either.
+@pytest.mark.skipif(os.geteuid() == 0, reason="root opens a file whatever its mode says")
 @pytest.mark.usefixtures("the_env_file_is_read")
 def test_an_env_file_that_cannot_be_opened_is_a_sentence_naming_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

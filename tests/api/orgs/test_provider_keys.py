@@ -12,7 +12,7 @@ from starlette.testclient import TestClient
 from pinecall._settings import Settings
 from pinecall.auth.keys import MemoryKeys
 from pinecall.orgs.table import MemoryOrgs
-from pinecall.orgs.vault import NO_VAULT_KEY, Vault
+from pinecall.orgs.vault import NO_VAULT_KEY
 from pinecall.providers.catalog import vendors_with_a_key
 from pinecall.types import ProviderKeys, Quotas
 from tests.api.conftest import (
@@ -24,6 +24,7 @@ from tests.api.conftest import (
     AN_ORG,
     over_the_asgi_app,
 )
+from tests.api.no_vault import WithNoVaultKey
 from tests.api.orgs.test_two_orgs_never_cross import (
     A_NUMBER,
     ANOTHER_AGENT,
@@ -282,8 +283,10 @@ async def test_two_orgs_on_one_gateway_each_read_their_own_row(
 # ── a box that was given no vault key ───────────────────────────────────────────
 
 
-class TestARuntimeWithNoVaultKey:
+class TestARuntimeWithNoVaultKey(WithNoVaultKey):
     """Criterion 4: the doors say so, and every call still runs on the box's own vendor keys."""
+
+    door = TENANT
 
     @pytest.fixture
     def settings(self) -> Settings:
@@ -294,11 +297,6 @@ class TestARuntimeWithNoVaultKey:
             livekit_api_key=A_LIVEKIT.api_key,
             livekit_api_secret=A_LIVEKIT.api_secret,
         )
-
-    @pytest.fixture
-    def vault(self) -> Vault | None:
-        """What vault_for returns when PINECALL_VAULT_KEY is unset: nothing to keep a key in."""
-        return None
 
     async def test_every_operator_door_is_503_and_says_which_variable(
         self, ops_http: httpx.AsyncClient
@@ -316,7 +314,6 @@ class TestARuntimeWithNoVaultKey:
         refused = await brought(tenant_http)
         assert refused.status_code == 503
         assert refused.json()["detail"] == NO_VAULT_KEY
-        assert (await tenant_http.get(TENANT)).status_code == 503
         assert (await tenant_http.delete(f"{TENANT}/elevenlabs")).status_code == 503
 
     def test_the_worker_is_told_the_org_brought_none_and_the_call_goes_on(

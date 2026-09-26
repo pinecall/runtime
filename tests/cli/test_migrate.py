@@ -2,9 +2,10 @@
 
 import pytest
 
-from pinecall.cli import build_parser, main
+from pinecall.cli import build_parser, main, migrate
 from pinecall.log.store.migrating import POST_DEPLOY
-from pinecall.log.store.postgres import MIGRATIONS
+from pinecall.log.store.pool import Pool
+from pinecall.log.store.postgres import MIGRATIONS, StoreUnreachable, without_password
 
 pytestmark = pytest.mark.unit
 
@@ -47,10 +48,16 @@ def test_plan_post_lists_the_ones_a_deploy_does_not_wait_for(
 
 # A database that does not answer is the commonest thing this verb hits, and it used to arrive as
 # an asyncpg traceback with `postgresql://pinecall:<the password>@…` in it (the box, 2026-09-20).
+# The refusal is raised where the pool would open, so ring 0 opens no socket to find it.
 def test_a_database_that_does_not_answer_is_a_sentence_without_the_password(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql://pinecall:s3cret@127.0.0.1:1/pinecall")
+
+    async def nobody_answers(dsn: str, **_: str) -> Pool:
+        raise StoreUnreachable(f"{without_password(dsn)}: connection refused")
+
+    monkeypatch.setattr(migrate, "create_pool", nobody_answers)
 
     assert main(["migrate", "status"]) == 1
 

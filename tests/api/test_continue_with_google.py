@@ -21,7 +21,6 @@ from pinecall.api.login_sso import NO_HANDSHAKE, THE_CARD, THE_CONSOLE
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.openid import SCOPE
 from pinecall.auth.sso import Handshakes
-from pinecall.orgs.box import BoxSettings, MemoryBoxSettings
 from pinecall.orgs.signin import PROVIDERS
 from pinecall.orgs.sso import Sso
 from pinecall.orgs.table import MemoryOrgs
@@ -29,6 +28,7 @@ from pinecall.orgs.vault import NO_VAULT_KEY
 from pinecall.types import Member, OrgSso
 from tests.api.conftest import AN_ORG
 from tests.api.fake_idp import FakeIdp
+from tests.api.no_vault import OnABoxWithNoVaultKey
 
 pytestmark = pytest.mark.unit
 
@@ -133,11 +133,7 @@ async def test_wiring_is_refused_when_google_does_not_answer_or_the_body_is_empt
     assert (await ops_http.get(THE_DOOR)).json()["google"]["configured"] is False
 
 
-class TestWithNoVaultKey:
-    @pytest.fixture
-    def box_settings(self) -> BoxSettings:
-        return MemoryBoxSettings(None)
-
+class TestWithNoVaultKey(OnABoxWithNoVaultKey):
     async def test_the_secret_cannot_be_kept_and_the_door_says_so(
         self, ops_http: httpx.AsyncClient
     ) -> None:

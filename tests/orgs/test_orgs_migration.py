@@ -1,68 +1,33 @@
 """0006 on a box that is already up: every fleet becomes an org, and nothing has to be reissued."""
 
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
-from typing import Any, cast
-from uuid import uuid4
 
-import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
 import pytest
 
 from pinecall.auth.keys import fingerprint
 from pinecall.auth.keys_postgres import PostgresKeys
 from pinecall.log.store import open_pool
 from pinecall.log.store.migrating import (
-    MIGRATIONS_TABLE,
-    RECORD_MIGRATION,
-    a_hash,
     apply_migrations,
 )
-from pinecall.log.store.postgres import MIGRATIONS
+from tests.orgs.boxes import Box, a_box_before
 from tests.postgres import Dev
 
 pytestmark = pytest.mark.postgres
 
-# The schema as it stood the day before orgs: the five migrations a running box had applied.
-BEFORE_ORGS = (
-    "0001_call_log.sql",
-    "0002_api_keys.sql",
-    "0003_routes.sql",
-    "0004_eval_runs.sql",
-    "0005_tokens.sql",
-)
-
-# What that box held: the default fleet's key, a second fleet with a key, a number and a token,
-# and one call already summarised in the log.
+# What a box from before orgs held: the default fleet's key, a second fleet with a key, a number
+# and a token, and one call already summarised in the log.
 THE_FIRST_KEY = "pk_the_key_migrate_up_printed_last_week"
 THE_CLINICS_KEY = "pk_the_clinic_next_door"
 NUMBER = "+34910000000"
 OLD_CALL = "CA_from_before_orgs"
 
-_connect = cast("Any", asyncpg.connect)  # pyright: ignore[reportUnknownMemberType]
-
-
-@dataclass(frozen=True)
-class Box:
-    """A database as a box had it before 0006, and the connection this test reads it through."""
-
-    dsn: str
-    schema: str
-    connection: Any
-
 
 @pytest.fixture
 async def a_box_from_before(postgres: Dev) -> AsyncIterator[Box]:
     """Five migrations applied by hand, then the rows a box in use would have had."""
-    schema = f"pinecall_before_orgs_{uuid4().hex[:12]}"
-    connection = await _connect(postgres.dsn)
-    try:
-        await connection.execute(f"create schema {schema}")
-        await connection.execute(f"set search_path to {schema}")
-        await connection.execute(MIGRATIONS_TABLE)
-        for name in BEFORE_ORGS:
-            await connection.execute((MIGRATIONS / name).read_text(encoding="utf-8"))
-            await connection.execute(RECORD_MIGRATION, name, a_hash(MIGRATIONS / name))
-        await connection.execute(
+    async with a_box_before(postgres, "0006", named="orgs") as box:
+        await box.connection.execute(
             "insert into api_keys (id, hash, org, fleet, label) values ($1, $2, $3, $4, $5)",
             "k_1",
             fingerprint(THE_FIRST_KEY),
@@ -70,7 +35,7 @@ async def a_box_from_before(postgres: Dev) -> AsyncIterator[Box]:
             "default",
             "issued by migrate up",
         )
-        await connection.execute(
+        await box.connection.execute(
             "insert into api_keys (id, hash, org, fleet, label) values ($1, $2, $3, $4, $5)",
             "k_2",
             fingerprint(THE_CLINICS_KEY),
@@ -78,14 +43,14 @@ async def a_box_from_before(postgres: Dev) -> AsyncIterator[Box]:
             "madrid",
             "the clinic",
         )
-        await connection.execute(
+        await box.connection.execute(
             "insert into routes (fleet, number, agent, channel) values ($1, $2, $3, $4)",
             "madrid",
             NUMBER,
             "clinica-norte",
             "phone",
         )
-        await connection.execute(
+        await box.connection.execute(
             "insert into tokens (call, org, fleet, agent, scope, expires_at)"
             " values ($1, $2, $3, $4, $5, now())",
             "CA_minted",
@@ -94,21 +59,18 @@ async def a_box_from_before(postgres: Dev) -> AsyncIterator[Box]:
             "clinica-norte",
             "talk",
         )
-        await connection.execute(
+        await box.connection.execute(
             "insert into call_log_head (log, agent, call, seq) values ($1, $2, $1, 1)",
             OLD_CALL,
             "clinica-norte",
         )
-        await connection.execute(
+        await box.connection.execute(
             "insert into call_log (call, seq, ts, agent, type, ephemeral, data)"
             " values ($1, 1, 1.0, $2, 'call.summary', false, '{\"duration_s\": 60}'::jsonb)",
             OLD_CALL,
             "clinica-norte",
         )
-        yield Box(dsn=postgres.dsn, schema=schema, connection=connection)
-    finally:
-        await connection.execute(f"drop schema if exists {schema} cascade")
-        await connection.close()
+        yield box
 
 
 async def test_every_fleet_the_box_knew_becomes_an_org_and_its_rows_follow_it(

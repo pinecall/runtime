@@ -5,16 +5,15 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from pinecall._settings import Settings
 from pinecall.api.org_mail import NO_MAIL, NOTHING_TO_TEST
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.mail import Outbox
 from pinecall.orgs.mail import Mail
 from pinecall.orgs.table import MemoryOrgs
-from pinecall.orgs.vault import NO_VAULT_KEY, Vault
 from pinecall.types import Mailbox, Org
-from tests.api.conftest import A_KEY, A_RECORD, AN_OPS_KEY, AN_ORG, over_the_asgi_app
+from tests.api.conftest import A_KEY, A_RECORD, AN_ORG, over_the_asgi_app
 from tests.api.mailing import A_BOX_SENDER, AN_ORGS_SENDER
+from tests.api.no_vault import WithNoVaultKey
 from tests.api.test_members_and_login import BERNA, accepted, invited
 from tests.mail.fake_smtp import NOT_AUTHORIZED, FakeSmtp
 
@@ -253,27 +252,14 @@ class TestTwoTenants:
         assert [one.recipients for one in the_orgs_relay.took] == []
 
 
-class TestWithNoVaultKey:
+class TestWithNoVaultKey(WithNoVaultKey):
     """A runtime given no PINECALL_VAULT_KEY keeps nobody's password, and says so once."""
 
-    @pytest.fixture
-    def settings(self) -> Settings:
-        return Settings(world="production", ops_key=AN_OPS_KEY)
+    door = THE_DOOR
 
     @pytest.fixture
     def mail(self) -> Mail | None:
         return None
-
-    @pytest.fixture
-    def vault(self) -> Vault | None:
-        """Nothing is sealed on such a box: the provider keys go the same way (orgs/vault.py)."""
-        return None
-
-    async def test_the_doors_answer_503_with_the_vaults_own_sentence(
-        self, tenant_http: httpx.AsyncClient
-    ) -> None:
-        answer = await tenant_http.get(THE_DOOR)
-        assert answer.status_code == 503 and answer.json()["detail"] == NO_VAULT_KEY
 
     async def test_the_boxs_own_mail_still_carries_an_invitation(
         self, tenant_http: httpx.AsyncClient, outbox: Outbox, relay: FakeSmtp

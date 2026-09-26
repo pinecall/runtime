@@ -2,56 +2,29 @@
 
 import json
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
-from typing import Any, cast
-from uuid import uuid4
 
-import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
 import pytest
 
 from pinecall.log.store.migrating import (
-    MIGRATIONS_TABLE,
-    RECORD_MIGRATION,
-    a_hash,
     apply_migrations,
 )
-from pinecall.log.store.postgres import MIGRATIONS, search_path_of
+from tests.orgs.boxes import Box, a_box_before, applied_by_hand, migrations_before
 from tests.postgres import Dev
 
 pytestmark = pytest.mark.postgres
 
-# The schema as it stood the day before the tuning: every migration up to the hold melody.
-BEFORE_TUNING = tuple(path.name for path in sorted(MIGRATIONS.glob("*.sql")) if path.name < "0037")
-
 THE_ORG = "clinica"
 THE_AGENT = "clinica-norte"
-
-_connect = cast("Any", asyncpg.connect)  # pyright: ignore[reportUnknownMemberType]
-
-
-@dataclass(frozen=True)
-class Box:
-    """A database as a box had it before 0037, and the connection this test reads it through."""
-
-    dsn: str
-    schema: str
-    connection: Any
 
 
 @pytest.fixture
 async def a_box_from_before(postgres: Dev) -> AsyncIterator[Box]:
     """Every migration up to 0036 applied by hand, one org, one turned set, two keys."""
-    schema = f"pinecall_before_tuning_{uuid4().hex[:12]}"
-    connection = await _connect(postgres.dsn)
-    try:
-        await connection.execute(f"create schema {schema}")
-        await connection.execute(f"set search_path to {search_path_of(schema)}")
-        await connection.execute(MIGRATIONS_TABLE)
-        for name in BEFORE_TUNING:
-            await connection.execute((MIGRATIONS / name).read_text(encoding="utf-8"))
-            await connection.execute(RECORD_MIGRATION, name, a_hash(MIGRATIONS / name))
-        await connection.execute("insert into orgs (id, slug, name) values ($1, $1, $1)", THE_ORG)
-        await connection.execute(
+    async with a_box_before(postgres, "0037", named="tuning") as box:
+        await box.connection.execute(
+            "insert into orgs (id, slug, name) values ($1, $1, $1)", THE_ORG
+        )
+        await box.connection.execute(
             "insert into pipeline_overrides (org, agent, voice, llm, greeting) "
             "values ($1, $2, $3, $4, $5)",
             THE_ORG,
@@ -64,7 +37,7 @@ async def a_box_from_before(postgres: Dev) -> AsyncIterator[Box]:
             "insert into api_keys (id, hash, org, label, env, scopes) "
             "values ($1, $2, $3, $4, $5, $6)"
         )
-        await connection.execute(
+        await box.connection.execute(
             keyed,
             "k_floor",
             "hash-of-the-floors-key",
@@ -73,7 +46,7 @@ async def a_box_from_before(postgres: Dev) -> AsyncIterator[Box]:
             "sandbox",
             ["calls", "evals", "supervise", "talk", "memory"],
         )
-        await connection.execute(
+        await box.connection.execute(
             keyed,
             "k_qa",
             "hash-of-the-qa-key",
@@ -82,10 +55,7 @@ async def a_box_from_before(postgres: Dev) -> AsyncIterator[Box]:
             "sandbox",
             ["calls", "evals"],
         )
-        yield Box(dsn=postgres.dsn, schema=schema, connection=connection)
-    finally:
-        await connection.execute(f"drop schema if exists {schema} cascade")
-        await connection.close()
+        yield box
 
 
 async def test_0037_copies_every_turned_set_as_v1_of_both_worlds(a_box_from_before: Box) -> None:
@@ -144,12 +114,8 @@ async def test_0040_renames_the_bases_a_world_attached_and_leaves_a_row_with_non
     box = a_box_from_before
     # Up to 0039 by hand, as the fixture applied the ones before 0037: the row is written in the
     # shape 0037 kept it, and 0040 is what is under test.
-    between = [
-        name.name for name in sorted(MIGRATIONS.glob("*.sql")) if "0037" <= name.name < "0040"
-    ]
-    for name in between:
-        await box.connection.execute((MIGRATIONS / name).read_text(encoding="utf-8"))
-        await box.connection.execute(RECORD_MIGRATION, name, a_hash(MIGRATIONS / name))
+    between = [name for name in migrations_before("0040") if name >= "0037"]
+    await applied_by_hand(box.connection, between)
     await box.connection.execute(
         "insert into agent_config (org, env, holder, agent, version, config, author) "
         "values ($1, 'sandbox', '', $2, 2, $3, 'k_1')",

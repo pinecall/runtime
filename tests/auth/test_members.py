@@ -8,19 +8,12 @@ from pinecall.auth.invitations import INVITATION_PREFIX, INVITATION_TTL_S
 from pinecall.auth.members import NoSeatLeft
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.types import Member
+from tests.clocks import Clock
 
 pytestmark = pytest.mark.unit
 
 ORG = "clinica"
 A_HASH = "$argon2id$not-really-but-the-table-does-not-care"
-
-
-class _Clock:
-    def __init__(self) -> None:
-        self.now = 1000.0
-
-    def __call__(self) -> float:
-        return self.now
 
 
 async def test_an_invite_makes_a_row_still_invited_and_a_token_shown_once() -> None:
@@ -49,7 +42,7 @@ async def test_accepting_spends_the_token_sets_the_password_and_makes_the_member
 
 
 async def test_an_expired_or_unknown_token_accepts_nobody() -> None:
-    clock = _Clock()
+    clock = Clock()
     members = MemoryMembers(clock=clock)
     invited = await members.invite(ORG, "berna@clinica.uy", "Berna", "qa", [])
     assert invited is not None

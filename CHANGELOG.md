@@ -97,6 +97,14 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   and 3.13, builds the wheel on every push, caches the Postgres image between runs and keeps the
   container's log as an artifact; every action is pinned by commit, Dependabot opens one pull
   request a week per ecosystem, and `pip-audit` runs over the whole lock every Monday.
+- **Ring 0 proves the whole golden state, and searches for what must always hold.**
+  `tests/log/test_the_golden_log.py` folds the protocol's golden log to its golden state whole —
+  every field, not the four the Postgres round trip compared — and resumes to it from any cut,
+  by fold and by a `log.gap` snapshot; `hypothesis` states the properties of chunking, rank
+  fusion and the reducer beside their examples (`respx` and `time-machine`, which no test
+  imported, leave the dev group). `migrate status` under test opens no socket, every package
+  with an `__all__` is pinned, and the clocks, the pre-migration boxes and the no-vault
+  fixtures the suites copied are one module each.
 - **The box embeds with Perplexity's larger model.** `EMBED_PROVIDER=perplexity` now defaults to
   `pplx-embed-context-v1-4b`, asked for 1024 wide (Matryoshka) so it fits the columns: every base
   another model pushed answers `409` until its project pushes it again, and

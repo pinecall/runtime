@@ -3,6 +3,8 @@
 from pathlib import Path
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from tests.tree import ROOT, every_module, tracked_files
 
@@ -113,3 +115,15 @@ def _one_edit_apart(one: str, other: str) -> bool:
     if len(shorter) == len(longer):
         return sum(a != b for a, b in zip(shorter, longer, strict=True)) == 1
     return any(longer[:cut] + longer[cut + 1 :] == shorter for cut in range(len(longer)))
+
+
+A_NAME = st.text(alphabet="ab_", max_size=6)
+
+
+# The rule reads the same whichever file is named first, and a name is never its own twin.
+@given(one=A_NAME, other=A_NAME)
+def test_one_edit_apart_is_symmetric_and_never_holds_between_a_name_and_itself(
+    one: str, other: str
+) -> None:
+    assert _one_edit_apart(one, other) == _one_edit_apart(other, one)
+    assert not _one_edit_apart(one, one)

@@ -1,28 +1,19 @@
 """0039 on a box with people: no row opens production, and a person's keys lose their world."""
 
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
-from typing import Any, cast
-from uuid import uuid4
 
-import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
 import pytest
 
 from pinecall.log.store.migrating import (
-    MIGRATIONS_TABLE,
-    RECORD_MIGRATION,
-    a_hash,
     apply_migrations,
 )
-from pinecall.log.store.postgres import MIGRATIONS, search_path_of
+from tests.orgs.boxes import Box, a_box_before
 from tests.postgres import Dev
 
 pytestmark = pytest.mark.postgres
 
-BEFORE = tuple(path.name for path in sorted(MIGRATIONS.glob("*.sql")) if path.name < "0039")
 THE_ORG = "clinica"
 
-_connect = cast("Any", asyncpg.connect)  # pyright: ignore[reportUnknownMemberType]
 
 # Four keys as a box held them before: a person's in each world, an operator's visit, a server's.
 KEYS = (
@@ -33,30 +24,15 @@ KEYS = (
 )
 
 
-@dataclass(frozen=True)
-class Box:
-    """A database as a box had it before 0039, and the connection this test reads it through."""
-
-    dsn: str
-    schema: str
-    connection: Any
-
-
 @pytest.fixture
 async def a_box_from_before(postgres: Dev) -> AsyncIterator[Box]:
     """Every migration up to 0038 applied by hand, an admin and a developer, and four keys."""
-    schema = f"pinecall_before_access_{uuid4().hex[:12]}"
-    connection = await _connect(postgres.dsn)
-    try:
-        await connection.execute(f"create schema {schema}")
-        await connection.execute(f"set search_path to {search_path_of(schema)}")
-        await connection.execute(MIGRATIONS_TABLE)
-        for name in BEFORE:
-            await connection.execute((MIGRATIONS / name).read_text(encoding="utf-8"))
-            await connection.execute(RECORD_MIGRATION, name, a_hash(MIGRATIONS / name))
-        await connection.execute("insert into orgs (id, slug, name) values ($1, $1, $1)", THE_ORG)
+    async with a_box_before(postgres, "0039", named="access") as box:
+        await box.connection.execute(
+            "insert into orgs (id, slug, name) values ($1, $1, $1)", THE_ORG
+        )
         for id, role in (("m_ana", "admin"), ("m_bruno", "developer")):
-            await connection.execute(
+            await box.connection.execute(
                 "insert into members (id, org, email, name, role, agents, status) "
                 "values ($1, $2, $1 || '@x.test', $1, $3, '{}', 'active')",
                 id,
@@ -64,7 +40,7 @@ async def a_box_from_before(postgres: Dev) -> AsyncIterator[Box]:
                 role,
             )
         for id, subject, env in KEYS:
-            await connection.execute(
+            await box.connection.execute(
                 "insert into api_keys (id, hash, org, label, env, scopes, subject, name) "
                 "values ($1, $1, $2, null, $3, '{calls}', $4, null)",
                 id,
@@ -72,10 +48,7 @@ async def a_box_from_before(postgres: Dev) -> AsyncIterator[Box]:
                 env,
                 subject,
             )
-        yield Box(dsn=postgres.dsn, schema=schema, connection=connection)
-    finally:
-        await connection.execute(f"drop schema if exists {schema} cascade")
-        await connection.close()
+        yield box
 
 
 async def test_0039_lets_nobody_in_by_a_row_and_takes_the_world_off_a_persons_keys(

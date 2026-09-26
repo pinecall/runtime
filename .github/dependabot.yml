@@ -11,7 +11,7 @@ updates:
       livekit:
         patterns: ["livekit-*"]
       tooling:
-        patterns: ["ruff", "pyright", "mypy", "pytest*", "deptry", "squawk-cli"]
+        patterns: ["ruff", "pyright", "mypy", "pytest*", "hypothesis", "deptry", "squawk-cli"]
   - package-ecosystem: github-actions
     directory: /
     schedule:

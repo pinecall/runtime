@@ -16,6 +16,7 @@ from pinecall.types import AgentConfig
 from tests.api.conftest import A_RECORD
 from tests.api.talking import a_context as a_call_on
 from tests.api.talking import got
+from tests.clocks import Clock
 from tests.routes.fakes import MemoryRooms
 
 pytestmark = pytest.mark.unit
@@ -28,20 +29,9 @@ NOON = datetime(THE_DAY.year, THE_DAY.month, THE_DAY.day, 12, tzinfo=UTC).timest
 AN_HOUR_LATER = NOON + 60 * 60
 
 
-class Clock:
-    """A clock a test sets, so a call's entries land where it wants them."""
-
-    def __init__(self) -> None:
-        self.now = NOON
-
-    def __call__(self) -> float:
-        self.now += 1.0
-        return self.now
-
-
 @pytest.fixture
 def clock() -> Clock:
-    return Clock()
+    return Clock(NOON, tick=1.0)
 
 
 @pytest.fixture

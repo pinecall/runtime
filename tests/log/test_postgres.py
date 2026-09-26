@@ -102,10 +102,3 @@ async def test_the_golden_state_survives_the_round_trip(postgres: Dev, call: str
     assert state["app_state"] == expected["app_state"]
     assert state["turns"] == expected["turns"]
     assert state["usage"] == expected["usage"] and state["cost"] == expected["cost"]
-
-
-def test_the_golden_carries_both_kinds_of_entry() -> None:
-    """The assertion above is only worth anything if the fixture has ephemerals in it."""
-    golden = json.loads(GOLDEN_LOG.read_text(encoding="utf-8"))
-    assert any(entry["ephemeral"] for entry in golden)
-    assert any(not entry["ephemeral"] for entry in golden)

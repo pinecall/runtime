@@ -9,9 +9,9 @@ import pytest
 
 from pinecall.api.box_mail import NOTHING_STORED, NOTHING_TO_TEST
 from pinecall.mail import Outbox
-from pinecall.orgs.box import BoxSettings, MemoryBoxSettings
 from pinecall.orgs.vault import NO_VAULT_KEY
 from tests.api.mailing import A_BOX_SENDER
+from tests.api.no_vault import OnABoxWithNoVaultKey
 from tests.api.test_members_and_login import invited
 from tests.mail.fake_smtp import FakeSmtp
 
@@ -154,12 +154,8 @@ async def test_a_bad_body_is_the_orgs_own_refusal_and_the_door_is_the_operators(
     assert (await tenant_http.put(THE_DOOR, json=wiring(relay))).status_code == 401
 
 
-class TestWithNoVaultKey:
+class TestWithNoVaultKey(OnABoxWithNoVaultKey):
     """A box with no vault key can keep no password, and says so with the vault's sentence."""
-
-    @pytest.fixture
-    def box_settings(self) -> BoxSettings:
-        return MemoryBoxSettings(None)
 
     async def test_storing_a_password_is_refused_503_and_the_brand_still_takes(
         self, ops_http: httpx.AsyncClient, relay: FakeSmtp

@@ -3,20 +3,13 @@
 import pytest
 
 from pinecall.auth.one_use import OneUse
+from tests.clocks import Clock
 
 pytestmark = pytest.mark.unit
 
 
-class _Clock:
-    def __init__(self) -> None:
-        self.now = 1_000.0
-
-    def __call__(self) -> float:
-        return self.now
-
-
 def test_a_word_is_spent_once_and_carries_its_prefix() -> None:
-    words: OneUse[str] = OneUse("w_", 60.0, _Clock())
+    words: OneUse[str] = OneUse("w_", 60.0, Clock())
     word, expires_at = words.mint("what it stands for")
     assert word.startswith("w_") and len(word) > 30 and expires_at == 1_060.0
     assert words.read(word) is not None
@@ -26,7 +19,7 @@ def test_a_word_is_spent_once_and_carries_its_prefix() -> None:
 
 
 def test_a_word_dies_on_its_own_when_its_time_is_up() -> None:
-    clock = _Clock()
+    clock = Clock()
     words: OneUse[int] = OneUse("w_", 60.0, clock)
     word, _ = words.mint(1)
     clock.now = 1_059.9
@@ -37,7 +30,7 @@ def test_a_word_dies_on_its_own_when_its_time_is_up() -> None:
 
 def test_a_word_minted_apart_from_its_value_keeps_the_moment_it_was_given() -> None:
     """A value that carries its own word is built first, then kept: the OpenID handshake."""
-    words: OneUse[dict[str, str]] = OneUse("st_", 600.0, _Clock())
+    words: OneUse[dict[str, str]] = OneUse("st_", 600.0, Clock())
     word, expires_at = words.a_word(), words.expires_from_now()
     words.keep(word, {"state": word}, expires_at)
     minted = words.read(word)

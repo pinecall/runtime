@@ -17,6 +17,7 @@ from pinecall.log.store import MemoryStore
 from pinecall.types import PRODUCTION, Member
 from tests.api.conftest import A_KEY, A_RECORD, AGENT
 from tests.api.talking import got
+from tests.clocks import Clock
 
 pytestmark = pytest.mark.unit
 
@@ -39,20 +40,9 @@ THE_SHOPS_KEY = "pk_test_the_shop"
 THE_SHOP = KeyRecord(key_id="k_shop", org="tienda")
 
 
-class Clock:
-    """A clock that ticks a second per entry, from a moment a test may move."""
-
-    def __init__(self) -> None:
-        self.now = time.time() - 600
-
-    def __call__(self) -> float:
-        self.now += 1.0
-        return self.now
-
-
 @pytest.fixture
 def clock() -> Clock:
-    return Clock()
+    return Clock(time.time() - 600, tick=1.0)
 
 
 @pytest.fixture

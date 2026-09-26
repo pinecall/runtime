@@ -14,6 +14,7 @@ from pinecall.types import Quotas
 from pinecall.types.json import JsonObject
 from tests.api.conftest import A_KEY, A_RECORD
 from tests.api.talking import got
+from tests.clocks import Clock
 
 pytestmark = pytest.mark.unit
 
@@ -29,20 +30,9 @@ def at(day: date, hour: int) -> float:
     return datetime(day.year, day.month, day.day, hour, tzinfo=UTC).timestamp()
 
 
-class Clock:
-    """A clock a test sets before each call it writes, so a call lands on the day it names."""
-
-    def __init__(self) -> None:
-        self.now = at(THE_DAY, 9)
-
-    def __call__(self) -> float:
-        self.now += 1.0
-        return self.now
-
-
 @pytest.fixture
 def clock() -> Clock:
-    return Clock()
+    return Clock(at(THE_DAY, 9), tick=1.0)
 
 
 @pytest.fixture

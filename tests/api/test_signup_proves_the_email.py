@@ -18,6 +18,7 @@ from pinecall.orgs.table import MemoryOrgs
 from tests.api.conftest import A_LIVEKIT, A_VAULT_KEY, AN_OPS_KEY, over_the_asgi_app
 from tests.api.mailing import A_BOX_SENDER
 from tests.api.test_signup import A_CODE, TIENDA, VERIFY, asked, the_code_mailed
+from tests.clocks import Clock
 from tests.mail.fake_smtp import FakeSmtp
 
 pytestmark = pytest.mark.unit
@@ -26,19 +27,9 @@ RESEND = "/v1/signup/resend"
 THE_SHIELDS_KEY = "the-landing-holds-this-and-nobody-else"
 
 
-class Clock:
-    """Time that moves only when the test says so."""
-
-    def __init__(self) -> None:
-        self.now = 1_000_000.0
-
-    def __call__(self) -> float:
-        return self.now
-
-
 @pytest.fixture
 def clock() -> Clock:
-    return Clock()
+    return Clock(1_000_000.0)
 
 
 @pytest.fixture
