@@ -25,11 +25,10 @@ dependencies = [
   "pinecall-db==0.1.0",
   "pinecall-log==0.1.0",
   "pinecall-providers==0.1.0",
+  "pinecall-session==0.1.0",
   "pinecall-settings==0.1.0",
   # argon2id, and nothing else: a member's password is a secret a person invented.
   "argon2-cffi>=23.1,<26",
-  # livekit-agents' own, imported by name: PyAV decodes the hold audio.
-  "av>=13,<19",
   # Fernet, and nothing else: a tenant's own provider key is encrypted at rest under PINECALL_VAULT_KEY.
   "cryptography>=44,<51",
   "fastapi>=0.115,<1",
@@ -74,6 +73,7 @@ pinecall-core = { workspace = true }
 pinecall-db = { workspace = true }
 pinecall-log = { workspace = true }
 pinecall-providers = { workspace = true }
+pinecall-session = { workspace = true }
 pinecall-settings = { workspace = true }
 
 [build-system]
@@ -116,4 +116,4 @@ pyjwt = ["jwt"]
 [tool.deptry.per_rule_ignores]
 # The siblings are imported on every other line, as `pinecall.<package>`: deptry reads a
 # namespace by its top-level name alone, and `pinecall` is first-party here.
-DEP002 = ["pinecall-core", "pinecall-db", "pinecall-log", "pinecall-providers", "pinecall-settings"]
+DEP002 = ["pinecall-core", "pinecall-db", "pinecall-log", "pinecall-providers", "pinecall-session", "pinecall-settings"]
