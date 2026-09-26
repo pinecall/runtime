@@ -20,7 +20,7 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
   "Typing :: Typed",
 ]
-# The standard library and nothing else. tests/test_isolation.py in the runtime holds it there:
+# The standard library and nothing else. The repository's tests/test_isolation.py holds it there:
 # a module here that imports the runtime, a framework or a driver fails that suite.
 dependencies = []
 

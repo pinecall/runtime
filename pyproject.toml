@@ -212,6 +212,7 @@ src = [
   "packages/pinecall-tenancy/tests",
   "packages/pinecall-testkit/src",
   "packages/pinecall-testkit/tests",
+  "tests",
 ]
 
 [tool.ruff.lint]
@@ -243,6 +244,7 @@ unfixable = ["T201"]
 # every suite is built on.
 "packages/*/tests/**" = ["S101", "S301", "S311", "S603", "S607"]
 "packages/pinecall-testkit/src/**" = ["S101", "S301", "S311", "S603", "S607"]
+"tests/**" = ["S101", "S301", "S311", "S603", "S607"]
 "infra/tools/tests/**" = ["S101"]
 # The operator's own Python: it opens fixed https URLs, binds a probe to every interface on
 # purpose, and jitters a SIP call with `random`.

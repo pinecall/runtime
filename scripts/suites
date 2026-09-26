@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Every suite of the workspace, one path per line: each distribution's tests/, then the operator's
-# tools. One pytest process each, because every distribution names its suite `tests` and two of
+# Every suite of the workspace, one path per line: each distribution's tests/, the repository's
+# own rules (tests/), then the operator's tools. One pytest process each, because every distribution names its suite `tests` and two of
 # them in one process are one module twice. The core's is not here: it runs on its own
 # configuration, where nothing of the runtime is installed (scripts/test, scripts/unit).
 set -euo pipefail
@@ -10,4 +10,5 @@ for suite in packages/*/tests; do
   [[ $suite == packages/pinecall-core/tests ]] && continue
   echo "$suite"
 done
+echo tests
 echo infra/tools/tests
