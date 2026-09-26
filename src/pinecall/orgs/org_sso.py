@@ -6,7 +6,7 @@ from typing import Any, Protocol
 
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, sealed, sealed_store, unseal
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, seal, sealed_store, unseal
 from pinecall.types import OrgSso, parse_role
 
 
@@ -42,7 +42,7 @@ class MemorySso:
 
     async def put(self, sso: OrgSso) -> None:
         """Encrypted here too, so a dev clone and a box behave alike down to the stored bytes."""
-        self._rows[sso.org] = (sso, sealed(self._cipher, sso.client_secret))
+        self._rows[sso.org] = (sso, seal(self._cipher, sso.client_secret))
 
     async def of(self, org: str) -> OrgSso | None:
         """Through the cipher on the way out, exactly as the row below is."""
@@ -110,7 +110,7 @@ class PostgresSso:
             sso.org,
             sso.issuer,
             sso.client_id,
-            sealed(self._cipher, sso.client_secret),
+            seal(self._cipher, sso.client_secret),
             list(sso.domains),
             sso.role,
             sso.required,

@@ -13,7 +13,7 @@ from pinecall.knowledge.chunking import (
     HEADING_JOINT,
     body_of,
     chunks_of,
-    prefixed,
+    indexed_text,
 )
 from pinecall.types import KnowledgeFile
 from pinecall.types.token_estimate import estimated_tokens
@@ -105,8 +105,8 @@ def test_an_empty_file_is_no_piece() -> None:
 
 
 def test_prefixed_and_body_of_are_each_others_inverse() -> None:
-    assert body_of(prefixed("Tarifas", "cuarenta"), "Tarifas") == "cuarenta"
-    assert body_of(prefixed(None, "cuarenta"), None) == "cuarenta"
+    assert body_of(indexed_text("Tarifas", "cuarenta"), "Tarifas") == "cuarenta"
+    assert body_of(indexed_text(None, "cuarenta"), None) == "cuarenta"
 
 
 # A scraper and every static-site generator open a file with a fenced block of metadata. Left in,

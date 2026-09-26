@@ -9,7 +9,7 @@ from typing import Any, Protocol
 
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, sealed, sealed_store, unseal
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, seal, sealed_store, unseal
 from pinecall.types import Mailbox, parse_security
 
 
@@ -56,7 +56,7 @@ class MemoryMail:
     async def put(self, org: str, mailbox: Mailbox) -> None:
         """Encrypted here too, so a dev clone and a box behave alike down to the stored bytes."""
         kept = KeptMail(replace(mailbox, password=""))
-        self._rows[org] = (kept, sealed(self._cipher, mailbox.password))
+        self._rows[org] = (kept, seal(self._cipher, mailbox.password))
 
     async def of(self, org: str) -> KeptMail | None:
         """Through the cipher on the way out, exactly as the row below is."""
@@ -124,7 +124,7 @@ class PostgresMail:
             mailbox.port,
             mailbox.security,
             mailbox.username,
-            sealed(self._cipher, mailbox.password),
+            seal(self._cipher, mailbox.password),
             mailbox.sender,
         )
 

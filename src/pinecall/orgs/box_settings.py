@@ -11,7 +11,7 @@ from cryptography.fernet import InvalidToken
 
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, build_cipher, sealed, unseal
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, build_cipher, seal, unseal
 
 # The rows there are. A name is the whole key: the box is one, so there is no org beside it.
 BRAND = "brand"
@@ -144,7 +144,7 @@ def _sealed(cipher: Cipher | None, secret: str | None) -> str | None:
         return None
     if cipher is None:
         raise NoVaultKey(NO_VAULT_KEY)
-    return sealed(cipher, secret)
+    return seal(cipher, secret)
 
 
 # A row sealed under a vault key this box no longer holds — lost, or rotated without the old key

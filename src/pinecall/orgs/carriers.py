@@ -7,7 +7,7 @@ from typing import Any, Protocol
 
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, sealed, sealed_store, unseal
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, seal, sealed_store, unseal
 from pinecall.types import Carrier, SipPeer, TwilioAccount, parse_carrier_kind, parse_sip_transport
 
 
@@ -106,7 +106,7 @@ def _sealed(cipher: Cipher, carrier: Carrier) -> str:
             "outbound_password": account.outbound_password,
         }
     )
-    return sealed(cipher, json.dumps(said))
+    return seal(cipher, json.dumps(said))
 
 
 def _opened(cipher: Cipher, org: str, kind: str, ciphertext: str) -> Carrier:

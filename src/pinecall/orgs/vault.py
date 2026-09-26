@@ -61,7 +61,7 @@ class MemoryVault:
 
     async def put(self, org: str, vendor: str, key: str) -> None:
         """Encrypted here too, so a dev clone and a box behave alike down to the stored bytes."""
-        self._rows[(org, vendor)] = sealed(self._cipher, key)
+        self._rows[(org, vendor)] = seal(self._cipher, key)
 
     async def drop(self, org: str, vendor: str) -> bool:
         """Whether there was a row to forget."""
@@ -105,7 +105,7 @@ class PostgresVault:
 
     async def put(self, org: str, vendor: str, key: str) -> None:
         """The key in the clear reaches this method and nothing under it: the row holds a token."""
-        await self._pool.execute(_PUT, org, vendor, sealed(self._cipher, key))
+        await self._pool.execute(_PUT, org, vendor, seal(self._cipher, key))
 
     async def drop(self, org: str, vendor: str) -> bool:
         """The row RETURNING says whether one went, so dropping a stranger is told apart."""
@@ -182,7 +182,7 @@ def build_cipher(vault_key: str) -> MultiFernet:
 
 # The one pair every sealed table spells its secret through: a Fernet token in the row, the
 # secret in the clear only in the process that asked for it.
-def sealed(cipher: Cipher, secret: str) -> str:
+def seal(cipher: Cipher, secret: str) -> str:
     """One secret as a row keeps it: a Fernet token, never the secret itself."""
     return cipher.encrypt(secret.encode()).decode()
 

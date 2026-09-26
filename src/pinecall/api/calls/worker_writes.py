@@ -200,7 +200,7 @@ async def append(
 
 
 @router.post("/v1/calls/{call}/sealed", status_code=HTTP_204_NO_CONTENT)
-async def sealed(call: str, key: AppKeyDep, logs: LogsDep, live: ServingDep) -> None:
+async def seal_call(call: str, key: AppKeyDep, logs: LogsDep, live: ServingDep) -> None:
     """The call is over: every reader finishes, and nothing more can be appended to it."""
     refuse_another_orgs_call(live, key, call)
     await _the_open_log(logs, call).seal()

@@ -7,7 +7,7 @@ from typing import Any, Protocol
 
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, sealed, sealed_store, unseal
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, seal, sealed_store, unseal
 from pinecall.types import CarrierKind, OutboundTrunk, parse_carrier_kind
 
 
@@ -126,7 +126,7 @@ def _sealed(cipher: Cipher, password: str | None) -> str | None:
     """The password as a row keeps it: one Fernet token over its JSON, or nothing at all."""
     if password is None:
         return None
-    return sealed(cipher, json.dumps({"password": password}))
+    return seal(cipher, json.dumps({"password": password}))
 
 
 def _opened(cipher: Cipher, ciphertext: Any) -> str | None:

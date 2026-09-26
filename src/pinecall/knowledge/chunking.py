@@ -46,7 +46,7 @@ def chunks_of(file: KnowledgeFile) -> list[Piece]:
     pieces: list[Piece] = []
     for heading, body in _sections_of(without_front_matter(file.text)):
         for group in _paragraphs_under_the_cap(body, heading):
-            pieces.append(Piece(file.path, heading, len(pieces), prefixed(heading, group)))
+            pieces.append(Piece(file.path, heading, len(pieces), indexed_text(heading, group)))
     return pieces
 
 
@@ -63,7 +63,7 @@ def without_front_matter(text: str) -> str:
     return text[closed.end() :].lstrip("\n") if closed else text
 
 
-def prefixed(heading: str | None, body: str) -> str:
+def indexed_text(heading: str | None, body: str) -> str:
     """The text a chunk is indexed as: its heading path over its body, or the body alone."""
     return f"{heading}{HEADING_JOINT}{body}" if heading else body
 
