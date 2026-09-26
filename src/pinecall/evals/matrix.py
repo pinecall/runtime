@@ -103,7 +103,7 @@ class Matrix:
 # that answers from the evidence and asks nobody rides in every one of them, whatever the golden
 # declared. Consent is the first such policy, so `consent` is a column of every matrix this
 # package draws and never one a suite opted into. See docs/decisions/pinecall-test.md.
-async def a_matrix(
+async def build_matrix(
     spoken: Sequence[GoldenRun], judges: Sequence[Evaluator], llm: LLM[Any]
 ) -> Matrix:
     """Every judge over every case. The judges answer; nothing here runs a turn or scores one."""

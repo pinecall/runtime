@@ -109,7 +109,7 @@ def heard_in(entries: Sequence[Entry]) -> list[Spoken]:
     ]
 
 
-async def what_they_say_next(llm: Chat, asking: Asking) -> Improvised:
+async def improvise_line(llm: Chat, asking: Asking) -> Improvised:
     """One turn improvised by the model that is playing the caller, in and out in one call."""
 
     # The body never runs: the line is read off the arguments the model sent, the way livekit's

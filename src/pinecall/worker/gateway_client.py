@@ -30,11 +30,11 @@ from pinecall.worker.gateway_http import (
     TAIL_TIMEOUT,
     TIMEOUT_S,
     GatewayRefused,
-    a_ceiling,
-    fetched,
+    fetch_bytes,
     found,
+    parse_ceiling,
     read,
-    streamed,
+    stream_json,
 )
 from pinecall.worker.retries import again
 from pinecall.worker.wire import (
@@ -150,7 +150,7 @@ class Gateway:
     ) -> bytes:
         """The clip itself, Ogg Opus as the gateway converted it."""
         path = f"/v1/agents/{slug}/hold-audio/audio"
-        return await fetched(self._http, path, _whose(org, env, holder))
+        return await fetch_bytes(self._http, path, _whose(org, env, holder))
 
     # The gateway judges the number against the org's guards before it answers with a trunk, so a
     # refusal here is "not this number, not this often" and not "no trunk" — the two read very
@@ -191,7 +191,7 @@ class Gateway:
             said["app"] = app
         answer = await self._read("POST", "/v1/calls", said)
         self._opened[context.call] = said
-        return a_ceiling(answer)
+        return parse_ceiling(answer)
 
     async def append(
         self, call: str, type: str, data: Mapping[str, Any], ephemeral: bool | None = None
@@ -349,7 +349,7 @@ class Gateway:
 
     def _streamed(self, path: str) -> AsyncIterator[JsonObject]:
         """One server-sent stream on this worker's connection pool."""
-        return streamed(self._http, path)
+        return stream_json(self._http, path)
 
     async def aclose(self) -> None:
         """Close the connection pool the process opened once."""
@@ -392,7 +392,7 @@ def _whose(org: str | None, env: Env | None, holder: str | None) -> dict[str, st
     }
 
 
-def reaching(base_url: str, key: str = "") -> Gateway:
+def build_gateway(base_url: str, key: str = "") -> Gateway:
     """The gateway at that URL (Settings.gateway_url), with the worker's key on every request."""
     headers = {"Authorization": f"Bearer {key}"} if key else {}
     return Gateway(httpx.AsyncClient(base_url=base_url, headers=headers, timeout=TIMEOUT_S))

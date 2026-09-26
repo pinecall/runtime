@@ -36,7 +36,7 @@ class Applying(Protocol):
 # that ends while the loop is still running — cleanly, as a gateway stopping with grace ends it, or
 # cut — is never the call ending: it is the gateway going away, and the stream is opened again on a
 # capped backoff. A 4xx is the gateway's answer — the call is over, or not here — and the end.
-async def served(gateway: Gateway, bridge: Applying, call: str) -> None:
+async def serve_commands(gateway: Gateway, bridge: Applying, call: str) -> None:
     """Every command the app sends for this call, until the job lets go or the gateway refuses."""
     waits = delays()
     while True:

@@ -7,11 +7,11 @@ import pytest
 
 from pinecall.cli.operator import Operator, OperatorRefused
 from pinecall.cli.orgs.verbs import (
-    a_key_from,
-    a_lending_typed,
     add_org,
     list_orgs,
     list_provider_keys,
+    parse_lending_flag,
+    read_key_from,
     remove_org,
     remove_provider_key,
     set_dialling,
@@ -72,12 +72,12 @@ async def test_quota_prints_every_limit_and_a_dash_for_the_ones_left_open(
 
 
 def test_the_lending_typed_is_entries_none_is_the_empty_set_and_nothing_is_every_key() -> None:
-    assert a_lending_typed("deepgram, anthropic/claude-haiku-4-5") == [
+    assert parse_lending_flag("deepgram, anthropic/claude-haiku-4-5") == [
         "deepgram",
         "anthropic/claude-haiku-4-5",
     ]
-    assert a_lending_typed("none") == []
-    assert a_lending_typed(None) is None
+    assert parse_lending_flag("none") == []
+    assert parse_lending_flag(None) is None
 
 
 async def test_quota_prints_what_the_box_lends_as_the_door_kept_it(operator: Operator) -> None:
@@ -158,6 +158,6 @@ async def test_provider_key_rm_puts_the_org_back_on_the_box_and_a_typo_is_a_refu
 
 def test_the_key_is_read_from_stdin_and_a_blank_line_is_nothing() -> None:
     """argv is in `ps`; a key that arrived as a flag would be a key in somebody's history."""
-    assert a_key_from(io.StringIO(f"{A_TENANTS_KEY}\n"), "elevenlabs") == A_TENANTS_KEY
-    assert a_key_from(io.StringIO("\n"), "elevenlabs") is None
-    assert a_key_from(io.StringIO(""), "elevenlabs") is None
+    assert read_key_from(io.StringIO(f"{A_TENANTS_KEY}\n"), "elevenlabs") == A_TENANTS_KEY
+    assert read_key_from(io.StringIO("\n"), "elevenlabs") is None
+    assert read_key_from(io.StringIO(""), "elevenlabs") is None

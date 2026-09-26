@@ -10,9 +10,9 @@ from livekit.agents.evals import Judge, JudgmentResult
 from livekit.agents.llm import LLM, ChatContext
 
 from pinecall.evals.case import Case
-from pinecall.evals.judges.binary_question import asked
+from pinecall.evals.judges.binary_question import ask_judge
 from pinecall.evals.judges.code_judge import broken, held
-from pinecall.evals.judges.grounded import rendered
+from pinecall.evals.judges.grounded import render_tool_call
 from pinecall.evals.transcript import said_by_the_agent
 
 # The name the log files the verdict under, and the one the call index raises `promise` by
@@ -80,7 +80,7 @@ class PromisesJudge(Judge):
         elif llm is None:
             settled = broken(NOBODY_TO_ASK.format(said=_quoted(promised)))
         else:
-            return await asked(llm, self.criteria(), chat_ctx)
+            return await ask_judge(llm, self.criteria(), chat_ctx)
         settled.instructions = CRITERIA
         return settled
 
@@ -92,7 +92,12 @@ class PromisesJudge(Judge):
 def promises_of(case: Case) -> PromisesJudge:
     """The judge for one call, carrying every tool call it made as `name(args) → answer`."""
     return PromisesJudge(
-        [rendered(call) for turn in case.turns for call in turn.calls if call.answer is not None]
+        [
+            render_tool_call(call)
+            for turn in case.turns
+            for call in turn.calls
+            if call.answer is not None
+        ]
     )
 
 

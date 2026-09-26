@@ -7,7 +7,7 @@ import pytest
 from pinecall._settings import Budgets
 from pinecall.api.agents.held_agent import Registration
 from pinecall.api.calls.opening import a_text_call
-from pinecall.evals import a_score
+from pinecall.evals import score_call
 from pinecall.evals.hangup_score import JudgedWhen
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
@@ -59,5 +59,5 @@ async def test_a_text_call_is_opened_with_the_judge_and_not_with_the_default(
     )
 
     judge = opened.session._score  # pyright: ignore[reportPrivateUsage]
-    assert isinstance(judge, JudgedWhen) and judge.score is a_score
+    assert isinstance(judge, JudgedWhen) and judge.score is score_call
     assert opened.session._score is not unjudged_score  # pyright: ignore[reportPrivateUsage]

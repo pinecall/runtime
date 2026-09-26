@@ -73,7 +73,7 @@ class Judging:
 
     def __init__(self, config: AgentConfig) -> None:
         self._config = config
-        self._judge = rings.a_judge()
+        self._judge = rings.build_judge()
         self._cells: list[rings.Run] = []
 
     # One conversation at a time, the moment it ends: a person watching the run sees each golden's
@@ -84,7 +84,7 @@ class Judging:
         # livekit's `LLM` is `Generic[TEvent]` (llm/llm.py:115) and every signature that
         # takes one in this tree leaves it bare, so pyright reads the call as partially
         # unknown. The parameter is livekit's to name, not ours.
-        measured = await rings.a_matrix(  # pyright: ignore[reportUnknownMemberType]
+        measured = await rings.build_matrix(  # pyright: ignore[reportUnknownMemberType]
             [rings.GoldenRun(model=one.model, golden=one.golden.name, case=case, asked=one.asked)],
             _judges_for(one.golden, case),
             self._judge,
@@ -142,7 +142,7 @@ def _a_row(run: rings.Run) -> ScoreRow:
 
 def _a_case(one: Conversation, config: AgentConfig) -> rings.Case:
     """The call's log as a judge reads it, with the contracts the model was shown beside it."""
-    return rings.a_case(
+    return rings.build_case(
         one.entries,
         tools=config.tools_by_name,
         name=one.golden.name,

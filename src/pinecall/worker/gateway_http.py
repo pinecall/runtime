@@ -54,7 +54,7 @@ async def read(
 FILE_TIMEOUT_S = 15.0
 
 
-async def fetched(http: httpx.AsyncClient, path: str, params: Mapping[str, str]) -> bytes:
+async def fetch_bytes(http: httpx.AsyncClient, path: str, params: Mapping[str, str]) -> bytes:
     """One GET, and the bytes it answered with — a file, not JSON — on the file's own clock."""
     return (await _answered(http, "GET", path, None, FILE_TIMEOUT_S, params)).content
 
@@ -92,7 +92,7 @@ async def found(asking: Awaitable[Any]) -> bool:
     return True
 
 
-async def streamed(http: httpx.AsyncClient, path: str) -> AsyncIterator[JsonObject]:
+async def stream_json(http: httpx.AsyncClient, path: str) -> AsyncIterator[JsonObject]:
     """One server-sent stream, message by message, for as long as the gateway holds it open."""
     headers = {"Accept": EVENT_STREAM}
     try:
@@ -122,7 +122,7 @@ async def server_sent_events(lines: AsyncIterator[str]) -> AsyncIterator[JsonObj
 
 # A gateway older than the ceiling answered 204, and one whose org's minutes have no limit answers
 # null: both are no ceiling at all.
-def a_ceiling(answer: Any) -> Ceiling | None:
+def parse_ceiling(answer: Any) -> Ceiling | None:
     """What POST /v1/calls answered about the org's minutes, as the worker keeps it."""
     if answer is None or answer.get("seconds_left") is None:
         return None

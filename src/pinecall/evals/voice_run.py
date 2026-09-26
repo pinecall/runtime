@@ -16,7 +16,7 @@ from livekit.agents.utils import http_context
 from pinecall._settings import Settings
 from pinecall.auth.scopes import mint_room_token, secret_for
 from pinecall.evals import caller_voice, line_noise
-from pinecall.evals.agent_dispatch import a_dispatch
+from pinecall.evals.agent_dispatch import dispatch_agent
 from pinecall.evals.caller_voice import Speaking, Voice
 from pinecall.types import Env
 
@@ -79,7 +79,7 @@ class Speaks(Protocol):
         ...
 
 
-async def a_simulated_call(
+async def run_simulated_call(
     call: str,
     agent: str,
     *,
@@ -106,7 +106,7 @@ async def a_simulated_call(
     """
     async with (
         _the_callers_voice(settings, line, speaking or Speaking()) as voice,
-        a_dispatch(
+        dispatch_agent(
             call,
             agent,
             settings,
@@ -191,8 +191,8 @@ class _Mouth:
         """One line in the caller's voice, mixed with the interferer, and pushed frame by frame."""
         pcm = await self._voice.spoken(text)
         if self._line.interferer_db is not None:
-            pcm = line_noise.mixed(pcm, self._line.interferer, self._line.interferer_db)
-        frames = line_noise.with_losses(
+            pcm = line_noise.mix_interferer(pcm, self._line.interferer, self._line.interferer_db)
+        frames = line_noise.drop_packets(
             line_noise.frames_of(pcm, caller_voice.SAMPLE_RATE),
             self._line.packet_loss,
             self._line.random,

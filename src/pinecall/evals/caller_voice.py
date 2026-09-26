@@ -67,7 +67,7 @@ class Speaking:
     declared: DeclaredVoice | None = None
 
 
-def a_callers_voice(agents_voice: str | None, language: str | None = None) -> str:
+def pick_caller_voice(agents_voice: str | None, language: str | None = None) -> str:
     """The first caller voice of the call's language that is not the agent's."""
     pair = CALLER_VOICES.get(primary(language) or "", CALLER_VOICES["en"])
     return next(voice for voice in pair if voice != agents_voice)
@@ -117,7 +117,7 @@ class Voice:
             )
         return cls(
             settings,
-            voice_id=a_callers_voice(speaking.agents_voice, speaking.language),
+            voice_id=pick_caller_voice(speaking.agents_voice, speaking.language),
             language=speaking.language,
             brought=speaking.brought,
         )
@@ -132,7 +132,7 @@ class Voice:
     async def spoken(self, text: str) -> bytes:
         """One line said out loud, as 16-bit mono PCM at SAMPLE_RATE."""
         frame = await self._speech.synthesize(text).collect()
-        return at_the_rooms_rate(bytes(frame.data), frame.sample_rate)
+        return resample_to_room(bytes(frame.data), frame.sample_rate)
 
     async def aclose(self) -> None:
         """Let the plugin go: its sockets are the call's, not the process's."""
@@ -141,7 +141,7 @@ class Voice:
 
 # The vendor answers at its own rate (ElevenLabs: 22 050 or 24 000 Hz), which is brought to the
 # room's by livekit's own resampler.
-def at_the_rooms_rate(pcm: bytes, rate: int) -> bytes:
+def resample_to_room(pcm: bytes, rate: int) -> bytes:
     """The same samples at SAMPLE_RATE; untouched when they already are."""
     if rate == SAMPLE_RATE:
         return pcm

@@ -13,8 +13,8 @@ from functools import partial
 from typing import TextIO
 
 from pinecall._settings import load_settings
-from pinecall.cli.columns import as_columns
-from pinecall.cli.help import only_the_help
+from pinecall.cli.columns import aligned_columns
+from pinecall.cli.help import help_only
 from pinecall.cli.sessions import render
 from pinecall.cli.sessions.source import Calls, Source
 from pinecall.log.entry import Entry
@@ -77,7 +77,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
     recorded.add_argument("call", metavar="<id>", help="the call id")
     recorded.set_defaults(run=run_recording)
 
-    parser.set_defaults(run=only_the_help(parser))
+    parser.set_defaults(run=help_only(parser))
 
 
 def run_list(arguments: argparse.Namespace) -> int:
@@ -113,7 +113,7 @@ async def list_calls(agent: str | None, limit: int, source: Calls, out: TextIO =
         print(f"no calls yet{f' for {agent}' if agent else ''}", file=out)
         return 0
     rows = [_row_of(call, reduce(await source.entries(call))) for call in calls]
-    for line in as_columns(rows):
+    for line in aligned_columns(rows):
         print(line, file=out)
     return 0
 

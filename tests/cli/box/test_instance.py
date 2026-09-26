@@ -12,9 +12,9 @@ from pinecall.cli.box.instance import (
     NOT_A_NAME,
     PORT_TAKEN,
     InstanceRefused,
+    build_instance,
     credstore_of,
     database_of,
-    declared,
     env_file,
     write_instance,
 )
@@ -28,7 +28,7 @@ def written(instances: Path, *argv: str) -> str:
     """`box instance …` run into this directory, the recordings kept nowhere; the file it wrote."""
     arguments = build_parser().parse_args(["box", "instance", *argv, "--into", str(instances)])
     kept: list[Path] = []
-    instance = declared(
+    instance = build_instance(
         arguments.name,
         arguments.world,
         arguments.domain,
@@ -118,14 +118,14 @@ def test_a_third_skips_every_hundred_already_held(tmp_path: Path) -> None:
 def test_a_port_another_instance_holds_is_refused_by_its_owner(tmp_path: Path) -> None:
     written(tmp_path, "production", "--world", "production", "--domain", "a.example.com")
     with pytest.raises(InstanceRefused) as refused:
-        declared("staging", "production", "b.example.com", tmp_path, port=8078)
+        build_instance("staging", "production", "b.example.com", tmp_path, port=8078)
     assert str(refused.value) == PORT_TAKEN.format(port=8078, other="production")
 
 
 @pytest.mark.parametrize("name", ["Sandbox", "-sandbox", "sand_box", "a" * 33, ""])
 def test_a_name_that_is_not_a_slug_is_refused(tmp_path: Path, name: str) -> None:
     with pytest.raises(InstanceRefused) as refused:
-        declared(name, "production", "a.example.com", tmp_path)
+        build_instance(name, "production", "a.example.com", tmp_path)
     assert str(refused.value) == NOT_A_NAME.format(name=name)
 
 
@@ -133,7 +133,7 @@ def test_a_sandbox_with_nobody_to_ask_is_refused_before_it_is_a_box_that_cannot_
     tmp_path: Path,
 ) -> None:
     with pytest.raises(InstanceRefused) as refused:
-        declared("sandbox", "sandbox", "sandbox.example.com", tmp_path)
+        build_instance("sandbox", "sandbox", "sandbox.example.com", tmp_path)
     assert str(refused.value) == NOBODY_TO_ASK
 
 

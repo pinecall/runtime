@@ -8,7 +8,7 @@ from livekit.agents.llm import LLM, ChatContext
 
 from pinecall._settings import Settings
 from pinecall.evals import Counted, hangup_score
-from pinecall.evals.hangup_score import a_score
+from pinecall.evals.hangup_score import score_call
 from pinecall.types import AgentConfig, ToolSpec
 from pinecall_protocol import decode_entries, encode
 from pinecall_protocol.envelope import Entry
@@ -53,7 +53,7 @@ async def test_the_golden_booking_call_scores_consent_broken_at_the_seqs_ring_th
     golden: list[Entry],
 ) -> None:
     """The tool ran at 79 and the yes arrived at 93, and the entry says both numbers out loud."""
-    scored = await a_score(golden, THE_GOLDENS_AGENT, NO_BUDGET)
+    scored = await score_call(golden, THE_GOLDENS_AGENT, NO_BUDGET)
     consent = _judged(scored.judges, "consent")
     assert consent.verdict == "broken"
     assert consent.reason == "book_slot ran at seq 79, before its confirm.granted at seq 93"
@@ -67,7 +67,7 @@ async def test_the_verdict_the_golden_carries_is_the_verdict_the_judges_reach(
 ) -> None:
     """The fixture's own call.score is not a hand-written claim: ring 4 writes exactly it."""
     written = next(entry for entry in golden if entry.type == "call.score")
-    scored = await a_score(golden, THE_GOLDENS_AGENT, NO_BUDGET)
+    scored = await score_call(golden, THE_GOLDENS_AGENT, NO_BUDGET)
     reached = encode(scored)
     reached["judges"] = [row for row in reached["judges"] if row["name"] == "consent"]
     assert reached == written.data
@@ -77,7 +77,7 @@ async def test_the_ceiling_at_zero_skips_the_judge_that_would_ask_and_the_polici
     golden: list[Entry],
 ) -> None:
     """A judge that needs a model is not guessed at: it is `skipped`, and it says by how much."""
-    scored = await a_score(golden, THE_GOLDENS_AGENT, NO_BUDGET)
+    scored = await score_call(golden, THE_GOLDENS_AGENT, NO_BUDGET)
     grounded = _judged(scored.judges, "grounded")
     assert grounded.verdict == "skipped"
     assert grounded.reason.startswith("judging this call may spend 0.0 EUR on a model")
@@ -90,7 +90,7 @@ async def test_the_bill_is_absent_and_never_zero_when_no_model_reported_a_token(
     golden: list[Entry],
 ) -> None:
     """Nobody was asked, so nobody was billed — and an unknown bill is not a bill of zero."""
-    scored = await a_score(golden, THE_GOLDENS_AGENT, NO_BUDGET)
+    scored = await score_call(golden, THE_GOLDENS_AGENT, NO_BUDGET)
     assert scored.judge_cost_eur is None
     assert "judge_cost_eur" not in encode(scored)
 
@@ -99,8 +99,8 @@ async def test_a_judging_that_blew_up_writes_the_reason_into_the_tenants_own_log
     golden: list[Entry], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The process log is not shipped. What broke belongs where the rest of the call already is."""
-    monkeypatch.setattr(hangup_score, "a_case", _refuses_to_build_a_case)
-    scored = await a_score(golden, THE_GOLDENS_AGENT, NO_BUDGET)
+    monkeypatch.setattr(hangup_score, "build_case", _refuses_to_build_a_case)
+    scored = await score_call(golden, THE_GOLDENS_AGENT, NO_BUDGET)
     assert scored.judges == [] and scored.passed is None
     assert scored.not_judged == "judging this call failed: the log would not read back"
 
@@ -110,7 +110,7 @@ async def test_a_call_whose_every_judge_failed_is_not_a_call_that_passed(
 ) -> None:
     """A judge that broke answers nothing and is dropped, as livekit's own group drops one."""
     monkeypatch.setattr(hangup_score, "_the_judges_of", _one_judge_that_raises)
-    scored = await a_score(golden, THE_GOLDENS_AGENT, NO_BUDGET)
+    scored = await score_call(golden, THE_GOLDENS_AGENT, NO_BUDGET)
     assert scored.judges == [] and scored.passed is None
     assert scored.not_judged == hangup_score.NOTHING_ANSWERED
 
@@ -120,7 +120,7 @@ async def test_a_judge_that_raises_is_in_the_panel_and_never_among_the_judges(
 ) -> None:
     """A dropped judge answers nothing, so only the panel says it was ever run over the call."""
     monkeypatch.setattr(hangup_score, "GroundedJudge", _raises_instead("grounded"))
-    scored = await a_score(golden, THE_GOLDENS_AGENT, NO_BUDGET)
+    scored = await score_call(golden, THE_GOLDENS_AGENT, NO_BUDGET)
     assert scored.panel == ["consent", "grounded", "promises"], "all were run, whatever answered"
     assert [row.name for row in scored.judges] == ["consent", "promises"], (
         "the one that raised is not"
@@ -133,7 +133,7 @@ async def test_a_call_nobody_declared_a_tool_for_breaks_rather_than_reading_as_a
 ) -> None:
     """A check that could not look must never read as proof: the reason says how to fix it."""
     undeclared = AgentConfig(slug="clinica-norte")
-    consent = _judged((await a_score(golden, undeclared, NO_BUDGET)).judges, "consent")
+    consent = _judged((await score_call(golden, undeclared, NO_BUDGET)).judges, "consent")
     assert consent.verdict == "broken"
     assert "not one declared side effect" in consent.reason
     assert consent.evidence.seqs == []

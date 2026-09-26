@@ -58,12 +58,12 @@ async def test_a_command_stream_that_ends_is_opened_again_until_the_gateway_refu
     over = httpx.Response(409, json={"detail": "over"})
     gateway, asked = a_gateway(None, httpx.Response(502), httpx.Response(200, text=A_SAY), over)
     bridge = Applied()
-    await commands.served(gateway, bridge, CALL)
+    await commands.serve_commands(gateway, bridge, CALL)
     assert [command.type for command in bridge.applied] == ["agent.say"]
     assert len(asked) == 4
 
 
 async def test_a_command_stream_the_gateway_refuses_is_not_asked_again() -> None:
     gateway, asked = a_gateway(httpx.Response(409, json={"detail": "over"}))
-    await commands.served(gateway, Applied(), CALL)
+    await commands.serve_commands(gateway, Applied(), CALL)
     assert len(asked) == 1

@@ -6,7 +6,7 @@ import argparse
 from collections.abc import Callable
 
 
-def only_the_help(parser: argparse.ArgumentParser) -> Callable[[argparse.Namespace], int]:
+def help_only(parser: argparse.ArgumentParser) -> Callable[[argparse.Namespace], int]:
     """What `run` is for a group with verbs, when none was typed."""
 
     def printed(_arguments: argparse.Namespace) -> int:

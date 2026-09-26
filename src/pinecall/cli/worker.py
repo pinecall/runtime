@@ -10,9 +10,9 @@ from livekit.agents.cli import run_app
 from pinecall._settings import Settings, load_settings
 from pinecall.providers.session_vendors import warm_the_vendor_tables
 from pinecall.worker import overflow, recording_paths
-from pinecall.worker.gateway_client import reaching
+from pinecall.worker.gateway_client import build_gateway
 from pinecall.worker.heartbeat import Heartbeats
-from pinecall.worker.main import a_server, the_key_for, unset_livekit_variables
+from pinecall.worker.main import build_server, unset_livekit_variables, worker_key
 
 PURPOSE: str = "the fleet: dev | start | overflow | talk | download-files"
 
@@ -81,7 +81,9 @@ def run(arguments: argparse.Namespace) -> int:
     if RECORD_FLAG in flags:
         # Decided before the microphone is opened, so a `pinecall talk` of tomorrow does not
         # write over the one from today and the path is in the terminal from its first line.
-        destination = recording_paths.destination_for(recording_paths.a_console_session(), settings)
+        destination = recording_paths.destination_for(
+            recording_paths.console_session_name(), settings
+        )
         print(f"recording to {recording_paths.kept_by_the_console(destination)}")
     return hand_over(arguments.verb, flags, settings)
 
@@ -112,10 +114,10 @@ def hand_over(verb: str, flags: list[str], settings: Settings) -> int:
     if verb in THREADED_VERBS:
         warm_the_vendor_tables()
     sys.argv = [f"pinecall-runtime worker {verb}", LIVEKIT_VERBS[verb], *flags]
-    gateway = reaching(settings.gateway_url, the_key_for(settings))
+    gateway = build_gateway(settings.gateway_url, worker_key(settings))
     if verb == THE_OVERFLOW:
-        return _ran(overflow.a_server(settings, gateway))
-    server = a_server(settings, gated_by_machine_load=verb in GATED_BY_MACHINE_LOAD)
+        return _ran(overflow.build_overflow_server(settings, gateway))
+    server = build_server(settings, gated_by_machine_load=verb in GATED_BY_MACHINE_LOAD)
     pulse = None
     if verb in REGISTERING_VERBS:
         pulse = Heartbeats(server, gateway, worker_name(settings), settings.max_jobs)

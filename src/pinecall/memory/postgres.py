@@ -11,9 +11,9 @@ from uuid import UUID
 
 from pinecall.log.store import Pool
 from pinecall.log.store.call_index import like_escaped
-from pinecall.memory.extraction import OPS_THAT_WRITE, Op, extracted
+from pinecall.memory.extraction import OPS_THAT_WRITE, Op, extract_ops
 from pinecall.memory.protocol import DEFAULT_FACTS_PER_TURN, FactsPage, Spoken
-from pinecall.memory.ranking import Candidate, ranked
+from pinecall.memory.ranking import Candidate, rank_facts
 from pinecall.memory.statements import (
     ADD,
     BY_VECTOR,
@@ -70,7 +70,7 @@ class PgvectorMemory:
         async with asyncio.TaskGroup() as branches:
             sparse = branches.create_task(self._pool.fetch(BY_WORDS, *held, query))
             dense = branches.create_task(self._nearest(held, query))
-        return ranked(
+        return rank_facts(
             [_a_candidate(row) for row in dense.result()],
             [_a_candidate(row) for row in sparse.result()],
             now=as_of or datetime.now(UTC),
@@ -109,7 +109,7 @@ class PgvectorMemory:
             ]
             chat = self._models(llm, brought)
             try:
-                ops = await extracted(
+                ops = await extract_ops(
                     chat, known=known, turns=turns, policy=policy, channel=channel, tools=tools
                 )
             finally:
@@ -173,7 +173,7 @@ class PgvectorMemory:
         limit: int,
     ) -> FactsPage:
         """One page and one row past it, to know whether there is another."""
-        cursor = a_cursor(after)
+        cursor = parse_cursor(after)
         rows = await self._pool.fetch(
             TAUGHT_BY,
             org,
@@ -280,7 +280,7 @@ def cursor_of(fact: Fact) -> str:
     return f"{fact.valid_from.isoformat()}|{fact.id}"
 
 
-def a_cursor(after: str | None) -> tuple[datetime, UUID] | None:
+def parse_cursor(after: str | None) -> tuple[datetime, UUID] | None:
     """The moment and the id a cursor names, or None for a first page or a word that is not one."""
     if not after or "|" not in after:
         return None

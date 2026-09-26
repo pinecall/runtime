@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from pinecall.memory.reembedding import reembedded
+from pinecall.memory.reembedding import reembed
 from pinecall.providers.embedder import DIMENSIONS
 from tests.pools import Held, acquired
 
@@ -69,7 +69,7 @@ async def test_only_stale_facts_are_asked_for_and_each_is_written_with_this_mode
         [{"id": "a", "text": "Alérgica a la penicilina."}, {"id": "b", "text": "Prefiere mañanas."}]
     )
     embedder = Embedder()
-    assert await reembedded(pool, embedder) == 2
+    assert await reembed(pool, embedder) == 2
     assert pool.asked == (NEW,)
     assert embedder.batches == [["Alérgica a la penicilina.", "Prefiere mañanas."]]
     assert [(write[0], write[2]) for write in pool.writes] == [("a", NEW), ("b", NEW)]
@@ -79,11 +79,11 @@ async def test_only_stale_facts_are_asked_for_and_each_is_written_with_this_mode
 async def test_the_facts_go_to_the_embedder_in_batches() -> None:
     pool = Pool([{"id": str(n), "text": f"hecho {n}"} for n in range(5)])
     embedder = Embedder()
-    assert await reembedded(pool, embedder, batch=2) == 5
+    assert await reembed(pool, embedder, batch=2) == 5
     assert [len(batch) for batch in embedder.batches] == [2, 2, 1]
 
 
 async def test_nothing_stale_asks_the_embedder_nothing() -> None:
     embedder = Embedder()
-    assert await reembedded(Pool([]), embedder) == 0
+    assert await reembed(Pool([]), embedder) == 0
     assert embedder.batches == []

@@ -57,7 +57,7 @@ class Headless:
 
 
 @asynccontextmanager
-async def a_headless_call(
+async def open_headless_call(
     config: AgentConfig,
     *,
     prompt: Blocks,

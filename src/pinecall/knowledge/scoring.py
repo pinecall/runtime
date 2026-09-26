@@ -70,6 +70,6 @@ def answers(found: str, expects: str) -> bool:
 # One relevant chunk per question, which is the arithmetic's simplest case: types/golden_scores.py
 # does both figures, here and for memory, and what is the knowledge base's own is which chunk
 # answered.
-def scored(answered: Sequence[Answered], k: int) -> Score:
+def score_golden(answered: Sequence[Answered], k: int) -> Score:
     """The golden's two figures, and every question the base missed."""
     return golden_score(answered, k, lambda one: (one.rank,))

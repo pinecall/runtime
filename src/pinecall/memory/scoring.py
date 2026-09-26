@@ -81,6 +81,6 @@ def _folded(text: str) -> str:
 # What is memory's own is which fact answered and how many a question may want; the arithmetic — the
 # share found, the logarithmic discount — is types/golden_scores.py's, shared with the knowledge
 # base.
-def scored(answered: Sequence[Answered], k: int) -> Score:
+def score_golden(answered: Sequence[Answered], k: int) -> Score:
     """The golden's two figures, and every question memory did not answer whole."""
     return golden_score(answered, k, lambda one: one.ranks)

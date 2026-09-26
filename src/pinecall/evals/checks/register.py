@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from pinecall.evals.checks.check_verdict import Verdict, broken, held, skipped
+from pinecall.evals.checks.check_verdict import Verdict, broken, held, skipped_verdict
 from pinecall.evals.checks.replay import Replayed
 from pinecall.evals.words import words_of
 
@@ -20,7 +20,7 @@ NOTHING_DECLARED = (
 def register(call: Replayed, banned: Sequence[str]) -> Verdict:
     """Whether the agent kept the register: no banned word in any of its turns, case aside."""
     if not banned:
-        return skipped(CHECK, NOTHING_DECLARED)
+        return skipped_verdict(CHECK, NOTHING_DECLARED)
     said = [(turn, word) for turn, text in enumerate(call.said, 1) for word in _found(text, banned)]
     if said:
         spoken = "; ".join(f"{word!r} in turn {turn}" for turn, word in said)

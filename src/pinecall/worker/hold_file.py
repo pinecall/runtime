@@ -22,7 +22,7 @@ CACHE = Path(tempfile.gettempdir()) / "pinecall-hold"
 
 # Never in the way of a call: a gateway that cannot say, or a clip that cannot be fetched, plays
 # the runtime's own melody rather than nothing, and says so in the log.
-async def the_melody(
+async def fetch_melody(
     gateway: Gateway,
     slug: str,
     *,

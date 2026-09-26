@@ -13,7 +13,7 @@ from livekit.agents.evals import Judge, JudgmentResult
 from livekit.agents.llm import LLM, ChatContext
 
 from pinecall.evals.case import Called, Case
-from pinecall.evals.judges.binary_question import asked
+from pinecall.evals.judges.binary_question import ask_judge
 from pinecall.evals.judges.code_judge import broken, held
 from pinecall.evals.transcript import said_by_the_agent
 
@@ -131,7 +131,10 @@ def evidence_of(case: Case) -> Evidence:
     return Evidence(
         text=(*case.knowledge, *(chunk for turn in case.turns for chunk in turn.retrieved)),
         calls=tuple(
-            rendered(call) for turn in case.turns for call in turn.calls if call.answer is not None
+            render_tool_call(call)
+            for turn in case.turns
+            for call in turn.calls
+            if call.answer is not None
         ),
         state=_states_of(case),
     )
@@ -140,7 +143,7 @@ def evidence_of(case: Case) -> Evidence:
 # A bare `[]` in the evidence block reads as "no information", and on 2026-09-08 a judge failed a
 # sentence the log fully supported because of it. The name says which tool answered and the
 # arguments say what it was asked, so an empty answer becomes an answer about that day.
-def rendered(call: Called) -> str:
+def render_tool_call(call: Called) -> str:
     """One tool call as the judge reads it: `name(args) → answer`, the answer verbatim."""
     return f"{call.name}({_as_json(call.arguments)}) → {call.answer}"
 
@@ -191,7 +194,9 @@ class GroundedJudge(Judge):
             by_code.reasoning = NOBODY_TO_ASK.format(missing=by_code.reasoning)
             by_code.instructions = CRITERIA
             return by_code
-        return await asked(llm, JUDGE_CRITERIA.format(evidence=self._evidence.as_text()), chat_ctx)
+        return await ask_judge(
+            llm, JUDGE_CRITERIA.format(evidence=self._evidence.as_text()), chat_ctx
+        )
 
     def every_fact_is_grounded(self, chat_ctx: ChatContext) -> JudgmentResult:
         """Every fact the agent stated, matched against the half of the evidence its scope names."""

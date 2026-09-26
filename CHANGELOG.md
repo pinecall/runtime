@@ -112,7 +112,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   `origins.py`, `public_url.py`). No module of `api/` is named like a package of the runtime any
   more. Every door answers at the path it did; only the tree moved.
 - **A code check speaks the judges' four words.** `POST /v1/evals/replay/{call}` answers each
-  check's `status` as `held` · `broken` · `deferred` · `skipped` — the protocol's own
+  check's `status` as `held` · `broken` · `deferred_verdict` · `skipped_verdict` — the protocol's own
   `ScoreVerdict`, which every model judge already spoke — where it said `passed` and `failed`.
   The `passed` boolean beside them is unchanged.
 - **The gate got stricter, and so did the install.** `scripts/lint` runs `deptry` after the type
@@ -1369,7 +1369,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   with that key when its gateway is that door — saying out loud that an exported
   `PINECALL_API_KEY` is being ignored. Which key a worker sends no longer depends on whether the
   url happens to be loopback.
-- **What a broken golden's model was asked rides the cell.** `Spoken` and `Run` carry `asked`;
+- **What a broken golden's model was asked rides the cell.** `Spoken` and `Run` carry `ask_judge`;
   the row's JSON writes it only under a cell that broke, and writes `null` when the run kept no
   requests — a spoken run builds them in the worker — where an empty list used to stand for both.
 - **A declared greeting is spoken.** `AgentConfig.greeting` had been on the wire since ms-2 and no

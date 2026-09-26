@@ -10,7 +10,7 @@ from pinecall.api.evals.golden_call import Conversation
 from pinecall.auth.scopes import new_visitor_identity
 from pinecall.evals.caller_voice import Speaking
 from pinecall.evals.goldens import Golden
-from pinecall.evals.voice_run import Line, a_simulated_call
+from pinecall.evals.voice_run import Line, run_simulated_call
 from pinecall.evals.wait_until import until
 from pinecall.log.entry import Entry
 from pinecall.log.replay import whole
@@ -49,7 +49,7 @@ async def a_spoken_conversation(
     """Dispatch the agent into a room, say the golden's lines out loud, and read the log back."""
     said = _the_lines_of(golden)
     spoken = _Reading(said)
-    await a_simulated_call(
+    await run_simulated_call(
         call,
         agent,
         turns=len(said),

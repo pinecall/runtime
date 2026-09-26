@@ -86,7 +86,7 @@ class EvalRun:
         }
 
 
-def a_run_of(document: Mapping[str, Any]) -> EvalRun:
+def run_from_document(document: Mapping[str, Any]) -> EvalRun:
     """One stored document back into the run it is. The keys are the fields, name for name."""
     return EvalRun(
         id=str(document["id"]),
@@ -162,13 +162,13 @@ class PostgresRuns:
 
     async def of(self, id: str) -> EvalRun | None:
         row = await self._pool.fetchrow(OF_ID, id)
-        return None if row is None else a_run_of(json.loads(row["document"]))
+        return None if row is None else run_from_document(json.loads(row["document"]))
 
     async def newest(
         self, limit: int = DEFAULT_LIMIT, since: float = 0.0, agent: str | None = None
     ) -> tuple[EvalRun, ...]:
         rows = await self._pool.fetch(NEWEST, since, limit, agent)
-        return tuple(a_run_of(json.loads(row["document"])) for row in rows)
+        return tuple(run_from_document(json.loads(row["document"])) for row in rows)
 
 
 def runs_for(pool: Pool | None) -> Runs:

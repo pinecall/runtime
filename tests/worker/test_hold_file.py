@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
 from pinecall.session.hold_melody import DEFAULT
 from pinecall.worker.gateway_http import GatewayRefused
-from pinecall.worker.hold_file import the_melody
+from pinecall.worker.hold_file import fetch_melody
 from pinecall.worker.wire import HoldAudioSaid
 
 pytestmark = pytest.mark.unit
@@ -35,7 +36,8 @@ class Gateway:
 
 
 async def resolved(gateway: Gateway, cache: Path) -> Path | None:
-    return await the_melody(gateway, "clinica-norte", org=None, env=None, holder=None, cache=cache)  # pyright: ignore[reportArgumentType] — the two doors are all it asks
+    doors = cast("Any", gateway)  # the two doors are all it asks
+    return await fetch_melody(doors, "clinica-norte", org=None, env=None, holder=None, cache=cache)
 
 
 async def test_the_default_is_the_file_the_runtime_ships(tmp_path: Path) -> None:

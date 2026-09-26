@@ -56,7 +56,7 @@ def run(arguments: argparse.Namespace) -> int:
     settings = load_settings()
     host, port = arguments.host, arguments.port
     if host is None or port is None:
-        own_host, own_port = the_address_of(settings.gateway_url)
+        own_host, own_port = bind_address(settings.gateway_url)
         host, port = host or own_host, port or own_port
     uvicorn.run(
         APP,
@@ -64,7 +64,7 @@ def run(arguments: argparse.Namespace) -> int:
         port=port,
         reload=arguments.reload,
         log_level=settings.log_level.lower(),
-        log_config=a_log_config(settings),
+        log_config=build_log_config(settings),
         timeout_graceful_shutdown=GRACEFUL_S,
     )
     return 0
@@ -73,7 +73,7 @@ def run(arguments: argparse.Namespace) -> int:
 # Handed to uvicorn rather than applied here: uvicorn runs dictConfig itself in the process that
 # serves, which under --reload is one it spawns — a config applied in this process alone left
 # that child with Python's last-resort handler, WARNING and up, and nothing else.
-def a_log_config(settings: Settings) -> dict[str, Any]:
+def build_log_config(settings: Settings) -> dict[str, Any]:
     """logging's dictConfig for the gateway: every logger to stdout, at PINECALL_LOG_LEVEL."""
     line: dict[str, Any] = (
         {"()": JsonFormatter}
@@ -96,7 +96,7 @@ def a_log_config(settings: Settings) -> dict[str, Any]:
     }
 
 
-def the_address_of(url: str) -> tuple[str, int]:
+def bind_address(url: str) -> tuple[str, int]:
     """The loopback host and the port a gateway URL names; the refusal when it names neither."""
     parts = urlsplit(url)
     refused = NotBindable(NOT_HERE.format(variable=variable_of("gateway_url"), url=url))

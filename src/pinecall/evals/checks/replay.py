@@ -6,7 +6,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import cast
 
-from pinecall.evals.gate import a_confirmation
+from pinecall.evals.gate import gate_line
 from pinecall.log.entry import Entry
 from pinecall.log.latencies import samples
 from pinecall.types import CONFIRMATIONS, GateKind, GateLine
@@ -54,7 +54,7 @@ def rebuild(entries: Sequence[Entry]) -> Replayed:
                 GateLine(seq=entry.seq, kind="tool.call", call_id=data.call_id, tool=data.name)
             )
         elif entry.type in CONFIRMATIONS:
-            gate.append(a_confirmation(entry.seq, cast("GateKind", entry.type), data))
+            gate.append(gate_line(entry.seq, cast("GateKind", entry.type), data))
         elif isinstance(data, events.ErrorEvent):
             failures.append(
                 Failure(

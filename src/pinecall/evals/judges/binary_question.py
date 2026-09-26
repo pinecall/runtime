@@ -38,7 +38,7 @@ TOOL_BROKE = "[function error: {output}]"
 NO_VERDICT = "the judge answered without calling submit_verdict"
 
 
-async def asked(llm: LLM[Any], criteria: str, chat_ctx: ChatContext) -> JudgmentResult:
+async def ask_judge(llm: LLM[Any], criteria: str, chat_ctx: ChatContext) -> JudgmentResult:
     """One question with its evidence attached, put to the judge model, in and out in one call."""
 
     # The body is never run: the verdict is read off the arguments the model sent, the way

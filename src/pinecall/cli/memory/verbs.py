@@ -9,7 +9,7 @@ import httpx
 
 from pinecall._settings import load_settings
 from pinecall.log.store.postgres import DEFAULT_SCHEMA, create_pool
-from pinecall.memory.reembedding import reembedded
+from pinecall.memory.reembedding import reembed
 from pinecall.providers.embed import embedder_for, model_of
 
 PURPOSE: str = "the contacts' facts: reembed, after the box's embedder changed"
@@ -40,7 +40,7 @@ async def _reembed(schema: str) -> int:
     pool = await create_pool(settings.database_url, schema=schema)
     try:
         async with httpx.AsyncClient(timeout=60) as http:
-            count = await reembedded(pool, embedder_for(settings, http))
+            count = await reembed(pool, embedder_for(settings, http))
     finally:
         await pool.close()
     print(DONE.format(count=count, model=model_of(settings)))

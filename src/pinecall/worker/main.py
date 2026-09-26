@@ -15,7 +15,7 @@ from pinecall.providers.session_vendors import warm_the_vendor_tables
 from pinecall.session.voice import build_bridge
 from pinecall.session.voice.vendors import kit_for
 from pinecall.worker import recording_paths
-from pinecall.worker.gateway_client import reaching
+from pinecall.worker.gateway_client import build_gateway
 from pinecall.worker.job import Worker, answer
 from pinecall.worker.load import MachineLoad, SlotLoad, reports_no_load
 from pinecall.worker.telemetry import traced_to
@@ -47,7 +47,7 @@ log = logging.getLogger(__name__)
 # Worker is built in the job's own process, from the environment that process inherited.
 async def job(ctx: JobContext) -> None:
     """The entrypoint of every job: this process's Worker, then the call is answered."""
-    await answer(ctx, a_worker(load_settings()))
+    await answer(ctx, build_worker(load_settings()))
 
 
 # One key, issued by a person, wherever this worker runs. It used to be three: the org key, a dev
@@ -56,14 +56,14 @@ async def job(ctx: JobContext) -> None:
 # invisible and got it wrong both ways: PINECALL_WORKER_KEY in the shell against a gateway on a dev
 # key killed every job of a spoken suite on `GET /v1/routes: 401` until the run timed out
 # (2026-09-11). There is one runtime now and one key: `keys issue --scope app`.
-def the_key_for(settings: Settings) -> str:
+def worker_key(settings: Settings) -> str:
     """What this worker knocks at its gateway with. Empty is a worker nobody issued a key for."""
     return settings.worker_key or ""
 
 
-def a_worker(settings: Settings) -> Worker:
+def build_worker(settings: Settings) -> Worker:
     """What every job of a process shares: the gateway, the vendors, the bridge, the recordings."""
-    gateway = reaching(settings.gateway_url, the_key_for(settings))
+    gateway = build_gateway(settings.gateway_url, worker_key(settings))
     return Worker(
         gateway=gateway,
         kit=kit_for(settings),
@@ -113,7 +113,7 @@ class Warm(TypedDict, total=False):
 # room config it mints, and Settings holds it to a slug's alphabet and never empty
 # (types/dispatch.py says why). The warm processes are livekit's own count unless the instance
 # says one.
-def a_server(settings: Settings, *, gated_by_machine_load: bool = True) -> AgentServer:
+def build_server(settings: Settings, *, gated_by_machine_load: bool = True) -> AgentServer:
     """The process: the one entrypoint that answers a job, under the fleet name it joins by."""
     warm = (
         Warm()
@@ -125,7 +125,7 @@ def a_server(settings: Settings, *, gated_by_machine_load: bool = True) -> Agent
         api_key=settings.livekit_api_key,
         api_secret=settings.livekit_api_secret,
         load_fnc=_the_gate(settings, gated_by_machine_load),
-        setup_fnc=warmed,
+        setup_fnc=prewarm,
         # The two clocks a stop runs on, both of them livekit's and both of them wrong for a box
         # by default: how long the drain waits, and how long one job's seal may take.
         drain_timeout=DRAIN_S,
@@ -159,7 +159,7 @@ def _the_gate(
 # plugin registers itself on import (agents/plugin.py:31-33). The console's tables were therefore
 # already read on the main thread before livekit was handed the process (cli/worker.py
 # THREADED_VERBS), and reading them is idempotent, so this call is a no-op there.
-def warmed(proc: JobProcess) -> None:  # noqa: ARG001 — livekit hands every setup the process
+def prewarm(proc: JobProcess) -> None:  # noqa: ARG001 — livekit hands every setup the process
     """Everything a call would otherwise wait for, done while the process is still idle."""
     warm_the_vendor_tables()
     traced_to(load_settings())

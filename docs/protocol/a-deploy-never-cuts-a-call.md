@@ -28,7 +28,7 @@ The socket that takes a call over hears, before anything else of it:
 | field | |
 |---|---|
 | `app` | the socket that serves the call from now on |
-| `started` | the call's `call.started`: who, where, when |
+| `run_init` | the call's `call.started`: who, where, when |
 | `state` | the agent's state as the call's last `state.changed` left it |
 | `seq` | the last entry of the call before it changed hands |
 | `claimed` | the code a page showed that the call claimed ([codes.md](codes.md)), or `null` |

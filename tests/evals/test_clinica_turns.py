@@ -11,7 +11,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 
-from pinecall.evals import Answers, a_headless_call, a_judge
+from pinecall.evals import Answers, build_judge, open_headless_call
 from pinecall.providers.models import Chat
 from tests.evals.clinica import declared, prompt_at
 
@@ -37,7 +37,7 @@ ANA = {
 @pytest.fixture
 async def judge() -> AsyncIterator[Chat]:
     """One Haiku for the whole test, closed after it: a judged assertion is one round trip."""
-    model = a_judge()
+    model = build_judge()
     try:
         yield model
     finally:
@@ -45,7 +45,7 @@ async def judge() -> AsyncIterator[Chat]:
 
 
 async def test_the_first_turn_greets_asks_who_is_calling_and_calls_nothing(judge: Chat) -> None:
-    async with a_headless_call(
+    async with open_headless_call(
         declared(),
         prompt=prompt_at(IDENTIFY),
         answers=Answers({}),
@@ -70,7 +70,7 @@ async def test_the_first_turn_greets_asks_who_is_calling_and_calls_nothing(judge
 
 async def test_one_utterance_with_both_reaches_find_patient_with_both(judge: Chat) -> None:
     answers = Answers({"findPatient": ANA})
-    async with a_headless_call(
+    async with open_headless_call(
         declared(),
         prompt=prompt_at(IDENTIFY),
         answers=answers,
@@ -99,7 +99,7 @@ async def test_one_utterance_with_both_reaches_find_patient_with_both(judge: Cha
 
 async def test_it_books_nothing_before_the_caller_is_identified(judge: Chat) -> None:
     answers = Answers({"findPatient": None})
-    async with a_headless_call(
+    async with open_headless_call(
         declared(),
         prompt=prompt_at(IDENTIFY),
         answers=answers,

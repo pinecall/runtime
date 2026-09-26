@@ -26,7 +26,7 @@ class Candidate:
 
 # The fusion and the relative score are types/rank_fusion.py's, shared with the knowledge base; what
 # is memory's own is the weighing in between: how recent a fact is, and how sure memory was of it.
-def ranked(
+def rank_facts(
     dense: Sequence[Candidate], sparse: Sequence[Candidate], *, now: datetime, k: int
 ) -> list[Fact]:
     """The two branches fused by rank, weighed by recency and confidence, the best at 1.0, top k."""

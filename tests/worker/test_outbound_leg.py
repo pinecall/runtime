@@ -70,9 +70,9 @@ def test_the_carriers_answer_becomes_the_logs_own_word_for_it(
 ) -> None:
     metadata = {} if code is None else {"sip_status_code": str(code)}
     refused = SipCallError("unavailable", "the carrier said no", status=503, metadata=metadata)
-    assert outbound_leg.how_it_failed(refused) == reason
+    assert outbound_leg.end_reason_of(refused) == reason
 
 
 def test_anything_that_is_not_a_sip_answer_is_a_dial_that_failed() -> None:
     """A trunk that is not there, an address that does not resolve: not busy, and not an answer."""
-    assert outbound_leg.how_it_failed(RuntimeError("no such trunk")) == "dial_failed"
+    assert outbound_leg.end_reason_of(RuntimeError("no such trunk")) == "dial_failed"

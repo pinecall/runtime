@@ -18,7 +18,7 @@ from pinecall.worker.gateway_client import (
     CONTEXT,
     ROUTES,
     Gateway,
-    reaching,
+    build_gateway,
 )
 from pinecall.worker.gateway_http import EVENT_STREAM, GatewayRefused
 from tests.worker.fakes import Seen, a_gateway
@@ -175,7 +175,7 @@ async def test_a_gateway_that_is_not_there_is_a_refusal_and_never_a_traceback() 
 
 
 def test_the_key_travels_as_a_bearer_header_and_never_in_the_url() -> None:
-    reached = reaching("http://gateway.internal", key="ops-key")
+    reached = build_gateway("http://gateway.internal", key="ops-key")
     assert reached._http.headers["authorization"] == "Bearer ops-key"  # pyright: ignore[reportPrivateUsage]
 
 

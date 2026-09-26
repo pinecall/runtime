@@ -13,7 +13,7 @@ from pinecall.evals import (
     NoForbiddenToolRanJudge,
     NothingWasSaidJudge,
     TheEventWasAnsweredJudge,
-    a_case,
+    build_case,
 )
 from tests.evals.conversations import a_call, a_case_of, arrived, asked, ran, replied
 from tests.evals.fakes import CountingJudge
@@ -86,7 +86,7 @@ async def test_a_conversation_that_called_nothing_says_so_rather_than_listing_no
 
 async def test_a_forbidden_tool_that_ran_is_caught_with_the_seq_the_log_gave_it() -> None:
     judge = CountingJudge()
-    case = a_case(a_log("booking-with-no-gate"), tools=BOOKING)
+    case = build_case(a_log("booking-with-no-gate"), tools=BOOKING)
 
     score = await measured(NoForbiddenToolRanJudge(["book_appointment"], case.gate), case, judge)
 
@@ -97,7 +97,7 @@ async def test_a_forbidden_tool_that_ran_is_caught_with_the_seq_the_log_gave_it(
 
 async def test_a_call_that_kept_off_the_forbidden_tool_holds_and_asks_nobody() -> None:
     judge = CountingJudge()
-    case = a_case(a_log("booking-with-no-gate"), tools=BOOKING)
+    case = build_case(a_log("booking-with-no-gate"), tools=BOOKING)
 
     score = await measured(NoForbiddenToolRanJudge(["transfer"], case.gate), case, judge)
 

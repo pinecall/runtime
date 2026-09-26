@@ -124,13 +124,13 @@ import threading
 from unittest.mock import patch
 from pinecall._settings import load_settings
 from pinecall.cli import worker
-from pinecall.worker.main import warmed
+from pinecall.worker.main import prewarm
 
 def livekit_runs_the_job_in_a_thread(server):
     raised = []
     def job_thread_runner():
         try:
-            warmed(None)
+            prewarm(None)
         except BaseException as error:
             raised.append(error)
     thread = threading.Thread(target=job_thread_runner, name="job_thread_runner")

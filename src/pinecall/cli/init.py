@@ -57,7 +57,7 @@ def run(arguments: argparse.Namespace) -> int:
     """Make the org, invite the person, make them an operator, and say what to do next."""
     return against_the_gateway(
         partial(
-            started,
+            run_init,
             arguments.org,
             arguments.name,
             arguments.email,
@@ -67,7 +67,7 @@ def run(arguments: argparse.Namespace) -> int:
     )
 
 
-async def started(
+async def run_init(
     slug: str,
     name: str | None,
     email: str,

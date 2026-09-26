@@ -75,7 +75,7 @@ def test_falling_back_under_the_line_says_the_worker_is_reachable_again(
 @pytest.fixture
 def a_server() -> AgentServer:
     """The AgentServer livekit passes to a load_fnc, built exactly as the process builds it."""
-    return main.a_server(load_settings())
+    return main.build_server(load_settings())
 
 
 def _readings(*loads: float) -> Iterator[float]:

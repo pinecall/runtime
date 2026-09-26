@@ -7,12 +7,12 @@ from typing import Any
 from livekit.agents.evals import Evaluator
 from livekit.agents.llm import LLM
 
-from pinecall.evals import Case, GoldenRun, Score, a_matrix
+from pinecall.evals import Case, GoldenRun, Score, build_matrix
 
 
 async def measured(judge: Evaluator, case: Case, llm: LLM[Any]) -> Score:
     """One judge over one case: the score, the sentence it wrote, and what it asked the model."""
-    matrix = await a_matrix(
+    matrix = await build_matrix(
         [GoldenRun(model="fixture", golden=case.name or "case", case=case)], [judge], llm
     )
     return matrix.runs[0].scores[0]

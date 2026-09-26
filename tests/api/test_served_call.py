@@ -156,7 +156,7 @@ async def test_what_the_app_said_reaches_the_bridge_of_the_worker_running_the_ca
     assert live.commanded(CALL, AGENT, _a_command("call.hangup", {}))
     live.close(CALL)
     bridge = Applied()
-    await commands.served(_reading(await _drained(streaming.body_iterator)), bridge, CALL)
+    await commands.serve_commands(_reading(await _drained(streaming.body_iterator)), bridge, CALL)
     assert [command.type for command in bridge.applied] == ["prompt.set", "call.hangup"]
     assert bridge.applied[0].data == {"name": "view", "text": "Ana"}
 

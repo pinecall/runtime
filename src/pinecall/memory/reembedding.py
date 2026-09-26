@@ -22,7 +22,7 @@ WHERE id = $1 AND model <> $3
 BATCH = 64
 
 
-async def reembedded(pool: Pool, embedder: Embedder, *, batch: int = BATCH) -> int:
+async def reembed(pool: Pool, embedder: Embedder, *, batch: int = BATCH) -> int:
     """How many facts were written again. Running it twice writes nothing the second time."""
     model = await embedder.model()
     stale = list(await pool.fetch(_STALE, model))

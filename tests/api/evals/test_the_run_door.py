@@ -13,7 +13,7 @@ from pinecall.api.evals.runner import AlreadyRunning, Runner
 
 # The judges are the `evals` group, not a dependency of the gateway: on a box without it the door
 # answers 503 and this file has nothing to assert. The whole module skips, naming the command.
-from pinecall.evals import a_case
+from pinecall.evals import build_case
 from pinecall.evals.run_store import EvalRun, MemoryRuns
 from pinecall.log.replay import whole
 from pinecall.log.store import MemoryStore
@@ -153,7 +153,7 @@ async def test_a_golden_with_an_event_injects_it_at_the_declared_turn(
     # After the first exchange and before the caller's second turn: that is what `after_turn` says.
     assert answered[0] < types.index("event.received") < said_by_the_caller[1]
 
-    case = a_case(entries)
+    case = build_case(entries)
     arrived = case.events
     assert [(fact.name, fact.data, fact.source) for fact in arrived] == [
         ("slot_freed", {"at": "10:15"}, "app")

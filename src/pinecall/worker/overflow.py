@@ -16,8 +16,8 @@ from pinecall.fleet import HEARTBEAT_S
 from pinecall.worker import job_target
 from pinecall.worker.gateway_client import Gateway
 from pinecall.worker.gateway_http import GatewayRefused
-from pinecall.worker.job import Worker, a_call
-from pinecall.worker.main import a_worker
+from pinecall.worker.job import Worker, build_call_context
+from pinecall.worker.main import build_worker
 from pinecall_protocol import encode
 from pinecall_protocol.events import AgentTranscript, CallEnded
 
@@ -100,10 +100,10 @@ class Watching:
 async def job(ctx: JobContext) -> None:
     """The entrypoint of every overflow job: this process's Worker, then the caller is told."""
     settings = load_settings()
-    await answer_the_overflow(ctx, a_worker(settings), settings.overflow_says)
+    await answer_the_overflow(ctx, build_worker(settings), settings.overflow_says)
 
 
-def a_server(settings: Settings, gateway: Gateway) -> AgentServer:
+def build_overflow_server(settings: Settings, gateway: Gateway) -> AgentServer:
     """The overflow process: under the fleet's own name, so a dispatch nobody else takes is its."""
     gate = OverflowGate()
     server = AgentServer(
@@ -134,7 +134,7 @@ async def answer_the_overflow(ctx: JobContext, worker: Worker, says: str) -> Non
     config, brought = await asyncio.gather(
         worker.gateway.agent(route.agent), worker.gateway.provider_keys(route.agent)
     )
-    context = a_call(ctx.room.name or ctx.job.id, arrival, route, worker.timezone)
+    context = build_call_context(ctx.room.name or ctx.job.id, arrival, route, worker.timezone)
     await worker.gateway.opened(context, route.agent)
     ctx.add_shutdown_callback(_sealing(worker.gateway, context.call, began))
     if not await _somebody_arrived(ctx):

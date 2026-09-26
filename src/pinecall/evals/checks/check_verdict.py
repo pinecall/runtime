@@ -29,11 +29,11 @@ def broken(check: str, detail: str) -> Verdict:
     return Verdict(check=check, status="broken", detail=detail)
 
 
-def deferred(check: str, detail: str) -> Verdict:
+def deferred_verdict(check: str, detail: str) -> Verdict:
     """Nobody judged it: the runtime does not do that yet, and the detail says what is missing."""
     return Verdict(check=check, status="deferred", detail=detail)
 
 
-def skipped(check: str, detail: str) -> Verdict:
+def skipped_verdict(check: str, detail: str) -> Verdict:
     """Nothing this call carried could be judged, and the detail says why."""
     return Verdict(check=check, status="skipped", detail=detail)

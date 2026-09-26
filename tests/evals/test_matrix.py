@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from pinecall.evals import ConsentJudge, GoldenRun, Matrix, RegisterJudge, a_case, a_matrix
+from pinecall.evals import ConsentJudge, GoldenRun, Matrix, RegisterJudge, build_case, build_matrix
 from tests.evals.fakes import CountingJudge
 from tests.evals.logs import BOOKING, a_log
 from tests.evals.measuring import measured
@@ -20,8 +20,8 @@ REGISTER = "register"
 
 def the_cases() -> list[GoldenRun]:
     """The same two goldens under two models: a matrix is what tells them apart."""
-    confirmed = a_case(a_log("booking-confirmed"), tools=BOOKING)
-    before_the_yes = a_case(a_log("booking-before-the-yes"), tools=BOOKING)
+    confirmed = build_case(a_log("booking-confirmed"), tools=BOOKING)
+    before_the_yes = build_case(a_log("booking-before-the-yes"), tools=BOOKING)
     return [
         GoldenRun(model=HAIKU, golden="confirmed", case=confirmed),
         GoldenRun(model=HAIKU, golden="before-the-yes", case=before_the_yes),
@@ -35,7 +35,7 @@ def the_cases() -> list[GoldenRun]:
 # matrix that judged each cell with its own gate would not tell two models apart at all.
 async def a_matrix_of_the_two_judges() -> Matrix:
     spoken = the_cases()
-    return await a_matrix(
+    return await build_matrix(
         spoken,
         [ConsentJudge(spoken[1].case.gate), RegisterJudge("usted")],
         CountingJudge(),
@@ -84,7 +84,7 @@ async def test_a_matrix_of_hard_policies_asks_nothing_and_says_so() -> None:
     judge = CountingJudge()
     spoken = the_cases()
 
-    matrix = await a_matrix(spoken, [ConsentJudge(spoken[0].case.gate)], judge)
+    matrix = await build_matrix(spoken, [ConsentJudge(spoken[0].case.gate)], judge)
 
     assert judge.prompts == []
     assert matrix.judge_calls == 0
@@ -99,7 +99,7 @@ async def test_every_cell_carries_the_calls_own_summary_and_never_a_number_of_it
 
 async def test_a_judge_is_named_by_itself_so_two_judges_can_never_share_a_column() -> None:
     """The metric is the judge's own `name` (evals/evaluation.py:20-23), never a caller's key."""
-    case = a_case(a_log("booking-confirmed"), tools=BOOKING)
+    case = build_case(a_log("booking-confirmed"), tools=BOOKING)
 
     score = await measured(RegisterJudge("usted"), case, CountingJudge())
 

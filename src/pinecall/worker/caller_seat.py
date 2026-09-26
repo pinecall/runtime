@@ -36,7 +36,7 @@ WAIT_FOR_THE_CALLER_S = 5.0
 # listener joins on an observe token and a supervisor publishes audio into the same
 # room. Left to itself livekit links the first seat of an accepted kind (room_io.py:385-403), which
 # is the caller by luck alone. See docs/decisions/voice-bridge.md.
-async def the_callers_seat(
+async def wait_for_caller_seat(
     room: rtc.Room, channel: Channel, wait: float = WAIT_FOR_THE_CALLER_S, *, spoken: bool = True
 ) -> str | None:
     """The identity the session hears on this call, or None when nobody is seated yet."""

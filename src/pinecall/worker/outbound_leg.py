@@ -53,7 +53,9 @@ def asked_of(said: Any) -> Dialling | None:
 # comes back as soon as the INVITE is sent and the only evidence left is a participant that never
 # joins. It is also why this runs before the session is built — nothing is said into a room the
 # far end never entered, and a call that was never answered costs one room for a few seconds.
-async def placed(livekit: api.LiveKitAPI, room: str, dialling: Dialling) -> defs.EndReason | None:
+async def place_leg(
+    livekit: api.LiveKitAPI, room: str, dialling: Dialling
+) -> defs.EndReason | None:
     """The far end on the line, or the reason it is not. None is answered."""
     # The ceiling is the org's policy's, enforced by the media plane and not by anything of ours:
     # a worker that crashed would otherwise leave a call running on somebody's bill.
@@ -69,13 +71,13 @@ async def placed(livekit: api.LiveKitAPI, room: str, dialling: Dialling) -> defs
     try:
         await livekit.sip.create_sip_participant(request)
     except Exception as refused:
-        reason = how_it_failed(refused)
+        reason = end_reason_of(refused)
         logger.info("the call to %s was not answered (%s): %s", dialling.to, reason, refused)
         return reason
     return None
 
 
-def how_it_failed(refused: Exception) -> defs.EndReason:
+def end_reason_of(refused: Exception) -> defs.EndReason:
     """The SIP response the carrier gave, in the protocol's own three words for it."""
     code = getattr(refused, "sip_status_code", None)
     if code in (BUSY, DECLINED):

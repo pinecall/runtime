@@ -31,7 +31,7 @@ A_SEQ = re.compile(r"\bseq (\d+)\b")
 SAID = "said"
 
 
-def a_judgment(name: str, result: JudgmentResult, entries: Sequence[Entry]) -> Judgment:
+def build_judgment(name: str, result: JudgmentResult, entries: Sequence[Entry]) -> Judgment:
     """One judge's answer as the log carries it, with the entries its reason named beside it."""
     return Judgment(
         name=name,

@@ -29,7 +29,7 @@ from pinecall.types import NOTHING_BROUGHT
 # only way one rule holds in both places a call is judged — a run has the org in hand, a text call
 # judging itself at hang-up does not. What judging may spend is a ceiling, not a key: see
 # `judge_ceiling_eur` and docs/decisions/scoring.md.
-def a_judge(settings: Settings | None = None) -> Chat:
+def build_judge(settings: Settings | None = None) -> Chat:
     """The one model this package ever asks a question of, in the shape a Judge is handed."""
     return models_for(settings or load_settings())(None, NOTHING_BROUGHT)
 

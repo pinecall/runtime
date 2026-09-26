@@ -54,4 +54,4 @@ here and the code disagree, the code is what happened and this page is the bug.
 | **golden** | a fixed input with a known answer: the log that must reduce to one state, the questions a base or a memory must answer |
 | **persona** | a synthetic caller, written by the org, that a suite dials an agent with |
 | **register** | the tone an agent must keep — formal or familiar — and the check that reads it off the transcript |
-| **verdict** | one word a check or a judge answers: `held`, `broken`, `deferred`, `skipped` |
+| **verdict** | one word a check or a judge answers: `held`, `broken`, `deferred_verdict`, `skipped_verdict` |

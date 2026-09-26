@@ -27,7 +27,7 @@ STYLE = """
 NO_REASON = "no reason was written"
 
 
-def as_html(matrix: Matrix, *, title: str = "Pinecall evals") -> str:
+def render_html(matrix: Matrix, *, title: str = "Pinecall evals") -> str:
     """The whole matrix as one page: every judge's table, then every finding, then the calls."""
     return "\n".join(
         [

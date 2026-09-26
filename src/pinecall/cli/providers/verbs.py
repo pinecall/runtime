@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 
 from pinecall._settings import Settings, load_settings, variable_of
-from pinecall.cli.columns import as_columns
+from pinecall.cli.columns import aligned_columns
 from pinecall.providers import catalog
 from pinecall.providers.catalog import MODALITIES, Provider
 from pinecall.providers.models import DEFAULT_VENDOR
@@ -42,7 +42,7 @@ def run_providers(arguments: argparse.Namespace) -> int:
     settings = load_settings()
     wanted: str | None = arguments.does
     rows = [row for row in catalog.PROVIDERS if row.does and (not wanted or wanted in row.does)]
-    for line in as_columns([HEADINGS, *(_a_row(row, settings) for row in rows)]):
+    for line in aligned_columns([HEADINGS, *(_a_row(row, settings) for row in rows)]):
         print(line)
     print()
     print(f"{len(rows)} vendors · ours: " + " · ".join(f"{job} {OURS[job]}" for job in MODALITIES))

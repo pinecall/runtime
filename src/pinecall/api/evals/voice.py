@@ -24,9 +24,9 @@ from pinecall.evals.simulated_caller import (
     Asking,
     Persona,
     heard_in,
-    what_they_say_next,
+    improvise_line,
 )
-from pinecall.evals.voice_run import Line, a_simulated_call
+from pinecall.evals.voice_run import Line, run_simulated_call
 from pinecall.log.replay import whole
 from pinecall.orgs.vault import brought_by
 from pinecall.providers.models import NoProvider
@@ -127,11 +127,11 @@ async def a_voice_call(
             heard=heard_in(entries),
             turns_left=turns_left,
         )
-        improvised = await what_they_say_next(llm, asking)
+        improvised = await improvise_line(llm, asking)
         return improvised.say, improvised.hangup
 
     try:
-        spoken = await a_simulated_call(
+        spoken = await run_simulated_call(
             said.call,
             said.agent,
             turns=said.turns,

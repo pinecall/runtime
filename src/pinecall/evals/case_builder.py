@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any, cast
 
 from pinecall.evals.case import AGENT, CALLER, Arrived, Called, Case, Role, Said
-from pinecall.evals.gate import a_confirmation
+from pinecall.evals.gate import gate_line
 from pinecall.log import tool_result_text
 from pinecall.log.entry import Entry
 from pinecall.types import CONFIRMATIONS, GateKind, GateLine, ToolSpec
@@ -18,7 +18,7 @@ from pinecall_protocol.codec import event_of
 METRICS = "metrics"
 
 
-def a_case(
+def build_case(
     entries: Sequence[Entry],
     *,
     tools: Mapping[str, ToolSpec] | None = None,
@@ -111,7 +111,7 @@ class _Read:
             elif isinstance(data, events.CallStarted):
                 self.rule = _the_rule_on(data)
             elif entry.type in CONFIRMATIONS:
-                self.gate.append(a_confirmation(entry.seq, cast("GateKind", entry.type), data))
+                self.gate.append(gate_line(entry.seq, cast("GateKind", entry.type), data))
             elif entry.type.startswith("metrics."):
                 self._file_the_block(entry, data)
 

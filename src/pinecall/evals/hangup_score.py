@@ -13,14 +13,14 @@ from livekit.agents.metrics.usage import ModelUsageCollector
 
 from pinecall._settings import Settings, load_settings
 from pinecall.evals.case import Case
-from pinecall.evals.case_builder import a_case
+from pinecall.evals.case_builder import build_case
 from pinecall.evals.judges.code_judge import PolicyJudge
 from pinecall.evals.judges.consent import ConsentJudge
-from pinecall.evals.judges.grader import Counted, a_judge
+from pinecall.evals.judges.grader import Counted, build_judge
 from pinecall.evals.judges.grounded import EXTRACTORS, GroundedJudge, evidence_of
 from pinecall.evals.judges.persona import persona_judge_of
 from pinecall.evals.judges.promises import promises_of
-from pinecall.evals.livekit_verdicts import a_judgment, nobody_asked
+from pinecall.evals.livekit_verdicts import build_judgment, nobody_asked
 from pinecall.log.entry import Entry
 from pinecall.providers import prices
 from pinecall.providers.usage_wire import wire_usage_rows
@@ -39,7 +39,7 @@ OVER_THE_CEILING = "judging this call may spend {ceiling} EUR on a model and was
 JUDGING_OFF = "this org's calls are not judged at hang-up: POST /v1/evals/judge/{call} judges one"
 
 
-async def a_score(
+async def score_call(
     entries: Sequence[Entry], config: AgentConfig, settings: Settings | None = None
 ) -> CallScore:
     """Every judge this call can be given, over its own log. Never raises: the log seals on it."""
@@ -52,7 +52,7 @@ async def a_score(
 
 async def _judged(entries: Sequence[Entry], config: AgentConfig, settings: Settings) -> CallScore:
     """The judges, the questions the call's budget allowed, and what those questions cost."""
-    case = a_case(
+    case = build_case(
         entries,
         tools=config.tools_by_name,
         knowledge=[config.knowledge] if config.knowledge else None,
@@ -77,7 +77,7 @@ async def _judged(entries: Sequence[Entry], config: AgentConfig, settings: Setti
         result = await JudgeGroup(llm=counted, judges=panel).evaluate(case.chat_ctx)
     finally:
         await counted.aclose()
-    judged = [a_judgment(name, one, entries) for name, one in result.judgments.items()]
+    judged = [build_judgment(name, one, entries) for name, one in result.judgments.items()]
     cost = prices.eur_of(wire_usage_rows(spent.flatten()))
     return _an_entry(judged, declared, counted.calls, cost)
 
@@ -91,7 +91,7 @@ class JudgedWhen:
     """A scorer that asks first whether this call's org judges its calls, and judges if it does."""
 
     judges: Callable[[str], Awaitable[bool]]
-    score: Scorer = a_score
+    score: Scorer = score_call
 
     async def __call__(self, entries: Sequence[Entry], config: AgentConfig) -> CallScore:
         """No verdict and the reason when the org declined judging; the judges otherwise."""
@@ -122,7 +122,7 @@ def _the_judges_of(case: Case) -> list[Evaluator]:
 # runtime, and nothing here counts one itself.
 def _a_counted_judge(settings: Settings, spent: ModelUsageCollector) -> Counted:
     """The one model this call's judging may ask, wrapped in the count of what it was asked."""
-    judge_model = a_judge(settings)
+    judge_model = build_judge(settings)
     judge_model.on("metrics_collected", spent.collect)  # pyright: ignore[reportUnknownMemberType] — livekit's callback is `(...) -> Unknown`
     return Counted(judge_model)
 
@@ -139,7 +139,7 @@ async def _by_code_alone(
     if settled is None:
         return None
     if settled.passed or isinstance(judge, PolicyJudge):
-        return a_judgment(judge.name, settled, entries)
+        return build_judgment(judge.name, settled, entries)
     return nobody_asked(judge.name, settled, why, entries)
 
 

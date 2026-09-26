@@ -11,7 +11,7 @@ from fastapi import APIRouter
 from pinecall.api.deps import EmbedderDep, KeptMemoryDep, MemoryKeyDep
 from pinecall.auth.keys import is_held_by
 from pinecall.memory import DEFAULT_FACTS_PER_TURN, Memory
-from pinecall.memory.scoring import Answered, Question, Score, scored
+from pinecall.memory.scoring import Answered, Question, Score, score_golden
 from pinecall.types import Env, Fact
 from pinecall_protocol.rest import (
     ContactFact,
@@ -69,7 +69,7 @@ async def evaluate(
     finally:
         await memory.forget(key.org, key.env, is_held_by(key), scratch)
     took_ms = (time.perf_counter() - started) * 1000
-    return _as_a_score(await embedder.model(), scored(answered, k), took_ms)
+    return _as_a_score(await embedder.model(), score_golden(answered, k), took_ms)
 
 
 # One question at a time and the contact emptied between them: what memory holds for a question is

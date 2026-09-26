@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from pinecall.api.deps import EvalsKeyDep, LlmsDep, OrgsDep, VaultDep
-from pinecall.evals.simulated_caller import NO_MODEL, Asking, Improvised, what_they_say_next
+from pinecall.evals.simulated_caller import NO_MODEL, Asking, Improvised, improvise_line
 from pinecall.orgs.vault import brought_by
 from pinecall.providers.models import NoProvider
 from pinecall.providers.tuned_declaration import tuned_llm
@@ -33,6 +33,6 @@ async def next_line(
     except NoProvider as missing:
         raise HTTPException(503, NO_MODEL.format(missing=missing)) from missing
     try:
-        return await what_they_say_next(llm, said)
+        return await improvise_line(llm, said)
     except ValueError as broke:
         raise HTTPException(502, THE_MODEL_REFUSED.format(broke=broke)) from broke

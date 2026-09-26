@@ -2,7 +2,7 @@
 
 import pytest
 
-from pinecall.knowledge.scoring import Answered, Question, answers, scored, where
+from pinecall.knowledge.scoring import Answered, Question, answers, score_golden, where
 from pinecall.types import Chunk
 from pinecall.types.golden_scores import AT
 
@@ -41,20 +41,20 @@ def test_a_file_never_answers_for_a_file_whose_name_merely_starts_the_same() -> 
 
 
 def test_a_question_whose_chunk_came_back_first_scores_everything() -> None:
-    score = scored([asked(TARIFAS, a_chunk())], k=4)
+    score = score_golden([asked(TARIFAS, a_chunk())], k=4)
     assert score.recall_at_k == 1.0
     assert score.ndcg_at_10 == 1.0
     assert score.misses == ()
 
 
 def test_a_question_whose_chunk_came_back_second_still_counts_for_recall() -> None:
-    score = scored([asked(TARIFAS, a_chunk(path="otro.md"), a_chunk())], k=4)
+    score = score_golden([asked(TARIFAS, a_chunk(path="otro.md"), a_chunk())], k=4)
     assert score.recall_at_k == 1.0
     assert score.ndcg_at_10 == pytest.approx(0.6309, abs=0.001)
 
 
 def test_a_question_whose_chunk_never_came_back_is_a_miss_the_person_can_read() -> None:
-    score = scored([asked(TARIFAS, a_chunk(path="otro.md", heading="Horarios"))], k=4)
+    score = score_golden([asked(TARIFAS, a_chunk(path="otro.md", heading="Horarios"))], k=4)
     assert score.recall_at_k == 0.0
     assert score.ndcg_at_10 == 0.0
     (missed,) = score.misses
@@ -62,19 +62,19 @@ def test_a_question_whose_chunk_never_came_back_is_a_miss_the_person_can_read() 
 
 
 def test_only_the_first_match_counts_so_a_base_that_repeats_itself_answered_once() -> None:
-    score = scored([asked(TARIFAS, a_chunk(), a_chunk(), a_chunk())], k=4)
+    score = score_golden([asked(TARIFAS, a_chunk(), a_chunk(), a_chunk())], k=4)
     assert score.ndcg_at_10 == 1.0
 
 
 def test_a_chunk_past_the_tenth_scores_nothing_because_the_model_never_saw_it() -> None:
     tail = [a_chunk(path=f"otro-{n}.md") for n in range(AT)] + [a_chunk()]
-    score = scored([asked(TARIFAS, *tail)], k=len(tail))
+    score = score_golden([asked(TARIFAS, *tail)], k=len(tail))
     assert score.recall_at_k == 1.0
     assert score.ndcg_at_10 == 0.0
 
 
 def test_the_two_figures_are_the_share_over_every_question_asked() -> None:
-    score = scored(
+    score = score_golden(
         [asked(TARIFAS, a_chunk()), asked(TARIFAS, a_chunk(path="otro.md"))],
         k=4,
     )
@@ -84,6 +84,6 @@ def test_the_two_figures_are_the_share_over_every_question_asked() -> None:
 
 
 def test_a_golden_with_no_questions_scores_nothing_and_says_so() -> None:
-    score = scored([], k=4)
+    score = score_golden([], k=4)
     assert score.questions == 0
     assert score.recall_at_k == 0.0

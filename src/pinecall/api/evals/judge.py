@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException
 from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.calls.log_sink import the_calls_corner
 from pinecall.api.deps import CallIndexDep, EvalsKeyDep, SettingsDep, StoreDep
-from pinecall.evals.hangup_score import a_score
+from pinecall.evals.hangup_score import score_call
 from pinecall.log.entry import Entry
 from pinecall.log.replay import whole
 from pinecall.types import AgentConfig
@@ -47,7 +47,7 @@ async def judge(
     if _judged(entries) and not again:
         raise HTTPException(409, ALREADY_JUDGED.format(call=call))
     declared = registry.declared(corner.agent) or AgentConfig(slug=corner.agent)
-    scored = await a_score(entries, declared, settings)
+    scored = await score_call(entries, declared, settings)
     await store.rescored(call, corner.agent, encode(scored))
     return scored
 

@@ -63,7 +63,7 @@ def credstore_of(name: str, instances: Path = INSTANCES) -> Path:
     return instances / f"{name}.credstore"
 
 
-def a_name(name: str) -> str:
+def check_instance_name(name: str) -> str:
     """The name, or the refusal: it is a unit, a path and a database before it is anything else."""
     if not re.match(AN_INSTANCE_NAME, name):
         raise InstanceRefused(NOT_A_NAME.format(name=name))
@@ -137,7 +137,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
 
 def run_instance(arguments: argparse.Namespace) -> int:
     """The flags, as an Instance, into its file."""
-    instance = declared(
+    instance = build_instance(
         arguments.name,
         arguments.world,
         arguments.domain,
@@ -153,7 +153,7 @@ def run_instance(arguments: argparse.Namespace) -> int:
     return write_instance(instance, arguments.into, force=arguments.force)
 
 
-def declared(
+def build_instance(
     name: str,
     world: Env,
     domain: str,
@@ -168,14 +168,14 @@ def declared(
     idle_processes: int | None = None,
 ) -> Instance:
     """The instance the flags describe, every default filled — or the refusal, in one sentence."""
-    a_name(name)
+    check_instance_name(name)
     if world == SANDBOX and not identity:
         raise InstanceRefused(NOBODY_TO_ASK)
     fleet = fleet or (DEFAULT_FLEET if name == THE_FIRST else f"{DEFAULT_FLEET}-{name}")
     if not re.match(A_FLEET_NAME, fleet):
         raise InstanceRefused(NOT_A_FLEET.format(fleet=fleet))
     taken = ports_taken(instances, but=name)
-    port = port or a_free_port(name, taken)
+    port = port or free_port(name, taken)
     for mine in (port, port + WORKER_BESIDE):
         if mine in taken:
             raise InstanceRefused(PORT_TAKEN.format(port=port, other=taken[mine]))
@@ -206,7 +206,7 @@ def ports_taken(instances: Path, *, but: str) -> dict[int, str]:
     return taken
 
 
-def a_free_port(name: str, taken: dict[int, str]) -> int:
+def free_port(name: str, taken: dict[int, str]) -> int:
     """8080 for the first instance; the next hundred whose two ports are free for any other."""
     if name == THE_FIRST:
         return FIRST_PORT

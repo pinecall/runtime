@@ -98,7 +98,7 @@ class Operator:
 
 # The ops key is the BOX's, never an org's, so every door here names its org — and every verb
 # that knocks on one takes the same flag, spelled once. An id or a slug: the door takes either.
-def with_an_org(parser: argparse.ArgumentParser) -> None:
+def add_org_flag(parser: argparse.ArgumentParser) -> None:
     """Whose rows this verb speaks about. A box with one org never has to say it."""
     parser.add_argument("--org", default=DEFAULT_ORG, help=f"by id or slug (default {DEFAULT_ORG})")
 

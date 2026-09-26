@@ -9,7 +9,7 @@ from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api.deps import AdmissionDep, KeptKnowledgeDep, KnowledgeKeyDep, TuningDep
 from pinecall.auth.keys import is_held_by
-from pinecall.knowledge.scoring import Answered, Question, Score, scored
+from pinecall.knowledge.scoring import Answered, Question, Score, score_golden
 from pinecall.types import KnowledgeFile
 from pinecall.types.knowledge import DEFAULT_CHUNKS_PER_TURN
 from pinecall_protocol.rest import (
@@ -213,7 +213,7 @@ async def evaluate(
         for one in said.questions
     ]
     return _as_a_score(
-        base, held.model, scored(answered, k), (time.perf_counter() - started) * 1000
+        base, held.model, score_golden(answered, k), (time.perf_counter() - started) * 1000
     )
 
 

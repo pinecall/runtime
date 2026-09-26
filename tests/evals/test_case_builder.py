@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from pinecall.evals import Case, Said, a_case
+from pinecall.evals import Case, Said, build_case
 from tests.evals.logs import THE_GOLDENS_TOOLS, the_golden_call
 
 pytestmark = pytest.mark.unit
@@ -18,7 +18,7 @@ THE_KNOWLEDGE = "Revisión: 45 €. Limpieza: 60 €."
 
 def a_golden_case() -> Case:
     """The golden call as a judge reads it, with the agent's own two tools declared."""
-    return a_case(the_golden_call(), tools=THE_GOLDENS_TOOLS, knowledge=[THE_KNOWLEDGE])
+    return build_case(the_golden_call(), tools=THE_GOLDENS_TOOLS, knowledge=[THE_KNOWLEDGE])
 
 
 def the_turn_that(begins: str) -> Said:
@@ -155,5 +155,5 @@ def test_the_callers_own_rule_comes_off_call_started_and_a_persons_call_has_none
         for entry in entries
     ]
 
-    assert a_case(entries).persona_rule is None
-    assert a_case(ruled).persona_rule == ("a price", "")
+    assert build_case(entries).persona_rule is None
+    assert build_case(ruled).persona_rule == ("a price", "")

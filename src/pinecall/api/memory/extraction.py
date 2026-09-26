@@ -11,8 +11,8 @@ from pinecall.api.agents.session_config import tuned_for
 from pinecall.api.deps import LlmsDep, MemoryKeyDep, OrgsDep, TuningDep, VaultDep
 from pinecall.api.scope.request_scope import HeldDep
 from pinecall.auth.keys import KeyRecord, is_held_by
-from pinecall.memory.extraction import answered
-from pinecall.memory.goldens import facts_of, judged, turns_of, undeclared
+from pinecall.memory.extraction import ask_model
+from pinecall.memory.goldens import facts_of, judge_extraction, turns_of, undeclared_category
 from pinecall.orgs.vault import brought_by
 from pinecall.providers.models import DEFAULT_VENDOR, Chat
 from pinecall.types import AgentConfig, MemoryPolicy, Model
@@ -52,7 +52,7 @@ async def extraction(
     if policy is None or not policy.remember:
         raise HTTPException(status_code=400, detail=KEEPS_NOTHING.format(slug=slug))
     for case in said.cases:
-        if (wrong := undeclared(case, policy)) is not None:
+        if (wrong := undeclared_category(case, policy)) is not None:
             raise HTTPException(status_code=400, detail=wrong)
     started = time.perf_counter()
     chat = llms(config.llm, await brought_by(vault, orgs.quotas_of, key.org))
@@ -70,10 +70,10 @@ async def _one(case: ExtractionGolden, chat: Chat, config: AgentConfig) -> Extra
     """One case: what the model asked for, then the policy and the four checks over its answer."""
     policy = config.memory or MemoryPolicy()
     known = facts_of(case)
-    said = await answered(
+    said = await ask_model(
         chat, known=known, turns=turns_of(case), policy=policy, channel=case.channel
     )
-    return judged(case, said, policy=policy, known=known, tools=config.tools)
+    return judge_extraction(case, said, policy=policy, known=known, tools=config.tools)
 
 
 async def _the_agent(slug: str, held: Registration, key: KeyRecord, kept: TuningDep) -> AgentConfig:

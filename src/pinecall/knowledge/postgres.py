@@ -174,7 +174,7 @@ class PgKnowledge:
         )
         pieces = [piece for file in cut for piece in file]
         vectors = [vector for file in embedded for vector in file]
-        paths, texts, counted = the_files.as_columns(files)
+        paths, texts, counted = the_files.push_columns(files)
         await self._pool.execute(
             _PUT,
             org,

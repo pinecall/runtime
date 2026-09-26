@@ -31,7 +31,7 @@ from pinecall.worker import (
     recording_paths,
 )
 from pinecall.worker.gateway_client import Gateway
-from pinecall.worker.hold_file import the_melody
+from pinecall.worker.hold_file import fetch_melody
 from pinecall_protocol import Command, defs, encode
 from pinecall_protocol.events import CallEnded
 
@@ -140,10 +140,12 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
         worker.gateway.provider_keys(
             route.agent, org=route.org, env=route.env, holder=whose.holder
         ),
-        the_melody(worker.gateway, route.agent, org=route.org, env=route.env, holder=whose.holder),
+        fetch_melody(
+            worker.gateway, route.agent, org=route.org, env=route.env, holder=whose.holder
+        ),
     )
     took("config+keys")
-    context = a_call(ctx.room.name or ctx.job.id, arrival, route, worker.timezone)
+    context = build_call_context(ctx.room.name or ctx.job.id, arrival, route, worker.timezone)
     # What the dispatch named wins over the flag this process was started with: a spoken eval
     # run has to reach the terminal holding its goldens, and that socket takes no unclaimed call.
     ceiling = await worker.gateway.opened(context, route.agent, arrival.app or worker.app)
@@ -164,7 +166,7 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     wanted = (
         None
         if typed or not config.record
-        else recording_paths.where_the_audio_goes(ctx, context.call, worker.keeping)
+        else recording_paths.recording_path(ctx, context.call, worker.keeping)
     )
     # Asked for HERE, before the session is built and well before the greeting is spoken: the room
     # has been joined since ctx.connect() and the box's recorder takes a moment to come up, and
@@ -173,12 +175,10 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     # A recorder that would not take the job is a call with no audio and a call all the same: the
     # summary points at nothing rather than at a file nobody is writing. Which is what the
     # doctor's `egress` line is for — nothing else would say it out loud.
-    recording = (
-        wanted if taping is not None or recording_paths.the_session_records_itself() else None
-    )
+    recording = wanted if taping is not None or recording_paths.records_itself() else None
     bridge = worker.bridging(context, config, worker.gateway, recording)
     # Registered before anything can fail: a call that dies mid-setup still seals its own log.
-    ctx.add_shutdown_callback(sealing(worker.gateway, bridge, context.call, taping))
+    ctx.add_shutdown_callback(seal_on_shutdown(worker.gateway, bridge, context.call, taping))
     live = session.build_session(config, worker.kit, route.channel, brought, spoken=not typed)
     took("session")
     await date_tool.seed_date(bridge.agent, context.today)
@@ -187,7 +187,7 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     # The one voice this session answers, decided before it subscribes to anything: a listener and,
     # a supervisor sit in the same room and the agent must never transcribe either.
     # Nobody seated yet leaves the identity unset, which is livekit's own first-comer rule.
-    pinned = await caller_seat.the_callers_seat(ctx.room, route.channel, spoken=not typed)
+    pinned = await caller_seat.wait_for_caller_seat(ctx.room, route.channel, spoken=not typed)
     took("seat")
     # Said out loud either way: the default defers to the server, and it is only safe today because
     # a self-hosted LiveKit is not a cloud host — see docs/decisions/livekit-session.md §7.
@@ -219,7 +219,7 @@ async def answer(ctx: JobContext, worker: Worker) -> None:
     )
     # Last: an `agent.say` has a started session to say it on. Everything the app sent before this
     # waits in the gateway's queue and arrives in the order it was sent.
-    serving = asyncio.ensure_future(commands.served(worker.gateway, bridge, context.call))
+    serving = asyncio.ensure_future(commands.serve_commands(worker.gateway, bridge, context.call))
     ctx.add_shutdown_callback(letting_go(serving))
     # A voice call has the agent's limit on it — the phone and the widget's voice, never a written
     # visit, which is the same test a_session builds its ears by (session/voice/session.py). And
@@ -264,7 +264,7 @@ def _or_livekits(interruptible: bool | None) -> NotGivenOr[bool]:
 # server to compose and the session records itself instead, so nothing is asked for.
 async def _the_box_records(ctx: JobContext, audio: Path | None) -> recorder.Stopping | None:
     """Ask the box to record this room, and answer with how to stop it and wait for its file."""
-    if audio is None or recording_paths.the_session_records_itself():
+    if audio is None or recording_paths.records_itself():
         return None
     taping = await recorder.recording_the_room(ctx.api, ctx.room.name, audio)
     if taping is None:
@@ -278,7 +278,9 @@ async def _the_box_records(ctx: JobContext, audio: Path | None) -> recorder.Stop
 
 # The room's name IS the call id: a reader of the log can find the room and the room can find the
 # log, with nothing minted in between and nothing to keep in step.
-def a_call(call: str, arrival: job_target.Arrival, route: Route, zone: str) -> CallContext:
+def build_call_context(
+    call: str, arrival: job_target.Arrival, route: Route, zone: str
+) -> CallContext:
     """The call as the platform will know it, before the first word is spoken."""
     return CallContext(
         call=call,
@@ -310,7 +312,7 @@ async def _the_far_end_answered(
     if wanted is None:
         await _never_answered(worker.gateway, context.call, "dial_failed")
         return False
-    reason = await outbound_leg.placed(ctx.api, ctx.room.name, wanted)
+    reason = await outbound_leg.place_leg(ctx.api, ctx.room.name, wanted)
     if reason is None:
         return True
     await _never_answered(worker.gateway, context.call, reason)
@@ -333,7 +335,7 @@ def letting_go(reading: asyncio.Task[None]) -> Callable[[str], Coroutine[None, N
     return stop
 
 
-def sealing(
+def seal_on_shutdown(
     gateway: Gateway, bridge: Bridge, call: str, stopping: recorder.Stopping | None = None
 ) -> Callable[[str], Coroutine[None, None, None]]:
     """The shutdown callback: the recording is closed, the bridge says how the call ended, the

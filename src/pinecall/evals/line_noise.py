@@ -45,7 +45,9 @@ def rms_of(pcm: bytes) -> float:
     return math.sqrt(sum(float(sample) * sample for sample in samples) / len(samples))
 
 
-def mixed(caller: bytes, interferer: bytes, db_under: float = UNDER_THE_CALLER_DB) -> bytes:
+def mix_interferer(
+    caller: bytes, interferer: bytes, db_under: float = UNDER_THE_CALLER_DB
+) -> bytes:
     """The caller's voice with the interferer under it, at the level the run asked for, in dB."""
     if not interferer or not caller:
         return caller
@@ -61,7 +63,7 @@ def mixed(caller: bytes, interferer: bytes, db_under: float = UNDER_THE_CALLER_D
     return voice.tobytes()
 
 
-def with_losses(
+def drop_packets(
     frames: Sequence[bytes], loss: float, random: randomness.Random | None = None
 ) -> list[bytes]:
     """The same packets with a share of them never sent: what the far end plays is silence."""

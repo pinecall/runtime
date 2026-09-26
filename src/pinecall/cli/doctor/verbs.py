@@ -12,7 +12,7 @@ from pinecall.cli.doctor.machine import (
     check_the_disk_has_room,
     check_the_fence_is_up,
 )
-from pinecall.cli.doctor.mail import send_one_to, the_mail_line
+from pinecall.cli.doctor.mail import mail_line, send_one_to
 from pinecall.cli.doctor.probes import Probes, live_probes
 from pinecall.cli.doctor.report import Result, reason
 from pinecall.log.store.postgres import without_password
@@ -58,7 +58,7 @@ OURS: dict[catalog.Modality, str] = {
 }
 
 
-def the_vendor_worth_naming(modality: catalog.Modality) -> str:
+def default_vendor_field(modality: catalog.Modality) -> str:
     """The settings field of the vendor this runtime runs that role on when nobody chose one."""
     field = catalog.settings_field_of(OURS[modality])
     if field is None:
@@ -211,7 +211,7 @@ def check_provider_keys(settings: Settings, _probes: Probes) -> Result:
         if set_here:
             present.append(f"{role} {', '.join(set_here)}")
         else:
-            missing.append(f"{role} (set {variable_of(the_vendor_worth_naming(role))})")
+            missing.append(f"{role} (set {variable_of(default_vendor_field(role))})")
     if missing:
         return Result("provider keys", False, "nothing for " + " · ".join(missing))
     return Result("provider keys", True, " · ".join(present))
@@ -315,7 +315,7 @@ def _the_fix(settings: Settings) -> str:
     return BRING_A_LIVE_KEY.format(variable=variable_of(field))
 
 
-def how_to_install_the_livekit_cli() -> str:
+def livekit_cli_install_line() -> str:
     """What to type on the machine reading the report: brew on a Mac, the script anywhere else."""
     return (
         INSTALL_LIVEKIT_CLI_WITH_BREW if sys.platform == "darwin" else INSTALL_LIVEKIT_CLI_ANYWHERE
@@ -329,7 +329,7 @@ def check_the_livekit_cli_is_installed(_settings: Settings, probes: Probes) -> R
         return Result(
             LIVEKIT_CLI,
             False,
-            f"not installed — {how_to_install_the_livekit_cli()} ({WHAT_LIVEKIT_CLI_IS_FOR})",
+            f"not installed — {livekit_cli_install_line()} ({WHAT_LIVEKIT_CLI_IS_FOR})",
             advisory=True,
         )
     return Result(LIVEKIT_CLI, True, f"{found} — {WHAT_LIVEKIT_CLI_IS_FOR}")
@@ -339,7 +339,7 @@ def check_the_livekit_cli_is_installed(_settings: Settings, probes: Probes) -> R
 # admin hands an invitation over by copying the link out of the answer, as they did before mail.
 def check_the_mail_is_configured(settings: Settings, probes: Probes) -> Result:
     """Whether this box can post an invitation and a password reset, and what it posts them with."""
-    configured, detail = the_mail_line(probes.the_boxs_mail(settings))
+    configured, detail = mail_line(probes.the_boxs_mail(settings))
     return Result("mail", configured, detail, advisory=not configured)
 
 

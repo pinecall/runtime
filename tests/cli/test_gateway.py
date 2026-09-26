@@ -51,12 +51,12 @@ def test_a_journal_reads_the_workers_own_json_line_and_a_terminal_reads_text(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("PINECALL_LOG_FORMAT", "json")
-    line = _one_line_under(gateway.a_log_config(load_settings()))
+    line = _one_line_under(gateway.build_log_config(load_settings()))
     assert line.startswith('{"message": "hello 2", "level": "INFO", "name": "pinecall.a"')
     monkeypatch.setenv("PINECALL_LOG_FORMAT", "text")
-    line = _one_line_under(gateway.a_log_config(load_settings()))
+    line = _one_line_under(gateway.build_log_config(load_settings()))
     assert line.endswith("INFO    pinecall.a hello 2")
-    assert isinstance(gateway.a_log_config(load_settings())["formatters"]["line"], dict)
+    assert isinstance(gateway.build_log_config(load_settings())["formatters"]["line"], dict)
 
 
 def _one_line_under(config: dict[str, Any]) -> str:
@@ -98,7 +98,7 @@ def test_both_flags_need_no_url_a_gateway_could_bind(monkeypatch: pytest.MonkeyP
     "url", ["http://[::1]:8280", "http://localhost:8080", "http://127.0.0.2:8380"]
 )
 def test_every_spelling_of_loopback_is_bound(url: str) -> None:
-    assert gateway.the_address_of(url)[1] in {8080, 8280, 8380}
+    assert gateway.bind_address(url)[1] in {8080, 8280, 8380}
 
 
 @pytest.mark.parametrize(
@@ -106,5 +106,5 @@ def test_every_spelling_of_loopback_is_bound(url: str) -> None:
 )
 def test_a_url_with_no_loopback_port_is_refused_in_one_sentence(url: str) -> None:
     with pytest.raises(gateway.NotBindable) as refused:
-        gateway.the_address_of(url)
+        gateway.bind_address(url)
     assert str(refused.value) == gateway.NOT_HERE.format(variable="PINECALL_GATEWAY_URL", url=url)

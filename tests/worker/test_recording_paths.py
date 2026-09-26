@@ -35,8 +35,8 @@ def test_the_directory_is_ours_and_the_file_inside_it_is_livekits(tmp_path: Path
 
 def test_two_console_sessions_of_the_same_room_are_filed_apart() -> None:
     """Every console session is `console-room`, so the moment is what tells two of them apart."""
-    morning = recording_paths.a_console_session(datetime(2026, 9, 7, 9, 30, 0))
-    evening = recording_paths.a_console_session(datetime(2026, 9, 7, 21, 5, 12))
+    morning = recording_paths.console_session_name(datetime(2026, 9, 7, 9, 30, 0))
+    evening = recording_paths.console_session_name(datetime(2026, 9, 7, 21, 5, 12))
     assert (morning, evening) == ("console-20260907-093000", "console-20260907-210512")
 
 
@@ -53,7 +53,7 @@ def test_on_a_box_the_pointer_is_our_file_and_the_session_records_nothing(tmp_pa
     job = a_job_in(tmp_path / "livekit-tmp")
     audio = recording_paths.kept_by_the_job(job, tmp_path / "CA_7")
     assert audio == tmp_path / "CA_7" / recording_paths.AUDIO_FILE
-    assert recording_paths.the_session_records_itself() is False
+    assert recording_paths.records_itself() is False
     assert recording_paths.asked_of_the_session(audio) is False
 
 

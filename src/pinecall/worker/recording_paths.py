@@ -58,7 +58,7 @@ def audio_in(directory: Path) -> Path:
 
 # The console is always the same room, so the room's name cannot tell two sessions apart and a
 # second `pinecall talk` would record over the first. The moment can.
-def a_console_session(now: datetime | None = None) -> str:
+def console_session_name(now: datetime | None = None) -> str:
     """The name a console session is filed under, since every one of them is `console-room`."""
     return f"console-{(now or datetime.now()).strftime('%Y%m%d-%H%M%S')}"
 
@@ -86,7 +86,7 @@ def kept_by_the_console(destination: Path) -> Path:
 # pointer to a file livekit will not write is a lie, so None.
 # Decided before the session exists, so the bridge is born knowing the pointer call.summary will
 # carry, and the directory is composed only for a call that is going to fill it.
-def where_the_audio_goes(job: JobContext, call: str, keeping: Keeping) -> Path | None:
+def recording_path(job: JobContext, call: str, keeping: Keeping) -> Path | None:
     """The file this call's audio will be in, or None when none is kept."""
     return kept_by_the_job(job, keeping(call))
 
@@ -99,13 +99,13 @@ def kept_by_the_job(job: JobContext, destination: Path) -> Path | None:
     return audio_in(destination)
 
 
-def the_session_records_itself() -> bool:
+def records_itself() -> bool:
     """Whether livekit's own recorder writes this file: only the console, which has no room."""
     return _legacy.AgentsConsole.get_instance().enabled
 
 
 def asked_of_the_session(recording: Path | None) -> RecordingOptions | bool:
     """What `AgentSession.start(record=…)` is told: nothing on a box, where egress writes it."""
-    if recording is None or not the_session_records_itself():
+    if recording is None or not records_itself():
         return False
     return AUDIO_ONLY

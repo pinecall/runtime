@@ -8,7 +8,7 @@ from livekit.agents.evals import Judge, JudgmentResult
 from livekit.agents.llm import LLM, ChatContext
 
 from pinecall.evals.case import Case
-from pinecall.evals.judges.binary_question import asked
+from pinecall.evals.judges.binary_question import ask_judge
 from pinecall.evals.judges.code_judge import broken
 
 # The name the log files the verdict under. `held` is the caller accepting the call and `broken`
@@ -71,7 +71,7 @@ class PersonaJudge(Judge):
             settled = broken(NOBODY_TO_ASK)
             settled.instructions = CRITERIA
             return settled
-        answered = await asked(llm, self.criteria(), chat_ctx)
+        answered = await ask_judge(llm, self.criteria(), chat_ctx)
         answered.reasoning = _in_the_callers_word(answered)
         return answered
 

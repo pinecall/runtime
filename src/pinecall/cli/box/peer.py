@@ -19,7 +19,13 @@ from pinecall.cli.box.credentials import (
     decrypt_with_systemd,
     encrypt_with_systemd,
 )
-from pinecall.cli.box.instance import INSTANCES, a_name, credstore_of, env_file, said_in
+from pinecall.cli.box.instance import (
+    INSTANCES,
+    check_instance_name,
+    credstore_of,
+    env_file,
+    said_in,
+)
 from pinecall.cli.keys.verbs import OPS_ORGS
 from pinecall.cli.operator import TIMEOUT_S, Operator, OperatorRefused
 from pinecall.types import DEFAULT_ORG, PRODUCTION, SANDBOX, THE_FLEET, Env, parse_env
@@ -76,7 +82,7 @@ class Side:
 
 def side_of(name: str, instances: Path = INSTANCES) -> Side:
     """The instance's file, read: the refusal when this box holds no such instance."""
-    path = env_file(a_name(name), instances)
+    path = env_file(check_instance_name(name), instances)
     if not path.exists():
         raise PeerRefused(NO_SUCH_INSTANCE.format(name=name, path=path))
     return Side(
@@ -132,7 +138,7 @@ async def peer(
 ) -> int:
     """Mint at `source`, keep in `into`'s store under the name that says what it opens."""
     using = hands or Hands()
-    if a_name(source) == a_name(into):
+    if check_instance_name(source) == check_instance_name(into):
         raise PeerRefused(ONE_INSTANCE)
     side = side_of(source, instances)
     store = credstore_of(into, instances)

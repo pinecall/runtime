@@ -46,7 +46,7 @@ async def test_the_door_decides_the_channel_and_the_job_decides_the_rest() -> No
         a_job(room="call_room_1", metadata={"agent": "clinica-norte", "why": "a follow-up"}),
         as_a_room(room),
     )
-    context = job_module.a_call("call_room_1", arrival, CLINICA, "UTC")
+    context = job_module.build_call_context("call_room_1", arrival, CLINICA, "UTC")
     assert (context.call, context.channel, context.caller) == ("call_room_1", "phone", "+59897777")
     assert context.route == CLINICA
     assert context.metadata["why"] == "a follow-up"
@@ -58,7 +58,7 @@ async def test_the_shutdown_callback_tells_the_bridge_then_seals_the_log() -> No
     seen: list[Seen] = []
     gateway = a_gateway(seen=seen)
     bridge = CountingBridge(Agent(instructions="You are Clara.", llm=FakeLLM()))  # pyright: ignore[reportUnknownMemberType]
-    await job_module.sealing(gateway, bridge, "call_room_1")("caller_hung_up")
+    await job_module.seal_on_shutdown(gateway, bridge, "call_room_1")("caller_hung_up")
     assert bridge.closed_because == "caller_hung_up"
     assert [(one.method, one.path) for one in seen] == [("POST", "/v1/calls/call_room_1/sealed")]
 
@@ -66,7 +66,7 @@ async def test_the_shutdown_callback_tells_the_bridge_then_seals_the_log() -> No
 def test_the_pointer_is_composed_without_touching_the_job_at_all(tmp_path: Path) -> None:
     """The box's recorder writes this file, so nothing of livekit's own is redirected for it."""
     job = _a_job_nobody_may_touch()
-    audio = recording_paths.where_the_audio_goes(job, "call_room_1", lambda call: tmp_path / call)
+    audio = recording_paths.recording_path(job, "call_room_1", lambda call: tmp_path / call)
     assert audio == tmp_path / "call_room_1" / recording_paths.AUDIO_FILE
 
 

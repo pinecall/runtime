@@ -30,7 +30,7 @@ together, and `next` is the last call of this page, or `null` on the last page. 
 when the call's log opened, ties by call id.
 
 Each `SessionLine` carries two more fields. `score` is `{held, judged, passed, reason}` — how many
-judges answered `held` of how many answered `held` or `broken` (a `skipped` or `deferred` judge
+judges answered `held` of how many answered `held` or `broken` (a `skipped_verdict` or `deferred_verdict` judge
 settled nothing and is not counted), `passed` false when one broke, and `reason` the first broken
 judge's own sentence — or `null` when nobody settled anything about the call. `flags` is what a
 person reviewing calls looks at first:
@@ -44,7 +44,7 @@ person reviewing calls looks at first:
 `promises` is a model judge shaped like `grounded` (`evals/judges/promises.py`): code finds the
 sentences that could commit, in Spanish and in English, and a call with none holds for free; when
 there are some, the judge model is asked once with every tool call of the call as evidence, under
-the same per-call ceiling as every judge. With no model to ask, it is `skipped`, and no flag rises.
+the same per-call ceiling as every judge. With no model to ask, it is `skipped_verdict`, and no flag rises.
 
 ## 2. Insights: a day at a glance
 

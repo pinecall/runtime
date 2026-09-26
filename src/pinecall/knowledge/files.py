@@ -191,7 +191,7 @@ async def drop_file(
     return True
 
 
-def as_columns(files: Sequence[KnowledgeFile]) -> tuple[list[str], list[str], list[int]]:
+def push_columns(files: Sequence[KnowledgeFile]) -> tuple[list[str], list[str], list[int]]:
     """The files as a push's three arrays: the paths, the texts, and how many chunks each became."""
     return (
         [file.path for file in files],

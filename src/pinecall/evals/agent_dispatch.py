@@ -124,7 +124,7 @@ class Dispatch:
             await self._api.aclose()
 
 
-def a_dispatch(
+def dispatch_agent(
     call: str,
     agent: str,
     settings: Settings,
