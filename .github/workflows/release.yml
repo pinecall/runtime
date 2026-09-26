@@ -98,7 +98,7 @@ jobs:
         working-directory: console
       - run: scripts/console
         working-directory: runtime
-      - run: test -f runtime/packages/pinecall-runtime/src/pinecall/public/console/index.html
+      - run: test -f runtime/packages/pinecall/src/pinecall/public/console/index.html
       - run: uv build --package pinecall --out-dir dist
         working-directory: runtime
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1

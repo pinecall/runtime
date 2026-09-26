@@ -5,11 +5,11 @@ from collections.abc import Iterator
 
 import pytest
 
-from pinecall_testkit.tree import ROOT
+from pinecall_testkit.tree import package_dir
 
 pytestmark = pytest.mark.unit
 
-API = ROOT / "packages" / "pinecall-runtime" / "src" / "pinecall" / "api"
+API = package_dir("api")
 
 # What a FastAPI router decorates a door with.
 DOOR_VERBS = frozenset({"get", "post", "put", "patch", "delete", "websocket", "api_route"})

@@ -1,5 +1,6 @@
-# The runtime's own distribution, `pinecall`: two processes, one wheel. The workspace, the
-# tools and the suites' configuration are the repository's pyproject.toml, two directories up.
+# pinecall: the application — the gateway's doors and the verbs they call, what a gateway holds
+# open, the CLI, and the console and widget it serves. It depends on every other distribution of
+# packages/, pinned to its own version, so `pip install pinecall` installs the whole runtime.
 
 [project]
 name = "pinecall"
@@ -22,7 +23,7 @@ classifiers = [
 keywords = ["voice", "telephony", "livekit", "contact-center", "agents"]
 dependencies = [
   "pinecall-channels==0.1.0",
-  "pinecall-core>=0.1,<0.2",
+  "pinecall-core==0.1.0",
   "pinecall-db==0.1.0",
   "pinecall-evals==0.1.0",
   "pinecall-fleet==0.1.0",
@@ -44,22 +45,22 @@ dependencies = [
   "uvicorn[standard]>=0.30,<1",
 ]
 
-[project.urls]
-Homepage = "https://github.com/pinecall/runtime"
-Repository = "https://github.com/pinecall/runtime"
-Changelog = "https://github.com/pinecall/runtime/blob/main/CHANGELOG.md"
-Issues = "https://github.com/pinecall/runtime/issues"
-Security = "https://github.com/pinecall/runtime/blob/main/SECURITY.md"
-
 [project.optional-dependencies]
 # The vendors' plugins are the providers' extras; these name them, so `pip install pinecall[runtime]`
-# and a box's `uv sync --extra runtime --extra providers` read the same as before the split.
+# and a box's `uv sync --extra runtime --extra providers` install them through the application.
 runtime = ["pinecall-providers[runtime]==0.1.0"]
 providers = ["pinecall-providers[providers]==0.1.0"]
 providers-big = ["pinecall-providers[providers-big]==0.1.0"]
 
 [project.scripts]
 pinecall-runtime = "pinecall.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/pinecall/runtime"
+Repository = "https://github.com/pinecall/runtime"
+Changelog = "https://github.com/pinecall/runtime/blob/main/CHANGELOG.md"
+Issues = "https://github.com/pinecall/runtime/issues"
+Security = "https://github.com/pinecall/runtime/blob/main/SECURITY.md"
 
 [tool.uv.sources]
 pinecall-protocol = { path = "../../../protocol/python", editable = true }
@@ -80,13 +81,14 @@ pinecall-tenancy = { workspace = true }
 requires = ["hatchling>=1.27,<2"]
 build-backend = "hatchling.build"
 
+# The one version the thirteen distributions share; the others write it down and a test holds
+# them to this.
 [tool.hatch.version]
 path = "src/pinecall/_version.py"
 
-# The console is a build the agents repo's vite wrote and scripts/console copied in: git-ignored,
-# because it is not a source, and named here so the wheel carries it anyway.
-# A namespace portion: no pinecall/__init__.py in this wheel or in the core's, which carries
-# pinecall.types, pinecall.extensions and pinecall.errors.
+# A namespace portion: no pinecall/__init__.py in this wheel or in any sibling's. The console and
+# the widget are builds scripts/console copied in: git-ignored, because they are not sources, and
+# named here so the wheel carries them anyway.
 [tool.hatch.build.targets.wheel]
 packages = ["src/pinecall"]
 artifacts = ["src/pinecall/public/console/**", "src/pinecall/public/widget/**"]
@@ -94,11 +96,7 @@ artifacts = ["src/pinecall/public/console/**", "src/pinecall/public/widget/**"]
 [tool.hatch.build.targets.sdist]
 artifacts = ["src/pinecall/public/console/**", "src/pinecall/public/widget/**"]
 
-# ── deptry ──────────────────────────────────────────────────────────────────────
-
-# What the tree imports against what pyproject declares, both ways: an import of something only
-# a dependency dragged in breaks on the day that dependency drops it, and a declared package
-# nobody imports is a wheel nobody needed.
+# What the tree imports against what this pyproject declares, both ways.
 [tool.deptry]
 known_first_party = ["pinecall"]
 
@@ -109,4 +107,16 @@ pinecall-protocol = ["pinecall_protocol"]
 [tool.deptry.per_rule_ignores]
 # The siblings are imported on every other line, as `pinecall.<package>`: deptry reads a
 # namespace by its top-level name alone, and `pinecall` is first-party here.
-DEP002 = ["pinecall-channels", "pinecall-core", "pinecall-db", "pinecall-evals", "pinecall-fleet", "pinecall-log", "pinecall-providers", "pinecall-retrieval", "pinecall-session", "pinecall-settings", "pinecall-tenancy"]
+DEP002 = [
+  "pinecall-channels",
+  "pinecall-core",
+  "pinecall-db",
+  "pinecall-evals",
+  "pinecall-fleet",
+  "pinecall-log",
+  "pinecall-providers",
+  "pinecall-retrieval",
+  "pinecall-session",
+  "pinecall-settings",
+  "pinecall-tenancy",
+]

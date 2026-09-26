@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 
 CONSOLE="${PINECALL_CONSOLE:-../console}"
 WIDGET="${PINECALL_WIDGET:-../widget}"
-SHIPPED="packages/pinecall-runtime/src/pinecall/public"
+SHIPPED="packages/pinecall/src/pinecall/public"
 
 [ -d "$CONSOLE" ] || { echo "no console checkout at $CONSOLE: set PINECALL_CONSOLE" >&2; exit 2; }
 

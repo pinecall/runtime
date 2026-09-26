@@ -14,7 +14,7 @@ scripts/format                                  # ruff format, then the fixable 
 scripts/lint                                    # ruff · pyright · mypy · deptry · squawk over unlanded migrations — the gate
 scripts/test                                    # pytest -m "unit or postgres" + infra/tools/tests + the core's suite, coverage to its floor
 scripts/unit                                    # ring 0 over every suite: no keys, no network, SHUFFLED — twice green, or nothing
-uv run pytest packages/pinecall-runtime/tests/cli/doctor/test_verbs.py    # one file
+uv run pytest packages/pinecall/tests/cli/doctor/test_verbs.py    # one file
 uv run pinecall-runtime gateway | worker dev | migrate up | doctor
 scripts/generate-env-example                    # after touching settings/schema.py; a test fails while it drifts
 make deploy                                     # this checkout onto your box (deploy.local.mk); ends with the doctor
@@ -24,7 +24,7 @@ make deploy                                     # this checkout onto your box (d
 
 - The repository is a uv workspace: the root holds the tools, the suites' configuration, `infra/`,
   `docs/` and `scripts/`; the code is the two distributions under `packages/`, one lock, one venv
-- `packages/pinecall-runtime/` — the distribution `pinecall`: `src/pinecall/`, eighteen packages,
+- `packages/pinecall/` — the distribution `pinecall`: `src/pinecall/`, eighteen packages,
   none of them a process; ARCHITECTURE.md §11 is the import table and `tests/test_isolation.py`
   enforces it; the words they speak are `docs/glossary.md`
 - `packages/pinecall-core/` — the distribution `pinecall-core`: `types/`, `extensions/`,

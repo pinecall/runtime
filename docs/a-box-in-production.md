@@ -91,8 +91,8 @@ worker · **doctor** runs the runtime's own checks from inside the box, per inst
 ```console
 $ make deploy
 scripts/console
-console → packages/pinecall-runtime/src/pinecall/public/console (4 files)
-widget → packages/pinecall-runtime/src/pinecall/public/widget/pinecall-widget.js
+console → packages/pinecall/src/pinecall/public/console (4 files)
+widget → packages/pinecall/src/pinecall/public/widget/pinecall-widget.js
 …
 sudo make -s -C /opt/pinecall/app/runtime/infra/box install && … uv sync … && sudo make -s -C /opt/pinecall/app/runtime/infra/box converge
 …

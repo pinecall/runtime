@@ -4,6 +4,7 @@
   ],
   "extraPaths": [
     ".",
+    "../../packages/pinecall/src",
     "../../packages/pinecall-channels/src",
     "../../packages/pinecall-core/src",
     "../../packages/pinecall-db/src",
@@ -12,7 +13,6 @@
     "../../packages/pinecall-log/src",
     "../../packages/pinecall-providers/src",
     "../../packages/pinecall-retrieval/src",
-    "../../packages/pinecall-runtime/src",
     "../../packages/pinecall-session/src",
     "../../packages/pinecall-settings/src",
     "../../packages/pinecall-tenancy/src"

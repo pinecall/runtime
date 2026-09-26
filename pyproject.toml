@@ -77,6 +77,7 @@ markers = [
 branch = true
 # Paths and not the package name: a namespace has one path per distribution.
 source = [
+  "packages/pinecall/src/pinecall",
   "packages/pinecall-channels/src/pinecall",
   "packages/pinecall-core/src/pinecall",
   "packages/pinecall-db/src/pinecall",
@@ -85,12 +86,11 @@ source = [
   "packages/pinecall-log/src/pinecall",
   "packages/pinecall-providers/src/pinecall",
   "packages/pinecall-retrieval/src/pinecall",
-  "packages/pinecall-runtime/src/pinecall",
   "packages/pinecall-session/src/pinecall",
   "packages/pinecall-settings/src/pinecall",
   "packages/pinecall-tenancy/src/pinecall",
 ]
-omit = ["packages/pinecall-runtime/src/pinecall/cli/gateway.py", "packages/pinecall-runtime/src/pinecall/cli/worker.py"]
+omit = ["packages/pinecall/src/pinecall/cli/gateway.py", "packages/pinecall/src/pinecall/cli/worker.py"]
 
 [tool.coverage.report]
 skip_covered = true
@@ -103,6 +103,7 @@ fail_under = 90
 include = ["packages"]
 # Every distribution's source, so the namespace resolves whole wherever a portion sits.
 extraPaths = [
+  "packages/pinecall/src",
   "packages/pinecall-channels/src",
   "packages/pinecall-core/src",
   "packages/pinecall-db/src",
@@ -111,7 +112,6 @@ extraPaths = [
   "packages/pinecall-log/src",
   "packages/pinecall-providers/src",
   "packages/pinecall-retrieval/src",
-  "packages/pinecall-runtime/src",
   "packages/pinecall-session/src",
   "packages/pinecall-settings/src",
   "packages/pinecall-tenancy/src",
@@ -123,6 +123,9 @@ reportImplicitOverride = true
 
 # Every suite is a package named `tests`: each resolves from its own distribution's directory,
 # with the extraPaths above.
+[[tool.pyright.executionEnvironments]]
+root = "packages/pinecall"
+
 [[tool.pyright.executionEnvironments]]
 root = "packages/pinecall-channels"
 
@@ -145,9 +148,6 @@ root = "packages/pinecall-providers"
 root = "packages/pinecall-retrieval"
 
 [[tool.pyright.executionEnvironments]]
-root = "packages/pinecall-runtime"
-
-[[tool.pyright.executionEnvironments]]
 root = "packages/pinecall-session"
 
 [[tool.pyright.executionEnvironments]]
@@ -161,6 +161,7 @@ root = "packages/pinecall-testkit"
 
 [tool.mypy]
 files = [
+  "packages/pinecall/src",
   "packages/pinecall-channels/src",
   "packages/pinecall-core/src",
   "packages/pinecall-db/src",
@@ -169,12 +170,11 @@ files = [
   "packages/pinecall-log/src",
   "packages/pinecall-providers/src",
   "packages/pinecall-retrieval/src",
-  "packages/pinecall-runtime/src",
   "packages/pinecall-session/src",
   "packages/pinecall-settings/src",
   "packages/pinecall-tenancy/src",
 ]
-mypy_path = "packages/pinecall-channels/src:packages/pinecall-core/src:packages/pinecall-db/src:packages/pinecall-evals/src:packages/pinecall-fleet/src:packages/pinecall-log/src:packages/pinecall-providers/src:packages/pinecall-retrieval/src:packages/pinecall-runtime/src:packages/pinecall-session/src:packages/pinecall-settings/src:packages/pinecall-tenancy/src"
+mypy_path = "packages/pinecall/src:packages/pinecall-channels/src:packages/pinecall-core/src:packages/pinecall-db/src:packages/pinecall-evals/src:packages/pinecall-fleet/src:packages/pinecall-log/src:packages/pinecall-providers/src:packages/pinecall-retrieval/src:packages/pinecall-session/src:packages/pinecall-settings/src:packages/pinecall-tenancy/src"
 namespace_packages = true
 explicit_package_bases = true
 strict = true
@@ -186,6 +186,8 @@ python_version = "3.12"
 line-length = 100
 target-version = "py312"
 src = [
+  "packages/pinecall/src",
+  "packages/pinecall/tests",
   "packages/pinecall-channels/src",
   "packages/pinecall-channels/tests",
   "packages/pinecall-core/src",
@@ -202,8 +204,6 @@ src = [
   "packages/pinecall-providers/tests",
   "packages/pinecall-retrieval/src",
   "packages/pinecall-retrieval/tests",
-  "packages/pinecall-runtime/src",
-  "packages/pinecall-runtime/tests",
   "packages/pinecall-session/src",
   "packages/pinecall-session/tests",
   "packages/pinecall-settings/src",
@@ -236,7 +236,7 @@ unfixable = ["T201"]
 
 [tool.ruff.lint.per-file-ignores]
 # The CLI is the one place that speaks to a terminal.
-"packages/pinecall-runtime/src/pinecall/cli/**" = ["T201"]
+"packages/pinecall/src/pinecall/cli/**" = ["T201"]
 # And a maintainer's script, which is run by hand and has nowhere else to say what it wrote.
 "scripts/*.py" = ["T201", "S310"]
 # A test asserts, spawns the tree's own tools, and makes noise with `random`; so does the testkit

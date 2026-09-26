@@ -36,7 +36,7 @@ FILES_THE_CEILING_SKIPS = frozenset(
         # going to cost a split of one of them — which buys a second place to look for a variable,
         # the one thing these two files exist to prevent. They grow by rows, not by ideas.
         Path("packages/pinecall-settings/src/pinecall/settings/schema.py"),
-        Path("packages/pinecall-runtime/src/pinecall/api/deps.py"),
+        Path("packages/pinecall/src/pinecall/api/deps.py"),
     }
 )
 

@@ -23,18 +23,9 @@ UNTESTED = {
 # A directory of tests that groups the doors of one surface rather than mirroring a subpackage,
 # each with why: the doors of `api/` are modules, and a surface's tests outgrow one directory.
 GROUPINGS = {
-    (
-        "pinecall-runtime",
-        "api/agents/pipeline",
-    ): "the pipeline, tuning and hold doors, one fixture apart",
-    (
-        "pinecall-runtime",
-        "api/calls/tokens",
-    ): "the token doors: the room's, the log's, the listen door's",
-    (
-        "pinecall-runtime",
-        "api/ops/orgs",
-    ): "the operator's doors onto every org: quotas, keys, usage",
+    ("pinecall", "api/agents/pipeline"): "the pipeline, tuning and hold doors, one fixture apart",
+    ("pinecall", "api/calls/tokens"): "the token doors: the room's, the log's, the listen door's",
+    ("pinecall", "api/ops/orgs"): "the operator's doors onto every org: quotas, keys, usage",
     ("pinecall-providers", "providers/vendors"): "a fake vendor package the plugin tests install",
 }
 
