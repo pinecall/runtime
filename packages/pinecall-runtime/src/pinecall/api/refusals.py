@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from pinecall.api.calls.supervise.aiming import VerbRefused
 from pinecall.api.evals.runner import AlreadyRunning, NobodyServing
 from pinecall.auth.identity import NotRedeemed
+from pinecall.dialling import DidNotDial, NobodyHolding, NoPhoneDoor, NotOurNumber, NoTrunk
 from pinecall.log.filters import FilterRefused
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.orgs.caller_codes import TooManyCodes
@@ -44,18 +45,23 @@ STATUS_OF: dict[type[Exception], int] = {
     DeclarationRefused: 400,
     FilterRefused: 400,
     NotAHoldMelody: 400,
+    NotOurNumber: 400,
     NoSuchPersona: 404,
     NobodyServing: 404,
     NotListed: 404,
+    NoPhoneDoor: 404,
     VersionMoved: 409,
     NameTaken: 409,
     SlugTaken: 409,
+    NoTrunk: 409,
+    NobodyHolding: 409,
     AlreadyRunning: 409,
     WrongWidth: 409,
     WrongModel: 409,
     QuotaExhausted: 429,
     TooManyCodes: 429,
     TwilioRefused: 502,
+    DidNotDial: 502,
     EmbedderUnreachable: 503,
     NoProvider: 503,
 }

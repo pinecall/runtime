@@ -112,6 +112,12 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   none; a suite's run held one per run and closed it never.
 
 ### Changed
+- **Placing a call out is a verb, `pinecall.dialling.place_call`.** `POST /v1/agents/{slug}/dial`
+  held the whole use case — the number shown, the trunk, who answers, the guards, the quota, the
+  log, the job — with five `HTTPException`s in the middle of it. The verb raises `NoPhoneDoor`,
+  `NotOurNumber`, `NoTrunk`, `NobodyHolding` and `DidNotDial`, mapped to 404, 400, 409, 409 and 502
+  once in `api/refusals.py`, with the sentences the door already said; the door parses, calls it,
+  and mints the token to read the call by.
 - **Founding an org is a verb, not a door's helper.** `make_org` lived in `api/` and answered
   the HTTP body itself (`OrgMade`) and `HTTPException(409)`; it is `pinecall.accounts.make_org`
   now, returning `OrgFounded` and raising `orgs.SlugTaken`, which `api/refusals.py` maps to 409 once.
