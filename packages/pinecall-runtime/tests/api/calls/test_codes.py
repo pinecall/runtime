@@ -11,9 +11,9 @@ import pytest
 from starlette.testclient import TestClient
 
 from pinecall.api import deps as deps
-from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
 from pinecall.auth.scopes import decode_call_token, mint_code_token
+from pinecall.live.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.orgs.caller_codes import CLAIMED, ISSUED, Codes

@@ -7,9 +7,9 @@ import time
 from fastapi import APIRouter, HTTPException
 
 from pinecall.api.calls.worker_writes import NOT_OPEN
-from pinecall.api.deps import AppKeyDep, LookupsDep
-from pinecall.api.live import Live, LiveDep
+from pinecall.api.deps import AppKeyDep, LiveDep, LookupsDep
 from pinecall.auth.keys import KeyRecord, is_fleet_key
+from pinecall.live.calls import Live
 from pinecall_protocol.rest import LookupRequest, LookupResult, Remembered
 
 router = APIRouter()

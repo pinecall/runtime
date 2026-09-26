@@ -6,7 +6,6 @@ from typing import Any, override
 import httpx
 import pytest
 
-from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
 from pinecall.api.deps import get_runs
 from pinecall.api.evals.runner import AlreadyRunning, Runner
@@ -16,6 +15,7 @@ from pinecall.api.evals.runner import AlreadyRunning, Runner
 from pinecall.evals import build_case
 from pinecall.evals.run_store import EvalRun
 from pinecall.evals.run_store_memory import MemoryRuns
+from pinecall.live.registry import Registry
 from pinecall.log.replay import whole
 from pinecall.log.store import MemoryStore
 from pinecall.orgs.records_memory import MemoryOrgs

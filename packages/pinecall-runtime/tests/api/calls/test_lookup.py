@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.keys_memory import MemoryKeys
+from pinecall.live.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.orgs.tuning_store_memory import MemoryTuning
 from pinecall.types import PRODUCTION, Docs, MemoryPolicy, Tuning

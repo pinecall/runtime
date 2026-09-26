@@ -6,16 +6,16 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
 
-from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.api.calls.log_sink import (
     ReaderDep,
     declared_by,
     refuse_another_call,
     refuse_another_org,
 )
-from pinecall.api.deps import CallIndexDep, SnapshotsDep, StoreDep
+from pinecall.api.deps import CallIndexDep, RegistryDep, SnapshotsDep, StoreDep
 from pinecall.auth.request_scope import corner_of
 from pinecall.auth.scopes import Reader
+from pinecall.live.registry import Registry
 from pinecall.log.call_facts import CallFacts
 from pinecall.log.projection import project_state
 from pinecall.log.snapshots import Snapshot, Snapshots

@@ -9,9 +9,9 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient, WebSocketTestSession
 
-from pinecall.api.live import Live
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.keys_memory import MemoryKeys
+from pinecall.live.calls import Live
 from pinecall.session.supervise_prompts import ALREADY_HELD, NO_LINE_TO_TRANSFER, NOBODY_HOLDS
 from tests.api.conftest import A_KEY, A_RECORD, AGENT
 from tests.api.talking import a_caller, a_frame, an_app, declared, entry_until

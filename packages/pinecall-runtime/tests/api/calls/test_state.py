@@ -7,8 +7,8 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.api.agents.registry import Registry
 from pinecall.auth.scopes import mint_room_token
+from pinecall.live.registry import Registry
 from pinecall.log import snapshots as memo
 from pinecall.log.reduce import reduce
 from pinecall.log.snapshots import Snapshots

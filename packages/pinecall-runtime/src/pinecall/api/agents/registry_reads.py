@@ -9,13 +9,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
 
-from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.api.agents.session_config import tuned_for
 from pinecall.api.deps import (
     AppKeyDep,
     CallsKeyDep,
     DeclarationKeyDep,
     MembersDep,
+    RegistryDep,
     RoutesDep,
     SettingsDep,
     TuningDep,
@@ -25,6 +25,7 @@ from pinecall.api.scope.request_scope import CornerDep, HeldDep
 from pinecall.auth.keys import KeyRecord, is_held_by, is_operator_key
 from pinecall.auth.members import Members
 from pinecall.auth.peers import PeerUnreachable, RingsFor
+from pinecall.live.registry import Registry
 from pinecall.types import (
     SANDBOX,
     THE_WIDGET,
@@ -101,7 +102,7 @@ async def agents(
 # claimed and said out loud — before the line, the second `pinecall start` silently took the first
 # one's calls and a developer dialling to test was answered in a colleague's scrollback. Alone,
 # nobody claims anything: the first corner to hold an agent answers its ring. See
-# api/agents/dial_in.py for the table, and docs/decisions/dispatch.md for why a number is shared.
+# live/doors.py for the table, and docs/decisions/dispatch.md for why a number is shared.
 
 
 @router.get("/v1/agents/{slug}/line")

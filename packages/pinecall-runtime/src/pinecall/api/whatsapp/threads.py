@@ -12,12 +12,12 @@ from typing import Annotated
 from fastapi import Depends
 from starlette.requests import HTTPConnection
 
-from pinecall.api.agents.held_agent import Registration
 from pinecall.api.calls.opening import open_text_call
 from pinecall.api.calls.resume import taken_up
 from pinecall.api.deps import held
 from pinecall.api.whatsapp.thread_deps import Doors
 from pinecall.api.whatsapp.unanswered import Waiting, WaitingRoom
+from pinecall.live.sockets import Registration
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.providers.models import NoProvider
 from pinecall.providers.registry import Asked, vendor_key

@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 import httpx
 import pytest
 
-from pinecall.api.agents.registry import Registry
+from pinecall.live.registry import Registry
 from pinecall.orgs.tuning_store_memory import MemoryTuning
 from pinecall.types import PRODUCTION, Greeting, Tuning
 from pinecall.worker.gateway_client import Gateway

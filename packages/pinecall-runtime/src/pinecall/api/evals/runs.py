@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
-from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.deps import (
     AdmissionDep,
     EvalsKeyDep,
+    LiveDep,
     LlmsDep,
     LogsDep,
     LookupsDep,
+    RegistryDep,
     RunsDep,
     SettingsDep,
     StoreDep,
@@ -24,7 +25,6 @@ from pinecall.api.evals.runner import (
     Wanted,
     run_evals,
 )
-from pinecall.api.live import LiveDep
 from pinecall.auth.keys import is_held_by
 from pinecall.evals.run_store import DEFAULT_LIMIT, EvalRun, Runs, Status
 from pinecall.log.store import Store

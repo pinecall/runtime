@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from pinecall.api.agents.registry import Registry
+from pinecall.live.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.tokens.ledger import TokenRecord
 from pinecall.tokens.ledger_memory import MemoryTokens

@@ -11,14 +11,14 @@ from fastapi import Depends, Header, HTTPException, Query
 from starlette.requests import HTTPConnection
 from starlette.responses import StreamingResponse
 
-from pinecall.api.agents.registry import Registry, RegistryDep
-from pinecall.api.deps import SCOPE_OF_THE_DOOR, KeysDep, MembersDep, SettingsDep
+from pinecall.api.deps import SCOPE_OF_THE_DOOR, KeysDep, MembersDep, RegistryDep, SettingsDep
 from pinecall.api.sse import PING, PING_SECONDS, RETRY_MS, pace, sse_frame, sse_stream
 from pinecall.auth.bearer import bearer_of
 from pinecall.auth.env import requested_scope
 from pinecall.auth.keys import KeyRecord, Keys, cannot_open, is_fleet_key
 from pinecall.auth.request_scope import corner_of
 from pinecall.auth.scopes import LivekitKeys, Reader, is_a_jwt, reader_of_bearer, secret_for
+from pinecall.live.registry import Registry
 from pinecall.log.entry import Entry
 from pinecall.log.filters import Filter
 from pinecall.log.projection import project_entry

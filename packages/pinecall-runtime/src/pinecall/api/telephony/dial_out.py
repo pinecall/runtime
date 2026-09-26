@@ -8,12 +8,12 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import Field
 from starlette.status import HTTP_202_ACCEPTED
 
-from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.calls.deps import ServingDep
 from pinecall.api.deps import (
     AdmissionDep,
     DeclarationKeyDep,
     LogsDep,
+    RegistryDep,
     RoutesDep,
     SettingsDep,
     TalkKeyDep,

@@ -20,6 +20,8 @@ from pinecall.evals.run_store import Runs
 from pinecall.extensions import Extensions
 from pinecall.fleet import Roster
 from pinecall.knowledge import Knowledge
+from pinecall.live.calls import Live
+from pinecall.live.registry import Registry
 from pinecall.log.snapshots import Snapshots
 from pinecall.log.store import Store
 from pinecall.log.store.call_index import CallIndex
@@ -77,12 +79,17 @@ def get_call_index(store: Annotated[Store, Depends(get_store)]) -> CallIndex:
 
 # Typed as object because the sides that ask for it want different types of the same one: the
 # app socket sees a Protocol of the calls it makes (api/agents/handlers.py), a call's door the
-# Protocol of serving one (api/calls/deps.py), the text channel the class itself (api/live.py),
+# Protocol of serving one (api/calls/deps.py), the text channel the class itself (live/calls.py),
 # and each names its own in the Annotated it depends through. One callable, so overriding it in
 # a test answers them all.
 def get_live(connection: HTTPConnection) -> object:
     """The process's live memory: the app sockets open here and the calls running on them."""
     return held(connection, "live", object)
+
+
+def get_registry(connection: HTTPConnection) -> Registry:
+    """Who owns which agent and which doors right now."""
+    return held(connection, "registry", Registry)
 
 
 def get_keys(connection: HTTPConnection) -> Keys:
@@ -153,6 +160,10 @@ async def get_socket_key(
 
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]
+# The class itself, for the doors that use all of it; a door that needs one side of it names the
+# Protocol of that side over the same get_live (see get_live's comment above).
+LiveDep = Annotated[Live, Depends(get_live)]
+RegistryDep = Annotated[Registry, Depends(get_registry)]
 StoreDep = Annotated[Store, Depends(get_store)]
 CallIndexDep = Annotated[CallIndex, Depends(get_call_index)]
 KeysDep = Annotated[Keys, Depends(get_keys)]

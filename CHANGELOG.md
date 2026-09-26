@@ -112,6 +112,11 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   none; a suite's run held one per run and closed it never.
 
 ### Changed
+- **What the gateway holds right now is a package, `pinecall.live`.** The app sockets, the agents
+  and doors they hold, and the calls running on them lived in `api/` beside the doors that read
+  them: `api/live.py`, `api/agents/registry.py`, `held_agent.py` and `dial_in.py` are
+  `live/{calls,registry,sockets,doors}.py`, which import nothing of `api/`. The FastAPI side of
+  them (`LiveDep`, `RegistryDep`, `get_registry`) is in `api/deps.py` with every other dependency.
 - **Every store is a port and two adapters, one convention.** Sixteen modules bundled a store's
   Protocol with its in-memory and its Postgres implementation; each is three files now —
   `<port>.py` (the Protocol, its records, its errors, `<port>_for`), `<port>_memory.py`,

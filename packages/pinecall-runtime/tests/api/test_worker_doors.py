@@ -7,8 +7,8 @@ import re
 
 import pytest
 
-from pinecall.api.agents.registry import Registry
-from pinecall.api.live import Live
+from pinecall.live.calls import Live
+from pinecall.live.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.types import PRODUCTION, CallContext

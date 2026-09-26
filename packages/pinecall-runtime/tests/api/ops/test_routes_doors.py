@@ -3,7 +3,7 @@
 import httpx
 import pytest
 
-from pinecall.api.agents.registry import Registry
+from pinecall.live.registry import Registry
 from pinecall.types import PRODUCTION
 from pinecall.worker import job_target
 from pinecall.worker.gateway_client import Gateway

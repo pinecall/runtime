@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.api.agents.registry import Registry
+from pinecall.live.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.orgs.dial_policies_memory import MemoryDialling
 from pinecall.orgs.outbound_credentials_memory import MemoryOutboundTrunks

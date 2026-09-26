@@ -8,18 +8,19 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import TypeAdapter, ValidationError
 
-from pinecall.api.agents.registry import NO_AGENT, Registry, RegistryDep
 from pinecall.api.deps import (
     CallIndexDep,
     CallsKeyDep,
     OrgsDep,
     PipelineKeyDep,
+    RegistryDep,
     TuningDep,
     VaultDep,
     require_scopes,
 )
 from pinecall.auth.keys import KeyRecord, cannot_open, is_held_by
 from pinecall.auth.request_scope import author_of
+from pinecall.live.registry import NO_AGENT, Registry
 from pinecall.orgs.tuning_resolution import tuning_json
 from pinecall.orgs.tuning_store import HISTORY_LIMIT, TuningStore
 from pinecall.orgs.vault import brought_by

@@ -7,10 +7,10 @@ from collections.abc import AsyncIterator
 import httpx
 import pytest
 
-from pinecall.api.agents.registry import Registry
 from pinecall.auth.env import ENV_HEADER, NO_PRODUCTION
 from pinecall.auth.keys import NOT_OPENED, KeyRecord
 from pinecall.auth.keys_memory import MemoryKeys
+from pinecall.live.registry import Registry
 from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.orgs.vault import Vault
 from pinecall.settings import Settings

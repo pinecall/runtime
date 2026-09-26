@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from pinecall.api.agents.handlers import Live
-from pinecall.api.agents.held_agent import Held, SocketId
-from pinecall.api.agents.registry import Registry
+from pinecall.live.registry import Registry
+from pinecall.live.sockets import Held, SocketId
 from pinecall.log.entry import Entry
 from pinecall.types.json import JsonObject
 

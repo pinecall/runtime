@@ -8,10 +8,10 @@ from dataclasses import asdict
 import httpx
 import pytest
 
-from pinecall.api.agents.registry import Registry
 from pinecall.api.ops.peers import get_sandbox_peer
 from pinecall.auth.keys_memory import MemoryKeys
 from pinecall.fleet import Heartbeat
+from pinecall.live.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.settings import Settings

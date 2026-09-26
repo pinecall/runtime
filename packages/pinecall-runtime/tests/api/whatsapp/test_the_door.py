@@ -7,8 +7,8 @@ import asyncio
 import httpx
 import pytest
 
-from pinecall.api.agents.registry import Registry
 from pinecall.api.whatsapp.threads import IDLE_SECONDS, WINDOW_SECONDS, Threads
+from pinecall.live.registry import Registry
 from pinecall.log.entry import Entry
 from pinecall.log.store import MemoryStore
 from pinecall.orgs.vault import Vault

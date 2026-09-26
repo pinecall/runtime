@@ -8,20 +8,22 @@ from typing import Annotated
 from fastapi import Depends
 from starlette.datastructures import State
 
-from pinecall.api.agents.registry import Registry, RegistryDep
 from pinecall.api.deps import (
     AdmissionDep,
     CallIndexDep,
     GraphDep,
+    LiveDep,
     LlmsDep,
     LogsDep,
     LookupsDep,
+    RegistryDep,
     RoutesDep,
     SettingsDep,
     TuningDep,
     VaultDep,
 )
-from pinecall.api.live import Live, LiveDep
+from pinecall.live.calls import Live
+from pinecall.live.registry import Registry
 from pinecall.log.store.call_index import CallIndex
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups

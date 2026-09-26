@@ -55,7 +55,7 @@ class Issued:
 # null when its time ran out — so a restart loses none. This process keeps the live ones in memory,
 # loaded from the log at start, so a page asking every few seconds costs no read. A code is unique
 # per AGENT, whichever world issued it: code.claimed carries no world. And it names no org: a slug
-# is one org's (api/agents/registry.py), the door that issues one asks the key's own routes, and
+# is one org's (live/registry.py), the door that issues one asks the key's own routes, and
 # the call that claims one is that very agent's.
 class Codes:
     """Every live code of every agent, and the page waiting on each one."""

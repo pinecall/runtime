@@ -5,8 +5,8 @@ from functools import partial
 import pytest
 
 from pinecall.api.evals.golden_call import open_eval_call
-from pinecall.api.live import Live
 from pinecall.evals.goldens import Golden
+from pinecall.live.calls import Live
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups

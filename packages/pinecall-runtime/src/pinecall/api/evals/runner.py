@@ -15,20 +15,20 @@ from fastapi import Depends
 from pydantic import Field
 from starlette.requests import HTTPConnection
 
-from pinecall.api.agents.held_agent import Registration
-from pinecall.api.agents.registry import NO_AGENT, Registry
 from pinecall.api.agents.session_config import tuned_for
 from pinecall.api.deps import held
 from pinecall.api.evals.golden_call import run_golden_conversation
 from pinecall.api.evals.golden_judges import Judging
 from pinecall.api.evals.run_attachment import AppDetached, Attachment
 from pinecall.api.evals.spoken_golden import run_spoken_conversation
-from pinecall.api.live import Live
 from pinecall.errors import PinecallError
 from pinecall.evals.caller_voice import Speaking
 from pinecall.evals.goldens import Golden
 from pinecall.evals.run_store import EvalRun, Opened, Runs
 from pinecall.evals.voice_run import Line
+from pinecall.live.calls import Live
+from pinecall.live.registry import NO_AGENT, Registry
+from pinecall.live.sockets import Registration
 from pinecall.log.store import Store
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups

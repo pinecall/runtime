@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from pinecall.api.agents.held_agent import Registration, SocketId
-from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import KeyRecord, is_held_by
+from pinecall.live.registry import Registry
+from pinecall.live.sockets import Registration, SocketId
 
 
 # A number is a row somebody bought and the widget is not: there is no web door to hold, and every

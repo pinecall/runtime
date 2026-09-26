@@ -10,7 +10,7 @@ from livekit.agents import llm as agents
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from pinecall.api.agents.registry import Registry
+from pinecall.live.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.types import CallContext, Quotas, Route

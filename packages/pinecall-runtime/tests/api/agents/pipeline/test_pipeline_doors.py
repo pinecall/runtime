@@ -5,7 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from pinecall.api.agents.registry import Registry
+from pinecall.live.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.orgs.tuning_store_memory import MemoryTuning
 from pinecall.providers.tts.curated_voices import VOICES, voice_names

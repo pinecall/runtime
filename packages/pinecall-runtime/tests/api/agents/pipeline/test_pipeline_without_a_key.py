@@ -5,7 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from pinecall.api.agents.registry import Registry
+from pinecall.live.registry import Registry
 from pinecall.orgs.tuning_store_memory import MemoryTuning
 from pinecall.settings import Settings
 from tests.api.agents.pipeline.conftest import declared

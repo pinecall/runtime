@@ -7,7 +7,6 @@ from pathlib import Path
 import httpx
 import pytest
 
-from pinecall.api.agents.registry import Registry
 from pinecall.cli.operator import Operator, OperatorRefused
 from pinecall.cli.routes.verbs import (
     OPS_ROUTES,
@@ -16,6 +15,7 @@ from pinecall.cli.routes.verbs import (
     remove_route,
     seed_routes,
 )
+from pinecall.live.registry import Registry
 from pinecall.types import PRODUCTION
 from tests.api.conftest import A_RECORD
 

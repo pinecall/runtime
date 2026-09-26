@@ -7,8 +7,8 @@ from datetime import date
 
 import pytest
 
-from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys_memory import MemoryKeys
+from pinecall.live.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.types import (

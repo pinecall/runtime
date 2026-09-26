@@ -9,28 +9,30 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
 from pinecall.api.agents import call_commands as commands
-from pinecall.api.agents.held_agent import Registration, SocketId
-from pinecall.api.agents.registry import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, Registry, RegistryDep
 from pinecall.api.calls.opening import open_text_call
 from pinecall.api.calls.resume import taken_up
 from pinecall.api.deps import (
     AdmissionDep,
     CallIndexDep,
     KeysDep,
+    LiveDep,
     LlmsDep,
     LogsDep,
     LookupsDep,
     MembersDep,
+    RegistryDep,
     SettingsDep,
     TuningDep,
     VaultDep,
     get_socket_key,
 )
 from pinecall.api.evals.personas import get_personas
-from pinecall.api.live import Live, LiveDep
 from pinecall.auth.bearer import POLICY_VIOLATION, close_reason
 from pinecall.auth.keys import KeyRecord, cannot_open, is_held_by
 from pinecall.auth.scopes import new_visitor_identity
+from pinecall.live.calls import Live
+from pinecall.live.registry import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, Registry
+from pinecall.live.sockets import Registration, SocketId
 from pinecall.log.entry import Entry
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import QuotaExhausted
@@ -197,7 +199,7 @@ async def _talk(
 ) -> None:
     """The call, from call.started to the hangup: every frame the caller sends is one turn."""
     # Every entry, unprojected, to both sides: the caller's socket, watched from here, and the
-    # app's, which is the one delivery a worker-run call is put on too (api/live.py). The
+    # app's, which is the one delivery a worker-run call is put on too (live/calls.py). The
     # public and tenant projections are the sink's, and the state card of this milestone owns them.
     session.watch(_sending(websocket))
     live.serve(

@@ -8,11 +8,11 @@ from pinecall.api.calls.worker_writes import NOT_OPEN
 from pinecall.api.deps import (
     AppKeyDep,
     CallsKeyDep,
+    LiveDep,
     OrgsDep,
     SettingsDep,
     UsageKeyDep,
 )
-from pinecall.api.live import LiveDep
 from pinecall.auth.keys import is_fleet_key
 from pinecall_protocol.rest import Judging, JudgingWanted
 

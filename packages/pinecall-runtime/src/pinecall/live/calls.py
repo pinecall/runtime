@@ -4,12 +4,8 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, replace
-from typing import Annotated
 
-from fastapi import Depends
-
-from pinecall.api.agents.held_agent import Send, SocketId
-from pinecall.api.deps import get_live
+from pinecall.live.sockets import Send, SocketId
 from pinecall.log.entry import Entry
 from pinecall.log.fanout import Subscription
 from pinecall.log.logs import CallLog
@@ -291,11 +287,3 @@ async def _feeding(entries: Subscription, send: Send) -> None:
             await send(entry)
     except Exception:
         entries.close()
-
-
-# ── how a route asks for it ─────────────────────────────────────────────────────
-
-
-# The dep itself lives in api/deps.py, so the app socket can ask for the very same object
-# without importing this module: a test that overrides it answers both doors at once.
-LiveDep = Annotated[Live, Depends(get_live)]

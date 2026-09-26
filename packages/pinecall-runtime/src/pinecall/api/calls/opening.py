@@ -5,10 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import partial
 
-from pinecall.api.agents.held_agent import Registration, SocketId
-from pinecall.api.agents.registry import Registry
 from pinecall.api.agents.session_config import tuned_for
 from pinecall.evals.hangup_score import JudgedWhen
+from pinecall.live.registry import Registry
+from pinecall.live.sockets import Registration, SocketId
 from pinecall.log.logs import CallLog
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups

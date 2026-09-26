@@ -9,16 +9,17 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Query
 
 from pinecall.api.agents.handlers import Socket, handles, parse_command
-from pinecall.api.agents.registry import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, RegistryDep
 from pinecall.api.deps import (
     CallsKeyDep,
     EvalsKeyDep,
     KnowledgeKeyDep,
+    LiveDep,
     MemoryKeyDep,
+    RegistryDep,
     TalkKeyDep,
 )
-from pinecall.api.live import LiveDep
 from pinecall.auth.keys import KeyRecord, is_held_by
+from pinecall.live.registry import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP
 from pinecall.log.entry import ephemeral_entry
 from pinecall.types import JsonObject
 from pinecall_protocol import Command

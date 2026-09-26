@@ -10,9 +10,9 @@ from typing import cast
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.api.agents.registry import Registry
 from pinecall.api.calls.live_calls import events
 from pinecall.api.calls.log_sink import projection_for
+from pinecall.live.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import ORG_EVENTS, Logs
 from pinecall.types import PRODUCTION

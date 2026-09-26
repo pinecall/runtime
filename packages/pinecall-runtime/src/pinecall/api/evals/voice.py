@@ -5,12 +5,12 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import Field
 
-from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.agents.session_config import tuned_for
 from pinecall.api.deps import (
     EvalsKeyDep,
     LlmsDep,
     OrgsDep,
+    RegistryDep,
     SettingsDep,
     StoreDep,
     TuningDep,

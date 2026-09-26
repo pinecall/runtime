@@ -8,9 +8,9 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.api.agents.registry import Registry
 from pinecall.api.whatsapp.threads import WINDOW_SECONDS, Threads
 from pinecall.api.whatsapp.unanswered import TAKEN, WAITING, Waiting, WaitingRoom
+from pinecall.live.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.routes.records_memory import MemoryRoutes

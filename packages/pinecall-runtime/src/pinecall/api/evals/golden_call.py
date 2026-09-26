@@ -10,10 +10,10 @@ from typing import Any
 from pinecall.api.agents import call_commands as commands
 from pinecall.api.evals.app_settled import Settling
 from pinecall.api.evals.run_attachment import APP_DETACHED, ENDED_BY, AppDetached, Attachment
-from pinecall.api.live import Live
 from pinecall.auth.scopes import new_visitor_identity
 from pinecall.evals.golden_memory import Remembering
 from pinecall.evals.goldens import Golden
+from pinecall.live.calls import Live
 from pinecall.log.entry import Entry
 from pinecall.log.replay import whole
 from pinecall.log.store import Store

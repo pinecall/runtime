@@ -6,8 +6,8 @@ import httpx
 import pytest
 from livekit.agents import llm as agents
 
-from pinecall.api.agents.registry import Registry
 from pinecall.api.whatsapp.threads import Threads
+from pinecall.live.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.routes.records_memory import MemoryRoutes

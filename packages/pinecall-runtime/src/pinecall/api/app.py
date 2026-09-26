@@ -13,11 +13,9 @@ from fastapi import FastAPI
 
 from pinecall.api import pages
 from pinecall.api.agents.processes import Processes
-from pinecall.api.agents.registry import Registry
 from pinecall.api.agents.voices import A_MINUTE_S, SAMPLES_A_MINUTE
 from pinecall.api.calls.reaper import Reaper, reap_forever
 from pinecall.api.evals.runner import Runner
-from pinecall.api.live import Live
 from pinecall.api.origins import AppOrigins
 from pinecall.api.refusals import refusals_answered_by
 from pinecall.api.routers import DOORS
@@ -37,6 +35,8 @@ from pinecall.evals.run_store import runs_for
 from pinecall.extensions import extensions_from
 from pinecall.fleet import Roster
 from pinecall.knowledge import PgKnowledge
+from pinecall.live.calls import Live
+from pinecall.live.registry import Registry
 from pinecall.log.snapshots import Snapshots
 from pinecall.log.store import MemoryStore, PostgresStore, Store
 from pinecall.log.writers import Logs

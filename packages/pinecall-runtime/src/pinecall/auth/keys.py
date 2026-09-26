@@ -119,7 +119,7 @@ NOT_OPENED = "this key does not open {scope}: it opens {opens}"
 # held by the key its box runs on. In the sandbox the member the key was minted for, so two
 # developers of one tenant each hold, reach and see their own agent; a sandbox key that names
 # nobody — CI's — works in the org's own corner, which is what everybody falls back to.
-# api/agents/registry.py is where the corners are, and `Held` there says the same thing.
+# live/registry.py is where the corners are, and `Held` there says the same thing.
 def is_held_by(record: KeyRecord) -> str | None:
     """The corner of its world this key holds and reads in: nobody's, or a developer's own."""
     if is_a_deployment(record.env):

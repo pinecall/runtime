@@ -9,7 +9,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from pinecall.api.calls.reaper import NOT_JUDGED, QUIET_S, Reaper, reap_forever
-from pinecall.api.live import Live
+from pinecall.live.calls import Live
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.types import AgentConfig

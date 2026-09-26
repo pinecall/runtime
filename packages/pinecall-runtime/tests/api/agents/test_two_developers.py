@@ -2,9 +2,9 @@
 
 import pytest
 
-from pinecall.api.agents.registry import Registry
 from pinecall.api.agents.registry_reads import developers_sandbox_copy
 from pinecall.auth.keys import KeyRecord, is_held_by, is_operator_key
+from pinecall.live.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.types import PRODUCTION, ROLE_SCOPES, SANDBOX

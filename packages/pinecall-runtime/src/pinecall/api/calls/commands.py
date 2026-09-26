@@ -9,8 +9,7 @@ from fastapi import APIRouter, HTTPException
 from starlette.responses import StreamingResponse
 
 from pinecall.api.calls.worker_writes import refuse_another_orgs_call
-from pinecall.api.deps import AppKeyDep
-from pinecall.api.live import LiveDep
+from pinecall.api.deps import AppKeyDep, LiveDep
 from pinecall.api.sse import PING, PING_SECONDS, ClosingDep, pace, sse_frame, sse_stream
 from pinecall_protocol import Command, encode
 

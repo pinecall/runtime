@@ -11,9 +11,6 @@ from cryptography.fernet import Fernet
 from starlette.testclient import TestClient
 
 from pinecall.api import deps
-from pinecall.api import live as gateway_connected
-from pinecall.api.agents import registry as registry_dep
-from pinecall.api.agents.registry import Registry
 from pinecall.api.agents.widget import get_widgets
 from pinecall.api.app import app
 from pinecall.api.deps import (
@@ -31,7 +28,6 @@ from pinecall.api.deps import (
     get_tuning,
     get_vault,
 )
-from pinecall.api.live import Live
 from pinecall.api.sse import get_closing
 from pinecall.api.whatsapp import threads as whatsapp_threads
 from pinecall.api.whatsapp.threads import Threads
@@ -45,6 +41,8 @@ from pinecall.auth.throttle import Throttle
 from pinecall.extensions import Extensions
 from pinecall.fleet import Roster
 from pinecall.knowledge import Knowledge
+from pinecall.live.calls import Live
+from pinecall.live.registry import Registry
 from pinecall.log.snapshots import Snapshots
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
@@ -280,11 +278,11 @@ def wired(
     app.dependency_overrides[deps.get_snapshots] = lambda: snapshots
     app.dependency_overrides[deps.get_store] = lambda: store
     app.dependency_overrides[deps.get_keys] = lambda: standing
-    app.dependency_overrides[registry_dep.get_registry] = lambda: registry
+    app.dependency_overrides[deps.get_registry] = lambda: registry
     app.dependency_overrides[deps.get_routes] = lambda: routes
     app.dependency_overrides[deps.get_tokens] = lambda: tokens
     app.dependency_overrides[deps.get_logs] = lambda: logs
-    app.dependency_overrides[gateway_connected.get_live] = lambda: live
+    app.dependency_overrides[deps.get_live] = lambda: live
     app.dependency_overrides[deps.get_llms] = lambda: llms
     app.dependency_overrides[get_tuning] = lambda: tuning
     widgets = MemoryWidgets()

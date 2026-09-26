@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from uuid import uuid4
 
-from pinecall.api.agents.dial_in import Agent
+from pinecall.live.doors import Agent
 from pinecall.log.entry import Entry
 from pinecall.types import AgentConfig, Env
 
@@ -32,7 +32,7 @@ type Send = Callable[[Entry], Awaitable[None]]
 # was minted for, so two developers of one tenant each hold their own `tienda-sur` and neither
 # takes the other's; a sandbox key that names nobody — CI's — holds the org's own, which is
 # what a developer holding nothing falls back to. A dialled door is namespaced by none of it:
-# api/agents/dial_in.py, and docs/decisions/dispatch.md.
+# live/doors.py, and docs/decisions/dispatch.md.
 type Held = tuple[Env, str | None, str]
 
 

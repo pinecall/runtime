@@ -5,10 +5,10 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.api.agents.registry import Registry
 from pinecall.api.evals.golden_call import Conversation
 from pinecall.api.evals.golden_judges import Judging
 from pinecall.evals.goldens import Expect, Golden
+from pinecall.live.registry import Registry
 from pinecall.providers.declaration import parse_tool
 from pinecall.types import GATE_DEFERRED_ON, AgentConfig
 from tests.api.evals.conftest import (

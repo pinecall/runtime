@@ -6,9 +6,8 @@ from collections.abc import Sequence
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.calls.log_sink import require_calls_scope
-from pinecall.api.deps import CallIndexDep, EvalsKeyDep, SettingsDep, StoreDep
+from pinecall.api.deps import CallIndexDep, EvalsKeyDep, RegistryDep, SettingsDep, StoreDep
 from pinecall.evals.hangup_score import score_call
 from pinecall.log.entry import Entry
 from pinecall.log.replay import whole

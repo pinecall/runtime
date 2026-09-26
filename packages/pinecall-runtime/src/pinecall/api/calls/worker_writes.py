@@ -7,7 +7,6 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from starlette.status import HTTP_204_NO_CONTENT
 
-from pinecall.api.agents.registry import NO_UNCLAIMED, NOT_THAT_APP, RegistryDep
 from pinecall.api.agents.session_config import tuned_for
 from pinecall.api.calls.attachment import attach_socket
 from pinecall.api.calls.deps import Serving, ServingDep
@@ -16,12 +15,14 @@ from pinecall.api.deps import (
     AdmissionDep,
     AppKeyDep,
     CallIndexDep,
+    LiveDep,
     LogsDep,
+    RegistryDep,
     TokensDep,
     TuningDep,
 )
-from pinecall.api.live import LiveDep
 from pinecall.auth.keys import KeyRecord, is_fleet_key, is_held_by
+from pinecall.live.registry import NO_UNCLAIMED, NOT_THAT_APP
 from pinecall.log.logs import CallLog
 from pinecall.log.writers import Logs
 from pinecall.tokens.spend import spent
@@ -98,7 +99,7 @@ async def open_call(
     # Whose corner, though, depends on how the call ARRIVED. A number is the org's door and the
     # worker that dialled it holds a key naming nobody, so a ring lands on the LINE — nobody's
     # corner in production, and in the sandbox the developer who claimed it. Everything else was
-    # opened BY a key holder, and lands in theirs. See api/agents/dial_in.py.
+    # opened BY a key holder, and lands in theirs. See live/doors.py.
     serving = serving_agent(registry, env, said.agent, said.app, context, holder)
     if said.app is not None and serving is None:
         raise HTTPException(409, NOT_THAT_APP.format(app=said.app, slug=said.agent))

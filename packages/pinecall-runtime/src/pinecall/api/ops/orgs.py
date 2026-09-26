@@ -6,13 +6,13 @@ from fastapi import HTTPException
 from starlette.status import HTTP_204_NO_CONTENT
 
 from pinecall.api.accounts.api_keys import KeyIssued, KeyRevoked, in_this_world, wire_key_issued
-from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.deps import (
     KeysDep,
     KnowledgeDep,
     MembersDep,
     MemoryDep,
     OrgsDep,
+    RegistryDep,
     RoutesDep,
     SettingsDep,
     StoreDep,

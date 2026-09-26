@@ -115,6 +115,6 @@ def rang(route: Route) -> bool:
 
     The two are served by different corners of a world: what a key opened lands in the holder's,
     and what rang lands on the agent's line, because a number is the org's door and the worker
-    that dialled it holds a key naming nobody. See api/agents/dial_in.py.
+    that dialled it holds a key naming nobody. See live/doors.py.
     """
     return route.channel in CHANNELS_WITH_A_NUMBER

@@ -7,11 +7,11 @@ import asyncio
 import httpx
 import pytest
 
-from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
-from pinecall.api.live import Live
 from pinecall.api.whatsapp import threads as whatsapp_threads
 from pinecall.api.whatsapp.threads import Threads
+from pinecall.live.calls import Live
+from pinecall.live.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.routes.records_memory import MemoryRoutes

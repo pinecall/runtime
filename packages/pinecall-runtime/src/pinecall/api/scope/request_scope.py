@@ -6,10 +6,10 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, Query
 
-from pinecall.api.agents.held_agent import Registration
-from pinecall.api.agents.registry import NO_AGENT, RegistryDep
-from pinecall.api.deps import KeyDep
+from pinecall.api.deps import KeyDep, RegistryDep
 from pinecall.auth.request_scope import Corner, corner_of
+from pinecall.live.registry import NO_AGENT
+from pinecall.live.sockets import Registration
 from pinecall.types import DeclarationRefused, Env
 
 

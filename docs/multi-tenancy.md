@@ -187,7 +187,7 @@ back to. Production is namespaced by nobody: there is one corner there, the org'
 server's token holds the slug or a person with production access (`pinecall start --prod`). The exception is a **dialled** door: a number exists once in
 a world, so the sandbox number is the org's and a call at it rings in one terminal — web and
 chat are each developer's own, the telephone is shared. WHICH terminal is asked in two steps
-(`api/agents/dial_in.py`). First, **whose phone dialled**: a developer says which number they call
+(`live/doors.py`). First, **whose phone dialled**: a developer says which number they call
 from (`PUT /v1/line/from`) and every call they make lands in their own corner — three of them can
 test at once, and that is the answer for almost every ring. Then, for a number nobody claimed, the
 agent's **line**: the first corner to hold it takes it, a second developer claims it, and it is

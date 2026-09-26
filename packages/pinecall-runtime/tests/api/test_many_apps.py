@@ -8,10 +8,10 @@ import pytest
 from starlette.testclient import TestClient, WebSocketTestSession
 from starlette.websockets import WebSocketDisconnect
 
-from pinecall.api.live import Live
 from pinecall.auth.bearer import POLICY_VIOLATION
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.keys_memory import MemoryKeys
+from pinecall.live.calls import Live
 from pinecall.worker.gateway_client import CONTEXT
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS, CHAT
 from tests.api.talking import a_caller, a_door, a_frame, a_register, an_app, entry_until

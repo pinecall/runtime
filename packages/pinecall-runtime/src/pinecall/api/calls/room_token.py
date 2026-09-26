@@ -10,18 +10,19 @@ from pydantic import Field
 from starlette.status import HTTP_201_CREATED
 
 from pinecall.api.agents.agent_access import reached_by
-from pinecall.api.agents.registry import NO_AGENT, RegistryDep
 from pinecall.api.calls.deps import ServingDep
 from pinecall.api.deps import (
     AdmissionDep,
     FleetDep,
     LogsDep,
+    RegistryDep,
     SettingsDep,
     TalkKeyDep,
     TokensDep,
 )
 from pinecall.auth.keys import KeyRecord, is_held_by
 from pinecall.auth.scopes import mint_log_token, mint_room_token, new_visitor_identity, secret_for
+from pinecall.live.registry import NO_AGENT
 from pinecall.tokens.ledger import TokenRecord
 from pinecall.tokens.room_token import build_dispatch, client_named_agent
 from pinecall.types import THE_WIDGET, new_call_id

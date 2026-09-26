@@ -5,8 +5,8 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from pinecall.api.agents.registry import Registry
 from pinecall.api.ops.orgs import NO_SUCH_AGENT, NOT_HELD
+from pinecall.live.registry import Registry
 from pinecall.log.store import MemoryStore
 from pinecall.orgs.records_memory import MemoryOrgs
 from pinecall.routes.records_memory import MemoryRoutes

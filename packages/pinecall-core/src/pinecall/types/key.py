@@ -12,7 +12,7 @@ from pinecall.types.refusal import DeclarationRefused
 #
 # A third world was very nearly added for `staging`, and it was not needed: whether a sandbox agent
 # is ONE PERSON's copy or the team's shared one is not this field, it is whether the key that
-# registered it names a person (api/agents/held_agent.py). A machine key in the sandbox is held by
+# registered it names a person (live/sockets.py). A machine key in the sandbox is held by
 # nobody's corner, which every member of the org sees — that IS staging, and it already worked.
 # Two worlds, three behaviours, and the holder does the third.
 #
@@ -125,7 +125,7 @@ def key_scopes(words: Iterable[str]) -> frozenset[str]:
 # The org's own corner, as the tables that are namespaced by one spell it. Not NULL: it is part of
 # a primary key, and a NULL in one matches nothing. A production row is always the org's — a
 # person's key opens no `app` there — and so is anything a sandbox key naming nobody wrote,
-# which is CI's. See 0021, and api/agents/registry.py for the same idea in the live table.
+# which is CI's. See 0021, and live/registry.py for the same idea in the live table.
 THE_ORGS_OWN = ""
 
 

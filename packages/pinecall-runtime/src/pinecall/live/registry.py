@@ -3,14 +3,10 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING
 
-from fastapi import Depends
-from starlette.requests import HTTPConnection
-
-from pinecall.api.agents.dial_in import Agent, Doors
-from pinecall.api.agents.held_agent import Held, Registration, SocketId
-from pinecall.api.deps import held
+from pinecall.live.doors import Agent, Doors
+from pinecall.live.sockets import Held, Registration, SocketId
 from pinecall.log.entry import Entry
 from pinecall.providers import declaration
 from pinecall.types import PRODUCTION, AgentConfig, DeclarationRefused, Env, is_a_deployment
@@ -55,7 +51,7 @@ class Registry:
         # keeps its place: it is the same process, not a newer one.
         self._agents: dict[Held, list[Registration]] = {}
         # The public side of the table: which agent each dialled door answers for, and whose
-        # corner of the world its ring goes to. See api/agents/dial_in.py.
+        # corner of the world its ring goes to. See live/doors.py.
         self._doors = Doors()
         self._owned: dict[SocketId, set[Held]] = {}
         # Counts accepted claims, so `answering` can say which of two corners took a door last.
@@ -385,14 +381,3 @@ class Registry:
         """The claim is not accepted until the agent's own log says so; call is None, always."""
         forgettable = None if env is None or is_a_deployment(env) else True
         return await self._logs.writing_agent(slug).append(type, encode(event), forgettable)
-
-
-# ── how a route asks for it ─────────────────────────────────────────────────────
-
-
-def get_registry(connection: HTTPConnection) -> Registry:
-    """Who owns which agent and which doors right now."""
-    return held(connection, "registry", Registry)
-
-
-RegistryDep = Annotated[Registry, Depends(get_registry)]

@@ -7,12 +7,12 @@ from typing import Annotated, Any, Protocol
 
 from fastapi import Depends
 
-from pinecall.api.agents.held_agent import Send, SocketId
 from pinecall.api.agents.processes import Processes
-from pinecall.api.agents.registry import Registry
 from pinecall.api.deps import get_live
-from pinecall.api.live import Served
 from pinecall.knowledge import Knowledge
+from pinecall.live.calls import Served
+from pinecall.live.registry import Registry
+from pinecall.live.sockets import Send, SocketId
 from pinecall.log.entry import Entry
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.caller_codes import Codes

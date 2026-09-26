@@ -7,10 +7,9 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.calls.listing import A_SCREENFUL, BEFORE, LIMIT, WORDS, page_of_calls
 from pinecall.api.calls.log_sink import ProjectDep, ReaderDep, sse
-from pinecall.api.deps import CallIndexDep, LogsDep, SnapshotsDep
+from pinecall.api.deps import CallIndexDep, LogsDep, RegistryDep, SnapshotsDep
 from pinecall.api.sse import ClosingDep
 from pinecall.log.store.call_index import Wanted
 from pinecall.types import Channel

@@ -3,10 +3,10 @@
 import httpx
 import pytest
 
-from pinecall.api.agents.registry import Registry
 from pinecall.api.calls.log_sink import NO_SUCH_CALL
 from pinecall.auth.keys import KeyRecord
 from pinecall.auth.keys_memory import MemoryKeys
+from pinecall.live.registry import Registry
 from pinecall.log.store import MemoryStore
 from tests.api.conftest import A_KEY, A_RECORD, over_the_asgi_app
 from tests.api.evals.conftest import AGENT, BOOK, CONFIRMED, NO_GATE, entries_of, serving

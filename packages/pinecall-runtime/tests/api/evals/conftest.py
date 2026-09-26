@@ -7,12 +7,12 @@ import httpx
 import pytest
 
 from pinecall.api import deps as deps
-from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
 from pinecall.api.deps import get_runs
 from pinecall.api.evals.runner import Runner, get_runner
 from pinecall.evals.checks.replay import Replayed, rebuild
 from pinecall.evals.run_store_memory import MemoryRuns
+from pinecall.live.registry import Registry
 from pinecall.providers.models import Chat
 from pinecall.types import PRODUCTION, Brought, Model, ProviderKeys
 from pinecall_protocol import decode_entries, defs

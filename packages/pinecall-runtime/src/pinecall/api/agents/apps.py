@@ -5,9 +5,8 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from pinecall.api.agents.processes import Process, ProcessesDep
-from pinecall.api.agents.registry import RegistryDep
 from pinecall.api.agents.registry_reads import named_holder
-from pinecall.api.deps import AppKeyDep, CallsKeyDep, MembersDep
+from pinecall.api.deps import AppKeyDep, CallsKeyDep, MembersDep, RegistryDep
 from pinecall.auth.keys import KeyRecord, is_held_by, is_operator_key
 from pinecall_protocol.rest import AppList, AppProcess, AppStopped
 
