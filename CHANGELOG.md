@@ -42,6 +42,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   every `.env` and `deploy.local.mk` at home.
 
 ### Fixed
+- **Recordings again, under the fence.** `hardening.conf` no longer sets `RestrictSUIDSGID=`: it
+  refused the setgid bit on each call's recording directory, the recorder could not write in it,
+  and every call after the deploy of 2026-09-26 kept no audio. A directory the box will not mark
+  now says so in the worker's log instead of failing silently.
 - **The overflow agent's two entries are the protocol's own shapes.** Its `agent.transcript`
   carried no `speech_id`, which every other transcript entry has, and its `call.ended` was a dict
   spelled by hand; both are written through the wire models now.

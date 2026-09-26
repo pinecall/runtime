@@ -27,6 +27,21 @@ def test_the_directory_a_call_gets_is_writable_by_the_group_that_owns_it(tmp_pat
     assert directory.stat().st_mode & 0o7770 == 0o2770
 
 
+def test_a_directory_the_box_will_not_mark_setgid_is_said_and_still_answered(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A fence forbidding the bit lost every recording of 2026-09-26 without a line."""
+
+    def refused(self: Path, mode: int) -> None:  # noqa: ARG001 — Path.chmod's shape
+        raise PermissionError(1, "Operation not permitted")
+
+    monkeypatch.setattr(Path, "chmod", refused)
+    directory = recording_paths.destination_for("CA_7", _keeping(tmp_path))
+    assert directory == tmp_path / "CA_7"
+    assert "not group-writable" in caplog.text
+    assert "Operation not permitted" in caplog.text
+
+
 def test_the_directory_is_ours_and_the_file_inside_it_is_livekits(tmp_path: Path) -> None:
     """RecorderIO writes `audio.ogg` into the session's directory (agent_session.py:1043)."""
     directory = recording_paths.destination_for("CA_7", _keeping(tmp_path))

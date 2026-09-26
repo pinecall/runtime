@@ -454,7 +454,9 @@ the fleet loop — runs under `hardening.conf`, one drop-in the manifest install
 privileges, the whole file system read-only but what the unit's own `ReadWritePaths=` names (the
 recordings, the cache LiveKit's plugins keep a model in, the fleet loop's cloud configuration),
 its own `/tmp`, no home, no devices, no capability, the `@system-service` syscalls and the three
-socket families a Python process on a box needs. `systemd-analyze security pinecall-gateway@production`
+socket families a Python process on a box needs. The setgid bit stays allowed: the worker marks
+each call's recording directory with it so egress's file belongs to `pinecall-media`, and with it
+forbidden every recording failed (2026-09-26). `systemd-analyze security pinecall-gateway@production`
 is the grade. The deploy compiles the bytecode at the sync, because a process that cannot write
 its virtualenv would otherwise compile every module at every start. The oneshots that mint a key
 catch it in `/run`, which a strict file system refuses, and stay outside; so does `pinecall-db@`,

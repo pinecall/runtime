@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
-from contextlib import suppress
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -13,6 +13,8 @@ from livekit.agents.cli import _legacy
 from livekit.agents.voice import RecordingOptions
 
 from pinecall._settings import Settings
+
+logger = logging.getLogger(__name__)
 
 # livekit writes the recording as `audio.ogg` inside the session's directory
 # (voice/agent_session.py:1043). The file name is the library's; the directory is ours.
@@ -46,8 +48,16 @@ def destination_for(call: str, settings: Settings) -> Path:
     # `Local upload failed: … permission denied` and the call's summary pointed at no audio
     # (2026-09-21, the first recorded call on the box). It is said here because this is the one
     # place a recording's directory is made; the ROOT's mode is the box's (infra/box/tmpfiles.d).
-    with suppress(OSError):
+    # A refusal is said: swallowed, it lost every recording of 2026-09-26 without a line, when the
+    # unit's fence forbade the setgid bit (infra/box/hardening.conf).
+    try:
         directory.chmod(0o2770)
+    except OSError as refused:
+        logger.warning(
+            "%s is not group-writable (%s): the recorder will not be able to write in it",
+            directory,
+            refused.strerror,
+        )
     return directory
 
 
