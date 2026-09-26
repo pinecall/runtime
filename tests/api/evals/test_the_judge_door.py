@@ -6,9 +6,10 @@ import httpx
 import pytest
 
 from pinecall.api.agents.registry import Registry
-from pinecall.api.evals.judge import ALREADY_JUDGED, NO_SUCH_CALL, STILL_GOING
+from pinecall.api.calls.log_sink import NO_SUCH_CALL
+from pinecall.api.evals.judge import ALREADY_JUDGED, STILL_GOING
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
-from pinecall.evals.score import JUDGING_OFF
+from pinecall.evals.hangup_score import JUDGING_OFF
 from pinecall.log.store import MemoryStore
 from tests.api.conftest import A_KEY, A_RECORD, over_the_asgi_app
 from tests.api.evals.conftest import BOOK, CONFIRMED, entries_of, serving
@@ -54,7 +55,7 @@ async def test_a_call_its_org_did_not_judge_is_judged_and_the_verdict_lands_on_i
     assert answered.status_code == 200
     body = answered.json()
     assert body["panel"] == ["consent", "grounded", "promises"]
-    assert [row["name"] for row in body["judges"]][0] == "consent"
+    assert next(row["name"] for row in body["judges"]) == "consent"
     scores = [entry for entry in await store.since(call) if entry.type == "call.score"]
     written = scores[-1].data
     assert len(scores) == 2

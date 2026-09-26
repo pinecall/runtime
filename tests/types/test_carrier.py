@@ -2,7 +2,7 @@
 
 import pytest
 
-from pinecall.types import Carrier, DeclarationRefused, SipPeer, TwilioAccount, a_carrier_kind
+from pinecall.types import Carrier, DeclarationRefused, SipPeer, TwilioAccount, parse_carrier_kind
 
 pytestmark = pytest.mark.unit
 
@@ -31,6 +31,6 @@ def test_a_twilio_sid_that_is_not_one_is_refused(sid: str) -> None:
 
 
 def test_a_kind_that_is_neither_is_refused_with_the_two() -> None:
-    assert a_carrier_kind("sip") == "sip"
-    with pytest.raises(DeclarationRefused, match="sip.*twilio"):
-        a_carrier_kind("vonage")
+    assert parse_carrier_kind("sip") == "sip"
+    with pytest.raises(DeclarationRefused, match=r"sip.*twilio"):
+        parse_carrier_kind("vonage")

@@ -9,11 +9,12 @@ from typing import Any
 
 from pinecall.knowledge.chunking import chunks_of
 from pinecall.log.store import Pool
-from pinecall.providers.embedder import Embedder, WrongModel, as_halfvec
+from pinecall.providers.embedder import Embedder, WrongModel, halfvec_literal
 from pinecall.types import Env, KnowledgeFile, whose
 
-# The push's sentence, said of one file: a file put into a base another model wrote would be
-# vectors of two models in one index, and a search over that is a number with no meaning.
+# What a search says when the vectors in the table and the vectors this gateway makes came out of
+# two different models: they are numbers of the same width and nothing else, and ranking one
+# against the other is a plausible answer with no meaning in it. The way out is in the sentence.
 PUSHED_WITH_ANOTHER_MODEL = (
     "base {base} was pushed with {pushed}; this gateway embeds with {mine}: push it again"
 )
@@ -174,7 +175,7 @@ async def put_file(
         [piece.heading for piece in pieces],
         [piece.ordinal for piece in pieces],
         [piece.text for piece in pieces],
-        [as_halfvec(vector) for vector in vectors],
+        [halfvec_literal(vector) for vector in vectors],
     )
     return len(pieces)
 
@@ -190,7 +191,7 @@ async def drop_file(
     return True
 
 
-def as_columns(files: Sequence[KnowledgeFile]) -> tuple[list[str], list[str], list[int]]:
+def push_columns(files: Sequence[KnowledgeFile]) -> tuple[list[str], list[str], list[int]]:
     """The files as a push's three arrays: the paths, the texts, and how many chunks each became."""
     return (
         [file.path for file in files],

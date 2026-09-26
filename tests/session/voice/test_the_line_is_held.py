@@ -7,10 +7,10 @@ from typing import Any
 import pytest
 
 from pinecall.session.voice import commands
-from pinecall.session.voice.attending import Attending
-from pinecall.session.voice.hold import HoldMusic
-from pinecall.session.voice.line import Line
-from pinecall.session.voice.writing import Writing
+from pinecall.session.voice.attention import Attending
+from pinecall.session.voice.hold_melody import HoldMusic
+from pinecall.session.voice.log_writer import Writing
+from pinecall.session.voice.on_hold import Line
 from pinecall_protocol import Command
 from tests.session.voice.fakes import CALL, Recording, ScriptedSession
 from tests.session.voice.test_commands import End, Prompt, Recorded

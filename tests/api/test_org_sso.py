@@ -5,14 +5,13 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from pinecall._settings import Settings
-from pinecall.api.sso import CALLBACK, NO_SSO
-from pinecall.orgs.sso import Sso
-from pinecall.orgs.table import MemoryOrgs
-from pinecall.orgs.vault import NO_VAULT_KEY, Vault
+from pinecall.api.accounts.org_sso import CALLBACK, NO_SSO
+from pinecall.orgs.org_sso import Sso
+from pinecall.orgs.records import MemoryOrgs
 from pinecall.types import Org
 from tests.api.conftest import AN_OPS_KEY, AN_ORG
 from tests.api.fake_idp import CLIENT_ID, CLIENT_SECRET, ISSUER
+from tests.api.no_vault import WithNoVaultKey
 
 pytestmark = pytest.mark.unit
 
@@ -29,7 +28,7 @@ WIRED = {
 
 
 @pytest.fixture(autouse=True)
-def wiring_a_provider(sso: Sso | None, http: httpx.AsyncClient) -> None:  # noqa: ARG001
+def wiring_a_provider(sso: Sso | None, http: httpx.AsyncClient) -> None:
     """The table these doors write, and the client the PUT checks an issuer answers with."""
 
 
@@ -150,27 +149,14 @@ async def test_the_ops_doors_take_the_box_key_and_no_tenants(
 # ── a box with no vault key ─────────────────────────────────────────────────────
 
 
-class TestWithNoVaultKey:
+class TestWithNoVaultKey(WithNoVaultKey):
     """A runtime given no PINECALL_VAULT_KEY keeps nobody's secret, and says so in one sentence."""
 
-    @pytest.fixture
-    def settings(self) -> Settings:
-        return Settings(world="production", ops_key=AN_OPS_KEY)
+    door = THE_DOOR
 
     @pytest.fixture
     def sso(self) -> Sso | None:
         return None
-
-    @pytest.fixture
-    def vault(self) -> Vault | None:
-        """Nothing is sealed on such a box: the provider keys go the same way (orgs/vault.py)."""
-        return None
-
-    async def test_the_doors_answer_503_with_the_vaults_own_sentence(
-        self, tenant_http: httpx.AsyncClient
-    ) -> None:
-        answer = await tenant_http.get(THE_DOOR)
-        assert answer.status_code == 503 and answer.json()["detail"] == NO_VAULT_KEY
 
     async def test_the_discovery_answers_nobody_rather_than_refusing(
         self, stranger: httpx.AsyncClient

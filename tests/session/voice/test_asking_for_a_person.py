@@ -6,11 +6,11 @@ import asyncio
 
 import pytest
 
-from pinecall.session.voice.supervising import Supervising
+from pinecall.session.voice.supervise import Supervising
 from pinecall_protocol import ProtocolError, verbs
 from pinecall_protocol.commands import CallAttention, SupervisorVerb
 from pinecall_protocol.defs import Supervisor
-from tests.session.voice.test_supervising import Ended, ScriptedAgent
+from tests.session.voice.test_supervise import Ended, ScriptedAgent
 from tests.session.voice.test_the_line_is_held import Held
 
 pytestmark = pytest.mark.unit

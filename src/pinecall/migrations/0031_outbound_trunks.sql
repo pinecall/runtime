@@ -1,7 +1,7 @@
 -- 0031: the trunk an org places a call THROUGH, once provisioned.
 --
 -- A number imported gives the org a way in: its carrier's trunk points at the box and the box's
--- SIP admits it (0015, api/numbers.py). Dialling is the other direction, and it needs a second
+-- SIP admits it (0015, api/telephony/numbers.py). Dialling is the other direction, and it needs a second
 -- trunk nobody was keeping: a LiveKit SIP OUTBOUND trunk, holding where to send the INVITE, the
 -- numbers it may show as the caller, and the credentials the far side asks for.
 --

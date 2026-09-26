@@ -15,7 +15,7 @@ from pinecall_protocol.events import CallbackRequested
 BY_THE_AGENT: Literal["agent"] = "agent"
 
 
-def a_callback(context: CallContext, wanted: CallCallback) -> CallbackRequested:
+def build_callback_entry(context: CallContext, wanted: CallCallback) -> CallbackRequested:
     """The entry: the number, what it is about, and the call and contact it was asked on."""
     return CallbackRequested(
         channel=context.channel,

@@ -99,7 +99,7 @@ pinecall-runtime sessions recording <call-id>
 The log, read back straight from Postgres — no gateway, no key, no org filter: this is the
 operator's view of the box, and it sees every tenant's calls. `show` prints one call entry by
 entry; `--json` prints the reduced state instead. `tail` follows a call as it happens, and with no
-id it follows the newest live one. `recording` says where that call's audio was written — and, for a written (chat) call, which keeps none, says so (`call … was not recorded: its call.summary carries no path`) and exits 1.
+id it follows the newest live one. `recording_response` says where that call's audio was written — and, for a written (chat) call, which keeps none, says so (`call … was not recorded: its call.summary carries no path`) and exits 1.
 
 ## `orgs`
 
@@ -256,13 +256,14 @@ pinecall-runtime migrate plan
 The `.sql` files under `pinecall/migrations`, applied in order, over `DATABASE_URL`. It is what a
 unit runs before every start, so it prints no secret: the `default` org is seeded here and its
 first key is `keys issue`, never this verb. **`migrate` with no verb READS** — `status`, which
-asks the DATABASE what it has run: `applied`, `behind` (a startup file it has not) and `waiting`
+asks the DATABASE what it has run: `apply_verb`, `behind` (a startup file it has not) and `waiting`
 (a `.post.sql` nobody has applied yet), counted at the end. `plan` names what a run of that kind
 would apply, off the disk. Applying is `migrate up`, typed in full; `--schema` applies into a
 schema of its own, how a test run owns its copy. **`--post` is the other half, never run at
 startup**: a migration is held to five seconds there, so anything slower is written as a
 `.post.sql` and applied by a person, after the deploy, with this flag — an index over a big table
-always is.
+always is. Every file runs inside one transaction; a `.post.sql` whose first line is
+`-- pinecall:no-transaction` runs outside one (`create index concurrently`) and holds that one statement.
 
 ## `doctor`
 

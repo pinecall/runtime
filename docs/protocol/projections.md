@@ -59,7 +59,7 @@ The envelope keeps `seq`, `ts`, `type`, `ephemeral`.
 | `confirm.request` | `phrase` `ttl_s` | confirms |
 | `confirm.granted` `confirm.declined` | — (the type IS the verdict) | confirms |
 | `call.transferred` | `to` `mode` `ok` `error` | transfer |
-| `call.line` | `held` (never `muted`) | held |
+| `call.line` | `held` (never `mute`) | held |
 | `event.received` | `name` `data` `source` `identity` — kept only when the viewer is the one who sent it | events |
 | `state.changed` | `state` `changed` — filtered to fields declared `public`, and never with its cause | app_state |
 | `log.gap` | `from_seq` `to_seq` `snapshot` | the cursor |

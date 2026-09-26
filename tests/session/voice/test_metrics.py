@@ -11,8 +11,8 @@ from livekit.agents.metrics import LLMMetrics, base
 from livekit.agents.metrics.usage import AgentSessionUsage, ModelUsageCollector
 
 from pinecall.providers import prices
-from pinecall.session.voice.metrics import BLOCKS, Meters, an_end_of_utterance
-from pinecall.session.voice.writing import Writing
+from pinecall.session.voice.log_writer import Writing
+from pinecall.session.voice.metrics import BLOCKS, Meters, end_of_utterance
 from pinecall_protocol import decode_entry, event_of
 from tests.session.voice.fakes import CALL, Recording
 
@@ -206,7 +206,7 @@ async def test_a_transcription_that_was_measured_once_is_stored_whole() -> None:
 def test_the_turns_own_transcription_delay_is_what_a_reader_reads_instead() -> None:
     """No STTMetrics carries a speech_id, so a turn's STT number is the one on its own report:
     `transcription_delay`, rebuilt into the EOU block the log stores whole."""
-    eou = an_end_of_utterance(
+    eou = end_of_utterance(
         {"transcription_delay": 0.18, "end_of_turn_delay": 0.62}, "speech_1", "manual"
     )
     assert eou is not None

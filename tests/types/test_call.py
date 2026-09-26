@@ -43,8 +43,6 @@ def test_a_call_knows_the_day_it_happens_on() -> None:
 def test_a_web_visitor_may_be_nobody_yet() -> None:
     visit = a_call(channel="web", route=WIDGET, caller="visitor_8f4a", contact=None)
     assert visit.contact is None
-    assert not Contact().is_known
-    assert Contact(phone="+34600000001").is_known
 
 
 def test_the_corner_is_the_dispatchs_and_defaults_to_the_orgs_own() -> None:

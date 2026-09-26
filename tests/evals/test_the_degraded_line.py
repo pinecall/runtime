@@ -8,14 +8,14 @@ from array import array
 
 import pytest
 
-from pinecall.evals.line import (
+from pinecall.evals.line_noise import (
     FRAME_MS,
     LOST,
+    drop_packets,
     frames_of,
-    mixed,
+    mix_interferer,
     rms_of,
     said_of,
-    with_losses,
 )
 
 pytestmark = pytest.mark.unit
@@ -60,7 +60,7 @@ def test_the_interferer_ends_up_the_asked_for_number_of_decibels_under_the_calle
     caller = a_tone(RATE, 8000, period=97)
     television = a_tone(RATE, 8000, period=31)
 
-    with_noise = mixed(caller, television, db_under=15.0)
+    with_noise = mix_interferer(caller, television, db_under=15.0)
 
     # What was added is the mix minus the caller, and its level is what the number claims.
     added = _difference(with_noise, caller)
@@ -73,8 +73,8 @@ def test_a_quieter_interferer_is_the_larger_number_of_decibels() -> None:
     caller = a_tone(RATE, 8000, period=97)
     television = a_tone(RATE, 8000, period=31)
 
-    near = _difference(mixed(caller, television, 15.0), caller)
-    far = _difference(mixed(caller, television, 25.0), caller)
+    near = _difference(mix_interferer(caller, television, 15.0), caller)
+    far = _difference(mix_interferer(caller, television, 25.0), caller)
 
     assert rms_of(far) < rms_of(near)
 
@@ -83,7 +83,7 @@ def test_a_line_with_nothing_to_mix_in_is_the_caller_untouched() -> None:
     """No interferer is a clean line, and a clean line is not a copy that went through the mixer."""
     caller = a_tone(RATE, 8000)
 
-    assert mixed(caller, b"", 15.0) == caller
+    assert mix_interferer(caller, b"", 15.0) == caller
 
 
 def test_the_interferer_runs_as_long_as_the_caller_does() -> None:
@@ -91,7 +91,7 @@ def test_the_interferer_runs_as_long_as_the_caller_does() -> None:
     caller = a_tone(RATE, 8000, period=97)
     a_short_bulletin = a_tone(RATE // 10, 8000, period=31)
 
-    with_noise = mixed(caller, a_short_bulletin, 15.0)
+    with_noise = mix_interferer(caller, a_short_bulletin, 15.0)
 
     assert rms_of(_difference(with_noise, caller)[-RATE:]) > 0
 
@@ -100,7 +100,7 @@ def test_a_lost_packet_is_the_silence_a_jitter_buffer_plays() -> None:
     """Not a dropped frame: the far end plays 10 ms of nothing, which is the artefact tested."""
     frames = frames_of(a_tone(RATE, 8000), RATE)
 
-    thinned = with_losses(frames, 0.5, random.Random(7))
+    thinned = drop_packets(frames, 0.5, random.Random(7))
 
     assert len(thinned) == len(frames)
     silent = [frame for frame in thinned if set(frame) == {0}]
@@ -111,7 +111,7 @@ def test_no_loss_leaves_every_packet_exactly_as_it_was() -> None:
     """A run that asked for nothing must not have its audio rewritten by the loss model at all."""
     frames = frames_of(a_tone(RATE, 8000), RATE)
 
-    assert with_losses(frames, 0.0) == frames
+    assert drop_packets(frames, 0.0) == frames
 
 
 def test_the_line_is_described_in_the_words_a_report_prints() -> None:

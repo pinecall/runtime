@@ -8,8 +8,8 @@ from cryptography.fernet import Fernet
 
 from pinecall._settings import Settings
 from pinecall.log.store import Pool, open_pool
-from pinecall.orgs.mail import Mail, MemoryMail, PostgresMail, mail_for
-from pinecall.orgs.table import PostgresOrgs
+from pinecall.orgs.org_mail import Mail, MemoryMail, PostgresMail, mail_for
+from pinecall.orgs.records import PostgresOrgs
 from pinecall.types import Mailbox
 from tests.postgres import Dev
 

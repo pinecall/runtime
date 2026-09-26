@@ -7,7 +7,7 @@ from pinecall.log.logs import AgentLog, CallLog
 from pinecall.log.pii import MASK, Masker
 from pinecall.log.reduce import reduce
 from pinecall.log.store import LogSealed, MemoryStore, PostgresStore, Store
-from pinecall.log.wording import NOTHING_SAID, REFUSED, as_text, hashed_prompt
+from pinecall.log.wording import NOTHING_SAID, REFUSED, hashed_prompt, tool_result_text
 
 __all__ = [
     "EVERYTHING",
@@ -26,8 +26,8 @@ __all__ = [
     "PostgresStore",
     "Store",
     "Subscription",
-    "as_text",
     "ephemeral_by_default",
     "hashed_prompt",
     "reduce",
+    "tool_result_text",
 ]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from contextlib import AbstractAsyncContextManager
 from typing import Any
 
 import pytest
@@ -11,6 +12,7 @@ from pinecall.knowledge import PgKnowledge
 from pinecall.providers.embedder import DIMENSIONS
 from pinecall.types import PRODUCTION
 from tests.knowledge.files import CLINICA, TARIFAS
+from tests.pools import Held, acquired
 
 pytestmark = pytest.mark.unit
 
@@ -50,6 +52,9 @@ class RecordingPool:
 
     async def fetchrow(self, query: str, /, *args: Any) -> Mapping[str, Any] | None:
         raise NotImplementedError(query or args)
+
+    def acquire(self) -> AbstractAsyncContextManager[Held]:
+        return acquired(self)
 
     async def close(self) -> None:
         return None

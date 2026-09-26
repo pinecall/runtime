@@ -6,9 +6,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from pinecall.types.agent import Greeting, Hangup, Turn, a_limit_checked, pronunciations_checked
+from pinecall.types.agent import Greeting, Hangup, Turn, check_call_limit, pronunciations_checked
 from pinecall.types.knowledge import Docs, MemoryPolicy
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.refusal import DeclarationRefused
 
 # convo ms-14: an empty voice reached the vendor and a whole line of calls went out silent, because
 # "" is a value and None is not. A knob nobody wants set is LEFT OUT — None — and never sent as an
@@ -42,8 +42,8 @@ class Tuning:
     memory: MemoryPolicy | None = None
     # Whether this agent's calls keep their audio. False is a decision and None is nobody having
     # made one, which is why it is `bool | None` and not `bool`: `as_json` drops what is None
-    # (orgs/resolving.py), so a plain False would be indistinguishable from unset and the corner
-    # below would never be heard.
+    # (orgs/tuning_resolution.py), so a plain False would be indistinguishable from unset and the
+    # corner below would never be heard.
     record: bool | None = None
     # The longest a voice call of this agent runs, in seconds; 0 is no limit, None is the runtime's
     # ten minutes. A written conversation is never cut by it.
@@ -63,7 +63,7 @@ class Tuning:
             if value is not None and not value.strip():
                 raise DeclarationRefused(BLANK.format(field=name))
         if self.max_duration_s is not None:
-            a_limit_checked(self.max_duration_s)
+            check_call_limit(self.max_duration_s)
 
 
 # The org's words, laid over every agent's own: a brand, a surname, an acronym is the same word

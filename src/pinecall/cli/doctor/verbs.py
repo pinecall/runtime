@@ -3,23 +3,30 @@
 import argparse
 import sys
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
 from urllib.parse import urlsplit, urlunsplit
 
 from pinecall._env_files import env_files_read
 from pinecall._settings import Role, Settings, load_settings, variable_of
-from pinecall.cli.doctor.mail import send_one_to, the_mail_line
+from pinecall.cli.doctor.machine import (
+    check_the_certificate_holds,
+    check_the_disk_has_room,
+    check_the_fence_is_up,
+)
+from pinecall.cli.doctor.mail import mail_line, send_one_to
 from pinecall.cli.doctor.probes import Probes, live_probes
+from pinecall.cli.doctor.report import Result, reason
 from pinecall.log.store.postgres import without_password
 from pinecall.providers import catalog
 from pinecall.providers.embed import base_url_of, key_field_of, model_of
 from pinecall.providers.embedder import DIMENSIONS
-from pinecall.providers.knocks import KNOCKS
+from pinecall.providers.key_probes import KNOCKS
 from pinecall.providers.models import DEFAULT_VENDOR
-from pinecall.providers.pipeline import DEFAULT_STT
+from pinecall.providers.session_vendors import DEFAULT_STT
 from pinecall.providers.tts import DEFAULT_TTS
 
-PURPOSE: str = "keys present · keys answer · livekit · egress · postgres · embedder · mail · lk"
+PURPOSE: str = (
+    "keys · livekit · egress · postgres · embedder · mail · disk · fence · certificate · lk"
+)
 
 # pgvector installs under the name `vector`; the BM25 half of the search stack installs under
 # `pg_textsearch`. Both come from the Postgres image infra/compose/dev.yml runs.
@@ -34,7 +41,7 @@ def provider_keys() -> dict[catalog.Modality, tuple[str, ...]]:
     return {
         modality: tuple(
             field
-            for row in catalog.doing(modality)
+            for row in catalog.providers_doing(modality)
             if (field := catalog.settings_field_of(row.name)) is not None
         )
         for modality in catalog.MODALITIES
@@ -51,10 +58,11 @@ OURS: dict[catalog.Modality, str] = {
 }
 
 
-def the_vendor_worth_naming(modality: catalog.Modality) -> str:
+def default_vendor_field(modality: catalog.Modality) -> str:
     """The settings field of the vendor this runtime runs that role on when nobody chose one."""
     field = catalog.settings_field_of(OURS[modality])
-    assert field is not None, f"providers/catalog.py: {OURS[modality]} has no key to ask for"
+    if field is None:
+        raise RuntimeError(f"providers/catalog.py: {OURS[modality]} has no key to ask for")
     return field
 
 
@@ -110,18 +118,6 @@ INSTALL_LIVEKIT_CLI_ANYWHERE = "curl -sSL https://get.livekit.io/cli | bash"
 # What a box with no recorder is actually losing, said in the line itself: an operator reading a
 # doctor report should not have to know what egress is to know what is broken.
 NO_AUDIO = "no call is keeping its audio"
-
-
-@dataclass(frozen=True)
-class Result:
-    """One line of the report: what was asked, whether it answered, and why."""
-
-    name: str
-    ok: bool
-    detail: str
-    # A ✗ that is advice, not an outage: the box still carries a call without it, so it is
-    # reported and never made the verdict.
-    advisory: bool = False
 
 
 # A check asks one service one question. Adding one is a function plus a line in CHECKS.
@@ -215,7 +211,7 @@ def check_provider_keys(settings: Settings, _probes: Probes) -> Result:
         if set_here:
             present.append(f"{role} {', '.join(set_here)}")
         else:
-            missing.append(f"{role} (set {variable_of(the_vendor_worth_naming(role))})")
+            missing.append(f"{role} (set {variable_of(default_vendor_field(role))})")
     if missing:
         return Result("provider keys", False, "nothing for " + " · ".join(missing))
     return Result("provider keys", True, " · ".join(present))
@@ -236,7 +232,7 @@ def check_provider_keys_answer(settings: Settings, probes: Probes) -> Result:
         try:
             status = probes.knock(knock.url, knock.headers(key))
         except Exception as failure:
-            down.append(f"{variable} unreachable — {_reason(failure)}")
+            down.append(f"{variable} unreachable — {reason(failure)}")
             continue
         if status == 200:
             answered.append(variable)
@@ -253,7 +249,7 @@ def check_livekit_is_reachable(settings: Settings, probes: Probes) -> Result:
     try:
         status = probes.http_status(url)
     except Exception as failure:
-        return Result("livekit", False, f"{url} — {_reason(failure)}")
+        return Result("livekit", False, f"{url} — {reason(failure)}")
     return Result("livekit", True, f"{url} — HTTP {status}")
 
 
@@ -266,7 +262,7 @@ def check_the_recorder_answers(settings: Settings, probes: Probes) -> Result:
     try:
         status = probes.http_status(settings.egress_url)
     except Exception as failure:
-        return Result("egress", False, f"{settings.egress_url} — {_reason(failure)} · {NO_AUDIO}")
+        return Result("egress", False, f"{settings.egress_url} — {reason(failure)} · {NO_AUDIO}")
     return Result("egress", True, f"{settings.egress_url} — HTTP {status}")
 
 
@@ -276,7 +272,7 @@ def check_postgres_is_ready(settings: Settings, probes: Probes) -> Result:
     try:
         installed = probes.postgres_extensions(settings.database_url)
     except Exception as failure:
-        return Result("postgres", False, f"{shown} — {_reason(failure)}")
+        return Result("postgres", False, f"{shown} — {reason(failure)}")
     absent = [name for name in REQUIRED_EXTENSIONS if name not in installed]
     if absent:
         return Result("postgres", False, f"{shown} — no extension {', '.join(absent)}")
@@ -296,7 +292,7 @@ def check_the_embedder_answers(settings: Settings, probes: Probes) -> Result:
     try:
         width = probes.embed_width(settings)
     except Exception as failure:
-        return _no_embedder(settings, f"{runs} — {url} — {_reason(failure)}")
+        return _no_embedder(settings, f"{runs} — {url} — {reason(failure)}")
     if width != DIMENSIONS:
         wrong = WRONG_WIDTH.format(width=width, expected=DIMENSIONS)
         return _no_embedder(settings, f"{runs} — {url} — {wrong}")
@@ -319,7 +315,7 @@ def _the_fix(settings: Settings) -> str:
     return BRING_A_LIVE_KEY.format(variable=variable_of(field))
 
 
-def how_to_install_the_livekit_cli() -> str:
+def livekit_cli_install_line() -> str:
     """What to type on the machine reading the report: brew on a Mac, the script anywhere else."""
     return (
         INSTALL_LIVEKIT_CLI_WITH_BREW if sys.platform == "darwin" else INSTALL_LIVEKIT_CLI_ANYWHERE
@@ -333,7 +329,7 @@ def check_the_livekit_cli_is_installed(_settings: Settings, probes: Probes) -> R
         return Result(
             LIVEKIT_CLI,
             False,
-            f"not installed — {how_to_install_the_livekit_cli()} ({WHAT_LIVEKIT_CLI_IS_FOR})",
+            f"not installed — {livekit_cli_install_line()} ({WHAT_LIVEKIT_CLI_IS_FOR})",
             advisory=True,
         )
     return Result(LIVEKIT_CLI, True, f"{found} — {WHAT_LIVEKIT_CLI_IS_FOR}")
@@ -343,7 +339,7 @@ def check_the_livekit_cli_is_installed(_settings: Settings, probes: Probes) -> R
 # admin hands an invitation over by copying the link out of the answer, as they did before mail.
 def check_the_mail_is_configured(settings: Settings, probes: Probes) -> Result:
     """Whether this box can post an invitation and a password reset, and what it posts them with."""
-    configured, detail = the_mail_line(probes.the_boxs_mail(settings))
+    configured, detail = mail_line(probes.the_boxs_mail(settings))
     return Result("mail", configured, detail, advisory=not configured)
 
 
@@ -363,6 +359,9 @@ CHECKS: tuple[Check, ...] = (
     check_postgres_is_ready,
     check_the_embedder_answers,
     check_the_mail_is_configured,
+    check_the_disk_has_room,
+    check_the_fence_is_up,
+    check_the_certificate_holds,
     check_the_livekit_cli_is_installed,
 )
 ONLY_ON_A_HUB: frozenset[Check] = frozenset(
@@ -371,6 +370,7 @@ ONLY_ON_A_HUB: frozenset[Check] = frozenset(
         check_the_embedder_answers,
         check_the_mail_is_configured,
         check_the_recorder_answers,
+        check_the_certificate_holds,
     }
 )
 
@@ -380,9 +380,3 @@ def _http_url_of(livekit_url: str) -> str:
     parts = urlsplit(livekit_url)
     scheme = {"ws": "http", "wss": "https"}.get(parts.scheme, parts.scheme)
     return urlunsplit((scheme, parts.netloc, parts.path or "/", "", ""))
-
-
-def _reason(failure: Exception) -> str:
-    """`ConnectionRefusedError: [Errno 61] Connection refused` reads at a glance in a terminal."""
-    message = str(failure).strip()
-    return f"{type(failure).__name__}: {message}" if message else type(failure).__name__

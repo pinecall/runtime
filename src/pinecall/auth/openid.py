@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import ipaddress
 import secrets
 from dataclasses import dataclass
 from typing import Any
@@ -39,6 +40,10 @@ TIMEOUT_S = 5.0
 VERIFIER_BYTES = 32
 
 NOT_AN_ISSUER = "{issuer} does not answer {path}: it is not an OpenID provider, or it is down"
+NOT_REACHED = (
+    "{issuer}'s {field} is {url!r}: an endpoint is https, at a public name, and never an address"
+)
+NOT_ITS_OWN_TOKEN = "the id_token was issued to {azp!r}: this gateway is {client_id!r}"
 NOT_ITS_OWN_ISSUER = "{issuer} publishes a configuration naming {said}: one of the two is wrong"
 MISSING = "{issuer}'s configuration names no {field}"
 NO_TOKEN = "{issuer} refused the code exchange: {said}"
@@ -75,9 +80,39 @@ class Claims:
     name: str | None
 
 
+# What this box will ever GET or POST at an IdP's word. The issuer is a tenant admin's input and
+# the endpoints are whatever that issuer publishes, so without this rule one org could point the
+# box at its own metadata server, a database on the box's network, or anything else answering
+# http on a private address (2026-09-26). Google's endpoints live on three hosts, so "the
+# issuer's own origin" is not the rule; https at a NAME that is not an address is.
+def reachable(url: str, *, issuer: str, field: str) -> str:
+    """The url when it is one this box may knock at; a refusal naming the field otherwise."""
+    try:
+        parsed = httpx.URL(url)
+    except httpx.InvalidURL as broken:
+        raise OpenIdRefused(NOT_REACHED.format(issuer=issuer, field=field, url=url)) from broken
+    host = parsed.host.lower().rstrip(".")
+    private = host in ("localhost", "") or host.endswith(_LOCAL_SUFFIXES) or _an_address(host)
+    if parsed.scheme != "https" or private:
+        raise OpenIdRefused(NOT_REACHED.format(issuer=issuer, field=field, url=url))
+    return url
+
+
+_LOCAL_SUFFIXES = (".localhost", ".local", ".internal", ".arpa", ".home", ".lan")
+
+
+def _an_address(host: str) -> bool:
+    """Whether the host is an IP literal, v4 or v6, rather than a name."""
+    try:
+        ipaddress.ip_address(host.strip("[]"))
+    except ValueError:
+        return False
+    return True
+
+
 async def configuration(http: httpx.AsyncClient, issuer: str) -> Provider:
     """The issuer's own configuration document, checked to be the issuer's own."""
-    url = f"{issuer}{CONFIGURATION}"
+    url = f"{reachable(issuer, issuer=issuer, field='issuer')}{CONFIGURATION}"
     try:
         answer = await http.get(url, timeout=TIMEOUT_S)
         answer.raise_for_status()
@@ -98,18 +133,18 @@ async def configuration(http: httpx.AsyncClient, issuer: str) -> Provider:
     )
 
 
-def a_verifier() -> str:
+def new_pkce_verifier() -> str:
     """One PKCE verifier: 256 bits of CSPRNG, url-safe, kept on this box until the exchange."""
     return secrets.token_urlsafe(VERIFIER_BYTES)
 
 
-def a_challenge(verifier: str) -> str:
+def pkce_challenge(verifier: str) -> str:
     """What travels through the browser: the verifier's sha256, base64url, no padding."""
     digest = hashlib.sha256(verifier.encode()).digest()
     return base64.urlsafe_b64encode(digest).decode().rstrip("=")
 
 
-def where_to_send(
+def authorization_url(
     provider: Provider,
     client_id: str,
     redirect_uri: str,
@@ -127,12 +162,11 @@ def where_to_send(
             "scope": SCOPE,
             "state": state,
             "nonce": nonce,
-            "code_challenge": a_challenge(verifier),
+            "code_challenge": pkce_challenge(verifier),
             "code_challenge_method": "S256",
         }
     )
-    joiner = "&" if "?" in provider.authorization_endpoint else "?"
-    return f"{provider.authorization_endpoint}{joiner}{asked}"
+    return str(httpx.URL(provider.authorization_endpoint).copy_merge_params(asked))
 
 
 async def exchange(
@@ -165,7 +199,10 @@ async def exchange(
         ) from unreachable
     if answer.status_code >= httpx.codes.BAD_REQUEST:
         raise OpenIdRefused(NO_TOKEN.format(issuer=provider.issuer, said=_why(answer)))
-    granted: dict[str, Any] = answer.json() or {}
+    try:
+        granted: dict[str, Any] = answer.json() or {}
+    except ValueError as not_json:
+        raise OpenIdRefused(NO_ID_TOKEN.format(issuer=provider.issuer)) from not_json
     id_token = str(granted.get("id_token") or "")
     if not id_token:
         raise OpenIdRefused(NO_ID_TOKEN.format(issuer=provider.issuer))
@@ -192,6 +229,16 @@ async def claims(
     # id_token replayed from another one is valid in every other way.
     if not secrets.compare_digest(str(said.get("nonce") or ""), nonce):
         raise OpenIdRefused(ANOTHER_CALL)
+    # PyJWT accepts the token when this client is ANY of several audiences. OpenID Connect Core
+    # 3.1.3.7 then asks two more things: with more than one audience `azp` must be there, and
+    # whenever it is there it names this client — a token minted for another client of the same
+    # IdP that lists us as a second audience is not ours.
+    audience: object = said.get("aud")
+    azp = said.get("azp")
+    if isinstance(audience, list) and len(audience) > 1 and azp is None:  # pyright: ignore[reportUnknownArgumentType] — a list off a JWT is a list of whatever it says
+        raise OpenIdRefused(NOT_ITS_OWN_TOKEN.format(azp=None, client_id=client_id))
+    if azp is not None and str(azp) != client_id:
+        raise OpenIdRefused(NOT_ITS_OWN_TOKEN.format(azp=str(azp), client_id=client_id))
     verified = said.get("email_verified")
     name = said.get("name") or said.get("given_name")
     return Claims(
@@ -213,10 +260,18 @@ async def _the_signing_key(http: httpx.AsyncClient, provider: Provider, id_token
         kid = str(header.get("kid") or "")
     except (httpx.HTTPError, ValueError, jwt.PyJWTError) as unreachable:
         raise OpenIdRefused(NO_KEY.format(issuer=provider.issuer)) from unreachable
-    for published_key in published.keys:
-        if published_key.key_id == kid or not kid:
-            return published_key.key
-    raise OpenIdRefused(NO_KEY.format(issuer=provider.issuer))
+    try:
+        return published[kid].key if kid else _the_only_key(published)
+    except KeyError as unpublished:
+        raise OpenIdRefused(NO_KEY.format(issuer=provider.issuer)) from unpublished
+
+
+def _the_only_key(published: jwt.PyJWKSet) -> Any:
+    """A token that names no key is verifiable only when the JWKS publishes exactly one."""
+    keys: list[jwt.PyJWK] = published.keys
+    if len(keys) != 1:
+        raise KeyError("no kid, and not one key")
+    return keys[0].key
 
 
 def _named(said: dict[str, Any], field: str, issuer: str) -> str:
@@ -224,7 +279,7 @@ def _named(said: dict[str, Any], field: str, issuer: str) -> str:
     found = str(said.get(field) or "")
     if not found:
         raise OpenIdRefused(MISSING.format(issuer=issuer, field=field))
-    return found
+    return reachable(found, issuer=issuer, field=field)
 
 
 # The IdP's own words, when it has any: `error_description`, then `error`, then the status. Never

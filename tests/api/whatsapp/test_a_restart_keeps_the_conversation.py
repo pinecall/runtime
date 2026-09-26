@@ -7,14 +7,14 @@ import asyncio
 import httpx
 import pytest
 
-from pinecall.api._live import Live
 from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
+from pinecall.api.live import Live
 from pinecall.api.whatsapp import threads as whatsapp_threads
 from pinecall.api.whatsapp.threads import Threads
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
-from pinecall.routes.table import MemoryRoutes
+from pinecall.routes.records import MemoryRoutes
 from tests.api.conftest import AGENT
 from tests.api.whatsapp.conftest import (
     AN_INSTANT,
@@ -43,7 +43,7 @@ async def restarted(threads: Threads, live: Live, logs: Logs, idle_seconds: floa
     live.close(call)
     logs.forget(call)
     fresh = Threads(idle_seconds=idle_seconds)
-    app.dependency_overrides[whatsapp_threads.the_threads] = lambda: fresh
+    app.dependency_overrides[whatsapp_threads.get_threads] = lambda: fresh
     return fresh
 
 

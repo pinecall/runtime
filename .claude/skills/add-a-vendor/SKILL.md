@@ -57,19 +57,19 @@ normal case, and a file that only forwards `model=` and `api_key=` is one more t
 from livekit.plugins import acme
 
 from pinecall.providers.llm import VENDORS
-from pinecall.providers.registry import Asked, Chat, a_key
+from pinecall.providers.registry import Asked, Chat, vendor_key
 
 DEFAULT_MODEL = "acme-fast"  # the plugin's own is acme-large (acme/llm.py:67)
 
 
 @VENDORS.registers("acme")
 def build(asked: Asked) -> Chat:
-    return acme.LLM(model=asked.model or DEFAULT_MODEL, api_key=a_key("acme", asked))
+    return acme.LLM(model=asked.model or DEFAULT_MODEL, api_key=vendor_key("acme", asked))
 ```
 
 ## The four places that are still by hand
 
-1. `providers/knocks.py` — the vendor's cheapest authenticated GET, so `doctor` knocks and
+1. `providers/key_probes.py` — the vendor's cheapest authenticated GET, so `doctor` knocks and
    `make deploy` refuses a dead key by name. **Only a URL you have opened with a live key and
    watched answer 200.** A guessed one 404s a perfectly good key and refuses a box that was fine;
    a vendor with no row is simply not knocked, which is honest.

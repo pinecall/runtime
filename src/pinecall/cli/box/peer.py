@@ -19,10 +19,16 @@ from pinecall.cli.box.credentials import (
     decrypt_with_systemd,
     encrypt_with_systemd,
 )
-from pinecall.cli.box.instance import INSTANCES, a_name, credstore_of, env_file, said_in
+from pinecall.cli.box.instance import (
+    INSTANCES,
+    check_instance_name,
+    credstore_of,
+    env_file,
+    said_in,
+)
 from pinecall.cli.keys.verbs import OPS_ORGS
 from pinecall.cli.operator import TIMEOUT_S, Operator, OperatorRefused
-from pinecall.types import DEFAULT_ORG, PRODUCTION, SANDBOX, THE_FLEET, Env, an_env
+from pinecall.types import DEFAULT_ORG, PRODUCTION, SANDBOX, THE_FLEET, Env, parse_env
 
 # Two instances trust each other the way a worker box trusts its hub: with one fleet key each,
 # minted at the other's gateway and kept in this one's store, where its gateway loads it. What a
@@ -76,12 +82,12 @@ class Side:
 
 def side_of(name: str, instances: Path = INSTANCES) -> Side:
     """The instance's file, read: the refusal when this box holds no such instance."""
-    path = env_file(a_name(name), instances)
+    path = env_file(check_instance_name(name), instances)
     if not path.exists():
         raise PeerRefused(NO_SUCH_INSTANCE.format(name=name, path=path))
     return Side(
         name=name,
-        world=an_env(said_in(path, "world") or PRODUCTION),
+        world=parse_env(said_in(path, "world") or PRODUCTION),
         gateway_url=said_in(path, "gateway_url") or "",
         domain=said_in(path, "domain"),
         sandbox_url=said_in(path, "sandbox_url"),
@@ -93,8 +99,8 @@ type Mint = Callable[[Side, str, Decrypt], Awaitable[str]]
 
 
 # At the instance's own gateway, on its own ops key, as pinecall-worker-key@ mints the worker's —
-# and so in that instance's world, which is the one the door mints in (api/orgs.py) and the only
-# one whose doors honour it (auth/world.py). The key is read off the answer and never printed.
+# and so in that instance's world, which is the one the door mints in (api/ops/orgs.py) and the only
+# one whose doors honour it (auth/env.py). The key is read off the answer and never printed.
 async def minted_at(
     side: Side, into: str, decrypt: Decrypt, transport: httpx.AsyncBaseTransport | None = None
 ) -> str:
@@ -121,7 +127,7 @@ class Hands:
     encrypt: Encrypt = encrypt_with_systemd
 
 
-async def peer(  # noqa: PLR0913 — the two instances, where they live, and what it touches
+async def peer(
     source: str,
     into: str,
     instances: Path = INSTANCES,
@@ -132,7 +138,7 @@ async def peer(  # noqa: PLR0913 — the two instances, where they live, and wha
 ) -> int:
     """Mint at `source`, keep in `into`'s store under the name that says what it opens."""
     using = hands or Hands()
-    if a_name(source) == a_name(into):
+    if check_instance_name(source) == check_instance_name(into):
         raise PeerRefused(ONE_INSTANCE)
     side = side_of(source, instances)
     store = credstore_of(into, instances)

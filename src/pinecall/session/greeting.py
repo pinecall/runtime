@@ -14,7 +14,7 @@ type Speaks = Callable[[str, bool | None], Awaitable[None]]
 
 # A call a RUN opened has no opening: the state it starts in is the conversation that already
 # happened. Both sessions ask here, so the rule is written once (docs/decisions/dispatch.md, `run`).
-def the_greeting_for(greeting: Greeting | None, run: str | None) -> Greeting | None:
+def greeting_for(greeting: Greeting | None, run: str | None) -> Greeting | None:
     """The opening this call gets: none at all when a run opened it, whatever the class declared."""
     if run is not None:
         return None

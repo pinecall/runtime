@@ -171,7 +171,7 @@ def _an_object(value: Any) -> dict[str, Any]:
 class MemoryPersonas(Personas):
     """The same list in this process's own memory: a gateway with no database still simulates."""
 
-    def __init__(self) -> None:  # noqa: D107 — there is nothing to open
+    def __init__(self) -> None:
         self._kept: dict[str, dict[str, dict[str, Any]]] = {}
 
     @override

@@ -35,7 +35,7 @@ MEDIA = {
 
 
 def fetched(url: str) -> Any:
-    with urllib.request.urlopen(url, timeout=60) as answer:  # noqa: S310 — a pinned https URL
+    with urllib.request.urlopen(url, timeout=60) as answer:
         return json.load(answer)
 
 

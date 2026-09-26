@@ -8,7 +8,13 @@ from typing import Any, cast
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
-from pinecall.api._deps import (
+from pinecall.api.agents.handlers import HANDLERS, Live, LiveDep, Socket, handles, parse_command
+from pinecall.api.agents.held_agent import SocketId, new_socket_id
+from pinecall.api.agents.processes import Process, Processes, ProcessesDep
+from pinecall.api.agents.registry import Registry, RegistryDep
+from pinecall.api.agents.session_config import tuned_for
+from pinecall.api.calls.attachment import handed_on, parked_calls_of
+from pinecall.api.deps import (
     AdmissionDep,
     CodesDep,
     KeysDep,
@@ -17,24 +23,18 @@ from pinecall.api._deps import (
     MembersDep,
     SettingsDep,
     TuningDep,
-    a_key_on_a_socket,
+    get_socket_key,
 )
-from pinecall.api.agents.handlers import HANDLERS, Live, LiveDep, Socket, asked, handles
-from pinecall.api.agents.holding import SocketId, a_socket_id
-from pinecall.api.agents.processes import Process, Processes, ProcessesDep
-from pinecall.api.agents.registry import Registry, RegistryDep
-from pinecall.api.agents.tuned import tuned_for
-from pinecall.api.calls.attaching import handed_on, parked_calls_of
-from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
-from pinecall.auth.corner import author_of
-from pinecall.auth.keys import KeyRecord, held_by, not_opening
+from pinecall.auth.bearer import POLICY_VIOLATION, close_reason
+from pinecall.auth.keys import KeyRecord, cannot_open, is_held_by
+from pinecall.auth.request_scope import author_of
 from pinecall.knowledge import Knowledge
 from pinecall.log import REFUSED
-from pinecall.log.entry import Entry, unstored
+from pinecall.log.entry import Entry, ephemeral_entry
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import Admission, QuotaExhausted
-from pinecall.orgs.codes import Codes
-from pinecall.orgs.tuning import TuningStore
+from pinecall.orgs.caller_codes import Codes
+from pinecall.orgs.tuning_store import TuningStore
 from pinecall.providers import declaration
 from pinecall.types import AgentConfig, DeclarationRefused, Env
 from pinecall_protocol import Command, ProtocolError, WireModel, encode
@@ -69,10 +69,10 @@ async def apps(
 ) -> None:
     """One app, one socket: a key at the door, then commands in and log entries out."""
     try:
-        key = await a_key_on_a_socket(websocket, keys, members, settings)
+        key = await get_socket_key(websocket, keys, members, settings)
     except PermissionError as refused:
         await websocket.accept()
-        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(str(refused)))
+        await websocket.close(code=POLICY_VIOLATION, reason=close_reason(str(refused)))
         return
     if key is None:
         await websocket.close(code=POLICY_VIOLATION)
@@ -80,8 +80,8 @@ async def apps(
     await websocket.accept()
     await keys.touch(key.key_id)
     # Holding an agent is the `app` scope: a person's key without it is told so and closed.
-    if (closed := not_opening(key, "app")) is not None:
-        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(closed))
+    if (closed := cannot_open(key, "app")) is not None:
+        await websocket.close(code=POLICY_VIOLATION, reason=close_reason(closed))
         return
     socket = AppSocket(
         websocket, key, logs, registry, live, admission, tuning, knowledge, processes, codes
@@ -93,7 +93,7 @@ async def apps(
             app=socket.id,
             org=key.org,
             env=key.env,
-            holder=held_by(key),
+            holder=is_held_by(key),
             address=None if client is None else client.host,
             connected_at=time.time(),
             stop=socket.stopped,
@@ -130,7 +130,7 @@ class AppSocket:
         codes: Codes,
     ):
         self._websocket = websocket
-        self._id = a_socket_id()
+        self._id = new_socket_id()
         self.key = key
         self.logs = logs
         self.registry = registry
@@ -159,7 +159,7 @@ class AppSocket:
     @property
     def holder(self) -> str | None:
         """Whose corner of that world: a developer's own in the sandbox, nobody's in production."""
-        return held_by(self.key)
+        return is_held_by(self.key)
 
     @property
     def author(self) -> str:
@@ -213,8 +213,8 @@ class AppSocket:
     async def stopped(self, why: str) -> None:
         """Tell the app it was stopped — it exits rather than reconnect — and close its socket."""
         said = ErrorEvent(code=STOPPED, message=why, recoverable=False)
-        await self.send(unstored("error", said))
-        await self._websocket.close(reason=as_a_close_reason(why))
+        await self.send(ephemeral_entry("error", said))
+        await self._websocket.close(reason=close_reason(why))
 
     async def refuse(self, agent: str, code: str, message: str, raw: Any) -> None:
         """Say no in the protocol's own words, naming the command and the id the app gave it."""
@@ -227,7 +227,7 @@ class AppSocket:
             await self.emit(agent, "error", error)
             return
         # A frame that named no agent belongs to no log: the app still hears why, unnumbered.
-        await self.send(unstored("error", error))
+        await self.send(ephemeral_entry("error", error))
 
     # A command the protocol knows but this socket cannot run is a call-scoped one: it needs a
     # session, and sessions arrive with the text session card.
@@ -274,8 +274,8 @@ NOT_THIS_SOCKET = (
 async def register(socket: Socket, command: Command) -> None:
     """This socket speaks for this agent, or it is told why not. It brings no doors with it:
     `routes` is still on the wire so an app on an older package registers, and is not read —
-    a door is a row an operator typed (api/numbers.py), and the widget is not a door."""
-    wanted = asked(command, AgentRegister)
+    a door is a row an operator typed (api/telephony/numbers.py), and the widget is not a door."""
+    wanted = parse_command(command, AgentRegister)
     socket.processes.named(socket.id, wanted.host)
     # One more agent for this org, unless it already holds this one: a socket correcting its own
     # doors, or a second process of the same agent, is not a new agent — and neither is the same
@@ -330,24 +330,24 @@ NO_SUCH_BASE = (
 @handles("agent.configure")
 async def configure(socket: Socket, command: Command) -> None:
     """Declare or change what the agent is. Only the fields the app sent change."""
-    wanted = asked(command, AgentConfigure)
+    wanted = parse_command(command, AgentConfigure)
     held = socket.registry.on(socket.env, command.agent, socket.id)
     # Not held on this socket: the registry's own refusal below says so, in its own words.
     if held is not None:
-        declared = declaration.configured(held.config, wanted.config)
-        await the_bases_it_reads(socket, command.agent, declared)
+        declared = declaration.apply_declaration(held.config, wanted.config)
+        await check_bases(socket, command.agent, declared)
     entry = await socket.registry.configure(socket.id, socket.env, command.agent, wanted.config)
     await socket.send(entry)
 
 
-async def the_bases_it_reads(socket: Socket, slug: str, declared: AgentConfig) -> None:
+async def check_bases(socket: Socket, slug: str, declared: AgentConfig) -> None:
     """Refused when the class searches with nothing attached, or reads a base never pushed."""
     session = await tuned_for(socket.tuning, socket.org, socket.env, socket.holder, slug, declared)
     bases = session.config.bases
     if declared.uses_knowledge and not bases:
         raise DeclarationRefused(NO_BASE_ATTACHED.format(slug=slug, world=socket.env))
     # A gateway with no table keeps no base at all, and there a lookup finds nothing and refuses
-    # nobody (api/_deps.py): the same holds for the declaration.
+    # nobody (api/deps.py): the same holds for the declaration.
     if socket.knowledge is None or not bases:
         return
     pushed = {

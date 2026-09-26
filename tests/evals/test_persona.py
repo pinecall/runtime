@@ -7,7 +7,7 @@ from dataclasses import replace
 import pytest
 
 from pinecall.evals.judges.persona import NOBODY_TO_ASK, PersonaJudge, persona_judge_of
-from tests.evals.conversations import a_case_of, asked, replied
+from tests.evals.conversations import a_call, a_case_of, asked, replied
 from tests.evals.fakes import CountingJudge
 
 pytestmark = pytest.mark.unit
@@ -59,6 +59,21 @@ async def test_the_judge_is_asked_both_halves_and_never_one_the_caller_left_empt
     assert "accepts the call only if this happened on it: a price" in both.prompts[0]
     assert "declines the call if this happened on it: a call back" in both.prompts[0]
     assert "declines the call" not in one.prompts[0]
+
+
+async def test_the_judge_is_shown_every_tool_the_agent_called_and_what_it_answered() -> None:
+    """A rule about a booking is decidable only if the judge can see the booking happen."""
+    judge = CountingJudge()
+    booked = a_case_of(
+        asked("Quiero cita el viernes"),
+        replied("Hecho, viernes a las 10.", calls=[a_call("book", {"day": "viernes"}, "#12")]),
+    )
+    await PersonaJudge("a booking", "").evaluate(chat_ctx=booked.chat_ctx, llm=judge)
+    assert (
+        'assistant: Hecho, viernes a las 10.\n[function call: book({"day": "viernes"})]'
+        in judge.prompts[0]
+    )
+    assert "[function output: #12]" in judge.prompts[0]
 
 
 # No model, no answer: `broken` here is what score.py files as `skipped` with the ceiling's reason.

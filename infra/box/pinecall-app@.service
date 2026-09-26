@@ -41,8 +41,19 @@ Environment=PINECALL_URL=http://127.0.0.1:8080
 LoadCredentialEncrypted=pinecall-app-%i.key:/etc/credstore.encrypted/pinecall-app-%i.key
 LoadCredentialEncrypted=pinecall-app-%i.env:/etc/credstore.encrypted/pinecall-app-%i.env
 ExecStart=/bin/sh -c 'set -a; . "$CREDENTIALS_DIRECTORY/pinecall-app-%i.env"; PINECALL_KEY=$$(cat "$CREDENTIALS_DIRECTORY/pinecall-app-%i.key"); set +a; exec node_modules/.bin/pinecall start --prod $${PINECALL_AGENT:-}'
+# A tenant's own Node, so a lighter fence than hardening.conf puts around the runtime's units:
+# no new privileges, /usr and /etc read-only, no home, its own /tmp — and /opt stays writable,
+# because what an app writes beside itself is the app's business.
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
 Restart=always
 RestartSec=3
+# A crash loop backs off: three seconds, then doubling to a minute, so a unit that cannot start
+# is retried and never fills the journal at three seconds a try.
+RestartSteps=5
+RestartMaxDelaySec=60
 
 [Install]
 WantedBy=multi-user.target

@@ -4,7 +4,7 @@ import pytest
 
 from pinecall.log.pii import MASK, Masker
 from pinecall.types.agent import AgentConfig
-from pinecall.types.tool import ToolSpec
+from pinecall.types.tool_spec import ToolSpec
 
 pytestmark = pytest.mark.unit
 

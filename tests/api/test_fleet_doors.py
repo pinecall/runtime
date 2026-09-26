@@ -10,15 +10,15 @@ import pytest
 
 from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry
-from pinecall.api.peers import the_sandbox
+from pinecall.api.ops.peers import get_sandbox_peer
 from pinecall.auth.keys import MemoryKeys
 from pinecall.fleet import Heartbeat
 from pinecall.log.store import MemoryStore
-from pinecall.routes.table import MemoryRoutes
+from pinecall.routes.records import MemoryRoutes
 from pinecall.types import DEFAULT_ORG, PRODUCTION, SANDBOX, THE_FLEET, Env, Route
 from pinecall.types.dispatch import Handover
-from pinecall.worker.client import Gateway
-from pinecall.worker.hop import GatewayRefused
+from pinecall.worker.gateway_client import Gateway
+from pinecall.worker.gateway_http import GatewayRefused
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, over_the_asgi_app
 from tests.api.peering import A_PEER_KEY, THERE, Scripting
 from tests.api.talking import answering_in
@@ -33,7 +33,7 @@ CALLBACKS = "/v1/callbacks"
 # scope — and that is not the tenant's key the rest of this suite holds, so one is issued here.
 @pytest.fixture
 async def fleet_gateway(wired: None, keys: MemoryKeys) -> AsyncIterator[Gateway]:  # noqa: ARG001
-    """worker/client.py over the real app, knocking with the fleet's own key."""
+    """worker/gateway_client.py over the real app, knocking with the fleet's own key."""
     issued = await keys.issue(
         DEFAULT_ORG, "the worker on this box", scopes=frozenset({THE_FLEET, "app", "calls"})
     )
@@ -203,7 +203,7 @@ async def test_production_asks_its_sandbox_when_its_own_table_has_nobody(
     fleet_gateway: Gateway, other_instance: Scripting
 ) -> None:
     handing = {"holder": BERNA, "fleet": "pinecall-sandbox"}
-    sandbox = other_instance(the_sandbox, httpx.Response(200, json=handing))
+    sandbox = other_instance(get_sandbox_peer, httpx.Response(200, json=handing))
 
     handover = await fleet_gateway.rings_for(AGENT, org=A_RECORD.org, caller=BERNAS_PHONE)
 
@@ -216,7 +216,7 @@ async def test_production_asks_its_sandbox_when_its_own_table_has_nobody(
 async def test_a_sandbox_that_does_not_answer_leaves_the_ring_in_production(
     fleet_gateway: Gateway, other_instance: Scripting, caplog: pytest.LogCaptureFixture
 ) -> None:
-    other_instance(the_sandbox, httpx.ReadTimeout("two seconds went by"))
+    other_instance(get_sandbox_peer, httpx.ReadTimeout("two seconds went by"))
 
     assert await fleet_gateway.rings_for(AGENT, org=A_RECORD.org, caller=BERNAS_PHONE) is None
     warned = [one.levelname for one in caplog.records if THERE in one.getMessage()]

@@ -5,13 +5,10 @@ from __future__ import annotations
 import json
 from typing import Any, Protocol
 
-from cryptography.fernet import Fernet
-
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.orgs.table import DELETED_NOTHING
-from pinecall.orgs.vault import NO_VAULT_KEY, NoVaultKey, a_cipher
-from pinecall.types import Carrier, SipPeer, TwilioAccount, a_carrier_kind, a_sip_transport
+from pinecall.orgs.vault import NO_VAULT_KEY, Cipher, NoVaultKey, seal, sealed_store, unseal
+from pinecall.types import Carrier, SipPeer, TwilioAccount, parse_carrier_kind, parse_sip_transport
 
 
 class Carriers(Protocol):
@@ -33,7 +30,7 @@ class Carriers(Protocol):
 class MemoryCarriers:
     """The table of a clone with a dev key and no Postgres: the same cipher, forgotten on exit."""
 
-    def __init__(self, cipher: Fernet) -> None:
+    def __init__(self, cipher: Cipher) -> None:
         self._cipher = cipher
         self._rows: dict[str, tuple[str, str, str]] = {}
 
@@ -58,13 +55,13 @@ INSERT INTO carriers (org, kind, account, ciphertext, set_at) VALUES ($1, $2, $3
         set_at = now()
 """
 _OF = "SELECT kind, ciphertext FROM carriers WHERE org = $1"
-_DROP = "DELETE FROM carriers WHERE org = $1"
+_DROP = "DELETE FROM carriers WHERE org = $1 RETURNING org"
 
 
 class PostgresCarriers:
     """The table in Postgres, read on every ask: a carrier set now is what the next import uses."""
 
-    def __init__(self, pool: Pool, cipher: Fernet) -> None:
+    def __init__(self, pool: Pool, cipher: Cipher) -> None:
         self._pool = pool
         self._cipher = cipher
 
@@ -83,21 +80,17 @@ class PostgresCarriers:
 
     async def drop(self, org: str) -> bool:
         """The command tag says whether a row went, so dropping a stranger is told apart."""
-        tag = await self._pool.execute(_DROP, org)
-        return tag.strip() != DELETED_NOTHING
+        return await self._pool.fetchrow(_DROP, org) is not None
 
 
 # None when the box was given no vault key: the doors that need one answer 503 in the vault's own
 # sentence (NO_VAULT_KEY): a carrier's credentials are a secret exactly as a provider key is.
 def carriers_for(settings: Settings, pool: Pool | None) -> Carriers | None:
     """Postgres when the process opened one, memory on a dev key, none when no vault key was set."""
-    if not settings.vault_key:
-        return None
-    cipher = a_cipher(settings.vault_key)
-    return MemoryCarriers(cipher) if pool is None else PostgresCarriers(pool, cipher)
+    return sealed_store(settings, pool, memory=MemoryCarriers, postgres=PostgresCarriers)
 
 
-def _sealed(cipher: Fernet, carrier: Carrier) -> str:
+def _sealed(cipher: Cipher, carrier: Carrier) -> str:
     """The credentials as a row keeps them: one Fernet token over their JSON."""
     account = carrier.account
     said: dict[str, Any] = (
@@ -113,13 +106,13 @@ def _sealed(cipher: Fernet, carrier: Carrier) -> str:
             "outbound_password": account.outbound_password,
         }
     )
-    return cipher.encrypt(json.dumps(said).encode()).decode()
+    return seal(cipher, json.dumps(said))
 
 
-def _opened(cipher: Fernet, org: str, kind: str, ciphertext: str) -> Carrier:
+def _opened(cipher: Cipher, org: str, kind: str, ciphertext: str) -> Carrier:
     """One row back into the domain's own Carrier, the credentials in the clear."""
-    said: dict[str, Any] = json.loads(cipher.decrypt(ciphertext.encode()).decode())
-    if a_carrier_kind(kind) == "twilio":
+    said: dict[str, Any] = json.loads(unseal(cipher, ciphertext))
+    if parse_carrier_kind(kind) == "twilio":
         return Carrier(
             org=org,
             account=TwilioAccount(
@@ -137,7 +130,7 @@ def _opened(cipher: Fernet, org: str, kind: str, ciphertext: str) -> Carrier:
             password=str(said["password"]),
             addresses=tuple(str(network) for network in said["addresses"]),
             outbound_host=said.get("outbound_host"),
-            outbound_transport=a_sip_transport(said.get("outbound_transport")),
+            outbound_transport=parse_sip_transport(said.get("outbound_transport")),
             outbound_username=said.get("outbound_username"),
             outbound_password=said.get("outbound_password"),
         ),

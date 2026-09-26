@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass
 from typing import Literal, cast, override
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import (
     BaseSettings,
     DotEnvSettingsSource,
@@ -12,11 +12,12 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
-from pinecall._env_files import ENV_FILES, as_a_refusal, env_files_read
+from pinecall._env_files import ENV_FILES, env_file_refusal, env_files_read
 from pinecall._exceptions import PinecallError
 from pinecall._vendor_keys import VendorKeys
 from pinecall.types import PRODUCTION, SANDBOX, Env
 from pinecall.types.dispatch import A_FLEET_NAME, DEFAULT_FLEET
+from pinecall.types.today import parse_zone
 
 # Our own knobs carry this prefix; a vendor key keeps the vendor's own name (the alias on the
 # field), so the SDK that reads ANTHROPIC_API_KEY by itself and this class agree.
@@ -29,12 +30,16 @@ type Role = Literal["all", "hub", "worker"]
 # HTTP door across the internet, and the one way to retrieve on a machine TEI has no image for.
 type EmbedProvider = Literal["tei", "perplexity", "openrouter"]
 
+# What the gateway's lines look like: a terminal reads text, a journal a Loki or Vector tails
+# reads json — the same json the worker's `start` verb writes by itself (livekit's JsonFormatter).
+type LogFormat = Literal["text", "json"]
+
 
 # A lookup never delays a reply past its budget, and a slow model at hang-up never holds the
 # seal: the numbers a session waits on memory and retrieval for, then goes on without them.
 # Declared here, once, because the three fields below take their defaults from it. The two lookup
 # budgets are named for the CHANNEL because each measures a different silence, and the field that
-# reads each one says which (session/lookups.py starts a spoken call's while the caller talks).
+# reads each one says which (session/lookup_tools.py starts a spoken call's while the caller talks).
 @dataclass(frozen=True)
 class Budgets:
     """What each turn may wait for its lookups, and a hang-up for its memory, before going on."""
@@ -42,6 +47,10 @@ class Budgets:
     voice_lookup_ms: int = 250
     text_lookup_ms: int = 3000
     remember_s: float = 8.0
+    # What the seal of a spoken call waits, in all, for its queued entries to reach the platform
+    # and its verdict to come back: well inside the job's own SEALING_S (worker/main.py), so a
+    # gateway that is away at hang-up costs the verdict and never the seal (2026-09-26).
+    seal_s: float = 20.0
 
 
 def _names(cls: type[BaseSettings], key: str) -> str:
@@ -166,7 +175,7 @@ class Settings(VendorKeys):
     # ── The world: which one this instance IS, and where the other one answers ──
     # An instance is one world, with its own database, worker and keys: production answers the
     # phone, the sandbox is where agents are written. Nothing picks the world per request any more
-    # (auth/world.py holds a request's `pinecall-env` against THIS). A box that runs one instance
+    # (auth/env.py holds a request's `pinecall-env` against THIS). A box that runs one instance
     # is production, as every box was before there were two; the sandbox is said on purpose, by
     # the environment file of its own instance.
     world: Env = Field(
@@ -254,11 +263,11 @@ class Settings(VendorKeys):
         ),
     )
 
-    # ── Recordings: where a call's audio lands ─────────────────────────────────
-    # WHETHER it is kept is the agent's own setting and not the box's (`pinecall agent set
-    # --record`, types/tuning.py): one org may record and another may not on the same machine,
-    # and neither waits for a deploy. worker/recordings.py composes the path; worker/egress.py
-    # asks the box's recorder for the room.
+    # ── Recordings: where a call's audio lands ───────────────────────────────── WHETHER it is kept
+    # is the agent's own setting and not the box's (`pinecall agent set --record`, types/tuning.py):
+    # one org may record and another may not on the same machine, and neither waits for a deploy.
+    # worker/recording_paths.py composes the path; worker/recorder.py asks the box's recorder for
+    # the room.
     recordings_root: str = Field(
         default="recordings",
         validation_alias="PINECALL_RECORDINGS",
@@ -301,9 +310,9 @@ class Settings(VendorKeys):
         validation_alias="PINECALL_WORKER_NAME",
         description="What this worker is called in its heartbeats. Unset: the short hostname.",
     )
-    # The name this instance's workers register under and its gateway dispatches to: its own, so
-    # two instances on one SFU (production and the sandbox) never take each other's calls. It is
-    # also the prefix of every trunk and rule the gateway names on the SFU (routes/trunks.py).
+    # The name this instance's workers register under and its gateway dispatches to: its own, so two
+    # instances on one SFU (production and the sandbox) never take each other's calls. It is also
+    # the prefix of every trunk and rule the gateway names on the SFU (routes/inbound_trunks.py).
     fleet: str = Field(
         default=DEFAULT_FLEET,
         pattern=A_FLEET_NAME,
@@ -380,7 +389,7 @@ class Settings(VendorKeys):
         description="Packages that plug a policy into the runtime's points, comma separated.",
     )
     # Pinecall's own mobile app calls /v1 from a WebView whose origin is not this box's, and its
-    # two origins are always let in (api/app_origins.py). These are the ones a person adds, one by
+    # two origins are always let in (api/origins.py). These are the ones a person adds, one by
     # one — the app's dev server on a laptop — and never a wildcard. docs/protocol/people.md.
     app_origins: str = Field(
         default="",
@@ -402,14 +411,17 @@ class Settings(VendorKeys):
         default=None,
         description=(
             "A Fernet key, generated once on the box by `pinecall-runtime box secrets`: a tenant's "
-            "own provider keys are encrypted under it. Unset, the provider-key doors answer 503."
+            "own provider keys are encrypted under it. Unset, the provider-key doors answer 503. "
+            "To rotate: a comma-separated list, the new key first and the old one behind it; every "
+            "secret seals under the first and opens under whichever sealed it."
         ),
     )
-    # The box's own mail, which is how an invitation, a password reset and a forgotten one reach
-    # the person they are about instead of being copied out of an answer by hand. Generic SMTP,
-    # so SES, Postmark, Mailgun or a server of one's own all fit; a credential like every other
-    # secret on a box, so it is a systemd credential and never argv. An org that wired its own
-    # (orgs/mail.py) is used instead; with neither, nothing is sent and every door reads as before.
+    # The box's own mail, which is how an invitation, a password reset and a forgotten one reach the
+    # person they are about instead of being copied out of an answer by hand. Generic SMTP, so SES,
+    # Postmark, Mailgun or a server of one's own all fit; a credential like every other secret on a
+    # box, so it is a systemd credential and never argv. An org that wired its own
+    # (orgs/org_mail.py) is used instead; with neither, nothing is sent and every door reads as
+    # before.
     smtp_url: str | None = Field(
         default=None,
         description="smtp://user:pass@host:587, or smtps://…:465 — what this box posts mail with.",
@@ -421,6 +433,51 @@ class Settings(VendorKeys):
     log_level: str = Field(
         default="INFO",
         description="How much both processes say: DEBUG, INFO, WARNING or ERROR.",
+    )
+    log_format: LogFormat = Field(
+        default="text",
+        description=(
+            "The gateway's lines: text for a terminal, json for a journal (the worker's `start` "
+            "is json)."
+        ),
+    )
+    # Where a call's spans go. livekit spans the session, every turn, every model and tool call
+    # (agents/telemetry/trace_types.py) on a tracer that is a no-op until a provider is set;
+    # worker/telemetry.py sets one exporting over OTLP/HTTP when this names where.
+    otlp_endpoint: str | None = Field(
+        default=None,
+        description=(
+            "Where the worker sends a call's traces, OTLP over HTTP "
+            "(http://localhost:4318/v1/traces). Unset: no trace."
+        ),
+    )
+    otlp_headers: str | None = Field(
+        default=None,
+        description=(
+            "Headers on every trace export, `name=value` comma-separated: a Langfuse or Grafana "
+            "credential."
+        ),
+    )
+    # What day it is on a call is the caller's day, not the box's: a hub in UTC and a clinic in
+    # Madrid disagree by an hour at midnight, and "tomorrow at ten" lands on the wrong day.
+    timezone: str = Field(
+        default="UTC",
+        description="The IANA zone a call's `today` is read in (Europe/Madrid). UTC unless set.",
+    )
+
+    @field_validator("timezone")
+    @classmethod
+    def _a_zone_that_exists(cls, zone: str) -> str:
+        """A typo here is a call dated wrong every day: refused at startup, naming the spelling."""
+        parse_zone(zone)
+        return zone
+
+    otlp_pii: bool = Field(
+        default=False,
+        description=(
+            "Whether a trace carries what was said and what a tool got. Off, a span keeps names "
+            "and timings."
+        ),
     )
     # What judging ONE call at hang-up may cost. Zero closes the door on every judge that would
     # ask a model; the policies that answer by code still answer. docs/decisions/scoring.md.
@@ -495,7 +552,7 @@ def load_settings() -> Settings:
     try:
         return Settings()
     except OSError as failed:
-        raise as_a_refusal(failed) from failed
+        raise env_file_refusal(failed) from failed
 
 
 def variable_of(field: str) -> str:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from livekit.agents.llm import ChatContext, ChatMessage, FunctionCall, FunctionCallOutput
+from livekit.agents.llm import ChatContext, ChatMessage, FunctionCall
 
 from pinecall.evals.case import AGENT, CALLER
 
@@ -32,8 +32,3 @@ def said_by_the_caller(chat_ctx: ChatContext) -> tuple[str, ...]:
 def tools_called(chat_ctx: ChatContext) -> tuple[str, ...]:
     """The name of every tool this conversation called, in the order it called them."""
     return tuple(item.name for item in chat_ctx.items if isinstance(item, FunctionCall))
-
-
-def answered_by_the_app(chat_ctx: ChatContext) -> tuple[str, ...]:
-    """What every tool answered with, in call order: the evidence a stated fact may rest on."""
-    return tuple(item.output for item in chat_ctx.items if isinstance(item, FunctionCallOutput))

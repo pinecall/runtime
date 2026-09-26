@@ -28,10 +28,10 @@ The socket that takes a call over hears, before anything else of it:
 | field | |
 |---|---|
 | `app` | the socket that serves the call from now on |
-| `started` | the call's `call.started`: who, where, when |
+| `run_init` | the call's `call.started`: who, where, when |
 | `state` | the agent's state as the call's last `state.changed` left it |
 | `seq` | the last entry of the call before it changed hands |
-| `claimed` | the code a page showed that the call claimed ([codes.md](codes.md)), or `null` |
+| `claim_code` | the code a page showed that the call claimed ([codes.md](codes.md)), or `null` |
 
 Then every `tool.call` still waiting for an answer, sent again with its own seq: the model is still
 waiting on it, and a `tool.result` with that `call_id` lands where it always would. The socket must
@@ -103,7 +103,7 @@ A voice call — in a browser or on the phone — runs in a worker, and a web ch
 `@pinecall/room` joins the same kind of room: all of them go on through a gateway restart as above.
 A call written over `WS /v1/chat` (`pinecall chat`, the console) or on WhatsApp runs in the
 gateway's own process, and a restart ends its session — never the call, whose log is whole and head
-row unsealed. It is **taken up** the next time it is spoken to (`api/calls/taking_up.py`):
+row unsealed. It is **taken up** the next time it is spoken to (`api/calls/resume.py`):
 
 - **`WS /v1/chat?call=<id>`**: the caller's socket dropped with the gateway, and it dials again
   naming the call. `pinecall chat` and the console do that by themselves, for about a minute.
@@ -126,7 +126,7 @@ said; the app's socket hears `call.attached` and sends its prompt and tools agai
 ## A call nobody is running
 
 A call can still lose everybody who could end it: a worker killed with no time to drain, a written
-call whose caller never came back. The gateway's reaper (`api/reaping.py`) looks every minute:
+call whose caller never came back. The gateway's reaper (`api/calls/reaper.py`) looks every minute:
 
 - **A call in a room** is running while an **agent** is in its room. A room with only people left
   in it — the caller's tab still open, a supervisor's seat — is nobody's call: after five quiet

@@ -21,9 +21,9 @@ import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingT
 from pinecall.log.store.migrating import (
     MIGRATIONS_TABLE,
     RECORD_MIGRATION,
-    a_hash,
     apply_migrations,
     every,
+    file_hash,
 )
 from pinecall.log.store.postgres import MIGRATIONS, search_path_of
 from tests.postgres import Dev
@@ -67,7 +67,7 @@ async def a_box_before(postgres: Dev, migration: str) -> AsyncIterator[Before]:
         for name in names[: names.index(migration)]:
             path = MIGRATIONS / name
             await connection.execute(path.read_text(encoding="utf-8"))
-            await connection.execute(RECORD_MIGRATION, name, a_hash(path))
+            await connection.execute(RECORD_MIGRATION, name, file_hash(path))
         yield Before(dsn=postgres.dsn, schema=schema, connection=connection)
     finally:
         await connection.execute(f"drop schema if exists {schema} cascade")

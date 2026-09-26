@@ -9,12 +9,12 @@ import pytest
 from pinecall.mail import (
     Brand,
     Letter,
-    a_forgotten_password,
-    a_reset,
-    a_signup_code,
-    a_test_message,
-    an_invitation,
-    where_the_card_is,
+    card_link,
+    forgotten_password_letter,
+    invitation_letter,
+    probe_letter,
+    reset_letter,
+    signup_code_letter,
 )
 from pinecall.mail.brand import ACCENT
 from pinecall.mail.layout import LOGO_HEIGHT, WASH, WIDTH
@@ -28,9 +28,9 @@ LINK = "https://box.example.com/invitations/inv_TOKEN"
 DIES = "2026-10-09T11:02:03+00:00"
 
 LETTERS: list[Letter] = [
-    an_invitation(TO, ORG, "Ana Vidal", LINK, DIES),
-    a_reset(TO, ORG, "Ana Vidal", LINK, DIES),
-    a_forgotten_password(TO, ORG, LINK, DIES),
+    invitation_letter(TO, ORG, "Ana Vidal", LINK, DIES),
+    reset_letter(TO, ORG, "Ana Vidal", LINK, DIES),
+    forgotten_password_letter(TO, ORG, LINK, DIES),
 ]
 
 # Anything a client would have to fetch: an image, a stylesheet, a font, a pixel that says the
@@ -59,7 +59,7 @@ def test_no_letter_fetches_anything_from_anywhere_but_the_operators_own_logo(
     The one exception is the logo the operator set, at the address they typed themselves."""
     assert not AN_OUTSIDE_URL.search(letter.html)
     assert letter.html.count("http") == letter.html.count(LINK) == 2
-    branded = an_invitation(TO, ORG, "Ana Vidal", LINK, DIES, THEIRS)
+    branded = invitation_letter(TO, ORG, "Ana Vidal", LINK, DIES, THEIRS)
     fetched = AN_OUTSIDE_URL.findall(branded.html)
     assert fetched == ["<img", "src="], "the logo, once, and nothing else"
     assert branded.html.count("http") == 3 and branded.html.count(A_LOGO) == 1
@@ -67,7 +67,7 @@ def test_no_letter_fetches_anything_from_anywhere_but_the_operators_own_logo(
 
 def test_the_operators_brand_is_the_name_the_accent_and_the_logo_everywhere_pinecall_was() -> None:
     """A box that is somebody else's product says so in every letter, in both halves."""
-    letter = a_reset(TO, ORG, "Ana Vidal", LINK, DIES, THEIRS)
+    letter = reset_letter(TO, ORG, "Ana Vidal", LINK, DIES, THEIRS)
     assert letter.subject == "Reset your Acme Voice password"
     assert "Pinecall" not in letter.text and "Pinecall" not in letter.html
     assert f"Sent by {ORG} through Acme Voice" in letter.text
@@ -77,7 +77,7 @@ def test_the_operators_brand_is_the_name_the_accent_and_the_logo_everywhere_pine
         f'style="display:block;height:{LOGO_HEIGHT}px;width:auto;' in letter.html
     )
     assert ">Acme Voice</span>" not in letter.html, "a name is never typeset over the card"
-    named = a_reset(TO, ORG, "Ana", LINK, DIES, Brand(name="Acme Voice"))
+    named = reset_letter(TO, ORG, "Ana", LINK, DIES, Brand(name="Acme Voice"))
     assert ">Acme Voice</span>" not in named.html and "<img" not in named.html, (
         "a brand with no logo has no row above the card: the name is in the words and the footer"
     )
@@ -85,10 +85,10 @@ def test_the_operators_brand_is_the_name_the_accent_and_the_logo_everywhere_pine
 
 
 def test_the_test_message_is_the_one_frame_too_and_asks_nothing() -> None:
-    letter = a_test_message(TO, THEIRS)
+    letter = probe_letter(TO, THEIRS)
     assert letter.subject == "Acme Voice test message" and letter.to == TO
     assert "took it" in letter.text and "href=" not in letter.html and A_LOGO in letter.html
-    assert a_test_message(TO).subject == "Pinecall test message"
+    assert probe_letter(TO).subject == "Pinecall test message"
 
 
 @pytest.mark.parametrize("letter", LETTERS)
@@ -136,33 +136,33 @@ def test_only_the_letter_nobody_asked_for_says_what_to_do_if_nobody_asked() -> N
 )
 def test_a_name_somebody_typed_is_data_in_the_html_half(named: str) -> None:
     """A member's name and an org's are whatever was typed into a form: escaped, both of them."""
-    letter = an_invitation(TO, named, named, LINK, DIES)
+    letter = invitation_letter(TO, named, named, LINK, DIES)
     assert "<script>" not in letter.html and 'onmouseover="' not in letter.html
     assert named not in letter.html and named in letter.text
 
 
 def test_a_link_with_a_quote_in_it_cannot_break_out_of_the_href() -> None:
     """The one attribute a letter writes from a value, so it is the one worth pinning."""
-    letter = an_invitation(TO, ORG, "Ana", 'https://box.test/x" onclick="a', DIES)
+    letter = invitation_letter(TO, ORG, "Ana", 'https://box.test/x" onclick="a', DIES)
     assert 'onclick="a"' not in letter.html and "&quot;" in letter.html
 
 
 def test_a_letter_with_no_expiry_says_who_it_is_from_and_stops_there() -> None:
     """Nothing is invented: an org that handed over no date gets a footer without one."""
-    assert a_reset(TO, ORG, "Ana", LINK).text.endswith(f"Sent by {ORG} through Pinecall")
-    assert a_reset(TO, ORG, "Ana", LINK, "not a date").text.endswith("through Pinecall")
+    assert reset_letter(TO, ORG, "Ana", LINK).text.endswith(f"Sent by {ORG} through Pinecall")
+    assert reset_letter(TO, ORG, "Ana", LINK, "not a date").text.endswith("through Pinecall")
 
 
 def test_the_link_is_the_console_card_at_the_name_this_gateway_answers_to() -> None:
     """One card takes a password: an invitation and a reset are the same door underneath."""
-    assert where_the_card_is("https://box.example.com/", "inv_abc") == (
+    assert card_link("https://box.example.com/", "inv_abc") == (
         "https://box.example.com/invitations/inv_abc"
     )
 
 
 def test_a_signup_code_is_a_code_in_a_box_with_no_link_and_not_in_the_subject() -> None:
     """The outbox logs every subject, so the code rides the preheader and the body only."""
-    letter = a_signup_code(TO, "042917", "Ana", Brand(name="Pinecall"))
+    letter = signup_code_letter(TO, "042917", "Ana", Brand(name="Pinecall"))
     assert letter.subject == "Confirm your Pinecall email"
     assert "042917" not in letter.subject
     assert "042917" in letter.text and "042917" in letter.html

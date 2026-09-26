@@ -19,7 +19,7 @@ METERED_TYPES: tuple[str, ...] = ("call.summary", "call.score")
 UNOWNED = "unowned"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class UsageRow:
     """One metered entry as the operator reads it: whose call, and what it consumed."""
 
@@ -39,7 +39,7 @@ class UsageRow:
     cost_eur: float = 0.0
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Totals:
     """What one org has consumed so far, summed over every row read."""
 
@@ -67,7 +67,7 @@ class Totals:
         )
 
 
-def a_usage_row(metered: Metered) -> UsageRow:
+def fold_usage_row(metered: Metered) -> UsageRow:
     """One metered entry folded: the summary's minutes, turns and model rows, or the score's."""
     entry = metered.entry
     row = UsageRow(

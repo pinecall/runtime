@@ -9,7 +9,7 @@ from pinecall._settings import NOBODY_TO_ASK, load_settings
 from pinecall.cli import main
 from pinecall.cli.doctor import verbs as doctor
 from pinecall.mail import BoxMail
-from pinecall.orgs.mail import KeptMail
+from pinecall.orgs.org_mail import KeptMail
 from pinecall.types import Mailbox
 from tests.cli.doctor.reading import a_box_that_posts_mail, named, probes_that_answer
 
@@ -247,6 +247,8 @@ def test_a_worker_is_asked_after_no_postgres_and_no_embedder(
         "provider keys",
         "provider keys answer",
         "livekit",
+        "disk",
+        "fence",
         "lk",
     ]
     # The recorder with them: a worker records nothing, because the room is on the hub.
@@ -337,16 +339,16 @@ def test_a_machine_without_the_livekit_cli_is_told_how_to_install_it(
     assert main(["doctor"]) == 0
     printed = capsys.readouterr().out
     assert "! lk" in printed
-    assert doctor.how_to_install_the_livekit_cli() in printed
+    assert doctor.livekit_cli_install_line() in printed
     assert "all up" in printed
 
 
 # A remedy for another machine is not a remedy: the box that printed this one runs Debian.
 def test_the_install_line_is_the_machines_own(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(doctor.sys, "platform", "linux")
-    assert doctor.how_to_install_the_livekit_cli() == doctor.INSTALL_LIVEKIT_CLI_ANYWHERE
+    assert doctor.livekit_cli_install_line() == doctor.INSTALL_LIVEKIT_CLI_ANYWHERE
     monkeypatch.setattr(doctor.sys, "platform", "darwin")
-    assert doctor.how_to_install_the_livekit_cli() == doctor.INSTALL_LIVEKIT_CLI_WITH_BREW
+    assert doctor.livekit_cli_install_line() == doctor.INSTALL_LIVEKIT_CLI_WITH_BREW
 
 
 def test_the_doctor_never_runs_the_livekit_cli_it_only_looks_for_it() -> None:

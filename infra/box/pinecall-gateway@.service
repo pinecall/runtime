@@ -109,8 +109,15 @@ ImportCredential=TWILIO_API_SECRET
 ExecStartPre=+/usr/bin/podman healthcheck run pinecall-postgres
 ExecStartPre=/opt/pinecall/venv/bin/pinecall-runtime migrate up
 ExecStart=/opt/pinecall/venv/bin/pinecall-runtime gateway
+# What this process writes, hardening.conf (the drop-in) leaving everything else read-only: the
+# recordings it serves, and the cache livekit's plugins keep a model in.
+ReadWritePaths=/var/lib/pinecall/recordings /opt/pinecall/.cache
 Restart=always
 RestartSec=3
+# A crash loop backs off: three seconds, then doubling to a minute, so a unit that cannot start
+# is retried and never fills the journal at three seconds a try.
+RestartSteps=5
+RestartMaxDelaySec=60
 # The gateway drains no call — every live call is rebuilt when its worker says it again — so a stop
 # needs only uvicorn's five seconds for the requests in flight; this is systemd's line past them.
 TimeoutStopSec=30

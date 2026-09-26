@@ -12,8 +12,8 @@ from livekit.agents.types import FlushSentinel, TimedString
 from livekit.agents.voice import ModelSettings
 from livekit.agents.voice.agent import Agent as LiveAgent
 
-from pinecall.providers.blocks import request_context
-from pinecall.session.lookups import TurnLookups
+from pinecall.providers.prompt_request import request_context
+from pinecall.session.lookup_tools import TurnLookups
 from pinecall.types import Blocks
 from pinecall_protocol.events import ErrorEvent
 
@@ -70,7 +70,7 @@ class VoiceAgent(LiveAgent):
     @override
     async def on_user_turn_completed(
         self,
-        turn_ctx: agents.ChatContext,  # noqa: ARG002 — livekit's signature
+        turn_ctx: agents.ChatContext,
         new_message: agents.ChatMessage,
     ) -> None:
         """The caller's turn is over: this turn's lookups collected, or why they did not run."""

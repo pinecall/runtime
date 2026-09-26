@@ -1,16 +1,23 @@
 """A file into pieces: the heading path over each, the cap held, a file with no headings too."""
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from pinecall.knowledge.chunking import (
+    A_HEADING as A_HEADING_LINE,
+)
+from pinecall.knowledge.chunking import (
+    A_SENTENCE_END,
     CHUNK_TOKENS,
     HEADING_JOINT,
     body_of,
     chunks_of,
-    prefixed,
+    indexed_text,
 )
 from pinecall.types import KnowledgeFile
-from pinecall.types.counting import estimated_tokens
+from pinecall.types.token_estimate import estimated_tokens
+from tests.conftest import SEARCH_S
 
 pytestmark = pytest.mark.unit
 
@@ -99,8 +106,8 @@ def test_an_empty_file_is_no_piece() -> None:
 
 
 def test_prefixed_and_body_of_are_each_others_inverse() -> None:
-    assert body_of(prefixed("Tarifas", "cuarenta"), "Tarifas") == "cuarenta"
-    assert body_of(prefixed(None, "cuarenta"), None) == "cuarenta"
+    assert body_of(indexed_text("Tarifas", "cuarenta"), "Tarifas") == "cuarenta"
+    assert body_of(indexed_text(None, "cuarenta"), None) == "cuarenta"
 
 
 # A scraper and every static-site generator open a file with a fenced block of metadata. Left in,
@@ -135,3 +142,38 @@ def test_the_front_matter_of_a_file_with_no_headings_is_still_dropped() -> None:
     pieces = chunks_of(file)
 
     assert [piece.text for piece in pieces] == ["We clean offices."]
+
+
+# What any file at all must come out as, searched for rather than listed: hypothesis writes the
+# files, from headings and paragraphs of words it invents.
+A_WORD = st.text(alphabet=st.characters(categories=("L", "N")), min_size=1, max_size=12)
+A_PARAGRAPH = st.lists(A_WORD, min_size=1, max_size=120).map(" ".join)
+A_HEADING = st.tuples(st.integers(1, 3), A_WORD).map(lambda h: f"{'#' * h[0]} {h[1]}")
+A_FILE = (
+    st.lists(st.one_of(A_HEADING, A_PARAGRAPH), max_size=12)
+    .map("\n\n".join)
+    .map(lambda text: KnowledgeFile("any.md", text))
+)
+
+
+@pytest.mark.timeout(SEARCH_S)
+@given(file=A_FILE)
+def test_every_piece_is_under_the_cap_or_is_one_sentence_that_could_not_be_cut(
+    file: KnowledgeFile,
+) -> None:
+    for piece in chunks_of(file):
+        body = body_of(piece.text, piece.heading)
+        assert estimated_tokens(piece.text) <= CHUNK_TOKENS or len(A_SENTENCE_END.split(body)) == 1
+
+
+@pytest.mark.timeout(SEARCH_S)
+@given(file=A_FILE)
+def test_the_pieces_are_numbered_from_zero_carry_the_path_and_lose_no_word(
+    file: KnowledgeFile,
+) -> None:
+    pieces = chunks_of(file)
+    assert [piece.ordinal for piece in pieces] == list(range(len(pieces)))
+    assert all(piece.path == file.path for piece in pieces)
+    said = [word for piece in pieces for word in body_of(piece.text, piece.heading).split()]
+    prose = [line for line in file.text.split("\n") if not A_HEADING_LINE.match(line)]
+    assert said == [word for line in prose for word in line.split()]

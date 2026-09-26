@@ -85,6 +85,6 @@ async def every_chunk_on_its_own(
 
 # Both tables take their vectors as text and cast at the door (`$n::halfvec`), which keeps the
 # driver out of the vector type entirely; this is the one place the text form is written.
-def as_halfvec(vector: Sequence[float]) -> str:
+def halfvec_literal(vector: Sequence[float]) -> str:
     """The vector as halfvec reads it: `[1,0.5,…]`, the text form pgvector itself writes."""
     return HalfVector(list(vector)).to_text()

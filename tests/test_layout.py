@@ -3,7 +3,10 @@
 from pathlib import Path
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
+from tests.conftest import SEARCH_S
 from tests.tree import ROOT, every_module, tracked_files
 
 pytestmark = pytest.mark.unit
@@ -33,7 +36,7 @@ FILES_THE_CEILING_SKIPS = frozenset(
         # going to cost a split of one of them — which buys a second place to look for a variable,
         # the one thing these two files exist to prevent. They grow by rows, not by ideas.
         Path("src/pinecall/_settings.py"),
-        Path("src/pinecall/api/_deps.py"),
+        Path("src/pinecall/api/deps.py"),
     }
 )
 
@@ -44,6 +47,7 @@ def test_no_python_file_sits_at_the_root() -> None:
     assert not stray, f"Python at the repo root: {stray}"
 
 
+@pytest.mark.timeout(SEARCH_S)
 def test_no_tracked_file_is_longer_than_the_ceiling() -> None:
     """400 lines is the ceiling and 150 the norm: a file past it is asking to be two files."""
     too_long = {
@@ -54,6 +58,7 @@ def test_no_tracked_file_is_longer_than_the_ceiling() -> None:
     assert not too_long, f"over {LINE_CEILING} lines: {too_long}"
 
 
+@pytest.mark.timeout(SEARCH_S)
 def test_every_module_opens_with_a_one_line_docstring() -> None:
     """The first line says what the file is and for whom; the why goes to docs/decisions/."""
     modules = every_module()
@@ -67,6 +72,7 @@ def test_every_module_opens_with_a_one_line_docstring() -> None:
     assert not talkative, f"a module docstring runs past one line: {talkative}"
 
 
+@pytest.mark.timeout(SEARCH_S)
 def test_no_two_modules_in_one_directory_differ_by_one_letter() -> None:
     """llm.py beside llms.py, session.py beside sessions.py: a reader cannot tell which to open."""
     by_directory: dict[Path, list[str]] = {}
@@ -112,7 +118,17 @@ def _one_edit_apart(one: str, other: str) -> bool:
     shorter, longer = sorted((one, other), key=len)
     if len(shorter) == len(longer):
         return sum(a != b for a, b in zip(shorter, longer, strict=True)) == 1
-    for cut in range(len(longer)):
-        if longer[:cut] + longer[cut + 1 :] == shorter:
-            return True
-    return False
+    return any(longer[:cut] + longer[cut + 1 :] == shorter for cut in range(len(longer)))
+
+
+A_NAME = st.text(alphabet="ab_", max_size=6)
+
+
+# The rule reads the same whichever file is named first, and a name is never its own twin.
+@pytest.mark.timeout(SEARCH_S)
+@given(one=A_NAME, other=A_NAME)
+def test_one_edit_apart_is_symmetric_and_never_holds_between_a_name_and_itself(
+    one: str, other: str
+) -> None:
+    assert _one_edit_apart(one, other) == _one_edit_apart(other, one)
+    assert not _one_edit_apart(one, one)

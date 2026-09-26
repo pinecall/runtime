@@ -4,7 +4,7 @@ from dataclasses import replace
 
 from livekit.plugins import soniox
 
-from pinecall.providers.registry import Asked, Ears, a_key
+from pinecall.providers.registry import Asked, Ears, vendor_key
 from pinecall.providers.stt import MAX_SILENCE_MS, VENDORS, hints_for
 
 # How readily the model calls a caller done. Level 2 of 3 trades a little accuracy for latency and
@@ -39,4 +39,4 @@ def build(asked: Asked) -> Ears:
     # The agent's model when it named one; otherwise the plugin's own stt-rt-v5 (soniox/stt.py:112).
     if asked.model:
         params = replace(params, model=asked.model)
-    return soniox.STT(api_key=a_key("soniox", asked), params=params)
+    return soniox.STT(api_key=vendor_key("soniox", asked), params=params)

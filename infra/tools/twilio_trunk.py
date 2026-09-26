@@ -71,13 +71,19 @@ def creation_plan(arguments: argparse.Namespace) -> list[str]:
     """A trunk this account does not have yet, built from nothing."""
     return [
         f"GET      {TRUNKING_API}/Trunks?PageSize=50",
-        "         → a trunk named "
-        f"{arguments.trunk_name!r} standing there ends the run, creating nothing",
-        f"GET      {ACCOUNTS_API}/Accounts/<account>/IncomingPhoneNumbers.json"
-        f"?PhoneNumber={arguments.number}",
+        (
+            "         → a trunk named "
+            f"{arguments.trunk_name!r} standing there ends the run, creating nothing"
+        ),
+        (
+            f"GET      {ACCOUNTS_API}/Accounts/<account>/IncomingPhoneNumbers.json"
+            f"?PhoneNumber={arguments.number}"
+        ),
         f"POST     {TRUNKING_API}/Trunks  FriendlyName={arguments.trunk_name}",
-        f"POST     {TRUNKING_API}/Trunks/<trunk>/OriginationUrls  "
-        f"SipUrl={origination_uri(arguments.sip_host)}",
+        (
+            f"POST     {TRUNKING_API}/Trunks/<trunk>/OriginationUrls  "
+            f"SipUrl={origination_uri(arguments.sip_host)}"
+        ),
         f"POST     {TRUNKING_API}/Trunks/<trunk>/PhoneNumbers  PhoneNumberSid=<number>",
     ]
 
@@ -91,8 +97,10 @@ def adoption_plan(arguments: argparse.Namespace) -> list[str]:
         f"         → {arguments.number} not on that trunk ends the run, attaching nothing",
         f"GET      {TRUNKING_API}/Trunks/<trunk>/OriginationUrls",
         "         → two of them end the run: which one is this box is a person's call",
-        f"POST     {TRUNKING_API}/Trunks/<trunk>/OriginationUrls/<uri>  "
-        f"SipUrl={origination_uri(arguments.sip_host)}",
+        (
+            f"POST     {TRUNKING_API}/Trunks/<trunk>/OriginationUrls/<uri>  "
+            f"SipUrl={origination_uri(arguments.sip_host)}"
+        ),
         "         → and that is the only write --adopt makes: no trunk, no number, no delete",
     ]
 
@@ -100,12 +108,16 @@ def adoption_plan(arguments: argparse.Namespace) -> list[str]:
 def livekit_plan(arguments: argparse.Namespace) -> list[str]:
     """The SFU's half, identical whichever way the carrier's trunk got here."""
     return [
-        "livekit  ListSIPInboundTrunk / ListSIPDispatchRule  "
-        "→ one of ours standing is used as it is, never doubled",
+        (
+            "livekit  ListSIPInboundTrunk / ListSIPDispatchRule  "
+            "→ one of ours standing is used as it is, never doubled"
+        ),
         f"livekit  CreateSIPInboundTrunk  {LIVEKIT_TRUNK_NAME}  numbers=[{arguments.number}]",
         f"         allowed_addresses={','.join(signalling_cidrs())}",
-        f"livekit  CreateSIPDispatchRule  {LIVEKIT_RULE_NAME}  "
-        f"room {ROOM_PREFIX}*  agent {arguments.fleet}",
+        (
+            f"livekit  CreateSIPDispatchRule  {LIVEKIT_RULE_NAME}  "
+            f"room {ROOM_PREFIX}*  agent {arguments.fleet}"
+        ),
     ]
 
 

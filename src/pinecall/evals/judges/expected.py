@@ -9,7 +9,7 @@ from livekit.agents.evals import JudgmentResult
 from livekit.agents.llm import ChatContext
 
 from pinecall.evals.case import AGENT, Arrived, Case, Said
-from pinecall.evals.judges.policy import PolicyJudge, broken, held
+from pinecall.evals.judges.code_judge import PolicyJudge, broken, held
 from pinecall.evals.transcript import said_by_the_agent, said_by_the_caller, tools_called
 from pinecall.types import GateLine
 
@@ -86,7 +86,7 @@ class NoForbiddenToolRanJudge(PolicyJudge):
         self._gate = tuple(gate)
 
     @override
-    def decide(self, chat_ctx: ChatContext) -> JudgmentResult:  # noqa: ARG002 — the log, not the words
+    def decide(self, chat_ctx: ChatContext) -> JudgmentResult:
         """Every forbidden tool that ran, named with the seq a reader opens the log at."""
         forbidden = frozenset(self._names)
         slips = [
@@ -154,7 +154,7 @@ class TheEventWasAnsweredJudge(PolicyJudge):
         self._case = case
 
     @override
-    def decide(self, chat_ctx: ChatContext) -> JudgmentResult:  # noqa: ARG002 — the seqs, not the words
+    def decide(self, chat_ctx: ChatContext) -> JudgmentResult:
         """For every fact that arrived: whether the agent's next turn took it up, or ignored it."""
         arrived = self._case.events
         if not arrived:

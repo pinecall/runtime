@@ -3,9 +3,9 @@
 import pytest
 from cryptography.fernet import Fernet
 
-from pinecall.mail import Brand, rebranded, the_brand
+from pinecall.mail import Brand, apply_brand, brand_of
 from pinecall.mail.brand import ACCENT, NAME
-from pinecall.orgs.box import BRAND, MemoryBoxSettings
+from pinecall.orgs.box_settings import BRAND, MemoryBoxSettings
 from pinecall.types import DeclarationRefused
 
 pytestmark = pytest.mark.unit
@@ -36,23 +36,23 @@ def test_what_is_refused_before_it_is_written_into_every_letter(field: str, valu
 
 def test_a_field_left_out_keeps_what_it_had_and_an_empty_one_goes_back_to_the_default() -> None:
     theirs = Brand(name="Acme Voice", logo_url="https://cdn.example.com/mark.png", accent="#ff6600")
-    assert rebranded(theirs, accent="#00AA00") == Brand(
+    assert apply_brand(theirs, accent="#00AA00") == Brand(
         name="Acme Voice", logo_url="https://cdn.example.com/mark.png", accent="#00aa00"
     )
-    assert rebranded(theirs, logo_url="") == Brand(name="Acme Voice", accent="#ff6600")
-    assert rebranded(theirs, name="", accent="") == Brand(
+    assert apply_brand(theirs, logo_url="") == Brand(name="Acme Voice", accent="#ff6600")
+    assert apply_brand(theirs, name="", accent="") == Brand(
         logo_url="https://cdn.example.com/mark.png"
     )
     with pytest.raises(DeclarationRefused):
-        rebranded(theirs, accent="blue")
+        apply_brand(theirs, accent="blue")
 
 
 async def test_the_brand_is_read_off_the_box_row_and_a_row_nobody_can_use_reads_as_default() -> (
     None
 ):
     box = MemoryBoxSettings(Fernet(Fernet.generate_key()))
-    assert await the_brand(None) == Brand() and await the_brand(box) == Brand()
+    assert await brand_of(None) == Brand() and await brand_of(box) == Brand()
     await box.put(BRAND, {"name": "Acme Voice", "logo_url": None, "accent": "#ff6600"})
-    assert await the_brand(box) == Brand(name="Acme Voice", accent="#ff6600")
+    assert await brand_of(box) == Brand(name="Acme Voice", accent="#ff6600")
     await box.put(BRAND, {"name": "Acme Voice", "accent": "not a colour"})
-    assert await the_brand(box) == Brand(), "a letter still leaves"
+    assert await brand_of(box) == Brand(), "a letter still leaves"

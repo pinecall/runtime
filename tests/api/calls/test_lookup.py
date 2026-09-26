@@ -7,10 +7,10 @@ import pytest
 from pinecall.api.agents.registry import Registry
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.log.store import MemoryStore
-from pinecall.orgs.tuning import MemoryTuning
+from pinecall.orgs.tuning_store import MemoryTuning
 from pinecall.types import PRODUCTION, Docs, MemoryPolicy, Tuning
-from pinecall.worker.client import Gateway
-from pinecall.worker.hop import GatewayRefused
+from pinecall.worker.gateway_client import Gateway
+from pinecall.worker.gateway_http import GatewayRefused
 from pinecall_protocol import defs
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, over_the_asgi_app
 from tests.api.talking import a_context
@@ -88,7 +88,7 @@ async def test_a_lookup_answers_an_object_and_writes_the_sources_on_the_calls_lo
 async def test_a_call_nobody_opened_here_is_refused_in_the_events_doors_words(
     worker_gateway: Gateway,
 ) -> None:
-    with pytest.raises(GatewayRefused, match="404.*open it with POST /v1/calls first"):
+    with pytest.raises(GatewayRefused, match=r"404.*open it with POST /v1/calls first"):
         await worker_gateway.lookup("call_nobody_opened", "recall", {"query": "hola"}, None)
 
 
@@ -99,7 +99,7 @@ async def test_another_orgs_worker_is_refused_the_call_in_the_very_same_words(
     await a_phone_call(worker_gateway, registry, tuning)
     http = over_the_asgi_app(f"Bearer {ANOTHER_KEY}")
     try:
-        with pytest.raises(GatewayRefused, match="404.*open it with POST /v1/calls first"):
+        with pytest.raises(GatewayRefused, match=r"404.*open it with POST /v1/calls first"):
             await Gateway(http).lookup(CALL, "recall", {"query": "hola"}, None)
         with pytest.raises(GatewayRefused, match="404"):
             await Gateway(http).remember(CALL)

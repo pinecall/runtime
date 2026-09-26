@@ -5,12 +5,10 @@ from __future__ import annotations
 import sys
 from typing import TextIO
 
-from pinecall.cli.operator import Operator
+from pinecall.cli.operator import OPS_ORGS, Operator
 
 # The door every verb of this group knocks at, on PINECALL_OPS_KEY. It is spelled here, in the
 # leaf beside them, because `verbs` imports this module and a constant in both would be two.
-OPS_ORGS = "/v1/ops/orgs"
-
 # The break-glass, and the only write this verb makes. An org that turned `required` on and then
 # lost its provider — a tenant renamed at Entra, a secret rotated on a Friday — has nobody left
 # who can turn it off from the inside: the admin who would is exactly the person locked out. So

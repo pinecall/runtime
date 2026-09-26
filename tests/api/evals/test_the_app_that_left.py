@@ -8,8 +8,8 @@ import httpx
 import pytest
 
 from pinecall.api.agents.registry import Registry
-from pinecall.api.evals.attachment import APP_DETACHED
-from pinecall.api.evals.settling import AT_MOST_S
+from pinecall.api.evals.app_settled import AT_MOST_S
+from pinecall.api.evals.run_attachment import APP_DETACHED
 from pinecall.log.replay import whole
 from pinecall.log.store import MemoryStore
 from tests.api.evals.conftest import AGENT, AN_OWNER, RUN, a_golden, serving

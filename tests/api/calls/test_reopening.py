@@ -8,12 +8,12 @@ import httpx
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.api._live import Live
 from pinecall.api.agents.registry import Registry
+from pinecall.api.live import Live
 from pinecall.log.entry import Entry
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
-from pinecall.worker.client import CONTEXT, Gateway
+from pinecall.worker.gateway_client import CONTEXT, Gateway
 from tests.api.conftest import A_KEY, AGENT
 from tests.api.talking import collecting, until
 from tests.api.test_served_call import A_STARTED

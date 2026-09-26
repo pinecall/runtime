@@ -9,12 +9,12 @@ from pinecall.auth.keys import (
     Issued,
     KeyRecord,
     ListedKey,
-    a_key_id,
     fingerprint,
     mint,
+    new_key_id,
 )
 from pinecall.log.store import Pool
-from pinecall.types import KEY_SCOPES, PRODUCTION, Env, an_env
+from pinecall.types import KEY_SCOPES, PRODUCTION, Env, parse_env
 
 # A revoked key is kept, not deleted: the logs it wrote name it, and a row that vanishes makes
 # those unreadable. An expired one is kept for the same reason, and refused by the same WHERE
@@ -41,13 +41,10 @@ SELECT hash, org, label, env, scopes, subject, name, created_by, created_at, las
 # Revocation is an UPDATE and never a DELETE, and it is the one that already ran that the WHERE
 # filters out: revoking twice must not read as if a live key had just been stopped.
 _REVOKE = """
-UPDATE api_keys SET revoked_at = now() WHERE hash = $1 AND revoked_at IS NULL
+UPDATE api_keys SET revoked_at = now() WHERE hash = $1 AND revoked_at IS NULL RETURNING id
 """
 
 _TOUCH = "UPDATE api_keys SET last_used_at = now() WHERE id = $1"
-
-# What asyncpg answers an UPDATE with when the WHERE matched nothing: the command tag, verbatim.
-CHANGED_NOTHING = "UPDATE 0"
 
 
 class PostgresKeys:
@@ -76,7 +73,7 @@ class PostgresKeys:
         """The only moment a key exists in the clear: it is minted here, hashed, and let go."""
         key = mint(env, subject)
         record = KeyRecord(
-            key_id=a_key_id(),
+            key_id=new_key_id(),
             org=org,
             label=label,
             env=env,
@@ -106,9 +103,8 @@ class PostgresKeys:
         return tuple(_a_listed_key(row) for row in rows)
 
     async def revoke(self, hashed: str) -> bool:
-        """The command tag says whether a row changed, so revoking a stranger is told apart."""
-        tag = await self._pool.execute(_REVOKE, hashed)
-        return tag.strip() != CHANGED_NOTHING
+        """The row RETURNING says whether one changed, so revoking a stranger is told apart."""
+        return await self._pool.fetchrow(_REVOKE, hashed) is not None
 
     async def touch(self, key_id: str) -> None:
         """One UPDATE by the row's id; a row gone since is nothing to say."""
@@ -121,7 +117,7 @@ def _a_record(row: Any) -> KeyRecord:
         key_id=str(row["id"]),
         org=str(row["org"]),
         label=_text(row["label"]),
-        env=an_env(str(row["env"])),
+        env=parse_env(str(row["env"])),
         scopes=frozenset(str(scope) for scope in row["scopes"]),
         subject=_text(row["subject"]),
         name=_text(row["name"]),
@@ -139,7 +135,7 @@ def _a_listed_key(row: Any) -> ListedKey:
         label=_text(row["label"]),
         created_at=str(row["created_at"]),
         revoked_at=None if revoked is None else str(revoked),
-        env=an_env(str(row["env"])),
+        env=parse_env(str(row["env"])),
         scopes=tuple(sorted(str(scope) for scope in row["scopes"])),
         subject=_text(row["subject"]),
         name=_text(row["name"]),

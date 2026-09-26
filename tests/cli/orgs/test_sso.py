@@ -9,7 +9,7 @@ import pytest
 
 from pinecall.cli.operator import Operator
 from pinecall.cli.orgs import sso as signing_in
-from pinecall.orgs.sso import Sso
+from pinecall.orgs.org_sso import Sso
 from pinecall.types import OrgSso
 from tests.api.conftest import AN_ORG
 from tests.api.fake_idp import CLIENT_ID, CLIENT_SECRET, ISSUER
@@ -18,7 +18,7 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture(autouse=True)
-def wiring_a_provider(sso: Sso | None, http: httpx.AsyncClient) -> None:  # noqa: ARG001
+def wiring_a_provider(sso: Sso | None, http: httpx.AsyncClient) -> None:
     """The table the verb reads through the operator's door, and the client behind that door."""
 
 

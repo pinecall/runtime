@@ -2,12 +2,12 @@
 
 import re
 from collections.abc import Mapping, Sequence
+from contextlib import AbstractAsyncContextManager
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
 
-from pinecall._settings import Settings
 from pinecall.auth.keys import (
     PERSONS_PREFIX,
     PRODUCTION_PREFIX,
@@ -19,9 +19,10 @@ from pinecall.auth.keys import (
     mint,
 )
 from pinecall.auth.keys_postgres import PostgresKeys
-from pinecall.auth.visiting import StandingKeys
+from pinecall.auth.visitor_keys import StandingKeys
 from pinecall.log.store.postgres import MIGRATIONS
 from pinecall.types import ENVS, KEY_SCOPES, PRODUCTION, SANDBOX
+from tests.pools import Held, acquired
 
 pytestmark = pytest.mark.unit
 
@@ -69,7 +70,7 @@ async def test_a_revoked_key_stops_verifying_and_its_row_stays_in_the_listing() 
     ]
 
 
-# A sandbox person's key lives a day (auth/persons.py). Past its moment it reads exactly as a
+# A sandbox person's key lives a day (auth/person_keys.py). Past its moment it reads exactly as a
 # revoked key does: nothing answers to it, and the door says nothing about why.
 async def test_an_expired_key_is_nothing_and_one_with_time_left_still_opens() -> None:
     keys = MemoryKeys()
@@ -114,10 +115,13 @@ async def test_postgres_issue_writes_the_fingerprint_and_never_the_key() -> None
     assert (issued.record.org, issued.record.label) == ("clinica", "the worker")
 
 
-async def test_postgres_revoke_reads_the_command_tag_so_a_stranger_is_told_apart() -> None:
-    pool = _APoolOfOneRow(None, tag="UPDATE 0")
-    assert await PostgresKeys(pool).revoke("a" * 64) is False
-    assert await PostgresKeys(_APoolOfOneRow(None, tag="UPDATE 1")).revoke("a" * 64) is True
+async def test_postgres_revoke_answers_whether_a_row_came_back_so_a_stranger_is_told_apart() -> (
+    None
+):
+    assert await PostgresKeys(_APoolOfOneRow(None)).revoke("a" * 64) is False
+    revoked = _APoolOfOneRow(_a_row("k_1", "madrid"))
+    assert await PostgresKeys(revoked).revoke("a" * 64) is True
+    assert "RETURNING id" in revoked.queries[-1]
 
 
 async def test_postgres_keys_looks_the_key_up_by_its_hash_and_never_by_the_key() -> None:
@@ -206,7 +210,7 @@ HANDING_OVER = ("0017_provider_scope.sql", "0037_agent_tuning.sql")
 
 def test_the_migrations_hand_over_the_very_scopes_the_runtime_knows() -> None:
     backfilled = (MIGRATIONS / "0013_environments.sql").read_text(encoding="utf-8")
-    array = re.search(r"ARRAY\[(.*?)\]", backfilled, re.S)
+    array = re.search(r"ARRAY\[(.*?)\]", backfilled, re.DOTALL)
     assert array is not None
     handed: set[str] = set()
     for name in HANDING_OVER:
@@ -238,13 +242,13 @@ async def test_a_key_no_row_answers_to_is_none_and_not_an_error() -> None:
 # the ONLY key the gateway honoured — one org, one world, no tenants, which is a second runtime
 # with behaviour a box never had. There is one now, and it reads the table a person writes.
 def test_a_gateway_with_no_database_has_nowhere_to_verify_a_key_and_says_so() -> None:
-    assert keys_for(Settings(world="production"), pool=None) is None
+    assert keys_for(None) is None
 
 
 # With one, what the gateway holds is the table behind the one check no door makes for itself:
 # a visitor's key is asked, each time it knocks, whether its person still runs the box.
 def test_a_gateway_with_a_database_asks_about_a_visitors_standing_on_every_verify() -> None:
-    assert isinstance(keys_for(Settings(world="production"), _APoolOfOneRow(None)), StandingKeys)
+    assert isinstance(keys_for(_APoolOfOneRow(None)), StandingKeys)
 
 
 def _a_row(
@@ -272,9 +276,8 @@ def _a_row(
 class _APoolOfOneRow:
     """A pool that answers every query with the same row, and remembers what it was asked."""
 
-    def __init__(self, row: Mapping[str, Any] | None, tag: str = "SELECT 1") -> None:
+    def __init__(self, row: Mapping[str, Any] | None) -> None:
         self._row = row
-        self._tag = tag
         self.asked: list[Any] = []
         self.queries: list[str] = []
 
@@ -291,7 +294,10 @@ class _APoolOfOneRow:
 
     async def execute(self, _query: str, /, *args: Any) -> str:
         self.asked.extend(args)
-        return self._tag
+        return "SELECT 1"
+
+    def acquire(self) -> AbstractAsyncContextManager[Held]:
+        return acquired(self)
 
     async def close(self) -> None:
         """Nothing to give back."""

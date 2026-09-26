@@ -5,7 +5,7 @@ from livekit.agents.metrics.usage import AgentSessionUsage
 from livekit.agents.metrics.usage import LLMModelUsage as LiveUsage
 
 from pinecall.providers import prices
-from pinecall.providers.usage import as_wire_rows
+from pinecall.providers.usage_wire import wire_usage_rows
 from pinecall_protocol.metrics import (
     EOTModelUsage,
     InterruptionModelUsage,
@@ -25,12 +25,14 @@ def a_row(model: str, **counted: int) -> LLMModelUsage:
 
 
 def test_a_cache_read_and_a_cache_write_are_priced_apart() -> None:
-    """Folding them into the input price would misprice every cached call, in both directions."""
+    """Folding them into the input price would misprice every cached call, in both directions.
+    input_tokens is the plugin's sum of the three — half a million fresh, half a million read
+    back, a million written — so the fresh line is what is left after both cache lines."""
     cost = prices.cost_of(
         [
             a_row(
                 "claude-haiku-4-5-20251001",
-                input_tokens=A_MILLION,
+                input_tokens=A_MILLION // 2 + A_MILLION // 2 + A_MILLION,
                 input_cached_tokens=A_MILLION // 2,
                 input_cache_creation_tokens=A_MILLION,
                 output_tokens=A_MILLION,
@@ -39,6 +41,7 @@ def test_a_cache_read_and_a_cache_write_are_priced_apart() -> None:
     )
     by_unit = {row.unit: row for row in cost.rows}
     assert by_unit["input_tokens"].quantity == A_MILLION // 2
+    assert by_unit["cache_creation_tokens"].quantity == A_MILLION
     assert by_unit["cached_input_tokens"].unit_price_usd == 0.10
     assert by_unit["cache_creation_tokens"].unit_price_usd == 1.25
     assert by_unit["output_tokens"].unit_price_usd == 5.00
@@ -56,9 +59,10 @@ def test_a_model_the_table_does_not_know_is_listed_unpriced_and_never_at_zero() 
 
 def test_a_model_is_priced_by_the_longest_prefix_that_matches_it() -> None:
     """A model id carries a date, so the table lists families and the date rides along."""
-    assert prices.price_of("claude-haiku-4-5-20251001") is prices.PRICES["claude-haiku-4-5"]
-    assert prices.price_of("gpt-4o-mini-2024-07-18") is prices.PRICES["gpt-4o-mini"]
-    assert prices.price_of("gpt-4o-2024-11-20") is prices.PRICES["gpt-4o"]
+    assert prices.price_of("claude-fable-5-1-20260901") is prices.PRICES["claude-fable-5-1"]
+    # The published list is read by the same rule: a dated snapshot is priced by its family.
+    assert prices.price_of("gpt-4o-mini-2024-07-18") == prices.price_of("gpt-4o-mini")
+    assert prices.price_of("gpt-4o-2024-11-20") == prices.price_of("gpt-4o")
     assert prices.price_of("llama-3") is None
 
 
@@ -171,7 +175,7 @@ def test_a_row_livekit_labelled_with_the_api_host_is_priced_by_its_model_all_the
     measured = LiveUsage(provider="api.anthropic.com", model="claude-haiku-4-5-20251001")
     measured.input_tokens = A_MILLION
     measured.output_tokens = A_MILLION
-    cost = prices.cost_of(as_wire_rows(AgentSessionUsage(model_usage=[measured]).model_usage))
+    cost = prices.cost_of(wire_usage_rows(AgentSessionUsage(model_usage=[measured]).model_usage))
     assert cost.unpriced == []
     assert cost.eur > 0
     assert {row.provider for row in cost.rows} == {"api.anthropic.com"}

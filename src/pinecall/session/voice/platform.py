@@ -18,8 +18,8 @@ class PlatformRefused(PinecallError):
 
 
 # A leg is dialled through the org's own trunk and only after the number it dials has passed the
-# org's guards (orgs/guards.py), so "no trunk" and "not this number, not this often" are two
-# different answers and the verb writes the one that happened into the call's own log.
+# org's guards (orgs/outbound_guards.py), so "no trunk" and "not this number, not this often" are
+# two different answers and the verb writes the one that happened into the call's own log.
 @dataclass(frozen=True)
 class Dialled:
     """What the platform said about dialling a number: the trunk to do it with, or why not."""
@@ -30,7 +30,8 @@ class Dialled:
 
 # A Protocol and not the worker's HTTP client itself: the bridge is one call's logic and knows
 # nothing of transports, and a test scripts a platform in memory with a live tail, which no HTTP
-# fake could do as plainly. worker/client.py is the one implementation that leaves the process.
+# fake could do as plainly. worker/gateway_client.py is the one implementation that leaves the
+# process.
 class Platform(Protocol):
     """The doors a spoken call knocks on: one write, one tool, one trunk, one claim, the log."""
 

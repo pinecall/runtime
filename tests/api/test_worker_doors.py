@@ -1,18 +1,19 @@
-"""The five doors the worker knocks on, driven by worker/client.py over the real ASGI app."""
+"""The five doors the worker knocks on, driven by worker/gateway_client.py over the ASGI app."""
 
 from __future__ import annotations
 
 import asyncio
+import re
 
 import pytest
 
-from pinecall.api._live import Live
 from pinecall.api.agents.registry import Registry
+from pinecall.api.live import Live
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.types import PRODUCTION, CallContext
-from pinecall.worker.client import Gateway
-from pinecall.worker.hop import GatewayRefused
+from pinecall.worker.gateway_client import Gateway
+from pinecall.worker.gateway_http import GatewayRefused
 from pinecall_protocol import defs
 from pinecall_protocol.events import ToolCall
 from tests.api.conftest import A_RECORD, AGENT
@@ -88,7 +89,7 @@ async def test_an_entry_the_protocol_does_not_name_is_refused(
 ) -> None:
     await declared(registry)
     await worker_gateway.opened(a_context(), AGENT)
-    with pytest.raises(GatewayRefused, match="no event is called 'bot.hummed'"):
+    with pytest.raises(GatewayRefused, match=re.escape("no event is called 'bot.hummed'")):
         await worker_gateway.append(CALL, "bot.hummed", {})
 
 

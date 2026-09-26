@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, get_args
 
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.refusal import DeclarationRefused
 
 # retrieved: the best chunks are put in front of the model every turn, without asking it.
 # tool: the model gets a search(query) tool and decides when to look.

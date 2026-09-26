@@ -4,12 +4,12 @@ import time
 
 import pytest
 
-from pinecall.api.evals.listening import (
+from pinecall.api.evals.agent_finished import (
     A_SILENT_OPENING_S,
     AN_ANSWER_MAY_TAKE_S,
-    the_answer_has_landed,
-    the_call_is_over,
-    the_line_is_open,
+    has_answer_landed,
+    is_call_over,
+    is_line_open,
     until_the_answer_lands,
 )
 from pinecall.log.entry import Entry
@@ -54,13 +54,13 @@ def _log(*types: str) -> list[Entry]:
 
 
 def test_a_line_with_no_answer_yet_holds_the_line() -> None:
-    assert the_answer_has_landed(_log("call.started", "turn.user"), said=1, since=0.0) is False
+    assert has_answer_landed(_log("call.started", "turn.user"), said=1, since=0.0) is False
 
 
 def test_the_agent_back_to_listening_after_the_line_is_the_signal() -> None:
     whole = _states("turn.user", ("agent.state", "thinking"), ("agent.state", "listening"))
 
-    assert the_answer_has_landed(whole, said=1, since=0.0) is True
+    assert has_answer_landed(whole, said=1, since=0.0) is True
 
 
 # 2026-09-11: the agent called freeSlots and then SAID "voy a consultar qué hay libre el lunes" —
@@ -78,14 +78,14 @@ def test_a_filler_turn_after_the_tool_does_not_end_the_call() -> None:
         ("agent.state", "thinking"),
     )
 
-    assert the_answer_has_landed(filler, said=1, since=0.0) is False
+    assert has_answer_landed(filler, said=1, since=0.0) is False
 
 
 def test_the_listening_that_came_before_the_caller_spoke_is_not_it() -> None:
     """Every call opens listening. That one is about the silence before the line, not after it."""
     opening = _states(("agent.state", "listening"), "turn.user", ("agent.state", "thinking"))
 
-    assert the_answer_has_landed(opening, said=1, since=0.0) is False
+    assert has_answer_landed(opening, said=1, since=0.0) is False
 
 
 def test_a_second_line_still_needs_its_own_answer() -> None:
@@ -93,14 +93,14 @@ def test_a_second_line_still_needs_its_own_answer() -> None:
         "turn.user", ("agent.state", "speaking"), ("agent.state", "listening"), "turn.user"
     )
 
-    assert the_answer_has_landed(one, said=2, since=0.0) is False
+    assert has_answer_landed(one, said=2, since=0.0) is False
 
 
 # The opening: the caller's first line waits for the greeting, never talks over it.
 def test_an_agent_still_greeting_keeps_the_line_closed() -> None:
     log = _states(("agent.state", "listening"), ("agent.state", "speaking"))
 
-    assert the_line_is_open(log, now=100.0) is False
+    assert is_line_open(log, now=100.0) is False
 
 
 def test_the_greeting_said_and_the_agent_listening_opens_the_line() -> None:
@@ -111,18 +111,18 @@ def test_the_greeting_said_and_the_agent_listening_opens_the_line() -> None:
         ("agent.state", "listening"),
     )
 
-    assert the_line_is_open(log, now=5.0) is True
+    assert is_line_open(log, now=5.0) is True
 
 
 def test_an_agent_that_opens_with_nothing_is_believed_after_a_quiet_while() -> None:
     log = _states(("agent.state", "listening"))
 
-    assert the_line_is_open(log, now=1.0 + A_SILENT_OPENING_S - 0.1) is False
-    assert the_line_is_open(log, now=1.0 + A_SILENT_OPENING_S) is True
+    assert is_line_open(log, now=1.0 + A_SILENT_OPENING_S - 0.1) is False
+    assert is_line_open(log, now=1.0 + A_SILENT_OPENING_S) is True
 
 
 def test_no_agent_in_the_room_yet_keeps_the_line_closed() -> None:
-    assert the_line_is_open(_log("call.started"), now=100.0) is False
+    assert is_line_open(_log("call.started"), now=100.0) is False
 
 
 # 2026-09-21, call_e6b08cd30647694ef0ac9b09: the caller stopped talking at 102.0s and was speaking
@@ -134,9 +134,9 @@ def test_a_log_that_has_not_caught_up_with_the_caller_says_nothing() -> None:
     """The previous turn's answer, read as this one's, is what puts a caller on top of the agent."""
     before = _states("turn.user", ("agent.state", "thinking"), ("agent.state", "listening"))
 
-    assert the_answer_has_landed(before, said=1, since=0.0) is True
+    assert has_answer_landed(before, said=1, since=0.0) is True
     # The caller fell silent after the last entry in that snapshot: it cannot be the answer.
-    assert the_answer_has_landed(before, said=1, since=99.0) is False
+    assert has_answer_landed(before, said=1, since=99.0) is False
 
 
 # call_e64f46c28e1eafc76500cccf, 2026-09-21. The caller stopped at 145.2s and the agent had been
@@ -156,7 +156,7 @@ def test_a_whole_answer_to_the_previous_line_is_not_an_answer_to_this_one() -> N
     )
 
     # ts is the seq here, so the caller's only transcript sits at 1.0 and fell silent long after.
-    assert the_answer_has_landed(the_turn_before, said=2, since=5.5) is False
+    assert has_answer_landed(the_turn_before, said=2, since=5.5) is False
 
 
 # The same call, the other half: Flux ends a turn per sentence, so one spoken line arrives as two
@@ -171,18 +171,18 @@ def test_the_agent_must_have_been_handed_the_line_before_its_silence_counts() ->
         "turn.user",
     )
 
-    assert the_answer_has_landed(split, said=2, since=0.0) is False
+    assert has_answer_landed(split, said=2, since=0.0) is False
 
 
 # A simulated caller runs in the gateway and the call it is on is the worker's, so the log is the
 # only place it hears that somebody hung up. Before this, the console's Stop ended the call and the
 # persona went on saying its remaining turns into an empty room.
 def test_a_call_somebody_hung_up_is_over() -> None:
-    assert the_call_is_over(_log("call.started", "turn.user", "call.ended")) is True
+    assert is_call_over(_log("call.started", "turn.user", "call.ended")) is True
 
 
 def test_a_call_still_being_spoken_on_is_not_over() -> None:
-    assert the_call_is_over(_log("call.started", "turn.user", "turn.agent")) is False
+    assert is_call_over(_log("call.started", "turn.user", "turn.agent")) is False
 
 
 async def test_the_wait_between_two_lines_ends_the_moment_the_call_does() -> None:

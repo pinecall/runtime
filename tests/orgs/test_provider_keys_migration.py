@@ -1,61 +1,29 @@
 """0007 on a box that already has orgs: the table lands, and a tenant's rows go with its org."""
 
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
-from typing import Any, cast
-from uuid import uuid4
 
-import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
 import pytest
 
 from pinecall.log.store.migrating import (
-    MIGRATIONS_TABLE,
-    RECORD_MIGRATION,
-    a_hash,
     apply_migrations,
 )
-from pinecall.log.store.postgres import MIGRATIONS
+from tests.orgs.boxes import Box, a_box_before
 from tests.postgres import Dev
 
 pytestmark = pytest.mark.postgres
 
-# The schema as it stood the day before provider keys: every migration up to and including orgs.
-BEFORE_PROVIDER_KEYS = tuple(
-    path.name for path in sorted(MIGRATIONS.glob("*.sql")) if path.name < "0007"
-)
-
 THE_ORG = "clinica"
 A_CIPHERTEXT = "gAAAAABn-a-fernet-token-and-never-a-key"
-
-_connect = cast("Any", asyncpg.connect)  # pyright: ignore[reportUnknownMemberType]
-
-
-@dataclass(frozen=True)
-class Box:
-    """A database as a box had it before 0007, and the connection this test reads it through."""
-
-    dsn: str
-    schema: str
-    connection: Any
 
 
 @pytest.fixture
 async def a_box_from_before(postgres: Dev) -> AsyncIterator[Box]:
     """Every migration up to orgs applied by hand, and one tenant already created."""
-    schema = f"pinecall_before_provider_keys_{uuid4().hex[:12]}"
-    connection = await _connect(postgres.dsn)
-    try:
-        await connection.execute(f"create schema {schema}")
-        await connection.execute(f"set search_path to {schema}")
-        await connection.execute(MIGRATIONS_TABLE)
-        for name in BEFORE_PROVIDER_KEYS:
-            await connection.execute((MIGRATIONS / name).read_text(encoding="utf-8"))
-            await connection.execute(RECORD_MIGRATION, name, a_hash(MIGRATIONS / name))
-        await connection.execute("insert into orgs (id, slug, name) values ($1, $1, $1)", THE_ORG)
-        yield Box(dsn=postgres.dsn, schema=schema, connection=connection)
-    finally:
-        await connection.execute(f"drop schema if exists {schema} cascade")
-        await connection.close()
+    async with a_box_before(postgres, "0007", named="provider_keys") as box:
+        await box.connection.execute(
+            "insert into orgs (id, slug, name) values ($1, $1, $1)", THE_ORG
+        )
+        yield box
 
 
 async def test_0007_applies_on_top_of_0006_and_leaves_one_row_per_org_and_vendor(

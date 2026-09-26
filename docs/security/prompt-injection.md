@@ -177,7 +177,7 @@ This runtime has three of the four:
   class's tools are named in English — `book`, `findPatient` — and its callers speak Spanish: the
   vocabulary is a method name, and a caller does not use one.
 - **Provenance.** Every fact carries where it came from and since when, and both reach the model in
-  the tool result: `{"facts": [{text, source, since}]}` and nothing else (`lookups/answers.py`).
+  the tool result: `{"facts": [{text, source, since}]}` and nothing else (`lookups/tool_results.py`).
 - **Read-time framing.** The fact arrives as JSON inside a tool result, which is the position both
   vendors name for content the model should not obey.
 
@@ -212,12 +212,12 @@ it should push it instead of shipping it.
 
 | what it holds | where |
 |---|---|
-| no fact and no chunk ever reaches the `system` field | `tests/providers/test_blocks.py` |
-| both halves of a fabricated pair survive the formatter, in order | `tests/providers/test_blocks.py` |
-| a tool result's content parses as JSON and its key is `facts` or `chunks` | `tests/providers/test_blocks.py`, `tests/session/test_lookups.py` |
-| the view is never placed in a `tool_result` | `tests/providers/test_blocks.py` |
+| no fact and no chunk ever reaches the `system` field | `tests/providers/test_prompt_request.py` |
+| both halves of a fabricated pair survive the formatter, in order | `tests/providers/test_prompt_request.py` |
+| a tool result's content parses as JSON and its key is `facts` or `chunks` | `tests/providers/test_prompt_request.py`, `tests/session/test_lookup_tools.py` |
+| the view is never placed in a `tool_result` | `tests/providers/test_prompt_request.py` |
 | a fact naming one of the class's tools is refused at write time | `tests/memory/test_extraction.py` |
-| the same refusal against a live model, on the tenant's own class and tool names | `pinecall remember`, whose planted sentences are the assertion; the judging is `tests/memory/test_goldens.py` and the door `tests/api/test_extraction.py` |
+| the same refusal against a live model, on the tenant's own class and tool names | `pinecall remember`, whose planted sentences are the assertion; the judging is `tests/memory/test_goldens.py` and the door `tests/api/memory/test_extraction.py` |
 | a value the call showed must not survive is in no fact memory would keep | `pinecall remember`, `expect.never_says` |
 | a fact's `source` and `since` reach the model | `tests/lookups/test_service.py` |
 | the contact a lookup reads is the platform's, never the model's | `tests/lookups/test_service.py` |

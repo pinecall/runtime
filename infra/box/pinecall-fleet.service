@@ -37,8 +37,13 @@ EnvironmentFile=/etc/pinecall/instances/production.env
 LoadCredentialEncrypted=PINECALL_OPS_KEY:/etc/pinecall/instances/production.credstore/PINECALL_OPS_KEY
 ImportCredential=HCLOUD_TOKEN
 ExecStart=/bin/sh -c 'exec /opt/pinecall/venv/bin/pinecall-runtime fleet loop --cloud "$PINECALL_FLEET_CLOUD" --seats "$PINECALL_FLEET_SEATS" $PINECALL_FLEET_FLAGS'
+# What this process writes, hardening.conf (the drop-in) leaving everything else read-only: the
+# cloud CLI's own configuration (CLOUDSDK_CONFIG above).
+ReadWritePaths=/var/lib/pinecall/gcloud
 Restart=always
 RestartSec=15
+RestartSteps=5
+RestartMaxDelaySec=120
 
 [Install]
 WantedBy=multi-user.target

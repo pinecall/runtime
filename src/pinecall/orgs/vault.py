@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, MultiFernet
 
 from pinecall._exceptions import PinecallError
 from pinecall._settings import Settings
 from pinecall.log.store import Pool
-from pinecall.orgs.table import DELETED_NOTHING
 from pinecall.types import NO_ORG_KEYS, Brought, ProviderKeys, QuotasOf
 
 # What a runtime with no PINECALL_VAULT_KEY answers when asked to keep somebody's key. A 503 and
@@ -19,7 +18,14 @@ NO_VAULT_KEY = "no PINECALL_VAULT_KEY: this runtime cannot keep a tenant's key"
 
 # The library's own message says 32 url-safe base64 bytes without naming the variable an operator
 # has to fix. A box must not die on a typo in its environment file without saying which line.
-NOT_A_FERNET_KEY = "PINECALL_VAULT_KEY is not a Fernet key: generate one with Fernet.generate_key()"
+NOT_A_FERNET_KEY = (
+    "PINECALL_VAULT_KEY is not a Fernet key, or a comma-separated list of them: generate one with "
+    "Fernet.generate_key()"
+)
+
+# What every table that seals a tenant secret takes: the box's key, or the keys it has held. A
+# Fernet and a MultiFernet seal and open alike, and the tests hand in one key alone.
+type Cipher = Fernet | MultiFernet
 
 
 class NoVaultKey(PinecallError):
@@ -49,13 +55,13 @@ class Vault(Protocol):
 class MemoryVault:
     """The vault of a clone with a dev key and no Postgres: the same cipher, forgotten on exit."""
 
-    def __init__(self, cipher: Fernet) -> None:
+    def __init__(self, cipher: Cipher) -> None:
         self._cipher = cipher
         self._rows: dict[tuple[str, str], str] = {}
 
     async def put(self, org: str, vendor: str, key: str) -> None:
         """Encrypted here too, so a dev clone and a box behave alike down to the stored bytes."""
-        self._rows[(org, vendor)] = _sealed(self._cipher, key)
+        self._rows[(org, vendor)] = seal(self._cipher, key)
 
     async def drop(self, org: str, vendor: str) -> bool:
         """Whether there was a row to forget."""
@@ -68,7 +74,7 @@ class MemoryVault:
     async def keys_of(self, org: str) -> ProviderKeys:
         """Every key this org brought, decrypted."""
         return {
-            vendor: _opened(self._cipher, ciphertext)
+            vendor: unseal(self._cipher, ciphertext)
             for (kept, vendor), ciphertext in self._rows.items()
             if kept == org
         }
@@ -83,7 +89,7 @@ INSERT INTO provider_keys (org, vendor, ciphertext, set_at)
     SET ciphertext = excluded.ciphertext, set_at = now()
 """
 
-_DROP = "DELETE FROM provider_keys WHERE org = $1 AND vendor = $2"
+_DROP = "DELETE FROM provider_keys WHERE org = $1 AND vendor = $2 RETURNING vendor"
 
 _VENDORS = "SELECT vendor FROM provider_keys WHERE org = $1 ORDER BY vendor"
 
@@ -93,18 +99,17 @@ _KEYS = "SELECT vendor, ciphertext FROM provider_keys WHERE org = $1"
 class PostgresVault:
     """The table in Postgres, read on every call: a key set now is used by the next call."""
 
-    def __init__(self, pool: Pool, cipher: Fernet) -> None:
+    def __init__(self, pool: Pool, cipher: Cipher) -> None:
         self._pool = pool
         self._cipher = cipher
 
     async def put(self, org: str, vendor: str, key: str) -> None:
         """The key in the clear reaches this method and nothing under it: the row holds a token."""
-        await self._pool.execute(_PUT, org, vendor, _sealed(self._cipher, key))
+        await self._pool.execute(_PUT, org, vendor, seal(self._cipher, key))
 
     async def drop(self, org: str, vendor: str) -> bool:
-        """The command tag says whether a row went, so dropping a stranger is told apart."""
-        tag = await self._pool.execute(_DROP, org, vendor)
-        return tag.strip() != DELETED_NOTHING
+        """The row RETURNING says whether one went, so dropping a stranger is told apart."""
+        return await self._pool.fetchrow(_DROP, org, vendor) is not None
 
     async def vendors_of(self, org: str) -> tuple[str, ...]:
         """Names only. This is what an operator's listing is built from."""
@@ -113,18 +118,32 @@ class PostgresVault:
     async def keys_of(self, org: str) -> ProviderKeys:
         """Every key this org brought, decrypted for the one door that may carry them."""
         rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(_KEYS, org)
-        return {str(row["vendor"]): _opened(self._cipher, str(row["ciphertext"])) for row in rows}
+        return {str(row["vendor"]): unseal(self._cipher, str(row["ciphertext"])) for row in rows}
 
 
 # None is an answer here and not a failure, which is why the vault is the one thing of the process
-# that api/_deps.py:held does not fetch: a runtime given no vault key holds nobody's key, runs
+# that api/deps.py:held does not fetch: a runtime given no vault key holds nobody's key, runs
 # every call on the box's own vendor keys, and is a complete self-hosted install.
 def vault_for(settings: Settings, pool: Pool | None) -> Vault | None:
     """Postgres when the process opened one, memory on a dev key, none when no key was set."""
+    return sealed_store(settings, pool, memory=MemoryVault, postgres=PostgresVault)
+
+
+# Every table that seals a tenant's secret is built the same way — the carriers, an org's mail,
+# its outbound trunk, its identity provider, and this one: none without a vault key, since a
+# secret it could not seal is one it must not keep; memory on a laptop with no Postgres up.
+def sealed_store[M, P](
+    settings: Settings,
+    pool: Pool | None,
+    *,
+    memory: Callable[[Cipher], M],
+    postgres: Callable[[Pool, Cipher], P],
+) -> M | P | None:
+    """Postgres when the process opened one, memory when it did not, none with no vault key."""
     if not settings.vault_key:
         return None
-    cipher = a_cipher(settings.vault_key)
-    return MemoryVault(cipher) if pool is None else PostgresVault(pool, cipher)
+    cipher = build_cipher(settings.vault_key)
+    return memory(cipher) if pool is None else postgres(pool, cipher)
 
 
 # Every door that opens a call — the worker's own, the chat socket, an eval run — asks this one
@@ -146,20 +165,28 @@ async def brought_by(vault: Vault | None, quotas_of: QuotasOf, org: str) -> Brou
     return Brought(keys=await keys_brought_by(vault, org), lends=(await quotas_of(org)).lends)
 
 
-# Shared with the carriers table (orgs/carriers.py): one vault key seals every tenant secret.
-def a_cipher(vault_key: str) -> Fernet:
-    """The box's Fernet, or a refusal that names the variable an operator has to fix."""
+# Shared with every table that seals a tenant secret (carriers, mail, the trunks, sso, the box's
+# own settings): one vault key seals them all. ROTATION: the variable takes a comma-separated
+# list, newest first — a secret is sealed under the first key and opened under whichever key it
+# was sealed with, so an operator adds the new key at the front, deploys, and drops the old one
+# once every row has been written again. One key alone, rotated in place, read every tenant's
+# secret as garbage and the box's own settings as "the operator set nothing" (2026-09-26).
+def build_cipher(vault_key: str) -> MultiFernet:
+    """The box's cipher over every key it has held, or a refusal naming the variable to fix."""
+    keys = [key.strip() for key in vault_key.split(",") if key.strip()]
     try:
-        return Fernet(vault_key.encode())
+        return MultiFernet([Fernet(key.encode()) for key in keys])
     except (ValueError, TypeError) as malformed:
         raise NoVaultKey(NOT_A_FERNET_KEY) from malformed
 
 
-def _sealed(cipher: Fernet, key: str) -> str:
-    """One provider key as a row keeps it: a Fernet token, never the key itself."""
-    return cipher.encrypt(key.encode()).decode()
+# The one pair every sealed table spells its secret through: a Fernet token in the row, the
+# secret in the clear only in the process that asked for it.
+def seal(cipher: Cipher, secret: str) -> str:
+    """One secret as a row keeps it: a Fernet token, never the secret itself."""
+    return cipher.encrypt(secret.encode()).decode()
 
 
-def _opened(cipher: Fernet, ciphertext: str) -> str:
-    """One row back into the key a vendor takes."""
+def unseal(cipher: Cipher, ciphertext: str) -> str:
+    """One row back into the secret its vendor takes."""
     return cipher.decrypt(ciphertext.encode()).decode()

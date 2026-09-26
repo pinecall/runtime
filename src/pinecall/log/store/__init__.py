@@ -2,8 +2,8 @@
 
 from pinecall.log.store.memory import MemoryStore
 from pinecall.log.store.migrating import apply_migrations, migrations_behind
-from pinecall.log.store.pool import Pool, open_pool
-from pinecall.log.store.postgres import PostgresStore, StoreUnreachable
+from pinecall.log.store.pool import Pool
+from pinecall.log.store.postgres import PostgresStore, StoreUnreachable, open_pool
 from pinecall.log.store.protocol import DEFAULT_LIMIT, LogSealed, Metered, Store
 
 __all__ = [

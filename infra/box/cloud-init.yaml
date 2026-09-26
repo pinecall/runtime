@@ -20,13 +20,24 @@ packages:
   - nodejs      # what a tenant's app runs on (pinecall-app@.service): NodeSource's, put in by bootcmd below
 
 # Before the packages: NodeSource's repository, so `nodejs` above is their 24 and not Ubuntu's 18
-# (the framework says `>=24`). The same three lines infra/box/Makefile `node-repo` converges on.
+# (the framework says `>=24`). The same lines infra/box/Makefile `node-repo` converges on, the
+# key held to the fingerprint NodeSource publishes — a test pins the two files to the same one.
 bootcmd:
-  - [sh, -c, "test -f /etc/apt/sources.list.d/nodesource.list || { install -d -m 755 /etc/apt/keyrings && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && echo 'deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main' > /etc/apt/sources.list.d/nodesource.list; }"]
+  - - sh
+    - -ec
+    - |
+      test -f /etc/apt/sources.list.d/nodesource.list && exit 0
+      install -d -m 755 /etc/apt/keyrings
+      curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+      gpg --show-keys --with-colons /etc/apt/keyrings/nodesource.gpg | grep -q '^fpr:*9FD3B784BC1C6FC31A8A0A1C1655A0AB68576280:' \
+        || { rm -f /etc/apt/keyrings/nodesource.gpg; echo "nodesource: the key is not the one published"; exit 1; }
+      echo 'deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main' > /etc/apt/sources.list.d/nodesource.list
 
 users:
   # The account `make deploy` arrives as (BOX in deploy.local.mk). It owns the code and can
-  # sudo, and it is the only account with a login on this machine.
+  # sudo, and it is the only account with a login on this machine. Its sudo is whole and not a
+  # list of commands, on purpose: the deploy runs `sudo make -C` over a manifest this account
+  # writes, and a manifest run as root IS root — a shorter list would read as a fence and be none.
   - name: deploy                                                           # YOURS, or keep it
     groups: [sudo]
     sudo: ALL=(ALL) NOPASSWD:ALL
@@ -72,8 +83,26 @@ runcmd:
   # Where a tenant's app lands when it is held on this box (pinecall-app@.service): the same
   # account's, for the same reason. Each app's own directory is made by that app's deploy.
   - [install, -d, -o, deploy, -g, deploy, /opt/pinecall/apps]
-  # uv, for the deploy's post-sync alone: the units run the virtualenv's own entrypoint.
-  - [sh, -c, "curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/opt/pinecall/bin UV_NO_MODIFY_PATH=1 sh -s -- -q"]
+  # uv, for the deploy's post-sync alone: the units run the virtualenv's own entrypoint. One
+  # version, the release's own tarball, held to the checksum the release publishes for this
+  # machine's architecture — never `curl | sh` of whatever the installer serves today.
+  - - sh
+    - -ec
+    - |
+      arch=$(uname -m)
+      case "$arch" in
+        x86_64)  sum=920cbcaad514cc185634f6f0dcd71df5e8f4ee4456d440a22e0f8c0f142a8203 ;;
+        aarch64) sum=9a20d65b110770bbaa2ee89ed76eb963d8c6a480b9ebef584ea9df2ae85b4f0f ;;
+        *) echo "uv: no build for $arch"; exit 1 ;;
+      esac
+      build=uv-$arch-unknown-linux-gnu
+      cd /tmp
+      curl -fsSLO https://github.com/astral-sh/uv/releases/download/0.8.17/$build.tar.gz
+      echo "$sum  $build.tar.gz" | sha256sum -c --quiet
+      tar -xzf $build.tar.gz
+      install -d -m 755 /opt/pinecall/bin
+      install -m 755 $build/uv $build/uvx /opt/pinecall/bin/
+      rm -rf $build $build.tar.gz
   # The fence is up before any door is: the deploy's own nftables.conf replaces the stock one.
   - [systemctl, enable, --now, nftables]
 

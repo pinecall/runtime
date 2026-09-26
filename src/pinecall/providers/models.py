@@ -9,7 +9,7 @@ from pinecall.providers import llm
 from pinecall.providers.registry import Asked, Chat, NoProvider
 from pinecall.types import Brought, Model
 
-__all__ = ["Chat", "DEFAULT_VENDOR", "Models", "NoProvider", "models_for", "vendor_of"]
+__all__ = ["DEFAULT_VENDOR", "Chat", "Models", "NoProvider", "models_for", "vendor_of"]
 
 # The vendor a session runs when the app declared none. Which of that vendor's models it runs is
 # the vendor file's own business — providers/llm/anthropic.py — so no model name is written twice.

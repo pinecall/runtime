@@ -9,8 +9,8 @@ from livekit.agents import stt, tts
 from livekit.agents.types import DEFAULT_API_CONNECT_OPTIONS, NOT_GIVEN, APIConnectOptions
 from livekit.agents.utils import AudioBuffer
 
-from pinecall.providers.pipeline import Pipeline
 from pinecall.providers.registry import Chat
+from pinecall.providers.session_vendors import Pipeline
 from pinecall.types import AgentConfig, Brought
 
 # Nothing here ever opens a socket: every method a session might reach for on the way to a vendor
@@ -31,10 +31,10 @@ class SilentEars(stt.STT[Any]):
     @override
     async def _recognize_impl(
         self,
-        buffer: AudioBuffer,  # noqa: ARG002 — the base class's signature
+        buffer: AudioBuffer,
         *,
-        language: Any = NOT_GIVEN,  # noqa: ARG002 — the base class's signature
-        conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS,  # noqa: ARG002
+        language: Any = NOT_GIVEN,
+        conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS,
     ) -> stt.SpeechEvent:
         raise NotImplementedError(NEVER_SPOKEN)
 
@@ -52,9 +52,9 @@ class SilentVoice(tts.TTS[Any]):
     @override
     def synthesize(
         self,
-        text: str,  # noqa: ARG002 — the base class's signature
+        text: str,
         *,
-        conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS,  # noqa: ARG002
+        conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS,
     ) -> tts.ChunkedStream:
         raise NotImplementedError(NEVER_SPOKEN)
 
@@ -78,8 +78,7 @@ class FakeKit:
 # that a strict checker cannot read it, and one ignore here is better than one per assertion.
 def anthropic_request(context: agents.ChatContext) -> tuple[list[dict[str, Any]], Any]:
     """One request as the Anthropic formatter builds it: the messages, and the system blocks."""
-    built = cast(
+    return cast(
         "tuple[list[dict[str, Any]], Any]",
         context.to_provider_format("anthropic"),  # pyright: ignore[reportUnknownMemberType]
     )
-    return built

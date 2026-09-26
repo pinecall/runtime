@@ -7,35 +7,43 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, Response, WebSocket, WebSocketDisconnect
 from starlette.responses import StreamingResponse
+from starlette.status import HTTP_204_NO_CONTENT
 
-from pinecall.api._deps import (
+from pinecall.api.calls.log_sink import (
+    AcceptDep,
+    CursorDep,
+    FilterDep,
+    LimitDep,
+    ProjectDep,
+    ProjectedPage,
+    ReaderDep,
+    another_orgs,
+    get_reader_or_none,
+    is_sealed,
+    page,
+    refuse_another_call,
+    refuse_another_org,
+    sse,
+    wants_sse,
+)
+from pinecall.api.calls.supervise.aiming import (
+    STEERS,
+    QueueingDep,
+    VerbRefused,
+    aim_verb,
+    parse_verb,
+)
+from pinecall.api.deps import (
     KeysDep,
     LogsDep,
     SettingsDep,
     SnapshotsDep,
     StoreDep,
 )
-from pinecall.api.calls.sink import (
-    AcceptDep,
-    CursorDep,
-    FilterDep,
-    LimitDep,
-    ProjectDep,
-    ReaderDep,
-    another_orgs,
-    ended,
-    page,
-    reading,
-    refuse_another_call,
-    refuse_another_org,
-    sse,
-    wants_sse,
-)
-from pinecall.api.supervise.aiming import STEERS, QueueingDep, VerbRefused, aimed, as_a_verb
-from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
-from pinecall.auth.keys import not_opening
+from pinecall.auth.bearer import POLICY_VIOLATION, close_reason
+from pinecall.auth.keys import cannot_open
 from pinecall.auth.scopes import Reader
-from pinecall.log.entry import Entry, unstored
+from pinecall.log.entry import Entry, ephemeral_entry
 from pinecall.log.filters import EVERYTHING
 from pinecall.log.store import DEFAULT_LIMIT
 from pinecall_protocol import ProtocolError, encode
@@ -44,10 +52,6 @@ from pinecall_protocol.registry import TERMINAL_EVENT
 
 router = APIRouter()
 
-# Nothing more will ever be true of this call and the reader has all of it. An empty page would be
-# a promise to come back, and 200 with `live: false` is what the JSON flavour says; a stream has no
-# body to say it in, so the status says it once and the reader stops reconnecting.
-NOTHING_MORE = 204
 
 # A frame this socket could not read as one of the six verbs. The pydantic sentence rides with it,
 # so a desk with a typo in its JSON learns which field, not just that something was wrong.
@@ -73,13 +77,16 @@ async def events(
     filter: FilterDep,
     accept: AcceptDep = None,
     limit: LimitDep = DEFAULT_LIMIT,
-) -> Response | StreamingResponse | dict[str, object]:
+) -> Response | StreamingResponse | ProjectedPage:
     """The call's entries above the cursor: SSE when the reader asked for it, a page otherwise."""
     refuse_another_call(reader, call)
     await refuse_another_org(reader, store, call, "")
-    over = await ended(store, call)
+    over = await is_sealed(store, call)
     if over and cursor >= await store.latest_seq(call):
-        return Response(status_code=NOTHING_MORE)
+        # Nothing more will ever be true of this call and the reader has all of it. An empty page
+        # would be a promise to come back, and 200 with `live: false` is what the JSON flavour
+        # says; a stream has no body to say it in, so 204 says it once and the reader stops.
+        return Response(status_code=HTTP_204_NO_CONTENT)
     if wants_sse(accept):
         # logs.reading() hands back the live log when this process is writing the call, so the
         # stream goes on into the fanout; for a call nobody here is writing it reads the store and
@@ -109,7 +116,7 @@ async def calls(
     filter: FilterDep,
     accept: AcceptDep = None,
     limit: LimitDep = DEFAULT_LIMIT,
-) -> StreamingResponse | dict[str, object]:
+) -> StreamingResponse | ProjectedPage:
     """What happened to this agent outside any call: registered, configured, an error, a call."""
     refuse_another_call(reader, None)
     await refuse_another_org(reader, store, None, slug)
@@ -143,7 +150,7 @@ async def attach(
     after: Annotated[int, Query(ge=0)] = 0,
 ) -> None:
     """One supervisor, one call: the entries down the socket, and the verbs back up it."""
-    reader = await reading(websocket, keys, settings, token)
+    reader = await get_reader_or_none(websocket, keys, settings, token)
     if reader is None or (reader.call is not None and reader.call != call):
         await websocket.close(code=POLICY_VIOLATION)
         return
@@ -153,8 +160,8 @@ async def attach(
     await websocket.accept()
     # A key on this socket reads the call and steers it, so it is asked for the second: a person
     # who may only watch is told so in the one sentence, and the socket closes.
-    if reader.key is not None and (closed := not_opening(reader.key, STEERS)) is not None:
-        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(closed))
+    if reader.key is not None and (closed := cannot_open(reader.key, STEERS)) is not None:
+        await websocket.close(code=POLICY_VIOLATION, reason=close_reason(closed))
         return
     tail = asyncio.ensure_future(_tail(websocket, logs, project, reader, call, after))
     try:
@@ -183,11 +190,11 @@ async def _verb(
 ) -> Entry | None:
     """One frame as a verb, aimed at the call. None means it went; an entry says why it did not."""
     try:
-        said = as_a_verb(frame)
+        said = parse_verb(frame)
     except ProtocolError as malformed:
         return _an_error(BAD_VERB, str(malformed))
     try:
-        await aimed(live, store, snapshots, reader, call, said)
+        await aim_verb(live, store, snapshots, reader, call, said)
     except VerbRefused as refused:
         return _an_error(VERB_REFUSED, refused.detail)
     return None
@@ -195,7 +202,7 @@ async def _verb(
 
 def _an_error(code: str, why: str) -> Entry:
     """One refusal as the entry the socket sends back, with no seq because no log kept it."""
-    return unstored("error", ErrorEvent(code=code, message=why, recoverable=True))
+    return ephemeral_entry("error", ErrorEvent(code=code, message=why, recoverable=True))
 
 
 async def _tail(

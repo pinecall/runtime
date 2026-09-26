@@ -7,9 +7,9 @@ from uuid import uuid4
 
 import pytest
 
-from pinecall.log.facts import CallFacts
+from pinecall.log.call_facts import CallFacts
 from pinecall.log.store import LogSealed, PostgresStore
-from pinecall.log.store.index import CallIndex, Wanted
+from pinecall.log.store.call_index import CallIndex, Wanted
 from pinecall.log.store.postgres import MIGRATIONS
 from pinecall.types.json import JsonObject
 
@@ -242,7 +242,7 @@ async def test_an_inbox_is_a_line_per_contact_and_counts_what_the_reader_has_not
 async def test_the_backfill_folds_an_old_call_to_the_very_facts_append_folds(
     postgres_store: PostgresStore, raw_connection: Any, org: str, agent: str
 ) -> None:
-    """0026 restates log/facts.py in SQL for calls from before 0025: the two must agree."""
+    """0026 restates log/call_facts.py in SQL for calls from before 0025: the two must agree."""
     judges = [a_judge("consent", "held"), a_judge("promises", "broken", "a visit nobody booked")]
     spoken = await a_call(postgres_store, org, agent, judges=judges, took_over=True)
     written = await a_call(postgres_store, org, agent, channel="whatsapp", ended=False)
@@ -293,9 +293,9 @@ async def test_the_written_calls_still_open_are_answered_with_their_channel(
     assert spoken not in open_now, "a spoken call is the other question's"
 
 
-# The reaper's one question (api/reaping.py): which spoken calls this store never finished writing.
-# It is asked of every org at once, so a test says which of the answer is its own — the postgres
-# schema is one pytest process's and holds whatever the tests before it left open.
+# The reaper's one question (api/calls/reaper.py): which spoken calls this store never finished
+# writing. It is asked of every org at once, so a test says which of the answer is its own — the
+# postgres schema is one pytest process's and holds whatever the tests before it left open.
 async def test_the_open_spoken_calls_that_have_been_quiet(
     store: Indexing, org: str, agent: str
 ) -> None:

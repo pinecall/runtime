@@ -44,7 +44,7 @@ class NotVerified:
     reason: Refusal
 
 
-# This process's memory, as the login codes are (auth/codes.py): an org nobody has proved the
+# This process's memory, as the login codes are (auth/login_codes.py): an org nobody has proved the
 # address of is not a row anywhere, so a fake email leaves nothing standing, and a deploy in the
 # fifteen minutes costs the person a new code — the resend door — and nothing else.
 class PendingSignups:

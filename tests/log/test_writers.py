@@ -1,6 +1,7 @@
 """The feeds a gateway taps off its logs: an org's own, and the box's, which is every org's."""
 
 import asyncio
+from typing import override
 
 import pytest
 
@@ -52,3 +53,31 @@ async def test_the_orgs_own_feed_still_hears_its_own_while_the_box_listens() -> 
     assert (await asyncio.wait_for(box.__anext__(), 1)).call == "CA_a"
     feed.close()
     box.close()
+
+
+class _Counting(MemoryStore):
+    """The store, counting how often it was asked whose a log is."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.asked = 0
+
+    @override
+    async def owner(self, call: str | None, agent: str) -> str | None:
+        self.asked += 1
+        return await super().owner(call, agent)
+
+
+async def test_whose_a_log_is_is_asked_of_the_store_once_and_not_per_entry() -> None:
+    """A claim never moves, and the question sat on the append path of every call.started."""
+    store = _Counting()
+    logs = Logs(store)
+    await logs.owned("CA_1", "clinica", "org-1")
+    log = logs.writing("CA_1", "clinica")
+    for _ in range(3):
+        await log.append("call.started", {})
+        await log.append("call.ended", {})
+    assert store.asked == 1
+    logs.forget("CA_1")
+    await logs.writing("CA_1", "clinica").append("call.started", {})
+    assert store.asked == 2, "forgotten with the call, asked again for the next"

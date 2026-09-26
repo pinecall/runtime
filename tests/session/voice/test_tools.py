@@ -10,8 +10,8 @@ from livekit.agents import llm as agents
 from livekit.agents.llm import ToolError
 from livekit.agents.voice import AgentSession
 
-from pinecall.session.voice import a_bridge
-from pinecall.session.voice.tools import Tools, rendered
+from pinecall.session.voice import build_bridge
+from pinecall.session.voice.tools import Tools, render_confirm
 from pinecall_protocol import WireModel, defs, encode
 from pinecall_protocol.defs import ToolResult
 from pinecall_protocol.events import ToolCall
@@ -77,7 +77,7 @@ async def test_a_tools_set_between_two_requests_leaves_the_providers_tools_byte_
     """What the cache is for: tools come first in the prefix, and a re-declared one empties it."""
     llm = FakeLLM(Scripted(chunks=("Uno.",)), Scripted(chunks=("Dos.",)))
     recording = Recording()
-    bridge = a_bridge(a_context(), CLARA, recording)
+    bridge = build_bridge(a_context(), CLARA, recording)
     live: AgentSession[None] = AgentSession(
         llm=llm, vad=None, turn_handling={"turn_detection": "manual"}
     )
@@ -135,10 +135,10 @@ async def test_a_platform_that_refuses_is_a_tool_that_did_not_answer() -> None:
 def test_a_placeholder_nobody_filled_stays_visible_instead_of_vanishing() -> None:
     result = ToolResult(call_id="x", name="book", output=None)
     assert (
-        rendered("Reservé {{ at }} para {{who.name}}", {"at": "10:15"}, result)
+        render_confirm("Reservé {{ at }} para {{who.name}}", {"at": "10:15"}, result)
         == "Reservé 10:15 para {{who.name}}"
     )
-    assert rendered("Ref {{result}}", {}, result) == "Ref "
+    assert render_confirm("Ref {{result}}", {}, result) == "Ref "
 
 
 # ── the callable livekit runs, in the order the caller hears it ─────────────────
@@ -158,7 +158,7 @@ class _Heard:
         self._timeline = timeline
         self._text = text
 
-    def __await__(self):  # noqa: ANN204 — the shape livekit gives a SpeechHandle
+    def __await__(self):
         async def played() -> None:
             self._timeline.happened.append(f"heard {self._text}")
 

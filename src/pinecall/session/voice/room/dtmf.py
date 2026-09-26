@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from pinecall.session.voice import sip
-from pinecall.session.voice.room.holding import Holding
+from pinecall.session.voice.room.room_handle import Holding
 from pinecall_protocol.commands import CallDtmf
 
 VERB = "call.dtmf"
@@ -32,7 +32,7 @@ async def sent(holding: Holding, wanted: CallDtmf) -> None:
         if digit != PAUSE and digit not in CODES:
             holding.failed(VERB, NOT_A_TONE.format(digit=digit))
             return
-    if await sip.the_sip_leg(holding.room, holding.channel) is None:
+    if await sip.wait_for_sip_leg(holding.room, holding.channel) is None:
         holding.failed(VERB, NO_LEG)
         return
     for digit in wanted.digits:
@@ -41,7 +41,7 @@ async def sent(holding: Holding, wanted: CallDtmf) -> None:
             continue
         try:
             await holding.room.local_participant.publish_dtmf(code=CODES[digit], digit=digit)
-        except Exception as refused:  # noqa: BLE001 — every way the server says no is the same
+        except Exception as refused:
             holding.failed(VERB, str(refused))
             return
         await asyncio.sleep(BETWEEN_TONES_S)

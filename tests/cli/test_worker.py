@@ -10,7 +10,7 @@ from livekit.agents import AgentServer
 
 from pinecall._settings import load_settings
 from pinecall.cli import build_parser, worker
-from pinecall.worker import recordings
+from pinecall.worker import recording_paths
 from pinecall.worker.heartbeat import CORDONED_EXIT, Heartbeats
 from pinecall.worker.load import MachineLoad, reports_no_load
 
@@ -85,7 +85,7 @@ def test_asking_to_record_prints_the_path_before_the_microphone_opens(
     monkeypatch.setattr(worker, "hand_over", _handed_over)
     assert worker.run(build_parser().parse_args(["worker", "talk", "--record"])) == 0
     printed = capsys.readouterr().out
-    assert str(tmp_path) in printed and recordings.AUDIO_FILE in printed
+    assert str(tmp_path) in printed and recording_paths.AUDIO_FILE in printed
 
 
 # The failure this card was cut for: `worker dev` died on livekit's own sentence about the
@@ -124,13 +124,13 @@ import threading
 from unittest.mock import patch
 from pinecall._settings import load_settings
 from pinecall.cli import worker
-from pinecall.worker.main import warmed
+from pinecall.worker.main import prewarm
 
 def livekit_runs_the_job_in_a_thread(server):
     raised = []
     def job_thread_runner():
         try:
-            warmed(None)
+            prewarm(None)
         except BaseException as error:
             raised.append(error)
     thread = threading.Thread(target=job_thread_runner, name="job_thread_runner")

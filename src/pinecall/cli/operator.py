@@ -7,10 +7,11 @@ import asyncio
 import sys
 from collections.abc import Awaitable, Callable, Mapping
 from types import TracebackType
-from typing import Any, Self, cast
+from typing import Any, Self
 
 import httpx
 
+from pinecall._detail import refusal_detail
 from pinecall._exceptions import PinecallError
 from pinecall._settings import Settings, load_settings
 from pinecall.types import DEFAULT_ORG
@@ -19,6 +20,9 @@ from pinecall.types import DEFAULT_ORG
 TIMEOUT_S = 5.0
 
 # `routes rm` is answered with no body: there is nothing to say back about a row that is gone.
+# The operator's door to the tenants: every verb about an org knocks under it.
+OPS_ORGS = "/v1/ops/orgs"
+
 NO_BODY = 204
 
 NO_OPS_KEY = (
@@ -89,12 +93,12 @@ class Operator:
         """The body, or the gateway's own sentence as a refusal a person can act on."""
         if answer.is_success:
             return None if answer.status_code == NO_BODY else answer.json()
-        raise OperatorRefused(f"{answer.status_code}: {_said(answer)}")
+        raise OperatorRefused(f"{answer.status_code}: {refusal_detail(answer.text.strip())}")
 
 
 # The ops key is the BOX's, never an org's, so every door here names its org — and every verb
 # that knocks on one takes the same flag, spelled once. An id or a slug: the door takes either.
-def with_an_org(parser: argparse.ArgumentParser) -> None:
+def add_org_flag(parser: argparse.ArgumentParser) -> None:
     """Whose rows this verb speaks about. A box with one org never has to say it."""
     parser.add_argument("--org", default=DEFAULT_ORG, help=f"by id or slug (default {DEFAULT_ORG})")
 
@@ -111,15 +115,3 @@ def against_the_gateway(verb: Callable[[Operator], Awaitable[int]]) -> int:
 async def _with_an_operator(verb: Callable[[Operator], Awaitable[int]]) -> int:
     async with Operator.of(load_settings()) as operator:
         return await verb(operator)
-
-
-def _said(answer: httpx.Response) -> str:
-    """What the gateway put in `detail`, or the body itself when it put nothing there."""
-    try:
-        read: Any = answer.json()
-    except ValueError:
-        return answer.text.strip()
-    if not isinstance(read, dict):
-        return str(read)
-    body = cast("dict[str, Any]", read)
-    return str(body.get("detail", body))

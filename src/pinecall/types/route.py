@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from pinecall.types.channel import CHANNELS, CHANNELS_WITH_A_NUMBER, Channel
 from pinecall.types.key import ENVS, PRODUCTION, Env
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.refusal import DeclarationRefused
 
 # E.164: a plus, then up to fifteen digits, the first of them never zero.
 _E164 = re.compile(r"^\+[1-9]\d{1,14}$")
@@ -16,7 +16,7 @@ def dialable(number: str) -> bool:
     return _E164.match(number) is not None
 
 
-def an_e164(number: str) -> str:
+def parse_e164(number: str) -> str:
     """The number, trimmed, or a refusal naming the shape. For a door that takes one typed."""
     said = number.strip()
     if not dialable(said):

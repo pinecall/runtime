@@ -9,8 +9,8 @@ from typing import Annotated
 from fastapi import Depends
 from starlette.requests import HTTPConnection
 
-from pinecall.api._deps import held
-from pinecall.api.agents.holding import SocketId
+from pinecall.api.agents.held_agent import SocketId
+from pinecall.api.deps import held
 from pinecall.types import Env
 
 # What stopping a process is: the socket told why, in the protocol's own words (an `error` event
@@ -67,9 +67,9 @@ class Processes:
         return tuple(sorted(mine, key=lambda one: one.connected_at))
 
 
-def the_processes(connection: HTTPConnection) -> Processes:
+def get_processes(connection: HTTPConnection) -> Processes:
     """The app sockets open on this gateway right now."""
     return held(connection, "processes", Processes)
 
 
-ProcessesDep = Annotated[Processes, Depends(the_processes)]
+ProcessesDep = Annotated[Processes, Depends(get_processes)]

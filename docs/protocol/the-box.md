@@ -97,7 +97,7 @@ key; the issuer is Google's own (`https://accounts.google.com`) and is not a fie
             "redirect_uri": "https://box.example.com/v1/login/google/callback"}}
 ```
 
-`configured` is whether it is **usable**: wired, and its secret openable with this box's vault
+`apply_declaration` is whether it is **usable**: wired, and its secret openable with this box's vault
 key. `client_id` is read off the row even when it is not, so a page shows what was typed.
 
 `PUT /v1/ops/signin/google {client_id, client_secret}` — replaced whole, the secret write-only.
@@ -108,5 +108,5 @@ row above. `DELETE /v1/ops/signin/google` — `204`; `404` when none was wired.
 
 `GET /.well-known/pinecall` says `google: true` while it is usable, which is what the sign-in
 page draws the button off. Internally a provider is one row of `box_settings` (`signin.google`)
-and one entry of a table (`orgs/signin.py`): a second box-wide provider is a row, not a rewrite;
+and one entry of a table (`orgs/box_signin.py`): a second box-wide provider is a row, not a rewrite;
 only Google is exposed today.

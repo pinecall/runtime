@@ -11,7 +11,8 @@ from livekit.agents.metrics import LLMMetrics as Measured
 
 from pinecall.log.entry import Entry
 from pinecall.providers.models import vendor_of
-from pinecall.session.text.measure import Reply, llm_metrics, turn_metrics
+from pinecall.session.errors import COMPONENT_FAILED
+from pinecall.session.text.metrics import Reply, llm_metrics, turn_metrics
 from pinecall_protocol import defs
 from pinecall_protocol.events import (
     AgentStateChanged,
@@ -91,11 +92,20 @@ class Turns:
     ) -> None:
         """One reply, run by livekit: its rounds of model and tools, and the entries they make."""
         asked = [one for one in (heard, said, instructions) if one is not None]
-        assert len(asked) == 1, "a turn is asked for one way at a time"
+        if len(asked) != 1:
+            raise ValueError("a turn is asked for one way at a time")
         reply = Reply(speech_id=speech, arrived=arrived)
         self.reply = reply
         try:
             await self._one_reply(heard, said, instructions)
+        except Exception as failed:
+            # The spoken session writes what a component said when it broke (voice/events.py);
+            # a written turn wrote nothing and the log showed a turn that simply stopped.
+            await self._session.emit(
+                "error",
+                ErrorEvent(code=COMPONENT_FAILED, message=str(failed), recoverable=False),
+            )
+            raise
         finally:
             self.reply = None
         await self.ended(reply)

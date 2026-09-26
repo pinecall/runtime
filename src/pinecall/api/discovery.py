@@ -5,12 +5,13 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter
+from pydantic import Field
 
 from pinecall._version import __version__
-from pinecall.api._box import BoxSettingsDep
-from pinecall.api._deps import SettingsDep
-from pinecall.api.org_mail import OutboxDep
-from pinecall.orgs.signin import GOOGLE, BoxSignIn
+from pinecall.api.deps import SettingsDep
+from pinecall.api.ops.box_settings import BoxSettingsDep
+from pinecall.api.org.mail import OutboxDep
+from pinecall.orgs.box_signin import GOOGLE, BoxSignIn
 from pinecall_protocol import WireModel
 
 router = APIRouter()
@@ -45,7 +46,7 @@ class Discovered(WireModel):
     mail: bool = False
     # What this box is called and painted with (`GET /v1/ops/brand`): a sign-in page draws the
     # operator's name, logo and accent before anybody holds a key, so it rides here.
-    brand: dict[str, Any] = {}
+    brand: dict[str, Any] = Field(default_factory=dict[str, Any])
     # Whether the sign-in page may offer "Continue with Google": the operator wired a client at
     # `PUT /v1/ops/signin/google` and this box can open its secret. The button goes to
     # `GET /v1/login/google`.
@@ -57,7 +58,9 @@ class Discovered(WireModel):
 
 # No key at this door: it is how a client learns whether to offer a sign-up before anybody has one.
 @router.get("/.well-known/pinecall")
-async def discovered(settings: SettingsDep, outbox: OutboxDep, box: BoxSettingsDep) -> Discovered:
+async def discovery_answer(
+    settings: SettingsDep, outbox: OutboxDep, box: BoxSettingsDep
+) -> Discovered:
     """Which runtime and world, whether it is the cloud, whether a stranger may sign up, mail."""
     return Discovered(
         version=__version__,

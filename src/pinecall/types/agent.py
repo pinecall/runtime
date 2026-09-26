@@ -7,8 +7,8 @@ from typing import Literal, get_args
 
 from pinecall.types.knowledge import Docs, MemoryPolicy
 from pinecall.types.prompt import DEFAULT_LAYOUT, PromptBlock
-from pinecall.types.refused import DeclarationRefused
-from pinecall.types.tool import ToolSpec
+from pinecall.types.refusal import DeclarationRefused
+from pinecall.types.tool_spec import ToolSpec
 
 # Who may see a field of the app's state: the caller's own browser (public), the tenant's console
 # (tenant), or the console with the value masked (pii). Undeclared means tenant.
@@ -119,7 +119,7 @@ LIMIT_OUT_OF_RANGE = (
 )
 
 
-def a_limit_checked(seconds: int) -> None:
+def check_call_limit(seconds: int) -> None:
     """Refuse a voice call's ceiling that is neither no limit nor a minute to an hour."""
     if seconds != NO_LIMIT and not SHORTEST_LIMIT_S <= seconds <= LONGEST_LIMIT_S:
         raise DeclarationRefused(
@@ -150,9 +150,9 @@ class AgentConfig:
     # knowledge block of every call. The world's (Tuning.knowledge), never the class's.
     knowledge: str | None = None
     # Every base the world attached, each with how a turn reads it: the RAG. The world's too
-    # (Tuning.bases); the resolver fills it (api/agents/tuned.py). A settings row that attaches
-    # none and one that attaches an empty list run the same session — the difference between them
-    # is which corner is heard, and that is spent by the time a config is built.
+    # (Tuning.bases); the resolver fills it (api/agents/session_config.py). A settings row that
+    # attaches none and one that attaches an empty list run the same session — the difference
+    # between them is which corner is heard, and that is spent by the time a config is built.
     bases: tuple[Docs, ...] = ()
     # Whether the class searches the base itself, `this.knowledge.search`: a world that attaches
     # none refuses the registration, so a tool that would find nothing is refused at boot.
@@ -163,7 +163,7 @@ class AgentConfig:
     # the box records the whole room, so what is kept is what everybody on the call heard.
     record: bool = True
     # The longest a voice call runs, in seconds; 0 is no limit. The world's (Tuning.max_duration_s),
-    # never the class's; the worker's clock keeps it (session/voice/closing_time.py).
+    # never the class's; the worker's clock keeps it (session/voice/time_limit.py).
     max_duration_s: int = LONGEST_VOICE_CALL_S
     tools: tuple[ToolSpec, ...] = ()
     state_fields: Mapping[str, Visibility] = field(default_factory=dict[str, Visibility])

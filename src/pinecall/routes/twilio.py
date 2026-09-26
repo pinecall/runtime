@@ -44,7 +44,7 @@ BOX_TRUNK = "pinecall"
 
 # A tenant's trunk on ITS Twilio account — and the credential list the box dials through, and,
 # tidied, the trunk's termination label — named `<fleet>-<org>`: made once, found by name after,
-# never doubled. Why this spelling and not the SFU's `<fleet>:<org>` (routes/trunks.py): the
+# never doubled. Why this spelling and not the SFU's `<fleet>:<org>` (routes/inbound_trunks.py): the
 # default fleet's is `pinecall-<org>`, exactly what every production trunk is already called, so no
 # tenant's account is renamed; the sandbox's fleet gives `pinecall-sandbox-<org>` beside it on the
 # same account, and no org id can make the two meet (ids are `org_<hex>`, or `default`); and a

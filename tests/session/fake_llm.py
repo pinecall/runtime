@@ -140,9 +140,9 @@ class FakeLLM(llm.LLM[Any]):
         chat_ctx: llm.ChatContext,
         tools: list[llm.Tool] | None = None,
         conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS,
-        parallel_tool_calls: Any = NOT_GIVEN,  # noqa: ARG002 — the base class's signature
-        tool_choice: Any = NOT_GIVEN,  # noqa: ARG002 — the base class's signature
-        extra_kwargs: Any = NOT_GIVEN,  # noqa: ARG002 — the base class's signature
+        parallel_tool_calls: Any = NOT_GIVEN,
+        tool_choice: Any = NOT_GIVEN,
+        extra_kwargs: Any = NOT_GIVEN,
     ) -> ScriptedStream:
         """The next scripted answer, with the request kept exactly as the session built it."""
         # A COPY: livekit keeps mutating the one context it owns as the turn goes on, so a

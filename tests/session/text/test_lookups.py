@@ -91,7 +91,7 @@ async def test_the_callers_words_are_the_query_filed_under_their_own_speech() ->
         ("search", {"query": "quiero un turno"}, "sp_1"),
     ]
     (asked,) = llm.asked
-    # `current_date` is seeded at call start (session/clock.py); the lookups close the request.
+    # `current_date` is seeded at call start (session/date_tool.py); the lookups close the request.
     assert [call.name for call in asked.calls][-2:] == ["recall", "search"]
     assert [list(json.loads(output.output)) for output in asked.outputs][-2:] == [
         ["facts"],

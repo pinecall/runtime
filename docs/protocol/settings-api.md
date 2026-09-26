@@ -6,7 +6,7 @@ how the voice says a brand and what the ears must know. These doors keep all of 
 corner, a version a row**, and a call's head row says which versions it ran on. They take the org's
 own API key, as every tenant door does. The class declares the contract — the tools, the state,
 the language, the doors — and nothing of this: the world is put on the declaration at the one place
-every session is built (`providers/tuning.py`), and a knob the org never set is the runtime's
+every session is built (`providers/tuned_declaration.py`), and a knob the org never set is the runtime's
 default.
 
 **Two kinds of key open them.** A key that opens `pipeline` — a developer's, an admin's — may set
@@ -78,7 +78,7 @@ call is recorded) —
 `max_duration_s` — the longest a **voice** call of the agent runs, in seconds: `0` is no limit,
 otherwise 60 to 3600, and unset anywhere it is 600. A minute before it the agent is told to close
 (an instruction the caller never hears, as a whisper is), and at it the call ends after the sentence
-being said, as `timeout` by the `platform` (`session/voice/closing_time.py`); the clock is kept even
+being said, as `timeout` by the `platform` (`session/voice/time_limit.py`); the clock is kept even
 while a person holds the line. A written conversation — WhatsApp, the widget's chat — is never cut
 by it. A dialled call is also held to the org's own `max_duration_s` (operator-api.md), whichever
 comes first —

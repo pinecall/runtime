@@ -71,7 +71,6 @@ __all__ = [
     "models_asked",
     "ops_http",
     "orgs",
-    "tuning",
     "registry",
     "routes",
     "settings",
@@ -80,15 +79,16 @@ __all__ = [
     "tenant_http",
     "threads",
     "tokens",
+    "tuning",
     "vault",
     "wired",
 ]
 
 
 async def test_no_row_of_the_log_carries_the_key_the_org_brought(
-    ops_http: httpx.AsyncClient,  # noqa: F811 — the fixture, by name
-    gateway: TestClient,  # noqa: F811 — the fixture, by name
-    store: MemoryStore,  # noqa: F811 — the fixture, by name
+    ops_http: httpx.AsyncClient,
+    gateway: TestClient,
+    store: MemoryStore,
 ) -> None:
     """Criterion 2, the store half: every entry of the call's log and of the agent's own."""
     await _the_org_brought_its_own_key(ops_http)
@@ -101,9 +101,9 @@ async def test_no_row_of_the_log_carries_the_key_the_org_brought(
 
 
 async def test_no_door_but_the_workers_own_ever_answers_with_it(
-    ops_http: httpx.AsyncClient,  # noqa: F811 — the fixture, by name
-    gateway: TestClient,  # noqa: F811 — the fixture, by name
-    store: MemoryStore,  # noqa: F811 — the fixture, by name
+    ops_http: httpx.AsyncClient,
+    gateway: TestClient,
+    store: MemoryStore,
 ) -> None:
     """Criterion 2, the wire half: every door a tenant, a browser or the console reads."""
     await _the_org_brought_its_own_key(ops_http)
@@ -122,10 +122,10 @@ async def test_no_door_but_the_workers_own_ever_answers_with_it(
 # session goes on to write — its own log, its summary, the doors that read it back — is scanned
 # for the canary the same way the replayed golden is above.
 async def test_no_row_of_a_text_call_on_the_orgs_own_key_carries_it(
-    ops_http: httpx.AsyncClient,  # noqa: F811 — the fixture, by name
-    gateway: TestClient,  # noqa: F811 — the fixture, by name
-    store: MemoryStore,  # noqa: F811 — the fixture, by name
-    keys_asked: list[ProviderKeys],  # noqa: F811 — the fixture, by name
+    ops_http: httpx.AsyncClient,
+    gateway: TestClient,
+    store: MemoryStore,
+    keys_asked: list[ProviderKeys],
 ) -> None:
     """Criterion 2, the text half: a chat session runs on the key and writes it down nowhere."""
     await _the_org_brought_its_own_key(ops_http)
@@ -147,9 +147,9 @@ async def test_no_row_of_a_text_call_on_the_orgs_own_key_carries_it(
 # came in that way must be as unreadable afterwards as one an operator kept. Same store, same
 # doors, same scan — the only difference is who knocked.
 async def test_a_key_the_tenant_brought_at_its_own_door_leaks_from_none_of_them(
-    tenant_http: httpx.AsyncClient,  # noqa: F811 — the fixture, by name
-    gateway: TestClient,  # noqa: F811 — the fixture, by name
-    store: MemoryStore,  # noqa: F811 — the fixture, by name
+    tenant_http: httpx.AsyncClient,
+    gateway: TestClient,
+    store: MemoryStore,
 ) -> None:
     """Criterion 2 for the tenant's own door: it takes a key and no door ever gives one back."""
     kept = await tenant_http.put("/v1/provider-keys/elevenlabs", json={"key": CANARY})

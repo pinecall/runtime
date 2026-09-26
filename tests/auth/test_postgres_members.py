@@ -1,14 +1,16 @@
 """The members and invitations tables in Postgres, driven exactly as the memory twin is."""
 
+import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import replace
 from uuid import uuid4
 
 import pytest
 
+from pinecall.auth.members import NoSeatLeft
 from pinecall.auth.members_postgres import PostgresMembers
 from pinecall.log.store import Pool, open_pool
-from pinecall.orgs.table import PostgresOrgs
+from pinecall.orgs.records import PostgresOrgs
 from pinecall.types import Member
 from tests.postgres import Dev
 
@@ -167,3 +169,21 @@ async def test_a_mirrored_member_is_upserted_by_productions_id_over_a_stale_row_
     again_invited = replace(berna, id=f"m_{uuid4().hex[:12]}")
     assert await members.mirrored(again_invited) is not None, "the stale row gives the address up"
     assert [m.id for m in await members.listed(org)] == [again_invited.id]
+
+
+async def test_the_write_judges_the_seats_under_a_lock_so_five_at_once_seat_two(
+    pool: Pool, org: str
+) -> None:
+    """Two invitations judged at once both saw one seat left, until the INSERT counted itself."""
+    members = PostgresMembers(pool)
+    outcomes = await asyncio.gather(
+        *(members.invite(org, f"p{n}@x.uy", f"P{n}", "qa", (), seats=2) for n in range(5)),
+        return_exceptions=True,
+    )
+    assert await members.seated(org) == 2
+    assert sum(1 for one in outcomes if isinstance(one, NoSeatLeft)) == 3
+    with pytest.raises(NoSeatLeft):
+        await members.invite(org, "p9@x.uy", "P9", "qa", (), seats=2)
+    # No limit, and a re-invite of one still invited, both still write.
+    assert await members.invite(org, "p9@x.uy", "P9", "qa", (), seats=None) is not None
+    assert await members.invite(org, "p9@x.uy", "P9", "qa", (), seats=3) is not None

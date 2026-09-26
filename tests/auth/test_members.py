@@ -5,21 +5,15 @@ from dataclasses import replace
 import pytest
 
 from pinecall.auth.invitations import INVITATION_PREFIX, INVITATION_TTL_S
+from pinecall.auth.members import NoSeatLeft
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.types import Member
+from tests.clocks import Clock
 
 pytestmark = pytest.mark.unit
 
 ORG = "clinica"
 A_HASH = "$argon2id$not-really-but-the-table-does-not-care"
-
-
-class _Clock:
-    def __init__(self) -> None:
-        self.now = 1000.0
-
-    def __call__(self) -> float:
-        return self.now
 
 
 async def test_an_invite_makes_a_row_still_invited_and_a_token_shown_once() -> None:
@@ -48,7 +42,7 @@ async def test_accepting_spends_the_token_sets_the_password_and_makes_the_member
 
 
 async def test_an_expired_or_unknown_token_accepts_nobody() -> None:
-    clock = _Clock()
+    clock = Clock()
     members = MemoryMembers(clock=clock)
     invited = await members.invite(ORG, "berna@clinica.uy", "Berna", "qa", [])
     assert invited is not None
@@ -186,3 +180,17 @@ async def test_a_mirror_takes_the_address_from_a_stale_row_and_never_another_org
     assert await members.mirrored(PRODUCTIONS_BERNA) is not None
     assert [m.id for m in await members.listed(ORG)] == ["m_berna"]
     assert await members.mirrored(replace(PRODUCTIONS_BERNA, org="tienda")) is None
+
+
+async def test_an_invitation_past_the_orgs_seats_makes_no_row_and_says_how_many_are_held() -> None:
+    """The door judges the seat before the row; the write judges it again, and it is the one
+    that cannot be raced (auth/members_postgres.py takes a lock on the org for it)."""
+    members = MemoryMembers()
+    assert await members.invite("clinica", "ana@x.uy", "Ana", "qa", (), seats=1) is not None
+    with pytest.raises(NoSeatLeft) as full:
+        await members.invite("clinica", "luis@x.uy", "Luis", "qa", (), seats=1)
+    assert (full.value.org, full.value.seated) == ("clinica", 1)
+    assert await members.seated("clinica") == 1
+    # No limit is no rule at all, and a re-invite of somebody still invited takes no seat.
+    assert await members.invite("clinica", "luis@x.uy", "Luis", "qa", (), seats=None)
+    assert await members.invite("clinica", "ana@x.uy", "Ana", "qa", (), seats=2)

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import EvalsKeyDep, LlmsDep, OrgsDep, VaultDep
-from pinecall.evals.caller import NO_MODEL, Asking, Improvised, what_they_say_next
+from pinecall.api.deps import EvalsKeyDep, LlmsDep, OrgsDep, VaultDep
+from pinecall.evals.simulated_caller import NO_MODEL, Asking, Improvised, improvise_line
 from pinecall.orgs.vault import brought_by
 from pinecall.providers.models import NoProvider
-from pinecall.providers.tuning import the_llm
+from pinecall.providers.tuned_declaration import tuned_llm
 from pinecall.types import DeclarationRefused
 
 router = APIRouter()
@@ -27,12 +27,12 @@ async def next_line(
 ) -> Improvised:
     """One turn of an improvised caller: the persona and the call so far in, one line out."""
     try:
-        llm = llms(the_llm(said.persona.llm), await brought_by(vault, orgs.quotas_of, key.org))
+        llm = llms(tuned_llm(said.persona.llm), await brought_by(vault, orgs.quotas_of, key.org))
     except DeclarationRefused as refused:
         raise HTTPException(422, str(refused)) from refused
     except NoProvider as missing:
         raise HTTPException(503, NO_MODEL.format(missing=missing)) from missing
     try:
-        return await what_they_say_next(llm, said)
+        return await improvise_line(llm, said)
     except ValueError as broke:
         raise HTTPException(502, THE_MODEL_REFUSED.format(broke=broke)) from broke

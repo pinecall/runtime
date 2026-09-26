@@ -8,18 +8,18 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query
 
-from pinecall.api._deps import (
+from pinecall.api.agents.handlers import Socket, handles, parse_command
+from pinecall.api.agents.registry import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, RegistryDep
+from pinecall.api.deps import (
     CallsKeyDep,
     EvalsKeyDep,
     KnowledgeKeyDep,
     MemoryKeyDep,
     TalkKeyDep,
 )
-from pinecall.api._live import LiveDep
-from pinecall.api.agents.handlers import Socket, asked, handles
-from pinecall.api.agents.registry import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, RegistryDep
-from pinecall.auth.keys import KeyRecord, held_by
-from pinecall.log.entry import unstored
+from pinecall.api.live import LiveDep
+from pinecall.auth.keys import KeyRecord, is_held_by
+from pinecall.log.entry import ephemeral_entry
 from pinecall.types import JsonObject
 from pinecall_protocol import Command
 from pinecall_protocol.commands import DevAnswer
@@ -154,17 +154,17 @@ async def _relayed(
         raise HTTPException(
             404, NO_SUCH_VERB.format(verb=verb, family=family, verbs=sorted(FAMILIES[family]))
         )
-    held = registry.serving(key.env, slug, app, held_by(key))
+    held = registry.serving(key.env, slug, app, is_held_by(key))
     if held is None or held.org != key.org:
         if app is not None:
             raise HTTPException(409, NOT_THAT_APP.format(app=app, slug=slug))
-        if registry.of(key.env, slug, held_by(key)) is not None:
+        if registry.of(key.env, slug, is_held_by(key)) is not None:
             raise HTTPException(409, NO_UNCLAIMED.format(slug=slug))
         raise HTTPException(404, NO_AGENT.format(slug=slug))
     id = f"dev_{uuid4().hex[:12]}"
     request = DevRequest(id=id, verb=_a_verb(verb), data=dict(said))
     waiting = live.asked(id)
-    if not await live.tell(held.owner, unstored("dev.request", request, agent=slug)):
+    if not await live.tell(held.owner, ephemeral_entry("dev.request", request, agent=slug)):
         live.forget_asked(id)
         raise HTTPException(502, APP_LEFT.format(slug=slug, verb=verb))
     try:
@@ -184,7 +184,7 @@ async def _relayed(
 @handles("dev.answer")
 async def take_a_dev_answer(socket: Socket, command: Command) -> None:
     """What the verb produced in the app's own process, handed to the door awaiting it."""
-    answer = asked(command, DevAnswer)
+    answer = parse_command(command, DevAnswer)
     if socket.live.dev_answered(answer):
         return
     await socket.refuse(

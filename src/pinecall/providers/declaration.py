@@ -17,7 +17,7 @@ from pinecall_protocol.events import AgentRegistered
 DEFAULT_TIMEOUT_S: float = ToolSpec.timeout_s
 
 
-def a_tool(wire: defs.ToolSpec) -> ToolSpec:
+def parse_tool(wire: defs.ToolSpec) -> ToolSpec:
     """One tool. The wire carries both of the domain's shapes now, so nothing is projected."""
     return ToolSpec(
         name=wire.name,
@@ -30,7 +30,7 @@ def a_tool(wire: defs.ToolSpec) -> ToolSpec:
     )
 
 
-def an_agent(slug: str) -> AgentConfig:
+def agent_from_slug(slug: str) -> AgentConfig:
     """What a register alone declares: a slug. Every other field is the class's or the world's."""
     return AgentConfig(slug=slug)
 
@@ -39,7 +39,7 @@ def an_agent(slug: str) -> AgentConfig:
 # were on the wire. An absent field keeps whatever the agent declared before. The environment the
 # wire still carries — a voice, the models, an opening, what is remembered, a base — is the
 # world's now (Tuning) and is not read: an app on an older package registers all the same.
-def configured(current: AgentConfig, wire: defs.AgentConfig) -> AgentConfig:
+def apply_declaration(current: AgentConfig, wire: defs.AgentConfig) -> AgentConfig:
     """The config with the sent fields replaced. DeclarationRefused when one breaks its rule."""
     return dataclasses.replace(current, **_sent(wire))
 
@@ -61,7 +61,7 @@ def _sent(wire: defs.AgentConfig) -> dict[str, Any]:
     if "uses_knowledge" in sent:
         converted["uses_knowledge"] = wire.uses_knowledge
     if "tools" in sent:
-        converted["tools"] = tuple(a_tool(tool) for tool in wire.tools or ())
+        converted["tools"] = tuple(parse_tool(tool) for tool in wire.tools or ())
     if "state_fields" in sent:
         converted["state_fields"] = _visibilities(wire.state_fields or ())
     if "view" in sent:
@@ -94,7 +94,7 @@ def _senders(specs: Sequence[defs.EventSpec]) -> dict[str, frozenset[EventSource
 # route crosses between the wire's shape and the domain's, in both directions. encode() drops what
 # nobody set, so an optional field is left out rather than sent as null: the schema says `label` is
 # a string when it is there, and null is not a string.
-def registered(app: str, sdk: str | None, env: Env) -> AgentRegistered:
+def build_registered(app: str, sdk: str | None, env: Env) -> AgentRegistered:
     """The agent.registered payload: the socket's id, the world, the SDK. A door is a row now."""
     said: dict[str, Any] = {"app": app, "routes": [], "env": env}
     if sdk is not None:
@@ -102,7 +102,7 @@ def registered(app: str, sdk: str | None, env: Env) -> AgentRegistered:
     return AgentRegistered(**said)
 
 
-def a_door(route: Route) -> defs.Route:
+def wire_route(route: Route) -> defs.Route:
     """The domain's route as the wire says it back: the door, without the org that owns it."""
     door: dict[str, Any] = {"channel": route.channel, "number": route.number}
     if route.label is not None:
@@ -115,6 +115,6 @@ def rang(route: Route) -> bool:
 
     The two are served by different corners of a world: what a key opened lands in the holder's,
     and what rang lands on the agent's line, because a number is the org's door and the worker
-    that dialled it holds a key naming nobody. See api/agents/doors.py.
+    that dialled it holds a key naming nobody. See api/agents/dial_in.py.
     """
     return route.channel in CHANNELS_WITH_A_NUMBER

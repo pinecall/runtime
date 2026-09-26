@@ -6,7 +6,143 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 
 ## [Unreleased]
 
+### Security
+- **A call id is not a key to the call.** `GET /v1/calls/{call}/commands` and
+  `POST /v1/calls/{call}/tools` now refuse a tenant's worker `403` for a call served under another
+  org, exactly as the events and sealed doors always did: reading the commands consumed them off
+  the worker running the call, and a tool of it wrote into the other org's log.
+  `POST /v1/evals/replay/{call}` asks for the call in the key's corner — org, world, holder — the
+  way `POST /v1/evals/judge/{call}` does, and answers another tenant's call, or a sandbox key's
+  production call, with the same `404` as a typo; it answered `403` on the org alone before.
+- **An IdP's word does not point the box at its own network.** The issuer an org wires, and
+  every endpoint its configuration publishes, must be `https` at a public name: an address, a
+  `localhost`, `.local` or `.internal` name is refused naming the field, before the box knocks.
+  An id_token for several audiences must name this gateway as its authorized party (`azp`), and
+  a token door that answers no JSON is the provider's refusal, not a 500.
+- **The login throttle forgets names that stopped knocking.** Its table is keyed by what the
+  door names — the client and the email typed — so a script trying a million addresses once each
+  grew it for the life of the process; it is swept to the names of one window now.
+- **A password is hashed and verified off the event loop.** argon2id takes tens of milliseconds
+  by design, and the gateway ran it inline at login, sign-up and the invitation: every socket and
+  stream it held waited that long each time.
+- The WhatsApp webhook's verify token is compared in constant time, as the signature already was.
+- **A runtime process on the box may touch what it names and nothing else.** Every long-running
+  unit — the gateways, the workers, the overflow agent, the fleet loop — runs under one systemd
+  drop-in (`infra/box/hardening.conf`): no new privileges, the file system read-only but the paths
+  each unit's `ReadWritePaths=` names, its own `/tmp`, no home, no devices, no capability, the
+  `@system-service` syscalls; a tenant's app keeps a lighter set. The deploy compiles the bytecode
+  at the sync. A unit that cannot start backs off to a minute between tries, and the journal is
+  bounded, so a crash loop fills no disk.
+- **What the box takes on trust is pinned.** Every container image is named by tag and digest
+  (the multi-architecture index's), in the Quadlets, the dev stack and the Postgres image alike;
+  `scripts/image-digests` reads the registries for what each tag points at today. uv arrives on a
+  fresh box as a named release held to its checksum, never `curl | sh`; so does `hcloud` on a hub
+  that runs the fleet on Hetzner; NodeSource's key is held to its published fingerprint at birth
+  and on every deploy. `make deploy`'s rsync leaves the maintainer's notebook, the recordings,
+  every `.env` and `deploy.local.mk` at home.
+
+### Fixed
+- **The overflow agent's two entries are the protocol's own shapes.** Its `agent.transcript`
+  carried no `speech_id`, which every other transcript entry has, and its `call.ended` was a dict
+  spelled by hand; both are written through the wire models now.
+- **A release builds its pages from the repositories they live in.** The publish workflow checked
+  out `pinecall/agents`, where the console once lived, and died at "no console checkout": it
+  checks out `pinecall/console` and `pinecall/widget` now, which is the layout `scripts/console`
+  reads by default.
+- **The judges see the tool calls.** The transcript a model judge reads carried the turns alone,
+  so the persona judge, asked whether "the tool calls" got the caller what they came for, never
+  saw a booking; it now prints each call and its answer between the turns, in livekit's words.
+- **A declared language reaches the vendors as its base code.** `es-ES`, `en_US` or `spanish`
+  went to Cartesia, Deepgram and Inference verbatim; every plugin is handed `es` now, the one
+  reading `providers/language.py` always had.
+- **A cache write is not also fresh input.** The plugins report `input_tokens` as the sum of the
+  fresh, the read-back and the written tokens, and the bill priced the written ones twice: at the
+  input price and at the write price.
+- **A seat is judged by the write itself.** Two invitations at once both passed the quota's
+  count and both made a row; the members table now counts under a lock on the org inside its
+  INSERT, and the door answers the second with the quota's own `429`. `PINECALL_VAULT_KEY`
+  **rotates**: a comma-separated list, the new key first, opens every secret sealed under an
+  older one — one key rotated in place read every tenant's secret as garbage. Accepting an
+  invitation, remembering a call's facts, holding a golden's and writing them again with a new
+  embedder are each one transaction: a failure between two statements no longer leaves a link
+  spent with nobody seated, or a fact ended with its replacement never written.
+- **The reaper reads the log through its primary key.** Its two queries joined `call_log` on a
+  column no index covers and scanned the whole table every minute.
+- **A live call hits the state memo.** The memo compared the last durable seq with the store's,
+  which counts interims, so a call whose head moved on every transcript was folded whole on every
+  read; and the memo is bounded to a thousand calls, the oldest let go.
+- **An entry and its facts fold on one connection, in seq order.** Two appends to one call could
+  fold the other way round on two pooled connections, and `last_text` said the older one; a fold
+  that breaks is logged and dropped, never the entry.
+- Recall runs the BM25 branch while the query is being embedded; whose a log is is asked of the
+  store once per log and not per entry; `migrate status` reads only a missing table as "nothing
+  applied" and says any other refusal; a `.post.sql` opening with `-- pinecall:no-transaction`
+  runs outside one, so an index can be built `CONCURRENTLY`.
+- **A spoken call seals whatever the gateway did at hang-up.** The bridge's close read the
+  verdict with no retry and waited for its queue with no limit, so a gateway away at that moment
+  left the shutdown callback raising, or waiting until the job was killed with the log unsealed.
+  The seal is bounded (`Budgets.seal_s`, 20 s), the verdict read is asked again inside it, a log
+  that never arrived is said as `not_judged`, and the writer is closed whatever happened.
+- **Two loops the worker never held.** The heartbeat and the overflow watcher were started as
+  tasks nothing referenced, which Python may collect mid-loop; they are held now.
+- A cancelled turn no longer answers its tool with a lapsed `tool.result`; a written turn whose
+  model failed writes the `error` entry the spoken one always wrote; a watcher that drops out of
+  a text call is said in the log; a call's lookups still running at hang-up are cancelled; the
+  written session is built in one place, at one answer per tool, as the spoken one always was;
+  the hold melody, a transfer's announcement and a simulated caller wait on livekit's own events
+  instead of glancing every hundred milliseconds.
+- **The judge model is closed.** A hang-up built an `anthropic.LLM` per judged call and closed
+  none; a suite's run held one per run and closed it never.
+
 ### Changed
+- **Every public function is named to survive a traceback.** Four hundred of them opened with an
+  article, a pronoun or a bare participle — `a_role`, `the_vault`, `whose_corner`, `listed`,
+  `wired`, `standing` — and read only beside their module's name. Each is a verb with its object,
+  a noun phrase, a predicate or a factory now (`parse_role`, `get_vault`, `list_keys`,
+  `sso_standing`, `vendor_status`); a FastAPI dependency is `get_x`, one that refuses is
+  `require_x`, a projection to the protocol is `wire_x`. `CLAUDE.md` states the rule. The names a
+  package's `__all__` exports changed with them: an extension that imported one imports the new one
+  (`extensions/points.py`: `unlimited` is `unlimited_quotas`).
+- **Every module is named by what it holds.** A hundred and forty files across `types/`, `log/`,
+  `providers/`, `auth/`, `orgs/`, `routes/`, `tokens/`, `session/`, `whatsapp/`, `evals/`,
+  `memory/`, `knowledge/`, `lookups/`, `mail/` and `worker/` were named by a gerund or a bare
+  word that read only beside its package's name — `pairing_asked`, `knowing`, `hearing`, `hop`, `kit`,
+  `fleet_totals`, `table`, `facts` — and four of them were spelt the same in three directories. Each
+  is named by the noun it owns now (`model_requests`, `platform_block`, `stt_vocabulary`,
+  `gateway_http`, `vendors`, `vendor_status`, `records`, `call_facts`), the hold melody is one word
+  in every layer, `dialing` is spelt as the wire spells it, and no module is named after its own
+  package or a sibling one. An extension that imported a module by path imports the new one; the
+  public surface every `__all__` pins is unchanged.
+- **`api/` is folded by surface.** Seventy flat modules and five directories chosen by nobody are
+  eleven directories named by who knocks and what for — `scope/`, `accounts/`, `agents/`, `calls/`,
+  `memory/`, `knowledge/`, `evals/`, `telephony/`, `org/`, `ops/`, `whatsapp/` — and the modules
+  every door reads lose their underscore (`deps.py`, `refusals.py`, `routers.py`, `live.py`,
+  `origins.py`, `public_url.py`). No module of `api/` is named like a package of the runtime any
+  more. Every door answers at the path it did; only the tree moved.
+- **A code check speaks the judges' four words.** `POST /v1/evals/replay/{call}` answers each
+  check's `status` as `held` · `broken` · `deferred_verdict` · `skipped_verdict` — the protocol's own
+  `ScoreVerdict`, which every model judge already spoke — where it said `passed` and `failed`.
+  The `passed` boolean beside them is unchanged.
+- **The gate got stricter, and so did the install.** `scripts/lint` runs `deptry` after the type
+  checkers (what the tree imports is what `pyproject.toml` declares, both ways — `starlette`,
+  `av` and `protobuf` are declared now, having been imported by name all along) and ruff checks
+  the `RUF`, `ASYNC`, `SIM`, `C4`, `RET`, `PIE`, `PERF`, `FURB`, `ISC`, `PGH`, `LOG`, `G`, `T10`
+  and `S` families; `scripts/test` measures branch coverage and holds it to the floor in
+  `pyproject.toml`; `scripts/bootstrap` installs what CI and a box install — `runtime`,
+  `providers` and the tools — and no longer the `providers-big` SDKs, and installs the commit
+  hooks in `.pre-commit-config.yaml` when `prek` is on the machine. `uv run pytest <file>` runs
+  on one core: `-n auto` moved from `pyproject.toml` to `scripts/test`. CI runs on Python 3.12
+  and 3.13, builds the wheel on every push, caches the Postgres image between runs and keeps the
+  container's log as an artifact; every action is pinned by commit, Dependabot opens one pull
+  request a week per ecosystem, and `pip-audit` runs over the whole lock every Monday.
+- **Ring 0 proves the whole golden state, and searches for what must always hold.**
+  `tests/log/test_the_golden_log.py` folds the protocol's golden log to its golden state whole —
+  every field, not the four the Postgres round trip compared — and resumes to it from any cut,
+  by fold and by a `log.gap` snapshot; `hypothesis` states the properties of chunking, rank
+  fusion and the reducer beside their examples (`respx` and `time-machine`, which no test
+  imported, leave the dev group). `migrate status` under test opens no socket, every package
+  with an `__all__` is pinned, and the clocks, the pre-migration boxes and the no-vault
+  fixtures the suites copied are one module each.
 - **The box embeds with Perplexity's larger model.** `EMBED_PROVIDER=perplexity` now defaults to
   `pplx-embed-context-v1-4b`, asked for 1024 wide (Matryoshka) so it fits the columns: every base
   another model pushed answers `409` until its project pushes it again, and
@@ -24,6 +160,33 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   could make orgs for as many trials as they liked.
 
 ### Added
+- The repository says how to report a weakness (`SECURITY.md`), how people are treated
+  (`CODE_OF_CONDUCT.md`), what an issue and a pull request say (`.github/ISSUE_TEMPLATE/`,
+  `.github/PULL_REQUEST_TEMPLATE.md`), what every editor agrees on (`.editorconfig`), and where
+  the project lives (`[project.urls]`, and the badges at the top of the README).
+- `docs/glossary.md`: the words the tree speaks — box, hub, instance, world and env, corner,
+  holder, door, knock, seat, floor, leg, line, kit, lending, standing, golden, ring — one meaning
+  each, and `CLAUDE.md` lists all twenty packages.
+- **Three more lines of the doctor:** `disk`, free space on the file system the recordings and
+  the log land on, the verdict under two gigabytes; `fence`, whether `nftables` is active, the
+  verdict on a box where it is not; `certificate`, how long the domain's certificate has left,
+  the verdict inside two weeks. A worker is asked the first two.
+- **`PINECALL_TIMEZONE`: what day it is on a call.** A call's `today` — what the model reads
+  the date from, what "tomorrow at ten" lands on — was the box's own clock, and a box in UTC
+  answering a clinic in Madrid was a day behind for an hour every night. The zone is a setting
+  now, IANA-spelled, refused at startup when it is not one; `UTC` unless set.
+- **Every door documents its answer.** The ninety-five doors that answered an untyped JSON object
+  — the orgs, keys, members, logins, sign-ups, pairings, numbers, routes, fleet, usage, mail,
+  brand, sign-in, SSO, dial, evals and webhook doors — return a typed model now, so
+  `/openapi.json` names every answer's schema and FastAPI validates it on the way out. The JSON
+  on the wire is byte for byte what it was.
+- **A call's traces, and one shape of log line.** `PINECALL_OTLP_ENDPOINT` names where the worker
+  sends the spans livekit already makes — the session, each turn, each model, TTS and tool call —
+  over OTLP/HTTP, with `PINECALL_OTLP_HEADERS` on each export for the backend's credential and
+  every span naming the fleet; transcripts and tool payloads travel only under
+  `PINECALL_OTLP_PII=true`. Unset, nothing is traced. `PINECALL_LOG_FORMAT=json` makes the
+  gateway write the json line the worker's `start` verb always wrote, so one journal holds one
+  shape; `text`, the default, is for a terminal.
 - **The widget's theme, kept per agent.** `GET`/`PUT /v1/agents/{slug}/widget` carry `theme` —
   `auto`, `light` or `dark`, `null` for the widget's own default (auto) — beside the other settings
   (migration 0052). A body without it still saves, as `null`.
@@ -53,7 +216,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   same and stops as `failed` with the sentence. Protocol `>=0.6.12`.
 - **Codes: a page that follows a phone call it did not place.** `POST /v1/codes` (`talk`) hands
   a tenant's server four digits, the agent's phone number and a code token; the page asks
-  `GET /v1/codes/{code}?wait=1` with it and is answered `claimed` with the call and a log token
+  `GET /v1/codes/{code}?wait=1` with it and is answered `claim_code` with the call and a log token
   the moment the caller keys the code — the worker now writes the caller's tones as
   `dtmf.received` and claims four close together at `POST /v1/calls/{call}/claim` — or the app
   sends `call.claim` for a code the agent heard said. `call.claimed` lands on the call's log,
@@ -160,6 +323,8 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   there.
 
 ### Removed
+- **The `memory-graph` extra is gone.** It installed `graphiti-core` for a memory graph nothing
+  in the tree imports; the contact's facts live in pgvector, which needs no extra.
 - **`PINECALL_SANDBOX_DOMAIN` is read by nothing**: a request's `Host` no longer picks a world or
   marks the console. The console is marked with the instance's world, `/index.html` included.
 - **`PUT /v1/numbers/{number}/env` is gone.** A number is one instance's: it is imported where it
@@ -173,7 +338,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **A code's standing answers any page, and a claimed call stays claimed when it changes hands.**
   `GET /v1/codes/{code}` takes a browser from any origin (GET, no credentials, as a call's own
   reads do): its code token is the only thing that opens it, and `byPhone()` runs on the tenant's
-  own site. `call.attached` carries `claimed` (protocol 0.6.11), so the next process's view still
+  own site. `call.attached` carries `claim_code` (protocol 0.6.11), so the next process's view still
   knows the caller is on the site. `make migrate-post [INSTANCE=]` applies the `.post.sql`
   migrations the doctor names; a new instance runs it once.
 - **Breaking for extension authors: `Admitting` takes the world, and a sandbox asks it too.** The
@@ -302,7 +467,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   without the number passing `GET /v1/agents/{slug}/outbound-trunk?to=&call=` — the shape check,
   the per-minute and per-day windows, and the same `dials` ledger. The stranger fence stays a cold
   dial's: a colleague an agent transfers to has no reason to have ever rung the org
-  (`orgs/guards.py:a_second_leg`). A refusal reaches the caller's log as the guard's own sentence,
+  (`orgs/outbound_guards.py:a_second_leg`). A refusal reaches the caller's log as the guard's own sentence,
   so `call.transferred` says `dial.too_fast` and the agent can say something true.
 
 ### Fixed
@@ -311,7 +476,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   2026-09-22 a recreated container came up empty — three numbers stopped ringing, every dial and
   every warm transfer answered `requested sip trunk does not exist`, and `GET /v1/carrier/outbound`
   still read `ready`. Now: Redis persists (`pinecall-redis.volume`, `--appendonly yes`); the
-  gateway asks the SFU for every trunk the tables describe at each start (`api/rebuilding.py`,
+  gateway asks the SFU for every trunk the tables describe at each start (`api/telephony/sip_rebuild.py`,
   per org, nothing doubled) and refreshes the row of an outbound trunk that came back under a new
   id; the worker's `outbound-trunk` door and the carrier's `ready` ask the SFU by name instead of
   trusting the row.
@@ -334,7 +499,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **A key grants what it holds.** `team` opened every role to whoever held it: a manager could
   invite an admin, PATCH a colleague or their own row to one, or wire SSO seating a whole domain as
   admins, and hold the org by the next login. `POST`/`PATCH /v1/members` and `PUT /v1/org/sso` now
-  refuse `403` a role whose preset opens a door the asking key does not (`auth/granting.py`,
+  refuse `403` a role whose preset opens a door the asking key does not (`auth/grants.py`,
   `this key does not open everything <role> would: …`), production access from a key that has
   none (`… has no production access, and cannot give it`), and `409` a change to one's own role
   or switch. A key naming nobody — a server's, the box's, an operator's visit — grants as before.
@@ -366,7 +531,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 ### Added
 - **A persona says how it is played and when it accepts the call — and a judge reads the call by
   it.** `agent_personas` gains `llm`, `tts`, `voice`, `accepts_when` and `declines_when`
-  (migration `0047`). The three knobs are the agent's own words, read by `providers/tuning.py` and
+  (migration `0047`). The three knobs are the agent's own words, read by `providers/tuned_declaration.py` and
   refused with a 422 at `PUT /v1/personas/{name}` for a vendor or a voice this box does not have;
   `POST /v1/evals/caller` and `/v1/evals/voice` play the caller on that model and read its lines in
   that voice, and unset is what it always was. The rule rides the dispatch (or the chat door) onto
@@ -413,7 +578,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   an agent whose class had not said `web = true`. It now asks what the chat socket asks: is
   anybody holding this agent, in my world, in my org. A number is a row somebody bought; a page
   with a tag on it is not, and the two never had to have anything in common. The worker makes the
-  widget's route out of the dispatch it already carries (`worker/router.py`), the way the chat
+  widget's route out of the dispatch it already carries (`worker/job_target.py`), the way the chat
   socket has always minted one.
 
 ### Removed
@@ -426,7 +591,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   drains by default: the sentence playing was finished and a reply still being generated was
   generated and spoken first, so a Stop pressed while a slow model was thinking waited the whole
   turn out and was pressed again. `Ending.hangup(at_once=True)` interrupts instead; an app's own
-  `call.hangup` still drains, so a goodbye it queued is heard. `session/voice/supervising.py`.
+  `call.hangup` still drains, so a goodbye it queued is heard. `session/voice/supervise.py`.
 - **A tool runs after the line that announced it, and its receipt is heard before the model
   replies.** The model emits "voy a reservar" and the `book` call in one response, and livekit
   starts the tool under that very line: the booking was made before the caller had heard it would
@@ -528,7 +693,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   for one they had applied weeks ago. It had the table's answer two lines above it.
 - **`migrate status` asks the database about post-deployment files too.** Every `.post.sql` read
   `waiting` off the disk alone, so one a person had already applied still looked pending for ever.
-  Each file is now `applied`, `behind` (a startup file this database has not run) or `waiting`, by
+  Each file is now `apply_verb`, `behind` (a startup file this database has not run) or `waiting`, by
   what the table says, and what waits is counted at the end.
 - **Nothing this runtime refuses reaches a terminal as a traceback.** The dispatcher prints any
   refusal the runtime raises deliberately as one sentence on stderr and exits 1. The one that made
@@ -550,7 +715,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   and the WhatsApp thread never: a reader following the seqs saw one skip and the stored log had
   it. A log takes more than one tap now, and a watcher is one: inline, in order, before the append
   returns, so the WhatsApp door still answers only once the contact has the message.
-- **A production key is never told the line is its own.** Production has no corners: `held_by`
+- **A production key is never told the line is its own.** Production has no corners: `is_held_by`
   answers None for every key there and so does the line's holder, so `holder == whose` was
   `None == None` and `pinecall line` told a laptop holding nothing that the number "rings in this
   terminal", about a box.
@@ -573,9 +738,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **The supervisor's desk works from the console.** Every verb a desk sent against a production
   call was refused — `403 that call's agent belongs to another org` — because the door asked the
   LIVE registry whose the call was, in the world of the key that asked. A person's key is minted
-  into the sandbox whatever world the page reads in (`api/login.py`), so the lookup missed and a
+  into the sandbox whatever world the page reads in (`api/accounts/login.py`), so the lookup missed and a
   key that owned the call was told it was somebody else's. Whose a call is, is what its LOG says:
-  the one question every read door already asks (`api/calls/sink.py`), now asked here too, by
+  the one question every read door already asks (`api/calls/log_sink.py`), now asked here too, by
   `POST /v1/calls/{call}/verbs` and `WS /v1/attach` alike. The sentence is `403 that call belongs
   to another org`.
 
@@ -612,7 +777,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   so the Personas screen could show what a caller is and nothing about what it has done. The name
   now rides the call's own `call.started`, beside `run`: a written simulation puts it on the chat
   socket (`/v1/chat?persona=`) and a spoken one on the dispatch, because there the worker is what
-  writes that entry. `log/facts.py` projects it into `call_facts.persona` (migration 0046) the way
+  writes that entry. `log/call_facts.py` projects it into `call_facts.persona` (migration 0046) the way
   every other fact is projected. There is no backfill — the name is nowhere in the logs of the
   calls that already happened — so every older simulation reads as "no persona", which is what it
   honestly is.
@@ -635,7 +800,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   knob now falls through on its own: a corner supplies the knobs it actually set and the corner
   below supplies the rest, a knob set to a falsy value (`turn {endpointing_ms: 0}`) is set and
   wins, and an empty row supplies nothing and is invisible to resolution. One definition,
-  `orgs/resolving.py:resolved`, which both stores read through; the versioned writes and the
+  `orgs/tuning_resolution.py:resolved`, which both stores read through; the versioned writes and the
   per-corner doors are untouched. [docs/protocol/settings-api.md](docs/protocol/settings-api.md)
 - **`bases: []` is a corner saying it reads no base.** It was the one knob with no absent form: an
   empty list was dropped on its way into the column, so "take the team's bases off this agent" was
@@ -803,7 +968,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   false` and `role: "operator"` where they are none. `POST /v1/login/org` lets them into any org
   on a production key with the admin role's scopes, labelled `operator · <email>`, whose
   `subject` is `operator:<email>` — no member row, no seat, attributable by address wherever a
-  subject is written down. `GET /v1/whoami` gains `operator` and `visiting`. Such a key is asked
+  subject is written down. `GET /v1/whoami` gains `operator` and `visitor_email`. Such a key is asked
   about on every verify, so revoking the flag, disabling or removing the person stops it on the
   next request; it opens no sandbox and pairs no terminal. **Changed with it:** the operator
   flag is the PERSON's — a key of theirs in any org of theirs opens `/v1/ops/*`, not only the
@@ -1030,7 +1195,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   the operator of the box had none either. `GET /v1/agents` now answers a key that opens `team`
   with one row per CORNER instead of one per slug, and every row carries `holder`, the member
   whose copy it is — absent for the org's own, which is what a server's token holds. Which rows a
-  reader gets is the key's own answer (`sees_every_corner`, `auth/keys.py`): whoever may see who
+  reader gets is the key's own answer (`is_operator_key`, `auth/keys.py`): whoever may see who
   the team IS may see what the team is RUNNING. `holder` is the same `{holder, name}` the line
   door answers with, because the id alone names nobody a page can show.
 - **`orgs move <agent> <org>` takes the agent's NUMBERS with it.** A slug belongs to the org that first registered it for as long as
@@ -1095,7 +1260,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   of them test at once with no coordination — and a number nobody claimed falls back to the
   agent's **line** (`GET/POST/DELETE /v1/agents/{slug}/line`), which the first corner to hold it
   takes and which is handed on when that terminal closes. Neither is a row: both are only
-  meaningful next to a socket. Production has one corner. `api/agents/doors.py`.
+  meaningful next to a socket. Production has one corner. `api/agents/dial_in.py`.
 - **The operator invites an org's first person.** `POST /v1/ops/orgs/{named}/members` and
   `pinecall-runtime orgs invite <org> <email> --name … [--role]`: how a tenant exists at all on a
   gateway that takes no sign-up — the box makes the org and invites its admin, and prints a
@@ -1130,7 +1295,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   not import stops the start rather than admitting orgs without limits. One point today:
   `admitted(org, email) -> Quotas`, asked at the sign-up and written in the same breath the org is
   made. The runtime's own answer is no limit and no row. The free-trial numbers that lived in
-  `api/signup.py` are gone: a trial is a plan, and a plan is the charging package's to spell. The
+  `api/accounts/signup.py` are gone: a trial is a plan, and a plan is the charging package's to spell. The
   cut is sentry's and getsentry's; ARCHITECTURE §12 says how.
 - **`PINECALL_SIGNUP`, and the door it opens.** `POST /v1/signup {org, name?, email, person,
   password}` makes an org allowed whatever `extensions.admitted` answers, its first `admin` active
@@ -1212,7 +1377,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   with that key when its gateway is that door — saying out loud that an exported
   `PINECALL_API_KEY` is being ignored. Which key a worker sends no longer depends on whether the
   url happens to be loopback.
-- **What a broken golden's model was asked rides the cell.** `Spoken` and `Run` carry `asked`;
+- **What a broken golden's model was asked rides the cell.** `Spoken` and `Run` carry `ask_judge`;
   the row's JSON writes it only under a cell that broke, and writes `null` when the run kept no
   requests — a spoken run builds them in the worker — where an empty list used to stand for both.
 - **A declared greeting is spoken.** `AgentConfig.greeting` had been on the wire since ms-2 and no
@@ -1234,7 +1399,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   on the digits alone), and exactly the held facts the call contradicted were superseded — the
   mirror included, which catches a model that replaces whatever it touches. A case may also PLANT
   sentences: planting one is the assertion that admission refuses it. `memory/goldens.py`,
-  `api/extraction.py`.
+  `api/memory/extraction.py`.
 - **Memory can be held to a golden**, the way a base already can, and it is the only thing that
   says `recall` returned the wrong facts: a ring watches a conversation and only ever sees the
   facts memory handed over, never the better one it missed. `POST /v1/contacts/memory/eval` takes
@@ -1244,10 +1409,10 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   the figures the real ranking: the same two index scans, the same fusion, the same embedder a
   call uses. A fact answers when what came back CONTAINS what was expected, folded for case and
   accents, because a fact is a sentence a model wrote and a golden names the substance.
-  `memory/scoring.py`; the arithmetic behind both figures lives once in `types/goldens.py`.
+  `memory/scoring.py`; the arithmetic behind both figures lives once in `types/golden_scores.py`.
   `Memory.hold` is the write with no model in it. `docs/retrieval/spec.md` has the contract.
 - `Golden.memory`: a ring-1 golden may open its call already knowing things about the caller.
-  `evals/remembering.py` answers those facts to the `recall` tool for that call and nothing else
+  `evals/golden_memory.py` answers those facts to the `recall` tool for that call and nothing else
   moves — the tool call, the result and the request are real, the memory table is neither read nor
   written, and `remember` at hang-up is still the gateway's so a run writes no fact about
   a caller nobody called as.
@@ -1393,7 +1558,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   neither: a number exists once in a world, so the shared sandbox number is answered by the
   newest run, and `GET /v1/agents` lists what the reader can actually reach — never another
   developer's socket.
-- **One rule for "a call a run opened has no opening".** Both sessions ask `the_greeting_for`
+- **One rule for "a call a run opened has no opening".** Both sessions ask `greeting_for`
   with the call's `run`; the eval runner no longer rewrites the class's config with `greeting=None`.
   The three first entries of a call (`call.ringing`, `call.dialing`, `call.started`) are built in
   one module, `session/first_entries.py`, instead of three copies.
@@ -1403,7 +1568,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **The simulated caller is on the line before anybody picks up.** Its track is published at
   connect, at 48 kHz, and only then is the agent waited for: a track opened and pushed into in one
   breath handed the agent a line already playing, and the 1.7 s it took to subscribe were the whole
-  first sentence (`identifica-al-paciente`, one spoken run in three). `evals/speech.py` returns
+  first sentence (`identifica-al-paciente`, one spoken run in three). `evals/caller_voice.py` returns
   every line at that one rate — espeak-ng's own rate is resampled by livekit's `AudioResampler`.
 - **The spoken run decodes `agent.state` through the protocol** (`AgentStateChanged`, typed
   `AgentState`), instead of reading a raw dict key against a bare string.
@@ -1479,7 +1644,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - `Rememberer.remember(call)` answers how many memory ops were written; the worker's client reads
   it off `POST /v1/calls/{call}/remember`.
 - Reciprocal rank fusion, its two constants and the halfvec text literal have one home each
-  (`types/fusion.py`, `providers/embedder.py:as_halfvec`); memory and the knowledge base both
+  (`types/rank_fusion.py`, `providers/embedder.py:as_halfvec`); memory and the knowledge base both
   import them, and a tie in a fused order is settled by id on both.
 
 ### Fixed
@@ -1498,7 +1663,7 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   Three fixes, one per layer: the unit is `KillMode=mixed`, so only the main process is signalled
   and the jobs are livekit's to drain; `worker/main.py` gives the drain ten minutes and each job's
   seal sixty seconds, instead of livekit's hour and ten seconds, both of which the unit's
-  `TimeoutStopSec` cut; and the gateway runs a **reaper** (`api/reaping.py`) that ends a spoken
+  `TimeoutStopSec` cut; and the gateway runs a **reaper** (`api/calls/reaper.py`) that ends a spoken
   call whose room the SFU no longer has and which has said nothing for five minutes — `call.ended`
   as `drained` by the platform, `call.summary`, `call.score` with `not_judged`. It runs at start
   and every minute, it never touches a quiet call whose room is alive, and it is safe from several
@@ -1520,9 +1685,9 @@ maintainer's call, so everything sits under Unreleased until one is cut.
 - **`simulate --voice` no longer talks over the agent.** The persona slept six fixed seconds
   between its lines while the golden runner waited for `agent.state: listening`; a turn that runs a
   tool takes thirteen, and the recordings had the caller speaking over the answer. The one wait is
-  `api/evals/listening.py`, required of every spoken caller — the fixed silence is gone.
+  `api/evals/agent_finished.py`, required of every spoken caller — the fixed silence is gone.
 - `PUT /v1/knowledge/{base}` answered a bare `500` when the embedder was down, with the whole
-  reason in the gateway's log and nothing at all to the tenant. `api/_refusals.py` maps
+  reason in the gateway's log and nothing at all to the tenant. `api/refusals.py` maps
   `EmbedderUnreachable` to **503** and `WrongWidth`/`WrongModel` to **409** at every door, each
   carrying the exception's own sentence. The lookup door is deliberately not among them: a lookup
   that could not run is still `search_skipped` on the call's log and the turn goes on.

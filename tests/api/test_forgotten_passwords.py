@@ -5,11 +5,11 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from pinecall.api.login import NOBODY_ANYWHERE
-from pinecall.api.members import NO_SUCH_MEMBER, NOT_ACTIVE
+from pinecall.api.accounts.login import NOBODY_ANYWHERE
+from pinecall.api.accounts.members import NO_SUCH_MEMBER, NOT_ACTIVE
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
 from pinecall.auth.throttle import TRIES_PER_WINDOW
-from pinecall.orgs.table import MemoryOrgs
+from pinecall.orgs.records import MemoryOrgs
 from pinecall.types import Org
 from tests.api.conftest import A_KEY, A_RECORD, AN_ORG, over_the_asgi_app
 from tests.api.test_members_and_login import A_PASSWORD, BERNA, LOGIN, accepted, invited

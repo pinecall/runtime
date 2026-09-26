@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from pinecall.evals.checks.replayed import Replayed, rebuild
+from pinecall.evals.checks.replay import Replayed, rebuild
 from pinecall_protocol import decode_entries
 from pinecall_protocol.envelope import Entry
 

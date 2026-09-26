@@ -8,9 +8,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
+from pinecall._exceptions import PinecallError
 from pinecall.auth.invitations import Invited
 from pinecall.log.store import Pool
-from pinecall.types import Member, MemberStatus, Role, a_role
+from pinecall.types import Member, MemberStatus, Role, parse_role
 
 # The row's own name, not a secret: it is what a key's `subject` carries and what a seat says.
 MEMBER_ID_PREFIX = "m_"
@@ -19,7 +20,7 @@ MEMBER_ID_BYTES = 6
 
 # An address is one person however it is typed: `JP@Cloudacio.com ` and `jp@cloudacio.com` are the
 # same login. Every row is written and read through this, so the column only ever holds the one.
-def an_address(email: str) -> str:
+def normalize_email(email: str) -> str:
     """The email as rows keep it: trimmed and lower-cased."""
     return email.strip().lower()
 
@@ -30,6 +31,18 @@ class Kept:
 
     member: Member
     password_hash: str | None
+
+
+# A seat is a stock, and the door judges it before the row (orgs/admission.py) — but two
+# invitations judged at once both saw one seat left, so the write judges it again, under a lock,
+# and answers this when it made no row. The door turns it into the quota's own sentence.
+class NoSeatLeft(PinecallError):
+    """The org holds every seat it may: this invitation made no row. `seated` says how many."""
+
+    def __init__(self, org: str, seated: int) -> None:
+        super().__init__(f"org {org} holds all {seated} of its seats")
+        self.org = org
+        self.seated = seated
 
 
 class Members(Protocol):
@@ -52,10 +65,13 @@ class Members(Protocol):
         *,
         production: bool = False,
         vouched: bool = False,
+        seats: int | None = None,
     ) -> Invited | None:
         """A new member with a one-use token, or a fresh token for one still invited. An email
         that already has a password on this box AND is verified is seated ACTIVE with it, and no
-        token is made. None when the email already belongs to a member of THIS org who accepted."""
+        token is made. None when the email already belongs to a member of THIS org who accepted.
+        `seats` is the most rows this org may hold, judged by the write itself so two invitations
+        at once cannot both pass: NoSeatLeft when a new row would be one past it."""
         ...
 
     async def accept(self, token: str, password_hash: str) -> Member | None:
@@ -88,12 +104,13 @@ class Members(Protocol):
         ...
 
     # A sandbox instance's people are production's, mirrored at each sign-in there
-    # (api/identity.py): the SAME id, so a key's subject names one person on both instances, and
-    # the role, the agents and the standing as production says them now. No password — a sandbox
-    # keeps none — and verified, since production vouched for the address. Every row there is a
-    # mirror, so a row of this org holding the address under ANOTHER id is a person production
-    # removed and invited again: it goes, as the removal it mirrors did (its keys are the caller's
-    # to revoke first). It cannot stay disabled beside the new one: (org, email) is UNIQUE (0014).
+    # (api/accounts/identity.py): the SAME id, so a key's subject names one person on both
+    # instances, and the role, the agents and the standing as production says them now. No password
+    # — a sandbox keeps none — and verified, since production vouched for the address. Every row
+    # there is a mirror, so a row of this org holding the address under ANOTHER id is a person
+    # production removed and invited again: it goes, as the removal it mirrors did (its keys are the
+    # caller's to revoke first). It cannot stay disabled beside the new one: (org, email) is UNIQUE
+    # (0014).
     async def mirrored(self, member: Member) -> Member | None:
         """The member as production says it, inserted or updated by id, over any stale row of the
         address. None when the id is a member of another org here."""
@@ -156,7 +173,7 @@ class Members(Protocol):
         ...
 
 
-def a_member_id() -> str:
+def new_member_id() -> str:
     """A name for the row. It is what a person's key carries as `subject`."""
     return f"{MEMBER_ID_PREFIX}{secrets.token_hex(MEMBER_ID_BYTES)}"
 
@@ -171,7 +188,7 @@ def members_for(pool: Pool | None) -> Members:
     return MemoryMembers() if pool is None else PostgresMembers(pool)
 
 
-def an_instant(seconds: float) -> str:
+def iso_instant(seconds: float) -> str:
     """A moment as Postgres hands its timestamps back: ISO 8601, UTC."""
     return datetime.fromtimestamp(seconds, UTC).isoformat()
 
@@ -181,14 +198,14 @@ def text_or_none(column: Any) -> str | None:
     return None if column is None else str(column)
 
 
-def a_member_of_row(row: Any) -> Member:
+def member_from_row(row: Any) -> Member:
     """One row back into the domain's own Member. The columns are its fields, name for name."""
     return Member(
         id=str(row["id"]),
         org=str(row["org"]),
         email=str(row["email"]),
         name=str(row["name"]),
-        role=a_role(str(row["role"])),
+        role=parse_role(str(row["role"])),
         agents=frozenset(str(agent) for agent in row["agents"]),
         status=_a_status(str(row["status"])),
         operator=bool(row["operator"]),

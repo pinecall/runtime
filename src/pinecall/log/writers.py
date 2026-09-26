@@ -45,6 +45,9 @@ class Logs:
         self._feeds: dict[str, Fanout] = {}
         # Every org's floor at once, for the operator: one fanout for the box, never pruned.
         self._box = Fanout()
+        # Whose each log is, as the store answered once: a claim never moves, and asking the
+        # store on every call.started and call.ended was a round trip on the append path.
+        self._owners: dict[tuple[str | None, str], str] = {}
 
     def writing(self, call: str, agent: str) -> CallLog:
         """The log a session appends to: kept, so `sealed` is one fact and readers hear it live."""
@@ -100,6 +103,7 @@ class Logs:
         """Drop a sealed call: its readers have finished and nothing more will be appended."""
         self._calls.pop(call, None)
         self._call_fanouts.pop(call, None)
+        self._owners = {key: org for key, org in self._owners.items() if key[0] != call}
 
     # ── the org's own stream ────────────────────────────────────────────────────
 
@@ -120,12 +124,22 @@ class Logs:
         """Publish an entry about an org onto the box's feed and, when read, the org's own."""
         if entry.type not in ORG_EVENTS:
             return
-        org = await self._store.owner(entry.call, entry.agent)
+        org = await self._owner_of(entry.call, entry.agent)
         if org is not None:
             self._box.publish(entry)
         feed = None if org is None else self._feeds.get(org)
         if feed is not None:
             feed.publish(entry)
+
+    async def _owner_of(self, call: str | None, agent: str) -> str | None:
+        """The store's answer, kept once it has one: a log unclaimed now may be claimed later."""
+        key = (call, agent)
+        org = self._owners.get(key)
+        if org is None:
+            org = await self._store.owner(call, agent)
+            if org is not None:
+                self._owners[key] = org
+        return org
 
     # A reader must never be able to grow the tables without bound: an id nobody writes and nobody
     # reads any more is dropped the next time a reader asks for anything, so a scan of made-up ids

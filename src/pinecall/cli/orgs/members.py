@@ -5,8 +5,7 @@ from __future__ import annotations
 import sys
 from typing import Any, TextIO
 
-from pinecall.cli.operator import Operator
-from pinecall.cli.orgs.sso import OPS_ORGS
+from pinecall.cli.operator import OPS_ORGS, Operator
 
 # Nobody of that org answers to the email: the sentence names both, because a typo in either is
 # the same mistake and the person reading has to know which one to fix.

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pinecall.whatsapp.graph import GraphRefused
+from pinecall.whatsapp.cloud_api import GraphRefused
 
 
 class FakeGraph:

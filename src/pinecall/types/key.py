@@ -1,9 +1,9 @@
 """Key: which of two worlds a key opens (its env), and what it may do there (its scopes)."""
 
 from collections.abc import Iterable
-from typing import Literal, get_args
+from typing import Literal, cast, get_args
 
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.refusal import DeclarationRefused
 
 # Two worlds and no third. A key is issued into one; the agents registered on it, the doors it
 # claims and every call it takes are that world's, and a gateway holds both at once without one
@@ -12,7 +12,7 @@ from pinecall.types.refused import DeclarationRefused
 #
 # A third world was very nearly added for `staging`, and it was not needed: whether a sandbox agent
 # is ONE PERSON's copy or the team's shared one is not this field, it is whether the key that
-# registered it names a person (api/agents/holding.py). A machine key in the sandbox is held by
+# registered it names a person (api/agents/held_agent.py). A machine key in the sandbox is held by
 # nobody's corner, which every member of the org sees — that IS staging, and it already worked.
 # Two worlds, three behaviours, and the holder does the third.
 #
@@ -84,13 +84,13 @@ KEY_SCOPES: frozenset[str] = EVERY_SCOPE - {THE_FLEET}
 
 
 # Holding an agent over the app socket: what a server's token is made for, and what a developer's
-# own key opens — in production too, for a person the org lets act there (auth/world.py, 0039).
+# own key opens — in production too, for a person the org lets act there (auth/env.py, 0039).
 HOLDING: KeyScope = "app"
 
 # The members door, which an admin's key and the operator's open and a developer's does not. It is
 # what separates "show me the org" from "show me my corner": whoever may see who the team IS may
 # also see what the team is RUNNING, so the agent listing asks this one question to decide whose
-# sandbox copies a reader is shown. See api/agents/endpoints.py.
+# sandbox copies a reader is shown. See api/agents/registry_reads.py.
 THE_TEAM: KeyScope = "team"
 
 
@@ -104,11 +104,11 @@ def is_a_deployment(env: Env) -> bool:
     return env != SANDBOX
 
 
-def an_env(word: str) -> Env:
+def parse_env(word: str) -> Env:
     """The world this word names, or a refusal that lists the two there are."""
     if word not in ENVS:
         raise DeclarationRefused(f"a key opens one of {sorted(ENVS)}, not {word!r}")
-    return "production" if word == PRODUCTION else "sandbox"
+    return cast("Env", word)
 
 
 def key_scopes(words: Iterable[str]) -> frozenset[str]:

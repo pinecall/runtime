@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import TextIO
 
 from pinecall.log.store import Pool
-from pinecall.orgs.table import PostgresOrgs
+from pinecall.orgs.records import PostgresOrgs
 from pinecall.types import Org
 
 
@@ -49,24 +49,23 @@ TABLE_SAID = "{table}: {copied} copied, {kept} already there"
 def _rows_of(copied: Copied) -> str:
     return (
         "SELECT count(*) AS total, coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb)::text AS rows "
-        f"FROM {copied.table} t WHERE {copied.where()}"  # noqa: S608 — the table name is ours
+        f"FROM {copied.table} t WHERE {copied.where()}"
     )
 
 
 def _added_to(copied: Copied) -> str:
     return (
-        f"WITH added AS (INSERT INTO {copied.table} "  # noqa: S608 — the table name is ours
+        f"WITH added AS (INSERT INTO {copied.table} "
         f"SELECT * FROM jsonb_populate_recordset(NULL::{copied.table}, $1::text::jsonb) "
         "ON CONFLICT DO NOTHING RETURNING 1) SELECT count(*) AS added FROM added"
     )
 
 
 _ORGS_WITH_ANY = " UNION ".join(
-    f"SELECT org FROM {copied.table}"  # noqa: S608 — the table names are ours
-    + (" WHERE env = 'sandbox'" if copied.sandbox_only else "")
+    f"SELECT org FROM {copied.table}" + (" WHERE env = 'sandbox'" if copied.sandbox_only else "")
     for copied in TABLES
 )
-_ORGS = f"SELECT id, slug, name FROM orgs WHERE id IN ({_ORGS_WITH_ANY}) ORDER BY created_at, id"  # noqa: S608
+_ORGS = f"SELECT id, slug, name FROM orgs WHERE id IN ({_ORGS_WITH_ANY}) ORDER BY created_at, id"
 
 
 async def seed(source: Pool, target: Pool, out: TextIO) -> int:

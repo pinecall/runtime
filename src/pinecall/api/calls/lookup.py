@@ -6,10 +6,10 @@ import time
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import AppKeyDep, LookupsDep
-from pinecall.api._live import Live, LiveDep
-from pinecall.api.calls.worker_doors import NOT_OPEN
-from pinecall.auth.keys import KeyRecord, is_the_fleets
+from pinecall.api.calls.worker_writes import NOT_OPEN
+from pinecall.api.deps import AppKeyDep, LookupsDep
+from pinecall.api.live import Live, LiveDep
+from pinecall.auth.keys import KeyRecord, is_fleet_key
 from pinecall_protocol.rest import LookupRequest, LookupResult, Remembered
 
 router = APIRouter()
@@ -43,5 +43,5 @@ async def remember(call: str, key: AppKeyDep, live: LiveDep, lookups: LookupsDep
 def _the_orgs_open_call(live: Live, key: KeyRecord, call: str) -> None:
     """404 in the events door's words: not open here, or not this org's — one sentence for both."""
     opened = live.the_call(call)
-    if opened is None or (opened.org != key.org and not is_the_fleets(key)):
+    if opened is None or (opened.org != key.org and not is_fleet_key(key)):
         raise HTTPException(status_code=404, detail=NOT_OPEN.format(call=call))

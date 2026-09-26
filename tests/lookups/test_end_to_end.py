@@ -12,7 +12,7 @@ from pinecall.knowledge import PgKnowledge
 from pinecall.log.store import MemoryStore, open_pool
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups, OpenCall
-from pinecall.orgs.table import MemoryOrgs
+from pinecall.orgs.records import MemoryOrgs
 from pinecall.orgs.vault import brought_by
 from pinecall.types import PRODUCTION, Docs, Org, Quotas
 from tests.knowledge.files import CLINICA, TARIFAS, an_org

@@ -5,7 +5,7 @@ import logging
 from livekit.agents.types import NOT_GIVEN, NotGivenOr
 from livekit.plugins import elevenlabs
 
-from pinecall.providers.registry import Asked, NoProvider, Speech, a_key
+from pinecall.providers.registry import Asked, NoProvider, Speech, vendor_key
 from pinecall.providers.tts import VENDORS
 
 logger = logging.getLogger(__name__)
@@ -31,8 +31,8 @@ ALLOWED = frozenset(MODELS)
 def build(asked: Asked) -> Speech:
     """The model is the whole of it: the plugin's own default is one this repo forbids."""
     return elevenlabs.TTS(
-        model=a_model(asked.model),
-        api_key=a_key("elevenlabs", asked),
+        model=allowed_model(asked.model),
+        api_key=vendor_key("elevenlabs", asked),
         # The agent's voice, or the plugin's own (tts.py:94,107). sync_alignment is what a tts.word
         # entry is made of and the plugin already has it on (tts.py:124), so it is not set here.
         voice_id=asked.voice_id or elevenlabs.DEFAULT_VOICE_ID,
@@ -40,7 +40,7 @@ def build(asked: Asked) -> Speech:
     )
 
 
-def a_model(wanted: str | None) -> str:
+def allowed_model(wanted: str | None) -> str:
     """The model this build actually runs: ours by default, and never one the milestone forbids."""
     if wanted is None:
         return DEFAULT_MODEL

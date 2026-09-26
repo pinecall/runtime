@@ -18,7 +18,7 @@ from pinecall.types import Env, Org, Quotas
 type Admitting = Callable[[Org, str, Env, int], Quotas]
 
 
-def unlimited(org: Org, email: str, world: Env, already: int) -> Quotas:  # noqa: ARG001 — the shape
+def unlimited_quotas(org: Org, email: str, world: Env, already: int) -> Quotas:  # noqa: ARG001 — the shape
     """A box of its own: an org made here may do everything, which is what no row means."""
     return Quotas()
 
@@ -29,5 +29,5 @@ def unlimited(org: Org, email: str, world: Env, already: int) -> Quotas:  # noqa
 class Extensions:
     """The points, each holding the policy that answers it."""
 
-    def __init__(self, admitted: Admitting = unlimited) -> None:
+    def __init__(self, admitted: Admitting = unlimited_quotas) -> None:
         self.admitted = admitted

@@ -1,5 +1,10 @@
 # pinecall
 
+[![ci](https://github.com/pinecall/runtime/actions/workflows/ci.yml/badge.svg)](https://github.com/pinecall/runtime/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/pinecall)](https://pypi.org/project/pinecall/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
+[![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
+
 The Pinecall voice-AI runtime: one Python distribution, two processes, on LiveKit.
 
 - `pinecall-runtime gateway` is the control plane: the app protocol over WebSocket, the call
@@ -33,7 +38,7 @@ command in it run in order with the output it returned.
 
 ```
 docker compose -f infra/compose/dev.yml up -d      livekit · sip · redis · postgres · tei
-scripts/bootstrap                                  uv sync, every extra and tool group
+scripts/bootstrap                                  uv sync, the worker's vendors and the tools
 uv run pinecall-runtime migrate up                 the schema; a fresh database seeds the
                                                    default org, and `keys issue` mints its key
 uv run pinecall-runtime gateway                    the control plane, on 8080
@@ -68,8 +73,8 @@ maintainer's notebook has the measurements. Development happens from the checkou
 
 ```
 scripts/format        ruff format, then the fixable lint rules
-scripts/lint          ruff, pyright strict, mypy strict
-scripts/test          pytest -m "unit or postgres": no keys, no network
+scripts/lint          ruff, pyright strict, mypy strict, deptry, squawk over unlanded migrations
+scripts/test          pytest -m "unit or postgres" with coverage: no keys, no network
 ```
 
 The wire is `pinecall-protocol`, generated in the protocol repository and resolved here as the
@@ -209,8 +214,8 @@ they arrive as systemd credentials — and need a LiveKit server, a Postgres 17 
 | verb | what |
 |---|---|
 | `init --email --person [--org]` | the first org and its first admin, made an operator of this box, on a runtime nobody has used yet |
-| `migrate up [--post]` · `migrate status` · `migrate plan` | the schema, numbered SQL, applied in order. `up` says which database first, takes an advisory lock, and holds every migration to 5 s; a `.post.sql` is named and never run at startup, so `--post` is how an index on a big table gets built. `status` asks the database, `plan` touches nothing |
-| `doctor [--mail-to <address>]` | its first line names the .env read, the instance's world and its fleet; then keys present · keys answer · livekit · postgres · embedder · mail · lk — one line each, and what is down first; the mail line says which mailbox — stored by the operator at `PUT /v1/ops/mail`, or the environment's; `--mail-to` posts one test letter through that same mailbox and says what the server said |
+| `migrate up [--post]` · `migrate status` · `migrate plan` | the schema, numbered SQL, applied in order. `up` says which database first, takes an advisory lock, and holds every migration to 5 s; a `.post.sql` is named and never run at startup, so `--post` is how an index on a big table gets built — outside a transaction, when its first line is `-- pinecall:no-transaction`. `status` asks the database, `plan` touches nothing |
+| `doctor [--mail-to <address>]` | its first line names the .env read, the instance's world and its fleet; then keys present · keys answer · livekit · egress · postgres · embedder · mail · disk · fence · certificate · lk — one line each, and what is down first (the disk under the recordings, the `nftables` unit, and how long the domain's certificate has left); the mail line says which mailbox — stored by the operator at `PUT /v1/ops/mail`, or the environment's; `--mail-to` posts one test letter through that same mailbox and says what the server said |
 | `box secrets [--instance <name>]` | every secret a box makes for itself, once — or one instance's own three; run twice rotates nothing |
 | `box secret <NAME> [--instance <name>]` | one secret you bring, from stdin, replaced in place — in the box's store, or one instance's |
 | `box instance <name> --world --domain [--port --fleet --identity --elsewhere --sandbox --max-jobs --idle-processes --force]` | one more instance of the runtime on this box: its env file, every variable written, the next free hundred for its ports; never over a file unasked |
@@ -255,6 +260,12 @@ gateway with the org's key.
 | `infra/box/README.md` | the box: standing one up, roles, slots, secrets, the fence, wiring a number |
 | `infra/README.md` | the dev stack |
 | `.env.example` | every variable both processes read, rendered from the settings class |
+
+## Contributing, and reporting a problem
+
+[CONTRIBUTING.md](CONTRIBUTING.md) is how a change is made and checked; [CLAUDE.md](CLAUDE.md)
+is the rulebook the tests enforce; [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) is how people are
+treated here. A weakness goes to [SECURITY.md](SECURITY.md), privately, before anywhere else.
 
 ## License
 

@@ -10,10 +10,10 @@ from livekit.agents.metrics import LLMMetrics as Measured
 from livekit.agents.voice import ModelSettings
 from livekit.agents.voice.agent import Agent as LiveAgent
 
-from pinecall.providers.blocks import request_context
 from pinecall.providers.models import Chat, vendor_of
-from pinecall.session.asking import Asking, NotAsking
-from pinecall.session.lookups import TurnLookups
+from pinecall.providers.prompt_request import request_context
+from pinecall.session.lookup_tools import TurnLookups
+from pinecall.session.model_requests import Asking, NotAsking
 from pinecall.types import Blocks
 from pinecall_protocol.events import ErrorEvent
 
@@ -98,7 +98,7 @@ class TextAgent(LiveAgent):
     @override
     async def on_user_turn_completed(
         self,
-        turn_ctx: agents.ChatContext,  # noqa: ARG002 — livekit's signature
+        turn_ctx: agents.ChatContext,
         new_message: agents.ChatMessage,
     ) -> None:
         """The caller's words are the query: this turn's lookups, or why they did not run."""
@@ -137,12 +137,3 @@ class TextAgent(LiveAgent):
             # The stream is drained and closed by now, so livekit has already emitted every
             # metric of this request: metrics.llm goes out before the tools this round asked for.
             await writer.measured(metered.seen)
-
-
-# livekit owns the history now, so the one moment the platform reaches into it lives here, next
-# to the agent it reaches into.
-async def remembered(agent: TextAgent, *items: agents.ChatItem) -> None:
-    """Items into the history without a request: agent.say is not a turn of the model."""
-    context = agent.chat_ctx.copy()
-    context.items.extend(items)
-    await agent.update_chat_ctx(context, exclude_invalid_function_calls=False)

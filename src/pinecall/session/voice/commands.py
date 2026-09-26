@@ -9,11 +9,12 @@ from livekit.agents.types import NOT_GIVEN
 from livekit.agents.voice import AgentSession
 
 from pinecall.session.voice import transfer
-from pinecall.session.voice.attending import Attending
-from pinecall.session.voice.bridging import Bridged
-from pinecall.session.voice.line import Line
+from pinecall.session.voice.attention import Attending
+from pinecall.session.voice.on_hold import Line
 from pinecall.session.voice.room import dtmf, invite, mute, remove, send
-from pinecall.session.voice.room.holding import Holding
+from pinecall.session.voice.room.leg import leg_identity
+from pinecall.session.voice.room.room_handle import Holding
+from pinecall.session.voice.second_leg import Bridged
 from pinecall_protocol import Command, ProtocolError, WireModel, command_of
 from pinecall_protocol.commands import (
     AgentReply,
@@ -38,7 +39,7 @@ from pinecall_protocol.defs import EndedBy, EndReason, ToolSpec
 # The type only, and never at import time: supervising.py reaches the call's ending through
 # the Ending declared below, so naming its module here for real would close the circle.
 if TYPE_CHECKING:
-    from pinecall.session.voice.supervising import Supervising
+    from pinecall.session.voice.supervise import Supervising
 
 # A command this bridge does not hold — `call.mute` and `call.unmute` are in the wire and have no
 # runtime — is refused by name, in the protocol's own words, rather than accepted and dropped.
@@ -206,7 +207,7 @@ async def _send_the_caller_on(applying: Applying, said: WireModel) -> None:
     """call.transfer: the caller sent on, or the far end dialled in. ok=False: nothing moved."""
     wanted = _as(said, CallTransfer)
     holding = applying.held(transfer.VERB)
-    mode = await transfer.the_mode(holding, wanted)
+    mode = await transfer.transfer_mode(holding, wanted)
     # The caller has to hear the sentence that announced this before the line moves.
     await transfer.after_the_announcement(applying.live)
     if mode == transfer.COLD:
@@ -219,9 +220,7 @@ async def _send_the_caller_on(applying: Applying, said: WireModel) -> None:
     if mode == transfer.COLD:
         applying.ending.transferred()
     else:
-        await Bridged(applying.live, holding, applying.ending).took(
-            f"{transfer.LEG_PREFIX}{wanted.to}"
-        )
+        await Bridged(applying.live, holding, applying.ending).took(leg_identity(wanted.to))
 
 
 async def _hold_the_line(applying: Applying, said: WireModel) -> None:  # noqa: ARG001 — call.hold is empty
@@ -309,10 +308,10 @@ APPLIERS: dict[str, Applier] = {
     "call.attention": _ask_for_a_person,
     "supervisor.verb": _a_supervise_verb,
     transfer.VERB: _send_the_caller_on,
-    "room.invite": _in_the_room("room.invite", RoomInvite, invite.dialled),
+    "room.invite": _in_the_room("room.invite", RoomInvite, invite.dial_in),
     "room.send": _in_the_room("room.send", RoomSend, send.sent),
-    "participant.mute": _in_the_room("participant.mute", ParticipantMute, mute.muted),
-    "participant.remove": _in_the_room("participant.remove", ParticipantRemove, remove.removed),
+    "participant.mute": _in_the_room("participant.mute", ParticipantMute, mute.mute),
+    "participant.remove": _in_the_room("participant.remove", ParticipantRemove, remove.remove),
     dtmf.VERB: _in_the_room(dtmf.VERB, CallDtmf, dtmf.sent),
 }
 

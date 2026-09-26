@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from pinecall.evals import ConsentJudge, a_case
+from pinecall.evals import ConsentJudge, build_case
 from pinecall.types import GATE_DEFERRED_ON
 from tests.evals.fakes import CountingJudge
 from tests.evals.logs import BOOKING, LOOKING_UP, a_log
@@ -21,7 +21,7 @@ NOT_ONE_PROMPT: list[str] = []
 
 async def test_a_booking_after_the_yes_holds_and_no_judge_is_asked() -> None:
     judge = CountingJudge()
-    case = a_case(a_log("booking-confirmed"), tools=BOOKING)
+    case = build_case(a_log("booking-confirmed"), tools=BOOKING)
 
     score = await measured(ConsentJudge(case.gate), case, judge)
 
@@ -34,7 +34,7 @@ async def test_a_booking_after_the_yes_holds_and_no_judge_is_asked() -> None:
 async def test_a_booking_before_the_yes_fails_naming_both_seqs_and_still_asks_nobody() -> None:
     """The late grant is named, not dropped: the evidence of a break is the pair of seqs."""
     judge = CountingJudge()
-    case = a_case(a_log("booking-before-the-yes"), tools=BOOKING)
+    case = build_case(a_log("booking-before-the-yes"), tools=BOOKING)
 
     score = await measured(ConsentJudge(case.gate), case, judge)
 
@@ -46,7 +46,7 @@ async def test_a_booking_before_the_yes_fails_naming_both_seqs_and_still_asks_no
 async def test_a_call_with_no_confirmation_anywhere_is_not_scored_against_the_agent() -> None:
     """The gate is deferred, so every live log looks like this: the gap is the platform's, and the
     reason says so with the date — read WHICH log a green consent cell ran on, never the cell."""
-    case = a_case(a_log("booking-with-no-gate"), tools=BOOKING)
+    case = build_case(a_log("booking-with-no-gate"), tools=BOOKING)
 
     score = await measured(ConsentJudge(case.gate), case, CountingJudge())
 
@@ -56,7 +56,7 @@ async def test_a_call_with_no_confirmation_anywhere_is_not_scored_against_the_ag
 
 
 async def test_a_grant_minted_for_somebody_else_is_not_the_callers_yes() -> None:
-    case = a_case(a_log("booking-confirmed-by-somebody-else"), tools=BOOKING)
+    case = build_case(a_log("booking-confirmed-by-somebody-else"), tools=BOOKING)
 
     score = await measured(ConsentJudge(case.gate), case, CountingJudge())
 
@@ -66,7 +66,7 @@ async def test_a_grant_minted_for_somebody_else_is_not_the_callers_yes() -> None
 
 async def test_a_case_built_without_the_declaration_refuses_to_report_a_pass() -> None:
     """Nothing in a `tool.call` says what a tool does, so a check that cannot see must not pass."""
-    case = a_case(a_log("booking-confirmed"))
+    case = build_case(a_log("booking-confirmed"))
 
     score = await measured(ConsentJudge(case.gate), case, CountingJudge())
 
@@ -75,7 +75,7 @@ async def test_a_case_built_without_the_declaration_refuses_to_report_a_pass() -
 
 
 async def test_a_call_with_no_irreversible_tool_holds() -> None:
-    case = a_case(a_log("booking-confirmed"), tools=LOOKING_UP)
+    case = build_case(a_log("booking-confirmed"), tools=LOOKING_UP)
 
     score = await measured(ConsentJudge(case.gate), case, CountingJudge())
 
@@ -86,7 +86,7 @@ async def test_a_call_with_no_irreversible_tool_holds() -> None:
 async def test_the_verdict_carries_the_question_it_answered_without_paying_for_it() -> None:
     """livekit hangs the criteria on every judgment; a policy writes it for free, a model bills."""
     judge = CountingJudge()
-    case = a_case(a_log("booking-confirmed"), tools=BOOKING)
+    case = build_case(a_log("booking-confirmed"), tools=BOOKING)
 
     score = await measured(ConsentJudge(case.gate), case, judge)
 

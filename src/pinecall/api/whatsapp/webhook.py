@@ -2,34 +2,30 @@
 
 from __future__ import annotations
 
+import hmac
 import logging
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import ValidationError
 from starlette.responses import PlainTextResponse
 
-from pinecall.api._deps import (
-    AdmissionDep,
-    CallIndexDep,
-    GraphDep,
-    LlmsDep,
-    LogsDep,
-    LookupsDep,
-    RoutesDep,
-    SettingsDep,
-    TuningDep,
-    VaultDep,
-)
-from pinecall.api._live import LiveDep
-from pinecall.api.agents.registry import RegistryDep
-from pinecall.api.whatsapp.doors import Doors
+from pinecall.api.deps import SettingsDep
+from pinecall.api.whatsapp.thread_deps import DoorsDep
 from pinecall.api.whatsapp.threads import ThreadsDep
-from pinecall.whatsapp.inbound import Inbound, Payload, messages_in
-from pinecall.whatsapp.signing import SIGNATURE_HEADER, signed
+from pinecall.whatsapp.inbound_message import Inbound, Payload, messages_in
+from pinecall.whatsapp.webhook_signature import SIGNATURE_HEADER, is_signed
+from pinecall_protocol import WireModel
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+class WebhookReceived(WireModel):
+    """What Meta is told back: how many messages the body carried onto a thread. Never a 4xx."""
+
+    received: int
+
 
 # What a runtime with no PINECALL_WHATSAPP_APP_SECRET answers. A 503 and not a 404: the request
 # was right and this box cannot honour it — the same shape the vault's NO_VAULT_KEY has.
@@ -59,7 +55,7 @@ async def verify(
     """Echo Meta's challenge back, when it came with the word this box is waiting for."""
     if not settings.whatsapp_app_secret:
         raise HTTPException(503, NO_WHATSAPP)
-    if mode != "subscribe" or token != settings.whatsapp_verify_token:
+    if mode != "subscribe" or not hmac.compare_digest(token, settings.whatsapp_verify_token or ""):
         raise HTTPException(403, NOT_THE_HANDSHAKE)
     return PlainTextResponse(challenge)
 
@@ -68,48 +64,21 @@ async def verify(
 # answers 200, whatever the body turned out to be — Meta disables a webhook that keeps failing,
 # and a shape this door does not understand is a line in the log, never a 4xx.
 @router.post("/v1/whatsapp/webhook")
-async def delivered(
-    request: Request,
-    settings: SettingsDep,
-    threads: ThreadsDep,
-    routes: RoutesDep,
-    registry: RegistryDep,
-    tuning: TuningDep,
-    vault: VaultDep,
-    llms: LlmsDep,
-    admission: AdmissionDep,
-    logs: LogsDep,
-    live: LiveDep,
-    graph: GraphDep,
-    lookups: LookupsDep,
-    index: CallIndexDep,
-) -> dict[str, Any]:
+async def receive_webhook(
+    request: Request, settings: SettingsDep, threads: ThreadsDep, doors: DoorsDep
+) -> WebhookReceived:
     """Every message in this body onto its own thread, and 200 as soon as they are queued."""
     if not settings.whatsapp_app_secret:
         raise HTTPException(503, NO_WHATSAPP)
     # The RAW body, before anything parses it: JSON round-tripped through Python is not the bytes
     # Meta hashed, and re-encoding it would fail every signature this door will ever be sent.
     body = await request.body()
-    if not signed(settings.whatsapp_app_secret, body, request.headers.get(SIGNATURE_HEADER)):
+    if not is_signed(settings.whatsapp_app_secret, body, request.headers.get(SIGNATURE_HEADER)):
         raise HTTPException(403, NOT_META)
-    doors = Doors(
-        settings=settings,
-        routes=routes,
-        registry=registry,
-        tuning=tuning,
-        vault=vault,
-        llms=llms,
-        admission=admission,
-        logs=logs,
-        live=live,
-        graph=graph,
-        lookups=lookups,
-        index=index,
-    )
     inbound = _messages(body)
     for message in inbound:
         await threads.received(doors, message)
-    return {"received": len(inbound)}
+    return WebhookReceived(received=len(inbound))
 
 
 def _messages(body: bytes) -> tuple[Inbound, ...]:

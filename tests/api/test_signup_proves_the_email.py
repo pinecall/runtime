@@ -9,15 +9,16 @@ import httpx
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.api.signup import NO_MAIL, NOT_THE_SHIELD, REFUSED, TOO_MANY
+from pinecall.api.accounts.signup import NO_MAIL, NOT_THE_SHIELD, REFUSED, TOO_MANY
 from pinecall.auth.signups import ATTEMPTS, CODE_TTL_S, PendingSignups
 from pinecall.auth.throttle import TRIES_PER_WINDOW
 from pinecall.mail.outbox import Outbox
 from pinecall.mail.smtp import Mailbox
-from pinecall.orgs.table import MemoryOrgs
+from pinecall.orgs.records import MemoryOrgs
+from tests.api.accounts.test_signup import A_CODE, TIENDA, VERIFY, asked, the_code_mailed
 from tests.api.conftest import A_LIVEKIT, A_VAULT_KEY, AN_OPS_KEY, over_the_asgi_app
 from tests.api.mailing import A_BOX_SENDER
-from tests.api.test_signup import A_CODE, TIENDA, VERIFY, asked, the_code_mailed
+from tests.clocks import Clock
 from tests.mail.fake_smtp import FakeSmtp
 
 pytestmark = pytest.mark.unit
@@ -26,19 +27,9 @@ RESEND = "/v1/signup/resend"
 THE_SHIELDS_KEY = "the-landing-holds-this-and-nobody-else"
 
 
-class Clock:
-    """Time that moves only when the test says so."""
-
-    def __init__(self) -> None:
-        self.now = 1_000_000.0
-
-    def __call__(self) -> float:
-        return self.now
-
-
 @pytest.fixture
 def clock() -> Clock:
-    return Clock()
+    return Clock(1_000_000.0)
 
 
 @pytest.fixture
@@ -78,11 +69,11 @@ async def verified(stranger: httpx.AsyncClient, code: str, **changed: Any) -> ht
 
 def keyed(settings: Settings) -> None:
     """This gateway, now behind a shield: the sign-up doors take its key and nobody else's."""
-    from pinecall.api import _deps
+    from pinecall.api import deps
     from pinecall.api.app import app
 
     shielded = settings.model_copy(update={"signup_key": THE_SHIELDS_KEY})
-    app.dependency_overrides[_deps.a_settings] = lambda: shielded
+    app.dependency_overrides[deps.get_settings] = lambda: shielded
 
 
 # ── the letter, and nothing before the code ─────────────────────────────────────
@@ -121,12 +112,12 @@ async def test_a_code_is_spent_once(
 async def test_six_wrong_codes_burn_it_and_the_right_one_is_refused_after(
     stranger: httpx.AsyncClient, outbox: Outbox, relay: FakeSmtp, orgs: MemoryOrgs
 ) -> None:
-    from pinecall.api import _deps
+    from pinecall.api import deps
     from pinecall.api.app import app
     from pinecall.auth.throttle import Throttle
 
     # The throttle is its own rule (below); here every wrong try reaches the code.
-    app.dependency_overrides[_deps.the_throttle] = lambda: Throttle(tries=100)
+    app.dependency_overrides[deps.get_throttle] = lambda: Throttle(tries=100)
     await asked(stranger)
     code = await the_code_mailed(outbox, relay)
     wrong = "000000" if code != "000000" else "111111"

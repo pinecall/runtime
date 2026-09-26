@@ -11,7 +11,7 @@ from pinecall.api.agents.registry import Registry
 from pinecall.api.whatsapp.threads import Threads
 from pinecall.log.entry import Entry
 from pinecall.log.store import MemoryStore
-from pinecall.routes.table import MemoryRoutes
+from pinecall.routes.records import MemoryRoutes
 from tests.api.conftest import A_KEY
 from tests.api.fake_graph import FakeGraph
 from tests.api.whatsapp.conftest import (

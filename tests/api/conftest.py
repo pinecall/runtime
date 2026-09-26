@@ -10,36 +10,36 @@ from cryptography.fernet import Fernet
 from starlette.testclient import TestClient
 
 from pinecall._settings import Settings
-from pinecall.api import _deps as deps
-from pinecall.api import _deps as log_writers
-from pinecall.api import _deps as routes_table
-from pinecall.api import _deps as tokens_ledger
-from pinecall.api import _deps as whatsapp_graph
-from pinecall.api import _live as gateway_connected
-from pinecall.api._deps import (
-    the_admission,
-    the_embedder,
-    the_fleet,
-    the_knowledge,
-    the_login_codes,
-    the_lookups,
-    the_members,
-    the_memory,
-    the_orgs,
-    the_pairings,
-    the_throttle,
-    the_tuning,
-    the_vault,
-)
-from pinecall.api._live import Live
+from pinecall.api import deps as deps
+from pinecall.api import deps as log_writers
+from pinecall.api import deps as routes_table
+from pinecall.api import deps as tokens_ledger
+from pinecall.api import deps as whatsapp_graph
+from pinecall.api import live as gateway_connected
 from pinecall.api.agents import registry as registry_dep
 from pinecall.api.agents.registry import Registry
+from pinecall.api.agents.widget import get_widgets
 from pinecall.api.app import app
+from pinecall.api.deps import (
+    get_admission,
+    get_embedder,
+    get_fleet,
+    get_knowledge,
+    get_login_codes,
+    get_lookups,
+    get_members,
+    get_memory,
+    get_orgs,
+    get_pairings,
+    get_throttle,
+    get_tuning,
+    get_vault,
+)
+from pinecall.api.live import Live
 from pinecall.api.whatsapp import threads as whatsapp_threads
 from pinecall.api.whatsapp.threads import Threads
-from pinecall.api.widget import the_widgets
-from pinecall.auth.codes import LoginCodes
 from pinecall.auth.keys import KeyRecord, Keys, MemoryKeys
+from pinecall.auth.login_codes import LoginCodes
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.pairing import Pairings
 from pinecall.auth.scopes import KEY_PROJECTION, LivekitKeys, Reader
@@ -55,18 +55,18 @@ from pinecall.memory import Memory
 from pinecall.orgs.admission import Admission
 from pinecall.orgs.carriers import MemoryCarriers
 from pinecall.orgs.meter import Meter
-from pinecall.orgs.table import MemoryOrgs
-from pinecall.orgs.tuning import MemoryTuning
+from pinecall.orgs.records import MemoryOrgs
+from pinecall.orgs.tuning_store import MemoryTuning
 from pinecall.orgs.vault import MemoryVault, Vault, brought_by
 from pinecall.orgs.widgets import MemoryWidgets
 from pinecall.providers.models import Chat, Models
-from pinecall.routes.table import MemoryRoutes
-from pinecall.routes.trunks import MemoryTrunks
+from pinecall.routes.records import MemoryRoutes
 from pinecall.routes.twilio import TwilioFor
 from pinecall.tokens.ledger import MemoryTokens
 from pinecall.types import Brought, Model, Org, ProviderKeys
-from pinecall.worker.client import Gateway
+from pinecall.worker.gateway_client import Gateway
 from tests.api.fake_graph import FakeGraph
+from tests.routes.fakes import MemoryTrunks
 from tests.session.fake_llm import FakeLLM
 from tests.vectors import HashEmbedder
 
@@ -307,36 +307,36 @@ def wired(
     extensions: Extensions,
 ) -> Iterator[None]:
     """The real app, its deps overridden for the length of one test."""
-    app.dependency_overrides[deps.a_settings] = lambda: settings
-    app.dependency_overrides[deps.the_snapshots] = lambda: snapshots
-    app.dependency_overrides[deps.a_store] = lambda: store
-    app.dependency_overrides[deps.the_keys] = lambda: standing
-    app.dependency_overrides[registry_dep.the_registry] = lambda: registry
-    app.dependency_overrides[routes_table.the_routes] = lambda: routes
-    app.dependency_overrides[tokens_ledger.the_tokens] = lambda: tokens
-    app.dependency_overrides[log_writers.the_logs] = lambda: logs
-    app.dependency_overrides[gateway_connected.what_is_live] = lambda: live
-    app.dependency_overrides[deps.the_llms] = lambda: llms
-    app.dependency_overrides[the_tuning] = lambda: tuning
+    app.dependency_overrides[deps.get_settings] = lambda: settings
+    app.dependency_overrides[deps.get_snapshots] = lambda: snapshots
+    app.dependency_overrides[deps.get_store] = lambda: store
+    app.dependency_overrides[deps.get_keys] = lambda: standing
+    app.dependency_overrides[registry_dep.get_registry] = lambda: registry
+    app.dependency_overrides[routes_table.get_routes] = lambda: routes
+    app.dependency_overrides[tokens_ledger.get_tokens] = lambda: tokens
+    app.dependency_overrides[log_writers.get_logs] = lambda: logs
+    app.dependency_overrides[gateway_connected.get_live] = lambda: live
+    app.dependency_overrides[deps.get_llms] = lambda: llms
+    app.dependency_overrides[get_tuning] = lambda: tuning
     widgets = MemoryWidgets()
-    app.dependency_overrides[the_widgets] = lambda: widgets
-    app.dependency_overrides[the_orgs] = lambda: orgs
-    app.dependency_overrides[the_vault] = lambda: vault
-    app.dependency_overrides[the_admission] = lambda: admission
-    app.dependency_overrides[whatsapp_graph.the_graph] = lambda: graph
-    app.dependency_overrides[whatsapp_threads.the_threads] = lambda: threads
-    app.dependency_overrides[the_memory] = lambda: memory
-    app.dependency_overrides[the_knowledge] = lambda: knowledge
-    app.dependency_overrides[the_embedder] = lambda: embedder
-    app.dependency_overrides[the_lookups] = lambda: lookups
-    app.dependency_overrides[the_fleet] = lambda: fleet
-    app.dependency_overrides[the_members] = lambda: members
-    app.dependency_overrides[the_login_codes] = lambda: login_codes
-    app.dependency_overrides[the_pairings] = lambda: pairings
-    app.dependency_overrides[the_throttle] = lambda: throttle
-    app.dependency_overrides[deps.the_extensions] = lambda: extensions
-    app.dependency_overrides[deps.the_carriers] = lambda: carriers
-    app.dependency_overrides[deps.the_trunks] = lambda: trunks
+    app.dependency_overrides[get_widgets] = lambda: widgets
+    app.dependency_overrides[get_orgs] = lambda: orgs
+    app.dependency_overrides[get_vault] = lambda: vault
+    app.dependency_overrides[get_admission] = lambda: admission
+    app.dependency_overrides[whatsapp_graph.get_graph] = lambda: graph
+    app.dependency_overrides[whatsapp_threads.get_threads] = lambda: threads
+    app.dependency_overrides[get_memory] = lambda: memory
+    app.dependency_overrides[get_knowledge] = lambda: knowledge
+    app.dependency_overrides[get_embedder] = lambda: embedder
+    app.dependency_overrides[get_lookups] = lambda: lookups
+    app.dependency_overrides[get_fleet] = lambda: fleet
+    app.dependency_overrides[get_members] = lambda: members
+    app.dependency_overrides[get_login_codes] = lambda: login_codes
+    app.dependency_overrides[get_pairings] = lambda: pairings
+    app.dependency_overrides[get_throttle] = lambda: throttle
+    app.dependency_overrides[deps.get_extensions] = lambda: extensions
+    app.dependency_overrides[deps.get_carriers] = lambda: carriers
+    app.dependency_overrides[deps.get_trunks] = lambda: trunks
     app.dependency_overrides[deps.twilio_for] = lambda: twilio
     yield
     app.dependency_overrides.clear()
@@ -358,7 +358,7 @@ def gateway(wired: None) -> Iterator[TestClient]:  # noqa: ARG001
 # while the worker's request is still waiting on it.
 @pytest.fixture
 async def worker_gateway(wired: None) -> AsyncIterator[Gateway]:  # noqa: ARG001
-    """worker/client.py over the real ASGI app, knocking with the org's key."""
+    """worker/gateway_client.py over the real ASGI app, knocking with the org's key."""
     http = over_the_asgi_app(f"Bearer {A_KEY}")
     yield Gateway(http)
     await http.aclose()

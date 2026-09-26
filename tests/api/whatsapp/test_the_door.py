@@ -12,10 +12,10 @@ from pinecall.api.whatsapp.threads import IDLE_SECONDS, WINDOW_SECONDS, Threads
 from pinecall.log.entry import Entry
 from pinecall.log.store import MemoryStore
 from pinecall.orgs.vault import Vault
-from pinecall.routes.table import MemoryRoutes
+from pinecall.routes.records import MemoryRoutes
 from pinecall.types import PRODUCTION
-from pinecall.whatsapp.graph import GraphRefused
-from pinecall.whatsapp.sending import NOT_SENT
+from pinecall.whatsapp.cloud_api import GraphRefused
+from pinecall.whatsapp.outbound_replies import NOT_SENT
 from tests.api.conftest import A_RECORD, AGENT
 from tests.api.fake_graph import FakeGraph
 from tests.api.whatsapp.conftest import (
@@ -311,7 +311,7 @@ async def _the_log_of(threads: Threads, store: MemoryStore, wa_id: str = ANA) ->
 
 async def _the_thread_goes_quiet(threads: Threads, wa_id: str = ANA) -> None:
     """Let the idle clock run out, which in this suite is a twentieth of a second."""
-    while threads.of(THE_CLINICS_NUMBER, wa_id) is not None:
+    while threads.of(THE_CLINICS_NUMBER, wa_id) is not None:  # noqa: ASYNC110 — the idle clock
         await asyncio.sleep(0.01)
 
 

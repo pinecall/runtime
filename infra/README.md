@@ -4,7 +4,9 @@ Everything a laptop needs to carry a call end to end, in one compose file. Nothi
 a product decision: it is the same five services a self-hosted box runs, pinned and small
 enough to fit on a machine that is also running an editor. There, `tei` is a Quadlet unit and
 the box runs it only where it embeds on the machine rather than at a vendor (`box/README.md`,
-"The embedder"); the other four every box but a worker runs, on the same images as these.
+"The embedder"); the other four every box but a worker runs, on the same images as these — each
+named by tag and digest, the index's, so a laptop and a box pull the same bytes; `scripts/image-digests`
+reads the registries for what each tag points at today.
 
 ```
 docker compose -f infra/compose/dev.yml up -d          the five services

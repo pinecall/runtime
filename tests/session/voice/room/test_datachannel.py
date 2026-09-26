@@ -14,7 +14,7 @@ from pinecall.session.voice.room import DataChannel
 from pinecall.session.voice.room.datachannel import EVENT, LOG, REPLAY, SNAPSHOT
 from pinecall.types import AgentConfig
 from pinecall.types.json import JsonObject
-from pinecall.types.token import SCOPE_ATTRIBUTE
+from pinecall.types.scopes import SCOPE_ATTRIBUTE
 from pinecall_protocol import encode
 from tests.session.voice.fakes import CALL, CLARA
 from tests.session.voice.room.fakes import FakeLog, FakeParticipant, Held, a_held_room, a_widget

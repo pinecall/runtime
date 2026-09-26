@@ -11,7 +11,8 @@ from typing import Any, TextIO
 
 from pydantic import TypeAdapter
 
-from pinecall.cli.columns import as_columns
+from pinecall.cli.columns import aligned_columns
+from pinecall.cli.help import help_only
 from pinecall.cli.operator import Operator, OperatorRefused, against_the_gateway
 from pinecall.fleet import STALE_AFTER_S, Line, Seat, cloud_named
 from pinecall.fleet.clouds import CloudRefused
@@ -69,7 +70,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
     )
     looping.set_defaults(run=run_loop)
 
-    parser.set_defaults(run=partial(_print_the_verbs, parser))
+    parser.set_defaults(run=help_only(parser))
 
 
 def run_list(_arguments: argparse.Namespace) -> int:
@@ -117,7 +118,7 @@ async def list_workers(operator: Operator, out: TextIO = sys.stdout) -> int:
         print("no worker has knocked at this gateway yet", file=out)
         return 0
     header = ("worker", "held", "seats", "load", "standing", "heard")
-    for line in as_columns([header, *(_row_of(seat, now) for seat in seats)]):
+    for line in aligned_columns([header, *(_row_of(seat, now) for seat in seats)]):
         print(line, file=out)
     totals: dict[str, Any] = said["totals"]
     full = " · FULL" if totals["workers"] and not totals["accepting"] else ""
@@ -241,9 +242,3 @@ def _row_of(seat: Seat, now: float) -> tuple[str, ...]:
         standing,
         f"{now - seat.seen_at:.0f}s ago",
     )
-
-
-def _print_the_verbs(parser: argparse.ArgumentParser, _arguments: Any) -> int:
-    """`fleet` with no verb: say what there is, and exit as a help screen does."""
-    parser.print_help()
-    return 0

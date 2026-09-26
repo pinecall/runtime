@@ -17,28 +17,28 @@ from starlette.requests import HTTPConnection
 
 from pinecall._exceptions import PinecallError
 from pinecall._settings import Budgets, Settings
-from pinecall.api._deps import held
-from pinecall.api._live import Live
-from pinecall.api.agents.holding import Registration
+from pinecall.api.agents.held_agent import Registration
 from pinecall.api.agents.registry import NO_AGENT, Registry
-from pinecall.api.agents.tuned import tuned_for
-from pinecall.api.evals.attachment import AppDetached, Attachment
-from pinecall.api.evals.conversation import a_conversation
-from pinecall.api.evals.scoring import Judging
-from pinecall.api.evals.spoken import a_spoken_conversation
-from pinecall.evals.calling import Line
+from pinecall.api.agents.session_config import tuned_for
+from pinecall.api.deps import held
+from pinecall.api.evals.golden_call import run_golden_conversation
+from pinecall.api.evals.golden_judges import Judging
+from pinecall.api.evals.run_attachment import AppDetached, Attachment
+from pinecall.api.evals.spoken_golden import run_spoken_conversation
+from pinecall.api.live import Live
+from pinecall.evals.caller_voice import Speaking
 from pinecall.evals.goldens import Golden
-from pinecall.evals.runs import EvalRun, Opened, Runs
-from pinecall.evals.speech import Speaking
+from pinecall.evals.run_store import EvalRun, Opened, Runs
+from pinecall.evals.voice_run import Line
 from pinecall.log.store import Store
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
-from pinecall.orgs.tuning import TuningStore
+from pinecall.orgs.tuning_store import TuningStore
 from pinecall.orgs.vault import Vault, brought_by
 from pinecall.providers import declaration
 from pinecall.providers.models import Models
-from pinecall.session.text.allowance import TurnRefused
+from pinecall.session.text.turn_allowance import TurnRefused
 from pinecall.types import (
     AgentConfig,
     Brought,
@@ -46,7 +46,7 @@ from pinecall.types import (
     Env,
     Model,
     Versions,
-    a_call_id,
+    new_call_id,
 )
 from pinecall_protocol import WireModel, defs
 
@@ -161,7 +161,7 @@ class Runner:
             del self._in_flight[agent]
 
 
-async def a_run(wanted: Wanted, runner: Runner, process: Process) -> EvalRun:
+async def run_evals(wanted: Wanted, runner: Runner, process: Process) -> EvalRun:
     """Every golden under every model, scored, stored, and answered as one finished run."""
     serving = process.registry.serving(process.env, wanted.agent, wanted.app, process.holder)
     if serving is None:
@@ -185,9 +185,9 @@ async def a_run(wanted: Wanted, runner: Runner, process: Process) -> EvalRun:
     run = EvalRun(id=f"{A_RUN}{uuid4().hex[:12]}", agent=wanted.agent, started_at=time.time())
     async with runner.alone(run.id, wanted.agent):
         await process.runs.put(run)
+        judging = Judging(config)
         try:
             async with asyncio.timeout(A_RUN_MAY_TAKE_S):
-                judging = Judging(config)
                 run = await _every_conversation(
                     wanted, run, config, serving, process, judging, brought, resolved.versions
                 )
@@ -207,6 +207,8 @@ async def a_run(wanted: Wanted, runner: Runner, process: Process) -> EvalRun:
         except Exception as broke:
             await _stopped(run, str(broke), process)
             raise
+        finally:
+            await judging.close()
 
 
 # One conversation per golden per model, and the row rewritten twice for each: once before its
@@ -229,7 +231,9 @@ async def _every_conversation(
     total = len(models) * len(wanted.goldens)
     judged = 0
     for asked in models:
-        running = config if asked is None else declaration.configured(config, _only_the_llm(asked))
+        running = (
+            config if asked is None else declaration.apply_declaration(config, _only_the_llm(asked))
+        )
         named = _named(running.llm)
         llm = process.llms(running.llm, brought)
         for golden in wanted.goldens:
@@ -237,12 +241,12 @@ async def _every_conversation(
             # at all: the matrix ends where the app did, and the rest is absent rather than red.
             if not app.held:
                 raise _the_app_left(judged, total, wanted.agent)
-            call = a_call_id()
+            call = new_call_id()
             run = run.opening(Opened(golden=golden.name, model=named, call=call))
             await process.runs.put(run)
             try:
                 said = (
-                    await a_spoken_conversation(
+                    await run_spoken_conversation(
                         golden,
                         call=call,
                         run=run.id,
@@ -264,7 +268,7 @@ async def _every_conversation(
                         ),
                     )
                     if wanted.voice
-                    else await a_conversation(
+                    else await run_golden_conversation(
                         golden,
                         call=call,
                         run=run.id,
@@ -361,9 +365,9 @@ def _named(model: Model | None) -> str:
 # ── how a route asks for it ─────────────────────────────────────────────────────
 
 
-def the_runner(connection: HTTPConnection) -> Runner:
+def get_runner(connection: HTTPConnection) -> Runner:
     """The run this process is doing right now, if it is doing one."""
     return held(connection, "evals", Runner)
 
 
-RunnerDep = Annotated[Runner, Depends(the_runner)]
+RunnerDep = Annotated[Runner, Depends(get_runner)]

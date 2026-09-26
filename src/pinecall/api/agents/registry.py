@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING, Annotated
 from fastapi import Depends
 from starlette.requests import HTTPConnection
 
-from pinecall.api._deps import held
-from pinecall.api.agents.doors import Agent, Doors
-from pinecall.api.agents.holding import Held, Registration, SocketId
+from pinecall.api.agents.dial_in import Agent, Doors
+from pinecall.api.agents.held_agent import Held, Registration, SocketId
+from pinecall.api.deps import held
 from pinecall.log.entry import Entry
 from pinecall.providers import declaration
 from pinecall.types import PRODUCTION, AgentConfig, DeclarationRefused, Env, is_a_deployment
@@ -55,7 +55,7 @@ class Registry:
         # keeps its place: it is the same process, not a newer one.
         self._agents: dict[Held, list[Registration]] = {}
         # The public side of the table: which agent each dialled door answers for, and whose
-        # corner of the world its ring goes to. See api/agents/doors.py.
+        # corner of the world its ring goes to. See api/agents/dial_in.py.
         self._doors = Doors()
         self._owned: dict[SocketId, set[Held]] = {}
         # Counts accepted claims, so `answering` can say which of two corners took a door last.
@@ -182,7 +182,7 @@ class Registry:
     # corner with the org's underneath, one row per slug: two copies of `tienda-sur` are one entry
     # for them and the one they are running wins. An admin and the box operator ask "what is the
     # team running", and collapsing would hide the very thing they opened the page for — so they
-    # get one row per CORNER, each saying whose it is. api/agents/endpoints.py decides which.
+    # get one row per CORNER, each saying whose it is. api/agents/registry_reads.py decides which.
     def holding(
         self,
         org: str,
@@ -242,14 +242,14 @@ class Registry:
         holder: str | None = None,
     ) -> Entry:
         """Add this socket to the agent's holders and write agent.registered. It brings no doors:
-        a door is a row an operator typed (routes/table.py), and the widget is not a door at all."""
+        a door is a row an operator typed (routes/records.py); the widget is not a door at all."""
         await self._refuse_another_orgs_slug(org, slug)
         # This socket re-registering keeps what it declared; a socket joining an agent
         # somebody else holds starts from what that agent already is, and corrects it with the
         # agent.configure one round trip later. A call landing in that window must not find an
         # agent with no instructions. See docs/decisions/dispatch.md.
         held = self.on(env, slug, owner) or self.of(env, slug, holder)
-        config = held.config if held else declaration.an_agent(slug)
+        config = held.config if held else declaration.agent_from_slug(slug)
         self._replace(
             Registration(
                 slug=slug,
@@ -262,7 +262,7 @@ class Registry:
                 takes_unclaimed=takes_unclaimed,
             )
         )
-        said = declaration.registered(owner, sdk, env)
+        said = declaration.build_registered(owner, sdk, env)
         return await self._append(slug, "agent.registered", said, env)
 
     async def configure(
@@ -274,7 +274,9 @@ class Registry:
             raise DeclarationRefused(
                 f"agent {slug} is not registered on this socket: register it before configuring it"
             )
-        self._replace(dataclasses.replace(held, config=declaration.configured(held.config, wire)))
+        self._replace(
+            dataclasses.replace(held, config=declaration.apply_declaration(held.config, wire))
+        )
         configured = AgentConfigured(changed=list(declaration.changed_by(wire)))
         return await self._append(slug, "agent.configured", configured)
 
@@ -388,9 +390,9 @@ class Registry:
 # ── how a route asks for it ─────────────────────────────────────────────────────
 
 
-def the_registry(connection: HTTPConnection) -> Registry:
+def get_registry(connection: HTTPConnection) -> Registry:
     """Who owns which agent and which doors right now."""
     return held(connection, "registry", Registry)
 
 
-RegistryDep = Annotated[Registry, Depends(the_registry)]
+RegistryDep = Annotated[Registry, Depends(get_registry)]

@@ -21,10 +21,10 @@ UNNAMED = "the embedder at TEI_URL"
 DID_NOT_ANSWER = "TEI at {url} did not answer: {why}"
 
 # A push embeds a whole folder and is on nobody's clock; a lookup is on a caller's and has a budget
-# of its own that cancels it (session/lookups.py). The http client's default timeout is a lookup's
-# five seconds, and the first batch a cold CPU embedder sees — bge-m3 warming up on a laptop —
-# takes longer than that: the first `knowledge push` of the day timed out and the second went
-# through (2026-09-11). So a batch of a push waits this long, and a batch of a lookup waits the
+# of its own that cancels it (session/lookup_tools.py). The http client's default timeout is a
+# lookup's five seconds, and the first batch a cold CPU embedder sees — bge-m3 warming up on a
+# laptop — takes longer than that: the first `knowledge push` of the day timed out and the second
+# went through (2026-09-11). So a batch of a push waits this long, and a batch of a lookup waits the
 # client's default as before.
 A_PUSH_MAY_TAKE_S = 120.0
 

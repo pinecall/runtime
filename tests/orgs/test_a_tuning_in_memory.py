@@ -2,7 +2,7 @@
 
 import pytest
 
-from pinecall.orgs.tuning import MemoryTuning, VersionMoved, tuning_for
+from pinecall.orgs.tuning_store import MemoryTuning, VersionMoved, tuning_for
 from pinecall.types import SANDBOX, Docs, Hangup, Lexicon, Tuning, Turn
 
 pytestmark = pytest.mark.unit

@@ -34,7 +34,7 @@ infra/box/
 ## What keeps a call's audio
 
 A recording is one **room composite egress** per call, asked for by the worker the moment the room
-exists and stopped when the call ends (`worker/egress.py`). It writes
+exists and stopped when the call ends (`worker/recorder.py`). It writes
 `/var/lib/pinecall/recordings/<instance>/<call>/audio.ogg` — each instance's `PINECALL_RECORDINGS`
 is a directory of its own under the root egress mounts — which is the path `call.summary` points
 at and the path `GET /v1/calls/{call}/recording` serves from.
@@ -446,6 +446,28 @@ through the second box, 2026-09-09, found an ElevenLabs key the hub had carried 
 `.env` days. A worker box is asked after what a worker has — the keys, the SFU — and never after the
 hub's Postgres or its embedder, because a worker has neither. The embedder's line is a verdict on a
 **hub** and advice anywhere else, where every call still runs: "The embedder", above.
+
+## What a process may touch
+
+Every long-running unit of the runtime — each instance's gateway and worker, the overflow agent,
+the fleet loop — runs under `hardening.conf`, one drop-in the manifest installs beside each: no new
+privileges, the whole file system read-only but what the unit's own `ReadWritePaths=` names (the
+recordings, the cache LiveKit's plugins keep a model in, the fleet loop's cloud configuration),
+its own `/tmp`, no home, no devices, no capability, the `@system-service` syscalls and the three
+socket families a Python process on a box needs. `systemd-analyze security pinecall-gateway@production`
+is the grade. The deploy compiles the bytecode at the sync, because a process that cannot write
+its virtualenv would otherwise compile every module at every start. The oneshots that mint a key
+catch it in `/run`, which a strict file system refuses, and stay outside; so does `pinecall-db@`,
+which speaks to Postgres through podman as root; a tenant's app keeps a lighter set in its own
+file, `/opt` writable. A unit that cannot start backs off — three seconds, doubling, to a minute —
+and the journal is bounded (`journald.conf.d/pinecall.conf`), so a crash loop fills no disk.
+
+What the box takes on trust is pinned: every container image by tag **and** digest — the index's,
+so a Mac and the box pull the same one (`scripts/image-digests` says what a tag points at today,
+and bumping one is a decision) — uv and `hcloud` by release and checksum, NodeSource's key by the
+fingerprint it publishes, held to the same one at birth and on every deploy. Google's apt key
+rotates and is not pinned. The deploy account's sudo is whole on purpose: it runs `sudo make -C`
+over a manifest it writes, and a list of commands that includes that is `ALL` with extra steps.
 
 ## Five traps on a real box, one line each
 

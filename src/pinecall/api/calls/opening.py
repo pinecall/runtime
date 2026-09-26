@@ -6,19 +6,19 @@ from dataclasses import dataclass
 from functools import partial
 
 from pinecall._settings import Budgets
-from pinecall.api.agents.holding import Registration, SocketId
+from pinecall.api.agents.held_agent import Registration, SocketId
 from pinecall.api.agents.registry import Registry
-from pinecall.api.agents.tuned import tuned_for
-from pinecall.evals.score import JudgedWhen
+from pinecall.api.agents.session_config import tuned_for
+from pinecall.evals.hangup_score import JudgedWhen
 from pinecall.log.logs import CallLog
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.admission import Admission
-from pinecall.orgs.tuning import TuningStore
+from pinecall.orgs.tuning_store import TuningStore
 from pinecall.orgs.vault import Vault, brought_by
 from pinecall.providers.declaration import rang
 from pinecall.providers.models import Models
-from pinecall.session.first_entries import arrived
+from pinecall.session.first_entries import arrival_entry
 from pinecall.session.text.session import TextSession
 from pinecall.types import CallContext, Env, ProviderKeys, Versions
 from pinecall_protocol import encode
@@ -41,7 +41,7 @@ class TextCall:
 # is refused for the same reasons in the same sequence whichever way the caller arrived. Each
 # refusal is the caller's to say in their own words — NoProvider from the model, QuotaExhausted
 # from admission — because a socket closes with a reason and a webhook answers Meta with a 200.
-async def a_text_call(
+async def open_text_call(
     held: Registration,
     context: CallContext,
     tuning: TuningStore,
@@ -54,14 +54,14 @@ async def a_text_call(
     budgets: Budgets,
 ) -> TextCall:
     """The config, whose keys, the model and the quota — then the session, unstarted."""
-    return await a_text_session(
+    return await open_text_session(
         held, context, tuning, vault, llms, logs, lookups, budgets, admission, running
     )
 
 
 # The same session, for a call that was admitted once already and is only being taken up again —
-# its gateway restarted and forgot it (api/calls/taking_up.py): no quota is asked a second time.
-async def a_text_session(
+# its gateway restarted and forgot it (api/calls/resume.py): no quota is asked a second time.
+async def open_text_session(
     held: Registration,
     context: CallContext,
     tuning: TuningStore,
@@ -115,11 +115,11 @@ async def a_text_session(
 # starts reading at once. The worker opens that same log and adds nothing to the top of it — a
 # second call.dialing would be the one that had forgotten who asked. Only that door ever opens a
 # call with direction outbound, so this is the whole of the rule.
-async def how_it_arrived(log: CallLog, context: CallContext, agent: str) -> None:
+async def record_arrival(log: CallLog, context: CallContext, agent: str) -> None:
     """call.ringing on a call that rang. Nothing on one this gateway placed itself."""
     if context.direction == "outbound":
         return
-    type, event = arrived(context, context.route.number or agent)
+    type, event = arrival_entry(context, context.route.number or agent)
     await log.append(type, encode(event))
 
 
@@ -129,7 +129,7 @@ async def how_it_arrived(log: CallLog, context: CallContext, agent: str) -> None
 # holder's corner, as it always has. A call that RANG is the org's door: the worker that dialled
 # it holds a key naming nobody, so the corner is asked of the registry, which answers whose phone
 # dialled and then whose line it is. `declaration.rang()` is the one place the two are told apart.
-def who_serves(
+def serving_agent(
     registry: Registry,
     env: Env,
     agent: str,

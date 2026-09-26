@@ -2,19 +2,20 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from starlette.responses import FileResponse
 
-from pinecall.api._deps import StoreDep
-from pinecall.api.calls.sink import ReaderDep, refuse_another_call
+from pinecall.api.calls.log_sink import ReaderDep, refuse_another_call
+from pinecall.api.deps import StoreDep
 from pinecall.log.replay import whole
 
 router = APIRouter()
 
 # The pointer travels in the call's summary and nowhere else: the worker composes it
-# (worker/recordings.py) and the log states it there, once, near the end.
+# (worker/recording_paths.py) and the log states it there, once, near the end.
 THE_SUMMARY = "call.summary"
 AUDIO = "audio/ogg"
 
@@ -28,7 +29,7 @@ NOT_HERE = "the recording of {call} is at {path} on the box that took the call, 
 # and no other. The file is looked for where the pointer says, relative to this process, which is
 # where it is when the gateway and the worker share a box — the laptop, or ours.
 @router.get("/v1/calls/{call}/recording")
-async def recording(call: str, reader: ReaderDep, store: StoreDep) -> FileResponse:
+async def recording_response(call: str, reader: ReaderDep, store: StoreDep) -> FileResponse:
     """The call's audio.ogg, with byte ranges honoured so a player can seek."""
     refuse_another_call(reader, call)
     entries = await whole(store, call)
@@ -41,6 +42,6 @@ async def recording(call: str, reader: ReaderDep, store: StoreDep) -> FileRespon
     if not isinstance(pointer, str) or not pointer:
         raise HTTPException(404, NOT_RECORDED.format(call=call, summary=THE_SUMMARY))
     path = Path(pointer)
-    if not path.is_file():
+    if not await asyncio.to_thread(path.is_file):
         raise HTTPException(404, NOT_HERE.format(call=call, path=pointer))
     return FileResponse(path, media_type=AUDIO, filename=f"{call}.ogg")

@@ -12,21 +12,21 @@ from typing import Annotated
 from fastapi import Depends
 from starlette.requests import HTTPConnection
 
-from pinecall.api._deps import held
-from pinecall.api.agents.holding import Registration
-from pinecall.api.calls.opening import a_text_call
-from pinecall.api.calls.taking_up import taken_up
-from pinecall.api.whatsapp.doors import Doors
-from pinecall.api.whatsapp.waiting import Waiting, WaitingRoom
+from pinecall.api.agents.held_agent import Registration
+from pinecall.api.calls.opening import open_text_call
+from pinecall.api.calls.resume import taken_up
+from pinecall.api.deps import held
+from pinecall.api.whatsapp.thread_deps import Doors
+from pinecall.api.whatsapp.unanswered import Waiting, WaitingRoom
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.providers.models import NoProvider
-from pinecall.providers.registry import Asked, a_key
-from pinecall.session.text.allowance import SPENT, TurnRefused
+from pinecall.providers.registry import Asked, vendor_key
 from pinecall.session.text.session import TextSession
-from pinecall.types import CallContext, Contact, Route, a_call_id
-from pinecall.whatsapp.inbound import Inbound
-from pinecall.whatsapp.routing import WHATSAPP, answering
-from pinecall.whatsapp.sending import sending
+from pinecall.session.text.turn_allowance import SPENT, TurnRefused
+from pinecall.types import CallContext, Contact, Route, new_call_id
+from pinecall.whatsapp.inbound_message import Inbound
+from pinecall.whatsapp.number_routes import WHATSAPP, route_for_number
+from pinecall.whatsapp.outbound_replies import watch_replies
 from pinecall_protocol.defs import EndReason
 
 logger = logging.getLogger(__name__)
@@ -110,7 +110,7 @@ class Thread:
                 self._clock.cancel()
                 await self._closing(self, SPENT)
                 return
-            except Exception:  # noqa: BLE001 — the pump outlives any one turn
+            except Exception:
                 logger.exception(TURN_FAILED, self.session.call)
             finally:
                 self._said.task_done()
@@ -162,7 +162,7 @@ class Threads:
     # either way, because a webhook that answers 4xx is a webhook Meta disables.
     async def _opened(self, doors: Doors, inbound: Inbound) -> Thread | None:
         """One new call for this contact, or None and a line saying why there is none."""
-        route = await answering(doors.routes, inbound.number)
+        route = await route_for_number(doors.routes, inbound.number)
         if route is None:
             return None
         held = doors.registry.taking(route.env, route.agent)
@@ -175,7 +175,7 @@ class Threads:
         if going is not None:
             return going
         try:
-            opened = await a_text_call(
+            opened = await open_text_call(
                 held,
                 _a_context(route, inbound),
                 doors.tuning,
@@ -189,7 +189,7 @@ class Threads:
             )
             # The org's own Meta token or the box's, out of the very keys the model was built
             # from: the vault is read once per call and not once per thing the call needs.
-            token = a_key(WHATSAPP, Asked(settings=doors.settings, keys=opened.keys))
+            token = vendor_key(WHATSAPP, Asked(settings=doors.settings, keys=opened.keys))
         except (NoProvider, QuotaExhausted) as refused:
             logger.warning(NOT_ANSWERED, route.agent, inbound.number, refused)
             return None
@@ -213,7 +213,9 @@ class Threads:
         )
         # Wired from the thread, and before the first entry: whatever writes a turn.agent from
         # here on reaches the contact, and nothing has to remember to send it too.
-        session.watch(sending(session, doors.graph, token, thread.phone_number_id, inbound.wa_id))
+        session.watch(
+            watch_replies(session, doors.graph, token, thread.phone_number_id, inbound.wa_id)
+        )
         await session.start()
         self._open[(inbound.number, inbound.wa_id)] = thread
         return thread
@@ -248,7 +250,7 @@ class Threads:
             )
             if opened is None:
                 return None
-            token = a_key(WHATSAPP, Asked(settings=doors.settings, keys=opened.keys))
+            token = vendor_key(WHATSAPP, Asked(settings=doors.settings, keys=opened.keys))
         except NoProvider as refused:
             logger.warning(NOT_ANSWERED, route.agent, inbound.number, refused)
             return None
@@ -258,7 +260,9 @@ class Threads:
         if left <= 0:
             await self._forgetting(doors)(thread, WENT_QUIET)
             return None
-        session.watch(sending(session, doors.graph, token, thread.phone_number_id, inbound.wa_id))
+        session.watch(
+            watch_replies(session, doors.graph, token, thread.phone_number_id, inbound.wa_id)
+        )
         self._open[(inbound.number, inbound.wa_id)] = thread
         return thread
 
@@ -292,7 +296,7 @@ class Threads:
 def _a_context(route: Route, inbound: Inbound) -> CallContext:
     """One call, minted here: who wrote, at which of the org's numbers, and under which agent."""
     return CallContext(
-        call=a_call_id(),
+        call=new_call_id(),
         channel=WHATSAPP,
         direction="inbound",
         caller=inbound.caller,
@@ -304,9 +308,9 @@ def _a_context(route: Route, inbound: Inbound) -> CallContext:
     )
 
 
-def the_threads(connection: HTTPConnection) -> Threads:
+def get_threads(connection: HTTPConnection) -> Threads:
     """The conversations this process is running. The lifespan opened it; a test overrides it."""
     return held(connection, "threads", Threads)
 
 
-ThreadsDep = Annotated[Threads, Depends(the_threads)]
+ThreadsDep = Annotated[Threads, Depends(get_threads)]

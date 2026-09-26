@@ -5,7 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import Field
 
-from pinecall.api._deps import (
+from pinecall.api.agents.registry import RegistryDep
+from pinecall.api.agents.session_config import tuned_for
+from pinecall.api.deps import (
     EvalsKeyDep,
     LlmsDep,
     OrgsDep,
@@ -14,23 +16,21 @@ from pinecall.api._deps import (
     TuningDep,
     VaultDep,
 )
-from pinecall.api.agents.registry import RegistryDep
-from pinecall.api.agents.tuned import tuned_for
-from pinecall.api.evals.listening import the_call_is_over, until_the_answer_lands
-from pinecall.auth.keys import held_by
-from pinecall.evals.caller import (
+from pinecall.api.evals.agent_finished import is_call_over, until_the_answer_lands
+from pinecall.auth.keys import is_held_by
+from pinecall.evals.caller_voice import Speaking
+from pinecall.evals.simulated_caller import (
     NO_MODEL,
     Asking,
     Persona,
     heard_in,
-    what_they_say_next,
+    improvise_line,
 )
-from pinecall.evals.calling import Line, a_simulated_call
-from pinecall.evals.speech import Speaking
+from pinecall.evals.voice_run import Line, run_simulated_call
 from pinecall.log.replay import whole
 from pinecall.orgs.vault import brought_by
 from pinecall.providers.models import NoProvider
-from pinecall.providers.tuning import the_llm, the_voice
+from pinecall.providers.tuned_declaration import tuned_llm, tuned_voice
 from pinecall.types import DeclarationRefused
 from pinecall_protocol import WireModel
 
@@ -45,7 +45,7 @@ NO_LINE = "the simulated call could not be held: {broke}"
 class Calling(WireModel):
     """What a `--voice` run asks for: whose call, who is calling, and how spoilt their line is."""
 
-    # The caller mints it, because a room's name IS the call id (worker/entry.py:82) and the
+    # The caller mints it, because a room's name IS the call id (worker/job.py:82) and the
     # terminal has to be able to watch the log while the call is still happening.
     call: str
     agent: str
@@ -70,7 +70,7 @@ class Called(WireModel):
 # as `/v1/evals/caller` plays it — and the log the transcript is read back from. The terminal mints
 # the call id and watches the log — see docs/decisions/simulate.md.
 @router.post("/v1/evals/voice")
-async def a_voice_call(
+async def place_voice_call(
     said: Calling,
     key: EvalsKeyDep,
     llms: LlmsDep,
@@ -88,8 +88,8 @@ async def a_voice_call(
     # was. The door that wrote the persona refused a typo already, so a refusal here is a row
     # written before this build knew the word.
     try:
-        llm = llms(the_llm(said.persona.llm), brought)
-        declared = the_voice(said.persona.tts, said.persona.voice)
+        llm = llms(tuned_llm(said.persona.llm), brought)
+        declared = tuned_voice(said.persona.tts, said.persona.voice)
     except DeclarationRefused as refused:
         raise HTTPException(422, str(refused)) from refused
     except NoProvider as missing:
@@ -98,11 +98,11 @@ async def a_voice_call(
     # The caller speaks the agent's language in a voice the agent does not have: both read off
     # the config the agent runs on, in the corner of the socket the call is dispatched to.
     speaking = Speaking(brought=brought, declared=declared)
-    held = registry.of(key.env, said.agent, held_by(key))
+    held = registry.of(key.env, said.agent, is_held_by(key))
     # A slug is one org's, so a socket holding it may be another tenant's: its declaration —
     # the voice, the language — is not this key's to read, and the call runs bare instead.
     if held is not None and held.org == key.org:
-        running = await tuned_for(kept, key.org, key.env, held_by(key), said.agent, held.config)
+        running = await tuned_for(kept, key.org, key.env, is_held_by(key), said.agent, held.config)
         speaking = Speaking(
             language=running.config.language,
             agents_voice=None if running.config.voice is None else running.config.voice.voice_id,
@@ -119,19 +119,19 @@ async def a_voice_call(
         # Somebody hung up while the caller was waiting for its answer: the console's Stop, the
         # app, the agent. This loop is the gateway's and the call is the worker's, so the log is
         # the only place it hears of it — and a caller that did not look went on saying its
-        # remaining turns to an empty room. No line is the hangup (evals/calling.py:357).
-        if the_call_is_over(entries):
+        # remaining turns to an empty room. No line is the hangup (evals/voice_run.py:357).
+        if is_call_over(entries):
             return "", True
         asking = Asking(
             persona=said.persona,
             heard=heard_in(entries),
             turns_left=turns_left,
         )
-        improvised = await what_they_say_next(llm, asking)
+        improvised = await improvise_line(llm, asking)
         return improvised.say, improvised.hangup
 
     try:
-        spoken = await a_simulated_call(
+        spoken = await run_simulated_call(
             said.call,
             said.agent,
             turns=said.turns,
@@ -150,7 +150,7 @@ async def a_voice_call(
             declines_when=said.persona.declines_when or None,
             org=key.org,
             env=key.env,
-            holder=held_by(key),
+            holder=is_held_by(key),
             speaking=speaking,
         )
     except (TimeoutError, RuntimeError) as broke:

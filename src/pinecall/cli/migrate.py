@@ -9,8 +9,8 @@ from pinecall.log.store.migrating import (
     Applied,
     apply_migrations,
     every,
+    migration_files,
     migrations_applied,
-    ordered,
 )
 from pinecall.log.store.postgres import DEFAULT_SCHEMA, create_pool, without_password
 
@@ -92,7 +92,7 @@ async def _status(schema: str) -> int:
     print(AT.format(database=without_password(dsn), schema=schema))
     for path in every():
         print(f"{_the_mark_of(path.name, done)} {path.name}")
-    waiting = [path for path in ordered(post=True) if path.name not in done]
+    waiting = [path for path in migration_files(post=True) if path.name not in done]
     if waiting:
         print(WAITING.format(count=len(waiting)))
     return 0
@@ -110,6 +110,6 @@ def _the_mark_of(name: str, done: set[str]) -> str:
 
 def _plan(post: bool) -> int:
     """What a run of this kind WOULD apply, touching no database at all."""
-    for path in ordered(post=post):
+    for path in migration_files(post=post):
         print(path.name)
     return 0

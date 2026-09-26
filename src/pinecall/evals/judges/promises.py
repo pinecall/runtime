@@ -10,13 +10,13 @@ from livekit.agents.evals import Judge, JudgmentResult
 from livekit.agents.llm import LLM, ChatContext
 
 from pinecall.evals.case import Case
-from pinecall.evals.judges.asking import asked
-from pinecall.evals.judges.grounded import rendered
-from pinecall.evals.judges.policy import broken, held
+from pinecall.evals.judges.binary_question import ask_judge
+from pinecall.evals.judges.code_judge import broken, held
+from pinecall.evals.judges.grounded import render_tool_call
 from pinecall.evals.transcript import said_by_the_agent
 
 # The name the log files the verdict under, and the one the call index raises `promise` by
-# (log/facts.py, PROMISES): one word, spelled in both places because log/ imports no evals/.
+# (log/call_facts.py, PROMISES): one word, spelled in both places because log/ imports no evals/.
 NAME = "promises"
 
 # A promise is a sentence about the FUTURE with the business as its subject: we will call, a
@@ -70,7 +70,7 @@ class PromisesJudge(Judge):
         self,
         *,
         chat_ctx: ChatContext,
-        reference: ChatContext | None = None,  # noqa: ARG002 — nothing here compares two calls
+        reference: ChatContext | None = None,
         llm: LLM[Any] | None = None,
     ) -> JudgmentResult:
         """Held when nothing was promised; otherwise the promises and the tool calls are asked."""
@@ -80,7 +80,7 @@ class PromisesJudge(Judge):
         elif llm is None:
             settled = broken(NOBODY_TO_ASK.format(said=_quoted(promised)))
         else:
-            return await asked(llm, self.criteria(), chat_ctx)
+            return await ask_judge(llm, self.criteria(), chat_ctx)
         settled.instructions = CRITERIA
         return settled
 
@@ -92,7 +92,12 @@ class PromisesJudge(Judge):
 def promises_of(case: Case) -> PromisesJudge:
     """The judge for one call, carrying every tool call it made as `name(args) → answer`."""
     return PromisesJudge(
-        [rendered(call) for turn in case.turns for call in turn.calls if call.answer is not None]
+        [
+            render_tool_call(call)
+            for turn in case.turns
+            for call in turn.calls
+            if call.answer is not None
+        ]
     )
 
 

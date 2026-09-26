@@ -9,7 +9,7 @@ from pinecall._exceptions import PinecallError
 from pinecall.log.usage import Totals
 from pinecall.log.writers import Logs
 from pinecall.orgs.meter import Meter
-from pinecall.orgs.table import Orgs
+from pinecall.orgs.records import Orgs
 from pinecall.types import Counting, QuotaName, Quotas
 from pinecall.types.org import EXHAUSTED, Ceiling
 from pinecall_protocol import encode
@@ -62,7 +62,7 @@ class Admission:
     # Admission runs at the open, so a call opened with one minute left would otherwise run on for
     # twenty. The answer is how long this one may last by the org's minutes — None when they are
     # not limited — and the worker ends it there on the agent's own clock
-    # (session/voice/closing_time.py). Never zero, which that clock reads as no limit: a call
+    # (session/voice/time_limit.py). Never zero, which that clock reads as no limit: a call
     # admitted at all is admitted for at least a second.
     async def a_call(self, org: str, agent: str, running: int) -> Ceiling | None:
         """May this org open one more call for this agent — and for how many seconds at most."""
@@ -100,7 +100,7 @@ class Admission:
         return None
 
     # What the gate counts against, for a door that shows it: the same fold, so a page saying
-    # "12 of 30 minutes" and the refusal at 30 read one number (api/limits.py).
+    # "12 of 30 minutes" and the refusal at 30 read one number (api/org/limits.py).
     async def consumed(self, org: str) -> Totals:
         """What this org has consumed on this instance, as the Meter folds it."""
         return await self._meter.totals(org)
@@ -112,7 +112,7 @@ class Admission:
         return await self._orgs.quotas_of(org)
 
     # A hang-up is judged only where the org has not turned judging off: the judges may cost a
-    # model's tokens, and that is the org's to decline (api/judging.py).
+    # model's tokens, and that is the org's to decline (api/agents/hangup_judging.py).
     async def judges(self, org: str) -> bool:
         """Whether this org's calls are judged when they hang up."""
         return await self._orgs.judges(org)

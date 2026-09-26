@@ -6,7 +6,6 @@ import asyncio
 
 from livekit.agents.voice import AgentSession
 from livekit.protocol.sip import (
-    CreateSIPParticipantRequest,
     SIPTransferReason,
     SIPTransferStatus,
     TransferSIPParticipantRequest,
@@ -14,7 +13,8 @@ from livekit.protocol.sip import (
 )
 
 from pinecall.session.voice import sip
-from pinecall.session.voice.room.holding import Holding
+from pinecall.session.voice.room.leg import build_sip_leg
+from pinecall.session.voice.room.room_handle import Holding
 from pinecall_protocol.commands import CallTransfer
 from pinecall_protocol.defs import TransferMode
 from pinecall_protocol.events import CallTransferred
@@ -31,10 +31,6 @@ WARM: TransferMode = "warm"
 NO_LEG = "call.transfer: a cold transfer sends the caller's own SIP leg on, and this call has none"
 NO_TRUNK = "call.transfer: no outbound SIP trunk is configured, so {to} cannot be dialled"
 
-# The identity the dialled leg takes in the room: livekit's own habit for SIP participants, and
-# the same one room.invite uses, so a reader of the log sees one kind of second leg.
-LEG_PREFIX = "sip_"
-
 # How long the far end may ring before a warm transfer gives up and the caller is told. LiveKit's
 # own default is 30s; a caller holding notices 30s.
 RINGING_S = 25.0
@@ -46,7 +42,6 @@ RINGING_S = 25.0
 # the line then cuts the caller off mid-word, which they hear as a dropped call. Bounded: a
 # sentence that never ends must not hold a transfer forever.
 THE_ANNOUNCEMENT_S = 12.0
-A_GLANCE_S = 0.1
 
 # The caller hears a ringing tone while the far end is dialled, instead of a silence they read as
 # a dropped call. livekit plays it on the leg being transferred (sip.proto, play_dialtone).
@@ -57,11 +52,11 @@ PLAY_DIALTONE = True
 # browser has no leg to REFER, so the person is dialled in to them instead. The app may still ask
 # for one by name, and a cold transfer of a browser call is refused rather than quietly made warm:
 # the two are different calls afterwards, and the log must not say one where the other happened.
-async def the_mode(holding: Holding, wanted: CallTransfer) -> TransferMode:
+async def transfer_mode(holding: Holding, wanted: CallTransfer) -> TransferMode:
     """The mode to run in: the app's own, else cold for a phone leg and warm for everything else."""
     if wanted.mode is not None:
         return wanted.mode
-    return COLD if await sip.the_sip_leg(holding.room, holding.channel) is not None else WARM
+    return COLD if await sip.wait_for_sip_leg(holding.room, holding.channel) is not None else WARM
 
 
 # The model says "I am putting you through" and calls the verb in the same reply, so the line must
@@ -69,12 +64,15 @@ async def the_mode(holding: Holding, wanted: CallTransfer) -> TransferMode:
 # the audio is played out.
 async def after_the_announcement(live: AgentSession[None] | None) -> None:
     """Wait for the agent to stop speaking, so a transfer never cuts the caller off mid-word."""
-    if live is None:
+    speech = None if live is None else live.current_speech
+    if speech is None:
         return
-    waited = 0.0
-    while live.agent_state == "speaking" and waited < THE_ANNOUNCEMENT_S:
-        await asyncio.sleep(A_GLANCE_S)
-        waited += A_GLANCE_S
+    # livekit's own handle says when the whole turn has played out (speech_handle.py:205); a
+    # loop glancing at agent_state every 100 ms was the same wait, coarser.
+    try:
+        await asyncio.wait_for(speech.wait_for_playout(), THE_ANNOUNCEMENT_S)
+    except TimeoutError:
+        return
 
 
 # The outcome is the wire's own `call.transferred`: whoever asked learns from the log alone. It is
@@ -82,7 +80,7 @@ async def after_the_announcement(live: AgentSession[None] | None) -> None:
 # call, the way every other verb's fact reaches the log through the bridge's one hand.
 async def sent_on(holding: Holding, wanted: CallTransfer) -> CallTransferred:
     """TransferSIPParticipant on the caller's leg. ok=False: the caller is still on the line."""
-    leg = await sip.the_sip_leg(holding.room, holding.channel)
+    leg = await sip.wait_for_sip_leg(holding.room, holding.channel)
     if leg is None:
         return _stayed(wanted, NO_LEG, COLD)
     request = TransferSIPParticipantRequest(
@@ -96,7 +94,7 @@ async def sent_on(holding: Holding, wanted: CallTransfer) -> CallTransferred:
     # A dial that the far end refused arrives as livekit's SipCallError, which renders the SIP code
     # and its reason phrase in its own __str__ (api/twirp_client.py:116): the status is in the words
     # already, and every other way the server can say no reads the same to whoever asked.
-    except Exception as refused:  # noqa: BLE001 — every way the server says no is one outcome
+    except Exception as refused:
         return _stayed(wanted, f"{VERB}: {refused}", COLD)
     if answer.status != SIPTransferStatus.STS_TRANSFER_SUCCESSFUL:
         return _stayed(wanted, _did_not_take(answer), COLD)
@@ -114,18 +112,17 @@ async def dialled_in(holding: Holding, wanted: CallTransfer) -> CallTransferred:
     asked = await holding.trunks.outbound(wanted.to)
     if asked.trunk is None:
         return _stayed(wanted, asked.refused or NO_TRUNK.format(to=wanted.to), WARM)
-    request = CreateSIPParticipantRequest(
-        sip_trunk_id=asked.trunk,
-        sip_call_to=wanted.to,
-        room_name=holding.room.name,
-        participant_identity=f"{LEG_PREFIX}{wanted.to}",
-        play_dialtone=PLAY_DIALTONE,
+    request = build_sip_leg(
+        asked.trunk,
+        wanted.to,
+        holding.room.name,
         wait_until_answered=True,
+        ringing_s=RINGING_S,
+        play_dialtone=PLAY_DIALTONE,
     )
-    request.ringing_timeout.FromSeconds(int(RINGING_S))
     try:
         await holding.api.sip.create_sip_participant(request)
-    except Exception as refused:  # noqa: BLE001 — a busy phone and a dead trunk are one outcome
+    except Exception as refused:
         return _stayed(wanted, f"{VERB}: {refused}", WARM)
     return CallTransferred(to=wanted.to, mode=WARM, ok=True)
 

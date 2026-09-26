@@ -5,9 +5,9 @@ import io
 import httpx
 import pytest
 
-from pinecall.cli.init import started
+from pinecall.cli.init import run_init
 from pinecall.cli.operator import Operator
-from tests.api.conftest import (  # noqa: F401 — imported so pytest collects them here
+from tests.api.conftest import (
     admission,
     embedder,
     fleet,
@@ -55,7 +55,6 @@ __all__ = [
     "models_asked",
     "ops_http",
     "orgs",
-    "tuning",
     "registry",
     "routes",
     "settings",
@@ -63,6 +62,7 @@ __all__ = [
     "store",
     "threads",
     "tokens",
+    "tuning",
     "vault",
     "wired",
 ]
@@ -86,7 +86,7 @@ async def test_it_makes_the_org_invites_the_person_and_hands_them_the_box(
 ) -> None:
     out = printed()
 
-    code = await started(
+    code = await run_init(
         "tienda-sur", "Tienda Sur", "nico@tiendasur.uy", "Nico", "admin", operator, out
     )
 
@@ -106,10 +106,10 @@ async def test_running_it_twice_carries_on_to_the_person_rather_than_stopping_at
     operator: Operator,
 ) -> None:
     """It is the verb somebody runs twice while reading the README."""
-    await started("tienda-sur", None, "nico@tiendasur.uy", "Nico", "admin", operator, printed())
+    await run_init("tienda-sur", None, "nico@tiendasur.uy", "Nico", "admin", operator, printed())
     out = printed()
 
-    code = await started("tienda-sur", None, "ana@tiendasur.uy", "Ana", "admin", operator, out)
+    code = await run_init("tienda-sur", None, "ana@tiendasur.uy", "Ana", "admin", operator, out)
 
     assert code == 0
     assert out.getvalue().splitlines()[0] == "org tienda-sur is already there"

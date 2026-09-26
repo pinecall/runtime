@@ -67,7 +67,7 @@ THE_CALL = "The call, on {channel}:\n{turns}"
 A_FENCE = re.compile(r"^\s*```[a-zA-Z]*\s*(.*?)\s*```\s*$", re.DOTALL)
 
 
-async def extracted(
+async def extract_ops(
     chat: Chat,
     *,
     known: Sequence[Fact],
@@ -77,14 +77,14 @@ async def extracted(
     tools: Sequence[ToolSpec] = (),
 ) -> list[Op]:
     """One request over the call, its answer parsed strictly, and only what the policy allows."""
-    said = await answered(chat, known=known, turns=turns, policy=policy, channel=channel)
-    return allowed(said, policy, known, tools)
+    said = await ask_model(chat, known=known, turns=turns, policy=policy, channel=channel)
+    return filter_allowed(said, policy, known, tools)
 
 
 # The two halves of the step above, apart, because a golden is judged on BOTH: what the model
 # asked for says whether it noticed, and what `allowed` let through says what a caller would
 # find on the next call. A hang-up only ever wants the second — memory/goldens.py.
-async def answered(
+async def ask_model(
     chat: Chat,
     *,
     known: Sequence[Fact],
@@ -96,14 +96,14 @@ async def answered(
     response = await chat.chat(
         chat_ctx=_the_request(known, turns, policy, channel), extra_kwargs={"temperature": 0.0}
     ).collect()
-    return parsed(response.text)
+    return parse_ops(response.text)
 
 
 # Strict means: a JSON array of objects, each with a verb this package knows, a sentence where a
 # sentence is due and a fact's id where one is named. A fence around the array is the one thing
 # forgiven, because every model writes one now and then. Anything else is zero ops, said in the
 # log and never raised: a hang-up is not the place for a traceback.
-def parsed(answer: str) -> list[Op]:
+def parse_ops(answer: str) -> list[Op]:
     """The ops in the model's answer; a fenced array is fine, and garbage is no ops at all."""
     fenced = A_FENCE.match(answer)
     text = fenced.group(1) if fenced else answer
@@ -124,7 +124,7 @@ def parsed(answer: str) -> list[Op]:
 # and a known fact is replaced at most once per call. Admission at write time is the layer the
 # literature says memory cannot do without (MINJA, Unit 42): filtering at read time alone does
 # not hold. docs/security/prompt-injection.md.
-def allowed(
+def filter_allowed(
     ops: Sequence[Op], policy: MemoryPolicy, known: Sequence[Fact], tools: Sequence[ToolSpec] = ()
 ) -> list[Op]:
     """The ops the tenant's policy lets through, against the facts the contact actually has."""

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.evals.score import a_score
+from pinecall.evals.hangup_score import score_call
 from pinecall_protocol.events import Judgment
 from tests.lookups.fakes import CALL, ScriptedKnowledge, a_chunk, a_config, a_served_call
 
@@ -28,7 +28,7 @@ async def test_the_grounded_judge_finds_a_stated_price_in_the_sources_the_fill_w
     await served.lookups.lookup(CALL, "search", SEARCHING, "sp_1")
     await served.said("La revisión son 45 €.")
 
-    scored = await a_score(await served.log.whole(), a_config(), NO_BUDGET)
+    scored = await score_call(await served.log.whole(), a_config(), NO_BUDGET)
     grounded = _judged(scored.judges, "grounded")
     assert grounded.verdict == "held"
     assert grounded.reason == "all 1 stated fact(s) appear in the evidence"
@@ -40,7 +40,7 @@ async def test_a_price_the_search_never_found_is_still_ungrounded() -> None:
     await served.lookups.lookup(CALL, "search", {"query": "¿cuánto cuesta?"}, "sp_1")
     await served.said("La revisión son 45 €.")
 
-    scored = await a_score(await served.log.whole(), a_config(), NO_BUDGET)
+    scored = await score_call(await served.log.whole(), a_config(), NO_BUDGET)
     assert _judged(scored.judges, "grounded").verdict != "held"
 
 

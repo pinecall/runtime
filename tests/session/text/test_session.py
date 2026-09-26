@@ -8,7 +8,7 @@ from livekit.agents import llm as agents
 
 from pinecall.log.logs import CallLog
 from pinecall.log.store import LogSealed, MemoryStore
-from pinecall.session import clock
+from pinecall.session import date_tool
 from pinecall.session.text.session import TextSession
 from pinecall.types import AgentConfig, CallContext, Route
 from tests.session.fake_llm import FakeLLM, Scripted
@@ -103,5 +103,5 @@ def _the_dates_in(session: TextSession) -> list[dict[str, str]]:
     return [
         json.loads(item.output)
         for item in session.text_agent.chat_ctx.items
-        if isinstance(item, agents.FunctionCallOutput) and item.name == clock.CLOCK_TOOL
+        if isinstance(item, agents.FunctionCallOutput) and item.name == date_tool.CLOCK_TOOL
     ]

@@ -9,9 +9,9 @@ import pytest
 from starlette.testclient import TestClient, WebSocketTestSession
 
 from pinecall._settings import Settings
-from pinecall.auth.corner import CANNOT_LOOK_THERE, NOT_A_COLLEAGUE, looking_into
-from pinecall.auth.keys import KeyRecord, MemoryKeys, held_by
+from pinecall.auth.keys import KeyRecord, MemoryKeys, is_held_by
 from pinecall.auth.members_memory import MemoryMembers
+from pinecall.auth.request_scope import CANNOT_LOOK_THERE, NOT_A_COLLEAGUE, looking_into
 from pinecall.log.store import MemoryStore
 from pinecall.types import ROLE_SCOPES, SANDBOX, Member
 from tests.api.calls.test_listing import RINGING, UP
@@ -176,7 +176,7 @@ def test_production_has_no_corner_to_open() -> None:
     sandbox = KeyRecord(
         key_id="k", org=A_RECORD.org, env=SANDBOX, subject="m_ana", scopes=ROLE_SCOPES["admin"]
     )
-    assert held_by(looking_into(sandbox, CARLA)) == CARLA
+    assert is_held_by(looking_into(sandbox, CARLA)) == CARLA
 
 
 async def _a_call_in(store: MemoryStore, call: str, env: str, holder: str | None) -> None:

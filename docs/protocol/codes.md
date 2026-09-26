@@ -48,7 +48,7 @@ The answer is `200`, the protocol's `CodeStanding`:
 | `status` | `call` | `log_token` | the page |
 |---|---|---|---|
 | `waiting` | `null` | `null` | shows the number and the code, and asks again |
-| `claimed` | the call id | a log token for that call, minted now, four hours, through the `log` the code was issued with | follows the call: `GET /v1/calls/{call}/events?token=…` |
+| `claim_code` | the call id | a log token for that call, minted now, four hours, through the `log` the code was issued with | follows the call: `GET /v1/calls/{call}/events?token=…` |
 | `expired` | `null` | `null` | draws it: "the code expired, ask for another". `200`, never `410`: it is an answer |
 
 `401` without a token of ours; `403` for a token of another code (or any other token); `404` for a
@@ -110,5 +110,5 @@ log — answers it `403`. The one thing it reads is `GET /v1/codes/{code}` for i
 4. The caller keys 4-8-2-1. The worker writes four `dtmf.received`, then asks
    `POST /v1/calls/{call}/claim`. (Or the caller says it, and the class sends `call.claim`.)
 5. The gateway writes `code.claimed {code, call}` on the agent's log and `call.claimed` on the
-   call's, and the page's held request answers `claimed` with the call and a log token.
+   call's, and the page's held request answers `claim_code` with the call and a log token.
 6. The page follows the call's log as it follows any call: the transcript, the state, the summary.

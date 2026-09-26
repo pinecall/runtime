@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import AppKeyDep, LogsDep
-from pinecall.api._live import LiveDep
-from pinecall.api.agents.handlers import Socket, asked, handles
+from pinecall.api.agents.handlers import Socket, handles, parse_command
 from pinecall.api.agents.registry import RegistryDep
-from pinecall.api.calls.worker_doors import NOT_OPEN
-from pinecall.auth.corner import Corner, corner_of
-from pinecall.auth.keys import is_the_fleets
+from pinecall.api.calls.worker_writes import NOT_OPEN, refuse_another_orgs_call
+from pinecall.api.deps import AppKeyDep, LogsDep
+from pinecall.api.live import LiveDep
+from pinecall.auth.keys import is_fleet_key
+from pinecall.auth.request_scope import Corner, corner_of
 from pinecall.log.entry import Entry
-from pinecall.session.declaring import ToolUse
+from pinecall.session.tool_declaration import ToolUse
 from pinecall_protocol import Command, WireModel, defs, encode
 from pinecall_protocol.events import ToolCall
 
@@ -46,17 +44,20 @@ async def run_a_tool(
     registry: RegistryDep,
     logs: LogsDep,
     live: LiveDep,
-) -> dict[str, Any]:
+) -> defs.ToolResult:
     """A worker's tool call through the app's own process and back, with both entries logged."""
     # A call this gateway does not serve is one it forgot — it restarted — and the worker, which
     # still holds the call, reopens it on this 404 and asks again.
     served = live.served(call)
     if served is None:
         raise HTTPException(status_code=404, detail=NOT_OPEN.format(call=call))
+    # The call's org against the key's, before anything of the call is read: the agent check
+    # below only says the key's org holds THAT agent, which another org's call id does not need.
+    refuse_another_orgs_call(live, key, call)
     # Whose app the tool goes out to: the key's own corner for a tenant's worker, and for the
     # fleet's the corner of the CALL — said once when it was opened, and kept by this process.
     whose = corner_of(key)
-    if is_the_fleets(key):
+    if is_fleet_key(key):
         whose = Corner(served.org, served.context.env, served.holder)
     held = registry.of(whose.env, agent, whose.holder)
     if held is not None and held.org != whose.org:
@@ -72,12 +73,11 @@ async def run_a_tool(
     # null`, and that is a fact of the call. Dropping it left `tool.result` without an output at
     # all, indistinguishable from a method that returned nothing (2026-09-08, the first talk call).
     async def emit(type: str, event: WireModel) -> Entry:
-        """Append the entry. The app hears it because the call is served (api/_live.py)."""
+        """Append the entry. The app hears it because the call is served (api/live.py)."""
         return await log.append(type, encode(event))
 
     use = ToolUse(call_id=wanted.call_id, name=wanted.name, arguments=dict(wanted.arguments))
-    result = await live.waiting(call, config).ran(use, wanted.speech_id or "", emit)
-    return result.model_dump(mode="json")
+    return await live.waiting(call, config).ran(use, wanted.speech_id or "", emit)
 
 
 # ── the app's answer ────────────────────────────────────────────────────────────
@@ -89,7 +89,7 @@ async def run_a_tool(
 @handles("tool.result")
 async def take_a_tool_result(socket: Socket, command: Command) -> None:
     """What the tool returned in the app's own process, handed to whoever is waiting for it."""
-    result = asked(command, defs.ToolResult)
+    result = parse_command(command, defs.ToolResult)
     session = socket.live.of(command.call)
     if session is not None and session.agent == command.agent and session.tool_answered(result):
         return

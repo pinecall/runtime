@@ -4,22 +4,22 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
-from pinecall.api._deps import CallIndexDep, SnapshotsDep, StoreDep
 from pinecall.api.agents.registry import Registry, RegistryDep
-from pinecall.api.calls.sink import (
+from pinecall.api.calls.log_sink import (
     ReaderDep,
     declared_by,
     refuse_another_call,
     refuse_another_org,
 )
-from pinecall.auth.corner import corner_of
+from pinecall.api.deps import CallIndexDep, SnapshotsDep, StoreDep
+from pinecall.auth.request_scope import corner_of
 from pinecall.auth.scopes import Reader
-from pinecall.log.facts import CallFacts
+from pinecall.log.call_facts import CallFacts
 from pinecall.log.projection import project_state
 from pinecall.log.snapshots import Snapshot, Snapshots
-from pinecall.log.store.index import CallIndex, Wanted
+from pinecall.log.store.call_index import CallIndex, Wanted
 from pinecall.types import Channel
 from pinecall.types.json import JsonObject
 from pinecall_protocol import encode
@@ -34,6 +34,9 @@ A_SCREENFUL = 20
 # What a line says about a call: every field of the protocol's own SessionLine that the projected
 # state answers for. The row's shape is protocol/schema/rest.json and never a shape computed here.
 # The verdict and the flags are the call index's, not the state's.
+# A list is read on a key and never on a room token: the token opens one call, not a corner.
+NOT_A_KEY = "a list of calls is read on an API key, not on a call token"
+
 OF_THE_LINE = ("call", "live", "last_seq", "score", "flags")
 OF_THE_STATE = tuple(
     field.alias or name
@@ -71,13 +74,13 @@ async def sessions(
     refuse_another_call(reader, None)
     await refuse_another_org(reader, store, None, slug)
     wanted = Wanted(agent=slug, channel=channel, q=q or None, before=before)
-    return await a_page(reader, registry, index, snapshots, wanted, limit)
+    return await page_of_calls(reader, registry, index, snapshots, wanted, limit)
 
 
-# One page, however it was listed: the agent's door and the org's (api/floor.py) draw the same
-# rows, in the reader's corner — a developer's sandbox test calls are theirs, the telephone's are
-# production's, and an admin reading a colleague's copy reads that corner.
-async def a_page(
+# One page, however it was listed: the agent's door and the org's (api/calls/live_calls.py) draw the
+# same rows, in the reader's corner — a developer's sandbox test calls are theirs, the telephone's
+# are production's, and an admin reading a colleague's copy reads that corner.
+async def page_of_calls(
     reader: Reader,
     registry: Registry,
     index: CallIndex,
@@ -86,7 +89,8 @@ async def a_page(
     limit: int,
 ) -> SessionList:
     """The calls that match, a page of them folded to rows, how many match, and the cursor."""
-    assert reader.key is not None  # both doors refuse a token before they ask for a page
+    if reader.key is None:  # both doors refuse a token before they ask for a page
+        raise HTTPException(401, NOT_A_KEY)
     whose = corner_of(reader.key)
     found = await index.found(whose.org, whose.env, whose.holder or "", wanted, limit)
     facts = await index.facts_of(found.calls)

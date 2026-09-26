@@ -3,7 +3,7 @@
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.auth.scopes import a_room_token
+from pinecall.auth.scopes import mint_room_token
 from pinecall.log.store import MemoryStore
 from tests.api.conftest import A_LIVEKIT, A_RECORD
 from tests.api.talking import got
@@ -74,7 +74,7 @@ async def test_a_token_bound_to_one_call_may_not_read_the_agents_list(
     gateway: TestClient, store: MemoryStore
 ) -> None:
     await a_call(store, "CA_first")
-    token = a_room_token("CA_first", "participate", 9999999999, A_LIVEKIT)
+    token = mint_room_token("CA_first", "participate", 9999999999, A_LIVEKIT)
     assert got(gateway, f"{sessions_of()}?token={token}", bearer=None)[0] == 403
 
 

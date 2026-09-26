@@ -147,7 +147,7 @@ database, worker and keys, dispatching to its own fleet (`PINECALL_FLEET`) on th
 each tells the other's public URL (`PINECALL_ELSEWHERE_URL`) in every sentence that sends a person
 there, in the console's marks and at `/.well-known/pinecall`. Nothing picks a world per request.
 
-**The header is an assertion** (`auth/world.py`). A client says which world it believes it is
+**The header is an assertion** (`auth/env.py`). A client says which world it believes it is
 talking to with `pinecall-env`; a header naming the other world is `403`, with where that world
 answers. A server's token belongs to the world it was made in, and at the other instance it is
 `403` too. A person's key is read two ways, by the kind of door:
@@ -157,7 +157,7 @@ answers. A server's token belongs to the world it was made in, and at the other 
   a revoke): no production gate and no header required. A developer the org keeps out of
   production still signs in at production — which is who people are — and must be able to learn
   who they are, mint the code that hands them to the sandbox and switch org there.
-- **Every door that opens a scope reads it as it acts** (`opening`, `api/_deps.py`): at production
+- **Every door that opens a scope reads it as it acts** (`require_scopes`, `api/deps.py`): at production
   a person says `pinecall-env: production` — no header is `403`, naming where the sandbox is,
   because a CLI older than the instances meant the sandbox by saying nothing — and production
   opens only while an admin's switch on their row allows it, read at every request. At the sandbox
@@ -168,7 +168,7 @@ at production — a password, SSO, Google — and the console carries them acros
 (`POST /v1/login/codes`, read as an identity, so a developer kept out of production crosses too).
 The sandbox's `POST /v1/login {code}` spends it at production (`POST /v1/login/redeem`), which
 answers the org and the member as its rows say now; the sandbox mirrors both **by production's
-ids** (`api/identity.py`), so a slug and a key's subject mean one thing on both instances, and
+ids** (`api/accounts/identity.py`), so a slug and a key's subject mean one thing on both instances, and
 mints a key of its own that lives a day — nothing tells a sandbox when production disables
 somebody, so a disabled person's key opens it until it expires or they sign in again, when the
 mirror learns it and revokes every key of theirs there. Every door a person is made, changed or
@@ -187,7 +187,7 @@ back to. Production is namespaced by nobody: there is one corner there, the org'
 server's token holds the slug or a person with production access (`pinecall start --prod`). The exception is a **dialled** door: a number exists once in
 a world, so the sandbox number is the org's and a call at it rings in one terminal — web and
 chat are each developer's own, the telephone is shared. WHICH terminal is asked in two steps
-(`api/agents/doors.py`). First, **whose phone dialled**: a developer says which number they call
+(`api/agents/dial_in.py`). First, **whose phone dialled**: a developer says which number they call
 from (`PUT /v1/line/from`) and every call they make lands in their own corner — three of them can
 test at once, and that is the answer for almost every ring. Then, for a number nobody claimed, the
 agent's **line**: the first corner to hold it takes it, a second developer claims it, and it is
@@ -249,7 +249,7 @@ as `subject`. **What they may do in production is a switch on their row**, `prod
 admin sets (`PATCH /v1/members/{id}`; an admin always has it): with it their one key acts in
 production too, `app` included, whenever a request says `pinecall-env: production`; without it that
 request is `403`. Disabling them keeps the row, revokes every key of theirs and refuses their login.
-**A key grants what it holds** (`auth/granting.py`): whoever invites or re-roles somebody hands
+**A key grants what it holds** (`auth/grants.py`): whoever invites or re-roles somebody hands
 out no role whose preset opens a door their own key does not, no production access they lack,
 and nothing on their own row — the refusals are `protocol/people.md`. A
 browser never carries a key in a URL: a key holder mints a one-use code (`POST /v1/login/codes`)
@@ -363,7 +363,7 @@ from the key whoever knocks is carrying.
 
 `pinecall-corner: <member id>`
 on any HTTP door that takes a key — the scoped doors and every read of a log — answers that request
-in that member's sandbox corner instead of the key's own (`auth/corner.py`): their agents, their
+in that member's sandbox corner instead of the key's own (`auth/request_scope.py`): their agents, their
 line, their calls. It is what the sandbox's console sends when an admin opens a developer's copy; production's
 console has one corner and nothing to open. Only a key
 that sees every corner may send it (`team` and `app`), only in the sandbox — production has one corner — and

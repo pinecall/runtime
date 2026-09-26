@@ -5,7 +5,7 @@
 -- the Personas screen could show what a caller IS and nothing about what it has DONE.
 --
 -- The name is written on the call's own `call.started`, beside `run` — the log is the truth — and
--- this column is the projection of it, folded by log/facts.py as every other fact is. NULL is a
+-- this column is the projection of it, folded by log/call_facts.py as every other fact is. NULL is a
 -- call nobody was playing: a person, or a simulation from before this.
 --
 -- No backfill. A persona's name is nowhere in the logs of the calls that already happened, so

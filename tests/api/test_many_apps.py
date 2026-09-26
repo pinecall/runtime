@@ -8,10 +8,10 @@ import pytest
 from starlette.testclient import TestClient, WebSocketTestSession
 from starlette.websockets import WebSocketDisconnect
 
-from pinecall.api._live import Live
+from pinecall.api.live import Live
 from pinecall.auth.bearer import POLICY_VIOLATION
 from pinecall.auth.keys import KeyRecord, MemoryKeys
-from pinecall.worker.client import CONTEXT
+from pinecall.worker.gateway_client import CONTEXT
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS, CHAT
 from tests.api.talking import a_caller, a_door, a_frame, a_register, an_app, entry_until
 from tests.api.test_worker_doors import CALL, a_context
@@ -73,9 +73,11 @@ def test_a_caller_naming_an_app_that_is_not_holding_the_agent_is_refused_with_a_
         holding(mine)
         neighbour.send_json(a_register(ANOTHER_AGENT, a_door("phone", A_NUMBER)))
         stranger = str(neighbour.receive_json()["data"]["app"])
-        with a_caller_asking_for(gateway, stranger) as caller:
-            with pytest.raises(WebSocketDisconnect) as refused:
-                caller.receive_json()
+        with (
+            a_caller_asking_for(gateway, stranger) as caller,
+            pytest.raises(WebSocketDisconnect) as refused,
+        ):
+            caller.receive_json()
     assert refused.value.code == POLICY_VIOLATION
     assert stranger in refused.value.reason
     assert AGENT in refused.value.reason

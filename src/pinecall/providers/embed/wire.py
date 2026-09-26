@@ -27,7 +27,7 @@ def embeddings_under(body: Any, *, of_the_first_document: bool = False) -> list[
     rows = rows_of(body)
     if of_the_first_document:
         rows = rows_of(rows[0]) if rows else []
-    return [decoded(row.get("embedding")) for row in rows]
+    return [decode_vector(row.get("embedding")) for row in rows]
 
 
 def rows_of(body: Any) -> list[dict[str, Any]]:
@@ -39,7 +39,7 @@ def rows_of(body: Any) -> list[dict[str, Any]]:
     return cast("list[dict[str, Any]]", rows) if isinstance(rows, list) else []
 
 
-def decoded(raw: Any) -> list[float]:
+def decode_vector(raw: Any) -> list[float]:
     """`base64_int8` as the signed bytes it is, and `float` as it already reads."""
     if isinstance(raw, str):
         values = array("b")
@@ -48,13 +48,13 @@ def decoded(raw: Any) -> list[float]:
     return [float(value) for value in cast("list[float]", raw)] if isinstance(raw, list) else []
 
 
-def at_unit_length(vector: Sequence[float]) -> list[float]:
+def unit_vector(vector: Sequence[float]) -> list[float]:
     """The vector at length one, which is what makes a cosine index a similarity and not a size."""
     length = math.sqrt(sum(value * value for value in vector))
     return list(vector) if length == 0.0 else [value / length for value in vector]
 
 
-def what_the_endpoint_said(answer: httpx.Response) -> str:
+def endpoint_error(answer: httpx.Response) -> str:
     """The endpoint's own `error.message`, when its body carries one; the status otherwise."""
     try:
         said: Any = answer.json()["error"]["message"]

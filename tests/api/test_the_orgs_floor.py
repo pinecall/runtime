@@ -11,8 +11,8 @@ import pytest
 from starlette.testclient import TestClient
 
 from pinecall.api.agents.registry import Registry
-from pinecall.api.calls.sink import a_projection
-from pinecall.api.floor import events
+from pinecall.api.calls.live_calls import events
+from pinecall.api.calls.log_sink import projection_for
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import ORG_EVENTS, Logs
 from pinecall.types import PRODUCTION
@@ -54,10 +54,10 @@ async def test_the_orgs_sessions_span_its_agents_newest_first_and_stop_at_its_fe
 
 
 def test_a_room_token_reads_its_one_call_and_never_an_orgs_list(gateway: TestClient) -> None:
-    from pinecall.auth.scopes import a_room_token
+    from pinecall.auth.scopes import mint_room_token
     from tests.api.conftest import A_LIVEKIT
 
-    token = a_room_token("CA_first", "participate", 4102444800.0, A_LIVEKIT)
+    token = mint_room_token("CA_first", "participate", 4102444800.0, A_LIVEKIT)
     status, body = got(gateway, "/v1/sessions", bearer=token)
     assert status == 403
     assert body["detail"] == "an org's events are read with a key"
@@ -66,7 +66,7 @@ def test_a_room_token_reads_its_one_call_and_never_an_orgs_list(gateway: TestCli
 def test_the_feed_carries_the_floor_and_nothing_said_on_a_call() -> None:
     """The closed set: an agent held, a call arriving, up, over, waiting on a person and one on
     the line. A turn is the call's alone."""
-    assert ORG_EVENTS == {
+    assert {
         "agent.registered",
         "agent.detached",
         "call.ringing",
@@ -77,7 +77,7 @@ def test_the_feed_carries_the_floor_and_nothing_said_on_a_call() -> None:
         "attention.answered",
         "supervisor.took_over",
         "supervisor.released",
-    }
+    } == ORG_EVENTS
 
 
 async def test_a_register_and_a_call_reach_the_orgs_feed_and_a_turn_does_not(
@@ -113,7 +113,7 @@ async def test_the_events_door_streams_the_feed_as_sse_from_now_on(
     """A register while the stream is open lands as one SSE frame carrying the entry."""
     # The door's own body, read as the browser would read it: httpx's ASGI transport hands a
     # response back whole, and a stream that never ends never comes back through it.
-    answer = await events(A_READER, logs, a_projection(registry))
+    answer = await events(A_READER, logs, projection_for(registry))
     # starlette types the body as either flavour of iterable; this door streams text, always.
     chunks = aiter(cast("AsyncIterable[str]", answer.body_iterator))
     assert (await anext(chunks)).startswith("retry:")

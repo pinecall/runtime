@@ -87,8 +87,8 @@ async def test_a_warm_transfer_with_no_trunk_to_dial_through_leaves_the_caller_w
 
 
 # The number a warm transfer dials goes out on the org's own carrier, so it passes the org's own
-# guards first (api/dialling.py). A refusal is not "no trunk": the agent is told what a person
-# would be told, and tells the caller.
+# guards first (api/telephony/dial_out.py). A refusal is not "no trunk": the agent is told what a
+# person would be told, and tells the caller.
 async def test_a_warm_transfer_the_orgs_guards_refused_says_what_they_said() -> None:
     held = a_held_room(
         channel="web",

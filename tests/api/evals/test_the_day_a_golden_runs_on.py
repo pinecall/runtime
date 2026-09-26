@@ -9,14 +9,14 @@ import pytest
 from livekit.agents import llm as agents
 
 from pinecall._settings import Budgets
-from pinecall.api._live import Live
-from pinecall.api.evals.conversation import an_eval_call
+from pinecall.api.evals.golden_call import open_eval_call
+from pinecall.api.live import Live
 from pinecall.evals.goldens import Golden
 from pinecall.log.store import MemoryStore
 from pinecall.log.writers import Logs
 from pinecall.lookups import Lookups
 from pinecall.orgs.vault import brought_by
-from pinecall.session import clock
+from pinecall.session import date_tool
 from pinecall.session.text.session import TextSession
 from pinecall.types import PRODUCTION, AgentConfig
 from tests.lookups.fakes import a_plan, the_tenants
@@ -50,7 +50,7 @@ def a_call_of(golden: Golden) -> TextSession:
         partial(brought_by, None, the_tenants().quotas_of),
         *a_plan(logs, the_tenants()),
     )
-    return an_eval_call(
+    return open_eval_call(
         golden, A_CALL, A_RUN, config, ORG, PRODUCTION, logs, FakeLLM(), lookups, Budgets()
     )
 
@@ -73,6 +73,6 @@ async def test_the_pinned_day_is_the_one_the_model_is_told_it_is() -> None:
     dates = [
         json.loads(item.output)
         for item in session.text_agent.chat_ctx.items
-        if isinstance(item, agents.FunctionCallOutput) and item.name == clock.CLOCK_TOOL
+        if isinstance(item, agents.FunctionCallOutput) and item.name == date_tool.CLOCK_TOOL
     ]
     assert dates == [{"today": A_TUESDAY, "weekday": "tuesday"}]

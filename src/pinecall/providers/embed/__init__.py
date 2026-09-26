@@ -25,8 +25,9 @@ class Defaults:
     model: str
     base_url: str
     # The settings field its key is read from, or None for a service on the box, which takes none.
-    # Not registry.py's KEY_OF: that table is the per-call vendors an ORG may bring its own key
-    # for, and the embedder is the box's own — one gateway, one embedder, one key.
+    # Not the catalog's per-vendor key field (catalog.settings_field_of): those are the per-call
+    # vendors an ORG may bring its own key for, and the embedder is the box's own — one gateway,
+    # one embedder, one key.
     key_field: str | None = None
     # What the FLAT door of this vendor accepts, measured against both: api.perplexity.ai refuses
     # `float` and takes only base64, OpenRouter's mirror of the same model answers floats. The
@@ -67,7 +68,7 @@ def embedder_for(settings: Settings, http: httpx.AsyncClient) -> Embedder:
         vendor=vendor_of(settings),
         base_url=base_url_of(settings),
         model=model_of(settings),
-        key=a_key(settings),
+        key=embedder_key(settings),
         http=http,
         encoding=DEFAULTS[settings.embed_provider].encoding,
     )
@@ -97,7 +98,7 @@ def key_field_of(settings: Settings) -> str | None:
     return DEFAULTS[settings.embed_provider].key_field
 
 
-def a_key(settings: Settings) -> str:
+def embedder_key(settings: Settings) -> str:
     """The key this box reaches its embedder with, or a refusal naming the variable to set."""
     field = key_field_of(settings)
     if field is None:

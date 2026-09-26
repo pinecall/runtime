@@ -26,7 +26,7 @@ LEARNED_FROM = ("state.changed", "call.attached")
 SHORTEST_LEARNED_VALUE = 3
 
 # What decoded JSON is, said once so every helper below recurses over a shape and not over Any.
-type Json = str | int | float | bool | None | list["Json"] | dict[str, "Json"]
+type Json = str | int | float | bool | list["Json"] | dict[str, "Json"] | None
 
 
 class Masker:

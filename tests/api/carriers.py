@@ -8,17 +8,15 @@ from dataclasses import dataclass, field
 import pytest
 from cryptography.fernet import Fernet
 
-from pinecall.api import _placing as placing
 from pinecall.api.app import app
+from pinecall.api.telephony import deps as placing
 from pinecall.orgs.carriers import MemoryCarriers
-from pinecall.orgs.dialling import MemoryDialling
-from pinecall.orgs.outbound import MemoryOutboundTrunks
-from pinecall.routes.dispatching import MemoryDispatches
-from pinecall.routes.outbound import MemoryOutbound
-from pinecall.routes.trunks import MemoryTrunks
+from pinecall.orgs.dial_policies import MemoryDialling
+from pinecall.orgs.outbound_credentials import MemoryOutboundTrunks
 from pinecall.routes.twilio import Trunk, TwilioNumber, TwilioRefused
 from pinecall.types import TwilioAccount
 from tests.api.conftest import A_VAULT_KEY
+from tests.routes.fakes import MemoryDispatches, MemoryOutbound, MemoryTrunks
 
 # Registered as a plugin by tests/conftest.py, beside tests/postgres.py and tests/api/people.py.
 
@@ -190,9 +188,9 @@ def the_placing_deps(request: pytest.FixtureRequest) -> Iterator[None]:
     sfu: MemoryOutbound = request.getfixturevalue("outbound")
     jobs: MemoryDispatches = request.getfixturevalue("dispatches")
     both: MemoryDialling = request.getfixturevalue("dialling")
-    app.dependency_overrides[placing.the_outbound_trunks] = lambda: trunks
-    app.dependency_overrides[placing.the_outbound] = lambda: sfu
-    app.dependency_overrides[placing.the_dispatches] = lambda: jobs
-    app.dependency_overrides[placing.the_dial_policies] = lambda: both
-    app.dependency_overrides[placing.the_dials] = lambda: both
+    app.dependency_overrides[placing.get_outbound_trunks] = lambda: trunks
+    app.dependency_overrides[placing.get_outbound] = lambda: sfu
+    app.dependency_overrides[placing.get_dispatches] = lambda: jobs
+    app.dependency_overrides[placing.get_dial_policies] = lambda: both
+    app.dependency_overrides[placing.get_dials] = lambda: both
     yield

@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from pinecall.api.agents.registry import Registry
-from pinecall.api.calls.sink import Project, a_projection
+from pinecall.api.calls.log_sink import Project, projection_for
 from pinecall.auth.scopes import KEY_PROJECTION, PROJECTION_OF, Reader
 from pinecall.log.entry import Entry
 from pinecall.log.projection import MASK
@@ -71,7 +71,7 @@ async def test_a_reader_hears_an_entry_appended_after_it_opened_the_stream(
         await log.append("turn.agent", {"speech_id": "sp_1", "text": "Hola, soy Clara."})
 
     writing = asyncio.ensure_future(say_two_turns())
-    said = await heard(reading, "turn.agent", a_projection(registry), A_TENANT)
+    said = await heard(reading, "turn.agent", projection_for(registry), A_TENANT)
     await writing
 
     types = [entry["type"] for entry in said]
@@ -88,7 +88,7 @@ async def test_a_participate_token_reads_its_own_call_and_none_of_the_tenants_fi
     await load_the_golden(store)
     await declare_the_golden_agent(registry)
     said = await heard(
-        logs.reading(THE_CALL).stream(), "call.summary", a_projection(registry), A_GUEST
+        logs.reading(THE_CALL).stream(), "call.summary", projection_for(registry), A_GUEST
     )
 
     assert said, "the guest's stream carried nothing at all"
@@ -111,7 +111,7 @@ async def test_the_tenant_reading_the_same_stream_sees_its_pii_masked_and_nothin
     await load_the_golden(store)
     await declare_the_golden_agent(registry)
     said = await heard(
-        logs.reading(THE_CALL).stream(), "call.summary", a_projection(registry), A_TENANT
+        logs.reading(THE_CALL).stream(), "call.summary", projection_for(registry), A_TENANT
     )
 
     changes = [entry for entry in said if entry["type"] == "state.changed"]
@@ -130,7 +130,7 @@ def test_an_entry_the_projection_drops_never_reaches_the_reader(registry: Regist
         ephemeral=False,
         data={},
     )
-    project = a_projection(registry)
+    project = projection_for(registry)
     assert project(entry, A_GUEST) is None
     assert project(entry, A_TENANT) is not None
 
@@ -149,7 +149,7 @@ async def test_a_reader_that_opened_before_the_writer_existed_still_hears_it(
         await logs.writing_agent("clara").append("agent.registered", {"routes": [], "sdk": "x"})
 
     writing = asyncio.ensure_future(register_afterwards())
-    said = await heard(reading, "agent.registered", a_projection(registry), A_TENANT)
+    said = await heard(reading, "agent.registered", projection_for(registry), A_TENANT)
     await writing
     assert [entry["type"] for entry in said][-1] == "agent.registered"
 
@@ -165,7 +165,7 @@ async def test_a_reader_that_opened_before_the_call_started_still_hears_it(
         await logs.writing(THE_CALL, "clara").append("call.started", {"channel": "web"})
 
     writing = asyncio.ensure_future(start_afterwards())
-    said = await heard(reading, "call.started", a_projection(registry), A_TENANT)
+    said = await heard(reading, "call.started", projection_for(registry), A_TENANT)
     await writing
     assert said and said[-1]["type"] == "call.started"
 

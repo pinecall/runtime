@@ -10,13 +10,13 @@ import httpx
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.api import _deps as deps
+from pinecall.api import deps as deps
 from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
 from pinecall.api.whatsapp.threads import Thread, Threads
-from pinecall.routes.table import Routes
+from pinecall.routes.records import Routes
 from pinecall.types import PRODUCTION, Route
-from pinecall.whatsapp.signing import SIGNATURE_HEADER
+from pinecall.whatsapp.webhook_signature import SIGNATURE_HEADER
 from tests.api.conftest import (
     A_KEY,
     A_RECORD,
@@ -95,7 +95,7 @@ def a_box_with_no_token(meta: httpx.AsyncClient) -> None:  # noqa: ARG001
     without = Settings(
         world="production", whatsapp_app_secret=AN_APP_SECRET, whatsapp_verify_token=A_VERIFY_TOKEN
     )
-    app.dependency_overrides[deps.a_settings] = lambda: without
+    app.dependency_overrides[deps.get_settings] = lambda: without
 
 
 def a_body(*messages: dict[str, Any], number: str = THE_CLINICS_NUMBER) -> dict[str, Any]:

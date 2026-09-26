@@ -9,13 +9,13 @@ from __future__ import annotations
 import argparse
 
 from pinecall._settings import Settings, load_settings, variable_of
-from pinecall.cli.columns import as_columns
+from pinecall.cli.columns import aligned_columns
 from pinecall.providers import catalog
 from pinecall.providers.catalog import MODALITIES, Provider
 from pinecall.providers.models import DEFAULT_VENDOR
-from pinecall.providers.pipeline import DEFAULT_STT
-from pinecall.providers.standing import standing
+from pinecall.providers.session_vendors import DEFAULT_STT
 from pinecall.providers.tts import DEFAULT_TTS
+from pinecall.providers.vendor_status import vendor_status
 
 PURPOSE: str = "every llm, stt and tts vendor this build runs, and what each one wants"
 
@@ -42,7 +42,7 @@ def run_providers(arguments: argparse.Namespace) -> int:
     settings = load_settings()
     wanted: str | None = arguments.does
     rows = [row for row in catalog.PROVIDERS if row.does and (not wanted or wanted in row.does)]
-    for line in as_columns([HEADINGS, *(_a_row(row, settings) for row in rows)]):
+    for line in aligned_columns([HEADINGS, *(_a_row(row, settings) for row in rows)]):
         print(line)
     print()
     print(f"{len(rows)} vendors · ours: " + " · ".join(f"{job} {OURS[job]}" for job in MODALITIES))
@@ -56,7 +56,7 @@ def _a_row(row: Provider, settings: Settings) -> tuple[str, ...]:
     return (
         row.name + ours,
         does,
-        standing(row, settings),
+        vendor_status(row, settings),
         variable_of(field) if (field := catalog.settings_field_of(row.name)) else "",
         " ".join(row.aliases),
     )

@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
-from pinecall.api._corner import CornerDep
-from pinecall.api._deps import AppKeyDep, OrgsDep, VaultDep
-from pinecall.api.agents.registry import NO_AGENT, RegistryDep
+from pinecall.api.deps import AppKeyDep, OrgsDep, VaultDep
+from pinecall.api.scope.request_scope import AnAgentHeld, CornerDep
 from pinecall.orgs.vault import brought_by
 
 router = APIRouter()
@@ -17,20 +16,15 @@ router = APIRouter()
 # What comes back is the org's OWN keys, decrypted, and it goes to the worker holding that org's
 # key — or to the box's worker, asking for the org of the call it is about to run on those keys —
 # and to nobody else. Everything under docs/decisions/provider-keys.md hangs on this one door.
-@router.get("/v1/agents/{slug}/provider-keys")
+@router.get("/v1/agents/{slug}/provider-keys", dependencies=[AnAgentHeld])
 async def provider_keys(
-    slug: str,
     key: AppKeyDep,  # noqa: ARG001 — the scope is asked here; the corner says where
     corner: CornerDep,
-    registry: RegistryDep,
     vault: VaultDep,
     orgs: OrgsDep,
 ) -> dict[str, object]:
     """The keys this org brought of its own — empty is the common case: the box's env keys run —
     and which of the box's it is lent (`lends`: null lends every one)."""
-    held = registry.of(corner.env, slug, corner.holder)
-    if held is None or held.org != corner.org:
-        raise HTTPException(status_code=404, detail=NO_AGENT.format(slug=slug))
     brought = await brought_by(vault, orgs.quotas_of, corner.org)
     lends = None if brought.lends is None else sorted(brought.lends)
     return {"keys": dict(brought.keys), "lends": lends}

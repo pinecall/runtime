@@ -1,4 +1,4 @@
-"""How a spoken call ends: who decided it was over, in the words the log has to use."""
+"""Who decided a spoken call was over, in the words the log has to use for it."""
 
 from __future__ import annotations
 
@@ -67,7 +67,7 @@ class Ends(Protocol):
 # `platform` — the entry a deploy taking the worker down writes. So the reason is set BEFORE the
 # shutdown, exactly the way a cold transfer sets its own, and the close mapping never gets to
 # guess. voice.py `_how_it_ended` prefers what was set over what it would have derived.
-def a_way_to_hang_up(config: AgentConfig, ending: Ends) -> list[agents.Toolset]:
+def hangup_toolset(config: AgentConfig, ending: Ends) -> list[agents.Toolset]:
     """livekit's own end_call when the class asked for one, and nothing at all when it did not."""
     declared = config.hangup
     if declared is None:
@@ -79,7 +79,7 @@ def a_way_to_hang_up(config: AgentConfig, ending: Ends) -> list[agents.Toolset]:
             ignore_on_enter=WHILE_GREETING_IT_IS_HIDDEN,
             delete_room=THE_ROOM_GOES_WITH_IT,
             end_instructions=None,
-            on_tool_called=the_reason_first(ending),
+            on_tool_called=on_end_call_first(ending),
             on_tool_completed=silence_after,
         )
     ]
@@ -94,7 +94,7 @@ async def silence_after(_: EndCallTool.ToolCompletedEvent) -> None:
 # one never passes there, it is livekit's own, and a log without it showed the agent speaking
 # twice in a row with nothing in between — "it talked to itself" (box, 2026-09-16, a Talk from
 # the console). The tool that ran between the two turns is written down here, as the others are.
-def the_reason_first(ending: Ends) -> Callable[[EndCallTool.ToolCalledEvent], Awaitable[None]]:
+def on_end_call_first(ending: Ends) -> Callable[[EndCallTool.ToolCalledEvent], Awaitable[None]]:
     """What runs the moment the model calls end_call, before livekit closes anything."""
 
     async def before_it_closes(event: EndCallTool.ToolCalledEvent) -> None:

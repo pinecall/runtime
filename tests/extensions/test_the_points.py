@@ -8,7 +8,7 @@ from types import ModuleType
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.extensions import Extensions, NoSuchExtension, extensions_from, unlimited
+from pinecall.extensions import Extensions, NoSuchExtension, extensions_from, unlimited_quotas
 from pinecall.extensions.loading import named_in
 from pinecall.types import PRODUCTION, SANDBOX, Env, Org, Quotas
 
@@ -30,7 +30,7 @@ def a_package(name: str, register: object | None) -> ModuleType:
 def test_with_nothing_named_every_point_holds_the_runtimes_own_answer() -> None:
     """A box of its own: an org made at the alta may do everything, and no row says so."""
     extensions = extensions_from(Settings(world="production", extensions=""))
-    assert extensions.admitted is unlimited
+    assert extensions.admitted is unlimited_quotas
     assert extensions.admitted(AN_ORG, "ana@clinica.uy", PRODUCTION, 0) == Quotas()
 
 

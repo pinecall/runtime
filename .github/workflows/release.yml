@@ -27,7 +27,7 @@ jobs:
     outputs:
       version: ${{ steps.declared.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # En dos líneas y no en una: `echo "version=$(scripts/the-version)"` se come el exit code
       # del script — echo sale 0 — y el paso queda VERDE con la versión vacía, que es exactamente
       # lo que un guard no puede hacer. Una asignación sí propaga el estado bajo `bash -e`.
@@ -62,40 +62,46 @@ jobs:
     permissions:
       id-token: write   # OIDC, sin token guardado en ningún lado
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: runtime
       # El repo de al lado, por si `[tool.uv.sources]` todavía nombra la ruta: hatchling no
       # resuelve dependencias para armar el wheel, pero uv sí lee esa tabla.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: pinecall/protocol
           path: protocol
-      # The two browser pages live in the agents repository and are built into this package.
-      - uses: actions/checkout@v4
+      # The two browser pages, from the two repositories scripts/console reads them from — its
+      # defaults are ../console and ../widget, which is this layout. The step used to check out
+      # pinecall/agents, where the console once lived, and died at "no console checkout".
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          repository: pinecall/agents
-          path: agents
-      - uses: pnpm/action-setup@v4
+          repository: pinecall/console
+          path: console
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: pinecall/widget
+          path: widget
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 11.2.2
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
       # The console and the admin are gitignored build output, and `uv build` packs whatever is in
       # the tree — so a wheel built straight after a checkout carries NO pages, and a
       # `pip install pinecall` gateway answers every screen with "run scripts/console", which the
       # person who installed a package cannot do. They are built here, from the agents checkout,
       # before anything is packed.
       - run: pnpm install --frozen-lockfile
-        working-directory: agents
-      - run: scripts/console   # its default ../agents is exactly this layout
+        working-directory: console
+      - run: scripts/console
         working-directory: runtime
       - run: test -f runtime/src/pinecall/gateway/console/index.html
       - run: uv build
         working-directory: runtime
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
         with:
           packages-dir: runtime/dist
           skip-existing: true   # idempotente: relanzar el workflow no es un error

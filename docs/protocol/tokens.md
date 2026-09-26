@@ -37,7 +37,7 @@ client code is involved.
    for one is a browser joining a room nothing will answer in. The token's `room_config` is one
    `RoomAgentDispatch` to our worker pool, whose metadata names the agent and the corner, so the
    worker's router resolves it without a routes lookup — the widget's route is made out of that
-   metadata (`worker/router.py`), never looked up.
+   metadata (`worker/job_target.py`), never looked up.
 2. **The contact id, signed, and nothing PII.** `participant_metadata` — LiveKit's own claim —
    carries the org's opaque contact id (`contact` in our body) and nothing else. A name is refused
    (`participant_name`, `400`): the log would carry it. What the tenant's backend seals in
@@ -145,7 +145,7 @@ expires. Another call is `403`, an agent's log is `403`, and a supervise verb is
 and never steers. Those three doors answer a page on **any origin** (CORS `*`, `GET`, no
 credentials — `Authorization`, `Last-Event-ID` and `Range` may be sent): what opens them is the
 token the page brings, never a cookie, so a page on another site reads nothing it did not bring the
-token for. Every other door answers only the origins `api/app_origins.py` names. `POST /v1/agents/{slug}/dial` answers one too, with the same `log`.
+token for. Every other door answers only the origins `api/origins.py` names. `POST /v1/agents/{slug}/dial` answers one too, with the same `log`.
 
 ## The code token
 

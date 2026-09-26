@@ -10,10 +10,8 @@ from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from pinecall._settings import Settings
-from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
-from pinecall.auth.keys import KeyRecord, MemoryKeys
-from pinecall.auth.members_memory import MemoryMembers
-from pinecall.auth.world import (
+from pinecall.auth.bearer import POLICY_VIOLATION, close_reason
+from pinecall.auth.env import (
     ENV_HEADER,
     NO_PRODUCTION,
     NOT_A_WORLD,
@@ -21,6 +19,8 @@ from pinecall.auth.world import (
     ONE_WORLD,
     SAY_THE_WORLD,
 )
+from pinecall.auth.keys import KeyRecord, MemoryKeys
+from pinecall.auth.members_memory import MemoryMembers
 from pinecall.types import PRODUCTION, SANDBOX, Member, Role
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, APPS
 from tests.api.talking import a_door, a_register, answering_in, got
@@ -55,7 +55,7 @@ ANA = a_member("Ana", "admin")
 
 
 def a_persons_key(member: Member) -> KeyRecord:
-    """The one key a login leaves them: no world of its own (auth/persons.py)."""
+    """The one key a login leaves them: no world of its own (auth/person_keys.py)."""
     return KeyRecord(
         key_id=f"k_{member.name.lower()}",
         org=member.org,
@@ -225,9 +225,11 @@ def test_the_app_socket_at_production_closes_on_a_person_it_may_not_serve_and_sa
     gateway: TestClient, said: str | None, why: str
 ) -> None:
     headers = {"Authorization": "Bearer pc_carla"} | ({} if said is None else {ENV_HEADER: said})
-    with pytest.raises(WebSocketDisconnect) as refused:
-        with gateway.websocket_connect(APPS, headers=headers) as socket:
-            socket.send_json(a_register(AGENT, a_door("web")))
-            socket.receive_json()
+    with (
+        pytest.raises(WebSocketDisconnect) as refused,
+        gateway.websocket_connect(APPS, headers=headers) as socket,
+    ):
+        socket.send_json(a_register(AGENT, a_door("web")))
+        socket.receive_json()
     assert refused.value.code == POLICY_VIOLATION
-    assert refused.value.reason == as_a_close_reason(why)
+    assert refused.value.reason == close_reason(why)

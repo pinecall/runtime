@@ -8,13 +8,13 @@ import httpx
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.orgs.dialling import MemoryDialling
-from pinecall.orgs.outbound import MemoryOutboundTrunks
-from pinecall.routes.outbound import MemoryOutbound
-from pinecall.routes.table import MemoryRoutes
+from pinecall.orgs.dial_policies import MemoryDialling
+from pinecall.orgs.outbound_credentials import MemoryOutboundTrunks
+from pinecall.routes.records import MemoryRoutes
 from pinecall.types import DialPolicy, Route
 from tests.api.carriers import A_KEY_SID, A_SID, FakeTwilio
 from tests.api.conftest import A_LIVEKIT, A_RECORD, A_VAULT_KEY, AGENT, AN_OPS_KEY
+from tests.routes.fakes import MemoryOutbound
 
 pytestmark = pytest.mark.unit
 
@@ -96,8 +96,10 @@ async def test_a_dry_run_is_the_plan_and_writes_nothing(
         f"trunk    pinecall-{A_RECORD.org} — created on account {A_SID}",
         f"terminal {THE_HOST} — set",
         f"login    pinecall-{A_RECORD.org} — created, its password kept under the vault key",
-        f"livekit  outbound trunk pinecall:{A_RECORD.org}:out → {THE_HOST} over auto, "
-        "showing 1 of this org's numbers with SIP auth",
+        (
+            f"livekit  outbound trunk pinecall:{A_RECORD.org}:out → {THE_HOST} over auto, "
+            "showing 1 of this org's numbers with SIP auth"
+        ),
     ]
     assert twilio_account.made == [] and outbound.trunks == {}
 

@@ -9,10 +9,10 @@ file in English. What it is: [ARCHITECTURE.md](ARCHITECTURE.md). How it is deplo
 
 ```bash
 docker compose -f infra/compose/dev.yml up -d   # livekit · sip · redis · postgres · tei
-scripts/bootstrap                               # uv sync, every extra and tool group
+scripts/bootstrap                               # uv sync (runtime · providers · dev), prek hooks
 scripts/format                                  # ruff format, then the fixable lint rules
-scripts/lint                                    # ruff · pyright · mypy · squawk over unlanded migrations — the gate
-scripts/test                                    # pytest -m "unit or postgres", plus infra/tools/tests
+scripts/lint                                    # ruff · pyright · mypy · deptry · squawk over unlanded migrations — the gate
+scripts/test                                    # pytest -m "unit or postgres" + infra/tools/tests, coverage to its floor
 uv run pytest -m unit                           # ring 0: no keys, no network, SHUFFLED — three green runs, or nothing
 uv run pytest tests/cli/doctor/test_verbs.py    # one file
 uv run pinecall-runtime gateway | worker dev | migrate up | doctor
@@ -22,15 +22,19 @@ make deploy                                     # this checkout onto your box (d
 
 ## Structure
 
-- `src/pinecall/` — nineteen packages, none of them a process; ARCHITECTURE.md §11 is the import
-  table and `tests/test_isolation.py` enforces it
+- `src/pinecall/` — twenty packages, none of them a process; ARCHITECTURE.md §11 is the import
+  table and `tests/test_isolation.py` enforces it; the words they speak are `docs/glossary.md`
   - `types/` the shapes, no IO · `log/` the truth, no framework · `providers/` the only vendor names
+  - `auth/` keys, members, sign-in · `orgs/` the tenant's tables · `routes/` numbers and trunks at
+    the SFU · `tokens/` the room token and the seat · `whatsapp/` the text channel · `fleet/` the
+    workers' heartbeats and the loop over the clouds
   - `extensions/` the points a package beside the runtime plugs policy into — what a new org may
     do — spoken in mechanisms, never plans; the runtime answers them itself until told otherwise
   - `session/` one call, `text/` in the gateway and `voice/` in the worker · `evals/` the rings
   - `memory/` the contact's facts · `knowledge/` the knowledge base · `lookups/` the gateway
     running `recall` and `search` — the three the gateway owns and the worker reaches over HTTP
-  - `api/` the gateway's doors · `worker/` the job · `cli/` the verbs · `migrations/` numbered SQL
+  - `api/` the gateway's doors, one directory per surface (`scope/ accounts/ agents/ calls/ memory/
+    knowledge/ evals/ telephony/ org/ ops/ whatsapp/`) · `worker/` the job · `cli/` the verbs · `migrations/` numbered SQL
   - `mail/` the letters and the generic SMTP they leave by: the org's own account, else the box's
   - `_settings.py` every variable, once · `_version.py` `0.0.0` until a person says otherwise
 - `tests/` mirrors `src/pinecall/` one to one; `test_isolation.py`, `test_layout.py`,
@@ -83,8 +87,12 @@ no code "for later": a symbol with no user outside its file and its test goes in
 notices it. No module-level mutable state — per call, per request, or a contextvar. The library
 first: name the livekit-agents / livekit-api / pydantic / FastAPI module that already does it, and
 the livekit example `file:line` a session knob comes from. One idea per file, named by the idea.
-A stale comment is a bug. Names are sentences; small methods; 150 lines is the norm. Tests read
-as sentences. 
+A stale comment is a bug. A name survives a traceback on its own: a verb and its object
+(`mint_key`, `seal_log`), a noun phrase for what it answers (`recording_path`), `is_`/`has_`/`may_`
+for a predicate, `build_`/`parse_`/`new_` for a factory; a FastAPI dependency is `get_x`, one that
+refuses is `require_x`, a projection to the protocol is `wire_x`. No article, pronoun or bare
+participle as a name — the sentence goes in the docstring. Small methods; 150 lines is the norm.
+Tests read as sentences. 
 
 ## Traps — each one cost an afternoon
 
@@ -109,7 +117,9 @@ as sentences.
   first), and a constraint on a populated table goes in `NOT VALID` then `VALIDATE`.
 - **A migration is held to five seconds at startup.** The unit runs `migrate up` before the
   gateway opens, so anything slower is a `.post.sql` — named, never run at startup, applied by a
-  person with `migrate up --post`. An index on a big table is always one of those.
+  person with `migrate up --post`. An index on a big table is always one of those, and one built
+  `CONCURRENTLY` opens with `-- pinecall:no-transaction` and holds that ONE statement: the runner
+  wraps every other file in a transaction, which is the thing `CONCURRENTLY` cannot run inside.
 - **A test that walks `app.routes` can go vacuous on a FastAPI upgrade.** 0.141 stopped
   flattening an included router into it and puts a wrapper there (`original_router`), so
   `test_scopes_at_the_doors` found no `APIRoute` at all and pinned every door's scope over an

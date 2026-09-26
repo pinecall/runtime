@@ -7,7 +7,7 @@ from livekit.agents.metrics import LLMMetrics as Measured
 from livekit.agents.metrics.base import Metadata
 from livekit.agents.metrics.usage import AgentSessionUsage, ModelUsageCollector
 
-from pinecall.session.text.measure import (
+from pinecall.session.text.metrics import (
     Reply,
     llm_metrics,
     tokens_spent,

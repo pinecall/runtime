@@ -1,6 +1,6 @@
 """The gateway fixtures this suite drives: named here, because a conftest reaches no sibling."""
 
-from tests.api.conftest import (  # noqa: F401 — imported so pytest collects them here
+from tests.api.conftest import (
     admission,
     embedder,
     fleet,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Any
@@ -15,22 +16,27 @@ from pinecall.log.entry import Entry
 from pinecall.log.logs import CallLog
 from pinecall.providers import prices
 from pinecall.providers.models import Chat
-from pinecall.session import clock, greeting
-from pinecall.session.asking import Asking, NotAsking
-from pinecall.session.callbacks import a_callback
-from pinecall.session.declaring import declared
-from pinecall.session.first_entries import started
-from pinecall.session.knowing import a_line_for_the_file_it_ships_with
-from pinecall.session.lookups import Lookup, NoLookup, TurnLookups
-from pinecall.session.remembering import NoRememberer, Rememberer, remembered_within
-from pinecall.session.scoring import Scorer, unjudged
-from pinecall.session.text.agent import TextAgent, remembered
-from pinecall.session.text.allowance import SPENT, Allowance, TurnRefused, unlimited
-from pinecall.session.text.attending import Attending
-from pinecall.session.text.measure import Reply, tokens_spent, usage_rows
-from pinecall.session.text.resuming import taken_up
-from pinecall.session.text.running import Running
+from pinecall.session import date_tool, greeting
+from pinecall.session.callbacks import build_callback_entry
+from pinecall.session.first_entries import started_entry
+from pinecall.session.history import append_history
+from pinecall.session.lookup_tools import Lookup, NoLookup, TurnLookups
+from pinecall.session.model_requests import Asking, NotAsking
+from pinecall.session.platform_block import (
+    log_shipped_file,
+    shipped_file_text,
+)
+from pinecall.session.remember_step import NoRememberer, Rememberer, remembered_within
+from pinecall.session.score_step import Scorer, unjudged_score
+from pinecall.session.text.agent import TextAgent
+from pinecall.session.text.attention import Attending
+from pinecall.session.text.metrics import Reply, tokens_spent, usage_rows
+from pinecall.session.text.resume import taken_up
+from pinecall.session.text.tool_runs import Running
+from pinecall.session.text.turn_allowance import SPENT, Allowance, TurnRefused, unlimited_allowance
 from pinecall.session.text.turns import Turns
+from pinecall.session.tool_declaration import declare_tools
+from pinecall.session.written import build_written_session
 from pinecall.types import AgentConfig, Blocks, CallContext
 from pinecall_protocol import WireModel, defs, encode
 from pinecall_protocol.commands import CallCallback, StateSet
@@ -50,9 +56,8 @@ from pinecall_protocol.events import (
 from pinecall_protocol.metrics import UserTurnMetrics
 from pinecall_protocol.room import EventReceived
 
-# livekit bounds its own model→tools→model loop with this and, on the last step, forces a final
-# answer with tool_choice="none": a model that will not converge still leaves the caller a sentence.
-MAX_TOOL_STEPS = 8
+logger = logging.getLogger(__name__)
+
 
 # What a reader of this call is: the caller's chat socket, and the app's own socket.
 type Watcher = Callable[[Entry], Awaitable[None]]
@@ -67,12 +72,12 @@ class TextSession:
         config: AgentConfig,
         log: CallLog,
         llm: Chat,
-        score: Scorer = unjudged,
+        score: Scorer = unjudged_score,
         lookup: Lookup = NoLookup(),  # noqa: B008 — stateless, shared on purpose
         rememberer: Rememberer = NoRememberer(),  # noqa: B008 — stateless, shared on purpose
         budgets: Budgets = Budgets(),  # noqa: B008 — frozen
         asking: Asking = NotAsking(),  # noqa: B008 — stateless, shared on purpose
-        allowance: Allowance = unlimited,
+        allowance: Allowance = unlimited_allowance,
     ) -> None:
         self.context = context
         self.config = config
@@ -92,7 +97,7 @@ class TextSession:
         self.attending = Attending(self)
         self._log = log
         self._gone: set[Watcher] = set()
-        self._blocks = Blocks(config.prompt, _the_file_it_ships_with(config))
+        self._blocks = Blocks(config.prompt, shipped_file_text(config))
         self._state: dict[str, Any] = {}
         self._speeches = 0
         self._started_at = time.time()
@@ -101,8 +106,8 @@ class TextSession:
         self._ended = False
         self.turns = Turns(self)
         self.running = Running(self, config)
-        # The platform's own two tools are declared beside the app's, so the model sees one list
-        # and the `tools` block describes one list: session/lookups.py. A written caller sends a
+        # The platform's own two tools are declared beside the app's, so the model sees one list and
+        # the `tools` block describes one list: session/lookup_tools.py. A written caller sends a
         # whole message and there is no interim to start a lookup on, so the whole of it runs when
         # the turn ends — under the text budget, because nobody is listening to a chat's silence.
         self.lookups = TurnLookups(
@@ -112,23 +117,15 @@ class TextSession:
         # so the declaration IS the registration, and a tools.set narrows `visibility` instead.
         self.text_agent = TextAgent(
             blocks=self._blocks,
-            tools=[*declared(config.tools, self.running.ran), *self.lookups.declared_tools],
+            tools=[*declare_tools(config.tools, self.running.ran), *self.lookups.declared_tools],
             llm=llm,
             writer=self.turns,
             lookups=self.lookups,
             # Nobody by default: only a run that has to be reproduced keeps the requests, and it
-            # is the run that hands the holder in. session/asking.py.
+            # is the run that hands the holder in. session/model_requests.py.
             asking=asking,
         )
-        # vad=None keeps livekit from building a silero client a text call would never listen to,
-        # and "manual" turn detection is the truth of a text call: every turn is a frame the caller
-        # sent, handed to generate_reply by hand, so livekit builds no detector and warns of no VAD.
-        self.live: AgentSession[None] = AgentSession(
-            llm=llm,
-            vad=None,
-            turn_handling={"turn_detection": "manual"},
-            max_tool_steps=MAX_TOOL_STEPS,
-        )
+        self.live: AgentSession[None] = build_written_session(llm)
 
     @property
     def call(self) -> str:
@@ -160,8 +157,14 @@ class TextSession:
                 return
             try:
                 await watcher(entry)
-            except Exception:  # noqa: BLE001 — a reader that went away must not break the log
+            except Exception:
                 self._gone.add(watcher)
+                logger.warning(
+                    "call %s: a watcher dropped out at %s and hears nothing more",
+                    self.context.call,
+                    entry.type,
+                    exc_info=True,
+                )
 
         return sent
 
@@ -174,16 +177,16 @@ class TextSession:
         await self.live.start(  # pyright: ignore[reportUnknownMemberType]
             self.text_agent, record=False
         )
-        # The pair a voice call opens with too (worker/entry.py): seeded once, here, before the app
+        # The pair a voice call opens with too (worker/job.py): seeded once, here, before the app
         # has rendered a thing, so a caller who writes "mañana" is read by a model with a calendar.
-        await remembered(self.text_agent, *clock.dated(self.context.today))
-        await self.emit("call.started", started(self.context, self.agent, self._started_at))
-        await a_line_for_the_file_it_ships_with(self._blocks, self.emit)
+        await append_history(self.text_agent, *date_tool.date_tool_pair(self.context.today))
+        await self.emit("call.started", started_entry(self.context, self.agent, self._started_at))
+        await log_shipped_file(self._blocks, self.emit)
         # After call.started, so the opening is a turn INSIDE the call and not before it. A
         # written turn cannot be cut short, so the flag a spoken greeting carries is dropped here
         # rather than pretended at: nobody is talking over anybody in a chat.
         await greeting.open_the_call(
-            greeting.the_greeting_for(self.config.greeting, self.context.run),
+            greeting.greeting_for(self.config.greeting, self.context.run),
             say=lambda text, _interruptible: self.say(text),
             reply=lambda instructions, _interruptible: self.reply(instructions),
         )
@@ -202,7 +205,9 @@ class TextSession:
         self.turns.count, self.turns.last = taken.turns, taken.last
         self._started_at = taken.started_at or self._started_at
         self.quiet_since = taken.last_at
-        await remembered(self.text_agent, *clock.dated(self.context.today), *taken.history)
+        await append_history(
+            self.text_agent, *date_tool.date_tool_pair(self.context.today), *taken.history
+        )
 
     async def hangup(self, reason: defs.EndReason, by: EndedBy) -> None:
         """The last three entries of the call, then the log is sealed. Twice is once."""
@@ -210,6 +215,7 @@ class TextSession:
             return
         self._ended = True
         self.attending.close()
+        await self.lookups.close()
         # Closed first, while the activity can still schedule its own on_exit: closing it after
         # the log is sealed abandons that coroutine. Nothing below needs the model any more.
         await self.live.aclose()
@@ -296,7 +302,7 @@ class TextSession:
     async def say(self, text: str) -> None:
         """agent.say: the agent says this, verbatim, with no model in the loop at all."""
         reply = Reply(speech_id=self._a_speech_id(), arrived=time.monotonic(), said=[text])
-        await remembered(self.text_agent, agents.ChatMessage(role="assistant", content=[text]))
+        await append_history(self.text_agent, agents.ChatMessage(role="assistant", content=[text]))
         await self.turns.ended(reply)
 
     # ── what the outside world says ─────────────────────────────────────────────
@@ -324,7 +330,7 @@ class TextSession:
         )
 
     # Never livekit's update_tools: a re-declared tool throws the provider's whole cache away,
-    # and the gate in our callable holds the closed ones shut. See session/visibility.py.
+    # and the gate in our callable holds the closed ones shut. See session/tool_visibility.py.
     async def set_tools(self, tools: Sequence[defs.ToolSpec]) -> Entry:
         """tools.set: the subset of the declared tools the model may call in this state."""
         visible = self.running.visibility.narrow(tools)
@@ -344,7 +350,7 @@ class TextSession:
 
     async def call_back(self, wanted: CallCallback) -> Entry:
         """call.callback: the number to ring back and what it is about, into this call's log."""
-        return await self.emit("callback.requested", a_callback(self.context, wanted))
+        return await self.emit("callback.requested", build_callback_entry(self.context, wanted))
 
     async def log_custom(self, name: str, data: Mapping[str, Any]) -> Entry:
         """call.log: a line of the app's own, with a seq like everything else."""
@@ -376,10 +382,3 @@ class TextSession:
         """The id that joins a turn to its transcripts, its metrics and its tool calls."""
         self._speeches += 1
         return f"sp_{self._speeches}"
-
-
-# The class's own file, as the declaration carried it. A class that ships none has an empty
-# knowledge block, which sends nothing at all.
-def _the_file_it_ships_with(config: AgentConfig) -> str:
-    """The text of the file this agent knows by heart, or nothing."""
-    return config.knowledge or ""

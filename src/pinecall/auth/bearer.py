@@ -12,7 +12,7 @@ POLICY_VIOLATION = 1008
 CLOSE_REASON_BYTES = 123
 
 
-def as_a_close_reason(said: str) -> str:
+def close_reason(said: str) -> str:
     """The refusal as a close frame may carry it."""
     return said.encode()[:CLOSE_REASON_BYTES].decode(errors="ignore")
 

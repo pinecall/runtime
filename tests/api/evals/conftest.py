@@ -6,13 +6,13 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.api import _deps as deps
-from pinecall.api._deps import the_runs
+from pinecall.api import deps as deps
 from pinecall.api.agents.registry import Registry
 from pinecall.api.app import app
-from pinecall.api.evals.runner import Runner, the_runner
-from pinecall.evals.checks.replayed import Replayed, rebuild
-from pinecall.evals.runs import MemoryRuns
+from pinecall.api.deps import get_runs
+from pinecall.api.evals.runner import Runner, get_runner
+from pinecall.evals.checks.replay import Replayed, rebuild
+from pinecall.evals.run_store import MemoryRuns
 from pinecall.providers.models import Chat
 from pinecall.types import PRODUCTION, Brought, Model, ProviderKeys
 from pinecall_protocol import decode_entries, defs
@@ -137,7 +137,7 @@ def suite_http(
         keys_asked.append(brought.keys)
         return llm
 
-    app.dependency_overrides[deps.the_llms] = lambda: llms
-    app.dependency_overrides[the_runner] = lambda: runner
-    app.dependency_overrides[the_runs] = lambda: eval_runs
+    app.dependency_overrides[deps.get_llms] = lambda: llms
+    app.dependency_overrides[get_runner] = lambda: runner
+    app.dependency_overrides[get_runs] = lambda: eval_runs
     return keyed_http

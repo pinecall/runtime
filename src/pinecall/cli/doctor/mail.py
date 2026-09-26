@@ -3,8 +3,8 @@
 import asyncio
 
 from pinecall._settings import variable_of
-from pinecall.mail import BoxMail, MailRefused, a_test_message, posted
-from pinecall.types import DeclarationRefused, Mailbox, an_address
+from pinecall.mail import BoxMail, MailRefused, post, probe_letter
+from pinecall.types import DeclarationRefused, Mailbox, parse_address
 
 # A box that posts no mail is not a box that is down: every door behaves as it did before mail
 # existed, and an admin hands a link over by copying it out of the answer. So the line is advice,
@@ -33,9 +33,9 @@ NOT_CONFIGURED = "mail       nothing to send it with: set {url} and {sender}"
 NOT_AN_ADDRESS = "mail       {said}"
 
 
-# A tuple and not a Result: the report's own row type lives in verbs.py, which reads this, and a
-# module that read it back would close the circle. verbs.py wraps what this answers.
-def the_mail_line(boxs: BoxMail | None) -> tuple[bool, str]:
+# A tuple and not a Result: what this answers is one fact and one sentence, and whether the row
+# is advice or the verdict is verbs.py's call — it wraps what this answers.
+def mail_line(boxs: BoxMail | None) -> tuple[bool, str]:
     """Whether this box has a mail server, and the sentence the report's row carries."""
     if boxs is None:
         return False, NO_MAIL.format(url=variable_of("smtp_url"), sender=variable_of("mail_from"))
@@ -59,7 +59,7 @@ def send_one_to(boxs: BoxMail | None, to: str) -> int:
         print(NOT_CONFIGURED.format(url=variable_of("smtp_url"), sender=variable_of("mail_from")))
         return 1
     try:
-        address = an_address(to)
+        address = parse_address(to)
     except DeclarationRefused as refused:
         print(NOT_AN_ADDRESS.format(said=refused))
         return 1
@@ -69,7 +69,7 @@ def send_one_to(boxs: BoxMail | None, to: str) -> int:
 async def _posted(mailbox: Mailbox, to: str) -> int:
     """One letter through the box's own mail, waited for, and the server's own sentence on a no."""
     try:
-        await posted(mailbox, a_test_message(to))
+        await post(mailbox, probe_letter(to))
     except MailRefused as refused:
         print(REFUSED.format(to=to, said=refused))
         return 1

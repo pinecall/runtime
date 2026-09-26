@@ -5,18 +5,11 @@ from __future__ import annotations
 import pytest
 
 from pinecall.auth.signups import ATTEMPTS, CODE_TTL_S, NotVerified, Pending, PendingSignups
+from tests.clocks import Clock
 
 pytestmark = pytest.mark.unit
 
 ANA = "ana@tiendasur.uy"
-
-
-class Clock:
-    def __init__(self) -> None:
-        self.now = 1_000.0
-
-    def __call__(self) -> float:
-        return self.now
 
 
 def begun(signups: PendingSignups) -> str:

@@ -9,11 +9,11 @@ from starlette.testclient import TestClient
 
 from pinecall._settings import Settings
 from pinecall.api.agents.registry import Registry
+from pinecall.auth.env import ENV_HEADER
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
-from pinecall.auth.world import ENV_HEADER
 from pinecall.log.store import MemoryStore
-from pinecall.routes.table import MemoryRoutes
+from pinecall.routes.records import MemoryRoutes
 from pinecall.types import PRODUCTION, SANDBOX, Member, Route
 from tests.api.conftest import A_KEY, A_RECORD, AGENT, Json
 from tests.api.talking import answering_in, got
@@ -33,7 +33,7 @@ ANA = KeyRecord(
 )
 
 # The row her key's subject names, and the org lets her act in production: a request of hers that
-# names production is read there (auth/world.py).
+# names production is read there (auth/env.py).
 A_MEMBER = Member(
     id="m_ana",
     org=A_RECORD.org,

@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from statistics import median
 
-from pinecall.evals.checks.replayed import Replayed
-from pinecall.evals.checks.verdict import Verdict, failed, passed, skipped
+from pinecall.evals.checks.check_verdict import Verdict, broken, held, skipped_verdict
+from pinecall.evals.checks.replay import Replayed
 
 CHECK = "latency"
 
@@ -29,10 +29,10 @@ def latency(call: Replayed, budget: Mapping[str, float] = DEFAULT_BUDGET) -> Ver
         name: median(values) for name, values in call.latencies.items() if name in budget and values
     }
     if not measured:
-        return skipped(CHECK, NOTHING_MEASURED.format(names=", ".join(budget)))
+        return skipped_verdict(CHECK, NOTHING_MEASURED.format(names=", ".join(budget)))
     over = [name for name, seconds in measured.items() if seconds > budget[name]]
     said = "; ".join(_said(name, seconds, budget[name], call) for name, seconds in measured.items())
-    return failed(CHECK, said) if over else passed(CHECK, said)
+    return broken(CHECK, said) if over else held(CHECK, said)
 
 
 def _said(name: str, seconds: float, allowed: float, call: Replayed) -> str:

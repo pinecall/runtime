@@ -10,14 +10,15 @@ from typing import TypedDict
 from livekit.agents import AgentServer, JobContext, JobProcess
 
 from pinecall._settings import Settings, load_settings, variable_of
-from pinecall.evals.score import JudgedWhen
-from pinecall.providers.pipeline import warm_the_vendor_tables
-from pinecall.session.voice import a_bridge
-from pinecall.session.voice.kit import kit_for
-from pinecall.worker import recordings
-from pinecall.worker.client import reaching
-from pinecall.worker.entry import Worker, answer
+from pinecall.evals.hangup_score import JudgedWhen
+from pinecall.providers.session_vendors import warm_the_vendor_tables
+from pinecall.session.voice import build_bridge
+from pinecall.session.voice.vendors import kit_for
+from pinecall.worker import recording_paths
+from pinecall.worker.gateway_client import build_gateway
+from pinecall.worker.job import Worker, answer
 from pinecall.worker.load import MachineLoad, SlotLoad, reports_no_load
+from pinecall.worker.telemetry import traced_to
 
 # What livekit needs to register a worker at all: the media plane, and the pair that signs.
 LIVEKIT_FIELDS: tuple[str, ...] = ("livekit_url", "livekit_api_key", "livekit_api_secret")
@@ -30,7 +31,7 @@ LIVEKIT_FIELDS: tuple[str, ...] = ("livekit_url", "livekit_api_key", "livekit_ap
 DRAIN_S = 10 * 60
 
 # And what ONE job gets, once it is told to shut down, to run its shutdown callbacks. Ours is the
-# seal (worker/entry.py `sealing`): call.ended, the hang-up's one memory extraction (the `remember`
+# seal (worker/job.py `sealing`): call.ended, the hang-up's one memory extraction (the `remember`
 # budget, 8 s), call.summary, the judges, call.score. livekit's default of ten seconds cuts that in
 # half and kills the process mid-seal, which is a log with a call.ended and no end. Sixty seconds
 # covers it, and DRAIN_S + this still sits inside the unit's TimeoutStopSec.
@@ -46,7 +47,7 @@ log = logging.getLogger(__name__)
 # Worker is built in the job's own process, from the environment that process inherited.
 async def job(ctx: JobContext) -> None:
     """The entrypoint of every job: this process's Worker, then the call is answered."""
-    await answer(ctx, a_worker(load_settings()))
+    await answer(ctx, build_worker(load_settings()))
 
 
 # One key, issued by a person, wherever this worker runs. It used to be three: the org key, a dev
@@ -55,29 +56,30 @@ async def job(ctx: JobContext) -> None:
 # invisible and got it wrong both ways: PINECALL_WORKER_KEY in the shell against a gateway on a dev
 # key killed every job of a spoken suite on `GET /v1/routes: 401` until the run timed out
 # (2026-09-11). There is one runtime now and one key: `keys issue --scope app`.
-def the_key_for(settings: Settings) -> str:
+def worker_key(settings: Settings) -> str:
     """What this worker knocks at its gateway with. Empty is a worker nobody issued a key for."""
     return settings.worker_key or ""
 
 
-def a_worker(settings: Settings) -> Worker:
+def build_worker(settings: Settings) -> Worker:
     """What every job of a process shares: the gateway, the vendors, the bridge, the recordings."""
-    gateway = reaching(settings.gateway_url, the_key_for(settings))
+    gateway = build_gateway(settings.gateway_url, worker_key(settings))
     return Worker(
         gateway=gateway,
         kit=kit_for(settings),
+        timezone=settings.timezone,
         # The worker is who hands a spoken call its judge: the session judges nothing itself. And
         # its memory: a job process has no database, so the gateway is the session's Lookup and
         # Rememberer too — the same object, three protocols — under the budgets the box set. The
         # judge asks the gateway first whether the call's org judges its calls at all.
         bridging=partial(
-            a_bridge,
+            build_bridge,
             score=JudgedWhen(gateway.judging),
             lookup=gateway,
             rememberer=gateway,
             budgets=settings.budgets,
         ),
-        keeping=recordings.keeping_for(settings),
+        keeping=recording_paths.keeping_for(settings),
         default_agent=settings.agent,
         app=settings.app,
     )
@@ -111,7 +113,7 @@ class Warm(TypedDict, total=False):
 # room config it mints, and Settings holds it to a slug's alphabet and never empty
 # (types/dispatch.py says why). The warm processes are livekit's own count unless the instance
 # says one.
-def a_server(settings: Settings, *, gated_by_machine_load: bool = True) -> AgentServer:
+def build_server(settings: Settings, *, gated_by_machine_load: bool = True) -> AgentServer:
     """The process: the one entrypoint that answers a job, under the fleet name it joins by."""
     warm = (
         Warm()
@@ -123,7 +125,7 @@ def a_server(settings: Settings, *, gated_by_machine_load: bool = True) -> Agent
         api_key=settings.livekit_api_key,
         api_secret=settings.livekit_api_secret,
         load_fnc=_the_gate(settings, gated_by_machine_load),
-        setup_fnc=warmed,
+        setup_fnc=prewarm,
         # The two clocks a stop runs on, both of them livekit's and both of them wrong for a box
         # by default: how long the drain waits, and how long one job's seal may take.
         drain_timeout=DRAIN_S,
@@ -157,9 +159,10 @@ def _the_gate(
 # plugin registers itself on import (agents/plugin.py:31-33). The console's tables were therefore
 # already read on the main thread before livekit was handed the process (cli/worker.py
 # THREADED_VERBS), and reading them is idempotent, so this call is a no-op there.
-def warmed(proc: JobProcess) -> None:  # noqa: ARG001 — livekit hands every setup the process
+def prewarm(proc: JobProcess) -> None:  # noqa: ARG001 — livekit hands every setup the process
     """Everything a call would otherwise wait for, done while the process is still idle."""
     warm_the_vendor_tables()
+    traced_to(load_settings())
 
 
 # Which of the three a box has not set, by the variable name an operator would type. livekit

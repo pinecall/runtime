@@ -67,7 +67,7 @@ class VendorRefused(PluginProblem):
     """The plugin is there and it wants something a key is not: an endpoint, a pair, a model."""
 
 
-def installed(provider: Provider) -> bool:
+def is_installed(provider: Provider) -> bool:
     """Whether this build can reach the vendor at all. False is a missing extra, never a typo."""
     if not provider.plugin:
         return True  # `livekit` is livekit-agents itself: there is nothing to install
@@ -126,7 +126,7 @@ def _put(wanted: dict[str, Any], takes: frozenset[str], names: Iterable[str], va
 
 def _the_class(modality: Modality, provider: Provider) -> Any:
     """The plugin's LLM, STT or TTS, imported now. PluginMissing names what installs it."""
-    if not installed(provider):
+    if not is_installed(provider):
         raise PluginMissing(NOT_INSTALLED.format(vendor=provider.name, extra=provider.extra))
     try:
         module = import_module(f"livekit.plugins.{provider.plugin}")

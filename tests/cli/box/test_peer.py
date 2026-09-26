@@ -7,7 +7,7 @@ import httpx
 import pytest
 
 from pinecall.cli import build_parser
-from pinecall.cli.box.instance import credstore_of, declared, write_instance
+from pinecall.cli.box.instance import build_instance, credstore_of, write_instance
 from pinecall.cli.box.peer import (
     ALREADY,
     ONE_INSTANCE,
@@ -33,7 +33,7 @@ SANDBOX_URL = "https://sandbox.example.com"
 def a_box(instances: Path, *, names_its_sandbox: bool = True) -> Path:
     """Production and its sandbox on one box, each an env file as `box instance` writes it."""
     for instance in (
-        declared(
+        build_instance(
             "production",
             PRODUCTION,
             "box.example.com",
@@ -41,7 +41,9 @@ def a_box(instances: Path, *, names_its_sandbox: bool = True) -> Path:
             elsewhere=SANDBOX_URL,
             sandbox=SANDBOX_URL if names_its_sandbox else None,
         ),
-        declared("sandbox", SANDBOX, "sandbox.example.com", instances, identity=BOX, elsewhere=BOX),
+        build_instance(
+            "sandbox", SANDBOX, "sandbox.example.com", instances, identity=BOX, elsewhere=BOX
+        ),
     ):
         write_instance(instance, instances, out=StringIO(), keep_recordings=lambda _path: None)
     return instances

@@ -10,10 +10,11 @@ import sys
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
 from functools import partial
-from typing import Any, TextIO
+from typing import TextIO
 
 from pinecall._settings import load_settings
-from pinecall.cli.columns import as_columns
+from pinecall.cli.columns import aligned_columns
+from pinecall.cli.help import help_only
 from pinecall.cli.sessions import render
 from pinecall.cli.sessions.source import Calls, Source
 from pinecall.log.entry import Entry
@@ -47,7 +48,7 @@ NOTHING = "—"
 NO_SUCH_CALL = "no call {call} in the log"
 
 # The path a recording is filed at travels in the call's summary and nowhere else: the worker
-# composes it (worker/recordings.py) and the log states it there, once, near the end. It is NOT
+# composes it (worker/recording_paths.py) and the log states it there, once, near the end. It is NOT
 # the terminal entry — `call.score` is, and `tail` stops on that one — so the two are named apart.
 THE_SUMMARY = "call.summary"
 NOT_SEALED = "call {call} has no {summary} yet: the recording is stated when the call ends"
@@ -76,7 +77,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
     recorded.add_argument("call", metavar="<id>", help="the call id")
     recorded.set_defaults(run=run_recording)
 
-    parser.set_defaults(run=partial(_print_the_verbs, parser))
+    parser.set_defaults(run=help_only(parser))
 
 
 def run_list(arguments: argparse.Namespace) -> int:
@@ -112,7 +113,7 @@ async def list_calls(agent: str | None, limit: int, source: Calls, out: TextIO =
         print(f"no calls yet{f' for {agent}' if agent else ''}", file=out)
         return 0
     rows = [_row_of(call, reduce(await source.entries(call))) for call in calls]
-    for line in as_columns(rows):
+    for line in aligned_columns(rows):
         print(line, file=out)
     return 0
 
@@ -258,9 +259,3 @@ async def _with_a_source(verb: Callable[[Calls], Awaitable[int]]) -> int:
         return await verb(source)
     finally:
         await source.aclose()
-
-
-def _print_the_verbs(parser: argparse.ArgumentParser, _arguments: Any) -> int:
-    """`sessions` with no verb: say what there is, and exit as a help screen does."""
-    parser.print_help()
-    return 0

@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
 from typing import Any, cast
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
-from pinecall.api._deps import (
+from pinecall.api.agents import call_commands as commands
+from pinecall.api.agents.held_agent import Registration, SocketId
+from pinecall.api.agents.registry import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, Registry, RegistryDep
+from pinecall.api.calls.opening import open_text_call
+from pinecall.api.calls.resume import taken_up
+from pinecall.api.deps import (
     AdmissionDep,
     CallIndexDep,
     KeysDep,
@@ -20,25 +24,21 @@ from pinecall.api._deps import (
     SettingsDep,
     TuningDep,
     VaultDep,
-    a_key_on_a_socket,
+    get_socket_key,
 )
-from pinecall.api._live import Live, LiveDep
-from pinecall.api.agents import on_a_call as commands
-from pinecall.api.agents.holding import Registration, SocketId
-from pinecall.api.agents.registry import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, Registry, RegistryDep
-from pinecall.api.calls.opening import a_text_call
-from pinecall.api.calls.taking_up import taken_up
-from pinecall.api.personas import the_personas
-from pinecall.auth.bearer import POLICY_VIOLATION, as_a_close_reason
-from pinecall.auth.keys import KeyRecord, held_by, not_opening
-from pinecall.auth.scopes import a_visitor
+from pinecall.api.evals.personas import get_personas
+from pinecall.api.live import Live, LiveDep
+from pinecall.auth.bearer import POLICY_VIOLATION, close_reason
+from pinecall.auth.keys import KeyRecord, cannot_open, is_held_by
+from pinecall.auth.scopes import new_visitor_identity
 from pinecall.log.entry import Entry
 from pinecall.log.writers import Logs
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.providers.models import NoProvider
-from pinecall.session.text.allowance import TurnRefused
 from pinecall.session.text.session import TextSession, Watcher
-from pinecall.types import THE_WIDGET, CallContext, Contact, Env, Route, a_call_id
+from pinecall.session.text.turn_allowance import TurnRefused
+from pinecall.types import THE_WIDGET, CallContext, Contact, Env, Route, new_call_id
+from pinecall.types.today import today_in
 from pinecall_protocol import encode
 
 # Importing the handlers is what registers them: the app socket's table is filled at import time,
@@ -93,32 +93,30 @@ async def chat(
 ) -> None:
     """One caller, one text call: they send {text}, they receive every entry of their own call."""
     try:
-        key = await a_key_on_a_socket(websocket, keys, members, settings)
+        key = await get_socket_key(websocket, keys, members, settings)
     except PermissionError as refused:
         await websocket.accept()
-        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(str(refused)))
+        await websocket.close(code=POLICY_VIOLATION, reason=close_reason(str(refused)))
         return
     if key is None:
         await websocket.close(code=POLICY_VIOLATION)
         return
     # A real key of the right org that may not talk: told so, in the one sentence every door says.
-    if (closed := not_opening(key, "talk")) is not None:
+    if (closed := cannot_open(key, "talk")) is not None:
         await websocket.accept()
-        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(closed))
+        await websocket.close(code=POLICY_VIOLATION, reason=close_reason(closed))
         return
     slug = websocket.query_params.get("agent", "")
     # `?app=` is how `pinecall chat` is served by its OWN process, where the tenant's breakpoints
     # are: without it a call takes whichever socket registered last. See docs/decisions/dispatch.md.
     app = websocket.query_params.get("app")
-    held = registry.serving(key.env, slug, app, held_by(key))
+    held = registry.serving(key.env, slug, app, is_held_by(key))
     # An API key IS its org, on this socket as on every door: another org's agent is refused in a
     # sentence that names the agent and not the org that holds it.
     if held is None or held.org != key.org:
         why = ANOTHER_ORGS if held is not None else _why_not(registry, key, slug, app)
         await websocket.accept()
-        await websocket.close(
-            code=POLICY_VIOLATION, reason=as_a_close_reason(why.format(slug=slug))
-        )
+        await websocket.close(code=POLICY_VIOLATION, reason=close_reason(why.format(slug=slug)))
         return
     # `?call=` is a caller coming back to a call whose gateway restarted under it: the call is
     # taken up from its log, not opened again, and the caller reads on from where it was.
@@ -143,10 +141,15 @@ async def chat(
     # it in. The refusals are said HERE, because only this door knows a close frame carries 123
     # bytes and that a reason must never reach a stranger as a traceback mid-handshake.
     try:
-        opened = await a_text_call(
+        opened = await open_text_call(
             held,
-            a_call_from(
-                websocket, held.org, held.env, slug, await _the_rule_of(websocket, held.org)
+            build_call_from_socket(
+                websocket,
+                held.org,
+                held.env,
+                slug,
+                settings.timezone,
+                await _the_rule_of(websocket, held.org),
             ),
             tuning,
             vault,
@@ -159,11 +162,11 @@ async def chat(
         )
     except NoProvider as missing:
         logger.warning("chat refused for %s: %s", slug, missing)
-        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(str(missing)))
+        await websocket.close(code=POLICY_VIOLATION, reason=close_reason(str(missing)))
         return
     except QuotaExhausted as refused:
         await websocket.accept()
-        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(str(refused)))
+        await websocket.close(code=POLICY_VIOLATION, reason=close_reason(str(refused)))
         return
     await websocket.accept()
     session = opened.session
@@ -178,7 +181,7 @@ def _why_not(registry: Registry, key: KeyRecord, slug: str, app: SocketId | None
     """Why this caller gets no call, in words the person who ran the command can act on."""
     if app is not None:
         return NOT_THAT_APP.format(app=app, slug=slug)
-    if registry.of(key.env, slug, held_by(key)) is not None:
+    if registry.of(key.env, slug, is_held_by(key)) is not None:
         return NO_UNCLAIMED.format(slug=slug)
     return _NOBODY_SERVING.format(slug=slug)
 
@@ -194,7 +197,7 @@ async def _talk(
 ) -> None:
     """The call, from call.started to the hangup: every frame the caller sends is one turn."""
     # Every entry, unprojected, to both sides: the caller's socket, watched from here, and the
-    # app's, which is the one delivery a worker-run call is put on too (api/_live.py). The
+    # app's, which is the one delivery a worker-run call is put on too (api/live.py). The
     # public and tenant projections are the sink's, and the state card of this milestone owns them.
     session.watch(_sending(websocket))
     live.serve(
@@ -236,7 +239,7 @@ async def _taken_up(
 ) -> None:
     """The caller back on a call its gateway forgot, or a close saying why not."""
     await websocket.accept()
-    context = a_call_from(websocket, held.org, held.env, held.slug)
+    context = build_call_from_socket(websocket, held.org, held.env, held.slug, settings.timezone)
     try:
         opened = await taken_up(
             call,
@@ -254,10 +257,10 @@ async def _taken_up(
             _sending(websocket),
         )
     except NoProvider as missing:
-        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(str(missing)))
+        await websocket.close(code=POLICY_VIOLATION, reason=close_reason(str(missing)))
         return
     if opened is None:
-        reason = as_a_close_reason(NOT_TAKEN_UP.format(call=call))
+        reason = close_reason(NOT_TAKEN_UP.format(call=call))
         await websocket.close(code=POLICY_VIOLATION, reason=reason)
         return
     await _talking(websocket, opened.session, live, logs)
@@ -291,7 +294,7 @@ async def _every_turn(websocket: WebSocket, session: TextSession) -> bool:
         return not hung_up_by(gone.code)
     except TurnRefused as refused:
         # The session already ended the call; the caller is told why in the close, as at the open.
-        await websocket.close(code=POLICY_VIOLATION, reason=as_a_close_reason(str(refused)))
+        await websocket.close(code=POLICY_VIOLATION, reason=close_reason(str(refused)))
     return False
 
 
@@ -300,11 +303,12 @@ def hung_up_by(code: int) -> bool:
     return code != SERVICE_RESTART
 
 
-def a_call_from(
+def build_call_from_socket(
     websocket: WebSocket,
     org: str,
     env: Env,
     slug: str,
+    zone: str,
     rule: tuple[str | None, str | None] = (None, None),
 ) -> CallContext:
     """One call, minted here: the id, who the caller is, and the door they came through."""
@@ -312,10 +316,10 @@ def a_call_from(
     # A web caller is nobody yet: the visitor id travels as the calling side, which is what
     # call.started carries as `from`. Both ids are the shapes the token door mints too.
     return CallContext(
-        call=a_call_id(),
+        call=new_call_id(),
         channel=THE_WIDGET,
         direction="inbound",
-        caller=websocket.query_params.get("caller") or a_visitor(),
+        caller=websocket.query_params.get("caller") or new_visitor_identity(),
         contact=_who_they_say_they_are(websocket),
         # `?persona=` is a written simulation saying who is being played on this call: `pinecall
         # simulate` drives the turns from here, and without it nothing on the call named the
@@ -325,7 +329,7 @@ def a_call_from(
         accepts_when=accepts_when,
         declines_when=declines_when,
         route=Route(org=org, agent=slug, channel=THE_WIDGET, number=None, env=env),
-        today=date.today(),
+        today=today_in(zone),
     )
 
 
@@ -338,7 +342,7 @@ async def _the_rule_of(websocket: WebSocket, org: str) -> tuple[str | None, str 
     name = websocket.query_params.get("persona")
     if not name:
         return None, None
-    one = await the_personas(websocket).named(org, name)
+    one = await get_personas(websocket).named(org, name)
     if one is None:
         return None, None
     return one["accepts_when"] or None, one["declines_when"] or None

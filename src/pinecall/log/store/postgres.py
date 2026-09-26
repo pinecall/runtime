@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import time
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlsplit, urlunsplit
@@ -13,12 +14,13 @@ from urllib.parse import urlsplit, urlunsplit
 import asyncpg  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
 
 from pinecall._exceptions import PinecallError
+from pinecall.log.call_facts import change_of
 from pinecall.log.entry import Entry
-from pinecall.log.facts import change_of
-from pinecall.log.store.index_statements import RESCORED
-from pinecall.log.store.postgres_index import PostgresIndex
+from pinecall.log.store.call_index_postgres import PostgresIndex
+from pinecall.log.store.call_index_sql import RESCORED
+from pinecall.log.store.pool import Connection, Pool
 from pinecall.log.store.protocol import DEFAULT_LIMIT, LogSealed, Metered
-from pinecall.log.store.statements import (
+from pinecall.log.store.store_sql import (
     ACROSS,
     APPEND,
     CALLS_NEWEST_FIRST,
@@ -27,7 +29,6 @@ from pinecall.log.store.statements import (
     LATEST_SEQ,
     LIST_CALLS,
     MOVED,
-    MOVED_NOTHING,
     NEWEST_LIVE_CALL,
     OWNED,
     OWNER,
@@ -98,12 +99,15 @@ def _bracketed(host: str) -> str:
     return f"[{host}]" if ":" in host else host
 
 
+logger = logging.getLogger(__name__)
+
+
 class PostgresStore(PostgresIndex):
     """A Store on one pool. Seq and ts are born in append(); ephemerals get a seq and no row."""
 
     def __init__(
         self,
-        pool: Any,
+        pool: Pool,
         *,
         clock: Callable[[], float] = time.time,
         owns_pool: bool = False,
@@ -153,23 +157,26 @@ class PostgresStore(PostgresIndex):
     ) -> Entry:
         """The next seq of the log, in one statement. An ephemeral gets its seq and no row."""
         ts = self._clock()
-        seq: int | None = await self._pool.fetchval(
-            APPEND, log_name(call, agent), agent, call, ts, type, ephemeral, data
-        )
-        if seq is None:
-            raise LogSealed(f"call {call} has ended: {type} cannot be appended")
-        return await self._indexed(
-            Entry(seq=seq, ts=ts, call=call, agent=agent, type=type, ephemeral=ephemeral, data=data)
-        )
+        async with self._pool.acquire() as connection, connection.transaction():
+            seq: int | None = await connection.fetchval(
+                APPEND, log_name(call, agent), agent, call, ts, type, ephemeral, data
+            )
+            if seq is None:
+                raise LogSealed(f"call {call} has ended: {type} cannot be appended")
+            entry = Entry(
+                seq=seq, ts=ts, call=call, agent=agent, type=type, ephemeral=ephemeral, data=data
+            )
+            await self._indexed(connection, entry)
+        return entry
 
     async def rescored(self, call: str, agent: str, data: JsonObject) -> Entry:
         """A verdict onto a call whose log already sealed: the one entry a sealed log takes."""
         ts = self._clock()
-        seq: int | None = await self._pool.fetchval(RESCORED, call, agent, ts, data)
-        if seq is None:
-            raise LogSealed(f"call {call} has no log to judge")
-        return await self._indexed(
-            Entry(
+        async with self._pool.acquire() as connection, connection.transaction():
+            seq: int | None = await connection.fetchval(RESCORED, call, agent, ts, data)
+            if seq is None:
+                raise LogSealed(f"call {call} has no log to judge")
+            entry = Entry(
                 seq=seq,
                 ts=ts,
                 call=call,
@@ -178,17 +185,28 @@ class PostgresStore(PostgresIndex):
                 ephemeral=False,
                 data=data,
             )
-        )
+            await self._indexed(connection, entry)
+        return entry
 
     # The fold runs AFTER the entry is written and never instead of it: a row that failed to
     # change is a list that says less, while an entry that failed to write is a call that lost a
-    # fact. So the log's statement stands alone, and the index is the second.
-    async def _indexed(self, entry: Entry) -> Entry:
-        """The entry, once its call's facts have what it said."""
+    # fact. Both on the ONE connection the append holds, inside its transaction: the head row's
+    # lock is held until the fold has landed, so two appends to one call fold in seq order — on
+    # separate pooled connections they could land the other way round, and `last_text` said the
+    # older one (2026-09-26). The fold is a savepoint of its own, so its failure rolls back the
+    # fold and never the entry.
+    async def _indexed(self, connection: Connection, entry: Entry) -> None:
+        """The call's facts given what the entry said; a fold that broke is logged and dropped."""
         change = change_of(entry)
-        if entry.call is not None and change is not None:
-            await self._fold(entry.call, change)
-        return entry
+        if entry.call is None or change is None:
+            return
+        try:
+            async with connection.transaction():
+                await self._fold(connection, entry.call, change)
+        except Exception:
+            logger.warning(
+                "call %s: its facts did not fold %s", entry.call, entry.type, exc_info=True
+            )
 
     async def since(self, call: str, after: int = 0, limit: int = DEFAULT_LIMIT) -> list[Entry]:
         """The call's durable entries above the cursor. Ephemerals were never written: holes."""
@@ -206,7 +224,7 @@ class PostgresStore(PostgresIndex):
 
     async def list_calls(self, agent: str) -> list[str]:
         """Every call this agent opened a log for, oldest first, read off the head rows."""
-        rows: Sequence[Any] = await self._pool.fetch(LIST_CALLS, agent)
+        rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(LIST_CALLS, agent)
         return [str(row["call"]) for row in rows]
 
     async def calls_of(
@@ -218,7 +236,9 @@ class PostgresStore(PostgresIndex):
         agent: str | None = None,
     ) -> list[str]:
         """The org's newest calls, off the head rows, cut to a world, a corner or an agent."""
-        rows: Sequence[Any] = await self._pool.fetch(CALLS_OF, org, limit, env, holder, agent)
+        rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(
+            CALLS_OF, org, limit, env, holder, agent
+        )
         return [str(row["call"]) for row in rows]
 
     async def latest_seq(self, call: str) -> int:
@@ -253,10 +273,9 @@ class PostgresStore(PostgresIndex):
         )
 
     async def moved(self, agent: str, org: str) -> int:
-        """Every head row of this agent, into another org. The count comes off the command tag."""
-        tag = await self._pool.execute(MOVED, agent, org)
-        said = tag.strip()
-        return 0 if said == MOVED_NOTHING else int(said.rsplit(" ", 1)[-1])
+        """Every head row of this agent, into another org, and how many there were."""
+        row = await self._pool.fetchrow(MOVED, agent, org)
+        return 0 if row is None else int(row["moved"])
 
     async def owner(self, call: str | None, agent: str) -> str | None:
         """Whose log this is; None for a log with no head row, or one nobody claimed."""
@@ -267,7 +286,7 @@ class PostgresStore(PostgresIndex):
         self, types: Sequence[str], after: int = 0, limit: int = DEFAULT_LIMIT
     ) -> list[Metered]:
         """One page across every log: the database filters, orders and cuts, never us."""
-        rows: Sequence[Any] = await self._pool.fetch(
+        rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(
             ACROSS, list(types), max(after, 0), max(limit, 0)
         )
         return [
@@ -277,17 +296,19 @@ class PostgresStore(PostgresIndex):
 
     async def newest_calls(self, limit: int, agent: str | None = None) -> list[str]:
         """The newest calls, of one agent or of all: the database orders and cuts, never us."""
-        rows: Sequence[Any] = await self._pool.fetch(CALLS_NEWEST_FIRST, limit, agent)
+        rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(CALLS_NEWEST_FIRST, limit, agent)
         return [str(row["call"]) for row in rows]
 
     async def newest_live_call(self) -> str | None:
         """The newest log nothing has sealed, or None when every call has ended."""
-        rows: Sequence[Any] = await self._pool.fetch(NEWEST_LIVE_CALL)
+        rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(NEWEST_LIVE_CALL)
         return str(rows[0]["call"]) if rows else None
 
     async def _page(self, log: str, after: int, limit: int) -> list[Entry]:
         """One page of one log, by the identity the database computes for every row."""
-        rows: Sequence[Any] = await self._pool.fetch(PAGE, log, max(after, 0), max(limit, 0))
+        rows: Sequence[Mapping[str, Any]] = await self._pool.fetch(
+            PAGE, log, max(after, 0), max(limit, 0)
+        )
         return [entry_of_row(row) for row in rows]
 
 
@@ -296,7 +317,7 @@ def log_name(call: str | None, agent: str) -> str:
     return call if call is not None else f"{AGENT_LOG_PREFIX}{agent}"
 
 
-def entry_of_row(row: Any) -> Entry:
+def entry_of_row(row: Mapping[str, Any]) -> Entry:
     """One row back into the envelope. No conversion: the columns are the envelope's fields."""
     return Entry(
         seq=int(row["seq"]),
@@ -322,10 +343,12 @@ async def installed_extensions(dsn: str, *, timeout: float | None = None) -> set
 # The gateway reads API keys through a pool of its own, off a table this package knows nothing
 # about. It still gets its pool from here, because this module is the one place that may name the
 # driver — a second import of asyncpg is a second door to close.
-async def create_pool(dsn: str, *, schema: str = DEFAULT_SCHEMA) -> Any:
+async def create_pool(dsn: str, *, schema: str = DEFAULT_SCHEMA) -> Pool:
     """A plain connection pool, opened by the one module allowed to say the driver's name."""
     try:
-        return await _create_pool(dsn, server_settings={"search_path": search_path_of(schema)})
+        # The driver's pool answers our Protocol; the driver types it as nothing at all.
+        opened = await _create_pool(dsn, server_settings={"search_path": search_path_of(schema)})
+        return cast("Pool", opened)
     except (OSError, ValueError, asyncpg.PostgresError) as refused:
         # The same three the store's own connect turns into StoreUnreachable: a caller that opens
         # a pool must be able to say "no database answered" without naming the driver.
@@ -346,12 +369,17 @@ async def _teach_the_connection_json(connection: Any) -> None:
 # public itself and needs no second entry.
 def search_path_of(schema: str) -> str:
     """The search path a schema is worked in: itself, then public, where the extensions are."""
-    name = a_schema_name(schema)
+    name = check_schema_name(schema)
     return name if name == DEFAULT_SCHEMA else f"{name}, {DEFAULT_SCHEMA}"
 
 
-def a_schema_name(schema: str) -> str:
+def check_schema_name(schema: str) -> str:
     """A schema is an identifier and cannot be a parameter, so it is checked before it is SQL."""
     if not _A_SCHEMA_NAME.match(schema):
         raise SchemaRefused(f"a schema name is a lowercase word, not {schema!r}")
     return schema
+
+
+async def open_pool(database_url: str, *, schema: str = DEFAULT_SCHEMA) -> Pool:
+    """The pool the gateway holds for its whole life. The lifespan that opened it closes it."""
+    return await create_pool(database_url, schema=schema)

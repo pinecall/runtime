@@ -8,10 +8,10 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.api import _live
-from pinecall.api._live import Live
+from pinecall.api import live
 from pinecall.api.agents import dev
 from pinecall.api.agents.registry import Registry
+from pinecall.api.live import Live
 from pinecall.log.entry import Entry
 from pinecall.types import PRODUCTION
 from pinecall_protocol.commands import DevAnswer, DevRefusal
@@ -169,4 +169,4 @@ def test_every_dev_verb_is_in_exactly_one_family() -> None:
     families = list(dev.FAMILIES.values())
     assert frozenset().union(*families) == dev.VERBS
     assert sum(len(one) for one in families) == len(dev.VERBS)
-    assert _live.Live  # the module the door's waiting room lives in, imported on purpose
+    assert live.Live  # the module the door's waiting room lives in, imported on purpose

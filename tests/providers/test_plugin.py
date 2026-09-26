@@ -17,7 +17,7 @@ A_VOICE = "694f9389-aac1-45b6-b726-9d9369183238"
 
 def a_box() -> Settings:
     """One dead sentinel under every vendor's own variable, as ring 0 always has."""
-    held = {field: A_KEY for field in map(catalog.settings_field_of, catalog.vendors_with_a_key())}
+    held = dict.fromkeys(map(catalog.settings_field_of, catalog.vendors_with_a_key()), A_KEY)
     return Settings.model_construct(None, **{field: A_KEY for field in held if field})
 
 

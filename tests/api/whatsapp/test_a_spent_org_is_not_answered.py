@@ -9,8 +9,8 @@ from livekit.agents import llm as agents
 from pinecall.api.agents.registry import Registry
 from pinecall.api.whatsapp.threads import Threads
 from pinecall.log.store import MemoryStore
-from pinecall.orgs.table import MemoryOrgs
-from pinecall.routes.table import MemoryRoutes
+from pinecall.orgs.records import MemoryOrgs
+from pinecall.routes.records import MemoryRoutes
 from pinecall.types import Quotas
 from tests.api.conftest import A_RECORD, AGENT
 from tests.api.fake_graph import FakeGraph

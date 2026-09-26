@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from pinecall.api._deps import SnapshotsDep, StoreDep
 from pinecall.api.agents.registry import RegistryDep
-from pinecall.api.calls.sink import (
+from pinecall.api.calls.log_sink import (
     ReaderDep,
     declared_by,
     refuse_another_call,
     refuse_another_org,
 )
+from pinecall.api.deps import SnapshotsDep, StoreDep
 from pinecall.log.projection import project_state
 from pinecall.types.json import JsonObject
 from pinecall_protocol import encode

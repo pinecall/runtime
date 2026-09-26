@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from typing import cast
-
 import httpx
 
+from pinecall._detail import refusal_detail
 from pinecall._exceptions import PinecallError
 from pinecall.types import Member, MemberStatus, Org, Role
 from pinecall_protocol import WireModel
 
-# Production's door (api/login.py), asked by a sandbox with the code a person carried across.
+# Production's door (api/accounts/login.py), asked by a sandbox with the code a person carried
+# across.
 REDEEM = "/v1/login/redeem"
 
 # A person is watching the console bounce between the two instances, and production is on the
@@ -109,7 +109,7 @@ class Identity:
         except httpx.HTTPError as unreachable:
             raise NotRedeemed(502, UNREACHABLE.format(url=self._url)) from unreachable
         if answer.is_client_error:
-            raise NotRedeemed(answer.status_code, _the_sentence(answer))
+            raise NotRedeemed(answer.status_code, refusal_detail(answer.text))
         if not answer.is_success:
             raise NotRedeemed(502, UNREACHABLE.format(url=self._url))
         # Not JSON, not the shape, or a row that refuses itself: each one is a ValueError.
@@ -117,13 +117,3 @@ class Identity:
             return Redeemed.model_validate(answer.json()).as_rows()
         except ValueError as unreadable:
             raise NotRedeemed(502, UNREADABLE.format(url=self._url)) from unreadable
-
-
-def _the_sentence(answer: httpx.Response) -> str:
-    """What production said, as FastAPI says it (`detail`), or its body when it said otherwise."""
-    try:
-        said: object = answer.json()
-    except ValueError:
-        return answer.text
-    detail = cast(dict[str, object], said).get("detail") if isinstance(said, dict) else None
-    return detail if isinstance(detail, str) else answer.text

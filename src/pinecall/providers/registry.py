@@ -12,13 +12,13 @@ from livekit.agents import llm, stt, tts
 
 from pinecall._exceptions import PinecallError
 from pinecall._settings import Settings
-from pinecall.providers import catalog, lending
+from pinecall.providers import catalog, lent_keys
 from pinecall.providers.catalog import Modality, Provider
 from pinecall.providers.plugin import (
     NOT_INSTALLED,
     PluginProblem,
     built_by_a_plugin,
-    installed,
+    is_installed,
 )
 from pinecall.types import NO_ORG_KEYS, ProviderKeys
 
@@ -35,7 +35,7 @@ class NoProvider(PinecallError):
 
 # A vendor with no key is a refusal at the start of the call, and never a 401 in the middle of a
 # caller's turn. The gateway's pipeline screen says the same sentence before the call, so a person
-# sees the missing key as a state (api/pipeline_report.py).
+# sees the missing key as a state (api/agents/pipeline_report.py).
 NO_KEY = "{vendor} has no API key in this process"
 
 # What a word nobody catalogues reads as. The list is long now — the whole catalog — so the
@@ -107,7 +107,7 @@ class Vendors[Made]:
     def names(self) -> tuple[str, ...]:
         """Every vendor this modality reaches: the tuned files and the catalogued rest, sorted."""
         self.read()
-        catalogued = {row.name for row in catalog.doing(self._modality)}
+        catalogued = {row.name for row in catalog.providers_doing(self._modality)}
         return tuple(sorted(catalogued | set(self._rows)))
 
     @property
@@ -134,7 +134,7 @@ class Vendors[Made]:
     # model judged is the one that will RUN — the one asked for, else the default this build vouches
     # for first — never the declaration alone, which names no model when it wants the default.
     def _refuse_what_is_not_lent(self, vendor: str, asked: Asked) -> None:
-        """NoProvider, in lending's sentence, when the box does not lend what this call runs."""
+        """NoProvider, in lent_keys' sentence, when the box does not lend what this call runs."""
         said = self.refusal_to_run(vendor, asked.model, asked.keys, asked.lends)
         if said is not None:
             raise NoProvider(said)
@@ -151,24 +151,28 @@ class Vendors[Made]:
         self.read()
         vouched = self._models.get(name, ())
         running = model or (vouched[0] if vouched else None)
-        return None if lending.lent(lends, name, running) else lending.refusal(lends, name, running)
+        return (
+            None
+            if lent_keys.lent(lends, name, running)
+            else lent_keys.refusal(lends, name, running)
+        )
 
     # The catalogued path. It reaches every vendor livekit ships a plugin for, with no file here
     # and no edit when livekit adds one — providers/plugin.py reads the plugin's own signature.
     def _out_of_the_catalog(self, vendor: str, asked: Asked) -> Any:
         """One vendor out of its plugin, or the refusal that names what this build does have."""
-        provider = catalog.named(vendor)
+        provider = catalog.provider_named(vendor)
         if provider is None or self._modality not in provider.does:
             raise NoProvider(
                 NO_VENDOR.format(
                     modality=self._modality,
                     vendor=vendor,
-                    count=len(catalog.doing(self._modality)),
+                    count=len(catalog.providers_doing(self._modality)),
                 )
             )
         # Before the key and not after it: a vendor this build has no plugin for would otherwise be
         # refused for a missing key, and the operator would go and fetch one that changes nothing.
-        if not installed(provider):
+        if not is_installed(provider):
             raise NoProvider(NOT_INSTALLED.format(vendor=provider.name, extra=provider.extra))
         try:
             return built_by_a_plugin(
@@ -209,7 +213,7 @@ class Vendors[Made]:
 # The whole of managed-versus-BYOK, in three lines: the org's own key when it brought one for this
 # vendor, the box's environment otherwise, and a refusal when neither exists. Nothing above this
 # function knows which of the two it got. See docs/decisions/provider-keys.md.
-def a_key(vendor: str, asked: Asked) -> str:
+def vendor_key(vendor: str, asked: Asked) -> str:
     """The key this call runs the vendor with: the org's own, or the box's, or a refusal."""
     key = asked.keys.get(vendor) or _the_boxes_key(vendor, asked.settings)
     if not key:
@@ -224,7 +228,7 @@ def a_key(vendor: str, asked: Asked) -> str:
 # before the call rather than mid-turn.
 def _a_key_if_it_has_one(provider: Provider, asked: Asked) -> str | None:
     """The key the plugin is handed, or None for a vendor whose credentials are its own affair."""
-    return None if provider.env is None else a_key(provider.name, asked)
+    return None if provider.env is None else vendor_key(provider.name, asked)
 
 
 # The field is the vendor's own variable name, lowercased — providers/catalog.py holds the rule and

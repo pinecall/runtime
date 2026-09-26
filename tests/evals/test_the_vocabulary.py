@@ -5,7 +5,7 @@ from typing import get_args
 import pytest
 from livekit.agents.evals import JudgmentResult, Verdict
 
-from pinecall.evals.verdicts import AS_OUR_VERDICT, a_judgment, evidence_in
+from pinecall.evals.livekit_verdicts import AS_OUR_VERDICT, build_judgment, evidence_in
 from pinecall_protocol.defs import ScoreVerdict
 from pinecall_protocol.envelope import Entry
 
@@ -51,6 +51,6 @@ def test_a_judgment_keeps_the_question_it_answered_beside_the_answer() -> None:
     """`criteria` is livekit's `instructions`: what was asked, in the field it was hung on."""
     result = JudgmentResult(verdict="fail", reasoning="the tool ran at seq 79")
     result.instructions = "Every irreversible tool call ran after a confirm.granted."
-    row = a_judgment("consent", result, [A_GRANT])
+    row = build_judgment("consent", result, [A_GRANT])
     assert (row.name, row.verdict) == ("consent", "broken")
     assert row.criteria == result.instructions and row.reason == result.reasoning

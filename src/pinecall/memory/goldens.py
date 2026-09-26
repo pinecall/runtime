@@ -6,7 +6,13 @@ import re
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
-from pinecall.memory.extraction import OPS_THAT_NAME_A_FACT, OPS_THAT_WRITE, Op, OpName, allowed
+from pinecall.memory.extraction import (
+    OPS_THAT_NAME_A_FACT,
+    OPS_THAT_WRITE,
+    Op,
+    OpName,
+    filter_allowed,
+)
 from pinecall.memory.protocol import Spoken
 from pinecall.types import Fact, MemoryPolicy, ToolSpec
 from pinecall_protocol.rest import ExtractionBroke, ExtractionGolden, ExtractionJudged
@@ -36,7 +42,7 @@ NOT_HELD = "{case}: expect.invalidates names {named!r}, which this golden does n
 _SPACES = re.compile(r"\s+")
 
 
-def undeclared(case: ExtractionGolden, policy: MemoryPolicy) -> str | None:
+def undeclared_category(case: ExtractionGolden, policy: MemoryPolicy) -> str | None:
     """What this golden names that the policy does not keep, or None when it is answerable."""
     for named in case.expect.writes:
         if not _among(named, policy.remember):
@@ -80,7 +86,7 @@ def facts_of(case: ExtractionGolden, at: datetime | None = None) -> list[Fact]:
 # Everything below is code and no model. A fact is natural language, so nothing here compares one
 # sentence to another: a category is the class's own word, a literal is what the caller said out
 # loud, and a supersession is an id the model echoed back. docs/security/prompt-injection.md.
-def judged(
+def judge_extraction(
     case: ExtractionGolden,
     said: Sequence[Op],
     *,
@@ -89,9 +95,9 @@ def judged(
     tools: Sequence[ToolSpec] = (),
 ) -> ExtractionJudged:
     """What the policy lets through of the model's answer, and the four questions asked of it."""
-    wrote = allowed(said, policy, known, tools)
+    wrote = filter_allowed(said, policy, known, tools)
     refused = [op for op in said if not any(op is kept for kept in wrote)]
-    survived = allowed(_planted(case, policy), policy, known, tools)
+    survived = filter_allowed(_planted(case, policy), policy, known, tools)
     broke = [
         *_wrote_under_every_category(case, wrote),
         *_kept_nothing_forgotten(case, wrote),

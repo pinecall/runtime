@@ -13,13 +13,18 @@ from livekit.protocol.room import DeleteRoomRequest
 
 from pinecall._settings import Settings, load_settings
 from pinecall.fleet import HEARTBEAT_S
-from pinecall.worker import router
-from pinecall.worker.client import Gateway
-from pinecall.worker.entry import Worker, a_call
-from pinecall.worker.hop import GatewayRefused
-from pinecall.worker.main import a_worker
+from pinecall.worker import job_target
+from pinecall.worker.gateway_client import Gateway
+from pinecall.worker.gateway_http import GatewayRefused
+from pinecall.worker.job import Worker, build_call_context
+from pinecall.worker.main import build_worker
+from pinecall_protocol import encode
+from pinecall_protocol.events import AgentTranscript, CallEnded
 
 logger = logging.getLogger(__name__)
+
+# The overflow says one sentence: the one speech its transcript entry names.
+THE_ONE_SENTENCE = "sp_1"
 
 # livekit picks a worker at random, weighted by 1 − load, among the ones under its line
 # (livekit-server pkg/service/agentservice.go, selectWorkerWeightedByLoad). So this worker cannot
@@ -57,12 +62,16 @@ class Watching:
     def __init__(self, gate: OverflowGate, gateway: Gateway) -> None:
         self._gate = gate
         self._gateway = gateway
+        # Held here: a task nothing references may be collected by Python mid-loop.
+        self._watching: asyncio.Task[None] | None = None
 
     def start_with(self, server: AgentServer) -> None:
         """Begin the moment the worker is up; end with the process."""
-        server.on(  # pyright: ignore[reportUnknownMemberType]
-            "worker_started", lambda: asyncio.create_task(self.run())
-        )
+        server.on("worker_started", self._begin)  # pyright: ignore[reportUnknownMemberType]
+
+    def _begin(self) -> None:
+        """The loop, as a task this object holds for the life of the process."""
+        self._watching = asyncio.create_task(self.run(), name="overflow-watch")
 
     async def run(self) -> None:
         """Poll until the process ends."""
@@ -91,10 +100,10 @@ class Watching:
 async def job(ctx: JobContext) -> None:
     """The entrypoint of every overflow job: this process's Worker, then the caller is told."""
     settings = load_settings()
-    await answer_the_overflow(ctx, a_worker(settings), settings.overflow_says)
+    await answer_the_overflow(ctx, build_worker(settings), settings.overflow_says)
 
 
-def a_server(settings: Settings, gateway: Gateway) -> AgentServer:
+def build_overflow_server(settings: Settings, gateway: Gateway) -> AgentServer:
     """The overflow process: under the fleet's own name, so a dispatch nobody else takes is its."""
     gate = OverflowGate()
     server = AgentServer(
@@ -117,15 +126,15 @@ def a_server(settings: Settings, gateway: Gateway) -> AgentServer:
 # which is what hangs up a SIP leg. No STT, no model: nothing here listens.
 async def answer_the_overflow(ctx: JobContext, worker: Worker, says: str) -> None:
     """One overflow job: tell the caller, take their number, hang up, seal the log."""
-    began = time.time()
+    began = time.monotonic()
     ctx.log_context_fields = {"room": ctx.job.room.name}
     _, routes = await asyncio.gather(ctx.connect(), worker.gateway.routes())
-    arrival = await router.arrival_of(ctx.job, ctx.room)
-    route = router.resolve(arrival, routes, worker.default_agent)
+    arrival = await job_target.arrival_of(ctx.job, ctx.room)
+    route = job_target.resolve(arrival, routes, worker.default_agent)
     config, brought = await asyncio.gather(
         worker.gateway.agent(route.agent), worker.gateway.provider_keys(route.agent)
     )
-    context = a_call(ctx.room.name or ctx.job.id, arrival, route)
+    context = build_call_context(ctx.room.name or ctx.job.id, arrival, route, worker.timezone)
     await worker.gateway.opened(context, route.agent)
     ctx.add_shutdown_callback(_sealing(worker.gateway, context.call, began))
     if not await _somebody_arrived(ctx):
@@ -136,7 +145,8 @@ async def answer_the_overflow(ctx: JobContext, worker: Worker, says: str) -> Non
     session: AgentSession[None] = AgentSession(tts=voice)
     await session.start(Agent(instructions=says), room=ctx.room)  # pyright: ignore[reportUnknownMemberType]
     await session.say(says, allow_interruptions=False)
-    await worker.gateway.append(context.call, "agent.transcript", {"text": says, "final": True})
+    said = AgentTranscript(speech_id=THE_ONE_SENTENCE, text=says, final=True)
+    await worker.gateway.append(context.call, "agent.transcript", encode(said))
     if route.channel == THE_PHONE and arrival.caller:
         await worker.gateway.callback_requested(
             route.agent, route.channel, arrival.caller, context.call
@@ -160,13 +170,13 @@ def _sealing(
     """The shutdown callback: call.ended by the agent, then the log is closed."""
 
     async def seal(_reason: str) -> None:
-        ended = {
-            "reason": "agent_hung_up",
-            "ended_by": "agent",
-            "ended_at": time.time(),
-            "duration_s": time.time() - began,
-        }
-        await gateway.append(call, "call.ended", ended)
+        ended = CallEnded(
+            reason="agent_hung_up",
+            ended_by="agent",
+            ended_at=time.time(),
+            duration_s=time.monotonic() - began,
+        )
+        await gateway.append(call, "call.ended", encode(ended))
         await gateway.sealed(call)
 
     return seal

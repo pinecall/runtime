@@ -6,10 +6,10 @@ import httpx
 import pytest
 from cryptography.fernet import Fernet
 
+from pinecall.api.accounts.org_sso import get_handshakes, get_http, get_sso
 from pinecall.api.app import app
-from pinecall.api.sso import the_handshakes, the_http, the_sso
-from pinecall.auth.sso import Handshakes
-from pinecall.orgs.sso import MemorySso, Sso
+from pinecall.auth.sso_state import Handshakes
+from pinecall.orgs.org_sso import MemorySso, Sso
 from tests.api.conftest import A_VAULT_KEY
 from tests.api.fake_idp import FakeIdp
 
@@ -32,24 +32,24 @@ def idp() -> FakeIdp:
 def http(idp: FakeIdp) -> Iterator[httpx.AsyncClient]:
     """What the gateway talks to other people's servers with: only the fake provider answers."""
     client = httpx.AsyncClient(transport=idp.transport())
-    app.dependency_overrides[the_http] = lambda: client
+    app.dependency_overrides[get_http] = lambda: client
     yield client
-    app.dependency_overrides.pop(the_http, None)
+    app.dependency_overrides.pop(get_http, None)
 
 
 @pytest.fixture
 def sso() -> Iterator[Sso | None]:
     """Where an org's identity provider is kept, empty at the start of every test."""
     kept = MemorySso(Fernet(A_VAULT_KEY.encode()))
-    app.dependency_overrides[the_sso] = lambda: kept
+    app.dependency_overrides[get_sso] = lambda: kept
     yield kept
-    app.dependency_overrides.pop(the_sso, None)
+    app.dependency_overrides.pop(get_sso, None)
 
 
 @pytest.fixture
 def handshakes() -> Iterator[Handshakes]:
     """The sign-ins out at a provider right now: none at the start of a test, none inherited."""
     opened = Handshakes()
-    app.dependency_overrides[the_handshakes] = lambda: opened
+    app.dependency_overrides[get_handshakes] = lambda: opened
     yield opened
-    app.dependency_overrides.pop(the_handshakes, None)
+    app.dependency_overrides.pop(get_handshakes, None)

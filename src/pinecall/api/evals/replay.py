@@ -2,29 +2,24 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, HTTPException
 from pydantic import Field
 
-from pinecall.api._deps import EvalsKeyDep, StoreDep
 from pinecall.api.agents.registry import RegistryDep
-from pinecall.api.calls.sink import NOT_YOUR_ORGS, declared_by
-from pinecall.evals.checks import replayed as replay
+from pinecall.api.calls.log_sink import NO_SUCH_CALL, declared_by, require_calls_scope
+from pinecall.api.deps import CallIndexDep, EvalsKeyDep, StoreDep
+from pinecall.evals.checks import replay
+from pinecall.evals.checks.check_verdict import Verdict
 from pinecall.evals.checks.consent import consent
-from pinecall.evals.checks.errors import errors
 from pinecall.evals.checks.latency import DEFAULT_BUDGET, latency
+from pinecall.evals.checks.provider_errors import errors
 from pinecall.evals.checks.register import register
 from pinecall.log.replay import whole
 from pinecall.types import AgentConfig
 from pinecall_protocol import WireModel
+from pinecall_protocol.defs import ScoreVerdict
 
 router = APIRouter()
-
-# Nothing was ever written under this id. The same 404 the state door answers, for the same reason:
-# a call this gateway's log never heard of cannot be re-evaluated, and a typo must not read as a
-# call that passed every check.
-NO_SUCH_CALL = "no log for call {call}"
 
 
 class Case(WireModel):
@@ -34,20 +29,38 @@ class Case(WireModel):
     budget: dict[str, float] = Field(default_factory=dict[str, float])
 
 
-# The key says whose log may be replayed and nothing more: the verdict does not depend on it,
-# but a call is one org's, and another org's key is refused in the sink's own words.
+class VerdictSaid(WireModel):
+    """One check as the door answers it: its name, the word a script branches on, and why."""
+
+    check: str
+    status: ScoreVerdict
+    detail: str
+
+
+class Replayed(WireModel):
+    """POST /v1/evals/replay/{call}: the call, its agent, whether every check held, and each."""
+
+    call: str
+    agent: str
+    passed: bool
+    verdicts: list[VerdictSaid]
+
+
+# The key says whose log may be replayed and nothing more: the verdict does not depend on it. The
+# call is asked for in its corner — org, world, holder — exactly as the judge door beside this one
+# asks, and a call outside it is the same 404 as a typo: a typo must never read as a call that
+# passed every check, and another tenant's call must never read as anything.
 @router.post("/v1/evals/replay/{call}")
 async def replay_call(
     call: str,
     key: EvalsKeyDep,
     store: StoreDep,
+    index: CallIndexDep,
     registry: RegistryDep,
     said: Case | None = None,
-) -> dict[str, Any]:
+) -> Replayed:
     """Rebuild the call from its log and answer the four code checks over it, in one round trip."""
-    owner = await store.owner(call, "")
-    if owner is not None and owner != key.org:
-        raise HTTPException(403, NOT_YOUR_ORGS)
+    await require_calls_scope(index, key, call)
     entries = await whole(store, call)
     if not entries:
         raise HTTPException(404, NO_SUCH_CALL.format(call=call))
@@ -60,12 +73,17 @@ async def replay_call(
         errors(rebuilt),
         latency(rebuilt, case.budget or DEFAULT_BUDGET),
     ]
-    return {
-        "call": rebuilt.call or call,
-        "agent": rebuilt.agent,
-        "passed": not any(verdict.status == "failed" for verdict in verdicts),
-        "verdicts": [verdict.as_json for verdict in verdicts],
-    }
+    return Replayed(
+        call=rebuilt.call or call,
+        agent=rebuilt.agent,
+        passed=not any(verdict.status == "broken" for verdict in verdicts),
+        verdicts=[_said(verdict) for verdict in verdicts],
+    )
+
+
+def _said(verdict: Verdict) -> VerdictSaid:
+    """The verdict as the door answers it: three strings, no nesting, nothing to decode."""
+    return VerdictSaid(check=verdict.check, status=verdict.status, detail=verdict.detail)
 
 
 def _irreversible(declared: AgentConfig | None) -> frozenset[str] | None:

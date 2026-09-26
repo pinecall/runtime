@@ -8,9 +8,10 @@ from functools import partial
 from typing import Any, TextIO
 
 from pinecall.auth.keys import Issued, KeyRecord
-from pinecall.cli.columns import as_columns
-from pinecall.cli.operator import Operator, against_the_gateway, with_an_org
-from pinecall.types import ENVS, EVERY_SCOPE, KEY_SCOPES, an_env
+from pinecall.cli.columns import aligned_columns
+from pinecall.cli.help import help_only
+from pinecall.cli.operator import Operator, add_org_flag, against_the_gateway
+from pinecall.types import ENVS, EVERY_SCOPE, KEY_SCOPES, parse_env
 
 PURPOSE: str = "the org's API keys: issue | list | revoke"
 VERBS: tuple[str, ...] = ("issue", "list", "revoke")
@@ -58,18 +59,18 @@ def configure(parser: argparse.ArgumentParser) -> None:
     )
     issuing.add_argument("--subject", default=None, help="whose key it is: the member's id")
     issuing.add_argument("--name", default=None, help="their name, so a seat says who sat down")
-    with_an_org(issuing)
+    add_org_flag(issuing)
     issuing.set_defaults(run=run_issue)
 
     listing = verbs.add_parser("list", help="every key of an org, by fingerprint, never by key")
-    with_an_org(listing)
+    add_org_flag(listing)
     listing.set_defaults(run=run_list)
 
     revoking = verbs.add_parser("revoke", help="stop honouring one key; its row and history stay")
     revoking.add_argument("fingerprint", metavar="<fingerprint>", help="as `keys list` prints it")
     revoking.set_defaults(run=run_revoke)
 
-    parser.set_defaults(run=partial(_print_the_verbs, parser))
+    parser.set_defaults(run=help_only(parser))
 
 
 def run_issue(arguments: argparse.Namespace) -> int:
@@ -131,7 +132,7 @@ async def list_keys(org: str, operator: Operator, out: TextIO = sys.stdout) -> i
     if not rows:
         print(f"no keys in org {org} — `pinecall-runtime keys issue --org {org}`", file=out)
         return 0
-    for line in as_columns([_row_of(key) for key in rows]):
+    for line in aligned_columns([_row_of(key) for key in rows]):
         print(line, file=out)
     return 0
 
@@ -177,7 +178,7 @@ def _issued_of(answer: dict[str, Any]) -> Issued:
             key_id=str(answer["key_id"]),
             org=str(answer["org"]),
             label=answer["label"] and str(answer["label"]),
-            env=an_env(str(answer["env"])),
+            env=parse_env(str(answer["env"])),
             scopes=frozenset(str(scope) for scope in answer["scopes"]),
             subject=answer["subject"] and str(answer["subject"]),
             name=answer["name"] and str(answer["name"]),
@@ -190,9 +191,3 @@ def _scopes_said(record: KeyRecord) -> str:
     if record.scopes == KEY_SCOPES:
         return "every scope"
     return "scopes " + " · ".join(sorted(record.scopes))
-
-
-def _print_the_verbs(parser: argparse.ArgumentParser, _arguments: Any) -> int:
-    """`keys` with no verb: say what there is, and exit as a help screen does."""
-    parser.print_help()
-    return 0

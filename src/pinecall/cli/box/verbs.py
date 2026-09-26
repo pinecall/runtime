@@ -5,11 +5,18 @@ import base64
 import secrets
 import sys
 from pathlib import Path
-from typing import Any, TextIO
+from typing import TextIO
 
 from pinecall.cli.box import database, instance, peer
 from pinecall.cli.box.credentials import Encrypt, encrypt_with_systemd
-from pinecall.cli.box.instance import THE_FIRST, InstanceRefused, a_name, credstore_of, database_of
+from pinecall.cli.box.instance import (
+    THE_FIRST,
+    InstanceRefused,
+    check_instance_name,
+    credstore_of,
+    database_of,
+)
+from pinecall.cli.help import help_only
 
 PURPOSE: str = "the box: its instances, and their secrets as encrypted systemd credentials"
 VERBS: tuple[str, ...] = ("secrets", "secret", "instance", "database", "peer")
@@ -59,14 +66,14 @@ def configure(parser: argparse.ArgumentParser) -> None:
     peer.configure(
         verbs.add_parser("peer", help="a fleet key of one instance, kept in another's store")
     )
-    parser.set_defaults(run=lambda arguments: _print_the_verbs(parser, arguments))  # pyright: ignore[reportUnknownLambdaType] — argparse's Namespace
+    parser.set_defaults(run=help_only(parser))
 
 
 def run_secrets(arguments: argparse.Namespace) -> int:
     """Every secret a box, or one instance, makes for itself, made once. Only names are printed."""
     if arguments.instance is None:
         return make_secrets(arguments.into or CREDSTORE)
-    name = a_name(arguments.instance)
+    name = check_instance_name(arguments.instance)
     into = arguments.into or credstore_of(name)
     if name == THE_FIRST:
         raise InstanceRefused(THE_BOXS_OWN.format(store=into))
@@ -75,7 +82,11 @@ def run_secrets(arguments: argparse.Namespace) -> int:
 
 def run_secret(arguments: argparse.Namespace) -> int:
     """One secret a person brings, from stdin: never from argv, where a `ps` would read it."""
-    into = credstore_of(a_name(arguments.instance)) if arguments.instance else arguments.into
+    into = (
+        credstore_of(check_instance_name(arguments.instance))
+        if arguments.instance
+        else arguments.into
+    )
     return keep_secret(arguments.name, sys.stdin.read().strip(), into)
 
 
@@ -86,7 +97,7 @@ THE_FIRST_DATABASE = "pinecall"
 # The LiveKit keypair, the database password and the two keys the runtime guards other things
 # with. Everything a person brings — the vendors' keys, WhatsApp's — is `secret <name>` instead:
 # a box generates what only it will ever hold, and never invents what somebody else issued.
-def generated() -> dict[str, str]:
+def generate_secrets() -> dict[str, str]:
     """The seven values a fresh box is made of, each drawn once from the CSPRNG."""
     livekit_key = f"API{secrets.token_hex(6)}"
     livekit_secret = secrets.token_hex(32)
@@ -137,7 +148,7 @@ def make_secrets(
 ) -> int:
     """Make what is missing and keep what is there: this verb run twice rotates nothing."""
     writing = encrypt or encrypt_with_systemd
-    for name, value in (drawn or generated()).items():
+    for name, value in (drawn or generate_secrets()).items():
         if (into / name).exists():
             print(KEPT.format(name=name), file=out)
             continue
@@ -158,10 +169,4 @@ def keep_secret(
         return 2
     (encrypt or encrypt_with_systemd)(name, value, into)
     print(MADE.format(name=name), file=out)
-    return 0
-
-
-def _print_the_verbs(parser: argparse.ArgumentParser, _arguments: Any) -> int:
-    """`box` with no verb: say what there is, and exit as a help screen does."""
-    parser.print_help()
     return 0

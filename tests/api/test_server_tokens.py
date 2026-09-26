@@ -9,7 +9,13 @@ import pytest
 from starlette.testclient import TestClient
 
 from pinecall._settings import Settings
-from pinecall.api.keys import ANOTHER_WORLDS_TOKEN, BY_A_PERSON, NO_SUCH_KEY, SERVER_SCOPES
+from pinecall.api.accounts.api_keys import (
+    ANOTHER_WORLDS_TOKEN,
+    BY_A_PERSON,
+    NO_SUCH_KEY,
+    SERVER_SCOPES,
+)
+from pinecall.auth.env import ENV_HEADER, NO_PRODUCTION
 from pinecall.auth.keys import (
     NOT_OPENED,
     PRODUCTION_PREFIX,
@@ -19,7 +25,6 @@ from pinecall.auth.keys import (
     fingerprint,
 )
 from pinecall.auth.members_memory import MemoryMembers
-from pinecall.auth.world import ENV_HEADER, NO_PRODUCTION
 from pinecall.types import PRODUCTION, SANDBOX, Member
 from tests.api.conftest import A_KEY, A_RECORD, Json
 from tests.api.talking import answering_in, got

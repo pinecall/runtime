@@ -7,16 +7,17 @@ from typing import Annotated, Any, Protocol
 
 from fastapi import Depends
 
-from pinecall.api._deps import what_is_live
-from pinecall.api._live import Served
-from pinecall.api.agents.holding import Send, SocketId
+from pinecall.api.agents.held_agent import Send, SocketId
 from pinecall.api.agents.processes import Processes
 from pinecall.api.agents.registry import Registry
+from pinecall.api.deps import get_live
+from pinecall.api.live import Served
 from pinecall.knowledge import Knowledge
 from pinecall.log.entry import Entry
 from pinecall.orgs.admission import Admission
-from pinecall.orgs.codes import Codes
-from pinecall.orgs.tuning import TuningStore
+from pinecall.orgs.caller_codes import Codes
+from pinecall.orgs.tuning_store import TuningStore
+from pinecall.session.text.session import TextSession
 from pinecall.types import Env
 from pinecall_protocol import Command, ProtocolError, WireModel, command_of
 from pinecall_protocol.commands import DevAnswer
@@ -62,8 +63,9 @@ class Live(Protocol):
         """The tool.call entries of this call still waiting for the app."""
         ...
 
-    def of(self, call: str | None) -> Any:
-        """The session a command names, or None when no call by that id runs in this process."""
+    def of(self, call: str | None) -> TextSession | None:
+        """The text session a command names, or None when this process runs no call by that id:
+        a worker's call is served here, never run here."""
         ...
 
     def answered(self, call: str, result: ToolResult) -> bool:
@@ -131,7 +133,7 @@ class Socket(Protocol):
 type Handler = Callable[[Socket, Command], Awaitable[None]]
 
 # Every command the app socket answers, by its wire type. A new one is a function and a decorator.
-# It is filled at import time, from this package and from api/agents/on_a_call.py, which the
+# It is filled at import time, from this package and from api/agents/call_commands.py, which the
 # gateway pulls in when it includes the text router.
 HANDLERS: dict[str, Handler] = {}
 
@@ -146,7 +148,7 @@ def handles(type: str) -> Callable[[Handler], Handler]:
     return take
 
 
-def asked[T: WireModel](command: Command, shape: type[T]) -> T:
+def parse_command[T: WireModel](command: Command, shape: type[T]) -> T:
     """The command's data as the model its type names, refused when it is not that shape."""
     data = command_of(command)
     if not isinstance(data, shape):
@@ -155,4 +157,4 @@ def asked[T: WireModel](command: Command, shape: type[T]) -> T:
 
 
 # The live memory is one object the lifespan opened; each side asks for it with the type it needs.
-LiveDep = Annotated[Live, Depends(what_is_live)]
+LiveDep = Annotated[Live, Depends(get_live)]

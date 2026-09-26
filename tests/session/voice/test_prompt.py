@@ -11,7 +11,7 @@ from livekit.agents import llm as agents
 from livekit.agents.voice import AgentSession
 from livekit.agents.voice.generation import update_instructions
 
-from pinecall.session.voice import VoiceBridge, a_bridge
+from pinecall.session.voice import VoiceBridge, build_bridge
 from pinecall.types import DeclarationRefused
 from tests.session.fake_llm import FakeLLM, Scripted
 from tests.session.voice.fakes import CLARA, Recording
@@ -31,7 +31,7 @@ async def talking() -> AsyncIterator[Talking]:
     """A headless session on the scripted model, the bridge opened on it, the call started."""
     recording = Recording()
     llm = FakeLLM(Scripted(chunks=("Uno.",)), Scripted(chunks=("Dos.",)))
-    bridge = a_bridge(a_context(), CLARA, recording)
+    bridge = build_bridge(a_context(), CLARA, recording)
     live: AgentSession[None] = AgentSession(
         llm=llm, vad=None, turn_handling={"turn_detection": "manual"}
     )

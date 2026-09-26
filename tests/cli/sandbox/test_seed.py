@@ -70,7 +70,7 @@ async def sandbox(postgres: Dev) -> AsyncIterator[Pool]:
 
 
 async def counted(pool: Pool, table: str, where: str = "true") -> int:
-    row = await pool.fetchrow(f"SELECT count(*) AS n FROM {table} WHERE org = '{ORG}' AND {where}")  # noqa: S608
+    row = await pool.fetchrow(f"SELECT count(*) AS n FROM {table} WHERE org = '{ORG}' AND {where}")
     assert row is not None
     return int(row["n"])
 
@@ -91,14 +91,14 @@ async def test_the_sandbox_starts_with_its_orgs_personas_knowledge_and_tuning_an
         "agent_config: 1 copied, 0 already there",
         "lexicon: 1 copied, 0 already there",
     ]
-    org = await sandbox.fetchrow(f"SELECT slug FROM orgs WHERE id = '{ORG}'")  # noqa: S608
+    org = await sandbox.fetchrow(f"SELECT slug FROM orgs WHERE id = '{ORG}'")
     assert org is not None and org["slug"] == SLUG
     assert await counted(sandbox, "quotas") == 0
     assert await counted(sandbox, "knowledge_chunks", "env = 'production'") == 0
     assert await counted(sandbox, "knowledge_chunks", "holder = 'm_berna'") == 2
     config = await sandbox.fetchrow(
         f"SELECT config::text AS c FROM agent_config WHERE org = '{ORG}'"
-    )  # noqa: S608
+    )
     assert config is not None and '"ana"' in config["c"]
     # The vector crossed as its text form and landed as a halfvec again, number for number.
     assert await counted(sandbox, "knowledge_chunks", f"embedding::text = '{A_VECTOR}'") == 2
@@ -108,21 +108,21 @@ async def test_seeding_again_copies_nothing_twice_and_overwrites_nothing(
     production: Pool, sandbox: Pool
 ) -> None:
     await seed(production, sandbox, StringIO())
-    await sandbox.execute(f"UPDATE agent_personas SET goal = 'changed here' WHERE org = '{ORG}'")  # noqa: S608
+    await sandbox.execute(f"UPDATE agent_personas SET goal = 'changed here' WHERE org = '{ORG}'")
     said = StringIO()
 
     await seed(production, sandbox, said)
 
     assert "knowledge_chunks: 0 copied, 2 already there" in said.getvalue().splitlines()
     assert await counted(sandbox, "knowledge_chunks") == 2
-    kept = await sandbox.fetchrow(f"SELECT goal FROM agent_personas WHERE org = '{ORG}'")  # noqa: S608
+    kept = await sandbox.fetchrow(f"SELECT goal FROM agent_personas WHERE org = '{ORG}'")
     assert kept is not None and kept["goal"] == "changed here"
 
 
 async def test_an_org_whose_slug_the_sandbox_holds_under_another_id_is_said_and_left_alone(
     production: Pool, sandbox: Pool
 ) -> None:
-    await sandbox.execute(f"INSERT INTO orgs (id, slug, name) VALUES ('org_local', '{SLUG}', 'x')")  # noqa: S608
+    await sandbox.execute(f"INSERT INTO orgs (id, slug, name) VALUES ('org_local', '{SLUG}', 'x')")
     said = StringIO()
 
     await seed(production, sandbox, said)

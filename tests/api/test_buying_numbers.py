@@ -6,17 +6,17 @@ import httpx
 import pytest
 
 from pinecall._settings import Settings
-from pinecall.api.identity import BOUGHT_THERE
-from pinecall.api.managed import NO_BOX_CARRIER, NONE_FOR_SALE
-from pinecall.orgs.table import MemoryOrgs
-from pinecall.routes.table import MemoryRoutes
-from pinecall.routes.trunks import MemoryTrunks
+from pinecall.api.accounts.identity import BOUGHT_THERE
+from pinecall.api.telephony.managed_numbers import NO_BOX_CARRIER, NONE_FOR_SALE
+from pinecall.orgs.records import MemoryOrgs
+from pinecall.routes.records import MemoryRoutes
 from pinecall.routes.twilio import TWILIO_SIGNALLING
 from pinecall.types import PRODUCTION, Quotas
 from tests.api.carriers import A_KEY_SID, A_SID, FakeTwilio
 from tests.api.conftest import A_LIVEKIT, A_RECORD, A_VAULT_KEY, AGENT, AN_OPS_KEY
-from tests.api.test_numbers import ABAI, brought
+from tests.api.telephony.test_numbers import ABAI, brought
 from tests.conftest import a_sandbox
+from tests.routes.fakes import MemoryTrunks
 
 pytestmark = pytest.mark.unit
 
@@ -64,8 +64,10 @@ async def test_a_dry_run_names_the_number_it_would_buy_and_buys_nothing(
         f"trunk    pinecall — created on account {A_SID}",
         "origin   sip:box.pinecall.io:5060;transport=udp — set",
         f"number   {A_NEW_ONE} — attached to the trunk",
-        f"livekit  inbound trunk pinecall:{A_RECORD.org}: {A_NEW_ONE}, from "
-        f"{len(TWILIO_SIGNALLING)} networks; one room per caller",
+        (
+            f"livekit  inbound trunk pinecall:{A_RECORD.org}: {A_NEW_ONE}, from "
+            f"{len(TWILIO_SIGNALLING)} networks; one room per caller"
+        ),
         f"route    {A_NEW_ONE} phone → {AGENT} in production",
     ]
     assert twilio_account.made == [] and trunks.trunks == {}
@@ -137,11 +139,11 @@ async def test_nothing_for_sale_there_is_a_404_in_twilios_absence(
 async def test_a_box_with_no_twilio_of_its_own_buys_for_nobody(
     tenant_http: httpx.AsyncClient, settings: Settings
 ) -> None:
-    from pinecall.api import _deps
+    from pinecall.api import deps
     from pinecall.api.app import app
 
     poor = settings.model_copy(update={"twilio_account_sid": None})
-    app.dependency_overrides[_deps.a_settings] = lambda: poor
+    app.dependency_overrides[deps.get_settings] = lambda: poor
     answer = await tenant_http.post(BUY, json=SPRINGFIELD)
     assert (answer.status_code, answer.json()["detail"]) == (503, NO_BOX_CARRIER)
 
@@ -149,11 +151,11 @@ async def test_a_box_with_no_twilio_of_its_own_buys_for_nobody(
 async def test_a_sandbox_buys_nothing_on_the_boxs_account_and_names_where_numbers_are_bought(
     tenant_http: httpx.AsyncClient, settings: Settings, twilio_account: FakeTwilio
 ) -> None:
-    from pinecall.api import _deps
+    from pinecall.api import deps
     from pinecall.api.app import app
 
     production = "https://box.pinecall.io"
-    app.dependency_overrides[_deps.a_settings] = lambda: a_sandbox(
+    app.dependency_overrides[deps.get_settings] = lambda: a_sandbox(
         settings, elsewhere_url=production
     )
     answer = await tenant_http.post(BUY, json=SPRINGFIELD)

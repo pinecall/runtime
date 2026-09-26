@@ -20,7 +20,7 @@ def a_door(channel: Channel, number: str | None = None) -> defs.Route:
     return defs.Route(channel=channel, number=number)
 
 
-# A register brings no doors with it: a door is a row an operator typed (routes/table.py) and it
+# A register brings no doors with it: a door is a row an operator typed (routes/records.py) and it
 # outlives every socket, and the widget is not a door at all — every agent is on the web.
 async def test_a_register_brings_no_doors_and_takes_nothing_from_anybody() -> None:
     registry = Registry(Logs(MemoryStore()))
@@ -96,7 +96,7 @@ async def test_the_wire_declares_a_tool_the_domain_reads_whole() -> None:
     booking = held.config.tools_by_name["book_slot"]
     assert booking.side_effect == "irreversible"
     assert booking.confirm == "Le reservo el {at}. ¿Confirmo?"
-    assert booking.requires_confirmation
+    assert booking.confirm is not None
     assert booking.timeout_s == 30.0
 
 

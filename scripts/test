@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Ring 0: the unit tests, the log suite against the dev stack's Postgres when it is up, and the
 # operator's tools under infra/tools. No keys, no model, under two minutes. A Postgres nobody
-# started is a skip naming the URL.
+# started is a skip naming the URL. Coverage is measured here and held to its floor (pyproject);
+# `uv run pytest <one file>` measures nothing and runs on one core.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-uv run pytest -m "unit or postgres" tests infra/tools/tests
+uv run pytest -n auto -m "unit or postgres" --cov --cov-report=term-missing tests infra/tools/tests

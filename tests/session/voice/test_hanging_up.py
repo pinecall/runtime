@@ -14,9 +14,9 @@ from livekit.agents.voice.events import CloseReason
 from pinecall.session.voice.hanging_up import (
     HOW_IT_ENDED,
     SAY_GOODBYE_FIRST,
-    a_way_to_hang_up,
+    hangup_toolset,
+    on_end_call_first,
     silence_after,
-    the_reason_first,
 )
 from pinecall.types import AgentConfig, Hangup
 
@@ -52,21 +52,21 @@ class AnEndCall:
     """The event livekit hands on_tool_called: the run context, with the call and the speech."""
 
     class _Ctx:
-        class function_call:  # noqa: N801 — livekit's own attribute names
+        class function_call:
             call_id = "fc_1"
 
-        class speech_handle:  # noqa: N801
+        class speech_handle:
             id = "speech_9"
 
     ctx = _Ctx()
 
 
 def test_a_class_that_declares_no_hangup_gets_no_tool() -> None:
-    assert a_way_to_hang_up(AgentConfig(slug=A_CLINIC), Wrote()) == []
+    assert hangup_toolset(AgentConfig(slug=A_CLINIC), Wrote()) == []
 
 
 def test_a_class_that_declares_one_gets_livekits_own_end_call() -> None:
-    given = a_way_to_hang_up(AgentConfig(slug=A_CLINIC, hangup=Hangup()), Wrote())
+    given = hangup_toolset(AgentConfig(slug=A_CLINIC, hangup=Hangup()), Wrote())
 
     assert len(given) == 1
     assert isinstance(given[0], EndCallTool)
@@ -75,13 +75,13 @@ def test_a_class_that_declares_one_gets_livekits_own_end_call() -> None:
 
 def test_the_tenants_own_words_reach_the_description_the_model_reads() -> None:
     said = "cuando el paciente ya tiene su cita y se despide"
-    given = a_way_to_hang_up(AgentConfig(slug=A_CLINIC, hangup=Hangup(when=said)), Wrote())
+    given = hangup_toolset(AgentConfig(slug=A_CLINIC, hangup=Hangup(when=said)), Wrote())
 
     assert said in (what_the_model_reads(given).description or "")
 
 
 def test_the_model_is_told_to_say_goodbye_in_the_turn_it_hangs_up_in() -> None:
-    given = a_way_to_hang_up(AgentConfig(slug=A_CLINIC, hangup=Hangup()), Wrote())
+    given = hangup_toolset(AgentConfig(slug=A_CLINIC, hangup=Hangup()), Wrote())
 
     assert SAY_GOODBYE_FIRST in (what_the_model_reads(given).description or "")
 
@@ -94,16 +94,16 @@ async def test_nothing_is_generated_after_end_call() -> None:
 
 
 def test_the_tool_is_hidden_while_the_agent_is_greeting() -> None:
-    given = a_way_to_hang_up(AgentConfig(slug=A_CLINIC, hangup=Hangup()), Wrote())
+    given = hangup_toolset(AgentConfig(slug=A_CLINIC, hangup=Hangup()), Wrote())
 
     assert what_the_model_reads(given).flags & ToolFlag.IGNORE_ON_ENTER
 
 
 async def test_the_reason_is_written_down_before_livekit_closes_the_session() -> None:
     bridge = Wrote()
-    a_way_to_hang_up(AgentConfig(slug=A_CLINIC, hangup=Hangup()), bridge)
+    hangup_toolset(AgentConfig(slug=A_CLINIC, hangup=Hangup()), bridge)
 
-    await the_reason_first(bridge)(AnEndCall())  # pyright: ignore[reportArgumentType]
+    await on_end_call_first(bridge)(AnEndCall())  # pyright: ignore[reportArgumentType]
 
     assert bridge.ended is True
 
@@ -112,7 +112,7 @@ async def test_end_call_is_in_the_log_like_any_other_tool() -> None:
     """A log without it showed the agent speaking twice in a row with nothing in between."""
     bridge = Wrote()
 
-    await the_reason_first(bridge)(AnEndCall())  # pyright: ignore[reportArgumentType]
+    await on_end_call_first(bridge)(AnEndCall())  # pyright: ignore[reportArgumentType]
 
     assert [kind for kind, _ in bridge.entries] == ["tool.call", "tool.result"]
     called = bridge.entries[0][1]

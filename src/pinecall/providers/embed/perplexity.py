@@ -9,9 +9,9 @@ import httpx
 
 from pinecall.providers.embed.wire import (
     SIGNED_BYTES,
-    at_unit_length,
     embeddings_under,
-    what_the_endpoint_said,
+    endpoint_error,
+    unit_vector,
 )
 from pinecall.providers.embedder import (
     DIMENSIONS,
@@ -19,7 +19,7 @@ from pinecall.providers.embedder import (
     WrongWidth,
     every_chunk_on_its_own,
 )
-from pinecall.types.counting import estimated_tokens
+from pinecall.types.token_estimate import estimated_tokens
 
 # What tells the two models apart, and it is the model's own name: `pplx-embed-context-v1-4b`
 # reads a document's chunks together, `pplx-embed-v1-4b` reads each text alone. Nothing else in
@@ -110,7 +110,7 @@ class PerplexityEmbedder:
         """The flat door: one row per text under `data`, in whichever encoding this vendor takes."""
         body = await self._asked(FLAT, {"input": texts, "encoding_format": self._encoding})
         rows = embeddings_under(body)
-        return self._as_many_as([at_unit_length(row) for row in rows], asked=len(texts), door=FLAT)
+        return self._as_many_as([unit_vector(row) for row in rows], asked=len(texts), door=FLAT)
 
     async def _document(self, chunks: list[str]) -> list[list[float]]:
         """One file, in windows that fit the model's context; the vectors in the order cut."""
@@ -132,7 +132,7 @@ class PerplexityEmbedder:
         body = await self._asked(CONTEXTUALIZED, said)
         rows = embeddings_under(body, of_the_first_document=True)
         return self._as_many_as(
-            [at_unit_length(row) for row in rows], asked=len(window), door=CONTEXTUALIZED
+            [unit_vector(row) for row in rows], asked=len(window), door=CONTEXTUALIZED
         )
 
     # A table declared at one width cannot hold two, and the refusal names the MODEL because the
@@ -165,7 +165,7 @@ class PerplexityEmbedder:
             answer.raise_for_status()
             return answer.json()
         except httpx.HTTPStatusError as refused:
-            self._refuse(door, what_the_endpoint_said(refused.response), refused)
+            self._refuse(door, endpoint_error(refused.response), refused)
         except (httpx.HTTPError, ValueError) as failed:
             self._refuse(door, str(failed) or type(failed).__name__, failed)
 

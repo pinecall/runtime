@@ -6,12 +6,12 @@ import asyncio
 import logging
 
 from pinecall._settings import Settings
-from pinecall.mail.box import TheBoxsMail, the_environments_mailbox
-from pinecall.mail.brand import Brand, the_brand
+from pinecall.mail.box_mailbox import TheBoxsMail, environment_mailbox
+from pinecall.mail.brand import Brand, brand_of
 from pinecall.mail.letters import Letter
-from pinecall.mail.smtp import MailRefused, posted
-from pinecall.orgs.box import BoxSettings
-from pinecall.orgs.mail import Mail
+from pinecall.mail.smtp import MailRefused, post
+from pinecall.orgs.box_settings import BoxSettings
+from pinecall.orgs.org_mail import Mail
 from pinecall.types import Mailbox
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ class Outbox:
 
     async def brand(self) -> Brand:
         """What the letters of this box are called and painted with, as the operator set it."""
-        return await the_brand(self._settings)
+        return await brand_of(self._settings)
 
     async def mailbox_for(self, org: str | None) -> Mailbox | None:
         """The org's own mail when it wired one, else the box's, else None: nothing is sent."""
@@ -100,7 +100,7 @@ class Outbox:
             return None
         mailbox, whose = chosen
         try:
-            await posted(mailbox, letter)
+            await post(mailbox, letter)
         except MailRefused as refused:
             await self._recorded(org, whose, str(refused))
             return str(refused)
@@ -139,4 +139,4 @@ class Outbox:
 
 def outbox_for(settings: Settings, mail: Mail | None, box: BoxSettings | None = None) -> Outbox:
     """The process's one outbox: the org table, what the operator stored, and the environment."""
-    return Outbox(the_environments_mailbox(settings), mail, box)
+    return Outbox(environment_mailbox(settings), mail, box)

@@ -9,7 +9,7 @@ shape that already existed is optional, so an older console reads a newer gatewa
 All of them answer in the **reader's corner** — the key's org, the request's world (`pinecall-env`
 on a person's key, a token's own), and in the sandbox whose
 copy (`pinecall-corner` opens a colleague's, [multi-tenancy.md](../multi-tenancy.md)) — and count
-off the **call index**: one row per call the store folds as it appends each entry (`log/facts.py`,
+off the **call index**: one row per call the store folds as it appends each entry (`log/call_facts.py`,
 `call_facts`), never a fold of every log. A call from before migration 0025 is in no count until
 `pinecall-runtime migrate up --post` has folded it (0026).
 
@@ -30,7 +30,7 @@ together, and `next` is the last call of this page, or `null` on the last page. 
 when the call's log opened, ties by call id.
 
 Each `SessionLine` carries two more fields. `score` is `{held, judged, passed, reason}` — how many
-judges answered `held` of how many answered `held` or `broken` (a `skipped` or `deferred` judge
+judges answered `held` of how many answered `held` or `broken` (a `skipped_verdict` or `deferred_verdict` judge
 settled nothing and is not counted), `passed` false when one broke, and `reason` the first broken
 judge's own sentence — or `null` when nobody settled anything about the call. `flags` is what a
 person reviewing calls looks at first:
@@ -44,7 +44,7 @@ person reviewing calls looks at first:
 `promises` is a model judge shaped like `grounded` (`evals/judges/promises.py`): code finds the
 sentences that could commit, in Spanish and in English, and a call with none holds for free; when
 there are some, the judge model is asked once with every tool call of the call as evidence, under
-the same per-call ceiling as every judge. With no model to ask, it is `skipped`, and no flag rises.
+the same per-call ceiling as every judge. With no model to ask, it is `skipped_verdict`, and no flag rises.
 
 ## 2. Insights: a day at a glance
 
@@ -76,7 +76,7 @@ Three indexed reads of the call index and one of the quotas, whatever the day.
 **`live` is what nobody has sealed yet, and the gateway seals what nobody else can.** `call.ended`
 is written by the worker holding a spoken call, from a shutdown callback, so a worker that is
 *killed* would leave a log nothing ever closes and a call that reads `live` for ever. A **reaper**
-(`api/reaping.py`) runs at start and every minute: a spoken call whose log is unsealed, that has
+(`api/calls/reaper.py`) runs at start and every minute: a spoken call whose log is unsealed, that has
 said nothing for five minutes, **and whose room the SFU no longer has** is ended here — livekit
 deletes an empty room after a minute, so a missing room is the media plane saying nobody is on the
 call, while a quiet call whose room is alive is never touched. It appends what the hang-up would
@@ -239,7 +239,7 @@ logo and accent) and `google` (draw "Continue with Google", a link to `GET /v1/l
 
 **The org switch for an operator**: `GET /v1/login/orgs` rows carry `member`, and an operator's
 list is every org of the box — draw the `member: false` ones apart, they are entered as the
-operator; `GET /v1/whoami` gains `operator` and `visiting`, and a page inside a visited org should
+operator; `GET /v1/whoami` gains `operator` and `visitor_email`, and a page inside a visited org should
 say so, because `visiting: true` means no sandbox, no terminal pairing and an org that is not
 theirs ([people.md](people.md)).
 

@@ -26,7 +26,7 @@ def test_booking_is_declared_irreversible_with_the_sentence_it_reads_back() -> N
     book = declared().tools_by_name["book"]
 
     assert book.side_effect == "irreversible"
-    assert book.requires_confirmation
+    assert book.confirm is not None
     assert "¿Lo confirmo?" in (book.confirm or "")
 
 

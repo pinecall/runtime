@@ -11,8 +11,8 @@ from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from pinecall._settings import Settings
-from pinecall.api._deps import SCOPE_OF_THE_DOOR
 from pinecall.api.app import app
+from pinecall.api.deps import SCOPE_OF_THE_DOOR
 from pinecall.auth.bearer import POLICY_VIOLATION
 from pinecall.auth.keys import NOT_OPENED, KeyRecord, MemoryKeys
 from pinecall.types import KEY_SCOPES, SANDBOX
@@ -80,12 +80,14 @@ def test_the_app_socket_closes_a_key_without_app_and_says_why(
     gateway: TestClient, settings: Settings
 ) -> None:
     answering_in(SANDBOX, settings)
-    with pytest.raises(WebSocketDisconnect) as refused:
-        with gateway.websocket_connect(
+    with (
+        pytest.raises(WebSocketDisconnect) as refused,
+        gateway.websocket_connect(
             APPS, headers={"Authorization": f"Bearer {A_READER_KEY}"}
-        ) as socket:
-            socket.send_json(a_register(AGENT, a_door("web")))
-            socket.receive_json()
+        ) as socket,
+    ):
+        socket.send_json(a_register(AGENT, a_door("web")))
+        socket.receive_json()
     assert refused.value.code == POLICY_VIOLATION
     assert refused.value.reason == NOT_OPENED.format(scope="app", opens="calls · evals")
 
@@ -94,12 +96,14 @@ def test_the_chat_socket_closes_a_key_without_talk_and_says_why(gateway: TestCli
     with gateway.websocket_connect(APPS, headers={"Authorization": f"Bearer {AN_APP_KEY}"}) as held:
         held.send_json(a_register(AGENT, a_door("web")))
         held.receive_json()
-        with pytest.raises(WebSocketDisconnect) as refused:
-            with gateway.websocket_connect(
+        with (
+            pytest.raises(WebSocketDisconnect) as refused,
+            gateway.websocket_connect(
                 f"{CHAT}?agent={AGENT}", headers={"Authorization": f"Bearer {AN_APP_KEY}"}
-            ) as caller:
-                caller.send_json(a_frame("ping", AGENT))
-                caller.receive_json()
+            ) as caller,
+        ):
+            caller.send_json(a_frame("ping", AGENT))
+            caller.receive_json()
     assert refused.value.code == POLICY_VIOLATION
     assert refused.value.reason == NOT_OPENED.format(scope="talk", opens="app")
 
@@ -153,7 +157,7 @@ OPENS_TO_EITHER: dict[str, frozenset[str]] = {
     "GET /v1/agents/{slug}/hold-audio/audio": frozenset({"app", "calls"}),
     # An agent's settings and the org's lexicon are read and set by the developer's key and by the
     # floor's: `pipeline` may move a vendor, `words` may set the opening, the lexicon and what is
-    # remembered. The door asks inside which half a body touches (api/tuning.py).
+    # remembered. The door asks inside which half a body touches (api/agents/tuning.py).
     "GET /v1/agents/{slug}/settings": frozenset({"pipeline", "words"}),
     "PUT /v1/agents/{slug}/settings": frozenset({"pipeline", "words"}),
     "GET /v1/agents/{slug}/settings/history": frozenset({"pipeline", "words"}),

@@ -22,7 +22,9 @@ def two_ends(context: CallContext, door: str) -> tuple[str, str]:
 # An inbound call was offered to an agent and an outbound one is being placed; the two are
 # different facts and the protocol gives each its own first entry. `from` is a keyword, so both
 # are built from the wire's own key names.
-def arrived(context: CallContext, door: str, asked_by: str | None = None) -> tuple[str, WireModel]:
+def arrival_entry(
+    context: CallContext, door: str, asked_by: str | None = None
+) -> tuple[str, WireModel]:
     """The first entry of a call, told by the direction it came from."""
     from_, to = two_ends(context, door)
     said = {"channel": context.channel, "from": from_, "to": to, "run": context.run, "caller": None}
@@ -35,7 +37,7 @@ def arrived(context: CallContext, door: str, asked_by: str | None = None) -> tup
     return "call.ringing", CallRinging.model_validate({**said, "route": route})
 
 
-def started(context: CallContext, door: str, at: float) -> CallStarted:
+def started_entry(context: CallContext, door: str, at: float) -> CallStarted:
     """Media is up: the entry every word of the call comes after."""
     from_, to = two_ends(context, door)
     return CallStarted.model_validate(
@@ -46,9 +48,9 @@ def started(context: CallContext, door: str, at: float) -> CallStarted:
             "to": to,
             "run": context.run,
             # Who is being played on this call, when a simulation opened it. The log is where the
-            # fact lives; call_facts is a projection of this line (log/facts.py, migration 0046).
-            # And that caller's own rule for the call, which the `persona` judge reads from HERE
-            # at hang-up: the log is the truth about what the call was made under.
+            # fact lives; call_facts is a projection of this line (log/call_facts.py, migration
+            # 0046). And that caller's own rule for the call, which the `persona` judge reads from
+            # HERE at hang-up: the log is the truth about what the call was made under.
             "persona": context.persona,
             "accepts_when": context.accepts_when,
             "declines_when": context.declines_when,

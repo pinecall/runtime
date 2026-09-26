@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from pinecall.types.channel import CHANNELS, CHANNELS_WITH_A_NUMBER, DIRECTIONS, Channel, Direction
 from pinecall.types.key import Env
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.refusal import DeclarationRefused
 from pinecall.types.route import Route
 
 # What a call this runtime opens is named: the prefix, then 32 hex. A phone call is named by the
@@ -27,12 +27,6 @@ class Contact:
     name: str | None = None
     email: str | None = None
     external_id: str | None = None
-
-    # Memory needs an identity: the number on phone and WhatsApp, a sealed id on the web.
-    @property
-    def is_known(self) -> bool:
-        """True when something about this person can be remembered across calls."""
-        return bool(self.id or self.phone or self.external_id)
 
 
 # Immutable on purpose: what changes during a call is in the log, with a seq, not in here.
@@ -103,6 +97,6 @@ class CallContext:
         return self.caller if self.channel in CHANNELS_WITH_A_NUMBER else None
 
 
-def a_call_id() -> str:
+def new_call_id() -> str:
     """A call nobody has named before. The room a token opens is named by this same call."""
     return f"{A_CALL}{uuid4().hex}"

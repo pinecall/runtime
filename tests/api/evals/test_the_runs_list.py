@@ -5,7 +5,7 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.evals.runs import EvalRun, MemoryRuns
+from pinecall.evals.run_store import EvalRun, MemoryRuns
 from pinecall.log.store import MemoryStore
 from tests.api.conftest import A_RECORD
 

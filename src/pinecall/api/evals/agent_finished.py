@@ -1,0 +1,190 @@
+"""When the agent has finished answering: the one signal a spoken caller waits for between lines."""
+
+from __future__ import annotations
+
+import asyncio
+import time
+from collections.abc import Sequence
+
+from pinecall.evals.wait_until import until
+from pinecall.log.entry import Entry
+from pinecall.log.replay import whole
+from pinecall.log.store import Store
+from pinecall_protocol.defs import AgentState
+from pinecall_protocol.events import AgentStateChanged
+from pinecall_protocol.registry import EventType
+
+# How long the caller holds the line open after its last word. A golden whose expectation is a
+# tool on the last turn — most of them — is judged on whether the agent got there, so the line
+# cannot drop when the caller stops talking: the first spoken run of `identifica-al-paciente`
+# came back "ran no tool at all" for exactly that, on a call that had not finished. Thirty and not
+# twenty because a turn that runs a tool speaks twice, and the two TTS rounds around it measured
+# thirteen seconds on 2026-09-11.
+AN_ANSWER_MAY_TAKE_S = 30.0
+
+# How long the line is watched before a quiet agent is believed. Longer than the gap between
+# a state changing and its line reaching the log, short enough to sit inside a caller's own
+# pause between two sentences.
+A_BEAT_S = 0.75
+
+# What livekit publishes about itself, and the one of its five words that means "I have finished
+# and it is your turn". Both typed by the protocol, so a misspelling is a type error and not a
+# run that never hangs up.
+AGENT_STATE: EventType = "agent.state"
+IT_IS_LISTENING: AgentState = "listening"
+THE_AGENT_SAID: EventType = "turn.agent"
+
+# The one thing no reading of the agent's state can say: somebody hung the call up. A supervisor's
+# Stop, the app, the agent itself — all three land as this entry, and it is where a caller running
+# in ANOTHER process learns of it. Without it the persona went on improvising into a room the agent
+# had left, a thirty-second wait per turn it had left over (2026-09-21, the console's Stop).
+THE_CALL_ENDED: EventType = "call.ended"
+
+# The opening. A caller that spoke the moment the agent joined talked over its greeting
+# (2026-09-19, in production): the first line waits for the greeting to have been said
+# and the agent to be listening again. An agent that opens with nothing is believed after it has
+# listened this long without starting to speak, and no opening is waited for longer than the cap.
+A_SILENT_OPENING_S = 3.0
+AN_OPENING_MAY_TAKE_S = 15.0
+
+
+# The one wait every spoken caller makes between two of its lines, and after its last: the golden
+# runner and `simulate --voice` alike. Before this was shared the simulated persona slept six fixed
+# seconds and spoke over any answer that ran a tool (2026-09-11, heard on the recordings).
+async def until_the_answer_lands(store: Store, call: str, said: int) -> None:
+    """Hold the line until the agent has answered the last line, or until it plainly will not.
+
+    With nothing said yet, it is the agent's opening that is waited for: see the_line_is_open.
+    """
+    if said == 0:
+
+        async def open_() -> bool:
+            entries = await whole(store, call)
+            return is_call_over(entries) or is_line_open(entries, time.time())
+
+        await until(open_, within_s=AN_OPENING_MAY_TAKE_S)
+        return
+
+    # The moment the caller stopped talking, read off the runner's own clock — the same clock the
+    # log is stamped with, since both this door and the store run in the gateway. It is taken here
+    # because here is where `every_turn` calls this: the line has just been said.
+    stopped = time.time()
+
+    async def landed() -> bool:
+        entries = await whole(store, call)
+        # Nothing is going to answer a call that has been hung up, so the line is not held for the
+        # thirty seconds an answer may take: this is what makes stopping a simulation immediate.
+        if is_call_over(entries):
+            return True
+        if not has_answer_landed(entries, said, since=stopped):
+            return False
+        # Asked twice, a beat apart, because `agent.state` reaches the log a moment after the
+        # agent changed and the log is all this can see. Once was not enough: on 2026-09-13 the
+        # persona spoke over `Muy bien. Voy` — the agent had been `speaking` since seq 330 and the
+        # line went out anyway, and the reply that was announcing a registration died mid-word.
+        # A single reading cannot tell a call that is over from one whose last state has not
+        # landed yet; two, a pause apart, can. The cost is that pause, once per turn.
+        await asyncio.sleep(A_BEAT_S)
+        return has_answer_landed(await whole(store, call), said, since=stopped)
+
+    await until(landed, within_s=AN_ANSWER_MAY_TAKE_S)
+
+
+# Why neither a count of turns nor a tool round is the signal. `en-el-chat-ofrece-mas-de-dos-horas`,
+# spoken, 2026-09-11: the agent called freeSlots, then SAID "voy a consultar qué hay libre el
+# lunes" — a filler, spoken after the tool had already answered, because the model writes its
+# preamble and its tool call in one response and livekit speaks that preamble once the round is
+# done. That filler is a `turn.agent` landing after the tool, so a run watching for either one hung
+# up on it: 234 milliseconds later, in the middle of the generation that had the hours in it. On
+# the call before it the real answer arrived one second after the caller had already gone.
+#
+# The signal is the one livekit publishes about itself and the log already carries: the agent goes
+# `thinking`, `speaking`, and back to `listening` when it has nothing left to say. A filler leaves
+# it thinking. So the line is held until it is listening again, and that is neither a guess nor a
+# count of anything.
+def has_answer_landed(entries: Sequence[Entry], said: int, *, since: float) -> bool:
+    """Every line heard, and the agent back to listening after the last of them.
+
+    `since` is when the caller stopped talking, and the line it just said has to be IN this log
+    before anything in the log is read as an answer to it — see _the_line_has_landed.
+    """
+    heard = [at for at, entry in enumerate(entries) if entry.type == "turn.user"]
+    if not _the_line_has_landed(entries, heard, since):
+        return False
+    if len(heard) < said:
+        return False
+    if _a_tool_is_still_running(entries):
+        return False
+    states = [(at, entry) for at, entry in enumerate(entries) if entry.type == AGENT_STATE]
+    if not _took_the_line(states, after=heard[-1]):
+        return False
+    at, last = states[-1]
+    return at > heard[-1] and AgentStateChanged.model_validate(last.data).state == IT_IS_LISTENING
+
+
+def is_call_over(entries: Sequence[Entry]) -> bool:
+    """Whether this call has been hung up, by whoever hung it up. Nothing more will answer."""
+    return any(entry.type == THE_CALL_ENDED for entry in entries)
+
+
+def is_line_open(entries: Sequence[Entry], now: float) -> bool:
+    """The caller may speak first: the agent said its opening and listens, or it opens with none."""
+    states = [(at, entry) for at, entry in enumerate(entries) if entry.type == AGENT_STATE]
+    if not states:
+        return False
+    said = [at for at, entry in enumerate(entries) if entry.type == THE_AGENT_SAID]
+    at, last = states[-1]
+    listening = AgentStateChanged.model_validate(last.data).state == IT_IS_LISTENING
+    if said:
+        return listening and at > said[-1]
+    # Nothing said yet: an agent that has only ever listened, for long enough, opens with nothing.
+    only_listened = all(
+        AgentStateChanged.model_validate(entry.data).state == IT_IS_LISTENING for _, entry in states
+    )
+    return only_listened and now - states[0][1].ts >= A_SILENT_OPENING_S
+
+
+# Reading the log is not free, the store answers with what it had a moment ago, and a transcript
+# lands a beat after the words that made it. So the newest thing in a snapshot can easily be older
+# than the line the caller has just finished saying — and then every `agent.state` in it belongs to
+# the turn BEFORE, and the `listening` that ended that one reads as the end of this one.
+#
+# That is what happened on call_e64f46c28e1eafc76500cccf. The caller stopped at 145.2s; the agent
+# was listening, from 140.2s, because it had finished answering the PREVIOUS line. Both readings
+# agreed, the gate opened, and the caller was speaking again at 146.7s — half a second after the
+# agent had started its answer, which came back cut to three words. Four turns in a row went that
+# way. Watching for the log to have moved at all does not catch it: `user.state` entries land while
+# the caller is still being transcribed, so the log moves without the line arriving.
+#
+# What pins a snapshot to THIS line is the line itself. The caller's newest transcript has to have
+# landed after the caller fell silent, which is true of the line just said and of no earlier one.
+# It cannot be done by counting: Deepgram Flux ends a turn per sentence, so one spoken line arrives
+# as two or three `turn.user` (thirteen for ten lines on one call) and `len(heard) >= said` was
+# already satisfied by the caller's own earlier sentences.
+def _the_line_has_landed(entries: Sequence[Entry], heard: Sequence[int], since: float) -> bool:
+    """Whether the caller's own last line is in this snapshot, rather than only older ones."""
+    return bool(heard) and entries[heard[-1]].ts >= since
+
+
+# And the agent must have been HANDED the line: it leaves `listening` the moment the turn is its.
+# A `listening` with no thinking or speaking between it and the caller's last word is the quiet
+# BEFORE the turn, not the silence after it.
+def _took_the_line(states: Sequence[tuple[int, Entry]], *, after: int) -> bool:
+    """Whether the agent started a turn on the line the caller has just said."""
+    return any(
+        at > after and AgentStateChanged.model_validate(entry.data).state != IT_IS_LISTENING
+        for at, entry in states
+    )
+
+
+# `listening` is not the same as finished. An agent that says "Perfecto, la doy de alta" and calls
+# a tool in the same response goes quiet WHILE the tool runs, and livekit publishes that quiet as
+# `listening` — there is nothing else it could say about it. Both interruptions on 2026-09-13 were
+# exactly that: `Perfecto, la doy` cut while registerPatient ran, `Entendido. Voy` cut while
+# freeSlots ran. A caller who hears a preamble waits for what it was a preamble TO, and a tool
+# that was asked for and not yet answered is the one thing that says the turn is not over.
+def _a_tool_is_still_running(entries: Sequence[Entry]) -> bool:
+    """Whether a tool was asked for and has not answered: the agent is mid-turn, however quiet."""
+    asked = {entry.data.get("call_id") for entry in entries if entry.type == "tool.call"}
+    answered = {entry.data.get("call_id") for entry in entries if entry.type == "tool.result"}
+    return bool(asked - answered)

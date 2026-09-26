@@ -2,7 +2,7 @@
 
 from livekit.agents import inference
 
-from pinecall.providers._inference import DEFAULT_LLM, VENDOR, the_projects_pair
+from pinecall.providers.livekit_inference import DEFAULT_LLM, VENDOR, livekit_pair
 from pinecall.providers.llm import VENDORS
 from pinecall.providers.registry import Asked, Chat
 
@@ -10,5 +10,5 @@ from pinecall.providers.registry import Asked, Chat
 @VENDORS.registers(VENDOR, models=(DEFAULT_LLM,))
 def build(asked: Asked) -> Chat:
     """The model is `<vendor>/<model>`: the vendor is inside the name, not beside it."""
-    key, secret = the_projects_pair(asked)
+    key, secret = livekit_pair(asked)
     return inference.LLM(model=asked.model or DEFAULT_LLM, api_key=key, api_secret=secret)

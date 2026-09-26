@@ -7,15 +7,13 @@ import sys
 from functools import partial
 from typing import Any, TextIO
 
-from pinecall.cli.operator import Operator, OperatorRefused, against_the_gateway
+from pinecall.cli.operator import OPS_ORGS, Operator, OperatorRefused, against_the_gateway
 from pinecall.types import DEFAULT_ORG, ROLES
 
 PURPOSE: str = "the first org and the first person on a runtime nobody has used yet"
 
 # The doors, on PINECALL_OPS_KEY — the same two `orgs add` and `orgs invite` knock at. This verb
 # is those two in one, because the first thing anybody does is both of them and the order matters.
-OPS_ORGS = "/v1/ops/orgs"
-
 # A slug already there is not a failure: `init` is the verb somebody runs twice while reading the
 # README, and the second run should carry on to the person rather than stop at the org.
 ALREADY = "an org already answers to the slug"
@@ -59,7 +57,7 @@ def run(arguments: argparse.Namespace) -> int:
     """Make the org, invite the person, make them an operator, and say what to do next."""
     return against_the_gateway(
         partial(
-            started,
+            run_init,
             arguments.org,
             arguments.name,
             arguments.email,
@@ -69,7 +67,7 @@ def run(arguments: argparse.Namespace) -> int:
     )
 
 
-async def started(
+async def run_init(
     slug: str,
     name: str | None,
     email: str,

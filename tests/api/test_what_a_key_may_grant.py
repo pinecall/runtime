@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.auth.granting import NOT_YOUR_OWN_ROW, NOT_YOURS_TO_GRANT
+from pinecall.auth.grants import NOT_YOUR_OWN_ROW, NOT_YOURS_TO_GRANT
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.types import PRODUCTION, ROLE_SCOPES, SANDBOX, Member
@@ -20,7 +20,8 @@ pytestmark = pytest.mark.unit
 MEMBERS = "/v1/members"
 
 # Marta runs the floor: `team` among her scopes, production access, no `app`. The member doors are
-# production's (api/identity.py), so a manager changes the team where she may act in production.
+# production's (api/accounts/identity.py), so a manager changes the team where she may act in
+# production.
 MARTA = Member(
     id="m_marta",
     org=A_RECORD.org,
@@ -87,8 +88,8 @@ async def test_a_manager_invites_a_qa_and_is_refused_an_admin_and_a_developer(
     assert sorted(row["role"] for row in listed) == ["manager", "qa", "qa"], "nothing half-made"
 
 
-# Production given only by somebody who acts there is tests/auth/test_granting.py's: at a door, a
-# person with no production access is refused before the rule is asked (auth/world.py).
+# Production given only by somebody who acts there is tests/auth/test_grants.py's: at a door, a
+# person with no production access is refused before the rule is asked (auth/env.py).
 async def test_a_manager_may_not_raise_a_colleague_to_admin(
     marta: httpx.AsyncClient,
 ) -> None:

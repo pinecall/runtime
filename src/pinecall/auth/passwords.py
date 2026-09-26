@@ -1,5 +1,6 @@
 """A member's password: argon2id at rest, verified in constant time, and never anything else."""
 
+import asyncio
 import secrets
 
 from argon2 import PasswordHasher
@@ -24,11 +25,15 @@ _HASHER = PasswordHasher()
 TOO_SHORT = "a password is at least {shortest} characters"
 
 
-def hashed(password: str, at_least: int) -> str:
+# Both verbs leave the event loop: argon2id is SLOW ON PURPOSE — tens of milliseconds and
+# 64 MiB per call, the library's defaults — and a gateway that ran it inline stalled every open
+# socket and stream for the length of each login (found 2026-09-26). A thread costs nothing the
+# hash does not already cost, and the loop keeps answering meanwhile.
+async def hash_password(password: str, at_least: int) -> str:
     """The password as the table keeps it: an argon2id string carrying its own salt and cost."""
     if len(password) < at_least:
         raise DeclarationRefused(TOO_SHORT.format(shortest=at_least))
-    return _HASHER.hash(password)
+    return await asyncio.to_thread(_HASHER.hash, password)
 
 
 # The hash a door checks a password against when NOBODY answers to the address: argon2id over a
@@ -38,9 +43,14 @@ def hashed(password: str, at_least: int) -> str:
 _NOBODYS = _HASHER.hash(secrets.token_urlsafe(32))
 
 
-def matches(password: str, kept: str | None) -> bool:
+async def matches(password: str, kept: str | None) -> bool:
     """Whether the password is the one hashed. Wrong, a hash that is not one, or nobody's (None):
     all three are False, and all three take as long as a right answer."""
+    return await asyncio.to_thread(_verified, password, kept)
+
+
+def _verified(password: str, kept: str | None) -> bool:
+    """The verification itself, on whichever thread runs it."""
     try:
         return _HASHER.verify(_NOBODYS if kept is None else kept, password) and kept is not None
     except (VerifyMismatchError, VerificationError, InvalidHashError):

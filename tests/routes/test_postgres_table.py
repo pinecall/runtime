@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from pinecall.routes.table import PostgresRoutes
+from pinecall.routes.records import PostgresRoutes
 from pinecall.types import PRODUCTION, SANDBOX, Channel, Route
 
 pytestmark = pytest.mark.postgres

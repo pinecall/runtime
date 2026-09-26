@@ -9,7 +9,6 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
-from pinecall._settings import Settings
 from pinecall.log.store import Pool
 from pinecall.types import (
     HOLDING,
@@ -39,7 +38,7 @@ KEY_ID_BYTES = 8
 # An API key IS the org: every door that takes one reads the org off this record and nothing else,
 # which is why a key that could name another org would be a key that could read another's log.
 # And it knows WHERE and WHO: the world it opens, what it may do there, and whose it is.
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class KeyRecord:
     """Whose key this is: the org that owns it, the world it opens, what it may do, who holds it."""
 
@@ -58,11 +57,11 @@ class KeyRecord:
     subject: str | None = None
     name: str | None = None
     # Whose sandbox corner THIS request looks into, when a key that sees every corner asked for a
-    # colleague's (api/_deps.py, the `pinecall-corner` header). Never stored: one request's, and
+    # colleague's (api/deps.py, the `pinecall-corner` header). Never stored: one request's, and
     # None on every key the table hands back.
     looking_at: str | None = None
     # When the key stops opening anything; None is never (0049). A sandbox person's key lives a day
-    # (auth/persons.py), and a key minted from it never outlives it.
+    # (auth/person_keys.py), and a key minted from it never outlives it.
     expires_at: datetime | None = None
 
 
@@ -122,7 +121,7 @@ NOT_OPENED = "this key does not open {scope}: it opens {opens}"
 # developers of one tenant each hold, reach and see their own agent; a sandbox key that names
 # nobody — CI's — works in the org's own corner, which is what everybody falls back to.
 # api/agents/registry.py is where the corners are, and `Held` there says the same thing.
-def held_by(record: KeyRecord) -> str | None:
+def is_held_by(record: KeyRecord) -> str | None:
     """The corner of its world this key holds and reads in: nobody's, or a developer's own."""
     if is_a_deployment(record.env):
         return None
@@ -135,20 +134,20 @@ def held_by(record: KeyRecord) -> str | None:
 # nobody can see is a corner nobody can help with. It takes BOTH the team's door and the agent's
 # own (`app`): `team` alone is a manager's, who runs the floor and holds no agent, and a
 # developer's sandbox — their calls, their memory, their copy — is not the floor's to open.
-def sees_every_corner(record: KeyRecord) -> bool:
+def is_operator_key(record: KeyRecord) -> bool:
     """Whether this key is the org's eyes — an admin's, the box's own — and not one person's."""
     return THE_TEAM in record.scopes and HOLDING in record.scopes
 
 
 # The third question, and the one the worker asks. A tenant's key works in one corner and no door
 # lets it name another; the box's worker serves every org's calls with ONE key, so at its doors
-# the corner is the call's — what the dispatch said — and never the key's (auth/corner.py).
-def is_the_fleets(record: KeyRecord) -> bool:
+# the corner is the call's — what the dispatch said — and never the key's (auth/request_scope.py).
+def is_fleet_key(record: KeyRecord) -> bool:
     """Whether this key is the box's worker's, and may resolve a door by the call it serves."""
     return THE_FLEET in record.scopes
 
 
-def not_opening(record: KeyRecord, *scopes: str) -> str | None:
+def cannot_open(record: KeyRecord, *scopes: str) -> str | None:
     """The refusal when this key holds none of these scopes, or None when it holds one."""
     if any(scope in record.scopes for scope in scopes):
         return None
@@ -243,7 +242,7 @@ class MemoryKeys:
         """Mint, remember, hand back. A process that exits forgets every key it issued."""
         key = mint(env, subject)
         record = KeyRecord(
-            key_id=a_key_id(),
+            key_id=new_key_id(),
             org=org,
             label=label,
             env=env,
@@ -290,14 +289,14 @@ class MemoryKeys:
 NO_KEYS_TABLE = "no database: a key is verified against the api_keys table, and there is none here"
 
 
-def keys_for(settings: Settings, pool: Pool | None) -> Keys | None:  # noqa: ARG001
+def keys_for(pool: Pool | None) -> Keys | None:
     """The keys table, which is the only place a key is ever checked. None with no database."""
     if pool is None:
         return None
-    # Imported here: auth/visiting.py and the Postgres twin import this module for the protocol.
+    # Imported here: auth/visitor_keys.py and the Postgres twin import this module for the protocol.
     from pinecall.auth.keys_postgres import PostgresKeys
     from pinecall.auth.members import members_for
-    from pinecall.auth.visiting import StandingKeys
+    from pinecall.auth.visitor_keys import StandingKeys
 
     return StandingKeys(PostgresKeys(pool), members_for(pool))
 
@@ -316,7 +315,7 @@ def has_expired(record: KeyRecord) -> bool:
     return record.expires_at is not None and record.expires_at <= datetime.now(UTC)
 
 
-def a_key_id() -> str:
+def new_key_id() -> str:
     """The row's name. It is not a secret and it is not the fingerprint: it names the row."""
     return f"{KEY_ID_PREFIX}{secrets.token_hex(KEY_ID_BYTES)}"
 

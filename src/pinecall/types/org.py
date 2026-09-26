@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Literal
 
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.refusal import DeclarationRefused
 
 # The org a box has when nobody has made a second one: `migrate up` issues the first key against
 # it, the keys and routes verbs fall back to it, and the schema seeds it as the first row.
@@ -90,7 +90,7 @@ class Quotas:
     # Which of the box's vendor keys the org's calls may run on where it brought none of its own:
     # None lends every one (no row, a self-hosted box), an empty set none, a set those entries —
     # a vendor, or `vendor/model` by prefix. Not one of QUOTAS: nothing is counted against it.
-    # What an entry means is providers/lending.py's: types/ knows no vendor (test_isolation.py).
+    # What an entry means is providers/lent_keys.py's: types/ knows no vendor (test_isolation.py).
     lends: frozenset[str] | None = None
 
     def __post_init__(self) -> None:
@@ -124,7 +124,7 @@ class Quotas:
 
 
 # The event a quota's refusal is written as: at a door by admission, and on a call's own log by the
-# worker whose clock the org's minutes ran out on (session/voice/closing_time.py).
+# worker whose clock the org's minutes ran out on (session/voice/time_limit.py).
 EXHAUSTED = "credits.exhausted"
 
 
@@ -149,6 +149,6 @@ type Counting = Callable[[str], Awaitable[int]]
 type QuotasOf = Callable[[str], Awaitable[Quotas]]
 
 
-def a_slug(slug: str) -> str:
+def parse_slug(slug: str) -> str:
     """The slug, if it is one. A door refuses a bad one with the sentence and not a 422."""
     return Org(id=slug, slug=slug, name=slug).slug

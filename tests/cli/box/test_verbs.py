@@ -11,7 +11,7 @@ from pinecall.cli.box.verbs import (
     KEPT,
     MADE,
     THE_BOXS_OWN,
-    generated,
+    generate_secrets,
     instance_secrets,
     keep_secret,
     make_secrets,
@@ -34,7 +34,7 @@ THE_SEVEN = [
 
 # systemd-creds is stood in for by the one thing this suite may check about it: that it was
 # handed the name, the value on stdin, and the file to write — named as the credential, no more.
-def a_recording_encrypt(written: dict[str, str]):  # noqa: ANN201 — a test double
+def a_recording_encrypt(written: dict[str, str]):
     def encrypt(name: str, value: str, into: Path) -> None:
         written[name] = value
         (into / name).write_text("ciphertext")
@@ -67,7 +67,7 @@ def test_a_second_run_keeps_every_secret_and_rotates_nothing(tmp_path: Path) -> 
 
 
 def test_the_derived_values_are_derived_from_the_same_draw() -> None:
-    values = generated()
+    values = generate_secrets()
     assert values["POSTGRES_PASSWORD"] in values["DATABASE_URL"]
     assert values["DATABASE_URL"].startswith("postgresql://pinecall:")
     assert values["media.env"].splitlines() == [
@@ -81,11 +81,11 @@ def test_the_derived_values_are_derived_from_the_same_draw() -> None:
 def test_the_vault_key_is_a_fernet_key() -> None:
     from cryptography.fernet import Fernet
 
-    Fernet(generated()["PINECALL_VAULT_KEY"].encode("ascii"))
+    Fernet(generate_secrets()["PINECALL_VAULT_KEY"].encode("ascii"))
 
 
 def test_two_draws_share_nothing() -> None:
-    one, two = generated(), generated()
+    one, two = generate_secrets(), generate_secrets()
     assert all(one[name] != two[name] for name in THE_SEVEN)
 
 
@@ -120,7 +120,7 @@ def test_an_instance_draws_its_three_on_a_role_of_its_own_and_nothing_of_the_box
     assert list(drawn) == INSTANCES_OWN
     assert drawn["DATABASE_URL"].startswith("postgresql://pinecall_staging_eu:")
     assert drawn["DATABASE_URL"].endswith("@127.0.0.1:5432/pinecall_staging_eu")
-    assert drawn["PINECALL_OPS_KEY"] != generated()["PINECALL_OPS_KEY"]
+    assert drawn["PINECALL_OPS_KEY"] != generate_secrets()["PINECALL_OPS_KEY"]
 
 
 def test_an_instances_store_is_made_once_and_kept_after(tmp_path: Path) -> None:

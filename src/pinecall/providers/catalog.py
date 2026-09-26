@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 # The three jobs a call is built out of. Who notices speech and who calls the turn are livekit's
-# own and are not a vendor choice here — see providers/pipeline.py.
+# own and are not a vendor choice here — see providers/session_vendors.py.
 type Modality = Literal["llm", "stt", "tts"]
 
 MODALITIES: tuple[Modality, ...] = ("llm", "stt", "tts")
@@ -46,9 +46,9 @@ class Provider:
     """Every other word a person writes for this vendor. `11labs` is the one that started this.
 
     A word here must not also be a MODEL of that vendor: a bare word that names a vendor IS the
-    vendor at the pipeline door (providers/overrides.py), so `sonic`, `octave`, `sonar`, `mist`,
-    `nova` and `aura` are deliberately NOT aliases — every one of them is something a person could
-    reasonably type meaning the model."""
+    vendor at the pipeline door (providers/tuned_declaration.py), so `sonic`, `octave`, `sonar`,
+    `mist`, `nova` and `aura` are deliberately NOT aliases — every one of them is something a
+    person could reasonably type meaning the model."""
 
     note: str = ""
     """One line for a screen: what a person is choosing when they choose this."""
@@ -264,7 +264,7 @@ def _every_word() -> dict[str, str]:
 WORDS: dict[str, str] = _every_word()
 
 
-def named(word: str) -> Provider | None:
+def provider_named(word: str) -> Provider | None:
     """The provider a person meant, by its own name or any alias. None: nobody by that word."""
     return BY_NAME.get(WORDS.get(word.strip().lower(), ""))
 
@@ -275,14 +275,14 @@ def canonical(word: str) -> str:
     return WORDS.get(word.strip().lower(), word.strip().lower())
 
 
-def doing(modality: Modality) -> tuple[Provider, ...]:
+def providers_doing(modality: Modality) -> tuple[Provider, ...]:
     """Every provider that can do this job, in the order a list on a screen shows them."""
     return tuple(row for row in PROVIDERS if modality in row.does)
 
 
 def env_of(vendor: str) -> str | None:
     """The variable the box reads this vendor's key from. None: it brings its own credentials."""
-    row = named(vendor)
+    row = provider_named(vendor)
     return None if row is None else row.env
 
 
@@ -299,5 +299,17 @@ def settings_field_of(vendor: str) -> str | None:
 # speech pair and RTZR are left out on purpose — there is no one string to store for them, and a
 # door that accepted one would store a key nothing reads.
 def vendors_with_a_key() -> tuple[str, ...]:
-    """The vendors BYOK reaches, sorted: what api/provider_keys.py accepts and lists."""
+    """The vendors BYOK reaches, sorted: what api/org/provider_keys.py accepts and lists."""
     return tuple(sorted(row.name for row in PROVIDERS if row.env is not None))
+
+
+# `vendor/model` is how a knob, a lending and a price name a model of one vendor; a model id may
+# carry a slash of its own (`meta-llama/llama-3` through a gateway), so the FIRST separator is the
+# vendor's and everything after it is the model's. Two readers once disagreed on this.
+MODEL_SEPARATOR = "/"
+
+
+def vendor_and_model(said: str) -> tuple[str, str]:
+    """The word before the first separator and what follows it; a bare word, and "", with none."""
+    vendor, _separator, model = said.strip().partition(MODEL_SEPARATOR)
+    return vendor, model

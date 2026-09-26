@@ -10,7 +10,7 @@ import pytest
 from pinecall.auth.keys import KeyRecord, MemoryKeys
 from pinecall.knowledge import PgKnowledge
 from pinecall.log.store import open_pool
-from pinecall.orgs.table import MemoryOrgs
+from pinecall.orgs.records import MemoryOrgs
 from pinecall.types import PRODUCTION, KnowledgeFile, Org, Quotas
 from tests.api.conftest import A_KEY
 from tests.knowledge.files import CLINICA, TARIFAS
@@ -21,7 +21,7 @@ pytestmark = pytest.mark.postgres
 
 KNOWLEDGE = "/v1/knowledge"
 
-# The two files cut into two chunks each, which is what tests/knowledge/test_store.py pins.
+# The two files cut into two chunks each, which is what tests/knowledge/test_postgres.py pins.
 CHUNKS_OF_BOTH = 4
 
 

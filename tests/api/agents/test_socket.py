@@ -27,16 +27,17 @@ def open_socket(gateway: TestClient, key: str = A_KEY) -> WebSocketTestSession:
 
 
 def test_a_key_nobody_issued_is_closed_with_a_policy_violation(gateway: TestClient) -> None:
-    with pytest.raises(WebSocketDisconnect) as refused:
-        with open_socket(gateway, key="pk_live_not_a_key"):
-            pass
+    with (
+        pytest.raises(WebSocketDisconnect) as refused,
+        open_socket(gateway, key="pk_live_not_a_key"),
+    ):
+        pass
     assert refused.value.code == POLICY_VIOLATION
 
 
 def test_a_socket_with_no_authorization_header_never_opens(gateway: TestClient) -> None:
-    with pytest.raises(WebSocketDisconnect) as refused:
-        with gateway.websocket_connect(APPS):
-            pass
+    with pytest.raises(WebSocketDisconnect) as refused, gateway.websocket_connect(APPS):
+        pass
     assert refused.value.code == POLICY_VIOLATION
 
 

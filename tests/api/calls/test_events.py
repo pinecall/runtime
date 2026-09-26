@@ -9,7 +9,7 @@ from typing import Any, cast
 import pytest
 from starlette.testclient import TestClient
 
-from pinecall.api.calls.sink import RETRY_MS, SSE, ended, paced, sse
+from pinecall.api.calls.log_sink import RETRY_MS, SSE, is_sealed, pace, sse
 from pinecall.auth.scopes import Reader
 from pinecall.log.entry import Entry
 from pinecall.log.filters import Filter
@@ -95,10 +95,10 @@ def test_a_key_nobody_issued_is_refused(gateway: TestClient) -> None:
 # for as long as nobody revokes it, and a URL is written down: the access log, the referrer, the
 # history. This door took a key in `?token=` until 2026-09-20, against what its own paragraph said.
 def test_a_room_token_may_travel_in_the_query_string(gateway: TestClient) -> None:
-    from pinecall.auth.scopes import a_room_token
+    from pinecall.auth.scopes import mint_room_token
     from tests.api.conftest import A_LIVEKIT
 
-    token = a_room_token(CALL, "participate", 4102444800.0, A_LIVEKIT)
+    token = mint_room_token(CALL, "participate", 4102444800.0, A_LIVEKIT)
     assert read(gateway, f"/v1/calls/{CALL}/events?token={token}").status == 200
 
 
@@ -244,7 +244,7 @@ async def test_a_sealed_log_read_from_before_its_end_still_answers(
 async def test_a_call_nobody_wrote_is_not_over_it_is_empty(
     gateway: TestClient, store: MemoryStore
 ) -> None:
-    assert await ended(store, "call_nobody_made") is False
+    assert await is_sealed(store, "call_nobody_made") is False
     assert read(gateway, "/v1/calls/call_nobody_made/events", BEARER).status == 200
 
 
@@ -275,7 +275,7 @@ async def test_a_quiet_stream_is_kept_open_by_a_ping(store: MemoryStore) -> None
     log = logs.writing(CALL, "clara")
     await log.append("call.started", {})
     # The pacing is the whole ping: a source that never speaks yields None every `every` seconds.
-    ticks = paced(_never(), every=0.01)
+    ticks = pace(_never(), every=0.01)
     assert await anext(ticks) is None
     assert await anext(ticks) is None
 

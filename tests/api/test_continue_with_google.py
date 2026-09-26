@@ -7,28 +7,28 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.api.box_signin import EMPTY
-from pinecall.api.box_signin import NOT_WIRED as NOTHING_TO_FORGET
-from pinecall.api.login import A_BROWSER
-from pinecall.api.login_google import (
+from pinecall.api.accounts.google_login import (
     DISABLED_EVERYWHERE,
     NOBODY_HERE,
     NOT_WIRED,
     THE_BOX,
     THEIR_OWN_PROVIDER,
 )
-from pinecall.api.login_sso import NO_HANDSHAKE, THE_CARD, THE_CONSOLE
+from pinecall.api.accounts.login import A_BROWSER
+from pinecall.api.accounts.sso_login import NO_HANDSHAKE, THE_CARD, THE_CONSOLE
+from pinecall.api.ops.box_signin import EMPTY
+from pinecall.api.ops.box_signin import NOT_WIRED as NOTHING_TO_FORGET
 from pinecall.auth.members_memory import MemoryMembers
 from pinecall.auth.openid import SCOPE
-from pinecall.auth.sso import Handshakes
-from pinecall.orgs.box import BoxSettings, MemoryBoxSettings
-from pinecall.orgs.signin import PROVIDERS
-from pinecall.orgs.sso import Sso
-from pinecall.orgs.table import MemoryOrgs
+from pinecall.auth.sso_state import Handshakes
+from pinecall.orgs.box_signin import PROVIDERS
+from pinecall.orgs.org_sso import Sso
+from pinecall.orgs.records import MemoryOrgs
 from pinecall.orgs.vault import NO_VAULT_KEY
 from pinecall.types import Member, OrgSso
 from tests.api.conftest import AN_ORG
 from tests.api.fake_idp import FakeIdp
+from tests.api.no_vault import OnABoxWithNoVaultKey
 
 pytestmark = pytest.mark.unit
 
@@ -48,7 +48,7 @@ NICO = Member(
 
 
 @pytest.fixture(autouse=True)
-def signing_in(sso: Sso | None, http: httpx.AsyncClient, handshakes: Handshakes) -> None:  # noqa: ARG001
+def signing_in(sso: Sso | None, http: httpx.AsyncClient, handshakes: Handshakes) -> None:
     """Every test here signs in: what reaches the provider, the sign-ins, the org tables."""
 
 
@@ -133,11 +133,7 @@ async def test_wiring_is_refused_when_google_does_not_answer_or_the_body_is_empt
     assert (await ops_http.get(THE_DOOR)).json()["google"]["configured"] is False
 
 
-class TestWithNoVaultKey:
-    @pytest.fixture
-    def box_settings(self) -> BoxSettings:
-        return MemoryBoxSettings(None)
-
+class TestWithNoVaultKey(OnABoxWithNoVaultKey):
     async def test_the_secret_cannot_be_kept_and_the_door_says_so(
         self, ops_http: httpx.AsyncClient
     ) -> None:

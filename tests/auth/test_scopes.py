@@ -9,7 +9,7 @@ from pinecall.auth.scopes import (
     LivekitKeys,
     secret_for,
 )
-from pinecall.types.token import SCOPES
+from pinecall.types.scopes import SCOPES
 
 pytestmark = pytest.mark.unit
 

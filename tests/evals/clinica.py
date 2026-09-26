@@ -6,7 +6,7 @@ import json
 import re
 from pathlib import Path
 
-from pinecall.providers.declaration import an_agent, configured
+from pinecall.providers.declaration import agent_from_slug, apply_declaration
 from pinecall.types import AgentConfig, Blocks
 from pinecall_protocol import defs
 
@@ -30,7 +30,7 @@ HISTORY = "history"
 def declared() -> AgentConfig:
     """The agent as the gateway would hold it, converted by the gateway's own conversion."""
     wire = defs.AgentConfig.model_validate(json.loads(DECLARATION.read_text(encoding="utf-8")))
-    return configured(an_agent(SLUG), wire)
+    return apply_declaration(agent_from_slug(SLUG), wire)
 
 
 # The capture is the tenant's own page, block by block; written into the same blocks, under the
@@ -49,7 +49,7 @@ def _blocks_of(captured: str) -> dict[str, str]:
     """Each section of the page under its header, with the blank lines around it taken off."""
     headers = list(HEADER.finditer(captured))
     sections: dict[str, str] = {}
-    for found, following in zip(headers, headers[1:] + [None], strict=True):
+    for found, following in zip(headers, [*headers[1:], None], strict=True):
         closes = following.start() if following else len(captured)
         sections[found.group("name")] = captured[found.end() : closes].strip()
     return sections

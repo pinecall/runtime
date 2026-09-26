@@ -2,10 +2,10 @@
 
 import ipaddress
 from dataclasses import dataclass
-from typing import Literal, get_args
+from typing import Literal, cast, get_args
 
-from pinecall.types.dialling import SIP_TRANSPORTS, SipTransport
-from pinecall.types.refused import DeclarationRefused
+from pinecall.types.dialing_policy import SIP_TRANSPORTS, SipTransport
+from pinecall.types.refusal import DeclarationRefused
 
 # Two ways a number reaches the box. Twilio: the tenant's own account, whose trunk the gateway
 # points at the box and attaches numbers to over Twilio's API. sip: any other carrier, or a PBX,
@@ -112,11 +112,11 @@ class Carrier:
         )
 
 
-def a_carrier_kind(word: str) -> CarrierKind:
+def parse_carrier_kind(word: str) -> CarrierKind:
     """The kind this word names, or a refusal that lists the two."""
     if word not in CARRIER_KINDS:
         raise DeclarationRefused(f"a carrier is one of {sorted(CARRIER_KINDS)}, not {word!r}")
-    return "twilio" if word == "twilio" else "sip"
+    return cast("CarrierKind", word)
 
 
 # The other direction, provisioned once and remembered: a LiveKit SIP outbound trunk, pointed at

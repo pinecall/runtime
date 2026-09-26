@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import sys
 from functools import partial
 from pathlib import Path
 from typing import Any, TextIO, cast
 
-from pinecall.cli.columns import as_columns
-from pinecall.cli.operator import Operator, OperatorRefused, against_the_gateway, with_an_org
+from pinecall.cli.columns import aligned_columns
+from pinecall.cli.help import help_only
+from pinecall.cli.operator import Operator, OperatorRefused, add_org_flag, against_the_gateway
 from pinecall.types import ENVS, PRODUCTION
 
 PURPOSE: str = "numbers and channels: list | add | rm | seed"
@@ -34,7 +36,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
     verbs = parser.add_subparsers(title="verbs", metavar="<verb>", prog=parser.prog)
 
     listing = verbs.add_parser("list", help="every door the org answers")
-    with_an_org(listing)
+    add_org_flag(listing)
     _in_a_world(listing)
     listing.set_defaults(run=run_list)
 
@@ -42,20 +44,20 @@ def configure(parser: argparse.ArgumentParser) -> None:
     adding.add_argument("number", metavar="<number>", help="in E.164 form, +598…")
     adding.add_argument("agent", metavar="<agent>", help="the agent's slug")
     adding.add_argument("--channel", default=DEFAULT_CHANNEL, help="phone (default) or whatsapp")
-    with_an_org(adding)
+    add_org_flag(adding)
     _in_a_world(adding)
     adding.set_defaults(run=run_add)
 
     removing = verbs.add_parser("rm", help="the org stops answering this number")
     removing.add_argument("number", metavar="<number>", help="in E.164 form, +598…")
-    with_an_org(removing)
+    add_org_flag(removing)
     removing.set_defaults(run=run_remove)
 
     seeding = verbs.add_parser("seed", help=f"apply a file of routes (default {SEED_FILE})")
     seeding.add_argument("--file", default=SEED_FILE, help="a JSON array of routes")
     seeding.set_defaults(run=run_seed)
 
-    parser.set_defaults(run=partial(_print_the_verbs, parser))
+    parser.set_defaults(run=help_only(parser))
 
 
 def run_list(arguments: argparse.Namespace) -> int:
@@ -98,7 +100,7 @@ async def list_routes(
     if not answering:
         print(f"no routes in org {org} in {env}", file=out)
         return 0
-    for line in as_columns([_row_of(door) for door in answering]):
+    for line in aligned_columns([_row_of(door) for door in answering]):
         print(line, file=out)
     return 0
 
@@ -129,7 +131,7 @@ async def remove_route(org: str, number: str, operator: Operator, out: TextIO = 
 
 async def seed_routes(path: Path, operator: Operator, out: TextIO = sys.stdout) -> int:
     """Every route in the file, applied in order. A file that is not there is an error, not zero."""
-    if not path.exists():
+    if not await asyncio.to_thread(path.exists):
         print(f"no such file: {path}", file=out)
         return 1
     for route in _read_the_file(path):
@@ -171,9 +173,3 @@ def _in_a_world(parser: argparse.ArgumentParser) -> None:
         choices=sorted(ENVS),
         help=f"which world the number answers in (default {PRODUCTION})",
     )
-
-
-def _print_the_verbs(parser: argparse.ArgumentParser, _arguments: Any) -> int:
-    """`routes` with no verb: say what there is, and exit as a help screen does."""
-    parser.print_help()
-    return 0

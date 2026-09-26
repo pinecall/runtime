@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import pytest
@@ -10,7 +11,7 @@ from livekit.agents.types import NOT_GIVEN
 
 from pinecall.session.voice import commands
 from pinecall.session.voice.room import Facts
-from pinecall.session.voice.room.holding import ROOM_VERB_FAILED
+from pinecall.session.voice.room.room_handle import ROOM_VERB_FAILED
 from pinecall_protocol import Command, ProtocolError
 from tests.session.voice.room.fakes import TRUNK, FakeApi, Held, a_caller, a_held_room
 from tests.session.voice.test_commands import End, Prompt, Recorded, Session
@@ -164,5 +165,5 @@ async def test_a_server_that_says_no_lands_an_error_naming_the_verb_and_the_call
 
 async def test_a_room_verb_on_a_call_with_no_room_is_refused_by_name() -> None:
     applying = commands.Applying(Session(), Prompt(), End(), Recorded(), None)  # pyright: ignore[reportArgumentType]
-    with pytest.raises(ProtocolError, match="room.send needs the room"):
+    with pytest.raises(ProtocolError, match=re.escape("room.send needs the room")):
         await commands.apply(applying, a_command("room.send", {"topic": "t", "data": {}}))

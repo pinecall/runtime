@@ -8,16 +8,17 @@ from collections.abc import Mapping
 from functools import partial
 from typing import Any, TextIO
 
-from pinecall.cli.columns import as_columns
-from pinecall.cli.operator import Operator, against_the_gateway
+from pinecall.cli.columns import aligned_columns
+from pinecall.cli.help import help_only
+from pinecall.cli.operator import OPS_ORGS, Operator, against_the_gateway
 from pinecall.cli.orgs.members import invite, make_operator, remove_member
 from pinecall.cli.orgs.provider_keys import (
-    a_key_from,
     list_provider_keys,
+    read_key_from,
     remove_provider_key,
     set_provider_key,
 )
-from pinecall.cli.orgs.sso import BREAK_GLASS, OPS_ORGS, sso
+from pinecall.cli.orgs.sso import BREAK_GLASS, sso
 from pinecall.providers.catalog import vendors_with_a_key
 from pinecall.types import QUOTAS, ROLES
 
@@ -146,7 +147,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
     signing_in.add_argument("--off", action="store_true", help=BREAK_GLASS)
     signing_in.set_defaults(run=run_sso)
 
-    parser.set_defaults(run=partial(_print_the_verbs, parser))
+    parser.set_defaults(run=help_only(parser))
 
 
 # Forty-odd names is not a help line, so the sentence names the door that prints them all with
@@ -182,7 +183,7 @@ def _configure_provider_keys(parser: argparse.ArgumentParser) -> None:
     listing.add_argument("org", metavar="<org>", help="by id or slug")
     listing.set_defaults(run=run_provider_key_list)
 
-    parser.set_defaults(run=partial(_print_the_verbs, parser))
+    parser.set_defaults(run=help_only(parser))
 
 
 def run_list(arguments: argparse.Namespace) -> int:  # noqa: ARG001
@@ -222,14 +223,14 @@ def run_remove(arguments: argparse.Namespace) -> int:
 def run_quota(arguments: argparse.Namespace) -> int:
     """The org's limits, replaced whole: a flag left out is no limit."""
     limits: dict[str, Any] = {name: getattr(arguments, name) for name in (*QUOTAS, BUDGET)}
-    limits[LENDS] = a_lending_typed(arguments.lends)
+    limits[LENDS] = parse_lending_flag(arguments.lends)
     return against_the_gateway(partial(set_quota, arguments.org, limits))
 
 
 # `--lends deepgram,anthropic/claude-haiku-4-5` is those entries; `--lends none` is the empty set,
 # the org running only on its own keys; the flag left out is every one, as every limit left out is
 # no limit. The door checks each entry against the catalogue, so a typo is its sentence.
-def a_lending_typed(typed: str | None) -> list[str] | None:
+def parse_lending_flag(typed: str | None) -> list[str] | None:
     """The lending as the door takes it, from what the operator typed."""
     if typed is None:
         return None
@@ -257,7 +258,7 @@ def run_sso(arguments: argparse.Namespace) -> int:
 
 def run_provider_key_set(arguments: argparse.Namespace) -> int:
     """One vendor, one org, one key off stdin. The terminal never sees it again."""
-    key = a_key_from(sys.stdin, arguments.vendor)
+    key = read_key_from(sys.stdin, arguments.vendor)
     if key is None:
         print(NO_KEY_ON_STDIN, file=sys.stderr)
         return 1
@@ -280,7 +281,7 @@ def run_provider_key_list(arguments: argparse.Namespace) -> int:
 async def list_orgs(operator: Operator, out: TextIO = sys.stdout) -> int:
     """Id, slug and name, one line each. The default org is always the first."""
     rows = await operator.get(OPS_ORGS)
-    for line in as_columns([_row_of(org) for org in rows]):
+    for line in aligned_columns([_row_of(org) for org in rows]):
         print(line, file=out)
     return 0
 
@@ -346,9 +347,3 @@ async def set_dialling(
 def _row_of(org: dict[str, Any]) -> tuple[str, ...]:
     """One org as a person reads it."""
     return (str(org["id"]), str(org["slug"]), str(org["name"]))
-
-
-def _print_the_verbs(parser: argparse.ArgumentParser, _arguments: Any) -> int:
-    """`orgs` with no verb: say what there is, and exit as a help screen does."""
-    parser.print_help()
-    return 0

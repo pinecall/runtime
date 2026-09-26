@@ -6,7 +6,8 @@ import sys
 
 from pinecall._settings import variable_of
 from pinecall.cli.box.credentials import Decrypt, decrypt_with_systemd
-from pinecall.cli.box.instance import INSTANCES, a_name, credstore_of
+from pinecall.cli.box.instance import INSTANCES, check_instance_name, credstore_of
+from pinecall.cli.help import help_only
 from pinecall.cli.sandbox.seed import seed
 from pinecall.log.store import open_pool
 
@@ -23,7 +24,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
     seeding.add_argument("--from-instance", default="production", help="default production")
     seeding.add_argument("--to-instance", default="sandbox", help="default sandbox")
     seeding.set_defaults(run=run_seed)
-    parser.set_defaults(run=lambda _arguments: _print_the_verbs(parser))  # pyright: ignore[reportUnknownLambdaType] — argparse's Namespace
+    parser.set_defaults(run=help_only(parser))
 
 
 # By instance NAME, never by DSN: a DSN carries its password, and an argument is what `ps` shows
@@ -32,13 +33,15 @@ def configure(parser: argparse.ArgumentParser) -> None:
 def run_seed(arguments: argparse.Namespace) -> int:
     """Both databases out of their instances' stores, then the copy."""
     return asyncio.run(
-        seeding(
-            a_name(arguments.from_instance), a_name(arguments.to_instance), decrypt_with_systemd
+        seed_sandbox(
+            check_instance_name(arguments.from_instance),
+            check_instance_name(arguments.to_instance),
+            decrypt_with_systemd,
         )
     )
 
 
-async def seeding(source: str, target: str, decrypt: Decrypt) -> int:
+async def seed_sandbox(source: str, target: str, decrypt: Decrypt) -> int:
     """Open both, seed, close both."""
     production = await open_pool(
         decrypt(DATABASE_URL, credstore_of(source, INSTANCES) / DATABASE_URL)
@@ -53,9 +56,3 @@ async def seeding(source: str, target: str, decrypt: Decrypt) -> int:
             await sandbox.close()
     finally:
         await production.close()
-
-
-def _print_the_verbs(parser: argparse.ArgumentParser) -> int:
-    """`sandbox` with no verb: say what there is, and exit as a help screen does."""
-    parser.print_help()
-    return 0

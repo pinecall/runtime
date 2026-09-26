@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from pinecall.mail.brand import Brand
-from pinecall.mail.layout import a_letter, button, code_box, fallback, heading, paragraph, small
+from pinecall.mail.layout import button, code_box, fallback, frame_letter, heading, paragraph, small
 
 # Where the console's card that takes a password lives. An invitation and a reset are the same
 # door underneath (`POST /v1/invitations/{token}`), so they are the same link — which is why a
@@ -54,7 +54,7 @@ class Letter:
 
 # Every letter takes the brand LAST and defaulted: a box told nothing is Pinecall, and what the
 # operator set is read where the letter is written (`Outbox.brand`) and handed in here.
-def an_invitation(
+def invitation_letter(
     to: str, org: str, inviter: str, link: str, dies: str | None = None, brand: Brand = _PINECALL
 ) -> Letter:
     """Somebody was invited to an org: the accept link, and who invited them."""
@@ -74,7 +74,7 @@ def an_invitation(
     )
 
 
-def a_reset(
+def reset_letter(
     to: str, org: str, admin: str, link: str, dies: str | None = None, brand: Brand = _PINECALL
 ) -> Letter:
     """An admin of the org handed this member's password back: the same card, a different why."""
@@ -91,7 +91,7 @@ def a_reset(
     )
 
 
-def a_forgotten_password(
+def forgotten_password_letter(
     to: str, org: str, link: str, dies: str | None = None, brand: Brand = _PINECALL
 ) -> Letter:
     """Somebody asked for it themselves, so it says so, and says what to do if they did not."""
@@ -111,7 +111,7 @@ def a_forgotten_password(
 
 # The shortest thing that proves a whole path: the address the letters come from, the server they
 # went through, and nothing anybody has to act on. The org's test door and the operator's send it.
-def a_test_message(to: str, brand: Brand = _PINECALL) -> Letter:
+def probe_letter(to: str, brand: Brand = _PINECALL) -> Letter:
     """One letter that asks nothing of whoever reads it."""
     said = (
         f"This is a test message from {brand.name}. Your mail server took it, so the letters "
@@ -122,7 +122,7 @@ def a_test_message(to: str, brand: Brand = _PINECALL) -> Letter:
         to=to,
         subject=f"{brand.name} test message",
         text=said,
-        html=a_letter(said, content, brand.name, brand),
+        html=frame_letter(said, content, brand.name, brand),
     )
 
 
@@ -131,7 +131,7 @@ def a_test_message(to: str, brand: Brand = _PINECALL) -> Letter:
 # in the preheader, which an inbox's preview and a phone's notification show, and NOT in the
 # subject: the outbox writes every subject to the gateway's log (mail/outbox.py), and a code in
 # a log is a code anybody reading the journal could spend.
-def a_signup_code(to: str, code: str, person: str, brand: Brand = _PINECALL) -> Letter:
+def signup_code_letter(to: str, code: str, person: str, brand: Brand = _PINECALL) -> Letter:
     """The six digits that make the org a sign-up asked for."""
     asked = f"Hi {person}, enter this code to finish setting up your {brand.name} account:"
     dies = "This code expires in 15 minutes."
@@ -148,11 +148,11 @@ def a_signup_code(to: str, code: str, person: str, brand: Brand = _PINECALL) -> 
         to=to,
         subject=f"Confirm your {brand.name} email",
         text="\n\n".join(["Confirm your email", asked, code, dies, unbidden, footer]),
-        html=a_letter(f"Your {brand.name} verification code is {code}", content, footer, brand),
+        html=frame_letter(f"Your {brand.name} verification code is {code}", content, footer, brand),
     )
 
 
-def where_the_card_is(base: str, token: str) -> str:
+def card_link(base: str, token: str) -> str:
     """The link a letter carries: the console's own card, at the name this gateway is reached by."""
     return f"{base.rstrip('/')}{CARD.format(token=token)}"
 
@@ -199,7 +199,7 @@ def _a_letter(
         to=to,
         subject=subject,
         text=written,
-        html=a_letter(paragraphs[0], marked, footer, brand),
+        html=frame_letter(paragraphs[0], marked, footer, brand),
     )
 
 
