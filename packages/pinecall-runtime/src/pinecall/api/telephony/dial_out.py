@@ -20,8 +20,8 @@ from pinecall.api.scope.request_scope import AnAgentHeld, CornerDep
 from pinecall.api.telephony.deps import DispatchesDep, GuardsDep, KeptOutboundTrunksDep, OutboundDep
 from pinecall.auth.keys import is_held_by
 from pinecall.auth.scopes import mint_log_token, secret_for
-from pinecall.dialling.placing import Placers, Placing, place_call
 from pinecall.orgs.outbound_guards import Asking
+from pinecall.telephony.placing import Placers, Placing, place_call
 from pinecall.types.today import today_in
 from pinecall_protocol import WireModel
 from pinecall_protocol.defs import Projection
@@ -71,7 +71,7 @@ async def dial(
     logs: LogsDep,
     settings: SettingsDep,
 ) -> Dialled:
-    """Place a call as this agent (dialling/placing.py), and the token to read it by."""
+    """Place a call as this agent (telephony/placing.py), and the token to read it by."""
     if dispatches is None:
         raise HTTPException(503, NO_LIVEKIT)
     placing = Placing(

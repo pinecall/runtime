@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from pinecall.api.accounts.identity import BuysAtProduction
 from pinecall.api.deps import (
@@ -13,31 +13,11 @@ from pinecall.api.deps import (
     TrunksDep,
     TwilioDep,
 )
-from pinecall.api.telephony.numbers import (
-    DRY_RUN,
-    NO_DOMAIN,
-    NumberRouted,
-    parse_route,
-    route_number,
-    trunk_on_carrier,
-    trunk_on_sfu,
-)
-from pinecall.routes.inbound_trunks import NO_LIVEKIT
-from pinecall.routes.twilio import BOX_TRUNK, TwilioNumber
-from pinecall.settings import Settings
-from pinecall.types import Carrier, DeclarationRefused, TwilioAccount
+from pinecall.api.telephony.numbers import DRY_RUN, NumberRouted, number_channel, wire_routed
+from pinecall.telephony.buying import Buying, buy_number
 from pinecall_protocol import WireModel
 
 router = APIRouter()
-
-NO_BOX_CARRIER = (
-    "this gateway has no TWILIO_ACCOUNT_SID and TWILIO_API_SECRET: it buys numbers for nobody. "
-    "Bring the org's own carrier with PUT /v1/carrier and import one instead"
-)
-NONE_FOR_SALE = "Twilio has no local voice number for sale in {where} right now"
-
-# What the plan says the number is before it is bought: the search found it, nobody paid yet.
-NOT_BOUGHT_YET = "<bought>"
 
 
 class WantedPurchase(WireModel):
@@ -60,44 +40,14 @@ async def bought(
     settings: SettingsDep,
     dry_run: bool = DRY_RUN,
 ) -> NumberRouted:
-    """One number bought on the box's account into this org's world, if the plan has room."""
-    account = box_twilio_account(settings)
-    if account is None:
-        raise HTTPException(503, NO_BOX_CARRIER)
-    if not settings.domain:
-        raise HTTPException(503, NO_DOMAIN)
-    if trunks is None:
-        raise HTTPException(503, NO_LIVEKIT)
-    await admission.a_managed_number(key.org, said.agent, await table.managed_by(key.org))
-    api = twilio(account)
-    steps: list[str] = []
-    number = await api.for_sale(said.country, said.area_code)
-    if number is None:
-        where = f"{said.country} {said.area_code}" if said.area_code else said.country
-        raise HTTPException(404, NONE_FOR_SALE.format(where=where.strip()))
-    route = parse_route(key, number, said.agent, said.channel, managed=True)
-    owned = TwilioNumber(sid=NOT_BOUGHT_YET, number=number, name=number)
-    steps.append(f"buy      {number} — on account {account.account_sid}, billed to the box")
-    if not dry_run:
-        owned = await api.bought(number)
-    sid = account.account_sid
-    await trunk_on_carrier(
-        api, BOX_TRUNK, sid, route, {number: owned}, settings.domain, steps, dry_run
+    """One number bought on the box's account into this org's world (telephony/buying.py)."""
+    buying = Buying(
+        org=key.org,
+        env=key.env,
+        agent=said.agent,
+        channel=number_channel(said.channel),
+        country=said.country,
+        area_code=said.area_code,
     )
-    boxs = Carrier(org=key.org, account=account)
-    await trunk_on_sfu(trunks, settings.fleet, boxs, route, steps, dry_run)
-    return await route_number(route, steps, table, dry_run)
-
-
-def box_twilio_account(settings: Settings) -> TwilioAccount | None:
-    """The box's own Twilio out of the settings, or None when the box was given none."""
-    if not settings.twilio_account_sid or not settings.twilio_api_secret:
-        return None
-    try:
-        return TwilioAccount(
-            account_sid=settings.twilio_account_sid,
-            user=settings.twilio_api_key or settings.twilio_account_sid,
-            secret=settings.twilio_api_secret,
-        )
-    except DeclarationRefused as refused:
-        raise HTTPException(503, f"the box's TWILIO_ACCOUNT_SID is refused: {refused}") from refused
+    routed = await buy_number(buying, admission, table, trunks, twilio, settings, dry=dry_run)
+    return wire_routed(routed, dry_run)

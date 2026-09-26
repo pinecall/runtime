@@ -112,12 +112,19 @@ maintainer's call, so everything sits under Unreleased until one is cut.
   none; a suite's run held one per run and closed it never.
 
 ### Changed
-- **Provisioning the outbound trunk is a verb, `pinecall.dialling.provision_trunk`.** The door
+- **Telephony's use cases are verbs in `pinecall.telephony`.** Importing a number
+  (`import_number`) and buying one on the box's account (`buy_number`) join placing a call and
+  provisioning its trunk: the carrier's trunk, the SFU's trunk and the route, planned step by step
+  and written only outside a dry run. Their refusals are domain errors mapped once
+  (`NotOnAccount`, `NoneForSale` 404; `NumberHeldElsewhere` 409; `NoDomain`, `NoBoxCarrier`,
+  `NoMediaPlane` 503, the last three in `telephony/missing.py`: what the gateway lacks). The doors
+  of `api/telephony/` read the request, call one verb and wire its answer: 1,148 lines to 695.
+- **Provisioning the outbound trunk is a verb, `pinecall.telephony.provision_trunk`.** The door
   held the plan, Twilio's termination and credential list, and the SFU's trunk, with its refusals
   as `HTTPException`s; it raises `NoNumbers`, `NoOutboundHost`, `CredentialsLost` (409) and
   `NoMediaPlane` (503) now. "No carrier yet", said by five telephony doors, is one domain error,
   `orgs.carriers.NoCarrier` (404).
-- **Placing a call out is a verb, `pinecall.dialling.place_call`.** `POST /v1/agents/{slug}/dial`
+- **Placing a call out is a verb, `pinecall.telephony.place_call`.** `POST /v1/agents/{slug}/dial`
   held the whole use case — the number shown, the trunk, who answers, the guards, the quota, the
   log, the job — with five `HTTPException`s in the middle of it. The verb raises `NoPhoneDoor`,
   `NotOurNumber`, `NoTrunk`, `NobodyHolding` and `DidNotDial`, mapped to 404, 400, 409, 409 and 502

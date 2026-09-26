@@ -1,6 +1,6 @@
-"""Placing a call out: every guard a dial passes, then its log and the job that rings the number."""
+"""The carrier side of the product: numbers imported, trunks provisioned, a call placed out."""
 
-from pinecall.dialling.placing import (
+from pinecall.telephony.placing import (
     DidNotDial,
     NobodyHolding,
     NoPhoneDoor,

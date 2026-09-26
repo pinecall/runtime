@@ -11,13 +11,6 @@ from fastapi.responses import JSONResponse
 from pinecall.api.calls.supervise.aiming import VerbRefused
 from pinecall.api.evals.runner import AlreadyRunning, NobodyServing
 from pinecall.auth.identity import NotRedeemed
-from pinecall.dialling import DidNotDial, NobodyHolding, NoPhoneDoor, NotOurNumber, NoTrunk
-from pinecall.dialling.provisioning import (
-    CredentialsLost,
-    NoMediaPlane,
-    NoNumbers,
-    NoOutboundHost,
-)
 from pinecall.log.filters import FilterRefused
 from pinecall.orgs.admission import QuotaExhausted
 from pinecall.orgs.caller_codes import TooManyCodes
@@ -31,6 +24,15 @@ from pinecall.providers.registry import NoProvider
 from pinecall.providers.tts.vendor_voices import NotListed
 from pinecall.routes.twilio import TwilioRefused
 from pinecall.session.hold_melody import NotAHoldMelody
+from pinecall.telephony import DidNotDial, NobodyHolding, NoPhoneDoor, NotOurNumber, NoTrunk
+from pinecall.telephony.buying import NoneForSale
+from pinecall.telephony.importing import NotOnAccount, NumberHeldElsewhere
+from pinecall.telephony.missing import NoBoxCarrier, NoDomain, NoMediaPlane
+from pinecall.telephony.provisioning import (
+    CredentialsLost,
+    NoNumbers,
+    NoOutboundHost,
+)
 from pinecall.types import DeclarationRefused
 
 # Every entry answers with the EXCEPTION'S OWN SENTENCE as the detail: a tenant who runs
@@ -58,6 +60,8 @@ STATUS_OF: dict[type[Exception], int] = {
     NotListed: 404,
     NoPhoneDoor: 404,
     NoCarrier: 404,
+    NotOnAccount: 404,
+    NoneForSale: 404,
     VersionMoved: 409,
     NameTaken: 409,
     SlugTaken: 409,
@@ -66,6 +70,7 @@ STATUS_OF: dict[type[Exception], int] = {
     NoNumbers: 409,
     NoOutboundHost: 409,
     CredentialsLost: 409,
+    NumberHeldElsewhere: 409,
     AlreadyRunning: 409,
     WrongWidth: 409,
     WrongModel: 409,
@@ -76,6 +81,8 @@ STATUS_OF: dict[type[Exception], int] = {
     EmbedderUnreachable: 503,
     NoProvider: 503,
     NoMediaPlane: 503,
+    NoDomain: 503,
+    NoBoxCarrier: 503,
 }
 
 

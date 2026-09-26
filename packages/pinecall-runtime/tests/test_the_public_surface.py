@@ -17,7 +17,7 @@ PACKAGES = [
     "accounts",
     "auth",
     "db",
-    "dialling",
+    "telephony",
     "errors",
     "evals",
     "extensions",

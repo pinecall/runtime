@@ -374,7 +374,7 @@ knowledge  ← types, db, providers             the knowledge base, in Postgres
 lookups    ← types, log, memory, knowledge    the gateway runs recall and search
 live       ← types, log, lookups, providers, session   what this gateway holds: sockets, doors, calls
 accounts   ← types, auth, orgs, extensions    what a person does with an account, across domains
-dialling   ← types, log, live, orgs, routes, session   placing a call out, and provisioning its trunk
+telephony  ← types, log, live, orgs, routes, session   the carrier side: numbers, trunks, a call out
 api        ← all of the above, never worker/ — the doors: parse, one verb, wire the answer
 worker     ← types, auth, log, fleet, providers, session, evals        never api/ — over HTTP
 cli        ← the verbs over any of them

@@ -19,14 +19,7 @@ from pinecall.api.deps import (
 )
 from pinecall.auth.keys import KeyRecord
 from pinecall.orgs.carriers import NO_CARRIER, NoCarrier
-from pinecall.routes.inbound_trunks import NO_LIVEKIT, TRUNK_NAME, Trunks, fence_of
-from pinecall.routes.records import Routes
-from pinecall.routes.twilio import (
-    CARRIER_TRUNK,
-    TwilioApi,
-    TwilioNumber,
-    origination_uri,
-)
+from pinecall.telephony.importing import Routed, import_number
 from pinecall.types import (
     Carrier,
     CarrierKind,
@@ -41,8 +34,6 @@ from pinecall_protocol import WireModel
 
 router = APIRouter()
 
-NO_DOMAIN = "this gateway has no PINECALL_DOMAIN: a carrier cannot be pointed at a box with no name"
-NOT_ON_ACCOUNT = "{number} is not a number of Twilio account {account}"
 NOT_A_NUMBER_CHANNEL = "a number answers on phone or whatsapp, not {channel}"
 NOT_VERIFIED = (
     "Twilio refused these credentials: the account SID, the key and the secret are checked"
@@ -52,11 +43,6 @@ NO_SUCH_NUMBER = "no number {number} in this org's world: nothing to let go"
 # livekit-sip refuses an INVITE whose number two inbound trunks list, so a number another trunk on
 # the SFU already carries — the other instance's, or one made under an older name — is refused
 # here, before the carrier or the SFU is touched: importing it would silence it on both.
-HELD_ELSEWHERE = (
-    "{number} is already on the SFU's trunk {trunk}: a number answers on one trunk, so let it go"
-    " there first"
-)
-
 # `?dry_run=true` is the plan and no writes: the very steps, in the very words, with the ids that
 # stand today — what a person reads before letting the gateway touch a carrier account.
 DRY_RUN = Query(False, description="print the plan and write nothing")
@@ -197,7 +183,7 @@ async def available(
 
 
 @router.post("/v1/numbers")
-async def import_number(
+async def imported(
     said: WantedNumber,
     key: NumbersKeyDep,
     carriers: KeptCarriersDep,
@@ -207,41 +193,17 @@ async def import_number(
     settings: SettingsDep,
     dry_run: bool = DRY_RUN,
 ) -> NumberRouted:
-    """One number into this org's world: the carrier's trunk, the SFU's trunk, the route."""
+    """One number into this org's world (telephony/importing.py), and the plan it followed."""
     route = parse_route(key, said.number, said.agent, said.channel)
-    carrier = await carriers.of(key.org)
-    if carrier is None:
-        raise NoCarrier(NO_CARRIER)
-    if not settings.domain:
-        raise HTTPException(503, NO_DOMAIN)
-    if trunks is None:
-        raise HTTPException(503, NO_LIVEKIT)
-    if route.number is not None and (other := await trunks.held_elsewhere(key.org, route.number)):
-        raise HTTPException(409, HELD_ELSEWHERE.format(number=route.number, trunk=other))
-    steps: list[str] = []
-    if isinstance(carrier.account, TwilioAccount):
-        api = twilio(carrier.account)
-        owned = {one.number: one for one in await api.numbers()}
-        if route.number not in owned:
-            raise HTTPException(
-                404,
-                NOT_ON_ACCOUNT.format(number=route.number, account=carrier.account.account_sid),
-            )
-        name = CARRIER_TRUNK.format(fleet=settings.fleet, org=carrier.org)
-        account = carrier.account.account_sid
-        await trunk_on_carrier(api, name, account, route, owned, settings.domain, steps, dry_run)
-    await trunk_on_sfu(trunks, settings.fleet, carrier, route, steps, dry_run)
-    return await route_number(route, steps, table, dry_run)
+    routed = await import_number(
+        route, carriers, twilio, trunks, table, settings.domain, settings.fleet, dry=dry_run
+    )
+    return wire_routed(routed, dry_run)
 
 
-async def route_number(
-    route: Route, steps: list[str], table: Routes, dry_run: bool
-) -> NumberRouted:
-    """The last step of an import and of a purchase: the route row, and the answer with the plan."""
-    steps.append(f"route    {route.number} {route.channel} → {route.agent} in {route.env}")
-    if not dry_run:
-        await table.put(route)
-    return NumberRouted(route=route, steps=steps, dry_run=dry_run)
+def wire_routed(routed: Routed, dry_run: bool) -> NumberRouted:
+    """What an import and a purchase answer: the route, the plan's steps, whether it wrote."""
+    return NumberRouted(route=routed.route, steps=routed.steps, dry_run=dry_run)
 
 
 @router.delete("/v1/numbers/{number}", status_code=HTTP_204_NO_CONTENT)
@@ -251,60 +213,6 @@ async def let_go(number: str, key: NumbersKeyDep, trunks: TrunksDep, table: Rout
         raise HTTPException(404, NO_SUCH_NUMBER.format(number=number))
     if trunks is not None:
         await trunks.released(key.org, number)
-
-
-# ── the steps ───────────────────────────────────────────────────────────────────
-
-
-# Each step is looked up before it is written, and the plan says which it found standing: a
-# second run of an import that was interrupted must create nothing twice. Nothing is deleted.
-async def trunk_on_carrier(
-    api: TwilioApi,
-    name: str,
-    account: str,
-    route: Route,
-    owned: dict[str, TwilioNumber],
-    domain: str,
-    steps: list[str],
-    dry: bool,
-) -> None:
-    """The trunk named so on the account, pointed at the box, with the number attached to it."""
-    trunk = await api.trunk_named(name)
-    if trunk is None:
-        steps.append(f"trunk    {name} — created on account {account}")
-        if not dry:
-            trunk = await api.create_trunk(name)
-    else:
-        steps.append(f"trunk    {trunk.sid} {name} — standing")
-    uri = origination_uri(domain)
-    if trunk is None or uri not in trunk.origination:
-        steps.append(f"origin   {uri} — set")
-        if not dry and trunk is not None:
-            await api.pointed_at(trunk, uri)
-    else:
-        steps.append(f"origin   {uri} — standing")
-    on_it = () if trunk is None else await api.numbers_on(trunk.sid)
-    if route.number in on_it:
-        steps.append(f"number   {route.number} — on the trunk already")
-    else:
-        steps.append(f"number   {route.number} — attached to the trunk")
-        if not dry and trunk is not None and route.number in owned:
-            await api.attached(trunk.sid, owned[route.number].sid)
-
-
-async def trunk_on_sfu(
-    trunks: Trunks, fleet: str, carrier: Carrier, route: Route, steps: list[str], dry: bool
-) -> None:
-    """The org's inbound trunk on LiveKit with the number admitted, and its rule."""
-    allowed, auth = fence_of(carrier)
-    trunk = TRUNK_NAME.format(fleet=fleet, org=carrier.org)
-    steps.append(
-        f"livekit  inbound trunk {trunk}: {route.number}, from {len(allowed)} "
-        f"networks{' with SIP auth' if auth else ''}; one room per caller"
-    )
-    # A dialled route always has one: a_route refused a channel without a number already.
-    if not dry and route.number is not None:
-        await trunks.admitted(carrier.org, route.number, allowed, auth)
 
 
 def _a_carrier(org: str, said: WantedCarrier) -> Carrier:
@@ -333,11 +241,14 @@ def _a_carrier(org: str, said: WantedCarrier) -> Carrier:
     )
 
 
-def parse_route(
-    key: KeyRecord, number: str, agent: str, channel: str, *, managed: bool = False
-) -> Route:
-    """The route an import or a purchase ends in, refused before any account is touched."""
+def parse_route(key: KeyRecord, number: str, agent: str, channel: str) -> Route:
+    """The route an import ends in, refused before any account is touched."""
+    on = number_channel(channel)
+    return Route(org=key.org, agent=agent, channel=on, number=number, env=key.env)
+
+
+def number_channel(channel: str) -> Channel:
+    """The channel a number answers on, as the body said it, or a 400 naming the two there are."""
     if channel not in CHANNELS_WITH_A_NUMBER:
         raise HTTPException(400, NOT_A_NUMBER_CHANNEL.format(channel=channel))
-    on: Channel = "phone" if channel == "phone" else "whatsapp"
-    return Route(org=key.org, agent=agent, channel=on, number=number, env=key.env, managed=managed)
+    return "phone" if channel == "phone" else "whatsapp"

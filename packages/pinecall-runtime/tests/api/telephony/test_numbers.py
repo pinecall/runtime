@@ -7,17 +7,14 @@ from typing import Any
 import httpx
 import pytest
 
-from pinecall.api.telephony.numbers import (
-    HELD_ELSEWHERE,
-    NO_DOMAIN,
-    NOT_ON_ACCOUNT,
-    NOT_VERIFIED,
-)
+from pinecall.api.telephony.numbers import NOT_VERIFIED
 from pinecall.orgs.carriers import NO_CARRIER
 from pinecall.orgs.carriers_memory import MemoryCarriers
 from pinecall.routes.records_memory import MemoryRoutes
 from pinecall.routes.twilio import TWILIO_SIGNALLING
 from pinecall.settings import Settings
+from pinecall.telephony.importing import HELD_ELSEWHERE, NOT_ON_ACCOUNT
+from pinecall.telephony.missing import NO_DOMAIN
 from pinecall.types import PRODUCTION
 from tests.api.carriers import A_KEY_SID, A_SID, FakeTwilio
 from tests.api.conftest import A_LIVEKIT, A_RECORD, A_VAULT_KEY, AGENT, AN_OPS_KEY

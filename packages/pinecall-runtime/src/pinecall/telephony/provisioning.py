@@ -19,6 +19,7 @@ from pinecall.routes.twilio import (
     termination_host,
     termination_label,
 )
+from pinecall.telephony.missing import NoMediaPlane
 from pinecall.types import Carrier, OutboundTrunk, SipPeer, TwilioAccount
 
 # The password the box authenticates to the carrier with. Minted here, kept sealed, and never
@@ -61,10 +62,6 @@ class NoOutboundHost(PinecallError):
 
 class CredentialsLost(PinecallError):
     """A credential list stands on the carrier and this box no longer holds its password."""
-
-
-class NoMediaPlane(PinecallError):
-    """This gateway has no LiveKit key pair: it cannot put a trunk on the SFU."""
 
 
 @dataclass

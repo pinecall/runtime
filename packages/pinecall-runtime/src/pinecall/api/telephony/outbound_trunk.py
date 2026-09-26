@@ -6,8 +6,8 @@ from fastapi import APIRouter, Query
 
 from pinecall.api.deps import KeptCarriersDep, NumbersKeyDep, RoutesDep, SettingsDep, TwilioDep
 from pinecall.api.telephony.deps import GuardsDep, KeptOutboundTrunksDep, OutboundDep
-from pinecall.dialling.provisioning import provision_trunk, steps_missing
 from pinecall.routes.numbers import own_numbers
+from pinecall.telephony.provisioning import provision_trunk, steps_missing
 from pinecall_protocol.rest import CarrierOutbound, DialGuards, OutboundProvisioned
 
 router = APIRouter()
@@ -58,7 +58,7 @@ async def provision(
     settings: SettingsDep,
     dry_run: bool = DRY_RUN,
 ) -> OutboundProvisioned:
-    """The org's outbound trunk, made once and repaired after (dialling/provisioning.py)."""
+    """The org's outbound trunk, made once and repaired after (telephony/provisioning.py)."""
     done = await provision_trunk(
         key.org, settings.fleet, carriers, trunks, table, sfu, twilio, dry=dry_run
     )
