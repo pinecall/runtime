@@ -13,6 +13,10 @@ from pinecall.domain.errors import DeclarationRefused
 type Json = str | int | float | bool | list[Json] | dict[str, Json] | None
 type JsonObject = dict[str, Json]
 
+# A lone secret, or the constructor's own keyword arguments (Azure's key and region, Google's
+# service account, LiveKit's key pair).
+type Credentials = str | JsonObject
+
 # ── worlds, channels, names ──
 
 # A key belongs to one environment; its agents, numbers and calls are isolated to it. A shared
@@ -742,11 +746,10 @@ class Key:
     label: str | None = None
     env: Env = PRODUCTION
     scopes: frozenset[KeyScope] = KEY_SCOPES
-    # The member a personal key was minted for; None on org keys.
+    # The person a key was minted for; None on a server's key. A person's one key opens both
+    # worlds, so its env is production's and the request names the world.
     subject: str | None = None
     name: str | None = None
-    # Per-request only (the `pinecall-corner` header); never stored.
-    looking_at: str | None = None
     # None never expires. Keys minted from a personal key never outlive it.
     expires_at: datetime | None = None
 

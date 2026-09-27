@@ -19,16 +19,13 @@ from livekit.agents.language import LanguageCode
 from typing_extensions import TypeIs
 
 from pinecall.domain.errors import DeclarationRefused, NotAvailable
-from pinecall.domain.types import Json, JsonObject, Turn
+from pinecall.domain.types import Credentials, Json, JsonObject, Turn
 
 logger = logging.getLogger(__name__)
 
 type Modality = Literal["llm", "stt", "tts"]
 MODALITIES: tuple[Modality, ...] = ("llm", "stt", "tts")
 
-# A lone secret, or the constructor's own keyword arguments (Azure's key and region, Google's
-# service account, LiveKit's key pair).
-type Credentials = str | JsonObject
 
 # LiveKit Inference: the same three classes, on the box's LiveKit key pair, models `vendor/model`.
 INFERENCE = "livekit"

@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from pinecall.domain.errors import SettingsRefused
-from pinecall.domain.settings import HALF_A_PAIR, NOBODY_TO_ASK, Settings, env_files, load
+from pinecall.domain.settings import Settings, env_files, load
 
 A_FAKE_KEY = "fake-key-written-by-this-test"
 
@@ -45,12 +45,12 @@ def test_the_runtime_env_file_is_read_when_the_process_starts_at_the_repo_root(
 def test_a_real_environment_variable_beats_the_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    write(tmp_path / ".env", f"ELEVEN_API_KEY={A_FAKE_KEY}\nPINECALL_WORLD=sandbox\n")
+    write(tmp_path / ".env", f"ELEVEN_API_KEY={A_FAKE_KEY}\nPINECALL_FLEET=from-the-file\n")
     monkeypatch.setenv("ELEVEN_API_KEY", "exported-and-therefore-the-winner")
-    monkeypatch.setenv("PINECALL_WORLD", "production")
+    monkeypatch.setenv("PINECALL_FLEET", "pinecall-sandbox")
     settings = load()
     assert settings.variables["ELEVEN_API_KEY"] == "exported-and-therefore-the-winner"
-    assert settings.world == "production"
+    assert settings.fleet == "pinecall-sandbox"
 
 
 def test_a_name_the_runtime_does_not_read_is_kept_for_the_catalog_and_never_an_error(
@@ -158,25 +158,10 @@ def test_an_env_file_that_cannot_be_opened_is_a_sentence_naming_it(tmp_path: Pat
     assert "never skipped in silence" in str(refused.value)
 
 
-def test_a_process_that_never_said_its_world_is_production() -> None:
-    assert load().world == "production"
-
-
-def test_a_sandbox_with_nobody_to_ask_who_a_person_is_does_not_start(
+def test_a_worker_unit_joins_the_fleet_pinecall_unless_it_names_another(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("PINECALL_WORLD", "sandbox")
-    with pytest.raises(SettingsRefused) as refused:
-        load()
-    assert str(refused.value) == NOBODY_TO_ASK
-
-
-def test_the_world_is_read_and_the_fleet_is_pinecall_unless_the_instance_names_one(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("PINECALL_WORLD", "sandbox")
-    monkeypatch.setenv("PINECALL_IDENTITY_URL", "https://box.example.test")
-    assert (load().world, load().fleet) == ("sandbox", "pinecall")
+    assert load().fleet == "pinecall"
     monkeypatch.setenv("PINECALL_FLEET", "pinecall-sandbox")
     assert load().fleet == "pinecall-sandbox"
 
@@ -189,17 +174,6 @@ def test_a_fleet_spelled_unlike_a_slug_is_refused_at_startup(
     monkeypatch.setenv("PINECALL_FLEET", spelled)
     with pytest.raises(SettingsRefused, match="PINECALL_FLEET"):
         load()
-
-
-def test_production_names_its_sandbox_with_both_of_url_and_key_or_neither(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("PINECALL_SANDBOX_URL", "https://sandbox.example.test")
-    with pytest.raises(SettingsRefused) as refused:
-        load()
-    assert str(refused.value) == HALF_A_PAIR
-    monkeypatch.setenv("PINECALL_SANDBOX_KEY", "a-fleet-key-of-the-sandbox")
-    assert load().sandbox_url == "https://sandbox.example.test"
 
 
 def test_a_zone_nobody_has_heard_of_is_refused_at_startup(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -231,7 +205,7 @@ def test_what_settings_print_never_shows_a_secret(monkeypatch: pytest.MonkeyPatc
     assert "the-ops-key-of-this-box" not in shown
     assert "the-vault-key-of-this-box" not in shown
     assert A_FAKE_KEY not in shown
-    assert "world='production'" in shown
+    assert "fleet='pinecall'" in shown
 
 
 def test_nothing_in_the_runtime_writes_into_the_environment() -> None:
