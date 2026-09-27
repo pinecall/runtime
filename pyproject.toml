@@ -23,12 +23,21 @@ dependencies = [
   "livekit-agents[anthropic,openai]>=1.8.3,<2",
   # Room tokens are livekit's AccessToken; the id_token of an identity provider is read with PyJWT.
   "livekit-api>=1.2,<2",
+  # A livekit client's room configuration is parsed with protobuf's own reader.
+  "protobuf>=6,<8",
   "pyjwt[crypto]>=2.10,<3",
   # Every sealed secret is a Fernet token; passwords are argon2id.
   "cryptography>=46,<51",
   "argon2-cffi>=25.1,<26",
   # A provider's discovery, keys and token endpoint.
   "httpx>=0.28,<1",
+  # The gateway's doors and sockets; starlette's middleware and types are imported by name.
+  "fastapi>=0.141,<1",
+  "starlette>=1.7,<2",
+  "uvicorn[standard]>=0.54,<1",
+  # A worker's spans, where PINECALL_OTLP_ENDPOINT says.
+  "opentelemetry-sdk>=1.44,<2",
+  "opentelemetry-exporter-otlp-proto-http>=1.44,<2",
   "psycopg[binary]>=3.2,<4",
   "psycopg-pool>=3.2,<4",
   "pydantic>=2.11,<3",
@@ -77,6 +86,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pinecall"]
+
+# hatch_build.py puts build/public (scripts/console) in the wheel as pinecall/public.
+[tool.hatch.build.targets.wheel.hooks.custom]
 
 # ── pytest ──
 
@@ -130,8 +142,9 @@ convention = "google"
 "tests/**" = ["D103", "INP001", "PLR2004", "S101"]
 "**/__init__.py" = ["D104"]  # rule 1: every __init__.py is empty
 "tests/rules/**" = ["S603", "S607"]  # the rules run the checkers as subprocesses
-# A fake plugin takes the arguments a real one does, and its keys are fakes.
-"tests/fakes.py" = ["PLR0913", "S105", "S106"]
+# A fake plugin takes the arguments a real one does, and its keys are fakes; livekit's
+# RoomService names its request `list`, and an override keeps the name it overrides.
+"tests/fakes.py" = ["PLR0913", "S105", "S106", "A002"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["pinecall", "pinecall_protocol", "tests"]
@@ -145,4 +158,4 @@ reportImplicitOverride = true
 
 [tool.deptry]
 known_first_party = ["pinecall", "tests"]
-extend_exclude = ["tests/rules/fixtures"]
+extend_exclude = ["tests/rules/fixtures", "hatch_build.py"]

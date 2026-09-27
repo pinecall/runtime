@@ -15,6 +15,7 @@ from pinecall.providers.keys import (
     readiness,
     refusal,
     running,
+    thinking,
 )
 
 AGENT = AgentConfig(slug="clinica-norte", language="es-ES")
@@ -189,6 +190,16 @@ def test_the_temperature_an_agent_sets_reaches_its_model(configured: Providers) 
     agent = AgentConfig(slug="clinica-norte", llm=Model("anthropic", "", temperature=0.3))
     llm = pipeline(agent, configured, Keys(box=THE_BOX)).llm
     assert llm.options == {"caching": "ephemeral", "temperature": 0.3}
+
+
+def test_a_written_call_thinks_on_its_model_without_a_voice_anybody_keyed(
+    configured: Providers,
+) -> None:
+    agent = AgentConfig(slug="clinica-norte", llm=Model("anthropic", "", temperature=0.3))
+    llm = thinking(agent, configured, Keys(own={"anthropic": "mine"}))
+    assert (llm.vendor, llm.credentials, llm.options["temperature"]) == ("anthropic", "mine", 0.3)
+    with pytest.raises(NotAvailable, match="deepgram"):
+        pipeline(agent, configured, Keys(own={"anthropic": "mine"}))
 
 
 def test_one_process_serves_two_orgs_and_neither_is_built_with_the_others_key(

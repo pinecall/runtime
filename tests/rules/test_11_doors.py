@@ -4,7 +4,10 @@ import re
 from pathlib import Path
 
 import pytest
+from fastapi.routing import APIRoute, APIWebSocketRoute
 
+from pinecall.gateway.api import agents, calls
+from pinecall.gateway.app import app
 from tests.rules.tree import FIXTURES, PARITY_MD, V1
 
 EVERY_DOOR = V1 / "docs/protocol/every-door.md"
@@ -13,8 +16,23 @@ EVERY_DOOR = V1 / "docs/protocol/every-door.md"
 ROWS_OF_V1 = 133
 DOORS_OF_V1 = 193
 
-# The routes of gateway/app.py, read from the app once it exists.
-ROUTES: frozenset[tuple[str, str]] = frozenset()
+
+def routes_of_the_gateway() -> frozenset[tuple[str, str]]:
+    """Return every (method, path) the gateway answers, spelled as the table of v1 spells them."""
+    found: set[tuple[str, str]] = set()
+    for route in [*calls.router.routes, *agents.router.routes, *app.routes]:
+        if isinstance(route, APIRoute):
+            found |= {(method, _spelled(route.path)) for method in route.methods or ()}
+        elif isinstance(route, APIWebSocketRoute):
+            found.add(("WS", _spelled(route.path)))
+    return frozenset(found)
+
+
+def _spelled(path: str) -> str:
+    return path.replace("{path:path}", "{path}")
+
+
+ROUTES = routes_of_the_gateway()
 
 A_CELL = re.compile(r"`([^`]+)`")
 

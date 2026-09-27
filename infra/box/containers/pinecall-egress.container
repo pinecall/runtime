@@ -1,0 +1,31 @@
+# The recorder: one room composite per call, so the melody and a supervisor are in the file.
+[Unit]
+Description=Pinecall media plane: livekit-egress
+Requires=pinecall-redis.service pinecall-livekit.service
+After=pinecall-redis.service pinecall-livekit.service
+
+[Container]
+ContainerName=pinecall-egress
+Image=docker.io/livekit/egress:v1.14.1@sha256:bf2b648b947349c3e9ff7aa8c718f00378d5c06af7624652a3653318e00333ce
+Volume=/etc/pinecall/egress.yaml:/etc/egress/config.yaml:ro
+Environment=EGRESS_CONFIG_FILE=/etc/egress/config.yaml
+Network=pinecall.network
+PublishPort=127.0.0.1:7980:7980
+# The image's own user, added to pinecall-media (gid 4200): the recordings directory is setgid,
+# so its files stay readable by the gateway. Quadlet's GroupAdd= is unknown to podman 4.9, and an
+# unknown key makes the generator skip the whole unit without a word.
+PodmanArgs=--group-add 4200
+Volume=/var/lib/pinecall/recordings:/var/lib/pinecall/recordings:rw
+EnvironmentFile=%d/media.env
+HealthCmd=wget -q --spider -T 3 http://127.0.0.1:7980/
+HealthInterval=10s
+HealthRetries=12
+HealthStartPeriod=30s
+
+[Service]
+ImportCredential=media.env
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

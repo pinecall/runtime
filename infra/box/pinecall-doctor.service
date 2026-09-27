@@ -1,0 +1,17 @@
+# The doctor as the deploy's last line: started by `make deploy`, its exit is the deploy's.
+[Unit]
+Description=Pinecall: the doctor
+
+[Service]
+Type=oneshot
+User=pinecall
+Group=pinecall
+WorkingDirectory=/opt/pinecall
+Environment=LIVEKIT_URL=ws://127.0.0.1:7880
+Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
+EnvironmentFile=/etc/pinecall/box.env
+ImportCredential=DATABASE_URL
+ImportCredential=PINECALL_VAULT_KEY
+ImportCredential=LIVEKIT_API_KEY
+ImportCredential=LIVEKIT_API_SECRET
+ExecStart=/opt/pinecall/venv/bin/pinecall-runtime doctor

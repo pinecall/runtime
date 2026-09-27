@@ -1,6 +1,7 @@
 """What a call is while it runs, written once for a voice call and a written one."""
 
 import asyncio
+import dataclasses
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass
@@ -8,9 +9,18 @@ from dataclasses import asdict, dataclass
 from livekit.agents.utils import aio
 
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.domain.types import AgentConfig, CallContext, EventSource, JsonObject
-from pinecall.wire.commands import CallCallback, CallLog, StateSet, ToolsSet
+from pinecall.domain.types import (
+    DEFAULT_LAYOUT,
+    AgentConfig,
+    CallContext,
+    EventSource,
+    JsonObject,
+    PromptBlock,
+    ToolSpec,
+)
+from pinecall.wire.commands import CallCallback, CallLog, SessionConfigure, StateSet, ToolsSet
 from pinecall.wire.events import (
+    AgentConfigured,
     CallbackRequested,
     Custom,
     EventReceived,
@@ -21,6 +31,7 @@ from pinecall.wire.events import (
 )
 from pinecall.wire.frames import Entry, WireModel
 from pinecall.wire.metrics import ModelUsage
+from pinecall.wire.parts import AgentConfig as Declared
 from pinecall.wire.parts import Contact, PlatformTool, Supervisor, ToolResult
 
 logger = logging.getLogger(__name__)
@@ -207,6 +218,16 @@ class Call:
             ),
         )
 
+    # What the app sets up before the first turn; a declaration sent here lasts this call only.
+    async def configure(self, wanted: SessionConfigure) -> None:
+        """The app's declaration and state for this call."""
+        if wanted.config is not None:
+            self.config = declared(self.config, wanted.config)
+            configured = AgentConfigured(changed=changed_by(wanted.config))
+            await self.writing.write("agent.configured", configured)
+        if wanted.state is not None:
+            await self.set_state(StateSet(state=wanted.state))
+
     # Every tool stays declared for the whole call: changing what the provider is sent spends
     # its prompt cache. The subset open now is enforced where a tool is run.
     async def set_tools(self, wanted: ToolsSet) -> None:
@@ -214,3 +235,49 @@ class Call:
         declared = {tool.name for tool in self.config.tools}
         self.open_tools = frozenset(tool.name for tool in wanted.tools if tool.name in declared)
         await self.writing.write("tools.changed", ToolsChanged(visible=sorted(self.open_tools)))
+
+
+# ── the app's declaration ──
+
+
+# A declaration is a patch: only the fields sent change. What the org sets per world (the
+# voice, the models, memory, the greeting) comes from its settings and is not taken from here.
+def declared(current: AgentConfig, said: Declared) -> AgentConfig:
+    """The agent's declaration with the fields the app sent in place."""
+    sent = said.model_fields_set
+    changed: dict[str, object] = {}
+    if "prompt" in sent:
+        changed["prompt"] = (
+            tuple(PromptBlock(block.name, block.region) for block in said.prompt)
+            if said.prompt
+            else DEFAULT_LAYOUT
+        )
+    if "language" in sent:
+        changed["language"] = said.language
+    if "uses_knowledge" in sent:
+        changed["uses_knowledge"] = said.uses_knowledge
+    if "tools" in sent:
+        changed["tools"] = tuple(
+            ToolSpec(
+                name=tool.name,
+                description=tool.description,
+                parameters=tool.parameters,
+                side_effect=tool.side_effect,
+                pii=frozenset(tool.pii or ()),
+                confirm=tool.confirm,
+                timeout_s=ToolSpec.timeout_s if tool.timeout_s is None else tool.timeout_s,
+            )
+            for tool in said.tools or ()
+        )
+    if "state_fields" in sent:
+        changed["state_fields"] = {one.name: one.visibility for one in said.state_fields or ()}
+    if "view" in sent:
+        changed["view"] = None if said.view is None else said.view.name
+    if "events" in sent:
+        changed["events"] = {one.name: frozenset(one.from_) for one in said.events or ()}
+    return dataclasses.replace(current, **changed)
+
+
+def changed_by(said: Declared) -> list[str]:
+    """The fields a declaration sets, sorted."""
+    return sorted(said.model_fields_set)

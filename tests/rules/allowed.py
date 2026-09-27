@@ -45,6 +45,16 @@ SUPPRESSIONS: tuple[Allowed, ...] = (
         "pyright: " + "ignore",
         "livekit's Room emits through a bare Callable",
     ),
+    Allowed(
+        "pinecall/worker/job.py",
+        "pyright: " + "ignore",
+        "livekit's Room emits through a bare Callable",
+    ),
+    Allowed(
+        "pinecall/worker/main.py",
+        "pyright: " + "ignore",
+        "AgentSession.start carries livekit's unparameterised generics",
+    ),
 )
 
 # importlib, getattr on a string.

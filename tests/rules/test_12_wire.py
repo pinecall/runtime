@@ -7,10 +7,54 @@ import pytest
 
 from pinecall.wire.commands import COMMANDS
 from pinecall.wire.events import EVENTS
-from tests.rules.tree import FIXTURES, PARITY_MD, source_files
+from tests.rules.tree import FIXTURES, PACKAGE, PARITY_MD, source_files
 
-# The handler table of gateway/api/agents.py, read from it once it exists.
-HANDLED: frozenset[str] = frozenset()
+# A command is handled where a `case Model():` arm names its model: the app socket takes the
+# agent's own, and hands the rest to the session.
+HANDLERS = (
+    PACKAGE / "gateway/api/agents.py",
+    PACKAGE / "session/session.py",
+    PACKAGE / "session/room.py",
+)
+
+
+def matched_classes(path: Path) -> set[str]:
+    """Return every class a `case Name()` arm or an `isinstance(x, Name)` of the module names."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    arms = {
+        node.pattern.cls.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.match_case)
+        and isinstance(node.pattern, ast.MatchClass)
+        and isinstance(node.pattern.cls, ast.Name)
+    }
+    checks = {
+        name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "isinstance"
+        and len(node.args) == 2
+        for name in _names_in(node.args[1])
+    }
+    return arms | checks
+
+
+def _names_in(node: ast.expr) -> list[str]:
+    if isinstance(node, ast.Name):
+        return [node.id]
+    if isinstance(node, ast.BinOp):
+        return _names_in(node.left) + _names_in(node.right)
+    return []
+
+
+def handled_commands() -> frozenset[str]:
+    """Return every command type whose model a handler matches on."""
+    matched = set[str]().union(*(matched_classes(path) for path in HANDLERS))
+    return frozenset(name for name, model in COMMANDS.items() if model.__name__ in matched)
+
+
+HANDLED = handled_commands()
 
 
 def appended_types(path: Path) -> list[str]:

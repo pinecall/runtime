@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# The console and the widget into build/public/, which the wheel carries as pinecall/public/.
+# Built outside pinecall/ so the source tree stays what TREE.md lists.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+CONSOLE="${PINECALL_CONSOLE:-../console}"
+WIDGET="${PINECALL_WIDGET:-../widget}"
+OUT=build/public
+[ -d "$CONSOLE/apps/console" ] || { echo "no console checkout at $CONSOLE: set PINECALL_CONSOLE" >&2; exit 2; }
+[ -f "$WIDGET/pinecall-widget.js" ] || { echo "no widget checkout at $WIDGET: set PINECALL_WIDGET" >&2; exit 2; }
+pnpm --dir "$CONSOLE/apps/console" exec vite build --logLevel error
+[ -f "$CONSOLE/apps/console/dist/index.html" ] || { echo "vite built no page" >&2; exit 1; }
+rm -rf "$OUT" && mkdir -p "$OUT/widget"
+cp -R "$CONSOLE/apps/console/dist" "$OUT/console"
+cp "$WIDGET/pinecall-widget.js" "$OUT/widget/pinecall-widget.js"
+echo "console and widget → $OUT ($(find "$OUT" -type f | wc -l | tr -d ' ') files)"

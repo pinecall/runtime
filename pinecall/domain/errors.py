@@ -58,6 +58,24 @@ class UpstreamFailed(PinecallError):
     status = 502
 
 
+class GatewayRefused(UpstreamFailed):
+    """The worker's gateway did not answer, or answered with a refusal; `answered` is its status."""
+
+    def __init__(self, sentence: str, *, answered: int | None = None) -> None:
+        """The refusal, and the status the gateway answered with, None when it was unreachable."""
+        super().__init__(sentence)
+        self.answered = answered
+
+
+class AppRefused(PinecallError):
+    """A tenant's app refused what a console asked of it; its own status is the answer's."""
+
+    def __init__(self, answered: int, sentence: str) -> None:
+        """The app's status and its sentence, passed on as they came."""
+        super().__init__(sentence)
+        self.status = answered
+
+
 class NotAvailable(PinecallError):
     """This box lacks what the request needs: a key, the vault, an embedder, a domain."""
 

@@ -9,3 +9,4 @@ dist/
 pinecall/public/
 tests/out/
 .DS_Store
+build/

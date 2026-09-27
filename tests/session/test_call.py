@@ -4,11 +4,12 @@ import asyncio
 
 from pinecall.domain.types import AgentConfig, JsonObject, ToolSpec
 from pinecall.log.store import Store
-from pinecall.session.call import Call, Writing
-from pinecall.wire.commands import ToolsSet
+from pinecall.session.call import Call, Writing, changed_by, declared
+from pinecall.wire.commands import SessionConfigure, ToolsSet
 from pinecall.wire.events import Custom
 from pinecall.wire.frames import Entry
-from pinecall.wire.parts import Supervisor
+from pinecall.wire.parts import AgentConfig as Declared
+from pinecall.wire.parts import Supervisor, VoiceConfig
 from pinecall.wire.parts import ToolSpec as WiredTool
 from tests.conftest import postgres
 from tests.session.conftest import Box, context_of
@@ -133,3 +134,43 @@ async def test_an_event_from_a_widget_names_the_seat_it_came_from(
         "source": "participant",
         "identity": "visitor_1",
     }
+
+
+def test_a_declaration_changes_only_the_fields_the_app_sent() -> None:
+    current = AgentConfig(slug="a", language="es-ES", tools=(A_TOOL,))
+    parameters: JsonObject = {"type": "object", "properties": {"phone": {"type": "string"}}}
+    wired = WiredTool(name="cancel", description="d", parameters=parameters, pii=["phone"])
+    said = Declared(tools=[wired], uses_knowledge=True)
+    patched = declared(current, said)
+    assert patched.language == "es-ES"
+    assert patched.uses_knowledge
+    assert [(tool.name, tool.pii) for tool in patched.tools] == [("cancel", frozenset({"phone"}))]
+    assert patched.tools[0].timeout_s == A_TOOL.timeout_s
+
+
+def test_what_the_org_sets_per_world_is_never_taken_from_a_declaration() -> None:
+    current = AgentConfig(slug="a")
+    patched = declared(current, Declared(voice=VoiceConfig(provider="acme", voice_id="v")))
+    assert patched == current
+
+
+def test_the_fields_a_declaration_changed_are_named_sorted() -> None:
+    assert changed_by(Declared(view=None, language="en")) == ["language", "view"]
+
+
+@postgres
+async def test_a_configure_declares_for_this_call_and_sets_its_state(
+    box: Box, store: Store, call: str
+) -> None:
+    ongoing = Call(context_of(call), AgentConfig(slug="a"), box.platform())
+    ongoing.writing.open()
+    await ongoing.configure(
+        SessionConfigure(config=Declared(language="en-US"), state={"step": "greeted"})
+    )
+    await ongoing.writing.close(5)
+    assert ongoing.config.language == "en-US"
+    written = await store.whole(call)
+    assert [(entry.type, entry.data.get("changed")) for entry in written] == [
+        ("agent.configured", ["language"]),
+        ("state.changed", ["step"]),
+    ]

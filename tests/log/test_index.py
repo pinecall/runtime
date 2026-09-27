@@ -19,6 +19,7 @@ from pinecall.log.index import (
     facts_of_calls,
     fold,
     found,
+    lent,
     read,
     runs_of_persona,
     spent_between,
@@ -35,6 +36,9 @@ pytestmark = postgres
 
 AGENT = "dental-sur"
 THE_DAY = 0.0
+
+
+LENT_OF = "select lent from call_facts where call = %(call)s"
 
 
 @pytest.fixture
@@ -316,6 +320,19 @@ async def test_an_entry_that_changes_no_fact_writes_no_row(
     await store.claim(call, AGENT, org)
     await store.append(call, AGENT, "custom", {"name": "n", "data": {}}, ephemeral=False)
     assert await facts_of_calls(store.pool, [call]) == {}
+
+
+async def test_the_vendors_lent_to_a_call_are_kept_with_its_facts_and_replaced_whole(
+    store: Store, pool: Pool, org: str
+) -> None:
+    call = await logged_call(store, org)
+    await lent(pool, call, ["cartesia", "deepgram"])
+    await lent(pool, call, ["cartesia"])
+    async with pool.connection() as connection:
+        row = await (await connection.execute(LENT_OF, {"call": call})).fetchone()
+    assert row is not None
+    assert row["lent"] == ["cartesia"]
+    assert call in await facts_of_calls(pool, [call])
 
 
 # ── the corner ──
