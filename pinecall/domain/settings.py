@@ -3,11 +3,11 @@
 import os
 from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Literal, Self
+from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import dotenv_values
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from pinecall.domain.errors import SettingsRefused
 
@@ -19,11 +19,6 @@ ENV_FILES = (".env", "runtime/.env")
 # agent_name makes LiveKit dispatch to every room (livekit worker.py:219).
 A_FLEET_NAME = r"^[a-z0-9][a-z0-9-]{0,62}$"
 
-NOBODY_TO_ASK = "a sandbox instance asks production who a person is: set PINECALL_IDENTITY_URL"
-HALF_A_PAIR = (
-    "PINECALL_SANDBOX_URL and PINECALL_SANDBOX_KEY are set together or not at all: "
-    "`pinecall-runtime box peer` mints the key"
-)
 UNREADABLE_ENV = "cannot read {file}: {why}. A .env that is there is never skipped in silence"
 
 # Spoken by the overflow agent when every worker is full, before hanging up.
@@ -68,41 +63,6 @@ class Settings(BaseModel):
         None,
         alias="PINECALL_DOMAIN",
         description="The box's public name: where a carrier sends a call. Unset, nothing imports.",
-    )
-
-    # ── worlds ──
-    # Each instance is one world with its own database, worker and keys.
-    world: Literal["production", "sandbox"] = Field(
-        "production",
-        alias="PINECALL_WORLD",
-        description="Which world this instance is: production, unless it says sandbox.",
-    )
-    elsewhere_url: str | None = Field(
-        None,
-        alias="PINECALL_ELSEWHERE_URL",
-        description="The other world's gateway, https://…: where a refusal sends a person.",
-    )
-    identity_url: str | None = Field(
-        None,
-        alias="PINECALL_IDENTITY_URL",
-        description="The gateway people sign in at: required on a sandbox, unset on production.",
-    )
-    sandbox_url: str | None = Field(
-        None,
-        alias="PINECALL_SANDBOX_URL",
-        description="Production's: where its sandbox answers, asked whose a ring is.",
-    )
-    sandbox_key: str | None = Field(
-        None,
-        alias="PINECALL_SANDBOX_KEY",
-        repr=False,
-        description="Production's: a fleet key OF THE SANDBOX, minted by `box peer`.",
-    )
-    peer_key: str | None = Field(
-        None,
-        alias="PINECALL_PEER_KEY",
-        repr=False,
-        description="The sandbox's: a fleet key OF PRODUCTION, minted by `box peer`.",
     )
 
     # ── Postgres and the embedder ──
@@ -184,7 +144,7 @@ class Settings(BaseModel):
         "pinecall",
         alias="PINECALL_FLEET",
         pattern=A_FLEET_NAME,
-        description="The name this instance's workers register under and its dispatches ask for.",
+        description="The fleet this worker unit joins: the name it registers under with LiveKit.",
     )
     # livekit prewarms one process per CPU, wasting RAM when two instances share a machine.
     idle_processes: int | None = Field(
@@ -244,11 +204,6 @@ class Settings(BaseModel):
         repr=False,
         description="The Bearer key the sign-up doors take; unset, they take anybody.",
     )
-    extensions: str = Field(
-        "",
-        alias="PINECALL_EXTENSIONS",
-        description="Packages that plug a policy into the runtime's points, comma separated.",
-    )
     # The mobile app's two origins are always allowed. No wildcards.
     app_origins: str = Field(
         "",
@@ -270,7 +225,7 @@ class Settings(BaseModel):
         None,
         alias="PINECALL_VAULT_KEY",
         repr=False,
-        description="The Fernet key a tenant's own secrets are encrypted under. Unset: 503.",
+        description="The Fernet key every sealed secret is under; the gateway needs it.",
     )
     smtp_url: str | None = Field(
         None,
@@ -357,16 +312,6 @@ class Settings(BaseModel):
         except (ZoneInfoNotFoundError, ValueError):
             raise ValueError(f"{zone!r} is not an IANA time zone (Europe/Madrid, UTC)") from None
         return zone
-
-    # A sandbox has no local identities, so without PINECALL_IDENTITY_URL nobody can sign in.
-    # Raised as-is: pydantic wraps only ValueError.
-    @model_validator(mode="after")
-    def _the_instance_knows_its_peers(self) -> Self:
-        if self.world == "sandbox" and self.identity_url is None:
-            raise SettingsRefused(NOBODY_TO_ASK)
-        if (self.sandbox_url is None) != (self.sandbox_key is None):
-            raise SettingsRefused(HALF_A_PAIR)
-        return self
 
 
 def load() -> Settings:

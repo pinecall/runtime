@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotAvailable
-from pinecall.domain.types import AgentConfig, Model, Voice
-from pinecall.providers.build import Credentials, Modality, Running, Vendor, installed, primary
+from pinecall.domain.types import AgentConfig, Credentials, Model, Voice
+from pinecall.providers.build import Modality, Running, Vendor, installed, primary
 from pinecall.providers.catalog import Providers
 from pinecall.providers.declared import SEPARATOR
 

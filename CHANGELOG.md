@@ -28,5 +28,22 @@ The runtime written again from a blank page.
 - Voice and written calls run on the same livekit session: the same turns, tools, prompt,
   supervisor verbs and entries. A written call's `agent.reply` is instructions for one turn, as a
   voice call's always was.
+- One gateway and one database serve production and the sandbox. A person signs in once and
+  has one key for both worlds (production only with production access); a server has a key per
+  world, `pc_live_` or `pc_test_`. Test calls stay off production processes because each world
+  has its own fleet of workers, and every call is dispatched to the fleet of its world. Quotas and
+  an agent's hold melody are kept per world (migration `0002_worlds.sql`).
+- What a new org is given is the box's `admission` setting, edited from the console; a box with
+  none limits nothing. No extension package is loaded.
+- `PINECALL_VAULT_KEY` is required: every secret is sealed under it, and the gateway does not
+  start without one. `PINECALL_WORLD`, `PINECALL_ELSEWHERE_URL`, `PINECALL_IDENTITY_URL`,
+  `PINECALL_SANDBOX_URL`, `PINECALL_SANDBOX_KEY`, `PINECALL_PEER_KEY` and `PINECALL_EXTENSIONS`
+  are gone.
+- Orgs, people, keys, sign-in (password, one-use codes, pairing, sign-up, an org's own OpenID
+  provider), tuning and lexicon versions per corner, widgets, hold
+  melodies, personas, caller codes and mail. Usage is counted from the calls' summaries when a
+  call or a turn asks to start; nothing is held in memory.
+- Fixed: the tuning and the lexicon a call is built on are read in one query, so a write between
+  two reads no longer records a version the call did not run on.
 - Fixed: a written call counted each turn twice (the caller's and the agent's); a tool's
   structured output reached the model as Python's repr instead of JSON.

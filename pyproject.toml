@@ -21,6 +21,14 @@ classifiers = [
 dependencies = [
   # The text session is livekit's AgentSession with no audio: the library and its two llm plugins.
   "livekit-agents[anthropic,openai]>=1.8.3,<2",
+  # Room tokens are livekit's AccessToken; the id_token of an identity provider is read with PyJWT.
+  "livekit-api>=1.2,<2",
+  "pyjwt[crypto]>=2.10,<3",
+  # Every sealed secret is a Fernet token; passwords are argon2id.
+  "cryptography>=46,<51",
+  "argon2-cffi>=25.1,<26",
+  # A provider's discovery, keys and token endpoint.
+  "httpx>=0.28,<1",
   "psycopg[binary]>=3.2,<4",
   "psycopg-pool>=3.2,<4",
   "pydantic>=2.11,<3",

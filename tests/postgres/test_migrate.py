@@ -12,6 +12,7 @@ from psycopg import sql
 from pinecall.domain.errors import MigrationsRefused
 from pinecall.postgres.migrate import (
     FIRST,
+    MIGRATIONS,
     MIGRATIONS_TABLE,
     NO_TRANSACTION,
     RECORD,
@@ -149,19 +150,17 @@ async def test_a_database_the_previous_runtime_migrated_is_taken_over_without_ru
     schema: str,
 ) -> None:
     await pretend_it_ran(schema, ("0001_initial.sql", "c" * 64), ("0052_the_last.sql", "d" * 64))
+    async with await connect(DSN) as connection:
+        await connection.execute(
+            sql.SQL("set search_path to {}, public").format(sql.Identifier(schema))
+        )
+        await connection.execute((MIGRATIONS / FIRST).read_bytes())
 
     ran = await apply_migrations(DSN, schema=schema)
 
-    assert ran.applied == ()
-    assert await column_of(schema, "schema_migrations", "name") == [FIRST]
-    async with await connect(DSN) as connection:
-        rows = await (
-            await connection.execute(
-                "select table_name from information_schema.tables where table_schema = %s",
-                (schema,),
-            )
-        ).fetchall()
-    assert [str(row["table_name"]) for row in rows] == ["schema_migrations"]
+    later = [path.name for path in migration_files() if path.name != FIRST]
+    assert ran.applied == tuple(later)
+    assert await column_of(schema, "schema_migrations", "name") == [FIRST, *later]
 
 
 @postgres

@@ -38,9 +38,18 @@ class Conflict(PinecallError):
 
 
 class QuotaExhausted(PinecallError):
-    """A limit of the org is reached."""
+    """A limit of the org is reached: which one, what was used and the limit, when it is one."""
 
     status = 429
+
+    def __init__(
+        self, sentence: str, *, quota: str | None = None, used: float = 0, limit: int = 0
+    ) -> None:
+        """The refusal, and the numbers the door writes into the agent's log."""
+        super().__init__(sentence)
+        self.quota = quota
+        self.used = used
+        self.limit = limit
 
 
 class UpstreamFailed(PinecallError):

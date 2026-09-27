@@ -1,11 +1,19 @@
-"""What the suites fake, and only that: livekit plugins, whose vendors a test never reaches."""
+"""What the suites fake, and only that: livekit plugins, a mail server, an identity provider."""
 
 import json
+import smtplib
+import time
 import types
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Never, override
+from email.message import Message
+from typing import ClassVar, Never, Self, override
 
+import httpx
+import jwt
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from jwt.algorithms import RSAAlgorithm
 from livekit import api, rtc
 from livekit.agents import (
     APIConnectionError,
@@ -513,3 +521,137 @@ def acme_plugin() -> types.ModuleType:
         TTS=AcmeTTS, STT=AcmeSTT, LLM=AcmeLLM, OtherSTT=AcmeSTT, StreamedTTS=AcmeStreamedTTS
     )
     return module
+
+
+# ── a mail server ──
+
+
+@dataclass
+class Postbox:
+    """What a fake mail server was told: who signed in, what was sent, and what it refuses."""
+
+    hosts: list[tuple[str, int]] = field(default_factory=list[tuple[str, int]])
+    logins: list[tuple[str, str]] = field(default_factory=list[tuple[str, str]])
+    starttls: int = 0
+    sent: list[Message] = field(default_factory=list[Message])
+    # A reply code and sentence the server answers the login or the letter with.
+    refuses_login: tuple[int, str] | None = None
+    refuses_letter: tuple[int, str] | None = None
+
+
+# Put in smtplib's place by the test, with the postbox it answers from.
+class MailServer(smtplib.SMTP):
+    """A mail server that answers as its postbox says, and keeps what it was sent."""
+
+    postbox: ClassVar[Postbox] = Postbox()
+
+    @override
+    def __init__(self, host: str = "", port: int = 0, **_: object) -> None:
+        self.postbox.hosts.append((host, port))
+
+    @override
+    def __enter__(self) -> Self:
+        return self
+
+    @override
+    def __exit__(self, *_: object) -> None:
+        return
+
+    @override
+    def starttls(self, *_: object, **__: object) -> tuple[int, bytes]:
+        self.postbox.starttls += 1
+        return 220, b"ready"
+
+    @override
+    def login(
+        self, user: str, password: str, *, initial_response_ok: bool = True
+    ) -> tuple[int, bytes]:
+        if self.postbox.refuses_login is not None:
+            code, said = self.postbox.refuses_login
+            raise smtplib.SMTPAuthenticationError(code, said.encode())
+        self.postbox.logins.append((user, password))
+        return 235, b"ok"
+
+    @override
+    def send_message(self, msg: Message, *_: object, **__: object) -> dict[str, tuple[int, bytes]]:
+        if self.postbox.refuses_letter is not None:
+            code, said = self.postbox.refuses_letter
+            raise smtplib.SMTPDataError(code, said.encode())
+        self.postbox.sent.append(msg)
+        return {}
+
+
+# ── an identity provider ──
+
+
+# One RSA key for the whole suite: making one costs a second.
+_IDP_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+
+@dataclass
+class IdentityProvider:
+    """An OpenID provider on a fake transport: discovery, the token endpoint and its JWKS."""
+
+    issuer: str = "https://idp.test"
+    client_id: str = "the-client"
+    # What the token endpoint hands back for a code; None refuses the exchange.
+    id_token: str | None = None
+    # How the token endpoint answers a refused code.
+    refusal: tuple[int, str] = (400, '{"error": "invalid_grant"}')
+    kid: str | None = "k1"
+    basic_only: bool = False
+    exchanged: list[dict[str, str]] = field(default_factory=list[dict[str, str]])
+
+    def signed(self, *, nonce: str, email: str = "ana@clinica.test", **claims: object) -> str:
+        """An id_token this provider signed, with the claims a sign-in needs and any others."""
+        now = int(time.time())
+        said: dict[str, object] = {
+            "iss": self.issuer,
+            "aud": self.client_id,
+            "sub": "sub-ana",
+            "iat": now,
+            "exp": now + 300,
+            "nonce": nonce,
+            "email": email,
+            "email_verified": True,
+            "name": "Ana García",
+            **claims,
+        }
+        headers = {} if self.kid is None else {"kid": self.kid}
+        pem = _IDP_KEY.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+        return jwt.encode(said, pem, algorithm="RS256", headers=headers)
+
+    def transport(self) -> httpx.MockTransport:
+        """A transport that answers as this provider does."""
+        return httpx.MockTransport(self._answer)
+
+    def _answer(self, request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/.well-known/openid-configuration":
+            methods = ["client_secret_basic"] if self.basic_only else ["client_secret_post"]
+            return httpx.Response(
+                200,
+                json={
+                    "issuer": self.issuer,
+                    "authorization_endpoint": f"{self.issuer}/authorize?prompt=select_account",
+                    "token_endpoint": f"{self.issuer}/token",
+                    "jwks_uri": f"{self.issuer}/jwks",
+                    "token_endpoint_auth_methods_supported": methods,
+                },
+            )
+        if path == "/jwks":
+            key: dict[str, object] = RSAAlgorithm.to_jwk(_IDP_KEY.public_key(), as_dict=True)
+            if self.kid is not None:
+                key["kid"] = self.kid
+            return httpx.Response(200, json={"keys": [key]})
+        if path == "/token":
+            self.exchanged.append(dict(httpx.QueryParams(request.content.decode()).items()))
+            if self.id_token is None:
+                status, body = self.refusal
+                return httpx.Response(status, content=body)
+            return httpx.Response(200, json={"id_token": self.id_token})
+        return httpx.Response(404)
