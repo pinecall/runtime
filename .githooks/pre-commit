@@ -1,0 +1,3 @@
+#!/bin/sh
+# Every rule is a test; a failing rule fails the commit.
+exec make -s check

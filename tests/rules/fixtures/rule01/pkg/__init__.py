@@ -1,0 +1,3 @@
+"""Not empty."""
+
+NAME = "pkg"

@@ -1,0 +1,117 @@
+# One package, one distribution: the wheel the box installs is this file's `pinecall`, and the
+# tools that keep it honest (tests/rules/) are configured here, once.
+
+[project]
+name = "pinecall"
+version = "2.0.0a0"
+description = "The Pinecall voice-AI runtime: gateway and worker, on LiveKit"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+authors = [{ name = "Bernardo Castro", email = "me@bernardocastro.dev" }]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Communications :: Telephony",
+]
+dependencies = [
+  "psycopg[binary]>=3.2,<4",
+  "psycopg-pool>=3.2,<4",
+  "pydantic>=2.11,<3",
+  "python-dotenv>=1.1,<2",
+]
+
+[project.scripts]
+pinecall-runtime = "pinecall.cli.main:main"
+
+[project.urls]
+Homepage = "https://github.com/pinecall/runtime"
+Repository = "https://github.com/pinecall/runtime"
+
+[dependency-groups]
+dev = [
+  "deptry>=0.25,<1",
+  # The old wire, generated from ../protocol/schema: tests/domain/test_wire.py holds ours to it
+  # until that repository is archived.
+  "pinecall-protocol>=0.6.14,<0.7",
+  "pylint>=4,<5",
+  "pyright>=1.1.414,<2",
+  "pytest>=9,<10",
+  "pytest-asyncio>=1.4,<2",
+  "pytest-timeout>=2.4,<3",
+  "ruff>=0.16,<1",
+]
+
+[tool.uv.sources]
+pinecall-protocol = { path = "../protocol/python", editable = true }
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pinecall"]
+
+# ── pytest ──
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "--tb=short --strict-markers --strict-config --import-mode=importlib"
+xfail_strict = true
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+timeout = 120
+filterwarnings = ["error"]
+markers = [
+  "postgres: needs DATABASE_URL, the sandbox database through the tunnel `make test` opens",
+  "live: runs against the sandbox instance",
+]
+
+# ── the checkers (rule 10) ──
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["tests/rules/fixtures"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  "D203",   # one of each incompatible pair; the Google convention keeps D211 and D212
+  "D213",
+  "COM812", # the formatter owns trailing commas
+  "EM101",  # the sentence a person reads is written where it is raised
+  "EM102",
+  "TRY003",
+  "N818",   # an error is named for what was refused, not with a suffix
+  "D105",   # __post_init__ and the like: the class docstring says it
+  "CPY001", # the LICENSE file is the notice
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# A test's name is its sentence; asserts and literal numbers are what a test is made of.
+"tests/**" = ["D103", "INP001", "PLR2004", "S101"]
+"**/__init__.py" = ["D104"]  # rule 1: every __init__.py is empty
+"tests/rules/**" = ["S603", "S607"]  # the rules run the checkers as subprocesses
+
+[tool.ruff.lint.isort]
+known-first-party = ["pinecall", "pinecall_protocol", "tests"]
+
+[tool.pyright]
+include = ["pinecall", "tests"]
+exclude = ["tests/rules/fixtures"]
+typeCheckingMode = "strict"
+pythonVersion = "3.12"
+reportImplicitOverride = true
+
+[tool.deptry]
+known_first_party = ["pinecall", "tests"]
+extend_exclude = ["tests/rules/fixtures"]

@@ -1,0 +1,11 @@
+.venv/
+.env
+.env.*
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+dist/
+pinecall/public/
+tests/out/
+.DS_Store
