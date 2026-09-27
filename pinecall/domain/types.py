@@ -647,6 +647,14 @@ ROLE_SCOPES: Mapping[Role, frozenset[KeyScope]] = {
     ),
 }
 
+# A room token's scope, which LiveKit carries on the seat as its `pinecall.scope` attribute, so
+# the worker reads it without a lookup.
+type RoomScope = Literal["talk", "chat", "observe", "supervise", "participate", "read"]
+SCOPE_ATTRIBUTE = "pinecall.scope"
+# The browser's scopes, limited to their own call: the guest log and the widget's channel admit
+# them.
+READS_ITS_OWN_CALL: frozenset[RoomScope] = frozenset({"talk", "chat", "read", "participate"})
+
 # disabled: cannot log in and keys are revoked; the row is kept because the log references it.
 type MemberStatus = Literal["invited", "active", "disabled"]
 

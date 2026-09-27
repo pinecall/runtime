@@ -17,3 +17,16 @@ The runtime written again from a blank page.
   whether the log is sealed before it reads the backlog.
 - The suites run on a local Postgres (`make test`: colima, the image of `infra/postgres/`, one
   schema per test); `make test-sandbox` runs them on the sandbox database.
+- Every vendor livekit ships is a vendor here: each installed plugin that exports an LLM, an STT
+  or a TTS, and LiveKit Inference, built through one path with its constructor's own argument
+  names. The runtime keeps no list of vendors, models or voices; a model or a voice a vendor does
+  not have is that vendor's own error, in the call's log. `pinecall[voice]` installs all but
+  four; `pinecall[voice-big]` adds aws, azure, google and speechmatics.
+- An org's own key runs any installed vendor and any model of it; the box's keys run what
+  `quotas.lends` lends the org. What the box offers, each vendor's options, the defaults, the
+  voices per language and the prices are one row of the database, edited from the console.
+- Voice and written calls run on the same livekit session: the same turns, tools, prompt,
+  supervisor verbs and entries. A written call's `agent.reply` is instructions for one turn, as a
+  voice call's always was.
+- Fixed: a written call counted each turn twice (the caller's and the agent's); a tool's
+  structured output reached the model as Python's repr instead of JSON.

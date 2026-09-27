@@ -10,9 +10,8 @@ up to the repository root (`.env`, then `runtime/.env`, in the first directory t
 then the real environment. A bare `NAME=` means unset. A `.env` that exists and cannot be read
 stops the process with its name; it is never skipped.
 
-Our own knobs carry `PINECALL_`; a vendor key keeps the vendor's own name (`ANTHROPIC_API_KEY`),
-so the SDK that reads it by itself and this runtime agree. The runtime declares no field per
-vendor: every variable read is kept, and the provider catalog asks for a vendor's key by name.
+Our own knobs carry `PINECALL_`. The vendors' keys are not variables: see
+[The vendors](#the-vendors).
 
 **A runtime is one instance.** A laptop is one, production unless its `.env` says `sandbox`; a box
 runs one or more, each its own gateway, worker, database, fleet and keys, sharing the media plane
@@ -28,7 +27,6 @@ box's `box.env`.
 | `LIVEKIT_PUBLIC_URL` | the URL a browser is told to join, when it differs |
 | `DATABASE_URL` | Postgres 17 with pgvector and pg_textsearch: the one stateful service. On a box each instance has its own database and role in the one Postgres, in its own credstore |
 | `TEI_URL` · `EMBED_PROVIDER` · `EMBED_MODEL` · `EMBED_BASE_URL` · `PERPLEXITY_API_KEY` · `OPENROUTER_API_KEY` | who embeds (`tei` · `perplexity` · `openrouter`), where, and the key for a vendor that takes one |
-| `ANTHROPIC_API_KEY` · `OPENAI_API_KEY` · `SONIOX_API_KEY` · `DEEPGRAM_API_KEY` · `ELEVEN_API_KEY` · `CARTESIA_API_KEY` … | a call needs one key of each role: llm, stt, tts. Every vendor of the catalog, by its own name |
 | `PINECALL_WORKER_KEY` | the key the worker knocks with. On a box the fleet's; on a laptop an org's own key, and the worker serves that org |
 | `PINECALL_OPS_KEY` | the box's own key to `/v1/ops/*`. Unset, only a person the box made an operator opens those doors |
 | `PINECALL_VAULT_KEY` | the Fernet key a tenant's own secrets are encrypted under. To rotate: a comma-separated list, the new key first; a secret seals under the first and opens under whichever sealed it |
@@ -51,9 +49,44 @@ box's `box.env`.
 | `PINECALL_LOG_LEVEL` · `PINECALL_LOG_FORMAT` | `DEBUG` · `INFO` · `WARNING` · `ERROR`; and the gateway's lines, `text` for a terminal or `json` for a journal |
 | `PINECALL_OTLP_ENDPOINT` · `PINECALL_OTLP_HEADERS` · `PINECALL_OTLP_PII` | where the worker sends a call's traces (OTLP over HTTP), the headers each export carries (a credential), and whether a span carries what was said. Unset, nothing is traced |
 
-The source is `pinecall/settings/settings.py`: one field per variable, with its alias and its
+The source is `pinecall/domain/settings.py`: one field per variable, with its alias and its
 one-line description. A variable this table names and that file does not, or the reverse, is a bug
 in whichever is younger.
+
+## The vendors
+
+Every livekit plugin installed that exports an LLM, an STT or a TTS is a vendor, under the name of
+its module (`livekit.plugins.cartesia` is `cartesia`), and LiveKit Inference is `livekit`. The
+runtime keeps no list of them: `pip install "pinecall[voice]"` installs all but four,
+`pinecall[voice-big]` adds the four whose SDKs weigh hundreds of megabytes (aws, azure, google,
+speechmatics), and a plugin livekit ships tomorrow is a vendor on the next install.
+`GET /v1/providers` lists what this box has and, for the org asking, whose key runs each vendor:
+*yours* (the org brought one), *offered* (the box holds one and lends it to this org), *bring
+your own* (installed, and only the org can key it); and a plugin that does not import, with why.
+
+An agent names a stage as `vendor/model`, a vendor alone (its default model), or a model alone
+(on the vendor it runs). Only a vendor that is not installed, or does not do that stage, is
+refused: a model or a voice the vendor does not have is the vendor's own error, in the call's
+log.
+
+**Keys.** An org's own key for a vendor runs any model of it. Otherwise the call runs on the
+box's, where the org's `quotas.lends` lends it (`limits.md`); and a vendor nobody keyed is
+refused before the call. A key is one secret, or the constructor's own arguments where a vendor
+takes more (Azure's key and region, a Google service account, AWS's key pair): both are stored
+encrypted, the org's as its provider keys, the box's as the box's own, written from the console.
+Offering a vendor is holding its key: whoever runs the runtime loads the keys of the vendors it
+offers, and any other installed vendor is the org's to bring.
+
+**The bill.** livekit counts each stage's usage (tokens with their cache, characters, seconds
+heard) whatever key it ran on, and `call.summary` carries the rows priced at the row's rates. A
+model with no rate is listed unpriced, never at zero.
+
+**The box's choices** are one row of the database, edited from the console's box screen: the
+vendor and model each stage runs when an agent names none, the voice per language, what each
+vendor is told for a stage (the class it builds where it is not `STT`/`TTS`/`LLM`, its keyword
+arguments by the plugin's own names, whether its ears end the turn), the languages the ears
+listen for, the price of each model, and the judge. The first box is seeded from the one before
+it; after that, nothing of it is read from code.
 
 ## A laptop
 

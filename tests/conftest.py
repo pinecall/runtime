@@ -1,7 +1,9 @@
-"""What the suites on a real Postgres share: a schema per test, a pool, a store."""
+"""What the suites share: a schema per test, a pool, a store, and a vendor nobody ships."""
 
+import logging
 import os
-from collections.abc import AsyncIterator, Callable
+import sys
+from collections.abc import AsyncIterator, Callable, Iterator
 from uuid import uuid4
 
 import pytest
@@ -10,6 +12,8 @@ from psycopg import sql
 from pinecall.log.store import Store
 from pinecall.postgres.migrate import apply_migrations
 from pinecall.postgres.pool import Pool, connect, open_pool
+from pinecall.providers.build import MODALITIES, Vendor, installed
+from tests.fakes import ACME, acme_plugin
 
 DSN = os.environ.get("DATABASE_URL", "")
 
@@ -57,3 +61,27 @@ def store(pool: Pool, ticking: Callable[[], float]) -> Store:
 def call() -> str:
     """A call id nobody else uses."""
     return f"CA_{uuid4().hex[:12]}"
+
+
+@pytest.fixture
+def acme(monkeypatch: pytest.MonkeyPatch) -> str:
+    """The name of a vendor installed for this test alone."""
+    monkeypatch.setitem(sys.modules, f"livekit.plugins.{ACME}", acme_plugin())
+    monkeypatch.setitem(installed(), ACME, Vendor(ACME, frozenset(MODALITIES)))
+    return ACME
+
+
+# livekit's emitter logs a listener's exception and goes on, and asyncio does the same for a
+# callback: a listener of ours that breaks would pass every test while the call loses its entries.
+@pytest.fixture(autouse=True)
+def no_listener_fails_in_silence(caplog: pytest.LogCaptureFixture) -> Iterator[None]:
+    """Fail the test when livekit or asyncio swallowed an exception of one of our listeners."""
+    caplog.set_level(logging.ERROR, logger="livekit")
+    caplog.set_level(logging.ERROR, logger="asyncio")
+    yield
+    swallowed = [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno >= logging.ERROR and record.name in {"livekit", "asyncio"}
+    ]
+    assert swallowed == []

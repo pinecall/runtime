@@ -19,11 +19,23 @@ classifiers = [
   "Topic :: Communications :: Telephony",
 ]
 dependencies = [
+  # The text session is livekit's AgentSession with no audio: the library and its two llm plugins.
+  "livekit-agents[anthropic,openai]>=1.8.3,<2",
   "psycopg[binary]>=3.2,<4",
   "psycopg-pool>=3.2,<4",
   "pydantic>=2.11,<3",
   "python-dotenv>=1.1,<2",
+  # TypeIs reaches `typing` in 3.13; the box runs 3.12.
+  "typing-extensions>=4.12,<5",
 ]
+
+# Every livekit plugin that exports an STT, a TTS or an LLM is a vendor once installed; the box
+# installs `voice`. The four whose SDKs weigh hundreds of megabytes are `voice-big`.
+[project.optional-dependencies]
+voice = [
+  "livekit-agents[assemblyai,asyncai,baseten,bland,cambai,cartesia,cerebras,clova,deepgram,elevenlabs,fal,fireworksai,fishaudio,gladia,gnani,gradium,groq,hume,inworld,lmnt,meta,minimax,mistralai,murf,neuphonic,nvidia,palabra,perplexity,resemble,respeecher,rime,rtzr,sarvam,simplismart,slng,smallestai,soniox,speechify,spitch,upliftai,vakyam,xai]>=1.8.3,<2",
+]
+voice-big = ["livekit-agents[aws,azure,google,speechmatics]>=1.8.3,<2"]
 
 [project.scripts]
 pinecall-runtime = "pinecall.cli.main:main"
@@ -35,6 +47,8 @@ Repository = "https://github.com/pinecall/runtime"
 [dependency-groups]
 dev = [
   "deptry>=0.25,<1",
+  # The suites build the real plugins with fake keys; no request leaves the laptop.
+  "pinecall[voice]",
   # The old wire, generated from ../protocol/schema: tests/domain/test_wire.py holds ours to it
   # until that repository is archived.
   "pinecall-protocol>=0.6.14,<0.7",
@@ -66,7 +80,11 @@ xfail_strict = true
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 timeout = 120
-filterwarnings = ["error"]
+filterwarnings = [
+  "error",
+  # A plugin's own import, not ours: clova's pydub imports audioop, gone in Python 3.13.
+  "ignore:'audioop' is deprecated:DeprecationWarning",
+]
 markers = [
   "postgres: needs DATABASE_URL, the local Postgres `make test` starts",
   "live: runs against the sandbox instance",
@@ -91,6 +109,9 @@ ignore = [
   "N818",   # an error is named for what was refused, not with a suffix
   "D105",   # __post_init__ and the like: the class docstring says it
   "CPY001", # the LICENSE file is the notice
+  "TC001",  # rule 3 forbids TYPE_CHECKING blocks: an import used in annotations alone stays one
+  "TC002",
+  "TC003",
 ]
 
 [tool.ruff.lint.pydocstyle]
@@ -101,6 +122,8 @@ convention = "google"
 "tests/**" = ["D103", "INP001", "PLR2004", "S101"]
 "**/__init__.py" = ["D104"]  # rule 1: every __init__.py is empty
 "tests/rules/**" = ["S603", "S607"]  # the rules run the checkers as subprocesses
+# A fake plugin takes the arguments a real one does, and its keys are fakes.
+"tests/fakes.py" = ["PLR0913", "S105", "S106"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["pinecall", "pinecall_protocol", "tests"]

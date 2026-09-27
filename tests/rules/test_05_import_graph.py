@@ -13,7 +13,7 @@ EDGES: dict[str, frozenset[str]] = {
     "wire": frozenset({"domain"}),
     "log": frozenset({"domain", "wire", "postgres"}),
     "tenancy": frozenset({"domain", "wire", "postgres", "log"}),
-    "providers": frozenset({"domain", "wire"}),
+    "providers": frozenset({"domain", "wire", "postgres"}),
     "session": frozenset({"domain", "wire", "providers", "log"}),
     "retrieval": frozenset({"domain", "wire", "postgres", "log", "providers"}),
     "evals": frozenset({"domain", "wire", "postgres", "session", "retrieval", "log", "providers"}),
