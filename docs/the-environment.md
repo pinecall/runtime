@@ -58,9 +58,11 @@ in whichever is younger.
 ## A laptop
 
 A `.env` with the vendor keys, in the checkout; the instance is production unless it says
-otherwise. The suites run against the sandbox database on the box through an SSH tunnel
-(`make test` opens it and hands the DSN to pytest without printing it); nothing runs a local
-Postgres or LiveKit. The rest of the laptop path lands with the steps that write it.
+otherwise. The suites that need a database run on a Postgres of their own in colima:
+`make test` starts it (`make db`: the image of `infra/postgres/`, the box's Postgres 17 with
+pgvector and pg_textsearch, on tmpfs, durability off) and gives every test a schema of its own.
+`make test-sandbox` runs the same suites on the sandbox database through an SSH tunnel, the DSN
+never printed. Nothing runs LiveKit locally. The rest of the laptop path lands with the steps that write it.
 
 ## A box
 

@@ -668,6 +668,16 @@ def whose(holder: str | None) -> str:
     return THE_ORGS_OWN if holder is None else holder
 
 
+# What a request may see: an org, one of its two worlds, and in the sandbox one developer's own.
+@dataclass(frozen=True)
+class Corner:
+    """An org's corner: the org, the environment and the holder ("" for the org itself)."""
+
+    org: str
+    env: Env = PRODUCTION
+    holder: str = THE_ORGS_OWN
+
+
 def parse_role(word: str) -> Role:
     """Return the word as a Role, raising DeclarationRefused when it is none."""
     if word not in ROLES:

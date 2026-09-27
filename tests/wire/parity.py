@@ -7,10 +7,9 @@ from typing import TypeAliasType, get_args, get_origin
 from pinecall.wire.frames import WireModel
 from pinecall_protocol._base import WireModel as TheirModel
 
-GOLDEN_LOG = (
-    Path(__file__).resolve().parents[3]
-    / "protocol/python/pinecall_protocol/fixtures/call-log-golden.json"
-)
+FIXTURES = Path(__file__).resolve().parents[3] / "protocol/python/pinecall_protocol/fixtures"
+GOLDEN_LOG = FIXTURES / "call-log-golden.json"
+GOLDEN_STATE = FIXTURES / "call-log-golden.state.json"
 
 # Ours says Json where theirs says Any.
 AS_THEIRS = {"Json": "Any", "JsonObject": "dict[str, Any]"}

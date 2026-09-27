@@ -4,10 +4,12 @@ The Pinecall voice-AI runtime: the gateway and the worker, on LiveKit. One packa
 
 ```
 make check      the rules and the suites that need no database
-make test       every suite, on the sandbox database through an SSH tunnel
+make test       every suite, on a local Postgres in colima (T=tests/log for one folder)
+make test-sandbox   the same suites on the sandbox database, through an SSH tunnel
 make hooks      install the pre-commit hook (runs `make check`)
 ```
 
 `tests/rules/` is what the commit hook refuses: every rule is a test, and every rule is proven by
-a fixture that breaks it. The runtime needs Python 3.12 and `uv`; nothing runs a local Postgres or
-LiveKit. `docs/the-environment.md` names every variable.
+a fixture that breaks it. The runtime needs Python 3.12 and `uv`; the suites that need a database
+need colima, and `make db` builds and starts that Postgres (`infra/postgres/`). Nothing runs
+LiveKit locally. `docs/the-environment.md` names every variable.

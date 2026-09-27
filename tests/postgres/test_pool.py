@@ -9,7 +9,7 @@ from pinecall.postgres.pool import check_schema_name, database_named, open_pool,
 
 DSN = os.environ.get("DATABASE_URL", "")
 
-postgres = pytest.mark.skipif(not DSN, reason="DATABASE_URL: the sandbox database, `make test`")
+postgres = pytest.mark.skipif(not DSN, reason="DATABASE_URL: a Postgres, `make test`")
 
 
 def test_a_schema_name_is_a_lowercase_word_and_public_stays_on_the_path() -> None:

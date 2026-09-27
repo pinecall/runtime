@@ -24,6 +24,7 @@ from pinecall.domain.types import (
     CallContext,
     Channel,
     Contact,
+    Corner,
     Direction,
     Docs,
     DocsMode,
@@ -669,3 +670,8 @@ def test_every_wire_field_has_a_field_here_of_the_same_name(
 
 def test_the_contact_is_the_same_shape_on_both_sides() -> None:
     assert {declared.name for declared in fields(Contact)} == set(wire.Contact.model_fields)
+
+
+def test_a_corner_is_the_orgs_own_production_unless_said_otherwise() -> None:
+    assert Corner("clinica") == Corner("clinica", "production", THE_ORGS_OWN)
+    assert Corner("clinica", "sandbox", "m_berna").holder == "m_berna"

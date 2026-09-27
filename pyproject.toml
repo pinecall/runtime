@@ -68,7 +68,7 @@ asyncio_default_fixture_loop_scope = "function"
 timeout = 120
 filterwarnings = ["error"]
 markers = [
-  "postgres: needs DATABASE_URL, the sandbox database through the tunnel `make test` opens",
+  "postgres: needs DATABASE_URL, the local Postgres `make test` starts",
   "live: runs against the sandbox instance",
 ]
 

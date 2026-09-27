@@ -1,0 +1,364 @@
+"""Tests for the store, on a real Postgres: seqs, sealing, paging, owners, across."""
+
+import asyncio
+import json
+import signal
+import sys
+import textwrap
+
+import psycopg
+import pytest
+from psycopg import sql
+
+from pinecall.domain.errors import Conflict
+from pinecall.domain.types import Corner, Versions
+from pinecall.log.reduce import reduce
+from pinecall.log.store import AGENT_LOG_PREFIX, DEFAULT_LIMIT, Claim, Store, entry_of, log_name
+from pinecall.postgres.pool import Pool, connect
+from pinecall.wire.frames import Entry, read_log
+from tests.conftest import DSN, postgres
+from tests.wire.parity import GOLDEN_LOG, GOLDEN_STATE
+
+pytestmark = postgres
+
+AGENT = "dental-sur"
+
+
+def test_an_agents_log_is_named_after_it_and_a_calls_after_the_call() -> None:
+    assert log_name(None, AGENT) == f"{AGENT_LOG_PREFIX}{AGENT}"
+    assert log_name("CA_1", AGENT) == "CA_1"
+
+
+def test_a_row_is_the_wires_envelope() -> None:
+    row: dict[str, object] = {
+        "call": "CA_1",
+        "seq": 3,
+        "ts": 2.5,
+        "agent": AGENT,
+        "type": "custom",
+        "ephemeral": False,
+        "data": {"name": "n", "data": {}},
+        "position": 99,
+    }
+    assert entry_of(row) == Entry(
+        seq=3,
+        ts=2.5,
+        call="CA_1",
+        agent=AGENT,
+        type="custom",
+        ephemeral=False,
+        data={"name": "n", "data": {}},
+    )
+
+
+# ── seqs ──
+
+
+async def test_the_first_entry_is_seq_one_and_each_append_hands_back_the_next(
+    store: Store, call: str
+) -> None:
+    ringing = await store.append(call, AGENT, "call.ringing", {"from": "+34600"}, ephemeral=False)
+    started = await store.append(call, AGENT, "call.started", {}, ephemeral=False)
+    assert (ringing.seq, started.seq) == (1, 2)
+    assert await store.latest_seq(call) == 2
+
+
+async def test_seqs_stay_contiguous_under_concurrent_appends(store: Store, call: str) -> None:
+    entries = await asyncio.gather(
+        *(store.append(call, AGENT, "custom", {"n": n}, ephemeral=False) for n in range(50))
+    )
+    assert sorted(entry.seq for entry in entries) == list(range(1, 51))
+    assert [entry.seq for entry in await store.since(call)] == list(range(1, 51))
+
+
+async def test_an_ephemeral_takes_a_seq_and_leaves_a_hole_where_its_row_would_be(
+    store: Store, call: str
+) -> None:
+    await store.append(call, AGENT, "call.started", {}, ephemeral=False)
+    interim = await store.append(call, AGENT, "user.transcript", {"text": "ho"}, ephemeral=True)
+    await store.append(call, AGENT, "user.transcript", {"text": "hol"}, ephemeral=True)
+    final = await store.append(call, AGENT, "turn.user", {"text": "hola"}, ephemeral=False)
+    assert (interim.seq, interim.ephemeral, final.seq, final.ephemeral) == (2, True, 4, False)
+    assert [entry.seq for entry in await store.since(call)] == [1, 4]
+    assert await store.latest_seq(call) == 4
+
+
+async def test_a_call_nobody_wrote_to_has_seq_zero_and_is_not_sealed(
+    store: Store, call: str
+) -> None:
+    assert await store.latest_seq(call) == 0
+    assert not await store.sealed(call)
+    assert await store.since(call) == []
+
+
+async def test_the_store_hands_back_the_wires_envelope_stamped_by_its_clock(
+    store: Store, call: str
+) -> None:
+    entry = await store.append(call, AGENT, "call.started", {"channel": "phone"}, ephemeral=False)
+    assert entry.written() == {
+        "seq": 1,
+        "ts": 1.0,
+        "call": call,
+        "agent": AGENT,
+        "type": "call.started",
+        "ephemeral": False,
+        "data": {"channel": "phone"},
+    }
+    assert await store.since(call) == [entry]
+
+
+# ── sealing ──
+
+
+async def test_a_sealed_log_refuses_every_later_append_and_says_it_is_sealed(
+    store: Store, call: str
+) -> None:
+    await store.append(call, AGENT, "call.started", {}, ephemeral=False)
+    await store.seal(call)
+    with pytest.raises(Conflict, match="has ended"):
+        await store.append(call, AGENT, "turn.user", {"text": "too late"}, ephemeral=False)
+    await store.seal(call)
+    assert await store.sealed(call)
+    assert await store.latest_seq(call) == 1
+
+
+async def test_a_log_can_be_sealed_before_anything_was_written_to_it(
+    store: Store, call: str
+) -> None:
+    await store.seal(call)
+    assert await store.sealed(call)
+    with pytest.raises(Conflict, match="has ended"):
+        await store.append(call, AGENT, "call.ringing", {}, ephemeral=False)
+
+
+async def test_a_verdict_is_the_one_entry_a_sealed_log_still_takes(store: Store, call: str) -> None:
+    await store.append(call, AGENT, "call.summary", {"x": 1}, ephemeral=False)
+    await store.seal(call)
+    score = await store.rescored(call, AGENT, {"passed": True, "judges": [], "judge_calls": 1})
+    assert (score.seq, score.type, score.ephemeral) == (2, "call.score", False)
+    assert [entry.type for entry in await store.since(call)] == ["call.summary", "call.score"]
+    with pytest.raises(Conflict, match="has no log to judge"):
+        await store.rescored(f"{call}-nobody", AGENT, {})
+
+
+# ── paging ──
+
+
+async def test_since_never_returns_a_seq_at_or_below_the_cursor(store: Store, call: str) -> None:
+    for n in range(5):
+        await store.append(call, AGENT, "custom", {"n": n}, ephemeral=False)
+    for after in range(7):
+        assert all(entry.seq > after for entry in await store.since(call, after=after))
+    assert [entry.seq for entry in await store.since(call, after=3)] == [4, 5]
+
+
+async def test_since_pages_in_seq_order_and_stops_at_the_limit(store: Store, call: str) -> None:
+    for n in range(5):
+        await store.append(call, AGENT, "custom", {"n": n}, ephemeral=False)
+    assert [entry.seq for entry in await store.since(call, after=1, limit=2)] == [2, 3]
+
+
+async def test_whole_reads_every_page_and_starts_from_the_cursor(store: Store, call: str) -> None:
+    many = DEFAULT_LIMIT + 3
+    await asyncio.gather(
+        *(store.append(call, AGENT, "custom", {"n": n}, ephemeral=False) for n in range(many))
+    )
+    assert [entry.seq for entry in await store.whole(call)] == list(range(1, many + 1))
+    assert [entry.seq for entry in await store.whole(call, after=many - 2)] == [many - 1, many]
+    assert await store.whole(f"{call}-nobody") == []
+
+
+# ── the agent's own log ──
+
+
+async def test_the_agents_own_log_has_a_seq_of_its_own(store: Store, call: str) -> None:
+    registered = await store.append(
+        None, AGENT, "agent.registered", {"routes": []}, ephemeral=False
+    )
+    ringing = await store.append(call, AGENT, "call.ringing", {}, ephemeral=False)
+    configured = await store.append(None, AGENT, "agent.configured", {}, ephemeral=False)
+    assert (registered.seq, ringing.seq, configured.seq) == (1, 1, 2)
+    assert (registered.call, ringing.call) == (None, call)
+    own = await store.since(log_name(None, AGENT))
+    assert [entry.type for entry in own] == ["agent.registered", "agent.configured"]
+    assert [entry.seq for entry in await store.since(log_name(None, AGENT), after=1)] == [2]
+
+
+async def test_list_calls_names_every_call_the_agent_handled_oldest_first(
+    store: Store, call: str
+) -> None:
+    second = f"{call}-b"
+    for one in (call, second, call):
+        await store.append(one, AGENT, "custom", {}, ephemeral=False)
+    await store.append(f"{call}-other", f"{AGENT}-other", "custom", {}, ephemeral=False)
+    assert await store.list_calls(AGENT) == [call, second]
+    assert await store.list_calls(f"{AGENT}-nobody") == []
+
+
+# ── owners ──
+
+
+async def test_a_log_is_the_first_orgs_that_claims_it_and_never_moves(
+    store: Store, call: str
+) -> None:
+    assert await store.owner(call, AGENT) is None
+    await store.claim(call, AGENT, "clinica")
+    await store.claim(call, AGENT, "tienda")
+    await store.append(call, AGENT, "call.started", {}, ephemeral=False)
+    assert await store.owner(call, AGENT) == "clinica"
+
+
+async def test_a_claim_may_come_before_the_first_entry_and_carries_the_corner(
+    store: Store, call: str, pool: Pool
+) -> None:
+    claim = Claim(Corner("clinica", "sandbox", "m_berna"), Versions(config=3, lexicon=1))
+    await store.claim(call, AGENT, "clinica", claim)
+    await store.claim(call, AGENT, "clinica", Claim(Corner("clinica"), Versions(config=9)))
+    async with pool.connection() as connection:
+        row = await (
+            await connection.execute(
+                "select env, holder, config_version, lexicon_version"
+                " from call_log_head where log = %s",
+                (call,),
+            )
+        ).fetchone()
+    assert row == {"env": "sandbox", "holder": "m_berna", "config_version": 3, "lexicon_version": 1}
+
+
+async def test_the_agents_own_log_has_an_owner_of_its_own(store: Store, call: str) -> None:
+    await store.claim(None, AGENT, "clinica")
+    assert await store.owner(None, AGENT) == "clinica"
+    assert await store.owner(call, AGENT) is None
+
+
+async def test_the_operator_moves_every_log_of_an_agent_to_another_org(
+    store: Store, call: str
+) -> None:
+    await store.claim(call, AGENT, "wrong")
+    await store.claim(None, AGENT, "wrong")
+    assert await store.moved(AGENT, "right") == 2
+    assert await store.owner(call, AGENT) == "right"
+    assert await store.moved(f"{AGENT}-nobody", "right") == 0
+
+
+# ── across every log ──
+
+
+async def test_across_pages_the_metered_types_of_every_log_by_position(
+    store: Store, call: str
+) -> None:
+    other = f"{call}-b"
+    await store.claim(call, AGENT, "clinica")
+    await store.claim(other, AGENT, "tienda")
+    await store.append(call, AGENT, "call.started", {}, ephemeral=False)
+    first = await store.append(call, AGENT, "call.summary", {"duration_s": 1}, ephemeral=False)
+    await store.append(other, AGENT, "user.transcript", {"text": "hola"}, ephemeral=True)
+    second = await store.append(other, AGENT, "call.summary", {"duration_s": 2}, ephemeral=False)
+    rows = await store.across(("call.summary",))
+    assert [(row.org, row.entry.seq) for row in rows] == [
+        ("clinica", first.seq),
+        ("tienda", second.seq),
+    ]
+    assert rows[0].position < rows[1].position
+    resumed = await store.across(("call.summary",), after=rows[0].position)
+    assert [row.entry.call for row in resumed] == [other]
+    assert await store.across(("call.summary",), after=rows[1].position) == []
+
+
+async def test_the_operator_sees_the_newest_calls_and_the_newest_one_still_live(
+    store: Store, call: str
+) -> None:
+    older, newer = f"{call}-a", f"{call}-b"
+    await store.append(older, AGENT, "call.ringing", {}, ephemeral=False)
+    await store.append(newer, f"{AGENT}-2", "call.ringing", {}, ephemeral=False)
+    assert await store.newest_calls(5) == [newer, older]
+    assert await store.newest_calls(5, agent=AGENT) == [older]
+    assert await store.newest_live_call() == newer
+    await store.seal(newer)
+    assert await store.newest_live_call() == older
+
+
+# ── the table itself ──
+
+
+async def test_the_table_refuses_an_update_and_a_delete(
+    store: Store, call: str, schema: str
+) -> None:
+    await store.append(call, AGENT, "call.started", {}, ephemeral=False)
+    async with await connect(DSN) as connection:
+        await connection.execute(sql.SQL("set search_path to {}").format(sql.Identifier(schema)))
+        with pytest.raises(psycopg.Error, match="append-only"):
+            await connection.execute("update call_log set type = 'nope'")
+        with pytest.raises(psycopg.Error, match="append-only"):
+            await connection.execute("delete from call_log")
+    assert [entry.type for entry in await store.since(call)] == ["call.started"]
+
+
+async def test_the_golden_log_replays_to_the_same_state_through_postgres(
+    pool: Pool, call: str
+) -> None:
+    golden = read_log(GOLDEN_LOG.read_text(encoding="utf-8"))
+    ticks = iter(entry.ts for entry in golden)
+    store = Store(pool, clock=lambda: next(ticks))
+    for entry in golden:
+        await store.append(call, entry.agent, entry.type, entry.data, ephemeral=entry.ephemeral)
+    written = await store.whole(call)
+    # The golden is a reader's stream, with a gap at 39-40, so it is compared renumbered.
+    durable = [
+        entry.model_copy(update={"seq": seq, "call": call})
+        for seq, entry in enumerate(golden, 1)
+        if not entry.ephemeral
+    ]
+    assert await store.latest_seq(call) == len(golden)
+    assert [entry.written() for entry in written] == [entry.written() for entry in durable]
+    assert reduce(written).written() == reduce(durable).written()
+    expected = json.loads(GOLDEN_STATE.read_text(encoding="utf-8"))
+    state = reduce(written).written()
+    for field in ("app_state", "turns", "usage", "cost"):
+        assert state[field] == expected[field]
+
+
+WRITER = textwrap.dedent(
+    """
+    import asyncio, sys
+    from pinecall.log.store import Store
+    from pinecall.postgres.pool import open_pool
+
+    async def main(dsn, schema, call, agent):
+        store = Store(await open_pool(dsn, schema=schema, max_size=1))
+        while True:
+            tick = {"name": "tick", "data": {}}
+            entry = await store.append(call, agent, "custom", tick, ephemeral=False)
+            sys.stdout.write(f"{entry.seq}\\n")
+            sys.stdout.flush()
+
+    asyncio.run(main(*sys.argv[1:5]))
+    """
+)
+APPENDS_BEFORE_THE_KILL = 30
+
+
+# One statement writes the counter and the row, so a writer killed between them cannot exist.
+async def test_a_killed_writer_leaves_a_contiguous_log_and_no_torn_row(
+    store: Store, call: str, schema: str
+) -> None:
+    process = await asyncio.create_subprocess_exec(
+        sys.executable, "-c", WRITER, DSN, schema, call, AGENT, stdout=asyncio.subprocess.PIPE
+    )
+    assert process.stdout is not None
+    try:
+        last = 0
+        for _ in range(APPENDS_BEFORE_THE_KILL):
+            last = int(await asyncio.wait_for(process.stdout.readline(), timeout=20))
+        # SIGKILL, not terminate: the writer must not get to finish its append.
+        process.send_signal(signal.SIGKILL)
+        assert await process.wait() == -signal.SIGKILL
+    finally:
+        if process.returncode is None:
+            process.kill()
+            await process.wait()
+    entries = await store.whole(call)
+    assert [entry.seq for entry in entries] == list(range(1, len(entries) + 1)), "a hole"
+    assert len(entries) >= last, "an entry the writer was told it had is not there"
+    assert await store.latest_seq(call) == len(entries), "an unfinished append moved the counter"
+    assert all(entry.data == {"name": "tick", "data": {}} for entry in entries), "a torn row"

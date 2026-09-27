@@ -1,4 +1,4 @@
-"""Tests for the migration runner, on the sandbox database through the tunnel."""
+"""Tests for the migration runner, on a real Postgres."""
 
 import asyncio
 import os
@@ -25,7 +25,7 @@ from pinecall.postgres.pool import connect, database_named, open_pool
 
 DSN = os.environ.get("DATABASE_URL", "")
 
-postgres = pytest.mark.skipif(not DSN, reason="DATABASE_URL: the sandbox database, `make test`")
+postgres = pytest.mark.skipif(not DSN, reason="DATABASE_URL: a Postgres, `make test`")
 
 
 # ── no database needed ──
@@ -64,7 +64,7 @@ def test_the_migrations_live_beside_the_runner_so_the_wheel_carries_them() -> No
     assert migration_files()[0].parent == package / "migrations"
 
 
-# ── the sandbox database ──
+# ── a real Postgres ──
 
 
 @pytest.fixture
