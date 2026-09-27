@@ -2,7 +2,7 @@
 
 import json
 import logging
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Mapping, Sequence
 
 from google.protobuf.json_format import ParseDict, ParseError
 from livekit import api
@@ -30,6 +30,22 @@ WHERE channel = %(channel)s AND number = %(number)s
 ORDER BY added_at
 """
 TWO_ORGS = "%s answers in org %s: org %s typed the same number, and the older row answers"
+OF_NUMBER = """
+SELECT org, number, agent, channel, env, managed FROM routes
+WHERE org = %(org)s AND number = %(number)s
+"""
+# A number added again moves: its agent, channel, world and account are the newest said.
+PUT = """
+INSERT INTO routes (org, number, agent, channel, env, managed, account, networks)
+VALUES (%(org)s, %(number)s, %(agent)s, %(channel)s, %(env)s, %(managed)s, %(account)s,
+        %(networks)s)
+ON CONFLICT (org, number) DO UPDATE SET agent = excluded.agent, channel = excluded.channel,
+    env = excluded.env, managed = excluded.managed, account = excluded.account,
+    networks = excluded.networks
+"""
+REMOVE = "DELETE FROM routes WHERE org = %(org)s AND number = %(number)s RETURNING number"
+MOVE = "UPDATE routes SET env = %(env)s WHERE org = %(org)s AND number = %(number)s RETURNING env"
+MANAGED = "SELECT count(*) AS bought FROM routes WHERE org = %(org)s AND env = %(env)s AND managed"
 
 NOT_A_ROOM_CONFIG = "room_config is not a LiveKit RoomConfiguration: {reason}"
 NO_LIVEKIT = "this box has no LIVEKIT_API_KEY and LIVEKIT_API_SECRET: it starts no call"
@@ -39,6 +55,8 @@ ROOMS_A_REQUEST = 100
 ROOM_GONE = "not_found"
 
 
+# `trunk` names the carrier account the leg is dialled through; the worker asks the gateway for
+# its inline configuration, so no secret rides a dispatch.
 class Dialling(BaseModel):
     """The leg an outbound job places: trunk, far end, the number shown, the media's ceiling."""
 
@@ -107,6 +125,52 @@ async def at(pool: Pool, channel: Channel, number: str) -> Route | None:
     for other in rows[1:]:
         logger.warning(TWO_ORGS, number, answering.org, other["org"])
     return answering
+
+
+async def of_number(pool: Pool, org: str, number: str) -> Route | None:
+    """The org's route at this number, whatever world it is in."""
+    async with pool.connection() as connection:
+        row = await (await connection.execute(OF_NUMBER, {"org": org, "number": number})).fetchone()
+    return None if row is None else _route(row)
+
+
+async def put(
+    pool: Pool, route: Route, *, account: str | None, networks: Sequence[str] = ()
+) -> None:
+    """Keep the route, moving the number if the org had it: the account it lives in, if any."""
+    row = {
+        "org": route.org,
+        "number": route.number,
+        "agent": route.agent,
+        "channel": route.channel,
+        "env": route.env,
+        "managed": route.managed,
+        "account": account,
+        "networks": list(networks),
+    }
+    async with pool.connection() as connection:
+        await connection.execute(PUT, row)
+
+
+async def remove(pool: Pool, org: str, number: str) -> bool:
+    """Forget the org's route at the number; whether there was one."""
+    async with pool.connection() as connection:
+        gone = await connection.execute(REMOVE, {"org": org, "number": number})
+        return await gone.fetchone() is not None
+
+
+async def moved(pool: Pool, org: str, number: str, env: Env) -> bool:
+    """Move the org's number into the world; whether it had it."""
+    async with pool.connection() as connection:
+        done = await connection.execute(MOVE, {"org": org, "number": number, "env": env})
+        return await done.fetchone() is not None
+
+
+async def managed_in(pool: Pool, org: str, env: Env) -> int:
+    """How many of the org's numbers in the world the box bought."""
+    async with pool.connection() as connection:
+        row = await (await connection.execute(MANAGED, {"org": org, "env": env})).fetchone()
+    return 0 if row is None else int(row["bought"])
 
 
 def written(dispatch: Dispatch) -> str:

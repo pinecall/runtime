@@ -7,6 +7,7 @@ from collections.abc import AsyncGenerator
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from starlette.datastructures import Headers
@@ -14,13 +15,15 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from pinecall.channels.routes import server_of
+from pinecall.channels.telephony import rebuild
 from pinecall.domain.errors import NotSignedIn, PinecallError, SettingsRefused
 from pinecall.domain.settings import Settings, load
 from pinecall.fleet.hub import Roster
 from pinecall.gateway import deps
-from pinecall.gateway.api import agents, calls
+from pinecall.gateway.api import agents, calls, telephony, whatsapp
 from pinecall.gateway.deps import Wired
-from pinecall.gateway.live import Live, Registry, reap_forever
+from pinecall.gateway.live import Gated, Live, Registry, reap_forever
+from pinecall.gateway.threads import Threads
 from pinecall.log.log import Logs
 from pinecall.log.store import Store
 from pinecall.postgres.pool import open_pool
@@ -46,6 +49,9 @@ async def lifespan(gateway: FastAPI) -> AsyncGenerator[None]:
         gateway.state.wired = box
         reaper = asyncio.create_task(reap_forever(box.gated, box.server))
         stack.push_async_callback(_cancelled, reaper)
+        # After the start, so a slow SFU never keeps the gateway from answering.
+        rebuilt = asyncio.create_task(rebuild(box.exchange))
+        stack.push_async_callback(_cancelled, rebuilt)
         yield
 
 
@@ -58,25 +64,34 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Wired:
     stack.push_async_callback(pool.close)
     server = server_of(settings)
     stack.push_async_callback(server.aclose)
+    http = httpx.AsyncClient()
+    stack.push_async_callback(http.aclose)
     logs = Logs(Store(pool))
     codes = Codes(logs)
     await codes.loaded()
+    registry, live = Registry(logs), Live()
+    gated = Gated(pool=pool, vault=sealed, logs=logs, live=live)
+    threads = Threads(gated, registry, http, settings.timezone)
+    await threads.loaded()
+    stack.push_async_callback(threads.closed)
     return Wired(
         settings=settings,
         pool=pool,
         vault=sealed,
         logs=logs,
-        registry=Registry(logs),
-        live=Live(),
+        registry=registry,
+        live=live,
         roster=Roster(),
         codes=codes,
         signer=Signer(settings.livekit_api_key, settings.livekit_api_secret),
         server=server,
         closing=asyncio.Event(),
+        http=http,
+        threads=threads,
     )
 
 
-async def _cancelled(task: asyncio.Task[None]) -> None:
+async def _cancelled[T](task: asyncio.Task[T]) -> None:
     task.cancel()
     await asyncio.gather(task, return_exceptions=True)
 
@@ -208,6 +223,8 @@ app = FastAPI(
 )
 app.include_router(calls.router)
 app.include_router(agents.router)
+app.include_router(telephony.router)
+app.include_router(whatsapp.router)
 app.add_api_route("/widget/{file}", widget, methods=["GET"], include_in_schema=False)
 app.add_api_route("/{path:path}", console, methods=["GET"], include_in_schema=False)
 app.add_exception_handler(PinecallError, refused)

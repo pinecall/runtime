@@ -14,6 +14,7 @@ from starlette.websockets import WebSocketState
 
 from pinecall.channels import routes
 from pinecall.channels.routes import Dispatch
+from pinecall.channels.whatsapp import WINDOW_S
 from pinecall.domain.errors import (
     Conflict,
     DeclarationRefused,
@@ -35,11 +36,14 @@ from pinecall.domain.types import (
     Route,
     Versions,
     new_call_id,
+    parse_channel,
     today_in,
 )
 from pinecall.gateway import deps
 from pinecall.gateway.deps import (
     Acting,
+    CallsKey,
+    CornerDep,
     Reader,
     ReaderDep,
     TalkKey,
@@ -80,7 +84,7 @@ from pinecall.session.call import ToolUse
 from pinecall.session.session import Session
 from pinecall.tenancy import admission, agents, keys, orgs
 from pinecall.tenancy.keys import LONGEST_VISIT_TTL_S, MINTED_FOR_A_VISIT, ONE_VISIT_TTL_S
-from pinecall.wire.commands import CallClaim, SupervisorVerb, Verb
+from pinecall.wire.commands import CallClaim, SayVerb, SupervisorVerb, Verb
 from pinecall.wire.events import (
     EVENTS,
     TERMINAL_EVENT,
@@ -104,6 +108,14 @@ from pinecall.wire.rest import (
     SessionLine,
     SessionList,
     SessionScore,
+    Thread,
+    ThreadKind,
+    ThreadLast,
+    ThreadLine,
+    ThreadList,
+    ThreadMessage,
+    ThreadSaid,
+    ThreadSay,
     TokenMinted,
     TokenWanted,
     VerbTaken,
@@ -692,6 +704,150 @@ def _text_of(said: Json) -> str:
         return ""
     text_said = said.get("text")
     return text_said if isinstance(text_said, str) else ""
+
+
+# ── an agent's inbox, by contact ──
+
+THREADS_A_PAGE = 30
+# The calls merged into one thread, newest first: each costs a log read.
+CALLS_IN_A_THREAD = 20
+NO_THREAD = "no thread with {contact} on agent {agent} in this corner"
+ONLY_WHATSAPP = (
+    "a message is written on a WhatsApp thread, and {contact}'s newest call is {channel}"
+)
+WINDOW_CLOSED = (
+    "WhatsApp's window with {contact} closed 24 h after their last message: only a template "
+    "reaches them now"
+)
+NOTHING_OPEN = (
+    "{contact}'s conversation went quiet and is sealed: their next message opens a new one"
+)
+
+
+class ThreadsAsked(BaseModel):
+    """One page of an inbox: after the cursor of the last one, so many contacts."""
+
+    after: str | None = None
+    limit: int = Field(THREADS_A_PAGE, ge=1, le=LONGEST_LIST)
+
+
+@router.get("/v1/agents/{slug}/threads")
+async def threads(
+    slug: str,
+    key: CallsKey,
+    where: CornerDep,
+    box: WiredDep,
+    page: Annotated[ThreadsAsked, Query()],
+) -> ThreadList:
+    """The agent's contacts, the one that moved last first, with what this reader has not read."""
+    inbox = index.Inbox(where, slug, _reader_of(key))
+    found = await index.threads(box.pool, inbox, after=page.after, limit=page.limit)
+    return ThreadList(threads=[_line_of(row) for row in found.rows], next=found.next)
+
+
+@router.get("/v1/agents/{slug}/threads/{contact}")
+async def thread(
+    slug: str, contact: str, _key: CallsKey, where: CornerDep, box: WiredDep
+) -> Thread:
+    """A contact's calls with the agent merged into one thread, oldest first."""
+    calls = await _thread_of(box, where, slug, contact)
+    facts = await index.facts_of_calls(box.pool, calls)
+    messages: list[ThreadMessage] = []
+    for call in reversed(calls):
+        if call in facts:
+            messages += _said_on(facts[call], await box.logs.store.whole(call))
+    name = next((facts[call].name for call in calls if call in facts and facts[call].name), None)
+    return Thread(contact=contact, name=name, messages=messages)
+
+
+# The read cursor is the person's; a server's key keeps its own.
+@router.post("/v1/agents/{slug}/threads/{contact}/read", status_code=204)
+async def read_thread(
+    slug: str, contact: str, key: CallsKey, where: CornerDep, box: WiredDep
+) -> None:
+    """This reader has read the thread up to now."""
+    await _thread_of(box, where, slug, contact)
+    await index.read(box.pool, index.Inbox(where, slug, _reader_of(key)), contact, time.time())
+
+
+# A supervisor's `say` on the open conversation, sent to the contact by its reply tap. Meta lets
+# a business write freely only within 24 h of the contact's last message.
+@router.post("/v1/agents/{slug}/threads/{contact}/messages", status_code=202)
+async def write_to(
+    slug: str, contact: str, said: ThreadSay, key: TalkKey, box: WiredDep
+) -> ThreadSaid:
+    """Say something as the agent on the contact's open WhatsApp conversation."""
+    where = keys.corner_of(key.bearer, key.env)
+    newest = (await _thread_of(box, where, slug, contact))[0]
+    facts = (await index.facts_of_calls(box.pool, [newest])).get(newest)
+    channel = None if facts is None else facts.channel
+    if facts is None or channel != "whatsapp":
+        raise Conflict(ONLY_WHATSAPP.format(contact=contact, channel=channel))
+    # The log's own clock, which stamped when the contact last wrote.
+    if box.logs.store.clock() - max(facts.heard_at, default=0.0) > WINDOW_S:
+        raise Conflict(WINDOW_CLOSED.format(contact=contact))
+    served = box.live.calls.get(newest)
+    if served is None or served.session is None:
+        raise Conflict(NOTHING_OPEN.format(contact=contact))
+    member = key.bearer.member
+    by = Supervisor(id=_reader_of(key), name=None if member is None else member.name)
+    await served.session.supervise(SupervisorVerb(by=by, verb=SayVerb(text=said.text)))
+    return ThreadSaid(contact=contact, call=newest)
+
+
+async def _thread_of(box: Wired, where: Corner, slug: str, contact: str) -> list[str]:
+    calls = await index.calls_with(box.pool, where, slug, contact, limit=CALLS_IN_A_THREAD)
+    if not calls:
+        raise NotFound(NO_THREAD.format(contact=contact, agent=slug))
+    return calls
+
+
+def _reader_of(key: Acting) -> str:
+    return key.bearer.key.subject or key.bearer.key.key_id
+
+
+def _line_of(row: index.Thread) -> ThreadLine:
+    newest = row.newest
+    kind: ThreadKind = "call" if newest.spoken else ("in" if newest.last_in else "out")
+    said = newest.outcome if newest.spoken else newest.last_text
+    return ThreadLine(
+        contact=row.contact,
+        name=row.name,
+        channel_last=parse_channel(newest.channel or THE_WIDGET),
+        last=ThreadLast(text=said, at=row.moved_at, kind=kind),
+        unread=row.unread,
+        calls=row.calls,
+    )
+
+
+# A written call is its turns; a spoken call is one pill with its length and whether it came up.
+def _said_on(facts: index.CallFacts, entries: list[Entry]) -> list[ThreadMessage]:
+    channel = parse_channel(facts.channel or THE_WIDGET)
+    if not facts.spoken:
+        return [
+            ThreadMessage(
+                kind="in" if entry.type == "turn.user" else "out",
+                text=str(entry.data.get("text") or ""),
+                at=entry.ts,
+                call=facts.call,
+                channel=channel,
+            )
+            for entry in entries
+            if entry.type in {"turn.user", "turn.agent"}
+        ]
+    ended = next((entry for entry in entries if entry.type == "call.ended"), None)
+    lasted = None if ended is None else ended.data.get("duration_s")
+    return [
+        ThreadMessage(
+            kind="call",
+            text=facts.outcome,
+            at=entries[0].ts if entries else 0.0,
+            call=facts.call,
+            channel=channel,
+            duration_s=float(lasted) if isinstance(lasted, int | float) else None,
+            answered=any(entry.type == "call.started" for entry in entries),
+        )
+    ]
 
 
 # ── the rules every call door shares ──

@@ -35,9 +35,7 @@ unit's)* is written per worker unit, never in the box's `box.env`.
 | `PINECALL_IDLE_PROCESSES` *(the unit's)* | job processes the worker keeps warm. Unset, livekit's own: one per CPU |
 | `PINECALL_WORKER_NAME` · `PINECALL_WORKER_HTTP_PORT` · `PINECALL_OVERFLOW_SAYS` | its name in the roster (unset: the hostname), its health port on loopback (8082), and the overflow agent's one sentence |
 | `PINECALL_RECORDINGS` · `PINECALL_EGRESS_URL` | where a kept recording lands, and where the recorder answers its health check. **Whether** audio is kept is the agent's own setting |
-| `WHATSAPP_ACCESS_TOKEN` · `PINECALL_WHATSAPP_APP_SECRET` · `PINECALL_WHATSAPP_VERIFY_TOKEN` | Meta's webhook: the token messages are sent with, the app secret every webhook body is signed with (unset, the door is closed), and the word Meta echoes back when subscribing |
 | `PINECALL_SMTP_URL` · `PINECALL_MAIL_FROM` | the box's own mail (`smtp://user:pass@host:587`, or `smtps://…:465`) and who its letters are from. A mailbox stored at `PUT /v1/ops/mail` wins over these, and an org's own over both |
-| `TWILIO_ACCOUNT_SID` · `TWILIO_API_KEY` · `TWILIO_API_SECRET` | the box's own carrier account, for the numbers it buys for a tenant |
 | `PINECALL_DOMAIN` | the box's public name: where a carrier sends a call for an imported number. Unset, nothing imports |
 | `PINECALL_SIGNUP` · `PINECALL_SIGNUP_KEY` · `PINECALL_CLOUD` · `PINECALL_BILLING_URL` | whether a stranger may make an org here (off unless set), the Bearer key the sign-up doors take from the bot-shielded site in front of them, Pinecall's hosted gateway, and where its orgs pay. What a new org is allowed is not a variable: it is the `admission` row of `box_settings` (see [limits.md](limits.md)) |
 | `PINECALL_APP_ORIGINS` · `PINECALL_MIN_PASSWORD` | origins besides the mobile app's two that may call `/v1` from a browser, comma separated and never `*`; how short a password may be (8; `0` is no rule) |
@@ -46,6 +44,8 @@ unit's)* is written per worker unit, never in the box's `box.env`.
 | `PINECALL_TIMEZONE` | the IANA zone a call's `today` is read in (`Europe/Madrid`); `UTC` unless set. An unknown zone is refused at startup |
 | `PINECALL_LOG_LEVEL` · `PINECALL_LOG_FORMAT` | `DEBUG` · `INFO` · `WARNING` · `ERROR`; and the gateway's lines, `text` for a terminal or `json` for a journal |
 | `PINECALL_OTLP_ENDPOINT` · `PINECALL_OTLP_HEADERS` · `PINECALL_OTLP_PII` | where the worker sends a call's traces (OTLP over HTTP), the headers each export carries (a credential), and whether a span carries what was said. Unset, nothing is traced |
+
+The box's own Twilio account (the one it buys numbers on) and its Meta app (the secret every WhatsApp webhook is signed with, the handshake's word, the token replies go out on when an org brought none) are not variables: they are the sealed rows `credentials/twilio` and `credentials/whatsapp` of `box_settings`, beside the box's vendor keys. See [numbers.md](protocol/numbers.md).
 
 The source is `pinecall/domain/settings.py`: one field per variable, with its alias and its
 one-line description. A variable this table names and that file does not, or the reverse, is a bug

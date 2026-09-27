@@ -18,6 +18,7 @@ from livekit.agents.voice.background_audio import AudioConfig, BackgroundAudioPl
 from livekit.protocol.room import MuteRoomTrackRequest, RoomParticipantIdentity
 from livekit.protocol.sip import (
     CreateSIPParticipantRequest,
+    SIPOutboundConfig,
     SIPTransferReason,
     SIPTransferStatus,
     TransferSIPParticipantRequest,
@@ -98,11 +99,12 @@ TRACK_SOURCES: dict[int, TrackSource] = {
 }
 
 
+# The SFU keeps no outbound trunk: each leg carries its own, so a restarted SFU dials on.
 @dataclass(frozen=True)
 class Trunk:
-    """The outbound trunk a number is dialled through, and the number shown."""
+    """How a number is dialled: the trunk inline, and the org's number shown."""
 
-    id: str
+    config: SIPOutboundConfig
     shown: str | None = None
 
 
@@ -304,7 +306,7 @@ class Room:
             logger.warning("%s: no trunk to dial through", verb, exc_info=True)
             return str(refused) or NO_TRUNK.format(verb=verb, to=to)
         request = CreateSIPParticipantRequest(
-            sip_trunk_id=trunk.id,
+            trunk=trunk.config,
             sip_call_to=to,
             room_name=self.room.name,
             participant_identity=f"{LEG_PREFIX}{to}",

@@ -274,11 +274,13 @@ order by coalesce(head.started_at, -1) desc, head.log desc
 limit %(limit)s
 """
 
-# The org's, on purpose: any past contact allows a call back. The contact is matched as stored.
+# Any agent of the org, on purpose: a past contact allows a call back. In one world: a test call
+# from a phone in the sandbox never makes it dialable from production. Matched as stored.
 EVER_REACHED = """
 select exists (
     select 1 from call_log_head head join call_facts f on f.call = head.log
-    where head.org = %(org)s and head.call is not null and f.contact = %(contact)s
+    where head.org = %(org)s and head.env = %(env)s and head.call is not null
+      and f.contact = %(contact)s
 ) as reached
 """
 
@@ -746,12 +748,11 @@ async def calls_with(
     return [str(row["call"]) for row in rows]
 
 
-async def ever_reached(pool: Pool, org: str, contact: str) -> bool:
-    """Return whether the contact ever had a call with any agent of the org, in any env."""
+async def ever_reached(pool: Pool, org: str, env: Env, contact: str) -> bool:
+    """Return whether the contact ever had a call with any agent of the org in the world."""
+    asked = {"org": org, "env": env, "contact": contact}
     async with pool.connection() as connection:
-        row = await (
-            await connection.execute(EVER_REACHED, {"org": org, "contact": contact})
-        ).fetchone()
+        row = await (await connection.execute(EVER_REACHED, asked)).fetchone()
     return row is not None and bool(row["reached"])
 
 

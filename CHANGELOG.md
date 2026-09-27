@@ -62,3 +62,25 @@ The runtime written again from a blank page.
   `migrate up`, `keys fleet` and `doctor`.
 - Fixed: a tool of a call whose agent nobody holds waited until its deadline; it is refused at
   once.
+- Numbers and WhatsApp. An org holds many carrier accounts (Twilio accounts, SIP peers, WhatsApp
+  numbers at Meta), sealed under the vault key; a number is imported from one of them ("we hook
+  it": the account's trunk pointed here, found by where it points) or hooked by the org itself
+  ("you hook it": admitted from its networks, nothing outside touched). On the SFU an org has one
+  trunk per fence and one dispatch rule per world, so a number moves between worlds by a door
+  (`PUT /v1/numbers/{number}/env`) without touching its trunk. The box buys numbers into either
+  world on its own Twilio account, capped by that world's `numbers` quota. The door paths and
+  answers are v1's, so the console reads them unchanged. `0004_carriers.sql`.
+- Dialling out needs no trunk on the SFU: every leg is dialled with its trunk inline, so an emptied
+  SFU dials on. A Twilio account's termination is one per account and box, with a credential per
+  org on it. The dial guards count and write the ledger row in one transaction under the org's
+  lock, and a number is a stranger to a world it never called.
+- WhatsApp conversations are keyed by the org, the world, the number and the contact; a message
+  whose agent nobody holds waits on the agent's log and is answered when an app declares the
+  agent, with no polling. The box's Meta app and Twilio account are sealed rows of
+  `box_settings`, not variables: `PINECALL_WHATSAPP_APP_SECRET`, `PINECALL_WHATSAPP_VERIFY_TOKEN`
+  and the three `TWILIO_*` are gone.
+- Fixed: a number the box bought was never admitted again when LiveKit's Redis was emptied, and a
+  purchase rewrote an org's SIP peer trunk with Twilio's fence; the reconcile at start rebuilds
+  every routed number with its own fence.
+- Fixed: a supervisor's `end` on a WhatsApp conversation left it open; the conversation closes
+  with its call.

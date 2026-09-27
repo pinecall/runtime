@@ -451,11 +451,14 @@ async def test_an_inbox_is_a_line_per_contact_and_counts_what_the_reader_has_not
     assert await calls_with(store.pool, Corner(org), AGENT, "+34622", limit=5) == [spoken]
 
 
-async def test_a_contact_reached_in_any_env_allows_a_call_back(store: Store, org: str) -> None:
+async def test_a_contact_reached_in_a_world_allows_a_call_back_in_that_world_alone(
+    store: Store, org: str
+) -> None:
     await logged_call(store, org, ACall(caller="+34633", corner=Corner(org, "sandbox", "m_dev")))
-    assert await ever_reached(store.pool, org, "+34633")
-    assert not await ever_reached(store.pool, org, "+34644")
-    assert not await ever_reached(store.pool, f"{org}-other", "+34633")
+    assert await ever_reached(store.pool, org, "sandbox", "+34633")
+    assert not await ever_reached(store.pool, org, "production", "+34633")
+    assert not await ever_reached(store.pool, org, "sandbox", "+34644")
+    assert not await ever_reached(store.pool, f"{org}-other", "sandbox", "+34633")
 
 
 # ── the reaper's questions ──

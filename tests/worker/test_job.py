@@ -1,13 +1,20 @@
 """Tests for how a job finds its call: the arrival, the route, whose phone rang."""
 
 import pytest
-from livekit import rtc
+from livekit import api, rtc
 
 from pinecall.channels.routes import Dispatch
-from pinecall.domain.errors import NotFound
+from pinecall.domain.errors import GatewayRefused, NotFound
 from pinecall.domain.types import THE_WIDGET, Corner, Route
 from pinecall.session.room import CALLER_NUMBER, DIALLED_NUMBER
-from pinecall.worker.job import Arrival, arrival_of, may_be_a_developers, named_by, resolve
+from pinecall.worker.job import (
+    Arrival,
+    arrival_of,
+    end_reason_of,
+    may_be_a_developers,
+    named_by,
+    resolve,
+)
 from tests.fakes import Room, seat
 
 NUMBER = "+15550100"
@@ -83,3 +90,23 @@ def test_the_box_trunk_names_no_corner_and_a_token_names_its_own() -> None:
     assert named_by(Dispatch()) is None
     named = named_by(Dispatch(org="org_a", env="sandbox", holder="m_1"))
     assert named == Corner("org_a", "sandbox", "m_1")
+
+
+@pytest.mark.parametrize(
+    ("code", "reason"),
+    [
+        ("486", "busy"),
+        ("603", "busy"),
+        ("480", "no_answer"),
+        ("487", "no_answer"),
+        ("500", "dial_failed"),
+    ],
+)
+def test_the_carriers_answer_becomes_the_logs_own_word_for_it(code: str, reason: str) -> None:
+    refused = api.TwirpError("unavailable", "sip", status=503, metadata={"sip_status_code": code})
+    assert end_reason_of(refused) == reason
+
+
+def test_anything_that_is_not_a_sip_answer_is_a_dial_that_failed() -> None:
+    assert end_reason_of(GatewayRefused("GET /v1/agents/x/outbound-trunk: 409")) == "dial_failed"
+    assert end_reason_of(api.TwirpError("internal", "no", status=500)) == "dial_failed"

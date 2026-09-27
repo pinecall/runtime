@@ -7,17 +7,20 @@ from dataclasses import dataclass
 from hmac import compare_digest
 from typing import Annotated
 
+import httpx
 from cryptography.fernet import MultiFernet
 from fastapi import Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from livekit import api
 from starlette.requests import HTTPConnection
 
+from pinecall.channels.telephony import Exchange
 from pinecall.domain.errors import NotAllowed, NotSignedIn
 from pinecall.domain.settings import Settings
 from pinecall.domain.types import Corner, Env, JsonObject, KeyScope, parse_env
 from pinecall.fleet.hub import Roster
 from pinecall.gateway.live import Gated, Live, Registry
+from pinecall.gateway.threads import Threads
 from pinecall.log.log import Logs
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy import keys, people
@@ -53,11 +56,19 @@ class Wired:
     server: api.LiveKitAPI
     # Set when the process is told to stop: every stream ends on it.
     closing: asyncio.Event
+    # The carriers', Meta's and the identity providers' HTTP, one pool per process.
+    http: httpx.AsyncClient
+    threads: Threads
 
     @property
     def gated(self) -> Gated:
         """What a written call runs through."""
         return Gated(pool=self.pool, vault=self.vault, logs=self.logs, live=self.live)
+
+    @property
+    def exchange(self) -> Exchange:
+        """What hooking a number reaches."""
+        return Exchange(self.pool, self.vault, self.http, self.server, self.settings.domain)
 
 
 @dataclass(frozen=True)
@@ -153,6 +164,7 @@ KnowledgeKey = Annotated[Acting, Depends(opening("knowledge"))]
 MemoryKey = Annotated[Acting, Depends(opening("memory"))]
 EvalsKey = Annotated[Acting, Depends(opening("evals"))]
 UsageKey = Annotated[Acting, Depends(opening("usage"))]
+NumbersKey = Annotated[Acting, Depends(opening("numbers"))]
 FleetKey = Annotated[Acting, Depends(opening("fleet"))]
 # A worker knocks with its fleet's key; a tenant's own worker with an app key.
 WorkerKey = Annotated[Acting, Depends(opening("app", "fleet"))]

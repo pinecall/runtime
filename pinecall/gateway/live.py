@@ -686,13 +686,16 @@ def _as_it_opened(
     started = next((one for one in entries if one.type == "call.started"), None)
     said = None if started is None else CallStarted.model_validate(started.data)
     caller = "" if said is None else (said.from_ or "")
-    route = Route(org=corner.org, agent=held.slug, channel="web", env=corner.env)
+    # A WhatsApp conversation comes back on its number; a chat at none.
+    channel = "web" if said is None else said.channel
+    number = said.to if said is not None and channel in CHANNELS_WITH_A_NUMBER else None
+    route = Route(org=corner.org, agent=held.slug, channel=channel, number=number, env=corner.env)
     today = (
         today_in(zone) if said is None else datetime.fromtimestamp(said.started_at, tz=UTC).date()
     )
     return CallContext(
         call=call,
-        channel="web",
+        channel=channel,
         direction="inbound",
         caller=caller or call,
         route=route,

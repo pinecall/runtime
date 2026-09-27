@@ -90,20 +90,6 @@ class Settings(BaseModel):
         description="Where it is asked. Unset: the provider's own door, and TEI_URL for TEI.",
     )
 
-    # ── WhatsApp ──
-    whatsapp_app_secret: str | None = Field(
-        None,
-        alias="PINECALL_WHATSAPP_APP_SECRET",
-        repr=False,
-        description="The Meta app's secret every webhook body is signed with. Unset: door closed.",
-    )
-    whatsapp_verify_token: str | None = Field(
-        None,
-        alias="PINECALL_WHATSAPP_VERIFY_TOKEN",
-        repr=False,
-        description="The word Meta echoes back when the webhook is subscribed.",
-    )
-
     # ── recordings ──
     recordings_root: str = Field(
         "recordings",
