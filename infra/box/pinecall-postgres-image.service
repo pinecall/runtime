@@ -1,0 +1,12 @@
+# Our Postgres image, built once per tag from infra/postgres/ (podman 4.9 has no .build unit).
+[Unit]
+Description=Pinecall: build the postgres image
+ConditionPathExists=!/var/lib/pinecall/images/17-pgvector0.8.6-pgtextsearch1.4.0
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/podman build --tag localhost/pinecall/postgres:17-pgvector0.8.6-pgtextsearch1.4.0 /opt/pinecall/infra/postgres
+ExecStartPost=/usr/bin/touch /var/lib/pinecall/images/17-pgvector0.8.6-pgtextsearch1.4.0

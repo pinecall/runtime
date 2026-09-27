@@ -79,11 +79,7 @@ def _standing(vendor: Vendor, keys: Keys) -> Standing:
 def pipeline(config: AgentConfig, configured: Providers, keys: Keys) -> Pipeline:
     """The stages an agent runs: its vendors or the defaults, each with its key and options."""
     language = primary(config.language)
-    llm = _stage("llm", config.llm, configured, keys)
-    if config.llm is not None and config.llm.temperature is not None:
-        llm = dataclasses.replace(
-            llm, options={**llm.options, "temperature": config.llm.temperature}
-        )
+    llm = thinking(config, configured, keys)
     stt = _stage("stt", config.stt, configured, keys)
     tts = _stage("tts", config.voice, configured, keys)
     heard = dict.fromkeys(one for one in (language, *configured.hints) if one)
@@ -97,6 +93,15 @@ def pipeline(config: AgentConfig, configured: Providers, keys: Keys) -> Pipeline
             voice=voice or configured.voices.get(f"{tts.vendor}{SEPARATOR}{language}"),
         ),
     )
+
+
+# A written call runs this stage alone: a call with no voice is not refused for want of one.
+def thinking(config: AgentConfig, configured: Providers, keys: Keys) -> Running:
+    """The model an agent thinks with, on its key, at the temperature it declared."""
+    llm = _stage("llm", config.llm, configured, keys)
+    if config.llm is None or config.llm.temperature is None:
+        return llm
+    return dataclasses.replace(llm, options={**llm.options, "temperature": config.llm.temperature})
 
 
 def running(keys: Keys, vendor: str, model: str | None) -> Running:

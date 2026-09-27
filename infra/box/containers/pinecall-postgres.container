@@ -1,0 +1,28 @@
+# Postgres 17 with pgvector and pg_textsearch, built on the box from infra/postgres/, published
+# on loopback alone.
+[Unit]
+Description=Pinecall: postgres
+Requires=pinecall-postgres-image.service
+After=pinecall-postgres-image.service
+
+[Container]
+ContainerName=pinecall-postgres
+Image=localhost/pinecall/postgres:17-pgvector0.8.6-pgtextsearch1.4.0
+Network=pinecall.network
+PublishPort=127.0.0.1:5432:5432
+Volume=pinecall-postgres.volume:/var/lib/postgresql/data
+Environment=POSTGRES_USER=pinecall
+Environment=POSTGRES_DB=pinecall
+EnvironmentFile=%d/media.env
+HealthCmd=pg_isready -U pinecall -d pinecall
+HealthInterval=5s
+HealthRetries=12
+HealthStartPeriod=10s
+
+[Service]
+ImportCredential=media.env
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

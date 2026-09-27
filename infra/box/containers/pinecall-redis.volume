@@ -1,0 +1,3 @@
+# livekit-sip keeps every trunk and dispatch rule in redis: an empty one loses every number.
+[Volume]
+VolumeName=pinecall-redis

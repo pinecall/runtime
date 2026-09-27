@@ -1,0 +1,29 @@
+# The SFU: signalling on loopback behind Caddy, media straight at the host (a proxy in front of
+# media is a proxy inside every call).
+[Unit]
+Description=Pinecall media plane: livekit-server
+Requires=pinecall-redis.service
+After=pinecall-redis.service
+
+[Container]
+ContainerName=pinecall-livekit
+Image=docker.io/livekit/livekit-server:v1.13.7@sha256:6fd3b7088874c4d119160dd688798dfec852bc014786d392caad15f6f63912a3
+Exec=--config /etc/livekit/server.yaml
+Volume=/etc/pinecall/livekit.yaml:/etc/livekit/server.yaml:ro
+Network=pinecall.network
+PublishPort=127.0.0.1:7880:7880
+PublishPort=7881:7881
+PublishPort=7882:7882/udp
+# LIVEKIT_KEYS, decrypted by systemd for this unit alone: the pair is on no disk in the clear.
+EnvironmentFile=%d/media.env
+HealthCmd=wget -q --spider -T 3 http://127.0.0.1:7880/
+HealthInterval=5s
+HealthRetries=12
+
+[Service]
+ImportCredential=media.env
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

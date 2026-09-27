@@ -1,0 +1,34 @@
+# The worker fleet of world %i: a livekit AgentServer registered under that fleet's agent name
+# (fleets/%i.env), holding that world's fleet key and nothing else of the box.
+[Unit]
+Description=Pinecall worker, fleet %i
+Wants=network-online.target pinecall-gateway.service pinecall-fleet-key@%i.service
+After=network-online.target pinecall-livekit.service pinecall-gateway.service pinecall-fleet-key@%i.service
+
+[Service]
+User=pinecall
+Group=pinecall
+WorkingDirectory=/opt/pinecall
+Environment=LIVEKIT_URL=ws://127.0.0.1:7880
+Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
+Environment=PINECALL_RECORDINGS=/var/lib/pinecall/recordings
+EnvironmentFile=/etc/pinecall/box.env
+EnvironmentFile=/etc/pinecall/fleets/%i.env
+LoadCredentialEncrypted=PINECALL_WORKER_KEY:/etc/pinecall/fleets/%i.credstore/PINECALL_WORKER_KEY
+ImportCredential=LIVEKIT_API_KEY
+ImportCredential=LIVEKIT_API_SECRET
+ExecStart=/opt/pinecall/venv/bin/pinecall-runtime worker start
+ReadWritePaths=/var/lib/pinecall/recordings /opt/pinecall/.cache
+# Calls drain for up to 10 min and seal for 60 s after (worker/main.py); systemd waits past both.
+TimeoutStopSec=900
+KillMode=mixed
+Restart=always
+RestartSec=3
+RestartSteps=5
+RestartMaxDelaySec=60
+# 3 is a cordoned worker leaving on purpose: not restarted.
+SuccessExitStatus=3
+RestartPreventExitStatus=3
+
+[Install]
+WantedBy=multi-user.target

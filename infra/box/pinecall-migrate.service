@@ -1,0 +1,21 @@
+# The schema, brought up to the wheel's migrations: restarted by every deploy, and at boot.
+[Unit]
+Description=Pinecall: migrate the database
+Requires=pinecall-postgres.service
+After=pinecall-postgres.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=pinecall
+Group=pinecall
+WorkingDirectory=/opt/pinecall
+ImportCredential=DATABASE_URL
+# Postgres answers seconds after its container starts; `+` runs podman as root.
+ExecStartPre=+/usr/bin/podman healthcheck run pinecall-postgres
+ExecStart=/opt/pinecall/venv/bin/pinecall-runtime migrate up
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

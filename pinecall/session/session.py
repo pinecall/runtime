@@ -38,6 +38,7 @@ from livekit.agents.types import TimedString
 from livekit.agents.voice import Agent, AgentSession, ModelSettings, STTContextOptions
 from livekit.agents.voice import text_transforms as transforms
 from livekit.agents.voice.agent_session import DEFAULT_TTS_TEXT_TRANSFORMS
+from livekit.agents.voice.room_io import RoomOptions
 from livekit.agents.voice.turn import InterruptionOptions, TurnHandlingOptions
 from pydantic import BaseModel
 
@@ -66,6 +67,7 @@ from pinecall.wire.commands import (
     PromptSet,
     ReleaseVerb,
     SayVerb,
+    SessionConfigure,
     StateSet,
     SupervisorVerb,
     TakeoverVerb,
@@ -264,16 +266,23 @@ class Session:
         # Given at start; a written call has neither.
         self.room: room.Room | None = None
         self.hold: room.HoldMusic | None = None
+        # The one participant the session listens to: the caller's leg, or the talk seat.
+        self.seat: str | None = None
 
     # ── the session's life ──
 
     # call.started comes first, so it is written before livekit starts and says anything.
     async def start(
-        self, *, where: room.Room | None = None, hold: room.HoldMusic | None = None
+        self,
+        *,
+        where: room.Room | None = None,
+        hold: room.HoldMusic | None = None,
+        seat: str | None = None,
     ) -> None:
         """Open a new call: its first entries, the session on its room or headless, the greeting."""
         self.room = where
         self.hold = hold
+        self.seat = seat
         self.call.writing.open()
         context = self.call.context
         door = context.route.number or self.call.config.slug
@@ -372,6 +381,8 @@ class Session:
                 await self.call.log_custom(command)
             case CallCallback():
                 await self.call.call_back(command)
+            case SessionConfigure():
+                await self.call.configure(command)
             case _:
                 return False
         return True
@@ -711,7 +722,18 @@ class Session:
         for name in LISTENED:
             self.live.on(name, self._heard)  # pyright: ignore[reportUnknownMemberType]
         on = NOT_GIVEN if self.room is None else self.room.room
-        await self.live.start(self.agent, room=on)  # pyright: ignore[reportUnknownMemberType]
+        # The caller is pinned before livekit subscribes, or it links the first seat of a kind it
+        # accepts, a supervisor's as soon as a caller's. A written call in a room hears no audio.
+        # record is said: left unset, livekit's own recorder asks the server whether to run.
+        spoken = any(isinstance(one, stt.STT) for one in self.built)
+        options = RoomOptions(
+            participant_identity=_given(self.seat),
+            audio_input=NOT_GIVEN if spoken else False,
+            audio_output=NOT_GIVEN if spoken else False,
+        )
+        await self.live.start(  # pyright: ignore[reportUnknownMemberType]
+            self.agent, room=on, room_options=options, record=False
+        )
         for component in self.built:
             component.on("metrics_collected", self._measured)  # pyright: ignore[reportUnknownMemberType]
         told = history.copy()

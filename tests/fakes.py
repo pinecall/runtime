@@ -36,6 +36,12 @@ from livekit.agents.voice.background_audio import (
 from livekit.api.room_service import RoomService
 from livekit.api.sip_service import SipService
 from livekit.protocol.room import (
+    DeleteRoomRequest,
+    DeleteRoomResponse,
+    ListParticipantsRequest,
+    ListParticipantsResponse,
+    ListRoomsRequest,
+    ListRoomsResponse,
     MuteRoomTrackRequest,
     MuteRoomTrackResponse,
     RemoveParticipantResponse,
@@ -416,9 +422,34 @@ class Sip(SipService):
 
 
 class Rooms(RoomService):
-    """The server's room door, keeping what it was asked."""
+    """The server's room door, keeping what it was asked and the rooms a test says stand."""
 
     asked: list[object]
+    # Each standing room and whether an agent is in it.
+    standing: dict[str, bool]
+
+    @override
+    async def list_rooms(self, list: ListRoomsRequest) -> ListRoomsResponse:
+        """The rooms asked for that stand."""
+        self.asked.append(list)
+        return ListRoomsResponse(
+            rooms=[api.Room(name=name) for name in list.names if name in self.standing]
+        )
+
+    @override
+    async def list_participants(self, list: ListParticipantsRequest) -> ListParticipantsResponse:
+        """An agent in the room, or nobody."""
+        agent = api.ParticipantInfo(identity="agent", kind=api.ParticipantInfo.Kind.AGENT)
+        return ListParticipantsResponse(
+            participants=[agent] if self.standing.get(list.room) else []
+        )
+
+    @override
+    async def delete_room(self, delete: DeleteRoomRequest) -> DeleteRoomResponse:
+        """The room goes, whoever was in it."""
+        self.asked.append(delete)
+        self.standing.pop(delete.room, None)
+        return DeleteRoomResponse()
 
     @override
     async def mute_published_track(self, update: MuteRoomTrackRequest) -> MuteRoomTrackResponse:
@@ -447,7 +478,7 @@ class Server(api.LiveKitAPI):
             status=SIPTransferStatus.STS_TRANSFER_SUCCESSFUL
         )
         self.rooms = Rooms.__new__(Rooms)
-        self.rooms.asked = []
+        self.rooms.asked, self.rooms.standing = [], {}
 
     @property
     @override

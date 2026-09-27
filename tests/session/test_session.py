@@ -26,9 +26,10 @@ from livekit.agents.beta.tools import EndCallTool
 from livekit.agents.language import LanguageCode
 from livekit.agents.llm.tool_context import ToolFlag
 from livekit.agents.metrics import AgentSessionUsage
-from livekit.agents.types import TimedString
+from livekit.agents.types import NotGiven, TimedString
 from livekit.agents.voice import Agent, ModelSettings
 from livekit.agents.voice.agent_session import DEFAULT_TTS_TEXT_TRANSFORMS
+from livekit.agents.voice.room_io import RoomOptions
 
 from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotAvailable
 from pinecall.domain.types import (
@@ -74,6 +75,7 @@ from pinecall.wire.commands import (
     PromptSet,
     ReleaseVerb,
     SayVerb,
+    SessionConfigure,
     StateSet,
     SupervisorVerb,
     TakeoverVerb,
@@ -82,6 +84,7 @@ from pinecall.wire.commands import (
     WhisperVerb,
 )
 from pinecall.wire.events import CreditsExhausted
+from pinecall.wire.parts import AgentConfig as Declared
 from pinecall.wire.parts import Supervisor, ToolResult
 from pinecall.wire.parts import ToolSpec as WiredTool
 from tests.conftest import postgres
@@ -285,6 +288,48 @@ async def test_the_state_the_app_set_lands_whole_with_what_changed(
     changed = next(entry for entry in await store.whole(call) if entry.type == "state.changed")
     assert changed.data["state"] == {"patient": {"name": "Ana Pérez"}, "step": 2}
     assert changed.data["changed"] == ["patient", "step"]
+
+
+@postgres
+async def test_a_session_configure_declares_for_the_call_and_sets_its_state(
+    box: Box, store: Store, call: str
+) -> None:
+    session = a_session(box, NOBODY)
+    await session.start()
+    await session.apply(SessionConfigure(config=Declared(language="en-US"), state={"step": 1}))
+    await text.end(session, "caller_hung_up", "caller")
+    assert session.call.config.language == "en-US"
+    assert {"agent.configured", "state.changed"} <= set(await kinds(store, call))
+
+
+@postgres
+async def test_the_caller_is_pinned_before_livekit_links_a_seat_and_a_written_call_hears_none(
+    box: Box, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    told: list[RoomOptions] = []
+
+    class Recorded(RoomOptions):
+        def __init__(
+            self,
+            *,
+            participant_identity: str | NotGiven,
+            audio_input: bool | NotGiven,
+            audio_output: bool | NotGiven,
+        ) -> None:
+            super().__init__(
+                participant_identity=participant_identity,
+                audio_input=audio_input,
+                audio_output=audio_output,
+            )
+            told.append(self)
+
+    monkeypatch.setattr(session_module, "RoomOptions", Recorded)
+    session = a_session(box, NOBODY)
+    await session.start(seat="visitor_1")
+    await text.end(session, "caller_hung_up", "caller")
+    (options,) = told
+    assert options.participant_identity == "visitor_1"
+    assert (options.audio_input, options.audio_output) == (False, False)
 
 
 @postgres

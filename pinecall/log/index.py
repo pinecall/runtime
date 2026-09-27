@@ -80,6 +80,10 @@ ARRAYS = frozenset({"e2e", "heard_at"})
 
 FACTS_LOCKED = "select * from call_facts where call = %(call)s for update"
 
+LENT = """
+INSERT INTO call_facts (call, lent) VALUES (%(call)s, %(lent)s)
+ON CONFLICT (call) DO UPDATE SET lent = excluded.lent
+"""
 # The whole row is written every time: the merge happened in fold(), in one place.
 FACTS_WRITTEN = sql.SQL(
     "insert into call_facts ({columns}) values ({values})"
@@ -582,6 +586,14 @@ def facts_of(row: DictRow) -> CallFacts:
     return replace(
         facts, agent=row.get("agent") or "", e2e=tuple(row["e2e"]), heard_at=tuple(row["heard_at"])
     )
+
+
+# Not a fold: the vendors a call ran on the box's key are not in its entries, the gateway knows
+# them at the seal.
+async def lent(pool: Pool, call: str, vendors: Sequence[str]) -> None:
+    """Keep the vendors the call ran on the box's own key with its facts."""
+    async with pool.connection() as connection:
+        await connection.execute(LENT, {"call": call, "lent": list(vendors)})
 
 
 # ── the lists ──

@@ -47,3 +47,18 @@ The runtime written again from a blank page.
   two reads no longer records a version the call did not run on.
 - Fixed: a written call counted each turn twice (the caller's and the agent's); a tool's
   structured output reached the model as Python's repr instead of JSON.
+- The gateway and the worker. One gateway serves both worlds: the app socket, the worker's doors,
+  the log's readers (a page or a stream), the supervisor's seats and verbs, a visitor's room token
+  with the dispatch to its world's fleet signed inside, caller codes, and text calls on
+  `WS /v1/chat`. A worker is livekit's `AgentServer` registered under its fleet's name
+  (`pinecall`, `pinecall-sandbox`); it resolves whose call a job is from its dispatch or the number
+  dialled, opens the log, and runs the session. Workers report to the gateway every five seconds;
+  a full production fleet is answered by the overflow, a full sandbox refuses at the token door.
+  A call the worker lost is sealed by the gateway's reaper. The vendors a call ran on the box's
+  key are kept with its facts (migration `0003_lent.sql`).
+- The box: `infra/box/` makes a machine from nothing (cloud-init, `install.sh`, Quadlet containers
+  for LiveKit, SIP, egress, Redis and Postgres, the units); `make deploy` builds the console into
+  a wheel and releases it; `pinecall-runtime` has `gateway`, `worker start`, `worker overflow`,
+  `migrate up`, `keys fleet` and `doctor`.
+- Fixed: a tool of a call whose agent nobody holds waited until its deadline; it is refused at
+  once.

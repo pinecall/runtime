@@ -3,8 +3,10 @@
 import pytest
 
 from pinecall.domain.errors import (
+    AppRefused,
     Conflict,
     DeclarationRefused,
+    GatewayRefused,
     MigrationsRefused,
     NotAllowed,
     NotAvailable,
@@ -26,6 +28,7 @@ STATUSES: list[tuple[type[PinecallError], int]] = [
     (Conflict, 409),
     (QuotaExhausted, 429),
     (UpstreamFailed, 502),
+    (GatewayRefused, 502),
     (NotAvailable, 503),
     (SettingsRefused, 500),
     (StoreUnreachable, 503),
@@ -49,3 +52,13 @@ def test_the_base_is_what_a_door_catches_to_answer_any_of_them() -> None:
     with pytest.raises(PinecallError) as caught:
         raise Conflict("that slug is taken")
     assert caught.value.status == 409
+
+
+def test_a_gateway_refusal_keeps_the_status_it_answered_and_none_when_unreachable() -> None:
+    assert GatewayRefused("the call is sealed", answered=409).answered == 409
+    assert GatewayRefused("nothing answered").answered is None
+
+
+def test_an_apps_refusal_is_passed_on_with_its_own_status_and_sentence() -> None:
+    refused = AppRefused(422, "the app has no tool named book")
+    assert (refused.status, str(refused)) == (422, "the app has no tool named book")

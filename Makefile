@@ -1,9 +1,10 @@
-# check · test · db · test-sandbox · hooks · ssh · logs.
+# check · test · db · hooks · box · deploy · rollback · logs · ssh · test-box.
 
-BOX      ?= pinecall-v2-box
-INSTANCE ?= sandbox
+# The new box's ssh alias; the old box (v1) is never a target of this file.
+BOX      ?= example-box
+DOMAINS  ?= sandbox.pinecall.io
 TUNNEL   ?= 15432
-CREDSTORE = /etc/pinecall/instances/$(INSTANCE).credstore
+WHEEL    ?= $(shell git rev-parse --short HEAD)$(shell git diff --quiet HEAD || echo -dirty)
 
 # The laptop's Postgres, for the suites only: in colima, on tmpfs, thrown away with the container.
 DB_IMAGE  = pinecall/postgres:17-pgvector0.8.6-pgtextsearch1.4.0
@@ -29,19 +30,40 @@ db:               ## the local Postgres: colima up, the image built once, the co
 	    -c fsync=off -c synchronous_commit=off -c full_page_writes=off >/dev/null; }
 	@until docker exec $(DB_NAME) pg_isready -U pinecall -d pinecall >/dev/null 2>&1; do sleep 1; done
 
-test-sandbox:     ## every suite, on the sandbox database through an SSH tunnel; the DSN is never printed
-	@ssh -f -N -o ExitOnForwardFailure=yes -L $(TUNNEL):127.0.0.1:5432 $(BOX)
-	@DATABASE_URL="$$(ssh $(BOX) sudo -n systemd-creds decrypt --name=DATABASE_URL $(CREDSTORE)/DATABASE_URL - \
-	    | sed 's/127.0.0.1:5432/127.0.0.1:$(TUNNEL)/')" uv run pytest -q $(T); status=$$?; \
-	  pkill -f "ssh -f -N -o ExitOnForwardFailure=yes -L $(TUNNEL):" ; exit $$status
-
 hooks:            ## the pre-commit hook: `make check`
 	git config core.hooksPath .githooks
+
+box:              ## infra/ to the box and install.sh run there: once, and after infra/box changes
+	rsync -a --delete infra/ $(BOX):/tmp/pinecall-infra/
+	ssh $(BOX) 'sudo rsync -a --delete /tmp/pinecall-infra/ /opt/pinecall/infra/ && sudo /opt/pinecall/infra/box/install.sh $(DOMAINS)'
+
+deploy:           ## the console built in, a wheel, released on the box, the live suite, the journal
+	scripts/console
+	rm -rf dist && uv build --wheel --quiet
+	ssh $(BOX) 'mkdir -p /opt/pinecall/wheels/$(WHEEL)'
+	scp -q dist/pinecall-*.whl $(BOX):/opt/pinecall/wheels/$(WHEEL)/
+	$(MAKE) release WHEEL=$(WHEEL)
+	PINECALL_URL=https://$(firstword $(subst $(comma), ,$(DOMAINS))) uv run pytest -q tests/live
+	$(MAKE) logs
+
+rollback:         ## an older wheel still on the box: make rollback WHEEL=<sha>
+	$(MAKE) release WHEEL=$(WHEEL)
+
+release:
+	ssh $(BOX) 'WHEEL=$(WHEEL) bash -s' < infra/box/release.sh
+
+logs:             ## the journal of the runtime's units since the gateway last started, whole
+	ssh $(BOX) 'journalctl -u pinecall-gateway -u "pinecall-worker@*" -u "pinecall-overflow@*" -u pinecall-migrate --no-pager -o cat --since "$$(systemctl show -p ActiveEnterTimestamp --value pinecall-gateway)"'
 
 ssh:
 	ssh $(BOX)
 
-logs:             ## the journal of both units of INSTANCE since their last start, whole
-	ssh $(BOX) 'journalctl -u pinecall-gateway@$(INSTANCE) -u pinecall-worker@$(INSTANCE) --no-pager -o cat _SYSTEMD_INVOCATION_ID=$$(systemctl show -p InvocationID --value pinecall-gateway@$(INSTANCE))'
+test-box:         ## every suite on the box's database through an ssh tunnel; the DSN is never printed
+	@ssh -f -N -o ExitOnForwardFailure=yes -L $(TUNNEL):127.0.0.1:5432 $(BOX)
+	@DATABASE_URL="$$(ssh $(BOX) sudo -n systemd-creds decrypt --name=DATABASE_URL /etc/credstore.encrypted/DATABASE_URL - \
+	    | sed 's/127.0.0.1:5432/127.0.0.1:$(TUNNEL)/')" uv run pytest -q $(T); status=$$?; \
+	  pkill -f "ssh -f -N -o ExitOnForwardFailure=yes -L $(TUNNEL):" ; exit $$status
 
-.PHONY: check test db test-sandbox hooks ssh logs
+comma := ,
+
+.PHONY: check test db hooks box deploy rollback release logs ssh test-box

@@ -1,0 +1,12 @@
+# TLS for every name of the box; PINECALL_DOMAINS comes from /etc/pinecall/box.env through the
+# caddy drop-in install.sh writes. Media does not pass here.
+{$PINECALL_DOMAINS} {
+	# LiveKit's signalling, and /agent for a worker on a machine of its own.
+	@livekit path /rtc* /twirp* /validate* /agent*
+	handle @livekit {
+		reverse_proxy 127.0.0.1:7880
+	}
+	handle {
+		reverse_proxy 127.0.0.1:8080
+	}
+}

@@ -1,0 +1,15 @@
+# livekit-server: one node; the pair arrives as LIVEKIT_KEYS from the media.env credential.
+port: 7880
+rtc:
+  # A cloud VM sees its private address; the SFU learns the public one by STUN.
+  use_external_ip: true
+  # One muxed UDP port and one TCP port: two firewall rules.
+  udp_port: 7882
+  tcp_port: 7881
+redis:
+  address: pinecall-redis:6379
+room:
+  auto_create: true
+  empty_timeout: 60
+logging:
+  level: info
