@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from fastapi.routing import APIRoute, APIWebSocketRoute
 
-from pinecall.gateway.api import agents, calls
+from pinecall.gateway.api import agents, calls, telephony, whatsapp
 from pinecall.gateway.app import app
 from tests.rules.tree import FIXTURES, PARITY_MD, V1
 
@@ -20,7 +20,8 @@ DOORS_OF_V1 = 193
 def routes_of_the_gateway() -> frozenset[tuple[str, str]]:
     """Return every (method, path) the gateway answers, spelled as the table of v1 spells them."""
     found: set[tuple[str, str]] = set()
-    for route in [*calls.router.routes, *agents.router.routes, *app.routes]:
+    routers = (calls, agents, telephony, whatsapp)
+    for route in [*(one for door in routers for one in door.router.routes), *app.routes]:
         if isinstance(route, APIRoute):
             found |= {(method, _spelled(route.path)) for method in route.methods or ()}
         elif isinstance(route, APIWebSocketRoute):

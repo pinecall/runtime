@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import Field
 
-from pinecall.domain.types import CallContext, Channel, Direction, Env, Json, JsonObject
+from pinecall.domain.types import CallContext, Channel, Direction, Env, Json, JsonObject, Route
 from pinecall.wire.frames import WireModel
 from pinecall.wire.metrics import ModelUsage
 from pinecall.wire.parts import (
@@ -376,3 +376,209 @@ class CallbacksPage(WireModel):
 
     requests: list[CallbackTaken]
     next: int | None
+
+
+# ── dialling out ──
+
+
+class Dialled(WireModel):
+    """POST /v1/agents/{slug}/dial, the answer."""
+
+    call: str
+    agent: str
+    to: str
+    from_: str = Field(alias="from")
+    env: Env
+    log_token: str
+
+
+class DialGuards(WireModel):
+    """GET /v1/carrier/outbound, the guards: what this org may dial and how often."""
+
+    dial_anywhere: bool
+    per_minute: int
+    per_day: int
+    max_duration_s: int
+
+
+class CarrierOutbound(WireModel):
+    """GET /v1/carrier/outbound, the answer."""
+
+    ready: bool
+    kind: str | None
+    from_numbers: list[str]
+    steps_missing: list[str]
+    guards: DialGuards
+
+
+class OutboundProvisioned(WireModel):
+    """POST /v1/carrier/outbound, the answer: the plan, and whether it was carried out."""
+
+    steps: list[str]
+    dry_run: bool
+    ready: bool
+    trunk: str | None = None
+    address: str | None = None
+
+
+# ── an agent's inbox, by contact ──
+
+type ThreadKind = Literal["in", "out", "call"]
+
+
+class ThreadLast(WireModel):
+    """The newest thing on a contact's thread."""
+
+    text: str | None
+    at: float
+    kind: ThreadKind
+
+
+class ThreadLine(WireModel):
+    """One contact of an agent's inbox: every call of theirs, folded into one line."""
+
+    contact: str
+    name: str | None
+    channel_last: Channel
+    last: ThreadLast
+    unread: int
+    calls: int
+
+
+class ThreadList(WireModel):
+    """GET /v1/agents/{slug}/threads: the agent's contacts, the newest thread first."""
+
+    threads: list[ThreadLine]
+    next: str | None
+
+
+class ThreadMessage(WireModel):
+    """One message of a thread, or one spoken call drawn as a pill."""
+
+    kind: ThreadKind
+    text: str | None
+    at: float
+    call: str
+    channel: Channel
+    duration_s: float | None = None
+    answered: bool | None = None
+
+
+class Thread(WireModel):
+    """GET /v1/agents/{slug}/threads/{contact}: every call of one contact, merged, oldest first."""
+
+    contact: str
+    name: str | None
+    messages: list[ThreadMessage]
+
+
+class ThreadSay(WireModel):
+    """POST /v1/agents/{slug}/threads/{contact}/messages, the body."""
+
+    text: str
+
+
+class ThreadSaid(WireModel):
+    """POST /v1/agents/{slug}/threads/{contact}/messages, the answer: the call it was said on."""
+
+    contact: str
+    call: str
+
+
+# ── numbers and the accounts they live in ──
+
+
+class CarrierBrought(WireModel):
+    """GET /v1/carrier: one account of the org, named, never its secret."""
+
+    kind: str
+    account: str
+    label: str = ""
+
+
+class CarriersBrought(WireModel):
+    """GET /v1/carriers: every account of the org, oldest first."""
+
+    carriers: list[CarrierBrought]
+
+
+class NumberOwned(WireModel):
+    """A number an account owns, and whether this world imported it."""
+
+    number: str
+    name: str
+    imported: bool
+    account: str
+
+
+class NumbersAvailable(WireModel):
+    """GET /v1/numbers/available: what the org's Twilio accounts own; a peer lists none."""
+
+    kind: str
+    numbers: list[NumberOwned]
+
+
+class NumberAnswering(WireModel):
+    """GET /v1/numbers, one row: a number of the org and the agent it reaches."""
+
+    route: Route
+
+
+class NumberRouted(WireModel):
+    """POST /v1/numbers and /v1/numbers/buy: the route, one sentence a step, whether it ran."""
+
+    route: Route
+    steps: list[str]
+    dry_run: bool
+
+
+class NumberWanted(WireModel):
+    """POST /v1/numbers: a number of one of the org's accounts, or one the org hooks itself."""
+
+    number: str
+    agent: str
+    channel: Channel = "phone"
+    account: str | None = None
+    hooked: bool = False
+    networks: list[str] = Field(default_factory=list[str])
+    move: bool = False
+
+
+class PurchaseWanted(WireModel):
+    """POST /v1/numbers/buy: a number wanted from the box's own account."""
+
+    country: str = Field(min_length=2, max_length=2)
+    area_code: str | None = None
+    agent: str
+    channel: Channel = "phone"
+
+
+class NumberMoved(WireModel):
+    """PUT /v1/numbers/{number}/env: the world the number answers in from now on."""
+
+    env: Env
+
+
+class CallWanted(WireModel):
+    """POST /v1/agents/{slug}/dial: the far end, and the org's number it is shown."""
+
+    to: str
+    from_: str | None = Field(None, alias="from")
+    # What the log token handed back reads the call through.
+    log: Projection = "tenant"
+
+
+class LegTrunk(WireModel):
+    """How the worker dials a leg: the host, its transport, the pair, the number shown."""
+
+    hostname: str
+    transport: Literal["auto", "udp", "tcp", "tls"]
+    username: str
+    password: str
+    shown: str
+
+
+class LegDialled(WireModel):
+    """GET /v1/agents/{slug}/outbound-trunk: the leg's trunk, inline, after the guards."""
+
+    trunk: LegTrunk

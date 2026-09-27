@@ -19,6 +19,8 @@ from pinecall.wire.rest import (
     Handed,
     Heartbeat,
     HoldAudio,
+    LegDialled,
+    LegTrunk,
     LogPage,
     Opened,
     Opening,
@@ -94,6 +96,15 @@ class Gateway:
         asked = {"org": org, "caller": caller}
         said = await self._read("GET", f"/v1/agents/{slug}/rings-for", params=asked)
         return Handed.model_validate(said)
+
+    # The gateway judges the leg (shape and pace) and names the trunk; a refusal is its sentence.
+    async def leg(
+        self, slug: str, corner: Corner, *, to: str, call: str, shown: str | None
+    ) -> LegTrunk:
+        """How to dial a leg of the call: the trunk inline and the number shown."""
+        asked = _asked(corner) | {"to": to, "call": call} | ({"from": shown} if shown else {})
+        said = await self._read("GET", f"/v1/agents/{slug}/outbound-trunk", params=asked)
+        return LegDialled.model_validate(said).trunk
 
     # ── a call ──
 

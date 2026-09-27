@@ -30,7 +30,8 @@ from pinecall.domain.types import (
 from pinecall.fleet.hub import Roster
 from pinecall.gateway.app import app
 from pinecall.gateway.deps import Wired
-from pinecall.gateway.live import Live, Registry
+from pinecall.gateway.live import Gated, Live, Registry
+from pinecall.gateway.threads import Threads
 from pinecall.log.log import Logs
 from pinecall.log.store import Store
 from pinecall.postgres.migrate import apply_migrations
@@ -42,7 +43,7 @@ from pinecall.tenancy import keys, orgs, people, vault
 from pinecall.tenancy.agents import Codes
 from pinecall.tenancy.keys import Signer
 from pinecall.wire.frames import Entry
-from tests.fakes import A_SECRET, ACME, Server, acme_plugin
+from tests.fakes import A_SECRET, ACME, Graph, Server, Twilio, acme_plugin, outside
 
 DSN = os.environ.get("DATABASE_URL", "")
 
@@ -121,6 +122,8 @@ def no_listener_fails_in_silence(caplog: pytest.LogCaptureFixture) -> Iterator[N
 AGENT = "clinica-norte"
 LIVEKIT_KEY = "APIgateway"
 FLEETS = {"production": "pinecall", "sandbox": "pinecall-sandbox"}
+# The name a carrier sends the box's calls to.
+BOX_DOMAIN = "box.test"
 WORLDS: tuple[Env, ...] = ("production", "sandbox")
 
 
@@ -192,7 +195,21 @@ async def issued(pool: Pool, org: str, env: Env, scopes: frozenset[KeyScope]) ->
 
 
 @pytest.fixture
-async def box(pool: Pool, store: Store, acme: str) -> AsyncIterator[Wired]:
+def twilio() -> Twilio:
+    """A Twilio account the box's HTTP reaches; nobody brought it yet."""
+    return Twilio()
+
+
+@pytest.fixture
+def graph() -> Graph:
+    """Meta's Graph API as the box's HTTP reaches it."""
+    return Graph()
+
+
+@pytest.fixture
+async def box(
+    pool: Pool, store: Store, acme: str, twilio: Twilio, graph: Graph
+) -> AsyncIterator[Wired]:
     """The box wired on the test's schema: acme on every stage, lent by the box."""
     sealed = vault.vault_of(Fernet.generate_key().decode())
     await catalog.seed(pool, configured())
@@ -205,21 +222,29 @@ async def box(pool: Pool, store: Store, acme: str) -> AsyncIterator[Wired]:
             "LIVEKIT_URL": "ws://127.0.0.1:9",
             "LIVEKIT_API_KEY": LIVEKIT_KEY,
             "LIVEKIT_API_SECRET": A_SECRET,
+            "PINECALL_DOMAIN": BOX_DOMAIN,
         }
     )
+    http = httpx.AsyncClient(transport=outside(twilio, graph))
+    registry, live = Registry(logs), Live()
+    threads = Threads(Gated(pool=pool, vault=sealed, logs=logs, live=live), registry, http, "UTC")
     yield Wired(
         settings=settings,
         pool=pool,
         vault=sealed,
         logs=logs,
-        registry=Registry(logs),
-        live=Live(),
+        registry=registry,
+        live=live,
         roster=Roster(),
         codes=Codes(logs),
         signer=Signer(LIVEKIT_KEY, A_SECRET),
         server=server,
         closing=asyncio.Event(),
+        http=http,
+        threads=threads,
     )
+    await threads.closed()
+    await http.aclose()
     await server.aclose()
 
 

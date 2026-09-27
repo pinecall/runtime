@@ -7,15 +7,18 @@ import os
 import tempfile
 import time
 from dataclasses import dataclass
+from datetime import timedelta
 from functools import partial
 from pathlib import Path
 
 from livekit import api, rtc
 from livekit.agents import JobContext
+from livekit.protocol.sip import CreateSIPParticipantRequest
 from pydantic import TypeAdapter
 
-from pinecall.channels.routes import Dispatch, dispatched, read_dispatch
-from pinecall.domain.errors import GatewayRefused, NotAvailable, NotFound, PinecallError
+from pinecall.channels.routes import Dialling, Dispatch, dispatched, read_dispatch
+from pinecall.channels.telephony import sip_config
+from pinecall.domain.errors import GatewayRefused, NotFound, PinecallError
 from pinecall.domain.settings import Settings
 from pinecall.domain.types import (
     CHANNELS_WITH_A_NUMBER,
@@ -41,10 +44,10 @@ from pinecall.session.call import Call, Platform, Seal, ToolUse
 from pinecall.session.session import Session, spoken, written
 from pinecall.session.widget import Reading, Widget
 from pinecall.wire.commands import command_of
-from pinecall.wire.events import ErrorEvent, ToolCall
+from pinecall.wire.events import CallEnded, ErrorEvent, ToolCall
 from pinecall.wire.frames import Command, Entry
 from pinecall.wire.metrics import ModelUsage
-from pinecall.wire.parts import PlatformTool, ToolResult
+from pinecall.wire.parts import EndReason, PlatformTool, ToolResult
 from pinecall.wire.rest import Opening, Sealing
 from pinecall.wire.state import State
 
@@ -61,7 +64,9 @@ HOLD_CACHE = Path(tempfile.gettempdir()) / "pinecall-hold"
 NO_ROUTE = "the job names no agent, no number was dialled, and this worker has no default agent"
 NOBODY_AT = "nobody answers {number} on {channel}"
 NO_DOOR = "agent {agent} answers no {channel} door: it looked in {looked}"
-NOT_PLACED_YET = "this runtime places no outbound leg into a live call"
+# SIP answers: busy and declined; the three ways of nobody picking up.
+BUSY = {"486", "603"}
+NO_ANSWER = {"408", "480", "487"}
 ANSWERED_IN = "the pipeline is live %.2fs after the job arrived"
 
 
@@ -105,6 +110,9 @@ async def answer(ctx: JobContext, gateway: Gateway, settings: Settings) -> None:
     opened = await gateway.open(
         Opening(agent=route.agent, context=context, app=dispatch.app or settings.app)
     )
+    # An outbound call is its far end answering: nothing is built for a leg that never came up.
+    if dispatch.dial is not None and not await _answered(ctx, gateway, context, dispatch.dial):
+        return
     typed = dispatch.scope == WRITTEN_SCOPE
     audio = _recorded(config, settings, context.call, typed=typed)
     recording = None if audio is None else await record_room(ctx.api, ctx.room.name, audio)
@@ -121,7 +129,11 @@ async def answer(ctx: JobContext, gateway: Gateway, settings: Settings) -> None:
     # Registered before anything else can fail: a call that dies in its setup still seals.
     ctx.add_shutdown_callback(partial(_closed, session))
     where = room.Room(
-        call, ctx.room, ctx.api, trunks=_no_trunk, claim=partial(_claimed, gateway, context.call)
+        call,
+        ctx.room,
+        ctx.api,
+        trunks=partial(_trunk_for, gateway, context),
+        claim=partial(_claimed, gateway, context.call),
     )
     hold = await _hold_music(gateway, route.agent, corner, played.played, played.sha256)
     await session.start(
@@ -306,8 +318,56 @@ async def _claimed(gateway: Gateway, call: str, code: str) -> None:
     await gateway.claim(call, code)
 
 
-async def _no_trunk(_to: str) -> room.Trunk:
-    raise NotAvailable(NOT_PLACED_YET)
+async def _trunk_for(gateway: Gateway, context: CallContext, to: str) -> room.Trunk:
+    route = context.route
+    corner = Corner(route.org, route.env, context.holder or "")
+    leg = await gateway.leg(route.agent, corner, to=to, call=context.call, shown=route.number)
+    return room.Trunk(config=sip_config(leg), shown=leg.shown)
+
+
+# Waiting until answered is what tells busy and no answer apart; the media plane holds the
+# ceiling, so a worker that dies does not leave the far end on the line.
+async def _answered(
+    ctx: JobContext, gateway: Gateway, context: CallContext, dial: Dialling
+) -> bool:
+    route = context.route
+    corner = Corner(route.org, route.env, context.holder or "")
+    request = CreateSIPParticipantRequest(
+        sip_call_to=dial.to,
+        sip_number=dial.shown,
+        room_name=ctx.room.name,
+        participant_identity=f"{room.LEG_PREFIX}{dial.to}",
+        wait_until_answered=True,
+    )
+    request.ringing_timeout.FromTimedelta(timedelta(seconds=room.RINGING_S))
+    if dial.max_duration_s:
+        request.max_call_duration.FromTimedelta(timedelta(seconds=dial.max_duration_s))
+    try:
+        leg = await gateway.leg(
+            route.agent, corner, to=dial.to, call=context.call, shown=dial.shown
+        )
+        request.trunk.CopyFrom(sip_config(leg))
+        await ctx.api.sip.create_sip_participant(request)
+    except (api.TwirpError, GatewayRefused) as refused:
+        reason = end_reason_of(refused)
+        logger.warning("the far end did not answer: %s", reason)
+        ended = CallEnded(reason=reason, ended_by="platform", ended_at=time.time(), duration_s=0.0)
+        await gateway.append(context.call, "call.ended", ended.written())
+        await gateway.sealed(context.call, Sealing(usage=[], outcome=reason))
+        ctx.shutdown(reason=reason)
+        return False
+    return True
+
+
+# The SIP answer livekit passes on: busy and declined, no answer, anything else a dial that failed.
+def end_reason_of(refused: Exception) -> EndReason:
+    """The log's own word for a leg that never came up."""
+    said = refused.metadata.get("sip_status_code") if isinstance(refused, api.TwirpError) else None
+    if said in BUSY:
+        return "busy"
+    if said in NO_ANSWER:
+        return "no_answer"
+    return "dial_failed"
 
 
 # Only the talk seat is the caller: a listener and a supervisor share the room.

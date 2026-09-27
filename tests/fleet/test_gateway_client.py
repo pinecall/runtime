@@ -9,6 +9,8 @@ import pytest
 from pydantic import TypeAdapter
 from websockets.asyncio.client import ClientConnection
 
+from pinecall.channels import telephony
+from pinecall.channels.telephony import Import, SipPeer
 from pinecall.domain.errors import GatewayRefused
 from pinecall.domain.types import CallContext, Corner, Route, new_call_id
 from pinecall.fleet.gateway_client import Gateway, again, away, gateway_at, server_sent, waits
@@ -194,3 +196,33 @@ async def test_a_stream_is_read_as_each_messages_data() -> None:
             yield line
 
     assert [one async for one in server_sent(lines())] == [{"a": 1}, {"b": 2}]
+
+
+@postgres
+async def test_a_leg_is_told_its_trunk_inline_and_a_refusal_is_the_gateways_sentence(
+    gateway: Knocking,
+) -> None:
+    fleet = the_fleet(gateway)
+    corner = Corner(gateway.org.id, "sandbox")
+    with pytest.raises(GatewayRefused, match="answers at no phone number"):
+        await fleet.leg(AGENT, corner, to="+34910000000", call="call_1", shown=None)
+    peer = SipPeer.model_validate(
+        {
+            "username": "pbx",
+            "password": "a peer's password",
+            "addresses": ["203.0.113.0/24"],
+            "outbound_host": "sip.pbx.test",
+            "outbound_transport": "tls",
+        }
+    )
+    await telephony.bring(gateway.box.exchange, gateway.org.id, peer)
+    wanted = Import(corner, AGENT, A_NUMBER, account="pbx")
+    await telephony.import_number(gateway.box.exchange, wanted)
+    leg = await fleet.leg(AGENT, corner, to="+34910000000", call="call_1", shown=A_NUMBER)
+    await fleet.aclose()
+    assert (leg.hostname, leg.transport, leg.username, leg.shown) == (
+        "sip.pbx.test",
+        "tls",
+        "pbx",
+        A_NUMBER,
+    )

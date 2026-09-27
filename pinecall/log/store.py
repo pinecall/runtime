@@ -140,7 +140,7 @@ class Store:
         """Keep the pool and the clock the entries are stamped with."""
         self.pool = pool
         # ts is the runtime's clock, when it saw the event, never the database's.
-        self._clock = clock
+        self.clock = clock
 
     async def append(
         self, call: str | None, agent: str, kind: str, data: JsonObject, *, ephemeral: bool
@@ -148,7 +148,7 @@ class Store:
         """Write the entry with the next seq of its log, folding the call's facts with it."""
         entry = Entry(
             seq=0,
-            ts=self._clock(),
+            ts=self.clock(),
             call=call,
             agent=agent,
             type=kind,
@@ -168,7 +168,7 @@ class Store:
         """Write a call.score to a sealed log, the one entry a sealed log still takes."""
         entry = Entry(
             seq=0,
-            ts=self._clock(),
+            ts=self.clock(),
             call=call,
             agent=agent,
             type="call.score",

@@ -10,6 +10,7 @@ from livekit.agents.voice import AgentSession
 from livekit.protocol.room import MuteRoomTrackRequest, RoomParticipantIdentity
 from livekit.protocol.sip import (
     CreateSIPParticipantRequest,
+    SIPOutboundConfig,
     SIPStatusCode,
     SIPTransferReason,
     SIPTransferStatus,
@@ -50,7 +51,7 @@ def _the_caller() -> rtc.RemoteParticipant:
     return seat("sip_caller", kind=SIP, attributes={CALLER_NUMBER: THE_CALLER})
 
 
-A_TRUNK = Trunk("ST_1", "+59829001199")
+A_TRUNK = Trunk(SIPOutboundConfig(hostname="sip.carrier.test"), "+59829001199")
 
 
 class Asked:
@@ -300,8 +301,8 @@ async def test_a_warm_transfer_dials_the_person_in_and_waits_for_them_to_answer(
     assert (done.ok, done.mode) == (True, "warm")
     (asked,) = server.dialled.asked
     assert isinstance(asked, CreateSIPParticipantRequest)
-    assert (asked.sip_trunk_id, asked.sip_number, asked.participant_identity) == (
-        "ST_1",
+    assert (asked.trunk.hostname, asked.sip_number, asked.participant_identity) == (
+        "sip.carrier.test",
         "+59829001199",
         "sip_+59829000000",
     )

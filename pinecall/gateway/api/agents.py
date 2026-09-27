@@ -301,6 +301,9 @@ class AppSocket:
             self.id, self.corner.env, slug, config, changed_by(wanted.config)
         )
         await self.send(entry)
+        # Declared now: what waited on WhatsApp for this agent is answered on this declaration.
+        if held.takes_unclaimed:
+            self.box.threads.answering(self._holds(slug))
 
     # A deploy: the calls move now, and the socket keeps the agent so its tools still answer.
     async def _drain(self, slug: str) -> None:

@@ -1,4 +1,4 @@
-"""What the suites fake, and only that: livekit plugins, a mail server, an identity provider."""
+"""What the suites fake, and only that: livekit plugins, a mail server, an IdP, Twilio, Meta."""
 
 import json
 import smtplib
@@ -33,8 +33,11 @@ from livekit.agents.voice.background_audio import (
     BackgroundAudioPlayer,
     PlayHandle,
 )
+from livekit.api.agent_dispatch_service import AgentDispatchService
 from livekit.api.room_service import RoomService
 from livekit.api.sip_service import SipService
+from livekit.protocol.agent_dispatch import AgentDispatch, CreateAgentDispatchRequest
+from livekit.protocol.models import ListUpdate
 from livekit.protocol.room import (
     DeleteRoomRequest,
     DeleteRoomResponse,
@@ -48,10 +51,22 @@ from livekit.protocol.room import (
     RoomParticipantIdentity,
 )
 from livekit.protocol.sip import (
+    CreateSIPDispatchRuleRequest,
+    CreateSIPInboundTrunkRequest,
     CreateSIPParticipantRequest,
+    DeleteSIPDispatchRuleRequest,
+    DeleteSIPTrunkRequest,
+    ListSIPDispatchRuleRequest,
+    ListSIPDispatchRuleResponse,
+    ListSIPInboundTrunkRequest,
+    ListSIPInboundTrunkResponse,
+    SIPDispatchRuleInfo,
+    SIPInboundTrunkInfo,
+    SIPMediaConfig,
     SIPOutboundConfig,
     SIPParticipantInfo,
     SIPTransferStatus,
+    SIPTrunkInfo,
     TransferSIPParticipantRequest,
     TransferSIPParticipantResponse,
 )
@@ -394,6 +409,120 @@ class Sip(SipService):
     asked: list[object]
     answer: TransferSIPParticipantResponse
     refusal: api.TwirpError | None
+    # The SFU's inbound trunks and dispatch rules, by id, as Redis would hold them.
+    trunks: dict[str, SIPInboundTrunkInfo]
+    rules: dict[str, SIPDispatchRuleInfo]
+
+    @override
+    async def list_inbound_trunk(
+        self, list: ListSIPInboundTrunkRequest
+    ) -> ListSIPInboundTrunkResponse:
+        """Every trunk, or those listing one of the numbers asked."""
+        self.asked.append(list)
+        wanted = set(list.numbers)
+        items = [one for one in self.trunks.values() if not wanted or wanted & set(one.numbers)]
+        return ListSIPInboundTrunkResponse(items=items)
+
+    @override
+    async def create_inbound_trunk(
+        self, create: CreateSIPInboundTrunkRequest
+    ) -> SIPInboundTrunkInfo:
+        """A trunk with an id of its own."""
+        self.asked.append(create)
+        made = SIPInboundTrunkInfo()
+        made.CopyFrom(create.trunk)
+        made.sip_trunk_id = f"ST_{len(self.trunks) + 1}"
+        self.trunks[made.sip_trunk_id] = made
+        return _copied(made)
+
+    @override
+    async def update_inbound_trunk(
+        self, trunk_id: str, trunk: SIPInboundTrunkInfo
+    ) -> SIPInboundTrunkInfo:
+        """The trunk replaced whole."""
+        self.asked.append(trunk)
+        kept = _copied(trunk)
+        kept.sip_trunk_id = trunk_id
+        self.trunks[trunk_id] = kept
+        return _copied(kept)
+
+    @override
+    async def update_inbound_trunk_fields(
+        self,
+        trunk_id: str,
+        *,
+        numbers: ListUpdate | list[str] | None = None,
+        allowed_addresses: ListUpdate | list[str] | None = None,
+        allowed_numbers: ListUpdate | list[str] | None = None,
+        auth_username: str | None = None,
+        auth_password: str | None = None,
+        name: str | None = None,
+        metadata: str | None = None,
+        media: SIPMediaConfig | None = None,
+    ) -> SIPInboundTrunkInfo:
+        """The trunk's numbers replaced, the one field this runtime updates alone."""
+        self.asked.append(("numbers", trunk_id, numbers))
+        kept = self.trunks[trunk_id]
+        if isinstance(numbers, list):
+            kept.numbers[:] = numbers
+        return _copied(kept)
+
+    @override
+    async def list_dispatch_rule(
+        self, list: ListSIPDispatchRuleRequest
+    ) -> ListSIPDispatchRuleResponse:
+        """Every rule."""
+        self.asked.append(list)
+        return ListSIPDispatchRuleResponse(items=[_copied(one) for one in self.rules.values()])
+
+    @override
+    async def create_dispatch_rule(
+        self, create: CreateSIPDispatchRuleRequest
+    ) -> SIPDispatchRuleInfo:
+        """A rule, refused as livekit does when another rule of a trunk lists one of its numbers."""
+        self.asked.append(create)
+        made = _copied(create.dispatch_rule)
+        self._refuse_an_overlap(made)
+        made.sip_dispatch_rule_id = f"SDR_{len(self.rules) + 1}"
+        self.rules[made.sip_dispatch_rule_id] = made
+        return _copied(made)
+
+    @override
+    async def update_dispatch_rule(
+        self, rule_id: str, rule: SIPDispatchRuleInfo
+    ) -> SIPDispatchRuleInfo:
+        """The rule replaced whole."""
+        self.asked.append(rule)
+        kept = _copied(rule)
+        kept.sip_dispatch_rule_id = rule_id
+        self._refuse_an_overlap(kept)
+        self.rules[rule_id] = kept
+        return _copied(kept)
+
+    @override
+    async def delete_trunk(self, delete: DeleteSIPTrunkRequest) -> SIPTrunkInfo:
+        """The trunk gone."""
+        self.asked.append(delete)
+        gone = self.trunks.pop(delete.sip_trunk_id)
+        return SIPTrunkInfo(sip_trunk_id=gone.sip_trunk_id, name=gone.name)
+
+    @override
+    async def delete_dispatch_rule(
+        self, delete: DeleteSIPDispatchRuleRequest
+    ) -> SIPDispatchRuleInfo:
+        """The rule gone."""
+        self.asked.append(delete)
+        return self.rules.pop(delete.sip_dispatch_rule_id)
+
+    def _refuse_an_overlap(self, rule: SIPDispatchRuleInfo) -> None:
+        for other in self.rules.values():
+            if other.sip_dispatch_rule_id == rule.sip_dispatch_rule_id:
+                continue
+            shared = set(other.trunk_ids) & set(rule.trunk_ids)
+            numbers = set(other.numbers) & set(rule.numbers)
+            everything = not other.numbers or not rule.numbers
+            if shared and (numbers or everything):
+                raise api.TwirpError("invalid_argument", "dispatch rule already exists", status=400)
 
     @override
     async def transfer_sip_participant(
@@ -466,19 +595,37 @@ class Rooms(RoomService):
         return RemoveParticipantResponse()
 
 
+class Dispatcher(AgentDispatchService):
+    """The server's dispatch door, keeping every dispatch, or refusing as told."""
+
+    made: list[CreateAgentDispatchRequest]
+    refusal: api.TwirpError | None
+
+    @override
+    async def create_dispatch(self, req: CreateAgentDispatchRequest) -> AgentDispatch:
+        """Send the fleet into the room, or refuse."""
+        if self.refusal is not None:
+            raise self.refusal
+        self.made.append(req)
+        return AgentDispatch(room=req.room, agent_name=req.agent_name, metadata=req.metadata)
+
+
 class Server(api.LiveKitAPI):
-    """livekit's server client, its two doors a test's."""
+    """livekit's server client, its three doors a test's."""
 
     def __init__(self) -> None:
         """Doors that answer yes until told otherwise."""
         super().__init__(url="http://127.0.0.1:9", api_key="key", api_secret=A_SECRET)
         self.dialled = Sip.__new__(Sip)
         self.dialled.asked, self.dialled.refusal = [], None
+        self.dialled.trunks, self.dialled.rules = {}, {}
         self.dialled.answer = TransferSIPParticipantResponse(
             status=SIPTransferStatus.STS_TRANSFER_SUCCESSFUL
         )
         self.rooms = Rooms.__new__(Rooms)
         self.rooms.asked, self.rooms.standing = [], {}
+        self.dispatcher = Dispatcher.__new__(Dispatcher)
+        self.dispatcher.made, self.dispatcher.refusal = [], None
 
     @property
     @override
@@ -491,6 +638,12 @@ class Server(api.LiveKitAPI):
     def room(self) -> RoomService:
         """The room door."""
         return self.rooms
+
+    @property
+    @override
+    def agent_dispatch(self) -> AgentDispatchService:
+        """The dispatch door."""
+        return self.dispatcher
 
 
 class Player(BackgroundAudioPlayer):
@@ -686,3 +839,215 @@ class IdentityProvider:
                 return httpx.Response(status, content=body)
             return httpx.Response(200, json={"id_token": self.id_token})
         return httpx.Response(404)
+
+
+def _copied[Info: (SIPInboundTrunkInfo, SIPDispatchRuleInfo)](info: Info) -> Info:
+    kept = type(info)()
+    kept.CopyFrom(info)
+    return kept
+
+
+# A SID made here, never one of Twilio's: two letters and 32 hex digits.
+def a_sid(prefix: str, seed: int) -> str:
+    """A SID of that kind, the same one for the same seed."""
+    return f"{prefix}{seed:032x}"
+
+
+@dataclass
+class TwilioTrunkHeld:
+    """One trunk of the fake account."""
+
+    sid: str
+    friendly_name: str
+    domain_name: str | None = None
+    origination: list[str] = field(default_factory=list[str])
+    credential_lists: list[str] = field(default_factory=list[str])
+
+
+type Row = dict[str, str | None]
+
+
+@dataclass
+class Twilio:
+    """One Twilio account on a fake transport: numbers, trunks, credential lists, a shop."""
+
+    account_sid: str = field(default_factory=lambda: a_sid("AC", 1))
+    user: str = field(default_factory=lambda: a_sid("SK", 1))
+    secret: str = "the key's secret"
+    # Number -> (its SID, the trunk it is attached to).
+    numbers: dict[str, tuple[str, str | None]] = field(
+        default_factory=dict[str, tuple[str, str | None]]
+    )
+    trunks: dict[str, TwilioTrunkHeld] = field(default_factory=dict[str, TwilioTrunkHeld])
+    # SID -> (its name, its credentials).
+    credential_lists: dict[str, tuple[str, list[tuple[str, str]]]] = field(
+        default_factory=dict[str, tuple[str, list[tuple[str, str]]]]
+    )
+    for_sale: list[str] = field(default_factory=list[str])
+    # A listing longer than this comes in pages.
+    page_size: int = 50
+    asked: list[tuple[str, str]] = field(default_factory=list[tuple[str, str]])
+
+    def owns(self, number: str, *, trunk: str | None = None) -> str:
+        """Give the account a number, attached to a trunk or to none; its SID."""
+        sid = a_sid("PN", len(self.numbers) + 1)
+        self.numbers[number] = (sid, trunk)
+        return sid
+
+    def trunk(self, name: str, *origination: str) -> str:
+        """Give the account a trunk sending its calls to these URIs; its SID."""
+        sid = a_sid("TK", len(self.trunks) + 1)
+        held = TwilioTrunkHeld(sid=sid, friendly_name=name, origination=list(origination))
+        self.trunks[sid] = held
+        return sid
+
+    def transport(self) -> httpx.MockTransport:
+        """A transport that answers as the account does."""
+        return httpx.MockTransport(self._answer)
+
+    def written(self) -> list[tuple[str, str]]:
+        """Every request that changed something, in order."""
+        return [one for one in self.asked if one[0] != "GET"]
+
+    def _answer(self, request: httpx.Request) -> httpx.Response:
+        self.asked.append((request.method, request.url.path))
+        pair = httpx.BasicAuth(self.user, self.secret)
+        if request.headers.get("authorization") != next(pair.auth_flow(request)).headers.get(
+            "authorization"
+        ):
+            return httpx.Response(401, json={"code": 20003, "message": "Authenticate"})
+        form = dict(httpx.QueryParams(request.content.decode()).items())
+        if request.url.host == "trunking.twilio.com":
+            return self._trunking(request, request.url.path.removeprefix("/v1"), form)
+        return self._accounts(request, form)
+
+    def _accounts(self, request: httpx.Request, form: dict[str, str]) -> httpx.Response:
+        path = request.url.path.removeprefix(f"/2010-04-01/Accounts/{self.account_sid}")
+        if path == ".json":
+            return httpx.Response(200, json={"sid": self.account_sid, "friendly_name": "Clinica"})
+        if path == "/IncomingPhoneNumbers.json":
+            return self._numbers(request, form)
+        if path.startswith("/AvailablePhoneNumbers/"):
+            shown = [{"phone_number": one} for one in self.for_sale[:1]]
+            return httpx.Response(200, json={"available_phone_numbers": shown})
+        if path.startswith("/SIP/CredentialLists"):
+            return self._lists(request, path, form)
+        return httpx.Response(404, json={"message": f"no {path}"})
+
+    def _numbers(self, request: httpx.Request, form: dict[str, str]) -> httpx.Response:
+        if request.method == "POST":
+            bought = form["PhoneNumber"]
+            self.for_sale.remove(bought)
+            return httpx.Response(201, json=_number_row(bought, self.owns(bought), None))
+        asked = request.url.params.get("PhoneNumber")
+        rows = [_number_row(one, sid, trunk) for one, (sid, trunk) in self.numbers.items()]
+        kept = [one for one in rows if asked is None or one["phone_number"] == asked]
+        return self._paged(request, "incoming_phone_numbers", kept, by_uri=True)
+
+    def _lists(self, request: httpx.Request, path: str, form: dict[str, str]) -> httpx.Response:
+        if path != "/SIP/CredentialLists.json":
+            credentials = self.credential_lists[path.split("/")[3]][1]
+            if request.method == "POST":
+                credentials.append((form["Username"], form["Password"]))
+                return httpx.Response(201, json={"sid": a_sid("CR", len(credentials))})
+            held: list[Row] = [{"username": username} for username, _ in credentials]
+            return self._paged(request, "credentials", held, by_uri=True)
+        if request.method == "POST":
+            sid = a_sid("CL", len(self.credential_lists) + 1)
+            self.credential_lists[sid] = (form["FriendlyName"], [])
+            return httpx.Response(201, json={"sid": sid, "friendly_name": form["FriendlyName"]})
+        rows: list[Row] = [
+            {"sid": sid, "friendly_name": name} for sid, (name, _) in self.credential_lists.items()
+        ]
+        return self._paged(request, "credential_lists", rows, by_uri=True)
+
+    def _trunking(self, request: httpx.Request, path: str, form: dict[str, str]) -> httpx.Response:
+        parts = path.strip("/").split("/")
+        if parts == ["Trunks"]:
+            if request.method == "POST":
+                sid = self.trunk(form["FriendlyName"])
+                return httpx.Response(201, json=_trunk_row(self.trunks[sid]))
+            rows = [_trunk_row(one) for one in self.trunks.values()]
+            return self._paged(request, "trunks", rows, by_uri=False)
+        held = self.trunks[parts[1]]
+        if len(parts) == 2:
+            if request.method == "POST":
+                if not form["DomainName"].endswith(".pstn.twilio.com"):
+                    return httpx.Response(400, json={"code": 21245, "message": "Invalid domain"})
+                held.domain_name = form["DomainName"]
+            return httpx.Response(200, json=_trunk_row(held))
+        return self._of_a_trunk(request, held, parts[2:], form)
+
+    def _of_a_trunk(
+        self, request: httpx.Request, held: TwilioTrunkHeld, parts: list[str], form: dict[str, str]
+    ) -> httpx.Response:
+        if parts == ["OriginationUrls"]:
+            if request.method == "POST":
+                held.origination.append(form["SipUrl"])
+            rows = [
+                {"sid": a_sid("OU", n), "sip_url": url} for n, url in enumerate(held.origination)
+            ]
+            return httpx.Response(200, json={"origination_urls": rows, "meta": {}})
+        if parts[0] == "PhoneNumbers":
+            wanted = {form.get("PhoneNumberSid"), parts[-1]}
+            number = next(one for one, (sid, _) in self.numbers.items() if sid in wanted)
+            sid, _ = self.numbers[number]
+            detached = request.method == "DELETE"
+            self.numbers[number] = (sid, None if detached else held.sid)
+            return httpx.Response(204 if detached else 201)
+        if request.method == "POST":
+            held.credential_lists.append(form["CredentialListSid"])
+        rows = [{"sid": sid} for sid in held.credential_lists]
+        return httpx.Response(200, json={"credential_lists": rows, "meta": {}})
+
+    def _paged(
+        self, request: httpx.Request, key: str, rows: list[Row], *, by_uri: bool
+    ) -> httpx.Response:
+        page = int(request.url.params.get("Page", "0"))
+        shown = rows[page * self.page_size : (page + 1) * self.page_size]
+        more = (page + 1) * self.page_size < len(rows)
+        following = request.url.copy_merge_params({"Page": str(page + 1)}) if more else None
+        if by_uri:
+            uri = None if following is None else f"{following.path}?{following.query.decode()}"
+            return httpx.Response(200, json={key: shown, "next_page_uri": uri})
+        url = None if following is None else str(following)
+        return httpx.Response(200, json={key: shown, "meta": {"next_page_url": url}})
+
+
+@dataclass
+class Graph:
+    """Meta's Graph API on a fake transport: every message sent, or a refusal."""
+
+    sent: list[dict[str, object]] = field(default_factory=list[dict[str, object]])
+    tokens: list[str] = field(default_factory=list[str])
+    # How Graph answers a send it refuses; None sends.
+    refusal: tuple[int, str] | None = None
+
+    def answer(self, request: httpx.Request) -> httpx.Response:
+        """A send to a number's messages, kept, or refused as told."""
+        if self.refusal is not None:
+            status, said = self.refusal
+            return httpx.Response(status, json={"error": {"message": said, "code": 131047}})
+        self.tokens.append(request.headers.get("authorization", ""))
+        body: dict[str, object] = json.loads(request.content)
+        self.sent.append({"from": request.url.path.split("/")[2], **body})
+        return httpx.Response(200, json={"messages": [{"id": f"wamid.{len(self.sent)}"}]})
+
+
+def outside(twilio: Twilio, graph: Graph) -> httpx.MockTransport:
+    """One transport for everything outside the box: Meta's Graph, and Twilio for the rest."""
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "graph.facebook.com":
+            return graph.answer(request)
+        return twilio.transport().handle_request(request)
+
+    return httpx.MockTransport(answer)
+
+
+def _number_row(number: str, sid: str, trunk: str | None) -> Row:
+    return {"sid": sid, "phone_number": number, "friendly_name": number, "trunk_sid": trunk}
+
+
+def _trunk_row(held: TwilioTrunkHeld) -> Row:
+    return {"sid": held.sid, "friendly_name": held.friendly_name, "domain_name": held.domain_name}

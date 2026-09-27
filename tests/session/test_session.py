@@ -30,6 +30,7 @@ from livekit.agents.types import NotGiven, TimedString
 from livekit.agents.voice import Agent, ModelSettings
 from livekit.agents.voice.agent_session import DEFAULT_TTS_TEXT_TRANSFORMS
 from livekit.agents.voice.room_io import RoomOptions
+from livekit.protocol.sip import SIPOutboundConfig
 
 from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotAvailable
 from pinecall.domain.types import (
@@ -1597,7 +1598,7 @@ def _a_room(box: Box, call: Call, server: Server) -> Room:
     assert box.log.call is not None
 
     async def trunks(_to: str) -> Trunk:
-        return Trunk("ST_1")
+        return Trunk(SIPOutboundConfig(hostname="sip.carrier.test"))
 
     async def claim(_code: str) -> None:
         return
