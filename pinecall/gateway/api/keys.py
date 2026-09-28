@@ -36,7 +36,7 @@ async def list_keys(key: BearerDep, gateway: GatewayDep) -> list[KeyRow]:
     pool = gateway.connections.pool
     names = {member.id: member.name for member in await people.listed(pool, key.key.org)}
     return [
-        _row(row, names)
+        key_row(row, names)
         for row in await keys.listed(pool, key.key.org)
         if row.key.subject is None
         or row.key.subject == key.key.subject
@@ -75,13 +75,8 @@ async def revoke_key(fingerprint: str, key: BearerDep, gateway: GatewayDep) -> R
     return RevokeKeyResponse(fingerprint=fingerprint, revoked=True)
 
 
-def _may_stop(key: Bearer, row: ListedKey) -> bool:
-    subject = key.key.subject
-    mine = subject is not None and subject in (row.key.subject, row.created_by)
-    return mine or THE_KEYS in key.key.scopes
-
-
-def _row(row: ListedKey, names: dict[str, str]) -> KeyRow:
+def key_row(row: ListedKey, names: dict[str, str]) -> KeyRow:
+    """A listed key as the doors send it, its maker named where the org still knows them."""
     is_a_persons = row.key.subject is not None
     return KeyRow(
         fingerprint=row.fingerprint,
@@ -95,3 +90,9 @@ def _row(row: ListedKey, names: dict[str, str]) -> KeyRow:
         revoked_at=row.revoked_at,
         scopes=sorted(row.key.scopes),
     )
+
+
+def _may_stop(key: Bearer, row: ListedKey) -> bool:
+    subject = key.key.subject
+    mine = subject is not None and subject in (row.key.subject, row.created_by)
+    return mine or THE_KEYS in key.key.scopes

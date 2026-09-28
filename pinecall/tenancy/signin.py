@@ -463,9 +463,10 @@ class Signups:
 class Throttle:
     """How many times a name knocked in the last minute: five, and the sixth waits."""
 
-    def __init__(self, clock: Callable[[], float] = time.time) -> None:
+    def __init__(self, clock: Callable[[], float] = time.time, *, tries: int = TRIES) -> None:
         """A throttle nobody knocked at."""
         self.clock = clock
+        self.tries = tries
         self.knocks: dict[str, deque[float]] = {}
 
     def allowed(self, name: str) -> bool:
@@ -479,7 +480,7 @@ class Throttle:
         knocks = self.knocks.setdefault(name, deque())
         while knocks and knocks[0] <= now - WINDOW_S:
             knocks.popleft()
-        if len(knocks) >= TRIES:
+        if len(knocks) >= self.tries:
             return False
         knocks.append(now)
         return True

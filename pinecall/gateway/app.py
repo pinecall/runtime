@@ -32,6 +32,7 @@ from pinecall.gateway.api import (
     accounts,
     agents,
     apps,
+    box,
     callbacks,
     calls,
     chat,
@@ -45,14 +46,20 @@ from pinecall.gateway.api import (
     ops,
     org,
     personas,
+    pipeline,
+    providers,
     relay,
     retrieval,
+    settings,
     signup,
     sso_login,
     threads,
+    usage,
     visitors,
     whatsapp,
+    widget,
 )
+from pinecall.gateway.api.providers import SAMPLES_A_MINUTE
 from pinecall.log.logs import Logs
 from pinecall.log.store import Store
 from pinecall.process.connections import Connections, opened
@@ -61,7 +68,7 @@ from pinecall.providers import catalog
 from pinecall.retrieval.embed import Embedder
 from pinecall.tenancy.codes import Codes
 from pinecall.tenancy.mail import Mailbox, Outbox, parse_mailbox_url
-from pinecall.tenancy.signin import SignIns
+from pinecall.tenancy.signin import SignIns, Throttle
 from pinecall.tenancy.tokens import Signer
 from pinecall.tenancy.vault import box_credentials
 
@@ -127,6 +134,7 @@ ROUTERS = (
     accounts,
     agents,
     apps,
+    box,
     callbacks,
     calls,
     chat,
@@ -140,13 +148,18 @@ ROUTERS = (
     ops,
     org,
     personas,
+    pipeline,
+    providers,
     relay,
     retrieval,
+    settings,
     signup,
     sso_login,
     threads,
+    usage,
     visitors,
     whatsapp,
+    widget,
 )
 
 
@@ -238,7 +251,7 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
     codes = Codes(logs)
     await codes.loaded()
     sockets, live = Sockets(logs), ServedCalls()
-    embedder = await _embedder(connections)
+    embedder = await embedder_of(connections)
     serving = Serving(connections=connections, logs=logs, live=live, embedder=embedder)
     threads = Threads(serving, sockets)
     await threads.loaded()
@@ -257,6 +270,7 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
         closing=asyncio.Event(),
         embedder=embedder,
         signins=SignIns.fresh(),
+        samples=Throttle(tries=SAMPLES_A_MINUTE),
         outbox=outbox,
         evals=Runner(),
     )
@@ -287,7 +301,7 @@ def origins_allowed(settings: Settings) -> tuple[str, ...]:
     return tuple(dict.fromkeys((*THE_APPS_WEBVIEWS, *(item for item in named if item))))
 
 
-def widget(file: str) -> FileResponse:
+def widget_file(file: str) -> FileResponse:
     """A file of the widget, for any site to load as a module."""
     root = (BUILT / "widget").resolve()
     params = (root / file).resolve()
@@ -296,7 +310,7 @@ def widget(file: str) -> FileResponse:
     return FileResponse(params, headers=WIDGET_HEADERS)
 
 
-app.add_api_route("/widget/{file}", widget, methods=["GET"], include_in_schema=False)
+app.add_api_route("/widget/{file}", widget_file, methods=["GET"], include_in_schema=False)
 
 
 # The last route: a built file is itself, any other path is the page, so a reload lands where it
@@ -319,7 +333,8 @@ app.add_api_route("/{path:path}", console, methods=["GET"], include_in_schema=Fa
 
 
 # A box with no embedder still starts: every door that embeds says what the operator must set.
-async def _embedder(connections: Connections) -> Embedder | None:
+async def embedder_of(connections: Connections) -> Embedder | None:
+    """The box's embedder from its providers row and key; None, and said, when it has none."""
     try:
         embedding = (await catalog.providers(connections.pool)).embedding
     except NotAvailable:

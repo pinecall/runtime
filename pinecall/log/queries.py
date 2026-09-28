@@ -29,6 +29,8 @@ from pinecall.log.facts import (
     CallScope,
     facts_of,
 )
+from pinecall.log.reduce import METERED_TYPES, UsageRow, usage_row
+from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 
 # A read cursor never moves back.
@@ -145,6 +147,22 @@ class PersonaRuns:
     runs: list[PersonaRun]
     total: int
     next: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class MeteredPage:
+    """One page of the usage feed: the rows kept, and the cursor past everything read."""
+
+    rows: list[UsageRow]
+    next: int | None
+
+
+# The cursor moves past every row read, kept or not, so a page filtered to one org still moves.
+async def metered_page(store: Store, *, after: int, limit: int, org: str | None) -> MeteredPage:
+    """The metered rows after the cursor, of one org or of every org, folded."""
+    read = [usage_row(item) for item in await store.across(METERED_TYPES, after=after, limit=limit)]
+    kept = [row for row in read if org is None or row.org == org]
+    return MeteredPage(rows=kept, next=read[-1].cursor if read else None)
 
 
 async def scope_of_call(pool: Pool, call: str) -> CallScope | None:

@@ -1,0 +1,88 @@
+# `pinecall-runtime`
+
+The operator's terminal: the two processes, the database, the tenants and the fleet. One verb per
+group; `pinecall-runtime --help` prints them all, `<group> --help` that group's verbs. The tenant's
+terminal is `pinecall`, the agents repo's `docs/the-cli.md`, and they never overlap: nothing here
+writes an agent, nothing there issues a key.
+
+## What each group speaks to
+
+| group | speaks to |
+|---|---|
+| `gateway` · `worker` · `doctor` · `providers` | this machine: its settings, its database, its LiveKit |
+| `migrate` · `sessions` · `memory` | Postgres, straight, over `DATABASE_URL` |
+| `init` · `orgs` · `keys` · `routes` · `fleet` | a running gateway, over `/v1/ops/*` with `PINECALL_OPS_KEY` ([protocol/operator-api.md](protocol/operator-api.md)); `keys fleet` alone is minted on the database, before any gateway answers |
+
+## `gateway` · `worker start` · `worker overflow`
+
+`gateway` serves both worlds on the loopback address `PINECALL_GATEWAY_URL` names, behind Caddy;
+a URL that is not loopback is refused in one sentence. `worker start` is a worker of the fleet
+`PINECALL_FLEET` names, until told to stop or cordoned; `worker overflow` the one that answers when
+the fleet is full. Every variable they read is [the-environment.md](the-environment.md).
+
+## `init`
+
+```
+pinecall-runtime init [--org <slug>] --email <address> --person "<name>" [--name "…"] [--role admin]
+```
+
+The first org and the first person on a runtime nobody has used yet: the org made (or found, run
+twice), its first admin invited, that person made an operator of this box, and the invitation link
+printed once with the two lines to type next.
+
+## `orgs`
+
+```
+orgs list · orgs add <slug> [--name] · orgs rm <org>
+orgs invite <org> <email> --name "…" [--role] · orgs operator <org> <email> [--revoke] · orgs remove-member <org> <email>
+orgs move <agent> <org>
+orgs quota <org> --env production|sandbox [--minutes n] [--messages n] [--agents n] [--concurrent-calls n]
+           [--memory-facts n] [--knowledge-chunks n] [--numbers n] [--seats n] [--llm-tokens n]
+           [--budget-usd n] [--lends vendor[/model],… | --lends none]
+orgs dialling <org> [--dial-anywhere | --no-dial-anywhere] [--per-minute n] [--per-day n] [--max-duration-s n]
+orgs sso <org> [--off]
+orgs provider-key set|rm|list <org> <vendor>        # set reads the key from stdin
+```
+
+`<org>` is an id or a slug. `quota` replaces the whole set **for one world**; `dialling` the whole
+set of guards; `sso --off` is the break-glass; `provider-key set` reads from stdin because argv is
+what `ps` shows.
+
+## `keys`
+
+```
+keys issue [--org <org>] --env production|sandbox [--label "…"] [--scope <scope>]… [--subject <member>] [--name "…"]
+keys list [--org <org>] · keys revoke <fingerprint> · keys fleet production|sandbox
+```
+
+`issue` prints the key once; the table keeps the fingerprint. `fleet` mints a world's fleet key on
+the database, printed once where the unit that seals it reads it.
+
+## `routes`
+
+```
+routes list [--org] [--env] · routes add <number> <agent> [--channel phone|whatsapp] [--org] [--env]
+routes rm <number> [--org] · routes seed [--file infra/seed/routes.json]
+```
+
+## `fleet`
+
+```
+fleet list [--fleet <name>] · fleet cordon <worker> · fleet uncordon <worker>
+fleet loop --cloud <script> --seats <n> [--fleet <name>] [--target 0.6] [--min 1] [--max 10] [--every 15] [--once] [--dry-run]
+```
+
+`list` is the roster the gateway hears: each worker, what it holds, its seats, load, standing and
+when it was heard, then each fleet summed. `loop` keeps a fleet at its target ([scaling.md](scaling.md)):
+`--cloud` is a script with three verbs, `create <name>`, `delete <name>`, `list`; `infra/fleet/`
+holds one per cloud. `--once --dry-run` prints one tick's verdict and touches nothing.
+
+## `sessions` · `memory` · `migrate` · `providers` · `doctor`
+
+`sessions list [--agent] [--limit]`, `sessions show <call> [--json]`, `sessions tail [<call>]`,
+`sessions recording <call>`: the log read back off Postgres, every tenant's. `memory reembed`
+embeds every fact another model wrote under the box's embedder. `migrate up` applies what the
+database lacks, `migrate status` says what it lacks (exit 1 while behind), `migrate plan` names
+every migration on the disk. `providers [--does llm|stt|tts]` lists every vendor this build runs
+and whether the box holds its key. `doctor` asks each thing the box needs one question, a line
+each, and exits 1 when one is missing; it is the last line of every deploy.

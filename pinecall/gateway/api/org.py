@@ -69,7 +69,7 @@ async def get_sso(key: TeamKey, request: Request, gateway: GatewayDep) -> OrgSso
     """The org's provider, never its secret, and the redirect URI to register there."""
     connections = gateway.connections
     wired = await sso.sso_of(connections.pool, connections.vault, key.org)
-    return _sso_row(wired, f"{public_url(request, gateway)}{sso.CALLBACK}")
+    return sso_row(wired, f"{public_url(request, gateway)}{sso.CALLBACK}")
 
 
 # The role the provider seats people with counts as granted by this key: a manager makes no admin.
@@ -93,7 +93,7 @@ async def put_sso(
     except UpstreamFailed as unanswered:
         raise DeclarationRefused(NOT_KEPT.format(said=unanswered)) from unanswered
     await sso.put_sso(connections.pool, connections.vault, wanted)
-    return _sso_row(wanted, f"{public_url(request, gateway)}{sso.CALLBACK}")
+    return sso_row(wanted, f"{public_url(request, gateway)}{sso.CALLBACK}")
 
 
 @router.delete("/v1/org/sso", status_code=204)
@@ -116,15 +116,7 @@ async def get_mail(key: TeamKey, gateway: GatewayDep) -> OrgMailResponse:
 async def put_mail(body: OrgMailRequest, key: TeamKey, gateway: GatewayDep) -> OrgMailResponse:
     """Replace the org's own mailbox; its letters go through it from the next one."""
     connections = gateway.connections
-    mailbox = Mailbox(
-        host=body.host.strip(),
-        port=body.port,
-        security=mail.parse_security(body.security),
-        username=body.username.strip(),
-        password=body.password,
-        sender=body.sender.strip(),
-    )
-    await mail.put_mail(connections.pool, connections.vault, key.org, mailbox)
+    await mail.put_mail(connections.pool, connections.vault, key.org, mailbox_of(body))
     return _mail_row(await mail.mail_of(connections.pool, connections.vault, key.org))
 
 
@@ -149,7 +141,20 @@ async def send_test_letter(
     return SendTestLetterResponse(sent=error is None, error=error)
 
 
-def _sso_row(wired: OrgSso | None, redirect_uri: str) -> OrgSsoResponse:
+def mailbox_of(body: OrgMailRequest) -> Mailbox:
+    """The mailbox a body describes, its words trimmed; refused in the mailbox's own terms."""
+    return Mailbox(
+        host=body.host.strip(),
+        port=body.port,
+        security=mail.parse_security(body.security),
+        username=body.username.strip(),
+        password=body.password,
+        sender=body.sender.strip(),
+    )
+
+
+def sso_row(wired: OrgSso | None, redirect_uri: str) -> OrgSsoResponse:
+    """An org's provider as the doors send it: wired or not, never the secret."""
     return OrgSsoResponse(
         configured=wired is not None,
         issuer=None if wired is None else wired.client.issuer,

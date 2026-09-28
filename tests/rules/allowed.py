@@ -52,7 +52,8 @@ SUPPRESSIONS: tuple[Allowed, ...] = (
     Allowed(
         "pinecall/session/hold.py",
         "pyright: " + "ignore",
-        "BackgroundAudioPlayer.start takes an unparameterised AgentSession",
+        "BackgroundAudioPlayer.start takes an unparameterised AgentSession; PyAV's add_stream, "
+        "encode and mux are typed loosely",
     ),
     Allowed(
         "pinecall/session/widget.py",

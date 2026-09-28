@@ -10,6 +10,7 @@ from pinecall.gateway.api import (
     accounts,
     agents,
     apps,
+    box,
     callbacks,
     calls,
     chat,
@@ -23,13 +24,18 @@ from pinecall.gateway.api import (
     ops,
     org,
     personas,
+    pipeline,
+    providers,
     relay,
     retrieval,
+    settings,
     signup,
     sso_login,
     threads,
+    usage,
     visitors,
     whatsapp,
+    widget,
 )
 from pinecall.gateway.app import app
 from tests.rules.tree import FIXTURES, PARITY_MD, V1
@@ -41,6 +47,16 @@ GONE: tuple[tuple[str, str], ...] = (
     # The sandbox asked production who a person was; one gateway serves both worlds now.
     ("POST", "/v1/login/redeem"),
 )
+
+# Two doors of v1 the gateway spells otherwise: one route per dev family, and the widget's files
+# under one path.
+SPELLED: dict[tuple[str, str], tuple[tuple[str, str], ...]] = {
+    ("POST", "/v1/agents/{slug}/dev/{family}/{verb}"): tuple(
+        ("POST", f"/v1/agents/{{slug}}/dev/{family}/{{verb}}")
+        for family in ("chat", "knowledge", "memory", "view", "evals")
+    ),
+    ("GET", "/widget/pinecall-widget.js"): (("GET", "/widget/{file}"),),
+}
 
 # A row of the table names one path and its methods, or several paths; every pair is a door.
 ROWS_OF_V1 = 133
@@ -54,6 +70,7 @@ def routes_of_the_gateway() -> frozenset[tuple[str, str]]:
         accounts,
         agents,
         apps,
+        box,
         callbacks,
         calls,
         chat,
@@ -67,13 +84,18 @@ def routes_of_the_gateway() -> frozenset[tuple[str, str]]:
         ops,
         org,
         personas,
+        pipeline,
+        providers,
         relay,
         retrieval,
+        settings,
         signup,
         sso_login,
         threads,
+        usage,
         visitors,
         whatsapp,
+        widget,
     )
     for route in [*(route for door in routers for route in door.router.routes), *app.routes]:
         if isinstance(route, APIRoute):
@@ -171,6 +193,16 @@ def test_every_door_parity_says_is_done_is_a_route_of_the_gateway() -> None:
     for door in done_per_parity():
         assert door in doors, f"{door} is not a door of v1"
         assert door in ROUTES, f"{door} is done per PARITY.md and not a route"
+
+
+@pytest.mark.skipif(not EVERY_DOOR.is_file(), reason="the v1 checkout is not beside this one")
+def test_every_door_of_v1_answers_here_or_is_named_gone() -> None:
+    missing = [
+        door
+        for door in doors_in(EVERY_DOOR)
+        if door not in GONE and not all(spelt in ROUTES for spelt in SPELLED.get(door, (door,)))
+    ]
+    assert missing == []
 
 
 def test_the_parser_reads_every_shape_the_table_uses() -> None:

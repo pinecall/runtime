@@ -112,4 +112,13 @@ The runtime written again from a blank page.
   memory between `call.ended` and `call.summary`, within `PINECALL_REMEMBER_BUDGET_S`, and a
   hang-up that cannot remember says so and seals all the same (`POST /v1/calls/{call}/remember`
   does the same on request).
+- The rest of the doors, so every door of v1 answers: the org's meters (`/v1/usage`,
+  `/v1/insights`, `/v1/limits`), an agent's settings and the org's lexicon versioned per world and
+  scope, the pipeline report and the hold melody (uploads converted once to Ogg Opus), the widget,
+  the providers catalogue as each org may run it, the org's own vendor keys, a vendor's voices and a
+  sample, and the operator's `/v1/ops/*`: orgs, their people, keys, quotas per world, dial guards,
+  the SSO break-glass, routes, the fleet and its cordons, every org's floor and meter, the box's
+  mail and brand. The fleet loop (`fleet/hub.py`) grows and shrinks a fleet through a cloud script.
+  `pinecall-runtime` gained `init`, `orgs`, `keys`, `routes`, `fleet`, `sessions`, `providers`,
+  `memory reembed`, `migrate status` and `migrate plan`. Box-wide Google sign-in answers 503.
 
