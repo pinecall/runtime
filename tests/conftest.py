@@ -21,6 +21,7 @@ from websockets.asyncio.client import connect as opened_socket
 from pinecall.domain.names import Env, JsonObject
 from pinecall.domain.org import Org
 from pinecall.domain.person import KEY_SCOPES, THE_FLEET, KeyScope
+from pinecall.evals.runs import Runner
 from pinecall.fleet import worlds
 from pinecall.fleet.roster import Roster
 from pinecall.gateway._gateway import Gateway
@@ -268,6 +269,7 @@ async def wired(
         threads=threads,
         closing=asyncio.Event(),
         embedder=None,
+        evals=Runner(),
         signins=SignIns.fresh(store.clock),
         outbox=outbox,
     )

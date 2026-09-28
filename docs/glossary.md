@@ -22,3 +22,8 @@
 | **visitor** | somebody in a browser: the room token that lets them into a call, and the four-digit code a caller keys to tie a page to a phone call (`gateway/api/visitors.py`) |
 | **thread** | one WhatsApp conversation with one contact: the gateway keeps it open (`gateway/_threads.py`) and the org reads it (`gateway/api/threads.py`) |
 | **keyring** | the vendor credentials a call may run on: the org's own, the box's, and what the box lends (`providers/credentials.py`) |
+| **golden** | a scripted conversation an agent is tested on: the state it opens in, the caller's lines, the facts injected, what is expected (`docs/protocol/evals.md`) |
+| **persona** | a synthetic caller of the org that a model plays one line at a time, and the agents it may call |
+| **judge** | one question about a finished call, settled by code or by the judge model: `held`, `broken`, `deferred` or `skipped` |
+| **run** | every golden of a suite under every model named, through the app that holds the agent, judged into a matrix |
+| **ring** | how far a test goes: goldens (1), a persona on a line (2), a finished call checked by code (3), every call judged at hang-up (4) |

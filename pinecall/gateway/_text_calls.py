@@ -1,9 +1,10 @@
 """Written calls on the gateway: opened on the socket that holds the agent, or taken up again."""
 
 from collections.abc import Iterable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 
+from pinecall.domain.agent import AgentConfig, Versions
 from pinecall.domain.call import CallContext, Route, today_in
 from pinecall.domain.names import CHANNELS_WITH_A_NUMBER
 from pinecall.domain.scope import Scope
@@ -16,7 +17,7 @@ from pinecall.providers import catalog
 from pinecall.providers.build import Running
 from pinecall.providers.credentials import thinking
 from pinecall.session import text
-from pinecall.session.call import Call, Platform
+from pinecall.session.call import Call, Lookup, Platform
 from pinecall.session.session import Session
 from pinecall.session.text import text_session
 from pinecall.tenancy import admission
@@ -29,19 +30,37 @@ from pinecall.wire.metrics import LLMModelUsage, ModelUsage
 from pinecall.wire.rest.calls import SealCallRequest
 
 
-# Admission before the log is claimed: a refused call leaves nothing behind.
+@dataclass(frozen=True)
+class TextSetup:
+    """What a written call runs on: the tuned config, its versions, the model, the lookups."""
+
+    config: AgentConfig
+    versions: Versions
+    model: Running
+    lookup: Lookup = nothing_found
+
+
 async def open_text(serving: Serving, registration: Registration, context: CallContext) -> Session:
     """A new written call on the socket that holds the agent, admitted and unstarted."""
     pool, scope = serving.connections.pool, registration.scope
     configured = await catalog.providers(pool)
     config, versions = await tuned(pool, registration.config, scope, configured)
     model = thinking(config, configured, await keys_of(pool, serving.connections.vault, scope))
+    return await open_text_as(serving, registration, context, TextSetup(config, versions, model))
+
+
+# Admission before the log is claimed: a refused call leaves nothing behind.
+async def open_text_as(
+    serving: Serving, registration: Registration, context: CallContext, setup: TextSetup
+) -> Session:
+    """A new written call on this setup, admitted and unstarted."""
+    pool, scope = serving.connections.pool, registration.scope
     await admission.admit_call(pool, scope.org, scope.env, running=serving.live.running(scope.org))
     await serving.logs.store.claim(
-        context.call, registration.slug, scope.org, Claim(scope, versions)
+        context.call, registration.slug, scope.org, Claim(scope, setup.versions)
     )
-    served = served_call(serving, registration.owner, context, config, scope)
-    return _session(serving, served, model)
+    served = served_call(serving, registration.owner, context, setup.config, scope)
+    return _session(serving, served, setup.model, setup.lookup)
 
 
 # A gateway that restarted forgot the call, not the caller: no admission, no second greeting.
@@ -66,7 +85,7 @@ async def resume_text(
     )
     context = _as_it_opened(call, registration, kept.scope, entries, today_in(zone))
     served = served_call(serving, None, context, config, kept.scope)
-    session = _session(serving, served, model)
+    session = _session(serving, served, model, nothing_found)
     await text.resume(session, text.taken_up(entries))
     await attach(serving.live, serving.logs.store, call, registration.owner)
     return session
@@ -81,13 +100,11 @@ def tokens_of(usage: Iterable[ModelUsage]) -> int:
     )
 
 
-def _session(serving: Serving, served: Served, model: Running) -> Session:
+def _session(serving: Serving, served: Served, model: Running, lookup: Lookup) -> Session:
     async def seal(usage: list[ModelUsage], outcome: str) -> None:
         await sealed(serving, served, SealCallRequest(usage=usage, outcome=outcome))
 
-    platform = Platform(
-        append=served.log.append, tool=served.tools.ran, lookup=nothing_found, seal=seal
-    )
+    platform = Platform(append=served.log.append, tool=served.tools.ran, lookup=lookup, seal=seal)
     session = text_session(Call(served.context, served.config, platform), model)
     serving.live.calls[served.call] = replace(served, session=session)
     return session

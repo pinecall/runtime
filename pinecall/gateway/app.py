@@ -21,6 +21,7 @@ from pinecall.domain.errors import (
     PinecallError,
     SettingsRefused,
 )
+from pinecall.evals.runs import Runner
 from pinecall.fleet.roster import Roster
 from pinecall.gateway import _deps
 from pinecall.gateway._gateway import Gateway
@@ -35,6 +36,7 @@ from pinecall.gateway.api import (
     calls,
     chat,
     desk,
+    evals,
     fleet,
     keys,
     line,
@@ -42,6 +44,7 @@ from pinecall.gateway.api import (
     numbers,
     ops,
     org,
+    personas,
     relay,
     retrieval,
     signup,
@@ -128,6 +131,7 @@ ROUTERS = (
     calls,
     chat,
     desk,
+    evals,
     fleet,
     keys,
     line,
@@ -135,6 +139,7 @@ ROUTERS = (
     numbers,
     ops,
     org,
+    personas,
     relay,
     retrieval,
     signup,
@@ -252,6 +257,7 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
         embedder=embedder,
         signins=SignIns.fresh(),
         outbox=outbox,
+        evals=Runner(),
     )
 
 

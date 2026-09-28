@@ -1,4 +1,4 @@
-"""The personas an org writes for its simulated callers, per agent."""
+"""The personas an org writes for its simulated callers, and the agents each may call."""
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
@@ -16,16 +16,19 @@ NOBODY = "no persona called {name} in this org"
 TAKEN = "this org has a persona called {name} already"
 
 
+# An agent reads the personas written for it and the ones written for every agent.
 PERSONAS = """
 SELECT name, about, goal, style, facts, state, llm, tts, voice, accepts_when, declines_when,
-       author, set_at
-FROM agent_personas WHERE org = %(org)s ORDER BY name
+       agents, author, set_at
+FROM agent_personas
+WHERE org = %(org)s AND (%(agent)s::text IS NULL OR agents = '{}' OR %(agent)s = ANY(agents))
+ORDER BY name
 """
 
 
 PERSONA = """
 SELECT name, about, goal, style, facts, state, llm, tts, voice, accepts_when, declines_when,
-       author, set_at
+       agents, author, set_at
 FROM agent_personas WHERE org = %(org)s AND name = %(name)s
 """
 
@@ -38,14 +41,15 @@ WITH gone AS (
     RETURNING name
 )
 INSERT INTO agent_personas (org, name, about, goal, style, facts, state, author, llm, tts,
-                            voice, accepts_when, declines_when)
+                            voice, accepts_when, declines_when, agents)
 VALUES (%(org)s, %(name)s, %(about)s, %(goal)s, %(style)s, %(facts)s, %(state)s, %(author)s,
-        %(llm)s, %(tts)s, %(voice)s, %(accepts_when)s, %(declines_when)s)
+        %(llm)s, %(tts)s, %(voice)s, %(accepts_when)s, %(declines_when)s, %(agents)s)
 ON CONFLICT (org, name) DO UPDATE SET
     about = excluded.about, goal = excluded.goal, style = excluded.style,
     facts = excluded.facts, state = excluded.state, llm = excluded.llm, tts = excluded.tts,
     voice = excluded.voice, accepts_when = excluded.accepts_when,
-    declines_when = excluded.declines_when, author = excluded.author, set_at = now()
+    declines_when = excluded.declines_when, agents = excluded.agents, author = excluded.author,
+    set_at = now()
 """
 
 
@@ -68,6 +72,12 @@ class Persona:
     voice: str | None = None
     accepts_when: str = ""
     declines_when: str = ""
+    # The agents it may call; empty is every agent of the org.
+    agents: frozenset[str] = frozenset()
+
+    def calls(self, agent: str) -> bool:
+        """Whether this caller may call the agent."""
+        return not self.agents or agent in self.agents
 
 
 @dataclass(frozen=True)
@@ -92,6 +102,7 @@ async def put_persona(
         **asdict(written),
         "facts": Jsonb(written.facts),
         "state": Jsonb(written.state),
+        "agents": sorted(written.agents),
         "org": org,
         "author": author,
         "was": was,
@@ -115,14 +126,15 @@ async def persona(pool: Pool, org: str, name: str) -> StoredPersona | None:
     return None if row is None else _persona(row)
 
 
-async def personas_of(pool: Pool, org: str) -> list[StoredPersona]:
-    """Every caller of the org, by name; every agent of the org reads the same ones."""
+async def personas_of(pool: Pool, org: str, *, agent: str | None = None) -> list[StoredPersona]:
+    """The org's callers by name: every one, or the ones this agent may be called by."""
     async with pool.connection() as connection:
-        rows = await (await connection.execute(PERSONAS, {"org": org})).fetchall()
+        rows = await (await connection.execute(PERSONAS, {"org": org, "agent": agent})).fetchall()
     return [_persona(row) for row in rows]
 
 
 def _persona(row: DictRow) -> StoredPersona:
     author = row.pop("author")
     set_at = row.pop("set_at")
-    return StoredPersona(persona=Persona(**row), author=author, set_at=set_at)
+    agents = frozenset(row.pop("agents"))
+    return StoredPersona(persona=Persona(**row, agents=agents), author=author, set_at=set_at)

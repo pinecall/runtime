@@ -183,6 +183,8 @@ class Call:
         # As the session's agent_state events say, not as livekit's internals hold it.
         self.agent_speaking = False
         self.open_tools = frozenset(tool.name for tool in config.tools)
+        # Every request the model was sent, kept on a call an eval run opened and on no other.
+        self.requests: list[JsonObject] = []
 
     def speech(self) -> str:
         """A new speech id, `sp_<n>`."""

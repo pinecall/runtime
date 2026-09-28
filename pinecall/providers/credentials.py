@@ -70,8 +70,8 @@ def pipeline(config: AgentConfig, configured: Providers, keys: Keyring) -> Pipel
     """The stages an agent runs: its vendors or the defaults, each with its key and options."""
     language = primary(config.language)
     llm = thinking(config, configured, keys)
-    stt = _stage("stt", config.stt, configured, keys)
-    tts = _stage("tts", config.voice, configured, keys)
+    stt = stage("stt", config.stt, configured, keys)
+    tts = stage("tts", config.voice, configured, keys)
     heard = dict.fromkeys(item for item in (language, *configured.hints) if item)
     voice = config.voice.voice_id if config.voice else None
     return Pipeline(
@@ -88,7 +88,7 @@ def pipeline(config: AgentConfig, configured: Providers, keys: Keyring) -> Pipel
 # A written call runs this stage alone: a call with no voice is not refused for want of one.
 def thinking(config: AgentConfig, configured: Providers, keys: Keyring) -> Running:
     """The model an agent thinks with, on its key, at the temperature it declared."""
-    llm = _stage("llm", config.llm, configured, keys)
+    llm = stage("llm", config.llm, configured, keys)
     if config.llm is None or config.llm.temperature is None:
         return llm
     return dataclasses.replace(llm, options={**llm.options, "temperature": config.llm.temperature})
@@ -142,19 +142,10 @@ def parse_lending(entries: Iterable[str]) -> frozenset[str]:
     return frozenset(parsed)
 
 
-def _availability_of(vendor: Vendor, keys: Keyring) -> Availability:
-    if vendor.broken is not None:
-        return "broken"
-    if vendor.name in keys.own:
-        return "yours"
-    if vendor.name in keys.box and lent(keys.lends, vendor.name, None):
-        return "offered"
-    return "bring your own"
-
-
-def _stage(
+def stage(
     modality: Modality, declared: Model | Voice | None, configured: Providers, keys: Keyring
 ) -> Running:
+    """One stage on its key: the vendor declared or the default, with the operator's options."""
     default = configured.defaults[modality]
     vendor = default.vendor if declared is None else declared.provider
     params = default.model if declared is None else (declared.model or None)
@@ -169,3 +160,13 @@ def _stage(
         options=dict(options.options),
         ends_the_turn=options.ends_the_turn,
     )
+
+
+def _availability_of(vendor: Vendor, keys: Keyring) -> Availability:
+    if vendor.broken is not None:
+        return "broken"
+    if vendor.name in keys.own:
+        return "yours"
+    if vendor.name in keys.box and lent(keys.lends, vendor.name, None):
+        return "offered"
+    return "bring your own"
