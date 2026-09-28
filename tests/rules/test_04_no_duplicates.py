@@ -27,7 +27,7 @@ def duplicates(paths: list[Path]) -> list[str]:
         check=False,
     )
     findings: list[dict[str, str]] = json.loads(ran.stdout or "[]")
-    return [f"{one['path']}:{one['line']} {one['message']}" for one in findings]
+    return [f"{finding['path']}:{finding['line']} {finding['message']}" for finding in findings]
 
 
 def test_the_package_holds_no_six_lines_written_twice() -> None:

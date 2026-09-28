@@ -11,7 +11,9 @@ from livekit import rtc
 from pydantic import TypeAdapter, ValidationError
 
 from pinecall.domain.errors import PinecallError
-from pinecall.domain.types import READS_ITS_OWN_CALL, SCOPE_ATTRIBUTE, JsonObject
+from pinecall.domain.names import JsonObject
+from pinecall.domain.person import READS_ITS_OWN_CALL
+from pinecall.domain.scope import SCOPE_ATTRIBUTE
 from pinecall.log.readers import project_entry, project_state
 from pinecall.session.call import Call
 from pinecall.wire.events import EventReceived
@@ -142,13 +144,13 @@ class Widget:
         sender = packet.participant
         if sender is None or not _a_widget(sender):
             return
-        said = _decoded(packet.data)
-        if packet.topic == REPLAY and isinstance(said.get("after"), int):
-            after = said["after"]
+        data = _decoded(packet.data)
+        if packet.topic == REPLAY and isinstance(data.get("after"), int):
+            after = data["after"]
             if isinstance(after, int):
                 self._answer(self._replay(sender.identity, after))
         elif packet.topic == EVENT:
-            self._event(sender.identity, said)
+            self._event(sender.identity, data)
 
     async def _replay(self, identity: str, after: int) -> None:
         sent = await self._resend(identity, after, self.cursor)
@@ -163,8 +165,8 @@ class Widget:
         )
         await self._send(caught_up, identity)
 
-    def _event(self, identity: str, said: JsonObject) -> None:
-        name, data = said.get("name"), said.get("data")
+    def _event(self, identity: str, payload: JsonObject) -> None:
+        name, data = payload.get("name"), payload.get("data")
         if not isinstance(name, str) or not isinstance(data, dict):
             logger.warning("%s from a widget is not {name, data}; dropped", EVENT)
             return

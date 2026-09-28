@@ -4,8 +4,7 @@ import asyncio
 import hashlib
 import secrets
 import time
-from collections import deque
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -15,27 +14,51 @@ from psycopg import sql
 from psycopg.rows import DictRow
 
 from pinecall.domain.errors import Conflict, DeclarationRefused, NotFound, QuotaExhausted
-from pinecall.domain.types import Member, MemberStatus, Role
+from pinecall.domain.person import Member, MemberStatus, Role
 from pinecall.postgres.pool import Connection, Pool
 
 MEMBER_PREFIX = "m_"
+
+
 MEMBER_BYTES = 6
+
+
 # Stored as sha256 like a key, but it dies in a week: a mailed link gets forwarded.
 INVITATION_PREFIX = "inv_"
+
+
 INVITATION_BYTES = 24
+
+
 INVITATION_TTL_S = 7 * 24 * 3600
 
+
 TOO_SHORT = "a password is at least {shortest} characters"
+
+
 ACCEPTED_ALREADY = "{email} is a member of this org already: they sign in, nobody invites them"
+
+
 NO_SEAT_LEFT = "the org holds all {seated} of its seats: free one, or ask for more"
+
+
 LAST_ADMIN = "the org keeps one active admin: make another one admin first"
+
+
 NOBODY_BY_THAT_ID = "nobody by that id in this org"
+
 
 # Its own statement, so the insert after it sees what a concurrent invite wrote; inside one
 # statement the seat count raced.
 ROW = sql.SQL("id, org, email, name, role, agents, status, operator, production, verified_at")
+
+
 HELD = "SELECT pg_advisory_xact_lock(hashtext(%(org)s))"
+
+
 SEATED = "SELECT count(*) AS seated FROM members WHERE org = %(org)s AND status <> 'disabled'"
+
+
 INSERT = """
 INSERT INTO members (id, org, email, name, role, agents, status, password_hash, production,
                      verified_at)
@@ -44,71 +67,51 @@ VALUES (%(id)s, %(org)s, %(email)s, %(name)s, %(role)s, %(agents)s, %(status)s, 
 ON CONFLICT (org, email) DO NOTHING
 RETURNING id
 """
-LISTED = sql.SQL("SELECT {row} FROM members WHERE org = %(org)s ORDER BY created_at, id").format(
-    row=ROW
-)
-FIND = sql.SQL("SELECT {row} FROM members WHERE org = %(org)s AND id = %(id)s").format(row=ROW)
-BY_EMAIL = sql.SQL("SELECT {row} FROM members WHERE org = %(org)s AND email = %(email)s").format(
-    row=ROW
-)
-ORGS_OF = sql.SQL(
-    "SELECT {row} FROM members WHERE email = %(email)s ORDER BY created_at, id"
-).format(row=ROW)
+
+
 # One password per person: the newest row that has one speaks for every row of the address.
 HASH_OF = """
 SELECT password_hash FROM members WHERE email = %(email)s AND password_hash IS NOT NULL
 ORDER BY created_at DESC LIMIT 1
 """
+
+
 VERIFIED = "SELECT 1 FROM members WHERE email = %(email)s AND verified_at IS NOT NULL LIMIT 1"
-# A NULL parameter keeps what the column holds.
-UPDATE = sql.SQL("""
-UPDATE members SET role = COALESCE(%(role)s, role), agents = COALESCE(%(agents)s, agents),
-                   status = COALESCE(%(status)s, status),
-                   production = COALESCE(%(production)s, production)
-WHERE org = %(org)s AND id = %(id)s
-RETURNING {row}
-""").format(row=ROW)
-# Never wakes a disabled member; a vouched link also proves the address.
-ACTIVATE = sql.SQL("""
-UPDATE members SET status = 'active', password_hash = %(password)s,
-       verified_at = CASE WHEN %(vouched)s THEN COALESCE(verified_at, now()) ELSE verified_at END
-WHERE id = %(id)s AND status <> 'disabled'
-RETURNING {row}
-""").format(row=ROW)
+
+
 HASH_EVERYWHERE = """
 UPDATE members SET password_hash = %(password)s
 WHERE email = %(email)s AND password_hash IS NOT NULL
 """
-JOIN = sql.SQL("""
-UPDATE members SET status = 'active', password_hash = %(password)s
-WHERE org = %(org)s AND id = %(id)s AND status = 'invited'
-RETURNING {row}
-""").format(row=ROW)
-VOUCHED = sql.SQL("""
-UPDATE members SET status = 'active', verified_at = COALESCE(verified_at, now())
-WHERE org = %(org)s AND id = %(id)s AND status <> 'disabled'
-RETURNING {row}
-""").format(row=ROW)
-OPERATOR = sql.SQL(
-    "UPDATE members SET operator = %(on)s WHERE org = %(org)s AND id = %(id)s RETURNING {row}"
-).format(row=ROW)
+
+
 OTHER_ADMINS = """
 SELECT count(*) AS others FROM members
 WHERE org = %(org)s AND id <> %(id)s AND role = 'admin' AND status = 'active'
 """
+
+
 # Revoked, not deleted: a log names the key that wrote it.
 REVOKE_THEIR_KEYS = """
 UPDATE api_keys SET revoked_at = now() WHERE subject = %(id)s AND revoked_at IS NULL
 """
+
+
 # Their invitations go by the foreign key's cascade.
 REMOVE = "DELETE FROM members WHERE org = %(org)s AND id = %(id)s RETURNING id"
+
+
 INVITE = """
 INSERT INTO invitations (token_hash, member, expires_at, vouched)
 VALUES (%(hash)s, %(member)s, %(expires_at)s, %(vouched)s)
 """
+
+
 SPEND_OPEN = (
     "UPDATE invitations SET spent_at = now() WHERE member = %(member)s AND spent_at IS NULL"
 )
+
+
 # One conditional update, so two accepts of one link cannot both win.
 SPEND = """
 UPDATE invitations SET spent_at = now()
@@ -116,17 +119,10 @@ WHERE token_hash = %(hash)s AND spent_at IS NULL AND expires_at > now()
 RETURNING member, vouched
 """
 
+
 # argon2id with the library's defaults (OWASP's). A key is random and hashed with sha256; a
 # password is chosen by a person, so it is hashed slowly.
 _HASHER = PasswordHasher()
-# Verified when the address is nobody's, so the time taken does not say who is a member.
-_NOBODYS = _HASHER.hash(secrets.token_urlsafe(32))
-
-# Every attempt counts, not only the misses: counting misses would say which guess was right.
-TRIES = 5
-WINDOW_S = 60.0
-# Names are the attacker's to choose, so quiet ones are swept past this many.
-SWEEP_AT = 1024
 
 
 @dataclass(frozen=True)
@@ -159,27 +155,64 @@ class Invited:
     expires_at: datetime | None = None
 
 
-class Throttle:
-    """How many times a name knocked in the last minute: five, and the sixth waits."""
+LISTED = sql.SQL("SELECT {row} FROM members WHERE org = %(org)s ORDER BY created_at, id").format(
+    row=ROW
+)
 
-    def __init__(self, clock: Callable[[], float] = time.time) -> None:
-        """A throttle nobody knocked at."""
-        self.clock = clock
-        self.knocks: dict[str, deque[float]] = {}
 
-    def allowed(self, name: str) -> bool:
-        """Count a knock, and say whether it is within the window's tries."""
-        now = self.clock()
-        if len(self.knocks) >= SWEEP_AT:
-            for quiet in [one for one, at in self.knocks.items() if at[-1] <= now - WINDOW_S]:
-                del self.knocks[quiet]
-        knocks = self.knocks.setdefault(name, deque())
-        while knocks and knocks[0] <= now - WINDOW_S:
-            knocks.popleft()
-        if len(knocks) >= TRIES:
-            return False
-        knocks.append(now)
-        return True
+FIND = sql.SQL("SELECT {row} FROM members WHERE org = %(org)s AND id = %(id)s").format(row=ROW)
+
+
+BY_EMAIL = sql.SQL("SELECT {row} FROM members WHERE org = %(org)s AND email = %(email)s").format(
+    row=ROW
+)
+
+
+ORGS_OF = sql.SQL(
+    "SELECT {row} FROM members WHERE email = %(email)s ORDER BY created_at, id"
+).format(row=ROW)
+
+
+# A NULL parameter keeps what the column holds.
+UPDATE = sql.SQL("""
+UPDATE members SET role = COALESCE(%(role)s, role), agents = COALESCE(%(agents)s, agents),
+                   status = COALESCE(%(status)s, status),
+                   production = COALESCE(%(production)s, production)
+WHERE org = %(org)s AND id = %(id)s
+RETURNING {row}
+""").format(row=ROW)
+
+
+# Never wakes a disabled member; a vouched link also proves the address.
+ACTIVATE = sql.SQL("""
+UPDATE members SET status = 'active', password_hash = %(password)s,
+       verified_at = CASE WHEN %(vouched)s THEN COALESCE(verified_at, now()) ELSE verified_at END
+WHERE id = %(id)s AND status <> 'disabled'
+RETURNING {row}
+""").format(row=ROW)
+
+
+JOIN = sql.SQL("""
+UPDATE members SET status = 'active', password_hash = %(password)s
+WHERE org = %(org)s AND id = %(id)s AND status = 'invited'
+RETURNING {row}
+""").format(row=ROW)
+
+
+VOUCHED = sql.SQL("""
+UPDATE members SET status = 'active', verified_at = COALESCE(verified_at, now())
+WHERE org = %(org)s AND id = %(id)s AND status <> 'disabled'
+RETURNING {row}
+""").format(row=ROW)
+
+
+OPERATOR = sql.SQL(
+    "UPDATE members SET operator = %(on)s WHERE org = %(org)s AND id = %(id)s RETURNING {row}"
+).format(row=ROW)
+
+
+# Verified when the address is nobody's, so the time taken does not say who is a member.
+_NOBODYS = _HASHER.hash(secrets.token_urlsafe(32))
 
 
 def fingerprint(secret: str) -> str:
@@ -223,16 +256,16 @@ async def invite(
     email = _folded(invitee.email)
     async with pool.connection() as connection, connection.transaction():
         await connection.execute(HELD, {"org": org})
-        kept = await _one(connection, BY_EMAIL, {"org": org, "email": email})
+        kept = await _fetch_member(connection, BY_EMAIL, {"org": org, "email": email})
         if kept is not None and kept.status != "invited":
             raise Conflict(ACCEPTED_ALREADY.format(email=email))
         if kept is not None:
             await connection.execute(SPEND_OPEN, {"member": kept.id})
             return await _link(connection, kept, vouched=vouched)
         seated = await (await connection.execute(SEATED, {"org": org})).fetchone()
-        held = 0 if seated is None else int(seated["seated"])
-        if seats is not None and held >= seats:
-            raise QuotaExhausted(NO_SEAT_LEFT.format(seated=held))
+        found = 0 if seated is None else int(seated["seated"])
+        if seats is not None and found >= seats:
+            raise QuotaExhausted(NO_SEAT_LEFT.format(seated=found))
         password = await _password_of(connection, email)
         # A person proven elsewhere, with a password, is seated at once: no link to accept.
         at_once = password is not None and await _verified_anywhere(connection, email)
@@ -260,7 +293,7 @@ async def accept(pool: Pool, token: str, hashed: str) -> Member | None:
         if spent is None:
             return None
         values = {"id": spent["member"], "password": hashed, "vouched": spent["vouched"]}
-        member = await _one(connection, ACTIVATE, values)
+        member = await _fetch_member(connection, ACTIVATE, values)
         if member is not None:
             everywhere = {"email": member.email, "password": hashed}
             await connection.execute(HASH_EVERYWHERE, everywhere)
@@ -270,7 +303,7 @@ async def accept(pool: Pool, token: str, hashed: str) -> Member | None:
 async def reset(pool: Pool, org: str, member: str, *, vouched: bool = False) -> Invited | None:
     """A link that sets an active member's password again; None for anybody else."""
     async with pool.connection() as connection, connection.transaction():
-        found = await _one(connection, FIND, {"org": org, "id": member})
+        found = await _fetch_member(connection, FIND, {"org": org, "id": member})
         if found is None or found.status != "active":
             return None
         await connection.execute(SPEND_OPEN, {"member": member})
@@ -289,7 +322,7 @@ async def update(pool: Pool, org: str, member: str, change: Change) -> Member:
         "production": change.production,
     }
     async with pool.connection() as connection, connection.transaction():
-        updated = await _one(connection, UPDATE, values)
+        updated = await _fetch_member(connection, UPDATE, values)
         if updated is None:
             raise NotFound(NOBODY_BY_THAT_ID)
         if change.status == "disabled":
@@ -300,7 +333,7 @@ async def update(pool: Pool, org: str, member: str, change: Change) -> Member:
 async def remove(pool: Pool, org: str, member: str) -> None:
     """Take a member out for good, their keys revoked first; never the last active admin."""
     async with pool.connection() as connection, connection.transaction():
-        found = await _one(connection, FIND, {"org": org, "id": member})
+        found = await _fetch_member(connection, FIND, {"org": org, "id": member})
         if found is None:
             raise NotFound(NOBODY_BY_THAT_ID)
         if found.role == "admin" and found.status == "active":
@@ -330,13 +363,13 @@ async def seated(pool: Pool, org: str) -> int:
 async def find(pool: Pool, org: str, member: str) -> Member | None:
     """The member by id, within the org."""
     async with pool.connection() as connection:
-        return await _one(connection, FIND, {"org": org, "id": member})
+        return await _fetch_member(connection, FIND, {"org": org, "id": member})
 
 
 async def by_email(pool: Pool, org: str, email: str) -> Member | None:
     """The member by address, within the org."""
     async with pool.connection() as connection:
-        return await _one(connection, BY_EMAIL, {"org": org, "email": _folded(email)})
+        return await _fetch_member(connection, BY_EMAIL, {"org": org, "email": _folded(email)})
 
 
 async def orgs_of(pool: Pool, email: str) -> list[Member]:
@@ -356,19 +389,19 @@ async def join(pool: Pool, org: str, member: str, password_hash: str) -> Member 
     """Seat an invited member who signs in with the password they already have."""
     async with pool.connection() as connection:
         values = {"org": org, "id": member, "password": password_hash}
-        return await _one(connection, JOIN, values)
+        return await _fetch_member(connection, JOIN, values)
 
 
 async def vouched(pool: Pool, org: str, member: str) -> Member | None:
     """Seat a member an identity provider vouched for; never a disabled one."""
     async with pool.connection() as connection:
-        return await _one(connection, VOUCHED, {"org": org, "id": member})
+        return await _fetch_member(connection, VOUCHED, {"org": org, "id": member})
 
 
 async def make_operator(pool: Pool, org: str, member: str, *, on: bool) -> Member | None:
     """Make a member one who runs the box, or take it back at once."""
     async with pool.connection() as connection:
-        return await _one(connection, OPERATOR, {"org": org, "id": member, "on": on})
+        return await _fetch_member(connection, OPERATOR, {"org": org, "id": member, "on": on})
 
 
 def _verified(password: str, kept: str | None) -> bool:
@@ -391,7 +424,7 @@ async def _link(connection: Connection, member: Member, *, vouched: bool) -> Inv
     return Invited(member=member, token=token, expires_at=expires_at)
 
 
-async def _one(
+async def _fetch_member(
     connection: Connection, query: sql.Composed, values: Mapping[str, object]
 ) -> Member | None:
     row = await (await connection.execute(query, values)).fetchone()

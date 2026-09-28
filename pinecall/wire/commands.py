@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 from pydantic import Field
 
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.domain.types import JsonObject
+from pinecall.domain.names import JsonObject
 from pinecall.wire.frames import Command, WireModel
 from pinecall.wire.parts import (
     AgentConfig,
@@ -16,6 +16,47 @@ from pinecall.wire.parts import (
     ToolSpec,
     TransferMode,
 )
+
+# Which events a command lands in the log as, so a caller knows what to wait for.
+PRODUCES: dict[str, tuple[str, ...]] = {
+    "agent.configure": ("agent.configured",),
+    "agent.drain": ("agent.draining",),
+    "agent.register": ("agent.registered",),
+    "agent.reply": ("turn.agent",),
+    "agent.say": ("turn.agent",),
+    "call.attention": ("attention.requested", "call.line", "attention.answered"),
+    "call.callback": ("callback.requested",),
+    "call.claim": ("call.claimed",),
+    "call.dial": ("call.dialing",),
+    "call.dtmf": (),
+    "call.event": ("event.received",),
+    "call.hangup": ("call.ended",),
+    "call.hold": ("call.line",),
+    "call.log": ("custom",),
+    "call.mute": ("call.line",),
+    "call.transfer": ("call.transferred",),
+    "call.unhold": ("call.line",),
+    "call.unmute": ("call.line",),
+    "dev.answer": (),
+    "participant.mute": ("track.unpublished",),
+    "participant.remove": ("participant.left",),
+    "ping": ("pong",),
+    "prompt.set": ("prompt.changed",),
+    "room.invite": ("participant.joined",),
+    "room.send": ("room.sent",),
+    "session.configure": ("state.changed", "agent.configured"),
+    "state.set": ("state.changed",),
+    "supervisor.verb": (
+        "supervisor.said",
+        "supervisor.whispered",
+        "supervisor.took_over",
+        "supervisor.released",
+        "supervisor.transferred",
+        "supervisor.ended",
+    ),
+    "tool.result": ("tool.result",),
+    "tools.set": ("tools.changed",),
+}
 
 
 class SayVerb(WireModel):
@@ -257,8 +298,6 @@ class ToolsSet(WireModel):
     tools: list[ToolSpec]
 
 
-# ── the registry ──
-
 COMMANDS: dict[str, type[WireModel]] = {
     "agent.configure": AgentConfigure,
     "agent.drain": AgentDrain,
@@ -290,47 +329,6 @@ COMMANDS: dict[str, type[WireModel]] = {
     "supervisor.verb": SupervisorVerb,
     "tool.result": ToolResult,
     "tools.set": ToolsSet,
-}
-
-# Which events a command lands in the log as, so a caller knows what to wait for.
-PRODUCES: dict[str, tuple[str, ...]] = {
-    "agent.configure": ("agent.configured",),
-    "agent.drain": ("agent.draining",),
-    "agent.register": ("agent.registered",),
-    "agent.reply": ("turn.agent",),
-    "agent.say": ("turn.agent",),
-    "call.attention": ("attention.requested", "call.line", "attention.answered"),
-    "call.callback": ("callback.requested",),
-    "call.claim": ("call.claimed",),
-    "call.dial": ("call.dialing",),
-    "call.dtmf": (),
-    "call.event": ("event.received",),
-    "call.hangup": ("call.ended",),
-    "call.hold": ("call.line",),
-    "call.log": ("custom",),
-    "call.mute": ("call.line",),
-    "call.transfer": ("call.transferred",),
-    "call.unhold": ("call.line",),
-    "call.unmute": ("call.line",),
-    "dev.answer": (),
-    "participant.mute": ("track.unpublished",),
-    "participant.remove": ("participant.left",),
-    "ping": ("pong",),
-    "prompt.set": ("prompt.changed",),
-    "room.invite": ("participant.joined",),
-    "room.send": ("room.sent",),
-    "session.configure": ("state.changed", "agent.configured"),
-    "state.set": ("state.changed",),
-    "supervisor.verb": (
-        "supervisor.said",
-        "supervisor.whispered",
-        "supervisor.took_over",
-        "supervisor.released",
-        "supervisor.transferred",
-        "supervisor.ended",
-    ),
-    "tool.result": ("tool.result",),
-    "tools.set": ("tools.changed",),
 }
 
 

@@ -12,7 +12,7 @@ from tests.rules.tree import FIXTURES, PACKAGE, PARITY_MD, source_files
 # A command is handled where a `case Model():` arm names its model: the app socket takes the
 # agent's own, and hands the rest to the session.
 HANDLERS = (
-    PACKAGE / "gateway/api/agents.py",
+    PACKAGE / "gateway/api/apps.py",
     PACKAGE / "session/session.py",
     PACKAGE / "session/room.py",
 )
@@ -73,7 +73,12 @@ def appended_types(path: Path) -> list[str]:
 
 
 def unknown_events(paths: list[Path]) -> list[str]:
-    return [one for path in paths for one in appended_types(path) if one not in EVENTS]
+    return [
+        appended_type
+        for path in paths
+        for appended_type in appended_types(path)
+        if appended_type not in EVENTS
+    ]
 
 
 def handled_per_parity() -> list[str]:

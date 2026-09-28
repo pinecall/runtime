@@ -5,9 +5,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from livekit.agents import llm
+from livekit.agents.voice import AgentSession
 
-from pinecall.session.call import SPEECH
-from pinecall.session.session import Session
+from pinecall.providers.build import Running, llm_of
+from pinecall.session import tools
+from pinecall.session.call import SPEECH, Call
+from pinecall.session.session import ONE_ANSWER_PER_TOOL, Session
+from pinecall.session.tools import TEXT_LOOKUP_MS
 from pinecall.wire import events as wire
 from pinecall.wire.frames import Entry
 from pinecall.wire.metrics import UserTurnMetrics
@@ -28,15 +32,15 @@ class TakenUp:
 # livekit's generate_reply never runs the end-of-turn hook, so the lookups of a written turn run
 # here, under the written budget. Under a takeover or an open ask for a person, the message is
 # written and the model is not asked.
-async def hears(session: Session, said: str) -> str:
+async def hears(session: Session, text: str) -> str:
     """The contact's message into the call; the agent's reply, or nothing when a person has it."""
     call = session.call
     if call.a_person_has_the_line:
-        await _unanswered(session, said)
+        await _unanswered(session, text)
         return ""
-    for skipped in await session.lookups.turn_ended(said, None):
+    for skipped in await session.lookups.turn_ended(text, None):
         await call.writing.write("error", skipped)
-    reply = session.live.generate_reply(user_input=said)
+    reply = session.live.generate_reply(user_input=text)
     await reply
     return next(
         (
@@ -91,15 +95,28 @@ async def resume(session: Session, taken: TakenUp) -> None:
     await session.resume(taken.history)
 
 
-async def _unanswered(session: Session, said: str) -> None:
+# A written call has no ears and no voice, so its text is neither paced nor billed as speech;
+# its turns are taken by hand, one message at a time.
+def text_session(call: Call, thinking: Running, *, lookup_ms: int = TEXT_LOOKUP_MS) -> Session:
+    """A written call: the same session with the model alone."""
+    model = llm_of(thinking)
+    live: AgentSession[None] = AgentSession(
+        llm=model,
+        turn_handling={"turn_detection": "manual", "preemptive_generation": {"enabled": False}},
+        max_tool_steps=ONE_ANSWER_PER_TOOL,
+    )
+    return Session(live, (model,), tools.Lookups(call, call.platform.lookup, lookup_ms))
+
+
+async def _unanswered(session: Session, text: str) -> None:
     call = session.call
     heard = wire.UserTurnEnded(
-        speech_id=call.speech(), text=said, metrics=UserTurnMetrics.model_validate({})
+        speech_id=call.speech(), text=text, metrics=UserTurnMetrics.model_validate({})
     )
     await call.writing.write("turn.user", heard)
-    told = session.agent.chat_ctx.copy()
-    told.add_message(role="user", content=said)
-    await session.agent.update_chat_ctx(told, exclude_invalid_function_calls=False)
+    options = session.agent.chat_ctx.copy()
+    options.add_message(role="user", content=text)
+    await session.agent.update_chat_ctx(options, exclude_invalid_function_calls=False)
 
 
 def _numbered(speech: object) -> int:
@@ -117,8 +134,8 @@ def _called(entry: Entry) -> llm.FunctionCall:
 def _answered(entry: Entry) -> llm.FunctionCallOutput:
     error = entry.data.get("error")
     output = entry.data.get("output")
-    said = error if error is not None else output
-    text = said if isinstance(said, str) else json.dumps(said, ensure_ascii=False)
+    data = error if error is not None else output
+    text = data if isinstance(data, str) else json.dumps(data, ensure_ascii=False)
     return llm.FunctionCallOutput(
         call_id=str(entry.data.get("call_id", "")),
         name=str(entry.data.get("name", "")),

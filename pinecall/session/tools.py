@@ -12,33 +12,48 @@ from livekit.agents import RunContext, llm
 from livekit.agents.llm import FunctionCall, FunctionCallOutput, ToolError
 from livekit.agents.utils import aio
 
-from pinecall.domain.types import AgentConfig, Json, JsonObject, ToolSpec
+from pinecall.domain.agent import AgentConfig, ToolSpec
+from pinecall.domain.names import Json, JsonObject
 from pinecall.session.call import Append, Call, Lookup, ToolUse
 from pinecall.wire.events import ErrorEvent, ToolCall
 from pinecall.wire.frames import Entry
 from pinecall.wire.parts import PlatformTool, ToolResult
 
-logger = logging.getLogger(__name__)
-
 # Runs one tool the model called and returns what the model reads of it.
 type Run = Callable[[ToolUse, RunContext[None]], Awaitable[str]]
 
+
+logger = logging.getLogger(__name__)
+
+
 # `error` entry code for a tool the app closed.
 REFUSED = "refused"
+
+
 NOT_AVAILABLE = "{name} is not available now"
+
+
 NOT_LOOKED_UP = "{tool} did not run: {why}"
+
 
 # A tool pair, not a system message: a system message in the middle of the conversation becomes
 # a user turn for the providers that take one system text.
 CLOCK_TOOL = "current_date"
+
+
 CLOCK_CALL_ID = "clock_1"
+
+
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
 
 # Shorter turns are greetings and acknowledgements. Four words take over a second to say, longer
 # than a lookup, so the results are there when the caller stops.
 WORDS_ENOUGH_TO_SEARCH_WITH = 4
 
+
 _A_PLACEHOLDER = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
+
 
 # The descriptions say where the results come from and that they are data, never instructions:
 # a remembered fact may hold an earlier caller's words (docs/security/prompt-injection.md).
@@ -70,6 +85,8 @@ RECALL = ToolSpec(
         "additionalProperties": False,
     },
 )
+
+
 SEARCH = ToolSpec(
     name="search",
     description=(
@@ -93,60 +110,11 @@ SEARCH = ToolSpec(
 )
 
 
-def declared(specs: Sequence[ToolSpec], run: Run) -> list[llm.Tool]:
-    """Each tool as livekit's raw-schema tool, whose callable runs it through `run`."""
-    return [_raw(spec, run) for spec in specs]
+# What a spoken turn waits for recall and search after the caller stops, and a written one.
+VOICE_LOOKUP_MS = 250
 
 
-def platform_tools(config: AgentConfig) -> tuple[ToolSpec, ...]:
-    """Recall when the agent keeps memory, search when it reads bases."""
-    return (RECALL,) * (config.memory is not None) + (SEARCH,) * bool(config.bases)
-
-
-async def admitted(call: Call, name: str) -> None:
-    """Pass a tool the app left open; one it closed is an entry and the model's ToolError."""
-    if name in call.open_tools:
-        return
-    why = NOT_AVAILABLE.format(name=name)
-    await call.writing.write("error", ErrorEvent(code=REFUSED, message=why, recoverable=True))
-    raise ToolError(why)
-
-
-# The model reads JSON, never a language's repr of it.
-def result_text(result: ToolResult) -> str:
-    """What the model reads of a tool's result: its error, else its summary, else its output."""
-    if result.error is not None:
-        return result.error
-    if result.summary is not None:
-        return result.summary
-    if result.output is None:
-        return ""
-    output = result.output
-    return output if isinstance(output, str) else json.dumps(output, ensure_ascii=False)
-
-
-# `{{slot.when}}` reads `when` of the argument `slot`; a placeholder nothing fills stays as it
-# was written, so the read-back never loses a word in silence.
-def read_back(template: str, arguments: JsonObject, result: ToolResult) -> str:
-    """The confirm template filled from what the tool was asked and what it answered."""
-    said: JsonObject = {**arguments, "result": result.output}
-    return _A_PLACEHOLDER.sub(lambda found: _read(said, found.group(1), found.group(0)), template)
-
-
-def date_pair(today: date) -> tuple[FunctionCall, FunctionCallOutput]:
-    """The call and the answer that tell the model what day it is, once per call."""
-    answered = {"today": today.isoformat(), "weekday": WEEKDAYS[today.weekday()]}
-    return (
-        FunctionCall(call_id=CLOCK_CALL_ID, name=CLOCK_TOOL, arguments="{}"),
-        # reply_required=False, or a realtime model speaks as soon as it reads the answer.
-        FunctionCallOutput(
-            call_id=CLOCK_CALL_ID,
-            name=CLOCK_TOOL,
-            output=json.dumps(answered),
-            is_error=False,
-            reply_required=False,
-        ),
-    )
+TEXT_LOOKUP_MS = 3000
 
 
 class ToolCalls:
@@ -247,14 +215,14 @@ class Lookups:
     # Started on the first interim worth a query, so the results are in when the turn ends. One
     # run a turn: a second embed is paid for. Every turn ends, since livekit folds a short
     # transcript into the next one, so the run is always consumed.
-    def heard_so_far(self, said: str) -> None:
+    def heard_so_far(self, text: str) -> None:
         """Start this turn's lookups on what the caller has said so far, once."""
         tools = self.run_before_each_turn
         if self.running is not None or not tools:
             return
-        if len(said.split()) < WORDS_ENOUGH_TO_SEARCH_WITH or not _could_be_a_query(said):
+        if len(text.split()) < WORDS_ENOUGH_TO_SEARCH_WITH or not _could_be_a_query(text):
             return
-        self.running = self._start(tools, said, None)
+        self.running = self._start(tools, text, None)
 
     # A run started early keeps its prefix as the query: it ranks the same chunks, and asking
     # again would cost the time it saved. The pair records the query that was sent.
@@ -366,6 +334,62 @@ class Lookups:
         )
 
 
+def as_livekit_tools(specs: Sequence[ToolSpec], run: Run) -> list[llm.Tool]:
+    """Each tool as livekit's raw-schema tool, whose callable runs it through `run`."""
+    return [_raw(spec, run) for spec in specs]
+
+
+def platform_tools(config: AgentConfig) -> tuple[ToolSpec, ...]:
+    """Recall when the agent keeps memory, search when it reads bases."""
+    return (RECALL,) * (config.memory is not None) + (SEARCH,) * bool(config.bases)
+
+
+async def admitted(call: Call, name: str) -> None:
+    """Pass a tool the app left open; one it closed is an entry and the model's ToolError."""
+    if name in call.open_tools:
+        return
+    why = NOT_AVAILABLE.format(name=name)
+    await call.writing.write("error", ErrorEvent(code=REFUSED, message=why, recoverable=True))
+    raise ToolError(why)
+
+
+# The model reads JSON, never a language's repr of it.
+def result_text(result: ToolResult) -> str:
+    """What the model reads of a tool's result: its error, else its summary, else its output."""
+    if result.error is not None:
+        return result.error
+    if result.summary is not None:
+        return result.summary
+    if result.output is None:
+        return ""
+    output = result.output
+    return output if isinstance(output, str) else json.dumps(output, ensure_ascii=False)
+
+
+# `{{slot.when}}` reads `when` of the argument `slot`; a placeholder nothing fills stays as it
+# was written, so the read-back never loses a word in silence.
+def read_back(template: str, arguments: JsonObject, result: ToolResult) -> str:
+    """The confirm template filled from what the tool was asked and what it answered."""
+    data: JsonObject = {**arguments, "result": result.output}
+    return _A_PLACEHOLDER.sub(lambda found: _read(data, found.group(1), found.group(0)), template)
+
+
+def date_pair(today: date) -> tuple[FunctionCall, FunctionCallOutput]:
+    """The call and the answer that tell the model what day it is, once per call."""
+    answered = {"today": today.isoformat(), "weekday": WEEKDAYS[today.weekday()]}
+    return (
+        FunctionCall(call_id=CLOCK_CALL_ID, name=CLOCK_TOOL, arguments="{}"),
+        # reply_required=False, or a realtime model speaks as soon as it reads the answer.
+        FunctionCallOutput(
+            call_id=CLOCK_CALL_ID,
+            name=CLOCK_TOOL,
+            output=json.dumps(answered),
+            is_error=False,
+            reply_required=False,
+        ),
+    )
+
+
 # The app runs its tools and ToolSpec is JSON Schema already, so the raw schema is declared; the
 # callable is where the session gates and writes the call.
 def _raw(spec: ToolSpec, run: Run) -> llm.Tool:
@@ -385,12 +409,12 @@ def _json(value: object) -> Json:
     return json.loads(json.dumps(value))
 
 
-def _could_be_a_query(said: str) -> bool:
-    return any(character.isalpha() for character in said)
+def _could_be_a_query(text: str) -> bool:
+    return any(character.isalpha() for character in text)
 
 
-def _read(said: Json, path: str, written: str) -> str:
-    found = said
+def _read(data: Json, path: str, written: str) -> str:
+    found = data
     for step in path.split("."):
         if not isinstance(found, Mapping) or step not in found:
             return written

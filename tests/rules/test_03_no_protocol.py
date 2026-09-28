@@ -19,8 +19,13 @@ def occurrences(path: Path) -> list[tuple[str, str]]:
 
 
 def test_the_package_and_the_suites_name_no_protocol_abc_cast_or_type_checking() -> None:
-    allowed = {(one.file, one.text) for one in PROTOCOLS_AND_CASTS}
-    found = [one for path in checked_files() for one in occurrences(path) if one not in allowed]
+    allowed = {(item.file, item.text) for item in PROTOCOLS_AND_CASTS}
+    found = [
+        occurrence
+        for path in checked_files()
+        for occurrence in occurrences(path)
+        if occurrence not in allowed
+    ]
     assert found == []
 
 

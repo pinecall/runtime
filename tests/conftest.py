@@ -18,32 +18,33 @@ from psycopg import sql
 from websockets.asyncio.client import ClientConnection
 from websockets.asyncio.client import connect as opened_socket
 
-from pinecall.domain.settings import Settings
-from pinecall.domain.types import (
-    KEY_SCOPES,
-    THE_FLEET,
-    Env,
-    JsonObject,
-    KeyScope,
-    Org,
-)
-from pinecall.fleet.hub import Roster
+from pinecall.domain.names import Env, JsonObject
+from pinecall.domain.org import Org
+from pinecall.domain.person import KEY_SCOPES, THE_FLEET, KeyScope
+from pinecall.fleet import worlds
+from pinecall.fleet.roster import Roster
+from pinecall.gateway._served import ServedCalls, Serving
+from pinecall.gateway._sockets import Sockets
+from pinecall.gateway._state import Gateway
+from pinecall.gateway._threads import Threads
 from pinecall.gateway.app import app
-from pinecall.gateway.deps import Wired
-from pinecall.gateway.live import Gated, Live, Registry
-from pinecall.gateway.threads import Threads
-from pinecall.log.log import Logs
+from pinecall.log.logs import Logs
 from pinecall.log.store import Store
 from pinecall.postgres.migrate import apply_migrations
 from pinecall.postgres.pool import Pool, connect, open_pool
+from pinecall.process.connections import Connections, vault_of
+from pinecall.process.settings import Settings
 from pinecall.providers import catalog
 from pinecall.providers.build import MODALITIES, Vendor, installed
 from pinecall.providers.catalog import Providers
 from pinecall.tenancy import keys, orgs, people, vault
-from pinecall.tenancy.agents import Codes
-from pinecall.tenancy.keys import Signer
+from pinecall.tenancy.codes import Codes
+from pinecall.tenancy.tokens import Signer
 from pinecall.wire.frames import Entry
-from tests.fakes import A_SECRET, ACME, Graph, Server, Twilio, acme_plugin, outside
+from tests.fakes.acme import ACME
+from tests.fakes.livekit import A_SECRET, Server, acme_plugin
+from tests.fakes.meta import Graph, outside
+from tests.fakes.twilio import Twilio
 
 DSN = os.environ.get("DATABASE_URL", "")
 
@@ -138,7 +139,7 @@ def configured(replies: list[list[str | dict[str, object]]] | None = None) -> Pr
             },
             "tuning": {"llm/acme": {"options": {"replies": replies or []}}},
             "rates": {"acme-1": {"input": 1.0, "output": 2.0}},
-            "exchange": {"usd_to_eur": 0.9, "as_of": "2026-09-27"},
+            "connections": {"usd_to_eur": 0.9, "as_of": "2026-09-27"},
         }
     )
 
@@ -148,7 +149,7 @@ class Knocking:
     """The gateway as a test knocks on it: its address, the box behind it, and an org's keys."""
 
     url: str
-    box: Wired
+    gateway: Gateway
     org: Org
     # One server key per world, and the fleet's per world.
     app: dict[Env, str]
@@ -168,14 +169,14 @@ class Knocking:
         )
 
 
-async def said(socket: ClientConnection) -> Entry:
+async def received(socket: ClientConnection) -> Entry:
     """The next entry a socket is sent."""
     return Entry.model_validate(json.loads(await asyncio.wait_for(socket.recv(), 5)))
 
 
-async def said_until(socket: ClientConnection, kind: str) -> Entry:
+async def received_until(socket: ClientConnection, kind: str) -> Entry:
     """The entries a socket is sent, until one of this kind."""
-    while (entry := await said(socket)).type != kind:
+    while (entry := await received(socket)).type != kind:
         continue
     return entry
 
@@ -206,42 +207,63 @@ def graph() -> Graph:
     return Graph()
 
 
-@pytest.fixture
-async def box(
-    pool: Pool, store: Store, acme: str, twilio: Twilio, graph: Graph
-) -> AsyncIterator[Wired]:
-    """The box wired on the test's schema: acme on every stage, lent by the box."""
-    sealed = vault.vault_of(Fernet.generate_key().decode())
-    await catalog.seed(pool, configured())
-    await vault.put_box_credentials(pool, sealed, acme, "a key of the box")
-    await orgs.set_fleets(pool, orgs.Fleets.model_validate(FLEETS))
-    logs = Logs(store)
-    server = Server()
-    settings = Settings.model_validate(
+def settings_of(domain: str | None = BOX_DOMAIN) -> Settings:
+    """The settings a test gateway runs on: a LiveKit nobody reaches, and the box's public name."""
+    return Settings.model_validate(
         {
             "LIVEKIT_URL": "ws://127.0.0.1:9",
             "LIVEKIT_API_KEY": LIVEKIT_KEY,
             "LIVEKIT_API_SECRET": A_SECRET,
-            "PINECALL_DOMAIN": BOX_DOMAIN,
+            **({"PINECALL_DOMAIN": domain} if domain else {}),
         }
     )
+
+
+def _unreachable(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(599, text=f"nothing answers {request.url}")
+
+
+@pytest.fixture
+async def connections(pool: Pool) -> AsyncIterator[Connections]:
+    """A process's connections on the test's pool, with nothing answering its HTTP or its SFU."""
+    server = Server()
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unreachable)) as http:
+        yield Connections(
+            settings=settings_of(),
+            pool=pool,
+            vault=vault_of(Fernet.generate_key().decode()),
+            http=http,
+            server=server,
+        )
+    await server.aclose()
+
+
+@pytest.fixture
+async def wired(
+    pool: Pool, store: Store, acme: str, twilio: Twilio, graph: Graph
+) -> AsyncIterator[Gateway]:
+    """The gateway wired on the test's schema: acme on every stage, lent by the box."""
+    sealed = vault_of(Fernet.generate_key().decode())
+    await catalog.seed(pool, configured())
+    await vault.put_box_credentials(pool, sealed, acme, "a key of the box")
+    await worlds.set_fleets(pool, worlds.Fleets.model_validate(FLEETS))
+    logs = Logs(store)
+    server = Server()
+    settings = settings_of()
     http = httpx.AsyncClient(transport=outside(twilio, graph))
-    registry, live = Registry(logs), Live()
-    threads = Threads(Gated(pool=pool, vault=sealed, logs=logs, live=live), registry, http, "UTC")
-    yield Wired(
-        settings=settings,
-        pool=pool,
-        vault=sealed,
+    sockets, live = Sockets(logs), ServedCalls()
+    connections = Connections(settings=settings, pool=pool, vault=sealed, http=http, server=server)
+    threads = Threads(Serving(connections=connections, logs=logs, live=live), sockets)
+    yield Gateway(
+        connections=connections,
         logs=logs,
-        registry=registry,
+        sockets=sockets,
         live=live,
         roster=Roster(),
         codes=Codes(logs),
         signer=Signer(LIVEKIT_KEY, A_SECRET),
-        server=server,
-        closing=asyncio.Event(),
-        http=http,
         threads=threads,
+        closing=asyncio.Event(),
     )
     await threads.closed()
     await http.aclose()
@@ -249,39 +271,45 @@ async def box(
 
 
 @pytest.fixture
-async def gateway(box: Wired) -> AsyncIterator[Knocking]:
+async def knocking(wired: Gateway) -> AsyncIterator[Knocking]:
     """The gateway served on a free port in the test's loop, and an org with its keys."""
-    org = await orgs.create(box.pool, "clinica-norte", "Clinica Norte")
+    org = await orgs.create(wired.connections.pool, "clinica-norte", "Clinica Norte")
     app_keys: dict[Env, str] = {
-        env: await issued(box.pool, org.id, env, KEY_SCOPES) for env in WORLDS
+        env: await issued(wired.connections.pool, org.id, env, KEY_SCOPES) for env in WORLDS
     }
     fleet_keys: dict[Env, str] = {
-        env: await issued(box.pool, "default", env, frozenset({THE_FLEET})) for env in WORLDS
+        env: await issued(wired.connections.pool, "default", env, frozenset({THE_FLEET}))
+        for env in WORLDS
     }
-    app.state.wired = box
+    app.state.gateway = wired
     # Listening before uvicorn serves: a request that arrives first waits in the backlog.
     listening = socket.create_server(("127.0.0.1", 0))
     port = listening.getsockname()[1]
     config = uvicorn.Config(app, lifespan="off", log_level="warning")
     server = uvicorn.Server(config)
     serving = asyncio.create_task(server.serve(sockets=[listening]))
-    yield Knocking(url=f"http://127.0.0.1:{port}", box=box, org=org, app=app_keys, fleet=fleet_keys)
-    box.closing.set()
+    yield Knocking(
+        url=f"http://127.0.0.1:{port}", gateway=wired, org=org, app=app_keys, fleet=fleet_keys
+    )
+    wired.closing.set()
     server.should_exit = True
     await serving
-    del app.state.wired
+    del app.state.gateway
 
 
 async def a_developer(knocking: Knocking, email: str) -> tuple[str, str]:
     """A developer of the org, active: their member id and their one key."""
     invited = await people.invite(
-        knocking.box.pool,
+        knocking.gateway.connections.pool,
         knocking.org.id,
         people.Invitee(email=email, name=email.split("@", maxsplit=1)[0], role="developer"),
         seats=None,
     )
     member = await people.update(
-        knocking.box.pool, knocking.org.id, invited.member.id, people.Change(status="active")
+        knocking.gateway.connections.pool,
+        knocking.org.id,
+        invited.member.id,
+        people.Change(status="active"),
     )
-    _, secret = await keys.person_key(knocking.box.pool, member)
+    _, secret = await keys.person_key(knocking.gateway.connections.pool, member)
     return member.id, secret

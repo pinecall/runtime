@@ -6,8 +6,9 @@ import sys
 
 import pytest
 
+from pinecall.domain.agent import Turn
 from pinecall.domain.errors import DeclarationRefused, NotAvailable
-from pinecall.domain.types import JsonObject, Turn
+from pinecall.domain.names import JsonObject
 from pinecall.providers.build import (
     INFERENCE,
     Running,
@@ -19,7 +20,8 @@ from pinecall.providers.build import (
     stt_of,
     tts_of,
 )
-from tests.fakes import AcmeContext, AcmeLLM, AcmeOptions, AcmeSTT, AcmeTTS, acme_plugin
+from tests.fakes.acme import AcmeContext, AcmeLLM, AcmeOptions, AcmeSTT, AcmeTTS
+from tests.fakes.livekit import acme_plugin
 
 # livekit-agents' extras that install no LLM, STT or TTS: avatars, a VAD, a turn detector, a
 # tokenizer, a browser, a realtime model, and three that are not plugins. One livekit adds is in
@@ -99,11 +101,11 @@ def test_credentials_of_more_than_a_key_reach_the_constructor_as_they_are(acme: 
 
 
 def test_the_model_asked_for_wins_and_none_leaves_the_plugins_own(acme: str) -> None:
-    asked = llm_of(Running(acme, "k", model="acme-2"))
+    params = llm_of(Running(acme, "k", model="acme-2"))
     left = llm_of(Running(acme, "k"))
-    assert isinstance(asked, AcmeLLM)
+    assert isinstance(params, AcmeLLM)
     assert isinstance(left, AcmeLLM)
-    assert (asked.given["model"], left.given["model"]) == ("acme-2", "acme-1")
+    assert (params.given["model"], left.given["model"]) == ("acme-2", "acme-1")
 
 
 def test_a_plugin_that_names_no_voice_is_simply_not_sent_one(acme: str) -> None:
@@ -167,7 +169,7 @@ def test_livekit_inference_is_built_on_the_boxs_pair_with_a_model_that_names_its
 
 
 def test_every_spelling_of_a_language_is_its_base_code() -> None:
-    assert [primary(one) for one in ("es-ES", "spanish", "es_MX", "EN-us", "en")] == [
+    assert [primary(item) for item in ("es-ES", "spanish", "es_MX", "EN-us", "en")] == [
         "es",
         "es",
         "es",

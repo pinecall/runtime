@@ -5,7 +5,7 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.domain.types import JsonObject
+from pinecall.domain.names import JsonObject
 
 
 class WireModel(BaseModel):

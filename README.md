@@ -5,47 +5,29 @@
 Voice AI that runs where you do. Pinecall is a self-hosted runtime for voice agents: phone
 calls, web voice, chat and WhatsApp, on your box, your carrier, your models.
 
-The agent is an object. Its fields are what it remembers, its methods are what it can do, its
-docstrings are the prompt, and `render()` is what it knows right now:
+**This repository is the runtime**: the gateway that answers the doors and the worker that runs
+the calls, one Python package, one wheel, on [LiveKit](https://livekit.io). The agents themselves
+are written with the SDK, in [pinecall/agents](https://github.com/pinecall/agents) (TypeScript) or
+the Ruby SDK, and talk to this runtime over the wire `pinecall/wire/` declares. Nothing here is
+imported by an agent.
 
-```tsx
-import { Agent, tool } from "pinecall";
-
-/** You are the front desk of a clinic. Short sentences: everything you say is read aloud. */
-export default class FrontDesk extends Agent {
-  patient?: Patient;
-  slots: Slot[] = [];
-
-  /** Free times on a day, for one specialty. */
-  @tool()
-  async freeSlots(day: string, specialty: string): Promise<Slot[]> {
-    this.slots = await clinic.free(day, specialty);
-    return this.slots;
-  }
-
-  render() {
-    return (
-      <>
-        {!this.patient && <p>Ask for their name and phone number.</p>}
-        {this.slots.length > 0 && <p>Offer two of these at most: {this.slots.join(", ")}.</p>}
-      </>
-    );
-  }
-}
+```
+git clone https://github.com/pinecall/runtime && cd runtime
+uv sync                      # Python 3.12, one venv, every dev tool
+make check                   # the rules and every suite that needs no database
+make test                    # every suite, on a throwaway Postgres (colima or docker)
 ```
 
-The shape is borrowed from NVIDIA's [Object Oriented
-Agents](https://github.com/NVIDIA-NeMo/labs-OO-Agents): state, capabilities and prompt in one class.
-It runs on your own server with [pinecall](https://github.com/pinecall/agents) and is tested like
-the rest of your software. The audio, the turn taking, the phone line, the log, the memory and the
-judges are this repo's: the gateway and the worker, on [LiveKit](https://livekit.io), one wheel.
+`docs/architecture.md` is the map: what each folder does and what it may import.
+`docs/glossary.md` defines the ten words of the domain. `docs/conventions.md` says how a file is
+written. `examples/` walks an inbound number, an outbound call and a chat with `curl`.
 
 Why from scratch: v1 has been answering real calls for real customers in production. v2 is what
 those calls taught us, written again to run anywhere: a cloud box, a rack in your office, a
 network that talks to nobody. Your calls, your data, your models, and nothing leaves unless you
 send it.
 
-What you get from the rewrite:
+What the rewrite gives you:
 
 - **Any vendor, no list.** Every LiveKit plugin works out of the box. Bring your own key, or use
   the box's. Nothing in the code decides which models you may run.

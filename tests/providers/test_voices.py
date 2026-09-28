@@ -6,10 +6,10 @@ import wave
 import pytest
 
 from pinecall.domain.errors import NotFound, UpstreamFailed
-from pinecall.domain.types import JsonObject
+from pinecall.domain.names import JsonObject
 from pinecall.providers.build import Running
 from pinecall.providers.voices import sample, voices
-from tests.fakes import A_RATE
+from tests.fakes.acme import A_RATE
 
 
 async def test_a_plugin_that_lists_its_voices_is_read_row_by_row(acme: str) -> None:
@@ -20,14 +20,14 @@ async def test_a_plugin_that_lists_its_voices_is_read_row_by_row(acme: str) -> N
         ]
     }
     found = await voices(Running(acme, "k", options=listed))
-    assert [(one.id, one.name) for one in found] == [("v-1", "Ana"), ("v-2", "Bo")]
+    assert [(item.id, item.name) for item in found] == [("v-1", "Ana"), ("v-2", "Bo")]
     assert found[0].detail == {"id": "v-1", "name": "Ana", "category": "premade"}
 
 
 async def test_a_row_with_no_id_is_passed_over_and_the_rest_still_read(acme: str) -> None:
     listed: JsonObject = {"voices": [{"nothing": "here"}, {"id": "v-3"}]}
     found = await voices(Running(acme, "k", options=listed))
-    assert [(one.id, one.name) for one in found] == [("v-3", "v-3")]
+    assert [(item.id, item.name) for item in found] == [("v-3", "v-3")]
 
 
 async def test_a_plugin_that_lists_nothing_is_refused_by_name() -> None:

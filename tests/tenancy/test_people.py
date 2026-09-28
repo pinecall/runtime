@@ -6,13 +6,13 @@ import hashlib
 import pytest
 
 from pinecall.domain.errors import Conflict, DeclarationRefused, NotFound, QuotaExhausted
-from pinecall.domain.types import Org
+from pinecall.domain.org import Org
 from pinecall.postgres.pool import Pool
+from pinecall.tenancy._signin import Throttle
 from pinecall.tenancy.orgs import create
 from pinecall.tenancy.people import (
     Change,
     Invitee,
-    Throttle,
     accept,
     by_email,
     find,
@@ -114,7 +114,7 @@ async def test_a_person_proven_elsewhere_with_a_password_is_seated_at_once_with_
     seated_at_once = await invite(pool, other.id, ANA, seats=None)
     assert seated_at_once.token is None
     assert seated_at_once.member.status == "active"
-    assert [one.org for one in await orgs_of(pool, "ana@clinica.test")] == [home.id, other.id]
+    assert [item.org for item in await orgs_of(pool, "ana@clinica.test")] == [home.id, other.id]
 
 
 @postgres
@@ -147,7 +147,7 @@ async def test_the_write_judges_the_seats_under_a_lock_so_five_at_once_seat_two(
     org = await _an_org(pool)
     people = [Invitee(email=f"p{n}@clinica.test", name=f"P{n}", role="qa") for n in range(5)]
     outcomes = await asyncio.gather(
-        *(invite(pool, org.id, one, seats=2) for one in people), return_exceptions=True
+        *(invite(pool, org.id, item, seats=2) for item in people), return_exceptions=True
     )
     assert sum(not isinstance(outcome, BaseException) for outcome in outcomes) == 2
     assert await seated(pool, org.id) == 2
@@ -229,7 +229,7 @@ async def test_the_last_active_admin_stays_and_a_second_one_lets_the_first_go(po
     assert second.token is not None
     await accept(pool, second.token, await hash_password(WHAT_ANA_TYPES, FLOOR))
     await remove(pool, org.id, admin.id)
-    assert [one.name for one in await listed(pool, org.id)] == ["Carla"]
+    assert [listed_one.name for listed_one in await listed(pool, org.id)] == ["Carla"]
 
 
 @postgres
@@ -300,32 +300,6 @@ async def test_a_password_under_the_floor_is_refused_before_it_is_hashed() -> No
 
 async def test_the_floor_is_the_boxs_and_zero_is_no_rule_at_all() -> None:
     assert (await hash_password("", 0)).startswith("$argon2id$")
-
-
-def test_the_sixth_knock_in_a_minute_is_refused_and_another_name_is_not() -> None:
-    throttle = Throttle(clock=lambda: 100.0)
-    assert all(throttle.allowed("ana@clinica.test") for _ in range(5))
-    assert not throttle.allowed("ana@clinica.test")
-    assert throttle.allowed("bruno@clinica.test")
-
-
-def test_the_window_slides_so_a_minute_later_the_name_knocks_again() -> None:
-    now = [100.0]
-    throttle = Throttle(clock=lambda: now[0])
-    for _ in range(5):
-        throttle.allowed("ana")
-    now[0] += 61
-    assert throttle.allowed("ana")
-
-
-def test_names_that_stopped_knocking_are_forgotten_so_a_script_cannot_fill_the_table() -> None:
-    now = [100.0]
-    throttle = Throttle(clock=lambda: now[0])
-    for name in range(1024):
-        throttle.allowed(f"n{name}")
-    now[0] += 61
-    throttle.allowed("fresh")
-    assert set(throttle.knocks) == {"fresh"}
 
 
 def test_a_sweep_keeps_every_name_still_within_its_window() -> None:

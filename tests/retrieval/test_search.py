@@ -11,7 +11,7 @@ from pinecall.retrieval.search import (
     CANDIDATES_PER_BRANCH,
     RRF_K,
     Hit,
-    Table,
+    SearchedTable,
     evidence_of,
     hybrid,
     relative_to_the_best,
@@ -38,9 +38,9 @@ def toward(*weights: float) -> list[float]:
     return [weight / length for weight in weights] + [0.0] * (1024 - len(weights))
 
 
-def chunks_of(org: str, base: str = BASE) -> Table:
+def chunks_of(org: str, base: str = BASE) -> SearchedTable:
     """The knowledge chunks of one base, a hit carrying its path and text."""
-    return Table(
+    return SearchedTable(
         name="knowledge_chunks",
         text_index="knowledge_chunks_text_bm25",
         scope=SCOPE,
@@ -161,7 +161,7 @@ async def test_the_vector_branch_alone_can_be_narrowed_and_the_word_branch_still
     pool: Pool, org: str
 ) -> None:
     await kept(pool, org, "tarifas.md", "La revisión anual", toward(1, 0))
-    narrowed = Table(
+    narrowed = SearchedTable(
         name="knowledge_chunks",
         text_index="knowledge_chunks_text_bm25",
         scope=SCOPE,
@@ -212,7 +212,7 @@ def test_the_relative_score_tops_at_one_and_reads_best_first() -> None:
     fused = [1 / (RRF_K + rank) for rank in (3, 1, 2)] + [2 / (RRF_K + 1)]
     scores = [
         hit.fused
-        for hit in relative_to_the_best([a_hit(str(at), one) for at, one in enumerate(fused)])
+        for hit in relative_to_the_best([a_hit(str(at), score) for at, score in enumerate(fused)])
     ]
     assert scores == sorted(scores, reverse=True)
     assert scores[0] == 1.0

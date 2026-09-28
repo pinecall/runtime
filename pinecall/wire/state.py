@@ -4,7 +4,8 @@ from typing import Annotated, Literal
 
 from pydantic import Field
 
-from pinecall.domain.types import Channel, Direction, EventSource, Json, JsonObject
+from pinecall.domain.agent import EventSource
+from pinecall.domain.names import Channel, Direction, Json, JsonObject
 from pinecall.wire.frames import WireModel
 from pinecall.wire.metrics import (
     AgentTurnMetrics,

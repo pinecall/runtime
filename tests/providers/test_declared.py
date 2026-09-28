@@ -2,8 +2,7 @@
 
 import pytest
 
-from pinecall.domain.errors import DeclarationRefused
-from pinecall.domain.types import (
+from pinecall.domain.agent import (
     AgentConfig,
     Docs,
     Greeting,
@@ -15,8 +14,9 @@ from pinecall.domain.types import (
     Turn,
     Voice,
 )
+from pinecall.domain.errors import DeclarationRefused
 from pinecall.providers.catalog import Providers
-from pinecall.providers.declared import apply_tuning, model_of, vendor_and_model, voice_of
+from pinecall.providers.declared import apply_tuning, model_of
 
 DECLARED = AgentConfig(slug="clinica-norte", language="es")
 NOTHING = Lexicon()
@@ -34,8 +34,8 @@ def test_nothing_set_is_the_declaration_with_every_knob_at_the_runtimes_default(
 
 
 def test_a_model_knob_reads_three_ways(configured: Providers) -> None:
-    def llm_of(said: str) -> Model | None:
-        return apply_tuning(DECLARED, Tuning(llm=said), NOTHING, defaults=configured.defaults).llm
+    def llm_of(text: str) -> Model | None:
+        return apply_tuning(DECLARED, Tuning(llm=text), NOTHING, defaults=configured.defaults).llm
 
     assert llm_of("openai/gpt-5") == Model(provider="openai", model="gpt-5")
     assert llm_of("openai") == Model(provider="openai", model="")
@@ -49,20 +49,19 @@ def test_a_bare_model_lands_on_the_vendor_the_agent_already_runs(configured: Pro
 
 
 def test_a_model_id_keeps_every_slash_after_the_vendors() -> None:
-    assert vendor_and_model("livekit/openai/gpt-5-mini", "llm", in_use="anthropic") == (
-        "livekit",
-        "openai/gpt-5-mini",
+    assert model_of("livekit/openai/gpt-5-mini", "llm", in_use="anthropic") == Model(
+        "livekit", "openai/gpt-5-mini"
     )
 
 
 def test_a_vendor_that_is_not_installed_is_refused_naming_where_the_list_is() -> None:
     with pytest.raises(DeclarationRefused, match="no vendor named 'openai-but-misspelt'"):
-        vendor_and_model("openai-but-misspelt/gpt-5", "llm", in_use="anthropic")
+        model_of("openai-but-misspelt/gpt-5", "llm", in_use="anthropic")
 
 
 def test_a_vendor_that_does_not_do_the_stage_is_refused_with_what_it_does() -> None:
     with pytest.raises(DeclarationRefused, match="anthropic has no stt: it does llm"):
-        vendor_and_model("anthropic", "stt", in_use="deepgram")
+        model_of("anthropic", "stt", in_use="deepgram")
 
 
 def test_tts_moves_the_stage_and_voice_is_that_vendors_own_id(configured: Providers) -> None:
@@ -87,9 +86,9 @@ def test_the_model_named_apart_is_the_model_of_the_voice_in_use(configured: Prov
 
 
 def test_the_opening_is_the_worlds_words_or_nobodys(configured: Providers) -> None:
-    said = Greeting(say="Buenas.", allow_interruptions=True)
-    tuned = apply_tuning(DECLARED, Tuning(greeting=said), NOTHING, defaults=configured.defaults)
-    assert tuned.greeting == said
+    text = Greeting(say="Buenas.", allow_interruptions=True)
+    tuned = apply_tuning(DECLARED, Tuning(greeting=text), NOTHING, defaults=configured.defaults)
+    assert tuned.greeting == text
     assert apply_tuning(DECLARED, Tuning(), NOTHING, defaults=configured.defaults).greeting is None
 
 
@@ -116,10 +115,14 @@ def test_the_lexicon_is_the_agents_says_and_hears(configured: Providers) -> None
     assert config.hears == ("GSA", "Vidal")
 
 
-def test_a_persona_names_its_model_and_its_voice_in_the_agents_own_words() -> None:
+def test_a_model_and_a_voice_are_named_in_the_agents_own_words(configured: Providers) -> None:
     assert model_of("openai/gpt-5", "llm", in_use="anthropic") == Model("openai", "gpt-5")
-    assert voice_of("hume", "v-1", in_use="cartesia") == Voice("hume", None, "v-1")
-    assert voice_of(None, None, in_use="cartesia") is None
+    assert model_of(None, "llm", in_use="anthropic") is None
+    voiced = apply_tuning(
+        DECLARED, Tuning(tts="hume", voice="v-1"), NOTHING, defaults=configured.defaults
+    )
+    assert voiced.voice == Voice("hume", None, "v-1")
+    assert apply_tuning(DECLARED, Tuning(), NOTHING, defaults=configured.defaults).voice is None
 
 
 def test_a_voice_call_runs_ten_minutes_unless_the_world_says_otherwise(

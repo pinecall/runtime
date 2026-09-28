@@ -48,14 +48,14 @@ def test_the_rate_and_the_date_travel_with_the_number(configured: Providers) -> 
 
 
 def test_a_unit_with_nothing_counted_is_not_a_line_of_the_bill(configured: Providers) -> None:
-    said = TTSModelUsage(provider="cartesia", model="sonic-3", characters_count=0)
-    priced = cost([said], configured)
+    text = TTSModelUsage(provider="cartesia", model="sonic-3", characters_count=0)
+    priced = cost([text], configured)
     assert (priced.rows, priced.unpriced) == ([], [])
 
 
 def test_a_voice_is_priced_by_the_characters_it_spoke(configured: Providers) -> None:
-    said = TTSModelUsage(provider="cartesia", model="sonic-3", characters_count=1000)
-    (row,) = cost([said], configured).rows
+    text = TTSModelUsage(provider="cartesia", model="sonic-3", characters_count=1000)
+    (row,) = cost([text], configured).rows
     assert (row.unit, row.quantity, row.eur) == ("characters", 1000, round(0.03 * 0.92, 6))
 
 
@@ -66,8 +66,8 @@ def test_the_ears_are_priced_by_the_seconds_they_heard(configured: Providers) ->
 
 
 def test_a_voice_nobody_priced_is_unpriced_and_never_free(configured: Providers) -> None:
-    said = TTSModelUsage(provider="hume", model="octave", characters_count=10)
-    assert [row.model for row in cost([said], configured).unpriced] == ["octave"]
+    text = TTSModelUsage(provider="hume", model="octave", characters_count=10)
+    assert [row.model for row in cost([text], configured).unpriced] == ["octave"]
 
 
 def test_livekits_own_turn_models_owe_nothing_and_are_neither_a_line_nor_unpriced(

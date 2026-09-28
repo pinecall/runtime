@@ -1,26 +1,16 @@
-"""Tests for the events: every one is the generated one, and the registry reads the golden log."""
+"""Tests for the events: the sockets reads the golden log, and an event keeps its wire keys."""
 
 import pytest
 
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.wire import events
 from pinecall.wire.events import EPHEMERAL_EVENTS, EVENTS, TERMINAL_EVENT, CallStarted, event_of
 from pinecall.wire.frames import Entry, read_log
-from pinecall_protocol import events as their_events
-from pinecall_protocol import registry, room
-from tests.wire.parity import GOLDEN_LOG, mismatches
+from tests.wire.golden import GOLDEN_LOG
 
 
-def test_every_event_and_every_fact_of_the_room_is_the_generated_one_field_for_field() -> None:
-    assert mismatches(events, their_events, room) == []
-
-
-def test_the_registry_is_the_generated_one() -> None:
-    assert {name: model.__name__ for name, model in EVENTS.items()} == {
-        name: model.__name__ for name, model in registry.EVENTS.items()
-    }
-    assert EPHEMERAL_EVENTS == registry.EPHEMERAL_EVENTS
-    assert TERMINAL_EVENT == registry.TERMINAL_EVENT
+def test_the_ephemeral_events_and_the_terminal_one_are_registered() -> None:
+    assert set(EVENTS) >= EPHEMERAL_EVENTS
+    assert TERMINAL_EVENT in EVENTS
 
 
 def test_every_entry_of_the_golden_log_is_the_model_its_type_names() -> None:

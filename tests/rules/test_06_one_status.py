@@ -1,10 +1,10 @@
-"""Rule 6: a status is decided once; HTTPException appears in gateway/deps.py and app.py only."""
+"""Rule 6: a status is decided once; HTTPException appears in gateway/_deps.py and app.py only."""
 
 from pathlib import Path
 
 from tests.rules.tree import FIXTURES, relative, source_files
 
-WHERE_A_STATUS_IS_ANSWERED = ("pinecall/gateway/deps.py", "pinecall/gateway/app.py")
+WHERE_A_STATUS_IS_ANSWERED = ("pinecall/gateway/_deps.py", "pinecall/gateway/app.py")
 
 
 def deciding_a_status(paths: list[Path]) -> list[str]:

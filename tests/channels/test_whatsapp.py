@@ -10,20 +10,29 @@ from cryptography.fernet import Fernet
 
 from pinecall.channels import whatsapp
 from pinecall.channels.whatsapp import Inbound, Meta
-from pinecall.domain.errors import NotAllowed, NotAvailable, UpstreamFailed
-from pinecall.domain.types import Route
-from pinecall.log.log import Logs
+from pinecall.domain.call import Route
+from pinecall.domain.errors import (
+    NotAllowed,
+    NotAvailable,
+    UpstreamFailed,
+)
+from pinecall.domain.names import JsonObject
+from pinecall.log.logs import Logs
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
-from pinecall.tenancy import vault
+from pinecall.process.connections import vault_of
+from pinecall.tenancy import carriers, orgs, vault
+from pinecall.tenancy.carriers import WhatsappAccount
+from tests.channels.conftest import Line
 from tests.conftest import postgres
-from tests.fakes import Graph, Twilio, outside
+from tests.fakes.meta import Graph, outside
+from tests.fakes.twilio import Twilio
 
 SIGNING = "the app's own secret"
 OUR_NUMBER = "+59829001199"
 
 
-def meta() -> Meta:
+def meta_app() -> Meta:
     """The box's Meta app."""
     return Meta.model_validate(
         {"app_secret": SIGNING, "verify_token": "a word", "access_token": "the box's"}
@@ -59,7 +68,7 @@ def a_text(text: str, sender: str = "59899000001", message: str = "wamid.1") -> 
 
 
 def test_metas_handshake_is_echoed_back_when_the_word_is_the_right_one() -> None:
-    assert whatsapp.handshake(meta(), "subscribe", "a word", "1158201444") == "1158201444"
+    assert whatsapp.handshake(meta_app(), "subscribe", "a word", "1158201444") == "1158201444"
 
 
 @pytest.mark.parametrize(
@@ -67,7 +76,7 @@ def test_metas_handshake_is_echoed_back_when_the_word_is_the_right_one() -> None
 )
 def test_a_handshake_with_another_word_echoes_nothing(mode: str | None, word: str | None) -> None:
     with pytest.raises(NotAllowed):
-        whatsapp.handshake(meta(), mode, word, "1158201444")
+        whatsapp.handshake(meta_app(), mode, word, "1158201444")
 
 
 # ── the signature ──
@@ -116,7 +125,7 @@ def test_one_text_arrives_with_the_door_the_person_and_what_they_wrote() -> None
 
 def test_two_messages_in_one_body_arrive_in_the_order_meta_sent_them() -> None:
     body = a_body(a_text("uno", message="wamid.1"), a_text("dos", message="wamid.2"))
-    assert [one.text for one in whatsapp.messages_in(body)] == ["uno", "dos"]
+    assert [item.text for item in whatsapp.messages_in(body)] == ["uno", "dos"]
 
 
 def test_a_delivery_receipt_carries_no_message_and_yields_none() -> None:
@@ -187,9 +196,9 @@ async def test_the_number_an_account_answers_at_is_asked_of_meta_in_e164() -> No
 
 @postgres
 async def test_a_box_with_no_meta_app_has_its_door_closed(pool: Pool) -> None:
-    sealed = vault.vault_of(Fernet.generate_key().decode())
+    sealed = vault_of(Fernet.generate_key().decode())
     with pytest.raises(NotAvailable, match="credentials/whatsapp"):
-        await whatsapp.the_boxs(pool, sealed)
+        await whatsapp.box_account(pool, sealed)
 
 
 @postgres
@@ -206,3 +215,23 @@ async def test_a_message_kept_waits_on_the_agents_log_until_it_is_taken(store: S
     await whatsapp.taken(logs, kept, "call_1")
     (waiting,) = await whatsapp.waiting_in(store)
     assert (waiting.agent, waiting.env, waiting.inbound) == ("recepcion", "sandbox", second)
+
+
+@postgres
+async def test_the_orgs_own_meta_token_answers_and_an_org_with_none_answers_on_the_boxs(
+    line: Line, pool: Pool
+) -> None:
+    other = await orgs.create(pool, "otra", "Otra")
+    assert await whatsapp.meta_token_for(pool, line.connections.vault, line.org, "1055") is None
+    app: JsonObject = {"app_secret": "s", "verify_token": "w", "access_token": "the box's"}
+    await vault.put_box_credentials(pool, line.connections.vault, "whatsapp", app)
+    at_meta = WhatsappAccount.model_validate(
+        {"phone_number_id": "1055", "access_token": "the org's"}
+    )
+    await carriers.put_carrier(line.connections.pool, line.connections.vault, line.org, at_meta)
+    assert (
+        await whatsapp.meta_token_for(pool, line.connections.vault, line.org, "1055") == "the org's"
+    )
+    assert (
+        await whatsapp.meta_token_for(pool, line.connections.vault, other.id, "1055") == "the box's"
+    )

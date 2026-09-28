@@ -11,32 +11,63 @@ from livekit.agents.voice import Agent, AgentSession
 from livekit.protocol.room import DeleteRoomRequest
 from pydantic import TypeAdapter
 
-from pinecall.channels.routes import read_dispatch
+from pinecall.channels.rooms import read_dispatch
 from pinecall.domain.errors import GatewayRefused, SettingsRefused
-from pinecall.domain.settings import Settings, load
-from pinecall.domain.types import Corner
-from pinecall.fleet.gateway_client import Gateway, gateway_at
-from pinecall.fleet.hub import HEARTBEAT_S
-from pinecall.fleet.worker_side import CORDONED_EXIT, Heartbeats, Load, traced_to
+from pinecall.domain.scope import Scope
+from pinecall.fleet.client import GatewayClient, gateway_at
+from pinecall.fleet.heartbeat import CORDONED_EXIT, Heartbeats, Load
+from pinecall.fleet.roster import HEARTBEAT_S
+from pinecall.process.settings import Settings, load
 from pinecall.providers.build import tts_of
-from pinecall.providers.keys import Pipeline
+from pinecall.providers.credentials import Pipeline
 from pinecall.wire.events import AgentTranscript, CallEnded
-from pinecall.wire.rest import CallbackWanted, Opening, Sealing
-from pinecall.worker.job import answer, arrival_of, context_of, named_by, resolve
+from pinecall.wire.rest.calls import CallbackRequest, OpenCallRequest, SealCallRequest
+from pinecall.worker._job import answer, arrival_of, context_of, named_by, resolve
+from pinecall.worker._traces import traced_to
 
 logger = logging.getLogger(__name__)
+
 
 # Under the unit's TimeoutStopSec (15 min): livekit's hour would end in a SIGKILL and calls with
 # no call.ended. What is still running after it is shut down and sealed as drained.
 DRAIN_S = 10 * 60
+
+
 # What a job has to seal once told to stop: livekit's 10 s kills a seal halfway.
 SEALING_S = 60.0
+
+
 NO_LIVEKIT = "LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET: a worker registers with them"
+
 
 _STAGES: TypeAdapter[Pipeline] = TypeAdapter(Pipeline)
 
 
-# ── a worker ──
+# livekit weighs workers by 1 - load: a middling load would still take calls. Full until the
+# fleet is full, then empty.
+CLOSED = 1.0
+
+
+OPEN = 0.0
+
+
+# A room still empty after this is left; otherwise the job waits for the room's own timeout.
+A_CALLER_MAY_TAKE_S = 15.0
+
+
+THE_ONE_SENTENCE = "sp_1"
+
+
+class OverflowGate:
+    """The overflow's load: full until the gateway says every worker of the fleet is."""
+
+    def __init__(self) -> None:
+        """Closed."""
+        self.fleet_is_full = False
+
+    def __call__(self, _server: AgentServer) -> float:
+        """The load livekit reads twice a second."""
+        return OPEN if self.fleet_is_full else CLOSED
 
 
 # Module-level: livekit pickles the entrypoint by module and name, so the gateway it reaches is
@@ -96,29 +127,6 @@ async def run(settings: Settings) -> int:
     return CORDONED_EXIT if beats.cordoned else 0
 
 
-# ── the overflow ──
-
-# livekit weighs workers by 1 - load: a middling load would still take calls. Full until the
-# fleet is full, then empty.
-CLOSED = 1.0
-OPEN = 0.0
-# A room still empty after this is left; otherwise the job waits for the room's own timeout.
-A_CALLER_MAY_TAKE_S = 15.0
-THE_ONE_SENTENCE = "sp_1"
-
-
-class OverflowGate:
-    """The overflow's load: full until the gateway says every worker of the fleet is."""
-
-    def __init__(self) -> None:
-        """Closed."""
-        self.fleet_is_full = False
-
-    def __call__(self, _server: AgentServer) -> float:
-        """The load livekit reads twice a second."""
-        return OPEN if self.fleet_is_full else CLOSED
-
-
 async def overflow_job(ctx: JobContext) -> None:
     """One call the fleet had no seat for: one sentence, a call back offered, the room closed."""
     settings = load()
@@ -132,14 +140,14 @@ async def overflow_job(ctx: JobContext) -> None:
     named = named_by(dispatch)
     found = await gateway.routes(named, number=number, channel=arrival.channel)
     route = resolve(dispatch, arrival, found, settings.agent)
-    corner = Corner(route.org, route.env, dispatch.holder or "")
-    stages = _STAGES.validate_python(await gateway.stages(route.agent, corner))
+    scope = Scope(route.org, route.env, dispatch.holder or "")
+    stages = _STAGES.validate_python(await gateway.stages(route.agent, scope))
     context = context_of(ctx, dispatch, arrival, route, settings)
-    await gateway.open(Opening(agent=route.agent, context=context))
+    await gateway.open(OpenCallRequest(agent=route.agent, context=context))
     try:
         await _said_once(ctx, gateway, context.call, stages, settings.overflow_says)
         if route.channel == "phone" and arrival.caller:
-            wanted = CallbackWanted(
+            wanted = CallbackRequest(
                 agent=route.agent, channel=route.channel, number=arrival.caller, call=context.call
             )
             await gateway.callback(wanted)
@@ -153,24 +161,9 @@ async def overflow_job(ctx: JobContext) -> None:
             duration_s=time.monotonic() - began,
         )
         await gateway.append(context.call, "call.ended", ended.written())
-        await gateway.sealed(context.call, Sealing(usage=[], outcome=settings.overflow_says))
-
-
-async def _said_once(
-    ctx: JobContext, gateway: Gateway, call: str, stages: Pipeline, says: str
-) -> None:
-    try:
-        async with asyncio.timeout(A_CALLER_MAY_TAKE_S):
-            await ctx.wait_for_participant()
-    except TimeoutError:
-        logger.warning("nobody joined %s in %.0fs: leaving", ctx.room.name, A_CALLER_MAY_TAKE_S)
-        return
-    session: AgentSession[None] = AgentSession(tts=tts_of(stages.tts))
-    await session.start(Agent(instructions=says), room=ctx.room, record=False)  # pyright: ignore[reportUnknownMemberType]
-    await session.say(says, allow_interruptions=False)
-    said = AgentTranscript(speech_id=THE_ONE_SENTENCE, text=says, final=True)
-    await gateway.append(call, "agent.transcript", said.written())
-    await session.aclose()
+        await gateway.sealed(
+            context.call, SealCallRequest(usage=[], outcome=settings.overflow_says)
+        )
 
 
 def overflow_of(settings: Settings, gate: OverflowGate) -> AgentServer:
@@ -206,8 +199,25 @@ async def overflow(settings: Settings) -> int:
     return 0
 
 
+async def _said_once(
+    ctx: JobContext, gateway: GatewayClient, call: str, stages: Pipeline, says: str
+) -> None:
+    try:
+        async with asyncio.timeout(A_CALLER_MAY_TAKE_S):
+            await ctx.wait_for_participant()
+    except TimeoutError:
+        logger.warning("nobody joined %s in %.0fs: leaving", ctx.room.name, A_CALLER_MAY_TAKE_S)
+        return
+    session: AgentSession[None] = AgentSession(tts=tts_of(stages.tts))
+    await session.start(Agent(instructions=says), room=ctx.room, record=False)  # pyright: ignore[reportUnknownMemberType]
+    await session.say(says, allow_interruptions=False)
+    data = AgentTranscript(speech_id=THE_ONE_SENTENCE, text=says, final=True)
+    await gateway.append(call, "agent.transcript", data.written())
+    await session.aclose()
+
+
 # A gateway that does not answer leaves the gate as it was.
-async def _watched(gate: OverflowGate, gateway: Gateway, fleet: str) -> None:
+async def _watched(gate: OverflowGate, gateway: GatewayClient, fleet: str) -> None:
     while True:
         try:
             full = await gateway.fleet_is_full(fleet)
@@ -220,12 +230,9 @@ async def _watched(gate: OverflowGate, gateway: Gateway, fleet: str) -> None:
         await asyncio.sleep(HEARTBEAT_S)
 
 
-# ── the process ──
-
-
-def _gateway_of(proc: JobProcess, settings: Settings) -> Gateway:
+def _gateway_of(proc: JobProcess, settings: Settings) -> GatewayClient:
     warmed: object = proc.userdata.get("gateway")
-    if isinstance(warmed, Gateway):
+    if isinstance(warmed, GatewayClient):
         return warmed
     return gateway_at(settings.gateway_url, settings.worker_key)
 

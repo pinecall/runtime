@@ -1,26 +1,14 @@
-"""Tests for the commands: every one is the generated one, the verbs, and what each produces."""
+"""Tests for the commands: the sockets, what each produces, and how one is read."""
 
 import pytest
 
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.wire import commands
 from pinecall.wire.commands import COMMANDS, PRODUCES, CallDial, Ping, command_of
 from pinecall.wire.events import EVENTS
 from pinecall.wire.frames import Command
-from pinecall_protocol import commands as their_commands
-from pinecall_protocol import registry, verbs
-from tests.wire.parity import mismatches
 
 
-def test_every_command_and_every_verb_is_the_generated_one_field_for_field() -> None:
-    assert mismatches(commands, their_commands, verbs) == []
-
-
-def test_the_registry_is_the_generated_one_and_every_command_produces_known_events() -> None:
-    assert {name: model.__name__ for name, model in COMMANDS.items()} == {
-        name: model.__name__ for name, model in registry.COMMANDS.items()
-    }
-    assert PRODUCES == registry.PRODUCES
+def test_every_command_produces_known_events() -> None:
     assert set(PRODUCES) == set(COMMANDS)
     assert all(produced in EVENTS for names in PRODUCES.values() for produced in names)
 

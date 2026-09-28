@@ -4,25 +4,34 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from pinecall.domain.agent import AgentConfig
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.domain.types import AgentConfig, Json, JsonObject
+from pinecall.domain.names import Json, JsonObject
 from pinecall.wire.events import TERMINAL_EVENT, AgentTurnEnded, LogGap, StateChanged, event_of
 from pinecall.wire.frames import Entry, WireModel
 from pinecall.wire.parts import Projection
 from pinecall.wire.state import AgentTurn, State, Turn
 
 MAX_TYPES = 32
+
+
 _A_TYPE_NAME = re.compile(r"^[a-z0-9_.]+$")
+
 
 # A reader that filtered these out could wait forever on a log that already ended.
 ALWAYS_PASS = frozenset({"log.gap", "log.caught_up", "call.ended", TERMINAL_EVENT})
 
+
 # The key stays, so a reader knows a value exists; the value goes whole, so its type does not leak.
 MASK = "***"
 
+
 # The entries whose data carries the app's state, masked for the tenant against the declaration.
 CARRY_STATE = frozenset({"state.changed", "call.attached"})
+
+
 NEEDS_READING = frozenset({"turn.agent", "state.changed", "log.gap"})
+
 
 # The contract's table (docs/protocol/projections.md), row by row: a type absent is dropped
 # whole, a field absent is dropped.
@@ -52,10 +61,17 @@ PUBLIC_ENTRY_FIELDS: Mapping[str, tuple[str, ...]] = {
     "log.caught_up": ("seq",),
 }
 
+
 # agent and call are left out so a participant learns nothing of the tenant's setup.
 PUBLIC_ENVELOPE = ("seq", "ts", "type", "ephemeral")
+
+
 PUBLIC_TURN = frozenset({"role", "speech_id", "text", "interrupted"})
+
+
 PUBLIC_SEAT = frozenset({"identity", "kind", "name", "joined_at", "speaking"})
+
+
 PUBLIC_CONFIRM = frozenset({"phrase", "status"})
 
 
@@ -110,13 +126,13 @@ def project_state(
         "turns": [_public_turn(turn) for turn in state.turns],
         "app_state": _only_public(state.app_state, config),
         "room": room,
-        "confirms": [_kept(one.written(), PUBLIC_CONFIRM) for one in state.confirms],
+        "confirms": [_kept(confirm.written(), PUBLIC_CONFIRM) for confirm in state.confirms],
         "transfer": written["transfer"],
         "held": state.held,
         "events": [
-            one.written()
-            for one in state.events
-            if one.source == "participant" and one.identity == viewer
+            event.written()
+            for event in state.events
+            if event.source == "participant" and event.identity == viewer
         ],
     }
 

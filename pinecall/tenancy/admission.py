@@ -2,14 +2,18 @@
 
 from dataclasses import dataclass
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from pinecall.domain.errors import QuotaExhausted
-from pinecall.domain.types import Env, QuotaName, Quotas
+from pinecall.domain.names import Env
+from pinecall.domain.org import QuotaName, Quotas
 from pinecall.log.reduce import Metered, Usage, usage_row
 from pinecall.log.store import entry_of
-from pinecall.postgres.pool import Pool
-from pinecall.tenancy.orgs import quotas_of
+from pinecall.postgres import box_settings
+from pinecall.postgres.pool import Connection, Pool
 
 REFUSED = "the org has used {used} of its {limit} {quota} in the {env}"
+
 
 # Every call.summary the org's calls wrote in the world, whenever they were: what the limits are
 # counted against. Nothing is kept in memory, so a restart counts what the database holds.
@@ -20,12 +24,49 @@ WHERE head.org = %(org)s AND head.env = %(env)s AND entry.type = 'call.summary'
 """
 
 
+ADMISSION = "admission"
+
+
+QUOTAS = """
+SELECT minutes, messages, agents, concurrent_calls, memory_facts, knowledge_chunks, numbers, seats,
+       llm_tokens, budget_eur, lends
+FROM quotas WHERE org = %(org)s AND env = %(env)s
+"""
+
+
+# Replaced whole: a limit left out stops being one.
+SET_QUOTAS = """
+INSERT INTO quotas (org, env, minutes, messages, agents, concurrent_calls, memory_facts,
+                    knowledge_chunks, numbers, seats, llm_tokens, budget_eur, lends)
+VALUES (%(org)s, %(env)s, %(minutes)s, %(messages)s, %(agents)s, %(concurrent_calls)s,
+        %(memory_facts)s, %(knowledge_chunks)s, %(numbers)s, %(seats)s, %(llm_tokens)s,
+        %(budget_eur)s, %(lends)s)
+ON CONFLICT (org, env) DO UPDATE SET
+    minutes = excluded.minutes, messages = excluded.messages, agents = excluded.agents,
+    concurrent_calls = excluded.concurrent_calls, memory_facts = excluded.memory_facts,
+    knowledge_chunks = excluded.knowledge_chunks, numbers = excluded.numbers,
+    seats = excluded.seats, llm_tokens = excluded.llm_tokens, budget_eur = excluded.budget_eur,
+    lends = excluded.lends, set_at = now()
+"""
+
+
 @dataclass(frozen=True)
 class Ceiling:
     """How long a call admitted may last: what is left of the org's minutes."""
 
     seconds: int
     minutes: int
+
+
+class Admission(BaseModel):
+    """What a newborn org may use in each world: a person's first org, and any later one."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    # A world the row does not name has no limits.
+    first: dict[Env, Quotas] = Field(default_factory=dict[Env, Quotas])
+    # None gives a later org what the first got; set, one trial per person.
+    later: dict[Env, Quotas] | None = None
 
 
 async def used(pool: Pool, org: str, env: Env) -> Usage:
@@ -95,6 +136,42 @@ async def admit_push(pool: Pool, org: str, env: Env, *, keeping: int) -> None:
         _refused(env, "knowledge_chunks", keeping, limit)
 
 
+async def quotas_of(pool: Pool, org: str, env: Env) -> Quotas:
+    """The org's limits in the world; none when nobody set them."""
+    async with pool.connection() as connection:
+        row = await (await connection.execute(QUOTAS, {"org": org, "env": env})).fetchone()
+    if row is None:
+        return Quotas()
+    lends = row.pop("lends")
+    return Quotas(**row, lends=None if lends is None else frozenset(lends))
+
+
+async def set_quotas(pool: Pool, org: str, env: Env, quotas: Quotas) -> None:
+    """Replace the org's limits in the world, whole."""
+    async with pool.connection() as connection:
+        await _set_quotas(connection, org, env, quotas)
+
+
+async def admission(pool: Pool) -> Admission:
+    """What a newborn org is given; nothing limited on a box that never said."""
+    async with pool.connection() as connection:
+        return await _admission(connection)
+
+
+async def set_admission(pool: Pool, allowed: Admission) -> None:
+    """Write what a newborn org is given, whole, as the console's box screen sends it."""
+    async with pool.connection() as connection:
+        await box_settings.write(connection, ADMISSION, allowed.model_dump(mode="json"))
+
+
+async def give_first_quotas(connection: Connection, org: str, *, already: int) -> None:
+    """Set a newborn org's quotas in each world, as the box's admission says for its person."""
+    allowed = await _admission(connection)
+    worlds = allowed.first if allowed.later is None or already == 0 else allowed.later
+    for env, quotas in worlds.items():
+        await _set_quotas(connection, org, env, quotas)
+
+
 def _refuse_past(quotas: Quotas, env: Env, quota: QuotaName, spent: float) -> None:
     limit = quotas.reached(quota, spent)
     if limit is not None:
@@ -105,3 +182,16 @@ def _refused(env: Env, quota: QuotaName, spent: float, limit: int) -> None:
     shown = int(spent) if float(spent).is_integer() else round(spent, 2)
     sentence = REFUSED.format(used=shown, limit=limit, quota=quota.replace("_", " "), env=env)
     raise QuotaExhausted(sentence, quota=quota, used=spent, limit=limit)
+
+
+async def _admission(connection: Connection) -> Admission:
+    value = await box_settings.read(connection, ADMISSION)
+    return Admission() if value is None else Admission.model_validate(value)
+
+
+async def _set_quotas(connection: Connection, org: str, env: Env, quotas: Quotas) -> None:
+    lends = None if quotas.lends is None else sorted(quotas.lends)
+    await connection.execute(
+        SET_QUOTAS,
+        {"org": org, "env": env, **quotas.limits, "budget_eur": quotas.budget_eur, "lends": lends},
+    )

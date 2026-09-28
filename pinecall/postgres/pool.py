@@ -9,15 +9,20 @@ from psycopg_pool import AsyncConnectionPool, PoolTimeout
 
 from pinecall.domain.errors import DeclarationRefused, StoreUnreachable
 
+type Connection = psycopg.AsyncConnection[DictRow]
+
+
+type Pool = AsyncConnectionPool[Connection]
+
+
 DEFAULT_SCHEMA = "public"
+
 
 # A schema name also travels in the pool's libpq options string, where quoting does not reach.
 _A_SCHEMA_NAME = re.compile(r"^[a-z_][a-z0-9_]*$")
 
-CONNECT_TIMEOUT_S = 10
 
-type Connection = psycopg.AsyncConnection[DictRow]
-type Pool = AsyncConnectionPool[Connection]
+CONNECT_TIMEOUT_S = 10
 
 
 async def open_pool(dsn: str, *, schema: str = DEFAULT_SCHEMA, max_size: int = 10) -> Pool:

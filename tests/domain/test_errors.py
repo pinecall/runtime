@@ -42,7 +42,9 @@ STATUSES: list[tuple[type[PinecallError], int]] = [
 ]
 
 
-@pytest.mark.parametrize(("refusal", "status"), STATUSES, ids=[one.__name__ for one, _ in STATUSES])
+@pytest.mark.parametrize(
+    ("refusal", "status"), STATUSES, ids=[refusal.__name__ for refusal, _ in STATUSES]
+)
 def test_every_error_says_its_status_once(refusal: type[PinecallError], status: int) -> None:
     assert refusal.status == status
     assert issubclass(refusal, PinecallError)

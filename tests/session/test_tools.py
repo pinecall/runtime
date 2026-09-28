@@ -8,17 +8,19 @@ from datetime import date
 import pytest
 from livekit.agents import RunContext, llm
 
-from pinecall.domain.types import AgentConfig, Contact, Docs, JsonObject, MemoryPolicy, ToolSpec
+from pinecall.domain.agent import AgentConfig, Docs, MemoryPolicy, ToolSpec
+from pinecall.domain.call import Contact
+from pinecall.domain.names import JsonObject
 from pinecall.log.store import Store
+from pinecall.session._prompt import Blocks, request
 from pinecall.session.call import Call, ToolUse
-from pinecall.session.prompt import Blocks, request
 from pinecall.session.tools import (
     RECALL,
     SEARCH,
     Lookups,
     ToolCalls,
+    as_livekit_tools,
     date_pair,
-    declared,
     platform_tools,
     read_back,
     result_text,
@@ -39,9 +41,9 @@ def _call(box: Box, config: AgentConfig) -> Call:
 
 
 def test_the_text_the_model_reads_is_the_error_then_the_summary_then_the_output() -> None:
-    said = ToolResult(call_id="c", name="t", output={"a": 1}, summary="hecho", error="falló")
-    assert result_text(said) == "falló"
-    assert result_text(said.model_copy(update={"error": None})) == "hecho"
+    text = ToolResult(call_id="c", name="t", output={"a": 1}, summary="hecho", error="falló")
+    assert result_text(text) == "falló"
+    assert result_text(text.model_copy(update={"error": None})) == "hecho"
     assert (
         result_text(ToolResult(call_id="c", name="t", output={"mesa": "4 ñ"})) == '{"mesa": "4 ñ"}'
     )
@@ -51,13 +53,13 @@ def test_the_text_the_model_reads_is_the_error_then_the_summary_then_the_output(
 
 def test_a_confirm_is_rendered_from_the_call_and_the_result() -> None:
     result = ToolResult(call_id="c", name="book", output={"table": 4})
-    said = read_back("Mesa {{result.table}} el {{slot.when}}", {"slot": {"when": "lunes"}}, result)
-    assert said == "Mesa 4 el lunes"
+    text = read_back("Mesa {{result.table}} el {{slot.when}}", {"slot": {"when": "lunes"}}, result)
+    assert text == "Mesa 4 el lunes"
 
 
 def test_a_placeholder_nobody_filled_stays_visible_instead_of_vanishing() -> None:
-    said = read_back("Hecho: {{result.code}}", {}, ToolResult(call_id="c", name="t", output={}))
-    assert said == "Hecho: {{result.code}}"
+    text = read_back("Hecho: {{result.code}}", {}, ToolResult(call_id="c", name="t", output={}))
+    assert text == "Hecho: {{result.code}}"
 
 
 # ── declared once ──
@@ -67,7 +69,7 @@ def test_every_declared_tool_becomes_a_raw_schema_tool_under_its_own_name() -> N
     async def run(use: ToolUse, _context: RunContext[None]) -> str:
         return use.name
 
-    (tool,) = declared((BOOK,), run)
+    (tool,) = as_livekit_tools((BOOK,), run)
     assert isinstance(tool, llm.RawFunctionTool)
     assert tool.info.raw_schema == {
         "name": "book",
@@ -188,8 +190,8 @@ async def test_a_turn_runs_what_the_declaration_asks_for_with_the_callers_words(
     box.found["search"] = {"chunks": [{"text": "el menú del día"}]}
     lookups = _lookups(box, BOTH)
     assert await lookups.turn_ended("qué hay de menú", None) == []
-    assert [tool for tool, _ in box.looked] == ["recall", "search"]
-    assert box.looked[1][1] == {"query": "qué hay de menú"}
+    assert [tool for tool, _ in box.lookups] == ["recall", "search"]
+    assert box.lookups[1][1] == {"query": "qué hay de menú"}
 
 
 @postgres
@@ -199,7 +201,7 @@ async def test_a_caller_nobody_has_identified_is_left_out_and_never_named_as_nob
     unknown = context_of(str(box.log.call), "web", contact=Contact())
     lookups = Lookups(Call(unknown, MEMORY, box.platform()), box.lookup, 200)
     await lookups.turn_ended("mi pedido", None)
-    assert box.looked == [("recall", {"query": "mi pedido"})]
+    assert box.lookups == [("recall", {"query": "mi pedido"})]
 
 
 @postgres
@@ -234,7 +236,7 @@ async def test_docs_in_tool_mode_run_nothing_before_the_turn_and_still_answer_th
     box.found["search"] = {"chunks": [{"text": "abrimos a las nueve"}]}
     lookups = _lookups(box, AgentConfig(slug="a", bases=(Docs(base="b", mode="tool"),)))
     await lookups.turn_ended("horario", None)
-    assert box.looked == []
+    assert box.lookups == []
     answered = await lookups.called(ToolUse("m1", "search", {"query": "horario"}))
     assert json.loads(answered) == {"chunks": [{"text": "abrimos a las nueve"}]}
 
@@ -278,7 +280,7 @@ async def test_an_interim_of_enough_words_starts_the_run_and_the_pair_carries_it
     lookups.heard_so_far("quiero saber qué hay")
     lookups.heard_so_far("quiero saber qué hay de menú")
     await lookups.turn_ended("quiero saber qué hay de menú hoy", None)
-    assert box.looked == [("recall", {"contact": "+59899123456", "query": "quiero saber qué hay"})]
+    assert box.lookups == [("recall", {"contact": "+59899123456", "query": "quiero saber qué hay"})]
     called = lookups.items[0]
     assert isinstance(called, llm.FunctionCall)
     assert json.loads(called.arguments)["query"] == "quiero saber qué hay"
@@ -291,7 +293,7 @@ async def test_a_turn_too_short_to_have_started_a_run_still_gets_its_lookups_at_
     lookups = _lookups(box, MEMORY)
     lookups.heard_so_far("sí")
     await lookups.turn_ended("sí", None)
-    assert box.looked == [("recall", {"contact": "+59899123456", "query": "sí"})]
+    assert box.lookups == [("recall", {"contact": "+59899123456", "query": "sí"})]
 
 
 @postgres
@@ -307,7 +309,7 @@ async def test_a_run_started_for_one_turn_is_never_read_by_the_next(box: Box) ->
     lookups.heard_so_far("quiero saber qué hay hoy")
     await lookups.turn_ended("quiero saber qué hay hoy", None)
     await lookups.turn_ended("y mañana", None)
-    assert [arguments["query"] for _, arguments in box.looked] == [
+    assert [arguments["query"] for _, arguments in box.lookups] == [
         "quiero saber qué hay hoy",
         "y mañana",
     ]
@@ -317,7 +319,7 @@ async def test_a_run_started_for_one_turn_is_never_read_by_the_next(box: Box) ->
 async def test_a_class_that_declares_neither_asks_nobody_and_carries_no_pair(box: Box) -> None:
     lookups = _lookups(box, AgentConfig(slug="a"))
     assert await lookups.turn_ended("menú", None) == []
-    assert (box.looked, lookups.items) == ([], ())
+    assert (box.lookups, lookups.items) == ([], ())
 
 
 @postgres

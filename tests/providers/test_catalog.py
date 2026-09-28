@@ -9,7 +9,7 @@ from pinecall.providers.catalog import (
     Embedding,
     Providers,
     Stage,
-    Told,
+    StageOptions,
     checked,
     configure,
     providers,
@@ -69,7 +69,7 @@ def test_a_key_of_the_row_names_a_stage_and_a_vendor_that_does_it(configured: Pr
     with pytest.raises(DeclarationRefused, match="a stage is one of"):
         checked(configured.model_copy(update={"models": {"voice/cartesia": "sonic-3"}}))
     with pytest.raises(DeclarationRefused, match="anthropic has no tts"):
-        checked(configured.model_copy(update={"tuning": {"tts/anthropic": Told()}}))
+        checked(configured.model_copy(update={"tuning": {"tts/anthropic": StageOptions()}}))
     assert checked(configured) == configured
 
 

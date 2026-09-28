@@ -8,16 +8,11 @@ from dataclasses import asdict, dataclass
 
 from livekit.agents.utils import aio
 
+from pinecall.domain.agent import DEFAULT_LAYOUT, AgentConfig, EventSource, PromptBlock, ToolSpec
+from pinecall.domain.call import CallContext
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.domain.types import (
-    DEFAULT_LAYOUT,
-    AgentConfig,
-    CallContext,
-    EventSource,
-    JsonObject,
-    PromptBlock,
-    ToolSpec,
-)
+from pinecall.domain.names import JsonObject
+from pinecall.session._hearing import policy_for
 from pinecall.wire.commands import CallCallback, CallLog, SessionConfigure, StateSet, ToolsSet
 from pinecall.wire.events import (
     AgentConfigured,
@@ -34,15 +29,40 @@ from pinecall.wire.metrics import ModelUsage
 from pinecall.wire.parts import AgentConfig as Declared
 from pinecall.wire.parts import Contact, PlatformTool, Supervisor, ToolResult
 
+# What a session reaches outside the process its call runs in. In the gateway these are the
+# call's own log and the doors behind it; in a worker, the same doors over the fleet's client.
+# `append` is called as `append(kind, data, ephemeral=...)`, as `Log.append` is.
+type Append = Callable[..., Awaitable[Entry]]
+
+
+type Lookup = Callable[[PlatformTool, JsonObject, str | None], Awaitable[JsonObject]]
+
+
+type Seal = Callable[[list[ModelUsage], str], Awaitable[None]]
+
+
 logger = logging.getLogger(__name__)
+
 
 # `sp_<n>`: numbered on from the highest in the log when a call is taken up again.
 SPEECH = "sp_"
 
+
 # A callback the agent took during a call; others come from the widget or an overflow.
 BY_THE_AGENT = "agent"
 
+
 UNDECLARED = "event {name!r} is not one this agent declared the {source} may send"
+
+
+# A limit under two minutes is told at its half instead.
+WARNED_BEFORE_S = 60
+
+
+CLOSING = (
+    "The call reaches its time limit in about a minute. Bring it to a close now: answer what is "
+    "pending in a sentence, tell the caller the call has to end soon, and say goodbye."
+)
 
 
 @dataclass(frozen=True)
@@ -54,23 +74,7 @@ class ToolUse:
     arguments: JsonObject
 
 
-# What a session reaches outside the process its call runs in. In the gateway these are the
-# call's own log and the doors behind it; in a worker, the same doors over the fleet's client.
-# `append` is called as `append(kind, data, ephemeral=...)`, as `Log.append` is.
-type Append = Callable[..., Awaitable[Entry]]
 type RunTool = Callable[[ToolUse, str | None], Awaitable[ToolResult]]
-type Lookup = Callable[[PlatformTool, JsonObject, str | None], Awaitable[JsonObject]]
-type Seal = Callable[[list[ModelUsage], str], Awaitable[None]]
-
-
-@dataclass(frozen=True)
-class Platform:
-    """The log a call writes, the app's tools, the lookups, and the seal at the end."""
-
-    append: Append
-    tool: RunTool
-    lookup: Lookup
-    seal: Seal
 
 
 class Writing:
@@ -149,6 +153,16 @@ class Writing:
                 self.queued.task_done()
 
 
+@dataclass(frozen=True)
+class Platform:
+    """The log a call writes, the app's tools, the lookups, and the seal at the end."""
+
+    append: Append
+    tool: RunTool
+    lookup: Lookup
+    seal: Seal
+
+
 class Call:
     """One call's state that outlives a turn, and the entries the app's commands write."""
 
@@ -156,6 +170,7 @@ class Call:
         """A call nobody has spoken on yet, every declared tool open."""
         self.context = context
         self.config = config
+        self.turn_policy = policy_for(config.language)
         self.platform = platform
         self.writing = Writing(platform.append, context.call)
         self.speeches = 0
@@ -222,7 +237,7 @@ class Call:
     async def configure(self, wanted: SessionConfigure) -> None:
         """The app's declaration and state for this call."""
         if wanted.config is not None:
-            self.config = declared(self.config, wanted.config)
+            self.config = with_app_fields(self.config, wanted.config)
             configured = AgentConfigured(changed=changed_by(wanted.config))
             await self.writing.write("agent.configured", configured)
         if wanted.state is not None:
@@ -237,25 +252,22 @@ class Call:
         await self.writing.write("tools.changed", ToolsChanged(visible=sorted(self.open_tools)))
 
 
-# ── the app's declaration ──
-
-
 # A declaration is a patch: only the fields sent change. What the org sets per world (the
 # voice, the models, memory, the greeting) comes from its settings and is not taken from here.
-def declared(current: AgentConfig, said: Declared) -> AgentConfig:
+def with_app_fields(current: AgentConfig, declared: Declared) -> AgentConfig:
     """The agent's declaration with the fields the app sent in place."""
-    sent = said.model_fields_set
+    sent = declared.model_fields_set
     changed: dict[str, object] = {}
     if "prompt" in sent:
         changed["prompt"] = (
-            tuple(PromptBlock(block.name, block.region) for block in said.prompt)
-            if said.prompt
+            tuple(PromptBlock(block.name, block.region) for block in declared.prompt)
+            if declared.prompt
             else DEFAULT_LAYOUT
         )
     if "language" in sent:
-        changed["language"] = said.language
+        changed["language"] = declared.language
     if "uses_knowledge" in sent:
-        changed["uses_knowledge"] = said.uses_knowledge
+        changed["uses_knowledge"] = declared.uses_knowledge
     if "tools" in sent:
         changed["tools"] = tuple(
             ToolSpec(
@@ -267,17 +279,19 @@ def declared(current: AgentConfig, said: Declared) -> AgentConfig:
                 confirm=tool.confirm,
                 timeout_s=ToolSpec.timeout_s if tool.timeout_s is None else tool.timeout_s,
             )
-            for tool in said.tools or ()
+            for tool in declared.tools or ()
         )
     if "state_fields" in sent:
-        changed["state_fields"] = {one.name: one.visibility for one in said.state_fields or ()}
+        changed["state_fields"] = {
+            item.name: item.visibility for item in declared.state_fields or ()
+        }
     if "view" in sent:
-        changed["view"] = None if said.view is None else said.view.name
+        changed["view"] = None if declared.view is None else declared.view.name
     if "events" in sent:
-        changed["events"] = {one.name: frozenset(one.from_) for one in said.events or ()}
+        changed["events"] = {item.name: frozenset(item.from_) for item in declared.events or ()}
     return dataclasses.replace(current, **changed)
 
 
-def changed_by(said: Declared) -> list[str]:
+def changed_by(declared: Declared) -> list[str]:
     """The fields a declaration sets, sorted."""
-    return sorted(said.model_fields_set)
+    return sorted(declared.model_fields_set)

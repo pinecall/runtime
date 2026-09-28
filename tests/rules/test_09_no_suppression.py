@@ -15,8 +15,13 @@ def suppressions(path: Path) -> list[tuple[str, str]]:
 
 
 def test_nothing_in_the_package_or_the_suites_silences_a_checker() -> None:
-    allowed = {(one.file, one.text) for one in SUPPRESSIONS}
-    found = [one for path in checked_files() for one in suppressions(path) if one not in allowed]
+    allowed = {(item.file, item.text) for item in SUPPRESSIONS}
+    found = [
+        suppression
+        for path in checked_files()
+        for suppression in suppressions(path)
+        if suppression not in allowed
+    ]
     assert found == []
 
 

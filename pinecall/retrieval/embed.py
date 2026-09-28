@@ -13,16 +13,23 @@ import httpx
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from pinecall.domain.errors import EmbedderUnreachable, NotAvailable, WrongWidth
-from pinecall.domain.types import Credentials, Json
+from pinecall.domain.names import Credentials, Json
 from pinecall.providers.catalog import Embedding
+
+type Sleep = Callable[[float], Awaitable[None]]
+
 
 # The cutter measures a chunk with the same estimate, so a chunk that fits its cap fits a window.
 TOKENS_PER_WORD = 1.3
 
+
 # The contextual endpoint counts a window's chunks together against a 32 768-token context; the
 # margin is for the estimate.
 WINDOW_TOKENS = 24_000
+
+
 REQUEST_TOKENS = 100_000
+
 
 # Only a refusal about size is split: halving a credential refusal fails it twice.
 TOO_BIG = re.compile(
@@ -30,21 +37,31 @@ TOO_BIG = re.compile(
     r"input is too large|max_tokens_per_request",
     re.IGNORECASE,
 )
+
+
 MAX_SPLITS = 5
 
+
 RETRIES = 2
+
+
 # The request was fine and the server was not: a timeout, a lock, a rate limit, or a 5xx.
 RETRYABLE = frozenset({408, 409, 429})
+
+
 FIRST_WAIT_S = 0.5
+
+
 LONGEST_WAIT_S = 8.0
+
+
 # A server that asks for longer is misconfigured; its hour is not waited.
 LONGEST_ASKED_S = 60.0
+
 
 # A push waits for a contextual window of 24 000 tokens, which outlasts any client default; a
 # query keeps the client's own, and the turn's budget bounds it.
 PUSH_TIMEOUT = httpx.Timeout(connect=5.0, read=120.0, write=5.0, pool=5.0)
-
-type Sleep = Callable[[float], Awaitable[None]]
 
 
 class _Refusal(BaseModel):
@@ -53,7 +70,7 @@ class _Refusal(BaseModel):
     message: str = ""
 
 
-class _Said(BaseModel):
+class _Answer(BaseModel):
     model_config = ConfigDict(frozen=True, extra="ignore")
 
     error: _Refusal | str | None = None
@@ -93,7 +110,7 @@ class Embedder:
         self.embedding = embedding
         path = "embeddings" if embedding.shape == "embeddings" else "contextualizedembeddings"
         self._url = f"{embedding.url.rstrip('/')}/{path}"
-        self._headers = {"Authorization": f"Bearer {_the_key(embedding.vendor, key)}"}
+        self._headers = {"Authorization": f"Bearer {_key_of(embedding.vendor, key)}"}
         self._client = client
         self._sleep = sleep
 
@@ -267,7 +284,7 @@ def _windows(texts: list[str], budget: int) -> Iterator[list[str]]:
         yield window
 
 
-def _the_key(vendor: str, key: Credentials) -> str:
+def _key_of(vendor: str, key: Credentials) -> str:
     if isinstance(key, str):
         return key
     named = key.get("api_key")
@@ -279,22 +296,22 @@ def _the_key(vendor: str, key: Credentials) -> str:
 # A gateway may refuse with a 200 and an `error` body: the words are read whatever the status.
 def _refused_by(answer: httpx.Response) -> str | None:
     try:
-        said = _Said.model_validate_json(answer.content).error
+        payload = _Answer.model_validate_json(answer.content).error
     except ValidationError:
-        said = None
-    if isinstance(said, _Refusal) and said.message:
-        return said.message
-    if isinstance(said, str) and said:
-        return said
-    if answer.is_error or said is not None:
+        payload = None
+    if isinstance(payload, _Refusal) and payload.message:
+        return payload.message
+    if isinstance(payload, str) and payload:
+        return payload
+    if answer.is_error or payload is not None:
         return f"HTTP {answer.status_code}"
     return None
 
 
 def _wait(attempt: int, headers: Mapping[str, str]) -> float:
-    asked = _retry_after(headers)
-    if asked is not None and 0 < asked <= LONGEST_ASKED_S:
-        return asked
+    params = _retry_after(headers)
+    if params is not None and 0 < params <= LONGEST_ASKED_S:
+        return params
     backoff = min(FIRST_WAIT_S * 2**attempt, LONGEST_WAIT_S)
     # The jitter only shortens the wait, so the longest wait stays the longest.
     return backoff * (1 - 0.25 * secrets.SystemRandom().random())
