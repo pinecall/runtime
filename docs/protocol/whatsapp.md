@@ -17,6 +17,11 @@ console → Numbers → Import
   {"number": "+59829000000", "agent": "recepcion", "channel": "whatsapp", "hooked": true}
 ```
 
+The number a WhatsApp account answers at is asked of Meta: `GET /v1/numbers/available` lists it
+beside the Twilio numbers, with the account it lives in, and `POST /v1/numbers {number, agent,
+channel: "whatsapp", account}` routes it. A token Meta refuses (a temporary one expires in a day;
+a system user's does not) leaves the account listed with no number, said in the gateway's log.
+
 ## The webhook — `GET` · `POST /v1/whatsapp/webhook`
 
 `GET` is Meta subscribing: `hub.mode=subscribe` and `hub.verify_token` equal to the box's word

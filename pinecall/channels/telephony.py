@@ -39,7 +39,7 @@ from pydantic import (
     model_validator,
 )
 
-from pinecall.channels import routes
+from pinecall.channels import routes, whatsapp
 from pinecall.channels.routes import Dialling, Dispatch
 from pinecall.domain.errors import (
     Conflict,
@@ -399,7 +399,8 @@ async def available(
         held = [await carrier(exchange.pool, exchange.vault, corner.org, account)]
     if not held:
         raise NotFound(NO_CARRIER)
-    imported = {one.number for one in await routes.of_org(exchange.pool, corner.org, corner.env)}
+    answering = await routes.of_org(exchange.pool, corner.org, corner.env)
+    imported = {one.number for one in answering if one.number is not None}
     twilios = [one.account for one in held if isinstance(one.account, TwilioAccount)]
     owned = [
         Owned(
@@ -411,7 +412,47 @@ async def available(
         for twilio in twilios
         for number in await Twilio(exchange.http, twilio).numbers()
     ]
+    for one in held:
+        if isinstance(one.account, WhatsappAccount):
+            owned += await _at_meta(exchange.http, one.account, imported)
     return ("twilio" if twilios else held[0].account.kind), owned
+
+
+# A token Meta refuses (they expire) leaves the account listed with no number, said in the log.
+async def _at_meta(
+    http: httpx.AsyncClient, account: WhatsappAccount, imported: set[str]
+) -> list[Owned]:
+    try:
+        number, name = await whatsapp.display_number(
+            http, account.access_token, account.phone_number_id
+        )
+    except UpstreamFailed:
+        logger.warning(
+            "Meta did not say which number %s is", account.phone_number_id, exc_info=True
+        )
+        return []
+    return [
+        Owned(
+            number=number,
+            name=name or number,
+            imported=number in imported,
+            account=account.phone_number_id,
+        )
+    ]
+
+
+async def meta_token_for(
+    pool: Pool, sealed: MultiFernet, org: str, phone_number_id: str
+) -> str | None:
+    """The org's own Meta token for the number, else the box's, else None."""
+    for held in await carriers_of(pool, sealed, org):
+        account = held.account
+        if isinstance(account, WhatsappAccount) and account.phone_number_id == phone_number_id:
+            return account.access_token
+    try:
+        return (await whatsapp.the_boxs(pool, sealed)).access_token
+    except NotAvailable:
+        return None
 
 
 # ── Twilio's REST, by hand ──
