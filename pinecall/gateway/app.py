@@ -184,7 +184,7 @@ def origins_allowed(settings: Settings) -> tuple[str, ...]:
 
 # ── the pages ──
 
-# The console and the widget the wheel carries (hatch_build.py puts them here).
+# The console and the widget the wheel carries (scripts/hatch_build.py puts them here).
 BUILT = Path(__file__).resolve().parents[1] / "public"
 THE_PAGE = "index.html"
 API_PREFIXES = ("v1/", ".well-known/")
