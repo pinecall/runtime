@@ -356,15 +356,19 @@ class Session:
             self.hold.began()
         await self.call.writing.write("call.line", wire.CallLine(held=True, muted=False))
 
-    async def give_the_line_back(self, *, to_the_agent: bool = True) -> None:
-        """The melody stops and, unless a person keeps the line, the agent hears and speaks."""
+    async def give_the_line_back(self) -> None:
+        """The melody stops and the agent hears and speaks again."""
         if not self.on_hold:
             return
-        self.on_hold = False
-        if self.hold is not None:
-            self.hold.ended()
-        if to_the_agent:
-            hearing_again(self.live)
+        self._melody_ends()
+        hearing_again(self.live)
+        await self.call.writing.write("call.line", wire.CallLine(held=False, muted=False))
+
+    async def stop_the_melody(self) -> None:
+        """The melody stops and the line is written free; whoever took it keeps it."""
+        if not self.on_hold:
+            return
+        self._melody_ends()
         await self.call.writing.write("call.line", wire.CallLine(held=False, muted=False))
 
     async def ask_for_a_person(self, wanted: CallAttention) -> None:
@@ -408,13 +412,18 @@ class Session:
             case TransferVerb():
                 await self._in_the_room(verb, by=by)
 
+    def _melody_ends(self) -> None:
+        self.on_hold = False
+        if self.hold is not None:
+            self.hold.ended()
+
     async def _take_over(self, by: Supervisor) -> None:
         if self.call.taken_by is not None:
             raise DeclarationRefused(ALREADY_HELD.format(id=self.call.taken_by.id))
         await self.call.writing.write("supervisor.took_over", wire.SupervisorTookOver(by=by))
         if self.call.waiting_for_a_person:
             await self._answered(wire.AttentionAnswered(ok=True, by=by))
-        await self.give_the_line_back(to_the_agent=False)
+        await self.stop_the_melody()
         await silence(self.live)
         self.call.taken_by = by
 

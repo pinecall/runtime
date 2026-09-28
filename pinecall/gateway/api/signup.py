@@ -14,7 +14,7 @@ from pinecall.domain.errors import (
 )
 from pinecall.domain.names import AN_ADDRESS, parse_slug
 from pinecall.gateway._deps import GatewayDep, bearer_of, check_knock, client_of
-from pinecall.tenancy import letters, mail, orgs, people, signin
+from pinecall.tenancy import letters, orgs, people, signin
 from pinecall.tenancy.signin import Refusal, Signup
 from pinecall.wire.rest.accounts import (
     CodeMailedResponse,
@@ -119,7 +119,7 @@ async def sign_up(
         raise Conflict(orgs.SLUG_TAKEN.format(slug=slug))
     signup = Signup(email, slug, body.person, hashed, name=body.name, device=body.device)
     code, expires_at = gateway.signins.signups.begin(signup)
-    letter = letters.signup_code_letter(email, code, body.person, await mail.brand_of(pool))
+    letter = letters.signup_code_letter(email, code, body.person, await letters.brand_of(pool))
     await gateway.outbox.post(None, letter)
     return CodeMailedResponse(email=email, code_expires_at=expires_at)
 
@@ -155,7 +155,7 @@ async def resend_code(
     if renewed is None:
         return EmptyResponse()
     signup, code = renewed
-    brand = await mail.brand_of(gateway.connections.pool)
+    brand = await letters.brand_of(gateway.connections.pool)
     await gateway.outbox.post(
         None, letters.signup_code_letter(signup.email, code, signup.person, brand)
     )

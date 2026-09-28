@@ -20,6 +20,7 @@ from pinecall.domain.errors import DeclarationRefused, UpstreamFailed
 from pinecall.domain.names import AN_ADDRESS, Json
 from pinecall.postgres.pool import Pool
 from pinecall.process.connections import Connections
+from pinecall.tenancy.letters import Letter
 from pinecall.tenancy.vault import opened, sealed
 
 # starttls on 587, implicit TLS on 465; none only for a relay on the same machine.
@@ -68,9 +69,6 @@ NOT_WRITTEN = "the letter could not be written: {said}"
 BOX_MAIL = "mail"
 
 
-BRAND = "brand"
-
-
 ORG_MAIL = """
 SELECT host, port, security, username, sender, ciphertext, verified_at, last_error
 FROM org_mail WHERE org = %(org)s
@@ -116,39 +114,6 @@ UPDATE box_settings SET value = value || %(went)s WHERE name = %(name)s
 """
 
 
-NAME = "Pinecall"
-
-
-ACCENT = "#5b3df5"
-
-
-# Written into a style attribute, so six hex digits and nothing else.
-A_BRAND_COLOUR = re.compile(r"^#[0-9a-fA-F]{6}$")
-
-
-# The name goes into a subject line, where a line break would start another header.
-LONGEST_NAME = 60
-
-
-NOT_A_COLOUR = "{said!r} is not an accent: a colour is #rrggbb, six hex digits"
-
-
-NOT_A_LOGO = (
-    "{said!r} is not a logo: an https:// URL of an image, since a mail client fetches it from "
-    "wherever the reader is and blocks plain http"
-)
-
-
-@dataclass(frozen=True)
-class Letter:
-    """A letter ready to go: to whom, its subject, and the same words as text and as HTML."""
-
-    to: str
-    subject: str
-    text: str
-    html: str
-
-
 @dataclass(frozen=True)
 class Mailbox:
     """An SMTP account: the server, the credentials, and who the letters are from."""
@@ -177,24 +142,6 @@ class MailboxStatus:
     source: Source
     verified_at: datetime | None = None
     last_error: str | None = None
-
-
-@dataclass(frozen=True)
-class Brand:
-    """What the letters are called and painted with."""
-
-    name: str = NAME
-    # None fetches no image at all.
-    logo_url: str | None = None
-    accent: str = ACCENT
-
-    def __post_init__(self) -> None:
-        if not self.name.strip() or len(self.name) > LONGEST_NAME or "\n" in self.name:
-            raise DeclarationRefused(NOT_A_NAME)
-        if not A_BRAND_COLOUR.match(self.accent):
-            raise DeclarationRefused(NOT_A_COLOUR.format(said=self.accent))
-        if self.logo_url is not None and not an_https_url(self.logo_url):
-            raise DeclarationRefused(NOT_A_LOGO.format(said=self.logo_url))
 
 
 class Outbox:
@@ -266,9 +213,6 @@ class Outbox:
 
 
 SCHEMES: Mapping[str, tuple[int, Security]] = {"smtp": (587, "starttls"), "smtps": (465, "tls")}
-
-
-NOT_A_NAME = f"a brand's name is one line of at most {LONGEST_NAME} characters"
 
 
 def address_of(written: str) -> str:
@@ -360,45 +304,6 @@ async def drop_box_mail(pool: Pool) -> bool:
         return await dropped.fetchone() is not None
 
 
-async def brand_of(pool: Pool) -> Brand:
-    """The box's brand; Pinecall's when nobody set one, or when the row does not read."""
-    async with pool.connection() as connection:
-        row = await (await connection.execute(SETTING, {"name": BRAND})).fetchone()
-    if row is None:
-        return Brand()
-    value = row["value"]
-    try:
-        return Brand(
-            name=str(value.get("name") or NAME),
-            logo_url=value.get("logo_url") or None,
-            accent=str(value.get("accent") or ACCENT),
-        )
-    except DeclarationRefused:
-        logger.warning("the box's brand does not read: letters go out as Pinecall's")
-        return Brand()
-
-
-async def put_brand(pool: Pool, brand: Brand) -> None:
-    """Keep the box's brand."""
-    value = {"name": brand.name, "logo_url": brand.logo_url, "accent": brand.accent}
-    async with pool.connection() as connection:
-        await connection.execute(
-            PUT_SETTING, {"name": BRAND, "value": Jsonb(value), "ciphertext": None}
-        )
-
-
-# None keeps a field; an empty string sets it back to the default, the one way to clear a logo.
-def apply_brand(
-    brand: Brand, *, name: str | None = None, logo_url: str | None = None, accent: str | None = None
-) -> Brand:
-    """The brand with what was named replaced."""
-    return Brand(
-        name=brand.name if name is None else (name.strip() or NAME),
-        logo_url=brand.logo_url if logo_url is None else (logo_url.strip() or None),
-        accent=brand.accent if accent is None else (accent.strip().lower() or ACCENT),
-    )
-
-
 # smtplib gets a timeout of its own: cancelling the thread's future does not stop the thread.
 async def post(mailbox: Mailbox, letter: Letter, *, within_s: float = TIMEOUT_S) -> None:
     """Hand the letter to the mail server; its own reply when it refuses."""
@@ -411,16 +316,6 @@ async def post(mailbox: Mailbox, letter: Letter, *, within_s: float = TIMEOUT_S)
     except TimeoutError:
         text = TIMED_OUT.format(host=mailbox.host, port=mailbox.port, seconds=within_s)
         raise UpstreamFailed(text) from None
-
-
-def an_https_url(written: str) -> bool:
-    """Whether the text is an https URL with a host and nothing an attribute would break on."""
-    parts = urlsplit(written)
-    return (
-        parts.scheme == "https"
-        and bool(parts.hostname)
-        and not any(char in written for char in " \"'<>\n")
-    )
 
 
 def parse_security(word: str) -> Security:

@@ -18,6 +18,8 @@ from pinecall.channels.rooms import Dialling, Dispatch
 from pinecall.channels.telephony.sip import domain_of
 from pinecall.channels.telephony.twilio import (
     TERMINATION_SUFFIX,
+    Twilio,
+    TwilioTrunk,
     origination_uri,
     termination_host,
     twilio_of,
@@ -121,6 +123,30 @@ class Provisioned:
 
 
 @dataclass(frozen=True)
+class TwilioSurvey:
+    """What the account holds today: the trunk, its termination host, the list, the credential."""
+
+    twilio: Twilio
+    trunk: TwilioTrunk | None
+    host: str
+    list_name: str
+    listed: str | None
+    username: str
+    # Whether the list already holds the org's credential; else one is made and sealed.
+    holds: bool
+    on_trunk: bool
+
+
+@dataclass(frozen=True)
+class OutboundSurvey:
+    """How an account stands before anything is written: the steps read, and Twilio's own."""
+
+    steps: list[str]
+    address: str | None = None
+    twilio: TwilioSurvey | None = None
+
+
+@dataclass(frozen=True)
 class Placement:
     """A call asked for: scope, agent, the far end, the number shown, who asked, the day."""
 
@@ -174,7 +200,10 @@ async def plan_outbound(
 ) -> Provisioned:
     """What provisioning would write, and nothing written."""
     carrier = await carrier_named(connections.pool, connections.vault, org, account)
-    return await _provisioned(connections, carrier, dry_run=True)
+    survey = await _surveyed(connections, carrier)
+    return Provisioned(
+        steps=survey.steps, dry_run=True, ready=survey.twilio is None, address=survey.address
+    )
 
 
 async def provision_outbound(
@@ -182,7 +211,13 @@ async def provision_outbound(
 ) -> Provisioned:
     """Make the account dialable: Twilio's termination and a credential; a peer needs nothing."""
     carrier = await carrier_named(connections.pool, connections.vault, org, account)
-    return await _provisioned(connections, carrier, dry_run=False)
+    survey = await _surveyed(connections, carrier)
+    if survey.twilio is None:
+        return Provisioned(steps=survey.steps, dry_run=False, ready=True, address=survey.address)
+    trunk = await _twilio_provisioned(connections, carrier, survey.twilio)
+    return Provisioned(
+        steps=survey.steps, dry_run=False, ready=True, trunk=trunk, address=survey.address
+    )
 
 
 async def place_call(
@@ -291,26 +326,24 @@ def _missing_to_dial(carrier: Carrier) -> list[str]:
 
 
 # This box makes nothing on somebody else's switch: a peer is dialled where it said.
-async def _provisioned(connections: Connections, carrier: Carrier, *, dry_run: bool) -> Provisioned:
+async def _surveyed(connections: Connections, carrier: Carrier) -> OutboundSurvey:
     match carrier.account:
         case TwilioAccount():
-            return await _twilio_provisioned(connections, carrier, carrier.account, dry_run=dry_run)
+            return await _twilio_surveyed(connections, carrier, carrier.account)
         case SipPeer() if carrier.account.outbound_host:
             peer = carrier.account
             where = f"{peer.outbound_host} over {peer.outbound_transport}"
-            return Provisioned(
-                steps=[f"SIP peer: dialled at {where}: stands"],
-                dry_run=dry_run,
-                ready=True,
-                address=peer.outbound_host,
+            return OutboundSurvey(
+                steps=[f"SIP peer: dialled at {where}: stands"], address=peer.outbound_host
             )
         case SipPeer() | WhatsappAccount():
             raise Conflict(_missing_to_dial(carrier)[0])
 
 
-async def _twilio_provisioned(
-    connections: Connections, carrier: Carrier, account: TwilioAccount, *, dry_run: bool
-) -> Provisioned:
+# Read before anything is written, so a plan and a provisioning see the same account.
+async def _twilio_surveyed(
+    connections: Connections, carrier: Carrier, account: TwilioAccount
+) -> OutboundSurvey:
     domain = domain_of(connections)
     twilio = twilio_of(connections.http, account)
     trunk = await twilio.trunk_pointing_at(origination_uri(domain))
@@ -328,29 +361,47 @@ async def _twilio_provisioned(
     on_trunk = (
         trunk is not None and listed is not None and listed in await twilio.lists_on(trunk.sid)
     )
-    made = "to do" if dry_run else "done"
     pointed = f"Twilio: a trunk sending calls to {origination_uri(domain)}"
+    terminated = trunk is not None and trunk.domain_name == host
     steps = [
-        f"{pointed}: {'stands' if trunk else made}",
-        f"Twilio: dialled at {host}: {'stands' if trunk and trunk.domain_name == host else made}",
-        f"Twilio: credential list {name}: {'stands' if listed else made}",
-        f"Twilio: the org's credential {username} on it: {'stands' if holds else made}",
-        f"Twilio: the trunk asks for it: {'stands' if on_trunk else made}",
+        f"{pointed}: {'stands' if trunk else 'to do'}",
+        f"Twilio: dialled at {host}: {'stands' if terminated else 'to do'}",
+        f"Twilio: credential list {name}: {'stands' if listed else 'to do'}",
+        f"Twilio: the org's credential {username} on it: {'stands' if holds else 'to do'}",
+        f"Twilio: the trunk asks for it: {'stands' if on_trunk else 'to do'}",
     ]
-    if dry_run:
-        return Provisioned(steps=steps, dry_run=True, ready=False)
-    trunk = trunk or await twilio.trunk_made(domain, origination_uri(domain))
-    if trunk.domain_name != host:
-        await twilio.terminated(trunk.sid, host)
-    listed = listed or await twilio.credential_list_made(name)
+    at_twilio = TwilioSurvey(
+        twilio=twilio,
+        trunk=trunk,
+        host=host,
+        list_name=name,
+        listed=listed,
+        username=username,
+        holds=holds,
+        on_trunk=on_trunk,
+    )
+    return OutboundSurvey(steps=steps, address=host, twilio=at_twilio)
+
+
+async def _twilio_provisioned(
+    connections: Connections, carrier: Carrier, survey: TwilioSurvey
+) -> str:
+    domain = domain_of(connections)
+    twilio = survey.twilio
+    trunk = survey.trunk or await twilio.trunk_made(domain, origination_uri(domain))
+    if trunk.domain_name != survey.host:
+        await twilio.terminated(trunk.sid, survey.host)
+    listed = survey.listed or await twilio.credential_list_made(survey.list_name)
     outbound = carrier.outbound
-    if not holds:
-        outbound = Termination(host=host, username=username, password=secrets.token_urlsafe(24))
+    if not survey.holds:
+        outbound = Termination(
+            host=survey.host, username=survey.username, password=secrets.token_urlsafe(24)
+        )
         await twilio.credential_added(listed, outbound.username, outbound.password)
-    if not on_trunk:
+    if not survey.on_trunk:
         await twilio.list_attached(trunk.sid, listed)
     await seal_carrier(connections.pool, connections.vault, replace(carrier, outbound=outbound))
-    return Provisioned(steps=steps, dry_run=False, ready=True, trunk=trunk.sid, address=host)
+    return trunk.sid
 
 
 async def _dials_through(connections: Connections, scope: Scope, shown: str) -> Carrier:

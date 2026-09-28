@@ -105,6 +105,35 @@ class SpokenLine:
     line: Line
 
 
+class CallerLeg:
+    """The caller's leg of a spoken call: its track in the room, its voice, the line's noise."""
+
+    def __init__(
+        self, spoken: SpokenLine, voice: tts.TTS[Never], logs: Logs, interferer: bytes
+    ) -> None:
+        """A leg with its track made and nothing said yet."""
+        self.spoken = spoken
+        self.voice = voice
+        self.logs = logs
+        self.interferer = interferer
+        self.source = rtc.AudioSource(SAMPLE_RATE, CHANNELS)
+        self.track = rtc.LocalAudioTrack.create_audio_track(A_SIMULATED_CALLER, self.source)
+
+    async def say(self, line: str) -> None:
+        """Speak one line into the room, through the line's noise."""
+        pcm = await _synthesized(self.voice, line)
+        if self.spoken.line.interferer_db is not None:
+            pcm = mix_interferer(pcm, self.interferer, self.spoken.line.interferer_db)
+        for frame in drop_packets(frames_of(pcm, SAMPLE_RATE), self.spoken.line):
+            await self.source.capture_frame(
+                rtc.AudioFrame(frame, SAMPLE_RATE, CHANNELS, len(frame) // 2)
+            )
+
+    async def line_answered(self, lines: int) -> None:
+        """Wait until the agent answered this many lines, or the call ended."""
+        await answered(self.logs, self.spoken.call, lines)
+
+
 def described(line: Line) -> str:
     """The line in the words a report prints."""
     if line.interferer_db is None and line.packet_loss <= 0:
@@ -277,29 +306,15 @@ async def run_spoken(
             interferer = await _synthesized(voice, A_TELEVISION)
         await room.connect(spoken.url, spoken.token)
         try:
-            source = rtc.AudioSource(SAMPLE_RATE, CHANNELS)
-            track = rtc.LocalAudioTrack.create_audio_track(A_SIMULATED_CALLER, source)
+            leg = CallerLeg(spoken, voice, logs, interferer)
             # Published before the agent arrives: audio pushed before a subscription is lost.
             await room.local_participant.publish_track(
-                track, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE)
+                leg.track, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE)
             )
             await _until_the_agent_is_here(room, spoken.call)
-
-            async def say(line: str) -> None:
-                pcm = await _synthesized(voice, line)
-                if spoken.line.interferer_db is not None:
-                    pcm = mix_interferer(pcm, interferer, spoken.line.interferer_db)
-                for frame in drop_packets(frames_of(pcm, SAMPLE_RATE), spoken.line):
-                    await source.capture_frame(
-                        rtc.AudioFrame(frame, SAMPLE_RATE, CHANNELS, len(frame) // 2)
-                    )
-
-            async def wait(lines: int) -> None:
-                await answered(logs, spoken.call, lines)
-
-            said_count = await speak_turns(spoken.turns, next_line, say, wait)
+            said_count = await speak_turns(spoken.turns, next_line, leg.say, leg.line_answered)
             # Waited again: hanging up at once would cut the agent's last answer.
-            await answered(logs, spoken.call, said_count)
+            await leg.line_answered(said_count)
             return said_count
         finally:
             await room.disconnect()

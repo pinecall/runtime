@@ -4,7 +4,7 @@ from pinecall.domain.names import JsonObject
 from pinecall.evals._evidence import (
     AN_HOUR,
     Evidence,
-    Scope,
+    Source,
     carries,
     committed_in,
     evidence_of,
@@ -39,8 +39,8 @@ def test_a_person_is_the_name_after_the_title_and_not_the_title() -> None:
 
 def test_a_fact_is_found_whatever_the_spacing_and_the_case() -> None:
     evidence = Evidence(text=(), calls=("slots → 10 : 00",))
-    assert carries(evidence, "10:00", Scope.CALL)
-    assert not carries(evidence, "10:00", Scope.TEXT)
+    assert carries(evidence, "10:00", Source.CALL)
+    assert not carries(evidence, "10:00", Source.TEXT)
 
 
 def test_an_hour_only_in_the_written_evidence_is_named_as_a_near_miss() -> None:
