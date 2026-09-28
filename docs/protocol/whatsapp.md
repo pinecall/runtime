@@ -14,7 +14,7 @@ an account (`PUT /v1/carrier {"kind": "whatsapp", "phone_number_id", "access_tok
 
 ```
 console → Numbers → Import
-  {"number": "+59829000000", "agent": "recepcion", "channel": "whatsapp", "hooked": true}
+  {"number": "+59829000000", "agent": "recepcion", "channel": "whatsapp", "account": "1055…"}
 ```
 
 The number a WhatsApp account answers at is asked of Meta: `GET /v1/numbers/available` lists it
